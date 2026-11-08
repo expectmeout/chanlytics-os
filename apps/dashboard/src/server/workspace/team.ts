@@ -34,6 +34,7 @@ import { getTenantFacts } from "../shared/tenant";
 import { requireSecondFactor, type RouteContext } from "../shared/with-route";
 import { log } from "@/server/shared/log";
 import type { TenantId } from "@chanlytics/contracts";
+import { logKeptGoing, logAndGoOn } from "@chanlytics/log";
 
 /**
  * Team operations: the roster, an invitation, a role change, a removal, and the sign-in that completes an invitation.
@@ -343,7 +344,8 @@ async function openInvitesFor(email: string | null): Promise<InviteToAccept[]> {
     // A person's open invitations, whichever workspaces they are to: by design, read by their address.
     const { data, error } = await listInvitesForAddress(serviceDb(), email.toLowerCase(), new Date().toISOString());
     return error ? [] : (data ?? []);
-  } catch {
+  } catch (e) {
+    logKeptGoing("open invitations of an address", e);
     return [];
   }
 }
@@ -413,7 +415,7 @@ export async function joinFromInvitations(
   const joined: JoinedWorkspaceDto[] = await Promise.all(
     seated.map(async (inv) => ({
       id: inv.tenant_id,
-      name: (await getTenantFacts(db, inv.tenant_id).catch(() => null))?.name ?? "a workspace",
+      name: (await getTenantFacts(db, inv.tenant_id).catch(logAndGoOn("getTenantFacts", null)))?.name ?? "a workspace",
       role: inv.role,
     })),
   );

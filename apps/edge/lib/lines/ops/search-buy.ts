@@ -30,7 +30,7 @@ import {
 import { lineForClient, type LineProviderChoice } from "../lines.js";
 import { factsOf, FILED_NAME_FACT, retryRequestedBy, type LineDbRow } from "../resume.js";
 import type { LineReleaseResult } from "../release.js";
-import { errorMessage, type DoorAnswer } from "../../shared/admin-door.js";
+import type { DoorAnswer } from "../../shared/admin-door.js";
 import type { TenantId } from "@chanlytics/contracts";
 import { logFailure } from "../../shared/log.js";
 
@@ -270,7 +270,7 @@ export function queuedAnswer(choice: LineProviderChoice, row: LineDbRow): DoorAn
 export function notScheduledAnswer(error: unknown, row: LineDbRow): DoorAnswer {
   return {
     status: 503,
-    body: { ok: false, error: "could_not_queue", detail: errorMessage(error), line: lineForClient(row) },
+    body: { ok: false, error: "could_not_queue", detail: logFailure("write", error), line: lineForClient(row) },
   };
 }
 

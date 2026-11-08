@@ -96,6 +96,7 @@ import {
 } from "@chanlytics/db/google";
 import { findWorkspaceZoneRow } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -196,7 +197,7 @@ async function link(googleCall: GoogleCall): Promise<Response> {
   } catch (e) {
     return respond(unreadablePlaceAnswer(e));
   }
-  const before = await findLinkedPlace(googleCall.db, googleCall.tenantId).catch(() => null);
+  const before = await findLinkedPlace(googleCall.db, googleCall.tenantId).catch(logAndGoOn("findLinkedPlace", null));
   const saved = await saveGoogleListingBack(
     googleCall.db,
     googleCall.tenantId,
@@ -223,7 +224,7 @@ async function link(googleCall: GoogleCall): Promise<Response> {
     name: details.name,
     by: googleCall.userId,
     read: read.ok,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event google.linked"));
   googleCall.L.info("google_linked", { place_id: details.place_id, read: read.ok });
   return respond(linkedAnswer(await listingNow(googleCall), saved.data, read));
 }
@@ -338,7 +339,7 @@ async function unlink(googleCall: GoogleCall, conn: ConnectionRow | null, row: L
     name: row.name,
     had_profile: !!conn,
     by: googleCall.userId,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event google.unlinked"));
   googleCall.L.info("google_unlinked", { place_id: row.place_id });
   return json(200, { ok: true, removed: true });
 }

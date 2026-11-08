@@ -31,6 +31,7 @@ import { logger } from "../../shared/log.js";
 import { findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 import { asJson } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -181,7 +182,9 @@ export async function getReachOutRunContext(
     },
     recordRun: async (run, counts) => {
       const data = { run_for: run.run_for, broadcast_id: run.id, state: run.state, ...counts, reach_out: true };
-      await emitEvent(db, tenantId, "playbook.run", "playbook", run.playbook_id, data).catch(() => {});
+      await emitEvent(db, tenantId, "playbook.run", "playbook", run.playbook_id, data).catch(
+        logAndGoOn("event playbook.run"),
+      );
       // Scheduled without its owner's yes: the system's decision, under the mode the owner chose (veto).
       if (run.state === "scheduled") {
         const { error } = await insertDecision(db, {

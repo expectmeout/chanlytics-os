@@ -438,6 +438,7 @@ async function answerAgent(req: Request, deps: VoiceDoorDeps): Promise<Response>
     log.warn("ask_voice_door_refused", { why: "secret" });
     return new Response("unauthorized", { status: 401 });
   }
+  // A body that is not JSON is none: what reads it next refuses.
   const body = recordOrNull(await req.json().catch(() => null));
   const knock = await admit(body, deps);
   if (knock.kind === "answered") return knock.response;

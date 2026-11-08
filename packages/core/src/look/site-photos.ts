@@ -39,6 +39,7 @@ function wholeUrl(raw: string | null | undefined, pageUrl: string): string | nul
     const u = new URL(text, pageUrl);
     return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
   } catch {
+    // Not an address.
     return null;
   }
 }

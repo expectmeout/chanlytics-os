@@ -158,6 +158,7 @@ export function teeUsage(
       try {
         ev = JSON.parse(raw) as typeof ev;
       } catch {
+        // Not JSON: nothing to read.
         continue;
       }
       if (ev.type === "message_start" && ev.message?.usage) {

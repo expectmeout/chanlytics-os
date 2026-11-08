@@ -28,6 +28,7 @@ export function normalizeLink(raw: string | null | undefined): string | null {
   try {
     url = new URL(withScheme);
   } catch {
+    // Not an address.
     return null;
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;
@@ -73,6 +74,7 @@ export function publicObjectSrc(supabaseUrl: string | null | undefined, bucket: 
   try {
     origin = new URL(supabaseUrl).origin;
   } catch {
+    // Not an address.
     return null;
   }
   if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;

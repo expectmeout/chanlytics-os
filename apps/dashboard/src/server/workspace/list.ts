@@ -262,6 +262,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
 }
 
 export async function patchWorkspace(ctx: RouteContext, req: Request, member: Member) {
+  // A body that is not JSON is none: what reads it next refuses.
   const body = recordOrNull(await req.json().catch(() => null));
   const zone = body?.timezone !== undefined;
   const word = body?.appointment_word;

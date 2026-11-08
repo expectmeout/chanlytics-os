@@ -23,6 +23,7 @@ import type {
 import type { Database } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
 import { withReadyCounts } from "../sequence-waiting";
+import { dbLogAndGoOn } from "../../../shared/observe";
 
 export type Db = SupabaseClient<Database>;
 
@@ -373,9 +374,9 @@ export async function findSequenceRecordFacts(
   history: { ran: boolean; wrote: boolean } | undefined;
 }> {
   const [first, lastRunOff, history] = await Promise.all([
-    firstStepFacts(db, tenantId, sequenceId).catch(() => undefined),
-    lastRunSkipped(db, tenantId, sequenceId).catch(() => undefined),
-    sequenceHistoryFacts(db, tenantId, sequenceId).catch(() => undefined),
+    firstStepFacts(db, tenantId, sequenceId).catch(dbLogAndGoOn("firstStepFacts")),
+    lastRunSkipped(db, tenantId, sequenceId).catch(dbLogAndGoOn("lastRunSkipped")),
+    sequenceHistoryFacts(db, tenantId, sequenceId).catch(dbLogAndGoOn("sequenceHistoryFacts")),
   ]);
   return { first, lastRunOff, history };
 }

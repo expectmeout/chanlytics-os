@@ -372,6 +372,7 @@ function coldFootOf(business: string | null, address: string | null, source: str
       REACH_OUT_LANGUAGE,
     );
   } catch {
+    // A foot the business's details cannot make: none, until they can.
     return null;
   }
 }

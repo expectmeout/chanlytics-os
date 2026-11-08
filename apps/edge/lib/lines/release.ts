@@ -51,6 +51,7 @@ import { findPlanForRelease, listStripeAccountsIn } from "@chanlytics/db/billing
 import { listWorkspaceStandings } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
 import { logFailure } from "../shared/log.js";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -200,7 +201,7 @@ export async function releaseLine(
     provider: choice.name,
     ...released,
     ...event,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event line.released"));
   return { ok: true, released };
 }
 

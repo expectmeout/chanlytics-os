@@ -66,6 +66,7 @@ import { startMailboxHistory } from "../imports/history-import.js";
 import { errField, type Logger } from "../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -112,6 +113,7 @@ function claimsOf(idToken: string | null): Claims {
     const verified = c.email_verified === true || c.email_verified === "true";
     return { email: str(c.email), sub: str(c.sub), name: str(c.name), hd: str(c.hd), verified };
   } catch {
+    // Not JSON: nothing to read.
     return none;
   }
 }
@@ -140,7 +142,7 @@ async function giveBack(provider: MailboxProvider, token: string): Promise<void>
     headers: r.headers,
     body: r.body,
     timeoutMs: REVOKE_MS,
-  }).catch(() => null);
+  }).catch(logAndGoOn("fetchFromProvider", null));
 }
 
 /** Whether a host is the business's own customer domain: its website's, or taken to be when it has none on file. */
@@ -315,7 +317,7 @@ export async function removeMailbox(
   row: MailboxConnectionRow,
   by: string | null,
 ): Promise<void> {
-  const result = await getToken(mailboxPorts.db, row).catch(() => null);
+  const result = await getToken(mailboxPorts.db, row).catch(logAndGoOn("getToken", null));
   if (result?.ok) {
     await endWatch(row, result.token);
     await giveBack(row.provider === "microsoft" ? "microsoft" : "google", result.token);

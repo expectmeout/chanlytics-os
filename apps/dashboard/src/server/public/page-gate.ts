@@ -62,11 +62,13 @@ export async function getPublicPageNamesNothing(path: string, read: PublicPageRe
     try {
       slug = decodeURIComponent(match[1] ?? "");
     } catch {
+      // Not valid percent-encoding.
       return true;
     }
     try {
       return !(await page.has(slug, read));
     } catch {
+      // Unread is no reason to send a person away: the page itself says what it finds.
       return false;
     }
   }

@@ -30,6 +30,7 @@ import { serviceDb } from "../shared/service-db";
 import type { RouteContext } from "../shared/with-route";
 import { SHORTER_ASK, WARMER_ASK } from "@/server/shared/model/tones";
 import { findLeadDraftFacts } from "@chanlytics/db/leads";
+import { logAndGoOn } from "@chanlytics/log";
 
 /* -------------------------------------------------------------- the draft */
 
@@ -123,9 +124,7 @@ export async function draftFor(
   if (held.size > 0) throw new AppError("conflict", LEAD_ASKED_NOT_WRITTEN, 409);
   const [facts, config] = await Promise.all([
     draftFacts(ctx, lead),
-    getStoredConfig(ctx.supabase, lead.tenant_id)
-      .then(parseTenantConfig)
-      .catch(() => null),
+    getStoredConfig(ctx.supabase, lead.tenant_id).then(parseTenantConfig).catch(logAndGoOn("getStoredConfig", null)),
   ]);
   const sentence =
     input.tone === "shorter" ? SHORTER_ASK : input.tone === "warmer" ? WARMER_ASK : "Write the first one.";

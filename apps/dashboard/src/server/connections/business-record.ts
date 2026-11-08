@@ -67,6 +67,7 @@ async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: TenantI
 }
 
 export async function saveBusinessRecord(ctx: RouteContext, req: Request, member: Member) {
+  // A body that is not JSON is none: what reads it next refuses.
   const body = (await req.json().catch(() => ({}))) as { record?: Partial<BusinessRecordDto>; path?: string };
   const record = body.record && typeof body.record === "object" ? body.record : {};
   // WHICH registration this is for, said by the page rather than guessed from a

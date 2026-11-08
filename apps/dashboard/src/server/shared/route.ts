@@ -64,6 +64,7 @@ import { takeRate, type RateBucket } from "./rate-limit";
 import { getBackOffice, type BackOffice } from "./back-office";
 import { log } from "./log";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Role = MemberContext["role"];
 export type Params = Record<string, string | string[] | undefined>;
@@ -338,7 +339,7 @@ async function onceForKey<O>(
   try {
     out = await run();
   } catch (e) {
-    await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso }).catch(() => {});
+    await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso }).catch(logAndGoOn("releaseIdempotencyKey"));
     throw e;
   }
   const response = viaJson<Json>(out === undefined ? { ok: true } : out);

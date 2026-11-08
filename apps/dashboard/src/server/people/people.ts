@@ -55,6 +55,7 @@ export function peopleCursorParam(param: string): PeopleCursor | null {
   try {
     value = JSON.parse(Buffer.from(param, "base64url").toString("utf8"));
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
   const parts = listOrEmpty(value);

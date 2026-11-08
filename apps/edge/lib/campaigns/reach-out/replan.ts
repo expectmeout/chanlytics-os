@@ -22,6 +22,7 @@ import { DAY_MS, DEFAULT_TIMEZONE, timetable, weekHoursOf, zoneOfRegion, DbFailu
 import { stepSenders } from "./senders.js";
 import type { Logger } from "../../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -128,7 +129,10 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         leads.push(...(data ?? []));
       }
       if (!zones.has(tenantId))
-        zones.set(tenantId, (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE);
+        zones.set(
+          tenantId,
+          (await findWorkspaceZone(db, tenantId).catch(logAndGoOn("findWorkspaceZone", null))) || DEFAULT_TIMEZONE,
+        );
       // A later step's send keeps the mailbox its lead's chain writes from; a first one may take any of the step's.
       const keeps = !!step?.after_step_id;
       // Each mailbox's times, less these sends' own: a send planned again never waits for the time it held.

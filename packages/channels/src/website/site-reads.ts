@@ -45,6 +45,7 @@ export async function fetchImageBytes(
     });
     if (!res.ok || !res.body) return null;
     if (Number(res.headers.get("content-length") ?? 0) > maxBytes) {
+      // Closing what this is done with: nothing to do if that fails.
       await res.body.cancel().catch(() => undefined);
       return null;
     }
@@ -56,6 +57,7 @@ export async function fetchImageBytes(
       if (done) break;
       size += value.byteLength;
       if (size > maxBytes) {
+        // Closing what this is done with: nothing to do if that fails.
         await reader.cancel().catch(() => undefined);
         return null;
       }
@@ -69,6 +71,7 @@ export async function fetchImageBytes(
     }
     return out;
   } catch {
+    // A page that cannot be fetched is none: its reader says it read nothing.
     return null;
   }
 }

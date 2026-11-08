@@ -26,6 +26,7 @@ import {
   type Db,
 } from "./subscription.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export async function getInvoices(
   db: Db,
@@ -179,7 +180,9 @@ export async function forgetCustomer(db: Db, row: BillingRow, customerId: string
   });
   if (!forgotten) return false;
   const deleted = { source: DELETED_CUSTOMER, status: "none" };
-  await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, deleted).catch(() => {});
+  await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, deleted).catch(
+    logAndGoOn("event billing.updated"),
+  );
   return true;
 }
 
@@ -369,10 +372,14 @@ export async function notePayment(db: Db, row: BillingRow, paymentNote: PaymentN
       `stripe:${paymentNote.eventId}`,
     );
     if (mailOwed) throw new Error("the declined card's mail did not go; it goes on the retry");
-    await emitEvent(db, row.tenant_id, "billing.payment_failed", "subscription", null, {}).catch(() => {});
+    await emitEvent(db, row.tenant_id, "billing.payment_failed", "subscription", null, {}).catch(
+      logAndGoOn("event billing.payment_failed"),
+    );
   } else if (paymentNote.amountPaid === undefined || paymentNote.amountPaid > 0) {
     await keepOnRow(db, row.tenant_id, { last_paid_at: now.toISOString() });
-    await emitEvent(db, row.tenant_id, "billing.paid", "subscription", null, {}).catch(() => {});
+    await emitEvent(db, row.tenant_id, "billing.paid", "subscription", null, {}).catch(
+      logAndGoOn("event billing.paid"),
+    );
     // A paid invoice mends "A payment did not go through" and the trial's warning (contracts NOTICE_MENDS).
     await mendWarnings(db, { tenantId: row.tenant_id, by: { change: "billing.paid" }, subject: null, keptId: null });
   }

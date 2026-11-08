@@ -34,6 +34,7 @@ import { cardFingerprintOf, markCard } from "../partners/earnings.js";
 import { checkoutKeyOf, checkoutMadeOf, sessionReturn, type CheckoutMade } from "./checkout-session.js";
 import { findWorkspaceStanding } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export type Db = SupabaseClient<Database>;
 
@@ -282,7 +283,7 @@ export async function applySubscription(
     "subscription",
     null,
     { source, status: facts.status, subscription: sub.id, price_id: facts.price_id, ...(by ? { by } : {}) },
-  ).catch(() => {});
+  ).catch(logAndGoOn("event"));
   log.info("billing_applied", {
     source,
     status: facts.status,

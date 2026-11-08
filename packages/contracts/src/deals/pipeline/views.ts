@@ -91,6 +91,7 @@ export function parsePipelineRoute(
       try {
         name = decodeURIComponent(seg.slice(4));
       } catch {
+        // Not valid percent-encoding.
         continue;
       }
       if (name.trim()) view = `svc:${name}`;

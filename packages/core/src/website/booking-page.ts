@@ -51,6 +51,7 @@ export function bookingPageLinkedFrom(html: string, pageUrl: string): string | n
     try {
       resolved = new URL(decodeEntities(attrs.href), pageUrl).toString();
     } catch {
+      // Not an address.
       continue;
     }
     const page = bookingPageOf(resolved);

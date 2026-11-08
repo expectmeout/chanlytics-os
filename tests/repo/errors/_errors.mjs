@@ -96,7 +96,7 @@ function handlingOf(body) {
   return did;
 }
 
-/** A reason written beside a handler: inside it, or on the statement's own line or the two above it. */
+/** A reason written beside a handler: inside it, on its own lines or the one above, or the two above its statement. */
 function saysWhy(sf, handlerNode, body) {
   const text = sf.getFullText();
   if (ts.isBlock(body) && /\/\/|\/\*/.test(text.slice(body.getStart(sf) + 1, body.end - 1))) return true;
@@ -107,7 +107,7 @@ function saysWhy(sf, handlerNode, body) {
   const first = sf.getLineAndCharacterOfPosition(stmt.getStart(sf)).line;
   const own = sf.getLineAndCharacterOfPosition(handlerNode.getStart(sf)).line;
   const end = sf.getLineAndCharacterOfPosition(handlerNode.end).line;
-  const near = [lines[first - 2] ?? "", lines[first - 1] ?? "", ...lines.slice(own, end + 1)];
+  const near = [lines[first - 2] ?? "", lines[first - 1] ?? "", lines[own - 1] ?? "", ...lines.slice(own, end + 1)];
   return near.some((l) => /\/\/|\/\*|^\s*\*/.test(l));
 }
 

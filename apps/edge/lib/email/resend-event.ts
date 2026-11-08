@@ -36,6 +36,7 @@ import { emitEvent } from "@chanlytics/db/events";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { MIN_MS } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The event is metadata: ids, addresses, a subject. Anything larger is not one. */
 const MAX_BODY_BYTES = 256 * 1024;
@@ -118,7 +119,7 @@ export async function receiveResendEvent(request: Request): Promise<Response> {
     await emitEvent(db, heldTenantId("00000000-0000-0000-0000-000000000000"), "ingest.unroutable", null, null, {
       channel: "email",
       addresses: verdict.unroutable,
-    }).catch(() => {});
+    }).catch(logAndGoOn("event ingest.unroutable"));
   }
   if (verdict.kind === "ignore") {
     log.info(verdict.log);

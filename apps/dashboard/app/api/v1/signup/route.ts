@@ -51,6 +51,7 @@ export async function POST(req: Request): Promise<Response> {
   const started = Date.now();
   try {
     if (!isSameOrigin(req)) throw new AppError("forbidden", SIGNUP_WORDS.crossSite);
+    // A body that is not JSON is none: what reads it next refuses.
     const parsed = SignupSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new AppError("validation", parsed.error.issues[0]?.message ?? "Check the form.");
     const input = parsed.data;

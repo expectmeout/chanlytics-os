@@ -135,6 +135,13 @@ test("a failure's text stays in the log: no answer quotes a caught failure or a 
   );
 });
 
+test("no catch goes quiet without saying why", () => {
+  none(
+    across(quietCatchesIn),
+    'Log it and go on (.catch(logAndGoOn("what", fallback)), logKeptGoing), re-raise it, or write the reason beside it.',
+  );
+});
+
 test("no reply's failure is raised without its code", () => {
   none(
     across(droppedCodesIn),

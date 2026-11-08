@@ -181,6 +181,7 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
     try {
       parsed = new URL(url);
     } catch {
+      // Not an address.
       parsed = null;
     }
     if (!parsed || !/^https?:$/.test(parsed.protocol))

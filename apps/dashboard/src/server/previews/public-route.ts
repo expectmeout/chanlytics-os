@@ -28,6 +28,7 @@ async function fieldsOf(req: Request): Promise<Record<string, unknown>> {
     const parsed: unknown = JSON.parse(text || "{}");
     return parsed && typeof parsed === "object" ? recordOrEmpty(parsed) : {};
   } catch {
+    // Not JSON: nothing to read.
     return {};
   }
 }

@@ -11,6 +11,7 @@ import type { Database, Json } from "../../types";
 
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 import { DbFailure } from "@chanlytics/contracts";
+import { dbLogAndGoOn } from "../../shared/observe";
 type Db = SupabaseClient<Database>;
 
 /** An account's row as the sweep and the wires take it. */
@@ -102,7 +103,9 @@ export async function writeInstagramAccount(
     .select("id")
     .single();
   if (created.error?.code === "23505") {
-    const holder = await findInstagramAccountHolder(db, fields.accountId).catch(() => null);
+    const holder = await findInstagramAccountHolder(db, fields.accountId).catch(
+      dbLogAndGoOn("findInstagramAccountHolder", null),
+    );
     return holder?.tenant_id === fields.tenantId ? { id: holder.id } : "taken";
   }
   if (created.error || !created.data) return { failed: created.error?.message ?? "no row" };

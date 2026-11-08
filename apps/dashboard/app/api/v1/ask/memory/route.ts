@@ -23,6 +23,7 @@ export const POST = write({
     keepMemoryLine(
       ctx,
       member,
+      // A body that is not JSON is none: what reads it next refuses.
       (await req.json().catch(() => null)) as { text?: unknown; thread_id?: unknown; source?: unknown } | null,
     ),
 });

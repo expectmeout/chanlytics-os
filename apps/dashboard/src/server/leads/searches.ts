@@ -40,6 +40,7 @@ import { serviceDb } from "../shared/service-db";
 import { type Params, row } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export interface SearchViewRow {
   id: string;
@@ -425,6 +426,6 @@ export async function findLeadOfPerson(
   const { data, error } = await findNewestLeadOfPerson(ctx.supabase, tenantId, contactId);
   if (error) throw new DbFailure(error);
   if (!data) return null;
-  const reach = await findLeadTimeline(ctx, tenantId, data.id).catch(() => null);
+  const reach = await findLeadTimeline(ctx, tenantId, data.id).catch(logAndGoOn("findLeadTimeline", null));
   return { id: data.id, business_name: data.business_name, found_at: data.found_at, reach_out: reach };
 }

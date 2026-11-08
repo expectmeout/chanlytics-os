@@ -229,6 +229,7 @@ import {
   readSweepHealth,
 } from "@chanlytics/db/ops";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
 const EDGE_OP: Record<PlatformLineAction, (tenantId: TenantId, lineId: string) => EdgeBody<"/api/admin/lines">> = {
@@ -314,7 +315,7 @@ export async function findPlatformPartners(
       balances: r.balances,
       workspaces: r.workspaces.map((w) => ({ ...w, checks: recordOrNull(w.checks) })),
     }),
-    () => null,
+    logAndGoOn("getPlatformPartners", null),
   );
 }
 

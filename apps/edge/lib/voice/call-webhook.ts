@@ -90,6 +90,7 @@ import {
   type CallStep,
 } from "./call-event.js";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { logAndGoOn, logKeptGoing } from "@chanlytics/log";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -229,6 +230,7 @@ function readDelivery(raw: string): Delivery | null {
   try {
     body = JSON.parse(raw) as typeof body;
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
   const { event, call } = body;
@@ -378,7 +380,7 @@ async function deadLetter(db: Db, n: NormalizedCall): Promise<void> {
   await emitEvent(db, PLATFORM_TENANT, "ingest.unroutable", null, null, {
     channel: "voice",
     agent_id: n.agentId,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event ingest.unroutable"));
 }
 
 /**
@@ -504,7 +506,8 @@ async function allowedOnCall(db: Db, routed: RoutedChannel, n: NormalizedCall): 
     const rt = await loadTenantRuntime(db, routed);
     const composedAt = n.startedAtIso ? new Date(n.startedAtIso) : new Date();
     return rt.loadFailed ? null : priceAllowance(rt.brain, rt.timezone, composedAt);
-  } catch {
+  } catch (e) {
+    logKeptGoing("a call's allowance", e);
     return null;
   }
 }

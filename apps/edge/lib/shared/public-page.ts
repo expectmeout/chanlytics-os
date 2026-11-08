@@ -11,6 +11,7 @@
 import { feedUrlOk, SECOND_MS } from "@chanlytics/contracts";
 import { siteMapper, sitePageReader, type SiteLink, type SitePage } from "@chanlytics/channels/website";
 import { env } from "./env.js";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** One kind of read: how long the page may take, how much of it is held, and what it asks of the reader. */
 interface PageRead {
@@ -52,7 +53,9 @@ export async function findSitePage(url: string | null, read: PageRead): Promise<
   const at = feedUrlOk(url);
   const reader = sitePageReader(env.FIRECRAWL_API_KEY);
   if (!at || !reader) return null;
-  const page = await reader(at, { timeoutMs: read.timeoutMs, fresh: read.fresh, brand: read.brand }).catch(() => null);
+  const page = await reader(at, { timeoutMs: read.timeoutMs, fresh: read.fresh, brand: read.brand }).catch(
+    logAndGoOn("a public page's read", null),
+  );
   const landed = page ? feedUrlOk(page.url) : null;
   if (!page || !landed) return null;
   return {
@@ -102,6 +105,6 @@ export async function listSiteLinks(
   const at = feedUrlOk(url);
   const map = siteMapper(env.FIRECRAWL_API_KEY);
   if (!at || !map) return [];
-  const links = await map(at, options).catch(() => []);
+  const links = await map(at, options).catch(logAndGoOn("a public site's map", []));
   return links.filter((l) => !!feedUrlOk(l.url));
 }

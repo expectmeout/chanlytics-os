@@ -45,6 +45,7 @@ export function fromAnotherSite(headers: { get(name: string): string | null }): 
   try {
     return new URL(origin).host !== host;
   } catch {
+    // Not an address.
     return true;
   }
 }

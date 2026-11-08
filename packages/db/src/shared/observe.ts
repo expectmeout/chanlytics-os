@@ -74,6 +74,19 @@ export function dbLog(): DbLog {
   return (observerSlot.get() ?? FALLBACK).log;
 }
 
+/** Writes a failure db chose to go on past through its own port: as packages/log's logAndGoOn, which db does not import. */
+export function dbLogAndGoOn(what: string): (failure: unknown) => undefined;
+export function dbLogAndGoOn<F>(what: string, fallback: F): (failure: unknown) => F;
+export function dbLogAndGoOn(what: string, fallback?: unknown): (failure: unknown) => unknown {
+  return (failure) => {
+    dbLog().warn("kept_going", {
+      what,
+      error: failure instanceof Error ? `${failure.name}: ${failure.message}` : String(failure),
+    });
+    return fallback;
+  };
+}
+
 /** The request being served, when the process has said. */
 export function dbRequestId(): string | null {
   return (observerSlot.get() ?? FALLBACK).requestId();
@@ -169,6 +182,7 @@ export function namedFetch(base?: typeof fetch): typeof fetch {
     const id = dbRequestId();
     if (!id) {
       const call = send(input, init);
+      // The caller hears this failure: this only reads the answer.
       void call.then(
         (answer) => sayWhenAtCap(input, init, answer),
         () => undefined,

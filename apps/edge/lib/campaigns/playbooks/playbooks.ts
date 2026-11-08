@@ -77,6 +77,7 @@ import { emailCanSend } from "../../email/email.js";
 import { findConfigRow, findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -403,7 +404,9 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
       // Who a list's sequence already reached: its run goes once to each person (the loop review's item 6).
       reached: (sequenceId) => wasSequenceReached(db, tenantId, sequenceId),
       record: async (playbookId, runFor, at, data) => {
-        await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
+        await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(
+          logAndGoOn("event playbook.run"),
+        );
         // The run is kept (its batch says it ran, which alreadyRan reads); a stamp that fails is said, never the run's end.
         const stamped = await stampStepRun(db, tenantId, playbookId, runFor, at.toISOString());
         if (stamped.error)

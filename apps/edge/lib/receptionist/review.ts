@@ -69,6 +69,7 @@ import {
 } from "@chanlytics/contracts";
 import { rehearsalRouting } from "../voice/rehearsal-call.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -102,6 +103,7 @@ export function blockFinder(instructions: string, channel: "whatsapp" | "voice",
       brain ? { system_prompt: brain.system_prompt, profile: brain.profile } : null,
     );
   } catch {
+    // Blocks that cannot be read: a quote is found in none of them, and says so.
     blocks = [];
   }
   const w = (s: string) => defang(s).toLowerCase().replace(/\s+/g, " ").trim();
@@ -155,7 +157,9 @@ async function judge(options: {
 /** A spoken rehearsal whose end has not reached the webhook: the provider's word for it, written as the webhook would. */
 async function endedFromProvider(db: Db, rehearsal: RehearsalRow): Promise<RehearsalRow> {
   if (rehearsal.ended_at || !rehearsal.retell_call_id || !env.RETELL_API_KEY) return rehearsal;
-  const read = await getCall({ apiKey: env.RETELL_API_KEY }, rehearsal.retell_call_id).catch(() => null);
+  const read = await getCall({ apiKey: env.RETELL_API_KEY }, rehearsal.retell_call_id).catch(
+    logAndGoOn("getCall", null),
+  );
   if (read?.kind !== "found") return rehearsal;
   const retellCall: RetellCall = read.call;
   if (retellCall.call_status !== "ended" && retellCall.call_status !== "error") return rehearsal;

@@ -166,6 +166,7 @@ function countryWords(code: string | null): string {
   try {
     return COUNTRY_NAMES.of(c) ?? c;
   } catch {
+    // A zone or a code the runtime does not know.
     return c;
   }
 }

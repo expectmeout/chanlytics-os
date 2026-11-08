@@ -34,6 +34,7 @@ import {
   saveHeldReviewReply,
 } from "@chanlytics/db/google";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * The drafts one sync may write under the auto mode: twice the replies it posts, so a review the model could not
@@ -160,7 +161,7 @@ async function postReply(
     chars: text.length,
     by: "receptionist",
     ...(at.usage === undefined ? {} : { usage: at.usage }),
-  }).catch(() => {});
+  }).catch(logAndGoOn("event google.replied"));
 }
 
 /**
@@ -252,7 +253,7 @@ async function answerNewReviews(
       await emitEvent(db, conn.tenant_id, "google.reply_held", "review", pick.id, {
         review_id: pick.review_id,
         why: hold,
-      }).catch(() => {});
+      }).catch(logAndGoOn("event google.reply_held"));
       continue;
     }
     try {
@@ -318,7 +319,7 @@ export async function replyOnProfile(
   await emitEvent(db, tenantId, "google.replied", "review", rowId, {
     review_id: review.data.review_id,
     chars: comment.length,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event google.replied"));
   return { ok: true, ...reply };
 }
 

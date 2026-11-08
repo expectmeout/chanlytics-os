@@ -50,6 +50,7 @@ import {
 import { ensureVoiceAgent } from "../lines/voice-agent.js";
 import { planRehearsalStart } from "./call-start.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -152,7 +153,7 @@ async function reserveStart(
     return { ok: false, response: minutesUsed(allowance) };
   } catch (e) {
     log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "minutes", error: errField(e) });
-    await releaseRehearsalCall(db, tenantId, id).catch(() => undefined);
+    await releaseRehearsalCall(db, tenantId, id).catch(logAndGoOn("releaseRehearsalCall"));
     return { ok: false, response: refuse(503, "read_failed") };
   }
 }
@@ -345,5 +346,5 @@ export async function findRehearsalOfToolCall(
   call: { call_id?: string; call_type?: string } | null | undefined,
 ): Promise<RehearsalRow | null> {
   if (!call?.call_id || !isRehearsalCall(call)) return null;
-  return findRehearsalByCall(db, call.call_id).catch(() => null);
+  return findRehearsalByCall(db, call.call_id).catch(logAndGoOn("findRehearsalByCall", null));
 }

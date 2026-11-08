@@ -54,6 +54,7 @@ import { askJson, type JsonAnswer, type ModelCallFor } from "../../ai/model.js";
 import { siteWordsOf } from "@chanlytics/core";
 import { findHomePage, PAGE_READS } from "../../shared/public-page.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -201,7 +202,7 @@ function timedOut(e: unknown): boolean {
 /** The record with what its website says, read once for the writer and the reader alike; a site unread says nothing. */
 async function withWebsite(i: CheckInput): Promise<OpeningRecord> {
   if (!i.site) return i.record;
-  const sentence = await i.site().catch(() => null);
+  const sentence = await i.site().catch(logAndGoOn("a lead's website", null));
   return { ...i.record, website_says: sentence };
 }
 

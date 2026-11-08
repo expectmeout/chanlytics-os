@@ -29,6 +29,7 @@ import {
   saveGoogleListingDay,
   saveGoogleReviews,
 } from "@chanlytics/db/google";
+import { logAndGoOn } from "@chanlytics/log";
 
 export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
@@ -142,7 +143,7 @@ export async function checkListing(
       counted: plan.counted,
       rating: plan.listing.rating,
       review_count: plan.listing.review_count,
-    }).catch(() => {});
+    }).catch(logAndGoOn("event google.reviews"));
   }
   log.info("google_checked", {
     rating: plan.listing.rating,

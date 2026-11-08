@@ -71,6 +71,7 @@ import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
 import { inSet } from "@/server/console/acts";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * How many of each the queue reads: far past what ninety days of a help desk holds. A read that reached it says so in
@@ -186,7 +187,7 @@ export async function listAsksSince(
     Promise.all(
       askers
         .slice(0, ASKER_LOOKUPS)
-        .map(async (u) => [u, await findPersonEmail(office.db, u).catch(() => null)] as const),
+        .map(async (u) => [u, await findPersonEmail(office.db, u).catch(logAndGoOn("findPersonEmail", null))] as const),
     ).then((pairs) => new Map(pairs)),
   ]);
   return rows.flatMap((row) => {
@@ -327,7 +328,7 @@ export async function getConsoleSupport(
     supportBook(office, now),
     countBugReports(office.db, weekAgo).then(
       (r) => (r.error ? null : (r.count ?? 0)),
-      () => null,
+      logAndGoOn("countBugReports", null),
     ),
   ]);
   const all = queueOf(office, book, now);

@@ -314,6 +314,7 @@ export function subscribeWorkspaceChanges(
     const channel = hearing.channel;
     hearing.channel = null;
     hearing.status = null;
+    // Leaving a channel that is already gone needs nothing done.
     hearing.leaving = client.removeChannel(channel).then(
       () => undefined,
       () => undefined,

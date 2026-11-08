@@ -8,6 +8,7 @@ import { GatewayRefused } from "../shared/model/gateway";
 import { askPorts, turnHead, type AskPorts } from "./loop/turn-head";
 import { askModel } from "./model";
 import { getTurnFacts } from "./turn";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * The model's cache, written ahead of the question (5 Oct 2026).
@@ -64,7 +65,7 @@ export async function warmAskModel(
   if (warmedAt.size > WARMED_CAP && !oldest.done) warmedAt.delete(oldest.value);
   try {
     const rc = readerContext(ctx, member, undefined, { keep: true });
-    const [{ facts }, shape] = await Promise.all([getTurnFacts(rc), ports.shape(rc).catch(() => "")]);
+    const [{ facts }, shape] = await Promise.all([getTurnFacts(rc), ports.shape(rc).catch(logAndGoOn("shape", ""))]);
     const t0 = Date.now();
     const round = await ports.round(
       {

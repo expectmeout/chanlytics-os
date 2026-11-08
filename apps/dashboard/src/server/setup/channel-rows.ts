@@ -43,6 +43,7 @@ import { once } from "@/server/shared/lazy";
 import { log } from "@/server/shared/log";
 import { findLastConnectedCallIn } from "@chanlytics/db/voice";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
 /**
@@ -222,7 +223,7 @@ function calendarStands(
         mailbox: from.mailbox,
       }),
     )
-    .catch(() => null);
+    .catch(logAndGoOn("setup's calendar week", null));
 }
 
 /** Every source Setup reads, asked at once and in this order. */

@@ -85,6 +85,7 @@ async function relaySteps(
       try {
         line = JSON.parse(raw) as typeof line;
       } catch {
+        // Not JSON: nothing to read.
         return;
       }
       if (line.t !== "step" || typeof line.send_id !== "string" || !seen.has(line.send_id)) return;

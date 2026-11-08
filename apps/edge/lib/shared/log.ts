@@ -79,6 +79,7 @@ function signedName(request: Request): string | null {
     const verdict = verifyEdgeToken(secret, token, new URL(request.url).pathname);
     return verdict.ok ? (verdict.claims.rid ?? null) : null;
   } catch {
+    // A token that does not verify names nothing.
     return null;
   }
 }

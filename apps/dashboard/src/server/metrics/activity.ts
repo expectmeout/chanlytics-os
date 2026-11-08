@@ -43,6 +43,7 @@ import {
   listThreadIdsOfPerson,
 } from "@chanlytics/db/reports";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** Rows per read, over both ledgers merged. */
 const ACTIVITY_PAGE = 100;
@@ -329,12 +330,7 @@ export async function getActivityLog(
     r.subject_type && r.subject_id ? [{ type: r.subject_type, id: r.subject_id }] : [],
   );
   const [team, said, timezone] = await Promise.all([
-    ids.size
-      ? roster.then((r) => r.members)
-      : roster.then(
-          (r) => r.members,
-          () => [],
-        ),
+    ids.size ? roster.then((r) => r.members) : roster.then((r) => r.members, logAndGoOn("roster", [])),
     getActivitySubjects(sb, tenantId, about),
     zone,
   ]);

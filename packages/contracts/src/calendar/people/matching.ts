@@ -174,6 +174,7 @@ export function calendarOwnerOf(url: string | null | undefined): string | null {
       .trim()
       .toLowerCase();
   } catch {
+    // Not valid percent-encoding.
     return null;
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || /@(group|import)\.calendar\.google\.com$/.test(id)) return null;

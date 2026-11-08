@@ -50,6 +50,7 @@ import {
   saveGoogleListing,
 } from "@chanlytics/db/google";
 import { DbFailure } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 
@@ -109,11 +110,11 @@ export async function connectProfile(
     return { ok: false, error: "exchange_failed", detail: e instanceof Error ? e.message : String(e) };
   }
   if (!grantHasScope(grant, BUSINESS_SCOPE)) {
-    await net(revokeRequest(grant.access_token)).catch(() => null);
+    await net(revokeRequest(grant.access_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "scope_missing" };
   }
   if (!grant.refresh_token) {
-    await net(revokeRequest(grant.access_token)).catch(() => null);
+    await net(revokeRequest(grant.access_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "no_refresh_token" };
   }
   const claims = idTokenClaims(grant.id_token);
@@ -121,17 +122,17 @@ export async function connectProfile(
   try {
     locations = await allLocations(grant.access_token, net);
   } catch (e) {
-    await net(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "accounts_unreadable", detail: e instanceof Error ? e.message : String(e) };
   }
   const onMaps = locations.filter((l) => !!l.place_id);
   if (!locations.length) {
-    await net(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "no_locations" };
   }
   const first = onMaps[0];
   if (!first) {
-    await net(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "not_on_maps" };
   }
   const row = {
@@ -198,7 +199,7 @@ export async function connectProfile(
     locations: locations.length,
     on_maps: onMaps.length,
     by: userId,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event google.connected"));
   // One location on Maps is the one; among several, the one the owner already said was theirs (the first run's "That's
   // us", decision 0073 R17) is bound at once, and only otherwise does the owner choose.
   const linked = onMaps.length > 1 ? await findLinkedPlace(db, tenantId).catch(() => null) : null;
@@ -322,9 +323,9 @@ export async function disconnectProfile(
   const conn = await connectionOf(db, tenantId);
   if (!conn) return { ok: true, removed: false, revoked: false };
   let revoked = false;
-  const creds = await readCredentials(db, tenantId).catch(() => null);
+  const creds = await readCredentials(db, tenantId).catch(logAndGoOn("readCredentials", null));
   if (creds) {
-    const r = await http(revokeRequest(creds.refresh_token)).catch(() => null);
+    const r = await http(revokeRequest(creds.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
     revoked = !!r && r.status === 200;
   }
   // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.

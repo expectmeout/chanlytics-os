@@ -55,6 +55,7 @@ import { googleReader } from "./connections";
 import { everyone as everyoneRead } from "./everyone";
 import * as facts from "./facts";
 import { log } from "@/server/shared/log";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * Everyone in People, as the turn holds them (readers/everyone.ts): the booking line, the deals and the booking link's people
@@ -443,7 +444,7 @@ export async function getAskedHead(
 ): Promise<{ timezone: string; today: string; end?: string; days: number }> {
   const timezone = await load(rc, facts.facts, undefined).then(
     (f) => f.data.timezone,
-    () => DEFAULT_TIMEZONE,
+    logAndGoOn("load facts.facts", DEFAULT_TIMEZONE),
   );
   return {
     timezone,

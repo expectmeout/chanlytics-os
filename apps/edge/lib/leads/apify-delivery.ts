@@ -51,6 +51,7 @@ export async function receiveApifyDelivery(request: Request): Promise<Response> 
   try {
     body = JSON.parse(raw);
   } catch {
+    // Not JSON: nothing to read.
     body = null;
   }
 

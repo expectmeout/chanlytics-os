@@ -10,6 +10,7 @@ import { findLineAccount } from "./sms.js";
 import { logger, logFailure } from "../shared/log.js";
 import { listFilingProblems, TWILIO_TIMEOUT_MS, type Db, type LineRow, type RecordRow } from "./a2p-register.js";
 import { saveLineRowBack } from "@chanlytics/db/lines";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * What a refile step answers: the row as it now reads; or why not, as a code, with the pre-flight's sentences in
@@ -62,7 +63,7 @@ export async function unfileMockRegistration(
     return { ok: false, error: "record_incomplete", problems };
   }
   if (line.messaging_service_sid && line.campaign_sid) {
-    const sub = await findLineAccount(db, line).catch(() => null);
+    const sub = await findLineAccount(db, line).catch(logAndGoOn("findLineAccount", null));
     if (!sub) return { ok: false, error: "no_line_credentials" };
     const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
     const result = await requestTwilio(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });
@@ -159,7 +160,7 @@ export async function resubmitRejectedCampaign(
     return { ok: false, error: "record_incomplete", problems };
   }
 
-  const sub = await findLineAccount(db, line).catch(() => null);
+  const sub = await findLineAccount(db, line).catch(logAndGoOn("findLineAccount", null));
   if (!sub) return { ok: false, error: "no_line_credentials" };
 
   const req = updateCampaignRequest(line.messaging_service_sid, line.campaign_sid, {
@@ -229,7 +230,7 @@ export async function replaceRejectedCampaign(
     return { ok: false, error: "record_incomplete", problems };
   }
   if (line.messaging_service_sid && line.campaign_sid) {
-    const sub = await findLineAccount(db, line).catch(() => null);
+    const sub = await findLineAccount(db, line).catch(logAndGoOn("findLineAccount", null));
     if (!sub) return { ok: false, error: "no_line_credentials" };
     const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
     const result = await requestTwilio(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });

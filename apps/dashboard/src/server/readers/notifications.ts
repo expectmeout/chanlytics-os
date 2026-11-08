@@ -33,6 +33,7 @@ import {
 import { facts as factsReader } from "./facts";
 import { searches as searchesReader } from "./searches";
 import { sequences as sequencesReader } from "./sequences";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * GET notifications, as the route answers it: the workspace's kept notifications of the last thirty days by the turn's
@@ -195,7 +196,7 @@ export const askFollowUps: Reader<undefined, FollowUpsNow> = {
   async read(rc) {
     const follow = followUpsOf((await load(rc, memberViews, undefined)).data);
     const waits = (wake: FollowUpWake) => follow.some((f) => f.wake === wake);
-    const quiet = <T>(read: Promise<T>): Promise<T | null> => read.catch(() => null);
+    const quiet = <T>(read: Promise<T>): Promise<T | null> => read.catch(logAndGoOn("a follow-up's read", null));
     const [searches, sequences, zone] = await Promise.all([
       waits("search_done") ? quiet(load(rc, searchesReader, undefined).then((r) => r.data.searches)) : null,
       waits("replies") ? quiet(load(rc, sequencesReader, undefined).then((r) => r.data.sequences)) : null,

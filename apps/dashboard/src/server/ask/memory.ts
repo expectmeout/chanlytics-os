@@ -387,6 +387,7 @@ function keptOf(value: unknown): Kept | null {
     const parsed: unknown = JSON.parse(blocks);
     record = (parsed && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
   const base = record.base === undefined ? null : messagesOf(record.base);

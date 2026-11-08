@@ -51,6 +51,7 @@ const RAISED: Record<string, { code: "validation" | "forbidden" | "conflict"; st
 };
 
 export async function createWorkspace(ctx: RouteContext, req: Request) {
+  // A body that is not JSON is none: what reads it next refuses.
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     throw new AppError("validation", parsed.error.issues[0]?.message ?? "Give the workspace a name.");

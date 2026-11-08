@@ -30,6 +30,7 @@ import { runReachOutStep } from "./run-step.js";
 import { findStepRow, getSequenceModes } from "@chanlytics/db/campaigns";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import { UUID, CAMPAIGNS_PAUSED_WORDS, DEFAULT_TIMEZONE, isTenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export async function runPlaybookNow(
   auth: Admitted,
@@ -59,7 +60,7 @@ export async function runPlaybookNow(
   if (p.kind === "reach_out") {
     const row = p;
     if (row.trigger !== "lead_first") return refuse(409, "reach_out_step");
-    const tz = (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
+    const tz = (await findWorkspaceZone(db, tenantId).catch(logAndGoOn("findWorkspaceZone", null))) || DEFAULT_TIMEZONE;
     const run = await runReachOutStep(db, row, new Date(), tz, log);
     log.info("reach_out_run_now", {
       tenant_id: tenantId,

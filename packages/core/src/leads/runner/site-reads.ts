@@ -7,7 +7,7 @@
  */
 import { LEAD_SITE_FACT_MAX, LEAD_SITE_READ_USD } from "@chanlytics/contracts";
 import type { SitePage } from "@chanlytics/channels/website";
-import { errField, logger } from "@chanlytics/log";
+import { errField, logger, logAndGoOn } from "@chanlytics/log";
 import { bookingPageOfSite } from "../../website/booking-page";
 import { runEachAtOnce } from "../../shared/each-at-once";
 import { siteWordsOf } from "../../website/site-words";
@@ -57,7 +57,9 @@ export function siteReadsOf(leadPorts: Pick<LeadPorts, "readSite">): SiteReads {
     read(host, timeoutMs) {
       const held = pages.get(host);
       if (held) return held;
-      const page = leadPorts.readSite ? leadPorts.readSite(host, timeoutMs).catch(() => null) : Promise.resolve(null);
+      const page = leadPorts.readSite
+        ? leadPorts.readSite(host, timeoutMs).catch(logAndGoOn("readSite", null))
+        : Promise.resolve(null);
       pages.set(host, page);
       return page;
     },

@@ -13,6 +13,7 @@ function dayKey(iso: string | null | undefined, tz: string): string | null {
   try {
     return dayInZone(tz, Date.parse(iso)).key;
   } catch {
+    // A zone or a code the runtime does not know.
     return null;
   }
 }

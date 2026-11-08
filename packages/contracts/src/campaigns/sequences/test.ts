@@ -239,6 +239,7 @@ export function leadStepTestMail(options: {
       unsubscribeUrl: null,
     });
   } catch {
+    // A foot the business's details cannot make: said as such.
     return { why: words.noFootAddress };
   }
   const holes = filled.holes.length

@@ -48,6 +48,7 @@ import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import type { InstagramSecret } from "./credentials.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -198,7 +199,7 @@ async function connect(
     account_id: me.accountId,
     username: me.username,
     by: userId,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event channel.connected"));
   // The workspace's first line that answers, the funnel's first milestone, whichever wire it is.
   await recordActivation(db, tenantId, "line_live", "instagram").catch(() => false);
   log.info("ig_connected", { channel_id: row.id, username: me.username });

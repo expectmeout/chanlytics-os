@@ -62,6 +62,7 @@ function pageAskedFrom(referer: string | null): string | null {
   try {
     path = new URL(referer).pathname;
   } catch {
+    // Not an address.
     return null;
   }
   const words = path.split("/").filter(Boolean);

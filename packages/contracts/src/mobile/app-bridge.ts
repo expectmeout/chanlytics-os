@@ -114,6 +114,7 @@ export function parsePageMessage(raw: string): PageMessage | null {
   try {
     value = JSON.parse(raw);
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
   if (!isRecord(value) || typeof value.t !== "string") return null;

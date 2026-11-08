@@ -149,6 +149,7 @@ export function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boo
     try {
       return { raw: JSON.parse(text), model: res.model ?? model, tokens, requestHash };
     } catch {
+      // Not JSON: nothing to read.
       return { refused: true, why: "not JSON" };
     }
   };

@@ -34,6 +34,7 @@ export async function receiveStreamWebhook(request: Request): Promise<Response> 
   try {
     parsed = JSON.parse(raw);
   } catch {
+    // Not JSON: nothing to read.
     parsed = null;
   }
   const video = streamVideoOf(parsed);

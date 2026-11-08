@@ -29,6 +29,7 @@ import type { ResumedBy } from "./resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { logger } from "../shared/log.js";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * A line stopped: tell the workspace's bell, the platform's mailbox and the ledger.
@@ -72,7 +73,7 @@ export async function reportLineFailed(
     error: error.slice(0, 300),
     provider: providerName,
     by,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event line.failed"));
 }
 
 export async function provisionLine(
@@ -121,7 +122,7 @@ export async function provisionLine(
       provider: choice.name,
       agent_id: result.line.retell_agent_id,
       by,
-    }).catch(() => {});
+    }).catch(logAndGoOn("event line.answering"));
     // The workspace's first line that answers: the funnel's first milestone (a WhatsApp connection is the other door).
     await recordActivation(db, tenant.id, "line_live", "phone").catch(() => false);
   } else {

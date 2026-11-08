@@ -60,6 +60,7 @@ import type { BackOffice } from "../shared/back-office";
 import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** How many rows each list reads at most: more than a month of a healthy platform's, few enough to send whole. */
 const HEALTH_ROWS = { workspaces: 2000, failedJobs: 200, pages: 100, clientErrors: 5000, requeueKind: 200 } as const;
@@ -311,7 +312,7 @@ export async function requeueHealthKind(
             by_email: office.email,
           });
           if (error) throw new Error(error);
-        }).catch(() => null);
+        }).catch(logAndGoOn("requeueFailedJob", null));
         if (result?.outcome === "requeued") requeued += 1;
         else refused += 1;
       }

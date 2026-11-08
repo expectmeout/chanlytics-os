@@ -41,6 +41,7 @@ import type { SmsLine, SmsSender } from "../lines/sms.js";
 import type { InboundCarrier } from "@chanlytics/core";
 import type { LogEvent } from "../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logKeptGoing } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -102,7 +103,8 @@ export async function planSmsIngress(options: {
   try {
     line = await findLineByNumber(db, inbound.to);
     acct = line ? await findLineAccount(db, line) : null;
-  } catch {
+  } catch (e) {
+    logKeptGoing("a text's line", e);
     return {
       kind: "refuse",
       status: 503,

@@ -100,6 +100,7 @@ export function tokenExpiry(token: string): string | null {
       ? new Date(claims.exp * 1000).toISOString()
       : null;
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
 }

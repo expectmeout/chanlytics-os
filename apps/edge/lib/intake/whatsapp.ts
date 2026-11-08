@@ -59,6 +59,7 @@ import { alertUnroutable } from "../whatsapp/alerts.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 const L = logger();
 
@@ -251,7 +252,7 @@ export async function receiveWhatsappEvent(request: Request): Promise<Response> 
             await emitEvent(db, heldTenantId("00000000-0000-0000-0000-000000000000"), "ingest.unroutable", null, null, {
               channel: "whatsapp",
               phone_number_id: phoneNumberId,
-            }).catch(() => {});
+            }).catch(logAndGoOn("event ingest.unroutable"));
           }
         }
         if (field === "messages" && result.messages && routingFailed) {

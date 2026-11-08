@@ -142,6 +142,7 @@ export function messageOfRoute(route: string): string | null {
   try {
     return decodeURIComponent(m[1]);
   } catch {
+    // Not valid percent-encoding.
     return null;
   }
 }

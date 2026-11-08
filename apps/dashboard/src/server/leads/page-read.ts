@@ -35,6 +35,7 @@ import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
 import { env } from "../shared/env";
 import type { ContactId, TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /* --------------------------------------------------------- a page of rows */
 
@@ -442,7 +443,9 @@ async function placesOf(
   tenantId: TenantId,
   leadIds: readonly string[],
 ): Promise<ReadonlyMap<string, SequencePlaceOfDto> | null> {
-  const places = await listSequencePlaces(ctx.supabase, tenantId, leadIds).catch(() => null);
+  const places = await listSequencePlaces(ctx.supabase, tenantId, leadIds).catch(
+    logAndGoOn("listSequencePlaces", null),
+  );
   return places ? new Map(places.map((p) => [p.lead_id, p])) : null;
 }
 

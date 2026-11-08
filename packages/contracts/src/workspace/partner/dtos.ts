@@ -86,6 +86,7 @@ export function partnerCodeFromCookie(header: string | null | undefined): string
     try {
       value = decodeURIComponent(value);
     } catch {
+      // Not valid percent-encoding.
       return null;
     }
     const cleaned = cleanPartnerCode(value);

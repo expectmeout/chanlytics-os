@@ -46,6 +46,7 @@ import {
   saveGoogleReviews,
 } from "@chanlytics/db/google";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The reviews a sync read, on the imports ledger: the count Google gives (else those read), unanswered, the oldest. */
 async function noteReviews(db: Db, tenantId: TenantId, plan: ProfileSyncPlan): Promise<void> {
@@ -336,7 +337,7 @@ export async function syncProfile(
       counted: 0,
       rating: plan.listing?.rating ?? null,
       review_count: plan.listing?.review_count ?? null,
-    }).catch(() => {});
+    }).catch(logAndGoOn("event google.reviews"));
   }
   // What came in, on the imports ledger as Google's reviews (decision 0073, R23): every one on record, those waiting for a
   // reply, and how far back the oldest goes. A note that fails is logged: the reviews are kept all the same.

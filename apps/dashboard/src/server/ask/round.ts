@@ -184,6 +184,7 @@ export function parseInput(json: string): Record<string, unknown> {
   try {
     return json ? (JSON.parse(json) as Record<string, unknown>) : {};
   } catch {
+    // Not JSON: nothing to read.
     return {};
   }
 }
@@ -205,6 +206,7 @@ export function argsOf(roundBlock: RoundBlock): Record<string, unknown> | null {
   try {
     return JSON.parse(roundBlock.json) as Record<string, unknown>;
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
 }

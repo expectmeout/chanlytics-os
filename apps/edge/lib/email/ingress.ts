@@ -73,6 +73,7 @@ export async function planResendEvent(resendIngressInput: ResendIngressInput): P
   try {
     payload = JSON.parse(resendIngressInput.rawBody);
   } catch {
+    // Not JSON: nothing to read.
     return { kind: "refuse", status: 400, log: "resend_webhook_not_json" };
   }
 

@@ -43,7 +43,7 @@ const OURS = {
     "error",
     { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
   ],
-  "no-empty": ["error", { allowEmptyCatch: true }],
+  "no-empty": "error",
   // A line that must not compile says why: the type tests' negatives (`*.type-test.ts`) are `@ts-expect-error <why>`,
   // and one whose line starts to compile is TS2578, an unused directive, so the typecheck fails. `@ts-ignore` stays
   // silent when the line it hides is fixed, and `@ts-nocheck` hides a whole file: neither is written. The phone app
@@ -834,7 +834,7 @@ export default [
       // An error since the scripts held none (27 September): a new unused name
       // fails outright, never a warning a change could argue.
       "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
-      "no-empty": ["error", { allowEmptyCatch: true }],
+      "no-empty": "error",
     },
   },
 ];

@@ -55,6 +55,7 @@ async function ask(url: string, log: Logger): Promise<Answer> {
     log.warn("unsubscribe_probe_unreadable", { error: errField(e) });
     return { seen: "no answer" };
   }
+  // Closing what this is done with: nothing to do if that fails.
   await res.body?.cancel().catch(() => {});
   const { status } = res;
   const view = res.headers.get(UNSUBSCRIBE_PAGE_HEADER);
