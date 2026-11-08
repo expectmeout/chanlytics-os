@@ -34,7 +34,7 @@ const REACH_OUT_FOLD_KEYS = {
   sign_phone: "phone",
   reply_offer: "reply_offer",
 } as const satisfies Partial<Record<FoldName, string>>;
-export type ReachOutFoldName = keyof typeof REACH_OUT_FOLD_KEYS;
+type ReachOutFoldName = keyof typeof REACH_OUT_FOLD_KEYS;
 const isReachOutFold = (fold: string): fold is ReachOutFoldName => Object.hasOwn(REACH_OUT_FOLD_KEYS, fold);
 
 const listOf = (value: unknown): string[] => (Array.isArray(value) ? value.map(textOrEmpty) : []);
