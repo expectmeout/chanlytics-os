@@ -137,9 +137,12 @@ export const REPLAYS_A_MIGRATION =
  * the shared tables are many times their size, and a read another suite plans then can be planned for that size (its
  * own reads wait for its `analyze`; the others' do not). On 31 Oct 2026, in the three red runs of main that could be
  * timed, every reach-out read that passed the service role's 30 seconds (reach_out_followers) began while playbook-totals
- * wrote its 180,000 rows; the same read answers in under 200 ms. So such a suite runs alone, after the others.
+ * wrote its 180,000 rows; the same read answers in under 200 ms. So such a suite runs alone, after the others. One whose
+ * world is never committed is removed by nothing, so it is known by its size: ten thousand rows or more from one
+ * `generate_series` (leads-at-volume's 250,000 sends). On 7 Nov 2026, on a runner half the usual speed, the blocks
+ * lead-status-groups counts of the same tables rose past its bound twice in a row in the same pass as it.
  */
-export const BUILDS_AT_SCALE = /\bdelete\s+from\s+public\.tenants\b/i;
+export const BUILDS_AT_SCALE = /\bdelete\s+from\s+public\.tenants\b|\bgenerate_series\s*\(\s*\d+\s*,\s*\d{5,}\b/i;
 
 /** The names a database suite ends with: SUITES.db's two kinds. */
 const DATABASE_ENDINGS = SUITES.db.map((glob) => glob.slice(glob.lastIndexOf("*") + 1));

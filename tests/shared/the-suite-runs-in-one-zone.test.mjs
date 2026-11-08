@@ -161,11 +161,15 @@ test("a database suite that builds a workspace at scale runs alone too: the othe
   for (const code of [
     "for (const id of scaled) query(`delete from public.tenants where id = '${id}'`);",
     "attempt(`workspace ${id}`, () => query(`delete from public.tenants where id = '${id}'`));",
+    // A world never committed, known by its size (7 Nov 2026).
+    "select ${v}, 'ChIJfixture' || i from generate_series(1, 50000) i",
   ])
     assert.ok(BUILDS_AT_SCALE.test(code), code);
   for (const code of [
     'for (const id of tenants) await db.from("tenants").delete().eq("id", id);',
     "delete from public.tenant_config where tenant_id = t",
+    "from generate_series(1, ${n}) i",
+    "from generate_series(1, 3000) i",
   ])
     assert.equal(BUILDS_AT_SCALE.test(code), false, code);
 
@@ -179,9 +183,17 @@ test("a database suite that builds a workspace at scale runs alone too: the othe
   const files = (args) => args.filter((a) => a.startsWith("tests/") && a.endsWith(".mjs"));
   const run = planOf(["--db", "--test-concurrency=3"], {});
   const [together, alone] = [files(run.args), files(run.alone ?? [])];
-  for (const f of ["playbooks/totals/playbook-totals.db.test.mjs", "reports/campaigns/campaign-scale.db.test.mjs"])
+  for (const f of [
+    "playbooks/totals/playbook-totals.db.test.mjs",
+    "reports/campaigns/campaign-scale.db.test.mjs",
+    "leads/table/leads-at-volume.db.test.mjs",
+  ])
     assert.ok(alone.includes(`tests/${f}`), f);
-  for (const f of ["reach-out/reach-out-run.db.test.mjs", "reach-out/stops/reply-away.db.test.mjs"])
+  for (const f of [
+    "reach-out/reach-out-run.db.test.mjs",
+    "reach-out/stops/reply-away.db.test.mjs",
+    "leads/finder/lead-status-groups.db.test.mjs",
+  ])
     assert.ok(together.includes(`tests/${f}`), f);
 });
 
