@@ -55,8 +55,8 @@ export const DELETE = write({
     const seats = await listSeats(ctx.supabase, ctx.userId);
     const { data, error } = await deleteOwnAccount(ctx);
     if (error) {
-      const named = Object.keys(REFUSALS).find((k) => error.message.includes(k));
-      if (named) throw new AppError("conflict", REFUSALS[named], 409);
+      const named = Object.entries(REFUSALS).find(([k]) => error.message.includes(k));
+      if (named) throw new AppError("conflict", named[1], 409);
       log.error("account_delete_failed", { message: error.message.slice(0, 200) });
       throw new AppError(
         "internal",

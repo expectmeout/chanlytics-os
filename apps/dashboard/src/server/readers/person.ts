@@ -14,6 +14,7 @@ import {
   DAY_KEY,
   recordOrEmpty,
   recordOrNull,
+  textOrEmpty,
 } from "@chanlytics/contracts";
 import { writeReachOf } from "@/server/new-conversation/write-reach";
 import { SMS_FOOTER } from "@chanlytics/channels/lines";
@@ -80,7 +81,7 @@ function cameFrom(row: { created_at: string; data: unknown } | null): PersonDeta
   const data = recordOrNull(row.data);
   return {
     at: row.created_at,
-    source: String(data?.source ?? "manual"),
+    source: textOrEmpty(data?.source ?? "manual"),
     title: typeof data?.title === "string" ? data.title : null,
   };
 }

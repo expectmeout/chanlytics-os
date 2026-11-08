@@ -185,7 +185,7 @@ export async function seeNote(ctx: RouteContext, contactId: string, noteId: stri
   try {
     answer = await seePersonNote(ctx.supabase, noteId);
   } catch (e) {
-    throw dbRefusal(e as { code?: string; message: string });
+    throw dbRefusal(e);
   }
   if (answer.seen) return { seen: noteId };
   const notYours = answer.why === "not_yours";

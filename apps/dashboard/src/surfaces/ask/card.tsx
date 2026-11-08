@@ -478,7 +478,7 @@ export const AskPlan = ({
       group.sawAll(got);
       pressed.current = true;
       setRan((prev) => ({ ...prev, ...got }));
-      for (const pid of Object.keys(got)) await atRecord({ A, messageId, onOutcome }, pid, got[pid]);
+      for (const [pid, outcome] of Object.entries(got)) await atRecord({ A, messageId, onOutcome }, pid, outcome);
     } finally {
       setBusy(false);
     }

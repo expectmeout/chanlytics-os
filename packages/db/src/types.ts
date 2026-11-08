@@ -43,7 +43,7 @@ type OpenFunctions = { [F in keyof GeneratedFunctions]: OpenFunction<GeneratedFu
 
 type GeneratedTables = Generated["public"]["Tables"];
 type ClosedTables = {
-  [T in keyof GeneratedTables & string]: {
+  [T in Extract<keyof GeneratedTables, string>]: {
     Row: Narrowed<T, GeneratedTables[T]["Row"]>;
     Insert: Narrowed<T, GeneratedTables[T]["Insert"]>;
     Update: Narrowed<T, GeneratedTables[T]["Update"]>;

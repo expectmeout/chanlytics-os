@@ -27,7 +27,7 @@ export function normalizeEmail(raw: string | null | undefined): string | null {
   const s = String(raw).trim().toLowerCase();
   if (!s || s.length > MAX_ADDRESS) return null;
   const m = SHAPE.exec(s);
-  if (!m || m[1].length > MAX_LOCAL) return null;
+  if (!m || (m[1] ?? "").length > MAX_LOCAL) return null;
   return s;
 }
 
@@ -72,5 +72,5 @@ export function addressInMessage(body: string | null | undefined): string | null
   if (found.size !== 1) return null;
   const alone = tokens.length === 1;
   const theirs = tokens.length <= 8 && OWN_ADDRESS_WORDS.test(text);
-  return alone || theirs ? [...found][0] : null;
+  return alone || theirs ? ([...found][0] ?? null) : null;
 }

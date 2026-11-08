@@ -1,10 +1,10 @@
 # 0112 · The checker is told only what it cannot see
 
-**Status:** Accepted by Ruben, 7 November 2026 ("Approve all seven"). Its first part is built and merged (#2185, 7 November). Its second is built on
-`types/layer-7-part-2`, 8 November 2026, after layer 8 (#2186): points 2 and 3 across the backend, point 4 in report-only, point 5 for core.
-Point 7 (the ids) is built apart and not yet whole; the held rules in layer 8's files, the strict four, the dashboard's and the specs' index
-reads and the edge answers' schema are still owed. No migration; nothing changes for a customer but three readings of a value from outside,
-which said `[object Object]` where they now say nothing, and a line in the logs where a SQL function's answer or a JSON column does not fit.
+**Status:** Accepted by Ruben, 7 November 2026 ("Approve all seven"). Its first two parts are built and merged (#2185, #2190), and its third is built on
+`types/layer-7-part-3`, 8 November 2026: every typed rule the lint held is an error but the three layer 9 and the pages still owe, the index check is on in
+every project, every edge door declares what is read of its answer, and `as unknown as` is 73 to 3. Point 7 (the ids) is built apart. No migration; nothing
+changes for a customer but three readings of a value from outside, which said `[object Object]` where they now say nothing, and a line in the logs where a SQL
+function's answer, a JSON column or an edge door's answer does not fit.
 
 ## Context
 

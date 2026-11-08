@@ -196,7 +196,11 @@ export async function searchPeople(
     const inPool = pool;
     hits = inPool.people.filter((r) => on.has(r.id));
     matches = hits.length;
-    rowOf = (r) => inPool.rows.find((v) => v.id === r.id)!;
+    rowOf = (r) => {
+      const row = inPool.rows.find((v) => v.id === r.id);
+      if (!row) throw new Error("rule members: a person of the pool has no row of the pool's");
+      return row;
+    };
   } else {
     // The People page's own read (readers/people.ts), once a turn per query (ledger #7): one page from people_list
     // under the member's RLS, matched in SQL on a name, a WhatsApp name, an address or three digits of the number, in

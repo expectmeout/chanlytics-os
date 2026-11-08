@@ -22,7 +22,7 @@ export const DAY_SHORT: Record<string, string> = {
 };
 
 export function keyParts(key: string): { y: number; m: number; d: number } {
-  const [y, m, d] = key.split("-").map(Number);
+  const [y = 0, m, d] = key.split("-").map(Number);
   return { y, m: m ?? 1, d: d ?? 1 };
 }
 

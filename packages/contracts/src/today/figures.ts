@@ -192,12 +192,12 @@ export function figuresOf(
     ? ""
     : held !== period.messages_in
       ? held === 1
-        ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.`
+        ? `The one the Inbox holds came by ${wireWord(wires[0]?.[0] ?? "")}.`
         : wires.length === 1
-          ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0][0])}.`
+          ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0]?.[0] ?? "")}.`
           : `Of the ${held} in the Inbox: ${split}.`
       : wires.length === 1
-        ? `All by ${wireWord(wires[0][0])}.`
+        ? `All by ${wireWord(wires[0]?.[0] ?? "")}.`
         : `${split}.`;
 
   // Answered by the receptionist: how fast and how often it stopped as the clause; why it stopped and what it sent as
@@ -231,9 +231,9 @@ export function figuresOf(
     if (!reasons.length) {
       // Every one already resolved: nothing open to give a reason for.
       handovers = `${lead}, ${handedOver === 1 ? "already resolved" : handedOver === 2 ? "both already resolved" : "all already resolved"}.`;
-    } else if (reasons.length === 1 && reasons[0][1] === handedOver) {
+    } else if (reasons.length === 1 && reasons[0]?.[1] === handedOver) {
       // One reason for all of them: "once, because ...", "twice, both times because ...", "three times, each time ...".
-      const [r, n] = reasons[0];
+      const [r = "", n = 0] = reasons[0] ?? [];
       handovers = `${lead}, ${n === 1 ? "" : n === 2 ? "both times " : "each time "}${reasonWhy(r)}.`;
     } else {
       // The breakdown, most common first; what is already resolved is not in the list, so it is said after.
@@ -342,7 +342,7 @@ export function figuresOf(
       : !agree
         ? "first contact today"
         : newWires.length === 1
-          ? `${period.new_contacts === 1 ? "on" : period.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}`
+          ? `${period.new_contacts === 1 ? "on" : period.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0]?.[0] ?? "")}`
           : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
     // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS the answer
     // to what an owner is asking -- the count is everyone whose first message of their own, or first call to us, came

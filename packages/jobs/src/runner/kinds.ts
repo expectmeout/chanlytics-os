@@ -7,7 +7,7 @@
  * What used to be four tables in ledger.ts (SPEAKS_TO_A_PERSON, RETRY_WAITS_MS, TOLD_ELSEWHERE and the kinds it pages
  * on), a branch per kind in settle.ts, and a word in each handler for "my last try": every one is a field here now.
  */
-import { MIN_MS, SECOND_MS, type JobKind } from "@chanlytics/contracts";
+import { entryOf, MIN_MS, SECOND_MS, type JobKind } from "@chanlytics/contracts";
 
 /**
  * Who hears that a job of the kind failed for good: its workspace's owner, in their words (contracts jobNewsWords); the
@@ -336,7 +336,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
 
 /** The policy of a kind this build declares; null for one it does not (a row a newer deploy wrote). */
 export function kindPolicyOf(kind: string): KindPolicy | null {
-  return (KIND_POLICY as Record<string, KindPolicy | undefined>)[kind] ?? null;
+  return entryOf(KIND_POLICY, kind) ?? null;
 }
 
 /** The kinds whose policy says `pick` of them, as a set: what ledger.ts and tick.ts ask a kind by. */

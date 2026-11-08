@@ -95,7 +95,7 @@ export function tokenExpiry(token: string): string | null {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   try {
-    const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as { exp?: unknown };
+    const claims = JSON.parse(Buffer.from(parts[1] ?? "", "base64url").toString("utf8")) as { exp?: unknown };
     return typeof claims.exp === "number" && Number.isFinite(claims.exp)
       ? new Date(claims.exp * 1000).toISOString()
       : null;

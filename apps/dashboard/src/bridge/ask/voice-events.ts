@@ -101,7 +101,7 @@ export function reduceVoiceEvent(
       if (type !== "delta") return { state, actions: [] };
       const raw = ev.payload.text ?? "";
       const label = state.said === "" ? LABEL.exec(raw) : null;
-      if (label) return { state, actions: [{ t: "trace", text: label[1].trim() }] };
+      if (label) return { state, actions: [{ t: "trace", text: (label[1] ?? "").trim() }] };
       const words = raw.replace(BUFFER_WORDS, "");
       if (!words) return { state, actions: [] };
       const said = state.said + words;

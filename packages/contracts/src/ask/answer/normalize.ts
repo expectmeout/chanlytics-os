@@ -64,10 +64,10 @@ const openingsHeadline = (days: AskOpeningsView["days"], es: boolean, enabled: b
       ? "No hay nada libre en el calendario en los próximos días."
       : "Nothing is open on the calendar in the days ahead.";
   if (days.length === 1) {
-    const n = days[0].windows.length;
+    const n = days[0]?.windows.length ?? 0;
     return es
-      ? `${days[0].label}: ${n} ${n === 1 ? "hora libre" : "horas libres"} en el calendario.`
-      : `The calendar has ${n} open ${n === 1 ? "time" : "times"} on ${days[0].label}.`;
+      ? `${days[0]?.label ?? ""}: ${n} ${n === 1 ? "hora libre" : "horas libres"} en el calendario.`
+      : `The calendar has ${n} open ${n === 1 ? "time" : "times"} on ${days[0]?.label ?? ""}.`;
   }
   return es
     ? `El calendario tiene horas libres en ${days.length} días.`
@@ -374,8 +374,8 @@ export function answerForCards(
       plan.headline ??
       (length === 1
         ? es
-          ? sentence(`Una tarjeta para revisar: ${cards[0].title}`)
-          : sentence(`One card to review: ${cards[0].title}`)
+          ? sentence(`Una tarjeta para revisar: ${cards[0]?.title ?? ""}`)
+          : sentence(`One card to review: ${cards[0]?.title ?? ""}`)
         : es
           ? `${length} tarjetas para revisar.`
           : `${length} cards to review.`),

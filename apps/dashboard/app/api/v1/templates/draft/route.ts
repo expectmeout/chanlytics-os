@@ -18,7 +18,7 @@ const Body = z
     language: z.string().optional(),
     translate: z
       .object({
-        id: z.string().uuid().optional(),
+        id: z.uuid().optional(),
         starter: z.string().max(60).optional(),
         from: z.string().max(16).optional(),
       })

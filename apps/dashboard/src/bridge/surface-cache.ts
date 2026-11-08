@@ -40,7 +40,7 @@ import {
   slotsKept,
   SURFACES_SLOT,
 } from "@/client/kept-on-device";
-import { DAY_MS } from "@chanlytics/contracts";
+import { DAY_MS, recordOrEmpty } from "@chanlytics/contracts";
 
 /** The slot of the workspace the address names, one per workspace by the address's word; the home's own where it names none. */
 const slotName = (): string => `${SURFACES_SLOT}${getActiveWorkspace() ?? "-"}`;
@@ -301,7 +301,7 @@ export function hydrateSurfaceCache(): Set<string> {
     if (addressed()) dropSlot();
     return restored;
   }
-  const w = window as unknown as Record<string, unknown>;
+  const w = recordOrEmpty(window);
   const now = Date.now();
   for (const [key, globals] of Object.entries(blob.surfaces)) {
     // Another build's of another shape, or a day old: read as a first visit reads it.
@@ -321,7 +321,7 @@ export function hydrateSurfaceCache(): Set<string> {
 
 /** What a snapshot of a surface holds: the globals it owns, as they are on window now. */
 function globalsNow(globals: string[]): Record<string, unknown> {
-  const w = window as unknown as Record<string, unknown>;
+  const w = recordOrEmpty(window);
   const snap: Record<string, unknown> = {};
   for (const name of globals) {
     if (w[name] !== undefined) snap[name] = w[name];

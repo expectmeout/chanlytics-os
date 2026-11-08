@@ -79,8 +79,8 @@ const withMeridiem = (min: number, meridiem: "am" | "pm") => (meridiem === "pm" 
 function rangeOf(text: string): OpenWindow | null {
   const parts = text.split(/\s*(?:to|–|—|-)\s*/i);
   if (parts.length !== 2) return null;
-  const time = timeOf(parts[0]);
-  const result = timeOf(parts[1]);
+  const time = timeOf(parts[0] ?? "");
+  const result = timeOf(parts[1] ?? "");
   if (!time || !result || !result.meridiem) return null;
   const to0 = withMeridiem(result.min, result.meridiem);
   // A start with no meridiem borrows its end's, unless that puts it after the end ("11 to 2 PM" is 11 AM).

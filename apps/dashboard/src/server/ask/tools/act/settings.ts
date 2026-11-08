@@ -161,14 +161,14 @@ function reachOutChangeOf(raw: Record<string, unknown>): Record<string, unknown>
 const noteCardTitle = (title: string): string =>
   /\bnote$/i.test(title.trim()) ? title.trim() : `${title.trim()} note`;
 
-async function proposeSettings(
+function proposeSettings(
   toolContext: ToolContext,
   input: { change: Record<string, unknown> },
 ): Promise<ProposalOutcome> {
   // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
-  if (!offeredTo(settingsAct, toolContext.role)) return refuse(proposalBelowNeeds("settings"));
+  if (!offeredTo(settingsAct, toolContext.role)) return Promise.resolve(refuse(proposalBelowNeeds("settings")));
   const raw = input.change && typeof input.change === "object" ? recordOrEmpty(input.change) : null;
-  if (!raw) return refuse("change is required");
+  if (!raw) return Promise.resolve(refuse("change is required"));
   const answers = typeof raw.op === "string" && raw.op in ASK_ANSWERS_ROWS;
   // How it reaches out's rows (decision 0113): its fields as each op takes them, judged by the same schema.
   const parsed = AskSettingsChangeSchema.safeParse(
@@ -179,14 +179,18 @@ async function proposeSettings(
         : knowsChangeOf(raw),
   );
   if (!parsed.success)
-    return refuse(`change rejected: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+    return Promise.resolve(
+      refuse(`change rejected: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`),
+    );
   const change = parsed.data;
-  return propose({
-    kind: "settings",
-    title: change.op === "add_note" ? noteCardTitle(change.title) : SETTINGS_TITLE[change.op],
-    summary: describeSettingsChange(change),
-    payload: { change },
-  });
+  return Promise.resolve(
+    propose({
+      kind: "settings",
+      title: change.op === "add_note" ? noteCardTitle(change.title) : SETTINGS_TITLE[change.op],
+      summary: describeSettingsChange(change),
+      payload: { change },
+    }),
+  );
 }
 
 /**

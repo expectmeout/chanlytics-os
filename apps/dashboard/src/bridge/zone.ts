@@ -91,7 +91,7 @@ const slugOf = (win: Window): string | null => (win.location ? pathWorkspace(win
  * browser remembers for the workspace in its address; null before any of them.
  */
 export function knownZone(win: Window = window): string | null {
-  const w = win as unknown as ZoneGlobals;
+  const w = win as Window & ZoneGlobals;
   const fresh = w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE)?.timezone || lastRead;
   const slug = slugOf(win);
   if (fresh) {

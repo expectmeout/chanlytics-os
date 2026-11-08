@@ -128,7 +128,7 @@ export async function runAvailabilityTool(request: Request): Promise<Response> {
     args?: { day?: unknown; service?: unknown };
   } = {};
   try {
-    body = JSON.parse(raw);
+    body = JSON.parse(raw) as typeof body;
   } catch {
     /* fall through with empty body */
   }

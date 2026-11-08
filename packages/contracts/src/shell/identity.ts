@@ -40,7 +40,7 @@ export function personInitials(name: string | null | undefined, email: string | 
   const n = (name ?? "").trim();
   if (n) return initialsOf(n);
   const e = (email ?? "").trim();
-  return e ? e[0].toUpperCase() : "?";
+  return e ? (e[0] ?? "?").toUpperCase() : "?";
 }
 
 export function identityWords(me: IdentityInput | null | undefined): IdentityWords {

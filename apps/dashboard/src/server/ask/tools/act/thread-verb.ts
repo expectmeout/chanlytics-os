@@ -64,7 +64,7 @@ async function proposeThreadVerb(
       return refuse("until must be a future ISO time");
     until = date.toISOString();
   }
-  const TITLES: Record<string, string> = {
+  const TITLES: Record<(typeof THREAD_VERBS)[number], string> = {
     take_over: `Take over ${otherPersonName}'s thread`,
     hand_back: `Hand ${otherPersonName}'s thread back to the receptionist`,
     snooze: `Snooze ${otherPersonName}'s thread`,

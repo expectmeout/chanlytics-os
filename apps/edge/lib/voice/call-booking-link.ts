@@ -201,7 +201,7 @@ function toolCallOf(raw: string): {
     args?: { phone_number?: string; by?: string };
   } = {};
   try {
-    body = JSON.parse(raw);
+    body = JSON.parse(raw) as typeof body;
   } catch {
     /* fall through with empty body */
   }

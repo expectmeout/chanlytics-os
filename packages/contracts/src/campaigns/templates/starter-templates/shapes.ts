@@ -45,7 +45,7 @@ export interface StarterTemplate {
   /** The playbook trigger it is written for, when there is one. */
   trigger: PlaybookTrigger | null;
   /** The WhatsApp version, by language. */
-  texts: Record<string, StarterText>;
+  texts: { en_US: StarterText } & Record<string, StarterText>;
   /** The email version, by language; absent where an email means nothing for it. */
   email?: Record<string, StarterEmailText>;
   /** The text version, by language; absent for an offer, which texts never carry. */

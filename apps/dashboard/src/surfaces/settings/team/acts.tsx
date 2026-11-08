@@ -6,6 +6,7 @@
  * Who gets alerts is the Notifications list's (contracts alerts.ts), changed through the save that pane makes, the
  * rest of its section kept.
  */
+import type { TEAM_ROLES } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
 import { ALERT_REFUSED_WORDS, roleSays, withAlertAddress } from "@chanlytics/contracts";
 import { saveSettings, teamVerbs } from "@/bridge/inbox-verbs";
@@ -82,7 +83,7 @@ export function teamActs(o: {
 }) {
   const { read, flash, setAsk, setBusy } = o;
   // The last-owner rule is enforced in the database and its message comes back from there.
-  const changeRole = async (m: TeamPerson, role: string) => {
+  const changeRole = async (m: TeamPerson, role: (typeof TEAM_ROLES)[number]) => {
     setBusy(true);
     const r = await teamVerbs.setRole(m.id, role);
     setBusy(false);

@@ -446,7 +446,12 @@ const campaign = (n: number, title: string, line: string, moment: string, runs: 
 });
 
 /** The first card's facts: what goes out, when, to whom and by what channel, each to be seen before its Approve. */
-const FIRST_CARD_SAYS = ["The day before an appointment", "Daily, 10:00 AM", "6 people tomorrow", "On WhatsApp"];
+const FIRST_CARD_SAYS = [
+  "The day before an appointment",
+  "Daily, 10:00 AM",
+  "6 people tomorrow",
+  "On WhatsApp",
+] as const;
 const NEXT = ["Change the reminder's hour?", "Why the reminder first?"];
 
 /** The turn: the answer says the warning again, as a model may, and offers two next questions. */
@@ -695,10 +700,10 @@ for (const view of [
     }) => {
       test.setTimeout(120_000);
       for (const theme of ["dark", "light"]) {
-        await page.addInitScript(
-          ([key, t]) => localStorage.setItem(key, JSON.stringify({ theme: t })),
-          [DEVICE_PREFS, theme],
-        );
+        await page.addInitScript(({ key, t }) => localStorage.setItem(key, JSON.stringify({ theme: t })), {
+          key: DEVICE_PREFS,
+          t: theme,
+        });
         await openAsk(page);
         await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
         await scanAsk(page, `${theme}, at rest`);

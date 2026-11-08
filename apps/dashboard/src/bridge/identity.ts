@@ -194,7 +194,7 @@ export function installIdentity(win: Window = window): void {
     };
     // Keep the published list current, or every date on the page keeps being
     // read in the old zone, and every page says the old word, until a reload.
-    const w = win as unknown as { __WORKSPACES?: Partial<Workspace>[]; __ACTIVE_WORKSPACE?: string };
+    const w = win as Window & { __ACTIVE_WORKSPACE?: string };
     if (Array.isArray(w.__WORKSPACES)) {
       w.__WORKSPACES = w.__WORKSPACES.map((t) => (t.id === w.__ACTIVE_WORKSPACE ? { ...t, ...saved } : t));
     }

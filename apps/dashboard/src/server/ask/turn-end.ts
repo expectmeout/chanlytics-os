@@ -35,23 +35,38 @@ import { log } from "@/server/shared/log";
  * tokens by cache or not, and the rounds that stopped at the cap. Only the loop sees all of it; finishTurn reads it.
  */
 export function turnMeter(t0: number) {
+  const nothingYet: {
+    firstByteMs: number | null;
+    firstTextMs: number | null;
+    firstSayMs: number | null;
+    roundsMs: number[];
+    toolsMs: Array<{ name: string; ms: number }>;
+    messageIds: Array<string | null>;
+    answeredBy: string | null;
+    cacheMiss: Array<string | null>;
+    hopMs: number | null;
+    speeds: Array<ModelSpeed | null>;
+    draft: AskTurnShape["draft"];
+  } = {
+    firstByteMs: null,
+    firstTextMs: null,
+    firstSayMs: null,
+    roundsMs: [],
+    toolsMs: [],
+    messageIds: [],
+    /** The model that answered the last round that said so: a fallback's when the edge asked one. */
+    answeredBy: null,
+    cacheMiss: [],
+    hopMs: null,
+    /** The speed each round that came back went at, as the edge said it (null where it said none). */
+    speeds: [],
+    /** A draft, asked harder than the turn's own effort, and what found it (effort.ts); null while none was. */
+    draft: null,
+  };
   const meter = {
-    firstByteMs: null as number | null,
-    firstTextMs: null as number | null,
-    firstSayMs: null as number | null,
-    roundsMs: [] as number[],
-    toolsMs: [] as Array<{ name: string; ms: number }>,
+    ...nothingYet,
     tokens: { input: 0, cache_read: 0, cache_creation: 0, output: 0 },
     capHits: 0,
-    messageIds: [] as Array<string | null>,
-    /** The model that answered the last round that said so: a fallback's when the edge asked one. */
-    answeredBy: null as string | null,
-    cacheMiss: [] as Array<string | null>,
-    hopMs: null as number | null,
-    /** The speed each round that came back went at, as the edge said it (null where it said none). */
-    speeds: [] as Array<ModelSpeed | null>,
-    /** A draft, asked harder than the turn's own effort, and what found it (effort.ts); null while there is none. */
-    draft: null as AskTurnShape["draft"],
     /**
      * A round that stopped at its ceiling: counted and said, since whatever it wrote may be half-written, and a tool
      * call or an answer that is half-written does not parse at all (caught where it is used: argsOf, normalizeAnswer).

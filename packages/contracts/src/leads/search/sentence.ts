@@ -8,7 +8,7 @@ import { type LeadArea, type LeadSearchPlan, US_STATES } from "./plan";
 const isLowerLetter = (ch: string) => ch !== undefined && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
 /** Lowercases the first letter only when the second is itself lowercase, so an acronym ("CVS") keeps its own case. */
 export const lowerFirst = (text: string) =>
-  text && isLowerLetter(text[1]) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+  text && isLowerLetter(text[1] ?? "") ? text.charAt(0).toLowerCase() + text.slice(1) : text;
 const list = (xs: string[]) =>
   xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 

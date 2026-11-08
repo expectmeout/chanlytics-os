@@ -200,7 +200,7 @@ function ownWordsSpan(
     if (!want.every((w, k) => lines[i + k] === w)) continue;
     // The composer's framing line comes with them when it sits directly above: the
     // one under the details, or the call's, which follows it or stands alone.
-    const framed = i > 0 && [O.ownWordsUnderDetails, O.ownWordsOnACall].some((f) => lines[i - 1].startsWith(f));
+    const framed = i > 0 && [O.ownWordsUnderDetails, O.ownWordsOnACall].some((f) => lines[i - 1]?.startsWith(f));
     return { from: framed ? i - 1 : i, to: i + want.length };
   }
   return null;
@@ -235,11 +235,13 @@ export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: 
   const found: { at: number; mark: BlockMark }[] = [];
   let passed = -1;
   lines.forEach((line, n) => {
-    if (insideOwn(n) || n === 0 || lines[n - 1].trim() !== "") return;
+    if (insideOwn(n) || n === 0 || (lines[n - 1] ?? "").trim() !== "") return;
     const at = marks.findIndex((m) => line.trim().startsWith(m.startsWith));
     if (at <= passed) return;
+    const mark = marks[at];
+    if (!mark) return;
     passed = at;
-    found.push({ at: n, mark: marks[at] });
+    found.push({ at: n, mark });
   });
 
   // The composer always writes the platform's lines: the medium line and the

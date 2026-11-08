@@ -393,10 +393,11 @@ test.describe("People on a real workspace", () => {
     const saved = (
       (await (await apiGet(page, "/api/v1/segments")).json()).data as { lists: Array<{ id: string; name: string }> }
     ).lists;
-    if (saved.length) {
-      await page.goto(`/#/clients/list:${saved[0].id}`);
+    const [list] = saved;
+    if (list) {
+      await page.goto(`/#/clients/list:${list.id}`);
       await page.waitForLoadState("networkidle");
-      await expect(page.getByTestId("saved-filter")).toContainText(saved[0].name);
+      await expect(page.getByTestId("saved-filter")).toContainText(list.name);
     }
   });
 
@@ -478,6 +479,7 @@ test.describe("People on a real workspace", () => {
     const consentWrites = () => seen.filter((r) => r.url.includes("consent"));
     await expect.poll(() => consentWrites().length).toBe(1);
     const [yes] = consentWrites();
+    if (!yes) throw new Error("the poll saw this write");
     expect(yes.method).toBe("PUT");
     expect(new URL(yes.url).pathname).toBe("/api/v1/contacts/consent");
     const sent = yes.body as { ids: string[]; consent: string; source: string };
@@ -625,9 +627,9 @@ test.describe("People on a real workspace", () => {
         message: "the column's save reached the one address answered here",
       })
       .toBe(true);
-    const last = saved[saved.length - 1];
-    expect(typeof last.view?.sortBy, "the sort rides with the columns").toBe("string");
-    expect(["asc", "desc"]).toContain(last.view?.sortDir);
+    const last = saved.at(-1);
+    expect(typeof last?.view?.sortBy, "the sort rides with the columns").toBe("string");
+    expect(["asc", "desc"]).toContain(last?.view?.sortDir);
     // Offers waits in the menu too: switched on, every cell is one of the three answers.
     await menu.getByRole("menuitemcheckbox", { name: "Offers" }).click();
     await expect.poll(headers).toContain("offers");

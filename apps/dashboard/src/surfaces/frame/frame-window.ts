@@ -51,7 +51,7 @@ declare global {
     /** What the registry says of a page: real, demo, or nothing it knows. */
     __surfaceState?: (page: string, param?: string | null) => string | undefined;
     /** Where an address lands now, if it moved (a retired page, a pane that left). */
-    __surfaceRetired?: (page: string, param: string | null, demo: boolean) => string | null;
+    __surfaceRetired?: (page: string, param: string | null, demo: boolean) => string | null | undefined;
     /** Told when any surface's readiness moves; returns the stop. */
     __onSurfaceReady?: (fn: () => void) => () => void;
     /** How long a page whose own surface is in waits for a band beside it (surface-registry.ts ROUTE_WAIT_MS). */

@@ -72,7 +72,7 @@ export function dayProblems(hours: Hours, day: string): Array<{ path: Array<stri
   // told their day is wrong merely because they typed the afternoon first.
   const sorted = [...iv].sort((a, b) => (a.open < b.open ? -1 : a.open > b.open ? 1 : 0));
   for (let n = 1; n < sorted.length; n++) {
-    if (sorted[n].open < sorted[n - 1].close) {
+    if ((sorted[n]?.open ?? "") < (sorted[n - 1]?.close ?? "")) {
       out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
   }

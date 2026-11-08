@@ -4,7 +4,7 @@ import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, refusalOf, recordLeadExcluded } from "@/server/leads/leads";
 import { excludeFoundLead } from "@/server/leads/search-acts";
 
-const Body = z.object({ search_id: z.string().uuid() });
+const Body = z.object({ search_id: z.uuid() });
 
 /** POST /api/v1/leads/:id/exclude: the owner leaves a place out of Needs review. Free; undoable through its operation record. */
 export const POST = write({

@@ -30,7 +30,7 @@ test.describe("A person's page on its path", () => {
     const slug = await slugOf(page);
     const people = (await (await apiGet(page, "/api/v1/contacts")).json()).data.people as { id: string }[];
     test.skip(people.length === 0, "this workspace has nobody to open");
-    const id = people[0].id;
+    const id = people[0]?.id ?? "";
 
     // A load of the path boots the frame with People lit and the person drawn inside it.
     await page.goto("/api/version");

@@ -184,7 +184,11 @@ export function SbMenu({
 // says so, and nothing here draws a key.
 export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) => void; close: () => void }) {
   const Glyph = frameGlyph();
-  const all = sbWorkspacesRead() ? sbWorkspaces() : isDemoFrame() ? [{ id: "demo", name: sbWorkspaceName() }] : [];
+  const all = sbWorkspacesRead()
+    ? sbWorkspaces()
+    : isDemoFrame()
+      ? [{ id: "demo", slug: "demo", name: sbWorkspaceName(), status: "active", timezone: "" }]
+      : [];
   const active = sbWorkspace() || (isDemoFrame() ? all[0] : null) || null;
   const role = sbWho().role;
   return (

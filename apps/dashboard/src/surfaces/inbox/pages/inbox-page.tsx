@@ -199,10 +199,10 @@ const inboxCounts = (
       (b.id === "escalated" ? runs : 0),
     // Set aside stands only where it holds something: it is no list to keep an eye on.
   })).filter((b) => !b.onlyWithRows || b.count > 0);
-  const viewsWithCounts = INBOX_VIEWS.map((v) => ({
-    ...v,
-    count: IX_VIEW_FILTERS[v.id] ? threads.filter(IX_VIEW_FILTERS[v.id]).length : v.count,
-  }));
+  const viewsWithCounts = INBOX_VIEWS.map((v) => {
+    const inView = IX_VIEW_FILTERS[v.id];
+    return { ...v, count: inView ? threads.filter(inView).length : v.count };
+  });
 
   // Needs-bucket stake summary
   const needsThreads = threads.filter((t) => t.state === "needs");

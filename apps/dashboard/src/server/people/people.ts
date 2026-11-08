@@ -1,4 +1,4 @@
-import { isUuid, type PersonRowDto } from "@chanlytics/contracts";
+import { isUuid, type PersonRowDto, listOrEmpty } from "@chanlytics/contracts";
 import {
   addPersonByHand,
   countPeopleListed,
@@ -56,8 +56,9 @@ export function peopleCursorParam(param: string): PeopleCursor | null {
   } catch {
     return null;
   }
-  if (!Array.isArray(value) || value.length !== 3) return null;
-  const [at, added, id] = value;
+  const parts = listOrEmpty(value);
+  if (parts.length !== 3) return null;
+  const [at, added, id] = parts;
   const moment = (x: unknown): x is string =>
     typeof x === "string" && (x === "-infinity" || Number.isFinite(Date.parse(x)));
   return moment(at) && moment(added) && added !== "-infinity" && isUuid(id) ? { at, added, id: id as string } : null;

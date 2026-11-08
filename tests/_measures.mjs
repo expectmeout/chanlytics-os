@@ -976,7 +976,7 @@ export const WIRE_CASING = {
     "The wire is snake_case (docs/naming.md, decision 0022): name the field in snake_case in the route's type, and turn a view model into it in a named mapping, never a converter. A field a page or the phone app reads is answered in both spellings for one release.",
 };
 
-/* ---- Index reads the compiler lets pass (the unchecked-index measure) ---- */
+/* ---- The workspace's projects, as the compiler reads them ---- */
 
 /** A project's tsconfig as the compiler resolves it, its `extends` followed. */
 export function resolvedConfig(tsconfig) {
@@ -994,22 +994,6 @@ export function resolvedConfig(tsconfig) {
   return parsed;
 }
 
-/**
- * A project's options for a program of the measures' own: nothing emitted and nothing built, so a package's settings
- * as a referenced project (composite, its declarations into .types) do not ask for files the measure never reads.
- */
-export const unbuilt = (options) => ({
-  ...options,
-  composite: false,
-  declaration: false,
-  emitDeclarationOnly: false,
-  rootDir: undefined,
-  outDir: undefined,
-  tsBuildInfoFile: undefined,
-  noEmit: true,
-  incremental: false,
-});
-
 /** Every workspace project's tsconfig.json, by its project's path: the packages and the apps. */
 export function projectConfigs() {
   const out = [];
@@ -1021,51 +1005,6 @@ export function projectConfigs() {
   }
   return out;
 }
-
-/** The projects whose tsconfig turns noUncheckedIndexedAccess off, the base's flag: the ones UNCHECKED_INDEX counts. */
-export const waitingProjects = () =>
-  projectConfigs().filter(({ tsconfig }) => resolvedConfig(tsconfig).options.noUncheckedIndexedAccess !== true);
-
-/**
- * `{ file: n }`: in each project that waits, every error noUncheckedIndexedAccess would raise, the flag on and nothing
- * else changed, by the file it is in. Each is a read the compiler lets pass as if it could not miss (`rows[0]`,
- * `table[key]`, a regex's `m[1]`). A count means something only over a tree that typechecks, as CI's does before the
- * suite runs. What Next writes into `.next/` is the build's, not the project's.
- */
-function uncheckedIndexReads() {
-  const now = {};
-  for (const { tsconfig } of waitingProjects()) {
-    const config = resolvedConfig(tsconfig);
-    // One program over the project and the packages' sources it imports (no project references, so nothing need be
-    // built first), checked in the files the project includes alone: a package's reads are its own project's to count,
-    // and a file the project takes in from outside its folder (the browser specs, the kit's harness) is the project's.
-    const program = ts.createProgram({
-      rootNames: config.fileNames,
-      options: { ...unbuilt(config.options), noUncheckedIndexedAccess: true },
-    });
-    const own = new Set(config.fileNames.map((f) => path.resolve(f)));
-    for (const sf of program.getSourceFiles()) {
-      const file = path.relative(ROOT, path.resolve(sf.fileName)).split(path.sep).join("/");
-      if (!own.has(path.resolve(sf.fileName)) || /(^|\/)(\.next|node_modules)\//.test(file)) continue;
-      const n = program.getSemanticDiagnostics(sf).length;
-      if (n) now[file] = (now[file] ?? 0) + n;
-    }
-  }
-  return now;
-}
-
-/**
- * The index reads' measure: it builds three whole programs (core, contracts, the dashboard), not the syntax trees the
- * measures above read, so it is the slowest of check:debt's. A project that turns the flag on leaves the measure, and
- * its entries go with it.
- */
-export const UNCHECKED_INDEX = {
-  name: "index reads the compiler lets pass",
-  file: "unchecked-index.json",
-  measure: uncheckedIndexReads,
-  advice:
-    "Guard the read where it can miss (const first = rows[0]; if (!first) …; .at(-1) with a check; a destructured default), never with x!, which the casts measure counts. tsconfig.base.json turns noUncheckedIndexedAccess on; a project that turns it off is counted here, file by file. Every error the flag's program reports is counted, so typecheck first: an error of another kind reads here as a read.",
-};
 
 /* ---- Test files over the limit ---- */
 
@@ -1291,7 +1230,6 @@ export const APPOINTMENT_WORDS = {
 export const RATCHETS = [
   ...MEASURES,
   WIRE_CASING,
-  UNCHECKED_INDEX,
   TEST_LENGTH,
   COUNTED_WAITS,
   E2E_QUARANTINE,

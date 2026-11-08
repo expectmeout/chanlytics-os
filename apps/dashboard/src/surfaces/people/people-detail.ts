@@ -65,7 +65,7 @@ export function personDetail(id: string): Promise<PersonVM | null> {
       personShape(),
     ]);
     // For the member looking (__ME): a teammate's thread is theirs, not waiting on you.
-    const me = (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
+    const me = (window as Window & { __ME?: { id?: string | null } }).__ME?.id ?? null;
     // More's sends are judged against the lines People read (null until it has: the sheet judges them again).
     if (r.ok)
       return shape.toPersonVM(r.data.person, tz, new Date(), me, {

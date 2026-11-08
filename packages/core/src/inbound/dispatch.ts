@@ -199,10 +199,7 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
   const { send, sink, pauseMs, tell, pauseHours, L, ingestMs } = at;
   const { replyText, fallback, brainMeta, usage, escalate } = turn;
   const { replyQuality } = hold;
-  const sent = await send(
-    replyText,
-    fallback ? fallback.meta : (brainMeta as unknown as Record<string, Json> | undefined),
-  );
+  const sent = await send(replyText, fallback ? fallback.meta : (brainMeta as Record<string, Json> | undefined));
   const tSent = Date.now();
   if (sent.outcome === "sent") {
     // The door recorded the row; what is left is the usage and the handoff.

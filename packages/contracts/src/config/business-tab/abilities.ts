@@ -2,6 +2,7 @@
  * What the receptionist can do, and what it cannot: the abilities card's rows and what holds the whole card back,
  * computed from what the records show, and the things no switch turns on (cannotRows).
  */
+import { valueAt } from "../../shared/unknown";
 import { POLICY_MODE_WORDS, POLICY_MODES, type PolicyMode } from "../workspace-config/policy-classes";
 import { handoffChatWords, transferWords } from "./handoff-words";
 
@@ -196,9 +197,7 @@ export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
     throw new TypeError(
       "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.",
     );
-  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter(
-    (k) => typeof (abilityInputs as unknown as Record<string, unknown>)[k] !== "boolean",
-  );
+  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter((k) => typeof valueAt(abilityInputs, k) !== "boolean");
   if (notBoolean.length) {
     throw new TypeError(
       `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`,

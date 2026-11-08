@@ -5,7 +5,7 @@ import { markNoteDone, noteAnswer, noteOn, writtenNote } from "@/server/people/p
 
 const Body = z
   .object({
-    note_id: z.string().uuid(),
+    note_id: z.uuid(),
     /** Done (the default), or open again. */
     done: z.boolean().optional(),
     /** The version the page saw: a stale press is refused. */

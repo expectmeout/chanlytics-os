@@ -262,7 +262,7 @@ async function fileStarters(ctx: RouteContext, tenantId: string, body: StartersA
       if (!done) {
         throw new AppError(
           template.reason === "preview" || template.reason === "no_token" ? "upstream_meta" : "conflict",
-          SAID[template.reason],
+          SAID[template.reason] ?? template.reason,
           template.reason === "preview" || template.reason === "no_token" ? 502 : 409,
         );
       }

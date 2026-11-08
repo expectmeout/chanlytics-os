@@ -37,7 +37,7 @@ const tlNoteOf = (body: string | null | undefined) => {
   const text = String(body || "").trim();
   const m = /^(Inbound|Outbound) call(?: · (\d+) (min|s|sec))? — ([\s\S]*)$/.exec(text);
   if (!m) return { direction: "inbound", length: null, about: text || null };
-  const about = m[4].trim();
+  const about = (m[4] ?? "").trim();
   return {
     direction: m[1] === "Outbound" ? "outbound" : "inbound",
     length: m[2] ? `${m[2]} ${m[3] === "min" ? "min" : "sec"}` : null,
@@ -148,7 +148,7 @@ function keepLineInView(list: HTMLElement | null, followed: RefObject<number>, a
   const box = threadShown(conversation, scroller);
   const bar = list.parentElement ? list.parentElement.querySelector<HTMLElement>(".tl-listen") : null;
   const top = box.top + (bar ? bar.offsetHeight + 12 : 0);
-  const seen = (n: Element | null) => {
+  const seen = (n: Element | null | undefined) => {
     if (!n) return true;
     const r = n.getBoundingClientRect();
     return r.bottom > top && r.top < box.bottom;
@@ -212,7 +212,7 @@ function callPlayer(h: PlayerHold) {
     else h.setListening(true);
   };
   const cycle = () => {
-    const next = TL_SPEEDS[(TL_SPEEDS.indexOf(h.speed) + 1) % TL_SPEEDS.length];
+    const next = TL_SPEEDS[(TL_SPEEDS.indexOf(h.speed) + 1) % TL_SPEEDS.length] ?? 1;
     h.setSpeed(next);
     const a = el();
     if (a) a.playbackRate = next;

@@ -6,7 +6,7 @@ import { decideNote, noteAnswer, noteOn, writtenNote } from "@/server/people/per
 
 const Body = z
   .object({
-    note_id: z.string().uuid(),
+    note_id: z.uuid(),
     keep: z.boolean(),
     /** Kept in the member's own words, when they changed the receptionist's. */
     body: z.string().trim().min(1).max(NOTE_MAX).optional(),

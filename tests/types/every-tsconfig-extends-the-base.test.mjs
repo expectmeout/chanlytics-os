@@ -8,9 +8,8 @@
  * verbatimModuleSyntax, isolatedModules) and each project states only what its runtime needs on top.
  *
  * Read as the compiler reads them, `extends` followed: a project may not set any of the base's checks to another
- * value, with one exception. noUncheckedIndexedAccess may be off in a project whose index reads are not guarded yet,
- * and every such project is measured by check:debt (the unchecked-index measure), a count per file that may only
- * fall. The root tsconfig.json is not a project's: it gives the test runner (tsx) the dashboard's `@/` paths, and
+ * value. noUncheckedIndexedAccess was the one exception until every project's index reads were guarded (decision 0112),
+ * so it is held like the rest. The root tsconfig.json is not a project's: it gives the test runner (tsx) the dashboard's `@/` paths, and
  * nothing compiles against it.
  */
 import { test } from "node:test";
@@ -18,7 +17,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import ts from "typescript";
 import { ROOT } from "../_source.mjs";
-import { projectConfigs, resolvedConfig, waitingProjects } from "../_measures.mjs";
+import { projectConfigs, resolvedConfig } from "../_measures.mjs";
 
 const BASE = path.join(ROOT, "tsconfig.base.json");
 /** The base's own compiler options, as written: the checks every project keeps. */
@@ -29,8 +28,6 @@ const baseOptions = ts.readConfigFile(BASE, ts.sys.readFile).config.compilerOpti
  * 0074); `every package is a project of its own` (shipping/package-dependencies.test.mjs) holds that.
  */
 const CHECKS = Object.keys(baseOptions).filter((k) => typeof baseOptions[k] === "boolean" && k !== "noEmit");
-/** The one the unchecked-index measure lets a project wait on. */
-const MAY_WAIT = "noUncheckedIndexedAccess";
 
 const projects = projectConfigs();
 const rel = (p) => path.relative(ROOT, p).split(path.sep).join("/");
@@ -42,7 +39,13 @@ test("the reader sees every project's tsconfig, and the base's checks", () => {
       projects.some((c) => c.project === p),
       `${p}/tsconfig.json is read`,
     );
-  for (const flag of ["strict", MAY_WAIT, "noImplicitOverride", "verbatimModuleSyntax", "isolatedModules"]) {
+  for (const flag of [
+    "strict",
+    "noUncheckedIndexedAccess",
+    "noImplicitOverride",
+    "verbatimModuleSyntax",
+    "isolatedModules",
+  ]) {
     assert.equal(baseOptions[flag], true, `tsconfig.base.json sets ${flag}`);
   }
 });
@@ -60,13 +63,11 @@ test("every project's tsconfig extends tsconfig.base.json", () => {
   );
 });
 
-test("no project loosens the base: each check resolves to the base's value, noUncheckedIndexedAccess only where it is counted", () => {
-  const waiting = new Set(waitingProjects().map((p) => p.project));
+test("no project loosens the base: each check resolves to the base's value", () => {
   const off = [];
   for (const { project, tsconfig } of projects) {
     const options = resolvedConfig(tsconfig).options;
     for (const flag of CHECKS) {
-      if (flag === MAY_WAIT && waiting.has(project)) continue;
       if (options[flag] !== baseOptions[flag])
         off.push(`${project}: ${flag} is ${options[flag]}, the base's ${baseOptions[flag]}`);
     }
@@ -93,15 +94,4 @@ test("no project turns off one of strict's own checks beside it", () => {
     return STRICT_FAMILY.filter((flag) => options[flag] === false).map((flag) => `${project}: ${flag} is false`);
   });
   assert.deepEqual(off, [], "strict means all of it: fix what the check finds rather than turn it off");
-});
-
-test("a project that waits on noUncheckedIndexedAccess says so in its own tsconfig, where the measure reads it", () => {
-  for (const { project, tsconfig } of waitingProjects()) {
-    const own = ts.readConfigFile(tsconfig, ts.sys.readFile).config.compilerOptions ?? {};
-    assert.equal(
-      own[MAY_WAIT],
-      false,
-      `${project}: the flag is off in its own tsconfig.json, not inherited from elsewhere`,
-    );
-  }
 });

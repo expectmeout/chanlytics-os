@@ -38,11 +38,11 @@ test.describe("the Team card", () => {
     await page.getByRole("button", { name: "Send invitation" }).click();
 
     await expect.poll(() => seen.length, { timeout: 10_000 }).toBe(1);
-    expect(seen[0].method).toBe("POST");
+    expect(seen[0]?.method).toBe("POST");
     // Writes must carry the workspace: the server's ambiguity guard refuses an
     // unscoped write from anyone holding two memberships.
-    expect(seen[0].url).toContain("workspace=");
-    expect(seen[0].body).toMatchObject({ email: "e2e-intercepted@example.invalid", role: "operator" });
+    expect(seen[0]?.url).toContain("workspace=");
+    expect(seen[0]?.body).toMatchObject({ email: "e2e-intercepted@example.invalid", role: "operator" });
 
     // The server's own sentence, not a generic failure and not a false success.
     await expect(page.getByText("Intercepted by the test suite.")).toBeVisible();
@@ -82,8 +82,8 @@ test.describe("the Team card", () => {
     await pick.click();
 
     await expect.poll(() => seen.length, { timeout: 10_000 }).toBe(1);
-    expect(seen[0].method).toBe("PATCH");
-    expect(seen[0].url).toContain("workspace=");
+    expect(seen[0]?.method).toBe("PATCH");
+    expect(seen[0]?.url).toContain("workspace=");
     await expect(page.getByText("Intercepted role change.")).toBeVisible();
   });
 
@@ -94,7 +94,7 @@ test.describe("the Team card", () => {
     for (const invented of ["Sarah Chen", "Marcus Webb", "Lena Park", "Jay Rivera", "serenityspa.co"]) {
       await expect(card).not.toContainText(invented);
     }
-    await expect(card).toContainText(String(process.env.E2E_USER_EMAIL).split("@")[0]);
+    await expect(card).toContainText(String(process.env.E2E_USER_EMAIL).split("@")[0] ?? "an address");
   });
 });
 

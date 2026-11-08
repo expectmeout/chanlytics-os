@@ -305,10 +305,12 @@ export async function syncProfile(
   // logged, not thrown.
   const { answered, drafted } = first
     ? { answered: [], drafted: [] }
-    : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now, net).catch((e) => {
-        log.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
-        return { answered: [], drafted: [] };
-      });
+    : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now, net).catch(
+        (e: unknown) => {
+          log.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
+          return { answered: [], drafted: [] };
+        },
+      );
   // What went, and what is held for the owner (with when it goes, or that it waits for their OK): one review's bell opens
   // that review (its reply is under it), several open the lens.
   for (const [said, which] of [

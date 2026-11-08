@@ -76,6 +76,50 @@ test("where the edge is: the address the dashboard has always called unless EDGE
   );
 });
 
+test("an answer its door's schema does not hold is said by door and field, never by value, and still read as it came", async () => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = (line) => said.push(JSON.parse(line));
+  const answering = (body, status = 200) => ({
+    method: "GET",
+    workspace: null,
+    user: null,
+    fetch: async () => new Response(JSON.stringify(body), { status }),
+  });
+  const DOOR = "/api/admin/lines/codes";
+  try {
+    await withEnv({ EDGE_CALL_SECRET: SECRET, EDGE_URL: "https://edge.test" }, async () => {
+      const held = await callEdge(DOOR, null, answering({ ok: true, codes: [], what_it_adds: 1 }));
+      assert.deepEqual(
+        held.body,
+        { ok: true, codes: [], what_it_adds: 1 },
+        "read as it came, a field nobody reads included",
+      );
+      const refused = await callEdge(
+        DOOR,
+        null,
+        answering({ ok: false, error: "no_database", detail: "Not now." }, 503),
+      );
+      assert.equal(refused.body.detail, "Not now.");
+      assert.deepEqual(said, [], "a refusal says none of the answer's fields, and that is no mismatch");
+
+      const odd = await callEdge(DOOR, null, answering({ ok: true, codes: "a person's words" }));
+      assert.equal(odd.body.codes, "a person's words", "report-only: what the door sent is what is read");
+      assert.deepEqual(
+        said.map(({ event, door, status, fields }) => ({ event, door, status, fields })),
+        [{ event: "edge_answer_unexpected", door: DOOR, status: 200, fields: ["codes"] }],
+      );
+      assert.ok(!JSON.stringify(said).includes("a person's words"), "the field's name, never its value");
+
+      said.length = 0;
+      await callEdge("/api/admin/no-such-door", null, answering({ ok: true, codes: "anything" }));
+      assert.deepEqual(said, [], "a path no door declares has no schema to hold it to");
+    });
+  } finally {
+    console.warn = warn;
+  }
+});
+
 test("every call to the edge is bounded and never throws: the door's answer as it came, a 503 named edge_timeout when it did not answer in time, edge_unreachable when it could not be reached", async () => {
   await withEnv({ EDGE_CALL_SECRET: SECRET, EDGE_URL: "https://edge.test" }, async () => {
     const calls = [];

@@ -199,7 +199,7 @@ async function originsOf(
 ): Promise<Map<string, VisitOriginDto>> {
   const out = new Map<string, VisitOriginDto>();
   if (!leads.size) return out;
-  const rows = await listVisitOrigins(ctx.supabase, tenantId, [...leads.values()]).catch((e) => {
+  const rows = await listVisitOrigins(ctx.supabase, tenantId, [...leads.values()]).catch((e: unknown) => {
     log.error("calendar_origins_read_failed", {
       tenant_id: tenantId,
       error: e instanceof Error ? e.message : String(e),

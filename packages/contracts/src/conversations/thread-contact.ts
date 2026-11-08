@@ -10,7 +10,7 @@ import type { ConversationDto } from "./thread-dto";
 
 /** The display name for a contact, without building a whole thread viewmodel
  *  to read one field (Today was doing exactly that per open escalation). */
-export function contactName(dto: ConversationDto): string {
+export function contactName(dto: Pick<ConversationDto, "contact">): string {
   return personName(dto.contact);
 }
 
@@ -56,7 +56,7 @@ export function initialsOf(name: string): string {
     .replace(/[^\p{L}\p{N} ]/gu, "")
     .trim()
     .split(/\s+/);
-  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
+  if (parts.length >= 2 && parts[0] && parts[1]) return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
   const items = parts[0] || "?";
   return items.slice(0, 2).toUpperCase();
 }

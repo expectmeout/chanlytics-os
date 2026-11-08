@@ -186,7 +186,7 @@ function blockedWords(reasons: readonly string[]): string {
   const seen = new Map<string, number>();
   for (const r of reasons) seen.set(r, (seen.get(r) ?? 0) + 1);
   const parts = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
-  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1) ?? ""}` : (parts[0] ?? "");
 }
 
 /** The templates a composer may offer, and one sentence for the ones it may not. */
@@ -202,7 +202,8 @@ export function sendableTemplates<T extends { components?: unknown }>(
   // One message says what IT has; several are counted by reason.
   const words = length === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
   const many = COUNT_WORDS[length] ?? String(length);
-  const lead = length === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
+  const lead =
+    length === 1 ? "One of your messages" : `${(many[0] ?? "").toUpperCase()}${many.slice(1)} of your messages`;
   return {
     sendable,
     blocked,
