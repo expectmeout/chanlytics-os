@@ -18,7 +18,7 @@ export const POST = write({
     if (answer.status !== 200 || body.ok !== true || typeof body.url !== "string") {
       const reason = typeof body.error === "string" ? body.error : "failed";
       throw new AppError(
-        answer.status === 409 ? "conflict" : answer.status === 503 ? "upstream_auth" : "internal",
+        answer.status === 409 ? "conflict" : answer.status === 503 ? "upstream_auth" : "upstream_provider",
         BILLING_SAID[reason] ?? `The portal could not be opened (${reason}).`,
         answer.status === 409 ? 409 : answer.status === 503 ? 503 : 502,
       );

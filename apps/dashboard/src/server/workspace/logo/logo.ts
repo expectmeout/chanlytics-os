@@ -71,7 +71,7 @@ export async function saveLogo(ctx: RouteContext, member: Member, image: string)
   });
   if (error) {
     log.error("workspace_logo_store_failed", { tenant_id: member.tenantId, error: error.message.slice(0, 200) });
-    throw new AppError("internal", LOGO_WORDS.notSaved, 503);
+    throw new AppError("unavailable", LOGO_WORDS.notSaved);
   }
   await wear(ctx, member, path);
   return { logo_url: workspaceLogoSrc(env.NEXT_PUBLIC_SUPABASE_URL, path) };

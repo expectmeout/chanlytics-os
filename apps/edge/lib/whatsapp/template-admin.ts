@@ -127,7 +127,7 @@ export async function createWhatsappTemplate(
     created_by: userId,
   };
   const { data: saved, error } = await saveTemplateRow(db, tenantId, row);
-  if (error || !saved) return refuseFailure(500, "write_failed", error);
+  if (error || !saved) return refuseFailure(503, "write_failed", error);
   log.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: created.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: created.data.id, meta_status: status });
 }
@@ -192,7 +192,7 @@ export async function deleteWhatsappTemplate(
     return refuse(502, "meta_refused", gone.error);
   }
   const { error } = await deleteTemplateRow(db, tenantId, row.id);
-  if (error) return refuseFailure(500, "write_failed", error);
+  if (error) return refuseFailure(503, "write_failed", error);
   log.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
   return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });
 }
@@ -222,7 +222,7 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
   if (!db) return refuse(503, "no_database");
 
   const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
-  if (chErr) return refuse(500, "channel_read_failed", logFailure("read", chErr));
+  if (chErr) return refuse(503, "channel_read_failed", logFailure("read", chErr));
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
   const synced = await syncTemplates(db, tenantId, ch.waba_id);
@@ -293,7 +293,7 @@ export async function syncTemplates(
         variables: jsonCopyOf(r.variables),
       })),
     );
-    if (error) return { ok: false, status: 500, code: "write_failed", detail: logFailure("write", error) };
+    if (error) return { ok: false, status: 503, code: "write_failed", detail: logFailure("write", error) };
   }
   if (fresh.length) {
     const { error } = await saveTemplateRows(
@@ -306,7 +306,7 @@ export async function syncTemplates(
         hidden_at: now.toISOString(),
       })),
     );
-    if (error) return { ok: false, status: 500, code: "write_failed", detail: logFailure("write", error) };
+    if (error) return { ok: false, status: 503, code: "write_failed", detail: logFailure("write", error) };
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;
   const marketing = rows.filter((r) => r.meta_status === "approved" && r.category === "marketing").length;

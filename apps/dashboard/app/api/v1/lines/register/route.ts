@@ -105,7 +105,7 @@ export const POST = write({
       );
     }
     if (answer.status !== 200 && answer.status !== 502)
-      throw new AppError("internal", "The carriers did not answer. Try again in a moment.", 502);
+      throw new AppError("upstream_provider", "The carriers did not answer. Try again in a moment.");
     return {
       ok: body.ok === true,
       pending: body.pending === true,

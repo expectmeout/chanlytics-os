@@ -85,9 +85,9 @@ function rewriteKept(
   const sentence = answer.cannot.trim() || null;
   const backing = numberBacking(known.proof, known.business, [ask.subject, ask.body]);
   const email = leadEmail({ subject: answer.subject.trim() || (ask.subject ?? ""), body: answer.body }, first, backing);
-  if (!email.body) throw new AppError("validation", sentence ?? LEAD_BUILD_WORDS.rewriteBroke, 422);
+  if (!email.body) throw new AppError("validation", sentence ?? LEAD_BUILD_WORDS.rewriteBroke);
   if (wordsNeedOpening(ask) && !wordsNeedOpening(email))
-    throw new AppError("validation", LEAD_BUILD_WORDS.rewriteLostOpening, 422);
+    throw new AppError("validation", LEAD_BUILD_WORDS.rewriteLostOpening);
   return { ...email, cannot: sentence };
 }
 

@@ -131,7 +131,7 @@ export async function replyToGoogleReview(ctx: RouteContext & { params: Params }
     const reason = typeof result.error === "string" ? result.error : "failed";
     const sentence = SAID[reason] ?? `The reply did not go through (${reason}).`;
     throw new AppError(
-      answer.status === 404 ? "not_found" : answer.status === 409 ? "conflict" : "internal",
+      answer.status === 404 ? "not_found" : answer.status === 409 ? "conflict" : "upstream_provider",
       reason === "google_refused" && typeof result.detail === "string"
         ? `${sentence} ${result.detail.slice(0, 200)}`
         : sentence,
@@ -158,7 +158,7 @@ export async function stopGoogleReviewReply(ctx: RouteContext & { params: Params
   const body = answer.body ?? {};
   if (answer.status !== 200 || body.ok !== true)
     throw new AppError(
-      answer.status === 404 ? "not_found" : "internal",
+      answer.status === 404 ? "not_found" : "upstream_provider",
       answer.status === 404 ? "That review is not on record." : "The reply could not be stopped just now. Try again.",
       answer.status === 404 ? 404 : 502,
     );
@@ -203,9 +203,8 @@ export async function searchGoogleFor(ctx: RouteContext, req: Request, member: M
       detail: typeof result.detail === "string" ? result.detail.slice(0, 300) : null,
     });
     throw new AppError(
-      "internal",
+      "upstream_provider",
       "Google could not be searched just now. Try again in a minute; if it keeps failing, Chanlytics has been told.",
-      502,
     );
   }
   const candidates = Array.isArray(result.candidates) ? result.candidates : [];

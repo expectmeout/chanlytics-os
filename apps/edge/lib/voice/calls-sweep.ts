@@ -533,7 +533,7 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
   );
   if (error) {
     L.error("calls_sweep_query_failed", { error: error.message });
-    return refuse(500, "query_failed");
+    return refuse(503, "query_failed");
   }
 
   const provider: ProviderTick = {

@@ -16,7 +16,7 @@ export const DELETE = write({
     const a = await callEdgeGoogle({ op: "disconnect", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true)
-      throw new AppError("internal", edgeRefusalWords(b) ?? "The connection could not be removed. Try again.", 502);
+      throw new AppError("upstream_provider", edgeRefusalWords(b) ?? "The connection could not be removed. Try again.");
     return { removed: b.removed === true, revoked: b.revoked === true };
   },
 });

@@ -455,7 +455,7 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
   const backing = draftBackingOf(known, ask);
   const { steps, cannot } = judgeSteps(answer, { audience, kind, known, moment, name, backing });
   const sentence = answer.cannot.trim();
-  if (steps.length === 0) throw new AppError("validation", sentence || cannot[0] || NEW_WORDS.cannot.nothingFits, 422);
+  if (steps.length === 0) throw new AppError("validation", sentence || cannot[0] || NEW_WORDS.cannot.nothingFits);
   const first = steps[0]?.message ?? null;
   const how = howOf({ kind, audience, who: draftWho, moment, first }, answer, known);
   const draft: NewDraftDto = {

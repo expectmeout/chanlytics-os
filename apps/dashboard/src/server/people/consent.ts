@@ -215,7 +215,7 @@ export async function askToConfirmSignup(
   userId: string,
   contactId: ContactId,
 ): Promise<SignupAskAnswer> {
-  if (!edgeConfigured()) throw new AppError("conflict", "Asking them to confirm is not available right now.", 503);
+  if (!edgeConfigured()) throw new AppError("unavailable", "Asking them to confirm is not available right now.");
   const answer = await callEdge(
     "/api/admin/email/signup-confirm",
     { tenant_id: tenantId, user_id: userId, contact_id: contactId },
@@ -228,5 +228,5 @@ export async function askToConfirmSignup(
     return { asked: request, said: signupAskLine(request ? "asked" : reason) ?? NOBODY_TO_ASK };
   }
   log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: answer.status, reason: body?.why ?? null });
-  throw new AppError("conflict", "The email asking them to confirm could not be sent. Try again in a minute.", 502);
+  throw new AppError("upstream_email", "The email asking them to confirm could not be sent. Try again in a minute.");
 }

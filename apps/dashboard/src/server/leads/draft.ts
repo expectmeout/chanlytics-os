@@ -123,7 +123,7 @@ export async function draftFor(
   input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } },
 ): Promise<DraftAnswer> {
   const offer = await getWorkspaceOffer(ctx, lead.tenant_id);
-  if (!offer.address) throw new AppError("validation", LEAD_NO_ADDRESS, 422);
+  if (!offer.address) throw new AppError("validation", LEAD_NO_ADDRESS);
   if (!lead.email || lead.email_state === "none" || lead.email_state === "invalid") {
     throw new AppError("conflict", LEAD_OWN_EMAIL_WORDS.noAddress, 409);
   }

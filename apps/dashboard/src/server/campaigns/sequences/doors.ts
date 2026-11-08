@@ -57,7 +57,7 @@ type Sequence = { id: string; tenant_id: TenantId };
  */
 function doorAnswer(r: DoorResult<SequenceDoorAnswer>): SequenceDoorAnswer {
   if (!r.error) return r.data;
-  if (r.error.code === "23514") throw new AppError("validation", "That step cannot be kept as it is.", 422);
+  if (r.error.code === "23514") throw new AppError("validation", "That step cannot be kept as it is.");
   throw dbRefusal(r.error);
 }
 
@@ -100,7 +100,7 @@ export async function stepOfSequence(ctx: RouteContext, seq: Sequence, stepId: s
 /** A step of this sequence after its first: the first is the sequence, changed where the sequence is. */
 async function laterStepOf(ctx: RouteContext, seq: Sequence, stepId: string) {
   const step = await stepOfSequence(ctx, seq, stepId);
-  if (step.id === seq.id) throw new AppError("validation", "The first step is the sequence: change it there.", 422);
+  if (step.id === seq.id) throw new AppError("validation", "The first step is the sequence: change it there.");
   return step;
 }
 
@@ -162,14 +162,14 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: TenantId, inp
  */
 async function makeLeadSequenceNow(ctx: RouteContext, tenantId: TenantId, input: NewSequenceBody) {
   const parsed = LEAD_FIRST_BODY.safeParse(input.first);
-  if (!parsed.success) throw new AppError("validation", parsed.error.issues[0]?.message ?? "Name it.", 422);
+  if (!parsed.success) throw new AppError("validation", parsed.error.issues[0]?.message ?? "Name it.");
   // What Ask drafted is the decision's, beside what the owner made of it (decision 0078 step 2); never a step's.
   const { as_drafted: asDrafted, ...first } = parsed.data;
   const steps = (first.steps ?? []).map(({ id: _id, hand, ...s }) => (hand ? { ...s, hand } : s));
   steps.forEach((s, i) => {
     if ("hand" in s || !s.body.trim()) return;
     const [issue] = validateReachOutWords({ subject: s.subject, body: s.body }, i === 0);
-    if (issue) throw new AppError("validation", wordsIssueWords(issue), 422);
+    if (issue) throw new AppError("validation", wordsIssueWords(issue));
   });
   return doorAnswer(
     await makeSequence(ctx.supabase, {
@@ -232,11 +232,11 @@ export async function addSequenceStep(ctx: RouteContext, seq: Sequence, input: N
   // A customer's sequence that takes none is a reminder; any other kind is the door's own to refuse, in its words.
   const customers = row?.starts === "moment" || row?.starts === "list";
   if (row && customers && !takesFollowUps(row))
-    throw new AppError("validation", SEQUENCE_FLOW_WORDS.noFollowUpOnReminder, 422);
+    throw new AppError("validation", SEQUENCE_FLOW_WORDS.noFollowUpOnReminder);
   // A call or a note closes it (00465): said here in the page's words, before the database refuses it in its own.
   const steps = await listSequenceSteps(ctx.supabase, seq.tenant_id, seq.id);
   const last = steps.reduce<(typeof steps)[number] | null>((a, s) => (!a || s.place > a.place ? s : a), null);
-  if (last?.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.nothingAfterHand, 422);
+  if (last?.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.nothingAfterHand);
   const does = input.hand
     ? { hand: input.hand }
     : {
@@ -266,9 +266,9 @@ export async function addSequenceStep(ctx: RouteContext, seq: Sequence, input: N
  */
 export async function changeSequenceStep(ctx: RouteContext, seq: Sequence, stepId: string, input: StepChangeBody) {
   const step = await laterStepOf(ctx, seq, stepId);
-  if (input.hand && !step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.handOnMessage, 422);
-  if (input.params !== undefined && step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.valuesOnHand, 422);
-  if (input.channels && step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.channelsOnHand, 422);
+  if (input.hand && !step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.handOnMessage);
+  if (input.params !== undefined && step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.valuesOnHand);
+  if (input.channels && step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.channelsOnHand);
   const params =
     input.params === undefined ? undefined : await valuesOf(ctx, seq.tenant_id, step.template_id ?? "", input.params);
   const change = {
@@ -302,7 +302,7 @@ export async function dropSequenceStep(ctx: RouteContext, seq: Sequence, stepId:
 export async function changeSequenceWords(ctx: RouteContext, seq: Sequence, stepId: string, input: StepWordsBody) {
   const step = await stepOfSequence(ctx, seq, stepId);
   // A call or a note sends no message: its words are its own (the step door), never a message's.
-  if (step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.valuesOnHand, 422);
+  if (step.hand) throw new AppError("validation", SEQUENCE_FLOW_WORDS.valuesOnHand);
   const params = await valuesOf(ctx, seq.tenant_id, input.template_id, input.params);
   return doorAnswer(
     await setSequenceStepWords(ctx.supabase, {

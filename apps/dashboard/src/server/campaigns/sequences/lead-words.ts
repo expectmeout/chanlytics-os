@@ -34,8 +34,7 @@ export async function saveLeadWords(
   ]);
   const chain = chains.find((c) => c.root_id === seq.id);
   const at = chain?.steps.find((s) => s.id === step.id);
-  if (!chain || !at || at.hand || !step.template_id)
-    throw new AppError("validation", "Only an email takes words.", 422);
+  if (!chain || !at || at.hand || !step.template_id) throw new AppError("validation", "Only an email takes words.");
   if (!lead) throw new AppError("not_found", "Lead not found.", 404);
   const first = at.n === 0;
   // A step after the first answers the one before: whatever came with it, it keeps no subject.
@@ -43,10 +42,10 @@ export async function saveLeadWords(
   const workspace = { businessName: business.name, yourName: chain.signed_by, bookingLink: business.bookingLink };
   if (words) {
     const problem = leadWordsProblem({ words, first, lead, workspace });
-    if (problem) throw new AppError("validation", problem, 422);
+    if (problem) throw new AppError("validation", problem);
   }
   const standing = words ?? (await findEmailWords(ctx.supabase, seq.tenant_id, step.template_id));
-  if (!standing) throw new AppError("validation", "Only an email takes words.", 422);
+  if (!standing) throw new AppError("validation", "Only an email takes words.");
   const result = await setLeadWords(ctx.supabase, {
     stepId: step.id,
     leadId,

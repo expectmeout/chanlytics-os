@@ -33,7 +33,7 @@ export const POST = write({
         409,
       );
     if (answer.status !== 200 || result.ok !== true)
-      throw new AppError("internal", edgeRefusalWords(result) ?? CARRIER_DID_NOT_ANSWER, 502);
+      throw new AppError("upstream_provider", edgeRefusalWords(result) ?? CARRIER_DID_NOT_ANSWER);
     return {
       area_code: Number(raw),
       numbers: Array.isArray(result.numbers) ? result.numbers : [],

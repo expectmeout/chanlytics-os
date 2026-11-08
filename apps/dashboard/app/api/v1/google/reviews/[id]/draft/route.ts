@@ -35,7 +35,7 @@ export const POST = write({
       const reason = typeof body.error === "string" ? body.error : "failed";
       const sentence = REASON_WORDS[reason] ?? `No draft this time (${reason}).`;
       throw new AppError(
-        answer.status === 404 ? "not_found" : answer.status === 409 ? "conflict" : "internal",
+        answer.status === 404 ? "not_found" : answer.status === 409 ? "conflict" : "upstream_provider",
         sentence,
         answer.status === 404 ? 404 : answer.status === 409 ? 409 : 502,
       );

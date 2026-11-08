@@ -526,7 +526,7 @@ export function refusalOfDbFailure(failure: DbFailure): AppError | null {
  * A database failure, as a route answers it. A door's own refusal keeps the door's words, at the status its SQLSTATE
  * says (a bare raise, P0001, at the one the route gives, validation unless it says). Anything else (a timeout, a lost
  * connection, a constraint no door named, a fault) is the database's own text, never a person's to read: it is logged
- * with its code, and the answer is `internal` 503 in the envelope's catch-all words, which the client says as a
+ * with its code, and the answer is `unavailable` 503 in the envelope's catch-all words, which the client says as a
  * try-again (contracts' refusalOf). The raw text used to reach the browser as a 400 "validation" at fifteen sites.
  */
 export function dbRefusal(
@@ -543,7 +543,7 @@ export function dbRefusal(
   const door = code ? DOOR_REFUSALS[code] : undefined;
   if (door) return new AppError(door.code, doorWords(door, sentence), door.status);
   log.error("db_failed", { code, error: message });
-  return new AppError("internal", "Something went wrong.", 503);
+  return new AppError("unavailable", "Something went wrong.");
 }
 
 /**
@@ -590,7 +590,7 @@ export async function requireSpend(
   // No row is not permission. Every workspace gets one at creation
   // (create_workspace_for), so its absence means something is wrong with this
   // workspace, not that it may spend freely.
-  if (error) throw new AppError("internal", "Billing could not be read just now. Try again in a moment.", 503);
+  if (error) throw new AppError("unavailable", "Billing could not be read just now. Try again in a moment.");
   if (!data)
     throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
   const reason = whyCannotSpend(data.mode, data.status, doing);

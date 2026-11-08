@@ -55,7 +55,7 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
   const chain = chains.find((c) => c.root_id === seq.id);
   const step = chain?.steps.find((s) => s.id === id);
   if (!chain || !step) throw new AppError("not_found", "Step not found.", 404);
-  if (step.hand) throw new AppError("validation", W.noMessage, 422);
+  if (step.hand) throw new AppError("validation", W.noMessage);
   if (leadId && !lead) throw new AppError("not_found", "Lead not found.", 404);
   const own = leadOwnWordsOf(typed);
   const firstStep = chain.steps.find((s) => s.n === 0);
@@ -76,7 +76,7 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
     signature: chainFirstSender(chain)?.signature?.words ?? null,
     own: business.signature,
   });
-  if ("why" in mail) throw new AppError("validation", mail.why, 422);
+  if ("why" in mail) throw new AppError("validation", mail.why);
   return mail;
 }
 
@@ -87,16 +87,16 @@ async function leadMailOf(ctx: RouteContext, seq: Sequence, stepId: string, lead
  * goes by and the message lacks.
  */
 async function mailOf(ctx: RouteContext, seq: Sequence, stepId: string) {
-  if (seq.starts !== "moment" && seq.starts !== "list") throw new AppError("validation", W.notCustomer, 422);
+  if (seq.starts !== "moment" && seq.starts !== "list") throw new AppError("validation", W.notCustomer);
   const step = await stepOfSequence(ctx, seq, stepId);
-  if (!step.template_id) throw new AppError("validation", W.noMessage, 422);
+  if (!step.template_id) throw new AppError("validation", W.noMessage);
   const [rows, overview, business] = await Promise.all([
     listMessageVersionRows(ctx.supabase, seq.tenant_id, { id: step.template_id }),
     listSequenceOverview(ctx.supabase, seq.tenant_id, seq.id),
     findBusiness(ctx, seq.tenant_id),
   ]);
   const own = rows.find((r) => r.id === step.template_id) ?? rows[0];
-  if (!own) throw new AppError("validation", W.noMessage, 422);
+  if (!own) throw new AppError("validation", W.noMessage);
   const whatsapp = rows.find((r) => r.channel === "whatsapp") ?? null;
   const mail = stepTestMail({
     sequence: seq.name,
@@ -114,7 +114,7 @@ async function mailOf(ctx: RouteContext, seq: Sequence, stepId: string) {
       category: whatsapp?.category ?? own.category,
     },
   });
-  if ("missing" in mail) throw new AppError("validation", mail.why, 422);
+  if ("missing" in mail) throw new AppError("validation", mail.why);
   return mail;
 }
 

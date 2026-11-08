@@ -79,7 +79,7 @@ export const POST = write({
         throw new AppError(
           translation.reason === "refused" ? "upstream_anthropic" : "validation",
           translation.message,
-          translation.reason === "refused" ? 502 : 422,
+          translation.reason === "refused" ? 502 : 400,
         );
       return { draft: translation.draft };
     }
@@ -93,7 +93,7 @@ export const POST = write({
       throw new AppError(
         result.reason === "refused" ? "upstream_anthropic" : "validation",
         result.message,
-        result.reason === "refused" ? 502 : 422,
+        result.reason === "refused" ? 502 : 400,
       );
     return { draft: result.draft };
   },

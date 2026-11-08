@@ -42,6 +42,7 @@ import {
   type OwnVersionChannel,
   type ParamSpec,
   type TemplateStatus,
+  isFaultCode,
 } from "@chanlytics/contracts";
 import { findHeldMessage, listMessageVersionRows } from "@chanlytics/db/campaigns";
 import { submitDraft } from "@/server/campaigns/template-submit";
@@ -94,7 +95,7 @@ const NOT_FILED = "This version could not be filed just now. Write it again from
  * versions before it are filed), so the route never sees it and its route_failed line is never written.
  */
 function filingWords(e: unknown, tenantId: TenantId, channel: ConsentChannel): string {
-  if (e instanceof AppError && e.code !== "internal") return e.message;
+  if (e instanceof AppError && !isFaultCode(e.code)) return e.message;
   log.error("message_version_not_filed", { tenant_id: tenantId, channel, error: e });
   return NOT_FILED;
 }

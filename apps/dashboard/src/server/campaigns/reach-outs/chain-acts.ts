@@ -73,7 +73,7 @@ export function reachOutRefusal(pgError: PgError): Error {
       return new AppError("not_found", sentence ?? REACH_OUT_REFUSALS.notFound, 404);
     case "22023":
     case "23514":
-      return new AppError("validation", sentence ?? REACH_OUT_REFUSALS.unsaved, 422);
+      return new AppError("validation", sentence ?? REACH_OUT_REFUSALS.unsaved);
     case "23505":
     case "23503":
       return new AppError("conflict", sentence ?? REACH_OUT_REFUSALS.exists, 409);
@@ -193,7 +193,7 @@ export async function saveChain(
   const issues = opts.unwritten ? all.filter((i) => !blank(i.step)) : all;
   if (issues.length > 0) {
     const sentence = issues.map((i) => ({ ...i, words: chainIssueWords(i) }));
-    throw new AppError("validation", sentence[0]?.words ?? "", 422, { issues: sentence });
+    throw new AppError("validation", sentence[0]?.words ?? "", 400, { issues: sentence });
   }
   // An email carries no hand key at all: the door reads a step with one as a call or a note (00228).
   const steps = input.steps.map(({ hand, ...s }) => (hand ? { ...s, hand } : s));

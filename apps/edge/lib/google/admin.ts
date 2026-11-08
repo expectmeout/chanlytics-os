@@ -203,12 +203,12 @@ async function link(googleCall: GoogleCall): Promise<Response> {
     googleCall.tenantId,
     linkRow(details, googleCall.tenantId, googleCall.userId, new Date()),
   );
-  if (saved.error || !saved.data) return refuseFailure(500, "write_failed", saved.error);
+  if (saved.error || !saved.data) return refuseFailure(503, "write_failed", saved.error);
   // A new listing forgets the old one's reviews and days: they were another place's.
   const reviewsGone = await deleteGoogleReviews(googleCall.db, googleCall.tenantId);
-  if (reviewsGone.error) return refuseFailure(500, "write_failed", reviewsGone.error);
+  if (reviewsGone.error) return refuseFailure(503, "write_failed", reviewsGone.error);
   const daysGone = await deleteGoogleListingDays(googleCall.db, googleCall.tenantId);
-  if (daysGone.error) return refuseFailure(500, "write_failed", daysGone.error);
+  if (daysGone.error) return refuseFailure(503, "write_failed", daysGone.error);
   // The link asks for the listing's website to be read too (website-read.ts), for Check and its booking page.
   const read = await checkListing(googleCall.db, saved.data, googleCall.tz, { askWebsite: true });
   // A place that changed: what the last one offered and nobody kept leaves the Inbox, as it may be another business's. The
@@ -269,7 +269,7 @@ async function hold(c: GoogleCall): Promise<Response> {
   const id = reviewIdOf(c.body.id);
   if (!id) return respond(NO_REVIEW_ID);
   const r = await holdReviewReply(c.db, c.tenantId, id);
-  if (!r.ok) return refuse(500, "write_failed", r.detail);
+  if (!r.ok) return refuse(503, "write_failed", r.detail);
   // The ledger's line is the dashboard's, as a reply's is (its route records the stop).
   if (r.held) c.L.info("google_reply_stopped", { id });
   return json(200, { ok: true, held: r.held });
@@ -333,7 +333,7 @@ async function unlink(googleCall: GoogleCall, conn: ConnectionRow | null, row: L
   if (conn) await disconnectProfile(googleCall.db, googleCall.tenantId, googleCall.userId);
   if (!row) return json(200, { ok: true, removed: false });
   const del = await deleteGoogleListing(googleCall.db, googleCall.tenantId);
-  if (del.error) return refuseFailure(500, "write_failed", del.error);
+  if (del.error) return refuseFailure(503, "write_failed", del.error);
   await emitEvent(googleCall.db, googleCall.tenantId, "google.unlinked", "listing", null, {
     place_id: row.place_id,
     name: row.name,

@@ -75,7 +75,7 @@ export async function startUpload(ctx: RouteContext, member: Member, input: Star
   const signed = await bucket().createSignedUploadUrl(filePathOf(member.tenantId, id, input.mime));
   if (signed.error || !signed.data) {
     log.error("file_upload_sign_failed", { tenant_id: member.tenantId, error: signed.error?.message ?? "no address" });
-    throw new AppError("internal", W.notSaved, 503);
+    throw new AppError("unavailable", W.notSaved);
   }
   return { id, upload_url: signed.data.signedUrl, twin: false };
 }

@@ -79,7 +79,7 @@ function requestDto(request: RequestRow): PrivacyRequestDto {
 /** The open requests, and those closed in the last thirty days. */
 export async function listConsoleRequests(office: BackOffice): Promise<PrivacyRequestDto[]> {
   const { data, error } = await listRequests(office.db, new Date(Date.now() - 30 * DAY_MS).toISOString(), 200);
-  if (error) throw new AppError("internal", "The requests could not be read just now. Try again in a moment.", 503);
+  if (error) throw new AppError("unavailable", "The requests could not be read just now. Try again in a moment.");
   return (data ?? []).map(requestDto);
 }
 
@@ -89,7 +89,7 @@ export async function fileConsoleRequest(
   input: { kind: RequestKind; workspace: string; asked_by: string; asked_at: string; why: ConsoleWhy },
 ): Promise<PrivacyRequestDto> {
   const found = await findTenantBySlug(office.db, input.workspace);
-  if (found.error) throw new AppError("internal", "That could not be checked just now. Try again in a moment.", 503);
+  if (found.error) throw new AppError("unavailable", "That could not be checked just now. Try again in a moment.");
   const tenant = found.data;
   if (!tenant)
     throw new AppError("validation", CONSOLE_WORDS.noSuchWorkspace, 400, {
@@ -117,7 +117,7 @@ export async function fileConsoleRequest(
         due_at: requestDueAt(input.asked_at),
         created_by: office.userId,
       });
-      if (error || !data) throw new AppError("internal", NOT_RECORDED, 503);
+      if (error || !data) throw new AppError("unavailable", NOT_RECORDED);
       return requestDto(data);
     },
   );
@@ -129,7 +129,7 @@ export async function stepConsoleRequest(
   input: { id: string; step: RequestStep | "close"; done: boolean; why: ConsoleWhy },
 ): Promise<PrivacyRequestDto> {
   const found = await requestById(office.db, input.id);
-  if (found.error) throw new AppError("internal", "That could not be read just now. Try again in a moment.", 503);
+  if (found.error) throw new AppError("unavailable", "That could not be read just now. Try again in a moment.");
   if (!found.data) throw new AppError("not_found", "No such request.", 404);
   const current = requestDto(found.data);
   // The steps as stored, which the write is made over: a step someone else marked meanwhile is not erased.
@@ -145,7 +145,7 @@ export async function stepConsoleRequest(
     const change = requestStepChange(current, input.step, input.done, new Date().toISOString());
     if ("refused" in change) throw new AppError("conflict", change.refused, 409);
     const { data, error } = await setRequestSteps(office.db, current.id, was, change.steps, change.closedAt);
-    if (error) throw new AppError("internal", NOT_RECORDED, 503);
+    if (error) throw new AppError("unavailable", NOT_RECORDED);
     const row = data?.[0];
     if (!row)
       throw new AppError("conflict", "Someone else changed or closed this request just now. Read it again first.", 409);

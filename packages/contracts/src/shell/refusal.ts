@@ -88,6 +88,8 @@ const TITLES: ReadonlyMap<string, string> = new Map([
   ["upstream_email", "The email didn't go"],
   ["upstream_auth", "Couldn't check your sign-in"],
   ["internal", "Something went wrong"],
+  ["unavailable", "Something went wrong"],
+  ["upstream_provider", "Something went wrong"],
   ["network", "No connection"],
   ["timeout", "No answer in time"],
   ["client", "Not sent"],
@@ -233,6 +235,8 @@ export function refusalOf(input: RefusalInput): Refusal {
     case "timeout":
       return refusal(code, "No answer in time", input.write ? TIMEOUT_WRITE : TIMEOUT_READ);
     case "internal":
+    case "unavailable":
+    case "upstream_provider":
       return refusal(
         code,
         "Something went wrong",

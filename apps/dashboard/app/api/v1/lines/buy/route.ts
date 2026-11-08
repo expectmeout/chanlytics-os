@@ -69,7 +69,7 @@ export const POST = write({
     if (edgeAnswer.status === 400)
       throw new AppError("validation", edgeRefusalWords(body) ?? "That number cannot be used.", 400);
     if (edgeAnswer.status !== 200 && edgeAnswer.status !== 202 && edgeAnswer.status !== 502)
-      throw new AppError("internal", edgeRefusalWords(body) ?? CARRIER_DID_NOT_ANSWER, 502);
+      throw new AppError("upstream_provider", edgeRefusalWords(body) ?? CARRIER_DID_NOT_ANSWER);
     // 202: the saga is on the ledger; the row says the step, and Setup repaints from it.
     return {
       ok: body.ok === true,

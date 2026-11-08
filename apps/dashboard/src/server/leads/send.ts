@@ -171,7 +171,7 @@ export async function sendLeadEmail(ctx: Ctx, lead: LeadRow, words: LeadEmailWor
   if (held) throw wontSend(held);
   const secret = env.UNSUBSCRIBE_SECRET ?? "";
   const workspace = await getWorkspaceOffer(ctx, tenantId);
-  if (!workspace.address) throw new AppError("validation", LEAD_NO_ADDRESS, 422);
+  if (!workspace.address) throw new AppError("validation", LEAD_NO_ADDRESS);
   if (await getLeadEmailOnItsWay(db, tenantId, lead.id)) throw wontSend(W.onItsWay);
 
   const [person, slots, stored] = await Promise.all([

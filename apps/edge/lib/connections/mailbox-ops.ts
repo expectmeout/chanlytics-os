@@ -174,7 +174,7 @@ async function testOp(p: MailboxPorts, row: MailboxConnectionRow): Promise<Respo
   const out = await testMailbox(p, row, crypto.randomUUID());
   if (out.ok) return json(200, { ok: true, sent: true });
   if (out.why === "signed_out") return refuse(409, "provider_unauthorized", out.detail);
-  return out.why === "refused" ? refuse(502, "provider_refused", out.detail) : refuse(502, "unavailable", out.detail);
+  return out.why === "refused" ? refuse(502, "provider_refused", out.detail) : refuse(503, "unavailable", out.detail);
 }
 
 /** An op on one of the workspace's mailboxes: the move, then the row as it stands after it. */
@@ -198,7 +198,7 @@ async function rowOp(
       await removeMailbox(mailboxPorts, row, by);
       return json(200, { ok: true, removed: true });
     case "pause":
-      return (await pauseMailbox(mailboxPorts, row, by ?? "owner", true)) ? answer() : refuse(409, "not_connected");
+      return (await pauseMailbox(mailboxPorts, row, by ?? "owner", true)) ? answer() : refuse(404, "not_connected");
     case "unpause":
       return (await pauseMailbox(mailboxPorts, row, by ?? "owner", false)) ? answer() : refuse(409, "not_paused");
     case "resume":
@@ -208,15 +208,15 @@ async function rowOp(
     case "history_stop":
       return (await stopMailboxHistory(mailboxPorts.db, row, Date.now()))
         ? answer()
-        : refuse(409, "not_ready", "Nothing is coming in from it.");
+        : refuse(409, "nothing_to_do", "Nothing is coming in from it.");
     case "history_resume":
       return (await resumeMailboxHistory(mailboxPorts.db, row))
         ? answer()
-        : refuse(409, "not_ready", "Nothing of it stopped.");
+        : refuse(409, "nothing_to_do", "Nothing of it stopped.");
     case "history_bring":
       return (await bringMailboxHistory(mailboxPorts.db, row))
         ? answer()
-        : refuse(409, "not_ready", "Its last 6 months are already brought in.");
+        : refuse(409, "nothing_to_do", "Its last 6 months are already brought in.");
     case "settings": {
       const out = await readMailboxSettings(mailboxPorts, row, settingsOf(body));
       if ("error" in out) return refuse(400, "invalid", out.error);

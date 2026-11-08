@@ -33,7 +33,7 @@ export const POST = write({
     if (answer.status === 503 && result.error === "no_line_provider")
       throw new AppError("conflict", "Getting a line is not available here yet — a person at Chanlytics has it.", 409);
     if (answer.status !== 200 && answer.status !== 202 && answer.status !== 502)
-      throw new AppError("internal", edgeRefusalWords(result) ?? CARRIER_DID_NOT_ANSWER, 502);
+      throw new AppError("upstream_provider", edgeRefusalWords(result) ?? CARRIER_DID_NOT_ANSWER);
     // 202: the saga is on the ledger; the row says the step, and Setup repaints from it.
     return {
       ok: result.ok === true,

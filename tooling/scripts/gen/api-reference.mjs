@@ -189,7 +189,9 @@ const CODE_MEANS = {
   upstream_email: "The email provider refused or failed.",
   upstream_auth: "Sign-in could not be checked just now; the session stands.",
   upstream_voice: "Ask's voice refused, could not be reached, or is not set up here.",
-  internal: "Something failed on our side; its text is only in the log.",
+  upstream_provider: "A provider, or the edge asked on our behalf, refused or never answered.",
+  unavailable: "It could not be done just now; trying again may do it.",
+  internal: "Something failed that nothing here expected; its text is only in the log.",
 };
 
 /**
@@ -290,8 +292,8 @@ export async function generate(root) {
     "",
     "A write in a workspace that carries an `Idempotency-Key` header (at most 120 characters, one per intent) is answered",
     "once per key for a day: the same request sent again is given the first answer and changes nothing, the same key on",
-    "another request (another method, path or body) is refused with 422, and one that arrives while the first still runs",
-    "with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.",
+    "another request (another method, path or body), or one that arrives while the first still runs, is refused with",
+    "409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.",
     "",
     `${count} handlers in ${byDomain.size} domains.`,
     "",

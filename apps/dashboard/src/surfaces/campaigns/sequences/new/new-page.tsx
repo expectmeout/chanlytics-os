@@ -204,7 +204,7 @@ function useAsk(door: Fixed, flash: Flash, onDraft: (d: NewDraftDto) => void) {
     // Drafting it again, the draft stays as it was and what Ask said is a toast over it, whatever it was.
     else if (again) flash(refusalToast(r));
     // A draft nothing here can hold is said in Ask's words; anything else is Ask that could not answer just now.
-    else if (r.status === 422) setRefused(r.message);
+    else if (r.code === "validation") setRefused(r.message);
     else setFailed(true);
   };
   const stop = () => {

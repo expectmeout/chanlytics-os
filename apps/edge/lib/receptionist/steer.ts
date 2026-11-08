@@ -334,7 +334,7 @@ export async function steerHeldDraft(
     },
     steerLog,
   );
-  if (!newId) return refuse(502, "could_not_queue");
+  if (!newId) return refuse(503, "could_not_queue");
 
   // Then the old one, counted (retireForTheRewrite): a draft the tick sent or claimed meanwhile takes the rewrite back.
   const lost = await retireForTheRewrite(db, m, newId);

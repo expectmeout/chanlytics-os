@@ -50,7 +50,7 @@ const MAX_BODY = 16_000;
 export async function receiveWebsiteForm(request: Request): Promise<Response> {
   const log = logger({ door: "website_form" });
   const raw = await request.text();
-  if (raw.length > MAX_BODY) return refuse(413, "bad_request");
+  if (raw.length > MAX_BODY) return refuse(413, "too_large");
   let body: unknown;
   try {
     body = JSON.parse(raw);
@@ -73,7 +73,7 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   const person = websiteFormPerson(data);
   if (!person) {
     log.warn("website_form_refused", { tenant_id: tenantId, why: "no_way_to_reach" });
-    return refuse(422, "invalid", "An email address or a phone number is needed.");
+    return refuse(400, "invalid", "An email address or a phone number is needed.");
   }
   const db = pg();
   if (!db) return refuse(503, "no_database");

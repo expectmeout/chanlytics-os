@@ -22,7 +22,7 @@ const STREAM_EVENT_BYTES_MAX = 64 * 1024;
 
 export async function receiveStreamWebhook(request: Request): Promise<Response> {
   const secret = env.CLOUDFLARE_STREAM_WEBHOOK_SECRET;
-  if (!secret) return refuse(404, "no_provider_key");
+  if (!secret) return refuse(404, "not_found");
   const log = logger({ door: "stream-webhook" });
   const raw = await request.text();
   if (raw.length > STREAM_EVENT_BYTES_MAX) return refuse(413, "too_large");

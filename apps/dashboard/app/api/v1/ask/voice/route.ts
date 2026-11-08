@@ -62,7 +62,7 @@ export const POST = write({
     }
     const token = typeof answer.body?.token === "string" ? answer.body.token : "";
     const conversationId = typeof answer.body?.conversation_id === "string" ? answer.body.conversation_id : null;
-    if (!token) throw new AppError("upstream_voice", "The voice agent answered no token.", 502);
+    if (!token) throw new AppError("upstream_voice", "The voice agent answered no token.");
 
     // A new thread only once the vendor has said yes: a refused conversation leaves no empty thread behind.
     if (!thread) {

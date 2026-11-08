@@ -94,7 +94,7 @@ export type {
 } from "./enums";
 export { err, ok, SERVED_AT_HEADER } from "./envelope";
 export type { Envelope, Err, Ok, PageInfo } from "./envelope";
-export { AppError, bodyRefusal, causedBy, DbFailure, ERROR_CODES } from "./errors";
+export { AppError, bodyRefusal, causedBy, DbFailure, ERROR_CODES, isFaultCode } from "./errors";
 export type { DbReplyFailure, ErrorCode, ErrorDetails, ErrorDetailsByCode } from "./errors";
 export { escapeHtml, linkifyEscaped } from "./html";
 export {

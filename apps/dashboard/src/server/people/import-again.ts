@@ -21,7 +21,7 @@ export async function importAgain(
   input: z.infer<typeof ImportAgainBody>,
 ): Promise<{ ok: true }> {
   if (input.source === "clients_file") throw new AppError("conflict", IMPORT_STOPPED_WORDS.clientsAgain, 409);
-  if (!edgeConfigured()) throw new AppError("conflict", IMPORT_STOPPED_WORDS.failed, 503);
+  if (!edgeConfigured()) throw new AppError("unavailable", IMPORT_STOPPED_WORDS.failed);
   const answer = await callEdge(
     "/api/admin/imports/again",
     { tenant_id: tenantId, user_id: userId, source: input.source },
@@ -37,8 +37,8 @@ export async function importAgain(
   });
   const sentence = typeof body?.detail === "string" && body.detail ? body.detail : IMPORT_STOPPED_WORDS.failed;
   throw new AppError(
-    "conflict",
+    answer.status < 500 ? "conflict" : "upstream_provider",
     `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`,
-    answer.status === 409 ? 409 : 502,
+    answer.status < 500 ? 409 : 502,
   );
 }

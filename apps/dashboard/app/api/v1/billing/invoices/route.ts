@@ -13,7 +13,7 @@ export const GET = read({
     if (answer.status !== 200 || body.ok !== true || !Array.isArray(body.invoices)) {
       const reason = typeof body.error === "string" ? body.error : "failed";
       throw new AppError(
-        answer.status === 503 ? "upstream_auth" : "internal",
+        answer.status === 503 ? "upstream_auth" : "upstream_provider",
         BILLING_SAID[reason] ?? `The invoices could not be read (${reason}).`,
         answer.status === 503 ? 503 : 502,
       );

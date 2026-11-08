@@ -23,7 +23,7 @@ type Ctx = { params: Promise<{ token: string }> };
 /** A body read as an object of fields, or an empty one: a field of the wrong kind is each door's to refuse. */
 async function fieldsOf(req: Request): Promise<Record<string, unknown>> {
   const text = await req.text().catch(() => "");
-  if (text.length > BODY_MAX_BYTES) throw new AppError("validation", "That is too long.", 413);
+  if (text.length > BODY_MAX_BYTES) throw new AppError("validation", "That is too long.");
   try {
     const parsed: unknown = JSON.parse(text || "{}");
     return parsed && typeof parsed === "object" ? recordOrEmpty(parsed) : {};

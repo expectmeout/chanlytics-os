@@ -124,12 +124,12 @@ export async function draftUseOfReply(
 
 /** What a refusal of the edge's door says to the member, in the words their page has for why. */
 function refusalOf(reason: string, detail: string | null): AppError {
-  if (reason === "policy_block_price") return new AppError("validation", draftFailedWords("named_money").words, 422);
-  if (reason === "draft_refused") return new AppError("validation", draftFailedWords(detail).words, 422);
+  if (reason === "policy_block_price") return new AppError("validation", draftFailedWords("named_money").words);
+  if (reason === "draft_refused") return new AppError("validation", draftFailedWords(detail).words);
   if (reason === "not_found") return new AppError("not_found", "Conversation not found.");
   if (reason === "nothing_to_answer" || reason === "draft_not_owed")
     return new AppError("conflict", "They have written since. Reload to see it.", 409);
-  return new AppError("conflict", draftFailedWords("not_drafted").words, 503);
+  return new AppError("unavailable", draftFailedWords("not_drafted").words);
 }
 
 /**

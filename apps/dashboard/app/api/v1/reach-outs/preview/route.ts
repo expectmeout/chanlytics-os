@@ -17,7 +17,7 @@ export const POST = write({
   handle: async ({ ctx, member, input }): Promise<{ preview: ReachOutPreviewDto }> => {
     const r = await previewReachOut(member.tenantId, ctx.userId, { ...input, language: input.language ?? "en" });
     if (r.ok) return { preview: r.preview as ReachOutPreviewDto };
-    if (r.reason === "preview") throw new AppError("upstream_anthropic", REACH_OUT_REFUSALS.preview, 503);
+    if (r.reason === "preview") throw new AppError("unavailable", REACH_OUT_REFUSALS.preview);
     if (r.reason === "ask_budget") throw new AppError("rate_limited", REACH_OUT_REFUSALS.budget, 429);
     throw new AppError("upstream_anthropic", REACH_OUT_REFUSALS.previewDown, 502);
   },

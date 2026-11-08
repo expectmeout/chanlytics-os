@@ -96,7 +96,7 @@ export async function receiveStripeEvent(request: Request): Promise<Response> {
     // The claim goes back before the 500 does: Stripe's retry has to find the
     // event unspent, or the change this delivery failed to apply is lost.
     await delivery.giveBack();
-    return refuse(500, "write_failed");
+    return refuse(503, "write_failed");
   }
 }
 

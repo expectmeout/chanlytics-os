@@ -144,7 +144,7 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
   const link = await bucket().createSignedUrl(path, VIEW_LINK_S, opts);
   if (link.error || !link.data) {
     log.error("file_view_sign_failed", { tenant_id: file.tenant_id, error: link.error?.message ?? "no address" });
-    throw new AppError("internal", W.failedRead, 503);
+    throw new AppError("unavailable", W.failedRead);
   }
   // A picture's bytes never change, but a download's name does: that redirect is asked for afresh each time. A video's poster
   // is cut again when the look chooses its frame, so its redirect is kept an hour, not a week.

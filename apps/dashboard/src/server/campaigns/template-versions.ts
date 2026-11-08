@@ -17,6 +17,7 @@ import {
   type OwnVersionChannel,
   type StarterTemplate,
   type VersionWords,
+  isFaultCode,
 } from "@chanlytics/contracts";
 import {
   createMessageVersion,
@@ -339,9 +340,9 @@ export async function fileStarterVersions(
       out.push({
         channel,
         status: "failed",
-        // The door's own words when it refused; a fault (which dbRefusal answers as "internal") is no one's to read.
+        // The door's own words when it refused; a fault (which dbRefusal answers as "unavailable") is no one's to read.
         detail:
-          error instanceof AppError && error.code !== "internal"
+          error instanceof AppError && !isFaultCode(error.code)
             ? error.message
             : "The version could not be saved. Add the set again to retry.",
       });
