@@ -29,6 +29,7 @@ import type {
   BillingStatus,
   ModelTurnRequest,
   ModelTurnResponse,
+  TenantId,
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
@@ -40,7 +41,7 @@ export async function recordModelUsage(db: Db, rows: AiUsageBody | AiUsageBody[]
   if (error) throw new Error(`ai_usage: ${error.message}`);
 }
 
-export async function mayWorkspaceUseModels(db: Db, tenantId: string): Promise<boolean> {
+export async function mayWorkspaceUseModels(db: Db, tenantId: TenantId): Promise<boolean> {
   const [tenant, billing] = await Promise.all([
     db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
@@ -56,7 +57,7 @@ export async function mayWorkspaceUseModels(db: Db, tenantId: string): Promise<b
 }
 
 export interface AiFailures {
-  tenant_id: string;
+  tenant_id: TenantId;
   failed_calls: number;
   brain_errors: number;
 }
@@ -81,7 +82,7 @@ export async function purgeAiUsage(db: Db): Promise<number> {
 export interface ModelTurnKept {
   /** The model port's own id for the turn: what the reply's meta names it by. */
   turnId: string;
-  tenantId: string;
+  tenantId: TenantId;
   conversationId: string;
   promptHash: string;
   promptText: string;
@@ -108,7 +109,7 @@ export async function keepModelTurn(db: Db, turn: ModelTurnKept): Promise<void> 
 }
 
 /** An erasure's hand: the workspace's kept turns that name any of the person's identifiers, deleted; how many went. */
-export async function scrubModelTurns(db: Db, tenantId: string, needles: readonly string[]): Promise<number> {
+export async function scrubModelTurns(db: Db, tenantId: TenantId, needles: readonly string[]): Promise<number> {
   const { data, error } = await db.rpc("model_turns_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
   // A database before 00401 keeps no turn, so nothing is there to scrub: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
@@ -117,7 +118,8 @@ export async function scrubModelTurns(db: Db, tenantId: string, needles: readonl
 }
 
 /** The tokens the workspace's Ask spent in the last day (ask_tokens_day). */
-export const findAskTokensToday = async (db: Db, tenantId: string) => db.rpc("ask_tokens_day", { p_tenant: tenantId });
+export const findAskTokensToday = async (db: Db, tenantId: TenantId) =>
+  db.rpc("ask_tokens_day", { p_tenant: tenantId });
 
 /**
  * One page (`from` to `to`) of the model's spend between `since` and `until`, the newest first: every workspace's, or
@@ -125,7 +127,7 @@ export const findAskTokensToday = async (db: Db, tenantId: string) => db.rpc("as
  */
 export const pageLlmUsage = async (
   db: Db,
-  page: { tenantId: string | null; since: string; until: string; from: number; to: number },
+  page: { tenantId: TenantId | null; since: string; until: string; from: number; to: number },
 ) => {
   const query = platformWide(db)
     .from("events")

@@ -10,6 +10,8 @@ import type {
   FreedTimeLine,
   JobNews,
   SendPurpose,
+  TenantId,
+  ContactId,
 } from "@chanlytics/contracts";
 import type { EmailRequest } from "@chanlytics/channels/email";
 import type { Json } from "@chanlytics/db/types";
@@ -84,7 +86,7 @@ export interface SendQueuedPorts {
 
 /** The command sendQueued takes: here rather than in send.ts, so the port above can name its payload without a cycle. */
 export interface SendQueuedCommand {
-  tenantId: string;
+  tenantId: TenantId;
   /**
    * `to_phone` on a phone's wire, `to_email` on email's, `to_instagram` (the person's Instagram-scoped id) on a DM's:
    * an address never travels in a field read as a number.
@@ -152,7 +154,7 @@ export interface BroadcastRow {
   offered_from?: string | null;
 }
 export interface RecipientRow {
-  contact_id: string;
+  contact_id: ContactId;
   facts: unknown;
   /** The channel the run picked for them at enrolment (contracts reachFor); null or absent on a run made before: WhatsApp. */
   channel?: string | null;
@@ -250,7 +252,7 @@ export interface BroadcastBatchPorts {
   /** The thread this send belongs to, never created here. */
   target(phoneE164: string): Promise<{ conversationId: string } | null>;
   /** The same thread by the person, for an email, which reaches them by an address rather than a number; null for one that is gone. */
-  targetOfContact(contactId: string): Promise<{ conversationId: string } | null>;
+  targetOfContact(contactId: ContactId): Promise<{ conversationId: string } | null>;
   /**
    * The request one person's email leaves as, frozen (channels buildEmailRequest) from the hosted mailbox: From the
    * workspace's address, Reply-To its reply route, To `to`, the subject and body, and `footer` after them, under
@@ -272,7 +274,7 @@ export interface BroadcastBatchPorts {
    * sealed for them: `/u/<token>` on the deployment's unsubscribe origin (channels unsubscribeUrl). Null where this runtime
    * cannot seal one (no secret, no campaigns domain): the person is held, an offer never goes without its way out.
    */
-  unsubscribeUrl(i: { messageId: string; contactId: string }): Promise<string | null>;
+  unsubscribeUrl(i: { messageId: string; contactId: ContactId }): Promise<string | null>;
   /**
    * An email written as the queued row its request was frozen for, before it is sent (deliver assertFrozenFor), and only
    * once its person is claimed, so a claim that is lost or fails leaves no row behind: "written" when this call made it,
@@ -283,7 +285,7 @@ export interface BroadcastBatchPorts {
   queueEmail(row: {
     id: string;
     conversationId: string;
-    contactId: string;
+    contactId: ContactId;
     body: string;
     /** The frozen request: the row keeps it as meta.email (subject, To and the request itself), as every email's row does. */
     request: EmailRequest;
@@ -326,7 +328,7 @@ export interface BroadcastBatchPorts {
    * took the person, true, or false when they were no longer queued (another run took them first), and then nobody is
    * claimed twice, so nobody is sent twice. Every other write answers true.
    */
-  mark(id: string, contactId: string, patch: RecipientMark): Promise<boolean>;
+  mark(id: string, contactId: ContactId, patch: RecipientMark): Promise<boolean>;
   deliver: Door;
   /**
    * Why the run's wire cannot be bound right now -- the workspace's credentials could not be read (deliver
@@ -393,7 +395,7 @@ export interface BatchCarry {
   stalls?: number;
 }
 export interface BroadcastBatchCommand extends BatchCarry {
-  tenantId: string;
+  tenantId: TenantId;
   broadcastId: string;
   deadline: number;
   /**

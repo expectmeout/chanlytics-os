@@ -7,11 +7,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** One of the workspace's people as a card names them, or none. */
-export const findPersonCard = async (db: Db, tenantId: string, contactId: string) =>
+export const findPersonCard = async (db: Db, tenantId: TenantId, contactId: ContactId) =>
   db
     .from("contacts")
     .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
@@ -20,7 +20,7 @@ export const findPersonCard = async (db: Db, tenantId: string, contactId: string
     .maybeSingle();
 
 /** A person's deals, newest first. */
-export const listDealsOfPerson = async (db: Db, tenantId: string, contactId: string) =>
+export const listDealsOfPerson = async (db: Db, tenantId: TenantId, contactId: ContactId) =>
   db
     .from("deals")
     .select("id, stage, service, version, created_at")
@@ -29,7 +29,7 @@ export const listDealsOfPerson = async (db: Db, tenantId: string, contactId: str
     .order("created_at", { ascending: false });
 
 /** The mode a person's replies take, where the workspace set one for them, or none. */
-export const findPersonReplyModeRow = async (db: Db, tenantId: string, contactId: string) =>
+export const findPersonReplyModeRow = async (db: Db, tenantId: TenantId, contactId: ContactId) =>
   db
     .from("policies")
     .select("mode")
@@ -40,7 +40,7 @@ export const findPersonReplyModeRow = async (db: Db, tenantId: string, contactId
     .maybeSingle();
 
 /** The workspace's own rule of a class: its mode and limits, or none. */
-export const findWorkspaceRule = async (db: Db, tenantId: string, ruleClass: SchemaSet<"policies.class">) =>
+export const findWorkspaceRule = async (db: Db, tenantId: TenantId, ruleClass: SchemaSet<"policies.class">) =>
   db
     .from("policies")
     .select("mode, limits")
@@ -50,7 +50,7 @@ export const findWorkspaceRule = async (db: Db, tenantId: string, ruleClass: Sch
     .maybeSingle();
 
 /** One of the workspace's threads as a reply is offered on it: its state, its windows, and its person. */
-export const findThreadForReply = async (db: Db, tenantId: string, conversationId: string) =>
+export const findThreadForReply = async (db: Db, tenantId: TenantId, conversationId: string) =>
   db
     .from("conversations")
     .select(
@@ -61,7 +61,7 @@ export const findThreadForReply = async (db: Db, tenantId: string, conversationI
     .maybeSingle();
 
 /** One of the workspace's messages as a steer names it, or none. */
-export const findMessageCard = async (db: Db, tenantId: string, messageId: string) =>
+export const findMessageCard = async (db: Db, tenantId: TenantId, messageId: string) =>
   db
     .from("messages")
     .select("id, conversation_id, sender, status, body, type, direction, created_at")
@@ -70,7 +70,7 @@ export const findMessageCard = async (db: Db, tenantId: string, messageId: strin
     .maybeSingle();
 
 /** One of the workspace's threads as a verb is offered on it: its state, who has it, its snooze and its person. */
-export const findThreadCard = async (db: Db, tenantId: string, conversationId: string) =>
+export const findThreadCard = async (db: Db, tenantId: TenantId, conversationId: string) =>
   db
     .from("conversations")
     .select("id, state, assignee_user_id, snooze_until, contacts (display_name, wa_profile_name, phone_e164, email)")
@@ -79,7 +79,7 @@ export const findThreadCard = async (db: Db, tenantId: string, conversationId: s
     .maybeSingle();
 
 /** A thread's newest open escalation, or none. */
-export const findOpenEscalationOf = async (db: Db, tenantId: string, conversationId: string) =>
+export const findOpenEscalationOf = async (db: Db, tenantId: TenantId, conversationId: string) =>
   db
     .from("escalations")
     .select("id")

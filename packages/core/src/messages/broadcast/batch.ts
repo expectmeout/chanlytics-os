@@ -58,6 +58,7 @@ import {
   wireIsDown,
   wireIsUnbound,
 } from "./stops";
+import type { ContactId } from "@chanlytics/contracts";
 
 /**
  * One person, to the wire and back. "stop" when the run cannot go on past them; a back-off when the provider said not
@@ -415,7 +416,7 @@ async function stopForTheWire(
  */
 async function stopForTheLimit(
   work: Work,
-  contactId: string,
+  contactId: ContactId,
   out: Extract<Delivered, { outcome: "failed" }>,
   limit: "daily" | "monthly",
 ): Promise<void> {

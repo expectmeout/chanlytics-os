@@ -5,7 +5,7 @@
  * under row security. A read that fails throws: an email never falls back to the step's words because a read did not land.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { LeadEmailText, LeadStepWordsDto } from "@chanlytics/contracts";
+import type { LeadEmailText, LeadStepWordsDto, TenantId } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
 import { answer, type DoorResult } from "./reach-out/leads";
@@ -50,7 +50,7 @@ export async function setLeadWords(
 }
 
 /** One lead's own words at every step they have some. Read on the member's session. */
-export async function listLeadWords(db: Db, tenantId: string, leadId: string): Promise<LeadStepWordsDto[]> {
+export async function listLeadWords(db: Db, tenantId: TenantId, leadId: string): Promise<LeadStepWordsDto[]> {
   const { data, error } = await db
     .from("sequence_lead_words")
     .select("step_id, subject, body, written_at")
@@ -63,7 +63,7 @@ export async function listLeadWords(db: Db, tenantId: string, leadId: string): P
 /** One lead's own words at one step, or none: the step's stand. */
 export async function findLeadStepWords(
   db: Db,
-  params: { tenantId: string; stepId: string; leadId: string },
+  params: { tenantId: TenantId; stepId: string; leadId: string },
 ): Promise<LeadEmailText | null> {
   const { data, error } = await db
     .from("sequence_lead_words")
@@ -79,7 +79,7 @@ export async function findLeadStepWords(
 /** What one send of a lead's said as it went: its email, subject and words; null where it wrote none. */
 export async function findLeadSentEmail(
   db: Db,
-  params: { tenantId: string; leadId: string; sendId: string },
+  params: { tenantId: TenantId; leadId: string; sendId: string },
 ): Promise<LeadEmailText | null> {
   const send = await db
     .from("sequence_sends")
@@ -126,7 +126,7 @@ export async function getLeadWordsOfLeads(db: Db, leadIds: readonly string[]): P
 /** How many leads keep their own words at each of these steps: what "for everyone" leaves out. */
 export async function getOwnWordsAtSteps(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   stepIds: readonly string[],
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();

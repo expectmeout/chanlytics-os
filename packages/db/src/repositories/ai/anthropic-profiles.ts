@@ -32,6 +32,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -86,7 +87,7 @@ export interface AnthropicProfileRow {
   id: string;
   kind: AnthropicProfileKind;
   user_id: string | null;
-  tenant_id: string | null;
+  tenant_id: TenantId | null;
   reference_id: string;
   profile_id: string | null;
   claimed_at: string;
@@ -145,7 +146,7 @@ export async function setAnthropicEnforcement(
   if (error) throw new Error(`anthropic_profiles: ${error.message}`);
 }
 
-export async function findWorkspaceModelStanding(db: Db, tenantId: string): Promise<ModelStanding | null> {
+export async function findWorkspaceModelStanding(db: Db, tenantId: TenantId): Promise<ModelStanding | null> {
   const row = await findAnthropicProfile(db, { kind: "workspace", tenantId });
   return row ? modelStandingOf(row.enforcement_status) : null;
 }

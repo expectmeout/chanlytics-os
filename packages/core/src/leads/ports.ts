@@ -313,7 +313,7 @@ export interface LeadDb {
    * What reading businesses' sites cost (lead_site_reads_spent): against the round while it lives, else the month and the
    * day it was read in. `roundId` null is a read no round asked for (the leads sweep's second try at a mark).
    */
-  siteReadsSpent(tenantId: string, roundId: string | null, reads: number, usd: number): Promise<void>;
+  siteReadsSpent(tenantId: TenantId, roundId: string | null, reads: number, usd: number): Promise<void>;
   /**
    * A people run's page of companies (00430 lead_company_upsert), before its own commit moves the run: a lead each, or
    * the people a company already held gains. Idempotent, so a page read twice keeps each company once.

@@ -19,6 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { getSequenceModes } from "./sequences/reads";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type StepRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -38,7 +39,7 @@ const SPAN_MAX = 2000;
  */
 export async function findFreedTimeFacts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   appointmentId: string,
   nowMs: number,
 ): Promise<{ row: FreedTimeLine; calendar: FreedTimeCalendar } | null> {
@@ -101,7 +102,7 @@ export async function findFreedTimeFacts(
  */
 export async function findFreedTimeStep(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ state: "running"; step: StepRow & { mode: SequenceMode | undefined } } | { state: "paused" | "none" }> {
   const { data, error } = await db
     .from("sequence_steps")
@@ -123,7 +124,7 @@ export async function findFreedTimeStep(
  */
 export async function findFreedTimeBatch(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   stepId: string,
   appointmentId: string,
 ): Promise<{ id: string; people: number; waits: boolean } | null> {
@@ -149,7 +150,7 @@ const CANCELLATIONS_IN_CHUNK = 200;
  * the service, 00436, or vanished from the feed). Ask's signals count them where nothing offers them. Under the caller's
  * row security; a read that fails throws.
  */
-export async function getCancellationsSince(db: Db, tenantId: string, sinceIso: string): Promise<number> {
+export async function getCancellationsSince(db: Db, tenantId: TenantId, sinceIso: string): Promise<number> {
   const { data, error } = await db
     .from("events")
     .select("subject_id, data")

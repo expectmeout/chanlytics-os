@@ -33,6 +33,7 @@ import {
 import type { LeadJudge } from "@chanlytics/channels/leads";
 import type { CleanPlace } from "./clean";
 import type { CollectCompany, CollectJudgment } from "./ports";
+import type { TenantId } from "@chanlytics/contracts";
 
 export const JUDGE_REFUSED_REASON = "the judge could not read these";
 export const FACT_MAX = 120;
@@ -130,7 +131,7 @@ export async function judgeCompanyBatch(
   companies: CompanyFacts[],
   opId: string,
   batch: number,
-  round: { id: string; tenant_id: string },
+  round: { id: string; tenant_id: TenantId },
   /** Whether a second ask still fits before the function is killed, as judgeBatch's. */
   mayAskAgain: () => boolean = () => true,
 ): Promise<JudgedCompanies> {
@@ -167,7 +168,7 @@ export async function judgeBatch(
   places: PlaceFacts[],
   opId: string,
   /** The round the batch is paid in: its workspace is the usage ledger's row for each call, and its id the row's subject. */
-  round?: { id: string; tenant_id: string },
+  round?: { id: string; tenant_id: TenantId },
   /** Which of its batch's calls this is (judgeInCalls), kept with its judgment. */
   batch = 0,
   /**
@@ -214,7 +215,7 @@ export async function judgeInCalls<T>(
   items: readonly T[],
   facts: (item: T, ref: number) => PlaceFacts,
   opIdOf: (call: number, items: readonly T[]) => string,
-  round?: { id: string; tenant_id: string },
+  round?: { id: string; tenant_id: TenantId },
   /** Whether a call refused once may be asked again in the time left (judgeBatch). */
   mayAskAgain?: () => boolean,
 ): Promise<{ items: T[]; judged: JudgedBatch }[]> {

@@ -13,12 +13,16 @@ import {
 import type { Json } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
 import { clientFilter, type AppointmentRow, type Db } from "./rows";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * The workspace a visit belongs to, as the caller may see it: on a member's session RLS decides, so one they cannot see
  * is null. What a route about one visit is scoped by.
  */
-export async function findAppointmentWorkspace(db: Db, id: string): Promise<{ id: string; tenant_id: string } | null> {
+export async function findAppointmentWorkspace(
+  db: Db,
+  id: string,
+): Promise<{ id: string; tenant_id: TenantId } | null> {
   const { data, error } = await db.from("appointments").select("id, tenant_id").eq("id", id).maybeSingle();
   if (error) throw new Error(`appointment_workspace: ${error.message}`);
   return data ?? null;
@@ -49,7 +53,7 @@ export async function markVisit(
  */
 export async function listAppointmentsForClient(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   personName: { phone: string | null; email: string | null },
   fromIso: string,
 ): Promise<AppointmentRow[]> {
@@ -83,7 +87,7 @@ export type EarlierVisitRow = Pick<AppointmentRow, "id" | "status" | "starts_at"
  */
 export async function getEarlierVisitRows(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   personName: { id: string; phone: string | null; email: string | null },
   beforeIso: string,
 ): Promise<{ rows: EarlierVisitRow[]; capped: boolean }> {
@@ -126,7 +130,7 @@ const quotedList = (vs: readonly string[]): string =>
  */
 export async function findPeopleWithEarlierVisits(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   people: readonly { id: string; phone: string | null; email: string | null }[],
   beforeIso: string,
 ): Promise<ReadonlySet<string> | null> {
@@ -172,7 +176,7 @@ export async function findPeopleWithEarlierVisits(
  */
 export async function scrubAppointments(
   db: Db,
-  params: { tenantId: string; contactId: string; needles: readonly string[] },
+  params: { tenantId: TenantId; contactId: ContactId; needles: readonly string[] },
 ): Promise<number> {
   const { data, error } = await db.rpc("appointments_scrub", {
     p_tenant_id: params.tenantId,
@@ -186,7 +190,7 @@ export async function scrubAppointments(
 /* ------------------------------------------------------------------ the person */
 
 /** The one person in People this number names: not erased, not merged into another. */
-export async function findContactIdByPhone(db: Db, tenantId: string, phone: string): Promise<string | null> {
+export async function findContactIdByPhone(db: Db, tenantId: TenantId, phone: string): Promise<string | null> {
   const { data, error } = await db
     .from("contacts")
     .select("id")
@@ -201,7 +205,7 @@ export async function findContactIdByPhone(db: Db, tenantId: string, phone: stri
 }
 
 /** The one person in People this address names, matched and never made from an address alone (00125). */
-export async function findContactIdByEmail(db: Db, tenantId: string, email: string): Promise<string | null> {
+export async function findContactIdByEmail(db: Db, tenantId: TenantId, email: string): Promise<string | null> {
   const { data, error } = await db
     .from("contacts")
     .select("id")
@@ -237,7 +241,7 @@ const count = (o: Record<string, unknown>, k: keyof AppointmentSync): number => 
 export async function syncFeedAppointments(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     timezone: string;
     rows: readonly FeedAppointmentRow[];
     window: { from: Date; to: Date };
@@ -282,7 +286,7 @@ const isStatus = (s: string): s is AppointmentStatus => isOneOf(APPOINTMENT_STAT
 
 export async function getAppointmentStates(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   keys: readonly string[],
 ): Promise<Map<string, AppointmentState>> {
   const out = new Map<string, AppointmentState>();
@@ -323,7 +327,7 @@ export async function getAppointmentStates(
  * reach-out wrote to, whose address or number the appointment or its person carries, booked after an email left, is
  * stamped and converted once. How many leads moved. A failure throws.
  */
-export async function recordReachOutBookedFrom(db: Db, tenantId: string, appointmentId: string): Promise<number> {
+export async function recordReachOutBookedFrom(db: Db, tenantId: TenantId, appointmentId: string): Promise<number> {
   const { data, error } = await db.rpc("reach_out_booked_from", {
     p_tenant_id: tenantId,
     p_appointment_id: appointmentId,

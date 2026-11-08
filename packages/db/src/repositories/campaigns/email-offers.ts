@@ -18,6 +18,7 @@ import {
   recordOrNull,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -42,7 +43,7 @@ function noFunction(error: { message: string; code?: string } | null | undefined
  * it for every offer, so a pause set a moment ago holds the next one. Any other failed read throws, a schema cache that
  * could not find a column among them: "we could not check" is not "not paused".
  */
-export async function pauseEmailOffersFor(db: Db, tenantId: string): Promise<OfferPause | null> {
+export async function pauseEmailOffersFor(db: Db, tenantId: TenantId): Promise<OfferPause | null> {
   const { data, error } = await db
     .from("mailboxes")
     .select("offers_paused_at, offers_paused_reason")
@@ -61,7 +62,7 @@ export async function pauseEmailOffersFor(db: Db, tenantId: string): Promise<Off
  */
 export async function pauseEmailOffers(
   db: Db,
-  params: { tenantId: string; reason: OfferPauseReason; counts: OfferCounts },
+  params: { tenantId: TenantId; reason: OfferPauseReason; counts: OfferCounts },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("pause_email_offers", {
     p_tenant_id: params.tenantId,
@@ -82,7 +83,7 @@ export async function pauseEmailOffers(
  * last 500 and the hard bounces among them (email_offer_counts). `host` is the campaigns domain, so only offers are counted.
  * A failed read throws, and the receipt that asked comes again.
  */
-export async function getEmailOfferCounts(db: Db, params: { tenantId: string; host: string }): Promise<OfferCounts> {
+export async function getEmailOfferCounts(db: Db, params: { tenantId: TenantId; host: string }): Promise<OfferCounts> {
   const { data, error } = await db.rpc("email_offer_counts", { p_tenant_id: params.tenantId, p_host: params.host });
   if (error) throw new Error(`cannot count the offers by email: ${error.message}`);
   const item = recordOrEmpty(data);
@@ -130,8 +131,8 @@ const REFUSALS: ReadonlySet<string> = new Set([
 export async function setEmailOffersYes(
   db: Db,
   params: {
-    tenantId: string;
-    contactId: string;
+    tenantId: TenantId;
+    contactId: ContactId;
     source: "customer_message" | "form" | "confirmed_signup";
     messageId: string | null;
     evidence: Json;
@@ -159,7 +160,7 @@ export async function setEmailOffersYes(
  */
 export async function offerLanguageOf(
   db: Db,
-  params: { tenantId: string; broadcastId: string },
+  params: { tenantId: TenantId; broadcastId: string },
 ): Promise<string | null> {
   const { data, error } = await db
     .from("sequence_batches")
@@ -185,7 +186,7 @@ export interface Unsubscribed {
  */
 export async function setEmailUnsubscribed(
   db: Db,
-  params: { tenantId: string; contactId: string; messageId: string | null; evidence: Json },
+  params: { tenantId: TenantId; contactId: ContactId; messageId: string | null; evidence: Json },
 ): Promise<Unsubscribed> {
   const { data, error } = await db.rpc("set_email_marketing", {
     p_tenant_id: params.tenantId,
@@ -209,7 +210,7 @@ export async function setEmailUnsubscribed(
  */
 export async function stopAllMessages(
   db: Db,
-  params: { tenantId: string; contactId: string; messageId: string | null },
+  params: { tenantId: TenantId; contactId: ContactId; messageId: string | null },
 ): Promise<Unsubscribed> {
   const { data, error } = await db.rpc("stop_all_messages", {
     p_tenant_id: params.tenantId,
@@ -229,7 +230,7 @@ export async function stopAllMessages(
  * a database 00299 has not reached (its function is not there), where nothing about offers by email is counted yet. Any
  * other failed read throws.
  */
-export async function findOffersEmailReach(db: Db, tenantId: string): Promise<number | null> {
+export async function findOffersEmailReach(db: Db, tenantId: TenantId): Promise<number | null> {
   const { data, error } = await db.rpc("offers_email_reach", { p_tenant_id: tenantId });
   if (noFunction(error, "offers_email_reach")) return null;
   if (error) throw new Error(`cannot count who an offer by email reaches: ${error.message}`);

@@ -10,7 +10,7 @@
  *   - Every write is a door: made, built, sent, opened, said, called, not right and ended on the service role; claimed
  *     on the claimer's own session (`claimPreview`). A door's refusal comes back as its reason, never as a throw.
  */
-import type { PreviewTriedDto } from "@chanlytics/contracts";
+import type { PreviewTriedDto, TenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
@@ -64,7 +64,7 @@ export interface PreviewMade {
 /** A lead's preview made, or the one that stands (the service role's). */
 export async function makeLeadPreview(
   db: Db,
-  params: { tenantId: string; leadId: string; name: string; timezone: string | null; by: string | null },
+  params: { tenantId: TenantId; leadId: string; name: string; timezone: string | null; by: string | null },
 ): Promise<PreviewDoor<PreviewMade>> {
   return previewDoorOf<PreviewMade>(
     await db.rpc("preview_make", {
@@ -164,7 +164,7 @@ export async function endPreview(db: Db, id: string): Promise<boolean> {
 }
 
 /** A lead's preview in its workspace, or null where none was made. */
-export async function findLeadPreview(db: Db, tenantId: string, leadId: string): Promise<LeadPreviewRow | null> {
+export async function findLeadPreview(db: Db, tenantId: TenantId, leadId: string): Promise<LeadPreviewRow | null> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("lead_previews")
     .select("*")
@@ -175,7 +175,7 @@ export async function findLeadPreview(db: Db, tenantId: string, leadId: string):
 }
 
 /** A preview in its sender's workspace by its id, or null. */
-export async function findLeadPreviewById(db: Db, tenantId: string, id: string): Promise<LeadPreviewRow | null> {
+export async function findLeadPreviewById(db: Db, tenantId: TenantId, id: string): Promise<LeadPreviewRow | null> {
   const { data, error } = await tenantDb(db, tenantId).from("lead_previews").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   return data;
@@ -202,7 +202,7 @@ export interface LeadForPreview {
 }
 
 /** The lead a preview is built from, or null where it is gone. */
-export async function findLeadForPreview(db: Db, tenantId: string, leadId: string): Promise<LeadForPreview | null> {
+export async function findLeadForPreview(db: Db, tenantId: TenantId, leadId: string): Promise<LeadForPreview | null> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("leads")
     .select(
@@ -234,7 +234,7 @@ export async function findLeadPreviewOfWorkspace(db: Db, previewTenantId: string
 }
 
 /** The previews a workspace's leads tried since a moment, the newest first (Today's rows, under the member's session). */
-export async function listPreviewsTriedSince(db: Db, tenantId: string, since: string): Promise<PreviewTriedDto[]> {
+export async function listPreviewsTriedSince(db: Db, tenantId: TenantId, since: string): Promise<PreviewTriedDto[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("lead_previews")
     .select("id, lead_id, state, tried_at, asked_count, call_count, call_seconds, not_right, lead:leads(business_name)")
@@ -279,7 +279,7 @@ export async function listPreviewsPastTheirEnd(
 }
 
 /** Whether a workspace makes previews: one marked ours (00469, decision 0079). Its own row, under its member's session. */
-export async function doesMakePreviews(db: Db, tenantId: string): Promise<boolean> {
+export async function doesMakePreviews(db: Db, tenantId: TenantId): Promise<boolean> {
   const { data, error } = await db.from("tenants").select("ours").eq("id", tenantId).maybeSingle();
   if (error) throw new Error(error.message);
   return data?.ours === true;
