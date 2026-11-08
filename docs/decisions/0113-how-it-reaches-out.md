@@ -50,6 +50,9 @@ The name a sequence signs with was typed on each one. And a number about the own
    of its own put the owner's tools at `ASK_TOOLS_CHARS_CEILING`, 129,976 of 130,000 characters; the tools' words were then tightened to
    120,707 with the fields in, and each op took its own.)
 
+**The claims' counts (00567):** each claim's "In N emails" is one read of the sends, however many steps carry it (`sequence_sent_by_step`, under the
+caller's row security), where it was one count a step.
+
 ## Calls made, and how to undo them
 
 - Under Receptionist, beside How it answers. Undo: a group of its own, Outreach (one line in `settings/frame/tabs.ts`).
