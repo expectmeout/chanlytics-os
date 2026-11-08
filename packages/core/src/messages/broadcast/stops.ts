@@ -53,9 +53,10 @@ export function wireIsDown(out: Extract<Delivered, { outcome: "failed" }>): bool
  * with the door's own error, and jobs/settle hands the people still queued
  * to a fresh run, a bounded number of times when every run dies the same way.
  */
-export class ThrownAtTheDoor {
+export class ThrownAtTheDoor extends Error {
   readonly error: unknown;
   constructor(error: unknown) {
+    super("thrown at the door", { cause: error });
     this.error = error;
   }
 }

@@ -114,14 +114,11 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * as doing nothing. One gives a generic its type: `(await readJsonBody(req)) as T` infers `readJsonBody`'s T from the
  * assertion, and without it the body is `unknown`; those leave as the routes declare their `input`. The other keeps
  * a literal's type in an object a map builds (`role: (…) as ThreadTurn["role"]`), which widens to string without it.
- * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error. no-misused-promises holds one, a route context's params
- * read as a condition in the dashboard's request pipeline (`with-route.ts`), which the request-id lane was rewriting.
+ * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error.
  */
 export const HELD_TYPED = [
-  // The colour model's four (it misreads a `??`, decision 0112); the other two are layer 9's.
+  // The colour model's four (it misreads a `??`, decision 0112).
   "@typescript-eslint/no-unnecessary-type-assertion",
-  "@typescript-eslint/no-misused-promises",
-  "@typescript-eslint/only-throw-error",
 ];
 
 /** A rule's entry at warning, its options kept. */

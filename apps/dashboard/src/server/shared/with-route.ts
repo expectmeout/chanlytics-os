@@ -179,7 +179,7 @@ function answerOf<T>(
         });
       }
       const authFrom = Date.now();
-      const params = routeCtx?.params ? await routeCtx.params : {};
+      const params = (await routeCtx?.params) ?? {};
       // The token's signature verified (proxy.ts says how: locally over the project's public key, or over the Auth
       // server where the project still signs with its shared secret), and its claims: who this is, their address
       // and what they set at sign-up, as the Auth server's user record carried them. Never getSession(). A bearer
@@ -468,7 +468,7 @@ export function requireRole(member: MemberContext, atLeast: Role): void {
  * a thing that is not there (P0002), a second of what only one may exist (23505), who may not (42501), and what it
  * cannot take (22023). A rule a door keeps with a bare `raise exception` (P0001) is answered as the route says.
  */
-const DOOR_REFUSALS: Readonly<Record<string, { code: ErrorCode; status: number; plainly: string }>> = {
+export const DOOR_REFUSALS: Readonly<Record<string, { code: ErrorCode; status: number; plainly: string }>> = {
   P0002: { code: "not_found", status: 404, plainly: "That could not be found." },
   "23505": { code: "conflict", status: 409, plainly: "That already exists." },
   "42501": { code: "forbidden", status: 403, plainly: "You do not have permission to do that." },

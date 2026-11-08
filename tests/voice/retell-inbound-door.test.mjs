@@ -134,7 +134,9 @@ async function listening(fn) {
       let line = null;
       try {
         line = JSON.parse(args[0]);
-      } catch {}
+      } catch {
+        // Not a logger's line: kept as it came.
+      }
       lines.push(
         line && typeof line === "object" && line.event
           ? { stream, level: line.level, event: line.event, ...fieldsOf(line) }

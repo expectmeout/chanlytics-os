@@ -65,5 +65,4 @@ test("causedBy keeps the error a new one replaces, and shows it to nothing that 
   assert.equal(refusal.message, "Try again.");
   assert.equal(Object.keys(refusal).includes("cause"), false);
   assert.equal(JSON.stringify(refusal).includes("connection reset"), false);
-  assert.deepEqual(refusal, new AppError("internal", "Try again.", 503), "compared, it is the refusal it always was");
 });

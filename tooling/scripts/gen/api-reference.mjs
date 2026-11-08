@@ -171,6 +171,73 @@ async function edgeDoorLines(root) {
   return lines;
 }
 
+/** What each code tells a caller. A code added to ERROR_CODES with no line here stops the page from being written. */
+const CODE_MEANS = {
+  unauthorized: "Not signed in, or the session has ended.",
+  forbidden: "Signed in, and this role may not.",
+  not_found: "No such thing in this workspace.",
+  validation: "What was sent cannot be taken; the words say why.",
+  choose_workspace: "The account is in several workspaces and the request did not say which.",
+  mfa_required: "A partner's seat needs its second factor first.",
+  conflict: "It already exists, or what it depends on has moved.",
+  rate_limited: "Too many for now; `details.retry_after_s` says when it lifts.",
+  payment_required: "The workspace may not do this until it pays.",
+  window_closed: "The channel's reply window has closed.",
+  upstream_meta: "Meta refused or could not be reached.",
+  upstream_retell: "The voice provider refused or could not be reached.",
+  upstream_anthropic: "The model refused or could not be reached.",
+  upstream_email: "The email provider refused or failed.",
+  upstream_auth: "Sign-in could not be checked just now; the session stands.",
+  upstream_voice: "Ask's voice refused, could not be reached, or is not set up here.",
+  internal: "Something failed on our side; its text is only in the log.",
+};
+
+/**
+ * What a caller can be refused with (decision 0114): the codes, the status each answers by default, the database's codes
+ * a route answers by, and the edge's own. From the sets themselves, so a code cannot be added without it being said here.
+ */
+async function refusalLines(root) {
+  const contracts = await import(pathToFileURL(path.join(root, "packages/contracts/src/index.ts")).href);
+  const { DOOR_REFUSALS } = await import(
+    pathToFileURL(path.join(root, "apps/dashboard/src/server/shared/with-route.ts")).href
+  );
+  const rows = contracts.ERROR_CODES.map((code) => {
+    const means = CODE_MEANS[code];
+    if (!means) throw new Error(`api-reference: say what ${code} means in CODE_MEANS`);
+    return `| \`${code}\` | ${new contracts.AppError(code, "").status} | ${means} |`;
+  });
+  return [
+    "## What a refusal answers",
+    "",
+    "A route refuses with `{ ok: false, error: { code, message, details? } }`: a code from one closed set, a sentence a",
+    "person may read, and what the code's `ErrorDetailsByCode` says it carries. Every answer carries `x-request-id`, which",
+    "finds its lines in the log. A failure's own text is never in an answer.",
+    "",
+    "| Code | Status | What it says |",
+    "| --- | --- | --- |",
+    ...rows,
+    "",
+    "### What the database answers by",
+    "",
+    "A failed reply from the database keeps its code (`DbFailure`). These codes a door raises on purpose, so a route answers",
+    "them as refusals, in the door's own sentence; a sentence Postgres wrote, which names a constraint or a table, is",
+    "answered in plain words instead. Any other failure is `internal`.",
+    "",
+    "| Database code | Code | Status |",
+    "| --- | --- | --- |",
+    ...Object.entries(DOOR_REFUSALS).map(([db, door]) => `| \`${db}\` | \`${door.code}\` | ${door.status} |`),
+    "",
+    "### The edge's codes",
+    "",
+    "A door on the edge refuses with `{ ok: false, error, detail? }`: `error` is a code a caller compares, `detail` words a",
+    "person or support may read (`packages/contracts/src/shared/edge-errors.ts`). A door that crashes answers `door_failed`,",
+    "at 500, and logs `door_failed` with the stack and the request's name.",
+    "",
+    contracts.EDGE_ERROR_CODES.map((code) => `\`${code}\``).join(", "),
+    "",
+  ];
+}
+
 /** The page, from the routes as they are: imported, asked what each handler declared. */
 export async function generate(root) {
   // Modules that build a service client on first use read these; nothing here dials it.
@@ -231,6 +298,7 @@ export async function generate(root) {
   ];
   for (const [domain, entries] of byDomain) out.push(`## ${domain}`, "", ...entries);
   out.push(...(await edgeDoorLines(root)));
+  out.push(...(await refusalLines(root)));
   return `${out.join("\n").trimEnd()}\n`;
 }
 

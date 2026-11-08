@@ -295,6 +295,8 @@ async function breathOf(
  * sentences for the person composing: the values are judged against the message
  * the workspace holds, which no schema knows.
  */
+const MONTH_NOT_COUNTED = "This month's emails and texts could not be counted just now. Nothing was sent; try again.";
+
 export async function createBroadcast(
   ports: CreateBroadcastPorts,
   cmd: CreateBroadcastCommand,
@@ -363,14 +365,7 @@ export async function createBroadcast(
     purpose,
   ).catch((e: unknown) => {
     createLog.error("campaign_step_failed", { step: "month_count", error: errField(e) });
-    throw causedBy(
-      new AppError(
-        "internal",
-        "This month's emails and texts could not be counted just now. Nothing was sent; try again.",
-        500,
-      ),
-      e,
-    );
+    throw causedBy(new AppError("internal", MONTH_NOT_COUNTED, 500), e);
   });
 
   // Named for the business's day, not the server's (UTC on Vercel).

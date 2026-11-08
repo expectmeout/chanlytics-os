@@ -14,7 +14,7 @@
  *
  * Cross-workspace: the registration sweep asks after every workspace's waiting lines; each write is keyed by the line's own row.
  */
-import { json, refuse } from "../shared/http.js";
+import { json } from "../shared/http.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { registerLine } from "./a2p-register.js";
 import { filingPages } from "./ops/filing.js";
