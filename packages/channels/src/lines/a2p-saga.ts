@@ -242,7 +242,7 @@ export async function runA2PSaga(start: A2PState, a2PPorts: A2PPorts): Promise<A
             brandSid: await need(
               brandRequest({
                 customerProfileBundleSid: written(state, "profileSid"),
-                a2pProfileBundleSid: state.a2pProfileSid!,
+                a2pProfileBundleSid: written(state, "a2pProfileSid"),
                 brandType: brandTypeFor(a2PPorts.record),
                 mock: a2PPorts.mock,
                 skipVetting: a2PPorts.skipVetting,

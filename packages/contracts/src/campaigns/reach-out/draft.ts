@@ -168,9 +168,10 @@ export function reachOutAddHandStep(reachOutDraft: ReachOutDraft, kind: HandKind
 export function reachOutSetHandWords(reachOutDraft: ReachOutDraft, index: number, words: string): ReachOutDraft {
   const s = reachOutDraft.steps[index];
   if (!s?.hand) return reachOutDraft;
+  const { kind } = s.hand;
   return {
     ...reachOutDraft,
-    steps: reachOutDraft.steps.map((x, j) => (j === index ? { ...x, hand: { kind: s.hand!.kind, words } } : x)),
+    steps: reachOutDraft.steps.map((x, j) => (j === index ? { ...x, hand: { kind, words } } : x)),
   };
 }
 /** The draft without its last step; the first email always stays. */

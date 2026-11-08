@@ -56,9 +56,8 @@ export function cleanListRule(
   if (!rule) throw new AppError("validation", "That rule can't be read. Describe who is on the list again.");
   // The lists this one already reads: an archived one among them (00169) is kept, and no new one is taken up.
   const was = self ? saved.find((l) => l.id.toLowerCase() === self.toLowerCase())?.rule : null;
-  const before = new Set(
-    (was == null ? null : asListRule(was)) ? ruleLists(asListRule(was)!).map((t) => t.toLowerCase()) : [],
-  );
+  const wasRule = was == null ? null : asListRule(was);
+  const before = new Set(wasRule ? ruleLists(wasRule).map((t) => t.toLowerCase()) : []);
   for (const token of ruleLists(rule)) {
     const ref = parseListToken(token);
     const known =

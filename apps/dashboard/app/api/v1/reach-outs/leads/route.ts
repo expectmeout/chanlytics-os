@@ -15,6 +15,6 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     if (!!input.search === !!input.lead) throw new AppError("validation", "Ask for one search or one lead.");
     if (input.search) return getLeadLines(ctx, member.tenantId, input.search);
-    return { lines: null, chain: null, timeline: await findLeadTimeline(ctx, member.tenantId, input.lead!) };
+    return { lines: null, chain: null, timeline: await findLeadTimeline(ctx, member.tenantId, input.lead ?? "") };
   },
 });

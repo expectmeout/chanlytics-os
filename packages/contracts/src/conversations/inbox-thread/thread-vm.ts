@@ -272,14 +272,14 @@ export function toInboxThreadVM(
     ...archivedOf(dto),
     ...moveWords,
     heldDraft,
-    ...(heldDraft
+    ...(heldDraft && draftMsg
       ? {
           veto: {
-            window: Math.max(1, Math.round((heldDraft.sendsAtMs - new Date(draftMsg!.created_at).getTime()) / 1000)),
+            window: Math.max(1, Math.round((heldDraft.sendsAtMs - new Date(draftMsg.created_at).getTime()) / 1000)),
             draft: heldDraft.body,
             endsAtMs: heldDraft.sendsAtMs,
             messageId: heldDraft.messageId,
-            ...(replyWhy(draftMsg!.meta) ? { why: replyWhy(draftMsg!.meta) as ReplyWhyVM } : {}),
+            ...(replyWhy(draftMsg.meta) ? { why: replyWhy(draftMsg.meta) as ReplyWhyVM } : {}),
           },
         }
       : {}),

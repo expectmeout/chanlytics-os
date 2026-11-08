@@ -78,10 +78,11 @@ export function seeingOf(at: Answering) {
     // paused)": the customer had heard nothing, the receptionist was muted
     // until tomorrow, and the one person who could fix it had been told the
     // opposite. Every other send in this file branches on this.
-    const acked = mayAck
-      ? // A courtesy, not an answer: marked so it does not spend the daily cap.
-        (await send(fallbacks!.non_text, { ack: true })).outcome === "sent"
-      : false;
+    const acked =
+      mayAck && fallbacks
+        ? // A courtesy, not an answer: marked so it does not spend the daily cap.
+          (await send(fallbacks.non_text, { ack: true })).outcome === "sent"
+        : false;
     const pausedUntil = acked ? Date.now() + pauseMs : 0;
     const reason = acked
       ? "auto-acknowledged, bot paused"

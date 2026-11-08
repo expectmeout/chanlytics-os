@@ -178,7 +178,9 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
       // only alarm channel this system has. The platform still needs to know,
       // so it is told through the pager that remembers: one page per workspace
       // per six hours, durable across instances, stamped only when it sends.
-      const target = { tenantId: c.tenant_id, ...addressing.get(c.tenant_id)! };
+      const address = addressing.get(c.tenant_id);
+      if (!address) continue;
+      const target = { tenantId: c.tenant_id, ...address };
       if (!reachesTenant(target)) {
         unaddressable.add(c.tenant_id);
         L.warn("deadman_tenant_unaddressable", { tenant_id: c.tenant_id, escalation: c.escalation_id });

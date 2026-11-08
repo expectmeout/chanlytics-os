@@ -587,7 +587,8 @@ export function pgSink(
     media: (inboundMessage: InboundMessage) =>
       on && inboundMessage.media
         ? runPgSafe("media_fetch", async () => {
-            const ref = inboundMessage.media!;
+            const ref = inboundMessage.media;
+            if (!ref) return;
             const result = isLinkedMedia(ref)
               ? await fetchLinkedMedia(ref.url, publicFetcher())
               : await whatsappMediaOf(rt, ref, { tenant_id: tenantId, message: ing.message_id });

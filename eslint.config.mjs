@@ -163,13 +163,7 @@ const STRICT_AT_ERROR = {
   // What a promise rejects with is unknown until read: `.catch((e: unknown) => …)`, as a catch block already is.
   "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
 };
-export const HELD_STRICT = [
-  // Two left: the draft judge's params (a kind that needs its value) and the alerts helper's generic spread.
-  "@typescript-eslint/consistent-type-assertions",
-  // 28 left in the backend (deliver's message id, the model turn's fallbacks, maps read by their own keys).
-  "@typescript-eslint/no-non-null-assertion",
-  "@typescript-eslint/no-unnecessary-condition",
-];
+export const HELD_STRICT = ["@typescript-eslint/no-unnecessary-condition"];
 const BACKEND_TYPED = [
   "apps/edge/**/*.ts",
   "packages/*/src/**/*.ts",

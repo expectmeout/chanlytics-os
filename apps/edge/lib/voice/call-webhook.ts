@@ -474,7 +474,7 @@ async function correctReceptionist(
   // the details (linkOfferedOn).
   const rt = await loadTenantRuntime(db, routed);
   // The plan asks for a correction only while the key is held (canCorrect).
-  const put = await updateLiveCall({ apiKey: env.RETELL_API_KEY! }, callStep.retellCallId, {
+  const put = await updateLiveCall({ apiKey: env.RETELL_API_KEY ?? "" }, callStep.retellCallId, {
     additionalContext: frameGuardrail(callStep.rule, { hasBookingLink: linkOfferedOn("call", rt) }),
     // Never by decree. Every whisper this product sends is worked into the
     // next answer rather than spoken on command, and a correction the caller

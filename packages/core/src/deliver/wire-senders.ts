@@ -160,12 +160,15 @@ export function emailSender(routes: EmailRoute[], held: readonly string[] = []):
   return async (to, item) => {
     if (!item.email) return refuse("no_frozen_request");
     if (item.email.to.length !== 1 || item.email.to[0] !== to) return refuse("request_names_another_recipient");
-    const own =
-      item.reply && item.ownEmail && item.purpose !== "outreach" ? ownRouteOf(routes, held, to, item.ownEmail) : null;
+    const { ownEmail } = item;
+    const own = item.reply && ownEmail && item.purpose !== "outreach" ? ownRouteOf(routes, held, to, ownEmail) : null;
     // The caller's own ceiling, when it has one (a batch's, Delivery.sendBy): the send never outlives it, but is never given
     // less than a request needs: a send started when none is left would only time out with the email possibly taken.
     const bound = item.deadlineMs === undefined ? {} : { deadlineMs: Math.max(SEND_MIN_MS, item.deadlineMs) };
-    if (own && "route" in own) return { ...(await sendBy(own.route, item.ownEmail!, bound)), leftAs: "own" };
+    if (own && "route" in own) {
+      if (!ownEmail) throw new Error("wire senders: a route is only found for an own address");
+      return { ...(await sendBy(own.route, ownEmail, bound)), leftAs: "own" };
+    }
     const from = addressOf(item.email.from)?.address;
     const lane = item.purpose === "outreach" ? "own" : item.purpose === "marketing" ? "campaigns" : "hosted";
     const route = routes.find((r) => r.lane === lane && r.as.address === from);

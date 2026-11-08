@@ -224,7 +224,9 @@ export async function sweepUnfinished(unfinishedPorts: UnfinishedPorts): Promise
   const tell = async (tenantId: string, n: NotifyMessage): Promise<boolean> => {
     if (!addressing.has(tenantId))
       addressing.set(tenantId, await unfinishedPorts.loadTenantNotifications(unfinishedPorts.db, tenantId));
-    const target: NotifyTarget = { tenantId, ...addressing.get(tenantId)! };
+    const address = addressing.get(tenantId);
+    if (!address) return false;
+    const target: NotifyTarget = { tenantId, ...address };
     if (!unfinishedPorts.reachesTenant(target)) return false;
     return unfinishedPorts.notify(target, n);
   };
