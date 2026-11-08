@@ -30,6 +30,7 @@ import {
   type DealReportDto,
   type PersonCameFrom,
   type PersonRowDto,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { findAppointmentWord } from "@chanlytics/db/workspace";
@@ -44,7 +45,7 @@ export async function getAppointmentWord(
   tenantId: string,
 ): Promise<AppointmentWord> {
   const r = await findAppointmentWord(ctx.supabase, tenantId);
-  const word = r.error ? null : (r.data as { appointment_word?: unknown } | null)?.appointment_word;
+  const word = r.error ? null : recordOrNull(r.data)?.appointment_word;
   return appointmentWordOf(typeof word === "string" ? word : null);
 }
 

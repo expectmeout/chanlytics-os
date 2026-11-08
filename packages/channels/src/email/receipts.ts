@@ -2,7 +2,7 @@
  * What became of an email we sent: the provider's signed receipt, read (emailReceiptFrom), and what it changes for the
  * row and the address (emailReceiptEffect). The request whose tags a receipt names is request.ts.
  */
-import { UUID } from "@chanlytics/contracts";
+import { UUID, recordOrNull } from "@chanlytics/contracts";
 import { addressesOf, messageIdHeader } from "./header-values";
 
 /* ---------------------------------------------------------------- receipts
@@ -43,7 +43,7 @@ export interface EmailReceipt {
 /** Tags as the webhook carries them (a map) or as the request sent them (a list of pairs): one reader for both. */
 function tagOf(tags: unknown, name: string): string | null {
   const v = Array.isArray(tags)
-    ? (tags.find((t) => (t as { name?: unknown } | null)?.name === name) as { value?: unknown } | undefined)?.value
+    ? (tags.find((t) => recordOrNull(t)?.name === name) as { value?: unknown } | undefined)?.value
     : tags && typeof tags === "object"
       ? (tags as Record<string, unknown>)[name]
       : undefined;

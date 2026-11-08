@@ -9,6 +9,7 @@ import {
   pickCurrentDeal,
   proposalLinkOf,
   type SchemaSet,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import { saysMissing } from "../../../shared/missing-door";
@@ -53,11 +54,11 @@ export const DELIVERED: SchemaSet<"messages.status">[] = ["sent", "delivered", "
 const IMPORTED_CALL_NOTE = /^\[voice call note /;
 
 const isBackfill = (m: { meta?: unknown }): boolean =>
-  !!m.meta && typeof m.meta === "object" && (m.meta as Record<string, unknown>).backfill === true;
+  !!m.meta && typeof m.meta === "object" && recordOrEmpty(m.meta).backfill === true;
 
 /** "Got it, a person will look" is a courtesy, not an answer: it must not spend the cap that stops loops. */
 const isAcknowledgement = (m: { meta?: unknown }): boolean =>
-  !!m.meta && typeof m.meta === "object" && (m.meta as Record<string, unknown>).ack === true;
+  !!m.meta && typeof m.meta === "object" && recordOrEmpty(m.meta).ack === true;
 
 /** True event time. A backfilled row has no channel_ts and its created_at is
  *  when the IMPORT ran, so it can only ever be placed approximately. */

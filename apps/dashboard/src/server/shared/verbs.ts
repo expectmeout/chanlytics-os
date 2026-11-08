@@ -18,6 +18,7 @@ import {
   type DecisionSubject,
   type TenantId,
   pauseMsOf,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { listRow } from "@chanlytics/db/people";
 import { withdrawMemberDrafts, findOurLastWire } from "@chanlytics/db/conversations";
@@ -309,7 +310,7 @@ export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<n
   const { data, error } = await findReplyLimits(ctx.supabase, tenantId);
   // A pause that cannot be read is not the default one: a member's take-over would hold for the wrong time.
   if (error) throw new Error(`cannot read the workspace's reply pause: ${error.message}`);
-  return pauseMsOf(data?.limits as { pause_hours?: unknown } | null);
+  return pauseMsOf(recordOrNull(data?.limits));
 }
 
 /**

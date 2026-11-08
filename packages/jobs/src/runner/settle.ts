@@ -30,6 +30,7 @@ import {
   FILE_LOOK_EDITION,
   VIDEO_LOOK_EDITION,
   type SchemaSet,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/log";
 import { recordConversationDraftFailed } from "@chanlytics/db/ask";
@@ -153,7 +154,7 @@ async function noteMailboxTrouble(
 /** How many fresh runs this job is already the result of. Absent reads as none. */
 function resumesOf(payload: unknown): number {
   if (typeof payload !== "object" || payload === null) return 0;
-  const v = (payload as Record<string, unknown>).resumes;
+  const v = recordOrEmpty(payload).resumes;
   return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
 }
 

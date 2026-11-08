@@ -52,6 +52,7 @@ import {
   type PlatformQueue,
   type PlatformTenantDto,
   type SweepHealthRow,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import type { BackOffice } from "../shared/back-office";
@@ -310,7 +311,7 @@ export async function findPlatformPartners(
   return getPlatformPartners(office.session).then(
     (r) => ({
       balances: r.balances,
-      workspaces: r.workspaces.map((w) => ({ ...w, checks: (w.checks ?? null) as Record<string, unknown> | null })),
+      workspaces: r.workspaces.map((w) => ({ ...w, checks: recordOrNull(w.checks) })),
     }),
     () => null,
   );

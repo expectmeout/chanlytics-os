@@ -52,6 +52,7 @@ import {
   routeThinkingFor,
   usageOf,
   NO_USAGE,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import type { ModelPurpose, ModelSpeed, ModelUsage } from "@chanlytics/contracts";
 import { fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
@@ -182,14 +183,14 @@ const neverCame = (a: ProviderReply): boolean => a.outcome === "unknown";
 const modelUnknown = (a: ProviderReply): boolean => a.status === 404;
 
 function messageOf(json: unknown): ModelMessage {
-  const otherJson = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+  const otherJson = json && typeof json === "object" ? recordOrEmpty(json) : {};
   const content = Array.isArray(otherJson.content) ? (otherJson.content as ModelBlock[]) : [];
   return {
     id: typeof otherJson.id === "string" ? otherJson.id : null,
     model: typeof otherJson.model === "string" ? otherJson.model : null,
     stop_reason: typeof otherJson.stop_reason === "string" ? otherJson.stop_reason : null,
     content,
-    usage: otherJson.usage && typeof otherJson.usage === "object" ? (otherJson.usage as Record<string, unknown>) : null,
+    usage: otherJson.usage && typeof otherJson.usage === "object" ? recordOrEmpty(otherJson.usage) : null,
   };
 }
 

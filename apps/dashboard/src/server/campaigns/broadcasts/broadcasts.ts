@@ -18,6 +18,7 @@ import {
   type PersonCampaignDto,
   type RecipientState,
   type RunAnswer,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { readAllRows } from "@chanlytics/db/shared";
 import { runCounts } from "@chanlytics/db/reports";
@@ -350,7 +351,7 @@ export async function listPersonRuns(
   for (const row of rows) {
     const run = runs.get(row.broadcast_id);
     if (!run) continue;
-    const label = (run.audience as { label?: unknown } | null)?.label;
+    const label = recordOrNull(run.audience)?.label;
     out.push({
       broadcast_id: row.broadcast_id,
       name: run.name,

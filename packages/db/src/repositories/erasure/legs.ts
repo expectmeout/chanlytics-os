@@ -7,7 +7,7 @@
  * notes, turns and visits are their own repositories'. A read or a write that fails throws: a leg that could not be
  * made is the caller's to stop on, never one that ran with nothing.
  */
-import { formatPhoneDisplay, normalizeEmail, type SchemaSet } from "@chanlytics/contracts";
+import { formatPhoneDisplay, normalizeEmail, type SchemaSet, recordOrEmpty } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { readAllRowsByKey } from "../../shared/paged";
@@ -274,7 +274,7 @@ export async function scrubErasedJobs(
   );
   const addresses = new Set(identifiers.filter(isAddress).map((s) => s.trim().toLowerCase()));
   const hit = rows.filter((row) => {
-    const payload = (row.payload ?? {}) as Record<string, unknown>;
+    const payload = recordOrEmpty(row.payload);
     if (payload.contact_id === contactId) return true;
     const to = typeof payload.to_phone === "string" ? payload.to_phone.replace(/\D/g, "") : "";
     if (to && digits.has(to)) return true;

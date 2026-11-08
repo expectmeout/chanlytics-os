@@ -12,7 +12,13 @@
  *
  * The version is the one its pages are written against. The Messages API stays on the port's: moving it is its own change.
  */
-import { enforcementActionsOf, enforcementStatusOf, type AnthropicEnforcementStatus } from "@chanlytics/contracts";
+import {
+  enforcementActionsOf,
+  enforcementStatusOf,
+  type AnthropicEnforcementStatus,
+  recordOrEmpty,
+  recordOrNull,
+} from "@chanlytics/contracts";
 import type { EnforcementAction } from "@chanlytics/contracts";
 import { answerObject, fetchFromProvider, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import type { ModelDeps } from "./anthropic";
@@ -35,9 +41,9 @@ export interface AnthropicProfile {
 }
 
 function profileFromAnswer(raw: unknown): AnthropicProfile | null {
-  const row = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const row = raw && typeof raw === "object" ? recordOrEmpty(raw) : null;
   if (!row || typeof row.id !== "string" || !row.id.startsWith("uprof_")) return null;
-  const details = row.external_user_details as { reference_id?: unknown } | null | undefined;
+  const details = recordOrNull(row.external_user_details);
   return {
     id: row.id,
     referenceId: typeof details?.reference_id === "string" ? details.reference_id : null,

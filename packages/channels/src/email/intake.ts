@@ -3,7 +3,13 @@
  * email, the ids a header lists, and what a message claims to be. Whether a delivery is Resend's at all is
  * webhook-signature.ts; the header values it reads are header-values.ts.
  */
-import { bookingNoticeOf, forwardingConfirmationOf, type EmailClaim } from "@chanlytics/contracts";
+import {
+  bookingNoticeOf,
+  forwardingConfirmationOf,
+  type EmailClaim,
+  recordOrEmpty,
+  recordOrNull,
+} from "@chanlytics/contracts";
 import { addressOf, addressesOf, messageIdHeader } from "./header-values";
 
 /* ------------------------------------------------------------------ intake
@@ -107,14 +113,14 @@ function headersOf(v: unknown): Record<string, string> {
  */
 function senderChecksOf(v: unknown): ReceivedEmail["authentication"] {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
-  const sentence = v as Record<string, unknown>;
+  const sentence = recordOrEmpty(v);
   const word = (x: unknown): string => (typeof x === "string" ? x : "");
   return { spf: word(sentence.spf), dkim: word(sentence.dkim), dmarc: word(sentence.dmarc) };
 }
 
 /** The fetched email, or null when the answer is not one. Headers as a map or as a list of pairs, whichever the provider sends. */
 export function receivedEmailFrom(body: unknown): ReceivedEmail | null {
-  const row = body as Record<string, unknown> | null;
+  const row = recordOrNull(body);
   if (!row || typeof row !== "object" || typeof row.id !== "string") return null;
   const headers = headersOf(row.headers);
   const str = (v: unknown): string | null => (typeof v === "string" && v.length ? v : null);
@@ -131,7 +137,7 @@ export function receivedEmailFrom(body: unknown): ReceivedEmail | null {
     messageId: messageIdHeader(str(row.message_id) ?? headers["message-id"]),
     createdAt: str(row.created_at),
     attachments: (Array.isArray(row.attachments) ? row.attachments : []).map((a) => {
-      const x = (a ?? {}) as Record<string, unknown>;
+      const x = recordOrEmpty(a);
       return {
         filename: str(x.filename),
         contentType: str(x.content_type),

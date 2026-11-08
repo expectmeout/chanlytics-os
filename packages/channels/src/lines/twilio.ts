@@ -11,6 +11,7 @@
 import { answerObject, fetchFromProvider, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import { deleteCampaignRequest } from "./a2p/brand-campaign";
 import type { AvailableNumber, LineProvider, ProviderAccount, ReceivedText } from "./lines";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 export interface TwilioAnswer {
   /** The HTTP status, or 0 when no answer came (the body then says why, as `error`). */
@@ -75,7 +76,7 @@ export async function lookupLineType(acct: ProviderAccount, e164: string): Promi
   if (result.outcome !== "ok") return null;
   const lti = answerObject(result)?.line_type_intelligence;
   if (!lti || typeof lti !== "object" || Array.isArray(lti)) return null;
-  const value = lti as Record<string, unknown>;
+  const value = recordOrEmpty(lti);
   return {
     type: typeof value.type === "string" ? value.type : null,
     carrier: typeof value.carrier_name === "string" ? value.carrier_name : null,
@@ -261,7 +262,7 @@ async function searchLocal(http: TwilioHttp, acct: ProviderAccount, input: { are
     .map((row): AvailableNumber | null => {
       const e164 = str(row, "phone_number");
       if (!e164) return null;
-      const caps = (row.capabilities ?? {}) as Record<string, unknown>;
+      const caps = recordOrEmpty(row.capabilities);
       return {
         e164,
         friendly: str(row, "friendly_name") ?? e164,

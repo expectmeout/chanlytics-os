@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, account } from "@/server/shared/route";
-import { AppError, cleanDisplayName } from "@chanlytics/contracts";
+import { AppError, cleanDisplayName, recordOrEmpty } from "@chanlytics/contracts";
 import { endEmptiedWorkspaces } from "@/server/workspace/billing";
 import { recordLeft, listSeats } from "@/server/workspace/team";
 import { log } from "@/server/shared/log";
@@ -65,7 +65,7 @@ export const DELETE = write({
     }
     await recordLeft(seats, ctx.userId);
     await ctx.supabase.auth.signOut().catch(() => undefined);
-    const answer = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+    const answer = recordOrEmpty(data);
     const left = Number(answer.workspaces_left_empty ?? 0);
     await endEmptiedWorkspaces(answer.workspaces_emptied);
     return { deleted: true, workspaces_left_empty: left };

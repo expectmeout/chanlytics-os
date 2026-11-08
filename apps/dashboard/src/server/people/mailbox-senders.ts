@@ -12,6 +12,7 @@ import {
   senderSortRefusal,
   type MailboxSenderVerdict,
   type MailboxSendersDto,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { listMailboxConnectionsOf, listMailboxSendersOf, sortMailboxSender } from "@chanlytics/db/email";
 import { eraseContact } from "@/server/people/erase-contact";
@@ -32,7 +33,7 @@ export function getMailboxSenders(ctx: RouteContext, tenantId: string): Promise<
 
 /** What the door refused, in the route's words: not theirs to change, or not a sender. */
 function sortRefused(e: unknown): never {
-  const code = (e as { code?: unknown } | null)?.code;
+  const code = recordOrNull(e)?.code;
   if (code === "42501") throw new AppError("forbidden", "Only someone who may change the settings can do this.");
   if (code === "22023") throw new AppError("validation", "That isn't an address or a domain.");
   throw e;
@@ -44,7 +45,7 @@ function sortRefused(e: unknown): never {
  */
 async function bringIn(tenantId: string, userId: string, address: string): Promise<number | null> {
   const a = await callEdgeMailboxes({ op: "bring_in", tenant_id: tenantId, user_id: userId, address }, 55_000);
-  const kept = (a.body as { kept?: unknown } | null)?.kept;
+  const kept = recordOrNull(a.body)?.kept;
   if (a.status === 200 && typeof kept === "number") return kept;
   log.warn("mailbox_bring_in_failed", { tenant_id: tenantId, status: a.status });
   return null;

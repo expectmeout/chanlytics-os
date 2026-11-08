@@ -24,6 +24,7 @@ import {
   US_ZIP,
   UUID,
   proposalBelowNeeds,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { listLeadCardsLive } from "@chanlytics/db/leads";
 import { findReachOutRoot } from "@chanlytics/db/campaigns";
@@ -119,7 +120,7 @@ const shapeAsk = (input: LeadSearchAskInput) => {
     criteria: (Array.isArray(input.criteria) ? input.criteria : []).slice(0, 6),
     leave_out: (Array.isArray(input.leave_out) ? input.leave_out : [])
       .slice(0, 6)
-      .map((l) => ({ words: str((l as Record<string, unknown>).words, 40) })),
+      .map((l) => ({ words: str(recordOrEmpty(l).words, 40) })),
     // What a people search names, in the card's own words: a seniority in lower case ("C-suite" is c_suite).
     seniority: (Array.isArray(input.seniority) ? input.seniority : []).map((s) =>
       String(s)

@@ -11,6 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -58,7 +59,7 @@ export async function keepBefore(db: Db, beforeMessage: BeforeMessage): Promise<
     p_meta: beforeMessage.meta ?? {},
   });
   if (error) throw Object.assign(new Error(`ingest_before: ${error.message}`), { code: error.code });
-  const row = (data ?? {}) as Record<string, unknown>;
+  const row = recordOrEmpty(data);
   if (row.erased === true)
     return { kept: false, erased: true, conversationId: null, contactId: null, newPerson: false };
   return {

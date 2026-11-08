@@ -28,6 +28,7 @@ import {
   spokenDuration,
   youAreLiveEmail,
   UUID,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { findConfigRow, findWorkspaceCard, findWorkspaceNamed } from "@chanlytics/db/workspace";
 import { findChannelNumber } from "@chanlytics/db/channels";
@@ -67,7 +68,7 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
   const brain = parsed.ok ? parsed.config.brain : null;
   // The kept number is said only once a call proved its forwarding, and with the mode saved.
   const proven = kept.data?.forwarding_state === "verified";
-  const facts = (kept.data?.facts ?? null) as { mode?: unknown } | null;
+  const facts = recordOrNull(kept.data?.facts);
   const message = youAreLiveEmail({
     business: brain?.business_name || tenant.data.name,
     own: voice.data?.number_e164 ?? null,

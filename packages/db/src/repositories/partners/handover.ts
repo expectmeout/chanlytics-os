@@ -2,6 +2,7 @@
 
 import type { Db } from "./partner";
 import { saysMissing, isMissingFunction } from "../../shared/missing-door";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 /* ------------------------------------------------------------------------------------------------ handovers */
 
@@ -51,7 +52,7 @@ export interface HandoverSent {
 export async function resendHandover(db: Db, tenantId: string, email: string): Promise<HandoverResult<HandoverSent>> {
   const { data, error } = await db.rpc("partner_handover_resend", { p_tenant: tenantId, p_email: email });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  const v = (data ?? {}) as Record<string, unknown>;
+  const v = recordOrEmpty(data);
   return {
     ok: true,
     value: { email: String(v.email ?? email), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") },
@@ -198,7 +199,7 @@ export async function invitePartner(
 ): Promise<HandoverResult<PartnerInviteSent>> {
   const { data, error } = await db.rpc("partner_invite", { p_tenant: tenantId, p_code: code });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  const v = (data ?? {}) as Record<string, unknown>;
+  const v = recordOrEmpty(data);
   return {
     ok: true,
     value: { code: String(v.code ?? code), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") },

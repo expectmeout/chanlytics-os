@@ -14,6 +14,7 @@
  */
 import { logger } from "@chanlytics/log";
 import { answerObject, fetchFromProvider } from "../shared/provider-fetch";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 /** Who is asking, for a site that wants to know: the platform's own reader, with the page that says what it does. */
 const BOT_USER_AGENT = "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)";
@@ -247,7 +248,7 @@ export async function readFirecrawlCredits(
   if (response.outcome === "refused" && (response.status === 401 || response.status === 403))
     return { kind: "refused", status: response.status };
   const data = response.outcome === "ok" ? answerObject(response)?.data : null;
-  const item = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+  const item = data && typeof data === "object" ? recordOrEmpty(data) : null;
   if (!item || typeof item.remainingCredits !== "number") return { kind: "unread" };
   return {
     kind: "read",

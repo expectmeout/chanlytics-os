@@ -8,7 +8,7 @@
  * improve its products. A request carries at most 20 MB, the audio's base64 included, so a sound much over 14 MB is not sent:
  * at Stream's audio rate that is past the clip cap. Nothing here knows a row or a workspace.
  */
-import { isObjectRecord } from "@chanlytics/contracts";
+import { isObjectRecord, recordOrEmpty } from "@chanlytics/contracts";
 import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 import type { ModelDeps } from "./anthropic";
 
@@ -33,8 +33,7 @@ export type GeminiAnswer =
 
 /** What the answer cost, as Google counts it: the output's thinking is billed as output. */
 function geminiUsageOf(j: Record<string, unknown> | null): { input: number; output: number } {
-  const u =
-    j && typeof j.usageMetadata === "object" && j.usageMetadata ? (j.usageMetadata as Record<string, unknown>) : {};
+  const u = j && typeof j.usageMetadata === "object" && j.usageMetadata ? recordOrEmpty(j.usageMetadata) : {};
   const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
   return { input: n(u.promptTokenCount), output: n(u.candidatesTokenCount) + n(u.thoughtsTokenCount) };
 }

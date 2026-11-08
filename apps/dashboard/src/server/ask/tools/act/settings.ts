@@ -15,6 +15,7 @@ import {
   answerStyleOf,
   describeSettingsChange,
   proposalBelowNeeds,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import {
   actAction,
@@ -126,7 +127,7 @@ async function proposeSettings(
 ): Promise<ProposalOutcome> {
   // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
   if (!offeredTo(settingsAct, toolContext.role)) return refuse(proposalBelowNeeds("settings"));
-  const raw = input.change && typeof input.change === "object" ? (input.change as Record<string, unknown>) : null;
+  const raw = input.change && typeof input.change === "object" ? recordOrEmpty(input.change) : null;
   if (!raw) return refuse("change is required");
   const answers = typeof raw.op === "string" && raw.op in ASK_ANSWERS_ROWS;
   const parsed = AskSettingsChangeSchema.safeParse(answers ? answersChangeOf(raw) : knowsChangeOf(raw));

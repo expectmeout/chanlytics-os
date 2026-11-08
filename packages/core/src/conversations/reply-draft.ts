@@ -24,6 +24,7 @@ import {
   type ReplyDraftSource,
   type ReplyDraftWhy,
   type SenderReading,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import type { ConversationDraftRow, ReplyDraftThread } from "@chanlytics/db/ask";
 import type { Json } from "@chanlytics/db/types";
@@ -300,7 +301,7 @@ export type RewriteOutcome =
 function keptTextOf(row: ConversationDraftRow | undefined): string | null {
   const w = row?.words;
   if (!w || typeof w !== "object" || Array.isArray(w)) return null;
-  const text = (w as Record<string, unknown>).text;
+  const text = recordOrEmpty(w).text;
   return typeof text === "string" && text.trim() ? text : null;
 }
 

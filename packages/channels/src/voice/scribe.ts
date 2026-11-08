@@ -9,6 +9,7 @@
  */
 import { answerObject, fetchFromProvider } from "../shared/provider-fetch";
 import type { ModelDeps } from "../ai/anthropic";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 const SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 
@@ -35,8 +36,7 @@ export async function transcribeWithScribe(
   );
   const body = answerObject(reply);
   if (reply.outcome !== "ok" || !body) {
-    const detail =
-      body && typeof body.detail === "object" && body.detail ? (body.detail as Record<string, unknown>) : null;
+    const detail = body && typeof body.detail === "object" && body.detail ? recordOrEmpty(body.detail) : null;
     const detailText = typeof detail?.message === "string" ? `: ${detail.message.slice(0, 200)}` : "";
     return {
       ok: false,

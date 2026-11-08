@@ -43,6 +43,7 @@ import { ingestInbound, stoppedNow, type IngestResult } from "../channels/ingest
 import { setEmailOffersYes, setEmailUnsubscribed } from "../campaigns/email-offers";
 import { stampEmailFromMailbox } from "./connections";
 import { dbLog } from "../../shared/observe";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 export type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
@@ -355,7 +356,7 @@ export async function findAnsweredReachOutEmail(
   const sent = (data ?? []).flatMap((match) => {
     const meta = (match.meta ?? {}) as { source?: unknown; email?: { message_id?: unknown; request?: unknown } };
     if (meta.source !== "reach_out" || !left.has(String(match.status))) return [];
-    const req = (meta.email?.request ?? {}) as { from?: unknown; reply_to?: unknown };
+    const req = recordOrEmpty(meta.email?.request);
     const replyTo = Array.isArray(req.reply_to) && typeof req.reply_to[0] === "string" ? req.reply_to[0] : null;
     return [
       {

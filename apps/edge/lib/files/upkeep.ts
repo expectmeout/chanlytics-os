@@ -17,6 +17,7 @@ import {
   VIDEO_LOOK_EDITION,
   WEEK_MS,
   fileFolderOf,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { deleteClaudeFile } from "@chanlytics/channels/ai";
 import { deleteStreamVideo, readStreamVideo } from "@chanlytics/channels/files";
@@ -92,7 +93,7 @@ async function purgeFile(db: Db, job: ClaimedJob): Promise<void> {
     if (paths.length) logger({ tenant_id: job.tenant_id }).info("file_never_filed", { file: fileId });
     return;
   }
-  const copy = (row.claude_copy as { id?: unknown } | null)?.id;
+  const copy = recordOrNull(row.claude_copy)?.id;
   if (typeof copy === "string") {
     // The owner was told it can't be brought back, so a copy we can't reach holds the row until we can.
     const key = env.ANTHROPIC_API_KEY;

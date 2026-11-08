@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** One source's row, as the page reads it (contracts imports/ledger.ts ImportRowDto). */
@@ -98,9 +98,7 @@ export interface ImportRunRow {
 
 /** The mailbox a row's cursor names, as the parts write it; null where it names none. */
 const namedIn = (cursor: unknown): unknown =>
-  cursor && typeof cursor === "object" && !Array.isArray(cursor)
-    ? (cursor as Record<string, unknown>).connection
-    : null;
+  cursor && typeof cursor === "object" && !Array.isArray(cursor) ? recordOrEmpty(cursor).connection : null;
 
 /**
  * A source's row, as the part that reads it next finds it: the mailbox's own (for what a mailbox brings), else the row

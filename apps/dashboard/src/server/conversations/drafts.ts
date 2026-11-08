@@ -10,6 +10,7 @@ import {
   type ReplyDraftKind,
   type ReplyDraftState,
   type ReplyDraftWords,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { listConversationDrafts, listConversationsSetAside, type ConversationDraftRow } from "@chanlytics/db/ask";
 import type { Json } from "@chanlytics/db/types";
@@ -28,11 +29,9 @@ import { draftAtTheEdge } from "./thread-control";
 
 /** A kept draft's words as the table holds them, read defensively: a field it lacks is empty. */
 function wordsFrom(json: Json): ReplyDraftWords {
-  const value = json && typeof json === "object" && !Array.isArray(json) ? (json as Record<string, unknown>) : {};
+  const value = recordOrEmpty(json);
   const brief =
-    value.brief && typeof value.brief === "object" && !Array.isArray(value.brief)
-      ? (value.brief as Record<string, unknown>)
-      : null;
+    value.brief && typeof value.brief === "object" && !Array.isArray(value.brief) ? recordOrEmpty(value.brief) : null;
   const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
   return {
     text: typeof value.text === "string" ? value.text : "",

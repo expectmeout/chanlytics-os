@@ -15,7 +15,7 @@
  *   - `findVoiceAgent` / `keepVoiceAgent`: the agent before the number. The service role alone.
  * Every statement on a workspace's table goes through `tenantDb`, so none can reach another workspace's row by an id.
  */
-import { MIN_MS } from "@chanlytics/contracts";
+import { MIN_MS, recordOrEmpty } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
@@ -81,7 +81,7 @@ const rehearsalFixesOf = (value: unknown): RehearsalFixRow[] =>
   Array.isArray(value)
     ? value.flatMap((otherValue: unknown) => {
         if (!otherValue || typeof otherValue !== "object") return [];
-        const { op, field, said, version, at } = otherValue as Record<string, unknown>;
+        const { op, field, said, version, at } = recordOrEmpty(otherValue);
         return typeof op === "string" &&
           typeof field === "string" &&
           typeof said === "string" &&

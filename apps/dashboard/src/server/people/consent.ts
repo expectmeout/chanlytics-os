@@ -22,6 +22,8 @@ import {
   signupAskLine,
   type AskedPurpose,
   type SignupAskRefusal,
+  recordOrEmpty,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { listPeopleStanding, recordConsent } from "@chanlytics/db/people";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
@@ -84,7 +86,7 @@ function noteOf(note: unknown): string | null {
 
 /** What the door answered, read as a record: its own fields with the decision's id beside them. */
 const whatTheDoorAnswered = (data: unknown): Record<string, unknown> =>
-  data !== null && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  data !== null && typeof data === "object" && !Array.isArray(data) ? recordOrEmpty(data) : {};
 const textOrNull = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
 /** One person's answer through the door, judged first; the door's refusal is the route's, in the door's words. */
@@ -218,7 +220,7 @@ export async function askToConfirmSignup(
     { tenant_id: tenantId, user_id: userId, contact_id: contactId },
     { workspace: tenantId, user: userId, timeoutMs: ASK_TIMEOUT_MS },
   );
-  const second = answer.body as { ok?: unknown; asked?: unknown; why?: unknown } | null;
+  const second = recordOrNull(answer.body);
   if (answer.status === 200 && second?.ok === true) {
     const request = second.asked === true;
     const reason = typeof second.why === "string" ? (second.why as SignupAskRefusal) : null;

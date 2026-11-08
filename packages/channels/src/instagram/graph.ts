@@ -14,7 +14,7 @@
  * part that fails after one that left is a reply the person has some of, said as such (outcome `unknown`, never sent
  * again blind).
  */
-import { utf8Bytes } from "@chanlytics/contracts";
+import { utf8Bytes, recordOrEmpty } from "@chanlytics/contracts";
 import { answerObject, fetchFromProvider, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import type { SendResult } from "../whatsapp/whatsapp";
 
@@ -154,7 +154,7 @@ export interface InstagramGraphError {
 }
 
 export function instagramErrorOf(json: unknown): InstagramGraphError | null {
-  const value = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  const value = json && typeof json === "object" ? recordOrEmpty(json) : null;
   const result = valueAt(value, "error");
   if (!result || typeof result !== "object") {
     // The token endpoints answer an error flat: { error_type, code, error_message }.
@@ -167,7 +167,7 @@ export function instagramErrorOf(json: unknown): InstagramGraphError | null {
         }
       : null;
   }
-  const err = result as Record<string, unknown>;
+  const err = recordOrEmpty(result);
   return {
     code: typeof err.code === "number" ? err.code : null,
     subcode: typeof err.error_subcode === "number" ? err.error_subcode : null,
@@ -184,7 +184,7 @@ export interface InstagramCodeGrant {
 
 /** The code exchange's answer (Meta documents it as `data[0]`, and has answered it flat); throws with Meta's words when none. */
 export function parseInstagramCodeGrant(json: unknown): InstagramCodeGrant {
-  const value = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  const value = json && typeof json === "object" ? recordOrEmpty(json) : null;
   const data = valueAt(value, "data");
   const group = (Array.isArray(data) && data[0] && typeof data[0] === "object" ? data[0] : value) as Record<
     string,
@@ -201,7 +201,7 @@ export function parseInstagramCodeGrant(json: unknown): InstagramCodeGrant {
 
 /** A long-lived token's answer, from the exchange or a refresh; throws with Meta's words when none. */
 export function parseInstagramToken(json: unknown): { accessToken: string; expiresInS: number } {
-  const o = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  const o = json && typeof json === "object" ? recordOrEmpty(json) : null;
   const accessToken = asText(valueAt(o, "access_token"));
   if (!accessToken) throw new Error(instagramErrorOf(json)?.message ?? "Instagram answered without a token");
   const s = valueAt(o, "expires_in");
@@ -210,7 +210,7 @@ export function parseInstagramToken(json: unknown): { accessToken: string; expir
 
 /** The account `/me` names: its Instagram account id is what its webhooks are addressed to. Throws when it names none. */
 export function parseInstagramMe(json: unknown): { accountId: string; username: string | null; name: string | null } {
-  const o = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  const o = json && typeof json === "object" ? recordOrEmpty(json) : null;
   const accountId = asText(valueAt(o, "user_id"));
   if (!/^\d{5,32}$/.test(accountId))
     throw new Error(instagramErrorOf(json)?.message ?? "Instagram did not name the account");
@@ -219,7 +219,7 @@ export function parseInstagramMe(json: unknown): { accountId: string; username: 
 
 /** What a person is called, from their profile: their name, else their handle, else nothing said. */
 export function instagramNameOf(json: unknown): string | null {
-  const o = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
+  const o = json && typeof json === "object" ? recordOrEmpty(json) : null;
   const name = asText(valueAt(o, "name")).trim();
   const handle = asText(valueAt(o, "username")).trim();
   return (name || (handle ? `@${handle}` : "")).slice(0, 80) || null;

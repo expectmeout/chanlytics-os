@@ -74,7 +74,7 @@ import { tellPhonesCallStarted } from "./call-activity.js";
 import { apns, apnsKeys } from "./apns.js";
 import { wasErasedBeforeCall } from "../shared/erased.js";
 import { upsertEscalation } from "@chanlytics/jobs";
-import { frameGuardrail, pauseMsOf, MIN_MS, priceAllowance, spokenBreach } from "@chanlytics/contracts";
+import { frameGuardrail, pauseMsOf, MIN_MS, priceAllowance, spokenBreach, recordOrEmpty } from "@chanlytics/contracts";
 import { linkOfferedOn } from "../calendar/availability.js";
 import { env } from "../shared/env.js";
 import { keptUrl, retellSigned } from "../shared/door-auth.js";
@@ -233,9 +233,9 @@ function readDelivery(raw: string): Delivery | null {
   log.info("retell_event", { retell_event: event, call_id: call?.call_id ?? null });
   if (!call?.call_id) return null;
   if (event === "transcript_updated" && !call.call_status) call.call_status = "ongoing";
-  const top = body as unknown as Record<string, unknown>;
+  const top = recordOrEmpty(body);
   const bodyKeys = Object.keys(top).filter((k) => k !== "call");
-  const callKeys = Object.keys(call as unknown as Record<string, unknown>);
+  const callKeys = Object.keys(recordOrEmpty(call));
   if (event === "transcript_updated") {
     if (!call.transcript_with_tool_calls && Array.isArray(top.transcript_with_tool_calls)) {
       call.transcript_with_tool_calls = top.transcript_with_tool_calls as RetellCall["transcript_with_tool_calls"];

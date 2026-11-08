@@ -11,6 +11,7 @@ import {
   type BroadcastCounts,
   type BroadcastDto,
   type BroadcastState,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { readAllRows } from "@chanlytics/db/shared";
 import { runCounts } from "@chanlytics/db/reports";
@@ -83,9 +84,8 @@ export interface RecipientRow {
 
 /** When a status arrived, from the stamp the guard keeps on the row (00111); null before it, or for a status not reached. */
 export function statusAt(meta: unknown, status: string): string | null {
-  const at = (
-    meta && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>).status_at : null
-  ) as Record<string, unknown> | null | undefined;
+  const at = (meta && typeof meta === "object" && !Array.isArray(meta) ? recordOrEmpty(meta).status_at : null) as
+    Record<string, unknown> | null | undefined;
   const v = at && typeof at === "object" ? at[status] : null;
   return typeof v === "string" ? v : null;
 }

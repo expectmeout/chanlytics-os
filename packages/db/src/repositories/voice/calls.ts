@@ -22,7 +22,7 @@
  * select, and what the row keeps of the provider's payload is an allowlist (scrub_call_raw, 00530) members may not
  * select at all. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
-import type { SchemaSet } from "@chanlytics/contracts";
+import { recordOrNull, type SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
@@ -563,7 +563,7 @@ export async function callSecondsSince(db: Db, tenantId: string, sinceIso: strin
     .limit(10000);
   if (error) throw new Error(`cannot read the month's call seconds: ${error.message}`);
   return (data ?? []).reduce((n, r) => {
-    const s = (r.data as { seconds?: unknown } | null)?.seconds;
+    const s = recordOrNull(r.data)?.seconds;
     return n + (typeof s === "number" && Number.isFinite(s) ? s : 0);
   }, 0);
 }

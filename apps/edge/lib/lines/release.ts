@@ -15,7 +15,14 @@
  * back would take a business's number away from it. A forwarded row is the owner's own phone, and is read only to
  * tell them to switch its forwarding off.
  */
-import { BILLING_STATUSES, DAY_MS, DEFAULT_TIMEZONE, receptionistOn, type EdgeErrorCode } from "@chanlytics/contracts";
+import {
+  BILLING_STATUSES,
+  DAY_MS,
+  DEFAULT_TIMEZONE,
+  receptionistOn,
+  type EdgeErrorCode,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import {
   LINE_RELEASE_REPORT_DAYS,
   lineReleaseDay,
@@ -252,7 +259,7 @@ function failedAtOf(row: LineDbRow): number {
 function warnedOf(row: LineDbRow): LineReleaseWarned | null {
   const w = factsOf(row).release_warning;
   if (!w || typeof w !== "object" || Array.isArray(w)) return null;
-  const { at, ended_at } = w as Record<string, unknown>;
+  const { at, ended_at } = recordOrEmpty(w);
   return typeof at === "string" && typeof ended_at === "string" ? { at, ended_at } : null;
 }
 
@@ -306,7 +313,7 @@ async function keepFacts(
 function triedOf(row: LineDbRow, endedAt: string): number | null {
   const t = factsOf(row).release_warning_tried;
   if (!t || typeof t !== "object" || Array.isArray(t)) return null;
-  const { at, ended_at } = t as Record<string, unknown>;
+  const { at, ended_at } = recordOrEmpty(t);
   if (ended_at !== endedAt || typeof at !== "string") return null;
   const ms = Date.parse(at);
   return Number.isFinite(ms) ? ms : null;

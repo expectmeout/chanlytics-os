@@ -41,6 +41,7 @@ import {
   markLeadRunUnknown,
   releaseLeadRun,
 } from "@chanlytics/db/leads";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
@@ -118,7 +119,7 @@ async function sweepRows(
 }
 
 const payloadOf = (j: JobRead): Record<string, unknown> =>
-  j.payload !== null && typeof j.payload === "object" ? (j.payload as Record<string, unknown>) : {};
+  j.payload !== null && typeof j.payload === "object" ? recordOrEmpty(j.payload) : {};
 const isOpen = (state: string): boolean => state === "scheduled" || state === "fired";
 
 /** The read rows as the planner takes them: each run's part of its round, its collects, and each round's own jobs. */

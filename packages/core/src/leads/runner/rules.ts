@@ -27,7 +27,7 @@
  * collect.ts, check.ts and sweep.ts.
  */
 
-import { LEAD_NO_SITE_KEY, LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS } from "@chanlytics/contracts";
+import { LEAD_NO_SITE_KEY, LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS, recordOrNull } from "@chanlytics/contracts";
 import { JUDGE_TIMEOUT_MS } from "../judge";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
 
@@ -101,7 +101,7 @@ const webhookUrl = (p: LeadPorts, runRowId: string, token: string) =>
 export const targetOf = (round: LeadRoundRow): number => (round.purpose === "probe" ? round.plan.count : round.target);
 /** A member the judge answered for, as opposed to one left out or held by rule. */
 const wasJudged = (m: LeadMemberRow): boolean => {
-  const j = m.judgment as { answer?: unknown } | null;
+  const j = recordOrNull(m.judgment);
   return !!j && typeof j === "object" && j.answer !== null && j.answer !== undefined;
 };
 

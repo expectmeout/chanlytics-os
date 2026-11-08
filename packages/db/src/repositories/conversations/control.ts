@@ -22,6 +22,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { dbLog } from "../../shared/observe";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -236,7 +237,7 @@ export async function replyAnywayThread(db: Db, memberMove: MemberMove): Promise
 /** The decision a door's answer names, where it moved a row. */
 function decisionIdOf(data: unknown): string | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const id = (data as Record<string, unknown>).decision_id;
+  const id = recordOrEmpty(data).decision_id;
   return typeof id === "string" ? id : null;
 }
 

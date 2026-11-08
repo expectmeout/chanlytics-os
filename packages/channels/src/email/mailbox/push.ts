@@ -6,7 +6,7 @@
  * signature or its clientState is checked; what a push says is only "read this mailbox now": the sync reads the rest.
  */
 import { createHash, timingSafeEqual } from "node:crypto";
-import { HOUR_MS } from "@chanlytics/contracts";
+import { HOUR_MS, recordOrNull } from "@chanlytics/contracts";
 import { fetchFromProvider } from "../../shared/provider-fetch";
 import { unb64url } from "../../google/oauth";
 
@@ -114,7 +114,7 @@ export function gmailPushOf(body: unknown): { address: string; historyId: string
 
 /** Graph's notifications: each subscription that says it changed, with the clientState it carries. */
 export function graphNotificationsOf(body: unknown): Array<{ subscriptionId: string; clientState: string | null }> {
-  const value = (body as { value?: unknown } | null)?.value;
+  const value = recordOrNull(body)?.value;
   if (!Array.isArray(value)) return [];
   const out: Array<{ subscriptionId: string; clientState: string | null }> = [];
   for (const n of value as Array<{ subscriptionId?: unknown; clientState?: unknown }>)

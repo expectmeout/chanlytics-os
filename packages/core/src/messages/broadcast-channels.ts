@@ -41,6 +41,8 @@ import {
   type ParamSpec,
   type SendPurpose,
   type VersionWords,
+  recordOrEmpty,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { broadcastEmailId } from "../campaigns/reach-out-ids";
 import type { Channel as DoorChannel, Delivery } from "../deliver/deliver";
@@ -156,7 +158,7 @@ export interface Work {
 /** A visit run's or a follow-up's words for one person, resolved when the run was made and kept on their row. */
 export function rowFacts(recipient: Pick<RecipientRow, "facts">): Record<string, unknown> {
   return recipient.facts !== null && typeof recipient.facts === "object" && !Array.isArray(recipient.facts)
-    ? (recipient.facts as Record<string, unknown>)
+    ? recordOrEmpty(recipient.facts)
     : {};
 }
 
@@ -187,7 +189,7 @@ export function rowHold(recipient: Pick<RecipientRow, "facts">, visitStands: () 
 
 /** What a run's messages record: that a broadcast sent them, which, and for a run, its playbook (a thread reads "by the Win-back playbook"). */
 function metaOf(b: BroadcastRow) {
-  const label = (b.audience as { label?: unknown } | null)?.label;
+  const label = recordOrNull(b.audience)?.label;
   return {
     source: "broadcast",
     broadcast_id: b.id,

@@ -16,7 +16,7 @@
  *   watchGmail      the mailbox's changes published to the Pub/Sub topic; it lapses after seven days unless renewed.
  *   stopGmailWatch       the watch ended, when the mailbox is removed.
  */
-import { DAY_MS } from "@chanlytics/contracts";
+import { DAY_MS, recordOrNull } from "@chanlytics/contracts";
 import { b64url } from "../../google/oauth";
 import { fetchFromProvider, type ProviderReply, type SendOutcome } from "../../shared/provider-fetch";
 import {
@@ -119,7 +119,7 @@ export async function sendGmail(
     },
     deps,
   );
-  const json = reply.json as { id?: unknown; threadId?: unknown } | null;
+  const json = recordOrNull(reply.json);
   return {
     ok: reply.outcome === "ok" && typeof json?.id === "string",
     status: reply.status,
@@ -195,7 +195,7 @@ export async function readGmailSignature(
   );
   if (response.status === 404) return { ok: true, html: null };
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const html = (response.json as { signature?: unknown } | null)?.signature;
+  const html = recordOrNull(response.json)?.signature;
   return { ok: true, html: typeof html === "string" && html.trim() ? html : null };
 }
 
@@ -313,7 +313,7 @@ export async function watchGmail(
     },
     deps,
   );
-  const json = response.json as { historyId?: unknown; expiration?: unknown } | null;
+  const json = recordOrNull(response.json);
   const exp = Number(json?.expiration);
   if (response.outcome !== "ok" || typeof json?.historyId !== "string" || !Number.isFinite(exp))
     return { ok: false, reply: response };

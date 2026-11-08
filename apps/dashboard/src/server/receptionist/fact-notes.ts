@@ -19,6 +19,7 @@ import {
   parseTenantConfig,
   TenantConfigWriteSchema,
   withStoredKeysKept,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { answerFactSuggestion, findFactSuggestionById } from "@chanlytics/db/facts";
 import { putTenantConfig } from "@chanlytics/db/workspace";
@@ -52,7 +53,7 @@ async function keepNote(
   const notes = notesSaid(before.config);
   if (factAlreadyNoted(state, notes.said)) return { version: before.version, already: true };
   if (notes.count >= FACT_SUGGEST_LIMITS.notesMax) throw new AppError("validation", FACT_SUGGEST_WORDS.notesFull);
-  const added = applySettingsChange((before.config ?? {}) as Record<string, unknown>, factNoteChange(state));
+  const added = applySettingsChange(recordOrEmpty(before.config), factNoteChange(state));
   const parsed = TenantConfigWriteSchema.safeParse(added);
   if (!parsed.success) {
     log.error("fact_answer_failed", { tenant_id: member.tenantId, step: "schema", issues: parsed.error.issues.length });

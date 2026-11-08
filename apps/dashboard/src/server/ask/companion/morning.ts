@@ -25,6 +25,7 @@ import {
   type AskMorningCard,
   type AskMorningDto,
   type AskProposal,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { askCardsTold, getMemberViews } from "@chanlytics/db/notices";
 import { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "@chanlytics/db/ask";
@@ -118,7 +119,7 @@ async function aroundMorning(
 function morningSay(answer: Json | null): { headline: string; detail: string } {
   const say =
     answer && typeof answer === "object" && !Array.isArray(answer) && answer.say && typeof answer.say === "object"
-      ? (answer.say as Record<string, unknown>)
+      ? recordOrEmpty(answer.say)
       : {};
   return {
     headline: typeof say.headline === "string" ? say.headline : "",

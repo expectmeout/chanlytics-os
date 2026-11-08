@@ -66,6 +66,7 @@ import {
 import { relayEvents } from "@chanlytics/db/events";
 import { isWorkspaceOurs } from "@chanlytics/db/console";
 import type { SweepTick } from "./sweep-door.js";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 /** This many failures in one heartbeat are the platform's, not any owner's. */
 const MASS_FAILURE_PAGE = 10;
@@ -226,7 +227,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
             id: job.id,
             tenant_id: job.tenant_id,
             kind: job.kind,
-            payload: (job.payload ?? {}) as Record<string, unknown>,
+            payload: recordOrEmpty(job.payload),
             attempts: job.attempts,
           };
           const ran = dispatchJob(

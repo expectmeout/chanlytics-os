@@ -42,6 +42,7 @@ import {
   type ReachOutHold,
   type WrittenOpening,
   ANSWER_JSON_ONLY,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { findWorkspaceAbout, findWorkspaceNameAndConfig, type ReachOutRecordRow } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
@@ -188,7 +189,7 @@ export type CheckOutcome =
   | { kind: "late"; tokens: Tokens; calls: number };
 
 function timedOut(e: unknown): boolean {
-  const name = (e as { name?: unknown } | null)?.name;
+  const name = recordOrNull(e)?.name;
   return name === "TimeoutError" || name === "AbortError" || /timed? ?out|aborted/i.test(String(e));
 }
 

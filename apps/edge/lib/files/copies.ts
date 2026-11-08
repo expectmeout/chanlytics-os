@@ -21,6 +21,7 @@ import {
   videoSpanPlanOf,
   type ZoomBox,
   type ZoomSize,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { uploadClaudeFile } from "@chanlytics/channels/ai";
 import { imageHeaderOf } from "@chanlytics/core";
@@ -67,7 +68,7 @@ const momentTimeOf = (v: unknown): number | null => (absent(v) ? null : secondsO
 /** One moment as asked, or null where it is not one this door draws: a moment, a box of one, or a stretch, never two. */
 function momentAsked(entry: unknown): MomentAsked | null {
   if (!entry || typeof entry !== "object") return null;
-  const fields = entry as Record<string, unknown>;
+  const fields = recordOrEmpty(entry);
   if (
     typeof fields.key !== "string" ||
     !fields.key ||
@@ -169,7 +170,7 @@ function picturesSent(raw: unknown): PictureSent[] | null {
   const out: PictureSent[] = [];
   for (const p of raw) {
     if (!p || typeof p !== "object") return null;
-    const { key, bytes, mime, name } = p as Record<string, unknown>;
+    const { key, bytes, mime, name } = recordOrEmpty(p);
     if (typeof key !== "string" || !key || key.length > 40) return null;
     if (typeof bytes !== "string" || bytes.length > (PICTURE_BYTES_MOST * 4) / 3 + 4) return null;
     if (!isFileMime(mime) || typeof name !== "string" || !name || name.length > 120) return null;

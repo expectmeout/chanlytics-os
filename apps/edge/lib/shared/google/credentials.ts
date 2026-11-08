@@ -13,7 +13,7 @@ import {
   type PlacesHttp,
   type TokenGrant,
 } from "@chanlytics/channels/google";
-import { MIN_MS, type EdgeRefusal } from "@chanlytics/contracts";
+import { MIN_MS, type EdgeRefusal, recordOrEmpty } from "@chanlytics/contracts";
 import { profileClient } from "./config.js";
 import { http } from "./places.js";
 import type { Db } from "./rows.js";
@@ -81,7 +81,7 @@ async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>, net: Plac
     /* below */
   }
   if (result.status < 200 || result.status >= 300) {
-    const o = json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+    const o = json && typeof json === "object" ? recordOrEmpty(json) : {};
     throw new Error(
       typeof o.error === "string"
         ? `${o.error}${typeof o.error_description === "string" ? `: ${o.error_description}` : ""}`

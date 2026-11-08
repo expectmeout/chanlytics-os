@@ -22,6 +22,7 @@ import {
   isReachOutRun,
   type SchemaSet,
   type BroadcastState,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
@@ -75,7 +76,7 @@ export async function listStrandedRuns(
   if (jobs.error) throw new Error(`stranded runs: cannot read their jobs: ${jobs.error.message}`);
   const live = new Set(
     (jobs.data ?? []).map((j) => {
-      const id = (j.payload as { broadcast_id?: unknown } | null)?.broadcast_id;
+      const id = recordOrNull(j.payload)?.broadcast_id;
       return typeof id === "string" ? id : "";
     }),
   );

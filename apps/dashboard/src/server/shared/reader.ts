@@ -1,5 +1,5 @@
 import "server-only";
-import type { AskCitationKind, AskRowRef } from "@chanlytics/contracts";
+import { recordOrEmpty, type AskCitationKind, type AskRowRef } from "@chanlytics/contracts";
 import { noteTiming } from "@chanlytics/log";
 import type { RouteContext } from "./with-route";
 import type { Member } from "./route";
@@ -80,7 +80,7 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(value, (_k, val) =>
     val && typeof val === "object" && !Array.isArray(val)
       ? Object.fromEntries(
-          Object.keys(val as Record<string, unknown>)
+          Object.keys(recordOrEmpty(val))
             .sort()
             .map((k) => [k, (val as Record<string, unknown>)[k]]),
         )

@@ -26,6 +26,7 @@ import {
   type InvitationsAcceptedDto,
   type JoinedWorkspaceDto,
   type MembershipRole,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import { getTenantFacts } from "../shared/tenant";
@@ -100,7 +101,7 @@ async function teamCall(
 ): Promise<Record<string, unknown>> {
   const { data, error } = await call;
   if (error) throw teamRefusal(error);
-  const answer = (data ?? {}) as Record<string, unknown>;
+  const answer = recordOrEmpty(data);
   // A card kept from a stale tab, or a header nobody should have sent: the change is kept without the link.
   if (answer.undo_dropped === true) log.error("decision_undo_of_unknown", { undo_of: undoOf, verb });
   return answer;

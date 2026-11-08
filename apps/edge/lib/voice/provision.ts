@@ -42,6 +42,7 @@ import {
   US_AREA_CODE,
   UUID,
   VOICE_PROVISION_DOOR,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { createVoiceAgent } from "../lines/voice-agent.js";
 import {
@@ -425,7 +426,7 @@ async function announceLeg(
 /** 7. Read back: a freshly provisioned line plans nothing on either converger. */
 async function readBackLeg(cfg: RetellConfig, { agentId, llmId }: MadeAgent): Promise<Record<string, unknown>> {
   const after = await getAgentRaw(cfg, agentId);
-  const engine = (after?.response_engine ?? {}) as Record<string, unknown>;
+  const engine = recordOrEmpty(after?.response_engine);
   const llmAfter = llmId
     ? await getRetellLlm(cfg, llmId, typeof engine.version === "number" ? engine.version : null)
     : null;

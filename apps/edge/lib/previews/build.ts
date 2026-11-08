@@ -27,6 +27,7 @@ import {
   withStoredKeysKept,
   type BrainConfig,
   type PreviewFailure,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { leadAsListing } from "./lead-as-listing";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db/workspace";
@@ -70,7 +71,7 @@ async function receptionistFromListing(
     return null;
   });
   if (!kept) return brain;
-  const profile = (brain.profile ?? {}) as Record<string, unknown>;
+  const profile = recordOrEmpty(brain.profile);
   const found = foundOf(
     [
       {

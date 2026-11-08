@@ -14,6 +14,7 @@
  */
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 export interface SubscribeOptions {
   /** The workspace the tab shows: its topic is the one joined. A tab with none joins nothing. */
@@ -422,7 +423,7 @@ export async function getNoticesSince(
   if (error) throw error;
   const rows = data ?? [];
   const notices = rows.slice(0, CATCH_UP_MOST).flatMap((row): ToldNotice[] => {
-    const p = (row.payload ?? {}) as { table?: unknown; statuses?: unknown; at?: unknown; threads?: unknown };
+    const p = recordOrEmpty(row.payload);
     if (typeof p.table !== "string") return [];
     const statuses = Array.isArray(p.statuses) ? p.statuses.filter((s): s is string => typeof s === "string") : null;
     const at = typeof p.at === "string" ? p.at : null;

@@ -36,7 +36,7 @@
  * Cross-workspace: only listReachOutDayDue, the 6 PM sweep over every workspace; every other door keeps to one.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { conversationPatch, type SchemaSet } from "@chanlytics/contracts";
+import { conversationPatch, type SchemaSet, recordOrEmpty } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { mailboxCapacityFrom, type MailboxCapacity } from "./email-day";
 import { getErasureDigests } from "../../people/pages";
@@ -206,7 +206,7 @@ export async function findReachOutReply(
   });
   if (error && isMissingFunction(error)) return null;
   if (error) throw new Error(`cannot read whose reply this is: ${error.message}`);
-  const value = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  const value = data && typeof data === "object" && !Array.isArray(data) ? recordOrEmpty(data) : null;
   const sendId = textOf(value?.send_id);
   const leadId = textOf(value?.lead_id);
   const conversationId = textOf(value?.conversation_id);
@@ -331,7 +331,7 @@ export async function applyReplyReading(
     p_days: params.days,
   });
   if (error) throw new Error(`cannot apply the reply's reading: ${error.message}`);
-  const value = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  const value = recordOrEmpty(data);
   return value.applied === true;
 }
 

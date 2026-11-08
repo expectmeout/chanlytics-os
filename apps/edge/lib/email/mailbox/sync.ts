@@ -44,7 +44,7 @@ import {
   type MailboxEmail,
   type ReadVerdict,
 } from "@chanlytics/channels/email";
-import { MIN_MS, DAY_MS, normalizeEmail, WAITING_REASONS } from "@chanlytics/contracts";
+import { MIN_MS, DAY_MS, normalizeEmail, WAITING_REASONS, recordOrNull } from "@chanlytics/contracts";
 import { EMAIL_BODY_MAX } from "@chanlytics/core";
 import {
   endMailboxSync,
@@ -177,7 +177,7 @@ async function gmailChanges(
 ): Promise<Changes> {
   const fromNow = async (): Promise<Changes> => {
     const p = await readGmailProfile(token);
-    const historyId = (p.json as { historyId?: unknown } | null)?.historyId;
+    const historyId = recordOrNull(p.json)?.historyId;
     if (p.outcome !== "ok" || typeof historyId !== "string") return { ok: false, status: p.status, why: "profile" };
     return { ok: true, arrived: [], cursor: historyId, started: true };
   };
@@ -325,7 +325,7 @@ async function reportReceipt(
   if (!rowId) return "none";
   const sent = await findSentEmail(db, { tenantId: row.tenant_id, messageId: rowId });
   if (!sent) return "none";
-  const wrote = (sent.request as { to?: unknown } | null)?.to;
+  const wrote = recordOrNull(sent.request)?.to;
   const ours = (Array.isArray(wrote) ? wrote : []).filter((a): a is string => typeof a === "string");
   const elsewhere = !!report.recipient && ours.length > 0 && !ours.some((a) => a.toLowerCase() === report.recipient);
   // Anyone can write a report, so a rest is taken only from the sending provider's own system, and only where none

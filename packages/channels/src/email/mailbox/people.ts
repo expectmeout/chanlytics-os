@@ -7,6 +7,7 @@
 import { fetchFromProvider, type ProviderReply } from "../../shared/provider-fetch";
 import { MAILBOX_READ_MS } from "./read";
 import { GRAPH_API } from "./graph";
+import { recordOrNull } from "@chanlytics/contracts";
 
 const PEOPLE_API = "https://people.googleapis.com/v1";
 /** People a page: Google's most is a thousand, Graph's contacts a hundred is plenty for a part. */
@@ -54,7 +55,7 @@ async function googlePage(token: string, url: string, field: string, deps?: Deps
     deps,
   );
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const json = response.json as Record<string, unknown> | null;
+  const json = recordOrNull(response.json);
   const list = Array.isArray(json?.[field]) ? (json[field] as Parameters<typeof googlePersonOf>[0][]) : [];
   return {
     ok: true,

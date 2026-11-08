@@ -1,7 +1,14 @@
 /** People: people. */
 
 import type { PostgrestError } from "@supabase/supabase-js";
-import type { DoubtSeen, PersonAtLeadDto, PersonDoubtDto, PersonSignerDto, SeenMarksDto } from "@chanlytics/contracts";
+import {
+  recordOrEmpty,
+  type DoubtSeen,
+  type PersonAtLeadDto,
+  type PersonDoubtDto,
+  type PersonSignerDto,
+  type SeenMarksDto,
+} from "@chanlytics/contracts";
 import type { Json } from "../../types";
 import { getPersonIdsWaitingOnYou } from "./waiting-on-you";
 import { IDS_PER_READ, type Db } from "./pages";
@@ -14,7 +21,7 @@ import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";
 export async function seePersonNote(db: Db, noteId: string): Promise<{ seen: boolean; why: string | null }> {
   const { data, error } = await db.rpc("person_note_seen", { p_note_id: noteId });
   if (error) throw error;
-  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  const o = recordOrEmpty(data);
   return { seen: typeof o.seen === "string", why: typeof o.error === "string" ? o.error : null };
 }
 
@@ -141,7 +148,7 @@ export async function resolvePerson(db: Db, resolvePersonInput: ResolvePersonInp
     p_detail: resolvePersonInput.detail ?? {},
   });
   if (error) throw Object.assign(new Error(`resolve_person: ${error.message}`), { code: error.code });
-  const row = (data ?? {}) as Record<string, unknown>;
+  const row = recordOrEmpty(data);
   if (typeof row.contact_id !== "string") throw new Error("resolve_person answered without a person");
   return {
     contact_id: row.contact_id,
@@ -220,7 +227,7 @@ export async function dismissPersonDoubt(
 ): Promise<{ doubt_id: string; settled_as: string | null }> {
   const { data, error } = await db.rpc("person_doubt_dismiss", { p_doubt_id: doubtId });
   if (error) throw error;
-  const o = (data ?? {}) as Record<string, unknown>;
+  const o = recordOrEmpty(data);
   return {
     doubt_id: typeof o.doubt_id === "string" ? o.doubt_id : doubtId,
     settled_as: typeof o.settled_as === "string" ? o.settled_as : null,
@@ -239,7 +246,7 @@ const stampOf = (v: unknown): string | null => (typeof v === "string" ? v : null
 export async function markContactSeen(db: Db, tenantId: string, contactIds: readonly string[]): Promise<SeenMarksDto> {
   const { data, error } = await db.rpc("contact_seen", { p_tenant_id: tenantId, p_contact_ids: [...contactIds] });
   if (error) throw error;
-  const value = (data ?? {}) as { floor_at?: unknown; marks?: unknown };
+  const value = recordOrEmpty(data);
   const marks = Array.isArray(value.marks) ? (value.marks as Record<string, unknown>[]) : [];
   return {
     floor_at: stampOf(value.floor_at),
@@ -271,7 +278,7 @@ export async function markContact(
     ...(mark.heardAt ? { p_heard_at: mark.heardAt } : {}),
   });
   if (error) throw error;
-  const value = (data ?? {}) as Record<string, unknown>;
+  const value = recordOrEmpty(data);
   return {
     contact_id: contactId,
     seen_at: stampOf(value.seen_at),
@@ -342,6 +349,6 @@ export async function addPersonByHand(
         p_source: params.source,
       });
   if (error) return { data: null, error };
-  const row = (data ?? {}) as { contact_id?: unknown; existed?: unknown };
+  const row = recordOrEmpty(data);
   return { data: { contact_id: String(row.contact_id), existed: row.existed === true }, error: null };
 }

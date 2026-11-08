@@ -17,6 +17,7 @@ import {
   type Role,
   type SpendWords,
   UUID,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
@@ -209,7 +210,7 @@ function answerOf<T>(
       const via = req.headers.get("x-via") === "ask" ? ("ask" as const) : undefined;
       const undoOfHeader = req.headers.get("x-undo-of");
       const undoOf = undoOfHeader && UUID.test(undoOfHeader) ? undoOfHeader : undefined;
-      const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const metadata = recordOrEmpty(user.user_metadata);
       const live = async (): Promise<SessionLiveness> => {
         // The cookie's client reads its own session; a bearer's is asked over the token the header carried.
         const request = await (bearer ? supabase.auth.getUser(bearer) : supabase.auth.getUser());

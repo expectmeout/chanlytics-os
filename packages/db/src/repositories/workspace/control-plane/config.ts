@@ -7,6 +7,7 @@ import {
   type BillingStatus,
   type OpenToCustomers,
   type SchemaSet,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
@@ -178,7 +179,7 @@ export async function setPolicyMode(
       .maybeSingle();
     // A read that failed is not a row with no limits: merging over nothing would write every other setting away.
     if (readError) throw new Error(`setPolicyMode: ${readError.message}`);
-    merged = { ...((current?.limits as Record<string, unknown>) ?? {}), ...limits };
+    merged = { ...(recordOrEmpty(current?.limits) ?? {}), ...limits };
   }
   const { data, error } = await db
     .from("policies")
@@ -275,7 +276,7 @@ export async function replyTokensSince(
       .range(from, from + USAGE_PAGE - 1);
     if (error) throw new Error(`replyTokensSince: ${error.message}`);
     for (const r of data ?? []) {
-      const d = (r.data ?? {}) as Record<string, unknown>;
+      const d = recordOrEmpty(r.data);
       replies += 1;
       tokens += n(d.input_tokens) + n(d.output_tokens);
     }

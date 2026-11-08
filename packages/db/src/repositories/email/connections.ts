@@ -8,7 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 export type MailboxConnectionRow = Database["public"]["Tables"]["mailbox_connections"]["Row"];
 type Patch = Database["public"]["Tables"]["mailbox_connections"]["Update"];
@@ -183,7 +183,7 @@ export async function getMailboxCounts(
 }> {
   const { data, error } = await db.rpc("mailbox_connection_counts", { p_mailbox_id: id, p_since: since });
   if (error) throw new Error(`cannot count the mailbox's emails: ${error.message}`);
-  const item = (data ?? {}) as Record<string, unknown>;
+  const item = recordOrEmpty(data);
   const n = (k: string): number => Math.max(0, Number(item[k] ?? 0) || 0);
   if (typeof item.sent !== "number")
     throw new Error("cannot count the mailbox's emails: the database answered no count");

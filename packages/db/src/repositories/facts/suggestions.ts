@@ -8,6 +8,7 @@
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
+import { recordOrNull } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -74,7 +75,7 @@ export async function suggestFact(
     p_quote: params.quote,
   });
   if (error) throw new Error(`fact_suggest: ${error.message}`);
-  const refused = (data as { error?: unknown } | null)?.error;
+  const refused = recordOrNull(data)?.error;
   return { refused: typeof refused === "string" ? refused : null };
 }
 

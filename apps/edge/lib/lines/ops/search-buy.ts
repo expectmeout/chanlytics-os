@@ -24,6 +24,7 @@ import {
   type RecordFiling,
   type RegistrationPath,
   US_AREA_CODE,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { lineForClient, type LineProviderChoice } from "../lines.js";
 import { factsOf, FILED_NAME_FACT, retryRequestedBy, type LineDbRow } from "../resume.js";
@@ -330,7 +331,7 @@ export function planRecord(
   rawPath: unknown,
   tenantId: string,
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "keep"; path: RegistrationPath; row: RecordDraft } {
-  const second = rawRecord && typeof rawRecord === "object" ? (rawRecord as Record<string, unknown>) : null;
+  const second = rawRecord && typeof rawRecord === "object" ? recordOrEmpty(rawRecord) : null;
   if (!second)
     return {
       kind: "refuse",

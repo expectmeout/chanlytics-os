@@ -13,6 +13,8 @@ import {
   type PersonEscalationDto,
   type PersonReachDto,
   DAY_KEY,
+  recordOrEmpty,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { writeReachOf } from "@/server/new-conversation/write-reach";
 import { SMS_FOOTER } from "@chanlytics/channels/lines";
@@ -76,7 +78,7 @@ function personMessages(rc: ReaderContext, convIds: string[]) {
 /** Where they came from, as the profile says it: the door's contact.added row for them, when there is one. */
 function cameFrom(row: { created_at: string; data: unknown } | null): PersonDetailDto["added"] {
   if (!row) return undefined;
-  const data = row.data as { source?: unknown; title?: unknown } | null;
+  const data = recordOrNull(row.data);
   return {
     at: row.created_at,
     source: String(data?.source ?? "manual"),
@@ -91,7 +93,7 @@ function cameFrom(row: { created_at: string; data: unknown } | null): PersonDeta
 function beforeOf(row: { before?: unknown } | null): PersonDetailDto["before"] {
   const raw = row?.before;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const second = raw as Record<string, unknown>;
+  const second = recordOrEmpty(raw);
   const out: NonNullable<PersonDetailDto["before"]> = {};
   if (typeof second.via === "string" && second.via) out.via = second.via;
   if (typeof second.last_visit === "string" && DAY_KEY.test(second.last_visit)) out.last_visit = second.last_visit;

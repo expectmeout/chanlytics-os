@@ -34,6 +34,7 @@ import {
   type LeadRoundEnding,
   type LeadRunState,
   type LeadSearchPlan,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import type {
   CollectCommitResult,
@@ -126,7 +127,7 @@ export function leadDb(db: Db): LeadDb {
     const byId = new Map(leads.map((l) => [l.id, l]));
     return members.map((member): LeadMemberRow => {
       const found = byId.get(member.lead_id);
-      const json = member.judgment as { term?: unknown } | null;
+      const json = recordOrNull(member.judgment);
       return {
         lead_id: member.lead_id,
         class: member.class as LeadMemberRow["class"],

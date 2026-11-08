@@ -6,6 +6,8 @@ import {
   type ConversationDto,
   type MessageDto,
   type SeenOf,
+  recordOrEmpty,
+  recordOrNull,
 } from "@chanlytics/contracts";
 
 /**
@@ -148,7 +150,7 @@ interface CallRow {
  */
 export function mediaPublic(raw: unknown): MessageDto["media"] {
   if (!raw || typeof raw !== "object") return null;
-  const match = raw as Record<string, unknown>;
+  const match = recordOrEmpty(raw);
   const str = (k: string) => (typeof match[k] === "string" ? match[k] : null);
   return {
     mime_type: str("mime_type"),
@@ -167,7 +169,7 @@ export function mediaPublic(raw: unknown): MessageDto["media"] {
 /** A row newest_messages answered (00258), or a thread's own read: a message, with the columns MESSAGE_COLUMNS names. */
 function isMessageRow(r: unknown): r is MessageRow {
   if (!r || typeof r !== "object") return false;
-  const m = r as Record<string, unknown>;
+  const m = recordOrEmpty(r);
   return typeof m.id === "string" && typeof m.conversation_id === "string" && typeof m.created_at === "string";
 }
 
@@ -317,7 +319,7 @@ export function toCallDto(call: CallRow): CallDto {
   const rec = call.recording as { fetch_state?: string; mime?: string | null; bytes?: number } | null;
   // The address the caller spelled out, from the post-call analysis (voice-shell CALL_ANALYSIS_FIELDS): a string
   // in the analysis object, or nothing. Any other shape the provider might send is nothing too.
-  const spelled = (call.analysis as { caller_email?: unknown } | null | undefined)?.caller_email;
+  const spelled = recordOrNull(call.analysis)?.caller_email;
   return {
     id: call.id,
     retell_call_id: call.retell_call_id,

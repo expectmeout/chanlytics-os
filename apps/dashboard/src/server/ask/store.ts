@@ -12,6 +12,7 @@ import {
   citationRoute,
   storedAnswer,
   v1FromAnswer,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import type { AskTurnShape } from "./shape";
 import { withFilesAttached, withFilesOpened } from "@/server/files/line";
@@ -75,7 +76,7 @@ export function toThreadVM(thread: ThreadRow): AskThreadVM {
  * spec 7.6); one made before has the v1 fields only, and the Line reads it through answerFromV1.
  */
 export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
-  const content = (message.content ?? {}) as Record<string, unknown>;
+  const content = recordOrEmpty(message.content);
   const cites = Array.isArray(content.citations) ? (content.citations as AskMessageVM["citations"]) : [];
   const files = fileIdsOf(content.files);
   const answer =
@@ -132,7 +133,7 @@ export function modelTurnOf(
   named: NamedFiles = NONE_NAMED,
 ): { role: "user" | "assistant"; text: string } {
   const vm = toMessageVM(message);
-  const content = (message.content ?? {}) as Record<string, unknown>;
+  const content = recordOrEmpty(message.content);
   const sentence = askTurnText(vm.text, vm.role === "user" ? answeringOf(content.answering) : null);
   const namedOf = (ids: unknown) => fileIdsOf(ids).map((id) => named.get(id) ?? null);
   return {
@@ -307,7 +308,7 @@ export async function setProposalOutcome(
   const { data: m, error } = await findAskTurnContent(ctx.supabase, messageId);
   if (error) throw new Error(error.message);
   if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
-  const content = (m.content ?? {}) as Record<string, unknown>;
+  const content = recordOrEmpty(m.content);
   const proposals = Array.isArray(content.proposals) ? (content.proposals as AskProposal[]) : [];
   const idx = proposals.findIndex((p) => p.id === proposalId);
   if (idx < 0) throw new AppError("not_found", "No such card on that turn.", 404);

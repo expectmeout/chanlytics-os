@@ -40,6 +40,7 @@ import {
   type ModelPurpose,
   type ModelSpeed,
   type ThinkingType,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
@@ -303,7 +304,7 @@ function diagnosticsOf(raw: unknown): { diagnostics?: { previous_message_id: str
  */
 function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, unknown> } | null | "bad" {
   if (raw === undefined) return null;
-  const f = raw as { type?: unknown; schema?: unknown } | null;
+  const f = recordOrNull(raw);
   if (!f || f.type !== "json_schema" || !f.schema || typeof f.schema !== "object" || Array.isArray(f.schema))
     return "bad";
   return { type: "json_schema", schema: f.schema as Record<string, unknown> };
@@ -373,7 +374,7 @@ export function validateGatewayRequest(
   }
   // A system message says an effort (contracts ai/effort.ts) or the operator's words, text alone (ai/words-message.ts):
   // nothing else rides in the messages as an instruction.
-  const system = (m: unknown) => (m as { role?: unknown } | null)?.role === "system";
+  const system = (m: unknown) => recordOrNull(m)?.role === "system";
   if (gatewayRequest.messages.some((m) => system(m) && !isEffortMessage(m) && !isWordsMessage(m))) {
     return badRequest("messages: a system message carries an effort or the operator's words alone");
   }

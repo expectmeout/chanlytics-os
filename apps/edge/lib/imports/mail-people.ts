@@ -19,7 +19,7 @@ import {
   type KnownPerson,
   type MailboxReach,
 } from "@chanlytics/channels/email";
-import { IMPORT_STOPPED_WORDS, normalizeEmail, normalizePhone } from "@chanlytics/contracts";
+import { IMPORT_STOPPED_WORDS, normalizeEmail, normalizePhone, recordOrEmpty } from "@chanlytics/contracts";
 import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
 import { importCursorOf, noteImport } from "@chanlytics/db/imports";
 import { findMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
@@ -44,7 +44,7 @@ interface PeopleCursor {
 }
 
 function cursorOf(raw: Json | null): PeopleCursor | null {
-  const c = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  const c = raw && typeof raw === "object" && !Array.isArray(raw) ? recordOrEmpty(raw) : null;
   if (c?.list !== "contacts") return null;
   return { list: c.list, page: typeof c.page === "string" ? c.page : null };
 }

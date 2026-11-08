@@ -1,5 +1,5 @@
 import "server-only";
-import { AppError, parseMemberAlerts, type PushKind } from "@chanlytics/contracts";
+import { AppError, parseMemberAlerts, type PushKind, recordOrEmpty } from "@chanlytics/contracts";
 import { setMemberPushOff } from "@chanlytics/db/notices";
 import { deployment } from "../shared/env";
 import { callEdge, edgeConfigured } from "../shared/edge";
@@ -47,7 +47,7 @@ export async function sendAlertTest(tenantId: string, userId: string): Promise<A
     { tenant_id: tenantId },
     { workspace: tenantId, user: userId, timeoutMs: TEST_TIMEOUT_MS },
   );
-  const body = (answer.body ?? {}) as { sent?: unknown; to?: unknown; why?: unknown };
+  const body = recordOrEmpty(answer.body);
   const to = typeof body.to === "number" ? body.to : 0;
   if (answer.status === 200 && body.sent === true) return { sent: true, to, why: null };
   if (answer.status === 200 && body.why === "no_address") return { sent: false, to: 0, why: "no_address" };

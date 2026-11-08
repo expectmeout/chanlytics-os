@@ -4,7 +4,7 @@
  * message read, what changed in the inbox since a delta link, and the subscription that tells the edge when something
  * did. Every call returns what it came to and never throws (provider-fetch.ts).
  */
-import { DAY_MS } from "@chanlytics/contracts";
+import { DAY_MS, recordOrNull } from "@chanlytics/contracts";
 import { fetchFromProvider, type ProviderReply, type SendOutcome } from "../../shared/provider-fetch";
 import { FIND_SENT_SLACK_MS, MAILBOX_READ_MS, readVerdictOf, type FoundSent, type ReadVerdict } from "./read";
 
@@ -152,7 +152,7 @@ export async function sendGraph(
     },
     deps,
   );
-  const item = draft.json as { id?: unknown; internetMessageId?: unknown; conversationId?: unknown } | null;
+  const item = recordOrNull(draft.json);
   if (draft.outcome !== "ok" || typeof item?.id !== "string")
     return {
       ok: false,
@@ -293,7 +293,7 @@ export async function subscribeGraph(
     },
     deps,
   );
-  const json = response.json as { id?: unknown; expirationDateTime?: unknown } | null;
+  const json = recordOrNull(response.json);
   const exp = typeof json?.expirationDateTime === "string" ? Date.parse(json.expirationDateTime) : NaN;
   if (response.outcome !== "ok" || typeof json?.id !== "string" || !Number.isFinite(exp))
     return { ok: false, reply: response };
@@ -355,7 +355,7 @@ async function graphList(token: string, path: string, deps?: Deps): Promise<List
   );
   if (response.outcome !== "ok")
     throw new Error(`graph list: ${graphReasonOf(response) ?? response.error ?? response.status}`);
-  const value = (response.json as { value?: unknown } | null)?.value;
+  const value = recordOrNull(response.json)?.value;
   return Array.isArray(value) ? (value as Listed[]) : [];
 }
 
@@ -431,7 +431,7 @@ export async function listGraphJunkSince(
   );
   if (response.outcome !== "ok")
     throw new Error(`graph junk: ${graphReasonOf(response) ?? response.error ?? response.status}`);
-  const value = (response.json as { value?: unknown } | null)?.value;
+  const value = recordOrNull(response.json)?.value;
   return (Array.isArray(value) ? (value as Array<Listed & { from?: { emailAddress?: { address?: unknown } } }>) : [])
     .filter((v) => typeof v.id === "string")
     .map((v) => ({

@@ -11,6 +11,7 @@ import {
   REACH_OUT_REPLY_DAYS,
   type MessageDto,
   type SchemaSet,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { findReachOutReply } from "../campaigns/reach-out/outreach";
@@ -140,9 +141,8 @@ type WireRow = Pick<MessageDto, "type" | "channel" | "direction" | "sender" | "m
 
 /** An email's subject and sender as the intake keeps them on the message (core email-ingest metaOf). */
 function emailOf(meta: unknown): { subject: string | null; name: string | null; address: string | null } {
-  const email =
-    meta && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>).email : null;
-  const e = email && typeof email === "object" && !Array.isArray(email) ? (email as Record<string, unknown>) : {};
+  const email = meta && typeof meta === "object" && !Array.isArray(meta) ? recordOrEmpty(meta).email : null;
+  const e = recordOrEmpty(email);
   const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   return { subject: text(e.subject), name: text(e.from_name), address: text(e.from) };
 }
@@ -293,7 +293,7 @@ export async function writeConversationDraft(
   });
   if (error) throw new Error(`conversation_draft_write: ${error.message}`);
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const item = data as Record<string, unknown>;
+  const item = recordOrEmpty(data);
   const text = (v: unknown) => (typeof v === "string" ? v : null);
   return {
     conversation_id: text(item.conversation_id) ?? details.conversationId,

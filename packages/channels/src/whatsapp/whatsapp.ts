@@ -3,7 +3,7 @@
  * canonical events and performs sends. No persistence, no decisions — the edge
  * wires this to the repositories. Config is passed in; env is never read here.
  */
-import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN } from "@chanlytics/contracts";
+import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, recordOrEmpty } from "@chanlytics/contracts";
 import { REFERRAL_ID_MAX } from "./first-touch";
 import { asksToStop } from "../inbound/stop-request";
 import { answerObject, fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
@@ -482,7 +482,7 @@ const PRICING_WORD = /^[A-Za-z0-9_-]{1,40}$/;
  */
 export function waPricingOf(raw: unknown): WaPricing | null {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const item = raw as Record<string, unknown>;
+  const item = recordOrEmpty(raw);
   const out: WaPricing = {};
   if (typeof item.billable === "boolean") out.billable = item.billable;
   for (const key of ["pricing_model", "category", "type"] as const) {

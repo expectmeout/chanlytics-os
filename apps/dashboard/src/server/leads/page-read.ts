@@ -22,6 +22,7 @@ import {
   type LeadStage,
   type LeadViewCountsDto,
   type SequencePlaceOfDto,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { getLeadPileCounts, listSequencePlaces } from "@chanlytics/db/campaigns";
 import { getLeadViewCounts, listSearchNames, readLeadOne, readLeadsPage } from "@chanlytics/db/leads";
@@ -204,7 +205,7 @@ function checksOf(leadPage: LeadPageRow): LeadCheck[] {
     });
   }
   // A place the screen left out before the judge (decision 0085) was read by the second model, never by Claude.
-  const screened = isSystemOneModel((leadPage.judgment as { model?: unknown } | null)?.model);
+  const screened = isSystemOneModel(recordOrNull(leadPage.judgment)?.model);
   for (const [key, read] of judgedBy(leadPage.judgment)) {
     // A seen check is measured, never read: a plan key that shared its name would say it twice.
     if (SEEN_CHECKS.has(key)) continue;

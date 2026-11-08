@@ -9,6 +9,7 @@ import {
   dealSentence,
   offersFacts,
   disclosureFacts,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { IDS_PER_READ } from "../../people/pages";
 import { DELIVERED, effectiveAt, type Db, type LeadContext } from "./history";
@@ -292,7 +293,7 @@ export async function replyAnswersAt(
     .maybeSingle();
   if (error) throw new Error(`replyAnswersAt: ${error.message}`);
   if (!reply) return null;
-  const answers = (reply.meta as { reply_to?: unknown } | null)?.reply_to;
+  const answers = recordOrNull(reply.meta)?.reply_to;
   if (typeof answers !== "string" || !answers) return Date.parse(reply.created_at);
   const { data: asked, error: askedError } = await db
     .from("messages")

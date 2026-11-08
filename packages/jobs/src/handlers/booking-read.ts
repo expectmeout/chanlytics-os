@@ -11,6 +11,7 @@ import {
   bookingNoticeOf,
   bookingToolName,
   isNoticeHold,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import {
   readBookingNotice,
@@ -241,7 +242,7 @@ export async function runBookingRead(ctx: JobContext, job: ClaimedJob): Promise<
     // A read that threw. A row the table refuses (a check, 23514) will be refused again, and the last try has no next:
     // either way the delivery is kept on the ledger as held, so a person sees a booking email that went unread and
     // can press Read again, where a failed job alone would be all there was of it. Any other throw is the next try's.
-    const refused = (err as { code?: unknown } | null)?.code === "23514";
+    const refused = recordOrNull(err)?.code === "23514";
     if (!refused && (job.attempts ?? 1) < MAX_ATTEMPTS) throw err;
     const reason = refused ? "unreadable" : "no_model";
     // The reader failed: news. A write that failed after it answered is not "the reader was unavailable" (the visit may

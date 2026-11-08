@@ -1,7 +1,7 @@
 /** Control plane: capabilities. */
 
 import type { PostgrestError } from "@supabase/supabase-js";
-import { hasPublicPages, openToCustomersOf } from "@chanlytics/contracts";
+import { hasPublicPages, openToCustomersOf, recordOrEmpty } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
 import type { Db } from "./config";
@@ -74,7 +74,7 @@ const TRIAL_PAGE = 500;
 export async function getTrialUse(db: Db, tenantId: string): Promise<{ callSeconds: number; replies: number }> {
   const { data, error } = await db.rpc("trial_use", { p_tenant_id: tenantId });
   if (error) throw new Error(`trial_use: ${error.message}`);
-  const o = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  const o = recordOrEmpty(data);
   const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
   return { callSeconds: n(o.call_seconds), replies: n(o.replies) };
 }

@@ -40,7 +40,7 @@
  */
 import { logger } from "@chanlytics/log";
 
-import { jittered } from "@chanlytics/contracts";
+import { jittered, recordOrEmpty } from "@chanlytics/contracts";
 
 /** Every provider a call leaves for: the breaker keeps one state per name. */
 const PROVIDER_NAMES = [
@@ -359,6 +359,6 @@ export async function fetchFromProvider(
 /** An answer's JSON as an object, or null: what most adapters read. */
 export function answerObject(providerReply: ProviderReply): Record<string, unknown> | null {
   return providerReply.json !== null && typeof providerReply.json === "object" && !Array.isArray(providerReply.json)
-    ? (providerReply.json as Record<string, unknown>)
+    ? recordOrEmpty(providerReply.json)
     : null;
 }

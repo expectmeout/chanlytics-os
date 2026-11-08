@@ -6,7 +6,14 @@
  * workspace, through the mailbox its cursor names. The clients' file is the browser's: it is added again from People,
  * never here. A source this deployment brings in no other way is refused by name.
  */
-import { IMPORT_SOURCES, isOneOf, UUID, parseTenantConfig, type ImportSource } from "@chanlytics/contracts";
+import {
+  IMPORT_SOURCES,
+  isOneOf,
+  UUID,
+  parseTenantConfig,
+  type ImportSource,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { importCursorOf, listImports, type ImportLedgerRow } from "@chanlytics/db/imports";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
@@ -22,7 +29,7 @@ const THROUGH_A_MAILBOX: readonly ImportSource[] = ["mailbox", "contacts", "cale
 
 /** The connection a cursor names (the parts write it there), or null. */
 function connectionIn(cursor: Json | null): string | null {
-  const c = cursor && typeof cursor === "object" && !Array.isArray(cursor) ? (cursor as Record<string, unknown>) : null;
+  const c = cursor && typeof cursor === "object" && !Array.isArray(cursor) ? recordOrEmpty(cursor) : null;
   return typeof c?.connection === "string" && UUID.test(c.connection) ? c.connection : null;
 }
 
