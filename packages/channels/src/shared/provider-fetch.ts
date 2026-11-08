@@ -40,7 +40,7 @@
  */
 import { logger } from "@chanlytics/log";
 
-import { jittered, recordOrEmpty, globalSlot } from "@chanlytics/contracts";
+import { jittered, recordOrEmpty, globalSlot, valueAt } from "@chanlytics/contracts";
 
 /** Every provider a call leaves for: the breaker keeps one state per name. */
 const PROVIDER_NAMES = [
@@ -196,8 +196,9 @@ function outcomeOfStatus(status: number): SendOutcome {
 function outcomeOfThrow(e: unknown): { outcome: SendOutcome; error: string } {
   const err = e instanceof Error ? e : new Error(String(e));
   if (err.name === "TimeoutError" || err.name === "AbortError") return { outcome: "unknown", error: "timeout" };
-  const cause = (err as { cause?: { code?: unknown } }).cause;
-  const code = typeof cause?.code === "string" ? cause.code : (err as { code?: unknown }).code;
+  const cause = err.cause;
+  const causeCode = valueAt(cause, "code");
+  const code = typeof causeCode === "string" ? causeCode : valueAt(err, "code");
   const words =
     typeof cause === "object" && cause && "message" in cause ? `${err.message}: ${String(cause.message)}` : err.message;
   return { outcome: typeof code === "string" && NEVER_LEFT.has(code) ? "retryable" : "unknown", error: words };

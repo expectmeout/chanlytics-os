@@ -8,7 +8,7 @@
  * improve its products. A request carries at most 20 MB, the audio's base64 included, so a sound much over 14 MB is not sent:
  * at Stream's audio rate that is past the clip cap. Nothing here knows a row or a workspace.
  */
-import { isObjectRecord, recordOrEmpty } from "@chanlytics/contracts";
+import { isObjectRecord, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 import type { ModelDeps } from "./anthropic";
 
@@ -99,9 +99,8 @@ export async function askGemini(key: string, request: GeminiAsked, deps: ModelDe
   const answerJson = answerObject(reply);
   const used = geminiUsageOf(answerJson);
   if (reply.outcome !== "ok") return { ...refusedOf(reply, answerJson), ...used };
-  const feedback = answerJson?.promptFeedback as { blockReason?: unknown } | undefined;
-  if (typeof feedback?.blockReason === "string")
-    return { ok: false, error: `blocked: ${feedback.blockReason}`, retryable: false, ...used };
+  const blocked = valueAt(answerJson, "promptFeedback", "blockReason");
+  if (typeof blocked === "string") return { ok: false, error: `blocked: ${blocked}`, retryable: false, ...used };
   const { text, finish } = firstCandidateOf(answerJson);
   if (!text) {
     const reason = finish ?? "no answer";
@@ -109,7 +108,8 @@ export async function askGemini(key: string, request: GeminiAsked, deps: ModelDe
   }
   if (!request.schema) return { ok: true, text, json: null, ...used };
   try {
-    return { ok: true, text, json: JSON.parse(text) as unknown, ...used };
+    const json: unknown = JSON.parse(text);
+    return { ok: true, text, json, ...used };
   } catch {
     // An answer cut at its length is not JSON: said as a failure, and the step's retries ask again.
     return { ok: false, error: `not json (${finish ?? ""})`, retryable: true, ...used };

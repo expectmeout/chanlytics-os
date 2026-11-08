@@ -14,7 +14,7 @@
  */
 import { logger } from "@chanlytics/log";
 import { answerObject, fetchFromProvider } from "../shared/provider-fetch";
-import { recordOrEmpty, globalSlot } from "@chanlytics/contracts";
+import { recordOrEmpty, globalSlot, valueAt } from "@chanlytics/contracts";
 
 /** Who is asking, for a site that wants to know: the platform's own reader, with the page that says what it does. */
 const BOT_USER_AGENT = "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)";
@@ -134,10 +134,9 @@ function wordsSaid(v: unknown): string | null {
 /** A provider's branding as the look it says: its logo where that is an address on the web, its primary colour. */
 function brandOf(v: unknown): SiteBrand | null {
   if (!v || typeof v !== "object") return null;
-  const b = v as { logo?: unknown; images?: { logo?: unknown } | null; colors?: { primary?: unknown } | null };
-  const sentence = wordsSaid(b.images?.logo) ?? wordsSaid(b.logo);
+  const sentence = wordsSaid(valueAt(v, "images", "logo")) ?? wordsSaid(valueAt(v, "logo"));
   const logo = sentence && /^https?:\/\//i.test(sentence) ? sentence : null;
-  const colour = wordsSaid(b.colors?.primary);
+  const colour = wordsSaid(valueAt(v, "colors", "primary"));
   return logo || colour ? { logo, colour } : null;
 }
 
@@ -145,20 +144,16 @@ function brandOf(v: unknown): SiteBrand | null {
 function sitePageOf(answer: Record<string, unknown> | null, text: string): SitePage | null {
   const data = answer?.success === true ? answer.data : null;
   if (!data || typeof data !== "object") return null;
-  const item = data as {
-    rawHtml?: unknown;
-    markdown?: unknown;
-    branding?: unknown;
-    metadata?: { statusCode?: unknown; url?: unknown; title?: unknown; description?: unknown; ogDescription?: unknown };
-  };
-  const status = typeof item.metadata?.statusCode === "number" ? item.metadata.statusCode : 200;
+  const item = recordOrEmpty(data);
+  const metadata = recordOrEmpty(item.metadata);
+  const status = typeof metadata.statusCode === "number" ? metadata.statusCode : 200;
   if (status >= 400 || typeof item.rawHtml !== "string" || !item.rawHtml) return null;
   return {
-    url: typeof item.metadata?.url === "string" && item.metadata.url ? item.metadata.url : text,
+    url: typeof metadata.url === "string" && metadata.url ? metadata.url : text,
     html: item.rawHtml,
     markdown: typeof item.markdown === "string" ? item.markdown : "",
-    title: wordsSaid(item.metadata?.title),
-    description: wordsSaid(item.metadata?.description) ?? wordsSaid(item.metadata?.ogDescription),
+    title: wordsSaid(metadata.title),
+    description: wordsSaid(metadata.description) ?? wordsSaid(metadata.ogDescription),
     brand: brandOf(item.branding),
   };
 }
@@ -221,7 +216,7 @@ export function firecrawlMapper(key: string, deps: { fetch?: typeof fetch } = {}
     const links = response.outcome === "ok" ? answerObject(response)?.links : null;
     if (!Array.isArray(links)) return [];
     return links.flatMap((l: unknown) => {
-      const sentence = l && typeof l === "object" ? (l as { url?: unknown; title?: unknown }) : {};
+      const sentence = recordOrEmpty(l);
       const at = wordsSaid(sentence.url);
       return at ? [{ url: at, title: wordsSaid(sentence.title) }] : [];
     });

@@ -9,6 +9,7 @@ import {
   type EmailClaim,
   recordOrEmpty,
   recordOrNull,
+  valueAt,
 } from "@chanlytics/contracts";
 import { addressOf, addressesOf, messageIdHeader } from "./header-values";
 
@@ -61,14 +62,15 @@ export interface EmailReceivedEvent {
 
 /** The received event, or null for any other event or shape. Lenient about a list that arrives as one string. */
 export function emailReceivedEventFrom(payload: unknown): EmailReceivedEvent | null {
-  const item = payload as { type?: unknown; data?: Record<string, unknown> } | null;
-  if (!item || item.type !== "email.received" || !item.data || typeof item.data !== "object") return null;
-  const id = item.data.email_id ?? item.data.id;
+  const item = recordOrNull(payload);
+  const data = recordOrNull(item?.data);
+  if (!item || item.type !== "email.received" || !data) return null;
+  const id = data.email_id ?? data.id;
   if (typeof id !== "string" || !id) return null;
-  const envelope = addressesOf(item.data.received_for);
+  const envelope = addressesOf(data.received_for);
   const recipients = envelope.length
     ? envelope
-    : [...addressesOf(item.data.to), ...addressesOf(item.data.cc), ...addressesOf(item.data.bcc)];
+    : [...addressesOf(data.to), ...addressesOf(data.cc), ...addressesOf(data.bcc)];
   return { type: "email.received", receivedId: id, recipients: [...new Set(recipients)] };
 }
 
@@ -101,7 +103,7 @@ function headersOf(v: unknown): Record<string, string> {
   const put = (k: unknown, val: unknown) => {
     if (typeof k === "string" && typeof val === "string" && !(k.toLowerCase() in out)) out[k.toLowerCase()] = val;
   };
-  if (Array.isArray(v)) for (const h of v) put((h as { name?: unknown })?.name, (h as { value?: unknown })?.value);
+  if (Array.isArray(v)) for (const h of v) put(valueAt(h, "name"), valueAt(h, "value"));
   else if (v && typeof v === "object")
     for (const [k, val] of Object.entries(v)) put(k, Array.isArray(val) ? val[0] : val);
   return out;
