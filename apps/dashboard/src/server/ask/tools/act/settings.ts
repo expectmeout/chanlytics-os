@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import {
   ASK_ANSWERS_ROWS,
-  ASK_REACH_OUT_ROWS,
+  type ASK_REACH_OUT_ROWS,
   isReachOutChange,
   REPLY_OFFERS,
   ASK_GOAL_MAX,

@@ -84,7 +84,7 @@ export function TryCard({
   const seq = read?.sequence?.search_id ? read.sequence : null;
   const [at, setAt] = useState(0);
   const [round, setRound] = useState(0);
-  const tried = useTried(fold.open, seq, at, round, signedBy);
+  const tried = useTried(fold.open, seq, signedBy, { at, round });
   return (
     <OutreachCard id="try" title={TRY_CARD.title} sub={TRY_CARD.sub}>
       <RecordRow
@@ -127,9 +127,8 @@ type TriedSequence = NonNullable<ReachOutSettingsDto["sequence"]>;
 function useTried(
   open: boolean,
   seq: TriedSequence | null,
-  at: number,
-  round: number,
   signedBy: string | null,
+  { at, round }: { at: number; round: number },
 ): Tried | null {
   const [tried, setTried] = useState<Tried | null>(null);
   useEffect(() => {

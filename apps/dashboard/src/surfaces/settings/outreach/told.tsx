@@ -36,6 +36,10 @@ const KINDS: { value: ToldKind; label: string }[] = [
 /** A part's parts, as the server composed them for this workspace, or the answer's, which no read composes. */
 function useToldParts(open: boolean, kind: ToldKind): ToldPart[] | null {
   const [parts, setParts] = useState<Partial<Record<ToldKind, ToldPart[]>>>({});
+  // Closed, it lets go of what it read: a save on the page changes the prompt, so the next opening reads it again.
+  useEffect(() => {
+    if (!open) setParts({});
+  }, [open]);
   useEffect(() => {
     if (!open || kind === "reply" || parts[kind]) return;
     let live = true;

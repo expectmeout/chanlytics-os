@@ -121,14 +121,16 @@ type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unkn
  * A change that writes a section of its own beside the brain, or null: the photo switch is a feature (What it can do's
  * switch writes it there), and How it reaches out's rows (decision 0113) write the config's reach_out section.
  */
-function sectionChangeOf<C extends Cfg>(config: C, change: AskSettingsChange): C | null {
+type SectionChange = Extract<AskSettingsChange, { op: "set_photos" }> | AskReachOutChange;
+const isSectionChange = (change: AskSettingsChange): change is SectionChange =>
+  change.op === "set_photos" || isReachOutChange(change);
+function sectionChangeOf<C extends Cfg>(config: C, change: SectionChange): C {
   if (change.op === "set_photos") return { ...config, features: { ...(config.features ?? {}), vision: change.on } };
-  return isReachOutChange(change) ? applyReachOutChange(config, change) : null;
+  return applyReachOutChange(config, change);
 }
 
 export function applySettingsChange<C extends Cfg>(config: C, change: AskSettingsChange): C {
-  const own = sectionChangeOf(config, change);
-  if (own) return own;
+  if (isSectionChange(change)) return sectionChangeOf(config, change);
   if (isAnswersBrainChange(change)) return applyAnswersChange(config, change);
   // The owner's goal is Ask's own section, never the receptionist's profile: set, or taken away when empty.
   if (change.op === "set_goal") {
