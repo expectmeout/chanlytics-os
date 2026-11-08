@@ -7,10 +7,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { MIN_MS, type SchemaSet } from "@chanlytics/contracts";
 import { dbLog } from "../../shared/observe";
+import type { TenantId } from "@chanlytics/contracts";
 
 export interface RoutedChannel {
   channelId: string;
-  tenantId: string;
+  tenantId: TenantId;
   kind: string;
   /** The provider's id this row routes on: a WhatsApp phone_number_id, a Retell agent id, an SMS number. */
   externalId: string;
@@ -71,7 +72,7 @@ const ROUTED_COLUMNS = "id, tenant_id, kind, number_e164, credentials_ref, confi
 /** A channel's row as the runtime takes it. */
 function routedOf(row: {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   kind: string;
   external_id: string;
   number_e164: string | null;
@@ -95,7 +96,7 @@ function routedOf(row: {
  */
 export async function findOldestActiveChannel(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   kind: SchemaSet<"tenant_channels.kind">,
 ): Promise<RoutedChannel | null> {
   const { data, error } = await db
@@ -134,7 +135,7 @@ export interface WhatsappNumberRow {
  */
 export async function listActiveWhatsappNumbers(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<WhatsappNumberRow[]> {
   return listActiveChannelRows(db, tenantId, "whatsapp");
 }
@@ -148,7 +149,7 @@ const CHANNEL_ROWS_WORDS = { whatsapp: "WhatsApp numbers", instagram: "Instagram
  */
 export async function listActiveChannelRows(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   kind: "whatsapp" | "instagram",
 ): Promise<WhatsappNumberRow[]> {
   const { data, error } = await db
@@ -169,7 +170,7 @@ export async function listActiveChannelRows(
  */
 export async function findWhatsappLine(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
 ): Promise<string | null> {
   return findLineWrittenTo(db, tenantId, conversationId, "whatsapp");
@@ -182,7 +183,7 @@ export async function findWhatsappLine(
  */
 export async function findLineWrittenTo(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   channel: "whatsapp" | "instagram",
 ): Promise<string | null> {
@@ -203,7 +204,7 @@ export async function findLineWrittenTo(
 }
 
 /** The workspace's oldest active WhatsApp number's row (its id, vault reference and Meta's id), as the database answered. */
-export const findWhatsAppRouting = async (db: SupabaseClient<Database>, tenantId: string) =>
+export const findWhatsAppRouting = async (db: SupabaseClient<Database>, tenantId: TenantId) =>
   db
     .from("tenant_channels")
     .select("id, credentials_ref, external_id")
@@ -219,13 +220,13 @@ export const getChannelCredentials = async (db: SupabaseClient<Database>, channe
   db.rpc("get_channel_credentials", { p_channel_id: channelId });
 
 /** Every routing row of the workspace's: its kind, its number and its status. */
-export const listWorkspaceChannels = async (db: SupabaseClient<Database>, tenantId: string) =>
+export const listWorkspaceChannels = async (db: SupabaseClient<Database>, tenantId: TenantId) =>
   db.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId);
 
 /** The number of the workspace's oldest active channel of `kind`, as the database answered. */
 export const findChannelNumber = async (
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   kind: SchemaSet<"tenant_channels.kind">,
 ) =>
   db

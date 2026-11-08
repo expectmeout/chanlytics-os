@@ -6,7 +6,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { asContactId, asTenantId, isUuid } from "@chanlytics/contracts";
+import {
+  asContactId,
+  asTenantId,
+  heldContactId,
+  heldTenantId,
+  isContactId,
+  isTenantId,
+  isUuid,
+} from "@chanlytics/contracts";
 
 const SAMPLES = [
   "11111111-1111-4111-8111-111111111111",
@@ -49,6 +57,17 @@ test("a tenant id and a contact id take exactly the strings isUuid takes, and ha
     assert.equal(accepts(asContactId, s), isUuid(s), `contact id: ${JSON.stringify(s)}`);
   }
   assert.ok(SAMPLES.some(isUuid) && SAMPLES.some((s) => !isUuid(s)), "the samples hold both kinds");
+});
+
+test("an id the database holds is taken as it is, with no check, and the checks are isUuid's", () => {
+  assert.equal(heldTenantId("t1"), "t1");
+  assert.equal(heldContactId("k1"), "k1");
+  for (const sample of SAMPLES) {
+    assert.equal(isTenantId(sample), isUuid(sample));
+    assert.equal(isContactId(sample), isUuid(sample));
+  }
+  assert.equal(isTenantId("t1"), false);
+  assert.equal(isContactId(1), false);
 });
 
 test("the refusal says whose id it was", () => {

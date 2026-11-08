@@ -9,14 +9,14 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import type { FeedItem, OwnAddresses } from "@chanlytics/contracts";
+import type { FeedItem, OwnAddresses, TenantId } from "@chanlytics/contracts";
 import { bookedSeenOf } from "./reach-out-booked-rule";
 import { logger } from "../shared/log.js";
 import { recordReachOutBooked } from "@chanlytics/db/campaigns";
 
 export async function recordBookedFromCalendar(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   items: FeedItem[],
   own: OwnAddresses,
 ): Promise<number> {

@@ -34,12 +34,13 @@ import {
   type SlotLead,
   type SlotWorkspace,
 } from "@chanlytics/contracts";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 interface RequestInput {
-  tenantId: string;
+  tenantId: TenantId;
   /** The email's own id (core sendMessageId): the idempotency key, the tag, and the unsubscribe's seal. */
   messageId: string;
-  contactId: string;
+  contactId: ContactId;
   /** The person's stored address, as the send door compares it. */
   to: string;
   /** The step's words: its template's heading (the subject) and body. */

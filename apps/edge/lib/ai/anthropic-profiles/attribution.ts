@@ -38,6 +38,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";
 import { pg } from "../../shared/pg.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** What a call comes to: sent under this, or held, and why. */
 type AttributionAnswer = { attribution: ModelAttribution } | { held: "paused" | "unread" };
@@ -111,7 +112,7 @@ async function profileHeldOf(
 /** Whom this call goes as: the decision, the row it comes to, and a profile made if it has none. Never thrown. */
 export async function getAttribution(
   purpose: ModelPurpose,
-  personName: { tenantId: string | null; userId?: string | null },
+  personName: { tenantId: TenantId | null; userId?: string | null },
   key: string,
   deps: ModelDeps,
 ): Promise<AttributionAnswer> {

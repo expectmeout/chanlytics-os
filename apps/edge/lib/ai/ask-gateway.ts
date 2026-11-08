@@ -46,6 +46,7 @@ import type { Database } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
 import { logger, errField } from "../shared/log.js";
 import { findAskTokensToday } from "@chanlytics/db/ai";
+import type { TenantId } from "@chanlytics/contracts";
 
 export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
 
@@ -66,7 +67,7 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
  * not known, and says so (null): the door holds the turn rather than let a failed count read as a day with nothing
  * spent (the scorecard, 29 September).
  */
-export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number | null> {
+export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: TenantId): Promise<number | null> {
   const log = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await findAskTokensToday(db, tenantId);
@@ -80,7 +81,7 @@ export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: s
 
 export async function recordAskUsage(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   data: AskUsage & {
     model: string;

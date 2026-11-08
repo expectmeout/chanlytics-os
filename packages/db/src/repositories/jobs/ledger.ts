@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type JobsUpdate = Database["public"]["Tables"]["jobs"]["Update"];
 type JobsInsert = Database["public"]["Tables"]["jobs"]["Insert"];
@@ -38,7 +38,7 @@ export const insertJobOnce = async (db: Db, row: JobsInsert) => db.from("jobs").
  */
 export const cancelScheduledJobs = async (
   db: Db,
-  params: { tenantId: string; kind: SchemaSet<"jobs.kind">; payloadKey: string; payloadValue: string },
+  params: { tenantId: TenantId; kind: SchemaSet<"jobs.kind">; payloadKey: string; payloadValue: string },
 ) =>
   db
     .from("jobs")
@@ -52,7 +52,7 @@ export const cancelScheduledJobs = async (
 /** How many of a broadcast's jobs are scheduled or running, the asking job aside. */
 export const countLiveBroadcastJobs = async (
   db: Db,
-  params: { tenantId: string; broadcastId: string; besides: string },
+  params: { tenantId: TenantId; broadcastId: string; besides: string },
 ) =>
   db
     .from("jobs")

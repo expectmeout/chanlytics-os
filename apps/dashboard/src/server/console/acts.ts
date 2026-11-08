@@ -31,12 +31,13 @@ import {
 import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
 import { NOT_RECORDED } from "@/server/console/words";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** What an act is taken on, and why. */
 interface ActOn {
   act: ConsoleAct;
   why: ConsoleWhy;
-  tenantId: string | null;
+  tenantId: TenantId | null;
   target: ActTarget;
   targetId: string | null;
 }
@@ -118,7 +119,7 @@ export const inSet = <T extends string>(set: readonly T[], v: unknown, fallback:
 /** A page of the log, as the contracts read it: one person's or everyone's, one workspace's or all, older than `before`. */
 export async function listConsoleActs(
   office: BackOffice,
-  input: { who?: string; tenantId?: string; before?: string; csv?: boolean },
+  input: { who?: string; tenantId?: TenantId; before?: string; csv?: boolean },
 ): Promise<PlatformActDto[]> {
   const { data, error } = await listActs(office.db, {
     ...(input.who ? { who: input.who } : {}),

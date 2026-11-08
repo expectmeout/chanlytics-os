@@ -8,6 +8,8 @@
  * 00261 in the database) and tell the owner of a handover (handover.ts). The routes under app/api/v1/partner declare
  * who may, how often and on which scope.
  */
+import { heldTenantId } from "@chanlytics/contracts";
+import { asTenantId } from "@chanlytics/contracts";
 import { requireSecondFactor, type RouteContext } from "@/server/shared/with-route";
 import {
   AppError,
@@ -114,14 +116,14 @@ export async function acceptPartnerInvitation(
   ctx: RouteContext & { params: Params },
 ): Promise<{ workspace: { id: string; slug: string; name: string }; earns: boolean }> {
   requireSecondFactor(ctx);
-  const r = await acceptPartnerInvite(ctx.supabase, requireUuid(ctx.params.id, "workspace"));
+  const r = await acceptPartnerInvite(ctx.supabase, asTenantId(requireUuid(ctx.params.id, "workspace")));
   if (!r.ok) throw handoverRefusal(r);
   const { earns, ...joined } = r.value;
   return { workspace: joined, earns };
 }
 
 export async function declinePartnerInvitation(ctx: RouteContext & { params: Params }): Promise<{ declined: true }> {
-  const r = await declinePartnerInvite(ctx.supabase, requireUuid(ctx.params.id, "workspace"));
+  const r = await declinePartnerInvite(ctx.supabase, asTenantId(requireUuid(ctx.params.id, "workspace")));
   if (!r.ok) throw handoverRefusal(r);
   return { declined: true };
 }
@@ -157,12 +159,12 @@ export async function setUpWorkspaceForBusiness(
   // sets, so a customer who needs someone before the hand-over is never told to nobody. Best effort, and sent beside the
   // invitation: each is bounded by its own timeout and neither throws, so the partner waits only for the longer.
   const [, sent] = await Promise.all([
-    recordWorkspaceBegun(ctx, workspaceForBusiness.value.id, {
+    recordWorkspaceBegun(ctx, heldTenantId(workspaceForBusiness.value.id), {
       by: "partner",
       notify: input.email,
       alertTo: input.email,
     }),
-    sendHandoverInvite(workspaceForBusiness.value.id, input.email, ctx.userId),
+    sendHandoverInvite(heldTenantId(workspaceForBusiness.value.id), input.email, ctx.userId),
   ]);
   return { workspace: workspaceForBusiness.value, sent };
 }
@@ -172,7 +174,7 @@ export async function resendWorkspaceHandover(
   input: z.infer<typeof HandoverResendSchema>,
 ): Promise<{ email: string; expiresAt: string; sent: boolean }> {
   requireSecondFactor(ctx);
-  const id = requireUuid(ctx.params.id, "workspace");
+  const id = asTenantId(requireUuid(ctx.params.id, "workspace"));
   const r = await resendHandover(ctx.supabase, id, input.email);
   if (!r.ok) throw handoverRefusal(r);
   const sent = await sendHandoverInvite(id, r.value.email, ctx.userId);

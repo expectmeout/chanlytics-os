@@ -18,6 +18,7 @@ import { listEveryone } from "../people/people";
 import { withVisits, type PeopleVisits, type ZoneAndSettings } from "../calendar/people-visits";
 import { hasDealsRead } from "../people/deals";
 import { loadLazily, type Lazy } from "../shared/lazy";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Everyone, with their appointments: the pool a broadcast's audience, a People list and a playbook's moment are
@@ -45,7 +46,7 @@ export interface AudiencePool {
 
 export async function getAudiencePool(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   tz: string,
   now: Date,
   /**
@@ -99,7 +100,7 @@ export const archivedListWords = (name: string, to: "send" | "run") =>
  */
 export async function findPoolList(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   pool: Pick<AudiencePool, "rows" | "listCtx">,
   ref: ListRef,
   /**

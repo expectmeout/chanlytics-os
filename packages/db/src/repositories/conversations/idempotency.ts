@@ -21,6 +21,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -41,7 +42,7 @@ const HOLD_COLUMNS = "response, created_at, request_hash";
  */
 export async function claimIdempotencyKey(
   db: Db,
-  params: { tenantId: string; key: string; route: string; requestHash: string; nowIso: string },
+  params: { tenantId: TenantId; key: string; route: string; requestHash: string; nowIso: string },
 ): Promise<IdempotencyClaim> {
   // ON CONFLICT DO NOTHING, with the inserted row read back: PostgREST returns
   // only what was inserted, so a row already there answers with none.
@@ -79,7 +80,7 @@ export async function claimIdempotencyKey(
  */
 export async function takeIdempotencyKey(
   db: Db,
-  params: { tenantId: string; key: string; requestHash: string; nowIso: string; from: string },
+  params: { tenantId: TenantId; key: string; requestHash: string; nowIso: string; from: string },
 ): Promise<boolean> {
   const taken = await db
     .from("idempotency_keys")
@@ -99,7 +100,7 @@ export async function takeIdempotencyKey(
  */
 export async function releaseIdempotencyKey(
   db: Db,
-  params: { tenantId: string; key: string; nowIso: string },
+  params: { tenantId: TenantId; key: string; nowIso: string },
 ): Promise<void> {
   const released = await db
     .from("idempotency_keys")
@@ -119,7 +120,7 @@ export async function releaseIdempotencyKey(
  */
 export async function keepIdempotencyReceipt(
   db: Db,
-  params: { tenantId: string; key: string; requestHash: string; response: Json; stamp: string },
+  params: { tenantId: TenantId; key: string; requestHash: string; response: Json; stamp: string },
 ): Promise<boolean> {
   const kept = await db
     .from("idempotency_keys")

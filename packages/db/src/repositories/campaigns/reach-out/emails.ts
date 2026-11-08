@@ -1,6 +1,6 @@
 /** Reach out: emails. */
 
-import type { LeadEmailDto } from "@chanlytics/contracts";
+import type { LeadEmailDto, TenantId, ContactId } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { emailWordsFrom } from "./sheet";
 import { moveSend, type Db, type ReachOutSendInsert, type ReachOutSendRow, withdrawEmail } from "./reach-out";
@@ -9,7 +9,7 @@ import { moveSend, type Db, type ReachOutSendInsert, type ReachOutSendRow, withd
  * Whether an email of the lead's own is still on its way (one a lead, 00540's partial index). One taken back with Undo
  * has ended, though the clock has not read it yet: settled here, so writing it again goes straight through.
  */
-export async function getLeadEmailOnItsWay(db: Db, tenantId: string, leadId: string): Promise<boolean> {
+export async function getLeadEmailOnItsWay(db: Db, tenantId: TenantId, leadId: string): Promise<boolean> {
   const { data, error } = await db
     .from("sequence_sends")
     .select("id, message_id")
@@ -51,7 +51,7 @@ export async function keepLeadEmail(
 }
 
 /** A lead's own emails, oldest first (GET leads/:id/emails), on the session's client. */
-export async function listLeadEmails(db: Db, tenantId: string, leadId: string): Promise<LeadEmailDto[]> {
+export async function listLeadEmails(db: Db, tenantId: TenantId, leadId: string): Promise<LeadEmailDto[]> {
   const { data, error } = await db
     .from("sequence_sends")
     .select(
@@ -75,7 +75,7 @@ export async function listLeadEmails(db: Db, tenantId: string, leadId: string): 
 /* ------------------------------------------------------------ the sender -- */
 
 /** The cold emails a workspace wrote this calendar month, in its zone, that left or may still leave (00187). */
-export async function readMonthSent(db: Db, tenantId: string, at: Date): Promise<number> {
+export async function readMonthSent(db: Db, tenantId: TenantId, at: Date): Promise<number> {
   const { data, error } = await db.rpc("reach_out_month_sent", {
     p_tenant_id: tenantId,
     p_at: at.toISOString(),
@@ -101,12 +101,15 @@ export async function insertQueuedEmail(db: Db, row: MessageInsert): Promise<"wr
 /** An email a writer wrote before, as it was frozen: its thread, its person, where it stands, and whom it names. */
 export interface WrittenEmail {
   conversation_id: string;
-  contact_id: string | null;
+  contact_id: ContactId | null;
   status: string;
   to: string | null;
 }
 
-export async function findWrittenEmail(db: Db, params: { tenantId: string; id: string }): Promise<WrittenEmail | null> {
+export async function findWrittenEmail(
+  db: Db,
+  params: { tenantId: TenantId; id: string },
+): Promise<WrittenEmail | null> {
   const { data, error } = await db
     .from("messages")
     .select("conversation_id, contact_id, status, meta")
@@ -125,7 +128,7 @@ export async function findWrittenEmail(db: Db, params: { tenantId: string; id: s
 }
 
 /** Whether an outbound_send job was scheduled for this email: a writer that died after scheduling it. */
-export async function sendJobScheduled(db: Db, params: { tenantId: string; messageId: string }): Promise<boolean> {
+export async function sendJobScheduled(db: Db, params: { tenantId: TenantId; messageId: string }): Promise<boolean> {
   const { data, error } = await db
     .from("jobs")
     .select("id")
@@ -183,7 +186,7 @@ export async function sendStanding(db: Db, reachOutSend: ReachOutSendRow): Promi
 /** A step's words as an email template holds them: its HEADER is the subject, its BODY the words. */
 export async function findEmailWords(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   templateId: string,
 ): Promise<{ subject: string | null; body: string } | null> {
   const { data, error } = await db
@@ -200,7 +203,7 @@ export async function findEmailWords(
 /** A workspace's name and its configuration, as stored: the foot's who, and the profile its where is read from. */
 export async function findWorkspaceNameAndConfig(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ name: string | null; config: unknown }> {
   const [t, cfg] = await Promise.all([
     db.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
@@ -214,7 +217,7 @@ export async function findWorkspaceNameAndConfig(
 /** What a lead's words fill a step's slots with. */
 export async function findLeadSlots(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   leadId: string,
 ): Promise<{
   business_name: string | null;
@@ -238,7 +241,7 @@ export async function findLeadSlots(
 }
 
 /** The address a person has on file, as the send door compares a request's recipient with it. */
-export async function findContactEmail(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+export async function findContactEmail(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string | null> {
   const { data, error } = await db
     .from("contacts")
     .select("email")
@@ -252,7 +255,7 @@ export async function findContactEmail(db: Db, tenantId: string, contactId: stri
 /** A send as it stands now, for a writer whose move found it moved. */
 export async function sendNow(
   db: Db,
-  params: { tenantId: string; id: string },
+  params: { tenantId: TenantId; id: string },
 ): Promise<{ state: string; message_id: string | null } | null> {
   const { data, error } = await db
     .from("sequence_sends")
@@ -269,7 +272,7 @@ export async function sendNow(
  * touched either way, since a page hears a run by its row (the feed tells of broadcasts, never of their sends), so
  * Today's, the brief's and Ask's count of the emails waiting reads again.
  */
-export async function runHanded(db: Db, params: { tenantId: string; id: string; at: Date }): Promise<void> {
+export async function runHanded(db: Db, params: { tenantId: TenantId; id: string; at: Date }): Promise<void> {
   const { error } = await db
     .from("sequence_batches")
     .update({ state: "sending", updated_at: params.at.toISOString() })
@@ -280,7 +283,7 @@ export async function runHanded(db: Db, params: { tenantId: string; id: string; 
 }
 
 /** A run whose first email is written: scheduled becomes sending, through its guard's own move. */
-export async function runSending(db: Db, params: { tenantId: string; id: string }): Promise<void> {
+export async function runSending(db: Db, params: { tenantId: TenantId; id: string }): Promise<void> {
   const { error } = await db
     .from("sequence_batches")
     .update({ state: "sending" })
@@ -305,7 +308,7 @@ export interface ParentEmail {
 /** The lead's sent email on the step before this one in its chain; null when it has none. */
 export async function findParentEmail(
   db: Db,
-  params: { tenantId: string; rootId: string; leadId: string; stepId: string },
+  params: { tenantId: TenantId; rootId: string; leadId: string; stepId: string },
 ): Promise<ParentEmail | null> {
   const { data: sends, error } = await db
     .from("sequence_sends")
@@ -351,7 +354,7 @@ export async function findParentEmail(
  */
 export async function recordLeadAddressBounced(
   db: Db,
-  params: { tenantId: string; leadId: string; at: string; retried?: boolean },
+  params: { tenantId: TenantId; leadId: string; at: string; retried?: boolean },
 ): Promise<boolean> {
   const { data: lead, error } = await db
     .from("leads")

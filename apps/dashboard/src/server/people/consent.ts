@@ -12,6 +12,7 @@
  * And the one answer a member may not record but may ask for: a website sign-up's yes to offers by email, which only the
  * person's press on its confirmation link gives (00489), asked for here (askToConfirmSignup).
  */
+import { heldContactId } from "@chanlytics/contracts";
 import {
   AppError,
   CONSENT_RESET_SOURCE,
@@ -29,6 +30,7 @@ import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import type { contactScope } from "@/server/shared/verbs";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** The person a contactScope route acts on, as the scope read them. */
 type ContactRow = Awaited<ReturnType<typeof contactScope.load>>;
@@ -158,14 +160,14 @@ export async function recordOffersConsent(ctx: RouteContext, contact: ContactRow
  */
 export async function recordConsentMany(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   purpose: AskedPurpose,
   input: { ids: string[] } & ConsentInput,
 ): Promise<ManyOutcome> {
   const source = consentSourceOf(input, purpose, "many");
   const note = noteOf(input.note);
   const ids = [...new Set(input.ids)];
-  const { data, error } = await listPeopleStanding(ctx.supabase, ids);
+  const { data, error } = await listPeopleStanding(ctx.supabase, ids.map(heldContactId));
   if (error) throw new Error(error.message);
   const ours = (data ?? []).filter((c) => c.tenant_id === tenantId && !c.erased_at);
   const skipped = ids.filter((id) => !ours.some((c) => c.id === id));
@@ -209,9 +211,9 @@ interface SignupAskAnswer {
 const NOBODY_TO_ASK = "There is nobody to ask: they are no longer in this workspace.";
 
 export async function askToConfirmSignup(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
-  contactId: string,
+  contactId: ContactId,
 ): Promise<SignupAskAnswer> {
   if (!edgeConfigured()) throw new AppError("conflict", "Asking them to confirm is not available right now.", 503);
   const answer = await callEdge(

@@ -30,6 +30,7 @@ import { http } from "../shared/google/places.js";
 import { recordNotification } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -73,7 +74,7 @@ type FoundFate = "kept" | "here" | "full" | "passed";
  */
 export async function keepFoundFile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   params: { source: string; status: "inbox" | "filed"; file: FoundFile },
 ): Promise<FoundFate> {
   const bytes = await fetchImageBytes(publicFetcher(), params.file.url, FETCH_MS, RESPONSE_MAX_BYTES);
@@ -210,7 +211,7 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
 /** A batch asked for, once for what it holds: the same pictures found again are no second job. */
 export async function askForFoundFiles(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   { source, items, rang = false }: { source: string; items: readonly FoundFile[]; rang?: boolean },
 ): Promise<void> {
   if (items.length === 0) return;
@@ -241,7 +242,7 @@ export function sitePhotosOf(pages: readonly SitePage[]): FoundFile[] {
 const sameNameOf = (name: string): string => fileNameOf(name.normalize("NFKD").replace(/\p{M}/gu, ""));
 
 /** The photos a linked listing shows by the business itself. A customer's picture of the place is not the owner's to use. */
-export async function askForListingPhotos(db: Db, tenantId: string, place: PlaceDetails): Promise<void> {
+export async function askForListingPhotos(db: Db, tenantId: TenantId, place: PlaceDetails): Promise<void> {
   const own = sameNameOf(place.name);
   const theirs = place.photos.filter((p) => p.author && sameNameOf(p.author) === own);
   await askForFoundFiles(db, tenantId, {

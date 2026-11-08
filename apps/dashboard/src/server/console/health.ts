@@ -58,6 +58,7 @@ import { takeAct } from "./acts";
 import type { BackOffice } from "../shared/back-office";
 import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How many rows each list reads at most: more than a month of a healthy platform's, few enough to send whole. */
 const HEALTH_ROWS = { workspaces: 2000, failedJobs: 200, pages: 100, clientErrors: 5000, requeueKind: 200 } as const;
@@ -293,7 +294,7 @@ export async function requeueHealthKind(
     office,
     { act: "job_requeue_kind", why: reason, tenantId: null, target: "platform", targetId: kind },
     async () => {
-      let rows: { id: string; tenant_id: string }[];
+      let rows: { id: string; tenant_id: TenantId }[];
       try {
         rows = await listFailedJobsOfKind(office.db, { kind, sinceIso, limit: HEALTH_ROWS.requeueKind });
       } catch {

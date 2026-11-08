@@ -10,13 +10,14 @@ import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto, recordOrEmpty } from
 import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { listLinesForPage } from "@chanlytics/db/lines";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
 /**
  * The workspace's lines, as the page is told of them (contracts lineDtoOf, the edge's verb answers' own builder).
  * `registered` is not said here: it is derived from the brand and campaign SIDs, and no provider id crosses this boundary.
  */
-export async function listLines(db: SupabaseClient<Database>, tenantId: string): Promise<LineDto[]> {
+export async function listLines(db: SupabaseClient<Database>, tenantId: TenantId): Promise<LineDto[]> {
   const { data, error } = await listLinesForPage(db, tenantId);
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => lineDtoOf(r));
@@ -103,7 +104,7 @@ function lineCodeOf(c: unknown): LineCodeDto | null {
  * failed is said (`ok: false`), for the route to refuse in words, never an empty list that reads as nobody writing.
  */
 export async function getLineCodes(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
 ): Promise<{ ok: true; codes: LineCodeDto[] } | { ok: false }> {
   if (!edgeConfigured() || !deployment.providersLive) return { ok: true, codes: [] };

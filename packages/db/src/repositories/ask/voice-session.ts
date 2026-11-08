@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // from here, and 00300's CHECK holds the table to the same words.
 import { isVoiceEndReason, type VoiceEndReason, type SchemaSet } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -21,7 +22,7 @@ export type { VoiceEndReason };
 export interface VoiceSessionRow {
   /** The sha256, hex, of the id the browser and the vendor carry. */
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   user_id: string;
   thread_id: string;
   conversation_id: string | null;

@@ -12,11 +12,12 @@ import {
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
 import { jsonCopyOf } from "../../../shared/json";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
 export interface TenantConfigRow {
-  tenant_id: string;
+  tenant_id: TenantId;
   config: unknown;
   version: number;
   updated_at: string;
@@ -24,7 +25,7 @@ export interface TenantConfigRow {
   updated_by?: string | null;
 }
 
-export async function getTenantConfig(db: Db, tenantId: string): Promise<TenantConfigRow | null> {
+export async function getTenantConfig(db: Db, tenantId: TenantId): Promise<TenantConfigRow | null> {
   const { data, error } = await db
     .from("tenant_config")
     .select("tenant_id, config, version, updated_at, updated_by")
@@ -45,7 +46,7 @@ export async function getTenantConfig(db: Db, tenantId: string): Promise<TenantC
  */
 export async function getTenantConfigAsMember(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<(TenantConfigRow & { feed_hidden: boolean }) | null> {
   const row = await getTenantConfig(db, tenantId);
   if (row) return { ...row, feed_hidden: false };
@@ -80,7 +81,7 @@ export type PutTenantConfigResult =
  */
 export async function putTenantConfig(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   config: unknown,
   expectedVersion: number,
   /** Who wrote it. This config IS what customers hear, so the row records its author (00085). The door records the
@@ -126,7 +127,7 @@ export async function putTenantConfig(
  * appointments_feed_sync answered `first` to the hourly sweep: the next read's additions are no first read, even when this
  * one named nothing. Once per workspace (a stamp already there is left). A write that fails throws.
  */
-export async function markCalendarFeedKept(db: Db, tenantId: string, now: Date): Promise<void> {
+export async function markCalendarFeedKept(db: Db, tenantId: TenantId, now: Date): Promise<void> {
   const { error } = await db
     .from("tenant_config")
     .update({ calendar_feed_kept_at: now.toISOString() })
@@ -147,7 +148,7 @@ export interface PolicyRecord {
 
 /** Workspace-level rows only (subject IS NULL) — guardrail rows arrive with
  *  the People slice and get their own accessor then. */
-export async function listPolicies(db: Db, tenantId: string): Promise<PolicyRecord[]> {
+export async function listPolicies(db: Db, tenantId: TenantId): Promise<PolicyRecord[]> {
   const { data, error } = await db
     .from("policies")
     .select("id, class, mode, subject_type, subject_id, limits, updated_at")
@@ -160,7 +161,7 @@ export async function listPolicies(db: Db, tenantId: string): Promise<PolicyReco
 
 export async function setPolicyMode(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   policyClass: SchemaSet<"policies.class">,
   mode: SchemaSet<"policies.mode">,
   /**
@@ -208,7 +209,7 @@ export async function setPolicyMode(
  * key, never cached. The whole point of "Never" for a difficult customer is
  * that it applies to their NEXT message, not to one sixty seconds later.
  */
-export async function findPersonReplyMode(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+export async function findPersonReplyMode(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string | null> {
   const { data, error } = await db
     .from("policies")
     .select("mode")
@@ -230,8 +231,8 @@ const MODE_IDS_AT_ONCE = 200;
  */
 export async function getPersonReplyModes(
   db: Db,
-  tenantId: string,
-  contactIds: readonly string[],
+  tenantId: TenantId,
+  contactIds: readonly ContactId[],
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   for (let index = 0; index < contactIds.length; index += MODE_IDS_AT_ONCE) {
@@ -261,7 +262,7 @@ const USAGE_CAP = 5000;
  */
 export async function replyTokensSince(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   since: string,
   until: string,
 ): Promise<{ replies: number; tokens: number }> {
@@ -299,7 +300,10 @@ const OWN_MODES_PAGE = 1000;
  * page would say fewer people than are set. A merge moves a person's row and an erasure deletes it, so every row is a
  * person. A read that fails THROWS: a count the database could not answer is never none.
  */
-export async function listPeopleOnTheirOwnMode(db: Db, tenantId: string): Promise<Array<{ id: string; mode: string }>> {
+export async function listPeopleOnTheirOwnMode(
+  db: Db,
+  tenantId: TenantId,
+): Promise<Array<{ id: string; mode: string }>> {
   const out: Array<{ id: string; mode: string }> = [];
   for (let from = 0; ; from += OWN_MODES_PAGE) {
     const { data, error } = await db
@@ -326,8 +330,8 @@ export async function listPeopleOnTheirOwnMode(db: Db, tenantId: string): Promis
  */
 export async function setPersonReplyMode(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
   mode: SchemaSet<"policies.mode"> | null,
 ): Promise<string | null> {
   if (mode === null) {
@@ -377,7 +381,7 @@ const billingPlanOf = (row: { mode: string; status: string } | null): OpenToCust
  * plan billed through Stripe is in a state that stops the receptionist. A read that fails throws: "we could not check"
  * is not "yes".
  */
-export async function isWorkspaceOpenToCustomers(db: Db, tenantId: string): Promise<OpenToCustomersRead> {
+export async function isWorkspaceOpenToCustomers(db: Db, tenantId: TenantId): Promise<OpenToCustomersRead> {
   const [tenant, billing] = await Promise.all([
     db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
@@ -399,7 +403,7 @@ export async function isWorkspaceOpenToCustomers(db: Db, tenantId: string): Prom
  * Whether the receptionist may speak under the business's name on its own right now, with nobody reading it first (a
  * public reply): only while the workspace is open to its customers (isWorkspaceOpenToCustomers). A read that fails throws.
  */
-export async function doesWorkspaceAnswerOnItsOwn(db: Db, tenantId: string): Promise<boolean> {
+export async function doesWorkspaceAnswerOnItsOwn(db: Db, tenantId: TenantId): Promise<boolean> {
   return (await isWorkspaceOpenToCustomers(db, tenantId)).open === "open";
 }
 
@@ -408,7 +412,7 @@ const PUBLIC_RECORD_COLUMNS =
   "legal_name, trade_name, street, street_secondary, city, region, postal_code, country, contact_email, website_url, about, industry";
 
 /** The one load's read of the record: its type is what the select reads, which the dashboard's type test holds. */
-const publicRecordOf = (db: Db, tenantId: string) =>
+const publicRecordOf = (db: Db, tenantId: TenantId) =>
   db.from("business_records").select(PUBLIC_RECORD_COLUMNS).eq("tenant_id", tenantId).maybeSingle();
 
 type PublicRecordRead = NonNullable<Awaited<ReturnType<typeof publicRecordOf>>["data"]>;
@@ -491,7 +495,7 @@ export interface SetupChoicesRow {
 }
 
 /** The workspace's setup choices, or null before anything was chosen. RLS decides on a member's session. Throws on a failed read. */
-export async function setupChoicesOf(db: Db, tenantId: string): Promise<SetupChoicesRow | null> {
+export async function setupChoicesOf(db: Db, tenantId: TenantId): Promise<SetupChoicesRow | null> {
   const { data, error } = await db
     .from("setup_choices")
     .select("phone, whatsapp, marks, version")

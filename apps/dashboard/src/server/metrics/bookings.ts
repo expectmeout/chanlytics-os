@@ -23,6 +23,7 @@ import { listBookedVisits } from "@chanlytics/db/notices";
 import { canBookingsArrive, findVisitChangesSince } from "@chanlytics/db/calendar";
 import type { Database } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -36,7 +37,11 @@ interface BookingsLately {
 }
 
 /** The reads beside the function; null where either failed (logged), and the figures are then the four they were. */
-export function findBookingsLately(supabase: Db, tenantId: string, nowMs = Date.now()): Promise<BookingsLately | null> {
+export function findBookingsLately(
+  supabase: Db,
+  tenantId: TenantId,
+  nowMs = Date.now(),
+): Promise<BookingsLately | null> {
   return Promise.all([
     findVisitChangesSince(supabase, tenantId, new Date(nowMs - CHANGES_LOOKBACK_MS).toISOString()),
     canBookingsArrive(supabase, tenantId),
@@ -66,7 +71,7 @@ const bookedDtoOf = (v: BookedVisit): TodayBookedDto => ({
  */
 export async function findBookedSince(
   supabase: Db,
-  tenantId: string,
+  tenantId: TenantId,
   lately: BookingsLately,
   since: string,
 ): Promise<TodayBookingsDto | null> {

@@ -5,13 +5,14 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The mailbox marked with why its intake stopped; no row back means it is gone, or not the workspace's. */
 export const markMailboxIntakeFailed = async (
   db: Db,
-  params: { tenantId: string; mailboxId: string; lastError: string },
+  params: { tenantId: TenantId; mailboxId: string; lastError: string },
 ) =>
   db
     .from("mailboxes")
@@ -21,7 +22,7 @@ export const markMailboxIntakeFailed = async (
     .select("id");
 
 /** The thread an email message belongs to, by the provider's id of it. */
-export const findEmailThreadOf = async (db: Db, params: { tenantId: string; externalId: string }) =>
+export const findEmailThreadOf = async (db: Db, params: { tenantId: TenantId; externalId: string }) =>
   db
     .from("messages")
     .select("conversation_id")

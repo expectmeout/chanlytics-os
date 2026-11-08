@@ -62,6 +62,7 @@ import {
 import { logger, errField } from "../shared/log.js";
 import { findPersonEmailRow, setPersonEmail } from "@chanlytics/db/people";
 import { asJson, jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Postgres-sourced thread state, or an UNKNOWN thread when it cannot be
@@ -73,7 +74,7 @@ import { asJson, jsonCopyOf } from "@chanlytics/db/shared";
  */
 export async function readPgThread(
   db: ReturnType<typeof pg>,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   ing: IngestResult | null,
 ): Promise<ThreadState> {
   if (!db || !tenantId || !ing) return unreadableThread();
@@ -116,7 +117,7 @@ const waCfg = waCfgFor;
  */
 export async function queueReply(
   db: ReturnType<typeof pg>,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   ing: IngestResult | null,
   /** Where the draft goes: the number on a phone's wire, the person's Instagram-scoped id on a DM's. */
   to: string,
@@ -185,7 +186,7 @@ export const replyTurn = { claim: claimReplyTurn, holds: holdsReplyTurn };
  */
 export async function readPgAnswered(
   db: ReturnType<typeof pg>,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   ing: IngestResult,
 ): Promise<boolean> {
   if (!db || !tenantId) return false;
@@ -200,7 +201,7 @@ export async function readPgAnswered(
  */
 export async function runPgIngest(
   db: SupabaseClient<Database> | null,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   /** The message in the one inbound shape, on its own wire (decision 0001). */
   inboundMessage: InboundMessage & { channel: InboundChannel },
   line: string | null = null,
@@ -291,7 +292,7 @@ const MIME_EXT: Record<string, string> = {
  */
 async function recordUsage(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   u: Record<string, unknown>,
 ): Promise<void> {
@@ -306,7 +307,7 @@ async function recordUsage(
  */
 function pgProcessed(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   messageId: string,
   handled?: Handled,
   intent?: BrainIntent | null,
@@ -324,7 +325,7 @@ function pgProcessed(
  */
 function pgStamp(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   messageId: string,
   handled: Handled,
   intent?: BrainIntent | null,
@@ -339,7 +340,7 @@ type Said = [handled?: Handled, intent?: BrainIntent | null];
  * The two ways a way out says its message is finished with, as the sink's methods: `processed` marks it and stamps it,
  * `noteHandled` only stamps it. Both resolve at once where there is no database, a workspace and an ingested row.
  */
-function pgFinishing(db: SupabaseClient<Database> | null, tenantId: string | null, ing: IngestResult | null) {
+function pgFinishing(db: SupabaseClient<Database> | null, tenantId: TenantId | null, ing: IngestResult | null) {
   const on = !!(db && tenantId && ing);
   return {
     processed: (...sentence: Said) => (on ? pgProcessed(db, tenantId, ing.message_id, ...sentence) : Promise.resolve()),
@@ -375,7 +376,7 @@ type HeldReplyFacts = { atMs: number; unsure: boolean; reply: string; who: strin
  */
 function tellReplyHeld(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   rt: TenantRuntime | null | undefined,
   ing: IngestResult,
   heldReplyFacts: HeldReplyFacts,
@@ -408,7 +409,7 @@ function tellReplyHeld(
  */
 async function requestOpened(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   ing: IngestResult,
   req: BookingRequestHold,
   details: string,
@@ -428,7 +429,7 @@ async function requestOpened(
 async function whatsappMediaOf(
   rt: TenantRuntime | null | undefined,
   ref: WaMediaRef,
-  sentence: { tenant_id: string; message: string },
+  sentence: { tenant_id: TenantId; message: string },
 ): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
   const cfg = waCfg(rt);
   // Nothing threw, so runPgSafe logs nothing: without this line a tenant whose vault read failed, or an SMS-only one, has
@@ -439,7 +440,7 @@ async function whatsappMediaOf(
 
 export function pgSink(
   db: SupabaseClient<Database> | null,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   ing: IngestResult | null,
   rt?: TenantRuntime | null,
   /** The wire this message's replies go out on. */

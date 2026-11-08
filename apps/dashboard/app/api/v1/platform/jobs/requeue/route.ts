@@ -1,3 +1,4 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import { write, platform } from "@/server/shared/route";
 import { JobRequeueSchema } from "@chanlytics/contracts";
 import { requeuePlatformJob } from "@/server/console/platform";
@@ -18,5 +19,6 @@ export const POST = write({
   rate: "platform_job_requeue",
   act: "job_requeue",
   input: JobRequeueSchema,
-  handle: async ({ office, input }) => requeuePlatformJob(office, input.tenant_id, input.job_id, input.why),
+  handle: async ({ office, input }) =>
+    requeuePlatformJob(office, heldTenantId(input.tenant_id), input.job_id, input.why),
 });

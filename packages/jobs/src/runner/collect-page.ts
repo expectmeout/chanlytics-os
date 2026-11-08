@@ -9,15 +9,16 @@
  * search failing over and over does not hide another workspace's first.
  */
 import { carried } from "./delivery-page";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The pager's condition key: one page per window for every collect of one workspace that failed for good. */
-export function collectPageKey(job: { tenant_id: string }): string {
+export function collectPageKey(job: { tenant_id: TenantId }): string {
   return `lead_collect_failed:${job.tenant_id}`;
 }
 
 /** What the page says: the collect and its run (core leads runner, `{ run_id, seq }`), why it stopped, and where to look. */
 export function collectPage(
-  job: { id: string; tenant_id: string; payload: unknown },
+  job: { id: string; tenant_id: TenantId; payload: unknown },
   reason: string,
   wreckage: string | null = null,
 ): { subject: string; body: string } {

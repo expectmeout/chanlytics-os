@@ -12,6 +12,7 @@ import { listReviewsNamed } from "@chanlytics/db/notices";
 import { listRunsNamed } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * What still waits on the owner of what the kept notices are about, read on the server for Ask's read of the notices (the
@@ -26,7 +27,7 @@ import { log } from "@/server/shared/log";
  */
 export async function getNoticeWaits(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   notices: readonly NotificationDto[],
   now: Date,
   zone: string | null,

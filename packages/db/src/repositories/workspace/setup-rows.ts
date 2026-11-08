@@ -6,15 +6,16 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** How many members the workspace has, partners aside. */
-export const countTeamMembers = async (db: Db, tenantId: string) =>
+export const countTeamMembers = async (db: Db, tenantId: TenantId) =>
   db.from("memberships").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).neq("role", "partner");
 
 /** How many of the workspace's invitations are open. */
-export const countOpenInvites = async (db: Db, tenantId: string) =>
+export const countOpenInvites = async (db: Db, tenantId: TenantId) =>
   db
     .from("invitations")
     .select("id", { count: "exact", head: true })
@@ -23,11 +24,11 @@ export const countOpenInvites = async (db: Db, tenantId: string) =>
     .is("revoked_at", null);
 
 /** The workspace's channels as Setup's rows read them. */
-export const listSetupChannels = async (db: Db, tenantId: string) =>
+export const listSetupChannels = async (db: Db, tenantId: TenantId) =>
   db.from("tenant_channels").select("kind, status, number_e164, config, created_at").eq("tenant_id", tenantId);
 
 /** The workspace's channels as the Connections page lists them, by kind. */
-export const listChannelsForPage = async (db: Db, tenantId: string) =>
+export const listChannelsForPage = async (db: Db, tenantId: TenantId) =>
   db
     .from("tenant_channels")
     .select("id, kind, number_e164, status, created_at, config")
@@ -35,7 +36,7 @@ export const listChannelsForPage = async (db: Db, tenantId: string) =>
     .order("kind");
 
 /** The workspace's newest WhatsApp message in: when WhatsApp said it came, and when it was kept. */
-export const findLastWhatsAppIn = async (db: Db, tenantId: string) =>
+export const findLastWhatsAppIn = async (db: Db, tenantId: TenantId) =>
   db
     .from("messages")
     .select("channel_ts, created_at")
@@ -47,11 +48,11 @@ export const findLastWhatsAppIn = async (db: Db, tenantId: string) =>
     .maybeSingle();
 
 /** The workspace's WhatsApp templates' verdicts: Meta's status and whether each is hidden. */
-export const listTemplateVerdicts = async (db: Db, tenantId: string) =>
+export const listTemplateVerdicts = async (db: Db, tenantId: TenantId) =>
   db.from("templates").select("name, meta_status, hidden_at").eq("tenant_id", tenantId).eq("channel", "whatsapp");
 
 /** How many of the workspace's people said yes to messages. */
-export const countSaidYes = async (db: Db, tenantId: string) =>
+export const countSaidYes = async (db: Db, tenantId: TenantId) =>
   db
     .from("contacts")
     .select("id", { count: "exact", head: true })
@@ -60,7 +61,7 @@ export const countSaidYes = async (db: Db, tenantId: string) =>
     .is("erased_at", null);
 
 /** How many of the workspace's people said yes to offers, with no do-not-contact. */
-export const countOffersYes = async (db: Db, tenantId: string) =>
+export const countOffersYes = async (db: Db, tenantId: TenantId) =>
   db
     .from("contacts")
     .select("id", { count: "exact", head: true })
@@ -73,7 +74,7 @@ export const countOffersYes = async (db: Db, tenantId: string) =>
  * How many of the workspace's people an offer can reach: `mayReceive(r, "marketing")` as a count, the yes to offers,
  * no do-not-contact, and a number to send to.
  */
-export const countOffersReach = async (db: Db, tenantId: string) =>
+export const countOffersReach = async (db: Db, tenantId: TenantId) =>
   db
     .from("contacts")
     .select("id", { count: "exact", head: true })
@@ -84,7 +85,7 @@ export const countOffersReach = async (db: Db, tenantId: string) =>
     .not("phone_e164", "is", null);
 
 /** The workspace's newest asks for help with its setup, `limit` of them. */
-export const listSetupAsks = async (db: Db, tenantId: string, limit: number) =>
+export const listSetupAsks = async (db: Db, tenantId: TenantId, limit: number) =>
   db
     .from("events")
     .select("created_at, data")
@@ -94,12 +95,12 @@ export const listSetupAsks = async (db: Db, tenantId: string, limit: number) =>
     .limit(limit);
 
 /** The workspace's capabilities: each one's switch on and off, and by whom. */
-export const listCapabilityRows = async (db: Db, tenantId: string) =>
+export const listCapabilityRows = async (db: Db, tenantId: TenantId) =>
   db
     .from("capability_activations")
     .select("capability, activated_at, activated_by, deactivated_at")
     .eq("tenant_id", tenantId);
 
 /** The workspace's name, clock and whether it is the platform's own (00469). */
-export const findWorkspaceFacts = async (db: Db, tenantId: string) =>
+export const findWorkspaceFacts = async (db: Db, tenantId: TenantId) =>
   db.from("tenants").select("name, timezone, ours").eq("id", tenantId).maybeSingle();

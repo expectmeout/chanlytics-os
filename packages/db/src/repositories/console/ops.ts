@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "../../types";
 import { readColumn } from "../../shared/read-json";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A metric's numbers by what they count (a job's kind, a channel): what each of the three JSON columns holds. */
 const COUNTS = z.record(z.string(), z.number()).nullable();
@@ -32,7 +33,7 @@ export async function getMigrationHead(db: Db): Promise<MigrationHead> {
 
 /** One workspace's day, as the targets read it (decision 0031, invariant 12): the numbers the platform is paged on. */
 export interface PlatformDayPromises {
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   brain_p95_ms: number | null;
   job_lag_ms: Record<string, number> | null;

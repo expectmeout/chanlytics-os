@@ -6,12 +6,13 @@
  * A type test: each line under `@ts-expect-error <why>` must not compile. Nothing imports this file, so no build
  * reaches it and nothing runs it.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types";
 import { tenantDb } from "./tenant-db";
 
 declare const db: SupabaseClient<Database>;
-const workspaceRows = tenantDb(db, "workspace-id");
+const workspaceRows = tenantDb(db, heldTenantId("workspace-id"));
 
 // Offered: a workspace's table, each statement typed as the table's own.
 void workspaceRows.from("calls").select("id").eq("retell_call_id", "call_1");

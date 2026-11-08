@@ -3,6 +3,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -37,7 +38,7 @@ export function clientFilter(client: { phone: string | null; email: string | nul
 
 export async function findAppointmentByKey(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   source: AppointmentRow["source"],
   externalId: string,
 ): Promise<AppointmentRow | null> {
@@ -61,7 +62,7 @@ export async function findAppointmentByKey(
  */
 export async function findAppointmentByClientStart(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   near: {
     source: AppointmentRow["source"];
     tool: string;
@@ -108,7 +109,7 @@ export async function insertAppointment(db: Db, row: AppointmentInsert): Promise
  */
 export async function updateAppointment(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
   patch: AppointmentUpdate,
 ): Promise<"updated" | "refused"> {
@@ -122,9 +123,9 @@ export async function updateAppointment(
 
 /** A booking the receptionist asks for (decision 0061), as booking_request_open takes it. */
 export interface BookingRequestOpen {
-  tenantId: string;
+  tenantId: TenantId;
   conversationId: string;
-  contactId: string;
+  contactId: ContactId;
   startsAt: string;
   endsAt: string;
   service: string | null;
@@ -211,7 +212,7 @@ export type OpenRequestRow = Pick<
  */
 export async function openRequestsOfThreads(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationIds: readonly string[],
 ): Promise<OpenRequestRow[]> {
   if (!conversationIds.length) return [];
@@ -236,7 +237,7 @@ export async function openRequestsOfThreads(
  */
 export async function listAppointmentsBetween(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   fromIso: string,
   toIso: string,
 ): Promise<AppointmentRow[]> {
@@ -265,7 +266,7 @@ export async function listAppointmentsBetween(
  */
 export async function findVisitsOver(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   fromIso: string,
   toIso: string,
 ): Promise<{
@@ -318,7 +319,7 @@ export interface VisitOriginRow {
  */
 export async function listVisitOrigins(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   leadIds: readonly string[],
 ): Promise<VisitOriginRow[]> {
   const ids = [...new Set(leadIds)];
@@ -375,7 +376,7 @@ type FeedRowWord = Pick<AppointmentRow, "id" | "status" | "external_id" | "start
  */
 export async function listFeedWordsOver(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   fromIso: string,
   toIso: string,
 ): Promise<FeedRowWord[]> {
@@ -402,7 +403,7 @@ export async function listFeedWordsOver(
  */
 export async function recordOver(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   fromIso: string,
   toIso: string,
 ): Promise<{ noted: AppointmentRow[]; feed: FeedRowWord[] }> {
@@ -420,7 +421,7 @@ export async function recordOver(
  */
 export async function listNotedOver(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   fromIso: string,
   toIso: string,
 ): Promise<AppointmentRow[]> {

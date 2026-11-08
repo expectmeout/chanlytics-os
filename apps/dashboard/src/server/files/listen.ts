@@ -8,6 +8,7 @@ import "server-only";
 import { SECOND_MS } from "@chanlytics/contracts";
 import { callEdge, edgeConfigured } from "@/server/shared/edge";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long the ear has: a few seconds of listening, inside a turn's patience. */
 const LISTEN_MS = 45 * SECOND_MS;
@@ -16,7 +17,7 @@ type Heard = { answer: string; model: string } | { wont: string };
 
 /** The ear's answer to Ask's question about a stretch of one video (`from`, `to` in seconds, or the whole clip). */
 export async function askEar(
-  member: { tenantId: string; userId: string | null },
+  member: { tenantId: TenantId; userId: string | null },
   question: { id: string; question: string; from: number | null; to: number | null },
   leftMs: number = LISTEN_MS,
 ): Promise<Heard> {

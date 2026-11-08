@@ -5,12 +5,13 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 export async function countSentByStep(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   stepIds: readonly string[],
 ): Promise<Map<string, number>> {
   const ids = [...new Set(stepIds)];

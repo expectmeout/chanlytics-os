@@ -5,11 +5,12 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The workspace's notices since `since`, newest first, `limit` of them. */
-export const listBellRows = async (db: Db, tenantId: string, since: string, limit: number) =>
+export const listBellRows = async (db: Db, tenantId: TenantId, since: string, limit: number) =>
   db
     .from("notifications")
     .select("id, kind, title, body, route, subject_type, subject_id, created_at, closed_at")
@@ -19,7 +20,7 @@ export const listBellRows = async (db: Db, tenantId: string, since: string, limi
     .limit(limit);
 
 /** When the member last looked at the workspace's bell, or none. */
-export const findBellSeen = async (db: Db, tenantId: string, userId: string) =>
+export const findBellSeen = async (db: Db, tenantId: TenantId, userId: string) =>
   db.from("notification_reads").select("seen_at").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
 
 /** The member's own marks (read, dismissed) on these notices. */

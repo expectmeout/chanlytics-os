@@ -55,6 +55,7 @@ import { resolveOutboundTarget, resolveOutboundTargetForContact } from "@chanlyt
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "../runner/context";
 import { sendByAt, startByAt } from "../runner/ledger";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The broadcast_send job's own lines, by name: an email it could not build or sign for a person. */
 const sendLog = logger();
@@ -69,7 +70,7 @@ const sendLog = logger();
  */
 async function countRecipients(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   broadcastId: string,
   state?: SchemaSet<"sequence_sends.state">,
   reason?: string,
@@ -128,7 +129,7 @@ function wirePorts(
  * the same Reply-To, the one-click unsubscribe headers and its foot (which carries the link) in HTML; with no campaigns domain
  * bound to this runtime it is null, and the person is held, never sent from the domain replies use.
  */
-function emailRequestPort(ctx: JobContext, tenantId: string): BroadcastBatchPorts["emailRequest"] {
+function emailRequestPort(ctx: JobContext, tenantId: TenantId): BroadcastBatchPorts["emailRequest"] {
   let mailbox: Awaited<ReturnType<typeof findMailboxOfTenant>> | undefined;
   // The same words fail every person of a batch alike: said once for the batch, with the error, so the hold has its reason.
   let sentence = false;
@@ -189,7 +190,7 @@ function emailRequestPort(ctx: JobContext, tenantId: string): BroadcastBatchPort
  * (channels signUnsubscribeToken: the workspace, the person and the email): the page every offer's foot and List-Unsubscribe
  * carry, made the way a reach-out's is. Null where this runtime holds none.
  */
-function unsubscribeUrlPort(ctx: JobContext, tenantId: string): BroadcastBatchPorts["unsubscribeUrl"] {
+function unsubscribeUrlPort(ctx: JobContext, tenantId: TenantId): BroadcastBatchPorts["unsubscribeUrl"] {
   let sentence = false;
   return ({ messageId, contactId }) => {
     const campaigns = ctx.email?.campaigns;
@@ -230,7 +231,7 @@ function frozen(r: EmailRequest) {
  */
 function peoplePorts(
   ctx: JobContext,
-  tenantId: string,
+  tenantId: TenantId,
 ): Pick<
   BroadcastBatchPorts,
   | "batch"
@@ -343,7 +344,7 @@ function peoplePorts(
  * only while they are still queued, and answers whether it did. Two runs that overlap cannot both claim, and so both
  * send, the same person; the one that lost leaves them to the other. Every other write answers true.
  */
-function markPort(db: SupabaseClient<Database>, tenantId: string): BroadcastBatchPorts["mark"] {
+function markPort(db: SupabaseClient<Database>, tenantId: TenantId): BroadcastBatchPorts["mark"] {
   return async (id, contactId, patch) => {
     const sentAt = patch.sent_at ?? (patch.state === "sent" ? new Date().toISOString() : null);
     const key = { tenantId, broadcastId: id, contactId };
@@ -474,7 +475,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
  */
 async function workspaceFacts(
   db: JobContext["db"],
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{
   businessName: string;
   bookingLink: string | null;

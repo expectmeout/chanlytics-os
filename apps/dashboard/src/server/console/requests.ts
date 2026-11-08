@@ -1,3 +1,4 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import "server-only";
 
 /**
@@ -27,12 +28,13 @@ import {
 import { takeAct } from "./acts";
 import type { BackOffice } from "../shared/back-office";
 import { NOT_RECORDED } from "@/server/console/words";
+import type { TenantId } from "@chanlytics/contracts";
 
 type RequestRow = {
   id: string;
   number: number;
   kind: string;
-  tenant_id: string | null;
+  tenant_id: TenantId | null;
   slug: string;
   name: string;
   asked_by: string;
@@ -135,7 +137,7 @@ export async function stepConsoleRequest(
   const on = {
     act: input.step === "close" ? ("request_close" as const) : ("request_step" as const),
     why: input.why,
-    tenantId: current.tenant_id,
+    tenantId: current.tenant_id === null ? null : heldTenantId(current.tenant_id),
     target: "request" as const,
     targetId: current.id,
   };

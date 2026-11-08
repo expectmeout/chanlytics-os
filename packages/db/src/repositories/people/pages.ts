@@ -1,5 +1,6 @@
 /** People: pages. */
 
+import { heldContactId, heldTenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   openDealsFromJson,
@@ -13,6 +14,7 @@ import type { Database } from "../../types";
 import { readAllRowsByKey } from "../../shared/paged";
 import { listThreadsBy } from "./waiting-on-you";
 import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
@@ -34,8 +36,8 @@ export const IDS_PER_READ = 100;
  */
 export async function listNamesOfPeople(
   db: Db,
-  tenantId: string,
-  ids: readonly string[],
+  tenantId: TenantId,
+  ids: readonly ContactId[],
 ): Promise<Array<{ id: string } & NameableContact>> {
   const out: Array<{ id: string } & NameableContact> = [];
   for (let i = 0; i < ids.length; i += IDS_PER_READ) {
@@ -63,8 +65,8 @@ const PERSON_DECISIONS = 500;
  */
 export async function listPersonDecisions(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
   conversationIds: readonly string[],
 ): Promise<PersonDecisionDto[]> {
   const { data, error } = await db
@@ -108,7 +110,7 @@ export function peopleCursorOf(row: PersonRowDto | undefined): PeopleCursor | nu
  */
 export async function listPeoplePage(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   page: { q?: string | null; offset?: number; limit?: number; after?: PeopleCursor | null } = {},
 ): Promise<PersonRowDto[]> {
   const offset = page.offset ?? 0;
@@ -143,7 +145,7 @@ type PersonOf = string | { thread: string };
  * The person page reads its row here, so it is read the way the list reads it, and the Inbox's head the person a thread is
  * with (`{ thread }`: none for a thread this workspace does not hold, GET contacts?thread). A read that fails THROWS.
  */
-export async function findPersonRow(db: Db, tenantId: string, personOf: PersonOf): Promise<PersonRowDto | null> {
+export async function findPersonRow(db: Db, tenantId: TenantId, personOf: PersonOf): Promise<PersonRowDto | null> {
   const [thread] = typeof personOf === "string" ? [] : await listThreadsBy(db, tenantId, "id", [personOf.thread]);
   const contactId = typeof personOf === "string" ? personOf : thread?.contact_id;
   if (!contactId) return null;
@@ -159,14 +161,14 @@ export async function findPersonRow(db: Db, tenantId: string, personOf: PersonOf
  * Each page after the first starts just past the last row's place (00276), so nobody is read twice when someone writes
  * between two pages; from a database before 00276, by offset, as it always was.
  */
-export async function listEveryoneIn(db: Db, tenantId: string): Promise<PersonRowDto[]> {
+export async function listEveryoneIn(db: Db, tenantId: TenantId): Promise<PersonRowDto[]> {
   const all: PersonRowDto[] = [];
   for await (const page of everyonePages(db, tenantId)) all.push(...page);
   return all;
 }
 
 /** Every page of people in the kept order, each just past the last row's place; by offset before 00276. */
-async function* everyonePages(db: Db, tenantId: string): AsyncGenerator<PersonRowDto[]> {
+async function* everyonePages(db: Db, tenantId: TenantId): AsyncGenerator<PersonRowDto[]> {
   let read = 0;
   for (let after: PeopleCursor | null = null; ;) {
     const page = await listPeoplePage(db, tenantId, after ? { after } : { offset: read });
@@ -194,7 +196,7 @@ const MISSED_AT_ONCE = 10;
  * whoever the pass missed is read by their own row. Everyone live when the read ends is in the copy once; someone
  * erased or merged during it is in it as they were, or not at all. A read that fails THROWS.
  */
-export async function* listEveryoneOnceIn(db: Db, tenantId: string): AsyncGenerator<PersonRowDto[]> {
+export async function* listEveryoneOnceIn(db: Db, tenantId: TenantId): AsyncGenerator<PersonRowDto[]> {
   const seen = new Set<string>();
   for await (const page of everyonePages(db, tenantId)) {
     const fresh = page.filter((p) => !seen.has(p.id));
@@ -231,7 +233,7 @@ export async function* listEveryoneOnceIn(db: Db, tenantId: string): AsyncGenera
  * holds the pepper that keys them once the re-key has run. Value → digest, one call for all of them; a value asked
  * twice is asked once. Throws when the database cannot answer: "we could not check" is never "nobody was erased".
  */
-export async function getErasureDigests(db: Db, tenantId: string, values: string[]): Promise<Map<string, string>> {
+export async function getErasureDigests(db: Db, tenantId: TenantId, values: string[]): Promise<Map<string, string>> {
   const items = [...new Set(values.filter((v) => v !== ""))];
   if (items.length === 0) return new Map();
   const { data, error } = await db.rpc("erasure_digests", { p_tenant_id: tenantId, p_values: items });
@@ -254,8 +256,8 @@ export async function getErasureDigests(db: Db, tenantId: string, values: string
  */
 export async function scrubPersonNotes(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
   needles: readonly string[],
 ): Promise<number> {
   const { data, error } = await db.rpc("person_notes_scrub", {
@@ -280,7 +282,7 @@ type DoorAnswer = { data: unknown; error: { code?: string; message: string } | n
  */
 export async function addPersonNote(
   db: Db,
-  contactId: string,
+  contactId: ContactId,
   body: string,
   teamOnly: boolean,
   more: { forUserId?: string | null; dueOn?: string | null; dealId?: string | null } = {},
@@ -298,7 +300,7 @@ export async function addPersonNote(
 
 /** A call a member made, as the door keeps it (person_call_logged, 0052): the note's words and the lead's ask, spelled by contracts. */
 export interface PersonCallArgs {
-  contactId: string;
+  contactId: ContactId;
   outcome: string;
   body: string;
   dueOn: string | null;
@@ -333,9 +335,9 @@ export async function logPersonCall(db: Db, personCallArgs: PersonCallArgs): Pro
 
 /** What the merge door answers (merge_people, 00326): the kept record, the merged one, and what moved. */
 interface MergedPeople {
-  contact_id: string;
+  contact_id: ContactId;
   merged: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   decision_id: string;
   consent: string;
   marketing_consent: string;
@@ -359,7 +361,7 @@ export async function mergePeople(db: Db, keep: string, merge: string): Promise<
  * Where a person combined into another now is (0028): the record kept, through up to five later combines, in this
  * workspace; null where they were never combined, or the record kept is erased or not here. A read that fails THROWS.
  */
-export async function findKeptPerson(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+export async function findKeptPerson(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string | null> {
   let at = contactId;
   for (let hop = 0; hop <= 5; hop++) {
     const { data, error } = await db
@@ -392,9 +394,9 @@ function mergedOf(value: unknown): MergedPeople {
   const out: Record<string, number | string> = {};
   for (const [k, n] of Object.entries(counts)) if (typeof n === "number" || typeof n === "string") out[k] = n;
   return {
-    contact_id: word("contact_id"),
+    contact_id: heldContactId(word("contact_id")),
     merged: word("merged"),
-    tenant_id: word("tenant_id"),
+    tenant_id: heldTenantId(word("tenant_id")),
     decision_id: word("decision_id"),
     consent: word("consent"),
     marketing_consent: word("marketing_consent"),

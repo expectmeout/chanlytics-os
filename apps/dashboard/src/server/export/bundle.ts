@@ -41,6 +41,7 @@ import {
   type PersonExportSection,
   type PersonRowDto,
 } from "@chanlytics/contracts";
+import type { ContactId } from "@chanlytics/contracts";
 export { consentChangeOf } from "@chanlytics/contracts";
 
 export const BUNDLE_FORMAT = "chanlytics-workspace-export";
@@ -61,7 +62,7 @@ export const FILE_LINK_SECONDS = FILE_LINK_MS / 1000;
 
 interface BundleConversation {
   id: string;
-  contact_id: string;
+  contact_id: ContactId;
   state: string;
   created_at: string;
   last_message_at: string | null;

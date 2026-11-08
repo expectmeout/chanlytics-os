@@ -6,7 +6,7 @@
  * caller may not touch is P0002), for the route to answer.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AskJournalDayDto, AskMemoryLineDto, AskMemorySource } from "@chanlytics/contracts";
+import type { AskJournalDayDto, AskMemoryLineDto, AskMemorySource, TenantId } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
@@ -17,7 +17,7 @@ export type AskMemoryDoor = { id: string; text: string; again: boolean } | { ref
 const memorySource = (v: unknown): AskMemorySource => (v === "pane" || v === "learned" ? v : "ask");
 
 /** The workspace's live lines, newest first, at most `limit`. */
-export async function askMemoryLines(db: Db, tenantId: string, limit: number): Promise<AskMemoryLineDto[]> {
+export async function askMemoryLines(db: Db, tenantId: TenantId, limit: number): Promise<AskMemoryLineDto[]> {
   const { data, error } = await db
     .from("ask_memory_lines")
     .select("id, text, source, made_at, updated_at, kept_by, thread_id")
@@ -39,7 +39,7 @@ export async function askMemoryLines(db: Db, tenantId: string, limit: number): P
 }
 
 /** The journal's newest written days, newest first, at most `limit`. */
-export async function askJournalDays(db: Db, tenantId: string, limit: number): Promise<AskJournalDayDto[]> {
+export async function askJournalDays(db: Db, tenantId: TenantId, limit: number): Promise<AskJournalDayDto[]> {
   const { data, error } = await db
     .from("ask_journal_days")
     .select("day, text")
@@ -63,7 +63,7 @@ function doorAnswer(fn: string, data: unknown): AskMemoryDoor {
 /** Keep a line (ask_memory_write, keep): as the person signed in, from a turn of Ask or from the pane. */
 export async function keepAskMemory(
   db: Db,
-  params: { tenantId: string; text: string; source: AskMemorySource; threadId: string | null },
+  params: { tenantId: TenantId; text: string; source: AskMemorySource; threadId: string | null },
 ): Promise<AskMemoryDoor> {
   const { data, error } = await db.rpc("ask_memory_write", {
     p_tenant_id: params.tenantId,
@@ -79,7 +79,7 @@ export async function keepAskMemory(
 /** Change a line's words (ask_memory_write, change): the settings permission, a line of this workspace. */
 export async function changeAskMemory(
   db: Db,
-  params: { tenantId: string; id: string; text: string },
+  params: { tenantId: TenantId; id: string; text: string },
 ): Promise<AskMemoryDoor> {
   const { data, error } = await db.rpc("ask_memory_write", {
     p_tenant_id: params.tenantId,
@@ -94,7 +94,7 @@ export async function changeAskMemory(
 /** Forget a line (ask_memory_write, forget): the settings permission, or the member who kept it. */
 export async function forgetAskMemory(
   db: Db,
-  params: { tenantId: string; id: string },
+  params: { tenantId: TenantId; id: string },
 ): Promise<{ id: string; text: string; again: boolean }> {
   const { data, error } = await db.rpc("ask_memory_write", {
     p_tenant_id: params.tenantId,
@@ -118,7 +118,7 @@ export interface AskRecallRow {
 }
 
 /** What the member's own past turns, the memory and the journal say that holds the words (search_ask), newest first. */
-export async function searchAsk(db: Db, tenantId: string, words: string, limit: number): Promise<AskRecallRow[]> {
+export async function searchAsk(db: Db, tenantId: TenantId, words: string, limit: number): Promise<AskRecallRow[]> {
   const { data, error } = await db.rpc("search_ask", { p_tenant: tenantId, p_words: words, p_limit: limit });
   if (error) throw new Error(`search_ask: ${error.message}`);
   return (data ?? []).flatMap((r) =>

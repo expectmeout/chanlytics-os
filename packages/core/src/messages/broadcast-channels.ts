@@ -61,6 +61,7 @@ import type {
   RecipientMark,
   RecipientRow,
 } from "./ports";
+import type { ContactId } from "@chanlytics/contracts";
 
 /**
  * Which yes this run's send needs at the door: what its enrolment asked (contracts enrolPurpose, the stricter of the
@@ -152,7 +153,7 @@ export interface Work {
    * day-before reminder: broadcast.ts holdForLater), and when that is: the run waits for it rather than for a minute.
    */
   waiting: { count: number; retryAt: Date | null };
-  mark(contactId: string, patch: RecipientMark): Promise<void>;
+  mark(contactId: ContactId, patch: RecipientMark): Promise<void>;
 }
 
 /** A visit run's or a follow-up's words for one person, resolved when the run was made and kept on their row. */

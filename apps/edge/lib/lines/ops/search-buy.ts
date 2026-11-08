@@ -31,6 +31,7 @@ import { lineForClient, type LineProviderChoice } from "../lines.js";
 import { factsOf, FILED_NAME_FACT, retryRequestedBy, type LineDbRow } from "../resume.js";
 import type { LineReleaseResult } from "../release.js";
 import { errorMessage, type DoorAnswer } from "../../shared/admin-door.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type LinesInsert = Database["public"]["Tables"]["lines"]["Insert"];
 
@@ -209,7 +210,7 @@ export function liveLineOf<T extends { voice_state: string }>(rows: T[]): T | un
  * Otherwise the row to insert, at the saga's first step.
  */
 export function planBuy(options: {
-  tenantId: string;
+  tenantId: TenantId;
   provider: LineProviderName;
   number: string;
   areaCode: number | null;
@@ -250,11 +251,11 @@ export function planBuy(options: {
  * repaints from the row through realtime as each step lands its receipt.
  */
 export function provisionJob(
-  tenantId: string,
+  tenantId: TenantId,
   lineId: string,
   by: "owner" | "support",
   now: Date,
-): { tenantId: string; kind: "line_provision"; dueAt: Date; payload: { line_id: string; by: "owner" | "support" } } {
+): { tenantId: TenantId; kind: "line_provision"; dueAt: Date; payload: { line_id: string; by: "owner" | "support" } } {
   return { tenantId, kind: "line_provision", dueAt: now, payload: { line_id: lineId, by } };
 }
 
@@ -330,7 +331,7 @@ export function releaseAnswer(lineRelease: LineReleaseResult): DoorAnswer {
 export function planRecord(
   rawRecord: unknown,
   rawPath: unknown,
-  tenantId: string,
+  tenantId: TenantId,
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "keep"; path: RegistrationPath; row: RecordDraft } {
   const second = rawRecord && typeof rawRecord === "object" ? recordOrEmpty(rawRecord) : null;
   if (!second)
@@ -361,7 +362,7 @@ export function planRecord(
 }
 
 /** The form's fields, trimmed, with the blanks the carriers accept as null or the default. */
-function recordDraft(str: (k: string) => string, tenantId: string) {
+function recordDraft(str: (k: string) => string, tenantId: TenantId) {
   return {
     tenant_id: tenantId,
     legal_name: str("legal_name"),

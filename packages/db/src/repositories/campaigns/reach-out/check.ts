@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
 import { leadSends, type ReachOutSendRow } from "./reach-out";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -82,7 +83,7 @@ function recordOf(record: Record<string, unknown>): ReachOutRecordRow {
  */
 export async function listUncheckedSends(
   db: Db,
-  params: { limit: number; perWorkspace: number; aheadMinutes: number; tenantId?: string; sendIds?: string[] },
+  params: { limit: number; perWorkspace: number; aheadMinutes: number; tenantId?: TenantId; sendIds?: string[] },
 ): Promise<UncheckedSend[]> {
   const { data, error } = await db.rpc("sequence_unchecked", {
     p_limit: params.limit,
@@ -111,7 +112,7 @@ export async function listUncheckedSends(
 }
 
 /** Whether any send waits to be checked: what the check's clock answers for when it cannot check (R4). */
-export async function getUncheckedWaiting(db: Db, tenantId?: string): Promise<boolean> {
+export async function getUncheckedWaiting(db: Db, tenantId?: TenantId): Promise<boolean> {
   let query = db
     .from("sequence_sends")
     .select("id")
@@ -127,7 +128,7 @@ export async function getUncheckedWaiting(db: Db, tenantId?: string): Promise<bo
 /** One business's record for a search, whether or not a send exists for it yet (the sheet's preview). */
 export async function readReachOutRecord(
   db: Db,
-  params: { tenantId: string; searchId: string; leadId: string },
+  params: { tenantId: TenantId; searchId: string; leadId: string },
 ): Promise<ReachOutRecordRow | null> {
   const { data, error } = await db.rpc("reach_out_record", {
     p_tenant_id: params.tenantId,
@@ -144,7 +145,7 @@ export async function listHeldStale(
   db: Db,
   before: Date,
   limit: number,
-  tenantId?: string,
+  tenantId?: TenantId,
 ): Promise<ReachOutSendRow[]> {
   const { data, error } = await db.rpc("sequence_held_stale", {
     p_before: before.toISOString(),
@@ -160,7 +161,7 @@ export async function listHeldStale(
  * again at their words' next version, in one statement (00197 reach_out_release_unavailable, R4). A hold for a rule an
  * opening broke keeps: it is its owner's to answer. How many went back.
  */
-export async function releaseUnavailableHolds(db: Db, params: { before: Date; tenantId?: string }): Promise<number> {
+export async function releaseUnavailableHolds(db: Db, params: { before: Date; tenantId?: TenantId }): Promise<number> {
   const { data, error } = await db.rpc("reach_out_release_unavailable", {
     p_before: params.before.toISOString(),
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
@@ -173,7 +174,10 @@ export async function releaseUnavailableHolds(db: Db, params: { before: Date; te
  * One attempt of the check's model spend for a workspace's UTC day, taken only while the day is under `cap` (00197
  * reach_out_check_take, R12): true when taken. A reset of a send's check never gives it back.
  */
-export async function takeCheckAttempt(db: Db, params: { tenantId: string; cap: number; at: Date }): Promise<boolean> {
+export async function takeCheckAttempt(
+  db: Db,
+  params: { tenantId: TenantId; cap: number; at: Date },
+): Promise<boolean> {
   const { data, error } = await db.rpc("reach_out_check_take", {
     p_tenant_id: params.tenantId,
     p_cap: params.cap,

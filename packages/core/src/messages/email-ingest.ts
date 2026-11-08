@@ -13,6 +13,7 @@ import {
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/log";
 import type { Json } from "@chanlytics/db/types";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The intake's own lines, by name: a yes the sender's proof does not stand behind. */
 const emailLog = logger();
@@ -73,24 +74,24 @@ export interface IncomingEmail {
 
 export interface EmailIngestPorts {
   /** The mailbox the delivery named, or null when it is gone. */
-  mailbox(id: string): Promise<{ id: string; tenant_id: string; address: string } | null>;
+  mailbox(id: string): Promise<{ id: string; tenant_id: TenantId; address: string } | null>;
   /** The email, by the provider's id; null when the provider no longer has it. Throws when it cannot be asked. */
   fetch(receivedId: string): Promise<IncomingEmail | null>;
   /**
    * A booking tool's notice is read into an appointment, not kept as a conversation (docs/plans/
    * 2026-10-07-bookings-arrive-by-email.md): one booking_read for the delivery, however often this intake runs.
    */
-  readBooking(tenantId: string, mailboxId: string, receivedId: string, tool: BookingTool): Promise<void>;
+  readBooking(tenantId: TenantId, mailboxId: string, receivedId: string, tool: BookingTool): Promise<void>;
   /**
    * The booking tool the workspace named as its own (config bookings.tool), or null for none: only that tool's notices
    * are read as bookings. A workspace that named none keeps every tool's email as the automated email it is.
    */
-  bookingTool(tenantId: string): Promise<BookingTool | null>;
+  bookingTool(tenantId: TenantId): Promise<BookingTool | null>;
   /**
    * Is this address a member's of the workspace: the second thing a notice forwarded by hand must be, after its
    * sender is proved (00345).
    */
-  memberAddress(tenantId: string, address: string): Promise<boolean>;
+  memberAddress(tenantId: TenantId, address: string): Promise<boolean>;
   /**
    * Gmail's confirmation that it may forward to this mailbox (contracts forwardingConfirmationOf), kept on the mailbox
    * for Settings to show with one press, never as a thread (00345).
@@ -101,11 +102,11 @@ export interface EmailIngestPorts {
    * before the person asked to be forgotten: taking it in late would make them again from data they asked us to
    * drop. An email received AFTER the request is the person coming back, and is a new conversation (edge erased.ts).
    */
-  erasedBefore(tenantId: string, address: string, receivedAtIso: string): Promise<boolean>;
+  erasedBefore(tenantId: TenantId, address: string, receivedAtIso: string): Promise<boolean>;
   /** Our own email, coming back: a forward loop, or a copy. */
-  ours(tenantId: string, rfcMessageId: string): Promise<boolean>;
+  ours(tenantId: TenantId, rfcMessageId: string): Promise<boolean>;
   record(p: {
-    tenantId: string;
+    tenantId: TenantId;
     address: string;
     receivedId: string;
     body: string | null;
@@ -135,14 +136,14 @@ export interface EmailIngestPorts {
    * a refresh of the same one, or a write that did not land.
    */
   escalate(
-    tenantId: string,
+    tenantId: TenantId,
     conversationId: string,
     reason: "email_review",
     details: string,
   ): Promise<"opened" | "changed" | "refreshed" | "failed">;
   /** Tell the workspace's people, once per hold: the bell, and the mail their alerts go to. Never throws. */
   tell(
-    tenantId: string,
+    tenantId: TenantId,
     note: {
       conversationId: string;
       from: string;
@@ -156,17 +157,17 @@ export interface EmailIngestPorts {
    * Is this kept message a reply to one of the workspace's reach-outs (00222 reach_out_reply_of)? Throws when it cannot
    * be asked: a reply taken for nobody's would never be read, and a no in it would be missed.
    */
-  reachOutReply(tenantId: string, messageId: string): Promise<boolean>;
+  reachOutReply(tenantId: TenantId, messageId: string): Promise<boolean>;
   /** Hand the reply to the reading (a reply_read job), at most once per message however often this runs. */
-  readReply(tenantId: string, messageId: string): Promise<void>;
-  markProcessed(tenantId: string, messageId: string): Promise<void>;
+  readReply(tenantId: TenantId, messageId: string): Promise<void>;
+  markProcessed(tenantId: TenantId, messageId: string): Promise<void>;
   received(mailboxId: string, at: string): Promise<void>;
   /**
    * Whether one of these addresses is a mailbox the workspace connected that its sync reads (00423: connected, paused or
    * held): a copy of an email that mailbox holds too, which its sync takes in (Gmail forwarding its mail to the hosted
    * address, or an email to both). A connected mailbox's own intake answers false.
    */
-  readByMailbox(tenantId: string, addresses: readonly string[]): Promise<boolean>;
+  readByMailbox(tenantId: TenantId, addresses: readonly string[]): Promise<boolean>;
   /**
    * What the workspace said of the sender (00483 mailbox_senders, by address and then by domain: contracts
    * senderVerdictOf), or null where it said nothing. It comes before what the email claims (decision 0080's order): one
@@ -174,7 +175,7 @@ export interface EmailIngestPorts {
    * the owner deleted is not made again, nor put in front of them; one said to be a person is asked of, whatever it
    * claims. Absent on a connected mailbox's own intake, whose sorting asked it before the email was scheduled.
    */
-  senderSaid?(tenantId: string, address: string): Promise<MailboxSenderVerdict | null>;
+  senderSaid?(tenantId: TenantId, address: string): Promise<MailboxSenderVerdict | null>;
   /**
    * What the sender was read to be, on this road as on a connected mailbox's (decision 0093, one judge), for an email that
    * claims to be a person's from someone the business does not talk with: the kept reading, or one read now. A sender read
@@ -183,7 +184,7 @@ export interface EmailIngestPorts {
    * intake, whose sorting asked it before the email was scheduled.
    */
   senderLeft?(
-    tenantId: string,
+    tenantId: TenantId,
     email: { from: string; name: string | null; subject: string | null; words: string | null; answers: boolean },
   ): Promise<"pitch" | "notice" | null>;
   now(): number;
@@ -321,7 +322,7 @@ export async function ingestEmail(
  */
 async function senderSortedAs(
   ports: EmailIngestPorts,
-  tenantId: string,
+  tenantId: TenantId,
   email: IncomingEmail,
   address: string,
 ): Promise<{ word: MailboxSenderVerdict | null; left: "left_as_said" | "left_as_read" | null }> {
@@ -341,7 +342,7 @@ async function senderSortedAs(
 /** What the workspace said of the sender, or null where it said nothing, or this road does not ask (senderSaid). */
 async function senderWordOf(
   ports: EmailIngestPorts,
-  tenantId: string,
+  tenantId: TenantId,
   address: string,
 ): Promise<MailboxSenderVerdict | null> {
   return (await ports.senderSaid?.(tenantId, address)) ?? null;
@@ -384,7 +385,7 @@ function flaggedAs(
  */
 async function keptAside(
   ports: EmailIngestPorts,
-  mailbox: { id: string; tenant_id: string },
+  mailbox: { id: string; tenant_id: TenantId },
   email: IncomingEmail,
   // The sender in the one spelling a person is stored under, and the moment the intake runs.
   { address, at }: { address: string; at: string },
@@ -420,7 +421,7 @@ async function flagForAPerson(
   ports: EmailIngestPorts,
   email: IncomingEmail,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
     address: string;
     claim: "person" | "automated";

@@ -1,5 +1,6 @@
 /** Billing: subscription. */
 
+import { isTenantId } from "@chanlytics/contracts";
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
@@ -23,7 +24,6 @@ import {
   type BillingStatus,
   type SubscriptionFacts,
   MIN_MS,
-  UUID,
   isOneOf,
 } from "@chanlytics/contracts";
 import { ringOnce, tellOnce } from "./notices.js";
@@ -33,13 +33,14 @@ import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { cardFingerprintOf, markCard } from "../partners/earnings.js";
 import { checkoutKeyOf, checkoutMadeOf, sessionReturn, type CheckoutMade } from "./checkout-session.js";
 import { findWorkspaceStanding } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 
 export type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
 
 /** A write nothing races (a customer's id, a stamp, a customer Stripe forgot): the row's one door, with no expectation. */
-export const keepOnRow = (db: Db, tenantId: string, row: BillingPatch) =>
+export const keepOnRow = (db: Db, tenantId: TenantId, row: BillingPatch) =>
   applyBilling(db, { tenantId, row, expect: null, tenantStatus: null });
 
 /**
@@ -111,21 +112,21 @@ export function stripeLivemode(): boolean | null {
   return null;
 }
 
-export async function accountOf(db: Db, tenantId: string): Promise<BillingRow | null> {
+export async function accountOf(db: Db, tenantId: TenantId): Promise<BillingRow | null> {
   const { data, error } = await findBillingAccount(db, tenantId);
   if (error) throw new Error(error.message);
   return data;
 }
 
 /** The workspace's switch, when its last member left it (00262), and the zone its bells say a day in; null for none. */
-async function tenantState(db: Db, tenantId: string) {
+async function tenantState(db: Db, tenantId: TenantId) {
   const { data, error } = await findWorkspaceStanding(db, tenantId);
   if (error) throw new Error(error.message);
   return data;
 }
 
 /** Whether the workspace's last member left it (00262): ended, so no plan is bought, resumed or started for it. */
-export async function leftEmpty(db: Db, tenantId: string): Promise<boolean> {
+export async function leftEmpty(db: Db, tenantId: TenantId): Promise<boolean> {
   return !!(await tenantState(db, tenantId))?.left_empty_at;
 }
 
@@ -195,7 +196,7 @@ export async function findTenant(
   customerId: string | null,
 ): Promise<BillingRow | null> {
   const fromMeta = meta?.tenant_id;
-  if (fromMeta && UUID.test(fromMeta)) {
+  if (fromMeta && isTenantId(fromMeta)) {
     const row = await accountOf(db, fromMeta);
     if (row) return row;
   }
@@ -345,7 +346,7 @@ async function endLeftEmpty(subscriptionId: string, log: ReturnType<typeof logge
  */
 export async function endFor(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
 ): Promise<{ ok: true; status: BillingStatus } | { ok: false; error: BillingFailure; detail?: string }> {
   const result = stripe();
@@ -380,7 +381,7 @@ export type BillingFailure =
 /** The way to Checkout: a card, the trial, and back to Billing (or the first run that asked) with the outcome. */
 export async function getCheckout(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   tenantName: string,
   email: string | null,
   slug: string | null,
@@ -431,7 +432,7 @@ export async function getCheckout(
 /** The way to Stripe's portal: the card, the invoices, cancel — Stripe's page, in Stripe's words. */
 export async function getPortal(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   slug: string | null = null,
 ): Promise<{ ok: true; url: string } | { ok: false; error: BillingFailure; detail?: string }> {
   const result = stripe();

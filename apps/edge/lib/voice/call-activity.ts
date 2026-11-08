@@ -11,11 +11,12 @@ import { listActivityTokens, forgetActivityTokens } from "@chanlytics/db/notices
 import { findCallerName, claimCallActivity } from "@chanlytics/db/voice";
 import { CALL_ACTIVITY_ROLES, callActivityPropsOf, callActivityStart } from "@chanlytics/contracts";
 import type { ApnsPort } from "./apns.js";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 export interface CallForActivity {
   /** Our call's id and the person on it, as the call's row was filed (ingest_call). */
   call_id: string;
-  contact_id: string | null;
+  contact_id: ContactId | null;
   from_e164: string | null;
   from_raw: string | null;
   to_e164: string | null;
@@ -35,7 +36,7 @@ const NO_ACTIVITY: ActivityOutcome = { started: 0, refused: [], gone: 0, already
 
 export async function tellPhonesCallStarted(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   call: CallForActivity,
   port: ApnsPort | null,
   now: Date = new Date(),

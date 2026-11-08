@@ -22,6 +22,7 @@
  * select, and what the row keeps of the provider's payload is an allowlist (scrub_call_raw, 00530) members may not
  * select at all. The row keeps a fetch state, and a retry asks the provider for a fresh URL by call id.
  */
+import { heldContactId } from "@chanlytics/contracts";
 import { recordOrNull, type SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
@@ -31,6 +32,7 @@ import { platformWide, tenantDb } from "../../shared/tenant-db";
 import { asJson, jsonCopyOf } from "../../shared/json";
 import { readAnswer } from "../../shared/read-json";
 import { z } from "zod";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -72,7 +74,7 @@ export interface IngestCallResult {
    *  call_started after call_ended): nothing was written, updated_at did
    *  not move. */
   skipped?: boolean;
-  contact_id: string | null;
+  contact_id: ContactId | null;
   conversation_id: string | null;
 }
 
@@ -83,13 +85,13 @@ const IngestCallAnswer: z.ZodType<IngestCallResult> = z.object({
   recording_state: z.string().nullable(),
   recording_attempts: z.number().nullable().optional(),
   skipped: z.boolean().optional(),
-  contact_id: z.string().nullable(),
+  contact_id: z.string().transform(heldContactId).nullable(),
   conversation_id: z.string().nullable(),
 });
 
 export async function ingestCall(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   callInput: NormalizedCallInput,
   raw?: unknown,
 ): Promise<IngestCallResult> {
@@ -136,7 +138,7 @@ export async function ingestCall(
  * nothing, so "the write failed" and "the write did not happen" have to be
  * told apart by counting rows rather than by trusting the absence of an error.
  */
-export async function linkCallMessage(db: Db, tenantId: string, callId: string, messageId: string): Promise<void> {
+export async function linkCallMessage(db: Db, tenantId: TenantId, callId: string, messageId: string): Promise<void> {
   const { data, error } = await db
     .from("calls")
     .update({ message_id: messageId })
@@ -155,7 +157,7 @@ export async function linkCallMessage(db: Db, tenantId: string, callId: string, 
  */
 export async function stampCallConfigVersion(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   retellCallId: string,
   version: number,
 ): Promise<boolean> {
@@ -173,7 +175,7 @@ export async function stampCallConfigVersion(
 /** A call as its review reads it: its words, what it was composed from, the agent, and whose it is. */
 export async function callForReview(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   callId: string,
 ): Promise<{
   id: string;
@@ -200,7 +202,7 @@ export async function callForReview(
  */
 export async function listCallers(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ids: readonly string[],
 ): Promise<Array<{ id: string; from_e164: string | null; from_raw: string | null }>> {
   const out: Array<{ id: string; from_e164: string | null; from_raw: string | null }> = [];
@@ -228,7 +230,7 @@ export async function listCallers(
  */
 export async function setCallRecording(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   callId: string,
   recording: Record<string, unknown>,
 ): Promise<void> {
@@ -247,9 +249,9 @@ export async function setCallRecording(
 export async function recordCallNote(
   db: Db,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
-    contactId: string | null;
+    contactId: ContactId | null;
     body: string;
     externalId: string; // call:<retell_call_id> — idempotent across replays
     channelTsIso: string | null;
@@ -297,7 +299,7 @@ export async function recordCallNote(
  * note). True for the first caller; false once claimed. Throws on a database
  * error so the webhook answers non-2xx and the provider retries.
  */
-export async function claimCallNotification(db: Db, tenantId: string, callId: string): Promise<boolean> {
+export async function claimCallNotification(db: Db, tenantId: TenantId, callId: string): Promise<boolean> {
   const { data, error } = await db
     .from("calls")
     .update({ notified_at: new Date().toISOString() })
@@ -313,7 +315,7 @@ export async function claimCallNotification(db: Db, tenantId: string, callId: st
  * Claim the one start of a call's Live Activity on the workspace's phones (00221). True for the first delivery of its
  * call_started; false once claimed, so a redelivered one starts nothing twice. Throws on a database error.
  */
-export async function claimCallActivity(db: Db, tenantId: string, callId: string): Promise<boolean> {
+export async function claimCallActivity(db: Db, tenantId: TenantId, callId: string): Promise<boolean> {
   const { data, error } = await db
     .from("calls")
     .update({ activity_started_at: new Date().toISOString() })
@@ -326,7 +328,7 @@ export async function claimCallActivity(db: Db, tenantId: string, callId: string
 }
 
 /** The caller's name as the Live page gives it (their display name, else their WhatsApp name), or null. */
-export async function findCallerName(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+export async function findCallerName(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string | null> {
   const { data, error } = await db
     .from("contacts")
     .select("display_name, wa_profile_name")
@@ -342,7 +344,7 @@ export async function findCallerName(db: Db, tenantId: string, contactId: string
  * speaks into, ends or hands over a call for a token's workspace (the dashboard's route proved it under RLS; the edge
  * acts through the service role and proves it again). Null when the read failed: the door answers that, never a yes.
  */
-export async function isWorkspaceCall(db: Db, tenantId: string, retellCallId: string): Promise<boolean | null> {
+export async function isWorkspaceCall(db: Db, tenantId: TenantId, retellCallId: string): Promise<boolean | null> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("calls")
     .select("id")
@@ -362,7 +364,7 @@ export async function isWorkspaceCall(db: Db, tenantId: string, retellCallId: st
 export async function listCallsOwedAnAnalysis(
   db: Db,
   params: { nowMs: number; fromMs: number; toMs: number; minMs: number; limit: number },
-): Promise<Array<{ id: string; tenant_id: string; retell_call_id: string }>> {
+): Promise<Array<{ id: string; tenant_id: TenantId; retell_call_id: string }>> {
   const { data, error } = await db
     .from("calls")
     .select("id, tenant_id, retell_call_id")
@@ -385,7 +387,7 @@ export async function listCallsOwedAnAnalysis(
  * where an in-memory set corrected it on each. Throws on a database error: the delivery is retried, and the claim
  * still holds the correction to one.
  */
-export async function claimGuardCorrection(db: Db, tenantId: string, callId: string): Promise<boolean> {
+export async function claimGuardCorrection(db: Db, tenantId: TenantId, callId: string): Promise<boolean> {
   const { data, error } = await db
     .from("calls")
     .update({ guard_corrected_at: new Date().toISOString() })
@@ -402,7 +404,7 @@ export async function claimGuardCorrection(db: Db, tenantId: string, callId: str
  * claim (notified_at) says the notice is owed and kept; this says it was told. A write that fails is logged: the sweep
  * then asks the notice again, and notifyOnce finds it told and sends nothing twice.
  */
-export async function markCallNoticeTold(db: Db, tenantId: string, callId: string): Promise<void> {
+export async function markCallNoticeTold(db: Db, tenantId: TenantId, callId: string): Promise<void> {
   const { error } = await db
     .from("calls")
     .update({ notice_told_at: new Date().toISOString() })
@@ -421,7 +423,7 @@ export async function markCallNoticeTold(db: Db, tenantId: string, callId: strin
 export async function listCallsOwedANotice(
   db: Db,
   params: { nowMs: number; fromMs: number; toMs: number; limit: number },
-): Promise<Array<{ id: string; tenant_id: string; retell_call_id: string; status: string }>> {
+): Promise<Array<{ id: string; tenant_id: TenantId; retell_call_id: string; status: string }>> {
   const { data, error } = await platformWide(db)
     .from("calls")
     .select("id, tenant_id, retell_call_id, status")
@@ -436,7 +438,7 @@ export async function listCallsOwedANotice(
 }
 
 /** The canary's workspace as the canary needs it: whether it is ours, and the number its receptionist answers. */
-export async function findCanaryLine(db: Db, tenantId: string): Promise<{ ours: boolean; e164: string | null }> {
+export async function findCanaryLine(db: Db, tenantId: TenantId): Promise<{ ours: boolean; e164: string | null }> {
   const t = tenantDb(db, tenantId);
   const [tenant, line] = await Promise.all([
     db.from("tenants").select("ours").eq("id", tenantId).maybeSingle(),
@@ -506,7 +508,7 @@ export async function listVoiceDoorKnocks(db: Db, sinceIso: string): Promise<Rec
  */
 export async function getCanaryCallFacts(
   db: Db,
-  params: { tenantId: string; fromE164: string; sinceIso: string },
+  params: { tenantId: TenantId; fromE164: string; sinceIso: string },
 ): Promise<CanaryCallFacts> {
   const result = tenantDb(db, params.tenantId);
   const { data: row, error } = await result
@@ -553,7 +555,7 @@ export async function getCanaryCallFacts(
  * The provider's ids of a person's calls, read while their rows still stand: what the erasure asks the voice provider to
  * delete (decision 0036's provider leg, 00530). A read that fails throws: the leg is best effort, and its caller says so.
  */
-export async function listRetellCallIds(db: Db, tenantId: string, contactId: string): Promise<string[]> {
+export async function listRetellCallIds(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("calls")
     .select("retell_call_id")
@@ -567,7 +569,7 @@ export async function listRetellCallIds(db: Db, tenantId: string, contactId: str
  * Settings › Billing's minutes this month (decision 0092). Read as the member, under the events' own row security. A
  * read that fails throws.
  */
-export async function callSecondsSince(db: Db, tenantId: string, sinceIso: string): Promise<number> {
+export async function callSecondsSince(db: Db, tenantId: TenantId, sinceIso: string): Promise<number> {
   const { data, error } = await db
     .from("events")
     .select("data")
@@ -583,7 +585,7 @@ export async function callSecondsSince(db: Db, tenantId: string, sinceIso: strin
 }
 
 /** The workspace's newest inbound call that connected: who called, and for how long. */
-export const findLastAnsweredCall = async (db: Db, tenantId: string) =>
+export const findLastAnsweredCall = async (db: Db, tenantId: TenantId) =>
   db
     .from("calls")
     .select("from_e164, duration_ms")

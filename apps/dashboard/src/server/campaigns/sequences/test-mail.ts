@@ -26,11 +26,12 @@ import { log } from "../../shared/log";
 import { requireUuid } from "../../shared/request-guards";
 import type { RouteContext } from "../../shared/with-route";
 import { stepOfSequence } from "./doors";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A test waits this long for the edge to say it went: one mail through the provider, whose own bound is ten seconds. */
 const TEST_TIMEOUT_MS = 12_000;
 
-type Sequence = { id: string; tenant_id: string; name: string; starts: string };
+type Sequence = { id: string; tenant_id: TenantId; name: string; starts: string };
 
 /**
  * The test mail of a lead's step (the lead-to-sequence canvas's Preview as a real lead): its words as the chain holds them,

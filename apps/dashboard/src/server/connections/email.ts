@@ -50,6 +50,7 @@ import { dbRefusal, type RouteContext } from "../shared/with-route";
 import { listMailboxConnectionsWithDays, findMailboxesLeftToday, getMailboxesReadiness } from "./mailbox-connections";
 import { env } from "../shared/env";
 import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
 export function emailDomain(): string | null {
@@ -67,7 +68,7 @@ export function emailDomain(): string | null {
 export async function replyIdentityOf(
   supabase: SupabaseClient<Database>,
   params: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
     references: string[];
     /** The workspace's connected mailboxes, when the caller already read them for many threads. */
@@ -97,7 +98,7 @@ export async function replyIdentityOf(
 }
 
 /** The workspace's mailbox address on this deployment, as the composer names it; null with no mailbox or no email. */
-export async function findMailboxAddress(ctx: RouteContext, tenantId: string): Promise<string | null> {
+export async function findMailboxAddress(ctx: RouteContext, tenantId: TenantId): Promise<string | null> {
   const domain = emailDomain();
   const mailbox = domain ? await findMailboxOfTenant(ctx.supabase, tenantId) : null;
   return mailbox && domain ? hostedAddress(mailbox.local_part, domain) : null;
@@ -108,7 +109,7 @@ type ReplyIdentity = Awaited<ReturnType<typeof replyIdentityOf>>;
 /** Where an answer on each thread goes out from, as the freeze will decide it: once per thread, the mailboxes read once. */
 export async function replyIdentitiesOf(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   conversations: readonly string[],
 ): Promise<Map<string, Awaited<ReturnType<typeof replyIdentityOf>>>> {
   if (conversations.length === 0) return new Map();
@@ -118,7 +119,7 @@ export async function replyIdentitiesOf(
 /** The same, over the workspace's mailboxes as already read. */
 async function identitiesOver(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   conversations: readonly string[],
   rows: readonly MailboxConnectionRow[],
 ): Promise<Map<string, ReplyIdentity>> {
@@ -171,7 +172,7 @@ const signatureBy = (box: MailboxConnectionRow | null) => (box ? mailboxSignatur
  */
 export async function getSignedByThread(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   conversations: readonly string[],
 ): Promise<Map<string, string>> {
   const signed = new Map<string, string>();
@@ -187,7 +188,7 @@ export async function getSignedByThread(
 }
 
 /** What the member reading's first email to a person is signed with (decision 0081); null with none, or a read that fails. */
-export async function findSignedFirst(ctx: RouteContext, tenantId: string): Promise<string | null> {
+export async function findSignedFirst(ctx: RouteContext, tenantId: TenantId): Promise<string | null> {
   const rows = await listMailboxConnectionsOf(ctx.supabase, tenantId).catch(() => []);
   return signatureBy(signingMailboxOf(null, rows, ctx.userId))?.text ?? null;
 }
@@ -327,7 +328,7 @@ function mailboxDto(
  */
 export async function getEmailLine(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   mailbox: () => Promise<MailboxRow | null> = () => findMailboxOfTenant(supabase, tenantId),
 ): Promise<EmailSetupDto> {
   const domain = emailDomain();
@@ -343,7 +344,7 @@ export async function getEmailLine(
  */
 export async function getEmailSetup(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   mailbox?: () => Promise<MailboxRow | null>,
 ): Promise<EmailSetupDto> {
   // The mailboxes a reach-out writes from (decision 0056) are the business's own, through Google or Microsoft, so they
@@ -369,7 +370,7 @@ export async function getEmailSetup(
 /** An owner gives the workspace its address (00129). Judged here first, so the refusal says which kind of not-an-address it was. */
 export async function createMailbox(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: { localPart: string; fromName: string },
 ): Promise<MailboxDto> {
   const domain = emailDomain();
@@ -390,7 +391,7 @@ export async function createMailbox(
 /** An owner changes the name customers see. The mailbox must be this workspace's: another's is not found, whatever the door would say. */
 export async function renameMailbox(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   mailboxId: string,
   fromName: string,
 ): Promise<MailboxDto> {

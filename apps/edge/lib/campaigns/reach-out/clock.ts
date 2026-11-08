@@ -54,6 +54,7 @@ import { draftRefusalOf, isWaitRefusal } from "@chanlytics/contracts";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
 import type { Logger } from "../../shared/log.js";
 import { UNKNOWN_OUTCOME_MS } from "../../shared/unknown-outcome.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -112,7 +113,7 @@ async function closeRuns(
   out: ClockCounts,
   log: Logger,
   late: () => boolean,
-  tenantId?: string,
+  tenantId?: TenantId,
 ): Promise<void> {
   const closed = await listClosedRunSends(db, new Date(now.getTime() - CLAIM_STUCK_AFTER_MS), PAGE, tenantId);
   for (const { send: s, email_status } of closed) {
@@ -151,7 +152,7 @@ async function recheckDrafts(
   out: ClockCounts,
   log: Logger,
   late: () => boolean,
-  tenantId?: string,
+  tenantId?: TenantId,
 ): Promise<void> {
   // Every draft, a page at a time after the last read, while the tick has time: the drafts that may still go keep their
   // place at the head, so one page of the oldest would never reach a newer one refused since.
@@ -193,7 +194,7 @@ export async function runReachOutClock(
   log: Logger,
   started: number = Date.now(),
   /** One workspace to keep to; every workspace when absent, as the clock runs. A test proves it on its own. */
-  tenantId?: string,
+  tenantId?: TenantId,
 ): Promise<ClockCounts> {
   const out: ClockCounts = {
     reconciled: 0,

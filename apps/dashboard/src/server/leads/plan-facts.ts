@@ -11,6 +11,7 @@ import { listSearchCounts } from "./searches";
 import { getTenantFacts } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
 import { readNichePrior } from "@chanlytics/db/leads";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The platform-wide prior for a kind of business, or null when nobody has searched for one. */
 export async function findNichePrior(
@@ -34,7 +35,7 @@ export async function findNichePrior(
  */
 export async function planFacts(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   opts: { categoryKey?: string | null; now?: Date } = {},
 ): Promise<LeadPlanFacts> {
   // The month, and the day it renews, are the BUSINESS's (lead_month): a turn

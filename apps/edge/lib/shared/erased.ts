@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getErasureDigests, listErasedByEmail, listErasedByPhone } from "@chanlytics/db/people";
 import type { Database } from "@chanlytics/db/types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -22,7 +23,7 @@ interface Tombstone {
 }
 
 /** The tombstones among these numbers, by number. A read that fails throws: "we could not check" is not "nobody". */
-async function erasedTombstones(db: Db, tenantId: string, phones: string[]): Promise<Map<string, Tombstone>> {
+async function erasedTombstones(db: Db, tenantId: TenantId, phones: string[]): Promise<Map<string, Tombstone>> {
   const out = new Map<string, Tombstone>();
   const unique = [...new Set(phones.filter(Boolean))];
   if (!unique.length) return out;
@@ -45,7 +46,7 @@ async function erasedTombstones(db: Db, tenantId: string, phones: string[]): Pro
  */
 export async function wasErasedBeforeCall(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   phoneE164: string,
   startedAtIso: string,
 ): Promise<boolean> {
@@ -64,7 +65,7 @@ export async function wasErasedBeforeCall(
  */
 export async function wasErasedBeforeEmail(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   address: string,
   receivedAtIso: string,
 ): Promise<boolean> {

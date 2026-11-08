@@ -15,6 +15,7 @@ import type {
   ReachOutFedBy,
   ReachOutPeopleCountsDto,
   ReachOutSourceDto,
+  TenantId,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 
@@ -55,7 +56,7 @@ export async function recordLeadMemberLater(
 /** The pile's progress line: {total, added, closed, later, left} of a search's shown members, against a list. */
 export async function getLeadPileCounts(
   db: Db,
-  params: { tenantId: string; searchId: string; listId: string | null; cls?: string },
+  params: { tenantId: TenantId; searchId: string; listId: string | null; cls?: string },
 ): Promise<DoorResult<LeadPileCountsDto>> {
   const { data, error } = await db.rpc("lead_pile_counts", {
     p_tenant_id: params.tenantId,
@@ -69,7 +70,7 @@ export async function getLeadPileCounts(
 /** Who is in a reach-out (contracts ReachOutChainPeopleDto), or null for one the workspace does not hold. */
 export async function findReachOutChainPeople(
   db: Db,
-  params: { tenantId: string; rootId: string; limit?: number },
+  params: { tenantId: TenantId; rootId: string; limit?: number },
 ): Promise<DoorResult<ReachOutChainPeopleDto | null>> {
   const { data, error } = await db.rpc("reach_out_chain_people", {
     p_tenant_id: params.tenantId,
@@ -84,7 +85,7 @@ export async function findReachOutChainPeople(
  * search. The run reads it, so every first-email run of a list-fed chain waits for its owner. A read that fails throws:
  * not being able to tell is not "a search".
  */
-export async function getReachOutFedBy(db: Db, tenantId: string, searchId: string | null): Promise<ReachOutFedBy> {
+export async function getReachOutFedBy(db: Db, tenantId: TenantId, searchId: string | null): Promise<ReachOutFedBy> {
   if (!searchId) return "search";
   const { data, error } = await db
     .from("lead_searches")
@@ -97,7 +98,7 @@ export async function getReachOutFedBy(db: Db, tenantId: string, searchId: strin
 }
 
 /** Leads' Back today (00426 leads_back_today): the leads who asked to hear back on a day that has come. */
-export async function listLeadsBackToday(db: Db, tenantId: string): Promise<DoorResult<LeadBackDto[]>> {
+export async function listLeadsBackToday(db: Db, tenantId: TenantId): Promise<DoorResult<LeadBackDto[]>> {
   const { data, error } = await db.rpc("leads_back_today", { p_tenant_id: tenantId });
   return answer<LeadBackDto[]>(data, error);
 }
@@ -112,7 +113,7 @@ export async function leaveOutOfReachOut(
 }
 
 /** What a reach-out could start from (00426 reach_out_sources): the searches and lists with none yet, newest first. */
-export async function readReachOutSources(db: Db, tenantId: string): Promise<DoorResult<ReachOutSourceDto[]>> {
+export async function readReachOutSources(db: Db, tenantId: TenantId): Promise<DoorResult<ReachOutSourceDto[]>> {
   const { data, error } = await db.rpc("reach_out_sources", { p_tenant_id: tenantId });
   return answer<ReachOutSourceDto[]>(data, error);
 }
@@ -123,7 +124,7 @@ export async function readReachOutSources(db: Db, tenantId: string): Promise<Doo
  */
 export async function findReachOutPeopleCounts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<Record<string, ReachOutPeopleCountsDto> | null> {
   try {
     const { data, error } = await db.rpc("reach_out_people_counts", { p_tenant_id: tenantId });

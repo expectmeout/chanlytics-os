@@ -1,10 +1,12 @@
 /** Events: delivery. */
 
+import { heldContactId } from "@chanlytics/contracts";
 import { personName, type ActivationMilestone } from "@chanlytics/contracts";
 import type { Json } from "../../types";
 import { dbLog } from "../../shared/observe";
 import { recordEvent, rowOf, type Db, type EventData } from "./events";
 import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * A workspace reached a milestone (the product's analytics: the first line live, the first reply, the first lead
@@ -13,7 +15,7 @@ import { PERSON_FACE_COLUMNS } from "../../shared/person-columns";
  */
 export async function recordActivation(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   milestone: ActivationMilestone,
   via: string,
 ): Promise<boolean> {
@@ -40,7 +42,7 @@ export async function recordActivation(
 /** The event a delivery is about, as the ledger holds it: what a subscriber is handed. */
 export interface DeliveredEvent {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   kind: string;
   subject_type: string | null;
   subject_id: string | null;
@@ -68,7 +70,7 @@ export async function relayEvents(db: Db, limit: number): Promise<number> {
 }
 
 /** The event a delivery is about; null when the ledger no longer holds it (the evidence purge, 00115). */
-export async function findEventOfDelivery(db: Db, tenantId: string, eventId: string): Promise<DeliveredEvent | null> {
+export async function findEventOfDelivery(db: Db, tenantId: TenantId, eventId: string): Promise<DeliveredEvent | null> {
   const { data, error } = await db
     .from("events")
     .select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version, aggregate_version, causation_id")
@@ -94,7 +96,7 @@ export async function isSubscriptionPaused(db: Db, kind: string, subscriber: str
 /** The delivery row as it stands; null when the relay never wrote it. */
 export async function findDelivery(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   eventId: string,
   subscriber: string,
 ): Promise<DeliveryRow | null> {
@@ -113,7 +115,7 @@ export async function findDelivery(
 export async function settleDelivery(
   db: Db,
   details: {
-    tenantId: string;
+    tenantId: TenantId;
     eventId: string;
     subscriber: string;
     state: "done" | "failed" | "paused";
@@ -137,7 +139,7 @@ export async function settleDelivery(
  */
 export async function failOpenDelivery(
   db: Db,
-  details: { tenantId: string; eventId: string; subscriber: string; error: string },
+  details: { tenantId: TenantId; eventId: string; subscriber: string; error: string },
 ): Promise<boolean> {
   const { data, error } = await db
     .from("event_deliveries")
@@ -159,7 +161,7 @@ export async function failOpenDelivery(
  */
 export async function finishBroadcast(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
   tally: EventData["broadcast.sent"],
 ): Promise<boolean> {
@@ -235,7 +237,7 @@ async function readByIds<R>(
 /** A row that is a person's, or a thread's: which. */
 interface Theirs {
   id: string;
-  contact_id?: string | null;
+  contact_id?: ContactId | null;
   conversation_id?: string | null;
   /** A visit's own name for who it is with, where no person of the workspace is on it (a booking tool's email). */
   client_name?: string | null;
@@ -246,7 +248,7 @@ interface Theirs {
 /** The subjects that are a person's or a thread's, read by type: the first round. */
 async function theirsOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   idsOf: (type: string) => string[],
 ): Promise<Record<string, Theirs[]>> {
   const [conversation, call, deal, message, escalation, appointment] = await Promise.all([
@@ -273,7 +275,11 @@ async function theirsOf(
 }
 
 /** The subjects that name themselves: a list, a broadcast, a playbook, a lead, a search. */
-async function ownNames(db: Db, tenantId: string, idsOf: (type: string) => string[]): Promise<Record<string, string>> {
+async function ownNames(
+  db: Db,
+  tenantId: TenantId,
+  idsOf: (type: string) => string[],
+): Promise<Record<string, string>> {
   const [lists, broadcasts, playbooks, leads, searches] = await Promise.all([
     readByIds(idsOf("list"), (some) => db.from("segments").select("id, name").eq("tenant_id", tenantId).in("id", some)),
     readByIds(idsOf("broadcast"), (some) =>
@@ -299,7 +305,11 @@ async function ownNames(db: Db, tenantId: string, idsOf: (type: string) => strin
 }
 
 /** The Library messages the page's template subjects are, by `template:<id>` to their names: the ones that are still there to open. */
-async function libraryOf(db: Db, tenantId: string, idsOf: (type: string) => string[]): Promise<Record<string, string>> {
+async function libraryOf(
+  db: Db,
+  tenantId: TenantId,
+  idsOf: (type: string) => string[],
+): Promise<Record<string, string>> {
   const rows = await readByIds(idsOf("template"), (some) =>
     db.from("templates").select("id, name").eq("tenant_id", tenantId).is("hidden_at", null).in("id", some),
   );
@@ -312,7 +322,7 @@ async function libraryOf(db: Db, tenantId: string, idsOf: (type: string) => stri
  */
 export async function getActivitySubjects(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   subjects: readonly ActivitySubject[],
 ): Promise<ActivitySubjects> {
   const idsOf = (type: string): string[] => [...new Set(subjects.filter((s) => s.type === type).map((s) => s.id))];
@@ -337,8 +347,8 @@ export async function getActivitySubjects(
   for (const c of more) known.set(c.id, c.contact_id ?? null);
 
   /** The person a subject is, by its key. */
-  const personOf = new Map<string, string>();
-  for (const id of idsOf("contact")) personOf.set(`contact:${id}`, id);
+  const personOf = new Map<string, ContactId>();
+  for (const id of idsOf("contact")) personOf.set(`contact:${id}`, heldContactId(id));
   for (const [type, rows] of Object.entries(theirs))
     for (const r of rows) {
       const key = `${type}:${r.id}`;
@@ -350,7 +360,7 @@ export async function getActivitySubjects(
     }
 
   const rows = await readByIds([...new Set(personOf.values())], (some) =>
-    db.from("contacts").select(PERSON_FACE_COLUMNS).eq("tenant_id", tenantId).in("id", some),
+    db.from("contacts").select(PERSON_FACE_COLUMNS).eq("tenant_id", tenantId).in("id", some.map(heldContactId)),
   );
   const nameOf = new Map<string, string>();
   for (const p of rows) {

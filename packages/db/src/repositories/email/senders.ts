@@ -21,11 +21,12 @@ import {
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { dbLog } from "../../shared/observe";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** What the workspace said of its senders, by address or domain (contracts senderVerdictOf reads it). */
-export async function getMailboxSenderVerdicts(db: Db, tenantId: string): Promise<Map<string, MailboxSenderVerdict>> {
+export async function getMailboxSenderVerdicts(db: Db, tenantId: TenantId): Promise<Map<string, MailboxSenderVerdict>> {
   const { data, error } = await db.from("mailbox_senders").select("sender, verdict").eq("tenant_id", tenantId);
   if (error) throw new Error(`cannot read what the workspace said of its senders: ${error.message}`);
   return new Map((data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"] as const));
@@ -37,7 +38,7 @@ export async function getMailboxSenderVerdicts(db: Db, tenantId: string): Promis
  */
 export async function noteMailboxLeft(
   db: Db,
-  params: { tenantId: string; address: string; name: string | null; why: MailboxLeftWhy; at: string },
+  params: { tenantId: TenantId; address: string; name: string | null; why: MailboxLeftWhy; at: string },
 ): Promise<boolean> {
   const { error } = await db.rpc("mailbox_left_note", {
     p_tenant_id: params.tenantId,
@@ -58,7 +59,7 @@ const LEFT_SHOWN = 200;
  * The list under the mailbox (contracts MailboxSendersDto), on the member's session (RLS): who the mailbox left mail
  * from, newest first, leaving out a sender since said to be a person; and what the workspace said of senders.
  */
-export async function listMailboxSendersOf(db: Db, tenantId: string): Promise<MailboxSendersDto> {
+export async function listMailboxSendersOf(db: Db, tenantId: TenantId): Promise<MailboxSendersDto> {
   const [left, said] = await Promise.all([
     db
       .from("mailbox_left")
@@ -95,7 +96,7 @@ export async function listMailboxSendersOf(db: Db, tenantId: string): Promise<Ma
  */
 export async function sortMailboxSender(
   db: Db,
-  params: { tenantId: string; sender: string; verdict: MailboxSenderVerdict | null },
+  params: { tenantId: TenantId; sender: string; verdict: MailboxSenderVerdict | null },
 ): Promise<void> {
   const { error } = await db.rpc("mailbox_sender_sort", {
     p_tenant_id: params.tenantId,
@@ -116,7 +117,7 @@ const LEFT_BY_A_READING: ReadonlySet<string> = new Set(
 );
 
 /** What Chanlytics read these senders to want (00495), by address: only those it said something of. */
-async function readingsAbout(db: Db, tenantId: string, addresses: string[]): Promise<Map<string, string>> {
+async function readingsAbout(db: Db, tenantId: TenantId, addresses: string[]): Promise<Map<string, string>> {
   if (!addresses.length) return new Map();
   const { data, error } = await db
     .from("mailbox_sender_reads")
@@ -130,7 +131,7 @@ async function readingsAbout(db: Db, tenantId: string, addresses: string[]): Pro
 const isSenderKind = (v: unknown): v is SenderKind => (SENDER_KINDS as readonly unknown[]).includes(v);
 
 /** What Chanlytics read a sender to be (00495), or null where it has not read them. Throws when it cannot be asked. */
-export async function findSenderReading(db: Db, tenantId: string, address: string): Promise<SenderReading | null> {
+export async function findSenderReading(db: Db, tenantId: TenantId, address: string): Promise<SenderReading | null> {
   const { data, error } = await db
     .from("mailbox_sender_reads")
     .select("kind, about")
@@ -147,7 +148,7 @@ export async function findSenderReading(db: Db, tenantId: string, address: strin
  */
 export async function keepSenderReading(
   db: Db,
-  params: { tenantId: string; address: string; reading: SenderReading; at: string },
+  params: { tenantId: TenantId; address: string; reading: SenderReading; at: string },
 ): Promise<boolean> {
   const { error } = await db.from("mailbox_sender_reads").upsert(
     {
@@ -193,7 +194,7 @@ const SAID_READ = 20;
  * mailbox's own mail made, and one an import brought, is not: the first notice from a program made its person, and
  * every later one came from "someone known" (30 Oct 2026). Throws when it cannot be asked.
  */
-export async function getTalksWith(db: Db, tenantId: string, address: string): Promise<boolean> {
+export async function getTalksWith(db: Db, tenantId: TenantId, address: string): Promise<boolean> {
   const { data: people, error } = await db
     .from("contacts")
     .select("id, acquired_via")
@@ -224,7 +225,7 @@ export async function getTalksWith(db: Db, tenantId: string, address: string): P
  * sender_domain_said_automated): a yes or a no, never who. The caller never asks of a free-mail domain. Throws when it
  * cannot be asked.
  */
-export async function recordDomainSaidAutomated(db: Db, tenantId: string, domain: string): Promise<boolean> {
+export async function recordDomainSaidAutomated(db: Db, tenantId: TenantId, domain: string): Promise<boolean> {
   const { data, error } = await db.rpc("sender_domain_said_automated", { p_tenant_id: tenantId, p_domain: domain });
   if (error) throw new Error(`cannot ask what others said of the domain: ${error.message}`);
   return data === true;
@@ -237,7 +238,12 @@ const CAME_IN_READ_MAX = 1000;
  * The people whose email came in through this mailbox since `since`: its import's and its sync's alike, each stamped
  * with the mailbox (meta.mailbox_id), by when the email was written.
  */
-export async function getMailboxPeopleSince(db: Db, tenantId: string, mailboxId: string, since: Date): Promise<number> {
+export async function getMailboxPeopleSince(
+  db: Db,
+  tenantId: TenantId,
+  mailboxId: string,
+  since: Date,
+): Promise<number> {
   const { data, error } = await db
     .from("messages")
     .select("contact_id")
@@ -255,7 +261,7 @@ export async function getMailboxPeopleSince(db: Db, tenantId: string, mailboxId:
  * The senders whose mail the workspace's mailboxes left where it was since `since`, leaving out one since said to be a
  * person, as the list under the mailbox does (listMailboxSendersOf).
  */
-export async function getMailboxLeftSince(db: Db, tenantId: string, since: Date): Promise<number> {
+export async function getMailboxLeftSince(db: Db, tenantId: TenantId, since: Date): Promise<number> {
   const [left, verdicts] = await Promise.all([
     db
       .from("mailbox_left")

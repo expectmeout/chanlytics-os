@@ -25,6 +25,7 @@ import { dbLog } from "../../shared/observe";
 import { readAnswer } from "../../shared/read-json";
 import { z } from "zod";
 import { recordOrEmpty } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -52,7 +53,7 @@ export type ControlOutcome = (typeof CONTROL_OUTCOMES)[number];
  */
 export async function claimControl(
   db: Db,
-  params: { tenantId: string; conversationId: string; holder: ControlHolder; seconds: number },
+  params: { tenantId: TenantId; conversationId: string; holder: ControlHolder; seconds: number },
 ): Promise<ControlOutcome> {
   const { data, error } = await db.rpc("claim_conversation_control", {
     p_tenant_id: params.tenantId,
@@ -73,7 +74,7 @@ export async function claimControl(
  */
 export async function releaseControl(
   db: Db,
-  params: { tenantId: string; conversationId: string; holder: ControlHolder },
+  params: { tenantId: TenantId; conversationId: string; holder: ControlHolder },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("release_conversation_control", {
     p_tenant_id: params.tenantId,
@@ -93,7 +94,7 @@ export async function releaseControl(
  */
 export async function claimReplyTurn(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   messageId: string,
 ): Promise<boolean> {
@@ -122,7 +123,7 @@ export async function holdsReplyTurn(db: Db, conversationId: string, messageId: 
  */
 export async function readLiveHold(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
 ): Promise<{ control_kind: string | null; control_ref: string | null; control_until: string | null } | null> {
   const { data, error } = await db
@@ -137,7 +138,7 @@ export async function readLiveHold(
 
 /** What the door names a take-over or a hand-back by: the thread, and what the request carried (the `via`, an undo link). */
 interface MemberMove {
-  tenantId: string;
+  tenantId: TenantId;
   conversationId: string;
   via: string | null;
   undoOf: string | null;
@@ -275,7 +276,7 @@ export interface WithdrawReason {
  */
 export async function withdrawQueued(
   db: Db,
-  params: { tenantId: string; messageIds: string[]; reason: WithdrawReason | null },
+  params: { tenantId: TenantId; messageIds: string[]; reason: WithdrawReason | null },
 ): Promise<string[]> {
   const { data, error } = await db.rpc("withdraw_queued", {
     p_tenant_id: params.tenantId,
@@ -289,7 +290,7 @@ export async function withdrawQueued(
 /** The receptionist's queued drafts on a thread, all but `keepMessageId`, through the one door (00387 withdraw_ai_drafts). */
 export async function withdrawAiDrafts(
   db: Db,
-  params: { tenantId: string; conversationId: string; reason: WithdrawReason; keepMessageId: string | null },
+  params: { tenantId: TenantId; conversationId: string; reason: WithdrawReason; keepMessageId: string | null },
 ): Promise<string[]> {
   const { data, error } = await db.rpc("withdraw_ai_drafts", {
     p_tenant_id: params.tenantId,
@@ -307,7 +308,7 @@ export async function withdrawAiDrafts(
  */
 export async function withdrawMemberDrafts(
   db: Db,
-  params: { tenantId: string; conversationId: string },
+  params: { tenantId: TenantId; conversationId: string },
 ): Promise<number> {
   const { data, error } = await db.rpc("member_withdraw_drafts", {
     p_tenant_id: params.tenantId,
@@ -320,7 +321,7 @@ export async function withdrawMemberDrafts(
 /** On a member's own session (00387 member_withdraw_message): one queued message withdrawn with its send job. */
 export async function withdrawMemberMessage(
   db: Db,
-  params: { tenantId: string; messageId: string; reason: WithdrawReason | null },
+  params: { tenantId: TenantId; messageId: string; reason: WithdrawReason | null },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("member_withdraw_message", {
     p_tenant_id: params.tenantId,
@@ -346,7 +347,7 @@ export interface CalledBack {
  */
 export async function callBackMessage(
   db: Db,
-  params: { tenantId: string; messageId: string; via: string | null; undoOf: string | null },
+  params: { tenantId: TenantId; messageId: string; via: string | null; undoOf: string | null },
 ): Promise<CalledBack | null> {
   const { data, error } = await db.rpc("message_call_back", {
     p_tenant_id: params.tenantId,
@@ -369,7 +370,7 @@ export async function callBackMessage(
  */
 export async function sendQueuedNow(
   db: Db,
-  params: { tenantId: string; messageId: string; via: string | null; undoOf: string | null },
+  params: { tenantId: TenantId; messageId: string; via: string | null; undoOf: string | null },
 ): Promise<CalledBack | null> {
   const { data, error } = await db.rpc("message_send_now", {
     p_tenant_id: params.tenantId,
@@ -393,7 +394,7 @@ export async function sendQueuedNow(
  */
 export async function openEscalation(
   db: Db,
-  params: { tenantId: string; conversationId: string; reason: string; details: string },
+  params: { tenantId: TenantId; conversationId: string; reason: string; details: string },
 ): Promise<"opened" | "changed" | "refreshed"> {
   const { data, error } = await db.rpc("escalation_open", {
     p_tenant_id: params.tenantId,
@@ -416,7 +417,7 @@ export async function openEscalation(
  */
 export async function settleByEcho(
   db: Db,
-  params: { tenantId: string; externalId: string | null; settles: readonly string[] },
+  params: { tenantId: TenantId; externalId: string | null; settles: readonly string[] },
 ): Promise<boolean> {
   if (!params.externalId) return true;
   const { error } = await db.rpc("conversation_echo_settles", {

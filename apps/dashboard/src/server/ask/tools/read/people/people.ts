@@ -34,8 +34,9 @@ import { threadState } from "../../../thread-state";
 import { unread, noteRow, str, readUnlessNotFound } from "../../context/tool-reads";
 import { defineActions, readAction, type ToolContext } from "../../context/tool-defs";
 import { searchPeople, visitRow } from "./rule-members";
+import type { ContactId } from "@chanlytics/contracts";
 
-async function getPerson(toolContext: ToolContext, input: { contact_id: string }): Promise<unknown> {
+async function getPerson(toolContext: ToolContext, input: { contact_id: ContactId }): Promise<unknown> {
   const id = str(input.contact_id);
   if (!UUID.test(id)) return { error: "contact_id must be an id a tool returned" };
   // The person as their page reads them (readers/person.ts): the profile's one round of reads, once a turn, the

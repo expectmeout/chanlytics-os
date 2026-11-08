@@ -16,6 +16,7 @@
  *
  * Cross-workspace: a person's profile belongs to no workspace, and the sweep and Health read every workspace's by name.
  */
+import { heldTenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   anthropicActed,
@@ -32,6 +33,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -47,7 +49,7 @@ const statusOfRow = (raw: unknown): AnthropicEnforcementStatus => enforcementSta
 export async function findAnthropicProfile(db: Db, subject: ProfiledSubject): Promise<AnthropicProfileHeld | null> {
   const q = db.from("anthropic_profiles").select("profile_id, enforcement_status");
   const { data, error } = await (
-    subject.kind === "person" ? q.eq("user_id", subject.userId) : q.eq("tenant_id", subject.tenantId)
+    subject.kind === "person" ? q.eq("user_id", subject.userId) : q.eq("tenant_id", heldTenantId(subject.tenantId))
   ).maybeSingle();
   if (error) throw new Error(`anthropic_profiles: ${error.message}`);
   return data ? { profile_id: data.profile_id, enforcement_status: statusOfRow(data.enforcement_status) } : null;
@@ -86,7 +88,7 @@ export interface AnthropicProfileRow {
   id: string;
   kind: AnthropicProfileKind;
   user_id: string | null;
-  tenant_id: string | null;
+  tenant_id: TenantId | null;
   reference_id: string;
   profile_id: string | null;
   claimed_at: string;
@@ -145,7 +147,7 @@ export async function setAnthropicEnforcement(
   if (error) throw new Error(`anthropic_profiles: ${error.message}`);
 }
 
-export async function findWorkspaceModelStanding(db: Db, tenantId: string): Promise<ModelStanding | null> {
+export async function findWorkspaceModelStanding(db: Db, tenantId: TenantId): Promise<ModelStanding | null> {
   const row = await findAnthropicProfile(db, { kind: "workspace", tenantId });
   return row ? modelStandingOf(row.enforcement_status) : null;
 }

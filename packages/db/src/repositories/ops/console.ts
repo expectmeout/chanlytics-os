@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { platformWide } from "../../shared/tenant-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -16,7 +17,7 @@ export const readPlatformMetrics = async (db: Db, days: number) => db.rpc("platf
 export const readPlatformOverview = async (db: Db) => db.rpc("platform_overview");
 
 /** One workspace's row as the back office shows it, or none. */
-export const findWorkspaceForConsole = async (db: Db, tenantId: string) =>
+export const findWorkspaceForConsole = async (db: Db, tenantId: TenantId) =>
   platformWide(db)
     .from("tenants")
     .select("id, slug, name, status, timezone, created_at")
@@ -24,7 +25,7 @@ export const findWorkspaceForConsole = async (db: Db, tenantId: string) =>
     .maybeSingle();
 
 /** One workspace's newest events, `limit` of them: their kind and subject, never their data. */
-export const listWorkspaceEvents = async (db: Db, tenantId: string, limit: number) =>
+export const listWorkspaceEvents = async (db: Db, tenantId: TenantId, limit: number) =>
   db
     .from("events")
     .select("kind, category, subject_type, created_at")

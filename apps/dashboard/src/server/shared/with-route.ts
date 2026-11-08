@@ -38,6 +38,7 @@ import { log, noteTenant, withRequestId } from "./log";
 import { tenantFactsOf } from "./tenant";
 import { listMyMemberships } from "@chanlytics/db/workspace";
 import { findPlanStanding } from "@chanlytics/db/billing";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Whether the Auth server still knows a session: `live`, `gone` (revoked, signed out elsewhere, its user deleted), or
@@ -280,7 +281,7 @@ export function answerOfThrow(
 /* ---- Control plane (Session A): who is acting, on which tenant, as what ---- */
 
 export interface MemberContext {
-  tenantId: string;
+  tenantId: TenantId;
   role: Role;
   /**
    * The workspace's name and clock, read with the membership, from the same row a turn's facts reader reads

@@ -18,6 +18,7 @@ import type { InboundMessage } from "@chanlytics/channels/inbound";
 import type { IngestResult, RoutedChannel } from "@chanlytics/db/channels";
 import { answerInbound, recordInbound, type InboundCarrier } from "@chanlytics/core";
 import { corePorts, realPorts, type InboundPorts } from "./ports.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A WhatsApp message in the one shape, as inboundFromWhatsapp makes it. */
 type OnWhatsapp = InboundMessage & { channel: "whatsapp" };
@@ -32,7 +33,7 @@ type OnInstagram = InboundMessage & { channel: "instagram" };
  */
 export async function handleInbound(
   arrival: { inbound: OnWhatsapp; carrier: null } | { inbound: OnText; carrier: InboundCarrier<"sms"> },
-  tenantId: string | null,
+  tenantId: TenantId | null,
   routed: RoutedChannel | null,
   isEnvDefault: boolean,
   /** Everything outside the verb: the real modules unless a test says otherwise (./ports.ts). */
@@ -48,7 +49,7 @@ export async function handleInbound(
  */
 export async function resumeInbound(
   inbound: OnText,
-  tenantId: string,
+  tenantId: TenantId,
   routed: RoutedChannel,
   carrier: InboundCarrier<"sms">,
   ports: InboundPorts = realPorts(),
@@ -63,7 +64,7 @@ export async function resumeInbound(
  */
 export async function recordInboundMessage(
   inbound: OnText,
-  tenantId: string,
+  tenantId: TenantId,
   routed: RoutedChannel,
   carrier: InboundCarrier<"sms">,
   ports: InboundPorts = realPorts(),

@@ -44,11 +44,12 @@ import { serviceDbIfConfigured } from "../shared/service-db";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The workspace's mailboxes, removed ones aside, oldest first, as the pages are told of them. */
 export async function listMailboxConnections(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<MailboxConnectionDto[]> {
   return (await listMailboxConnectionsOf(db, tenantId)).map((r) => mailboxDtoOf(r));
 }
@@ -62,7 +63,7 @@ export async function listMailboxConnections(
  */
 export async function listMailboxConnectionsWithDays(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
 ): Promise<MailboxConnectionDto[]> {
   const rows = await listMailboxConnectionsOf(db, tenantId);
@@ -84,7 +85,7 @@ export async function listMailboxConnectionsWithDays(
 /** The senders whose mail the workspace's mailboxes left there in the last day (00483), on this member's read; null unread. */
 export async function findMailboxesLeftToday(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
 ): Promise<number | null> {
   return getMailboxLeftSince(db, tenantId, new Date(now.getTime() - DAY_MS)).catch(() => null);
@@ -213,7 +214,7 @@ function mailboxAnswered(a: MailboxAnswer, doing: string): MailboxConnectionDto 
 }
 
 /** Pause or unpause: its owner's say, whatever its health. */
-export async function pauseMailbox(tenantId: string, userId: string, id: string, pause: boolean) {
+export async function pauseMailbox(tenantId: TenantId, userId: string, id: string, pause: boolean) {
   const a = await callEdgeMailboxes({
     op: pause ? "pause" : "unpause",
     tenant_id: tenantId,
@@ -224,7 +225,7 @@ export async function pauseMailbox(tenantId: string, userId: string, id: string,
 }
 
 /** Resume one its own mail held: sending again, its count started again, its ramp where it was. */
-export async function resumeMailbox(tenantId: string, userId: string, id: string) {
+export async function resumeMailbox(tenantId: TenantId, userId: string, id: string) {
   return mailboxAnswered(
     await callEdgeMailboxes({ op: "resume", tenant_id: tenantId, user_id: userId, mailbox_id: id }),
     "resumed",
@@ -236,7 +237,7 @@ export async function resumeMailbox(tenantId: string, userId: string, id: string
  * last six months of one connected from now on.
  */
 export async function getMailboxHistory(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   id: string,
   act: "stop" | "resume" | "bring",
@@ -248,7 +249,7 @@ export async function getMailboxHistory(
 }
 
 /** Its domain's records read again, now. */
-export async function checkMailbox(tenantId: string, userId: string, id: string) {
+export async function checkMailbox(tenantId: TenantId, userId: string, id: string) {
   return mailboxAnswered(
     await callEdgeMailboxes({ op: "check", tenant_id: tenantId, user_id: userId, mailbox_id: id }),
     "checked",
@@ -257,7 +258,7 @@ export async function checkMailbox(tenantId: string, userId: string, id: string)
 
 /** The name it sends as, what it signs with (its own words, none, or Gmail's: 00487), its owner's cap. */
 export async function setMailbox(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   id: string,
   state: { from_name?: string; signature?: string | null; signature_off?: boolean; daily_cap?: number },
@@ -269,13 +270,13 @@ export async function setMailbox(
 }
 
 /** An email from it to itself, through its own provider. */
-export async function testMailbox(tenantId: string, userId: string, id: string): Promise<void> {
+export async function testMailbox(tenantId: TenantId, userId: string, id: string): Promise<void> {
   const a = await callEdgeMailboxes({ op: "test", tenant_id: tenantId, user_id: userId, mailbox_id: id }, 40_000);
   if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "tested");
 }
 
 /** Removed: its watch ended, its grant given back, its token gone. What it sent stays in its threads. */
-export async function removeMailbox(tenantId: string, userId: string, id: string): Promise<void> {
+export async function removeMailbox(tenantId: TenantId, userId: string, id: string): Promise<void> {
   const a = await callEdgeMailboxes({ op: "remove", tenant_id: tenantId, user_id: userId, mailbox_id: id });
   if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "removed");
 }

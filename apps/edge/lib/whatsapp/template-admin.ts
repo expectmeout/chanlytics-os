@@ -24,7 +24,7 @@ import {
 } from "./meta-templates.js";
 
 import { logger } from "../shared/log.js";
-import { UUID, NUMBERED_SLOT, textOrEmpty } from "@chanlytics/contracts";
+import { UUID, NUMBERED_SLOT, isTenantId, textOrEmpty } from "@chanlytics/contracts";
 import { findWhatsAppAccount } from "@chanlytics/db/channels";
 import {
   deleteTemplateRow,
@@ -34,6 +34,7 @@ import {
   saveTemplateRows,
 } from "@chanlytics/db/campaigns";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 const NAME = /^[a-z0-9_]{1,512}$/;
 
@@ -76,7 +77,7 @@ export async function createWhatsappTemplate(
   const examples = Array.isArray(body.examples) ? body.examples.map(String) : [];
   // The words a person gave each slot, kept on the row so the composers can say them.
   const labels = Array.isArray(body.labels) ? body.labels.map((l: unknown) => textOrEmpty(l).trim().slice(0, 40)) : [];
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant");
   if (!NAME.test(name) || !language || !["MARKETING", "UTILITY"].includes(category) || !components || !text) {
     return refuse(400, "bad_template");
   }
@@ -150,7 +151,7 @@ export async function deleteWhatsappTemplate(
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   const templateId = typeof body.template_id === "string" ? body.template_id : "";
-  if (!UUID.test(tenantId) || !UUID.test(templateId)) return refuse(400, "bad_request");
+  if (!isTenantId(tenantId) || !UUID.test(templateId)) return refuse(400, "bad_request");
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
@@ -216,7 +217,7 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant");
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
@@ -253,7 +254,7 @@ type TemplatesSynced =
  */
 export async function syncTemplates(
   db: NonNullable<ReturnType<typeof pg>>,
-  tenantId: string,
+  tenantId: TenantId,
   wabaId: string,
 ): Promise<TemplatesSynced> {
   const log = logger();

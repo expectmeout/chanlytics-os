@@ -3,7 +3,7 @@
  * from handlers.ts (Reach out Part 2.5), which re-exports its public names.
  */
 import type { ReceivedEmail } from "@chanlytics/channels/email";
-import type { FeedNames, FreedTimeOffer, JobKind, JobNews, PushMessage, Unread } from "@chanlytics/contracts";
+import type { FeedNames, FreedTimeOffer, JobKind, JobNews, PushMessage, Unread, TenantId } from "@chanlytics/contracts";
 import type {
   BookingNoticePorts,
   EmailIngestPorts,
@@ -65,7 +65,7 @@ export interface JobContext {
    * provider refusing sends with 401 or 403 is credentials, not content.
    * Optional so a test context need not supply one. The workspace rides along, so the pager can leave ours out (00469).
    */
-  page?: (key: string, subject: string, body: string, tenantId?: string | null) => Promise<unknown>;
+  page?: (key: string, subject: string, body: string, tenantId?: TenantId | null) => Promise<unknown>;
   /**
    * Run a line's provisioning saga, or resume it. INJECTED, not imported:
    * the provider and the receptionist's credentials live on the edge, and a
@@ -118,9 +118,9 @@ export interface JobContext {
     /** One received email by the provider's id; null when the provider has none such. Throws when it cannot be asked. */
     fetch: (receivedId: string) => Promise<ReceivedEmail | null>;
     /** Was this email received before a person with this address asked to be forgotten (00125's digest)? */
-    erasedBefore: (tenantId: string, address: string, receivedAtIso: string) => Promise<boolean>;
+    erasedBefore: (tenantId: TenantId, address: string, receivedAtIso: string) => Promise<boolean>;
     /** Tell the workspace's people an email is waiting: the edge's notify, addressed from that workspace. Never throws. */
-    tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
+    tell: (tenantId: TenantId, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
   };
   /**
    * The intake of the mailboxes businesses connected (decision 0056), as the edge holds it: a message fetched from the
@@ -130,8 +130,8 @@ export interface JobContext {
    */
   mailboxIntake?: {
     fetch: (connectionId: string, providerId: string) => Promise<ReceivedEmail | null>;
-    erasedBefore: (tenantId: string, address: string, receivedAtIso: string) => Promise<boolean>;
-    tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
+    erasedBefore: (tenantId: TenantId, address: string, receivedAtIso: string) => Promise<boolean>;
+    tell: (tenantId: TenantId, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
   };
   /**
    * The owner's calendar feed, as the edge reads it (kept five minutes). INJECTED like email's intake: the fetch, its cache
@@ -143,7 +143,7 @@ export interface JobContext {
      * What the workspace's calendar feed names now, over the span it was read for; null where the workspace has no feed to
      * ask. Throws when the feed cannot be read: a reminder for a calendar event waits for the next batch (core broadcast).
      */
-    feedNames: (tenantId: string, now: Date) => Promise<FeedNames | null>;
+    feedNames: (tenantId: TenantId, now: Date) => Promise<FeedNames | null>;
   };
   /**
    * The lead finder's pipeline (00140), as the edge holds it. INJECTED like
@@ -179,12 +179,12 @@ export interface JobContext {
       system: string,
       user: string,
       deadline: number,
-      forWhom: { tenantId: string; subjectId: string },
+      forWhom: { tenantId: TenantId; subjectId: string },
     ) => Promise<ReplyAsked>;
     /** One read taken, or why not: no model, a workspace that may not spend, the day's reads spent. */
-    mayRead: (tenantId: string, at: Date) => Promise<Exclude<Unread, "model_failed"> | null>;
+    mayRead: (tenantId: TenantId, at: Date) => Promise<Exclude<Unread, "model_failed"> | null>;
     /** Tell the workspace once (notifyOnce): true only when the owner was told. */
-    tell: (tenantId: string, notice: ReplyNotice) => Promise<boolean>;
+    tell: (tenantId: TenantId, notice: ReplyNotice) => Promise<boolean>;
     /**
      * The receptionist's draft of an answer (decision 0017): its text, or the gate that stopped it or that it was not
      * drafted. Throws when it failed; no call runs past `ask.deadline`.
@@ -202,15 +202,15 @@ export interface JobContext {
       system: string,
       user: string,
       deadline: number,
-      forWhom: { tenantId: string; subjectId: string },
+      forWhom: { tenantId: TenantId; subjectId: string },
     ) => Promise<unknown>;
     /** Why the model may not be asked now, or null when it may. */
-    mayRead: (tenantId: string, at: Date) => Promise<"no_model" | "may_not_spend" | null>;
+    mayRead: (tenantId: TenantId, at: Date) => Promise<"no_model" | "may_not_spend" | null>;
     /** The person the booking is for, matched or made by the calendar sweep's rules; null when nobody can be. */
     personFor: BookingNoticePorts["personFor"];
     /** Tell the workspace a notice is held for a person (the bell, once per delivery and hold). Never throws. */
     tell: (
-      tenantId: string,
+      tenantId: TenantId,
       notice: { noticeId: string; tool: string; subject: string | null; reason: string; hold: string },
     ) => Promise<void>;
   };
@@ -265,7 +265,7 @@ export interface JobContext {
    */
   freedTimes?: {
     /** The workspace's running step runs for the freed time, once per appointment. Throws when it could not be asked. */
-    offer: (tenantId: string, freed: { from: string; start: number; end: number }) => Promise<FreedTimeOffer>;
+    offer: (tenantId: TenantId, freed: { from: string; start: number; end: number }) => Promise<FreedTimeOffer>;
   };
   /**
    * A lead's own receptionist built (00497, decision 0079), as the edge holds it: the website read and the model's key
@@ -300,7 +300,7 @@ export interface JobContext {
 
 export interface ClaimedJob {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   kind: string;
   payload: Record<string, unknown>;
   /**

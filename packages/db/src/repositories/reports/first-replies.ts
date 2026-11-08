@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -17,7 +18,7 @@ type Db = SupabaseClient<Database>;
  */
 export async function listFirstReplies(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   since: Date,
 ): Promise<{ asked_at: string; s: number; hold: number }[]> {
   const { data, error } = await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: since.toISOString() });

@@ -32,6 +32,7 @@ import { serviceDb } from "../shared/service-db";
 import { getTenantFacts } from "../shared/tenant";
 import { requireSecondFactor, type RouteContext } from "../shared/with-route";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Team operations: the roster, an invitation, a role change, a removal, and the sign-in that completes an invitation.
@@ -113,7 +114,7 @@ async function teamCall(
  * lets this drop the service role rather than merely parallelise it. Fewer
  * privileged paths is the point; the speed is a side effect.
  */
-export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: string) {
+export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: TenantId) {
   const [members, invites] = await Promise.all([
     readTeamRoster(db, tenantId),
     // Plain RLS: invitations_member_read already scopes this to the caller's
@@ -135,7 +136,7 @@ export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: stri
 }
 
 export async function inviteMember(
-  tenantId: string,
+  tenantId: TenantId,
   invitedBy: string,
   email: string,
   role: "operator" | "viewer",
@@ -208,7 +209,7 @@ export async function inviteMember(
 
 export async function setMemberRole(
   ctx: TeamCtx,
-  tenantId: string,
+  tenantId: TenantId,
   membershipId: string,
   role: string,
   svc: SupabaseClient<Database> = serviceDb(),
@@ -232,7 +233,7 @@ export async function setMemberRole(
 
 export async function removeMember(
   ctx: TeamCtx,
-  tenantId: string,
+  tenantId: TenantId,
   /** A membership or an open invitation; nobody removes themself (the actor is ctx's user). */
   id: string,
   svc: SupabaseClient<Database> = serviceDb(),
@@ -264,7 +265,7 @@ const EMAIL_HAS_ACCOUNT = "email_exists";
  */
 export async function resendInvite(
   ctx: TeamCtx,
-  tenantId: string,
+  tenantId: TenantId,
   invitationId: string,
   svc: SupabaseClient<Database> = serviceDb(),
 ) {
@@ -310,7 +311,7 @@ export async function resendInvite(
  * team_remove refuses a removal of oneself and is an owner's alone, so an operator who had left the business had to
  * ask to be taken off.
  */
-export async function leaveTeam(ctx: TeamCtx, tenantId: string, svc: SupabaseClient<Database> = serviceDb()) {
+export async function leaveTeam(ctx: TeamCtx, tenantId: TenantId, svc: SupabaseClient<Database> = serviceDb()) {
   try {
     await teamCall(
       leaveWorkspaceTeam(svc, { p_tenant_id: tenantId, p_actor: ctx.userId, ...(ctx.via ? { p_via: ctx.via } : {}) }),
@@ -327,7 +328,7 @@ export async function leaveTeam(ctx: TeamCtx, tenantId: string, svc: SupabaseCli
 /** An invitation still open for an address: where it seats them, and as what. */
 interface InviteToAccept {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   role: MembershipRole;
 }
 
@@ -431,7 +432,7 @@ export async function listSeats(db: SupabaseClient<Database>, userId: string): P
  * sees a seat go rather than a name vanish from the roster with no trace. Who they were is not kept: the account is
  * gone, and the id names no row. As the service role: their own session ended with the account.
  */
-export async function recordLeft(tenantIds: readonly string[], userId: string): Promise<void> {
+export async function recordLeft(tenantIds: readonly TenantId[], userId: string): Promise<void> {
   const db = serviceDb();
   for (const tenantId of tenantIds)
     await emitEvent(db, tenantId, "member.left", "workspace", tenantId, { by: userId, how: "account_deleted" });

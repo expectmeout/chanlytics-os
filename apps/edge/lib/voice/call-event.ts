@@ -45,6 +45,7 @@ import {
 import type { NotifyMessage } from "../shared/alerts/notify.js";
 import type { ForwardingCall } from "./forwarding.js";
 import type { CallForActivity } from "./call-activity.js";
+import type { ContactId } from "@chanlytics/contracts";
 
 /** The delivery as the door read it: the event, the call as the provider shaped it, and the row's view of it. */
 interface CallEvent {
@@ -93,7 +94,7 @@ export type CallStep =
   | {
       kind: "note";
       conversationId: string;
-      contactId: string | null;
+      contactId: ContactId | null;
       body: string;
       externalId: string;
       channelTsIso: string | null;

@@ -5,6 +5,7 @@ import { deployment } from "../shared/env";
 import { callEdge, edgeConfigured } from "../shared/edge";
 import { log } from "../shared/log";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A test waits this long for the edge to say it was sent: one mail through the provider, whose own bound is ten seconds. */
 const TEST_TIMEOUT_MS = 12_000;
@@ -15,7 +16,7 @@ const TEST_TIMEOUT_MS = 12_000;
  */
 export async function saveMemberPushOff(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   body: unknown,
 ): Promise<{ push_off: PushKind[] }> {
   const parsed = parseMemberAlerts(body);
@@ -40,7 +41,7 @@ interface AlertTestAnswer {
  * Only where providers are live: a preview or a laptop sends nobody mail, and says so. The edge refusing, or not
  * answering, is "not sent", never a guess that it went.
  */
-export async function sendAlertTest(tenantId: string, userId: string): Promise<AlertTestAnswer> {
+export async function sendAlertTest(tenantId: TenantId, userId: string): Promise<AlertTestAnswer> {
   if (!deployment.providersLive || !edgeConfigured()) return { sent: false, to: 0, why: "not_live" };
   const answer = await callEdge(
     "/api/admin/email/alert-test",

@@ -34,6 +34,7 @@ import { pageOperator } from "../shared/alerts/page-operator.js";
 import { whatsappSender, type InboundPorts as CoreInboundPorts } from "@chanlytics/core";
 import { logger } from "../shared/log.js";
 import { env } from "../shared/env.js";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "leads" | "filing"> {
   /** The database, or null when this deployment persists nothing. */
@@ -45,8 +46,8 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
     /** By the person's own row, for a wire with no number (a DM); a test's world may leave it out. */
     readById?: (
       db: SupabaseClient<Database>,
-      tenantId: string,
-      contactId: string,
+      tenantId: TenantId,
+      contactId: ContactId,
       historyLimit?: number,
       answering?: string,
     ) => ReturnType<typeof readLeadContext>;

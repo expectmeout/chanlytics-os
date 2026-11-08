@@ -6,6 +6,7 @@
  * voice-provision.ts, so the converger plans nothing against what this
  * makes; a test proves it.
  */
+import type { TenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { keepVoiceAgent, findVoiceAgent } from "@chanlytics/db/facts";
 import type { Database } from "@chanlytics/db/types";
@@ -155,7 +156,7 @@ export async function ensureVoiceAgent(
   db: SupabaseClient<Database>,
   cfg: RetellConfig,
   secrets: ProvisionSecrets,
-  tenant: { id: string; name: string },
+  tenant: { id: TenantId; name: string },
 ): Promise<{ agentId: string; llmId: string | null; pinned: boolean }> {
   const { data, error } = await findVoiceRouting(db, tenant.id);
   if (error) throw new Error(`reading the voice row: ${error.message}`);

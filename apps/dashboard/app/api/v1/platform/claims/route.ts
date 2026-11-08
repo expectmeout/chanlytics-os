@@ -1,3 +1,4 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import { write, platform } from "@/server/shared/route";
 import { ClaimSchema } from "@chanlytics/contracts";
 import { claimConsole } from "@/server/console/console";
@@ -12,5 +13,7 @@ export const POST = write({
   role: null,
   rate: "platform_claim",
   input: ClaimSchema,
-  handle: async ({ office, input }) => ({ claim: await claimConsole(office, input.tenant_id, input.take) }),
+  handle: async ({ office, input }) => ({
+    claim: await claimConsole(office, heldTenantId(input.tenant_id), input.take),
+  }),
 });

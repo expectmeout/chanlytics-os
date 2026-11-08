@@ -19,6 +19,7 @@ import { runCounts } from "@chanlytics/db/reports";
 import { getThreadIdsWaitingOnYou } from "@chanlytics/db/people";
 import type { RouteContext } from "@/server/shared/with-route";
 import { listOutboundSince, pageInboundOn, pagePeopleOnRuns } from "@chanlytics/db/campaigns";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 /**
  * A workspace's broadcasts with the numbers their messages earned.
@@ -59,7 +60,7 @@ export interface BroadcastRow {
 
 export interface RecipientRow {
   broadcast_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   /** The channel the send picked for them (reachFor, 00298): null on a run made before; absent where the read did not ask. */
   channel?: string | null;
   /** The outbound email it was, where one was written: what an unsubscribe names (contracts answersToRuns); absent where the read did not ask. */
@@ -159,7 +160,7 @@ interface Inbound {
  */
 async function inboundOn(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   convIds: string[],
   since: string,
   withWords: boolean,
@@ -208,7 +209,7 @@ function firstReplies(
 /** One run's threads that heard from the customer within the reply window after it reached them, and when (see firstReplies). */
 export async function repliedThreads(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   threads: Map<string, string>,
   words: Map<string, string | null> | null = null,
 ): Promise<Map<string, string>> {
@@ -224,7 +225,7 @@ export async function repliedThreads(
  */
 export async function listRepliedConversations(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   runIds: string[],
 ): Promise<string[]> {
   if (runIds.length === 0) return [];
@@ -257,7 +258,7 @@ function previewLine(body: string | null | undefined): string | null {
  */
 export async function answeredAfter(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   replied: Map<string, string>,
 ): Promise<Map<string, { by: "receptionist" | "team"; at: string }>> {
   const convIds = [...replied.keys()];
@@ -292,7 +293,7 @@ export async function answeredAfter(
  * standing rule (packages/db getThreadIdsWaitingOnYou). The raw needs_human column said Needs you of a reply a member had
  * already taken (the wiring's second audit, R11 S9-1).
  */
-export function waitingThreads(ctx: RouteContext, tenantId: string, convIds: string[]): Promise<Set<string>> {
+export function waitingThreads(ctx: RouteContext, tenantId: TenantId, convIds: string[]): Promise<Set<string>> {
   return getThreadIdsWaitingOnYou(ctx.supabase, tenantId, convIds, Date.now());
 }
 
@@ -335,7 +336,7 @@ export function toDto(broadcast: BroadcastRow, counts: BroadcastCounts): Broadca
  * past them counted short. The key is unique, so a page boundary cannot repeat one person and skip another, and a send in
  * progress does not move it, as it would under sent_at.
  */
-async function peopleOnRuns(ctx: RouteContext, tenantId: string, ids: string[]): Promise<RecipientRow[]> {
+async function peopleOnRuns(ctx: RouteContext, tenantId: TenantId, ids: string[]): Promise<RecipientRow[]> {
   const out: RecipientRow[] = [];
   for (let index = 0; index < ids.length; index += IN_CHUNK) {
     const chunk = ids.slice(index, index + IN_CHUNK);
@@ -353,7 +354,7 @@ async function peopleOnRuns(ctx: RouteContext, tenantId: string, ids: string[]):
  * Sent, a run's sheet and a playbook's card all say; or, on a database before it, for one release, the fold here
  * (foldCounts). A run nobody is on is all zeros.
  */
-async function countsOf(ctx: RouteContext, tenantId: string, ids: string[]): Promise<Map<string, BroadcastCounts>> {
+async function countsOf(ctx: RouteContext, tenantId: TenantId, ids: string[]): Promise<Map<string, BroadcastCounts>> {
   const read = await runCounts(ctx.supabase, tenantId, ids);
   if (read === "missing") return foldCounts(ctx, tenantId, ids);
   const counted = runCountsOf(read);
@@ -366,7 +367,7 @@ async function countsOf(ctx: RouteContext, tenantId: string, ids: string[]): Pro
  * (peopleOnRuns), and the replies of all their threads in one read (inboundOn) where there was one query for each run
  * with a thread.
  */
-async function foldCounts(ctx: RouteContext, tenantId: string, ids: string[]): Promise<Map<string, BroadcastCounts>> {
+async function foldCounts(ctx: RouteContext, tenantId: TenantId, ids: string[]): Promise<Map<string, BroadcastCounts>> {
   const { counts, threadsOf } = countRecipients(await peopleOnRuns(ctx, tenantId, ids), ids);
   // Every thread any run reached, read once from the oldest send: each run then reads its own threads off the one read.
   const sends = [...threadsOf.values()].flatMap((threads) => [...threads.values()]).sort();
@@ -383,7 +384,7 @@ async function foldCounts(ctx: RouteContext, tenantId: string, ids: string[]): P
 }
 
 /** The rows with the numbers their people earned (countsOf). */
-export async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRow[]): Promise<BroadcastDto[]> {
+export async function withCounts(ctx: RouteContext, tenantId: TenantId, rows: BroadcastRow[]): Promise<BroadcastDto[]> {
   if (rows.length === 0) return [];
   const counts = await countsOf(
     ctx,

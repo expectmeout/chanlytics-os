@@ -27,6 +27,7 @@ import { lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
 import { liveLineOf, planBuy, provisionJob } from "./ops/search-buy.js";
 import { insertLineRow, listLinesOf } from "@chanlytics/db/lines";
 import { findPlanStanding } from "@chanlytics/db/billing";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -81,7 +82,7 @@ interface ChosenLinePorts {
  */
 export async function startChosenLine(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ports: ChosenLinePorts = { choice: lineProviderFromEnv(), now: () => new Date() },
 ): Promise<ChosenLineOutcome> {
   try {
@@ -157,7 +158,7 @@ export interface OwedLinesResult {
  */
 export async function startOwedLines(
   db: Db,
-  ids: readonly string[],
+  ids: readonly TenantId[],
   ports: ChosenLinePorts & { alert: (subject: string, body: string) => Promise<unknown> },
   max = CHOSEN_LINES_PER_TICK,
 ): Promise<OwedLinesResult> {

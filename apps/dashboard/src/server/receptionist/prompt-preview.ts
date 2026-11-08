@@ -18,6 +18,7 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { loadFeed } from "@/server/calendar/openings";
 import { recordBusy } from "@/server/calendar/record-busy";
 import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * What the receptionist is told, composed HERE for the Business pane.
@@ -84,7 +85,7 @@ export function composePromptPreview(brain: BrainConfig, facts: PromptFacts, now
  * then says nothing about open times, and so does the preview.
  */
 export async function findOpeningsBlock(
-  tenantId: string,
+  tenantId: TenantId,
   cfg: {
     url: string | null;
     brain: BrainConfig | null;
@@ -137,7 +138,7 @@ export async function findOpeningsBlock(
  */
 export async function findPromptPreview(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   cfg: { brain: BrainConfig | null | undefined; calendarUrl: string | null },
   known: KnownFacts,
   now = new Date(),

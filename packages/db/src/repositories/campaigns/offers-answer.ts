@@ -9,6 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CARRIER_CONSENT_SOURCE, WHATSAPP_CONSENT_SOURCE } from "@chanlytics/contracts";
 import type { Database } from "../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -32,7 +33,7 @@ type Db = SupabaseClient<Database>;
  */
 export async function recordCarrierOptOut(
   db: Db,
-  params: { tenantId: string; contactId: string; channel: "sms" },
+  params: { tenantId: TenantId; contactId: ContactId; channel: "sms" },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("record_provider_stop", {
     p_tenant_id: params.tenantId,
@@ -52,8 +53,8 @@ export async function recordCarrierOptOut(
  */
 export async function findOffersAnswer(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Promise<{ marketingConsent: string | null; marketingConsentSource: string | null } | null> {
   const { data, error } = await db
     .from("contacts")
@@ -79,7 +80,7 @@ export async function findOffersAnswer(
  */
 export async function recordWhatsAppOffersStop(
   db: Db,
-  params: { tenantId: string; externalId: string },
+  params: { tenantId: TenantId; externalId: string },
 ): Promise<boolean> {
   const sent = await db
     .from("messages")
@@ -118,7 +119,7 @@ export type LateCarrierStop = "recorded" | "already_stopped" | "newer_answer" | 
  */
 export async function recordLateCarrierOptOut(
   db: Db,
-  params: { tenantId: string; externalId: string },
+  params: { tenantId: TenantId; externalId: string },
 ): Promise<LateCarrierStop> {
   const sent = await db
     .from("messages")

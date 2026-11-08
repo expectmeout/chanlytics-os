@@ -9,10 +9,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
 
-import type { SchemaSet } from "@chanlytics/contracts";
+import type { SchemaSet, TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type LineUpdate = Database["public"]["Tables"]["lines"]["Update"];
-type LineKey = { id: string; tenant_id: string };
+type LineKey = { id: string; tenant_id: TenantId };
 
 /** The columns a text's line is read with. */
 const TEXTING_COLUMNS = "id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state";
@@ -32,7 +32,7 @@ export const findLineByE164 = async (db: Db, e164: string) =>
     .maybeSingle();
 
 /** The workspace's newest live line that texts. */
-export const findTextingLineOf = async (db: Db, tenantId: string) =>
+export const findTextingLineOf = async (db: Db, tenantId: TenantId) =>
   db
     .from("lines")
     .select(TEXTING_COLUMNS)
@@ -79,11 +79,11 @@ export const listStuckLines = async (db: Db, cutoff: string, limit: number) =>
     .limit(limit);
 
 /** The line's row deleted. */
-export const deleteLineRow = async (db: Db, tenantId: string, lineId: string) =>
+export const deleteLineRow = async (db: Db, tenantId: TenantId, lineId: string) =>
   tenantDb(db, tenantId).from("lines").delete().eq("id", lineId);
 
 /** The numbers we gave these workspaces (ours or forwarded), oldest first: the release sweep's page. */
-export const listLinesOfWorkspaces = async (db: Db, tenantIds: string[]) =>
+export const listLinesOfWorkspaces = async (db: Db, tenantIds: TenantId[]) =>
   platformWide(db)
     .from("lines")
     .select("*")
@@ -114,23 +114,23 @@ export const claimLineForFiling = async (
     .select("*");
 
 /** One line of the workspace's, whole, or none. */
-export const findLineRow = async (db: Db, tenantId: string, lineId: string) =>
+export const findLineRow = async (db: Db, tenantId: TenantId, lineId: string) =>
   tenantDb(db, tenantId).from("lines").select("*").eq("id", lineId).maybeSingle();
 
 /** Every line of the workspace's, whole, oldest first. */
-export const listLinesOf = async (db: Db, tenantId: string) =>
+export const listLinesOf = async (db: Db, tenantId: TenantId) =>
   db.from("lines").select("*").eq("tenant_id", tenantId).order("created_at");
 
 /** The workspace's numbers. */
-export const listLineNumbersOf = async (db: Db, tenantId: string) =>
+export const listLineNumbersOf = async (db: Db, tenantId: TenantId) =>
   db.from("lines").select("e164").eq("tenant_id", tenantId);
 
 /** The workspace's numbers with where each one's carrier filing stands. */
-export const listLineFilingsOf = async (db: Db, tenantId: string) =>
+export const listLineFilingsOf = async (db: Db, tenantId: TenantId) =>
   db.from("lines").select("e164, sms_state, reg_mock, brand_sid, facts").eq("tenant_id", tenantId);
 
 /** A new line for the workspace, back whole: the database keeps one live line a workspace (00195), and refuses a second. */
-export const insertLineRow = async (db: Db, tenantId: string, row: Database["public"]["Tables"]["lines"]["Insert"]) =>
+export const insertLineRow = async (db: Db, tenantId: TenantId, row: Database["public"]["Tables"]["lines"]["Insert"]) =>
   tenantDb(db, tenantId).from("lines").insert(row).select("*").single();
 
 /**
@@ -152,7 +152,7 @@ export const listLinesAwaitingCarriers = async (
     .limit(limit);
 
 /** The workspace's oldest forwarded number that forwards: its number, how it forwards, and its facts. */
-export const findForwardedLine = async (db: Db, tenantId: string) =>
+export const findForwardedLine = async (db: Db, tenantId: TenantId) =>
   db
     .from("lines")
     .select("e164, forwarding_state, facts")
@@ -164,7 +164,7 @@ export const findForwardedLine = async (db: Db, tenantId: string) =>
     .maybeSingle();
 
 /** The workspace's forwarded numbers told how to forward and not yet heard from. */
-export const listLinesAwaitingForwarding = async (db: Db, tenantId: string) =>
+export const listLinesAwaitingForwarding = async (db: Db, tenantId: TenantId) =>
   db
     .from("lines")
     .select("id, e164, facts")
@@ -173,7 +173,7 @@ export const listLinesAwaitingForwarding = async (db: Db, tenantId: string) =>
     .eq("forwarding_state", "instructed");
 
 /** A forwarded number written as heard from, only while it still awaits it: its id back, none when it moved. */
-export const saveForwardingVerified = async (db: Db, tenantId: string, lineId: string, values: LineUpdate) =>
+export const saveForwardingVerified = async (db: Db, tenantId: TenantId, lineId: string, values: LineUpdate) =>
   db
     .from("lines")
     .update(values)
@@ -183,7 +183,7 @@ export const saveForwardingVerified = async (db: Db, tenantId: string, lineId: s
     .select("id");
 
 /** The workspace's lines as the Connections page shows them, oldest first: never a provider's id. */
-export const listLinesForPage = async (db: Db, tenantId: string) =>
+export const listLinesForPage = async (db: Db, tenantId: TenantId) =>
   db
     .from("lines")
     .select(

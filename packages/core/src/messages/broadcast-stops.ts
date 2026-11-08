@@ -25,6 +25,7 @@ import type { BroadcastChannel as Channel } from "./broadcast-channels";
 import type { Work } from "./broadcast-channels";
 import { stoppedRunCause } from "./broadcast-words";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, BroadcastRow, RecipientRow } from "./ports";
+import type { ContactId } from "@chanlytics/contracts";
 
 /** The batch's own lines: a release the database refused. */
 const stopLog = logger();
@@ -90,7 +91,7 @@ export type Verdict = "go on" | "stop" | { back: "throttled" | "unreachable"; ch
 export async function release(
   ports: BroadcastBatchPorts,
   broadcastId: string,
-  contactId: string,
+  contactId: ContactId,
   reason: "throttled" | "not_taken",
 ): Promise<boolean> {
   try {

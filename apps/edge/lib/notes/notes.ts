@@ -66,12 +66,13 @@ import type { Logger } from "../shared/log.js";
 import { listNoteCandidates, suggestNoteOnPerson } from "@chanlytics/db/people";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** One look, as note_candidates hands it over. */
 interface NoteCandidate {
   source: "call" | "thread";
-  tenant_id: string;
-  contact_id: string;
+  tenant_id: TenantId;
+  contact_id: ContactId;
   source_id: string;
   seconds: number | null;
   dnc: boolean;
@@ -85,7 +86,7 @@ interface NoteCandidate {
 type AskNote = (
   system: string,
   user: string,
-  forWhom: { tenantId: string; subjectId: string },
+  forWhom: { tenantId: TenantId; subjectId: string },
 ) => Promise<{ answer: unknown; tokens: { input: number; output: number } } | null>;
 
 /** The database the sweep needs: the batch, and the one door a suggestion goes through. */
@@ -352,11 +353,11 @@ interface JournalRows {
 /** The database the journal's step needs: a day due, what happened on it, who and what it names, and the one door. */
 interface JournalDb {
   due(): Promise<AskJournalDueRow | null>;
-  day(p: { tenantId: string; from: string; to: string }): Promise<JournalRows>;
+  day(p: { tenantId: TenantId; from: string; to: string }): Promise<JournalRows>;
   names(userIds: string[]): Promise<Record<string, string>>;
-  subjects(tenantId: string, about: Array<{ type: string; id: string }>): Promise<Record<string, string>>;
+  subjects(tenantId: TenantId, about: Array<{ type: string; id: string }>): Promise<Record<string, string>>;
   keep(p: {
-    tenantId: string;
+    tenantId: TenantId;
     day: string;
     text: string | null;
     rowsRead: number;

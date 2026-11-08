@@ -7,7 +7,7 @@
  * it and nothing runs it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Exactly, Holds, SchemaSet } from "@chanlytics/contracts";
+import type { ContactId, Exactly, Holds, SchemaSet, TenantId } from "@chanlytics/contracts";
 import type { Database } from "./types";
 
 type Profiles = Database["public"]["Tables"]["anthropic_profiles"];
@@ -37,3 +37,16 @@ void db.from("anthropic_profiles").select("id").eq("kind", "team");
 // @ts-expect-error a filter's word is one of the set: Anthropic says no such enforcement
 void db.from("anthropic_profiles").select("id").eq("enforcement_status", "suspended");
 void _readsTheSet;
+
+// A row's ids are whose they are, on a table and on a function's rows: neither stands in for the other.
+type Contacts = Database["public"]["Tables"]["contacts"]["Row"];
+type Messages = Database["public"]["Tables"]["messages"]["Row"];
+type DueDrafts = Database["public"]["Functions"]["reply_drafts_due"]["Returns"][number];
+type _Ids = [
+  Holds<Exactly<Contacts["id"], ContactId>>,
+  Holds<Exactly<Contacts["tenant_id"], TenantId>>,
+  Holds<Exactly<Messages["contact_id"], ContactId | null>>,
+  Holds<Exactly<DueDrafts["tenant_id"], TenantId>>,
+  // @ts-expect-error a person's id is not a workspace's
+  Holds<Exactly<Contacts["id"], TenantId>>,
+];

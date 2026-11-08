@@ -15,6 +15,7 @@
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00069).
  */
+import type { TenantId } from "@chanlytics/contracts";
 import { DEFAULT_TIMEZONE } from "@chanlytics/contracts";
 import { json } from "../shared/http.js";
 import { placesKey, profileClient } from "../shared/google/config.js";
@@ -40,8 +41,8 @@ export async function sweepGoogle({ db, L, started }: SweepTick): Promise<Respon
   if (!places && !profile) return json(200, { ok: true, skipped: "no_places_key" });
 
   const now = new Date();
-  const zones = new Map<string, string>();
-  const tzOf = async (ids: string[]) => {
+  const zones = new Map<TenantId, string>();
+  const tzOf = async (ids: TenantId[]) => {
     const missing = ids.filter((id) => !zones.has(id));
     if (!missing.length) return;
     const { data: tenants, error } = await listWorkspaceZones(db, missing);

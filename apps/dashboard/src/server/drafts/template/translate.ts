@@ -29,6 +29,7 @@ import { log } from "@/server/shared/log";
 import { askOnce, extractJson, workspaceFor, writeIn } from "./draft";
 import { SHORTER_ASK, WARMER_ASK } from "@/server/shared/model/tones";
 import { findTemplateIn, findTemplateToTranslate } from "@chanlytics/db/campaigns";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ---------------------------- in another language ---------------------------- */
 
@@ -70,7 +71,7 @@ const categoryOf = (c: unknown): TemplateCategoryChoice | null =>
  */
 export async function getTranslationSource(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   ref: SourceRef,
   language: string,
 ): Promise<SourceOutcome> {
@@ -288,7 +289,7 @@ export function translatedDraft(src: TranslateSource, language: string, raw: unk
  */
 export async function translateTemplate(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: { source: TranslateSource; language: string },
 ): Promise<TranslateOutcome> {
   const { facts } = await workspaceFor(ctx, tenantId);
@@ -342,7 +343,7 @@ type RewriteOutcome =
  */
 export async function rewriteVersion(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: { channel: "email" | "sms"; language: string; subject: string | null; body: string; tone: VersionTone },
 ): Promise<RewriteOutcome> {
   const { facts } = await workspaceFor(ctx, tenantId);

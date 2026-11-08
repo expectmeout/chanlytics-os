@@ -35,6 +35,7 @@ import { getTenantFacts } from "../shared/tenant";
 import { once } from "@/server/shared/lazy";
 import { log } from "@/server/shared/log";
 import { findLastConnectedCallIn } from "@chanlytics/db/voice";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
 /**
@@ -55,7 +56,7 @@ export type SetupViewer = { kind: "member" } | { kind: "back_office" };
  */
 async function teamCounts(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ members: number; invitesOpen: number }> {
   const [members, invites] = await Promise.all([
     countTeamMembers(supabase, tenantId),
@@ -83,17 +84,17 @@ export function requestsFrom(rows: ReadonlyArray<{ created_at: string; data: unk
 /* ------------------------------------------------------------------ the reads, one per source */
 
 /** The workspace's channels: every row of every kind and status, for `channelFor` to pick from (channelsSection). */
-function channelRows(supabase: SupabaseClient<Database>, tenantId: string) {
+function channelRows(supabase: SupabaseClient<Database>, tenantId: TenantId) {
   return listSetupChannels(supabase, tenantId);
 }
 
 /** The newest WhatsApp message a customer sent. */
-function lastWhatsAppIn(supabase: SupabaseClient<Database>, tenantId: string) {
+function lastWhatsAppIn(supabase: SupabaseClient<Database>, tenantId: TenantId) {
   return findLastWhatsAppIn(supabase, tenantId);
 }
 
 /** The newest call that reached the receptionist. */
-function lastInboundCall(supabase: SupabaseClient<Database>, tenantId: string) {
+function lastInboundCall(supabase: SupabaseClient<Database>, tenantId: TenantId) {
   // A dial that never connected reached nobody: it is no test of the receptionist.
   return findLastConnectedCallIn(supabase, tenantId);
 }
@@ -103,12 +104,12 @@ function lastInboundCall(supabase: SupabaseClient<Database>, tenantId: string) {
  * message (00296) is approved the moment it is written and is nobody's word but its author's, so it is no verdict of
  * Meta's: counted here, a starter still in review would read as approved by its other versions.
  */
-function templateVerdicts(supabase: SupabaseClient<Database>, tenantId: string) {
+function templateVerdicts(supabase: SupabaseClient<Database>, tenantId: TenantId) {
   return listTemplateVerdicts(supabase, tenantId);
 }
 
 /** How many people said yes to messages about their own visit. */
-function saidYesCount(supabase: SupabaseClient<Database>, tenantId: string) {
+function saidYesCount(supabase: SupabaseClient<Database>, tenantId: TenantId) {
   return countSaidYes(supabase, tenantId);
 }
 
@@ -119,12 +120,12 @@ function saidYesCount(supabase: SupabaseClient<Database>, tenantId: string) {
  * (00095's set_contact_consent) -- so this is `saidYesTo(r, "marketing")` in
  * SQL, the predicate of the `contacts_marketing_audience` index (00095).
  */
-function offersSaidYesCount(supabase: SupabaseClient<Database>, tenantId: string) {
+function offersSaidYesCount(supabase: SupabaseClient<Database>, tenantId: TenantId) {
   return countOffersYes(supabase, tenantId);
 }
 
 /** Who of them a promotional broadcast reaches. */
-function offersReachCount(supabase: SupabaseClient<Database>, tenantId: string) {
+function offersReachCount(supabase: SupabaseClient<Database>, tenantId: TenantId) {
   // `mayReceive(r, "marketing")` in SQL, because this is a count and not a list:
   // the yes to offers, no do-not-contact, and a number to send to. The number was
   // missing, so this row counted people the broadcast route would not enrol --
@@ -146,7 +147,7 @@ function offersReachCount(supabase: SupabaseClient<Database>, tenantId: string) 
  */
 async function offersByEmailOf(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   settings: Promise<{ config: unknown } | null>,
   mailboxRead: () => Promise<MailboxRow | null>,
 ): Promise<number | null> {
@@ -172,7 +173,7 @@ async function offersByEmailOf(
  * events the ask records, not the bell: a bell row cannot say which thing was asked for, and the edge's own
  * "your phone line is ready" row shares its subject, so it read as a request.
  */
-function setupRequested(supabase: SupabaseClient<Database>, tenantId: string) {
+function setupRequested(supabase: SupabaseClient<Database>, tenantId: TenantId) {
   return listSetupAsks(supabase, tenantId, 30);
 }
 
@@ -181,7 +182,7 @@ function setupRequested(supabase: SupabaseClient<Database>, tenantId: string) {
  * ask before refusing a second (playbook-row.ts findVisitTwinRefusal). Today's card stops offering one then. A read that
  * fails says nothing (null), and the card offers as it did: the route is still the door that refuses.
  */
-function dayBeforeRunning(supabase: SupabaseClient<Database>, tenantId: string): Promise<boolean | null> {
+function dayBeforeRunning(supabase: SupabaseClient<Database>, tenantId: TenantId): Promise<boolean | null> {
   return listRunningStepsOn(supabase, tenantId, ["visit_tomorrow"]).then(
     (steps) => steps.length > 0,
     () => null,
@@ -189,7 +190,7 @@ function dayBeforeRunning(supabase: SupabaseClient<Database>, tenantId: string):
 }
 
 /** The owner's own act, per capability (00108). */
-function activationRows(supabase: SupabaseClient<Database>, tenantId: string) {
+function activationRows(supabase: SupabaseClient<Database>, tenantId: TenantId) {
   return listCapabilityRows(supabase, tenantId);
 }
 
@@ -201,7 +202,7 @@ function activationRows(supabase: SupabaseClient<Database>, tenantId: string) {
  */
 function calendarStands(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   from: { settings: Promise<{ config: unknown } | null>; mailbox: () => Promise<MailboxRow | null> },
 ) {
@@ -218,7 +219,7 @@ function calendarStands(
 }
 
 /** Every source Setup reads, asked at once and in this order. */
-function askSetup(supabase: SupabaseClient<Database>, tenantId: string, viewer: SetupViewer, now: Date) {
+function askSetup(supabase: SupabaseClient<Database>, tenantId: TenantId, viewer: SetupViewer, now: Date) {
   // The settings, which the calendar's row and the offers' count are read from too: asked once, and handed to both. A
   // member's as the server holds them for a member (config-row.ts); the back office's, on the service role, from the table.
   const settings = viewer.kind === "member" ? findConfigRow(supabase, tenantId) : getTenantConfig(supabase, tenantId);
@@ -275,7 +276,12 @@ function quietly<T>(read: Promise<T>): Promise<T | null> {
  * Each answer by the name the sections read it by. A read that failed fails Setup: the first in askSetup's order
  * that did. The calendar's failure is not one -- a week that could not be read is its own fact (none).
  */
-export async function setupReads(supabase: SupabaseClient<Database>, tenantId: string, viewer: SetupViewer, now: Date) {
+export async function setupReads(
+  supabase: SupabaseClient<Database>,
+  tenantId: TenantId,
+  viewer: SetupViewer,
+  now: Date,
+) {
   const [
     cfgRow,
     channels,

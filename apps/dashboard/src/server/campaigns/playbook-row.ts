@@ -46,6 +46,7 @@ import { withStarterMessage } from "@/server/campaigns/starter-templates";
 import { findUnwrittenPlace } from "@/server/campaigns/sequences/lead-chain";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The playbook a playbookScope route acts on, as the scope read it. */
 type PlaybookRow = Awaited<ReturnType<typeof playbookScope.load>>;
@@ -118,7 +119,7 @@ type PlaybookPutBody = z.infer<typeof PLAYBOOK_PUT_BODY>;
  */
 export async function findTwinRefusal(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   checked: Pick<PlaybookInput, "trigger" | "list_id" | "list_key" | "template_id">,
   named: unknown,
   words: (name: string) => string,
@@ -146,7 +147,7 @@ export async function findTwinRefusal(
  */
 export async function findVisitTwinRefusal(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   on: { id?: string | null; trigger: string },
 ): Promise<string | null> {
   if (!isOneOf(VISIT_TRIGGERS, on.trigger)) return null;

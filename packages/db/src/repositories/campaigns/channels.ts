@@ -4,7 +4,7 @@
  * and routes and the edge's playbook runs read them here, so both ask the same rows.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ConsentChannel, SchemaSet, SequenceMode } from "@chanlytics/contracts";
+import type { ConsentChannel, SchemaSet, SequenceMode, TenantId, ContactId } from "@chanlytics/contracts";
 import { getSequenceModes } from "./sequences/reads";
 import type { Database } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
@@ -20,7 +20,7 @@ type Db = SupabaseClient<Database>;
  */
 export async function findWhatsappChannelFacts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ config: Record<string, unknown>; number: string | null } | null> {
   const { data, error } = await db
     .from("tenant_channels")
@@ -46,7 +46,7 @@ export async function findWhatsappChannelFacts(
  */
 export async function findTextLineFacts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ sms_state: string | null; reg_mock: boolean | null } | null> {
   const { data, error } = await db
     .from("lines")
@@ -84,7 +84,7 @@ export async function listPlaybookChannels(db: Db, playbookId: string): Promise<
  */
 export async function findPlaybookForChannels(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   playbookId: string,
 ): Promise<
   | (Pick<
@@ -124,7 +124,7 @@ type PlaybookRowOf = Database["public"]["Tables"]["sequence_steps"]["Row"];
  */
 export async function findPlaybookForChange(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   playbookId: string,
 ): Promise<
   | (Pick<
@@ -178,7 +178,7 @@ export async function findPlaybookForChange(
  */
 export async function listRunningTwins(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   on: {
     trigger: SchemaSet<"sequence_steps.trigger">;
     listId: string | null;
@@ -208,7 +208,7 @@ export async function listRunningTwins(
  */
 export async function followUpOnFile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   trigger: SchemaSet<"sequence_steps.trigger">,
 ): Promise<boolean> {
   const { data, error } = await db
@@ -255,8 +255,8 @@ export function noRelationshipColumn(error: { message: string } | null | undefin
  */
 export async function listQueuedRecipients(
   db: Db,
-  params: { tenantId: string; broadcastId: string; limit: number },
-): Promise<Array<{ contact_id: string; facts: unknown; channel?: string | null; attempt?: number }>> {
+  params: { tenantId: TenantId; broadcastId: string; limit: number },
+): Promise<Array<{ contact_id: ContactId; facts: unknown; channel?: string | null; attempt?: number }>> {
   const { data, error } = await db
     .from("sequence_sends")
     .select("contact_id, facts, channel, attempt:attempts")
@@ -279,7 +279,7 @@ export async function listQueuedRecipients(
  */
 export async function runGoesByOthers(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   broadcastId: string,
   than: "whatsapp" | "email",
 ): Promise<boolean> {
@@ -303,7 +303,7 @@ export async function runGoesByOthers(
  */
 export async function recordCampaignMonthSent(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   channel: ConsentChannel,
   at?: Date,
 ): Promise<number> {
@@ -329,7 +329,7 @@ export async function recordCampaignMonthSent(
  */
 export async function holdRecipients(
   db: Db,
-  params: { tenantId: string; broadcastId: string; contactIds: readonly string[]; reason: string },
+  params: { tenantId: TenantId; broadcastId: string; contactIds: readonly ContactId[]; reason: string },
 ): Promise<{ skipped: string[]; error: string | null }> {
   const skipped: string[] = [];
   for (let index = 0; index < params.contactIds.length; index += IDS_PER_READ) {
