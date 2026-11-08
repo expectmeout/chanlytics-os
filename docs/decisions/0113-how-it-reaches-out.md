@@ -37,18 +37,29 @@ The name a sequence signs with was typed on each one. And a number about the own
    the booking link (as before), a call, or the answer alone.
 6. **What it's told is cut from the prompts the writers are given**, never written beside them: the drafter's prompt is now built from its parts
    (`draftAskedParts`), the opening's is read off its own lines' labels, and an answer's, which differ every reply, carry no share.
-7. **Try it** goes through the preview door the sequence sheet was built with: nothing stored, nothing sent.
+7. **Try it** goes through the preview door (`POST reach-outs/preview`), the check's own writer and reader: nothing stored, nothing sent.
+8. **Ask changes a row by a card**, through propose_settings' answers action, the row's words as `text`: an action of its own (its object,
+   its schema, its examples) put the owner's tools over `ASK_TOOLS_CHARS_CEILING`. Its jump is _Reaching out_ (a jump is three words at most),
+   found by the page's own name too.
 
 ## Calls made, and how to undo them
 
 - Under Receptionist, beside How it answers. Undo: a group of its own, Outreach (one line in `settings/frame/tabs.ts`).
-- Replies to leads stay drafts: nothing on this page sends on its own.
+- Replies to leads stay drafts: nothing on this page sends on its own. Only Autonomy › Replies' quiet mode stops a draft (`mayDraftReply`),
+  and the rows say so themselves, since a phone hides a filled row's hint.
 - The offer nudge is the page's own line, shown only where cold emails would have nothing to say of the offer; never the receptionist's gap
   line or the rail, where a business that sends no cold email would be asked on every page.
 - Their preview (decision 0079) stays the only Chanlytics-only row, on New, not here.
 
 ## Steps
 
-1. The section, its limits and the page's words (contracts). 2. The numbers rule. 3. The page's read (`GET settings/reach-out`). 4. The page.
-2. The three writers. 6. What it's told (`GET settings/reach-out/told`). 7. Try it. 8. Ask's rows and its card (`propose_settings`
-   action `reach_out`). Each step is shippable in either deploy order: an older edge leaves the section out, and an older dashboard never writes it.
+1. The section, its limits and the page's words (contracts).
+2. The numbers rule (`campaigns/sequences/numbers.ts`, the one tree that uses it).
+3. The page's read (`GET settings/reach-out`); the month's first emails counted by the service role, whose function it is.
+4. The page.
+5. The three writers.
+6. What it's told (`GET settings/reach-out/told`).
+7. Try it.
+8. Ask's rows and its card.
+
+Each step is shippable in either deploy order: an older edge leaves the section out, and an older dashboard never writes it.
