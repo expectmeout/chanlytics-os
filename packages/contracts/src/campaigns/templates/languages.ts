@@ -175,13 +175,9 @@ export function languageName(code: string): string {
   const known = templateLanguage(code);
   if (known) return known.name;
   const base = String(code ?? "").split(/[-_]/)[0];
-  const Names = (
-    Intl as unknown as {
-      DisplayNames?: new (locales: string[], options: { type: "language" }) => { of(code: string): string | undefined };
-    }
-  ).DisplayNames;
   try {
-    const name = base && Names ? new Names(["en"], { type: "language" }).of(base) : undefined;
+    // A browser without Intl.DisplayNames throws here, and the catch says the code as it came.
+    const name = base ? new Intl.DisplayNames(["en"], { type: "language" }).of(base) : undefined;
     return name && name !== base ? name : String(code ?? "");
   } catch {
     return String(code ?? "");

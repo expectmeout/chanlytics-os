@@ -151,7 +151,7 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
  * office for staff, the bit Settings' rail draws by), then the threads, people and calls the browser holds.
  */
 export function jumpIndexFrom(win: Window): JumpEntry[] {
-  const w = win as unknown as PaletteGlobals;
+  const w = win as Window & PaletteGlobals;
   const out: JumpEntry[] = askPages({ platformAdmin: !!w.__ME?.platform_admin });
   for (const t of w.INBOX_DATA?.THREADS ?? []) {
     if (!t.real) continue;
@@ -193,7 +193,7 @@ const askRowOf = (
  * Null until Today's queue has been read: nobody is claimed to be waiting.
  */
 export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()): AskWaiting | null {
-  const w = win as unknown as PaletteGlobals;
+  const w = win as Window & PaletteGlobals;
   const queue = w.TODAY_DATA?.queue;
   if (!queue) return null;
   const rows = queue.rows ?? [];
@@ -245,7 +245,7 @@ function campaignsRead() {
 }
 
 export function askPalette(win: Window, storage: Storage | null) {
-  const w = win as unknown as PaletteGlobals;
+  const w = win as Window & PaletteGlobals;
   const rememberLanguage = (l: AskLanguage) => {
     if (l === "other") return;
     try {

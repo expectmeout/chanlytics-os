@@ -94,7 +94,7 @@ const pageBegan = (): number =>
  * handed over, so a later read of the same URL asks the server.
  */
 function takePrefetched(win: Window, url: string): Promise<Response> | null {
-  const slot = (win as unknown as Record<string, unknown>)[PREFETCH_SLOT];
+  const slot = (win as Window & Record<string, unknown>)[PREFETCH_SLOT];
   if (!slot || typeof slot !== "object") return null;
   const held = (slot as Record<string, unknown>)[url];
   if (!held || typeof (held as Promise<Response>).then !== "function") return null;

@@ -308,6 +308,7 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, delivery: Delivery):
   if (error)
     throw new Error(`deliver: cannot read the wire for conversation ${delivery.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${delivery.conversationId} in workspace ${delivery.tenantId}`);
+  // The wire's columns are chosen at run time, past the client's typed parser: the row is the columns findWireRow names.
   const row = data as unknown as {
     paused_until: string | null;
     control_kind?: string | null;

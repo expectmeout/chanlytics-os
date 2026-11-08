@@ -650,9 +650,8 @@ export function surfaceRetiredTo(page: string, at?: string | null, demo = false)
 }
 
 export function installSurfaceRegistry(): void {
-  const w = window as unknown as {
+  const w = window as Window & {
     __surfaceState?: (page: string, param?: string | null) => SurfaceState | undefined;
-    __surfaceRetired?: (page: string, param?: string | null, demo?: boolean) => string | undefined;
   };
   w.__surfaceState = surfaceStateFor;
   w.__surfaceRetired = surfaceRetiredTo;
@@ -700,7 +699,7 @@ function routeWaitsFor(page: string, at?: string | null): readonly string[] {
  * its module scope; the e2e harness's fixture calls it over its own record.
  */
 export function installRouteGate(): void {
-  const w = window as unknown as {
+  const w = window as Window & {
     __surfaceGate?: (page: string, param?: string | null, own?: boolean) => boolean;
     __surfaceFailed?: (page: string, param?: string | null) => boolean;
     __onSurfaceReady?: (fn: () => void) => () => void;

@@ -117,7 +117,7 @@ import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { FailedRead } from "@/surfaces/kit/empty/empty";
 import { JoinedNote } from "./invitations/joined-note";
-import type { OpenHandoverDto } from "@chanlytics/contracts";
+import { type OpenHandoverDto, valueAt } from "@chanlytics/contracts";
 import { publicEnv } from "@/lib/public-env";
 
 /**
@@ -372,7 +372,7 @@ installRouteGate();
  * FailedRead presses this; a whole-page reload was the Team card's way.
  */
 function installSurfaceRefresh(): void {
-  const w = window as unknown as { __refreshSurface?: (key: string) => Promise<void> };
+  const w = window as Window & { __refreshSurface?: (key: string) => Promise<void> };
   w.__refreshSurface = async (key) => {
     const o = SURFACES.find((s) => s.key === key);
     if (o) await refreshSurfaces([o]);
@@ -473,7 +473,7 @@ function SpeedFrame({ route }: { route: string | null }) {
 }
 
 /** The workspaces this account may open, as the workspace's read last said. */
-const listedWorkspaces = (): Workspace[] => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [];
+const listedWorkspaces = (): Workspace[] => (window as Window & { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [];
 
 /**
  * The shell as an element kept until one of its props changes, its callbacks made once: FrameApp draws again when the
@@ -554,7 +554,7 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
   // no other surface's (the pages hear their own).
   useSurface("workspace");
   const allWorkspaces = listedWorkspaces();
-  const me = (window as unknown as { __ME?: { email?: string | null; handovers?: OpenHandoverDto[] } }).__ME;
+  const me = (window as Window & { __ME?: { email?: string | null; handovers?: OpenHandoverDto[] } }).__ME;
   const handover = useHandoverAsk(isSurfaceReady("workspace"), me?.handovers);
   // What the shell alone knows — the connection, the live feed, a newer
   // build, surfaces that stopped refreshing — goes to the line under the top
@@ -565,7 +565,7 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
     publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));
   }, []);
 
-  const missing = useMemo(() => REQUIRED.filter((k) => !(window as unknown as Record<string, unknown>)[k]), []);
+  const missing = useMemo(() => REQUIRED.filter((k) => !valueAt(window, k)), []);
 
   // A press on the theme, the look or the rail: device-prefs.ts checks it and keeps it, and this holds the result.
   const choose = useCallback(
@@ -656,12 +656,11 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
   if (isSurfaceReady("workspace") && allWorkspaces.length === 0) {
     // What sign-up kept: the name and clock they typed before the code, so
     // the first workspace is one press rather than the same form twice.
-    const pending =
-      (window as unknown as { __PENDING_WORKSPACE?: PendingWorkspace | null }).__PENDING_WORKSPACE ?? null;
+    const pending = (window as Window & { __PENDING_WORKSPACE?: PendingWorkspace | null }).__PENDING_WORKSPACE ?? null;
     // The door this first workspace meets -- the invite code, or the list --
     // for an account that arrived through Google and never saw the sign-up form.
     const posture =
-      (window as unknown as { __SIGNUP_POSTURE?: "open" | "waitlist" | "invite" }).__SIGNUP_POSTURE ?? "open";
+      (window as Window & { __SIGNUP_POSTURE?: "open" | "waitlist" | "invite" }).__SIGNUP_POSTURE ?? "open";
     return (
       <CreateWorkspace
         email={email}

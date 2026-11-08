@@ -15,7 +15,9 @@
 import { json } from "../shared/http.js";
 import { sendPartnerLetters } from "./letters.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import { shaped } from "@chanlytics/contracts";
 import { sweepPartnerEarnings } from "@chanlytics/db/partners";
+import { readAnswer } from "@chanlytics/db/shared";
 
 interface Swept {
   judged: number;
@@ -30,7 +32,11 @@ export async function sweepPartners({ db, L }: SweepTick): Promise<Response> {
     L.error("partners_sweep_failed", { error: error.message });
     return json(500, { ok: false });
   }
-  const out = (data ?? { judged: 0, review: 0, payable: 0, void: 0 }) as unknown as Swept;
+  const out = readAnswer(
+    "sweepPartnerEarnings",
+    shaped<Swept>(),
+    data ?? { judged: 0, review: 0, payable: 0, void: 0 },
+  );
   // A workspace held for review is a person's to look at: said at warn, so it is seen without a query.
   if (out.review > 0) L.warn("partners_review_waiting", { review: out.review });
   const letters = await sendPartnerLetters(db, new Date());

@@ -229,7 +229,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   holdAsk(ask);
   // On the window only for what stands outside the bundle and has no import: the nightly's specs, which ask it what the
   // page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts). Nothing of the app reads it here.
-  (win as unknown as { __ask?: AskApi }).__ask = ask;
+  (win as Window & { __ask?: AskApi }).__ask = ask;
   return ask;
 }
 

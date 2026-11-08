@@ -26,7 +26,7 @@ import {
 import { giveUpRun, reconcileUnknownRuns, runIdFor, type LeadPorts, type LeadRunRow } from "@chanlytics/core";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { leadDb } from "./db.js";
-import type { Json } from "@chanlytics/db/types";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 import type { SweepTick } from "../ops/sweep-door.js";
 import {
   claimLeadRun,
@@ -197,7 +197,7 @@ function sweepPorts(
           tenantId: row.tenant_id,
           kind,
           dueAt: new Date(Date.now() + runAfterSeconds * 1000),
-          payload: payload as unknown as Json,
+          payload: jsonCopyOf(payload),
         });
     },
     deadline,

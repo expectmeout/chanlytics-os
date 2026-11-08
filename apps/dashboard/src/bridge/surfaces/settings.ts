@@ -236,7 +236,7 @@ export const settingsOverride: SurfaceOverride = {
       // never a reason to lose the page.
       workspaceZone().catch(() => pageClock().zone()),
     ]);
-    const w = window as unknown as {
+    const w = window as Window & {
       __SETTINGS?: SettingsRecord;
       __FACTS?: { facts: ResolvedFacts; conflicts: FactConflict[] } | null;
       __TEAM?: TeamMember[] | null;

@@ -247,7 +247,7 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
     BATCH,
   );
   if (inErr) throw new Error(`unfinished: cannot read inbound messages: ${inErr.message}`);
-  const found = (inbound ?? []) as unknown as InboundRow[];
+  const found = (inbound ?? []) as InboundRow[];
   const answering = await textsInHand(p.db, found, now);
   const rows = found.filter((r) => !answering.has(r.id));
   const first = rows[0];
@@ -317,7 +317,7 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
     BATCH,
   );
   if (qErr) throw new Error(`unfinished: cannot read queued replies: ${qErr.message}`);
-  const stuck = (queued ?? []) as unknown as QueuedRow[];
+  const stuck = (queued ?? []) as QueuedRow[];
   if (!stuck.length) return;
   const live = await liveJobsNaming(
     p.db,
