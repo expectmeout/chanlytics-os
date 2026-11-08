@@ -46,14 +46,16 @@ import {
   REHEARSAL_LIMITS,
   SECOND_MS,
   UUID,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { ensureVoiceAgent } from "../lines/voice-agent.js";
 import { planRehearsalStart } from "./call-start.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
 /** The runtime of a workspace that may have no line yet: read by the workspace, as the eval door reads a chat's. */
-export function rehearsalRouting(tenantId: string): RoutedChannel {
+export function rehearsalRouting(tenantId: TenantId): RoutedChannel {
   return {
     kind: "voice",
     channelId: tenantId,
@@ -78,7 +80,7 @@ export function isRehearsalCall(call: Pick<RetellCall, "call_type"> | null | und
  */
 export async function makeRehearsalAgent(
   auth: Admitted,
-  body: Partial<{ tenant_id: string; user_id: string }>,
+  body: Partial<{ tenant_id: TenantId; user_id: string }>,
 ): Promise<Response> {
   const log = logger();
   const apiKey = env.RETELL_API_KEY;
@@ -87,7 +89,7 @@ export async function makeRehearsalAgent(
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const rt = await loadTenantRuntime(db, rehearsalRouting(tenantId));
@@ -106,7 +108,7 @@ export async function makeRehearsalAgent(
  * The free minutes as they stand for a workspace: its plan, and what its window's spoken rehearsals spent. A lead's own
  * receptionist that nobody has made theirs (decision 0079) has its preview's six minutes in all, plan or none.
  */
-async function allowanceOf(db: Db, tenantId: string, now: Date, except: string | null) {
+async function allowanceOf(db: Db, tenantId: TenantId, now: Date, except: string | null) {
   const preview = await findLeadPreviewOfWorkspace(db, tenantId);
   const isPreview = !!preview && preview.state !== "claimed";
   const hasPlan = isPreview ? false : await mayWorkspaceSpend(db, tenantId);
@@ -134,7 +136,7 @@ const minutesUsed = (allowance: Allowance) =>
  */
 async function reserveStart(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   userId: string | null,
   now: Date,
 ): Promise<{ ok: true; id: string; allowance: Allowance } | { ok: false; response: Response }> {
@@ -158,7 +160,7 @@ async function reserveStart(
 
 export async function startRehearsalCall(
   auth: Admitted,
-  body: Partial<{ tenant_id: string; user_id: string }>,
+  body: Partial<{ tenant_id: TenantId; user_id: string }>,
 ): Promise<Response> {
   const log = logger();
   const apiKey = env.RETELL_API_KEY;
@@ -167,7 +169,7 @@ export async function startRehearsalCall(
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const userId = personFor(auth, body.user_id);
   const db = pg();
   if (!db) return refuse(503, "no_database");

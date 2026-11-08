@@ -4,6 +4,7 @@
  */
 import { UUID, recordOrNull, isOneOf, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { addressesOf, messageIdHeader } from "./header-values";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ---------------------------------------------------------------- receipts
  *
@@ -35,7 +36,7 @@ export interface EmailReceipt {
   to: string[];
   /** The row and the workspace the request was tagged with; null on an email that was not a workspace's (a platform notification). */
   messageId: string | null;
-  tenantId: string | null;
+  tenantId: TenantId | null;
   /** The provider's own account of a bounce, a failure or a suppression. Kept on the row as the provider's words, never shown as ours. */
   detail: { kind: string | null; subKind: string | null; message: string | null };
 }

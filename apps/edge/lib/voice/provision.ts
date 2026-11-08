@@ -43,6 +43,7 @@ import {
   UUID,
   VOICE_PROVISION_DOOR,
   recordOrEmpty,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { createVoiceAgent } from "../lines/voice-agent.js";
 import {
@@ -70,9 +71,10 @@ import { logger, errField } from "../shared/log.js";
 import { findVoiceRow } from "@chanlytics/db/lines";
 import { insertChannelRow } from "@chanlytics/db/channels";
 import { findWorkspaceCard } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 interface Body {
-  tenant_id?: string;
+  tenant_id?: TenantId;
   number?: string;
   area_code?: number | string;
   llm_id?: string;
@@ -142,7 +144,7 @@ interface ProvisionKnock {
   db: ProvisionDb;
   body: Body;
   apply: boolean;
-  tenantId: string;
+  tenantId: TenantId;
 }
 
 /**
@@ -162,14 +164,14 @@ async function checkProvisionKnock(auth: Admitted, request: Request): Promise<Pr
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
-  if (!UUID.test(tenantId)) {
+  if (!isTenantId(tenantId)) {
     return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   }
   return { apiKey, fnSecret, db, body, apply, tenantId };
 }
 
 /** The workspace and its voice row, if it has one: an unreadable table is `read_failed`, no workspace `not_found`. */
-async function readWorkspaceLine(db: ProvisionDb, tenantId: string) {
+async function readWorkspaceLine(db: ProvisionDb, tenantId: TenantId) {
   const tenant = await findWorkspaceCard(db, tenantId);
   if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");

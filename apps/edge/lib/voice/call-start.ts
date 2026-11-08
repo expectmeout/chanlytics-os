@@ -43,6 +43,7 @@ import {
   type GreetingSource,
 } from "@chanlytics/contracts";
 import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "@chanlytics/channels/voice";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -126,7 +127,7 @@ interface CallStart {
    * withheld their number, or whose memory could not be read, is no less this workspace's call. It was set only beside
    * a memory that read, so those calls were kept under no workspace and their forwarding never proven.
    */
-  tenantId: string | null;
+  tenantId: TenantId | null;
 }
 
 interface CallStartInput {

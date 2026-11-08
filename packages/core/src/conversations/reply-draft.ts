@@ -28,11 +28,12 @@ import {
 } from "@chanlytics/contracts";
 import type { ConversationDraftRow, ReplyDraftThread } from "@chanlytics/db/ask";
 import type { Json } from "@chanlytics/db/types";
+import type { ContactId, TenantId } from "@chanlytics/contracts";
 
 /** What the writer is asked: the thread's facts, and what a member wants changed. */
 export interface ReplyDraftAsk {
   conversationId: string;
-  contactId: string | null;
+  contactId: ContactId | null;
   forMessageId: string | null;
   source: ReplyDraftSource;
   /** The wire a reply goes by. */
@@ -58,10 +59,10 @@ export type BriefWritten = { brief: CallBrief; used: readonly string[] } | { why
 /** What a draft's job asks of the world. */
 export interface ReplyDraftPorts {
   /** The thread as a draft reads it (packages/db replyDraftThreadOf), or null with no such thread. */
-  thread(tenantId: string, conversationId: string): Promise<ReplyDraftThread | null>;
+  thread(tenantId: TenantId, conversationId: string): Promise<ReplyDraftThread | null>;
   /** The row says it is being written: true when this call took it (00538 conversation_draft_claim). */
   claim(d: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
     kind: ReplyDraftKind;
     forMessageId: string | null;
@@ -71,7 +72,7 @@ export interface ReplyDraftPorts {
   }): Promise<boolean>;
   /** The draft kept, or null where its row was claimed for a newer message since (00538 conversation_draft_write). */
   keep(d: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
     kind: ReplyDraftKind;
     forMessageId: string | null;
@@ -83,33 +84,33 @@ export interface ReplyDraftPorts {
     madeBy?: string | null;
   }): Promise<ConversationDraftRow | null>;
   /** A claim let go: nothing is owed any more, and no row says one is being written. */
-  letGo(d: { tenantId: string; conversationId: string; kind: ReplyDraftKind }): Promise<void>;
+  letGo(d: { tenantId: TenantId; conversationId: string; kind: ReplyDraftKind }): Promise<void>;
   /** The job scheduled, once a thread, kind, message and edition while one waits. */
   scheduleDraft(
-    tenantId: string,
+    tenantId: TenantId,
     payload: { conversation_id: string; draft_kind: ReplyDraftKind; rules: string; message_id?: string },
   ): Promise<unknown>;
   /** What the sender of an email is, in the order a word outranks a reading (decision 0080's, PRD J). */
   sender: {
     /** What the workspace said of the address or its domain, or null. */
-    said(tenantId: string, address: string): Promise<MailboxSenderVerdict | null>;
+    said(tenantId: TenantId, address: string): Promise<MailboxSenderVerdict | null>;
     /** Whether the business talks with the address: someone it wrote to, or knows on another wire. */
-    talks(tenantId: string, address: string): Promise<boolean>;
+    talks(tenantId: TenantId, address: string): Promise<boolean>;
     /** What it was read to be, if it was. */
-    reading(tenantId: string, address: string): Promise<SenderReading | null>;
+    reading(tenantId: TenantId, address: string): Promise<SenderReading | null>;
     /** Read now, and kept: null where nothing answered, and the thread is drafted as a person's. */
     read(
-      tenantId: string,
+      tenantId: TenantId,
       email: { from: string; name: string | null; subject: string | null; words: string | null; answers?: boolean },
       until: number,
     ): Promise<SenderReading | null>;
   };
   /** The thread set aside (00539): its hold resolved, nothing counted, nothing warned of. */
-  setAside(tenantId: string, conversationId: string, why: "pitch" | "notice"): Promise<boolean>;
+  setAside(tenantId: TenantId, conversationId: string, why: "pitch" | "notice"): Promise<boolean>;
   /** The writer, which the edge holds: the brain and the workspace's whole runtime. */
   write: {
-    reply(tenantId: string, ask: ReplyDraftAsk): Promise<ReplyWritten>;
-    brief(tenantId: string, ask: ReplyDraftAsk): Promise<BriefWritten>;
+    reply(tenantId: TenantId, ask: ReplyDraftAsk): Promise<ReplyWritten>;
+    brief(tenantId: TenantId, ask: ReplyDraftAsk): Promise<BriefWritten>;
   };
 }
 
@@ -146,7 +147,7 @@ export type AskReplyDraftOutcome = "asked" | "kept" | "not_owed" | "gone";
  */
 export async function askReplyDraft(
   ports: Pick<ReplyDraftPorts, "thread" | "claim" | "scheduleDraft">,
-  cmd: { tenantId: string; conversationId: string; now: Date; again?: boolean; staleBefore?: Date },
+  cmd: { tenantId: TenantId; conversationId: string; now: Date; again?: boolean; staleBefore?: Date },
 ): Promise<AskReplyDraftOutcome> {
   const thread = await ports.thread(cmd.tenantId, cmd.conversationId);
   if (!thread) return "gone";
@@ -179,7 +180,7 @@ export async function askReplyDraft(
  */
 async function senderSetAside(
   ports: Pick<ReplyDraftPorts, "sender">,
-  tenantId: string,
+  tenantId: TenantId,
   replyDraftThread: ReplyDraftThread,
   until: number,
 ): Promise<{ sentence: string; why: "pitch" | "notice" } | null> {
@@ -248,7 +249,7 @@ type WriteReplyDraftOutcome = "kept" | "failed" | "set_aside" | "not_owed" | "ol
 export async function writeReplyDraft(
   ports: ReplyDraftPorts,
   cmd: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
     kind: ReplyDraftKind;
     forMessageId: string | null;
@@ -313,7 +314,7 @@ function keptTextOf(row: ConversationDraftRow | undefined): string | null {
 export async function rewriteReplyDraft(
   ports: ReplyDraftPorts,
   cmd: {
-    tenantId: string;
+    tenantId: TenantId;
     conversationId: string;
     kind: ReplyDraftKind;
     instruction: string | null;

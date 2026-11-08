@@ -88,6 +88,7 @@ import {
   type CallEventPlan,
   type CallStep,
 } from "./call-event.js";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -332,7 +333,7 @@ async function routeDelivery(db: Db, input: { agentId: string | null; retellCall
  */
 async function tellPhones(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   callStep: Extract<CallStep, { kind: "call_activity" }>,
 ): Promise<void> {
   const log = logger();
@@ -359,7 +360,7 @@ async function tellPhones(
  * on the row the ingest made (decision 0069, R6). Never fatal: a call that cannot be stamped is a call reviewed against
  * the settings as they stand, and says so.
  */
-async function stampConfigVersion(db: Db, tenantId: string, retellCallId: string, call: RetellCall): Promise<void> {
+async function stampConfigVersion(db: Db, tenantId: TenantId, retellCallId: string, call: RetellCall): Promise<void> {
   const v = call.metadata?.config_version;
   if (typeof v !== "number" || !Number.isInteger(v) || v < 1) return;
   try {
@@ -388,7 +389,7 @@ async function deadLetter(db: Db, n: NormalizedCall): Promise<void> {
  */
 async function recordDelivery(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   callId: string | null,
   data: Record<string, unknown>,
 ): Promise<void> {
@@ -404,7 +405,7 @@ async function recordDelivery(
 }
 
 /** The note in the caller's thread, and the call row pointed at it. */
-async function landNote(db: Db, tenantId: string, callStep: Extract<CallStep, { kind: "note" }>): Promise<void> {
+async function landNote(db: Db, tenantId: TenantId, callStep: Extract<CallStep, { kind: "note" }>): Promise<void> {
   const msgId = await recordCallNote(db, {
     tenantId,
     conversationId: callStep.conversationId,
@@ -417,7 +418,7 @@ async function landNote(db: Db, tenantId: string, callStep: Extract<CallStep, { 
 }
 
 /** The call's own hold on the thread, let go when the call is over and renewed while it runs. */
-async function holdThread(db: Db, tenantId: string, s: Extract<CallStep, { kind: "hold" }>): Promise<void> {
+async function holdThread(db: Db, tenantId: TenantId, s: Extract<CallStep, { kind: "hold" }>): Promise<void> {
   const log = logger();
   const holder = { kind: "call" as const, callId: s.retellCallId };
   const thread = { tenantId, conversationId: s.conversationId, holder };
@@ -450,7 +451,7 @@ async function handToPerson(
 }
 
 /** The owner told a standing rule was broken out loud. */
-async function raiseBreach(db: Db, tenantId: string, s: Extract<CallStep, { kind: "policy_block" }>): Promise<void> {
+async function raiseBreach(db: Db, tenantId: TenantId, s: Extract<CallStep, { kind: "policy_block" }>): Promise<void> {
   const log = logger();
   const sentence = await upsertEscalation(db, tenantId, s.conversationId, s.reason, s.details);
   // The words the agent said are the owner's to read in the Inbox, never the
@@ -621,7 +622,7 @@ async function tellOwner(
 async function savedCallerName(
   db: Db,
   routed: RoutedChannel | null,
-  contactId: string | null,
+  contactId: ContactId | null,
   retellCallId: string,
 ): Promise<string | null> {
   if (!routed || !contactId) return null;

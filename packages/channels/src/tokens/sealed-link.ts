@@ -9,11 +9,12 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { UUID } from "@chanlytics/contracts";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** What a link seals: whose it is, and the email it came in. */
 export interface SealedClaims {
-  tenantId: string;
-  contactId: string;
+  tenantId: TenantId;
+  contactId: ContactId;
   messageId: string;
 }
 

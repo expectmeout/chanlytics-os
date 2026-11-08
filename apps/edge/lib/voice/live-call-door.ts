@@ -21,13 +21,13 @@ import { refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { logger } from "../shared/log.js";
 import { isWorkspaceCall } from "@chanlytics/db/voice";
-import { UUID } from "@chanlytics/contracts";
+import { UUID, isTenantId } from "@chanlytics/contracts";
 import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../shared/admin-auth.js";
 
 /** Whether this door may act on this call for the token's workspace: an answer to return, or null to go on. */
 export async function findRefusedCall(auth: Admitted, aud: string, callId: string): Promise<Response | null> {
   const workspace = tokenWorkspace(auth);
-  if (!workspace || !UUID.test(workspace)) {
+  if (!workspace || !isTenantId(workspace)) {
     logger().warn("live_call_unbound_refused", { door: aud, via: auth.via, call_id: callId });
     return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
   }

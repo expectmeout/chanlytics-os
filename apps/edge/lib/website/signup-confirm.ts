@@ -37,6 +37,8 @@ import {
   workspaceLogoSrc,
   type SignupAskRefusal,
   type WebsiteFormInput,
+  isContactId,
+  isTenantId,
 } from "@chanlytics/contracts";
 import { findContactEmail, insertQueuedEmail, findSignupAskFacts } from "@chanlytics/db/campaigns";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
@@ -46,6 +48,7 @@ import type { Json } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { onceKeyId } from "../shared/alerts/notify.js";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -71,8 +74,8 @@ const signedUpOn = (f: Pick<WebsiteFormInput, "form" | "page" | "about" | "lang"
 async function askToConfirm(
   db: Db,
   params: {
-    tenantId: string;
-    contactId: string;
+    tenantId: TenantId;
+    contactId: ContactId;
     typed: string;
     nowMs: number;
     from: { form: WebsiteFormInput } | { member: string | null };
@@ -180,7 +183,7 @@ async function askToConfirm(
 export async function askIfSignup(
   db: Db,
   log: Logger,
-  params: { tenantId: string; contactId: string; form: WebsiteFormInput; email: string | null; nowMs: number },
+  params: { tenantId: TenantId; contactId: ContactId; form: WebsiteFormInput; email: string | null; nowMs: number },
 ): Promise<SignupAskRefusal | "asked" | null> {
   if (params.form.form !== "signup" || !params.email || websiteFormLate(params.form, params.nowMs)) return null;
   try {
@@ -206,14 +209,14 @@ export async function askIfSignup(
  */
 export async function askAgain(
   auth: Admitted,
-  body: Partial<{ tenant_id: string; user_id: string; contact_id: string }>,
+  body: Partial<{ tenant_id: TenantId; user_id: string; contact_id: ContactId }>,
 ): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const contactId = typeof body.contact_id === "string" ? body.contact_id : "";
-  if (!UUID.test(contactId)) return refuse(400, "bad_request", "contact_id (a person's id) is required");
+  if (!isContactId(contactId)) return refuse(400, "bad_request", "contact_id (a person's id) is required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   try {

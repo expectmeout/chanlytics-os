@@ -22,7 +22,7 @@ import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { keepChannelStanding, findWhatsappNumber, type WhatsappNumber } from "@chanlytics/db/jobs";
 import type { Database } from "@chanlytics/db/types";
-import { standingAlertWords, UUID, type NumberStanding } from "@chanlytics/contracts";
+import { standingAlertWords, UUID, type NumberStanding, isTenantId } from "@chanlytics/contracts";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { notify } from "../shared/alerts/notify.js";
 import { getWaCredentialsForTenant } from "../shared/tenant-runtime.js";
@@ -147,7 +147,7 @@ export async function checkNumberStanding(auth: Admitted, body: Partial<{ tenant
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   let number: WhatsappNumber | null;

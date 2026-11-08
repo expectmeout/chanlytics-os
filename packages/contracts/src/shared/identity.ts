@@ -31,6 +31,15 @@ declare const whoseId: unique symbol;
 export type TenantId = string & { readonly [whoseId]: "tenant" };
 export type ContactId = string & { readonly [whoseId]: "contact" };
 
+/**
+ * Whether a value is a workspace's id, as the check where one enters (a door's body, a job's payload, a route's
+ * parameter): exactly the strings `isUuid` takes, and the value carries the type from there (decision 0112).
+ */
+export const isTenantId = (value: unknown): value is TenantId => typeof value === "string" && isUuid(value);
+
+/** Whether a value is a person's id, the same way. */
+export const isContactId = (value: unknown): value is ContactId => typeof value === "string" && isUuid(value);
+
 /** A tenant id: exactly the strings `isUuid` takes. Anything else throws, because a row that holds it is our fault. */
 export function asTenantId(value: string): TenantId {
   if (!isUuid(value)) throw new TypeError("A tenant id is a uuid.");

@@ -94,6 +94,7 @@ import {
 } from "./call-recording.js";
 import { env } from "../shared/env.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** Only look at rows that have had time to settle — a call that started
  *  seconds ago is not evidence of anything, and asking about it wastes a
@@ -189,7 +190,7 @@ interface ProviderLeg {
 }
 
 /** A call still marked ongoing that has had time to settle. */
-type StaleCall = { tenant_id: string; retell_call_id: string };
+type StaleCall = { tenant_id: TenantId; retell_call_id: string };
 
 /**
  * The calls the webhook never said had ended, each put to the provider until

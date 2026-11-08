@@ -14,7 +14,7 @@ import type { QueuedReply, ReplyThread } from "./reply";
 import type { snooze } from "./snooze";
 
 /** A thread as a row read without asTenantId would carry it. */
-type Unchecked = Omit<Thread, "tenant_id"> & { tenant_id: string };
+type Unchecked = Omit<Thread, "tenant_id"> & { tenant_id: TenantId };
 
 type _Ports = [
   // The thread, the canonical verb's command and the ledger's port each take the brand.

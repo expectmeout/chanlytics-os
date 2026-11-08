@@ -25,12 +25,13 @@
 import crypto from "node:crypto";
 import { createPhoneCall } from "@chanlytics/channels/voice";
 import { getCanaryCallFacts, findCanaryLine, type CanaryCallFacts } from "@chanlytics/db/voice";
-import { MIN_MS, UUID, isE164 } from "@chanlytics/contracts";
+import { MIN_MS, UUID, isE164, isTenantId } from "@chanlytics/contracts";
 import { json, refuse } from "../../shared/http.js";
 import { pg } from "../../shared/pg.js";
 import { env } from "../../shared/env.js";
 import { errField, logger } from "../../shared/log.js";
 import { pageOperator } from "../../shared/alerts/page-operator.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** One canary call a half hour at most: the key can place no more, whoever holds it. */
 const CANARY_EVERY_MS = 30 * MIN_MS;
@@ -46,7 +47,7 @@ export function canaryKeyMatches(request: Request): boolean {
 }
 
 interface CanaryConfig {
-  tenantId: string;
+  tenantId: TenantId;
   from: string;
   callerAgent: string;
   apiKey: string;
@@ -58,7 +59,7 @@ function canaryConfig(): CanaryConfig | null {
   const from = env.VOICE_CANARY_FROM ?? "";
   const callerAgent = env.VOICE_CANARY_CALLER_AGENT ?? "";
   const apiKey = env.RETELL_API_KEY ?? "";
-  if (!UUID.test(tenantId) || !isE164(from) || !callerAgent || !apiKey) return null;
+  if (!isTenantId(tenantId) || !isE164(from) || !callerAgent || !apiKey) return null;
   return { tenantId, from, callerAgent, apiKey };
 }
 

@@ -4,7 +4,7 @@
  * the person the booking is for. No database client, provider or environment inside the verb; the jobs handler binds
  * these over packages/db and the edge's model door.
  */
-import type { AppointmentStatus, NoticeHold } from "@chanlytics/contracts";
+import type { AppointmentStatus, NoticeHold, ContactId, TenantId } from "@chanlytics/contracts";
 
 /** One received email as the read needs it: who sent it, its words, when it came, and the provider's id for it. */
 export interface NoticeEmail {
@@ -27,7 +27,7 @@ export interface StoredAppointment {
   starts_at: string;
   ends_at: string;
   external_id: string | null;
-  contact_id: string | null;
+  contact_id: ContactId | null;
 }
 
 /** The client as a notice names them. */
@@ -40,7 +40,7 @@ export interface NoticeClient {
 
 /** A row the read writes: the booking as the notice stated it, under the one key a repeat meets. */
 export interface NewAppointment {
-  tenantId: string;
+  tenantId: TenantId;
   tool: string;
   externalId: string;
   status: Extract<AppointmentStatus, "booked" | "cancelled">;
@@ -51,7 +51,7 @@ export interface NewAppointment {
   price: string | null;
   note: string | null;
   client: NoticeClient;
-  contactId: string | null;
+  contactId: ContactId | null;
   timezone: string;
 }
 
@@ -66,7 +66,7 @@ export interface AppointmentPatch {
   price?: string | null;
   note?: string | null;
   client?: NoticeClient;
-  contactId?: string | null;
+  contactId?: ContactId | null;
 }
 
 /**
@@ -84,14 +84,14 @@ export interface NoticeLedgerEntry {
 
 export interface BookingNoticePorts {
   /** Why the model may not be asked now (no key, a workspace that may not spend), or null when it may. */
-  mayRead(tenantId: string, atMs: number): Promise<Extract<NoticeHold, "no_model" | "may_not_spend"> | null>;
+  mayRead(tenantId: TenantId, atMs: number): Promise<Extract<NoticeHold, "no_model" | "may_not_spend"> | null>;
   /** The model's answer, unparsed; null when it answered nothing usable. Throws on a failed call: the ledger's retry. */
   ask(system: string, user: string): Promise<unknown>;
   /** What the ledger already holds for this delivery, or null. */
-  noticeOf(tenantId: string, noticeId: string): Promise<NoticeLedgerEntry | null>;
+  noticeOf(tenantId: TenantId, noticeId: string): Promise<NoticeLedgerEntry | null>;
   /** Keep what became of the notice, once per delivery: a second keep for the same delivery replaces the first. */
   keepNotice(p: {
-    tenantId: string;
+    tenantId: TenantId;
     noticeId: string;
     tool: string;
     fromAddress: string | null;
@@ -102,7 +102,7 @@ export interface BookingNoticePorts {
     appointmentId: string | null;
   }): Promise<void>;
   /** The row under this key (appointments_source_uq, source booking_email), or null. */
-  byKey(tenantId: string, externalId: string): Promise<StoredAppointment | null>;
+  byKey(tenantId: TenantId, externalId: string): Promise<StoredAppointment | null>;
   /**
    * The live row (proposed or booked) this client has that starts within `withinMs` of `startMs`, the nearest first, or
    * null: how a change finds the booking it moves, and a cancellation the one it ends, when the key does not. Only a
@@ -110,21 +110,21 @@ export interface BookingNoticePorts {
    * owner's to book (decision 0061), and another tool's visit is that tool's word.
    */
   byClientStart(
-    tenantId: string,
+    tenantId: TenantId,
     client: NoticeClient,
     startMs: number,
     withinMs: number,
   ): Promise<StoredAppointment | null>;
   insert(row: NewAppointment): Promise<{ id: string }>;
   /** "refused" when the row's guard would not take the move (a finished appointment cancelled): nothing changed. */
-  update(tenantId: string, id: string, patch: AppointmentPatch): Promise<"updated" | "refused">;
+  update(tenantId: TenantId, id: string, patch: AppointmentPatch): Promise<"updated" | "refused">;
   /**
    * The person this booking is for, matched or made by the calendar sweep's own rules (a number makes a person, a name
    * fills only an empty one, an erased person is not brought back); null when the notice names no number and nobody
    * holds its address. `visit` is what the person's first event says of where they came from.
    */
   personFor(
-    tenantId: string,
+    tenantId: TenantId,
     client: NoticeClient,
     visit: { title: string; uid: string; startMs: number },
   ): Promise<string | null>;

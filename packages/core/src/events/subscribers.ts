@@ -74,39 +74,40 @@ import { holdNotice, type HoldFacts } from "../deliver/hold-notice";
 import { errField, logger } from "@chanlytics/log";
 import type { DeliveredEvent } from "@chanlytics/db/events";
 import type { FreedTimeRun } from "../campaigns/ports";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** What a subscriber acts through: the job's own database, behind the verbs it needs. */
 export interface SubscriberPorts {
   /** The booking door over one appointment of the record (00389 reach_out_booked_from): how many leads moved. */
-  bookedFromAppointment(tenantId: string, appointmentId: string): Promise<number>;
+  bookedFromAppointment(tenantId: TenantId, appointmentId: string): Promise<number>;
   /** A hold's notice as its rows say it (packages/db holdFactsOf), or null when the thread no longer waits for a person. */
-  holdFacts(tenantId: string, ref: { conversationId: string } | { escalationId: string }): Promise<HoldFacts | null>;
+  holdFacts(tenantId: TenantId, ref: { conversationId: string } | { escalationId: string }): Promise<HoldFacts | null>;
   /**
    * Whether the workspace was told of this hold in full already: this event's notice with nothing owed, or an inline one
    * about the thread. A notice kept whose mail is still owed (the mail failed after the row and the phones went) is not
    * told yet: `tell` then sends the mail alone, and the row is never kept twice.
    */
-  holdTold(tenantId: string, p: { eventId: string; conversationId: string; at: string }): Promise<boolean>;
+  holdTold(tenantId: TenantId, p: { eventId: string; conversationId: string; at: string }): Promise<boolean>;
   /** The person a consent change is about, as their record says it (packages/db personFactsOf); null when there is no such person. */
-  optOutPerson(tenantId: string, contactId: string): Promise<OptOutPerson | null>;
+  optOutPerson(tenantId: TenantId, contactId: ContactId): Promise<OptOutPerson | null>;
   /**
    * Whether the workspace was told of this no already in full: this event's notice with nothing owed, or another door's
    * notice for the same person within the minute (an unsubscribe page's "Stop all messages" writes two events for one
    * press).
    */
-  optOutTold(tenantId: string, p: { eventId: string; contactId: string; at: string }): Promise<boolean>;
+  optOutTold(tenantId: TenantId, p: { eventId: string; contactId: ContactId; at: string }): Promise<boolean>;
   /**
    * Whether the workspace was told of this event in full already: a notice answering it, with nothing owed (news that has no
    * twin to look for but its own earlier delivery).
    */
-  eventTold(tenantId: string, eventId: string): Promise<boolean>;
+  eventTold(tenantId: TenantId, eventId: string): Promise<boolean>;
   /**
    * The visits of the record that are booked and still ahead among these, as the record says them now, with who booked
    * (packages/db listBookedVisits). A visit cancelled, vanished from the feed, past, or a member's own entry is not among them;
    * with `status` "cancelled", the cancelled ones still ahead instead.
    */
   bookedVisits(
-    tenantId: string,
+    tenantId: TenantId,
     ids: readonly string[],
     nowMs: number,
     status?: "booked" | "cancelled",
@@ -116,21 +117,21 @@ export interface SubscriberPorts {
    * feedAdditionsWith): at most CATCH_UP_VISITS + 1, so a read that added more is seen as more without reading all of it.
    */
   feedAdditionsWith(
-    tenantId: string,
+    tenantId: TenantId,
     event: { id: string; at: string },
   ): Promise<Array<{ eventId: string; appointmentId: string; data: unknown }>>;
   /**
    * Whether this visit was told already as its other sighting (packages/db twinTold): a booking's row and the calendar's
    * copy of it, whichever arrived first, the other's arrival answered by the bell.
    */
-  twinTold(tenantId: string, appointmentId: string): Promise<boolean>;
+  twinTold(tenantId: TenantId, appointmentId: string): Promise<boolean>;
   /** The invitation a member.joined event is about: who accepted it and as what (packages/db findMemberJoined); null when it is gone. */
-  memberJoined(tenantId: string, invitationId: string): Promise<MemberJoined | null>;
+  memberJoined(tenantId: TenantId, invitationId: string): Promise<MemberJoined | null>;
   /**
    * Whether the workspace was told of this invitation's acceptance already, by whichever event: a read that took the seat
    * twice (two tabs at once) writes two member.joined events, and the owner is told of one arrival once.
    */
-  memberTold(tenantId: string, invitationId: string): Promise<boolean>;
+  memberTold(tenantId: TenantId, invitationId: string): Promise<boolean>;
   /** The address of a person who left, from the identity store (packages/db findMemberEmail); null for an account that is gone. */
   memberEmail(userId: string): Promise<string | null>;
   /**
@@ -138,7 +139,7 @@ export interface SubscriberPorts {
    * null when the record no longer holds the row.
    */
   freedTimeFacts(
-    tenantId: string,
+    tenantId: TenantId,
     appointmentId: string,
     nowMs: number,
   ): Promise<{ row: FreedTimeLine; calendar: FreedTimeCalendar } | null>;
@@ -147,12 +148,12 @@ export interface SubscriberPorts {
    * appointment, and a second ask answers the batch the first made. Throws when it could not be asked, so the delivery
    * tries again.
    */
-  offerFreedTime(tenantId: string, freed: FreedTimeRun): Promise<FreedTimeOffer>;
+  offerFreedTime(tenantId: TenantId, freed: FreedTimeRun): Promise<FreedTimeOffer>;
   /**
    * Whether the thread is owed a draft, and if so its row claimed and its job scheduled (decision 0093). Throws when it could
    * not be asked, so the delivery tries again.
    */
-  askReplyDraft(tenantId: string, ref: { conversationId: string } | { escalationId: string }): Promise<void>;
+  askReplyDraft(tenantId: TenantId, ref: { conversationId: string } | { escalationId: string }): Promise<void>;
   /**
    * Tell the workspace: the bell, the email its settings allow, the phones each member allows (decision 0040), exactly
    * once for the event the news names. Throws when it could not, so the delivery tries again.
