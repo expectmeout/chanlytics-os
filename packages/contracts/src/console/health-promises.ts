@@ -7,6 +7,7 @@
 import { PLATFORM_NUMBERS, pastTarget, type PlatformDayRowDto } from "../workspace/platform-days";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
 import { PLATFORM_WHERE, inScope, type HealthScope } from "./health-scope";
+import { keysOf } from "../shared/unknown";
 
 type PromiseName = {
   [K in keyof typeof PLATFORM_NUMBERS]: (typeof PLATFORM_NUMBERS)[K] extends { promise: true } ? K : never;
@@ -43,7 +44,7 @@ const PROMISE_WORDS: Record<PromiseName, { title: string; small: string; short: 
   },
 };
 
-const PROMISES = Object.keys(PROMISE_WORDS) as PromiseName[];
+const PROMISES = keysOf(PROMISE_WORDS);
 
 /** A second, for the figures a cell says in seconds. */
 const MS_PER_SECOND = 1_000;

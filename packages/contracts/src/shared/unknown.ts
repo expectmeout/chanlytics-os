@@ -49,6 +49,13 @@ export const recordOrEmpty = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
 /**
+ * A record's own keys, as the record's key type: `Object.keys` answers `string[]` for any object, since an object may
+ * hold more than its type says. For a table the code writes itself (a `Record<K, V>` literal), it holds no more.
+ */
+export const keysOf = <R extends object>(record: R): (keyof R & string)[] =>
+  Object.keys(record) as (keyof R & string)[];
+
+/**
  * Whether a value is a list. A value typed as a list of something keeps that type where this holds, as a stored list
  * read back may not be one: Array.isArray would say yes and make each of its items `any`.
  */

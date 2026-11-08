@@ -1,6 +1,7 @@
 /** Console: staff. */
 
 import type { PlatformLineAction } from "../workspace/platform";
+import { keysOf } from "../shared/unknown";
 
 // ---------------------------------------------------------------------------------------------------- the staff
 
@@ -76,7 +77,7 @@ export const CONSOLE_ACTS = {
 
 export type ConsoleAct = keyof typeof CONSOLE_ACTS;
 
-export const CONSOLE_ACT_KEYS = Object.keys(CONSOLE_ACTS) as ConsoleAct[];
+export const CONSOLE_ACT_KEYS = keysOf(CONSOLE_ACTS);
 
 /** The act each line action is, for the log. */
 export const LINE_ACTS: Record<PlatformLineAction, ConsoleAct> = {

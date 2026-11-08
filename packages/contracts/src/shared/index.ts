@@ -146,6 +146,7 @@ export {
   isList,
   isObjectRecord,
   isOneOf,
+  keysOf,
   listOrEmpty,
   recordOrEmpty,
   textOrEmpty,

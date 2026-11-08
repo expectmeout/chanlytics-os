@@ -447,13 +447,14 @@ export { addressInMessage, normalizeEmail, whyNotAnEmail } from "./shared/email-
 export { ACTOR_TYPES, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_STATES, DECISION_SUBJECTS, DECISION_VERBS, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, ESCALATION_REASONS, ESCALATION_STATES, EVENT_KINDS, EVENT_SUBSCRIBERS, IDENTITY_ASSURANCES, JOB_KINDS, JOB_STATES, MARKETING_OPT_IN_PATTERN, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, OFFERS_OPT_IN_PHRASES, OPT_IN_PATTERN, OPT_OUT_PATTERN, optInPurposeOf, SMS_OPT_OUT_PATTERN, TEMPLATE_STATUSES, TENANT_STATUSES, WABA_FIELDS } from "./shared/enums";
 export { err, ok, SERVED_AT_HEADER } from "./shared/envelope";
 export { AppError, bodyRefusal, ERROR_CODES } from "./shared/errors";
+export { globalSlot } from "./shared/global-slot";
 export { escapeHtml, linkifyEscaped } from "./shared/html";
 export { asContactId, asTenantId, isUuid, SLUG, UUID } from "./shared/identity";
 export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./shared/link";
 export { sumOf } from "./shared/numbers";
 export { areaCodeOf, E164, formatPhoneDisplay, formatPhoneLocal, FORWARD_IS_HANDOFF, HANDOFF_FORWARDS_BACK, handoffE164, normalizePhone, phoneDialable, phoneTail, samePhone, shortCode, US_AREA_CODE, whyNotAHandoff, whyNotAPhone, whyNotForward } from "./shared/phone";
 export { agoShort, agoWords, dateFormat, DAY_MS, HOUR_MS, jittered, MIN_MS, SECOND_MS, spanLabel, spanUnits, timezoneCity, VIEW_CHANGE_MS, waitedLabel, WEEK_MS, isoMs, numberFormat } from "./shared/time";
-export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull, entryOf, isCount, isList, isObjectRecord, isOneOf, listOrEmpty, recordOrEmpty, textOrEmpty, valueAt } from "./shared/unknown";
+export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull, entryOf, isCount, isList, isObjectRecord, isOneOf, keysOf, listOrEmpty, recordOrEmpty, textOrEmpty, valueAt } from "./shared/unknown";
 export { clipAtWord, ANSWER_JSON_ONLY, CONTROL_CHARS, NUMBERED_SLOT, plural, TRY_AGAIN_IN_A_MINUTE, VOICE_IS_OFF, capitalize, joinWords, possessive } from "./shared/words";
 export { DAY_KEY, dayKeyNamed, dayWordIn, isDayKey, mondayOf, monthLabelOf, monthSpan, onOrAfter, shiftKey, shiftMonth, weekdayNamed, zoneMidnight } from "./shared/zone/day-keys";
 export { clockInZone, dayInZone, dayPlusInZone, localToUtcMs, usableZone, WEEKDAY_KEYS, zoneOffsetMs, zoneParts } from "./shared/zone/math";

@@ -28,6 +28,7 @@ import { amountWords } from "../amount";
 import type { DealVM } from "../vm";
 import { proposalMessage } from "../../people/person-reach";
 import { consultedService, dealSendOf, type DealPerson, type DealSend, type DealSheetMode } from "./deal-acts";
+import { keysOf } from "../../shared/unknown";
 
 /* --------------------------------------------- the sheet ---------------------------------------------------- */
 
@@ -359,7 +360,7 @@ export function dealSheetMessage(draft: Pick<DealSheetDraft, "link" | "message">
 
 /** Whether the person has changed anything the sheet opened with: what the registry asks before it is thrown away. */
 export function dealSheetDirty(draft: DealSheetDraft, opened: DealSheetDraft): boolean {
-  const keys = Object.keys(DRAFT_EMPTY) as (keyof DealSheetDraft)[];
+  const keys = keysOf(DRAFT_EMPTY);
   return (
     keys.some((k) => k !== "message" && draft[k] !== opened[k]) || dealSheetMessage(draft) !== dealSheetMessage(opened)
   );
@@ -372,7 +373,7 @@ export function dealSheetDirty(draft: DealSheetDraft, opened: DealSheetDraft): b
  * emptied here.
  */
 export function dealSheetMerge(draft: DealSheetDraft, opened: DealSheetDraft, fresh: DealSheetDraft): DealSheetDraft {
-  const keys = Object.keys(DRAFT_EMPTY) as (keyof DealSheetDraft)[];
+  const keys = keysOf(DRAFT_EMPTY);
   return keys.reduce<DealSheetDraft>((out, k) => (draft[k] === opened[k] ? out : { ...out, [k]: draft[k] }), {
     ...fresh,
   });

@@ -70,6 +70,7 @@ import {
   peopleFromItems,
   type FeedItem,
   type TenantConfig,
+  keysOf,
 } from "@chanlytics/contracts";
 import { noteImport } from "@chanlytics/db/imports";
 import type { DueCalendar } from "@chanlytics/db/jobs";
@@ -99,7 +100,7 @@ async function keepTheRead(
     L.error("calendar_appointments_failed", { tenant_id: tenantId, error: errorOf(e) });
     return;
   }
-  for (const k of Object.keys(kept) as (keyof Kept)[]) kept[k] += item[k];
+  for (const k of keysOf(kept)) kept[k] += item[k];
   if (!item.first) return;
   await markCalendarFeedKept(db, tenantId, now).catch((e: unknown) =>
     L.error("calendar_first_read_stamp_failed", { tenant_id: tenantId, error: errorOf(e) }),

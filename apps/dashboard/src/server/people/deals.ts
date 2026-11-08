@@ -31,6 +31,7 @@ import {
   type PersonCameFrom,
   type PersonRowDto,
   recordOrNull,
+  keysOf,
 } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { findAppointmentWord } from "@chanlytics/db/workspace";
@@ -121,7 +122,7 @@ function countByKey<K extends string>(keys: readonly (K | null)[], order: readon
     .sort((a, b) => b.count - a.count || order.indexOf(a.key) - order.indexOf(b.key));
 }
 
-const CAME_FROM_ORDER = Object.keys(PERSON_CAME_FROM_WORDS) as PersonCameFrom[];
+const CAME_FROM_ORDER = keysOf(PERSON_CAME_FROM_WORDS);
 
 /**
  * Reports' Deals numbers (0004, 0008), from one read of the workspace's deals under the member's own RLS. One cohort

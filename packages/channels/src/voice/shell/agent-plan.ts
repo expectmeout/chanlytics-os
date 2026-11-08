@@ -1,6 +1,6 @@
 /** Shell: agent plan. */
 
-import { PHONE_VOICE_DEFAULT, RETELL_MODELS } from "@chanlytics/contracts";
+import { PHONE_VOICE_DEFAULT, RETELL_MODELS, keysOf } from "@chanlytics/contracts";
 import {
   CALL_ANALYSIS_FIELDS,
   CALL_LIMITS,
@@ -276,15 +276,13 @@ function planCallLimits(live: LiveAgentSettings, drift: string[], patch: Record<
 
 /** The call's feel: each setting the product holds, and the handbook's presets merged into what the line has. */
 function planCallFeel(live: LiveAgentSettings, drift: string[], patch: Record<string, unknown>): void {
-  for (const key of Object.keys(CALL_FEEL) as (keyof typeof CALL_FEEL)[]) {
+  for (const key of keysOf(CALL_FEEL)) {
     if (live[key] === CALL_FEEL[key]) continue;
     drift.push(`${key} is ${String(live[key] ?? "unset")}; the product's is ${String(CALL_FEEL[key])}`);
     patch[key] = CALL_FEEL[key];
   }
   const book = live.handbook_config ?? {};
-  const differ = (Object.keys(CALL_HANDBOOK) as (keyof typeof CALL_HANDBOOK)[]).filter(
-    (k) => book[k] !== CALL_HANDBOOK[k],
-  );
+  const differ = keysOf(CALL_HANDBOOK).filter((k) => book[k] !== CALL_HANDBOOK[k]);
   if (!differ.length) return;
   drift.push(
     `the handbook's ${differ.join(", ")} differ from the product's: a conversational receptionist that reads key details back`,

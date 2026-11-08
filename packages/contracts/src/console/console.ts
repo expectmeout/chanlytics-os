@@ -10,7 +10,7 @@ import {
   type PlatformVerdict,
 } from "../workspace/platform";
 import { staffName } from "./staff";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, keysOf } from "../shared/unknown";
 
 // ------------------------------------------------------------------------------------------- the workspaces, grouped
 
@@ -37,7 +37,7 @@ export const CONSOLE_GROUP_WORDS: Record<ConsoleGroup, string> = {
   previews: "Previews",
 };
 
-const GROUP_ORDER = Object.keys(CONSOLE_GROUPS) as ConsoleGroup[];
+const GROUP_ORDER = keysOf(CONSOLE_GROUPS);
 
 /** The group a verdict falls in. */
 export function consoleGroupOf(verdict: PlatformVerdict): ConsoleGroup {

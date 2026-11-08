@@ -9,7 +9,7 @@
  */
 import { STOP_WORDS } from "../consent/consent";
 import type { EscalationReason } from "../shared/enums";
-import { entryOf } from "../shared/unknown";
+import { entryOf, keysOf } from "../shared/unknown";
 
 export interface EscalationDto {
   id: string;
@@ -290,17 +290,15 @@ export const OPEN_HOLDS_READ_MAX = 100;
  * for these apart from the rest, so a page of them never crowds out a hold that waits on a person (legacy STOP holds
  * were left open, 00409); the rest is read as waiting, so a reason added later is counted, as holdActOf counts it.
  */
-export const HAND_BACK_REASONS: readonly EscalationReason[] = (
-  Object.keys(ESCALATION_ACTS) as EscalationReason[]
-).filter((r) => ESCALATION_ACTS[r] === "hand_back");
+export const HAND_BACK_REASONS: readonly EscalationReason[] = keysOf(ESCALATION_ACTS).filter(
+  (r) => ESCALATION_ACTS[r] === "hand_back",
+);
 
 /**
  * The reasons whose hold waits on a person (waitsOnAPerson): what a person's answer settles. A reply typed in the
  * WhatsApp Business app resolves the open holds of these on its thread (00438 conversation_echo_settles), never a STOP.
  */
-export const WAITING_REASONS: readonly EscalationReason[] = (Object.keys(ESCALATION_ACTS) as EscalationReason[]).filter(
-  (r) => waitsOnAPerson(r),
-);
+export const WAITING_REASONS: readonly EscalationReason[] = keysOf(ESCALATION_ACTS).filter((r) => waitsOnAPerson(r));
 
 /** The act of the open hold a thread has, or null where it has none. */
 export function openHoldAct(hold: { reason: string } | null | undefined): HoldAct | null {
