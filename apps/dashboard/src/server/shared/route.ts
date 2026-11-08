@@ -415,7 +415,9 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
         : spec.query
           ? parse(spec.query, Object.fromEntries([...new URL(req.url).searchParams].filter(([k]) => k !== "workspace")))
           : undefined;
-    const handle = () => spec.handle({ ctx, req, input, ...given } as Call<S, I>);
+    // What this function just proved, which a conditional type on S and I cannot follow: the handler's call is these.
+    const proved = { ctx, req, input, ...given };
+    const handle = () => spec.handle(proved as Call<S, I>);
     const bodyOf = async () => body ?? (await req.clone().text());
     return kind === "write" ? onceForKey(ctx, member, req, spec.idempotent === "own", bodyOf, handle) : handle();
   };
