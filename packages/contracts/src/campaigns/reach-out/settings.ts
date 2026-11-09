@@ -98,7 +98,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
   tab: "How it reaches out",
   gap: "Add what you offer, so cold emails have something to say",
   /** A press that puts what is already known in an empty box. Never put there by itself: Save would store it. */
-  use: (known: string) => `Use ${known}`,
+  fillWith: (known: string) => `Use ${known}`,
   /** How much of a box is used, said only as it nears its limit. */
   room: (used: number, max: number) => `${used.toLocaleString("en-US")} of ${max.toLocaleString("en-US")}`,
   offer: {

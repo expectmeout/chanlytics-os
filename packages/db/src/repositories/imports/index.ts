@@ -4,12 +4,12 @@
 export { getPeopleCount, importPerson, keepBefore, recordPersonBeforeNote } from "./before";
 export type { BeforeKept, BeforeMessage } from "./before";
 export {
+  findBusinessDescription,
   findLinkedPlace,
   findListingFactsStored,
   keepBusinessRead,
   listBusinessReads,
   patchListing,
-  findBusinessDescription,
 } from "./business-reads";
 export type { BusinessReadRow } from "./business-reads";
 export { importCursorOf, importRowOf, listImports, noteImport } from "./ledger";

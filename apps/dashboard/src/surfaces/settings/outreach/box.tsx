@@ -81,7 +81,7 @@ function ReachOutBox({
           {...f.press(() => f.update(() => known, [id]))}
           data-testid={`rec-${id}-use`}
         >
-          <span className="ro-use-words">{BOX_WORDS.use(known)}</span>
+          <span className="ro-use-words">{BOX_WORDS.fillWith(known)}</span>
         </Button>
       ) : null}
     </>
