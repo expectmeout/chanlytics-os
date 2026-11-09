@@ -329,6 +329,7 @@ export const ROUTES = {
   "POST sequences/draft": { method: "POST", path: "/api/v1/sequences/draft" },
   "POST sequences/new": { method: "POST", path: "/api/v1/sequences/new" },
   "POST sequences/voice": { method: "POST", path: "/api/v1/sequences/voice" },
+  "POST settings/reach-out/provider-wanted": { method: "POST", path: "/api/v1/settings/reach-out/provider-wanted" },
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST support/report": { method: "POST", path: "/api/v1/support/report" },
@@ -706,6 +707,7 @@ export type Routes = {
   "POST sequences/draft": typeof import("../../app/api/v1/sequences/draft/route").POST;
   "POST sequences/new": typeof import("../../app/api/v1/sequences/new/route").POST;
   "POST sequences/voice": typeof import("../../app/api/v1/sequences/voice/route").POST;
+  "POST settings/reach-out/provider-wanted": typeof import("../../app/api/v1/settings/reach-out/provider-wanted/route").POST;
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST support/report": typeof import("../../app/api/v1/support/report/route").POST;

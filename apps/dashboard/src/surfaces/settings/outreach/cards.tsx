@@ -92,7 +92,7 @@ export function OutreachCards({
           <KeptCard canEdit={canEdit} />
         </div>
       </div>
-      <ConnectSheets again={again} />
+      <ConnectSheets again={again} flash={flash} />
     </div>
   );
 }

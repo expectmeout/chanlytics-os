@@ -332,6 +332,7 @@ export const ROUTE_KEYS = [
   "POST sequences/draft",
   "POST sequences/new",
   "POST sequences/voice",
+  "POST settings/reach-out/provider-wanted",
   "POST settings/receptionist",
   "POST setup/request",
   "POST support/report",

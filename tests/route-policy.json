@@ -2656,6 +2656,13 @@
       "role": "partner",
       "rate": null,
       "spend": false
+    },
+    "POST settings/reach-out/provider-wanted": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
     }
   }
 }
