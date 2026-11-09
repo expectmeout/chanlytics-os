@@ -23,7 +23,15 @@ import {
 import { emitEvent } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "@chanlytics/core";
-import { DEFAULT_TIMEZONE, handOf, waitEndsWords, runRoute, DbFailure } from "@chanlytics/contracts";
+import {
+  clockWhen,
+  coldBatchGoesNotice,
+  DEFAULT_TIMEZONE,
+  handOf,
+  waitEndsWords,
+  runRoute,
+  DbFailure,
+} from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
 import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
@@ -225,6 +233,15 @@ export async function getReachOutRunContext(
           // How its wait ends is the wait rule's (contracts waitEndsWords, leads_batch): it has no day to pass.
           body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them, or skip the run. ${waitEndsWords("leads_batch")}.`,
         },
+      );
+    },
+    notifyGoes: async (runId, planned, firstAt) => {
+      const target = await loadTenantNotifications(db, tenantId);
+      const notice = coldBatchGoesNotice(row.name, planned, clockWhen(firstAt, tz, now.getTime()));
+      // The row opens the run, where it is stopped; the bell closes it once the run is no longer waiting to go.
+      await notify(
+        { tenantId, ...target },
+        { kind: "playbook", route: runRoute(runId), about: { type: "broadcast", id: runId }, ...notice },
       );
     },
   };

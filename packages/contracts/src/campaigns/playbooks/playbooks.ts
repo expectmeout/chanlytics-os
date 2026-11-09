@@ -43,6 +43,7 @@ export {
   delayWords,
   readyRunNotice,
   vetoRunNotice,
+  coldBatchGoesNotice,
   skippedRunNotice,
   freedTimeTakenNotice,
   PLAYBOOK_NAME_MAX,

@@ -30,6 +30,7 @@ import {
   skippedRunNotice,
   todayRunWords,
   vetoRunNotice,
+  coldBatchGoesNotice,
   waitEndsWords,
   waitRuleOf,
 } from "@chanlytics/contracts";
@@ -85,6 +86,14 @@ test("the notices of a batch say its wait by the rule: ready (until its day ends
   const held = vetoRunNotice("Win-back", 2, "today 10:30 AM");
   assert.equal(held.subject, "Campaign “Win-back” sends today 10:30 AM: 2 people");
   assert.ok(held.body.includes(waitEndsWords("batch_hold", "today 10:30 AM")), held.body);
+  // A day's cold email goes to businesses, and ends its wait by the same rule.
+  const cold = coldBatchGoesNotice("Dentists", 12, "today 10:30 AM");
+  assert.equal(cold.subject, "Campaign “Dentists” sends today 10:30 AM: 12 businesses");
+  assert.equal(
+    cold.body,
+    "“Dentists” emails 12 businesses. Goes today 10:30 AM unless you stop it, from Today or its run.",
+  );
+  assert.equal(coldBatchGoesNotice("Dentists", 1, "today 10:30 AM").subject.endsWith(": 1 business"), true);
   const skipped = skippedRunNotice("Win-back", 3, "quiet_30");
   assert.equal(skipped.subject, "“Win-back” didn’t go: nobody approved it");
   assert.match(skipped.body, /^3 people waited for your OK until the day ended, and nothing was sent\./);

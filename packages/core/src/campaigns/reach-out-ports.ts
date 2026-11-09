@@ -172,6 +172,8 @@ export interface ReachOutRunPorts {
    */
   recordRun(run: NewReachOutRun, counts: { planned: number; skipped: number }): Promise<void>;
   notifyWaiting(runId: string, planned: number, firstAt: number): Promise<void>;
+  /** A batch held for a stop: it goes at its time unless its owner stops it, so they are told when (Before each batch). */
+  notifyGoes(runId: string, planned: number, firstAt: number): Promise<void>;
 }
 
 export type ReachOutRunOutcome =

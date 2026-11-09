@@ -1,9 +1,8 @@
 /**
  * One step of a reach-out, on its day (Reach out §4.1, §4.5): who it writes to, a run for them, and when each email
  * goes. A run of a step whose words are new to its owner waits for them (decision 0064: its first, and its first after
- * new words), and so does every first-email run of a chain fed by a list (00426: each of its leads was added by hand, so
- * each run is a new say); any other gives thirty minutes to be stopped, or waits too when its sequence asks for each
- * (its mode, E7), and while any run of the chain waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
+ * new words); any other gives thirty minutes to be stopped and tells its owner when it goes, or waits too when its
+ * sequence asks for each (its mode, E7), and while any run of the chain waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
  * chain bounced (C4), and one that keeps no open hour all week are skipped with why, so none of them heads the step's
  * page every day. What the timetable cannot place within its horizon waits for the next day's run. A reach-out its owner
  * sends (00429) plans no mailbox and no timetable: its day's share (REACH_OUT_DRAFTS_PER_DAY, less what the chain's runs
@@ -161,5 +160,9 @@ export async function runReachOut(
     await ports.notifyWaiting(run.id, placed.length, firstAt);
     return { outcome: "held", reason: "waiting_for_you", planned: placed.length };
   }
+  // Before each batch promises "You're told it's ready". The run is made and on the ledger: telling of it must not cost
+  // the run its record, so a bell that fails is let go (the door says so in its own log), as a moment's held run does. A
+  // run its owner sends by hand never goes without them, so there is nothing to say.
+  if (!step.owner_sends) await ports.notifyGoes(run.id, placed.length, firstAt).catch(() => undefined);
   return { outcome: "sent", planned: placed.length };
 }
