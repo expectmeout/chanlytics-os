@@ -44,7 +44,7 @@ export interface BtLive<D> {
 
 /** What an editor's acts share: the live record, the draft's setters, the asks. */
 export interface BtEd<D> {
-  l: BtLive<D>;
+  live: BtLive<D>;
   flash: Flash;
   ask: BtAsk;
   out: () => boolean;
@@ -54,10 +54,10 @@ export interface BtEd<D> {
 }
 
 /** What the box opened on: what it shows in place of what is stored, else what is. */
-export const btOpenedOn = <D,>(l: BtLive<D>): D | null => (l.shown != null ? l.shown : l.opened);
+export const btOpenedOn = <D,>(live: BtLive<D>): D | null => (live.shown != null ? live.shown : live.opened);
 
 /** The latest draft: what was typed, else what it opened with. */
-export const btLatest = <D,>(l: BtLive<D>): D => (l.draft != null ? l.draft : btOpenedOn(l)) as D;
+export const btLatest = <D,>(live: BtLive<D>): D => (live.draft != null ? live.draft : btOpenedOn(live)) as D;
 
 export type BtUpdate<D> = (fn: (draft: D) => D, keys?: string[]) => boolean;
 
@@ -103,17 +103,17 @@ const btListCx = <D,>(ed: BtEd<D>, update: BtUpdate<D>, undo: BtUndo<D>, o: BtLi
   const id = btListNamed(o.id, "rows()");
   const list = dflt(o.list, btWholeList);
   const key = dflt(o.key, null);
-  const drafted = () => btLatest(ed.l);
+  const drafted = () => btLatest(ed.live);
   // The list as its own rows() last left it. Replaced whole from outside (a day's hours copied over another's, a
   // week put back by its copy's Undo), it is no longer that list, and a row waiting to go back into it has no place:
   // its put-backs are dropped, and their Undo says so. Known by the list's value, not by a flag a caller must set.
   const noted = () => {
-    ed.l.produced.set(id, list(drafted()));
+    ed.live.produced.set(id, list(drafted()));
   };
   const settle = () => {
-    const p = ed.l.produced;
+    const p = ed.live.produced;
     if (p.has(id) && p.get(id) !== list(drafted())) {
-      ed.l.backs = BtPutBacks.dropped(ed.l.backs, id);
+      ed.live.backs = BtPutBacks.dropped(ed.live.backs, id);
       p.delete(id);
     }
   };
@@ -160,7 +160,7 @@ const btListAdd = <D,>(cx: BtListCx<D>, blank: () => unknown) => {
  * row back, once; the other then has nothing left to put back, and the row is where it was either way.
  */
 const btAgain = <D,>(cx: BtListCx<D>, id: number, back: () => boolean, opening: number): BtAgain => {
-  const l = cx.ed.l;
+  const l = cx.ed.live;
   let done = false;
   return Object.assign(
     () => {
@@ -196,7 +196,7 @@ const btListRemove = <D,>(
   i: number,
   said: ReactNode | ((row: unknown) => ReactNode),
 ): BtAgain | false => {
-  const l = cx.ed.l;
+  const l = cx.ed.live;
   cx.settle();
   const gone = cx.latest()[i];
   if (gone === undefined) return false;
@@ -259,11 +259,11 @@ export const btEditorRows =
       // of the list's rows come before it now, which is where a body draws the Undo it offers in the row's place.
       waiting: () => {
         cx.settle();
-        return BtPutBacks.of(ed.l.backs, cx.id).map((b) => ({
+        return BtPutBacks.of(ed.live.backs, cx.id).map((b) => ({
           id: b.id,
           at: b.at,
           row: b.row,
-          back: ed.l.agains.get(b.id),
+          back: ed.live.agains.get(b.id),
         }));
       },
     };

@@ -87,7 +87,7 @@ type BtEditorR<D> = ReturnType<typeof btEditorArgs<D>>;
 const btEditorReset =
   <D,>(ed: BtEd<D>) =>
   () => {
-    const l = ed.l;
+    const l = ed.live;
     l.draft = null;
     l.opened = null;
     l.backs = BtPutBacks.none;
@@ -106,7 +106,7 @@ const btEditorReset =
 const btEditorUpdate =
   <D,>(ed: BtEd<D>): BtUpdate<D> =>
   (fn, keys) => {
-    const l = ed.l;
+    const l = ed.live;
     if (!l.open || ed.out()) return false;
     const next = fn(btLatest(l));
     l.draft = next;
@@ -131,9 +131,9 @@ const btEditorUpdate =
 const btEditorUndo =
   <D,>(ed: BtEd<D>, update: BtUpdate<D>): BtUndo<D> =>
   (fn) => {
-    const at = ed.l.opening;
+    const at = ed.live.opening;
     return () => {
-      if (!ed.l.open || ed.l.opening !== at) {
+      if (!ed.live.open || ed.live.opening !== at) {
         ed.flash({ tone: "warn", msg: <>{BT_UNDO_CLOSED}</> });
         return false;
       }
@@ -212,7 +212,7 @@ function btJudge<D>(
     if (!S.holdsChanges(id, o.base, typed)) return { nothing: true };
     const all = S.saveProblems(id, o.base, typed);
     if (Object.keys(all).length) return { problems: all };
-    return { job: S.foldJob(id, typed, { opened: ed.l.opened, said: a.said, done: taken, flash: a.flash }) };
+    return { job: S.foldJob(id, typed, { opened: ed.live.opened, said: a.said, done: taken, flash: a.flash }) };
   });
 }
 
@@ -236,10 +236,10 @@ const btEditorSubmit =
       s.close();
       return;
     }
-    const typed = (s.draft != null ? s.draft : ed.l.opened) as D;
+    const typed = (s.draft != null ? s.draft : ed.live.opened) as D;
     // Taken: the editor closes, the row it closes into says so (settled), and the card's own `after` runs.
     const taken = () => {
-      ed.l.settled = true;
+      ed.live.settled = true;
       s.close();
       if (a.after) a.after(typed);
     };
@@ -371,7 +371,7 @@ export function useBtEditor<D>(args: BtEditorArgs<D>) {
   // A role that may not change the business never has an editor, whatever asked for one; nor does a page with nothing
   // read to save onto, nor a part of the record its draft cannot be worked out of (btOpening).
   const open = fold.open && canEdit && can;
-  const ed: BtEd<D> = { l: live.current, flash: a.flash, ask, out, setDraft, setProblems, setFocusOn };
+  const ed: BtEd<D> = { live: live.current, flash: a.flash, ask, out, setDraft, setProblems, setFocusOn };
   const reset = btEditorReset(ed);
   useEffect(() => {
     if (!open) reset();
