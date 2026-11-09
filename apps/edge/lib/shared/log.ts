@@ -156,7 +156,9 @@ export function logFailure(kind: keyof typeof FAILURE_WORDS, failure: unknown): 
     kind,
     ...(typeof code === "string" ? { db_code: code } : {}),
     error:
-      failure instanceof Error ? failure : textOrEmpty(valueAt(failure, "message")) || String(failure ?? "no answer"),
+      failure instanceof Error
+        ? failure
+        : textOrEmpty(valueAt(failure, "message")) || (typeof failure === "string" ? failure : "no answer"),
   });
   return FAILURE_WORDS[kind];
 }
