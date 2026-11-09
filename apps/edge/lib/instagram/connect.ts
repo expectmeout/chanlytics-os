@@ -105,7 +105,7 @@ async function step<T>(
  * write that follows would otherwise move a live account, its token and its DMs between workspaces. A read that failed
  * says nothing about who holds it.
  */
-async function heldElsewhere(db: Db, log: Log, tenantId: TenantId, accountId: string): Promise<Response | null> {
+export async function heldElsewhere(db: Db, log: Log, tenantId: TenantId, accountId: string): Promise<Response | null> {
   let holder: { tenant_id: TenantId } | null;
   try {
     holder = await findInstagramAccountHolder(db, accountId);

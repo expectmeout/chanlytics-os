@@ -93,6 +93,14 @@ export const env = {
   get INSTAGRAM_REDIRECT_URI() {
     return trimmedEnv(process.env.INSTAGRAM_REDIRECT_URI);
   },
+  /** The Meta link (Instagram API with Unified Login): the Meta app's saved login configuration, from the App Dashboard. */
+  get META_LOGIN_CONFIG_ID() {
+    return trimmedEnv(process.env.META_LOGIN_CONFIG_ID);
+  },
+  /** The dashboard's /api/v1/channels/meta/callback, exactly as the configuration lists it. */
+  get META_REDIRECT_URI() {
+    return trimmedEnv(process.env.META_REDIRECT_URI);
+  },
 
   // Retell AI and the lines under it
   get RETELL_API_KEY() {

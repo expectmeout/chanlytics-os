@@ -37,7 +37,7 @@ const INSTAGRAM_CONNECT_TIMEOUT_MS = 10_000;
 /** One request, as the wire will make it. */
 export interface InstagramRequest {
   url: string;
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "DELETE";
   headers?: Record<string, string>;
   body?: string;
 }
@@ -49,11 +49,28 @@ export interface InstagramApp {
   redirectUri: string;
 }
 
-/** A business's account as a send needs it: its Instagram account id (`/me`'s user_id), and its token. */
+/**
+ * A business's account as a send needs it: its Instagram account id (`/me`'s user_id, or the id Meta lists it by), and its
+ * token. An account connected through Meta (the Meta link, meta.ts) speaks on Facebook's host with the business's token,
+ * each call with its `appsecret_proof`; one connected through Instagram's own login on Instagram's.
+ */
 export interface InstagramConfig {
   accountId: string;
   accessToken: string;
+  /** Facebook's host, for an account connected through Meta; absent for Instagram's own login. */
+  graph?: "facebook";
+  /** The token's `appsecret_proof` (meta.ts metaAppSecretProof), carried on every call made on Facebook's host. */
+  proof?: string;
 }
+
+/** Facebook's Graph, for an account connected through Meta: the version the Meta link speaks (meta.ts META_GRAPH_VERSION). */
+const FACEBOOK_GRAPH = "https://graph.facebook.com/v27.0";
+
+/** Where an account's calls go, and the proof its token carries there. */
+const hostOf = (cfg: Pick<InstagramConfig, "graph">): string =>
+  cfg.graph === "facebook" ? FACEBOOK_GRAPH : INSTAGRAM_GRAPH;
+const proofOf = (cfg: Pick<InstagramConfig, "proof">): Record<string, string> =>
+  cfg.proof ? { appsecret_proof: cfg.proof } : {};
 
 const FORM_ENCODED = { "Content-Type": "application/x-www-form-urlencoded" };
 const query = (params: Record<string, string>): string => new URLSearchParams(params).toString();
@@ -123,18 +140,30 @@ export function instagramSubscribeRequest(token: string, accountId: string): Ins
   };
 }
 
-/** A person who wrote to the account, as they call themselves there (only once they have written: their consent). */
-function instagramProfileRequest(token: string, igsid: string): InstagramRequest {
+/**
+ * The account's DMs no longer sent to this app through Instagram's own login: the Meta link takes the account over, and
+ * its own subscription carries them from then on (Meta warns of each event twice while both stand).
+ */
+export function instagramUnsubscribeRequest(token: string, accountId: string): InstagramRequest {
   return {
-    url: `${INSTAGRAM_GRAPH}/${encodeURIComponent(igsid)}?${query({ fields: "name,username", access_token: token })}`,
+    url: `${INSTAGRAM_GRAPH}/${encodeURIComponent(accountId)}/subscribed_apps?${query({ access_token: token })}`,
+    method: "DELETE",
+  };
+}
+
+/** A person who wrote to the account, as they call themselves there (only once they have written: their consent). */
+function instagramProfileRequest(cfg: InstagramConfig, igsid: string): InstagramRequest {
+  return {
+    url: `${hostOf(cfg)}/${encodeURIComponent(igsid)}?${query({ fields: "name,username", access_token: cfg.accessToken, ...proofOf(cfg) })}`,
     method: "GET",
   };
 }
 
 /** One DM of text to a person, from the account. */
 function instagramSendRequest(cfg: InstagramConfig, to: string, text: string): InstagramRequest {
+  const proof = query(proofOf(cfg));
   return {
-    url: `${INSTAGRAM_GRAPH}/${encodeURIComponent(cfg.accountId)}/messages`,
+    url: `${hostOf(cfg)}/${encodeURIComponent(cfg.accountId)}/messages${proof ? `?${proof}` : ""}`,
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ recipient: { id: to }, message: { text } }),
@@ -270,15 +299,11 @@ export async function callInstagram(
 
 /** A person's name as their profile has it, or null when it could not be read (never a reason to hold a message). */
 export async function readInstagramName(
-  token: string,
+  cfg: InstagramConfig,
   igsid: string,
   deps: InstagramDeps = {},
 ): Promise<string | null> {
-  const a = await callInstagram(
-    instagramProfileRequest(token, igsid),
-    { timeoutMs: INSTAGRAM_PROFILE_TIMEOUT_MS },
-    deps,
-  );
+  const a = await callInstagram(instagramProfileRequest(cfg, igsid), { timeoutMs: INSTAGRAM_PROFILE_TIMEOUT_MS }, deps);
   return a.outcome === "ok" ? instagramNameOf(a.json) : null;
 }
 

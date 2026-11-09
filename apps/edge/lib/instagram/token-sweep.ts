@@ -11,6 +11,12 @@
  * that got no answer is left for tomorrow, well inside the sixty days. A token a week old is refreshed on the first day
  * after its week; missing a day costs nothing.
  *
+ * An account connected through Meta (the Meta link, `login: "meta"` in its secret) holds the business's own token, which
+ * does not lapse on a clock: it is checked, not refreshed. `debug_token` says whether it still stands and what it may do;
+ * one Meta no longer takes is said exactly as a lapsed Instagram token is, and what it may do is kept on the row as
+ * `scopes`, from which Connections draws its five lines (contracts metaLinesOf), so a permission taken back turns its line
+ * Off. A check that got no answer changes nothing and waits for tomorrow.
+ *
  * The work is bounded by time: no refresh starts after YIELD_AT_MS from the door's first line, and what is left is first
  * in line tomorrow (the oldest rows first). It answers 200 with the counts whatever Meta said, and 503 only when the
  * accounts cannot be read. Its lines carry `sweep: "instagram_tokens"`, and the tick ends in one ig_tokens_swept.
@@ -21,7 +27,9 @@ import {
   callInstagram,
   instagramErrorOf,
   instagramRefreshRequest,
+  metaDebugTokenRequest,
   parseInstagramToken,
+  parseMetaDebugToken,
 } from "@chanlytics/channels/instagram";
 import {
   listActiveInstagramAccounts,
@@ -35,6 +43,8 @@ import { json, refuse } from "../shared/http.js";
 import { errField, type Logger } from "../shared/log.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { notifyOnce } from "../shared/alerts/notify.js";
+import { env } from "../shared/env.js";
+import { metaAppId } from "../whatsapp/meta-graph.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 import type { InstagramSecret } from "./credentials.js";
 
@@ -46,7 +56,7 @@ const REFRESH_AFTER_MS = 7 * DAY_MS;
 const YIELD_AT_MS = 40_000;
 
 /** What became of one account this round. */
-type Swept = "refreshed" | "fresh" | "lapsed" | "unanswered" | "no_token" | "unreadable";
+type Swept = "refreshed" | "checked" | "fresh" | "lapsed" | "unanswered" | "no_token" | "unreadable";
 
 /** Graph's refusal of the token itself: it lapsed, was revoked, or its session ended (190, and its own words for 400s). */
 const tokenRefused = (status: number, code: number | null): boolean => code === 190 || status === 401;
@@ -76,6 +86,57 @@ async function tellLapsed(db: Db, row: InstagramAccountRow, log: Logger): Promis
   ).catch((e: unknown) => log.error("ig_token_lapse_untold", { channel_id: row.id, error: errField(e) }));
 }
 
+/** A token Meta no longer takes: the row says so, and the workspace is told once. */
+async function markLapsed(db: Db, row: InstagramAccountRow, now: number, log: Logger): Promise<"lapsed"> {
+  await noteInstagramToken(db, row.id, row.config, { token_lapsed_at: new Date(now).toISOString() });
+  await tellLapsed(db, row, log);
+  return "lapsed";
+}
+
+/** An account connected through Meta: its token asked about, and what it may do kept on the row. */
+async function checkMeta(
+  db: Db,
+  row: InstagramAccountRow,
+  at: { token: string; now: number },
+  log: Logger,
+): Promise<Swept> {
+  const { token, now } = at;
+  const clientSecret = env.META_APP_SECRET;
+  if (!clientSecret) {
+    log.warn("ig_token_unchecked", { channel_id: row.id, why: "no_app_secret" });
+    return "unanswered";
+  }
+  const result = await callInstagram(metaDebugTokenRequest({ clientId: metaAppId(), clientSecret }, token));
+  let facts: ReturnType<typeof parseMetaDebugToken> | null = null;
+  if (result.outcome === "ok") {
+    try {
+      facts = parseMetaDebugToken(result.json);
+    } catch {
+      // An answer that says nothing readable about the token is no answer: nothing changes, and tomorrow asks again.
+      facts = null;
+    }
+  }
+  if (!facts) {
+    log.warn("ig_token_unchecked", { channel_id: row.id, status: result.status, error: result.error });
+    return "unanswered";
+  }
+  if (!facts.valid) {
+    log.warn("ig_token_lapsed", { channel_id: row.id, login: "meta" });
+    return markLapsed(db, row, now, log);
+  }
+  const before = recordOrEmpty(row.config).scopes;
+  const had = Array.isArray(before) ? before.filter((x): x is string => typeof x === "string") : [];
+  const lost = had.filter((p) => !facts.scopes.includes(p));
+  if (lost.length) log.warn("ig_token_scopes_changed", { channel_id: row.id, lost });
+  await noteInstagramToken(db, row.id, row.config, {
+    token_checked_at: new Date(now).toISOString(),
+    scopes: facts.scopes,
+    token_lapsed_at: null,
+  });
+  log.info("ig_token_checked", { channel_id: row.id, scopes: facts.scopes.length });
+  return "checked";
+}
+
 /** One account: refreshed when its token is a week old, kept as it was when younger, said when Meta refused it. */
 async function sweepOne(db: Db, row: InstagramAccountRow, now: number, log: Logger): Promise<Swept> {
   let secret: Partial<InstagramSecret> | null;
@@ -86,6 +147,7 @@ async function sweepOne(db: Db, row: InstagramAccountRow, now: number, log: Logg
     return "unreadable";
   }
   if (!secret?.access_token || !secret.account_id) return "no_token";
+  if (secret.login === "meta") return checkMeta(db, row, { token: secret.access_token, now }, log);
   const given = Date.parse(secret.refreshed_at ?? "");
   if (Number.isFinite(given) && now - given < REFRESH_AFTER_MS) return "fresh";
   const result = await callInstagram(instagramRefreshRequest(secret.access_token));
@@ -93,9 +155,7 @@ async function sweepOne(db: Db, row: InstagramAccountRow, now: number, log: Logg
     const err = instagramErrorOf(result.json);
     if (tokenRefused(result.status, err?.code ?? null)) {
       log.warn("ig_token_lapsed", { channel_id: row.id, status: result.status, code: err?.code ?? null });
-      await noteInstagramToken(db, row.id, row.config, { token_lapsed_at: new Date(now).toISOString() });
-      await tellLapsed(db, row, log);
-      return "lapsed";
+      return markLapsed(db, row, now, log);
     }
     log.warn("ig_token_unrefreshed", { channel_id: row.id, status: result.status, error: result.error });
     return "unanswered";
@@ -130,6 +190,7 @@ export async function sweepInstagramTokens(
   }
   const counts: Record<Swept | "left", number> = {
     refreshed: 0,
+    checked: 0,
     fresh: 0,
     lapsed: 0,
     unanswered: 0,

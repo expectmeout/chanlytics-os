@@ -14,6 +14,9 @@
           "api/admin/instagram/account.ts": {
             "maxDuration": 60
           },
+          "api/admin/meta/connection.ts": {
+            "maxDuration": 60
+          },
           "api/admin/intake/replay.ts": {
             "maxDuration": 60
           },

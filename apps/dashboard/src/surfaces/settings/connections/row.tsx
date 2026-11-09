@@ -38,6 +38,8 @@ const VERB_TESTID: Record<string, string> = {
   "verb:google-disconnect": "google-disconnect",
   "verb:instagram-connect": "instagram-connect",
   "verb:instagram-disconnect": "instagram-disconnect",
+  "verb:meta-connect": "meta-connect",
+  "verb:meta-disconnect": "meta-disconnect",
   "verb:whatsapp-connect": "connect-whatsapp-btn",
   "verb:whatsapp-connect-keep": "connect-whatsapp-keep-btn",
   messages: "channel-messages",
@@ -54,6 +56,8 @@ const VERB_DOING: Record<string, string> = {
   "verb:google-disconnect": "disconnect Google",
   "verb:instagram-connect": "connect Instagram",
   "verb:instagram-disconnect": "disconnect Instagram",
+  "verb:meta-connect": "connect Meta",
+  "verb:meta-disconnect": "disconnect Meta",
   "verb:whatsapp-connect": "connect WhatsApp",
   "verb:whatsapp-connect-keep": "connect WhatsApp",
   "verb:business-record": "fill in the business record",
@@ -66,10 +70,20 @@ const verbGate = (verb: ConnectionVerb) =>
  * The verbs of a joined row that do not mend it: they stay its acts in Settings, and a row that has only one of them,
  * whatever is wrong, is not offered a Fix (its state says who has it).
  */
-const NOT_A_MEND = new Set(["verb:google-disconnect", "verb:instagram-disconnect", "verb:email-setup", MESSAGES_ROUTE]);
+const NOT_A_MEND = new Set([
+  "verb:google-disconnect",
+  "verb:instagram-disconnect",
+  "verb:meta-disconnect",
+  "verb:email-setup",
+  MESSAGES_ROUTE,
+]);
 
 /** The verbs that disconnect, each asked about on its row first (rowAsk): Google's Business Profile, an Instagram account. */
-const DISCONNECTS: ReadonlySet<string> = new Set(["verb:google-disconnect", "verb:instagram-disconnect"]);
+export const DISCONNECTS: ReadonlySet<string> = new Set([
+  "verb:google-disconnect",
+  "verb:instagram-disconnect",
+  "verb:meta-disconnect",
+]);
 
 /**
  * The one word a row's button says. Connect where there is a way in from here; Fix, the coral one, where a connection
@@ -336,6 +350,17 @@ function rowSettings(
           busy,
         })
       : null;
+  // A joined row's second way on (an Instagram account moved to Meta's one connection), beside its own acts.
+  const also = r.also
+    ? verbButton({
+        r,
+        verb: r.also,
+        label: r.also.label,
+        variant: "secondary",
+        run: (row) => run({ ...row, verb: row.also ?? null }),
+        busy,
+      })
+    : null;
   return (
     <div className="set-int-open" id={panelId} data-testid={`connection-${r.kind}-about`}>
       {fixing ? (
@@ -353,9 +378,10 @@ function rowSettings(
         </dl>
       ) : null}
       {saysMore(r, fixing ? { ...says, sentence: "" } : says)}
-      {!armed && ((act && !fixing) || disconnects || removable) ? (
+      {!armed && ((act && !fixing) || also || disconnects || removable) ? (
         <span className="set-acts">
           {fixing ? null : act}
+          {also}
           {disconnects && verb ? (
             <LinkButton
               tone="danger"

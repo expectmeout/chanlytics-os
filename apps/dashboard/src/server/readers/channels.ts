@@ -1,5 +1,5 @@
 import "server-only";
-import { standingFromConfig, type ChannelDto, DbFailure } from "@chanlytics/contracts";
+import { metaLinesOf, standingFromConfig, type ChannelDto, DbFailure } from "@chanlytics/contracts";
 import { findLastInboundOn } from "@chanlytics/db/channels";
 import { readerStamp, type Reader } from "../shared/reader";
 import { listChannelsForPage } from "@chanlytics/db/workspace";
@@ -54,8 +54,15 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
         standing: standingFromConfig(cfg.standing),
         standing_read_at: s("standing_read_at"),
         connected_at: s("connected_at"),
-        // An Instagram account's handle, and when Instagram stopped taking its token (the token sweep keeps it).
-        ...(row.kind === "instagram" ? { handle: s("username"), lapsed_at: s("token_lapsed_at") } : {}),
+        // An Instagram account's handle, and when Instagram stopped taking its token (the token sweep keeps it); and
+        // where it came through Meta, what its token may do (the edge's daily check keeps `scopes`).
+        ...(row.kind === "instagram"
+          ? {
+              handle: s("username"),
+              lapsed_at: s("token_lapsed_at"),
+              meta_lines: cfg.login === "meta" ? metaLinesOf(cfg.scopes) : null,
+            }
+          : {}),
       };
     });
     return { data: { channels }, rows: [], stamp: readerStamp() };

@@ -543,7 +543,18 @@ test("every verb a row can offer is a verb the page runs", () => {
   const offered = [...rows.matchAll(/to:\s*"verb:([a-z-]+)"/g)].map((m) => m[1]);
   assert.ok(offered.length >= 5, "the verbs were found at all");
   const page = readCode("apps/dashboard/src/surfaces/settings/connections/pane.tsx");
-  const handled = [...page.matchAll(/case\s*"verb:([a-z-]+)":/g)].map((m) => m[1]);
+  // A verb is run by its case, by the table of verbs that leave for a provider's own screen (pane.tsx LEAVES), or by the
+  // set of disconnects asked about on their row first (row.tsx DISCONNECTS).
+  const row = readCode("apps/dashboard/src/surfaces/settings/connections/row.tsx");
+  const asked = row.slice(
+    row.indexOf("export const DISCONNECTS"),
+    row.indexOf("]);", row.indexOf("export const DISCONNECTS")),
+  );
+  const handled = [
+    ...[...page.matchAll(/case\s*"verb:([a-z-]+)":/g)].map((m) => m[1]),
+    ...[...page.matchAll(/"verb:([a-z-]+)":\s*\(\)\s*=>/g)].map((m) => m[1]),
+    ...[...asked.matchAll(/"verb:([a-z-]+)"/g)].map((m) => m[1]),
+  ];
   for (const v of new Set(offered)) {
     assert.ok(handled.includes(v), `verb:${v} is offered by a row and handled by nobody`);
   }
