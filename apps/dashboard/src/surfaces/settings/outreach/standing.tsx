@@ -48,7 +48,7 @@ const StepRow = ({ step }: { step: ColdEmailStep }) => (
 );
 
 /** What the answer's one press does: a sheet of this page where it has no address of its own. */
-const pressOf = (standing: ColdEmailStanding) => () => {
+const standingPressOf = (standing: ColdEmailStanding) => () => {
   if (standing.to) navigate(standing.to);
   else if (standing.kind === "no_mailbox") recFolds.request("connect");
 };
@@ -83,7 +83,7 @@ export function StandingCard({ standing }: { standing: ColdEmailStanding | null 
           <Button
             size="sm"
             variant={standing.needs_you ? "primary" : undefined}
-            onClick={pressOf(standing)}
+            onClick={standingPressOf(standing)}
             data-testid="rec-standing-act"
           >
             {standing.act}

@@ -6,6 +6,7 @@
 import { mailboxHoldWords } from "../../email/mailbox-standing";
 import { leadsRoute } from "../../leads/plan";
 import { dayInZone, usableZone } from "../../shared/zone/math";
+import { plural } from "../../shared/words";
 import { newForLeadsRoute, runRoute, sequenceRoute } from "../sequences/address";
 
 export type ColdEmailStandingKind =
@@ -85,10 +86,9 @@ export const COLD_EMAIL_MAILBOX_UNREAD = "Couldn't check your mailbox just now. 
 export const NO_SENDING_BY_HAND =
   "Chanlytics sends cold email from your mailbox, so sending each by hand isn't offered.";
 
-const CONNECTIONS_ROUTE = "admin/integrations";
+const CONNECTIONS_PAGE = "admin/integrations";
 const ADDRESS_ROUTE = "admin/workspace/address";
 
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 const sentence = (clause: string): string => `${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`;
 
 /** What is left before a first email: said on a new account, and read by the one that has only one thing left. */
@@ -133,7 +133,7 @@ const heldAnswer: Rule = (f) => {
     headline: "Sending paused to protect your name",
     detail: `${sentence(mailboxHoldWords(held.held_why))} Fix it, then resume.`,
     act: "See what to fix",
-    to: CONNECTIONS_ROUTE,
+    to: CONNECTIONS_PAGE,
     needs_you: true,
   };
 };
@@ -145,7 +145,7 @@ const reconnectAnswer: Rule = (f) =>
         headline: "Your mailbox needs reconnecting",
         detail: "Google asked you to sign in again. Your emails are waiting, and they go on where they stopped.",
         act: "Reconnect",
-        to: CONNECTIONS_ROUTE,
+        to: CONNECTIONS_PAGE,
         needs_you: true,
       }
     : null;
@@ -237,7 +237,7 @@ const pausedAnswer: Rule = (f) =>
         headline: "Your mailbox is paused",
         detail: "Nothing goes out until you resume it.",
         act: "Open Connections",
-        to: CONNECTIONS_ROUTE,
+        to: CONNECTIONS_PAGE,
         needs_you: false,
       }
     : null;
@@ -257,7 +257,7 @@ const readyAnswer: Rule = (f) =>
     : null;
 
 /** A running sequence's numbers, where they were read: "34 sent, 5 replies, 2 interested". */
-function numbersOf(r: ColdEmailRunning): string | null {
+function runningNumbersOf(r: ColdEmailRunning): string | null {
   const parts = [
     r.sent === null ? null : `${r.sent} sent`,
     r.wroteBack === null ? null : plural(r.wroteBack, "reply", "replies"),
@@ -268,7 +268,7 @@ function numbersOf(r: ColdEmailRunning): string | null {
 
 function sendingAnswer(f: ColdEmailStandingFacts): NonNullable<Answer> {
   const newest = f.running[0];
-  const numbers = newest ? numbersOf(newest) : null;
+  const numbers = newest ? runningNumbersOf(newest) : null;
   const named = newest ? (numbers ? `${newest.name}: ${numbers}` : newest.name) : null;
   const more = f.running.length - 1;
   return {
@@ -294,7 +294,7 @@ export function coldEmailNoteOf(standing: ColdEmailStanding): ColdEmailNote | nu
 }
 
 /** In the order they outrank each other: a thing that stops every email first, and a thing to do before a thing to read. */
-const RULES: readonly Rule[] = [
+const ANSWERS_IN_ORDER: readonly Rule[] = [
   heldAnswer,
   reconnectAnswer,
   notStartedAnswer,
@@ -311,7 +311,7 @@ const RULES: readonly Rule[] = [
 export function coldEmailStandingOf(f: ColdEmailStandingFacts): ColdEmailStanding {
   const steps = stepsLeftOf(f);
   const left = steps.filter((s) => !s.done);
-  for (const rule of RULES) {
+  for (const rule of ANSWERS_IN_ORDER) {
     const answer = rule(f, left);
     if (answer) return { ...answer, steps };
   }

@@ -34,14 +34,14 @@ const endingOf = (draft: unknown): EndingDraft => ({
 });
 
 /** The lines an email ends with, as the send draws them: the name, then the signature's lines and the phone. */
-const linesOf = (ending: EndingDraft): string[] =>
+const endingLinesOf = (ending: EndingDraft): string[] =>
   [
     ending.signed_by.trim(),
     ...(reachOutSignatureOf({ reach_out: { signature: ending.signature, phone: ending.phone } }) ?? "").split("\n"),
   ].filter(Boolean);
 
 /** What the law asks for under them, in the words the send uses; null where the business has no address to give. */
-const footOf = (shared: OutreachShared): string | null => {
+const endingFootOf = (shared: OutreachShared): string | null => {
   const foot = shared.read?.foot;
   if (!foot || !hasFootAddress(foot.business, foot.address)) return null;
   return emailFoot(foot.business ?? "", foot.address, { kind: "cold", why: WHY_FROM_MAPS, unsubscribeUrl: null }, null);
@@ -102,7 +102,7 @@ function EndingBox({
 /** The ending as it is sent, under the sheet's boxes, so a change is seen as it is typed. */
 const EndingPreview = ({ f, foot, missing }: { f: BoxFields; foot: string | null; missing: boolean }) => (
   <div className="ro-ending ro-ending-paper" data-testid="rec-ending-preview">
-    {linesOf(endingOf(f.draft)).map((line, n) => (
+    {endingLinesOf(endingOf(f.draft)).map((line, n) => (
       <span key={n}>{line}</span>
     ))}
     {foot || missing ? <small>{foot ?? ENDING_WORDS.noAddress}</small> : null}
@@ -121,8 +121,8 @@ export function EndingCard(shared: OutreachShared) {
     phone: storedReachOut(shared, "phone") ?? "",
   };
   const shown = { ...stored, signed_by: named ?? fallback ?? "" };
-  const lines = linesOf(shown);
-  const foot = footOf(shared);
+  const lines = endingLinesOf(shown);
+  const foot = endingFootOf(shared);
   // Said only of a read that landed: an address not read is not an address missing.
   const noAddress = !!shared.read?.foot && !foot;
   const editGate = gate("settings", "change how your emails end");

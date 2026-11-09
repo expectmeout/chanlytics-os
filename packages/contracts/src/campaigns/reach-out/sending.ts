@@ -140,7 +140,7 @@ function mailChecks(m: Mailbox): ColdEmailCheck[] {
   ];
 }
 
-const checksOf = (m: Mailbox): ColdEmailCheck[] => [domainCheck(m), ...mailChecks(m)];
+const mailboxChecksOf = (m: Mailbox): ColdEmailCheck[] => [domainCheck(m), ...mailChecks(m)];
 
 /**
  * The checks "Healthy" answers for: every one of the mailbox shown, and what fails on any other that sends, by its address.
@@ -151,11 +151,11 @@ function checksFor(shown: Mailbox | undefined, sending: readonly Mailbox[]): Col
   const others = sending
     .filter((m) => m !== shown)
     .flatMap((m) =>
-      checksOf(m)
+      mailboxChecksOf(m)
         .filter((c) => c.ok === false)
         .map((c) => ({ ...c, title: `${m.address}: ${c.title}` })),
     );
-  return [...checksOf(shown), ...others];
+  return [...mailboxChecksOf(shown), ...others];
 }
 
 function healthOf(live: readonly Mailbox[], checks: readonly ColdEmailCheck[]): ColdEmailHealth {
