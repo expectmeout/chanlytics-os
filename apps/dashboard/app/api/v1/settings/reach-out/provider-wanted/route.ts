@@ -16,7 +16,7 @@ export const POST = write({
   role: "partner",
   rate: "settings",
   input: Body,
-  handle: async ({ member, input }) => {
+  handle: ({ member, input }) => {
     log.info("cold_email_provider_wanted", { tenant_id: member.tenantId, provider: input.provider });
     return { told: true };
   },
