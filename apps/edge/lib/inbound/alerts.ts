@@ -18,6 +18,7 @@ import {
   MIN_MS,
   reasonShort,
   ESCALATION_REASONS,
+  isOneOf,
   type EscalationReason,
 } from "@chanlytics/contracts";
 
@@ -70,14 +71,14 @@ const OWN_WORDS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** Whether these words are one of the closed set of hold reasons (contracts ESCALATION_REASONS). */
-const isReason = (r: string): r is EscalationReason => (ESCALATION_REASONS as readonly string[]).includes(r);
+const isReason = (phrase: string): phrase is EscalationReason => isOneOf(ESCALATION_REASONS, phrase);
 
 /**
  * The hold reason the handler means: the reason itself, which a gate hands over (core handled.ts handToAPerson), or the
  * one its phrase names; none for a phrase that is no hold's.
  */
-function holdReasonOf(said: string): EscalationReason | undefined {
-  return isReason(said) ? said : REASON_OF.get(said);
+function holdReasonOf(phrase: string): EscalationReason | undefined {
+  return isReason(phrase) ? phrase : REASON_OF.get(phrase);
 }
 
 /** Why a thread needs a person, as the owner reads it: the Inbox's clause for a reason, else the handler's own words, else as it came. */
@@ -164,7 +165,7 @@ export function handoffMessage({
   // The owner of a workspace with both wires connected opens the thread this
   // names. Saying "WhatsApp" for a text sends them to an app the conversation
   // is not in.
-  const where = CHANNEL_WORDS[ctx.channel ?? "whatsapp"] ?? CHANNEL_WORDS.whatsapp;
+  const where = CHANNEL_WORDS[ctx.channel ?? "whatsapp"];
   return {
     kind: "handoff",
     route: ctx.route ?? "inbox",

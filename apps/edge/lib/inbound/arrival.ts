@@ -38,7 +38,7 @@ type Arrival =
   | { inbound: InboundMessage & { channel: "sms" }; carrier: InboundCarrier<"sms"> }
   | { inbound: InboundMessage & { channel: "instagram" }; carrier: InboundCarrier<"instagram"> };
 
-const envDefaultOf = (a: Arrival): boolean => (a.carrier === null ? a.isEnvDefault : false);
+const envDefaultOf = (arrival: Arrival): boolean => (arrival.carrier === null ? arrival.isEnvDefault : false);
 
 /**
  * The door's half: the message recorded, or set aside, and nothing answered. The ingest's row when it waits for its
@@ -46,13 +46,13 @@ const envDefaultOf = (a: Arrival): boolean => (a.carrier === null ? a.isEnvDefau
  * write failed, which the door answers with a 503 so the provider sends it again.
  */
 export function recordArrival(
-  a: Arrival,
+  arrival: Arrival,
   routed: RoutedChannel,
   /** Everything outside the verb: the real modules unless a test says otherwise (./ports.ts). */
   ports: InboundPorts = realPorts(),
 ): Promise<IngestResult | null> {
-  const isEnvDefault = envDefaultOf(a);
-  return recordInbound({ ...a, tenantId: routed.tenantId, routed, isEnvDefault }, corePorts(ports));
+  const isEnvDefault = envDefaultOf(arrival);
+  return recordInbound({ ...arrival, tenantId: routed.tenantId, routed, isEnvDefault }, corePorts(ports));
 }
 
 /**
@@ -61,15 +61,15 @@ export function recordArrival(
  * ports or carrier, whose sender marks the job as having spoken before the provider is called (../intake/answer-job.ts).
  */
 export function answerArrival(
-  a: Arrival,
+  arrival: Arrival,
   routed: RoutedChannel,
   ports: InboundPorts = realPorts(),
   /** When the turn must have its answer by (the job's deadline, ms since the epoch): core caps it at TURN_BUDGET_MS. */
   endsAtMs?: number,
 ): Promise<void> {
-  const isEnvDefault = envDefaultOf(a);
+  const isEnvDefault = envDefaultOf(arrival);
   return answerInbound(
-    { ...a, tenantId: routed.tenantId, routed, isEnvDefault, ...(endsAtMs === undefined ? {} : { endsAtMs }) },
+    { ...arrival, tenantId: routed.tenantId, routed, isEnvDefault, ...(endsAtMs === undefined ? {} : { endsAtMs }) },
     corePorts(ports),
   );
 }
@@ -86,17 +86,17 @@ export function answerArrival(
  */
 export async function recordThenSchedule(
   db: SupabaseClient<Database>,
-  a: Arrival,
+  arrival: Arrival,
   routed: RoutedChannel,
   wire: Record<string, Json>,
   ports: InboundPorts = realPorts(),
 ): Promise<IngestResult | null> {
-  const ing = await recordArrival(a, routed, ports);
+  const ing = await recordArrival(arrival, routed, ports);
   if (!ing) return null;
   const payload: JobPayload<"inbound_answer"> = {
     ...wire,
     // The wire its job answers on, said rather than read from what the payload carries (../intake/answer-job.ts jobWireOf).
-    wire: a.inbound.channel,
+    wire: arrival.inbound.channel,
     message_id: ing.message_id,
     conversation_id: ing.conversation_id,
     contact_id: ing.contact_id,
@@ -104,12 +104,12 @@ export async function recordThenSchedule(
   try {
     await scheduleJobOnce(db, { tenantId: routed.tenantId, kind: "inbound_answer", dueAt: new Date(), payload });
   } catch (e) {
-    // Each wire's door says it in its own name, as it always has: the names are the contract (lib/log.ts).
-    const L = logger({ tenant_id: routed.tenantId });
-    const said = { id: a.inbound.externalId, error: errField(e) };
-    if (a.inbound.channel === "whatsapp") L.warn("wa_answer_unscheduled", said);
-    else if (a.inbound.channel === "sms") L.warn("sms_answer_unscheduled", said);
-    else L.warn("ig_answer_unscheduled", said);
+    // Each wire's door says it in its own name, as it always has: the names are the contract (lib/shared/log.ts).
+    const log = logger({ tenant_id: routed.tenantId });
+    const fields = { id: arrival.inbound.externalId, error: errField(e) };
+    if (arrival.inbound.channel === "whatsapp") log.warn("wa_answer_unscheduled", fields);
+    else if (arrival.inbound.channel === "sms") log.warn("sms_answer_unscheduled", fields);
+    else log.warn("ig_answer_unscheduled", fields);
   }
   return ing;
 }

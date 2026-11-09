@@ -41,7 +41,7 @@ export async function findOwnLine(
  * one whose provisioning failed, and one with a number): what the texts sweep reads each line's record of received texts
  * for (apps/edge/lib/sms/texts-sweep.ts). A read that fails throws.
  */
-export async function linesThatText(
+export async function findLinesThatText(
   db: SupabaseClient<Database>,
 ): Promise<
   Pick<
@@ -57,7 +57,7 @@ export async function linesThatText(
     .not("e164", "is", null)
     .order("created_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the lines that text");
-  return data ?? [];
+  return data;
 }
 
 /**

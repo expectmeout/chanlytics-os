@@ -7,8 +7,8 @@ export {
   dropLineCredentials,
   findBusinessOnRecord,
   findFiledNames,
+  findLinesThatText,
   findOwnLine,
-  linesThatText,
   saveBusinessOnRecord,
 } from "./lines";
 export {

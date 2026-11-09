@@ -35,7 +35,8 @@ import { toldFromItsEvent } from "../events/subscribers";
 import { handledOf, SET_ASIDE } from "./handled";
 import type { ThreadState } from "./thread";
 import { errField } from "@chanlytics/log";
-import type { HoldWords, InboundContext, Ingested } from "./context";
+import type { InboundContext, Ingested } from "./context";
+import type { HoldWords } from "./handled";
 
 // Persist first, or say so. An ingest write that fails is the one loss the
 // provider can undo: the customer's words go to the workspace mailbox as a
@@ -46,7 +47,7 @@ async function ingestOrSay(cx: InboundContext): Promise<IngestResult> {
   const { ports, db, tenantId, n, from, notifyTarget, L, channel } = cx;
   try {
     // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3).
-    return await ports.persist.ingest(db, tenantId, n, cx.routed?.channelId ?? null);
+    return await ports.persist.ingest(db, tenantId, n, cx.routed.channelId);
   } catch (error) {
     if (error instanceof IngestFailed) {
       // The copy is best effort: a mailbox that cannot be reached must not mask the loss.

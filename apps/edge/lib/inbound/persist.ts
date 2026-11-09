@@ -76,7 +76,7 @@ export async function readPgThread(
   tenantId: TenantId | null,
   ing: IngestResult | null,
 ): Promise<ThreadState> {
-  if (!db || !tenantId || !ing) return unreadableThread();
+  if (!tenantId || !ing) return unreadableThread();
   try {
     // The memory, and beside it the thread's live hold (00132: a call in progress, a person who took it over), read
     // as the send door reads it at the wire (core liveHoldOf), so the gates can ask the door's own question before the
@@ -130,7 +130,7 @@ export async function queueReply(
   /** The wire the draft will go out on. */
   channel: InboundChannel = "whatsapp",
 ): Promise<string | null> {
-  if (!db || !tenantId || !ing) {
+  if (!tenantId || !ing) {
     log.warn("wa_queue_unavailable", {
       has_db: !!db,
       has_tenant: !!tenantId,
@@ -188,7 +188,7 @@ export async function readPgAnswered(
   tenantId: TenantId | null,
   ing: IngestResult,
 ): Promise<boolean> {
-  if (!db || !tenantId) return false;
+  if (!tenantId) return false;
   return wasRepliedTo(db, tenantId, ing.conversation_id, ing.message_id);
 }
 
@@ -203,7 +203,6 @@ export async function runPgIngest(
   inboundMessage: InboundMessage & { channel: InboundChannel },
   line: string | null = null,
 ): Promise<IngestResult> {
-  if (!db) throw new IngestFailed("no database to keep the message in");
   try {
     return await ingestInbound(db, {
       tenantId,
@@ -438,7 +437,7 @@ export function pgSink(
   /** This message's wires, bound by the handler where the credentials are. */
   wire: Wire = {},
 ) {
-  const on = !!(db && tenantId && ing);
+  const on = !!(tenantId && ing);
   return {
     on,
     /**

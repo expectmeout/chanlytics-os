@@ -21,8 +21,8 @@
  */
 import { HOUR_MS, MIN_MS, oneTimeCodeOf } from "@chanlytics/contracts";
 import { signTwilio, type ReceivedText } from "@chanlytics/channels/lines";
-import { linesThatText } from "@chanlytics/db/lines";
-import { textsAlreadyHeard } from "@chanlytics/db/events";
+import { findLinesThatText } from "@chanlytics/db/lines";
+import { findTextsAlreadyHeard } from "@chanlytics/db/events";
 import { env } from "../shared/env.js";
 import { json } from "../shared/http.js";
 import { errField } from "../shared/log.js";
@@ -67,64 +67,90 @@ async function knockFor(url: string, token: string, form: Record<string, string>
   });
 }
 
+/** A line the sweep reads: the lines that text, each with its number. */
+type SweptLine = Awaited<ReturnType<typeof findLinesThatText>>[number] & { e164: string };
+/** One line's account and the texts its record holds. */
+type LineRecord = { account: { sid: string; token: string }; texts: ReceivedText[] };
+/** What a tick did, as its one line says it. */
+type SweepCounts = { lines: number; read: number; unheard: number; taken: number; failed: number };
+
+/** The line's account (its token is the vault's) and its record: null for a line with no account, which has none. */
+async function readLineRecord(
+  db: SweepTick["db"],
+  choice: LineProviderChoice,
+  line: SweptLine,
+  world: TextsSweepWorld,
+): Promise<LineRecord | null> {
+  const account = await findLineAccount(db, line);
+  return account
+    ? { account, texts: await choice.provider.recentTexts(account, line.e164, world.now() - TEXTS_LOOKBACK_MS) }
+    : null;
+}
+
+/** Each text of one line's record the database never heard, knocked on the door again, the tick's counts kept. */
+async function knockUnheard(
+  { db, L }: SweepTick,
+  { line, record, url }: { line: SweptLine; record: LineRecord; url: string },
+  world: TextsSweepWorld,
+  counts: SweepCounts,
+): Promise<void> {
+  const { account, texts } = record;
+  counts.read += texts.length;
+  const settled = texts.filter((t) => t.atMs <= world.now() - TEXTS_SETTLE_MS && !oneTimeCodeOf(t.body));
+  const heard = await findTextsAlreadyHeard(
+    db,
+    settled.map((t) => t.sid),
+  );
+  for (const text of settled) {
+    if (heard.has(text.sid)) continue;
+    counts.unheard += 1;
+    const form: Record<string, string> = {
+      MessageSid: text.sid,
+      AccountSid: account.sid,
+      From: text.from,
+      To: line.e164,
+      Body: text.body,
+      NumMedia: "0",
+      DateSent: new Date(text.atMs).toISOString(),
+      ...(line.messaging_service_sid ? { MessagingServiceSid: line.messaging_service_sid } : {}),
+    };
+    const answered = await world.door(await knockFor(url, account.token, form));
+    if (answered.ok) counts.taken += 1;
+    else counts.failed += 1;
+    // The line and when it was sent, never the number or the words.
+    L.warn("text_unheard_taken_in", {
+      tenant_id: line.tenant_id,
+      line: line.id,
+      status: answered.status,
+      sent_at: form.DateSent,
+    });
+  }
+}
+
 /** One tick: every line's record read, and each text the database never heard knocked on the door again. */
 export async function sweepUnheardTexts(tick: SweepTick, world: TextsSweepWorld = realWorld()): Promise<Response> {
   const { db, L, started } = tick;
-  const counts = { lines: 0, read: 0, unheard: 0, taken: 0, failed: 0 };
+  const counts: SweepCounts = { lines: 0, read: 0, unheard: 0, taken: 0, failed: 0 };
   const choice = world.provider;
   if (!choice || !world.origin) {
     L.info("texts_swept", { ...counts, skipped: !choice ? "no_line_provider" : "no_origin" });
     return json(200, { ok: true, ...counts });
   }
   const url = `${world.origin.replace(/\/+$/, "")}${TEXT_DOOR_PATH}`;
-  for (const line of await linesThatText(db)) {
+  for (const line of await findLinesThatText(db)) {
     if (line.provider !== choice.name || !line.e164) continue;
     if (world.now() - started > TEXTS_YIELD_AT_MS) break;
     counts.lines += 1;
-    // The line's account (its token is the vault's) and its record: a line with no account has no texts to read.
-    let read: { account: { sid: string; token: string }; texts: ReceivedText[] } | null;
+    const swept = { ...line, e164: line.e164 };
+    let record: LineRecord | null;
     try {
-      const account = await findLineAccount(db, line);
-      read = account
-        ? { account, texts: await choice.provider.recentTexts(account, line.e164, world.now() - TEXTS_LOOKBACK_MS) }
-        : null;
+      record = await readLineRecord(db, choice, swept, world);
     } catch (e) {
       counts.failed += 1;
       L.warn("texts_read_failed", { tenant_id: line.tenant_id, line: line.id, error: errField(e) });
       continue;
     }
-    if (!read) continue;
-    const { account, texts } = read;
-    counts.read += texts.length;
-    const settled = texts.filter((t) => t.atMs <= world.now() - TEXTS_SETTLE_MS && !oneTimeCodeOf(t.body));
-    const heard = await textsAlreadyHeard(
-      db,
-      settled.map((t) => t.sid),
-    );
-    for (const t of settled) {
-      if (heard.has(t.sid)) continue;
-      counts.unheard += 1;
-      const form: Record<string, string> = {
-        MessageSid: t.sid,
-        AccountSid: account.sid,
-        From: t.from,
-        To: line.e164,
-        Body: t.body,
-        NumMedia: "0",
-        DateSent: new Date(t.atMs).toISOString(),
-        ...(line.messaging_service_sid ? { MessagingServiceSid: line.messaging_service_sid } : {}),
-      };
-      const answered = await world.door(await knockFor(url, account.token, form));
-      if (answered.ok) counts.taken += 1;
-      else counts.failed += 1;
-      // The line and when it was sent, never the number or the words.
-      L.warn("text_unheard_taken_in", {
-        tenant_id: line.tenant_id,
-        line: line.id,
-        status: answered.status,
-        sent_at: form.DateSent,
-      });
-    }
+    if (record) await knockUnheard(tick, { line: swept, record, url }, world, counts);
   }
   L.info("texts_swept", counts);
   return json(200, { ok: true, ...counts });

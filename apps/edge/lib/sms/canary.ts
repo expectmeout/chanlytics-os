@@ -52,9 +52,9 @@ const realWorld = (tick: SweepTick): CanaryWorld => ({
 /** One tick: send today's canary, wait for it, or judge it. */
 export async function sweepCanary(tick: SweepTick, world: CanaryWorld = realWorld(tick)): Promise<Response> {
   const { db, L } = tick;
-  const off = (why: string) => {
-    L.info("text_canary_off", { why });
-    return json(200, { ok: true, off: why });
+  const off = (reason: string) => {
+    L.info("text_canary_off", { why: reason });
+    return json(200, { ok: true, off: reason });
   };
   if (!world.service || !world.to) return off("not_set");
   if (!world.provider) return off("no_line_provider");

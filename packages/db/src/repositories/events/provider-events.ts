@@ -53,7 +53,7 @@ export async function keepProviderEvent(db: Db, keptDelivery: KeptDelivery): Pro
  * under it (a text refused after its signature held: a switched-off line, a routing that could not be read). The texts
  * sweep knocks on the door again for the rest (apps/edge/lib/sms/texts-sweep.ts). A read that fails throws.
  */
-export async function textsAlreadyHeard(db: Db, sids: readonly string[]): Promise<Set<string>> {
+export async function findTextsAlreadyHeard(db: Db, sids: readonly string[]): Promise<Set<string>> {
   if (sids.length === 0) return new Set();
   const [messages, kept] = await Promise.all([
     db
@@ -69,8 +69,8 @@ export async function textsAlreadyHeard(db: Db, sids: readonly string[]): Promis
   if (messages.error) throw new DbFailure(messages.error, "texts heard");
   if (kept.error) throw new DbFailure(kept.error, "texts kept");
   return new Set([
-    ...(messages.data ?? []).flatMap((r) => (r.external_id ? [r.external_id] : [])),
-    ...(kept.data ?? []).map((r) => r.provider_event_id),
+    ...messages.data.flatMap((r) => (r.external_id ? [r.external_id] : [])),
+    ...kept.data.map((r) => r.provider_event_id),
   ]);
 }
 

@@ -15,5 +15,5 @@ export { type ActivitySubject, type ActivitySubjects, getActivitySubjects } from
 export type { DeliveredEvent, DeliveryRow } from "./delivery";
 export { emitEvent, findFilePosted, getSubjectsWith, recordEvent } from "./events";
 export type { EmittedKind, EventData } from "./events";
-export { findProviderEvent, keepProviderEvent, scrubProviderEvents, textsAlreadyHeard } from "./provider-events";
+export { findProviderEvent, findTextsAlreadyHeard, keepProviderEvent, scrubProviderEvents } from "./provider-events";
 export type { DeliveryProvider, KeptDelivery, KeptDeliveryRow } from "./provider-events";

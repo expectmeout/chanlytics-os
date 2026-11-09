@@ -19,8 +19,7 @@
  * the message stays unprocessed, and when the escalation was refused nobody was asked and nothing is stamped.
  */
 import type { BrainIntent, EscalationReason, Handled } from "@chanlytics/contracts";
-import type { InboundSink } from "./ports";
-import type { Answering } from "./context";
+import type { EscalateOutcome, InboundSink } from "./ports";
 import { logAndGoOn } from "@chanlytics/log";
 
 /** What the sink answered to an escalation: how it landed (packages/jobs EscalationOutcome), or nothing when it failed. */
@@ -109,18 +108,40 @@ interface HandOver {
   answered: string;
 }
 
+/** What the owner's handoff notice says, when a branch tells it itself. */
+export interface HoldWords {
+  /** What the customer sent: their words, or what kind of message it was. */
+  said: string;
+  /** What the receptionist answered, or why nothing was. */
+  answered: string;
+  /** Why it is a person's, in the notice's words. */
+  why: string;
+  /** The hours this thread is paused for, when this branch paused it. */
+  pausedHours?: number | null;
+}
+
+/** What a hand-over reaches of the message being answered: its sink, and the owner's notice. */
+export interface Telling {
+  sink: InboundSink;
+  tell: (asked: Promise<EscalateOutcome> | null, words: HoldWords) => Promise<void>;
+}
+
 /**
  * A message a person must answer, and nothing said to the customer: the hold written with its reason, the owner told (from
  * its event once it is written, else here, ./ingest.ts tell), and the message stamped a handoff when the hold landed. The
  * one way every gate that stops a message hands it over, so none of them can ask a person and forget to say so, or say
  * so and forget the stamp. `also` rides beside it (an attachment kept). Resolves to nothing: the message stops here.
  */
-export async function handToAPerson(at: Answering, h: HandOver, also: Promise<unknown>[] = []): Promise<undefined> {
-  const asked = at.sink.escalate(h.reason, h.details);
+export async function handToAPerson(
+  at: Telling,
+  handOver: HandOver,
+  also: Promise<unknown>[] = [],
+): Promise<undefined> {
+  const escalation = at.sink.escalate(handOver.reason, handOver.details);
   await Promise.all([
-    asked,
-    at.tell(asked, { said: h.said, answered: h.answered, why: h.reason }),
-    getProcessedAfter(at.sink, asked, "none"),
+    escalation,
+    at.tell(escalation, { said: handOver.said, answered: handOver.answered, why: handOver.reason }),
+    getProcessedAfter(at.sink, escalation, "none"),
     ...also,
   ]);
   return undefined;

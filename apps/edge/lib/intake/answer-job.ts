@@ -28,8 +28,8 @@ type AnswerWire = "whatsapp" | "sms" | "instagram";
  * jobs a deploy finds waiting, which a day's ledger has long finished.
  */
 export function jobWireOf(payload: Record<string, unknown>): AnswerWire {
-  const said = payload.wire;
-  if (said === "whatsapp" || said === "sms" || said === "instagram") return said;
+  const declared = payload.wire;
+  if (declared === "whatsapp" || declared === "sms" || declared === "instagram") return declared;
   return payload.wa ? "whatsapp" : payload.ig ? "instagram" : "sms";
 }
 

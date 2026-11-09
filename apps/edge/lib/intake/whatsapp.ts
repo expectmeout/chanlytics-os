@@ -205,7 +205,7 @@ async function handleChange(
   change: Change,
   delivery: { key: string; kept: boolean },
 ): Promise<number> {
-  const v = change.value || {};
+  const changeValue = change.value || {};
   const field = change.field;
   const db = pg();
   // The account's own news (quality, limits, templates, reviews) is keyed
@@ -215,27 +215,27 @@ async function handleChange(
     // What the notice was addressed to; which account it is about is the function's to say (a partner's notice is
     // addressed to the partner's portfolio and names the account itself).
     const entryId = String(entry.id || "");
-    const value = recordOrEmpty(v);
+    const value = recordOrEmpty(changeValue);
     const outcome = await handleWabaChange(db, entryId, { field, value }, (tid) => findNotifications(db, tid));
     L.info("wa_waba_event", { field, waba_id: accountOf(entryId, value)?.waba ?? null, outcome });
     return 0;
   }
-  const phoneNumberId = v.metadata?.phone_number_id;
+  const phoneNumberId = changeValue.metadata?.phone_number_id;
   const { routing, routed } = await routeByNumber(db, phoneNumberId);
   // What to do with it is the plan's (./delivery-plan.ts, run every way in its own test): taken in, owed, or said and
   // let go. Nothing the database could not keep is acknowledged.
-  const echoes = field === "smb_message_echoes" ? (v.message_echoes ?? []) : [];
+  const echoes = field === "smb_message_echoes" ? (changeValue.message_echoes ?? []) : [];
   const plan = planWhatsappChange(
     field,
-    { messages: v.messages?.length ?? 0, statuses: v.statuses?.length ?? 0, echoes: echoes.length },
+    { messages: changeValue.messages?.length ?? 0, statuses: changeValue.statuses?.length ?? 0, echoes: echoes.length },
     routing,
     HISTORY_FIELDS.has(String(field)),
   );
-  await sayWhatWasLetGo(plan, field, v, phoneNumberId);
+  await sayWhatWasLetGo(plan, field, changeValue, phoneNumberId);
   const tenantId = routed?.tenantId ?? null;
-  if (plan.take === "messages" && db && routed) return plan.owed + (await takeMessages(db, routed, v));
+  if (plan.take === "messages" && db && routed) return plan.owed + (await takeMessages(db, routed, changeValue));
   if (plan.take === "echoes") return plan.owed + (await recordEchoes(db, routed, echoes));
-  if (plan.take === "receipts") return plan.owed + (await recordReceipts(db, tenantId, v.statuses ?? []));
+  if (plan.take === "receipts") return plan.owed + (await recordReceipts(db, tenantId, changeValue.statuses ?? []));
   if (plan.take === "history")
     return (
       plan.owed +
@@ -283,22 +283,22 @@ async function routeByNumber(
 async function sayWhatWasLetGo(
   plan: WaChangePlan,
   field: string | undefined,
-  v: WaChangeValue,
+  changeValue: WaChangeValue,
   phoneNumberId: string | undefined,
 ): Promise<void> {
-  const echoes = field === "smb_message_echoes" ? (v.message_echoes?.length ?? 0) : 0;
+  const echoes = field === "smb_message_echoes" ? (changeValue.message_echoes?.length ?? 0) : 0;
   const carried =
-    field === "messages" && v.messages?.length
-      ? { messages: v.messages.length }
+    field === "messages" && changeValue.messages?.length
+      ? { messages: changeValue.messages.length }
       : echoes
         ? { echoes }
-        : { receipts: v.statuses?.length ?? 0 };
+        : { receipts: changeValue.statuses?.length ?? 0 };
   if (plan.log === "wa_skip_routing_failed")
     L.error("wa_skip_routing_failed", { phone_number_id: phoneNumberId ?? null, ...carried });
   else if (plan.log === "wa_skip_unroutable")
     L.error("wa_skip_unroutable", { phone_number_id: phoneNumberId ?? null, ...carried });
   else if (plan.log === "wa_event") L.info("wa_event", { field });
-  if (plan.alert) await alertUnroutable(plan.alert, phoneNumberId, v.messages?.length ?? 0);
+  if (plan.alert) await alertUnroutable(plan.alert, phoneNumberId, changeValue.messages?.length ?? 0);
 }
 
 /**
@@ -308,9 +308,9 @@ async function sayWhatWasLetGo(
 async function takeMessages(
   db: NonNullable<ReturnType<typeof pg>>,
   routed: RoutedChannel,
-  v: WaChangeValue,
+  changeValue: WaChangeValue,
 ): Promise<number> {
-  const messages = v.messages ?? [];
+  const messages = changeValue.messages ?? [];
   let owed = 0;
   for (const message of messages) {
     // A tail and a type, never the number or the words: the row under RLS holds those, and a log is read by whoever
@@ -319,7 +319,7 @@ async function takeMessages(
     // Per MESSAGE, not per batch: one that throws costs only itself. Only a message the database did not keep is owed;
     // anything later already happened after the words were recorded, and stays visible for reconciliation.
     try {
-      await recordWhatsapp(db, message, v, routed);
+      await recordWhatsapp(db, message, changeValue, routed);
     } catch (e) {
       if (e instanceof IngestFailed) owed += 1;
       L.error("wa_inbound_failed", { id: message.id, error: errField(e) });
@@ -335,9 +335,9 @@ async function takeMessages(
  * would be a second event.
  */
 function owedBy(change: Change): number {
-  const v = change.value ?? {};
-  if (change.field === "messages") return (v.messages?.length ?? 0) + (v.statuses?.length ?? 0);
-  if (change.field === "smb_message_echoes") return v.message_echoes?.length ?? 0;
+  const changeValue = change.value ?? {};
+  if (change.field === "messages") return (changeValue.messages?.length ?? 0) + (changeValue.statuses?.length ?? 0);
+  if (change.field === "smb_message_echoes") return changeValue.message_echoes?.length ?? 0;
   return HISTORY_FIELDS.has(String(change.field)) ? 1 : 0;
 }
 

@@ -68,6 +68,72 @@ function serviceName(name: string | undefined): string | null {
   return name.split(" ").every((w) => /\p{Lu}/u.test(w) && !NOT_A_SERVICE.test(w)) ? name : null;
 }
 
+/** A code a sender sent, as written, and the service's name when the text says one. */
+type OneTimeCode = { code: string; from: string | null };
+/** A sender's signs beside the code: the warning not to share it, and how long it lasts. */
+type Signs = { warned: boolean; expires: boolean };
+
+/** With no kind named, the warning is the sender's sign; a customer's kind beside a name is never mended by it. */
+const signed = (kind: string | undefined, { warned }: Signs): boolean =>
+  sendersKind(kind) || (kind === undefined && warned);
+
+/** "your <Name> [kind] code <code>", with a sender's kind or the warning. */
+function yourNameCode(body: string, signs: Signs): OneTimeCode | null {
+  const [, name, kind, digits] = YOUR_NAME_CODE.exec(body) ?? [];
+  const sender = serviceName(name);
+  return digits && sender && signed(kind, signs) ? { code: digits, from: sender } : null;
+}
+
+/** "your <kind> code <code>", a sender's kind with the warning or how long it lasts. */
+function yourKindCode(body: string, { warned, expires }: Signs): OneTimeCode | null {
+  const [, kind, digits] = YOUR_KIND_CODE.exec(body) ?? [];
+  return digits && sendersKind(kind) && (warned || expires) ? { code: digits, from: null } : null;
+}
+
+/** "<code> is your <Name> [kind] code", with a sender's kind or the warning. */
+function codeIsYourName(body: string, signs: Signs): OneTimeCode | null {
+  const [, digits, name, kind] = CODE_IS_YOUR_NAME.exec(body) ?? [];
+  const sender = serviceName(name);
+  return digits && sender && signed(kind, signs) ? { code: digits, from: sender } : null;
+}
+
+/** "<code> is your <kind> code", a sender's kind or the warning. */
+function codeIsYourKind(body: string, { warned }: Signs): OneTimeCode | null {
+  const [, digits, kind] = CODE_IS_YOUR_KIND.exec(body) ?? [];
+  return digits && (sendersKind(kind) || warned) ? { code: digits, from: null } : null;
+}
+
+/** "use <code> to verify", with the warning. */
+function useToVerify(body: string, { warned }: Signs): OneTimeCode | null {
+  const [, digits] = USE_TO_VERIFY.exec(body) ?? [];
+  return digits && warned ? { code: digits, from: null } : null;
+}
+
+/** "use <code> to sign in to your account": a sender's words on their own. */
+function useForAccount(body: string): OneTimeCode | null {
+  const [, digits] = USE_FOR_ACCOUNT.exec(body) ?? [];
+  return digits ? { code: digits, from: null } : null;
+}
+
+/** Android's retriever mark first, and exactly one code in the text. */
+function androidTagged(body: string): OneTimeCode | null {
+  if (!ANDROID_TAG.test(body)) return null;
+  const found = [...body.matchAll(new RegExp(CODE, "gu"))].map((m) => m[1]);
+  const only = found.length === 1 ? found[0] : undefined;
+  return only ? { code: only, from: null } : null;
+}
+
+/** A sender's shapes, in the order they are tried: the first that reads a code answers. */
+const SHAPES: ((body: string, signs: Signs) => OneTimeCode | null)[] = [
+  yourNameCode,
+  yourKindCode,
+  codeIsYourName,
+  codeIsYourKind,
+  useToVerify,
+  useForAccount,
+  androidTagged,
+];
+
 /**
  * Whether a text is a one-time code some service sent (Meta's, when an owner connects the line's number to WhatsApp), and
  * which. The receptionist never answers one, no person or message is made of it, and its delivery is not kept
@@ -86,30 +152,12 @@ function serviceName(name: string | undefined): string | null {
  * doesn't work", "I tried your Summer code 2024"): none of them is a sender's shape and sign together. Digits only, four to
  * eight. It answers the code as it was written, and the name of the service when the text says one.
  */
-export function oneTimeCodeOf(body: string): { code: string; from: string | null } | null {
+export function oneTimeCodeOf(body: string): OneTimeCode | null {
   if (body.length > ONE_TIME_CODE_MAX_CHARS || body.includes("?")) return null;
-  const warned = DONT_SHARE.test(body);
-  const expires = EXPIRES.test(body);
-  const [, name, kind, digits] = YOUR_NAME_CODE.exec(body) ?? [];
-  const sender = serviceName(name);
-  // A customer's kind beside a name ("Your Airbnb access code is 4512, don't share it") is a customer's: no warning mends it.
-  const signed = (k: string | undefined) => sendersKind(k) || (k === undefined && warned);
-  if (digits && sender && signed(kind)) return { code: digits, from: sender };
-  const [, kindWord, kindOnly] = YOUR_KIND_CODE.exec(body) ?? [];
-  if (kindOnly && sendersKind(kindWord) && (warned || expires)) return { code: kindOnly, from: null };
-  const [, named, namedBy, namedKind] = CODE_IS_YOUR_NAME.exec(body) ?? [];
-  const namedFrom = serviceName(namedBy);
-  if (named && namedFrom && signed(namedKind)) return { code: named, from: namedFrom };
-  const [, unnamed, unnamedKind] = CODE_IS_YOUR_KIND.exec(body) ?? [];
-  if (unnamed && (sendersKind(unnamedKind) || warned)) return { code: unnamed, from: null };
-  const [, used] = USE_TO_VERIFY.exec(body) ?? [];
-  if (used && warned) return { code: used, from: null };
-  const [, forAccount] = USE_FOR_ACCOUNT.exec(body) ?? [];
-  if (forAccount) return { code: forAccount, from: null };
-  if (ANDROID_TAG.test(body)) {
-    const found = [...body.matchAll(new RegExp(CODE, "gu"))].map((m) => m[1]);
-    const only = found.length === 1 ? found[0] : undefined;
-    if (only) return { code: only, from: null };
+  const signs = { warned: DONT_SHARE.test(body), expires: EXPIRES.test(body) };
+  for (const read of SHAPES) {
+    const found = read(body, signs);
+    if (found) return found;
   }
   return null;
 }

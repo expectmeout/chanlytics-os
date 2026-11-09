@@ -43,24 +43,24 @@ const TAKES_NOTHING: WaChangePlan = { take: null, owed: 0, log: null, alert: nul
 /** The plan for one change: its field, what it carried, how its number was found, and whether it is history. */
 export function planWhatsappChange(
   field: string | undefined,
-  c: WaChangeCounts,
+  counts: WaChangeCounts,
   routing: WaRouting,
   isHistory: boolean,
 ): WaChangePlan {
-  if (field === "messages" && c.messages > 0) {
+  if (field === "messages" && counts.messages > 0) {
     if (routing === "routed") return { ...TAKES_NOTHING, take: "messages" };
     if (routing === "unroutable") return { ...TAKES_NOTHING, log: "wa_skip_unroutable", alert: "whatsapp" };
     return {
       ...TAKES_NOTHING,
-      owed: c.messages,
+      owed: counts.messages,
       log: "wa_skip_routing_failed",
       alert: routing === "lookup_failed" ? "whatsapp_unreadable" : null,
     };
   }
   const echoes = field === "smb_message_echoes";
-  if ((field === "messages" && c.statuses > 0) || echoes) {
+  if ((field === "messages" && counts.statuses > 0) || echoes) {
     if (routing === "lookup_failed")
-      return { ...TAKES_NOTHING, owed: echoes ? c.echoes : c.statuses, log: "wa_skip_routing_failed" };
+      return { ...TAKES_NOTHING, owed: echoes ? counts.echoes : counts.statuses, log: "wa_skip_routing_failed" };
     return { ...TAKES_NOTHING, take: echoes ? "echoes" : "receipts" };
   }
   if (isHistory) return { ...TAKES_NOTHING, take: "history" };

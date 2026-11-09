@@ -14,9 +14,11 @@ import {
   policyAskClass,
   resolveFacts,
   POLICY_MODE_WORDS,
+  POLICY_MODES,
+  isOneOf,
   SECOND_MS,
 } from "@chanlytics/contracts";
-import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits, PolicyMode } from "@chanlytics/contracts";
+import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits } from "@chanlytics/contracts";
 import { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS } from "../shared/reply-horizon";
 
 /**
@@ -24,7 +26,7 @@ import { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS } from "../share
  * details and its notice say, never the stored token ('ask', 'never'). A token nobody named is said as it is.
  */
 export function modeSaid(mode: string): string {
-  return Object.hasOwn(POLICY_MODE_WORDS, mode) ? POLICY_MODE_WORDS[mode as PolicyMode].head : mode;
+  return isOneOf(POLICY_MODES, mode) ? POLICY_MODE_WORDS[mode].head : mode;
 }
 
 export { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS };
