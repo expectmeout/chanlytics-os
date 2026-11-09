@@ -584,6 +584,46 @@ test("the card once it answers: Setup's own rows, WhatsApp first, folded to the 
   }
 });
 
+test("a press anywhere on the card's head folds it, and one on its own buttons stays theirs: a press stretched over the line with CSS reached a mouse and never a finger (8 Nov 2026)", () => {
+  const realElement = globalThis.Element;
+  globalThis.Element = class {
+    constructor(inButton) {
+      this.inButton = inButton;
+    }
+    closest(selector) {
+      return selector === "button" && this.inButton ? {} : null;
+    }
+  };
+  feedSetup(answeringSetup());
+  const open = () =>
+    find(
+      again(() => TodaySetup()),
+      (n) => n.props?.["data-testid"] === "today-setup-fold",
+    ).props["aria-expanded"];
+  const pressHead = (inButton) =>
+    find(
+      again(() => TodaySetup()),
+      (n) => n.props?.className === "setup-card-head",
+    ).props.onClick({ target: new globalThis.Element(inButton) });
+  try {
+    mountSetup();
+    assert.equal(open(), true, "open until it is folded");
+    pressHead(false);
+    assert.equal(open(), false, "the words on its line fold it");
+    pressHead(true);
+    assert.equal(
+      open(),
+      false,
+      "the chevron and Hide are their own presses: this would have folded and opened it at once",
+    );
+    pressHead(false);
+    assert.equal(open(), true, "and they open it again");
+  } finally {
+    globalThis.Element = realElement;
+    feedSetup(undefined);
+  }
+});
+
 test("after the first run, with the calendar in, the card's last row is the door to the appointment reminder; without one there is none", async () => {
   const answering = {
     business: {

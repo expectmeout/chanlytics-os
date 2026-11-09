@@ -6,7 +6,7 @@
  * The rows are Setup's own (surfaces/setup/rows: `SetupCardRow`, `SetupRows`), imported; each row's Skip is this
  * card's (SkipMenu), so the first run's own page never loads the kit's Menu.
  */
-import { useLayoutEffect, useState, type ReactNode } from "react";
+import { useLayoutEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { restEndsDay, type SetupPutOffWhy } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "@/surfaces/setup/first-run/model/first-run-helpers";
 import {
@@ -226,7 +226,15 @@ const foldsAnything = (card: SetupCardVM): boolean =>
 const hiddenSaid = (day: string, cost: string | null): string =>
   cost ? `${SETUP_CARD_WORDS.hidden(day)} ${cost}` : SETUP_CARD_WORDS.hidden(day);
 
-/** The chevron that folds the card and opens it. Called, not drawn. */
+/**
+ * A press anywhere on the head's line folds the card; one on its own buttons is theirs, the chevron folding it itself. (8 Nov
+ * 2026: the chevron's press stretched over the line with CSS reached a mouse, and a finger's click fell through to the words.)
+ */
+const foldFromHead = (toggle: () => void) => (e: MouseEvent) => {
+  if (e.target instanceof Element && !e.target.closest("button")) toggle();
+};
+
+/** The chevron that folds the card and opens it, the press a key reaches. Called, not drawn. */
 function foldChevron(short: boolean, toggle: () => void) {
   return (
     <Button
@@ -329,8 +337,13 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
       : null;
   return (
     <section className="tq today-setup" data-testid="today-setup">
-      {/* The head's whole line folds it, as Your history's does: the chevron's press reaches across it (zones.css). */}
-      <div className="setup-card-head" data-foldable={foldable || undefined}>
+      {/* The head's whole line folds it, as Your history's does; the chevron is the press a key and a reader reach. */}
+      <div
+        className="setup-card-head"
+        role="presentation"
+        onClick={foldable ? foldFromHead(toggle) : undefined}
+        data-foldable={foldable || undefined}
+      >
         <span className="setup-card-title">
           {card.title}
           <span className="setup-card-left" data-testid="today-setup-left">

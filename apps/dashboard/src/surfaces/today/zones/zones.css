@@ -660,22 +660,10 @@
 .dash-a-v2 .today-setup [data-testid="today-setup-fold"] {
   margin-right: -7px;
 }
-/* The head's whole line folds the card, as Your history's does: the chevron's press reaches across it. Hide for a week, on a
-   desk, stands over it, and takes its own. */
+/* The head's whole line folds the card, as Your history's does (setup-card-body.tsx foldFromHead): the hand says so, and
+   Safari on an iPhone sends no click from a plain element without it. */
 .today-setup > [data-foldable] {
-  position: relative;
-}
-.today-setup > [data-foldable] [data-testid="today-setup-fold"] {
-  position: static;
-}
-.today-setup > [data-foldable] [data-testid="today-setup-fold"]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-}
-.today-setup > [data-foldable] [data-testid="today-setup-hide"] {
-  position: relative;
-  z-index: 1;
+  cursor: pointer;
 }
 
 /* ---- Setting up: what is left to set up and what was brought in, one pane, a hairline between; none while neither
