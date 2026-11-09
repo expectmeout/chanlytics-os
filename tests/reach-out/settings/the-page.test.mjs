@@ -57,8 +57,8 @@ test("the page draws its cards in the order a person needs them", () => {
   assert.deepEqual(cards, [
     "rec-card-offer",
     "rec-card-proof",
-    "rec-card-writes",
-    "rec-card-sign-off",
+    "rec-card-sound",
+    "rec-card-ending",
     "rec-card-sends-from",
     "rec-card-writes-back",
     "rec-card-rules",
@@ -79,6 +79,8 @@ const READ = {
   about: null,
   about_from: null,
   known: { name: null, first_name: null, newest_search: null },
+  foot: { business: "Brightline Cleaning", address: "1 Main St, Austin, TX 78704" },
+  never: { said_no: 0, asked_to_stop: 0 },
 };
 /**
  * The page drawn with its read answering `read`, once what the test is about is on it: a page takes what the tab holds as
@@ -162,30 +164,36 @@ test("what the website says of the business stands in the row, named as the webs
   assert.equal(boxIn(tree, "offer").props.value, "Evening cleaning for clinics.");
 });
 
+const SEQUENCE_SIGNED_MAYA = {
+  root_id: "r",
+  name: "Clinics",
+  search_id: null,
+  include_unconfirmed: false,
+  signed_by: "Maya",
+  signs_with: "name",
+  mailbox_id: null,
+  first: { subject: null, body: "Hello" },
+  next: null,
+};
+/** One box of the ending's sheet. */
+const endBox = (tree, field) =>
+  find(byTestId(tree, `rec-${field}-box`), (n) => n.type === "input" || n.type === "textarea");
+
 test("the tone and the name stand in their rows and open in their boxes too, and stored words open as they are", async () => {
-  const sequence = {
-    root_id: "r",
-    name: "Clinics",
-    search_id: null,
-    include_unconfirmed: false,
-    signed_by: "Maya",
-    signs_with: "name",
-    mailbox_id: null,
-    first: { subject: null, body: "Hello" },
-    next: null,
-  };
-  let tree = await drawOnRead({ brain: { profile: { tone: "Warm and short" } } }, { sequence }, (t) =>
-    /Maya/.test(textOf(byTestId(t, "rec-card-sign-off"))),
+  let tree = await drawOnRead(
+    { brain: { profile: { tone: "Warm and short" } } },
+    { sequence: SEQUENCE_SIGNED_MAYA },
+    (t) => !!byTestId(t, "rec-ending-lines"),
   );
-  openFold(tree, "cold_tone");
+  openFold(tree, "sound");
   tree = redrawTab();
-  assert.equal(boxIn(tree, "cold_tone").props.value, "Warm and short");
-  openFold(tree, "signed_by");
+  assert.equal(boxIn(tree, "sound").props.value, "Warm and short");
+  openFold(tree, "ending");
   tree = redrawTab();
-  assert.equal(boxIn(tree, "signed_by").props.value, "Maya");
+  assert.equal(endBox(tree, "signed_by").props.value, "Maya");
   tree = page({ tone: "Plain", signed_by: "Sam" });
-  openFold(tree, "cold_tone");
-  assert.equal(boxIn(redrawTab(), "cold_tone").props.value, "Plain");
+  openFold(tree, "sound");
+  assert.equal(boxIn(redrawTab(), "sound").props.value, "Plain");
 });
 
 test("no empty box holds a made-up answer: each says what to put there", () => {
@@ -193,29 +201,34 @@ test("no empty box holds a made-up answer: each says what to put there", () => {
     offer: "What you sell, and what a business gets from it",
     who_for: "The kind of business you want to reach, and where",
     fixes: "The problem they have that you solve",
-    signature: "Your name, your role, your business",
-    sign_phone: "A number people can reach you on",
   };
   for (const [fold, words] of Object.entries(said)) {
     const tree = drawTab({ part: "outreach", config: {} });
     openFold(tree, fold);
     assert.equal(boxIn(redrawTab(), fold).props.placeholder, words, fold);
   }
+  openFold(drawTab({ part: "outreach", config: {} }), "ending");
+  const tree = redrawTab();
+  assert.equal(endBox(tree, "signature").props.placeholder, "Your name, your role, your business");
+  assert.equal(endBox(tree, "phone").props.placeholder, "A number people can reach you on");
 });
 
 test("a box of sentences grows with its words, and a name or a number is one line with the right keys", () => {
-  for (const fold of ["offer", "who_for", "fixes", "cold_tone", "signature"]) {
+  for (const fold of ["offer", "who_for", "fixes", "sound"]) {
     openFold(drawTab({ part: "outreach", config: {} }), fold);
     const box = boxIn(redrawTab(), fold);
     assert.equal(box.type, "textarea", fold);
     assert.ok(classes(box).includes("rec-input-grows"), fold);
   }
-  openFold(drawTab({ part: "outreach", config: {} }), "signed_by");
-  const name = boxIn(redrawTab(), "signed_by");
+  openFold(drawTab({ part: "outreach", config: {} }), "ending");
+  const tree = redrawTab();
+  const under = endBox(tree, "signature");
+  assert.equal(under.type, "textarea");
+  assert.ok(classes(under).includes("rec-input-grows"));
+  const name = endBox(tree, "signed_by");
   assert.equal(name.type, "input");
   assert.equal(name.props.autoComplete, "name");
-  openFold(drawTab({ part: "outreach", config: {} }), "sign_phone");
-  const phone = boxIn(redrawTab(), "sign_phone");
+  const phone = endBox(tree, "phone");
   assert.equal(phone.type, "input");
   assert.equal(phone.props.inputMode, "tel");
   assert.equal(phone.props.autoComplete, "tel");
@@ -224,28 +237,97 @@ test("a box of sentences grows with its words, and a name or a number is one lin
 test("what is already known is offered under an empty box with one press, and never put there by itself", async () => {
   const known = { name: "Maya Ortiz", first_name: "Maya", newest_search: "Clinics in Austin" };
   const config = { brain: { business_name: "Brightline", phone_display: "(512) 555-0142" } };
-  const offers = [
-    ["who_for", "Clinics in Austin"],
-    ["signed_by", "Maya"],
-    ["signature", "Maya Ortiz, Brightline"],
-    ["sign_phone", "(512) 555-0142"],
-  ];
-  for (const [fold, words] of offers) {
+  {
     const sent = saving();
     let tree = await drawOnRead(config, { known }, (t) => {
-      openFold(t, fold);
-      return !!byTestId(redrawTab(), `rec-${fold}-use`);
+      openFold(t, "who_for");
+      return !!byTestId(redrawTab(), "rec-who_for-use");
     });
-    assert.equal(boxIn(tree, fold).props.value, "", `${fold} opens empty`);
-    assert.equal(textOf(byTestId(tree, `rec-${fold}-use`)), `Use ${words}`);
-    press(byTestId(tree, `rec-${fold}-use`));
+    assert.equal(boxIn(tree, "who_for").props.value, "", "who_for opens empty");
+    assert.equal(textOf(byTestId(tree, "rec-who_for-use")), "Use Clinics in Austin");
+    press(byTestId(tree, "rec-who_for-use"));
     tree = redrawTab();
-    assert.equal(boxIn(tree, fold).props.value, words, `${fold} takes it`);
-    assert.equal(byTestId(tree, `rec-${fold}-use`), null, "and has nothing left to offer");
-    saveFoldOf(tree, fold);
-    assert.equal(sent.length, 1, `${fold} saves what was pressed in`);
+    assert.equal(boxIn(tree, "who_for").props.value, "Clinics in Austin");
+    assert.equal(byTestId(tree, "rec-who_for-use"), null, "and has nothing left to offer");
+    saveFoldOf(tree, "who_for");
+    assert.equal(sent.length, 1);
     unmount();
   }
+  const sent = saving();
+  let tree = await drawOnRead(config, { known }, (t) => {
+    openFold(t, "ending");
+    return !!byTestId(redrawTab(), "rec-signed_by-use");
+  });
+  for (const [field, words] of [
+    ["signed_by", "Maya"],
+    ["signature", "Maya Ortiz, Brightline"],
+    ["phone", "(512) 555-0142"],
+  ]) {
+    assert.equal(endBox(tree, field).props.value, "", `${field} opens empty`);
+    assert.equal(textOf(byTestId(tree, `rec-${field}-use`)), `Use ${words}`);
+    press(byTestId(tree, `rec-${field}-use`));
+    tree = redrawTab();
+    assert.equal(endBox(tree, field).props.value, words, `${field} takes it`);
+    assert.equal(byTestId(tree, `rec-${field}-use`), null, "and has nothing left to offer");
+  }
+  saveFoldOf(tree, "ending");
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0].config.reach_out, {
+    signed_by: "Maya",
+    signature: "Maya Ortiz, Brightline",
+    phone: "(512) 555-0142",
+  });
+  unmount();
+});
+
+test("the ending opened on the name a sequence signs with, saved as it stands, stores nothing", async () => {
+  const sent = saving();
+  let tree = await drawOnRead({}, { sequence: SEQUENCE_SIGNED_MAYA }, (t) => !!byTestId(t, "rec-ending-lines"));
+  openFold(tree, "ending");
+  tree = redrawTab();
+  assert.match(textOf(foldOf(tree, "ending")), /From your newest sequence/);
+  saveFoldOf(tree, "ending");
+  assert.equal(sent.length, 0);
+  unmount();
+});
+
+test("the ending's row is what is sent, and never claims an address the business has not added", async () => {
+  const config = { reach_out: { signed_by: "Maya", signature: "Maya Ortiz, Owner", phone: "(512) 555-0148" } };
+  let tree = await drawOnRead(config, { foot: { business: "Brightline Cleaning", address: "1 Main St" } }, (t) =>
+    /The law asks for them/.test(textOf(byTestId(t, "rec-card-ending"))),
+  );
+  assert.equal(textOf(byTestId(tree, "rec-ending-lines")), "MayaMaya Ortiz, Owner(512) 555-0148");
+  openFold(tree, "ending");
+  tree = redrawTab();
+  const sheet = textOf(byTestId(tree, "rec-ending-preview"));
+  assert.match(sheet, /I found your business on Google Maps\./);
+  assert.match(sheet, /This is a marketing email\./);
+  assert.match(sheet, /Brightline Cleaning · 1 Main St/);
+  assert.match(sheet, /no thanks/);
+  unmount();
+  tree = await drawOnRead(config, { foot: { business: "Brightline Cleaning", address: null } }, (t) =>
+    /No address yet/.test(textOf(byTestId(t, "rec-card-ending"))),
+  );
+  assert.doesNotMatch(textOf(byTestId(tree, "rec-card-ending")), /The law asks for them/);
+  unmount();
+});
+
+test("How you sound is one sheet: the tone, what was learned, and the way to teach it more", async () => {
+  const voice = [
+    { id: "1", text: "Short sentences, no exclamation marks" },
+    { id: "2", text: "Opens with the point" },
+  ];
+  let tree = await drawOnRead({ reach_out: { tone: "Direct" } }, { voice }, (t) =>
+    /Plus 2 things learned from your emails/.test(textOf(byTestId(t, "rec-card-sound"))),
+  );
+  openFold(tree, "sound");
+  tree = redrawTab();
+  const lines = textOf(byTestId(tree, "rec-cold-voice-lines"));
+  assert.match(lines, /Short sentences/);
+  assert.match(lines, /Opens with the point/);
+  assert.match(textOf(byTestId(tree, "rec-sound-note")), /Your receptionist keeps its own voice\./);
+  assert.ok(byTestId(tree, "rec-sound-paste"));
+  unmount();
 });
 
 test("a box says how much of it is used only as it nears its limit, and a signature always says its rule", () => {
@@ -257,8 +339,8 @@ test("a box says how much of it is used only as it nears its limit, and a signat
   typeIn(redrawTab(), "offer", "x".repeat(1600));
   assert.match(textOf(foldOf(redrawTab(), "offer")), /1,600 of 2,000/);
   unmount();
-  openFold(drawTab({ part: "outreach", config: {} }), "signature");
-  assert.match(textOf(foldOf(redrawTab(), "signature")), /Up to 3 lines, no links\./);
+  openFold(drawTab({ part: "outreach", config: {} }), "ending");
+  assert.match(textOf(foldOf(redrawTab(), "ending")), /Up to 3 lines, no links\./);
 });
 
 test("with no claim yet the sheet opens on a box to type in, with nothing to take away", () => {
@@ -342,14 +424,14 @@ test("a claim saves into the list, and an empty one is dropped", () => {
 test("a signature with a link is refused under its box, in the page's words, and nothing is sent", () => {
   const sent = saving();
   let tree = page();
-  openFold(tree, "signature");
+  openFold(tree, "ending");
   tree = redrawTab();
-  typeIn(tree, "signature", "Maya Ortiz · brightlinecleaning.com");
+  endBox(tree, "signature").props.onChange({ target: { value: "Maya Ortiz · brightlinecleaning.com" } });
   tree = redrawTab();
-  saveFoldOf(tree, "signature");
+  saveFoldOf(tree, "ending");
   tree = redrawTab();
   assert.equal(sent.length, 0);
-  assert.match(textOf(foldOf(tree, "signature")), new RegExp(REACH_OUT_REFUSAL_WORDS.signature));
+  assert.match(textOf(foldOf(tree, "ending")), new RegExp(REACH_OUT_REFUSAL_WORDS.signature));
 });
 
 test("what a reply sets off: the answer's offer is the owner's to change, the other four are code's", () => {

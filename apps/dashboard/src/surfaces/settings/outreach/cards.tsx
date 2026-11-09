@@ -12,11 +12,12 @@ import { recFolds } from "../../kit/record/registry";
 import type { BtSaver } from "../business/gestures/common";
 import type { Brain, Config } from "../business/save";
 import { useReachOutRead } from "./card";
+import { EndingCard } from "./ending";
 import { OfferCard, ProofCard } from "./offer";
 import { RulesCard, SendsFromCard, WritesBackCard } from "./sends";
+import { SoundCard } from "./sound";
 import { ToldCard } from "./told";
 import { TryCard } from "./try";
-import { SignOffCard, WritesCard } from "./writes";
 
 export function OutreachCards({
   brain,
@@ -61,8 +62,8 @@ export function OutreachCards({
       ) : null}
       <OfferCard {...shared} />
       <ProofCard {...shared} />
-      <WritesCard {...shared} again={again} />
-      <SignOffCard {...shared} />
+      <SoundCard {...shared} again={again} />
+      <EndingCard {...shared} />
       <SendsFromCard {...shared} />
       <WritesBackCard {...shared} />
       <RulesCard />

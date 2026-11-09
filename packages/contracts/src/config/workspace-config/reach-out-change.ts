@@ -18,16 +18,16 @@ export type AskReachOutChange =
   | { op: "set_signature"; signature: string }
   | { op: "set_reply_offer"; offer: ReplyOffer };
 
-/** Each op, with the row of How it reaches out its card opens (admin/outreach/<row>). */
+/** Each op, with the row of Cold email its card opens (admin/outreach/<row>). */
 export const ASK_REACH_OUT_ROWS: Readonly<Record<AskReachOutChange["op"], string>> = {
   set_offer: "offer",
   set_who_for: "who_for",
   set_fixes: "fixes",
   add_claim: "proof",
   remove_claim: "proof",
-  set_cold_tone: "cold_tone",
-  set_signed_by: "signed_by",
-  set_signature: "signature",
+  set_cold_tone: "sound",
+  set_signed_by: "ending",
+  set_signature: "ending",
   set_reply_offer: "reply_offer",
 };
 

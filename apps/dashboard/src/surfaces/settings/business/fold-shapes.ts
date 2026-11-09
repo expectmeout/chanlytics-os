@@ -10,18 +10,16 @@ import { BOOKS_BY_HAND, booksWithOf, isBookingTool } from "@chanlytics/contracts
 import { trimmed, type Config, type StoredNote } from "./save";
 
 /**
- * The folds, each named by its id. The first nine are How it reaches out's (decision 0113), each one key of the config's
- * reach_out section: their tables are outreach/fold-tables.ts's, which holds its keys to these names.
+ * The folds, each named by its id. The first six are Cold email's (decision 0113), written to the config's reach_out
+ * section: their tables are outreach/fold-tables.ts's, which holds its keys to these names.
  */
 export type FoldName =
   | "offer"
   | "who_for"
   | "fixes"
   | "proof"
-  | "cold_tone"
-  | "signed_by"
-  | "signature"
-  | "sign_phone"
+  | "sound"
+  | "ending"
   | "reply_offer"
   | "tone"
   | "phone_greeting"
@@ -89,6 +87,13 @@ export interface ReceptionistDraft {
   link: string;
 }
 
+/** How an email ends, as its sheet's three boxes hold it. */
+export interface EndingDraft {
+  signed_by: string;
+  signature: string;
+  phone: string;
+}
+
 /** What each fold opens with, by its id. */
 export interface DraftOf {
   offer: string;
@@ -96,10 +101,8 @@ export interface DraftOf {
   fixes: string;
   /** The claims, one a row; a row left empty is dropped on save. */
   proof: string[];
-  cold_tone: string;
-  signed_by: string;
-  signature: string;
-  sign_phone: string;
+  sound: string;
+  ending: EndingDraft;
   /** A ReplyOffer, "" for the booking link, as before the page. */
   reply_offer: string;
   tone: string;
@@ -223,10 +226,8 @@ export const BT_PATHS_OF: Record<FoldName, string[]> = {
   who_for: ["reach_out.who_for"],
   fixes: ["reach_out.fixes"],
   proof: ["reach_out.proof"],
-  cold_tone: ["reach_out.tone"],
-  signed_by: ["reach_out.signed_by"],
-  signature: ["reach_out.signature"],
-  sign_phone: ["reach_out.phone"],
+  sound: ["reach_out.tone"],
+  ending: ["reach_out.signed_by", "reach_out.signature", "reach_out.phone"],
   reply_offer: ["reach_out.reply_offer"],
   tone: ["brain.profile.tone"],
   phone_greeting: ["brain.profile.phone_greeting"],

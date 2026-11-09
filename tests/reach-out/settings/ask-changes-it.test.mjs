@@ -13,6 +13,7 @@ import {
   AskSettingsChangeSchema,
   applySettingsChange,
   describeSettingsChange,
+  ASK_REACH_OUT_ROWS,
   REACH_OUT_LIMITS,
 } from "@chanlytics/contracts";
 
@@ -128,4 +129,12 @@ test("Ask's answers action carries a row of How it reaches out, each op's own fi
   assert.match(await refused({ op: "set_reply_offer", offer: "fax" }), /^change rejected: offer: /);
   assert.match(await refused({ op: "set_offer" }), /^change rejected: offer: /);
   assert.match(await refused({ op: "add_claim", text: "We clean 40 clinics." }), /^change rejected: claim: /);
+});
+
+test("each op's card opens a row that exists, on the sheet that holds it now", () => {
+  const folds = new Set(["offer", "who_for", "fixes", "proof", "sound", "ending", "reply_offer"]);
+  for (const [op, row] of Object.entries(ASK_REACH_OUT_ROWS)) assert.ok(folds.has(row), `${op} opens ${row}`);
+  assert.equal(ASK_REACH_OUT_ROWS.set_signature, "ending");
+  assert.equal(ASK_REACH_OUT_ROWS.set_signed_by, "ending");
+  assert.equal(ASK_REACH_OUT_ROWS.set_cold_tone, "sound");
 });

@@ -1747,6 +1747,14 @@ html.frame-on .bt-link { position: relative; }
 /* What is already known, offered under an empty box: one line, however long it is. */
 .ro-use { width: fit-content; max-width: 100%; }
 .ro-use-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* How an email ends, as it is sent: a line each, and in a sheet the foot under them in the small dim words. */
+.ro-ending { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.ro-ending-sheet { gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--line); font-size: var(--text-sm); }
+.ro-ending-sheet > small { margin-top: 8px; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); white-space: pre-line; }
+/* What it learned from how the owner writes, in How you sound's sheet. */
+.ro-learned { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; font-size: var(--text-sm); color: var(--ink-muted); }
+.ro-learned-head { font-size: var(--text-xs); color: var(--ink-dim); }
+.ro-learned-none { color: var(--ink-dim); }
 /* Its rows' own lists: the lines learned from how the owner writes, the rules it keeps, and the lock on a row of code's. */
 .ro-lines { display: flex; flex-direction: column; gap: 2px; }
 .ro-rules { display: flex; flex-direction: column; margin: 0; padding: 0 0 6px; list-style: none; }

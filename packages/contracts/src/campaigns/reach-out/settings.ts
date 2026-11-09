@@ -134,40 +134,36 @@ export const REACH_OUT_SETTINGS_WORDS = {
     remove: (n: number) => `Remove claim ${n}`,
     count: (sends: number) => (sends > 0 ? `In ${sends} email${sends === 1 ? "" : "s"}` : "Not used yet"),
   },
-  writes: {
-    title: "How it writes",
-    sub: "Your voice in cold emails",
-    tone: "Tone",
+  sound: {
+    title: "How you sound",
     tonePlaceholder: "How your emails should sound, in a few words",
-    toneHint: "Cold emails only. How it answers keeps its own.",
     toneFrom: "The receptionist's, until you set one for cold emails.",
-    voice: "How you write",
-    voiceNone: "Nothing learned yet",
-    voiceFrom: "Learned from how you write",
+    empty: "Not set",
+    learned: "Learned from your emails",
+    learnedNone: "Nothing learned yet",
+    learnedCount: (n: number) => `Plus ${n} thing${n === 1 ? "" : "s"} learned from your emails`,
     memory: "Also in Memory",
-    paste: "Paste an email",
+    paste: "Paste an email you wrote",
+    note: "It also learns from what you change in its drafts. Your receptionist keeps its own voice.",
+    reach: "New sequences use this. Running ones use it for their first line.",
   },
-  signOff: {
-    title: "Sign-off",
-    sub: "Under every email",
-    signedBy: "Signs as",
-    signedByHint: "Or the name on the mailbox. A sequence can sign its own.",
-    signedByFrom: "From your newest sequence, until you set it here.",
-    signatureNone: "Not added",
-    signature: "Signature",
-    signatureHint: "Under its name, in every email Chanlytics sends. One you send yourself gets your mail app's.",
-    signatureRule: `Up to ${REACH_OUT_LIMITS.signatureLines} lines, no links.`,
+  ending: {
+    title: "How your emails end",
+    none: "Not set",
+    foot: "Then why they're hearing from you, your address, and a way to say no. The law asks for them.",
+    noAddress: "No address yet, and every email needs one.",
+    name: "Your name",
+    nameFrom: "From your newest sequence, until you set it here.",
+    under: "Under your name",
+    underRule: `Up to ${REACH_OUT_LIMITS.signatureLines} lines, no links.`,
+    phone: "Phone",
     placeholders: {
-      signedBy: "The name at the end of the email",
-      signature: "Your name, your role, your business",
+      name: "The name at the end of the email",
+      under: "Your name, your role, your business",
       phone: "A number people can reach you on",
     },
-    phone: "Phone in the signature",
-    phoneNone: "Not added",
-    foot: "At the bottom",
-    footValue: "Your address, and a way to say no",
-    footHint: "The law asks for both, so it's always added.",
-    footAct: "Address on Details",
+    reach: "New sequences sign with this name. Signature and phone reach every email as soon as you save.",
+    address: "Your address comes from Details.",
   },
   sendsFrom: {
     title: "Where it sends from",
@@ -275,6 +271,8 @@ export interface ReachOutSettingsDto {
   standing: ColdEmailStanding;
   /** Whether it is healthy, what it can really send, and what its ramp gives next (contracts coldEmailSendingOf). */
   sending: ColdEmailSending;
+  /** The business's name and postal address, as a cold email's foot says them (contracts emailFoot). */
+  foot: { business: string | null; address: string | null };
   /** Who is kept off, by address (db countLeadSuppressions); null where the list could not be counted. */
   never: { said_no: number; asked_to_stop: number } | null;
   mailbox: ReachOutSettingsMailbox | null;

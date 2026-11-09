@@ -28,13 +28,13 @@ export const storedReachOut = (shared: OutreachShared, key: keyof ReachOutConfig
 export const OutreachCard = ({
   id,
   title,
-  sub,
+  sub = null,
   mark = null,
   children,
 }: {
   id: string;
   title: string;
-  sub: string;
+  sub?: string | null;
   mark?: ReactNode;
   children: ReactNode;
 }) => (
@@ -43,7 +43,7 @@ export const OutreachCard = ({
       <h2 className="rec-card-title" id={`ro-${id}-title`}>
         {title}
       </h2>
-      <span className="rec-card-sub">{sub}</span>
+      {sub ? <span className="rec-card-sub">{sub}</span> : null}
       {mark}
     </div>
     {children}

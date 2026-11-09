@@ -440,6 +440,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         ),
         sending: coldEmailSendingOf(mailboxes, month, rc.now.getTime()),
         never,
+        foot: { business: facts?.data.name?.trim() || null, address: parsed?.brain?.profile?.address?.trim() || null },
         mailbox: mailboxShown(mailboxes, rc.now.getTime(), tz),
         month,
         by_hand_per_day: REACH_OUT_DRAFTS_PER_DAY,

@@ -40,7 +40,7 @@ const PART = {
     door: null,
   },
   proof: { label: "Your proof", note: "One per email, word for word", row: "proof", door: null },
-  writes: { label: "How you write", note: "Your tone, and the lines learned from you", row: "cold_tone", door: null },
+  writes: { label: "How you write", note: "Your tone, and the lines learned from you", row: "sound", door: null },
   examples: {
     label: "Emails you sent before",
     note: "What Ask drafted, what you changed, what wrote back",

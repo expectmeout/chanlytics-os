@@ -123,6 +123,8 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   who_for: "outreach",
   fixes: "outreach",
   proof: "outreach",
+  sound: "outreach",
+  ending: "outreach",
   cold_tone: "outreach",
   cold_voice: "outreach",
   signed_by: "outreach",
@@ -136,8 +138,21 @@ const ROW_PANES: Readonly<Record<string, string>> = {
 /** The page a row of the business is on: Hours & booking, How it answers, Cold email, Autonomy, or else Details. */
 export const paneOfRow = (row: string): string => ROW_PANES[row] ?? DETAILS_TAB.id;
 
+/**
+ * Rows that became one sheet (the Cold email canvas's Changes): each name a bell, an Ask answer or a bookmark holds still
+ * opens the sheet that holds it now. Cold email's own: `integrations/signature` is a mailbox's, and `receptionist/tone`
+ * the receptionist's.
+ */
+const COLD_EMAIL_ROWS_NOW: Readonly<Record<string, string>> = {
+  cold_tone: "sound",
+  signed_by: "ending",
+  signature: "ending",
+  sign_phone: "ending",
+};
+const coldEmailRowNow = (row: string): string => COLD_EMAIL_ROWS_NOW[row] ?? row;
+
 /** The address that opens a row of the business, open, on the page that holds it. */
-export const settingsRowRoute = (row: string): string => `admin/${paneOfRow(row)}/${row}`;
+export const settingsRowRoute = (row: string): string => `admin/${paneOfRow(row)}/${coldEmailRowNow(row)}`;
 
 /** The section an address under Settings names: what stands before a row it may name (`workspace/calendar` is `workspace`). */
 const sectionOf = (id: string): string => (id.includes("/") ? id.slice(0, id.indexOf("/")) : id);
@@ -165,7 +180,8 @@ const SECTIONS_WITH_ROWS = new Set([
 export const settingsRowOf = (param: string | null | undefined): string | null => {
   const p = param || "";
   if (!SECTIONS_WITH_ROWS.has(sectionOf(p)) || !p.includes("/")) return null;
-  return p.slice(p.indexOf("/") + 1).split("/")[0] || null;
+  const row = p.slice(p.indexOf("/") + 1).split("/")[0] || null;
+  return row && sectionOf(p) === "outreach" ? coldEmailRowNow(row) : row;
 };
 
 /**
