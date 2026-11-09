@@ -292,7 +292,14 @@ function afterMailbox(
   to: { slug?: string | null; backTo?: string | null } = {},
 ): string {
   // The first run's Where it answers asked (decision 0073): back to its tile, the outcome said there.
-  const page = to.backTo === "start" ? "start/channels" : "admin/integrations";
+  const page =
+    to.backTo === "start"
+      ? "start/channels"
+      : to.backTo === "new"
+        ? "campaigns/sequences/new:leads"
+        : to.backTo === "cold_email"
+          ? "admin/outreach"
+          : "admin/integrations";
   return `${origin}${appLink(to.slug, page, { mailbox: outcome, why: reason || null })}`;
 }
 
@@ -307,7 +314,12 @@ export async function startMailboxConnect(
   ctx: RouteContext,
   member: Member,
   provider: string,
-  opts: { mailboxId?: string | null; admin?: boolean; back?: "start" | null; history?: MailboxHistory | null } = {},
+  opts: {
+    mailboxId?: string | null;
+    admin?: boolean;
+    back?: "start" | "new" | "cold_email" | null;
+    history?: MailboxHistory | null;
+  } = {},
 ): Promise<{ url: string }> {
   if (!isProvider(provider)) throw new AppError("validation", "Connect a Google or a Microsoft mailbox.", 400);
   if (opts.admin && provider !== "microsoft")
@@ -334,7 +346,7 @@ export async function startMailboxConnect(
     p: provider,
     ...(opts.mailboxId ? { m: opts.mailboxId } : {}),
     ...(opts.admin ? { a: 1 } : {}),
-    ...(opts.back === "start" ? { b: "start" } : {}),
+    ...(opts.back ? { b: opts.back } : {}),
     // What its owner chose of a new mailbox's history (0086); a Reconnect keeps its own.
     ...(opts.history === "from_now" && !opts.mailboxId ? { h: "from_now" } : {}),
     ...(pkce ? { k: 1 } : {}),
@@ -377,7 +389,8 @@ export async function handleMailboxCallback(ctx: RouteContext, req: Request) {
   if (!secret) return back("error", "not_available");
   const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
   if (!proof.ok) return back("error", "failed");
-  backTo = proof.state.b === "start" ? "start" : null;
+  backTo =
+    proof.state.b === "start" || proof.state.b === "new" || proof.state.b === "cold_email" ? proof.state.b : null;
   if (proof.state.u !== ctx.userId || !isProvider(proof.state.p)) return back("error", "failed");
   const provider = proof.state.p;
 

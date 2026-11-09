@@ -182,7 +182,7 @@ export function draftByHand(kind: NewKind, audience: NewAudience, business: stri
  * and who where that suits the new shape, every other part still to come; to leads, from the owner's mailbox.
  */
 export function redraftShapeOf(d: NewDraftDto, to: { kind: NewKind; audience: NewAudience }): NewDraftDto {
-  const mailbox = d.mailbox ?? { ids: [], owner_sends: false, label: NEW_WORDS.draft.yourMailbox };
+  const mailbox = d.mailbox ?? { ids: [], label: NEW_WORDS.draft.yourMailbox };
   return {
     ...draftByHand(to.kind, to.audience, d.business),
     said: d.said,
@@ -444,8 +444,6 @@ export const setChannels = (d: NewDraftDto, channels: readonly ConsentChannel[])
 });
 export const setMode = (d: NewDraftDto, mode: SequenceMode): NewDraftDto => ({ ...d, mode });
 export const setAddsNew = (d: NewDraftDto, on: boolean): NewDraftDto => ({ ...d, adds_new: on });
-export const setOwnerSends = (d: NewDraftDto, on: boolean): NewDraftDto =>
-  d.mailbox ? { ...d, mailbox: { ...d.mailbox, owner_sends: on } } : d;
 export const setName = (d: NewDraftDto, name: string): NewDraftDto => ({ ...d, name: name.slice(0, 80) });
 
 /**
@@ -520,6 +518,8 @@ export function notReady(d: NewDraftDto, at: FootReads): { lead: string; sub: st
     ...(steps ? [] : [W.parts.message]),
   ];
   if (parts.length) return { lead: W.pick(parts), sub: then };
+  // A sequence to leads sends from a mailbox: with none, the foot's act is the way to one.
+  if (d.audience === "leads" && d.mailbox && !d.mailbox.label) return { lead: W.needsMailbox, sub: W.needsMailboxSub };
   if (unconnected) return { lead: NEW_WORDS.reach.why.no_channel, sub: NEW_WORDS.reach.connect(unconnected) };
   const blank = blankValueOf(d);
   if (blank) return { lead: W.fill(blank.label), sub: then };
@@ -621,7 +621,6 @@ export function makeBodyOf(d: NewDraftDto, start: boolean, draftId: string | nul
     channels: d.channels,
     mode: d.mode,
     adds_new: d.adds_new,
-    ...(d.mailbox ? { owner_sends: d.mailbox.owner_sends } : {}),
     ...(draftId ? { draft_id: draftId } : {}),
     ...(d.audience === "leads" && drafted?.audience === "leads" && drafted.said
       ? {

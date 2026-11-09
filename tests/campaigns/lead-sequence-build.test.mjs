@@ -622,7 +622,7 @@ test("Sends from says what is saved: the mailboxes kept in sight while chosen wi
   assert.equal(none.pick.props.value, "mailboxes");
   assert.deepEqual(
     none.pick.props.groups[0].options.map((o) => o.label),
-    ["Your inbox · you send", "Your mailboxes · none yet"],
+    ["Your mailboxes · none yet"],
   );
   assert.match(textOf(none.note), /No mailbox sends now, so nothing goes/);
   assert.match(textOf(none.day), /None until a mailbox sends/);
@@ -730,7 +730,7 @@ test("Each mailbox is a row: its day, why it does not send now, the records DNS 
       [false, false],
     ],
   );
-  assert.match(one[0].sub, /One has to send\. To stop them all, choose Your inbox · you send\.$/);
+  assert.match(one[0].sub, /One has to send\. To stop them all, pause the sequence\.$/);
   // A tick names its own list from then on, and the last one is never taken off.
   assert.deepEqual(contracts.leadMailboxesTicked(chain, [], "lee", false), ["sam", "ann", "kim"]);
   assert.deepEqual(contracts.leadMailboxesTicked(chain, ["sam"], "sam", false), ["sam"]);

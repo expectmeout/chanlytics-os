@@ -159,6 +159,10 @@ const box = (id, address, over = {}) =>
     clean_since: CLEAN,
     ...over,
   });
+const SENDING_BOX = "30000000-0000-4000-8000-0000000000aa";
+/** A workspace with a mailbox that sends, as a new sequence to leads needs (mailbox-needed.ts). */
+const sending = (role = "operator", over = {}) =>
+  tables(role, { mailbox_connections: [box(SENDING_BOX, "sam@harbor-mail.example")], ...over });
 const ctxFor = (t, params = {}, rpcs = {}) => ({
   supabase: fakeDb(t, {}, rpcs),
   userId: USER,
@@ -327,7 +331,7 @@ test("POST reach-outs: an operator's chain is validated, saved by the service ro
       { ok: true, outcome: "held", reason: "waiting_for_you", planned: 30, run_id: RUN, run_for: "2026-09-28" },
     ],
   });
-  const ctx = ctxFor(tables());
+  const ctx = ctxFor(sending());
   const out = await chains.POST.run(send("POST", CHAIN()), ctx);
   assert.deepEqual(asked[0], {
     p_tenant_id: A,
@@ -359,13 +363,39 @@ test("POST reach-outs: an operator's chain is validated, saved by the service ro
   edge({
     "/api/admin/playbooks-run": [200, { ok: true, outcome: "held", reason: "billing", planned: 0, run_id: null }],
   });
-  const billing = await chains.POST.run(send("POST", CHAIN()), ctxFor(tables()));
+  const billing = await chains.POST.run(send("POST", CHAIN()), ctxFor(sending()));
   assert.deepEqual(billing.start, { outcome: "held", reason: "billing", planned: 0, run_id: null });
   // The edge not reached: the sweep plans it, and only then is "within the hour" said.
   edge({ "/api/admin/playbooks-run": new TypeError("fetch failed") });
-  const down = await chains.POST.run(send("POST", CHAIN()), ctxFor(tables()));
+  const down = await chains.POST.run(send("POST", CHAIN()), ctxFor(sending()));
   assert.deepEqual(down.start, { outcome: "unreached", reason: null, planned: 0, run_id: null });
   assert.equal(startWords(down.start).text, "Saved. The first run is planned within the hour.");
+});
+
+test("POST reach-outs with no mailbox, or asking to send by hand, is refused in words, and nothing is saved", async () => {
+  const asked = [];
+  const rpcs = { reach_out_save: (a) => (asked.push(a), { root_id: "r", state: "paused" }) };
+  await assert.rejects(
+    chains.POST.run(send("POST", CHAIN()), ctxFor(tables(), {}, rpcs)),
+    /Connect your mailbox first/,
+  );
+  await assert.rejects(
+    chains.POST.run(
+      send("POST", CHAIN()),
+      ctxFor(
+        tables("operator", { mailbox_connections: [box(SENDING_BOX, "sam@harbor-mail.example", { state: "held" })] }),
+        {},
+        rpcs,
+      ),
+    ),
+    /Connect your mailbox first/,
+    "a mailbox that can't send makes a sequence sent by hand (00459), so none is made",
+  );
+  await assert.rejects(
+    chains.POST.run(send("POST", { ...CHAIN(), owner_sends: true }), ctxFor(sending(), {}, rpcs)),
+    /sending each by hand isn't offered/,
+  );
+  assert.deepEqual(asked, []);
 });
 
 test("POST reach-outs refuses before the door: a viewer, a slot that is none of six, a booking link the workspace lacks, a pace the sheet does not offer", async () => {
@@ -376,7 +406,7 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
     steps: [{ subject: "Hi", body: "Hi {{nickname}}", after_days: null }],
   });
   await refused(
-    chains.POST.run(send("POST", firstName), ctxFor(tables())),
+    chains.POST.run(send("POST", firstName), ctxFor(sending())),
     "validation",
     400,
     "{{nickname}} isn't one of the slots. Use one from the list.",
@@ -384,7 +414,7 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
   // A first email carries no link (decision 0056): the booking link is a nudge's.
   const first = CHAIN({ steps: [{ subject: "Hi", body: "Book here: {{booking link}}", after_days: null }] });
   await refused(
-    chains.POST.run(send("POST", first), ctxFor(tables())),
+    chains.POST.run(send("POST", first), ctxFor(sending())),
     "validation",
     400,
     "Keep your first email free of links: put your booking link in the nudge.",
@@ -396,12 +426,12 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
     ],
   });
   await refused(
-    chains.POST.run(send("POST", link), ctxFor(tables("operator", { tenant_config: [] }))),
+    chains.POST.run(send("POST", link), ctxFor(sending("operator", { tenant_config: [] }))),
     "validation",
     400,
     "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.",
   );
-  await refused(chains.POST.run(send("POST", CHAIN({ gap_minutes: 7 })), ctxFor(tables())), "validation", 400);
+  await refused(chains.POST.run(send("POST", CHAIN({ gap_minutes: 7 })), ctxFor(sending())), "validation", 400);
   assert.equal(asked.length, 0, "the door was never asked");
 });
 
@@ -410,7 +440,7 @@ test("the door's refusals are said in contracts' words: a search with a chain is
     throw pgError("23505", REACH_OUT_REFUSALS.exists);
   });
   edge();
-  await refused(chains.POST.run(send("POST", CHAIN()), ctxFor(tables())), "conflict", 409, REACH_OUT_REFUSALS.exists);
+  await refused(chains.POST.run(send("POST", CHAIN()), ctxFor(sending())), "conflict", 409, REACH_OUT_REFUSALS.exists);
   const asked = serviceSave(() => {
     throw pgError("22023", REACH_OUT_REFUSALS.outOfPlace);
   });

@@ -19,6 +19,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { NEW_WORDS, REACH_OUT_GAP_FIRST, SEQUENCE_FLOW_WORDS as F, handTitleOf } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -254,6 +255,33 @@ test("a call taken away is named by its kind on Ask's card, never as a message i
   assert.ok(message.summary.startsWith("Step 2 (come_back) and the 1 step after it go;"), message.summary);
 });
 
+test("Ask's cold email with no mailbox is no card: it says what to connect, in the page's words", async () => {
+  const SEARCH = "5eed0000-0000-4000-8000-000000000001";
+  const supabase = fakeDb(
+    {
+      memberships: [
+        { user_id: USER, tenant_id: A, role: "operator", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+      ],
+      tenants: [{ id: A, name: "Harbor", timezone: TZ, config: {} }],
+      policies: [],
+      lead_searches_view: [{ id: SEARCH, tenant_id: A, name: "Plumbers in Queens" }],
+      mailbox_connections: [],
+    },
+    {},
+    {},
+  );
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator");
+  const out = await buildProposal(t, "propose_sequence", {
+    action: "cold_email",
+    name: "Plumbers",
+    search_id: SEARCH,
+    steps: [{ subject: "Missed calls", body: "{{opening}}\n\nWorth a look?" }],
+  });
+  assert.equal(out.proposal, null, "no card");
+  assert.equal(out.isError, true);
+  assert.match(out.refusal, /Connect your mailbox first/);
+});
+
 test("Ask's cold email starts at the pace every new sequence starts at, one email every 20 minutes, unless it names one (0077, D7)", async () => {
   const SEARCH = "5eed0000-0000-4000-8000-000000000001";
   const card = async (more = {}) => {
@@ -265,7 +293,15 @@ test("Ask's cold email starts at the pace every new sequence starts at, one emai
         tenants: [{ id: A, name: "Harbor", timezone: TZ, config: {} }],
         policies: [],
         lead_searches_view: [{ id: SEARCH, tenant_id: A, name: "Plumbers in Queens" }],
-        mailbox_connections: [],
+        mailbox_connections: [
+          rows.mailboxConnection({
+            id: "m1",
+            tenant_id: A,
+            address: "ada@harbor.example",
+            host: "harbor.example",
+            provider_account: "acct-1",
+          }),
+        ],
       },
       {},
       {},
@@ -301,7 +337,15 @@ test("Ask's cold email is signed as New signs it, by the member's first name, un
         tenants: [{ id: A, name: "Harbor", timezone: TZ, config: {} }],
         policies: [],
         lead_searches_view: [{ id: SEARCH, tenant_id: A, name: "Plumbers in Queens" }],
-        mailbox_connections: [],
+        mailbox_connections: [
+          rows.mailboxConnection({
+            id: "m1",
+            tenant_id: A,
+            address: "ada@harbor.example",
+            host: "harbor.example",
+            provider_account: "acct-1",
+          }),
+        ],
         profiles,
       },
       {},

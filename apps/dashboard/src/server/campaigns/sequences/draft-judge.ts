@@ -427,7 +427,7 @@ function howOf(
     run_hour: Math.min(PLAYBOOK_HOURS.max, Math.max(PLAYBOOK_HOURS.min, answer.hour || PLAYBOOK_DEFAULTS.runHour)),
     at: params.kind === "once" ? onceAt(answer.when, known.localNow) : null,
     channels: leads ? ["email"] : (params.first ? carriersOf(params.first) : []).filter((c) => known.ready.includes(c)),
-    mailbox: leads ? { ids: box?.ids ?? [], owner_sends: !box, label: box?.label ?? "" } : null,
+    mailbox: leads ? { ids: box?.ids ?? [], label: box?.label ?? "" } : null,
     adds_new: leads && params.who?.kind === "search",
     policy_class: policy,
     mode: params.kind === "once" ? null : newSequenceMode(known.classModes[policy] ?? null, leads ? "leads" : null),

@@ -145,6 +145,9 @@ export const NEW_WORDS = {
     tomorrowAt: (time: string) => `tomorrow at ${time}`,
     whatToDo: "What to do",
     yourMailbox: "your mailbox",
+    /** A sequence to leads with no mailbox to send from: what stops it, and the way on. */
+    needsMailbox: "Connect your mailbox to start",
+    needsMailboxSub: "Emails go out from your own address, so replies come back to you.",
     later: (n: number) => `${n} ${n === 1 ? "day" : "days"} later`,
     /** What a later step waits on, as its rail says it. */
     onlyIf: {
@@ -326,10 +329,8 @@ export const NEW_WORDS = {
     fromSub: "Your own mailbox, so replies come to you",
     yourMailbox: "Your mailbox",
     noMailbox: "No mailbox connected",
-    connectSaid: "Connect Gmail or Outlook in Settings",
-    connect: "Connect",
-    youSend: "You send each yourself",
-    youSendSaid: "From your mail app, then say Sent",
+    connectSaid: "Emails go out from your own address, so replies come back to you",
+    connect: "Connect your mailbox",
     message: (n: number) => `Step ${n}’s message`,
     messageSub: "Yours, or one Ask writes for this step",
     writeOne: "Write one yourself",

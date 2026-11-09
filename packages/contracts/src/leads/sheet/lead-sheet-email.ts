@@ -12,11 +12,12 @@ import { sequenceLeftWords } from "../../campaigns/sequences/words/next";
 
 export const LEAD_OWN_EMAIL_WORDS = {
   send: "Send",
+  connect: "Connect your mailbox",
   from: (address: string) => `From ${address}`,
   sending: (address: string) => `Sending from ${address}`,
-  /** Why the mail app is the road: said under the email, and by the door when a press finds the same. */
+  /** Why it can't go now: said under the email, and by the door when a press finds the same. */
   whyNot: {
-    no_mailbox: "Connect a Google mailbox on Connections to send from here.",
+    no_mailbox: "Connect your mailbox to send from here.",
     not_sending: "Your mailbox can't send right now. Connections, under Email, says why.",
     day_full: "Your mailbox has sent its share for today.",
   },
@@ -42,7 +43,7 @@ export const LEAD_OWN_EMAIL_WORDS = {
 
 const OWN = LEAD_OWN_EMAIL_WORDS;
 
-/** Why an email of your own goes from your mail app, not a mailbox. */
+/** Why an email of your own can't leave from a mailbox now. */
 export type LeadEmailWhy = keyof typeof LEAD_OWN_EMAIL_WORDS.whyNot;
 
 /** A connected mailbox as the pick reads it: its row and its day (mailbox_capacity). */

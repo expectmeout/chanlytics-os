@@ -708,43 +708,23 @@ export function OkSheet(p: {
   );
 }
 
-/** Where a sequence to leads sends from: the workspace's mailbox, or the owner, each by hand. */
-export function FromSheet(p: {
-  open: boolean;
-  draft: NewDraftDto;
-  onOwnerSends: (on: boolean) => void;
-  onClose: () => void;
-}) {
+/** Where a sequence to leads sends from: the workspace's mailbox, or the way to connect one. */
+export function FromSheet(p: { open: boolean; draft: NewDraftDto; onConnect: () => void; onClose: () => void }) {
   const box = p.draft.mailbox;
   return (
-    <PickSheet open={p.open} title={W.sheets.from} sub={W.sheets.fromSub} onClose={p.onClose} testid="sq-nw-from">
+    <PickSheet open={p.open} title={W.sheets.from} sub={W.sheets.fromSub} onClose={p.onClose} testid="sq-nw-from-sheet">
       <div className="sq-nw-rows">
         {box?.label ? (
-          <Choice
-            glyph="mail"
-            name={W.sheets.yourMailbox}
-            said={box.label}
-            on={!box.owner_sends}
-            onPick={() => p.onOwnerSends(false)}
-            testid="sq-nw-from-box"
-          />
+          <Choice glyph="mail" name={W.sheets.yourMailbox} said={box.label} on testid="sq-nw-from-box" />
         ) : (
           <Choice
             glyph="mail"
-            name={W.sheets.noMailbox}
+            name={W.sheets.connect}
             said={W.sheets.connectSaid}
-            door={{ label: W.sheets.connect, to: "settings" }}
+            onPick={p.onConnect}
             testid="sq-nw-from-connect"
           />
         )}
-        <Choice
-          glyph="check"
-          name={W.sheets.youSend}
-          said={W.sheets.youSendSaid}
-          on={!box?.label || !!box.owner_sends}
-          onPick={() => p.onOwnerSends(true)}
-          testid="sq-nw-from-you"
-        />
       </div>
       <p className="sq-nw-note">{W.checks.pace(REACH_OUT_GAP_FIRST)}</p>
     </PickSheet>

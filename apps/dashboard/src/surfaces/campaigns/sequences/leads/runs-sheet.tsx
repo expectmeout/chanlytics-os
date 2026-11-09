@@ -335,8 +335,9 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
   };
   // The picker says what is saved: the mailboxes are offered while one sends, and kept in sight while they are chosen
   // with none sending (the note under it says nothing goes), never shown as the inbox they are not.
+  // Sending by hand is offered to none (Ruben, 9 Nov 2026): only one already saved that way still shows it, until it moves.
   const sendsFrom = [
-    { value: "inbox", label: R.inbox },
+    ...(d.owner_sends ? [{ value: "inbox", label: R.inbox }] : []),
     ...(offered > 0 || !d.owner_sends ? [{ value: "mailboxes", label: R.mailboxes(offered) }] : []),
   ];
   const fromNote =
