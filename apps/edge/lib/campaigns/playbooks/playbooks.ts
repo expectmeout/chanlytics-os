@@ -37,6 +37,7 @@ import {
   type RunBy,
   type RunContext,
   type RunOutcome,
+  type RunPlaybookCommand,
 } from "@chanlytics/core";
 import { notify } from "../../shared/alerts/notify.js";
 import { logger } from "../../shared/log.js";
@@ -381,6 +382,8 @@ interface RunRequest {
   by: RunBy;
   /** The time a freed time's step offers (decision 0082, lib/campaigns/freed-time-offer.ts): its batch has no day. */
   freed?: FreedTimeRun;
+  /** A booking the day's look can no longer name (decision 0118, lib/campaigns/late-reminder.ts): its batch has no day. */
+  late?: RunPlaybookCommand["late"];
 }
 
 /** The run over this runtime's ports: the rules are core's. */
@@ -410,6 +413,9 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
         await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(
           logAndGoOn("event playbook.run"),
         );
+        // A late booking's reminder is not the day's run (decision 0118): stamped, it would close the day for everyone the
+        // look has still to name, so its record is the event alone.
+        if (data.late === true) return;
         // The run is kept (its batch says it ran, which alreadyRan reads); a stamp that fails is said, never the run's end.
         const stamped = await stampStepRun(db, tenantId, playbookId, runFor, at.toISOString());
         if (stamped.error)
@@ -474,6 +480,13 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
         );
       },
     },
-    { playbook: playbook, ctx, runFor: req.runFor, by: req.by, ...(req.freed ? { freed: req.freed } : {}) },
+    {
+      playbook: playbook,
+      ctx,
+      runFor: req.runFor,
+      by: req.by,
+      ...(req.freed ? { freed: req.freed } : {}),
+      ...(req.late ? { late: req.late } : {}),
+    },
   );
 }

@@ -200,7 +200,7 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * it (decision 0048, 00409); `visit_notice` tells it once on the bell when a booking arrived, from the appointment's
  * event whichever door wrote it (00410, S1-01); `team_notice` tells it once on the bell when a teammate joined, from
  * the seat's event (00410, S1-19); `freed_time_offer` offers a freed time to who asked and never booked (decision 0082);
- * `reply_draft` has a held thread's reply written ahead, from the hold's own events (decision 0093, 00538).
+ * `reply_draft` writes a held thread's reply ahead (0093, 00538); `visit_reminder` reminds a late booking (0118).
  */
 export const EVENT_SUBSCRIBERS = [
   "reach_out_booked",
@@ -210,6 +210,7 @@ export const EVENT_SUBSCRIBERS = [
   "team_notice",
   "freed_time_offer",
   "reply_draft",
+  "visit_reminder",
 ] as const;
 export type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 

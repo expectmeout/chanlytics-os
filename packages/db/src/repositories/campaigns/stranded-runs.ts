@@ -19,6 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DEFAULT_TIMEZONE,
   RUN_GOING_STATES,
+  audienceLate,
   isReachOutRun,
   type SchemaSet,
   type BroadcastState,
@@ -111,17 +112,18 @@ export async function failStrandedRun(db: Db, params: { tenantId: TenantId; id: 
 
 /**
  * The playbooks' runs waiting for approval that `by` holds, earliest first, at most `limit`: a run for a day (`run_for`),
- * or a freed time's batch (`offered_start`).
+ * a freed time's batch (`offered_start`), or a late booking's reminder (`audience->late`, decision 0118), which has neither
+ * and is read oldest first.
  */
-async function waitingBy(db: Db, by: "run_for" | "offered_start", limit: number) {
-  const { data, error } = await db
+async function waitingBy(db: Db, by: "run_for" | "offered_start" | "audience->late", limit: number) {
+  const waiting = db
     .from("sequence_batches")
     .select("id, tenant_id, name, state, playbook_id:step_id, run_for, offered_start, audience, recipient_count")
     .eq("state", "pending_approval")
     .not("step_id", "is", null)
     .not(by, "is", null)
-    .or("audience->>kind.is.null,audience->>kind.neq.reach_out")
-    .order(by, { ascending: true })
+    .or("audience->>kind.is.null,audience->>kind.neq.reach_out");
+  const { data, error } = await (by === "audience->late" ? waiting : waiting.order(by, { ascending: true }))
     .order("created_at", { ascending: true })
     .limit(limit);
   if (error) throw new DbFailure(error, "waiting runs: cannot read the runs waiting for approval");
@@ -135,7 +137,10 @@ export interface WaitingPlaybookRun {
   name: string;
   state: BroadcastState;
   playbook_id: string;
-  /** The day it was made for; null for a freed time's batch, which has none (decision 0082). */
+  /**
+   * The day it was made for; null for a freed time's batch, which has none (decision 0082), and for a late booking's
+   * reminder, whose day and visit are its audience's (0118, contracts audienceLate).
+   */
   run_for: string | null;
   /** The time a freed time's batch offers (0082): its wait ends when that time comes. Null for every other run. */
   offered_start: string | null;
@@ -149,17 +154,18 @@ export interface WaitingPlaybookRun {
 /**
  * The playbooks' runs still waiting for approval across every workspace (the service role's client), each with its
  * workspace's zone: the runs for a day, oldest day first, and a freed time's batches (0082), which have their time
- * instead of a day, soonest time first, at most `limit` of each. Read apart, so a page of days still ahead never hides a
- * freed time that has come, whose missing day sorts it last. A reach-out's run is approved on any later day (decision D6),
- * so it is left out before the limit, as listStrandedRuns leaves it out. A read that fails THROWS: "could not look" is not
- * "none".
+ * instead of a day, soonest time first, and a late booking's reminders (0118), which have neither, oldest first, at most
+ * `limit` of each. Read apart, so a page of days still ahead never hides a freed time that has come, whose missing day
+ * sorts it last. A reach-out's run is approved on any later day (decision D6), so it is left out before the limit, as
+ * listStrandedRuns leaves it out. A read that fails THROWS: "could not look" is not "none".
  */
 export async function listWaitingPlaybookRuns(db: Db, params: { limit: number }): Promise<WaitingPlaybookRun[]> {
-  const [days, freed] = await Promise.all([
+  const [days, freed, late] = await Promise.all([
     waitingBy(db, "run_for", params.limit),
     waitingBy(db, "offered_start", params.limit),
+    waitingBy(db, "audience->late", params.limit),
   ]);
-  const runs = [...new Map([...days, ...freed].map((r) => [r.id, r])).values()].filter(
+  const runs = [...new Map([...days, ...freed, ...late].map((r) => [r.id, r])).values()].filter(
     (r) => !isReachOutRun(r.audience),
   );
   if (!runs.length) return [];
@@ -170,7 +176,7 @@ export async function listWaitingPlaybookRuns(db: Db, params: { limit: number })
   if (zones.error) throw new DbFailure(zones.error, "waiting runs: cannot read their workspaces' zones");
   const zoneOf = new Map((zones.data ?? []).map((t) => [t.id, t.timezone]));
   return runs.flatMap((run) =>
-    run.playbook_id && (run.run_for || run.offered_start)
+    run.playbook_id && (run.run_for || run.offered_start || audienceLate(run.audience))
       ? [
           {
             id: run.id,
