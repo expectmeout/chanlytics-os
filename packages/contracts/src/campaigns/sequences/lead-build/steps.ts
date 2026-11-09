@@ -148,14 +148,6 @@ export const LEAD_BUILD_WORDS = {
     footer: "Footer",
     footerValue: "Why they hear from you",
     noAddress: "Add your address in Settings › Details: every email carries it at the foot.",
-    /** The batch rule as it stands (0077, D11): every batch of first emails of a sequence fed by a list waits for an OK. */
-    firstEmails: "Every batch of first emails waits for your OK",
-    /** The mode's choice, for the steps after the first. */
-    followUps: "Follow-ups",
-    followUpModes: { veto: "Your OK first, then 30 minutes to stop", ask: "Each waits for your OK" } satisfies Record<
-      "veto" | "ask",
-      string
-    >,
     /** The mailboxes it writes from (0077, D4): a tick each, one always kept. */
     everyMailbox: "Every mailbox, and any you connect later",
     keepOne: "One has to send. To stop them all, choose Your inbox · you send.",

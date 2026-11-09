@@ -40,9 +40,9 @@ export async function runReachOut(
   if (await ports.alreadyRan(step.id, cmd.runFor)) return { outcome: "empty", reason: "already_ran", planned: 0 };
   // A run of the chain waits for its owner: nothing more is assembled until they have answered it.
   if (await ports.chainWaits(step.root_id)) return { outcome: "held", reason: "waiting_for_you", planned: 0 };
-  const asks =
-    batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at }) === "ask" ||
-    (step.trigger === "lead_first" && step.fed_by === "list");
+  // Its first run asks, because its words are new; after that its batches go as Before each batch says, first emails
+  // and follow-ups alike (decision 0077, amended 9 Nov 2026). Cold email never just goes: a sequence's mode is held or asked.
+  const asks = batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at }) === "ask";
 
   // Who it may write to, and who it skips with why: a later step's leads the door would refuse, or whose email from the
   // chain bounced; any lead that keeps no open hour all week.

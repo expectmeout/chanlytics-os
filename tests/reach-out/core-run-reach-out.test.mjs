@@ -109,18 +109,31 @@ test("a step's first run, its words new, waits for its owner, with every send pl
   assert.deepEqual(made.told, [[RUN, 2, Date.parse("2026-09-28T14:30:00Z")]]);
 });
 
-test("a chain fed by a list asks before every first email, its words seen or not; its later steps give thirty minutes", async () => {
+test("a chain fed by a list: its first run asks, then first emails follow Before each batch, as its later steps do", async () => {
   const inHours = Date.parse("2026-09-28T15:00:00Z"); // 10 AM in Austin
-  const first = ports({ now: () => inHours, audience: async () => [lead("a")] });
-  const out = await runReachOut(first.ports, root({ fed_by: "list", words_ok_at: SEEN }), day);
-  assert.deepEqual(
-    out,
-    { outcome: "held", reason: "waiting_for_you", planned: 1 },
-    "every lead on it was added by hand",
+  const newWords = ports({ now: () => inHours, audience: async () => [lead("a")] });
+  const out = await runReachOut(newWords.ports, root({ fed_by: "list", words_ok_at: null }), day);
+  assert.deepEqual(out, { outcome: "held", reason: "waiting_for_you", planned: 1 }, "the first run needs an OK");
+  assert.equal(newWords.made.runs[0].state, "pending_approval");
+  assert.equal(
+    newWords.made.sends[0].send_at,
+    "2026-09-28T15:00:00.000Z",
+    "no thirty minutes: it goes when they say yes",
   );
-  assert.equal(first.made.runs[0].state, "pending_approval");
-  assert.equal(first.made.sends[0].send_at, "2026-09-28T15:00:00.000Z", "no thirty minutes: it goes when they say yes");
-  assert.equal(first.made.told.length, 1, "its owner is told a run waits");
+  assert.equal(newWords.made.told.length, 1, "its owner is told a run waits");
+
+  const held = ports({ now: () => inHours, audience: async () => [lead("a")] });
+  const after = await runReachOut(held.ports, root({ fed_by: "list", words_ok_at: SEEN }), day);
+  assert.deepEqual(after, { outcome: "sent", planned: 1 }, "words seen, it holds for a stop");
+  assert.equal(held.made.runs[0].state, "scheduled");
+  assert.equal(held.made.sends[0].send_at, "2026-09-28T15:30:00.000Z", "thirty minutes to stop it");
+
+  for (const mode of ["ask", "something else", null]) {
+    const asked = ports({ mode, now: () => inHours, audience: async () => [lead("a")] });
+    const said = await runReachOut(asked.ports, root({ fed_by: "list", words_ok_at: SEEN }), day);
+    assert.deepEqual(said, { outcome: "held", reason: "waiting_for_you", planned: 1 }, `a mode of ${mode} asks`);
+  }
+
   const later = ports({
     now: () => inHours,
     followers: async () => [

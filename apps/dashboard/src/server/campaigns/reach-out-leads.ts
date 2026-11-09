@@ -21,6 +21,7 @@ import { emitEvent } from "@chanlytics/db/events";
 import {
   findLeadReplyFacts,
   getOwnerSendFacts,
+  getSequenceModes,
   type OwnerSendFacts,
   readReachOutLines,
   readReachOutTimeline,
@@ -28,6 +29,7 @@ import {
   stopReachOutLead,
 } from "@chanlytics/db/campaigns";
 import type { Json } from "@chanlytics/db/types";
+import { logAndGoOn } from "@chanlytics/log";
 import { serviceDb } from "@/server/shared/service-db";
 import { getTenantFacts } from "@/server/shared/tenant";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -51,6 +53,20 @@ export async function getLeadLines(ctx: RouteContext, tenantId: TenantId, search
  * says whether it went on their word (from their own inbox, not a mailbox before 00424). Read beside the story, which
  * never fails for it.
  */
+/** The story with whether its sequence's batches ask, for the line that says when its email goes. Unread, it says nothing. */
+async function withBatchRule(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  story: ReachOutLeadTimelineDto,
+): Promise<ReachOutLeadTimelineDto> {
+  const chain = story.chain;
+  if (!chain) return story;
+  const modes = await getSequenceModes(ctx.supabase, tenantId, [chain.root_id]).catch(
+    logAndGoOn("reading how a lead's sequence runs", null),
+  );
+  return modes ? { ...story, chain: { ...chain, asks: modes.get(chain.root_id) !== "veto" } } : story;
+}
+
 export async function findLeadTimeline(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
@@ -59,7 +75,7 @@ export async function findLeadTimeline(
   const { data, error } = await readReachOutTimeline(ctx.supabase, tenantId, leadId);
   if (error) throw reachOutRefusal(error);
   if (!data) return null;
-  const story = dtoOf<ReachOutLeadTimelineDto>(data);
+  const story = await withBatchRule(ctx, tenantId, dtoOf<ReachOutLeadTimelineDto>(data));
   const owners = story.sends.filter((s) => s.state === "drafted" || (s.left && !s.from && !s.host)).map((s) => s.id);
   if (owners.length === 0) return story;
   const facts = await getOwnerSendFacts(ctx.supabase, { tenantId, sendIds: owners }).catch(

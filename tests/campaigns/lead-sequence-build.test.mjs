@@ -794,12 +794,12 @@ test("How it runs draws the mailboxes' ticks, every batch of first emails waitin
   assert.deepEqual(lc.draft.mailbox_ids, ["sam"]);
   assert.equal(byTestId(tree, "ld-runs-every-mailbox") ?? null, null, "a list of its own now");
   assert.equal(byTestId(tree, "ld-runs-mailbox-sam-switch").props.readOnly, true);
-  // The batch rule as a fact, the choice for the follow-ups.
-  assert.equal(textOf(byTestId(tree, "ld-runs-first-emails")), "Every batch of first emails waits for your OK");
+  // One choice, for first emails and follow-ups alike.
+  assert.equal(byTestId(tree, "ld-runs-first-emails"), null, "first emails follow the one choice, after the first run");
   const follow = byTestId(tree, "ld-runs-approves-pick");
   assert.deepEqual(
     follow.props.groups[0].options.map((o) => o.label),
-    ["Your OK first, then 30 minutes to stop", "Each waits for your OK"],
+    ["Hold it 30 minutes so I can stop it", "Ask me"],
   );
   // Ends with: the signature, saved with the chain.
   const ends = byTestId(tree, "ld-runs-ends-pick");

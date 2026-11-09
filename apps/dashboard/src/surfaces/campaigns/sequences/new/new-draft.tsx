@@ -252,8 +252,7 @@ function DraftCases(p: {
 /** How a sequence runs: Your OK, as its sheet names the way picked. */
 function HowItRuns({ draft, open }: { draft: NewDraftDto; open: (s: NewSheet) => void }) {
   if (draft.kind === "once") return null;
-  const ok =
-    draft.audience === "leads" && draft.mode === "ask" ? W.okLeads : draft.mode ? W.okSaid[draft.mode] : W.okSaid.ask;
+  const ok = draft.mode ? W.okSaid[draft.mode] : W.okSaid.ask;
   return (
     <>
       <p className="sq-nw-cap">{W.draft.runs}</p>

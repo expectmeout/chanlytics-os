@@ -160,7 +160,7 @@ export const NEW_WORDS = {
     rows: [
       { lead: "Email only, from your own mailbox", sub: "They haven’t said yes to you, so no WhatsApp or text" },
       { lead: "Each email opens with a line for its business", sub: "And the lead check reads each before it goes" },
-      { lead: "Waits of 2 to 30 days, and a reply stops it", sub: "Every first email waits for your OK" },
+      { lead: "Waits of 2 to 30 days, and a reply stops it", sub: "The first run waits for your OK" },
     ],
     note: "The steps, the waits and a call or a note stay yours to change, as for people.",
   },
@@ -245,7 +245,6 @@ export const NEW_WORDS = {
     veto: "First batch, then 30 min to stop",
     auto: "First batch, then on its own",
   } satisfies Record<SequenceMode, string>,
-  okLeads: "Every first email",
   channels: {
     whatsapp: "WhatsApp",
     email: "Email",

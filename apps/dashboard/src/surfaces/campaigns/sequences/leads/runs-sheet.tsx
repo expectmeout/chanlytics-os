@@ -20,6 +20,7 @@ import {
   leadMailboxRowsOf,
   leadPaceChoicesOf,
   leadSendingFactsOf,
+  SEQUENCE_MODE_LABEL,
   SEQUENCE_MODE_WORDS,
   sequenceModesFor,
   whyFrom,
@@ -150,22 +151,21 @@ function WhoJoins({ rec, lc }: { rec: SequenceRecordDto; lc: LeadChain }) {
 }
 
 /**
- * Before each batch (decisions 0064 and 0077, D11): every batch of first emails waits for an OK, said as the fact it is;
- * the follow-ups take the sequence's own mode, held for a stop or asked for, never sent on its own to leads, changed by
- * the campaign's own verb (playbook_change) with its receipt and undo; a batch of new words asks first.
+ * Before each batch (decisions 0064 and 0077, amended 9 Nov 2026): one choice, for first emails and follow-ups alike,
+ * the words the Cold email page says it in. Held for a stop or asked for, never sent on its own to leads, changed by the
+ * campaign's own verb (playbook_change) with its receipt and undo; a batch of new words asks first, so a first run does.
  */
 function BeforeEachBatch({ rec, flash, moved }: { rec: SequenceRecordDto } & Pick<RunsSheetProps, "flash" | "moved">) {
   return (
     <>
-      <RunsRow k={R.firstEmails} end={null} testid="ld-runs-first-emails" />
       <RunsRow
-        k={R.followUps}
+        k={SEQUENCE_MODE_LABEL}
         // What its batches did, then the rule over any mode (decision 0064): the mode is set on what happened.
         sub={[evidenceWords(rec.evidence), R.newWordsAsk].filter(Boolean).join(". ")}
         testid="ld-runs-approves"
         end={
           <Picker
-            label={R.followUps}
+            label={SEQUENCE_MODE_LABEL}
             value={rec.sequence.mode ?? "ask"}
             onValueChange={(mode) =>
               void pressed(
@@ -180,7 +180,7 @@ function BeforeEachBatch({ rec, flash, moved }: { rec: SequenceRecordDto } & Pic
               {
                 options: sequenceModesFor("leads").map((m) => ({
                   value: m,
-                  label: m === "veto" || m === "ask" ? R.followUpModes[m] : SEQUENCE_MODE_WORDS[m].choice,
+                  label: SEQUENCE_MODE_WORDS[m].choice,
                 })),
               },
             ]}
