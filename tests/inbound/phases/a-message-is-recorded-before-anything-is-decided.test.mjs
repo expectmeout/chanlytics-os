@@ -16,7 +16,7 @@ import { FROM, GREETING, text, world } from "../_world.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
-const { jobWireOf } = await import(at("apps/edge/lib/inbound/answer-job.ts"));
+const { jobWireOf } = await import(at("apps/edge/lib/intake/answer-job.ts"));
 
 test("a redelivered message id is a duplicate: nothing happens twice", async () => {
   const w = world();

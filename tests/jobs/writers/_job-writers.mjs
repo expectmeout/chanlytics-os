@@ -45,13 +45,9 @@ export const JOB_WRITERS = {
   "apps/edge/lib/imports/website-read.ts|website_read": {
     lost: "a website read asked for and never run: the business's site is not read until it is next asked or saved",
   },
-  "apps/edge/lib/instagram/dm-answer.ts|inbound_answer": {
+  "apps/edge/lib/inbound/arrival.ts|inbound_answer": {
     clock: "deadman",
-    why: "a message accepted and never finished is opened for a person",
-  },
-  "apps/edge/lib/intake/answer-later.ts|inbound_answer": {
-    clock: "deadman",
-    why: "a message accepted and never finished is opened for a person",
+    why: "every wire's message (WhatsApp, a text, a DM) accepted and never finished is opened for a person",
   },
   "apps/edge/lib/leads/apify-delivery.ts|lead_collect": {
     provider: "answers 503, and the leads clock collects a run whose webhook was lost",
@@ -72,10 +68,6 @@ export const JOB_WRITERS = {
   },
   "apps/edge/lib/shared/alerts/notify.ts|push_send": {
     lost: "one phone's buzz: the notification stands on the bell and the mail has gone, and the failure is logged",
-  },
-  "apps/edge/lib/sms/inbound-text.ts|inbound_answer": {
-    clock: "deadman",
-    why: "a message accepted and never finished is opened for a person",
   },
   "apps/edge/lib/website/signup-confirm.ts|outbound_send": {
     clock: "deadman",

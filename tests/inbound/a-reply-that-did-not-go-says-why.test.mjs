@@ -1,6 +1,6 @@
 /**
  * A reply the receptionist wrote that could not leave says why in the owner's words (core inbound/dispatch.ts sendNow),
- * the words a queued reply's failure says it in (core messages/send.ts causeOf): a workspace whose number has no
+ * the words a queued reply's failure says it in (core deliver/cause.ts causeOf): a workspace whose number has no
  * credentials reads that the number is not connected, never "HTTP 503", and a text's line is named as a line.
  */
 import { test } from "node:test";

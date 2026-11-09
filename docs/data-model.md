@@ -145,7 +145,7 @@ Named in a `.from("…")` in `packages/db/src` and not a table or view here: `me
 
 ### ai_usage
 
-One row per model call the platform made for a workspace (the model port, apps/edge/lib/ai/model.ts): its purpose, the model asked and the one that answered, input, output, cache read and cache write tokens, list-price dollars, and what became of it. Kept 400 days (ai_usage_purge).
+One row per model call the platform made for a workspace (the model port, apps/edge/lib/model.ts): its purpose, the model asked and the one that answered, input, output, cache read and cache write tokens, list-price dollars, and what became of it. Kept 400 days (ai_usage_purge).
 
 - Owned by: `packages/db/src/repositories/ai/usage.ts`
 - Primary key: `id`
@@ -1597,7 +1597,7 @@ One row a job kind (00526, decision 0089): the lane a claim takes it in (0 a rep
 | `last_error` | text | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
-| `lease_until` | timestamp with time zone | yes |  | While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/runner/ledger.ts. |
+| `lease_until` | timestamp with time zone | yes |  | While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts. |
 | `dedupe_key` | text | yes |  | What makes this row once-only while it is scheduled or fired (jobs_dedupe_live, 00333): a caller that must not schedule twice passes it (email_ingest:<mailbox>:<received>, lead_collect:<run>:<seq>, reply_read:<message>:<stage>, deliver:<event>:<subscriber>). Null for a row nobody keyed. |
 | `lane` | smallint | yes |  | Which work a claim takes first (decision 0018): the kind's lane (job_kinds.lane), written by jobs_take_their_kind at insert; a lane-0 kind whose payload says purpose outreach is bulk, and an event_deliver runs in its subscription's lane (payload.lane, 00334). |
 | `spoke_at` | timestamp with time zone | yes |  | When this job put words on a wire (00352): written the moment before the provider is called. A job that spoke is never run again, whatever its kind: a second claim gives up and a throw is not retried, because a second run could reach the person a second time. Null for a job that has not, and for a kind that speaks on every run (outbound_send, broadcast_send), which the ledger never runs twice anyway. |

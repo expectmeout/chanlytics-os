@@ -580,7 +580,7 @@
     "00575_web_push_and_what_ask_told.sql": "22b059fcdafef7559b6e4a7a4c59d3466efb5d85e8effc5ef4f176149225ff92",
     "00576_a_message_and_the_yes_it_carries_are_kept_together.sql": "54da23cf97ca7efa645c38ef585f30552a95cc8282dca6bb6d2c3d6a45281970",
     "00577_an_address_a_customer_gives_is_kept_where_none_is.sql": "cd92b3d11b97aad08d1b0ab1752792499c9e247694a751028cb098573f01ee56",
-    "00578_a_text_twilio_could_not_hand_us_is_taken_in.sql": "bc08ce59751f12ac42ab30e5c45c7b5d0b458bb0e6fffa4d110e9ec7723c9cb0",
-    "00579_the_wires_are_proved_once_a_day.sql": "2a006634f1bd5fe728556eee14f9e3253a189de2d5de4608e6c5dca1f412343f"
+    "00578_a_text_twilio_could_not_hand_us_is_taken_in.sql": "bd1b8f3eef8033d46f128f32f86f94a738d195f6517a0c2bb975296fe989c3a6",
+    "00579_the_wires_are_proved_once_a_day.sql": "1f030b14d3e9f38c886a0a3274d797b1fcde7aec438056e8bbd1006bf17276b0"
   }
 }

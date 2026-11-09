@@ -11620,6 +11620,8 @@ export type Database = {
         Returns: Json
       }
       slug_for_workspace: { Args: { p_name: string }; Returns: string }
+      sms_sweep_text_canary: { Args: never; Returns: number }
+      sms_sweep_texts: { Args: never; Returns: number }
       sole_proprietor_of: { Args: { p_tenant_id: string }; Returns: boolean }
       stamp_email_complaint: {
         Args: { p_at: string; p_message_id: string; p_tenant_id: string }
@@ -11853,8 +11855,6 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
-      trigger_text_canary_sweep: { Args: never; Returns: number }
-      trigger_texts_sweep: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
       wear_found_look: {
         Args: { p_accent: string; p_logo_path: string; p_tenant_id: string }

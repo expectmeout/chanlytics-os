@@ -44,7 +44,7 @@ const { setInboundPorts } = await import(at("apps/edge/lib/inbound/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const door = await import(at("apps/edge/api/instagram.ts"));
 const { instagramReceiver } = await import(at("apps/edge/lib/instagram/webhook.ts"));
-const { answerInboundJob } = await import(at("apps/edge/lib/inbound/answer-job.ts"));
+const { answerInboundJob } = await import(at("apps/edge/lib/intake/answer-job.ts"));
 const { dispatchJob } = await import(at("packages/jobs/dist/index.js"));
 
 /* -------------------------------------------------------------- the wire */

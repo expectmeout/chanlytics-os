@@ -558,7 +558,7 @@ test("layer two's price rule alone reaches a draft: a class held for a person do
 
 test("what the page says an answer offers steers an answer to a lead, read off the runtime; a line of thanks is never steered", async () => {
   await withEnv(KEY, async () => {
-    const steerOf = (w) => w.asked[0][7];
+    const steerOf = (w) => w.asked[0].steer;
     const called = edge({ config: { brain: BRAIN, reach_out: { reply_offer: "call" } } });
     await called.draft(called.tenant, { ...ASK, kind: "answer", deadline: Date.now() + 40_000 });
     assert.match(steerOf(called), /Offer a short call at a time that suits them, and no link\./);

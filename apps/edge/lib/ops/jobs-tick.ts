@@ -45,7 +45,7 @@ import { campaignRuns } from "../campaigns/reach-out/workspace-runs.js";
 import { googleReader } from "../google/sweep.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../campaigns/freed-time-offer.js";
-import { answerInboundJob } from "../inbound/answer-job.js";
+import { answerInboundJob } from "../intake/answer-job.js";
 import {
   runTick,
   claimNext,

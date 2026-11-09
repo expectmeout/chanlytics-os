@@ -13,7 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob } from "@chanlytics/jobs";
-import { answerWhatsapp } from "../intake/answer-later.js";
+import { answerWhatsapp } from "./answer-later.js";
 import { answerDm } from "../instagram/dm-answer.js";
 import { answerText } from "../sms/inbound-text.js";
 

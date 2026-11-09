@@ -65,7 +65,7 @@ before(async () => {
     ...(await import(at("apps/edge/lib/shared/pg.ts"))),
     ...(await import(at("apps/edge/lib/inbound/ports.ts"))),
     ...(await import(at("apps/edge/lib/inbound/arrival.ts"))),
-    ...(await import(at("apps/edge/lib/inbound/answer-job.ts"))),
+    ...(await import(at("apps/edge/lib/intake/answer-job.ts"))),
     ...(await import(at("apps/edge/lib/intake/answer-later.ts"))),
     ...(await import(at("packages/channels/dist/index.js"))),
     ...(await import(at("packages/db/dist/index.js"))),

@@ -61,7 +61,7 @@ const { setPg, pg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { setInboundPorts } = await import(at("apps/edge/lib/inbound/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const hook = await import(at("apps/edge/api/whatsapp.ts"));
-const later = await import(at("apps/edge/lib/inbound/answer-job.ts"));
+const later = await import(at("apps/edge/lib/intake/answer-job.ts"));
 after(() => {
   setPg(null);
   setInboundPorts(null);
@@ -356,7 +356,7 @@ function receptionist({ ingest = () => {} } = {}) {
 }
 
 /**
- * The tick's half: every answer job the door wrote, taken up as the ledger takes it (lib/inbound/answer-job.ts), in the
+ * The tick's half: every answer job the door wrote, taken up as the ledger takes it (lib/intake/answer-job.ts), in the
  * order written, once. The door answers nobody: a message is recorded and its job answers it (decision 0031, Phase 3).
  */
 async function runAnswers(w, db) {
@@ -1995,7 +1995,7 @@ test("a WhatsApp message is recorded, its answer scheduled as a job and acknowle
         message: m,
         value: { metadata: { display_phone_number: w.LINE.slice(1), phone_number_id: w.PHONE_ID }, contacts },
       },
-      // The wire its job answers on, said (lib/inbound/answer-job.ts jobWireOf).
+      // The wire its job answers on, said (lib/intake/answer-job.ts jobWireOf).
       wire: "whatsapp",
       // Named, so an erasure cancels a job still waiting and scrubs one finished.
       message_id: `m-${m.id}`,

@@ -53,7 +53,7 @@ export async function recordThenAnswerDm(
 }
 
 /**
- * The job's half (inbound_answer with `ig`, bound by lib/inbound/answer-job.ts answerInboundJob): the DM its door
+ * The job's half (inbound_answer with `ig`, bound by lib/intake/answer-job.ts answerInboundJob): the DM its door
  * recorded, answered. The account's routing is read again and must still be the job's workspace, its token read from the
  * Vault, and the whole inbound phase runs with `resume`. Throws when the payload names no DM, the account is another
  * workspace's now, or a read failed: the ledger tries again until the job has spoken, and after that the sweep hands the

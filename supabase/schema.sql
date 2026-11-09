@@ -32938,6 +32938,54 @@ COMMENT ON FUNCTION public.slug_for_workspace(p_name text) IS 'A workspace''s sl
 
 
 --
+-- Name: sms_sweep_text_canary(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sms_sweep_text_canary() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  return public.request_sweep('text_canary', '/api/cron/text-canary');
+end $$;
+
+
+--
+-- Name: FUNCTION sms_sweep_text_canary(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sms_sweep_text_canary() IS 'The daily text canary''s clock (00579): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
+
+
+--
+-- Name: sms_sweep_texts(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sms_sweep_texts() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (
+    select 1 from public.lines l
+     where l.provider <> 'carrier' and l.voice_state <> 'failed' and l.e164 is not null
+  ) then
+    return public.request_sweep('texts', '/api/cron/texts');
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('texts', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sms_sweep_texts(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sms_sweep_texts() IS 'The texts sweep''s clock (00578): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
+
+
+--
 -- Name: sole_proprietor_of(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -34788,54 +34836,6 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.trigger_sweep_health() IS 'Asks the edge to judge the other sweeps and email the platform operator if any of them stopped reaching it.';
-
-
---
--- Name: trigger_text_canary_sweep(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.trigger_text_canary_sweep() RETURNS bigint
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'extensions'
-    AS $$
-begin
-  return public.request_sweep('text_canary', '/api/cron/text-canary');
-end $$;
-
-
---
--- Name: FUNCTION trigger_text_canary_sweep(); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.trigger_text_canary_sweep() IS 'The daily text canary''s clock (00579): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
-
-
---
--- Name: trigger_texts_sweep(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.trigger_texts_sweep() RETURNS bigint
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'extensions'
-    AS $$
-begin
-  if exists (
-    select 1 from public.lines l
-     where l.provider <> 'carrier' and l.voice_state <> 'failed' and l.e164 is not null
-  ) then
-    return public.request_sweep('texts', '/api/cron/texts');
-  end if;
-  insert into public.sweep_status (sweep, requested_at) values ('texts', now())
-  on conflict (sweep) do update set requested_at = excluded.requested_at;
-  return null;
-end $$;
-
-
---
--- Name: FUNCTION trigger_texts_sweep(); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.trigger_texts_sweep() IS 'The texts sweep''s clock (00578): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
 
 
 --
@@ -55031,6 +55031,22 @@ GRANT ALL ON FUNCTION public.slug_for_workspace(p_name text) TO service_role;
 
 
 --
+-- Name: FUNCTION sms_sweep_text_canary(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sms_sweep_text_canary() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sms_sweep_text_canary() TO service_role;
+
+
+--
+-- Name: FUNCTION sms_sweep_texts(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sms_sweep_texts() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sms_sweep_texts() TO service_role;
+
+
+--
 -- Name: FUNCTION sole_proprietor_of(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -55459,22 +55475,6 @@ GRANT ALL ON FUNCTION public.trigger_sequences_clock(p_at timestamp with time zo
 
 REVOKE ALL ON FUNCTION public.trigger_sweep_health() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.trigger_sweep_health() TO service_role;
-
-
---
--- Name: FUNCTION trigger_text_canary_sweep(); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.trigger_text_canary_sweep() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.trigger_text_canary_sweep() TO service_role;
-
-
---
--- Name: FUNCTION trigger_texts_sweep(); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.trigger_texts_sweep() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.trigger_texts_sweep() TO service_role;
 
 
 --

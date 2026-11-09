@@ -3,7 +3,7 @@
  * draft, the hold that could not be written, and the send, told apart by what the wire answered.
  */
 import type { Json } from "@chanlytics/db/types";
-import { causeOf } from "../messages/send";
+import { causeOf } from "../deliver/cause";
 import { holdPlan } from "./steps";
 import { GO, type Answering } from "./context";
 import { handledOf, noteHandledAfter, getProcessedAfter, SET_ASIDE, type Asked } from "./handled";
@@ -240,7 +240,7 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
     // The door wrote the failed row and its event; the people are told here.
     // A person IS asked when the escalation lands, so the message says so
     // (handoff) without being marked processed: the deadman sweep still finishes it.
-    // Why, in the words a queued reply's failure says it (messages/send.ts causeOf): a number with no credentials is
+    // Why, in the words a queued reply's failure says it (deliver/cause.ts causeOf): a number with no credentials is
     // "not connected", never "HTTP 503".
     const request = sink.escalate(
       "send_failed",

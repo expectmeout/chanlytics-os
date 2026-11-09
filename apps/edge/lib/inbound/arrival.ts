@@ -15,7 +15,7 @@
  *                       and its answer scheduled as an inbound_answer job, once per message, in the reply lane. Meta and
  *                       Twilio are answered as soon as the message is on record, and a model's turn never runs inside
  *                       their request.
- *   answerArrival       the job's half (./answer-job.ts dispatches to each wire's): the message its door recorded, taken
+ *   answerArrival       the job's half (../intake/answer-job.ts dispatches to each wire's): the message its door recorded, taken
  *                       through the whole phase: answered while it is unprocessed and no reply names it,
  *                       so a runner killed mid-turn leaves a job the ledger claims again, and nothing is said twice.
  */
@@ -58,7 +58,7 @@ export function recordArrival(
 /**
  * The job's half: the message its door recorded, taken up again. Its ingest is a redelivery by construction, and core
  * answers it while it is unprocessed and no reply names it (core answerInbound). The job hands in its own
- * ports or carrier, whose sender marks the job as having spoken before the provider is called (./answer-job.ts).
+ * ports or carrier, whose sender marks the job as having spoken before the provider is called (../intake/answer-job.ts).
  */
 export function answerArrival(
   a: Arrival,
@@ -95,7 +95,7 @@ export async function recordThenSchedule(
   if (!ing) return null;
   const payload: JobPayload<"inbound_answer"> = {
     ...wire,
-    // The wire its job answers on, said rather than read from what the payload carries (./answer-job.ts jobWireOf).
+    // The wire its job answers on, said rather than read from what the payload carries (../intake/answer-job.ts jobWireOf).
     wire: a.inbound.channel,
     message_id: ing.message_id,
     conversation_id: ing.conversation_id,

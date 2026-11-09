@@ -4,7 +4,7 @@
 -- answered 503 and lost. Twilio keeps every text a line received, so a clock reads each line's record and knocks on the
 -- door again for every text the database never heard (apps/edge/lib/sms/texts-sweep.ts).
 --
---   trigger_texts_sweep()   asks the edge (/api/cron/texts) every ten minutes while a line that can text exists (not a
+--   sms_sweep_texts()   asks the edge (/api/cron/texts) every ten minutes while a line that can text exists (not a
 --                           number the business kept at its carrier, not one whose provisioning failed, one with a
 --                           number); otherwise records that it looked. Service role and cron only.
 --   sweep_status 'texts'    judged by its requests: forty-five minutes is four missed ticks and five minutes.
@@ -14,7 +14,7 @@
 
 set local lock_timeout = '3s';
 
-create or replace function public.trigger_texts_sweep()
+create or replace function public.sms_sweep_texts()
 returns bigint
 language plpgsql
 security definer
@@ -31,8 +31,8 @@ begin
   on conflict (sweep) do update set requested_at = excluded.requested_at;
   return null;
 end $$;
-revoke execute on function public.trigger_texts_sweep() from public, anon, authenticated;
-comment on function public.trigger_texts_sweep() is
+revoke execute on function public.sms_sweep_texts() from public, anon, authenticated;
+comment on function public.sms_sweep_texts() is
   'The texts sweep''s clock (00578): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
 
 insert into public.sweep_status (sweep, jobname, max_silence, judged_by, requested_at) values
@@ -41,4 +41,4 @@ on conflict (sweep) do update
    set jobname = excluded.jobname, max_silence = excluded.max_silence, judged_by = excluded.judged_by;
 
 select cron.unschedule('texts-sweep') where exists (select 1 from cron.job where jobname = 'texts-sweep');
-select cron.schedule('texts-sweep', '*/10 * * * *', $$select public.trigger_texts_sweep()$$);
+select cron.schedule('texts-sweep', '*/10 * * * *', $$select public.sms_sweep_texts()$$);
