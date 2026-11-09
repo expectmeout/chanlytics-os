@@ -74,14 +74,14 @@ type OneTimeCode = { code: string; from: string | null };
 type Signs = { warned: boolean; expires: boolean };
 
 /** With no kind named, the warning is the sender's sign; a customer's kind beside a name is never mended by it. */
-const signed = (kind: string | undefined, { warned }: Signs): boolean =>
+const hasSendersSign = (kind: string | undefined, { warned }: Signs): boolean =>
   sendersKind(kind) || (kind === undefined && warned);
 
 /** "your <Name> [kind] code <code>", with a sender's kind or the warning. */
 function yourNameCode(body: string, signs: Signs): OneTimeCode | null {
   const [, name, kind, digits] = YOUR_NAME_CODE.exec(body) ?? [];
   const sender = serviceName(name);
-  return digits && sender && signed(kind, signs) ? { code: digits, from: sender } : null;
+  return digits && sender && hasSendersSign(kind, signs) ? { code: digits, from: sender } : null;
 }
 
 /** "your <kind> code <code>", a sender's kind with the warning or how long it lasts. */
@@ -94,7 +94,7 @@ function yourKindCode(body: string, { warned, expires }: Signs): OneTimeCode | n
 function codeIsYourName(body: string, signs: Signs): OneTimeCode | null {
   const [, digits, name, kind] = CODE_IS_YOUR_NAME.exec(body) ?? [];
   const sender = serviceName(name);
-  return digits && sender && signed(kind, signs) ? { code: digits, from: sender } : null;
+  return digits && sender && hasSendersSign(kind, signs) ? { code: digits, from: sender } : null;
 }
 
 /** "<code> is your <kind> code", a sender's kind or the warning. */
