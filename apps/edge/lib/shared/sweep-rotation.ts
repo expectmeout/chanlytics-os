@@ -1,5 +1,5 @@
 /**
- * Which tenants a sweep serves this tick.
+ * What is due, for the clock that hands it out and for the job that runs it (decision 0115).
  *
  * THE DEFECT THIS EXISTS FOR. The calendar and playbook sweeps read every row
  * and then did serial network work inside a sixty-second function. At four
@@ -24,48 +24,37 @@
  * packages/db), each page is only what is due, and `remaining` is exactly the
  * due rows beyond it.
  *
- * Two properties matter and both are tested against a real ordering:
+ * THE DEFECT AFTER THAT. A fair page is still a page: twenty-five moments an hour across every business is a ceiling no
+ * rotation lifts, and the alarm only said so. Since 00569 a clock hands each workspace with work due a job, and a job reads
+ * its own workspace's page here (tenantId): the ledger gives the work its turn, and the ledger's own alarm says when it
+ * outruns the runner.
  *
- *   FAIRNESS   over enough ticks every tenant is served, because the ones just
- *              served sort to the back.
- *   HONESTY    the sweep reports what it could not reach, and three consecutive
- *              ticks with a backlog answers 503 — the queue is growing faster
- *              than the sweep drains it, which is a capacity fact a person has
- *              to hear before a customer does.
+ * One property is tested against a real ordering:
  *
- * Cross-workspace: the calendar and playbook sweeps' rotation; each due row carries its own tenant_id.
+ *   FAIRNESS   a job that cannot reach everything leaves what is left at the front of the
+ *              next page, because the ones just served sort to the back.
+ *
+ * Cross-workspace without a tenantId; each due row carries its own tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDueCalendars, getDuePlaybooks, type DueCalendar, type DuePage, type DueStep } from "@chanlytics/db/jobs";
 import type { Database } from "@chanlytics/db/types";
 import { patchConfigRow } from "@chanlytics/db/workspace";
-import { noteSweepBacklog } from "@chanlytics/db/ops";
 import type { TenantId } from "@chanlytics/contracts";
 import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /**
- * A feed fetch is about a second, so forty leaves comfortable headroom inside
- * the sixty-second function. Playbooks SEND, so their ceiling is lower: the
- * cost of a tick that runs long there is a message half-delivered, not a
- * calendar read again next hour.
+ * How far apart a clock's jobs fall due (00569 jobs_hand_out, by a hash of the workspace, so the same one each time): nine
+ * o'clock in a zone is not a thousand jobs in one second, and each is still inside the hour the clock asked in.
  */
-export const CALENDAR_PER_TICK = 40;
-/**
- * How long the calendar tick reads feeds for before it leaves the rest of its page to the next hour: forty feeds at
- * up to six seconds each is four minutes against a sixty-second function, and the function was killed part way with
- * nothing stamped and nothing counted (the wiring trace, 5 October 2026). What the budget leaves is counted as
- * remaining, so the backlog is noted and the alarm still rings, and those feeds keep their place at the front of the
- * next page, unstamped.
- */
-export const CALENDAR_SWEEP_BUDGET_MS = 40_000;
-export const PLAYBOOKS_PER_TICK = 25;
+export const HAND_OUT_SPREAD_SECONDS = 300;
 
-/** Consecutive backlogged ticks before a sweep calls itself unhealthy. */
-export const BACKLOG_TICKS_BEFORE_ALARM = 3;
+/** How long a calendar rests between reads: the clock's hour, with room for its drift. */
+export const CALENDAR_REST_MS = 55 * 60_000;
 
-export type { DuePage, DueStep };
+export type { DueStep };
 
 /**
  * The workspaces whose calendar is due, never-read first (00245 calendars_due).
@@ -80,17 +69,21 @@ export type { DuePage, DueStep };
  * `calendar_checked_at` and never get one (the sweep stamps on a successful
  * READ, and there is nothing to read), so they would sort first under NULLS
  * FIRST for ever. At forty of them the page would be entirely feedless every
- * hour: no calendar read again, `remaining` never zero, and the sweep paging
- * the platform about work that does not exist. A `calendar` without an
+ * hour: no calendar read again, and a job handed out each hour for work that
+ * does not exist. A `calendar` without an
  * address is the same row in a different coat, and is judged the same.
  */
 export async function listCalendarsDue(
   db: Db,
   now: Date,
   limit: number,
-  minAgeMs = 55 * 60_000,
+  tenantId?: TenantId,
 ): Promise<DuePage<DueCalendar>> {
-  return getDueCalendars(db, { before: new Date(now.getTime() - minAgeMs), limit });
+  return getDueCalendars(db, {
+    before: new Date(now.getTime() - CALENDAR_REST_MS),
+    limit,
+    ...(tenantId ? { tenantId } : {}),
+  });
 }
 
 /**
@@ -113,32 +106,24 @@ export async function markCalendarChecked(
  * The running moments due at `now`, by each workspace's own clock, least-recently-run first (00245 playbooks_due).
  * Each comes with the zone it was judged in, so the run keeps to the same clock.
  */
-export async function listPlaybooksDue(db: Db, now: Date, limit: number): Promise<DuePage<DueStep>> {
-  return getDuePlaybooks(db, { kind: "moment", at: now, limit });
+export async function listPlaybooksDue(
+  db: Db,
+  now: Date,
+  limit: number,
+  tenantId?: TenantId,
+): Promise<DuePage<DueStep>> {
+  return getDuePlaybooks(db, { kind: "moment", at: now, limit, ...(tenantId ? { tenantId } : {}) });
 }
 
 /**
  * The reach-out steps (Part 3) due at `now`, a page of their own, judged and ordered as the moments are: each runs
  * through runReachOut, never the moments' run, and a workspace's moments never crowd its reach-outs out of a tick.
  */
-export async function listReachOutsDue(db: Db, now: Date, limit: number): Promise<DuePage<DueStep>> {
-  return getDuePlaybooks(db, { kind: "reach_out", at: now, limit });
-}
-
-/**
- * Record whether this tick left work behind, and say whether that has now been
- * true often enough to be a fault rather than a busy hour.
- *
- * Never throws: a sweep that did its work must not report failure because its
- * own bookkeeping could not be written.
- */
-export async function noteBacklog(
+export async function listReachOutsDue(
   db: Db,
-  sweep: string,
-  remaining: number,
-): Promise<{ ticks: number; alarm: boolean }> {
-  const { data, error } = await noteSweepBacklog(db, sweep, remaining);
-  if (error) return { ticks: 0, alarm: false };
-  const ticks = typeof data === "number" ? data : 0;
-  return { ticks, alarm: ticks >= BACKLOG_TICKS_BEFORE_ALARM };
+  now: Date,
+  limit: number,
+  tenantId?: TenantId,
+): Promise<DuePage<DueStep>> {
+  return getDuePlaybooks(db, { kind: "reach_out", at: now, limit, ...(tenantId ? { tenantId } : {}) });
 }

@@ -73,7 +73,8 @@ know how many readers there are.
 5. **At least once below the commit line, at most once at the wire.** Every subscriber, projector and workflow step
    assumes it may see a delivery twice, and `deliver()`'s claim before the wire (`SPEAKS_TO_A_PERSON`) stays the one
    exception. A model step records its answer by (run, step, attempt), so a redelivery never spends twice.
-6. **Order is per subject.** `events` gains `aggregate_version` (nullable: only a mutable record has one) and
+6. **Order is per subject.** (Not built, and its two columns dropped by 00571, decision 0115: no projector came, and no row
+   ever held a value in either. A migration adds them back if one does.) `events` gains `aggregate_version` (nullable: only a mutable record has one) and
    `causation_id`; a projector applies a delivery only when its version is newer than what the projection holds, so
    the relay owes no order and projectors are idempotent by construction.
 7. **A command's own next step stays in its transaction.** `assemble_broadcast` goes on writing its job; a

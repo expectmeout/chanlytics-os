@@ -40,6 +40,9 @@ import { webPush } from "./web-push.js";
 import { draftEdge } from "../drafts/writer.js";
 import { replyReader } from "../campaigns/reach-out/reply-read.js";
 import { bookingReader } from "../calendar/booking-read.js";
+import { calendarReader } from "../calendar/sweep.js";
+import { campaignRuns } from "../campaigns/reach-out/workspace-runs.js";
+import { googleReader } from "../google/sweep.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../campaigns/freed-time-offer.js";
 import { answerInboundJob } from "../intake/answer-later.js";
@@ -256,7 +259,11 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               drafts: draftEdge(db),
               // The reading of a booking tool's notice: the model, the spend and the person it is for.
               bookings: bookingReader(db),
-              calendar: { feedNames: feedNamesFor(db) }, // a reminder asks the owner's calendar beside the record
+              // A reminder asks the owner's calendar beside the record; a workspace's calendar_read reads it (0115).
+              calendar: { feedNames: feedNamesFor(db), read: calendarReader(db) },
+              // What a clock handed out (decision 0115): a workspace's campaigns, and its Google listings.
+              campaigns: campaignRuns(db),
+              google: googleReader(db),
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
               inbound: { answer: (claimed) => answerInboundJob(db, claimed) },

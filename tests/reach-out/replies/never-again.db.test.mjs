@@ -772,8 +772,9 @@ const LATER = {
   // 00484 adds the per-channel row (decision 0001, step 4); inbound/a-thread-keeps-when-each-wire-last-heard.db.test.mjs
   // proves it 00361's body but for that block.
   ingest_inbound: "00484",
-  // 00459 draws a sequence's leads from the search it draws from too (auto-add): one-road-to-a-sequence.db.test.mjs.
-  reach_out_audience: "00459",
+  // 00459 draws a sequence's leads from the search it draws from too (auto-add): one-road-to-a-sequence.db.test.mjs. 00572 leaves
+  // out who has a reason by a hash of them, the same leads: leads/workbench/a-reach-out-at-volume.db.test.mjs.
+  reach_out_audience: "00572",
   // A company's addressee is the person, by the name their source gave, and People is asked once (lead_address_in_people):
   // 00430's, whose behaviour leads/people-card.db.test.mjs holds.
   reach_out_person: "00430",

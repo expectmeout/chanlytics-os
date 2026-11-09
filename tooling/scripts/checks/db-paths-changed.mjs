@@ -47,6 +47,8 @@ export const DB_PATHS = [
   // and the table's Leads fixture and its goldens, which the Leads read is held to (leads/lead-filters.db.test.mjs, 00500)
   "tests/table/_fixtures.mjs",
   "tests/table/goldens/leads-shown.json",
+  // and the block the suites that read at volume run in, which never commits (leads/table/leads-at-volume.db.test.mjs)
+  "tests/leads/table/_*.mjs",
   // what the suites run against it: the packages that write rows, their sources (the suites read each as the bundle the
   // launcher builds from them, decision 0074)
   "packages/core/**",

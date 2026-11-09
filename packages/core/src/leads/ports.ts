@@ -24,6 +24,7 @@ import type {
   LeadFacts,
   ContactId,
   TenantId,
+  JobPayload,
 } from "@chanlytics/contracts";
 
 /** The question after the probe, as lead_rounds.question keeps it (PRD §7.2, P4): contracts' LeadQuestion with when it was asked. */
@@ -380,9 +381,9 @@ export interface LeadPorts {
   /** A run row's webhook token, derived from its id by the edge: made once (its sha256 on the row), never rewritten, rebuilt by any later job of ours. */
   webhookToken(runRowId: string): Promise<string>;
   /** scheduleJobOnce for this workspace: a second row for the same key is an answer, not an error. */
-  schedule(
-    kind: "lead_round_start" | "lead_collect" | "lead_check",
-    payload: Record<string, unknown>,
+  schedule<K extends "lead_round_start" | "lead_collect" | "lead_check">(
+    kind: K,
+    payload: JobPayload<K>,
     runAfterSeconds: number,
   ): Promise<void>;
   /**

@@ -25,7 +25,7 @@
  * Cross-workspace: the hourly sweeps page what is due across every workspace; each row carries its tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PLAYBOOK_HOURS, type NumberStanding, DbFailure } from "@chanlytics/contracts";
+import { PLAYBOOK_HOURS, type JobKind, type NumberStanding, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -82,6 +82,49 @@ export async function getDuePlaybooks(
     rows: rows.map((r) => ({ step: r.step as StepRow, timezone: r.timezone })),
     remaining: remainingOf(rows),
   };
+}
+
+/**
+ * A job for each workspace with a step of that kind due (00569 sequence_steps_hand_out, decision 0115), each due within the
+ * spread. Answers how many it wrote: a workspace with one already waiting or running writes none.
+ */
+export async function handOutStepsDue(
+  db: Db,
+  params: { kind: "moment" | "reach_out"; jobKind: JobKind; at: Date; spreadSeconds: number },
+): Promise<number> {
+  const { data, error } = await db.rpc("sequence_steps_hand_out", {
+    p_kind: params.kind,
+    p_job_kind: params.jobKind,
+    p_at: params.at.toISOString(),
+    p_last_hour: PLAYBOOK_HOURS.max,
+    p_spread_seconds: params.spreadSeconds,
+  });
+  if (error) throw new DbFailure(error, "cannot hand out the steps due");
+  return data;
+}
+
+/** A calendar_read for each workspace whose calendar is due (00569 calendars_hand_out, decision 0115). Answers how many. */
+export async function handOutCalendarsDue(db: Db, params: { before: Date; spreadSeconds: number }): Promise<number> {
+  const { data, error } = await db.rpc("calendars_hand_out", {
+    p_before: params.before.toISOString(),
+    p_spread_seconds: params.spreadSeconds,
+  });
+  if (error) throw new DbFailure(error, "cannot hand out the calendars due");
+  return data;
+}
+
+/** One job of a kind per workspace named, each due within the spread (00569 jobs_hand_out, decision 0115). Answers how many. */
+export async function handOutJobs(
+  db: Db,
+  params: { kind: JobKind; tenants: readonly TenantId[]; spreadSeconds: number },
+): Promise<number> {
+  const { data, error } = await db.rpc("jobs_hand_out", {
+    p_kind: params.kind,
+    p_tenants: [...params.tenants],
+    p_spread_seconds: params.spreadSeconds,
+  });
+  if (error) throw new DbFailure(error, "cannot hand out the jobs due");
+  return data;
 }
 
 /**

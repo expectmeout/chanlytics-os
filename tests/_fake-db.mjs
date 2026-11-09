@@ -947,6 +947,10 @@ export const FAKE_JOB_KINDS = {
   file_fetch: [2, ["@tenant", "source", "batch"], false],
   file_purge: [2, ["file_id", "why"], false],
   video_digest: [2, ["file_id", "step"], false],
+  campaign_moments: [2, ["@tenant"], false],
+  reach_out_steps: [2, ["@tenant"], false],
+  calendar_read: [2, ["@tenant"], false],
+  google_read: [2, ["@tenant"], false],
   broadcast_send: [2, null, false],
   lead_round_start: [2, null, false],
   lead_collect: [2, ["run_id", "seq"], true],
@@ -1740,6 +1744,54 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             due_total: due.length,
           }))
       );
+    },
+    /**
+     * A clock's hand-outs (00569): one job of the kind per workspace named, due within the spread, unless one waits or runs
+     * under the same key. The due-ness is whichever calendars_due and sequence_steps_due a suite gives, so a page that
+     * cannot be read is a hand-out that cannot be written. The SQL is proved on a stack (jobs/writers/a-clock-hands-out-work.db.test.mjs).
+     */
+    jobs_hand_out: ({ p_kind, p_tenants, p_spread_seconds }) => {
+      let handed = 0;
+      for (const id of p_tenants) {
+        const key = fakeDedupeKey(p_kind, id, {});
+        const held = (tables.jobs ?? []).some((j) => j.dedupe_key === key && ["scheduled", "fired"].includes(j.state));
+        if (held) continue;
+        tables.jobs ??= [];
+        const lane = FAKE_JOB_KINDS[p_kind]?.[0] ?? null;
+        tables.jobs.push({
+          id: crypto.randomUUID(),
+          tenant_id: id,
+          kind: p_kind,
+          state: "scheduled",
+          due_at: new Date(Date.now() + 1000 * Math.min(p_spread_seconds, 1)).toISOString(),
+          payload: {},
+          attempts: 0,
+          lane,
+          dedupe_key: key,
+          dedupe_kept: false,
+        });
+        handed += 1;
+      }
+      return handed;
+    },
+    sequence_steps_hand_out: ({ p_kind, p_job_kind, p_at, p_last_hour, p_spread_seconds }) => {
+      const page = (rpcs.sequence_steps_due ?? ((a) => derived.sequence_steps_due(a)))(
+        { p_kind, p_at, p_last_hour, p_limit: 2147483647 },
+        derived.sequence_steps_due,
+      );
+      const tenants = [...new Set(page.map((r) => r.step.tenant_id))];
+      return derived.jobs_hand_out({ p_kind: p_job_kind, p_tenants: tenants, p_spread_seconds });
+    },
+    calendars_hand_out: ({ p_before, p_spread_seconds }) => {
+      const page = (rpcs.calendars_due ?? ((a) => derived.calendars_due(a)))(
+        { p_before, p_limit: 2147483647 },
+        derived.calendars_due,
+      );
+      return derived.jobs_hand_out({
+        p_kind: "calendar_read",
+        p_tenants: page.map((r) => r.tenant_id),
+        p_spread_seconds,
+      });
     },
     calendars_due: ({ p_before, p_limit, p_tenant_id }) => {
       const due = (tables.tenant_config ?? [])

@@ -77,6 +77,22 @@ test("who hears of a failure is said once: a kind told the platform is paged wit
   }
 });
 
+test("a workspace's hourly job that failed for good pages once for its kind, however many workspaces fail, and says where to look", () => {
+  const job = (kind, tenant_id) => ({ id: "11111111-1111-4111-8111-111111111111", tenant_id, kind, payload: {} });
+  const keys = new Set();
+  for (const kind of ["campaign_moments", "reach_out_steps", "calendar_read", "google_read"]) {
+    const page = PAGES_THE_PLATFORM.get(kind);
+    const first = page(job(kind, "workspace-a"), "the database did not answer", null);
+    const second = page(job(kind, "workspace-b"), "the database did not answer", null);
+    assert.equal(first.key, second.key, `${kind}: a thousand workspaces in one hour are one page`);
+    assert.match(first.body, /workspace-a/, `${kind}: names the workspace that failed first`);
+    assert.match(first.body, new RegExp(`where kind = '${kind}'`), `${kind}: and the query for the others`);
+    assert.match(first.body, /late, not lost/, `${kind}: and that the work is still due`);
+    keys.add(first.key);
+  }
+  assert.equal(keys.size, 4, "one kind's fault does not hide another's");
+});
+
 test("a kind that speaks is never tried again, and every wait a kind names is reached and outlasts the lease", () => {
   for (const kind of JOB_KINDS) {
     const p = KIND_POLICY[kind];

@@ -33,7 +33,30 @@ for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/calendar.ts"));
 const { forgetFeeds } = await import(at("apps/edge/lib/calendar/availability.ts"));
-const { CALENDAR_PER_TICK, CALENDAR_SWEEP_BUDGET_MS } = await import(at("apps/edge/lib/shared/sweep-rotation.ts"));
+const { calendarReader } = await import(at("apps/edge/lib/calendar/sweep.ts"));
+/** More calendars than the sweep used to read in an hour: it hands them all out now. */
+const MANY = 42;
+
+/**
+ * The clock's knock, then what it handed out, run as the ledger runs it (decision 0115): each calendar_read in the order
+ * written, taken off the ledger, and what they came to added up.
+ */
+async function tickAndRead(tables, db) {
+  const [status, body] = await answer(await knock(POST, "calendar"));
+  if (status !== 200) return new Response(JSON.stringify(body), { status });
+  const total = { ok: true, tenants: 0, seen: 0, added: 0, named: 0, emailed: 0, booked: 0, failed: 0, remaining: 0 };
+  const handed = (tables.jobs ?? []).filter((j) => j.kind === "calendar_read");
+  tables.jobs = (tables.jobs ?? []).filter((j) => !handed.includes(j));
+  for (const job of handed) {
+    const came = await calendarReader(db)(job);
+    if ("skipped" in came || came.read.outcome === "none") continue;
+    const { read } = came;
+    total.tenants += 1;
+    if (read.outcome === "failed") total.failed += 1;
+    for (const k of ["seen", "added", "named", "emailed", "booked"]) total[k] += read[k];
+  }
+  return new Response(JSON.stringify(total), { status: 200 });
+}
 after(() => setPg(null));
 
 const D = 86_400_000;
@@ -80,20 +103,15 @@ const read = (line) => line.calls.filter((c) => c.url.includes("cal.example")).m
  * The world. The booking door (00227 reach_out_booked) answers `booked(args)`: none moved by default, and a throw is the
  * database refusing it. Each call is kept. `rpcs` answers any other door by name.
  */
-function world({ ticks = 1, faults = {}, booked = () => 0, rpcs = {} } = {}) {
+function world({ faults = {}, booked = () => 0, rpcs = {} } = {}) {
   // One handler instance keeps every feed for five minutes; each case starts with none.
   forgetFeeds();
   feeds.clear();
   const tables = { tenants: [], tenant_config: [], contacts: [], events: [], notifications: [] };
-  const backlog = [];
   const bookings = [];
   const kept = [];
   const db = fakeDb(tables, faults, {
     ...vault,
-    note_sweep_backlog: (a) => {
-      backlog.push(a);
-      return ticks;
-    },
     reach_out_booked: (a) => {
       bookings.push(a);
       return booked(a);
@@ -118,7 +136,7 @@ function world({ ticks = 1, faults = {}, booked = () => 0, rpcs = {} } = {}) {
     ...rpcs,
   });
   setPg(db);
-  return { db, tables, backlog, bookings, kept, tick: () => knock(POST, "calendar") };
+  return { db, tables, bookings, kept, tick: () => tickAndRead(tables, db) };
 }
 /**
  * A workspace with a calendar connected, last read at `checkedAt` (null:
@@ -291,7 +309,6 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
     assert.ok(fresh(checkedAt(w, N)) && fresh(checkedAt(w, O)), "both reads stamped");
     assert.equal(checkedAt(w, F), tenMinutesAgo, "the fresh one untouched");
     assert.equal(checkedAt(w, X), null);
-    assert.deepEqual(w.backlog, [{ p_sweep: "calendar", p_remaining: 0 }], "the queue drained");
     assert.ok(
       !w.db.seen.some((s) => s.table === "tenants"),
       "each feed's zone comes with the page: the workspace row is not read per feed",
@@ -450,60 +467,6 @@ test("a link that stopped answering keeps since when from its first failure; a d
 
 /* ------------------------------------------------------------- the budget */
 
-test("the budget: once the tick has spent its forty seconds, the rest of the page is left for the next hour -- unread, unstamped, counted as remaining and noted as backlog -- instead of the function being killed part way with nothing counted", async () => {
-  const w = world();
-  const S = "slow-first",
-    R2 = "read-three-hours-ago",
-    R1 = "read-two-hours-ago";
-  const urlS = connected(w.tables, S, null, [{ uid: "s1", title: "Trim", phone: "+1 212 555 0100" }]);
-  const twoHoursAgo = ago(2 * H);
-  const threeHoursAgo = ago(3 * H);
-  connected(w.tables, R1, twoHoursAgo, [{ uid: "r1", title: "Must not be read", phone: "+1 917 555 0199" }]);
-  connected(w.tables, R2, threeHoursAgo, [{ uid: "r2", title: "Nor this", phone: "+1 917 555 0198" }]);
-
-  // The clock the budget is kept on: reading the first feed takes the whole of it.
-  const realNow = Date.now;
-  let skew = 0;
-  Date.now = () => realNow() + skew;
-  const line = wire((u) => {
-    const r = reply(u);
-    if (u.endsWith(`/${S}.ics`)) skew = CALENDAR_SWEEP_BUDGET_MS + 1_000;
-    return r;
-  });
-  try {
-    const [status, body] = await answer(await w.tick());
-    assert.equal(status, 200);
-    assert.deepEqual(body, {
-      ok: true,
-      tenants: 1,
-      seen: 1,
-      added: 1,
-      named: 0,
-      emailed: 0,
-      booked: 0,
-      failed: 0,
-      remaining: 2,
-    });
-    assert.deepEqual(read(line), [urlS], "the never-read feed was read; the two behind it were not fetched");
-    assert.deepEqual(people(w, S), [["+12125550100", null]]);
-    assert.deepEqual([people(w, R1), people(w, R2)], [[], []]);
-    assert.ok(fresh(checkedAt(w, S)), "what was read is stamped");
-    assert.deepEqual(
-      [checkedAt(w, R1), checkedAt(w, R2)],
-      [twoHoursAgo, threeHoursAgo],
-      "what was not read is not stamped: it keeps its place at the front of the next page",
-    );
-    assert.deepEqual(
-      w.backlog,
-      [{ p_sweep: "calendar", p_remaining: 2 }],
-      "noted as backlog, so three such ticks alarm",
-    );
-  } finally {
-    Date.now = realNow;
-    line.restore();
-  }
-});
-
 /* ------------------------------------------------------------ the backlog */
 
 /** More workspaces than a tick takes, read oldest-first `hoursApart` hours apart. */
@@ -518,9 +481,9 @@ function queue(w, n) {
   return ids;
 }
 
-test("more due than a tick takes: forty are read, the two read most recently wait, and the backlog is noted -- nothing is stamped that was not read", async () => {
+test("more due than the clock could once read: all forty-two are handed out and read, oldest first, each stamped", async () => {
   const w = world();
-  const ids = queue(w, CALENDAR_PER_TICK + 2);
+  const ids = queue(w, MANY);
   const before = Object.fromEntries(ids.map((id) => [id, checkedAt(w, id)]));
 
   const line = wire(reply);
@@ -529,57 +492,25 @@ test("more due than a tick takes: forty are read, the two read most recently wai
     assert.equal(status, 200);
     assert.deepEqual(body, {
       ok: true,
-      tenants: CALENDAR_PER_TICK,
+      tenants: MANY,
       seen: 0,
       added: 0,
       named: 0,
       emailed: 0,
       booked: 0,
       failed: 0,
-      remaining: 2,
+      remaining: 0,
     });
     assert.deepEqual(
       read(line),
-      ids.slice(0, CALENDAR_PER_TICK).map((id) => `https://cal.example/${id}.ics`),
-      "the forty read longest ago, oldest first",
+      ids.slice(0, MANY).map((id) => `https://cal.example/${id}.ics`),
+      "every one, read longest ago first",
     );
     const stamped = ids.filter((id) => fresh(checkedAt(w, id)));
     const waited = ids.filter((id) => checkedAt(w, id) === before[id]);
-    assert.deepEqual(stamped, ids.slice(0, CALENDAR_PER_TICK));
-    assert.deepEqual(
-      waited,
-      ids.slice(CALENDAR_PER_TICK),
-      "the two read most recently wait for the next tick, their stamps untouched",
-    );
-    assert.deepEqual(w.backlog, [{ p_sweep: "calendar", p_remaining: 2 }]);
+    assert.deepEqual(stamped, ids.slice(0, MANY));
+    assert.deepEqual(waited, [], "none is left waiting");
     assert.deepEqual(w.tables.notifications, [], "empty calendars: nobody added, nobody told");
-  } finally {
-    line.restore();
-  }
-});
-
-test("three ticks in a row with work left behind: the sweep says so with a 503, having still done the tick's work", async () => {
-  const w = world({ ticks: 3 });
-  const ids = queue(w, CALENDAR_PER_TICK + 1);
-  const line = wire(reply);
-  try {
-    const [status, body] = await answer(await w.tick());
-    assert.equal(status, 503, "sweep_health turns this red and mails the platform");
-    assert.deepEqual(body, {
-      ok: false,
-      error: "calendar_backlog",
-      backlog_ticks: 3,
-      tenants: CALENDAR_PER_TICK,
-      seen: 0,
-      added: 0,
-      named: 0,
-      emailed: 0,
-      booked: 0,
-      failed: 0,
-      remaining: 1,
-    });
-    assert.equal(read(line).length, CALENDAR_PER_TICK, "the page was still served");
-    assert.equal(ids.filter((id) => fresh(checkedAt(w, id))).length, CALENDAR_PER_TICK);
   } finally {
     line.restore();
   }
@@ -604,7 +535,6 @@ test("a queue that cannot be read is a 500, and no feed is fetched: a database w
     try {
       assert.deepEqual(await answer(await w.tick()), [500, { ok: false }], refusal);
       assert.deepEqual(read(line), []);
-      assert.deepEqual(w.backlog, []);
       assert.equal(checkedAt(w, "any"), null);
     } finally {
       line.restore();
@@ -618,7 +548,7 @@ test("a row whose calendar has no address is not a feed: it holds no place in th
   // Nothing ever stamps such a row read, so a page that took it would take it
   // first, every hour, for ever -- and count the feed it pushed out as a backlog.
   const w = world();
-  const ids = queue(w, CALENDAR_PER_TICK);
+  const ids = queue(w, MANY);
   w.tables.tenants.push({ id: "half", name: "Half connected", timezone: "America/New_York", status: "active" });
   w.tables.tenant_config.push({ tenant_id: "half", config: { calendar: {} }, calendar_checked_at: null });
   w.tables.tenants.push({ id: "blank", name: "Blank address", timezone: "America/New_York", status: "active" });
@@ -634,7 +564,7 @@ test("a row whose calendar has no address is not a feed: it holds no place in th
     assert.equal(status, 200);
     assert.deepEqual(body, {
       ok: true,
-      tenants: CALENDAR_PER_TICK,
+      tenants: MANY,
       seen: 0,
       added: 0,
       named: 0,
@@ -648,9 +578,8 @@ test("a row whose calendar has no address is not a feed: it holds no place in th
       ids.map((id) => `https://cal.example/${id}.ics`),
       "every feed read, oldest first; the rows without an address are not the queue",
     );
-    assert.equal(ids.filter((id) => fresh(checkedAt(w, id))).length, CALENDAR_PER_TICK);
+    assert.equal(ids.filter((id) => fresh(checkedAt(w, id))).length, MANY);
     assert.deepEqual([checkedAt(w, "half"), checkedAt(w, "blank")], [null, null]);
-    assert.deepEqual(w.backlog, [{ p_sweep: "calendar", p_remaining: 0 }], "nothing due was left behind");
   } finally {
     line.restore();
   }

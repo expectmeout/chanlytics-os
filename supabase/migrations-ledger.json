@@ -570,6 +570,10 @@
     "00565_old_deliveries_go_with_the_old_evidence.sql": "8531febd1b0fe6f0bfaf41c831843cc86a995f6cf28678bdd8f62a085624b61e",
     "00566_the_status_read_starts_at_its_leads.sql": "f1a4d96fb735081180c8e2128ee76c702e5ddf94df0471a1bd038a9d8b09777a",
     "00567_what_each_step_sent_is_one_read.sql": "15659ec06f01820adb1062e319e0071785cc92feceefd1c91d18b0869f163b85",
-    "00568_a_place_is_read_the_same_whatever_is_guessed.sql": "36e20a9004b50195cf4bddd875b66adffd31c5813dab65b42b492079898e3898"
+    "00568_a_place_is_read_the_same_whatever_is_guessed.sql": "36e20a9004b50195cf4bddd875b66adffd31c5813dab65b42b492079898e3898",
+    "00569_a_clock_hands_out_work.sql": "b62ab15c5193caca165ca3dadb652f4b6278f8db0096b80770fbbfc42ab5ac6a",
+    "00570_a_member_who_deletes_their_account_is_said_with_it.sql": "e9eed67867e4488826c1079ea1a7e76144ff5c8cfb52ac58757f42ae985de8ed",
+    "00571_the_two_event_columns_nothing_filled_go.sql": "ae604be9003939fdf8995d55b19d45211d936191aab9de05b371b6b4460034d9",
+    "00572_a_reach_out_reads_the_same_at_any_size.sql": "82d4bc3a6e90c5aa8299dc6285c7ec3e443639132ec366b3d165f7e06c29c899"
   }
 }
