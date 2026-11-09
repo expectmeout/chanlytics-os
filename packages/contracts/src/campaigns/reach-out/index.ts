@@ -256,6 +256,14 @@ export {
   tryCheckLine,
   writesBackRows,
 } from "./settings";
+export { coldEmailStandingOf } from "./standing";
+export type {
+  ColdEmailRunning,
+  ColdEmailStanding,
+  ColdEmailStandingFacts,
+  ColdEmailStandingKind,
+  ColdEmailStep,
+} from "./standing";
 export type { ReachOutSettingsDto, ReachOutSettingsMailbox, ReachOutSettingsSequence, WritesBackRow } from "./settings";
 export {
   approvalWordsOf,

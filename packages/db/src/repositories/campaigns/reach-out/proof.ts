@@ -21,3 +21,19 @@ export async function countSentByStep(
   if (error) throw new DbFailure(error, "cannot count the steps' sent emails");
   return new Map(data.map((row) => [row.step_id, row.sent]));
 }
+
+/**
+ * The emails held for want of a business address (sender/lanes.ts `no_business_address`): what the Cold email page says
+ * before anything else is wrong with them. The lead sends' standing index holds a workspace's held sends.
+ */
+export async function countHeldForAddress(db: Db, tenantId: TenantId): Promise<number> {
+  const { count, error } = await db
+    .from("sequence_sends")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("state", "held")
+    .eq("reason", "no_business_address")
+    .not("lead_id", "is", null);
+  if (error) throw new DbFailure(error, "cannot count the emails held for an address");
+  return count ?? 0;
+}

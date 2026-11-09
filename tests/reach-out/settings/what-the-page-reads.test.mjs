@@ -6,12 +6,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mailboxConnectionDtoOf, mailboxIsLive } from "@chanlytics/contracts";
-import { countSentByStep } from "@chanlytics/db/campaigns";
+import { countHeldForAddress, countSentByStep } from "@chanlytics/db/campaigns";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
-const { newestLeadSequence, stepsCarrying, claimCounts, mailboxShown } =
+const { newestLeadSequence, stepsCarrying, claimCounts, mailboxShown, standingChainOf, standingFactsOf } =
   await import("../../../apps/dashboard/src/server/readers/settings.ts");
 const { readReachOutMonthOrNull } = await import("../../../apps/dashboard/src/server/campaigns/month-sent.ts");
 const { setServiceClient } = await import("../../../apps/dashboard/src/server/shared/service-db.ts");
@@ -158,4 +158,97 @@ test("the month's first emails are the service role's count, and a count that fa
   setServiceClient(fakeDb({}, {}, { reach_out_month_sent: refused }));
   assert.equal(await readReachOutMonthOrNull(T, at), null);
   setServiceClient(null);
+});
+
+test("the page's one answer speaks of the sequence waiting for an OK, else the newest running", () => {
+  const older = chain("a", "2026-11-01T00:00:00Z", [step("a0", 0, "Words")], { next: { waiting_run_id: "run-a" } });
+  const newer = chain("b", "2026-11-05T00:00:00Z", [step("b0", 0, "Words")], { next: { waiting_run_id: null } });
+  const off = chain("c", "2026-11-06T00:00:00Z", [step("c0", 0, "Words")], {
+    state: "paused",
+    next: { waiting_run_id: "run-c" },
+  });
+  assert.equal(standingChainOf([older, newer, off]).root_id, "a");
+  assert.equal(standingChainOf([newer, off]).root_id, "b");
+  assert.equal(standingChainOf([off]), null);
+});
+
+const STANDING_INPUT = {
+  report: null,
+  mailboxes: [],
+  hasAddress: true,
+  heldForAddress: 0,
+  month: { sent: 34, of: 2000 },
+  hasSearch: true,
+  whoFor: null,
+  nowMs: Date.UTC(2026, 10, 9),
+  tz: "UTC",
+};
+const report = (runs = []) => ({
+  steps: [
+    { id: "b0", n: 0, written: 30, wrote_back: 4, interested: 2 },
+    { id: "b1", n: 1, written: 4, wrote_back: 1, interested: 0 },
+  ],
+  runs,
+  can_remove: false,
+});
+
+test("the numbers come from that sequence's report, added across its steps, newest sequence first", () => {
+  const a = chain("a", "2026-11-01T00:00:00Z", [step("a0", 0, "Words")], {
+    next: { waiting_run_id: null },
+    people: { waiting: 7, writing: 0, done: 0 },
+  });
+  const b = chain("b", "2026-11-05T00:00:00Z", [step("b0", 0, "Words")], {
+    next: { waiting_run_id: null },
+    people: { waiting: 40, writing: 3, done: 0 },
+  });
+  const facts = standingFactsOf({ ...STANDING_INPUT, chains: [a, b], report: report() });
+  assert.deepEqual(
+    facts.running.map((r) => [r.root_id, r.sent, r.wroteBack, r.interested, r.waitingLeads]),
+    [
+      ["b", 34, 5, 2, 40],
+      ["a", null, null, null, 7],
+    ],
+  );
+});
+
+test("a report that could not be read leaves the numbers out, and a run's first until known", () => {
+  const b = chain("b", "2026-11-05T00:00:00Z", [step("b0", 0, "Words")], {
+    next: { waiting_run_id: "run-b" },
+    people: null,
+  });
+  const facts = standingFactsOf({ ...STANDING_INPUT, chains: [b], report: null });
+  assert.deepEqual(facts.running[0], {
+    root_id: "b",
+    name: "Clinics b",
+    sent: null,
+    wroteBack: null,
+    interested: null,
+    waitingLeads: null,
+  });
+  assert.deepEqual(facts.waitingRun, { id: "run-b", planned: null, name: "Clinics", first: true });
+});
+
+test("a waiting run's size is the report's, and it is the first only while nothing has gone", () => {
+  const b = chain("b", "2026-11-05T00:00:00Z", [step("b0", 0, "Words")], { next: { waiting_run_id: "run-b" } });
+  const runs = [{ id: "run-b", step_id: "b0", run_for: null, state: "pending_approval", planned: 10, written: 0 }];
+  const later = standingFactsOf({ ...STANDING_INPUT, chains: [b], report: report(runs) });
+  assert.deepEqual(later.waitingRun, { id: "run-b", planned: 10, name: "Clinics", first: false });
+  const none = { steps: [{ id: "b0", n: 0, written: 0, wrote_back: 0, interested: 0 }], runs, can_remove: true };
+  assert.equal(standingFactsOf({ ...STANDING_INPUT, chains: [b], report: none }).waitingRun.first, true);
+});
+
+test("emails held for an address are counted by that reason alone, in this workspace", async () => {
+  const T = "11111111-1111-4111-8111-111111111111";
+  const O = "22222222-2222-4222-8222-222222222222";
+  const send = (tenant_id, state, reason) => ({ tenant_id, state, reason, lead_id: "l" });
+  const db = fakeDb({
+    sequence_sends: [
+      send(T, "held", "no_business_address"),
+      send(T, "held", "no_business_address"),
+      send(T, "held", "no_signed_by"),
+      send(T, "sent", "no_business_address"),
+      send(O, "held", "no_business_address"),
+    ],
+  });
+  assert.equal(await countHeldForAddress(db, T), 2);
 });

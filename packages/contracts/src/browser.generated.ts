@@ -132,6 +132,7 @@ export { openingWorkspaceOf, reachOutOfferOf, reachOutSignatureOf, reachOutSigne
 export { REACH_OUT_SETTINGS_WORDS, reachOutRuleLines, REPLY_OFFER_WORDS, replyModeHint, tryCheckLine, writesBackRows } from "./campaigns/reach-out/settings";
 export { approvalWordsOf, chainHintOf, chainPaceOf, chainPathWords, chainReportWordsOf, EMAIL_TEMPLATE_LIST_WORDS, emailRowWrittenOf, emailTemplateRowsOf, emailTemplateWords, REACH_OUT_ROW_WORDS } from "./campaigns/reach-out/sheet/chain";
 export { isReachOutRefusal, nextRunWords, ownerPaceWords, paceWords, REACH_OUT_REFUSALS, REACH_OUT_SHEET_WORDS, reachLineOf, sheetFootWords, startWords, stepLabel, stepLabelOf, stepWhenWords } from "./campaigns/reach-out/sheet/words";
+export { coldEmailStandingOf } from "./campaigns/reach-out/standing";
 export { SEND_DAY_FRAME, SEND_WINDOW_MARGIN_MIN, sendWindowsOf, timetable, TIMETABLE_HORIZON_DAYS } from "./campaigns/reach-out/timetable";
 export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, toldShares, tryPartsOf } from "./campaigns/reach-out/told";
 export { US_STATE_ZONES, zoneOfRegion } from "./campaigns/reach-out/us-zones";
@@ -160,7 +161,7 @@ export { leadStepTestMail, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMa
 export { leadStepStand, SEQUENCE_FLOW_WORDS, SEQUENCE_GROUPS, SEQUENCE_WORDS, sequenceGroupOf, sequenceHeadLine, sequenceRowLine, sequenceRowState, sequenceStartWords, sequenceStateTone, sequenceStateWords, sequenceSubLine, sequenceTwinOf, sequenceWaitsNow, stepApprovalOf, takesFollowUps, visitTwinWords } from "./campaigns/sequences/words/flow";
 export { batchWaitsUntilTonight, leadsPlannedWords, listStartsSentence, momentStartsSentence, PEOPLE_GROUP_WORDS, peopleTabWord, sequenceChannelsWords, sequenceLeftWords, sequenceNextOf, sequenceNextWords, sequenceNotice, sequencePausedDock, sequenceStartsSentence, sequenceStopsSentence, sequenceWaitWords, sequenceWhoApprovesHint, stepsStopSentence } from "./campaigns/sequences/words/next";
 export { campaignMessageOf, campaignMessagesOf, MESSAGE_BEGIN_WORDS, MESSAGE_GONE_WORDS, messageHolds, messageStandingWords, messageWhyNot, metaStatusOf, readyForMessage, RUN_NOW_WITHOUT_VERSION_WORDS, STARTER_LINE_WORDS, variablesSlotCount, whatsappStoppedRunWords } from "./campaigns/templates/campaign-message";
-export { customerEmailFoot, emailFoot, emailFootHtml } from "./campaigns/templates/email-foot";
+export { customerEmailFoot, emailFoot, emailFootHtml, hasFootAddress } from "./campaigns/templates/email-foot";
 export { inboxBlankOf, inboxSlots, inboxTemplateParts, inboxTemplates, noTemplateWords, slotToWrite, TEMPLATE_WORDS_MAX, templateHolds, templateOffered, templateWords } from "./campaigns/templates/inbox-templates";
 export { findLanguages, languageLabel, languageName, languageTag, templateLanguage, WHATSAPP_LANGUAGES, languageBase } from "./campaigns/templates/languages";
 export { isLibrarySample, libraryCount } from "./campaigns/templates/library-count";

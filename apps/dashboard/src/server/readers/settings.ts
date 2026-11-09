@@ -15,19 +15,23 @@ import {
   REACH_OUT_DRAFTS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
   REPLY_MODE_UNSET,
+  coldEmailStandingOf,
+  hasFootAddress,
   mailboxIsLive,
   mailboxSendsNow,
   mailboxWords,
   parseTenantConfig,
+  type ColdEmailStandingFacts,
   type MailboxConnectionDto,
   type ReachOutChainDto,
+  type ReachOutChainReportDto,
   type ReachOutSettingsDto,
   type ReachOutSettingsMailbox,
   type ReachOutSettingsSequence,
   firstNameOf,
 } from "@chanlytics/contracts";
 import { findRehearsalById } from "@chanlytics/db/facts";
-import { countSentByStep, findWorkspaceWords, reviewLinkOf } from "@chanlytics/db/campaigns";
+import { countHeldForAddress, countSentByStep, findWorkspaceWords, reviewLinkOf } from "@chanlytics/db/campaigns";
 import { findNewestSearchName } from "@chanlytics/db/leads";
 import { askMemoryLines, getJournalMemberNames } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
@@ -36,6 +40,7 @@ import { findPromptPreview, type PromptPreviewDto } from "../receptionist/prompt
 import { listLines } from "../connections/lines";
 import { listMailboxConnectionsWithDays } from "../connections/mailbox-connections";
 import { readReachOutMonthOrNull } from "../campaigns/month-sent";
+import { getChainReport } from "../campaigns/reach-outs/chain-acts";
 import { listChains } from "../campaigns/reach-outs/reach-outs";
 import { log } from "../shared/log";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
@@ -313,6 +318,63 @@ export function mailboxShown(
   };
 }
 
+/** The sequences running to leads, newest first. */
+const runningNewestFirst = (chains: readonly ReachOutChainDto[]): ReachOutChainDto[] =>
+  chains.filter((c) => c.state === "running").sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+/** The sequence the page's one answer speaks of: one waiting for an OK, else the newest running. */
+export function standingChainOf(chains: readonly ReachOutChainDto[]): ReachOutChainDto | null {
+  const running = runningNewestFirst(chains);
+  return running.find((c) => c.next.waiting_run_id) ?? running.at(0) ?? null;
+}
+
+/** What Where it stands decides from: a number the page could not read is null, never a made-up 0. */
+export function standingFactsOf(input: {
+  chains: readonly ReachOutChainDto[];
+  /** The report of standingChainOf's sequence, the one read this costs: null where it could not be read. */
+  report: ReachOutChainReportDto | null;
+  mailboxes: readonly MailboxConnectionDto[];
+  hasAddress: boolean;
+  heldForAddress: number | null;
+  month: { sent: number | null; of: number };
+  hasSearch: boolean;
+  whoFor: string | null;
+  nowMs: number;
+  tz: string;
+}): ColdEmailStandingFacts {
+  const { chains, report, ...rest } = input;
+  const subject = standingChainOf(chains);
+  const total = (pick: (s: ReachOutChainReportDto["steps"][number]) => number | undefined): number | null =>
+    report ? report.steps.reduce((n, s) => n + (pick(s) ?? 0), 0) : null;
+  const sent = total((s) => s.written);
+  const waitingId = subject?.next.waiting_run_id ?? null;
+  return {
+    ...rest,
+    mailboxes: input.mailboxes.filter(mailboxIsLive),
+    hadSequence: chains.length > 0,
+    waitingRun:
+      subject && waitingId
+        ? {
+            id: waitingId,
+            planned: report?.runs.find((r) => r.id === waitingId)?.planned ?? null,
+            name: subject.search?.name || subject.name,
+            first: !sent,
+          }
+        : null,
+    running: runningNewestFirst(chains).map((c) => {
+      const own = c.root_id === subject?.root_id;
+      return {
+        root_id: c.root_id,
+        name: c.name,
+        sent: own ? sent : null,
+        wroteBack: own ? total((s) => s.wrote_back) : null,
+        interested: own ? total((s) => s.interested) : null,
+        waitingLeads: c.people?.waiting ?? null,
+      };
+    }),
+  };
+}
+
 /** One part of the read, which may fail alone: the page draws the rest, and the failure is logged. */
 async function partOrElse<T>(read: Promise<T>, part: string, tenantId: TenantId, otherwise: T): Promise<T> {
   try {
@@ -346,17 +408,35 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
       partOrElse(findNewestSearchName(db, tenantId), "newest_search", tenantId, null),
     ]);
     const name = names[rc.ctx.userId]?.trim() || null;
-    const claims = parseTenantConfig(row?.data?.config)?.reach_out?.proof ?? [];
-    const counted = await partOrElse(
-      countSentByStep(db, tenantId, stepsCarrying(claims, chains)),
-      "counts",
-      tenantId,
-      new Map(),
-    );
+    const parsed = parseTenantConfig(row?.data?.config);
+    const claims = parsed?.reach_out?.proof ?? [];
+    const hasAddress = hasFootAddress(facts?.data.name, parsed?.brain?.profile?.address);
+    const subject = standingChainOf(chains);
+    const [counted, report, heldForAddress] = await Promise.all([
+      partOrElse(countSentByStep(db, tenantId, stepsCarrying(claims, chains)), "counts", tenantId, new Map()),
+      subject ? partOrElse(getChainReport(rc.ctx, tenantId, subject.root_id), "report", tenantId, null) : null,
+      hasAddress ? 0 : partOrElse(countHeldForAddress(db, tenantId), "held_for_address", tenantId, null),
+    ]);
+    const tz = facts?.data.timezone ?? "UTC";
+    const month = { sent, of: REACH_OUT_MONTH_EMAILS };
     return {
       data: {
-        mailbox: mailboxShown(mailboxes, rc.now.getTime(), facts?.data.timezone ?? "UTC"),
-        month: { sent, of: REACH_OUT_MONTH_EMAILS },
+        standing: coldEmailStandingOf(
+          standingFactsOf({
+            chains,
+            report,
+            mailboxes,
+            hasAddress,
+            heldForAddress,
+            month,
+            hasSearch: newestSearch !== null,
+            whoFor: parsed?.reach_out?.who_for?.trim() || null,
+            nowMs: rc.now.getTime(),
+            tz,
+          }),
+        ),
+        mailbox: mailboxShown(mailboxes, rc.now.getTime(), tz),
+        month,
         by_hand_per_day: REACH_OUT_DRAFTS_PER_DAY,
         claims: claimCounts(claims, chains, counted),
         voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),

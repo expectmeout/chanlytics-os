@@ -20,7 +20,7 @@ export {
   WHATSAPP_TEMPLATES_DELETE_DOOR,
   WHATSAPP_TEMPLATES_SYNC_DOOR,
 } from "./edge-doors";
-export { customerEmailFoot, emailFoot, emailFootHtml } from "./email-foot";
+export { customerEmailFoot, emailFoot, emailFootHtml, hasFootAddress } from "./email-foot";
 export type { EmailFoot, LinkedFoot } from "./email-foot";
 export {
   inboxBlankOf,
