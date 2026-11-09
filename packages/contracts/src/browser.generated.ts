@@ -45,6 +45,7 @@ export { ASK_LATELY_DAYS, dayAfterDays, ideasSeenOf, ideasWithResults, latelyRow
 export { ASK_JOURNAL_LIMITS, ASK_MEMORY_LIMITS, ASK_MEMORY_WORDS, memoryText, memoryTextProblem } from "./ask/memory/memory";
 export { ASK_MORNING_CARDS_MAX, ASK_MORNING_EDITED_QUESTION, ASK_MORNING_QUESTION, ASK_MORNING_WORDS, isAskMorningQuestion } from "./ask/memory/morning";
 export { ASK_DRAFT_EFFORT, ASK_DRAFT_MAX_TOKENS, ASK_EFFORT, ASK_MODEL, ASK_SPEED, askModelProfile, askRoundCap } from "./ask/model";
+export { ASK_NOTICE_ORDER, noticeOf, noticeRestId, noticesInOrder, whoCanHearWords } from "./ask/notice";
 export { cardsTogether, cardWithSteps, holdsAlike, openCardOf, planGroupOf, planInReview, planMadeOf, planPressOf, planWaits, resolveSteps, STEP_TOKEN, stepToken, waitingCardsWords, wordsLessHolds } from "./ask/plan-steps";
 export { PLAN_WORDS } from "./ask/plan/intents";
 export { planOf } from "./ask/plan/plan";

@@ -699,6 +699,11 @@ export const AskPlan = ({
           {h}
         </p>
       ))}
+      {head?.hear && !pressedOnce ? (
+        <p className="ask-card-foot" data-testid="ask-plan-hear">
+          {head.hear}
+        </p>
+      ) : null}
       {lines.length > 1 ? (
         <details className="ask-card-how" data-testid="ask-plan-how">
           <summary>{t.howItRuns}</summary>

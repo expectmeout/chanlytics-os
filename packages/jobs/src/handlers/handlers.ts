@@ -47,7 +47,7 @@ import { deliveryPage, deliveryPageKey } from "../runner/delivery-page";
 import { type ClaimedJob, type JobContext, must, type PushTicket } from "../runner/context";
 import { emailIngest, lineProvision, outboundSend } from "./incoming-email";
 
-export type { PushReceipt, PushPort, JobContext, ClaimedJob } from "../runner/context";
+export type { PushReceipt, PushPort, WebPushPort, JobContext, ClaimedJob } from "../runner/context";
 
 /** A job's adapter: it does its work, or comes back saying why there was none to do (DispatchOutcome `skipped`). */
 type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void | { skipped: string }>;
@@ -80,6 +80,35 @@ async function leadCheck(ctx: JobContext, job: ClaimedJob): Promise<void> {
  * gone (purged, or the workspace erased): that is a job done, not a failure. A
  * phone the service says is gone is forgotten here, where the answer is.
  */
+/**
+ * The browsers of the people a notification is for. With no keys on this deployment (`ctx.webPush` absent), or a database before
+ * the table, it does nothing. A browser that has forgotten its subscription is forgotten here too.
+ */
+async function tellBrowsers(
+  ctx: JobContext,
+  readers: readonly string[],
+  note: { id: string; tenant_id: string; title: string; body: string; route: string | null },
+): Promise<void> {
+  if (!ctx.webPush) return;
+  try {
+    const { data } = await ctx.db
+      .from("web_push_subscriptions")
+      .select("endpoint, p256dh, auth")
+      .in("user_id", [...readers]);
+    if (!data?.length) return;
+    const gone = await ctx.webPush.send(data, {
+      title: note.title,
+      body: note.body.split("\n").find((l) => l.trim()) ?? "",
+      route: note.route,
+      tenant_id: note.tenant_id,
+      notification_id: note.id,
+    });
+    if (gone.length) await ctx.db.from("web_push_subscriptions").delete().in("endpoint", gone);
+  } catch {
+    // A browser not told is a miss the bell and the phone still cover: this job's retry would tell the phones twice.
+  }
+}
+
 async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.push) throw new Error("push_send: this runtime holds no push transport");
   const id = textOrEmpty(job.payload.notification_id);
@@ -102,6 +131,8 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
     kind: result.kind,
   });
   if (!readers.length) return;
+  // This reader's browsers, where they said yes (D12 of the answers canvas): told beside the phones, and never failing them.
+  await tellBrowsers(ctx, readers, { ...result, route: noticeRoute(result.kind, result.route) });
   const devices =
     must(
       "push_send: cannot read the phones",

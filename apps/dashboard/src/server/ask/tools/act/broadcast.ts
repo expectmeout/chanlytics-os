@@ -347,7 +347,7 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
   // Who is left out is judged for the time it is set for, as the route judges it: within a week of it, either side.
   const reach = await broadcastCount(toolContext, { rows, label, purpose }, by, sendsAt);
   if ("refusal" in reach) return refuse(reach.refusal);
-  const { count, says, kept, byChannel, leftOutSaid } = reach;
+  const { count, says, kept, byChannel, leftOutSaid, leftOut } = reach;
   // A step's message is not filed yet: the card says which step makes it, and quotes the offer its values type.
   // A plan's one card draws the message whole; a card on its own quotes it, its sheet holding the rest.
   const messageWords = messageSaid(sent, params, by, toolContext.step === undefined ? 160 : 900);
@@ -390,6 +390,7 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
       scheduled_for: when,
       name,
       count,
+      left_out: leftOut,
       ...kept,
     },
   });

@@ -119,6 +119,7 @@ const LIVE_MESSAGE = (text: string) =>
   }) as Partial<AskMessageVM> as AskMessageVM;
 
 export const arBody = ({
+  A,
   rowsDrawn,
   sections,
   sel,
@@ -152,6 +153,7 @@ export const arBody = ({
           setSel={setSel}
           onActivate={activate}
           onDelete={askDelete}
+          onRest={(key) => void A.restNotice(key)}
           t={t}
           empty={view === "earlier" && !threads.length ? t.noEarlier : null}
         />

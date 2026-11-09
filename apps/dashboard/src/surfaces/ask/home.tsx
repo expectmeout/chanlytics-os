@@ -38,6 +38,8 @@ export interface LineRow {
   th?: AskThreadVM;
   compose?: boolean;
   following?: string;
+  /** What Ask noticed, by its key: the row Not now rests a week. */
+  rest?: string;
   people?: number;
   runs?: number;
   searches?: number;
@@ -129,6 +131,22 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
       ],
     },
   ];
+  // What Ask noticed (D7 of the answers canvas): one thing, with its plan a press away. Ask speaks first here, never a list.
+  const notice = A.noticed ? A.noticed() : null;
+  if (notice)
+    sections.push({
+      key: "noticed",
+      items: [
+        {
+          type: "follow",
+          label: notice.says,
+          q: notice.ask ?? notice.fill ?? "",
+          ...(notice.fill && !notice.ask ? { compose: true } : {}),
+          ...(notice.to ? { to: notice.to } : {}),
+          rest: notice.key,
+        },
+      ],
+    });
   // What Ask said it would come back to, come due (bridge/ask/follow-ups.ts): its own line, and pressed, what it
   // said it would ask itself then, which clears it (the route's `following`).
   const due = A.followUpsDue ? A.followUpsDue() : [];
@@ -199,6 +217,7 @@ export const AskRows = ({
   setSel,
   onActivate,
   onDelete,
+  onRest,
   t,
   empty,
 }: {
@@ -207,6 +226,8 @@ export const AskRows = ({
   setSel: (i: number) => void;
   onActivate: (it: LineRow) => void;
   onDelete: (th: AskThreadVM) => void;
+  /** Not now, on what Ask noticed: it rests a week. */
+  onRest?: (key: string) => void;
   t: LineWords;
   empty?: string | null;
 }) => {
@@ -256,6 +277,20 @@ export const AskRows = ({
           {it.sub ? <span className="ask-row-sub">{it.sub}</span> : null}
         </span>
         {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
+        {it.rest ? (
+          <LinePress
+            kind="words"
+            className="ask-row-meta"
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (it.rest) onRest?.(it.rest);
+            }}
+            data-testid="ask-row-rest"
+          >
+            {t.notNow}
+          </LinePress>
+        ) : null}
         {it.type === "thread" ? (
           <LinePress
             kind="remove"

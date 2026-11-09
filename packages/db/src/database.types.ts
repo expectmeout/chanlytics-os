@@ -34,6 +34,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      web_push_subscriptions: {
+        Row: {
+          auth: string;
+          created_at: string;
+          endpoint: string;
+          failed_at: string | null;
+          id: string;
+          p256dh: string;
+          user_agent: string | null;
+          user_id: string;
+        };
+        Insert: {
+          auth: string;
+          created_at?: string;
+          endpoint: string;
+          failed_at?: string | null;
+          id?: string;
+          p256dh: string;
+          user_agent?: string | null;
+          user_id: string;
+        };
+        Update: {
+          auth?: string;
+          created_at?: string;
+          endpoint?: string;
+          failed_at?: string | null;
+          id?: string;
+          p256dh?: string;
+          user_agent?: string | null;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      ask_notice_days: {
+        Row: {
+          day: string;
+          key: string | null;
+          tenant_id: string;
+          told_at: string;
+        };
+        Insert: {
+          day: string;
+          key?: string | null;
+          tenant_id: string;
+          told_at?: string;
+        };
+        Update: {
+          day?: string;
+          key?: string | null;
+          tenant_id?: string;
+          told_at?: string;
+        };
+        Relationships: [];
+      };
       ask_actions: {
         Row: {
           at: string;

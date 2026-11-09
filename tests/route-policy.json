@@ -23,6 +23,27 @@
       "rate": "ask",
       "spend": false
     },
+    "GET ask/notice": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST me/web-push": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "DELETE me/web-push": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST ask/act": {
       "kind": "write",
       "scope": "workspace",

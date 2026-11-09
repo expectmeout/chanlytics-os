@@ -36,6 +36,7 @@ import { eraseCallsAtProvider } from "../voice/erase-calls.js";
 import { env } from "../shared/env.js";
 import { leadPipeline } from "../leads/pipeline.js";
 import { expoPush } from "./push.js";
+import { webPush } from "./web-push.js";
 import { draftEdge } from "../drafts/writer.js";
 import { replyReader } from "../campaigns/reach-out/reply-read.js";
 import { bookingReader } from "../calendar/booking-read.js";
@@ -243,6 +244,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               page: pagerOf(db),
               // The phones, through Expo's push service: no per-tenant credential, one transport for all.
               push: expoPush(),
+              webPush: webPush(),
               provisionLine: (lineId, by, until) => provisionLineJob(db, job.tenant_id, lineId, by, undefined, until),
               ...providerErasure(),
               ...(intake ? { email: intake } : {}),

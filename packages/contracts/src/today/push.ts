@@ -71,6 +71,8 @@ export const PUSH_KINDS = [
   "reply_held",
   // Someone used a form on the website (00488): a person who asked, best answered while they wait.
   "website_form",
+  // What Ask noticed this morning (D12, D20 of the answers canvas): one line a day at most, and each member may turn it off.
+  "ask_cards",
 ] as const satisfies readonly ServerNotificationKind[];
 export type PushKind = (typeof PUSH_KINDS)[number];
 export const isPushKind = (kind: string): kind is PushKind => isOneOf(PUSH_KINDS, kind);

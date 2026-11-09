@@ -52,6 +52,7 @@ import { installVoice } from "./ask/voice";
 import { spokenTurns } from "./ask/spoken";
 import { pageContext, type ThreadMessage } from "./ask/context";
 import { askFollowUps } from "./ask/follow-ups";
+import { askNotices } from "./ask/notices";
 import { askColumn } from "./ask/column";
 import { holdAsk } from "@/surfaces/frame-verbs";
 
@@ -65,7 +66,8 @@ export type AskApi = ReturnType<typeof askPalette> &
   ReturnType<typeof askAloud> &
   ReturnType<typeof installVoice> &
   ReturnType<typeof spokenTurns> &
-  ReturnType<typeof askFollowUps> & {
+  ReturnType<typeof askFollowUps> &
+  ReturnType<typeof askNotices> & {
     /**
      * Approve a card: the verb's own route, then the surfaces refresh. A plan's card is judged by what the turn's other
      * cards of its plan became (`cards`, as the Line holds them: commit.ts commitCard), so a send fills its tokens.
@@ -227,6 +229,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     thread,
     sendSpoken,
     ...followUps,
+    ...askNotices(win),
     commit: (p, cards = [], messageId) => keptOrCleared([p], commitCard(win, p, cards, { messageId })),
     commitPlan: (cards, messageId) => keptOrCleared(cards, commitPlan(win, cards, { messageId })),
     undoPlan: (cards, open, messageId) => keptOrCleared(cards, undoPlan(win, cards, open, apiFor(win), messageId)),

@@ -229,6 +229,8 @@ export interface AskPlanHead {
   press: "offer" | "plan";
   /** The message as a person reads it, by channel. */
   says: Array<{ channel: string; label: string; words: string }>;
+  /** Who can hear it, where that is not everyone (contracts whoCanHearWords, D23). */
+  hear?: string;
 }
 
 /**

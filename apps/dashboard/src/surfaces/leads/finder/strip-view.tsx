@@ -36,6 +36,11 @@ export const LeadStrip = ({
       data-testid="lead-strip"
     >
       {vm.state === "running" ? <span className="live-dot" aria-hidden="true" /> : null}
+      {vm.count ? (
+        <span className="lf-strip-count" data-testid="strip-count">
+          <b>{vm.count.n}</b> of {vm.count.of}
+        </span>
+      ) : null}
       {vm.state === "question" ? (
         <span className="qmark" aria-hidden="true">
           ?

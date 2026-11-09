@@ -102,6 +102,8 @@ export { PLAN_WORDS } from "./plan/intents";
 export type { PlanIntent, PlanStep, PlanWorld } from "./plan/intents";
 export { ASK_ALONE_DAY_MAX, ASK_ALONE_UNDOS_MAX, FREEDOM_REASONS, freedomOf, rowOf } from "./freedom";
 export type { FreedomAnswer, FreedomReason, FreedomVerdict, FreedomWorld } from "./freedom";
+export { ASK_NOTICE_ORDER, noticeOf, noticeRestId, noticesInOrder, whoCanHearWords } from "./notice";
+export type { AskNotice, AskNoticeFacts } from "./notice";
 export { planOf } from "./plan/plan";
 export type { PlanFigure, PlanHeadOf } from "./plan/plan";
 export { AskProposalOutcomeSchema } from "./schemas";

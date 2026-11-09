@@ -14,6 +14,7 @@ import {
   notesInForce,
   parseTenantConfigResult,
   planOf,
+  whoCanHearWords,
   type AskPlanHead,
   type AskProposal,
   type PlanIntent,
@@ -305,7 +306,14 @@ async function proposePlan(toolContext: ToolContext, planAsked: PlanAsked): Prom
   // The plan's one card (D2 of the answers canvas) says the whole on its first step: what it is, how, and its message.
   const leading = cards.at(0);
   if (id && planned.head && leading?.plan) {
-    leading.plan = { ...leading.plan, head: { ...planned.head, says: messageSaidOf(cards) } };
+    const send = cards.find((c) => c.kind === "broadcast");
+    const count = typeof send?.payload.count === "number" ? send.payload.count : 0;
+    const leftOut = typeof send?.payload.left_out === "number" ? send.payload.left_out : 0;
+    const hear = whoCanHearWords({ can: count, of: count + leftOut, leftOut, paused: null }, world.says);
+    leading.plan = {
+      ...leading.plan,
+      head: { ...planned.head, says: messageSaidOf(cards), ...(hear ? { hear } : {}) },
+    };
     // The card shows the words whole, so its press is their OK (D3): the send's door takes it from here.
     for (const c of cards) if (c.kind === "playbook") c.payload = { ...c.payload, words_shown: true };
   }

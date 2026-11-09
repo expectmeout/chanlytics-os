@@ -17,6 +17,8 @@ export {
   setSetupChoices,
   setWorkspaceLogo,
   startPlaybook,
+  forgetWebPush,
+  keepWebPush,
   wordsSeenByMember,
   updatePlaybook,
   writeLineForwarding,

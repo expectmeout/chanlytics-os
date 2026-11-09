@@ -17,6 +17,7 @@
  * Sorted, so two changes that add a name each land in different places.
  */
 export const LOG_EVENTS = [
+  "web_push_failed",
   "a2p.campaign_resubmit_refused",
   "a2p.campaign_resubmitted",
   "a2p.mock_campaign_deleted",

@@ -6,7 +6,7 @@
  * through the surface's doors (../surface.ts). Nothing here names the vendor: the owner sees Claude finding businesses,
  * and where each fact came from. Its parts are plain functions, never components, so its tree is the one it always drew.
  */
-import type { ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
 import { LEAD_WORDS, leadReviewGroups, type LeadPeekVM, type LeadRowVM } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -486,6 +486,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
           name. A phone's head holds New search past the first day (phone-bar.tsx LeadsNewSearch), and its bar Import; a
           desk's first day holds no act beside the page's own door, and keeps the door for a list under it. */}
       {phone && !p.firstDay && !p.newSearch && phoneBarOf(p)}
+      <RowsLand p={p} />
       <div className="cl-main-scroll pl-main" ref={p.scrollRef} data-sheet={sheetMarkOf(p)} {...leadRowReach(p.aim)}>
         {phone || p.firstDay ? <LeadsHead act={headActOf(p, phone)} /> : deskTopOf(p)}
         {p.newSearch ? (
@@ -548,6 +549,32 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
     </div>
   );
 };
+
+/**
+ * Rows land while a search runs and you are at the top (D9 of the answers canvas): what a refresh found is taken in by itself,
+ * in the groups it arrives in. The moment you scroll or open a lead they hold still and "3 new" comes back, so nothing moves
+ * under your finger, which is what the rule it softens was for (E8).
+ */
+function RowsLand({
+  p,
+}: {
+  p: {
+    surface: { offered: number };
+    onTakeOffered: () => unknown;
+    scrollRef?: { current: HTMLElement | null } | null;
+    strip?: { state: string } | null;
+    peek?: unknown;
+  };
+}) {
+  const offered = p.surface.offered;
+  const running = p.strip?.state === "running";
+  const atTop = (p.scrollRef?.current?.scrollTop ?? 0) < 8;
+  const open = !!p.peek;
+  useEffect(() => {
+    if (offered > 0 && running && atTop && !open) void p.onTakeOffered();
+  }, [offered, running, atTop, open, p]);
+  return null;
+}
 
 export const LeadsScope = (p: P) => {
   // The same band People's cards use and the same one the page's listener judges the Columns menu by. The page hands it

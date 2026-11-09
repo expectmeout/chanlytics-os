@@ -1,6 +1,14 @@
 /**
  * The ask domain: `@chanlytics/db/ask`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export {
+  countHeldReviewReplies,
+  insertAskNoticeDay,
+  listAskNoticeKeysSince,
+  listBusinessesForMorning,
+  listOwnerSeats,
+  keepNoticeAlert,
+} from "./notice-days";
 export { askAloneCounts, finishAskAction, listAskActions, markAskActionUndone, startAskAction } from "./actions";
 export type { AskActionStart } from "./actions";
 export {
