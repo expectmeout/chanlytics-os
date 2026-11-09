@@ -49,11 +49,11 @@ export const SET_TABS: readonly SetTab[] = [
   { id: "hours", label: "Hours & booking", icon: "calendar", group: "Business" },
   // What the receptionist says: its voice, what it knows, what it can do, and what it is told.
   { id: "receptionist", label: "How it answers", icon: "chat", group: "Receptionist" },
-  // What a cold email to a business a search found is written from (decision 0113): the offer, the claims, the voice,
-  // the sign-off, where it sends from, what a reply sets off, the rules, what each writer is told, and Try it.
-  { id: "outreach", label: "How it reaches out", icon: "send", group: "Receptionist" },
   // What it may do without you, and every limit it keeps.
   { id: "autonomy", label: "Autonomy", icon: "shield", group: "Receptionist" },
+  // What Chanlytics says when it writes to businesses for you (decisions 0113, 0115): away from the receptionist, since
+  // it answers no one. Its route id stays `outreach`, as `workspace` does for Details: bells and Ask's answers name it.
+  { id: "outreach", label: "Cold email", icon: "send", group: "Outreach" },
   { id: "team", label: "Team", icon: "users", group: "Workspace" },
   // The tab reads Connections; its ROUTE id stays "integrations". Notification rows written before today carry route
   // "admin/integrations" in the database, and a rename would turn every one of those bells into a dead link. The word
@@ -118,7 +118,7 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   phone_pace: "receptionist",
   guardrails: "autonomy",
   escalate_when: "autonomy",
-  // How it reaches out's rows (decision 0113), each one key of the config's reach_out section, and the rows it states.
+  // Cold email's rows (decision 0113), each one key of the config's reach_out section, and the rows it states.
   offer: "outreach",
   who_for: "outreach",
   fixes: "outreach",
@@ -133,7 +133,7 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   try_lead: "outreach",
 };
 
-/** The page a row of the business is on: Hours & booking, How it answers, How it reaches out, Autonomy, or else Details. */
+/** The page a row of the business is on: Hours & booking, How it answers, Cold email, Autonomy, or else Details. */
 export const paneOfRow = (row: string): string => ROW_PANES[row] ?? DETAILS_TAB.id;
 
 /** The address that opens a row of the business, open, on the page that holds it. */

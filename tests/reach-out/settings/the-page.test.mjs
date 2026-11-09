@@ -18,7 +18,12 @@ import {
   saving,
   went,
 } from "../../_business-tab-harness.mjs";
-import { SET_TABS, paneOfRow, settingsRowRoute } from "../../../apps/dashboard/src/surfaces/settings/frame/tabs.ts";
+import {
+  SET_TAB,
+  SET_TABS,
+  paneOfRow,
+  settingsRowRoute,
+} from "../../../apps/dashboard/src/surfaces/settings/frame/tabs.ts";
 import { until } from "../../shared/_until.mjs";
 
 after(() => unmount());
@@ -37,6 +42,13 @@ const typeIn = (tree, fold, text) => boxIn(tree, fold).props.onChange({ target: 
 // draw them once it is in, and this one holds that the first draw asks for it and draws them as it lands.
 page();
 await until(() => byTestId(redrawTab(), "rec-card-offer") !== null, "How it reaches out's cards, fetched as drawn");
+
+test("the page says under its name what it is for", () => {
+  assert.equal(
+    textOf(byTestId(page(), "rec-outreach-sub")),
+    "What Chanlytics says when it writes to businesses for you.",
+  );
+});
 
 test("the page draws its cards in the order a person needs them", () => {
   const cards = all(page(), (n) => n.type === "section" && classes(n).includes("rec-card")).map(
@@ -372,10 +384,13 @@ test("Connections and To send are doors, never settings of this page", () => {
   assert.equal(went.at(-1), "admin/integrations");
 });
 
-test("the rail lists it under Receptionist, after How it answers, and its rows open on it", () => {
+test("the rail lists it as Cold email, in a group of its own after Autonomy, and its rows open on it", () => {
   const ids = SET_TABS.map((t) => t.id);
-  assert.equal(ids[ids.indexOf("receptionist") + 1], "outreach");
-  assert.equal(SET_TABS.find((t) => t.id === "outreach").group, "Receptionist");
+  assert.equal(ids[ids.indexOf("autonomy") + 1], "outreach");
+  const tab = SET_TABS.find((t) => t.id === "outreach");
+  assert.equal(tab.label, "Cold email");
+  assert.equal(tab.group, "Outreach");
+  assert.equal(SET_TAB("outreach").label, "Cold email", "the old address lands, under its new name");
   for (const row of ["offer", "proof", "cold_tone", "signed_by", "signature", "sign_phone", "reply_offer"])
     assert.equal(paneOfRow(row), "outreach", row);
   assert.equal(settingsRowRoute("offer"), "admin/outreach/offer");

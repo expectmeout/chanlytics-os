@@ -1735,7 +1735,9 @@ html.frame-on .bt-link { position: relative; }
 .bt-note { padding: 6px 0; border-top: 1px solid var(--line); }
 .bt-note-head + .bt-note { border-top: none; }
 .bt-note > .field-error { grid-column: 1 / -1; }
-/* How it reaches out's claims (decision 0113): one box a claim and its remove beside it, under the notes' rules. */
+/* Cold email's line under its name. */
+.ro-sub { margin: 0; color: var(--ink-muted); text-wrap: pretty; }
+/* Cold email's claims (decision 0113): one box a claim and its remove beside it, under the notes' rules. */
 .ro-claims { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
 .ro-claim { align-self: stretch; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px 8px; padding: 6px 0; border-top: 1px solid var(--line); }
 .ro-claims > .ro-claim:first-child { border-top: 0; }

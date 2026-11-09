@@ -39,6 +39,9 @@ export function OutreachCards({
   const offerless = read !== null && reachOutOfferOf(config, read.about) === null;
   return (
     <>
+      <p className="ro-sub" data-testid="rec-outreach-sub">
+        {REACH_OUT_SETTINGS_WORDS.sub}
+      </p>
       {offerless ? (
         <p className="bt-gap" data-testid="rec-offer-gap">
           <span className="bt-gap-dot" aria-hidden="true" />

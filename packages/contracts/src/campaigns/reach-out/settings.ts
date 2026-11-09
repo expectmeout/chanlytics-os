@@ -95,7 +95,8 @@ export function replyModeHint(mode: string): string | null {
  * the first key is pressed.
  */
 export const REACH_OUT_SETTINGS_WORDS = {
-  tab: "How it reaches out",
+  tab: "Cold email",
+  sub: "What Chanlytics says when it writes to businesses for you.",
   gap: "Add what you offer, so cold emails have something to say",
   /** A press that puts what is already known in an empty box. Never put there by itself: Save would store it. */
   fillWith: (known: string) => `Use ${known}`,
