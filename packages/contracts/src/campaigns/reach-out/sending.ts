@@ -6,7 +6,9 @@
  */
 import { MAILBOX_RAMP, mailboxDailyCap } from "../../email/mailbox-standing";
 import {
+  MAILBOX_HOLD_COUNT_FLOOR,
   MAILBOX_HOLD_PERCENT,
+  mailboxBouncesHold,
   mailboxIsLive,
   mailboxSendsNow,
   type MailboxConnectionDto,
@@ -98,18 +100,36 @@ function domainCheck(m: Mailbox): ColdEmailCheck {
   return { ok: true, title: "Your domain is set up to send", detail: "Its email records are in place" };
 }
 
-/** What its emails came to, once it has sent: refused by a server counts with a bounce, as the hold counts it. */
+/** How many bounces hold a mailbox still on its first emails, whose share is taken of the floor (mailboxBouncesHold). */
+const HOLD_AT_FIRST = Math.floor((MAILBOX_HOLD_COUNT_FLOOR * MAILBOX_HOLD_PERCENT) / 100) + 1;
+
+/**
+ * Its bounces, read as the hold reads them. Refused by a server counts with a bounce. On its first emails a share frightens
+ * for nothing (one in twenty is 5%, and rightly holds nothing), so it says the count, and the count that would hold it.
+ */
+function bounceCheck(c: NonNullable<Mailbox["counts"]>): ColdEmailCheck {
+  const ok = !mailboxBouncesHold(c);
+  const bad = c.bounced + c.blocked;
+  if (c.sent < MAILBOX_HOLD_COUNT_FLOOR)
+    return {
+      ok,
+      title: `${bad === 0 ? "No bounces" : `${bad} bounce${bad === 1 ? "" : "s"}`} in ${c.sent} email${c.sent === 1 ? "" : "s"}`,
+      detail: `It pauses itself at ${HOLD_AT_FIRST} while it's new, so your name stays clean`,
+    };
+  const percent = Math.round((bad / c.sent) * 1000) / 10;
+  return {
+    ok,
+    title: ok ? `Few bounces: ${percent}%` : `Bounces: ${percent}%`,
+    detail: `It pauses itself past ${MAILBOX_HOLD_PERCENT}%, so your name stays clean`,
+  };
+}
+
+/** What its emails came to, once it has sent. */
 function mailChecks(m: Mailbox): ColdEmailCheck[] {
   const c = m.counts;
   if (!c || !c.sent) return [];
-  const percent = Math.round(((c.bounced + c.blocked) / c.sent) * 1000) / 10;
-  const fewBounces = percent <= MAILBOX_HOLD_PERCENT;
   return [
-    {
-      ok: fewBounces,
-      title: fewBounces ? `Few bounces: ${percent}%` : `Bounces: ${percent}%`,
-      detail: `It pauses itself past ${MAILBOX_HOLD_PERCENT}%, so your name stays clean`,
-    },
+    bounceCheck(c),
     c.complained > 0
       ? {
           ok: false,
@@ -118,6 +138,24 @@ function mailChecks(m: Mailbox): ColdEmailCheck[] {
         }
       : { ok: true, title: "No spam complaints", detail: "It pauses itself after one" },
   ];
+}
+
+const checksOf = (m: Mailbox): ColdEmailCheck[] => [domainCheck(m), ...mailChecks(m)];
+
+/**
+ * The checks "Healthy" answers for: every one of the mailbox shown, and what fails on any other that sends, by its address.
+ * One its owner paused sends nothing to answer for.
+ */
+function checksFor(shown: Mailbox | undefined, sending: readonly Mailbox[]): ColdEmailCheck[] {
+  if (!shown) return [];
+  const others = sending
+    .filter((m) => m !== shown)
+    .flatMap((m) =>
+      checksOf(m)
+        .filter((c) => c.ok === false)
+        .map((c) => ({ ...c, title: `${m.address}: ${c.title}` })),
+    );
+  return [...checksOf(shown), ...others];
 }
 
 function healthOf(live: readonly Mailbox[], checks: readonly ColdEmailCheck[]): ColdEmailHealth {
@@ -137,7 +175,7 @@ export function coldEmailSendingOf(
   const live = mailboxes.filter(mailboxIsLive);
   const sending = live.filter((m) => mailboxSendsNow(m, nowMs));
   const shown = sending[0] ?? live[0];
-  const checks = shown ? [domainCheck(shown), ...mailChecks(shown)] : [];
+  const checks = checksFor(shown, sending);
   return {
     from: shown?.address ?? null,
     more: Math.max(0, live.length - 1),

@@ -100,6 +100,52 @@ test("bounces past the line fail their check, refusals counted as the hold count
   assert.equal(s.health, "attention");
 });
 
+test("a new mailbox's bounces are read as the hold reads them: a count of its few emails, never a frightening share", () => {
+  const counts = (sent, bounced) => ({ sent, bounced, blocked: 0, complained: 0, unsubscribed: 0, said_no: 0 });
+  const bounces = (sent, bounced) => read([box({ counts: counts(sent, bounced) })]);
+  assert.deepEqual(bounces(10, 0).checks[1], {
+    ok: true,
+    title: "No bounces in 10 emails",
+    detail: "It pauses itself at 5 while it's new, so your name stays clean",
+  });
+  // One bounce in twenty is 5%, and the hold rightly waits: Healthy stands.
+  const one = bounces(20, 1);
+  assert.equal(one.checks[1].ok, true);
+  assert.equal(one.checks[1].title, "1 bounce in 20 emails");
+  assert.equal(one.health, "healthy");
+  assert.equal(bounces(20, 4).checks[1].ok, true, "four is still under what holds it");
+  const five = bounces(20, 5);
+  assert.equal(five.checks[1].ok, false);
+  assert.equal(five.checks[1].title, "5 bounces in 20 emails");
+  assert.equal(five.health, "attention");
+  // From 150 emails on, the share is a fair measure, and the words are the share's.
+  assert.equal(bounces(150, 4).checks[1].title, "Few bounces: 2.7%");
+  assert.equal(bounces(150, 5).checks[1].title, "Bounces: 3.3%");
+});
+
+test("Healthy answers for every mailbox that sends: another's failure is named by its address", () => {
+  const second = (over) => box({ address: "sam@getbrightline.example", host: "getbrightline.example", ...over });
+  const fine = read([box(), second()]);
+  assert.equal(fine.health, "healthy");
+  assert.equal(fine.checks.length, 3, "the one shown says its three; a mailbox with nothing wrong adds no line");
+  const failing = read([box(), second({ dns: { ...ALL_FOUND, dkim: "missing" } })]);
+  assert.equal(failing.health, "attention");
+  assert.equal(failing.from, "maya@brightlinecleaning.example", "the mailbox shown is still the first");
+  assert.deepEqual(failing.checks.at(-1), {
+    ok: false,
+    title: "sam@getbrightline.example: Your domain is missing its DKIM record",
+    detail: "Add it on Connections, so your emails reach inboxes",
+  });
+  const complained = read([
+    box(),
+    second({ counts: { sent: 500, bounced: 0, blocked: 0, complained: 1, unsubscribed: 0, said_no: 0 } }),
+  ]);
+  assert.equal(complained.health, "attention");
+  assert.equal(complained.checks.at(-1).title, "sam@getbrightline.example: 1 spam complaint");
+  const paused = read([box(), second({ state: "paused", dns: { ...ALL_FOUND, dkim: "missing" } })]);
+  assert.equal(paused.health, "healthy", "a mailbox its owner paused sends nothing to answer for");
+});
+
 test("a mailbox that has sent nothing makes no claim about its bounces", () => {
   const s = read([box({ counts: null })]);
   assert.deepEqual(
