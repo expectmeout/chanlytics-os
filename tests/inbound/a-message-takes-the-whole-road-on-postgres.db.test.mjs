@@ -15,6 +15,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { inboundFromSms } from "@chanlytics/channels/lines";
+import { resolveChannelDetailed } from "@chanlytics/db/channels";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -67,8 +69,8 @@ before(async () => {
     ...(await import(at("apps/edge/lib/inbound/arrival.ts"))),
     ...(await import(at("apps/edge/lib/intake/answer-job.ts"))),
     ...(await import(at("apps/edge/lib/intake/answer-later.ts"))),
-    ...(await import(at("packages/channels/dist/index.js"))),
-    ...(await import(at("packages/db/dist/index.js"))),
+    inboundFromSms,
+    resolveChannelDetailed,
   };
   T = ok(
     await db
