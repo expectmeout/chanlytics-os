@@ -233,18 +233,24 @@ function startedWords(d: NewDraftDto, start: boolean, tz: string): string {
   return W.started.people(M.firstBatchWords(d.run_hour, localHour(tz, new Date())));
 }
 
+/** What a make works with: the kept one-off it is, how it says so, what it lets go, and the workspace's clock. */
+interface MakeOn {
+  keptId: string | null;
+  flash: Flash;
+  letGo: () => void;
+  tz: string;
+  /** The door found no mailbox, which a draft written here by hand had no way to know: its foot becomes the way to one. */
+  onNoMailbox: () => void;
+}
+
+/** A draft whose mailbox the door found gone: its foot becomes the way to one. */
+const withoutMailbox = (d: NewDraftDto | null) => (d ? { ...d, mailbox: { ids: [], label: "" } } : d);
+
 /**
  * Keep, Start, Schedule and Send: the draft made through the one door, then its record (with what it now is), Drafts for
  * a one-off kept, or Sequences with a one-off's Stop.
  */
-function useMake(
-  keptId: string | null,
-  flash: Flash,
-  letGo: () => void,
-  tz: string,
-  /** The door found no mailbox, which a draft written here by hand had no way to know: its foot becomes the way to one. */
-  onNoMailbox: () => void,
-) {
+function useMake({ keptId, flash, letGo, tz, onNoMailbox }: MakeOn) {
   const hosted = useCampaignsToast();
   const [busy, setBusy] = useState(false);
   const make = async (draft: NewDraftDto, start: boolean, drafted: NewDraftDto | null) => {
@@ -348,6 +354,7 @@ function useCameFromGoogle(flash: Flash) {
   const [came] = useState(() => mailboxConnectOutcome());
   useEffect(() => {
     if (came) flash(came.ok ? { msg: came.words } : { tone: "danger", msg: came.words });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as New opens: its word leaves the address as it is read
   }, []);
   return came;
 }
@@ -393,9 +400,8 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     setDrafted(d);
     show(d);
   });
-  const made = useMake(kept, flash, letGo, reads?.draft.timezone ?? "UTC", () =>
-    setDraft((d) => (d ? { ...d, mailbox: { ids: [], label: "" } } : d)),
-  );
+  const tz = reads?.draft.timezone ?? "UTC";
+  const made = useMake({ keptId: kept, flash, letGo, tz, onNoMailbox: () => setDraft(withoutMailbox) });
   const busy = made.busy;
   const make = async (d: NewDraftDto, start: boolean) => {
     if (await made.make(d, start, drafted)) work.done();

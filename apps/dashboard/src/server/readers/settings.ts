@@ -436,7 +436,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
               standingFactsOf({
                 chains: chainList,
                 report,
-                mailboxes: mailboxes ?? [],
+                mailboxes,
                 hasAddress,
                 heldForAddress,
                 month,
@@ -453,7 +453,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         never,
         foot:
           row && facts
-            ? { business: facts.data.name?.trim() || null, address: parsed?.brain?.profile?.address?.trim() || null }
+            ? { business: facts.data.name.trim() || null, address: parsed?.brain?.profile?.address?.trim() || null }
             : null,
         mailbox: mailboxShown(mailboxes ?? [], rc.now.getTime(), tz),
         month,

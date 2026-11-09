@@ -131,7 +131,6 @@ test("connecting says what it brings in, and the owner's choice rides the connec
   tree = redrawTab();
   assert.match(textOf(byTestId(tree, "mailbox-history-line")), /last 6 months/i, "said before anything leaves");
   press(byTestId(tree, "mailbox-history-change"));
-  tree = redrawTab();
   const ways = () => find(redrawTab(), (n) => n.props?.label === MAILBOX_HISTORY_WORDS.choose);
   ways().props.onValueChange("from_now");
   press(byTestId(redrawTab(), "rec-connect-google"));

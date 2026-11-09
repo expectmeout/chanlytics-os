@@ -210,7 +210,7 @@ export function ConnectSheets({ again, flash }: { again: () => void; flash: (fla
     } else if (came.code === "free_mail") recFolds.request("connect_free");
     else if (came.code === "not_workspace") recFolds.request("connect_other");
     else flash({ tone: "danger", msg: came.words });
-    // Once, as the page opens: its word leaves the address as it is read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as the page opens: its word leaves the address as it is read
   }, []);
   return (
     <>

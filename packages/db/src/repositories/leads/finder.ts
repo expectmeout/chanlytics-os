@@ -86,11 +86,11 @@ export async function countLeadSuppressions(
   db: Db,
   tenantId: TenantId,
 ): Promise<{ said_no: number; asked_to_stop: number }> {
-  const [said_no, asked_to_stop] = await Promise.all([
+  const [saidNo, askedToStop] = await Promise.all([
     countSuppressedAddresses(db, tenantId, "said_no"),
     countSuppressedAddresses(db, tenantId, "email_opt_out"),
   ]);
-  return { said_no, asked_to_stop };
+  return { said_no: saidNo, asked_to_stop: askedToStop };
 }
 
 /** What a round's question is told with: its workspace, its search, its state and the question. */

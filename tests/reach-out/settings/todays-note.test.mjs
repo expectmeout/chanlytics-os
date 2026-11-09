@@ -22,7 +22,7 @@ installStubReact({
   location: { pathname: "/w/harbor/", hash: "", search: "", origin: "https://app.chanlytics.com" },
   __WORKSPACES: [{ id: T, slug: "harbor", name: "Brightline", status: "active", timezone: "America/Chicago" }],
   __ACTIVE_WORKSPACE: T,
-  fetch: (url, init) => {
+  fetch: (url) => {
     const u = String(url);
     asked.push(u);
     const day = {
