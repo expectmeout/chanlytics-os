@@ -125,10 +125,19 @@ function usePhoneWalk() {
 /** The walk through the rows the card draws, on a phone: the sheet, and To do's to-dos for its end. Called, not drawn. */
 function listWalk(
   order: readonly TodayQueueRowVM[],
-  { walk, setWalk }: { walk: WalkAt; setWalk: (at: WalkAt) => void },
+  {
+    walk,
+    setWalk,
+    more,
+    older,
+  }: {
+    walk: WalkAt;
+    setWalk: (at: WalkAt) => void;
+    more: { count: number; to: string } | null;
+    older: WalkOlder | null;
+  },
   ctx: NeedYouRowsCtx,
   todo: ToDoRows,
-  ends: { more: { count: number; to: string } | null; older: WalkOlder | null },
 ) {
   // To do's rows are kept, let go and done by To do, so a row acted on in the sheet stays in its group and the walk goes on.
   const mine = new Set(todo.walk.rows.map((r) => r.id));
@@ -144,8 +153,8 @@ function listWalk(
       word={ctx.word}
       stepDone={todo.walk.stepDone}
       todos={todo.left}
-      more={ends.more}
-      older={ends.older}
+      more={more}
+      older={older}
       onToDo={() => {
         setWalk(null);
         document.querySelector('[data-testid="today-group-todo"]')?.scrollIntoView({ block: "start" });
@@ -494,10 +503,9 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
               // Whoever has waited past a week is no part of the morning (his call D7): their own walk starts from the Older
               // row, or from the walk's end.
               walkingOld ? groups.old : [...order, ...todo.walk.rows],
-              { walk, setWalk },
-              ctx,
-              todo,
               {
+                walk,
+                setWalk,
                 more:
                   groups.waiting.length > drawn.waiting.length
                     ? { count: groups.waiting.length - drawn.waiting.length, to: "inbox" }
@@ -510,6 +518,8 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
                       ppFlash({ tone: "ok", msg: <>{handedBackWords(back)}</> });
                     }),
               },
+              ctx,
+              todo,
             )
           : null
       }

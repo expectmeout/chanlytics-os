@@ -20,6 +20,9 @@ export const GOOGLE_DOOR = edgeDoor(
     location_name: z.string().optional(),
     /** A review's id, for its answer. */
     id: z.string().optional(),
+    /** A draft of a reply: what the member said to put in it, and the words on their screen it changes. */
+    instruction: z.string().optional(),
+    given: z.string().optional(),
     comment: z.string().optional(),
     file_id: DOOR_ID.optional(),
     summary: z.string().optional(),

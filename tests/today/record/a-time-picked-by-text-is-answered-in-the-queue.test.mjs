@@ -10,7 +10,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { NEED_YOU_WORDS, SEND_GRACE_MS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
+import { SEND_GRACE_MS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { NOW, ZONE, metrics, waiting } from "./_world.mjs";
 import { until } from "../../shared/_until.mjs";

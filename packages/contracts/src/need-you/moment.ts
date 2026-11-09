@@ -8,7 +8,6 @@
  */
 import { formatWaited } from "../conversations/thread-clock";
 import { formatPhoneDisplay } from "../shared/phone";
-import { DAY_MS } from "../shared/time";
 import { clockInZone, dayPlusInZone, localToUtcMs } from "../shared/zone/math";
 import { shortName } from "../conversations/thread-contact";
 import type { TodayQueueRowVM } from "../today/vm";
@@ -84,9 +83,9 @@ const clockWords = (hour: number, minute: number): string => {
 };
 
 /** The instant of a wall-clock time some days from today, in the zone. */
-function at(tz: string, nowMs: number, days: number, hour: number, minute: number): string {
-  const d = dayPlusInZone(tz, nowMs, days);
-  return new Date(localToUtcMs(tz, d.y, d.m, d.d, hour, minute)).toISOString();
+function at(when: { tz: string; nowMs: number }, days: number, hour: number, minute: number): string {
+  const d = dayPlusInZone(when.tz, when.nowMs, days);
+  return new Date(localToUtcMs(when.tz, d.y, d.m, d.d, hour, minute)).toISOString();
 }
 
 /**
@@ -108,7 +107,7 @@ export function callMomentOf(
     if (hour < 24 && (hour > hh || (hour === hh && minute > mm)))
       return {
         lead: "wait",
-        until: at(when.tz, when.nowMs, 0, hour, minute),
+        until: at(when, 0, hour, minute),
         back: `Back at ${clockWords(hour, minute)}`,
       };
   }
@@ -120,7 +119,7 @@ export function callMomentOf(
   const back = day
     ? `Back ${day.charAt(0).toUpperCase()}${day.slice(1)} at ${clockWords(open.start, 0)}`
     : `Back at ${clockWords(open.start, 0)}`;
-  return { lead: "wait", until: at(when.tz, when.nowMs, days, open.start, 0), back };
+  return { lead: "wait", until: at(when, days, open.start, 0), back };
 }
 
 /** Who to call, as the press says it: a first name, or "them" for a number. */
@@ -260,9 +259,3 @@ export function afterSlotWords(
   }
   return hasMoreToday ? `Nothing else until ${clockWords(Math.floor(span.end), 0)}.` : "";
 }
-
-/** The days a booking's sheet looks ahead for another time: a week. */
-export const OTHER_TIME_DAYS = 7;
-
-/** A week, for the walk's words over who has waited past one. */
-export const WEEK_DAYS = Math.round(NEED_YOU_OLD_MS / DAY_MS);

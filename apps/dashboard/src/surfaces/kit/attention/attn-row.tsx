@@ -192,10 +192,17 @@ function attnName(
  */
 function attnSentence(
   sentence: string,
-  quoted: boolean,
-  lead: string,
-  via: { glyph: string; words: string } | null,
-  saidTone: "warn" | "danger" | null,
+  {
+    quoted,
+    lead,
+    via,
+    saidTone,
+  }: {
+    quoted: boolean;
+    lead: string;
+    via: { glyph: string; words: string } | null;
+    saidTone: "warn" | "danger" | null;
+  },
 ) {
   const said = quoted ? `“${sentence}”` : sentence;
   const when = quoted ? undefined : SAYS_WHEN;
@@ -281,7 +288,7 @@ export function AttnRow({
       {attnFace(person, glyph, initials)}
       <div className="cl-attn-body" {...(work && onOpen ? opener : {})}>
         {attnName(name, trail, meta, { wait, mark: nameMark(note, status) })}
-        {attnSentence(sentence, quoted, lead, via, saidTone)}
+        {attnSentence(sentence, { quoted, lead, via, saidTone })}
         {/* The state line, where the row says one: a row of someone waiting says none (Today's), and draws no empty line. */}
         {attnStatus(status, note)}
       </div>
