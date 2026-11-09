@@ -1573,7 +1573,7 @@ COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_li
 
 
 --
--- Name: calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: calendars_hand_out(timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) RETURNS integer
@@ -8463,7 +8463,7 @@ COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired
 
 
 --
--- Name: jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: jobs_hand_out(text, uuid[], integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) RETURNS integer
@@ -31532,7 +31532,7 @@ end $$;
 
 
 --
--- Name: sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: sequence_steps_hand_out(text, text, timestamp with time zone, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) RETURNS integer
