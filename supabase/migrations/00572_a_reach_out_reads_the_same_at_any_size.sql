@@ -133,7 +133,11 @@ as $$
     from facts f
 $$;
 
-create or replace function public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean default false)
+create or replace function public.reach_out_audience(
+  p_tenant_id uuid,
+  p_search_id uuid,
+  p_limit int,
+  p_include_unconfirmed boolean default false)
 returns table (lead_id uuid, email text, business_name text, city text, region text, hours jsonb)
 language sql
 stable
