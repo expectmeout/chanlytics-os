@@ -362,6 +362,8 @@ export const LOG_EVENTS = [
   "journal_written",
   "json_column_unexpected",
   "kept_going",
+  "late_booking_not_reminded",
+  "late_booking_reminded",
   "lead_check",
   "lead_collect",
   "lead_context_unavailable",

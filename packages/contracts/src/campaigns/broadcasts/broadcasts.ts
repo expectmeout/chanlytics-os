@@ -28,6 +28,7 @@ export {
   enrolFor,
   saidYesOnAny,
   heldWords,
+  audienceLate,
   audienceMembers,
   audiencePreview,
   audienceTrigger,
