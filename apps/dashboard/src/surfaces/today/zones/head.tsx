@@ -180,8 +180,8 @@ export function useZonesStanding(): void {
   const speech = useSpeech(brief);
   const went = turned && vm ? todayWentLine(vm.figures) : null;
   const done = vm?.done_today ?? 0;
-  const said_ = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, done > 0) : null;
-  const line = said_ && phone && count > 0 ? withDoneToday(said_, done) : said_;
+  const plainLine = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, done > 0) : null;
+  const line = plainLine && phone && count > 0 ? withDoneToday(plainLine, done) : plainLine;
   // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefPlaying).
   const listen = speech.can && brief && words?.news && speech.state !== "speaking" ? listenButton(speech, brief) : null;
   useStanding({
