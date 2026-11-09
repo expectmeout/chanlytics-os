@@ -4,13 +4,7 @@
  * sent by hand goes on as it is until the column goes.
  */
 import "server-only";
-import {
-  AppError,
-  COLD_EMAIL_NEEDS_MAILBOX,
-  DbFailure,
-  NO_SENDING_BY_HAND,
-  type TenantId,
-} from "@chanlytics/contracts";
+import { AppError, coldEmailCannotSendWhy, DbFailure, NO_SENDING_BY_HAND, type TenantId } from "@chanlytics/contracts";
 import { findStepRow } from "@chanlytics/db/campaigns";
 import { emitEvent } from "@chanlytics/db/events";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
@@ -23,8 +17,9 @@ export async function refuseWithoutMailbox(
   ownerSends: boolean | null | undefined,
 ): Promise<void> {
   if (ownerSends === true) throw new AppError("validation", NO_SENDING_BY_HAND);
-  const mailboxes = await listMailboxConnectionsOf(ctx.supabase, tenantId);
-  if (!mailboxes.some((m) => m.state === "connected")) throw new AppError("validation", COLD_EMAIL_NEEDS_MAILBOX);
+  // Refused whenever none is connected, as the make reads it; the words say which it is (contracts coldEmailCannotSendWhy).
+  const reason = coldEmailCannotSendWhy(await listMailboxConnectionsOf(ctx.supabase, tenantId));
+  if (reason) throw new AppError("validation", reason);
 }
 
 /** An edit can't turn a sequence that sends from a mailbox into one sent by hand. One saved that way before may stay so. */

@@ -55,10 +55,18 @@ export const OutreachCard = ({
  * What the page shows beyond the config: what the tab last held of it on the first frame, and the answer once it lands.
  * Read again as a save brings the config back (an address added moves Where it stands), as the owner comes back to the tab
  * (a record fixed on Connections or at their DNS host), at most once a minute, and after a change only this read shows (a
- * voice pasted): `again`.
+ * voice pasted): `again`. `failed` is a read that did not land with nothing to draw in its place, which the page says
+ * and offers again; `reading` is one still out.
  */
-export function useReachOutRead(config: unknown): { read: ReachOutSettingsDto | null; again: () => void } {
+export function useReachOutRead(config: unknown): {
+  read: ReachOutSettingsDto | null;
+  failed: boolean;
+  reading: boolean;
+  again: () => void;
+} {
   const [read, setRead] = useState(() => reachOutSettingsRead.held());
+  const [failed, setFailed] = useState(false);
+  const [reading, setReading] = useState(false);
   const [round, setRound] = useState(0);
   const readAt = useRef(0);
   useEffect(
@@ -71,16 +79,21 @@ export function useReachOutRead(config: unknown): { read: ReachOutSettingsDto | 
   useEffect(() => {
     let live = true;
     readAt.current = Date.now();
-    // A read that failed leaves what was drawn: each card says what it lacks ("…"), never the frame's error.
+    setReading(true);
+    // A read that failed leaves what was drawn, never the frame's error: the client has already said why it failed.
+    const landed = (answer: ReachOutSettingsDto | null) => {
+      if (!live) return;
+      if (answer) setRead(answer);
+      setFailed(!answer);
+      setReading(false);
+    };
     reachOutSettingsRead.read().then(
-      (r) => {
-        if (live && r.ok) setRead(r.data);
-      },
-      () => {},
+      (r) => landed(r.ok ? r.data : null),
+      () => landed(null),
     );
     return () => {
       live = false;
     };
   }, [round, config]);
-  return { read, again: () => setRound((n) => n + 1) };
+  return { read, failed: failed && !read, reading, again: () => setRound((n) => n + 1) };
 }

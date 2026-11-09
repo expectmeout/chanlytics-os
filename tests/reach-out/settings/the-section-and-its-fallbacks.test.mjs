@@ -10,6 +10,7 @@ import {
   REACH_OUT_LIMITS,
   SIGNED_BY_MAX,
   reachOutOfferOf,
+  reachOutPitchSaid,
   reachOutToneOf,
   reachOutSignedByOf,
   openingWorkspaceOf,
@@ -175,6 +176,15 @@ test("the offer falls back: the section, then what the business does, then the g
   assert.equal(reachOutOfferOf({ reach_out: { offer: "  " }, ask: { goal: "G" } }, "B"), "B");
   assert.equal(reachOutOfferOf({ ask: { goal: "G" } }, null), "G");
   assert.equal(reachOutOfferOf(null, null), null);
+});
+
+test("a pitch is said by the page's words, the business's own or the goal; words not read count as said", () => {
+  assert.equal(reachOutPitchSaid({ reach_out: { offer: "A" } }, null), true);
+  assert.equal(reachOutPitchSaid({}, { text: "We clean clinics" }), true);
+  assert.equal(reachOutPitchSaid({ ask: { goal: "G" } }, null), true);
+  assert.equal(reachOutPitchSaid({}, null), false);
+  assert.equal(reachOutPitchSaid({ reach_out: { offer: "  " } }, { text: " " }), false);
+  assert.equal(reachOutPitchSaid({}, undefined), true, "a read that failed never asks for a pitch");
 });
 
 test("the tone falls back to the receptionist's, and the sign-off to what the caller knew", () => {

@@ -556,6 +556,36 @@ test("a new account's answer lists what is left, each with its own door", async 
   assert.equal(went.at(-1), "clients/leads");
 });
 
+const PITCH_STEP = {
+  id: "pitch",
+  done: false,
+  title: "Say what you sell",
+  detail: "So your emails have something to say",
+};
+
+test("what it sells is one of the things left: its door opens the pitch, and the page asks once", async () => {
+  const standing = {
+    kind: "not_started",
+    headline: "1 thing before your first email",
+    detail: null,
+    act: null,
+    to: null,
+    needs_you: true,
+    steps: [PITCH_STEP],
+  };
+  const tree = await drawOnRead({}, { standing }, (t) => !!byTestId(t, "rec-step-pitch"));
+  assert.equal(byTestId(tree, "rec-offer-gap"), null, "the card's own list asks for it, so no second line does");
+  press(byTestId(tree, "rec-step-pitch-door"));
+  assert.deepEqual(openFolds(redrawTab()), ["offer"]);
+  unmount();
+});
+
+test("past the first email, a page with nothing to sell still says so in its own line", async () => {
+  const tree = await drawOnRead({}, {}, (t) => !!byTestId(t, "rec-standing-head") && !byTestId(t, "rec-steps"));
+  assert.ok(byTestId(tree, "rec-offer-gap"));
+  unmount();
+});
+
 test("someone who can only read is told so, and offered no press", async () => {
   const standing = {
     kind: "no_mailbox",
@@ -804,6 +834,23 @@ test("a claim's row says how many emails carried it, from the page's own read", 
   assert.equal(textOf(byTestId(tree, "rec-row-proof-0-meta")), "In 9 emails");
 });
 
+test("a fact whose count could not be read says nothing, never Not used yet", async () => {
+  const facts = [REACH_OUT.proof[0], "Every cleaner is background-checked."];
+  const tree = await drawOnRead(
+    { reach_out: { ...REACH_OUT, proof: facts } },
+    {
+      claims: [
+        { text: facts[0], sends: 4 },
+        { text: facts[1], sends: null },
+      ],
+    },
+    (t) => textOf(byTestId(t, "rec-row-proof-0-meta")) === "In 4 emails",
+  );
+  assert.equal(byTestId(tree, "rec-row-proof-1-meta"), null, "an unknown count draws no count");
+  assert.doesNotMatch(textOf(byTestId(tree, "rec-row-proof-1")), /Not used yet/);
+  assert.match(textOf(byTestId(tree, "rec-row-proof-1")), /background-checked/, "and the fact still shows");
+});
+
 test("What it's told opens on the drafter's words, and an answer's parts carry no share", () => {
   let tree = page();
   press(byTestId(tree, "rec-row-act-told"));
@@ -951,5 +998,143 @@ test("Before each batch writes Autonomy's outreach row, and says where the rest 
   press(byTestId(redrawTab(), "rec-inline-save-batch_mode") ?? byTestId(redrawTab(), "rec-fold-save-batch_mode"));
   await until(() => puts.length === 1, "the write");
   assert.deepEqual([puts[0].class, puts[0].mode], ["outreach", "ask"]);
+  unmount();
+});
+
+test("a first read that fails says so and offers a retry, and the retry draws the page", async () => {
+  unmount();
+  // Nothing held from an earlier page: this is the page's first read in the tab.
+  const { clearReadCaches } = await import("../../../apps/dashboard/src/bridge/read-cache.ts");
+  clearReadCaches();
+  let down = true;
+  globalThis.window.fetch = (url) =>
+    Promise.resolve(
+      String(url).includes("settings/reach-out") && !down
+        ? new Response(JSON.stringify({ ok: true, data: READ }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        : new Response(JSON.stringify({ ok: false }), { status: 500 }),
+    );
+  let tree = drawTab({ part: "outreach", config: { reach_out: REACH_OUT } });
+  await until(() => {
+    tree = redrawTab();
+    return byTestId(tree, "rec-outreach-read-failed");
+  }, "the failed read, said");
+  assert.match(textOf(byTestId(tree, "rec-outreach-read-failed")), /Couldn't read Cold email/);
+  assert.equal(byTestId(tree, "rec-standing"), null, "no empty card where the answer would be");
+  down = false;
+  press(byTestId(tree, "rec-outreach-read-retry"));
+  await until(() => {
+    tree = redrawTab();
+    return byTestId(tree, "rec-standing-head");
+  }, "the page after a retry");
+  assert.match(textOf(byTestId(tree, "rec-standing-head")), /Sending/);
+  assert.equal(byTestId(tree, "rec-outreach-read-failed"), null, "the failure is said no longer");
+  unmount();
+});
+
+const SAMPLE = {
+  lead: { id: "l1", business_name: "Bright Smiles Dental", email: "hello@brightsmiles.test" },
+  subject: "After-hours cleaning",
+  body: "Hi, we clean 40 clinics across Austin today.",
+  opening: null,
+  angle: null,
+  hold: null,
+  detail: null,
+  refused: null,
+  unavailable: false,
+};
+/** The next business the search found, as Another lead asks for it. */
+const NEXT_SAMPLE = {
+  ...SAMPLE,
+  lead: { id: "l2", business_name: "Lakeside Family Dental", email: "office@lakesidefamily.test" },
+};
+/**
+ * The page over a running sequence to leads, drawn once its read has landed. The read says `door.headline()` at its top,
+ * which only this test's read can say; `door.written` counts the emails the preview door was asked for, each answered
+ * once `door.hold` (if any) lets go, with the business its `index` asks for.
+ */
+const drawOverSequence = async (door) => {
+  unmount();
+  // Nothing held from an earlier page: what this page draws is this test's read.
+  const { clearReadCaches } = await import("../../../apps/dashboard/src/bridge/read-cache.ts");
+  clearReadCaches();
+  const json = (body) =>
+    new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  globalThis.window.fetch = (url, init) => {
+    const to = String(url);
+    if (to.includes("reach-outs/preview")) {
+      door.written.push(to);
+      const preview = JSON.parse(init.body).index === 1 ? NEXT_SAMPLE : SAMPLE;
+      return (door.hold ?? Promise.resolve()).then(() => json({ ok: true, data: { preview } }));
+    }
+    if (to.includes("settings/reach-out"))
+      return Promise.resolve(
+        json({
+          ok: true,
+          data: {
+            ...READ,
+            standing: { ...READ.standing, headline: door.headline() },
+            sequence: { ...SEQUENCE_SIGNED_MAYA, search_id: "s1" },
+          },
+        }),
+      );
+    return Promise.resolve(new Response(JSON.stringify({ ok: false }), { status: 500 }));
+  };
+  drawTab({ part: "outreach", config: { reach_out: REACH_OUT } });
+  await until(() => textOf(byTestId(redrawTab(), "rec-standing-head")).includes(door.headline()), "the page's read");
+  return redrawTab();
+};
+
+test("a sample email is written once per open: the page reading again writes no second one over it", async () => {
+  let said = "Sending, read once";
+  const door = { written: [], hold: null, headline: () => said };
+  let tree = await drawOverSequence(door);
+  press(byTestId(tree, "rec-row-act-try_lead"));
+  await until(() => {
+    tree = redrawTab();
+    return byTestId(tree, "rec-try-lead");
+  }, "the sample, written");
+  assert.equal(door.written.length, 1);
+  const realNow = Date.now;
+  let ahead = 0;
+  Date.now = () => realNow() + ahead;
+  try {
+    // The owner comes back to the tab a minute on, the sheet still open: the page reads again, and its read is a new
+    // object that says the same sequence.
+    said = "Sending, read twice";
+    ahead += 61_000;
+    globalThis.window.dispatchEvent(new Event("chanly:front"));
+    await until(() => textOf(byTestId(redrawTab(), "rec-standing-head")).includes(said), "the page's second read");
+    tree = redrawTab();
+    assert.match(textOf(byTestId(tree, "rec-try-lead")), /Bright Smiles Dental/, "the one being read stays");
+    // Only a press writes another. The next business's email is the second written since the sheet opened: had the
+    // second read written one of its own, this would be the third.
+    press(byTestId(tree, "rec-try-another"));
+    await until(
+      () => textOf(byTestId(redrawTab(), "rec-try-lead")).includes("Lakeside Family Dental"),
+      "the next business's email",
+    );
+    assert.equal(door.written.length, 2, "the same sequence, read again, is no reason to write another email");
+  } finally {
+    Date.now = realNow;
+  }
+  unmount();
+});
+
+test("a sample email being written says so in words, until it is there", async () => {
+  let letGo;
+  const door = { written: [], hold: new Promise((r) => (letGo = r)), headline: () => "Sending, sample out" };
+  let tree = await drawOverSequence(door);
+  press(byTestId(tree, "rec-row-act-try_lead"));
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "rec-try-body")), /Writing one/);
+  letGo();
+  await until(() => {
+    tree = redrawTab();
+    return byTestId(tree, "rec-try-lead");
+  }, "the sample, written");
+  assert.doesNotMatch(textOf(byTestId(tree, "rec-try-body")), /Writing one/);
   unmount();
 });

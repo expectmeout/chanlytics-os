@@ -314,6 +314,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     legend: { them: "Their listing", proof: "Your facts", words: "Your pitch" },
     checked: "Checked: nothing guessed, no link, no price",
     held: (reason: string) => `Held for you: ${reason}`,
+    writing: "Writing one…",
     unavailable: "It could not be written just now. Write another.",
     pastEnd: "That was the last lead in the search. Another lead starts over.",
     leans: (facts: string) => `The line about them leans on ${facts}`,
@@ -382,8 +383,8 @@ export interface ReachOutSettingsDto {
   /** The month's first emails against their share; sent is null where they could not be counted. */
   month: { sent: number | null; of: number };
   by_hand_per_day: number;
-  /** Each claim on the page, with the emails sent from steps whose words carry it. */
-  claims: { text: string; sends: number }[];
+  /** Each claim on the page, with the emails sent from steps whose words carry it; null where they could not be counted. */
+  claims: { text: string; sends: number | null }[];
   /** The lines Ask learned from an email the owner pasted (Ask's memory, `learned`). */
   voice: { id: string; text: string }[];
   sequence: ReachOutSettingsSequence | null;

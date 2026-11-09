@@ -379,18 +379,16 @@ test("POST reach-outs with no mailbox, or asking to send by hand, is refused in 
     chains.POST.run(send("POST", CHAIN()), ctxFor(tables(), {}, rpcs)),
     /Connect your mailbox first/,
   );
-  await assert.rejects(
-    chains.POST.run(
-      send("POST", CHAIN()),
-      ctxFor(
-        tables("operator", { mailbox_connections: [box(SENDING_BOX, "sam@harbor-mail.example", { state: "held" })] }),
-        {},
-        rpcs,
-      ),
-    ),
-    /Connect your mailbox first/,
-    "a mailbox that can't send makes a sequence sent by hand (00459), so none is made",
-  );
+  // A mailbox that can't send makes a sequence sent by hand (00459), so none is made: and it is told what is wrong.
+  const CANT_SEND = [
+    [{ state: "held", held_why: "bounces" }, /paused to protect your name: more than 3% of its recent emails bounced/],
+    [{ state: "reconnect" }, /needs reconnecting/],
+    [{ state: "paused" }, /Your mailbox is paused\. Resume it/],
+  ];
+  for (const [over, said] of CANT_SEND) {
+    const world = tables("operator", { mailbox_connections: [box(SENDING_BOX, "sam@harbor-mail.example", over)] });
+    await assert.rejects(chains.POST.run(send("POST", CHAIN()), ctxFor(world, {}, rpcs)), said, over.state);
+  }
   await assert.rejects(
     chains.POST.run(send("POST", { ...CHAIN(), owner_sends: true }), ctxFor(sending(), {}, rpcs)),
     /sending each by hand isn't offered/,

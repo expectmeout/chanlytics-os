@@ -172,8 +172,13 @@ export interface ReachOutRunPorts {
    */
   recordRun(run: NewReachOutRun, counts: { planned: number; skipped: number }): Promise<void>;
   notifyWaiting(runId: string, planned: number, firstAt: number): Promise<void>;
-  /** A batch held for a stop: it goes at its time unless its owner stops it, so they are told when (Before each batch). */
-  notifyGoes(runId: string, planned: number, firstAt: number): Promise<void>;
+  /**
+   * A batch held for a stop: it goes at its time unless its owner stops it, so they are told when (Before each batch).
+   * It answers whether they were told: a batch nobody was told of does not go by itself.
+   */
+  notifyGoes(runId: string, planned: number, firstAt: number): Promise<boolean>;
+  /** A scheduled run nobody could be told of, moved to waiting on its owner's OK: true only when it now waits. */
+  holdForOk(runId: string): Promise<boolean>;
 }
 
 export type ReachOutRunOutcome =

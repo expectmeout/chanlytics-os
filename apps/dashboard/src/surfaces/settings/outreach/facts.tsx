@@ -82,7 +82,11 @@ const FactRows = ({ f }: { f: BoxFields }) => {
 
 export function FactsCard(shared: OutreachShared) {
   const facts = (shared.config.reach_out?.proof ?? []).map(textOrEmpty).filter((c) => c.trim());
-  const sends = (text: string) => shared.read?.claims.find((c) => c.text === text)?.sends ?? 0;
+  // A count is said once the page's read holds it: one not read yet, or not counted, is not a zero.
+  const count = (index: number, text: string) => {
+    const sends = shared.read?.claims.find((c) => c.text === text)?.sends ?? null;
+    return sends === null ? null : <span data-testid={`rec-row-proof-${index}-meta`}>{FACT_WORDS.count(sends)}</span>;
+  };
   const [adding, setAdding] = useState(false);
   return (
     <OutreachCard id="facts" title={FACT_WORDS.title}>
@@ -103,7 +107,7 @@ export function FactsCard(shared: OutreachShared) {
                 id={index === 0 ? "proof" : `proof-${index}`}
                 label={fact}
                 stacked
-                value={<span data-testid={`rec-row-proof-${index}-meta`}>{FACT_WORDS.count(sends(fact))}</span>}
+                value={count(index, fact)}
                 act={
                   shared.canEdit && can
                     ? {

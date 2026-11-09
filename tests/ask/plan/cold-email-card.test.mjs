@@ -90,6 +90,23 @@ test("with no mailbox connected there is no card: it says what to connect, in th
   assert.equal(out.refusal, COLD_EMAIL_NEEDS_MAILBOX);
 });
 
+test("a mailbox that is there and can't send has no card either: it says what is wrong, never to connect one", async () => {
+  const CANT_SEND = [
+    [{ state: "paused" }, /^Your mailbox is paused\. Resume it/],
+    [{ state: "held", held_why: "bounces" }, /paused to protect your name: more than 3% of its recent emails bounced/],
+    [{ state: "reconnect" }, /needs reconnecting/],
+  ];
+  for (const [over, said] of CANT_SEND) {
+    readerCache.clear();
+    const world = contextOver([rows.mailboxConnection({ tenant_id: A, ...over })]);
+    const out = await buildProposal(world, "propose_sequence", { action: "cold_email", ...INPUT });
+    assert.equal(out.proposal, null, over.state);
+    assert.equal(out.isError, true, over.state);
+    assert.match(out.refusal, said, over.state);
+    assert.notEqual(out.refusal, COLD_EMAIL_NEEDS_MAILBOX, over.state);
+  }
+});
+
 test("a read of the mailboxes that failed says so, and never that there is none", async () => {
   const failed = contextOver([CONNECTED], { "mailbox_connections.select": { message: "the read failed" } });
   const out = await buildProposal(failed, "propose_sequence", { action: "cold_email", ...INPUT });

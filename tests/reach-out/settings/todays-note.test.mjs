@@ -147,6 +147,21 @@ test("a mailbox needing its owner speaks up over a running sequence", async () =
   assert.equal(note.headline, "Your mailbox needs reconnecting");
 });
 
+test("before the first sequence, saying what you sell is one of the things Today counts", async () => {
+  const { note } = await noteOf(contextOf({ mailbox_connections: [connected] }));
+  assert.equal(note.headline, "1 thing before your first email");
+});
+
+test("the business's own words say what it sells, so Today asks for nothing", async () => {
+  const own = { business_records: [{ tenant_id: T, about: "We clean clinics in the evening" }] };
+  assert.deepEqual(await noteOf(contextOf({ mailbox_connections: [connected], ...own })), { note: null });
+});
+
+test("a pitch written on the page says what it sells, so Today asks for nothing", async () => {
+  const written = { ...FILLED, reach_out: { offer: "Evening cleaning" } };
+  assert.deepEqual(await noteOf(contextOf({ mailbox_connections: [connected] }, written)), { note: null });
+});
+
 test("a sequence with no one new is the page's news, not a line on Today every morning", () => {
   const facts = coldEmailNoteFactsOf({
     roots: [root()],
@@ -155,6 +170,7 @@ test("a sequence with no one new is the page's news, not a line on Today every m
     hasAddress: true,
     heldForAddress: 0,
     hasSearch: true,
+    hasPitch: true,
     whoFor: null,
     sent: null,
     searchName: null,

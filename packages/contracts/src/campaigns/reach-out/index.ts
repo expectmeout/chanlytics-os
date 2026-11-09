@@ -245,6 +245,7 @@ export type { ReachOutAddInput, ReachOutRepliesQuery } from "./schemas";
 export {
   openingWorkspaceOf,
   reachOutOfferOf,
+  reachOutPitchSaid,
   reachOutSignatureOf,
   reachOutSignedByOf,
   reachOutToneOf,
@@ -291,6 +292,7 @@ export type { RunPartVM } from "./sheet/words";
 export {
   COLD_EMAIL_MAILBOX_UNREAD,
   COLD_EMAIL_NEEDS_MAILBOX,
+  coldEmailCannotSendWhy,
   coldEmailNoteOf,
   coldEmailStandingOf,
   NO_SENDING_BY_HAND,

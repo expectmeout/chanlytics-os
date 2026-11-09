@@ -286,6 +286,7 @@ export {
   findRunFor,
   findStepRow,
   finishBatchSending,
+  holdBatchForOk,
   insertDecision,
   listChainSteps,
   listLeadClocks,

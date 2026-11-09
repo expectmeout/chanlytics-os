@@ -4,7 +4,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { coldEmailNoteOf, coldEmailStandingOf, hasFootAddress } from "@chanlytics/contracts";
+import {
+  COLD_EMAIL_NEEDS_MAILBOX,
+  coldEmailCannotSendWhy,
+  coldEmailNoteOf,
+  coldEmailStandingOf,
+  hasFootAddress,
+} from "@chanlytics/contracts";
 
 const NOV_9 = Date.UTC(2026, 10, 9, 15);
 const CONNECTED = { state: "connected", held_why: null };
@@ -20,6 +26,7 @@ const facts = (over = {}) => ({
   running: [RUNNING],
   hadSequence: true,
   hasSearch: true,
+  hasPitch: true,
   whoFor: "Dental clinics in Austin",
   nowMs: NOV_9,
   tz: "America/Chicago",
@@ -59,6 +66,24 @@ const ROWS = [
   {
     name: "nothing started, one thing left that is not the mailbox",
     facts: nothingStarted({ mailboxes: [CONNECTED], hasAddress: true }),
+    kind: "not_started",
+    headline: "1 thing before your first email",
+    act: null,
+    to: null,
+    needs_you: true,
+  },
+  {
+    name: "nothing started, and nothing said of what it sells",
+    facts: nothingStarted({ hasPitch: false }),
+    kind: "not_started",
+    headline: "4 things before your first email",
+    act: null,
+    to: null,
+    needs_you: true,
+  },
+  {
+    name: "only the pitch left",
+    facts: nothingStarted({ mailboxes: [CONNECTED], hasAddress: true, hasSearch: true, hasPitch: false }),
     kind: "not_started",
     headline: "1 thing before your first email",
     act: null,
@@ -165,6 +190,18 @@ const ROWS = [
     needs_you: false,
   },
   {
+    name: "every mailbox paused, with a batch waiting for an OK",
+    facts: facts({
+      mailboxes: [{ state: "paused", held_why: null }],
+      waitingRun: { id: "run-1", planned: 25, name: "Dental clinics · Austin", first: false },
+    }),
+    kind: "paused",
+    headline: "Your mailbox is paused",
+    act: "Open Connections",
+    to: "admin/integrations",
+    needs_you: true,
+  },
+  {
     name: "ready, and never started",
     facts: facts({ running: [], hadSequence: false }),
     kind: "ready",
@@ -205,14 +242,59 @@ for (const row of ROWS) {
   });
 }
 
-test("one held mailbox beside one that sends is not 'sending paused': emails still go", () => {
+test("one held mailbox beside one that sends asks for itself, and says the other still sends", () => {
   const standing = coldEmailStandingOf(facts({ mailboxes: [{ state: "held", held_why: "bounces" }, CONNECTED] }));
+  assert.equal(standing.kind, "held");
+  assert.equal(standing.headline, "One mailbox is paused to protect your name");
+  assert.equal(
+    standing.detail,
+    "More than 3% of its recent emails bounced or were refused. Your other mailbox still sends. Fix it, then resume.",
+  );
+  assert.equal(standing.act, "See what to fix");
+  assert.match(standing.to, /admin\/integrations/);
+  assert.equal(standing.needs_you, true);
+});
+
+test("a held mailbox beside two that send says 'mailboxes'", () => {
+  const boxes = [{ state: "held", held_why: "complaint" }, CONNECTED, CONNECTED];
+  assert.match(coldEmailStandingOf(facts({ mailboxes: boxes })).detail, / Your other mailboxes still send\. /);
+});
+
+test("a signed-out mailbox beside one that sends asks for itself: only its own emails wait", () => {
+  const standing = coldEmailStandingOf(facts({ mailboxes: [{ state: "reconnect", held_why: null }, CONNECTED] }));
+  assert.equal(standing.kind, "reconnect");
+  assert.equal(standing.headline, "One mailbox needs reconnecting");
+  assert.equal(
+    standing.detail,
+    "Google asked you to sign in again. Its emails wait until you do. Your other mailbox still sends.",
+  );
+  assert.equal(standing.act, "Reconnect");
+  assert.equal(standing.needs_you, true);
+});
+
+test("a mailbox its owner paused beside one that sends is their own choice: nothing is asked", () => {
+  const standing = coldEmailStandingOf(facts({ mailboxes: [{ state: "paused", held_why: null }, CONNECTED] }));
   assert.equal(standing.kind, "sending");
 });
 
-test("a signed-out mailbox beside one that sends still asks: its own emails are waiting", () => {
-  const standing = coldEmailStandingOf(facts({ mailboxes: [{ state: "reconnect", held_why: null }, CONNECTED] }));
-  assert.equal(standing.kind, "reconnect");
+test("a paused mailbox with a batch waiting says the batch, since an OK alone would send nothing", () => {
+  const paused = [{ state: "paused", held_why: null }];
+  const run = { id: "run-1", name: "Dental clinics · Austin", first: false };
+  const some = coldEmailStandingOf(facts({ mailboxes: paused, waitingRun: { ...run, planned: 25 } }));
+  assert.equal(some.detail, "25 emails are ready for your OK. Nothing goes out until you resume it.");
+  const one = coldEmailStandingOf(facts({ mailboxes: paused, waitingRun: { ...run, planned: 1 } }));
+  assert.equal(one.detail, "1 email is ready for your OK. Nothing goes out until you resume it.");
+  const unread = coldEmailStandingOf(facts({ mailboxes: paused, waitingRun: { ...run, planned: null } }));
+  assert.equal(unread.detail, "Emails are ready for your OK. Nothing goes out until you resume it.");
+  const none = coldEmailStandingOf(facts({ mailboxes: paused }));
+  assert.equal(none.detail, "Nothing goes out until you resume it.");
+});
+
+test("a workspace that has written before is never told 'before your first email' for a pitch alone", () => {
+  const standing = coldEmailStandingOf(facts({ running: [], hasPitch: false }));
+  assert.equal(standing.kind, "ready");
+  assert.equal(standing.headline, "No sequence is running");
+  assert.equal(coldEmailStandingOf(facts({ hasPitch: false })).kind, "sending");
 });
 
 test("a held mailbox says why, in the words Connections keeps", () => {
@@ -252,6 +334,7 @@ test("the steps stand in the page's order, each saying if it is done, and the se
     [
       ["mailbox", false],
       ["address", true],
+      ["pitch", true],
       ["people", false],
     ],
   );
@@ -259,9 +342,12 @@ test("the steps stand in the page's order, each saying if it is done, and the se
   assert.equal(steps[0].detail, "Emails go out from your own address");
   assert.equal(steps[1].title, "Add your business address");
   assert.equal(steps[1].detail, "The law asks for it in every email");
-  assert.equal(steps[2].title, "Find businesses to write to");
-  assert.equal(steps[2].detail, "Start with Dental clinics in Austin");
-  const unknown = coldEmailStandingOf(nothingStarted({ whoFor: null })).steps[2];
+  assert.equal(steps[2].title, "Say what you sell");
+  assert.equal(steps[2].detail, "So your emails have something to say");
+  assert.equal(coldEmailStandingOf(nothingStarted({ hasPitch: false })).steps[2].done, false);
+  assert.equal(steps[3].title, "Find businesses to write to");
+  assert.equal(steps[3].detail, "Start with Dental clinics in Austin");
+  const unknown = coldEmailStandingOf(nothingStarted({ whoFor: null })).steps[3];
   assert.equal(unknown.detail, "Search for the kind of business you want to reach");
 });
 
@@ -287,6 +373,29 @@ test("Today says the same headline, only where it waits on the owner, and opens 
   );
   const left = coldEmailNoteOf(coldEmailStandingOf(nothingStarted({ hasSearch: true })));
   assert.deepEqual(left, { headline: "2 things before your first email", act: "Open", to: "admin/outreach" });
+});
+
+test("a new sequence is refused in the words of what is true: no mailbox, or one that is held, signed out or paused", () => {
+  const HELD = { state: "held", held_why: "bounces" };
+  const SIGNED_OUT = { state: "reconnect", held_why: null };
+  const PAUSED = { state: "paused", held_why: null };
+  const REMOVED = { state: "removed", held_why: null };
+  assert.equal(coldEmailCannotSendWhy([CONNECTED]), null);
+  assert.equal(coldEmailCannotSendWhy([HELD, CONNECTED]), null, "one that sends is enough");
+  assert.equal(coldEmailCannotSendWhy([]), COLD_EMAIL_NEEDS_MAILBOX);
+  assert.equal(coldEmailCannotSendWhy([REMOVED]), COLD_EMAIL_NEEDS_MAILBOX, "a removed mailbox is none");
+
+  // The order the page's top card says them in: held, then signed out, then paused.
+  const held = coldEmailCannotSendWhy([PAUSED, SIGNED_OUT, HELD]);
+  assert.match(held, /paused to protect your name: more than 3% of its recent emails bounced or were refused\./);
+  const signedOut = coldEmailCannotSendWhy([PAUSED, SIGNED_OUT]);
+  assert.match(signedOut, /needs reconnecting: Google asked you to sign in again\./);
+  const paused = coldEmailCannotSendWhy([PAUSED, REMOVED]);
+  assert.match(paused, /^Your mailbox is paused\. Resume it/);
+  for (const why of [held, signedOut, paused]) {
+    assert.match(why, /Settings › Connections/, "it names where the fix is");
+    assert.doesNotMatch(why, /Connect your mailbox first/, "a mailbox that is there is never asked for again");
+  }
 });
 
 test("Today's note is the page's answer, and a workspace with no search reads nothing for it", async () => {

@@ -24,10 +24,40 @@ import {
 } from "@chanlytics/contracts";
 import { getReachOutRunId, sendIdFor } from "./reach-out-ids";
 import { followerRefusalOf } from "./reach-out-ports";
-import type { PlannedSend, ReachOutLead, ReachOutRunOutcome, ReachOutRunPorts, ReachOutStep } from "./reach-out-ports";
+import type {
+  NewReachOutRun,
+  PlannedSend,
+  ReachOutLead,
+  ReachOutRunOutcome,
+  ReachOutRunPorts,
+  ReachOutStep,
+} from "./reach-out-ports";
 
 /** A week with no hour a cold email may arrive in (closed every day): never placeable, whatever the mailboxes' room. */
 const neverOpen = (week: WeekHours): boolean => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
+
+/**
+ * A planned batch nobody asked to OK first. Before each batch promises "You're told it's ready": a batch nobody could be
+ * told of does not go by itself, it waits for its owner's OK instead. A bell or a hold that fails is said by the door in
+ * its own log; a batch that could be neither told of nor held is never lost, it goes at its time. A run its owner sends
+ * by hand never goes without them, so there is nothing to say.
+ */
+async function goesOrWaits(
+  ports: ReachOutRunPorts,
+  step: ReachOutStep,
+  run: NewReachOutRun,
+  plan: { counts: { planned: number; skipped: number }; firstAt: number },
+): Promise<ReachOutRunOutcome> {
+  const planned = plan.counts.planned;
+  const ownerKnows = step.owner_sends || (await ports.notifyGoes(run.id, planned, plan.firstAt).catch(() => false));
+  const waits = !ownerKnows && (await ports.holdForOk(run.id).catch(() => false));
+  // On the record in the state it ends in: a run that waits is never recorded as the system's own send.
+  await ports.recordRun(waits ? { ...run, state: "pending_approval" } : run, plan.counts);
+  if (!waits) return { outcome: "sent", planned };
+  // It shows on Today and on the page's top card and never expires: a waiting bell that fails costs it nothing.
+  await ports.notifyWaiting(run.id, planned, plan.firstAt).catch(() => undefined);
+  return { outcome: "held", reason: "waiting_for_you", planned };
+}
 
 export async function runReachOut(
   ports: ReachOutRunPorts,
@@ -155,14 +185,11 @@ export async function runReachOut(
     )),
   ];
   if ((await ports.planRun(run, sends)) === "exists") return { outcome: "empty", reason: "already_ran", planned: 0 };
-  await ports.recordRun(run, { planned: placed.length, skipped: skips.length });
+  const counts = { planned: placed.length, skipped: skips.length };
   if (asks) {
+    await ports.recordRun(run, counts);
     await ports.notifyWaiting(run.id, placed.length, firstAt);
     return { outcome: "held", reason: "waiting_for_you", planned: placed.length };
   }
-  // Before each batch promises "You're told it's ready". The run is made and on the ledger: telling of it must not cost
-  // the run its record, so a bell that fails is let go (the door says so in its own log), as a moment's held run does. A
-  // run its owner sends by hand never goes without them, so there is nothing to say.
-  if (!step.owner_sends) await ports.notifyGoes(run.id, placed.length, firstAt).catch(() => undefined);
-  return { outcome: "sent", planned: placed.length };
+  return goesOrWaits(ports, step, run, { counts, firstAt });
 }

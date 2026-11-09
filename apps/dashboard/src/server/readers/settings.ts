@@ -23,6 +23,7 @@ import {
   mailboxWords,
   newSequenceMode,
   parseTenantConfig,
+  reachOutPitchSaid,
   type ColdEmailStandingFacts,
   type MailboxConnectionDto,
   type ReachOutChainDto,
@@ -286,19 +287,16 @@ export function stepsCarrying(claims: readonly string[], chains: readonly ReachO
   );
 }
 
-/** Each claim with the emails sent from steps whose words carry it. */
+/** Each claim with the emails sent from steps whose words carry it; null where the counts could not be read. */
 export function claimCounts(
   claims: readonly string[],
   chains: readonly ReachOutChainDto[],
-  sent: ReadonlyMap<string, number>,
+  sent: ReadonlyMap<string, number> | null,
 ): ReachOutSettingsDto["claims"] {
   return claims.map((text) => {
     const t = text.trim();
-    const sends = chains
-      .flatMap((c) => c.steps)
-      .filter((s) => !s.hand && t && wordsOfStep(s).includes(t))
-      .reduce((n, s) => n + (sent.get(s.id) ?? 0), 0);
-    return { text, sends };
+    const carried = chains.flatMap((c) => c.steps).filter((s) => !s.hand && t && wordsOfStep(s).includes(t));
+    return { text, sends: sent ? carried.reduce((n, s) => n + (sent.get(s.id) ?? 0), 0) : null };
   });
 }
 
@@ -338,6 +336,7 @@ export function standingFactsOf(input: {
   heldForAddress: number | null;
   month: { sent: number | null; of: number };
   hasSearch: boolean;
+  hasPitch: boolean;
   whoFor: string | null;
   nowMs: number;
   tz: string;
@@ -385,6 +384,39 @@ async function partOrElse<T>(read: Promise<T>, part: string, tenantId: TenantId,
   }
 }
 
+type Db = RouteContext["supabase"];
+
+/** The business's own words. Undefined is not read, which never asks for a pitch (contracts reachOutPitchSaid). */
+const ownWordsOrUnread = (db: Db, tenantId: TenantId) =>
+  partOrElse<Awaited<ReturnType<typeof findWorkspaceWords>> | undefined>(
+    findWorkspaceWords(db, tenantId),
+    "about",
+    tenantId,
+    undefined,
+  );
+
+/** The reader's own name as the journal has it, or null. */
+const ownNameOrNull = async (db: Db, tenantId: TenantId, userId: string): Promise<string | null> => {
+  const names = await partOrElse<Record<string, string>>(getJournalMemberNames(db, [userId]), "name", tenantId, {});
+  return names[userId]?.trim() || null;
+};
+
+/** The emails each step carrying a claim sent. Null is not read, sequences or counts: the claim then shows no count. */
+const claimSendsOrUnread = (
+  db: Db,
+  tenantId: TenantId,
+  claims: readonly string[],
+  chains: readonly ReachOutChainDto[] | null,
+) =>
+  chains
+    ? partOrElse<ReadonlyMap<string, number> | null>(
+        countSentByStep(db, tenantId, stepsCarrying(claims, chains)),
+        "counts",
+        tenantId,
+        null,
+      )
+    : null;
+
 /**
  * GET settings/reach-out: what Cold email shows beyond the config. The mailbox as Connections says it, the month's
  * first emails against their share, the claims' counts, the lines Ask learned from how the owner writes, the newest
@@ -395,7 +427,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const tenantId = rc.tenantId;
-    const [row, facts, mailboxes, sent, memory, chains, policies, ownWords, names, newestSearch, never] =
+    const [row, facts, mailboxes, sent, memory, chains, policies, ownWords, name, newestSearch, never] =
       await Promise.all([
         partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
         partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
@@ -409,12 +441,11 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
         partOrElse<ReachOutChainDto[] | null>(listChains(rc.ctx, tenantId), "chains", tenantId, null),
         partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
-        partOrElse(findWorkspaceWords(db, tenantId), "about", tenantId, null),
-        partOrElse<Record<string, string>>(getJournalMemberNames(db, [rc.ctx.userId]), "name", tenantId, {}),
+        ownWordsOrUnread(db, tenantId),
+        ownNameOrNull(db, tenantId, rc.ctx.userId),
         partOrElse(findNewestSearchName(db, tenantId), "newest_search", tenantId, null),
         partOrElse(countLeadSuppressions(db, tenantId), "never", tenantId, null),
       ]);
-    const name = names[rc.ctx.userId]?.trim() || null;
     const parsed = parseTenantConfig(row?.data?.config);
     const claims = parsed?.reach_out?.proof ?? [];
     const chainList = chains ?? [];
@@ -423,7 +454,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
     const hasAddress = hasFootAddress(facts?.data.name, parsed?.brain?.profile?.address);
     const subject = standingChainOf(chainList);
     const [counted, report, heldForAddress] = await Promise.all([
-      partOrElse(countSentByStep(db, tenantId, stepsCarrying(claims, chainList)), "counts", tenantId, new Map()),
+      claimSendsOrUnread(db, tenantId, claims, chains),
       subject ? partOrElse(getChainReport(rc.ctx, tenantId, subject.root_id), "report", tenantId, null) : null,
       hasAddress ? 0 : partOrElse(countHeldForAddress(db, tenantId), "held_for_address", tenantId, null),
     ]);
@@ -441,6 +472,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
                 heldForAddress,
                 month,
                 hasSearch: newestSearch !== null,
+                hasPitch: reachOutPitchSaid(parsed, ownWords),
                 whoFor: parsed?.reach_out?.who_for?.trim() || null,
                 nowMs: rc.now.getTime(),
                 tz,

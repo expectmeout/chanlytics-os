@@ -29,6 +29,17 @@ export function reachOutOfferOf(config: ReachOutReadable | null | undefined, abo
   return whatItDoesOf(config, about) ?? filled(config?.ask?.goal);
 }
 
+/**
+ * Whether anything says what the business sells (reachOutOfferOf), for the page's one answer. `ownWords` undefined is
+ * its own words not read (the read failed, or it could not change the answer), which counts as said.
+ */
+export function reachOutPitchSaid(
+  config: ReachOutReadable | null | undefined,
+  ownWords: { text: string } | null | undefined,
+): boolean {
+  return ownWords === undefined || reachOutOfferOf(config, ownWords?.text ?? null) !== null;
+}
+
 /** The tone a cold email is written in: its own, else the receptionist's. */
 export function reachOutToneOf(config: ReachOutReadable | null | undefined): string | null {
   return filled(config?.reach_out?.tone) ?? filled(config?.brain?.profile?.tone);

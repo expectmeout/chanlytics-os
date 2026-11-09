@@ -7,6 +7,7 @@
  */
 import { REACH_OUT_SETTINGS_WORDS, reachOutOfferOf } from "@chanlytics/contracts";
 import type { FrameFlash } from "../../frame-verbs";
+import { FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { recFolds } from "../../kit/record/registry";
 import type { BtSaver } from "../business/gestures/common";
@@ -37,12 +38,14 @@ export function OutreachCards({
   flash: (flash: FrameFlash) => void;
   saver: BtSaver;
 }) {
-  const { read, again } = useReachOutRead(config);
+  const { read, failed, reading, again } = useReachOutRead(config);
   const shared = { brain, config, canEdit, flash, saver, read };
   // Its own one line, on this page alone, where a cold email would have nothing to say of what the business sells:
   // nothing here, nothing it or its website says it does, no goal (contracts reachOutOfferOf). Never in the
   // receptionist's gap line or the rail, where a business that writes no cold email would be asked for it on every page.
-  const offerless = read !== null && reachOutOfferOf(config, read.about) === null;
+  // Before a first email the top card's own list carries the ask (contracts coldEmailStandingOf), so it is not said twice.
+  const offerless =
+    read !== null && read.standing?.kind !== "not_started" && reachOutOfferOf(config, read.about) === null;
   return (
     <div className="ro-page">
       <div className="ro-grid">
@@ -50,7 +53,19 @@ export function OutreachCards({
           <p className="ro-sub" data-testid="rec-outreach-sub">
             {REACH_OUT_SETTINGS_WORDS.sub}
           </p>
-          {read && !read.standing ? null : <StandingCard standing={read?.standing ?? null} />}
+          {failed ? (
+            // The page's first read did not land: said once, here, with the read again, in place of an empty answer.
+            <FailedRead
+              kind="card"
+              what="Cold email"
+              onRetry={again}
+              busy={reading}
+              testid="rec-outreach-read-failed"
+              retryTestid="rec-outreach-read-retry"
+            />
+          ) : read && !read.standing ? null : (
+            <StandingCard standing={read?.standing ?? null} />
+          )}
           {offerless ? (
             <p className="bt-gap" data-testid="rec-offer-gap">
               <span className="bt-gap-dot" aria-hidden="true" />

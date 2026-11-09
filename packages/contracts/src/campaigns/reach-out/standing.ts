@@ -44,13 +44,15 @@ export interface ColdEmailStandingFacts {
   /** A sequence to leads exists, running or not. */
   hadSequence: boolean;
   hasSearch: boolean;
+  /** Something says what the business sells (contracts reachOutOfferOf). A read that failed counts as said. */
+  hasPitch: boolean;
   whoFor: string | null;
   nowMs: number;
   tz: string;
 }
 
 export interface ColdEmailStep {
-  id: "mailbox" | "address" | "people";
+  id: "mailbox" | "address" | "pitch" | "people";
   done: boolean;
   title: string;
   detail: string;
@@ -87,6 +89,8 @@ export const NO_SENDING_BY_HAND =
   "Chanlytics sends cold email from your mailbox, so sending each by hand isn't offered.";
 
 const CONNECTIONS_PAGE = "admin/integrations";
+/** Why a mailbox needs reconnecting: the top card and a refused sequence say it alike. */
+const SIGN_IN_ASKED = "Google asked you to sign in again.";
 const ADDRESS_ROUTE = "admin/workspace/address";
 
 const sentence = (clause: string): string => `${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`;
@@ -107,6 +111,12 @@ function stepsLeftOf(f: ColdEmailStandingFacts): ColdEmailStep[] {
       detail: "The law asks for it in every email",
     },
     {
+      id: "pitch",
+      done: f.hasPitch,
+      title: "Say what you sell",
+      detail: "So your emails have something to say",
+    },
+    {
       id: "people",
       done: f.hasSearch,
       title: "Find businesses to write to",
@@ -125,30 +135,65 @@ function nextMonthWords(nowMs: number, tz: string): string {
 type Answer = Omit<ColdEmailStanding, "steps"> | null;
 type Rule = (f: ColdEmailStandingFacts, left: readonly ColdEmailStep[]) => Answer;
 
+/** How many of the workspace's mailboxes send, and what to say of them beside one that does not. */
+const sendersOf = (f: ColdEmailStandingFacts): number => f.mailboxes.filter((m) => m.state === "connected").length;
+const othersSend = (senders: number): string =>
+  senders === 1 ? "Your other mailbox still sends." : "Your other mailboxes still send.";
+
+/** A held mailbox asks even beside one that sends: the emails planned on it wait until it is fixed. */
 const heldAnswer: Rule = (f) => {
   const held = f.mailboxes.find((m) => m.state === "held");
-  if (!held || f.mailboxes.some((m) => m.state === "connected")) return null;
+  if (!held) return null;
+  const holdReason = sentence(mailboxHoldWords(held.held_why));
+  const senders = sendersOf(f);
   return {
     kind: "held",
-    headline: "Sending paused to protect your name",
-    detail: `${sentence(mailboxHoldWords(held.held_why))} Fix it, then resume.`,
+    headline: senders > 0 ? "One mailbox is paused to protect your name" : "Sending paused to protect your name",
+    detail:
+      senders > 0 ? `${holdReason} ${othersSend(senders)} Fix it, then resume.` : `${holdReason} Fix it, then resume.`,
     act: "See what to fix",
     to: CONNECTIONS_PAGE,
     needs_you: true,
   };
 };
 
-const reconnectAnswer: Rule = (f) =>
-  f.mailboxes.some((m) => m.state === "reconnect")
-    ? {
-        kind: "reconnect",
-        headline: "Your mailbox needs reconnecting",
-        detail: "Google asked you to sign in again. Your emails are waiting, and they go on where they stopped.",
-        act: "Reconnect",
-        to: CONNECTIONS_PAGE,
-        needs_you: true,
-      }
-    : null;
+const reconnectAnswer: Rule = (f) => {
+  if (!f.mailboxes.some((m) => m.state === "reconnect")) return null;
+  const senders = sendersOf(f);
+  return {
+    kind: "reconnect",
+    headline: senders > 0 ? "One mailbox needs reconnecting" : "Your mailbox needs reconnecting",
+    detail:
+      senders > 0
+        ? `${SIGN_IN_ASKED} Its emails wait until you do. ${othersSend(senders)}`
+        : `${SIGN_IN_ASKED} Your emails are waiting, and they go on where they stopped.`,
+    act: "Reconnect",
+    to: CONNECTIONS_PAGE,
+    needs_you: true,
+  };
+};
+
+/**
+ * Why a new sequence to leads can't be made, in the words of what is true, or null where a mailbox sends. One answer
+ * for New's door and Ask's card, in the order the top card says them. A mailbox that is there and can't send is never
+ * asked for again: only none at all reads COLD_EMAIL_NEEDS_MAILBOX, which is what New takes its mailbox off for.
+ */
+export function coldEmailCannotSendWhy(
+  mailboxes: readonly { state: string; held_why?: string | null }[],
+): string | null {
+  if (mailboxes.some((m) => m.state === "connected")) return null;
+  const held = mailboxes.find((m) => m.state === "held");
+  if (held) {
+    return `Your mailbox is paused to protect your name: ${mailboxHoldWords(held.held_why)}. Settings › Connections has what to fix.`;
+  }
+  if (mailboxes.some((m) => m.state === "reconnect")) {
+    return `Your mailbox needs reconnecting: ${SIGN_IN_ASKED} Reconnect it in Settings › Connections, then start your sequence.`;
+  }
+  if (mailboxes.some((m) => m.state === "paused")) {
+    return "Your mailbox is paused. Resume it in Settings › Connections, then start your sequence.";
+  }
+  return COLD_EMAIL_NEEDS_MAILBOX;
+}
 
 /** Nothing running and things left: the list, unless the mailbox alone is left, which has an answer of its own. */
 const notStartedAnswer: Rule = (f, left) => {
@@ -230,17 +275,21 @@ const noOneNewAnswer: Rule = (f) => {
     : null;
 };
 
-const pausedAnswer: Rule = (f) =>
-  f.mailboxes.length > 0 && f.mailboxes.every((m) => m.state === "paused")
-    ? {
-        kind: "paused",
-        headline: "Your mailbox is paused",
-        detail: "Nothing goes out until you resume it.",
-        act: "Open Connections",
-        to: CONNECTIONS_PAGE,
-        needs_you: false,
-      }
-    : null;
+/** Every mailbox paused by its owner. It outranks a batch that waits, since an OK alone would send nothing. */
+const pausedAnswer: Rule = (f) => {
+  if (f.mailboxes.length === 0 || !f.mailboxes.every((m) => m.state === "paused")) return null;
+  const run = f.waitingRun;
+  const size = run?.planned ?? null;
+  const ready = size === null ? "Emails are" : plural(size, "email is", "emails are");
+  return {
+    kind: "paused",
+    headline: "Your mailbox is paused",
+    detail: `${run ? `${ready} ready for your OK. ` : ""}Nothing goes out until you resume it.`,
+    act: "Open Connections",
+    to: CONNECTIONS_PAGE,
+    needs_you: run !== null,
+  };
+};
 
 const readyAnswer: Rule = (f) =>
   f.running.length === 0
@@ -293,24 +342,29 @@ export function coldEmailNoteOf(standing: ColdEmailStanding): ColdEmailNote | nu
   return { headline: standing.headline, act: standing.act ?? "Open", to: standing.to ?? COLD_EMAIL_ROUTE };
 }
 
-/** In the order they outrank each other: a thing that stops every email first, and a thing to do before a thing to read. */
+/**
+ * In the order they outrank each other: a mailbox that cannot send first, since nothing said below it would go out,
+ * and a thing to do before a thing to read.
+ */
 const ANSWERS_IN_ORDER: readonly Rule[] = [
   heldAnswer,
   reconnectAnswer,
   notStartedAnswer,
   noMailboxAnswer,
   noAddressAnswer,
+  pausedAnswer,
   waitingAnswer,
   monthAnswer,
   noOneNewAnswer,
-  pausedAnswer,
   readyAnswer,
 ];
 
 /** The one answer for where cold email stands, from what the reader found. */
 export function coldEmailStandingOf(f: ColdEmailStandingFacts): ColdEmailStanding {
   const steps = stepsLeftOf(f);
-  const left = steps.filter((s) => !s.done);
+  const undone = steps.filter((s) => !s.done);
+  // The pitch alone never holds back a workspace that has already written: its emails went without one.
+  const left = f.hadSequence && undone.every((s) => s.id === "pitch") ? [] : undone;
   for (const rule of ANSWERS_IN_ORDER) {
     const answer = rule(f, left);
     if (answer) return { ...answer, steps };

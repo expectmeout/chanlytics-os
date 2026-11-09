@@ -5,6 +5,7 @@ import {
   hasFootAddress,
   mailboxIsLive,
   parseTenantConfig,
+  reachOutPitchSaid,
   REACH_OUT_MONTH_EMAILS,
   reachOutRootOf,
   type ColdEmailNote,
@@ -14,6 +15,7 @@ import {
   countHeldForAddress,
   countSentByStep,
   findSearchesByIds,
+  findWorkspaceWords,
   listReachOutSteps,
   listRunsWaiting,
 } from "@chanlytics/db/campaigns";
@@ -43,6 +45,8 @@ export function coldEmailNoteFactsOf(input: {
   hasAddress: boolean;
   heldForAddress: number | null;
   hasSearch: boolean;
+  /** Something says what the business sells (contracts reachOutPitchSaid). */
+  hasPitch: boolean;
   whoFor: string | null;
   /** What the waiting run's sequence has sent, which says first from next; null where nothing waits. */
   sent: number | null;
@@ -69,6 +73,7 @@ export function coldEmailNoteFactsOf(input: {
     running: running.map((r) => ({ name: r.name, sent: null, wroteBack: null, interested: null, waitingLeads: null })),
     hadSequence: input.roots.length > 0,
     hasSearch: input.hasSearch,
+    hasPitch: input.hasPitch,
     whoFor: input.whoFor,
     nowMs: input.nowMs,
     tz: input.tz,
@@ -108,8 +113,10 @@ export const coldEmailNote: Reader<undefined, { note: ColdEmailNote | null }> = 
     const parsed = parseTenantConfig(row.data?.config);
     const hasAddress = hasFootAddress(facts.data.name, parsed?.brain?.profile?.address);
     const roots = steps.filter((s) => s.trigger === "lead_first");
-    const subject = waitingRunOf(runningNewestFirst(roots), waiting)?.root ?? null;
-    const [sent, searches, heldForAddress] = await Promise.all([
+    const running = runningNewestFirst(roots);
+    const subject = waitingRunOf(running, waiting)?.root ?? null;
+    const pitchSaid = reachOutPitchSaid(parsed, null);
+    const [sent, searches, heldForAddress, ownWords] = await Promise.all([
       subject
         ? countSentByStep(
             db,
@@ -119,6 +126,8 @@ export const coldEmailNote: Reader<undefined, { note: ColdEmailNote | null }> = 
         : null,
       subject?.lead_search_id ? findSearchesByIds(db, tenantId, [subject.lead_search_id]) : null,
       hasAddress ? 0 : countHeldForAddress(db, tenantId),
+      // The business's own words are read only where they can change the answer: nothing running, the page's words empty.
+      pitchSaid || running.length > 0 ? undefined : findWorkspaceWords(db, tenantId),
     ]);
     const note = coldEmailNoteOf(
       coldEmailStandingOf(
@@ -129,6 +138,7 @@ export const coldEmailNote: Reader<undefined, { note: ColdEmailNote | null }> = 
           hasAddress,
           heldForAddress,
           hasSearch: newestSearch !== null,
+          hasPitch: reachOutPitchSaid(parsed, ownWords),
           whoFor: parsed?.reach_out?.who_for?.trim() || null,
           sent: sent ? [...sent.values()].reduce((n, v) => n + v, 0) : null,
           searchName: subject?.lead_search_id ? (searches?.get(subject.lead_search_id)?.name ?? null) : null,

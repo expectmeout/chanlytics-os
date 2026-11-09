@@ -6,7 +6,7 @@
  * opening written for them and each claim the words carry are marked where they stand (contracts tryPartsOf); what the
  * check said is said under it; Another lead goes to the next business, Write another asks for this one again.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   REACH_OUT_PREVIEW_INDEX_MAX,
   REACH_OUT_SETTINGS_WORDS,
@@ -113,7 +113,7 @@ export function SampleCard({
             {!seq ? (
               <TryNone />
             ) : !tried ? (
-              <p className="bt-fold-note">…</p>
+              <p className="bt-fold-note">{TRY_CARD.writing}</p>
             ) : (
               <TriedBody
                 seq={seq}
@@ -134,7 +134,12 @@ export function SampleCard({
 
 type TriedSequence = NonNullable<ReachOutSettingsDto["sequence"]>;
 
-/** The email tried for the business at `at`, asked again whenever the sheet opens, another is asked for, or a rewrite. */
+/**
+ * The email tried for the business at `at`: written when the sheet opens, when another lead is asked for, and on a
+ * rewrite. It is asked again when WHAT the door is asked changes, never because the sequence is a new object: the page
+ * reads again when its owner comes back to the tab, and a read that says the same sequence is no reason to blank the
+ * email being read and spend Ask's day on another.
+ */
 function useTried(
   open: boolean,
   seq: TriedSequence | null,
@@ -142,22 +147,37 @@ function useTried(
   { at, round }: { at: number; round: number },
 ): Tried | null {
   const [tried, setTried] = useState<Tried | null>(null);
+  const request = seq
+    ? JSON.stringify([
+        seq.search_id,
+        seq.include_unconfirmed,
+        seq.first,
+        seq.signed_by ?? signedBy,
+        seq.signs_with,
+        seq.mailbox_id,
+        at,
+      ])
+    : null;
+  // The newest read's own sequence, for the effect to ask with: it says what `request` says.
+  const newest = useRef({ seq, signedBy, at });
+  newest.current = { seq, signedBy, at };
   useEffect(() => {
-    if (!open || !seq) return;
+    const now = newest.current;
+    if (!open || request === null || !now.seq) return;
     let live = true;
     setTried(null);
-    previewAt(seq, at, signedBy).then(
+    previewAt(now.seq, now.at, now.signedBy).then(
       (answer) => {
-        if (live) setTried({ at, ...answer });
+        if (live) setTried({ at: now.at, ...answer });
       },
       () => {
-        if (live) setTried({ at, preview: null, refused: TRY_CARD.unavailable });
+        if (live) setTried({ at: now.at, preview: null, refused: TRY_CARD.unavailable });
       },
     );
     return () => {
       live = false;
     };
-  }, [open, seq, at, round, signedBy]);
+  }, [open, request, round]);
   return tried;
 }
 

@@ -47,7 +47,7 @@ const root = (over = {}) => ({
   ...over,
 });
 function ports(over = {}) {
-  const made = { runs: [], sends: [], told: [], going: [], recorded: [], passed: [] };
+  const made = { runs: [], sends: [], told: [], going: [], held: [], recorded: [], passed: [] };
   return {
     made,
     ports: {
@@ -64,7 +64,8 @@ function ports(over = {}) {
       planRun: async (run, sends) => (made.runs.push(run), made.sends.push(...sends), { id: run.id }),
       recordRun: async (run, counts) => void made.recorded.push([run.id, run.state, counts]),
       notifyWaiting: async (runId, n, firstAt) => void made.told.push([runId, n, firstAt]),
-      notifyGoes: async (runId, n, firstAt) => void made.going.push([runId, n, firstAt]),
+      notifyGoes: async (runId, n, firstAt) => (made.going.push([runId, n, firstAt]), true),
+      holdForOk: async (runId) => (made.held.push(runId), true),
       ...over,
     },
   };
@@ -189,25 +190,89 @@ test("a run of a step whose words were seen gives thirty minutes and tells its o
   assert.equal((await runReachOut(changed.ports, root(), day)).reason, "waiting_for_you");
 });
 
-test("a bell that fails to say a held batch goes costs the run nothing; a run its owner sends by hand is never said to go", async () => {
+test("a batch nobody could be told of does not go by itself: it waits for its owner's OK, and they are told it waits", async () => {
   const inHours = Date.parse("2026-09-28T15:00:00Z");
+  const bells = {
+    "the bell is down": async () => {
+      throw new Error("the bell is down");
+    },
+    "the bell answers that nobody was told": async () => false,
+  };
+  for (const [what, notifyGoes] of Object.entries(bells)) {
+    const quiet = ports({ now: () => inHours, audience: async () => [lead("a")], notifyGoes });
+    assert.deepEqual(
+      await runReachOut(quiet.ports, root({ words_ok_at: SEEN }), day),
+      { outcome: "held", reason: "waiting_for_you", planned: 1 },
+      what,
+    );
+    assert.equal(quiet.made.runs.length, 1, "the run is made and on the ledger");
+    assert.deepEqual(quiet.made.held, [RUN], `${what}: held for its owner's OK`);
+    assert.deepEqual(
+      quiet.made.recorded,
+      [[RUN, "pending_approval", { planned: 1, skipped: 0 }]],
+      `${what}: on the record as waiting, never as a batch the system sent by itself`,
+    );
+    assert.deepEqual(
+      quiet.made.told,
+      [[RUN, 1, Date.parse("2026-09-28T15:30:00.000Z")]],
+      `${what}: its owner is told it waits`,
+    );
+  }
+});
+
+test("a batch that could be neither told of nor held is never lost: it goes at its time, on the record as going", async () => {
+  const inHours = Date.parse("2026-09-28T15:00:00Z");
+  const holds = {
+    "the hold fails": async () => {
+      throw new Error("the database is down");
+    },
+    "the run had already moved on": async () => false,
+  };
+  for (const [what, holdForOk] of Object.entries(holds)) {
+    const stuck = ports({
+      now: () => inHours,
+      audience: async () => [lead("a")],
+      notifyGoes: async () => false,
+      holdForOk,
+    });
+    assert.deepEqual(
+      await runReachOut(stuck.ports, root({ words_ok_at: SEEN }), day),
+      { outcome: "sent", planned: 1 },
+      what,
+    );
+    assert.deepEqual(stuck.made.recorded, [[RUN, "scheduled", { planned: 1, skipped: 0 }]], what);
+    assert.deepEqual(stuck.made.told, [], `${what}: nothing waits, so nothing is said to wait`);
+  }
+});
+
+test("a waiting bell that fails costs a held batch nothing: it still waits, on the record", async () => {
   const quiet = ports({
-    now: () => inHours,
+    now: () => Date.parse("2026-09-28T15:00:00Z"),
     audience: async () => [lead("a")],
-    notifyGoes: async () => {
+    notifyGoes: async () => false,
+    notifyWaiting: async () => {
       throw new Error("the bell is down");
     },
   });
-  assert.deepEqual(await runReachOut(quiet.ports, root({ words_ok_at: SEEN }), day), { outcome: "sent", planned: 1 });
-  assert.equal(quiet.made.runs.length, 1, "the run is made and on the ledger");
+  assert.deepEqual(await runReachOut(quiet.ports, root({ words_ok_at: SEEN }), day), {
+    outcome: "held",
+    reason: "waiting_for_you",
+    planned: 1,
+  });
+  assert.deepEqual(quiet.made.recorded, [[RUN, "pending_approval", { planned: 1, skipped: 0 }]]);
+});
+
+test("a run its owner sends by hand is never said to go, and never held", async () => {
   const byHand = ports({
-    now: () => inHours,
+    now: () => Date.parse("2026-09-28T15:00:00Z"),
     audience: async () => [lead("a")],
     draftLoad: async () => ({ today: 0, open: 0 }),
+    notifyGoes: async () => false,
   });
   await runReachOut(byHand.ports, root({ words_ok_at: SEEN, owner_sends: true }), day);
   assert.equal(byHand.made.runs.length, 1);
   assert.deepEqual(byHand.made.going, [], "its owner sends it: nothing goes without them");
+  assert.deepEqual(byHand.made.held, [], "and nothing is held from them");
 });
 
 test("nothing is assembled while a run of the chain waits, a chain is paused, or the workspace may not spend", async () => {

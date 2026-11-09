@@ -15,6 +15,7 @@ import { settingsRowRoute } from "../frame/tabs";
 /** The door a step left to do goes through: a sheet of this page, or the page that holds it. */
 const stepDoor = (id: ColdEmailStep["id"]) => {
   if (id === "mailbox") return () => recFolds.request("connect");
+  if (id === "pitch") return () => recFolds.request("offer");
   return () => navigate(id === "address" ? settingsRowRoute("address") : leadsRoute({}));
 };
 
@@ -27,7 +28,12 @@ const PRESS_NEEDS: Partial<Record<ColdEmailStanding["kind"], string>> = {
   ready: "approve",
   no_one_new: "find",
 };
-const STEP_NEEDS: Record<ColdEmailStep["id"], string> = { mailbox: "settings", address: "settings", people: "find" };
+const STEP_NEEDS: Record<ColdEmailStep["id"], string> = {
+  mailbox: "settings",
+  address: "settings",
+  pitch: "settings",
+  people: "find",
+};
 
 const StepRow = ({ step }: { step: ColdEmailStep }) => (
   <li className="ro-step" data-done={step.done ? "true" : "false"} data-testid={`rec-step-${step.id}`}>

@@ -51,6 +51,14 @@ test("with nothing: no sequence, no counts", () => {
   assert.deepEqual(claimCounts(["We clean 40 clinics."], [], new Map()), [{ text: "We clean 40 clinics.", sends: 0 }]);
 });
 
+test("a count that could not be read is not a zero: each claim's count is unknown", () => {
+  assert.deepEqual(claimCounts(["We clean 40 clinics."], [], null), [{ text: "We clean 40 clinics.", sends: null }]);
+  const chains = [chain("a", "2026-11-01T00:00:00Z", [step("a0", 0, "{{opening}}\nWe clean 40 clinics.")])];
+  assert.deepEqual(claimCounts(["We clean 40 clinics."], chains, null), [
+    { text: "We clean 40 clinics.", sends: null },
+  ]);
+});
+
 test("Try it writes from the newest running sequence whose first step is an email", () => {
   const chains = [
     chain("a", "2026-11-01T00:00:00Z", [step("a0", 0, "{{opening}}\nOld words")]),
@@ -179,6 +187,7 @@ const STANDING_INPUT = {
   heldForAddress: 0,
   month: { sent: 34, of: 2000 },
   hasSearch: true,
+  hasPitch: true,
   whoFor: null,
   nowMs: Date.UTC(2026, 10, 9),
   tz: "UTC",
@@ -217,6 +226,8 @@ test("a report that could not be read leaves the numbers out, and a run's first 
     people: null,
   });
   const facts = standingFactsOf({ ...STANDING_INPUT, chains: [b], report: null });
+  assert.equal(facts.hasPitch, true, "whether a pitch is said rides through as it was read");
+  assert.equal(standingFactsOf({ ...STANDING_INPUT, hasPitch: false, chains: [], report: null }).hasPitch, false);
   assert.deepEqual(facts.running[0], {
     root_id: "b",
     name: "Clinics b",

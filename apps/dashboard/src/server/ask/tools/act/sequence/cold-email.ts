@@ -7,7 +7,7 @@ import {
   REACH_OUT_GAP_FIRST,
   REACH_OUT_STEPS_MAX,
   COLD_EMAIL_MAILBOX_UNREAD,
-  COLD_EMAIL_NEEDS_MAILBOX,
+  coldEmailCannotSendWhy,
   ReachOutChainSchema,
   SEQUENCE_WORDS,
   firstNameOf,
@@ -65,14 +65,15 @@ export const COLD_STEP = z.object({
 });
 
 /**
- * Whether the workspace has a mailbox that sends now, as a new sequence's make reads it (00459: connected ones only);
- * null where the read failed, which is no answer: telling an owner with a mailbox to connect one would send them the wrong way.
+ * Why the workspace has no mailbox that sends now, as a new sequence's make reads it (00459: connected ones only), in
+ * the door's own words; `why` null where one sends. The whole answer is null where the read failed, which is no
+ * answer: telling an owner with a mailbox to connect one would send them the wrong way.
  */
-async function hasMailbox(t: ToolContext): Promise<boolean | null> {
+async function mailboxStanding(t: ToolContext): Promise<{ why: string | null } | null> {
   const boxes = await listMailboxConnections(t.ctx.supabase, t.tenantId).catch(
     logAndGoOn("reading the mailboxes for a cold email's card", null),
   );
-  return boxes && boxes.some((m) => m.state === "connected");
+  return boxes && { why: coldEmailCannotSendWhy(boxes) };
 }
 
 /**
@@ -102,10 +103,10 @@ export async function proposeColdEmail(
     include_unconfirmed?: boolean;
   },
 ): Promise<ProposalOutcome> {
-  // A sequence to leads sends from a mailbox: with none, the card is the way to one, in the page's words.
-  const mailbox = await hasMailbox(toolContext);
+  // A sequence to leads sends from a mailbox: with none that sends there is no card, and it says which it is.
+  const mailbox = await mailboxStanding(toolContext);
   if (mailbox === null) return refuse(COLD_EMAIL_MAILBOX_UNREAD);
-  if (!mailbox) return refuse(COLD_EMAIL_NEEDS_MAILBOX);
+  if (mailbox.why) return refuse(mailbox.why);
   const searchId = str(input.search_id, 40);
   const token = stepNamed(toolContext, searchId);
   let fedBy = `the leads step ${token} keeps`;
