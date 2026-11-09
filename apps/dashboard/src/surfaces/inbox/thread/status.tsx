@@ -8,6 +8,8 @@
  */
 import { useState, type ReactNode } from "react";
 import {
+  NEED_YOU_WORDS as W_NY,
+  callMomentOf,
   BOOKING_REQUEST_WORDS,
   dockLineOf,
   HOLD_ACT_WORDS,
@@ -18,9 +20,12 @@ import {
 import { Icon } from "../../kit/icon/icon";
 import { Notice } from "../../kit/notice/notice";
 import { ixMoveOf } from "../rules";
-import { gate, navigate, useToast } from "../shell";
+import { clockZone, gate, navigate, useToast } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
+import { commitVerb } from "@/bridge/verbs/commit";
+import { openClockOf } from "../../today/need-you/reads";
 import { ixDockDials } from "./band";
+import { CallAfter, markCalled } from "./call-after";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
 import { IxWhy } from "./send-words";
 import { useDraftsMoved } from "../../today/need-you/drafts";
@@ -384,16 +389,62 @@ function holdWhy(thread: Thread): ReactNode {
   );
 }
 
+/**
+ * What leads on a call back, by the sheet's own rule (contracts callMomentOf): "free after 4 PM" at 9 in the morning waits. Past a
+ * week and selling are the sheet's to say, which reads the wait and the call; here only the clock and what they said.
+ */
+function dockMoment(thread: Thread) {
+  return thread.real && ixDockDials(thread)
+    ? callMomentOf(
+        { sentence: thread.holdLine ?? thread.summary ?? "", phone: thread.phone ?? null, waitedMs: 0 },
+        { nowMs: Date.now(), tz: clockZone(), open: openClockOf() },
+      )
+    : null;
+}
+
 /** The lead act of a hold that asks for a person: a call back, or taking it where no reply can go; none where one can. */
 function takeAct(p: DockProps, thread: Thread): ReactNode {
   const { onTakeOver } = p;
   if (thread.holdAct === "hand_back") return null;
-  if (ixDockDials(thread))
-    return (
-      <Button size="sm" href={`tel:${thread.phone}`} onClick={() => onTakeOver(thread.id)} data-testid="ix-call-back">
-        <Icon name="phone" size={12} /> Call back
+  if (ixDockDials(thread)) {
+    const moment = dockMoment(thread);
+    const ring = (
+      <Button
+        size="sm"
+        variant={moment?.lead === "wait" ? "quiet" : undefined}
+        href={`tel:${thread.phone}`}
+        onClick={() => {
+          markCalled(thread.id);
+          onTakeOver(thread.id);
+        }}
+        data-testid="ix-call-back"
+      >
+        <Icon name="phone" size={12} /> {moment?.lead === "wait" ? W_NY.call.callNow : "Call back"}
       </Button>
     );
+    return moment?.lead === "wait" && thread.real && thread.conversationId ? (
+      <>
+        {ring}
+        <Button
+          size="sm"
+          data-testid="ix-call-wait"
+          onClick={() =>
+            void commitVerb("thread_verb", {
+              verb: "snooze",
+              conversation_id: thread.conversationId,
+              until: moment.until,
+              who: thread.who,
+            })
+          }
+          {...gate("approve", "snooze a conversation")}
+        >
+          {moment.back}
+        </Button>
+      </>
+    ) : (
+      ring
+    );
+  }
   if (thread.primaryChannel === "phone")
     return (
       <Button size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve", "take over a conversation")}>
@@ -572,7 +623,8 @@ function needsYouState(p: DockProps, thread: Thread) {
       // Why it was held, a press away, where the box holds no draft whose own Why this? says what it read, and no card says
       // what was asked.
       source={drafted || card ? null : holdWhy(thread)}
-      line
+      // Three presses stand under the words: beside them the words had a finger's width.
+      line={dockMoment(thread)?.lead !== "wait"}
       acts={acts}
     />
   );
@@ -783,6 +835,7 @@ export const ThreadStatus = (props: StatusProps) => {
 
       {snoozedBar(p)}
 
+      <CallAfter thread={p.thread} onHandBack={p.onHandBack} />
       {escalatedBar(p)}
       {p.thread.real && p.thread.setAside ? <SetAsideBar thread={p.thread} /> : handledBar(p)}
       {yoursBar(p)}

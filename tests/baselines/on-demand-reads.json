@@ -370,5 +370,20 @@
     "kind": "on-open",
     "fresh": "Read as What it's told opens on a writer's tab, once for each opening; closing the sheet lets it go, so the next opening reads it again.",
     "why": "It is the prompt the writer would be given now, cut into its parts: a sheet looked at for a moment, which a save on this page changes, so each opening reads it afresh."
+  },
+  "apps/dashboard/src/surfaces/today/need-you/call-work.tsx GET calls/[id]/recording": {
+    "kind": "link",
+    "fresh": "A link the browser's own player reads as Play is pressed.",
+    "why": "It is the call's recording, which does not change once it is stored."
+  },
+  "apps/dashboard/src/surfaces/today/need-you/reads.ts GET ask/openings": {
+    "kind": "on-open",
+    "fresh": "Read each time Another time is pressed on a booking.",
+    "why": "What is open is asked as it is offered, and nothing goes to them until the owner has looked at it."
+  },
+  "apps/dashboard/src/surfaces/today/need-you/reads.ts GET conversations/[id]": {
+    "kind": "on-open",
+    "fresh": "Read once as a to-do's sheet opens on the person it is about.",
+    "why": "Their last words sit over what the owner says to write; a word that lands while the sheet is open is on the thread, one press away."
   }
 }

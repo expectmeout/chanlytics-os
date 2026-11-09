@@ -1,29 +1,20 @@
 /**
- * The sheet that walks Need you on a phone (the phone canvas, 28 Oct 2026; docs/superpowers/specs/2026-10-28-today-on-a-phone-design.md
- * §4): the rows the page draws, one at a time, from the one pressed. Each is the row's own work (rows.tsx workOf) with the
- * same props, unclamped, its presses in the sheet's foot (parts.tsx WorkProps `foot`); across is the next or the one before, as the
- * lead sheet walks its pile; once the one in view is acted on, the next open one comes after a beat, and with none left it
- * says so. What a row came to is kept by the row (row-state.ts, sends.ts, drafts.ts), so the page's row says the same once
- * the sheet is closed, with its receipt and its undo.
- *
- * Change it with Ask stands under Ask's own draft here: one press for the asks made most, or the member's own words, and
- * the draft is written again in its place (drafts.ts rewriteDraft). The receptionist's held reply keeps its own.
+ * The sheet that walks Need you on a phone (the phone canvas, 28 Oct 2026; one sheet, 9 Nov 2026): the rows the page draws, one
+ * at a time, from the one pressed, today's and no older (his call D7). Every row is the same five parts: who, where it stands
+ * among the rest and the arrows; what was said; the answer; what to tell Ask; and the presses held still in a flat foot. It
+ * stands as tall as what it holds and pulls up for the whole conversation (his call D12). Across is the next or the one
+ * before; once the one in view is acted on, the next open one comes after a beat, and with none left it says what is left.
+ * What a row came to is kept by the row (row-state.ts, sends.ts, drafts.ts), so the page's row says the same once the sheet is
+ * closed, with its receipt and its undo.
  */
-import { useEffect, useRef, useState } from "react";
-import {
-  NEED_YOU_OLD_MS,
-  NEED_YOU_WORDS as W,
-  type AppointmentWord,
-  type TodayQueueRowVM,
-} from "@chanlytics/contracts";
-import { Button, Field, Sheet } from "../../kit";
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import { NEED_YOU_WORDS as W, sheetSubOf, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
+import { Button, Sheet } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
-import { touchSwipe } from "../../frame-verbs";
-import { gate } from "../shell";
-import { rewriteDraft, useDraft } from "./drafts";
-import { Note, Quote, type WorkProps } from "./parts";
-import { replyWant } from "./reply-work";
-import { useRowState } from "./row-state";
+import type { SheetRest } from "../../kit/sheet/rests";
+import { routeDoor, touchSwipe } from "../../frame-verbs";
+import { appNavigate } from "../shell";
+import type { WorkProps } from "./parts";
 import { workOf } from "./rows";
 import { undoSend, useSend } from "./sends";
 
@@ -35,6 +26,16 @@ export type WalkAt = string | null;
 
 /** The end of the walk, said where a row's id would be. */
 const WALK_END = "end";
+
+/** What the walk's end offers beside Back to Today: who has waited past a week, which is no part of the morning. */
+export interface WalkOlder {
+  count: number;
+  /** Their own walk, from the first of them. */
+  go: () => void;
+  /** Every one of them let go, with one Undo. */
+  markAll: () => void;
+  busy: boolean;
+}
 
 interface WalkSheetProps {
   /** The rows the page draws that are worked in place, in its order. */
@@ -48,9 +49,12 @@ interface WalkSheetProps {
   word: AppointmentWord;
   /** A step's Done, as To do marks it (zones/to-do.tsx): its toast and its Undo are the page's. */
   stepDone: (row: TodayQueueRowVM) => void;
-  /** The to-dos the walk does not step into (the reviews, those past To do's cap), which the end offers to go on to. */
+  /** The to-dos past those the walk steps into, which the end offers to go on to. */
   todos: number;
   onToDo: () => void;
+  /** What waits past the groups' caps: the end says how many, and the door goes there. */
+  more: { count: number; to: string } | null;
+  older: WalkOlder | null;
 }
 
 /** The next row still open after `from`, in the page's order, else the first still open before it; the end with none. */
@@ -60,68 +64,8 @@ function nextOpen(rows: readonly TodayQueueRowVM[], kept: ReadonlySet<string>, f
   return (rows.slice(at + 1).find(open) ?? rows.slice(0, Math.max(0, at)).find(open))?.id ?? WALK_END;
 }
 
-/**
- * Change it with Ask, under Ask's own draft for a reply: the asks made most as one press each, or the member's words, and
- * Ask writes the draft again where it stood. Not while the member writes their own words, nor once the reply is on its way.
- */
-function ChangeWithAsk({ row, may }: { row: TodayQueueRowVM; may: boolean }) {
-  const want = replyWant(row);
-  const draft = useDraft(want);
-  const [editing, setEditing] = useRowState(row.id, "editing", false);
-  const [, setMine] = useRowState<string | null>(row.id, "mine", null);
-  const { s: send } = useSend(row.id);
-  const [how, setHow] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [why, setWhy] = useState<string | null>(null);
-  if (!want || !may || editing || send || draft?.state !== "ready") return null;
-  const ask = async (instruction: string) => {
-    if (!instruction.trim()) return;
-    setBusy(true);
-    setWhy(null);
-    const r = await rewriteDraft(want, instruction.trim());
-    setBusy(false);
-    if (!r.ok) return setWhy(r.why);
-    setHow("");
-    setMine(null);
-    setEditing(false);
-  };
-  return (
-    <div className="ny-change" data-testid="walk-change">
-      <span className="ny-by">
-        <span className="ny-three" data-live={busy || undefined} aria-hidden="true">
-          <Icon name="three" size={14} />
-        </span>
-        <span className="ny-by-words">{busy ? W.walk.rewriting : W.held.change}</span>
-      </span>
-      <div className="ny-picks">
-        {W.walk.quick.map((q) => (
-          <Button
-            key={q}
-            size="sm"
-            disabled={busy}
-            onClick={() => void ask(q)}
-            {...gate("approve", "rewrite the reply")}
-          >
-            {q}
-          </Button>
-        ))}
-      </div>
-      <Field label={W.held.changeLabel} rows={2} value={how} onValueChange={setHow} placeholder={W.held.changeHint} />
-      {why ? <Note tone="danger">{why}</Note> : null}
-      {how.trim() ? (
-        <div className="ny-acts">
-          <span className="ny-room" />
-          <Button disabled={busy} aria-busy={busy || undefined} onClick={() => void ask(how)}>
-            {W.held.rewrite}
-          </Button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 /** A send still counting down from the row before, held at the sheet's top with its Undo while the walk goes on. */
-function LastSend({ row }: { row: TodayQueueRowVM }) {
+function LastSend({ row, unkeep }: { row: TodayQueueRowVM; unkeep: (row: TodayQueueRowVM) => void }) {
   const { s, seconds } = useSend(row.id);
   if (s?.state !== "going") return null;
   return (
@@ -129,31 +73,88 @@ function LastSend({ row }: { row: TodayQueueRowVM }) {
       <span className="ny-walk-last-words">
         {W.sendingIn(seconds)} {W.sendingTo(row.who, row.writes?.wire ?? row.channel)}
       </span>
-      <Button variant="quiet" size="sm" onClick={() => void undoSend(row.id)}>
+      <Button variant="quiet" size="sm" onClick={() => void undoSend(row.id).then((r) => r.ok && unkeep(row))}>
         {W.undo}
       </Button>
     </div>
   );
 }
 
-/** The line above the person. Past a week it is in no count, so "Need you" is not what to call it: the head said nothing does. */
-function walkWhere(row: TodayQueueRowVM, step: number, steps: number): string {
-  const past = row.kind !== "held" && row.waitedMs >= NEED_YOU_OLD_MS;
-  return [past ? W.group.old : W.walk.of(step, steps), row.channel, row.when].filter(Boolean).join(" · ");
-}
-
-/** What they wrote, in quotes, or what happened where nobody's words are held. Called, not drawn. */
-function whatCameOf(row: TodayQueueRowVM) {
-  if (!row.sentence) return null;
-  return row.quoted ? (
-    <Quote what={W.walk.their} text={`“${row.sentence}”`} />
-  ) : (
-    <Quote what={W.walk.happened} text={row.sentence} />
+/** Where a row stands among the rest, in the head's line: the one before, "2 of 10", the next. Called, not drawn. */
+function pagerOf(step: number, steps: number, go: (by: number) => void) {
+  if (steps < 2) return undefined;
+  return (
+    <div className="ny-walk-pager">
+      <Button variant="quiet" size="sm" iconOnly aria-label={W.walk.before} disabled={step <= 1} onClick={() => go(-1)}>
+        <Icon name="chevron" size={14} className="ny-walk-back" />
+      </Button>
+      <span className="ny-walk-of">{W.walk.of(step, steps)}</span>
+      <Button
+        variant="quiet"
+        size="sm"
+        iconOnly
+        aria-label={W.walk.next}
+        disabled={step >= steps}
+        onClick={() => go(1)}
+      >
+        <Icon name="chevron" size={14} />
+      </Button>
+    </div>
   );
 }
 
-export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, onToDo }: WalkSheetProps) {
+/** The walk's end: how many went, what is left of today's, and the older ones if there are any. Called, not drawn. */
+function endOf(p: WalkSheetProps, lastRow: TodayQueueRowVM | null, close: { label: string; glyph: ReactElement }) {
+  const handled = p.rows.filter((r) => p.kept.has(r.id)).length;
+  const { older, more, todos } = p;
+  return (
+    <Sheet
+      open
+      onClose={() => p.onAt(null)}
+      title={W.walk.clear}
+      close={close}
+      flatFoot
+      foot={
+        <div className="ny-walk-stack">
+          {older ? (
+            <>
+              <Button onClick={older.go}>{W.walk.older.go}</Button>
+              <Button variant="secondary" disabled={older.busy} onClick={older.markAll}>
+                {W.oldDone.act}
+              </Button>
+            </>
+          ) : todos > 0 ? (
+            <Button onClick={p.onToDo}>{W.walk.todos(todos)}</Button>
+          ) : (
+            <Button onClick={() => p.onAt(null)}>{W.walk.back}</Button>
+          )}
+        </div>
+      }
+      className="ny-walk"
+      testid="today-walk"
+    >
+      {lastRow ? <LastSend row={lastRow} unkeep={p.work.unkeep} /> : null}
+      <div className="ny-walk-end" data-testid="walk-clear">
+        <span className="ny-walk-end-mark">
+          <Icon name="check" size={18} />
+        </span>
+        <b>{W.walk.doneCount(handled)}</b>
+        {older ? <span>{W.walk.older.says(older.count)}</span> : null}
+        {more ? (
+          <a className="ny-walk-end-door" {...routeDoor(more.to)}>
+            {W.cut.waiting(more.count)}
+            <Icon name="chevron" size={11} />
+          </a>
+        ) : null}
+      </div>
+    </Sheet>
+  );
+}
+
+export function WalkSheet(p: WalkSheetProps) {
+  const { rows, at, onAt, kept, work, word, stepDone } = p;
   const [footEl, setFootEl] = useState<HTMLElement | null>(null);
+  const [rest, setRest] = useState<SheetRest>("half");
   // The row before the one in view, where the walk moved on from it: its send counts down at the top.
   const [last, setLast] = useState<string | null>(null);
   // The walk: the rows still open, and the one in view though it was just acted on (it stays a beat).
@@ -174,6 +175,8 @@ export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, o
     }, NEXT_AFTER_MS);
     return () => clearTimeout(id);
   }, [rowId, done]);
+  // Each row starts at rest: a pull up was for the one it was pulled on.
+  useEffect(() => setRest("half"), [rowId]);
   if (at === null) return null;
   const go = (step: number) => {
     const to = steps[i + step];
@@ -186,90 +189,34 @@ export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, o
   });
   const lastRow = last ? (rows.find((r) => r.id === last) ?? null) : null;
   const close = { label: W.walk.close, glyph: <Icon name="x" size={13} /> };
-  if (!row) {
-    const handled = rows.filter((r) => kept.has(r.id));
-    return (
-      <Sheet
-        open
-        onClose={() => onAt(null)}
-        title={W.walk.clear}
-        sub={W.walk.clearSub}
-        close={close}
-        foot={
-          <div className="ny-acts">
-            {todos > 0 ? (
-              <Button variant="quiet" onClick={onToDo}>
-                {W.walk.todos(todos)}
-              </Button>
-            ) : null}
-            <span className="ny-room" />
-            <Button onClick={() => onAt(null)}>{W.walk.back}</Button>
-          </div>
-        }
-        className="ny-walk"
-        testid="today-walk"
-      >
-        {lastRow ? <LastSend row={lastRow} /> : null}
-        <ul className="ny-walk-done" data-testid="walk-clear">
-          {handled.map((r) => (
-            <li key={r.id}>
-              <Icon name="check" size={14} />
-              <b>{r.who}</b>
-            </li>
-          ))}
-        </ul>
-      </Sheet>
-    );
-  }
-  const where = walkWhere(row, i + 1, steps.length);
+  if (!row) return endOf(p, lastRow, close);
+  const pulled = rest === "full";
   return (
     <Sheet
       open
       onClose={() => onAt(null)}
-      title={row.who}
-      sub={where}
-      close={close}
-      tools={
-        steps.length > 1 ? (
-          <div className="ny-walk-pager">
-            <Button
-              variant="quiet"
-              size="sm"
-              iconOnly
-              aria-label={W.walk.before}
-              disabled={i <= 0}
-              onClick={() => go(-1)}
-            >
-              <Icon name="chevron" size={14} className="ny-walk-back" />
-            </Button>
-            <span className="ny-walk-dots" aria-hidden="true">
-              {steps.map((r) => (
-                <i key={r.id} data-on={r.id === row.id || undefined} />
-              ))}
-            </span>
-            <Button
-              variant="quiet"
-              size="sm"
-              iconOnly
-              aria-label={W.walk.next}
-              disabled={i >= steps.length - 1}
-              onClick={() => go(1)}
-            >
-              <Icon name="chevron" size={14} />
-            </Button>
-          </div>
-        ) : undefined
+      title={
+        <>
+          {row.who}
+          <Icon name="chevron" size={12} className="ny-walk-door" />
+        </>
       }
+      opens={{ label: W.walk.openWhole(row.who), press: () => appNavigate(row.cta.to) }}
+      sub={sheetSubOf(row)}
+      close={close}
+      tools={pagerOf(i + 1, steps.length, go)}
+      toolsInLine
+      flatFoot
+      rest={{ at: rest, onRest: setRest, turn: { up: W.walk.pullUp, down: W.walk.pullDown }, fit: true }}
       foot={<div ref={setFootEl} className="ny-walk-foot" />}
       className="ny-walk"
       testid="today-walk"
     >
-      {lastRow && lastRow.id !== row.id ? <LastSend row={lastRow} /> : null}
+      {lastRow && lastRow.id !== row.id ? <LastSend row={lastRow} unkeep={work.unkeep} /> : null}
       <div className="ny-walk-body" key={row.id} {...swipe}>
-        {whatCameOf(row)}
         {workOf(
           row,
-          { ...work, main: "primary", foot: footEl },
+          { ...work, main: "primary", foot: footEl, whole: true, pulled },
           {
             word,
             // A step marked done leaves the rows at once, as on the page: the walk goes on to the next one still open first,
@@ -280,7 +227,12 @@ export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, o
             },
           },
         )}
-        <ChangeWithAsk row={row} may={work.may} />
+        {pulled && row.conversationId ? (
+          <a className="ny-walk-whole" {...routeDoor(row.cta.to)}>
+            {W.walk.openInbox}
+            <Icon name="chevron" size={11} />
+          </a>
+        ) : null}
       </div>
     </Sheet>
   );

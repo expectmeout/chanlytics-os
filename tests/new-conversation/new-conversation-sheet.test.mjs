@@ -255,12 +255,8 @@ test("a call: the member's own phone, the brief Ask wrote with what is known sai
   for (const part of [
     "What we know",
     "Next visit: Tue, Oct 13 · 2:00 PM",
-    "Open with",
-    "Hi Robin",
     "Say",
     "Saturday opened up",
-    "Leave out",
-    "A price",
     "Ask for",
     "Whether 10 suits",
   ])

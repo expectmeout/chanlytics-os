@@ -8,9 +8,10 @@ import { useRef } from "react";
 import { NEED_YOU_WORDS as W, sendCountdown } from "@chanlytics/contracts";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { cancelSend } from "../../inbox/verbs";
-import { Button } from "../../kit";
-import { appNavigate, gate } from "../shell";
-import { Acts, Done, Going, Note, OpenedBox, Quote, useTick, type WorkProps } from "./parts";
+import { Button, Meter } from "../../kit";
+import { appNavigate } from "../shell";
+import { AskLine } from "./ask-line";
+import { Acts, Done, Note, Words, useTick, type WorkProps } from "./parts";
 import { ReplyWork } from "./reply-work";
 import { useRowState } from "./row-state";
 
@@ -23,8 +24,7 @@ export function HeldWork(p: WorkProps) {
   const held = row.held;
   // Kept by the row, not by this part: the sheet on a phone draws the same row's work after the page does (row-state.ts).
   const [stop, setStop] = useRowState<"no" | "busy" | "held" | "gone">(row.id, "stop", "no");
-  const [changing, setChanging] = useRowState(row.id, "changing", false);
-  const [how, setHow] = useRowState(row.id, "how", "");
+  const [why, setWhy] = useRowState<string | null>(row.id, "steerWhy", null);
   const [rewrite, setRewrite] = useRowState<"no" | "busy" | "done">(row.id, "rewrite", "no");
   const now = useTick(stop === "no" && rewrite !== "done", HELD_TICK_MS);
   // The grace as first seen, so the meter empties from here: the row may be drawn partway through it.
@@ -33,7 +33,7 @@ export function HeldWork(p: WorkProps) {
   const wire = row.writes?.wire ?? row.channel;
 
   if (stop === "held") return <ReplyWork {...p} row={{ ...row, prepared: held.text }} by={W.held.heldReply} />;
-  if (rewrite === "done") return <Done words={W.held.rewritten} />;
+  if (rewrite === "done") return <Done words={W.held.rewritten} foot={p.foot} />;
   const { seconds, share } = sendCountdown(held.sends_at_ms - first.current, held.sends_at_ms, now);
   if (stop === "gone" || seconds <= 0)
     return (
@@ -41,6 +41,7 @@ export function HeldWork(p: WorkProps) {
         words={W.sent}
         detail={stop === "gone" ? W.held.gone : W.held.by(wire)}
         act={{ label: W.open, onPress: () => appNavigate(row.cta.to) }}
+        foot={p.foot}
       />
     );
 
@@ -54,68 +55,50 @@ export function HeldWork(p: WorkProps) {
   };
   // Not kept on the card: the rewrite is a new held reply with its own deadline, which the next read draws in this row's
   // place (keyed by its message, rows.tsx) with its own countdown and Stop. Kept, the old row stood over it unseen.
-  const rewriteIt = async () => {
-    if (!how.trim()) return;
+  const rewriteIt = async (words: string) => {
     setRewrite("busy");
-    const r = await commitVerb("steer", { message_id: held.message_id, instruction: how.trim(), who: row.who });
+    setWhy(null);
+    const r = await commitVerb("steer", { message_id: held.message_id, instruction: words, who: row.who });
     if (!r.ok) {
       setRewrite("no");
-      flash({ tone: "danger", msg: <>{r.message}</> });
-      return;
+      setWhy(r.message);
+      return false;
     }
     setRewrite("done");
+    return true;
   };
+  const going = (
+    <Meter
+      size="sm"
+      parts={[
+        { share: Math.max(0.001, share), color: "var(--accent)" },
+        { share: Math.max(0, 1 - share), tone: "rest" },
+      ]}
+      aria-label={W.sendingTo(row.who, wire)}
+    />
+  );
 
   return (
     <>
-      <Quote what={W.held.title} text={held.text} />
-      <Going
-        line={W.held.sendsIn(seconds)}
-        sub={W.sendingTo(row.who, wire)}
-        share={share}
-        act={{ label: W.held.stop, onPress: () => void stopIt(), busy: stop === "busy", disabled: !may }}
+      <Words label={W.held.goesIn(seconds)} asks text={held.text} who={row.who} onChange={null} onRead={p.read} />
+      {going}
+      {p.whole && may ? (
+        <AskLine placeholder={W.say.tellHeld} onSay={rewriteIt} busy={rewrite === "busy"} why={why} />
+      ) : null}
+      {!may ? <Note>{W.viewer}</Note> : null}
+      <Acts
+        foot={p.foot}
+        end={
+          <Button
+            variant="secondary"
+            onClick={() => void stopIt()}
+            disabled={stop === "busy" || !may}
+            aria-busy={stop === "busy" || undefined}
+          >
+            {W.held.stopIt}
+          </Button>
+        }
       />
-      {changing ? (
-        <>
-          <OpenedBox
-            label={W.held.changeLabel}
-            rows={2}
-            value={how}
-            onChange={setHow}
-            placeholder={W.held.changeHint}
-          />
-          <Acts
-            foot={p.foot}
-            start={
-              <Button variant="quiet" onClick={() => setChanging(false)}>
-                {W.cancel}
-              </Button>
-            }
-            end={
-              <Button
-                variant="secondary"
-                onClick={() => void rewriteIt()}
-                disabled={!how.trim() || rewrite === "busy"}
-                aria-busy={rewrite === "busy" || undefined}
-                {...gate("approve", "rewrite the reply")}
-              >
-                {W.held.rewrite}
-              </Button>
-            }
-          />
-        </>
-      ) : may ? (
-        <Acts
-          foot={p.foot}
-          start={
-            <Button variant="quiet" onClick={() => setChanging(true)}>
-              {W.held.change}
-            </Button>
-          }
-        />
-      ) : (
-        <Note>{W.viewer}</Note>
-      )}
     </>
   );
 }

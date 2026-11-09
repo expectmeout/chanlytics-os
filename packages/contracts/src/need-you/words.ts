@@ -38,7 +38,6 @@ export const NOT_A_PERSON_WORDS = {
  */
 export const NEED_YOU_WORDS = {
   door: "Inbox",
-  reply: "Reply",
   drafted: "Ask's draft",
   drafting: "Ask is drafting…",
   couldNot: "Ask couldn't draft this one.",
@@ -49,18 +48,17 @@ export const NEED_YOU_WORDS = {
    * prospect, so no reply" said it twice in five lines).
    */
   pitch: (text: string) => `Not a customer: ${text}`,
-  edit: "Edit",
   editDraft: (personName: string) => `Change the reply to ${personName}`,
-  /** While the member types in the words: what the head says, and the press that leaves them as they are. */
-  editing: "editing",
   done: "Done",
   /** Once the member's words differ from what Ask drafted: Ask's words back in their place. */
-  useAsks: "Use Ask's draft",
+  useAsks: "Back to Ask's",
   /** The signature an email reply leaves with (00487), under the draft: what is sent is what is seen. */
   changeSignature: "Change",
   changeSignatureTip: "Change what this mailbox signs with, in Settings › Connections",
   yourWords: (personName: string) => `Your reply to ${personName}`,
-  yours: "your words",
+  yours: "Yours now",
+  /** Over the words while a send counts down. */
+  goingTo: (personName: string) => `Going to ${shortName(personName)}`,
   /** Where the member writes it from nothing: what stands in the empty words. */
   writeHere: (personName: string) => `Write to ${personName}…`,
   writeItMyself: "Write it myself",
@@ -93,10 +91,9 @@ export const NEED_YOU_WORDS = {
     part: (n: number) => `${n} lead${n === 1 ? "" : "s"} tried their preview`,
   },
   more: (n: number) => `${n} more in the Inbox`,
-  seeAll: "See all",
   /**
-   * What Need you could not hold, said at its foot beside See all (Today in three zones, 2 Nov 2026): the people past the
-   * five drawn, what waits for your OK past its three, your own to-dos past theirs.
+   * What a group of Need you could not hold, said as a press at that group's foot (9 Nov 2026): the people past the five
+   * drawn, what waits for your OK past its three, your own to-dos past theirs.
    */
   cut: {
     waiting: (n: number) => `${n} more waiting`,
@@ -122,14 +119,16 @@ export const NEED_YOU_WORDS = {
   restedUntil: (day: string) => `Not today. It comes back ${day}.`,
   /** Ends the head's sentence once nobody is left waiting on you (todayHeadLine). */
   end: "That's everyone.",
-  /** A reply of yours that never reached them: what the row says, what its card is headed by, and its one press. */
+  /** A reply of yours that never reached them: what the row says, what its bubble says, what it may do, and its presses. */
   failed: {
     sentence: "Your reply didn't reach them.",
+    on: (wire: string) => `Your reply didn't reach them on ${wire}.`,
     wire: "The line didn't take it.",
     why: "your reply didn't reach them",
-    what: "Your words",
-    kept: "kept",
+    notReached: "Didn't reach them",
     retry: "Try again",
+    later: "Try again later",
+    tryWire: (wire: string) => `Try ${wire} again`,
   },
   /**
    * Whoever has waited past a week, at the end: a person by themself where there is one, how many and who where there
@@ -166,20 +165,19 @@ export const NEED_YOU_WORDS = {
     /** Over what came of the ideas approved lately, under the ideas still open. */
     cameOf: "What came of it",
   },
-  /**
-   * A call's notes, for the member on the call and never sent: its head, then each part on a key column. "Find out", not
-   * "Ask": the assistant is Ask, and "Ask Ask what they…" read as a stutter.
-   */
-  brief: {
-    title: "Call notes",
-    only: "only you see these",
-    say: "Open with",
-    points: "Mention",
-    ask: "Find out",
-    avoid: "Avoid",
+  /** Ask's line: what it asks for, and what it says of a mic and of a change on its way. */
+  say: {
+    tell: "Tell Ask what to change",
+    tellMore: "Tell Ask what else",
+    tellHeld: "Tell it what to change",
+    changing: "Ask is changing it",
+    letGo: "Let go to send",
+    hold: "Hold to talk",
+    send: "Send to Ask",
+    micBlocked: "Your browser has the microphone turned off for this site. Allow it there, or type it.",
+    micFailed: "Couldn't hear you. Try again, or type it.",
   },
   call: {
-    call: "Call",
     how: "How did it go?",
     reached: "Reached them",
     noAnswer: "No answer",
@@ -187,24 +185,76 @@ export const NEED_YOU_WORDS = {
     reachedDone: "Reached · off your list",
     again: "Call again tomorrow · in your steps",
     againStep: "Call them back again",
+    callWho: (who: string) => `Call ${who}`,
+    callNow: "Call now",
+    callAnyway: "Call anyway",
+    play: "Play the call",
+    pause: "Pause the call",
+    readIt: "Read it",
+    theirCall: (who: string) => `${/^[+\d(]/.test(who) ? "Their" : `${shortName(who)}'s`} call`,
+    whenLong: (atMs: number, durationMs: number | null, tz: string) => {
+      const at = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(atMs);
+      if (!durationMs) return at;
+      const s = Math.round(durationMs / 1000);
+      return `${at} · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    },
+    onRecord: "On record",
+    firstTime: "First time they have called.",
+    neverHere: "No visits yet.",
+    lastHere: (when: string) => `Last here ${when}.`,
+    nextHere: (when: string) => `Next: ${when}.`,
+    selling: "This looks like someone selling to you, not a customer.",
+    remember: "Say what to remember",
+    rememberMore: "Say what else to remember",
+    onTheirPage: "On their page",
+    noPage: "They have no page yet, so there is nowhere to keep that.",
+  },
+  /** What a reach-out's reply leaves to press, once the sheet has said what was done. */
+  read: { notAPerson: "Not a person", replyNow: "Reply now" },
+  /** A lead search's question, answered in the sheet. */
+  search: {
+    change: "Or say what to change",
+    changeAsk: (search: string, words: string) => `Change the lead search "${search}": ${words}`,
+    nothingSpent: "Nothing is spent while it waits.",
+    stop: "Stop here",
+    keep: "Keep going",
+    kept: "Carrying on",
+    stopped: "Stopped. The ones already found are yours.",
   },
   held: {
     title: "Your receptionist's reply",
     goesAlone: "Sends on its own",
     sendsIn: (seconds: number) => `Sends in ${leftWords(seconds)}`,
     by: (wire: string) => `Your receptionist · ${wire}`,
-    stop: "Stop",
+    stopIt: "Stop it",
     held: "Held for you",
-    heldReply: "written by your receptionist",
-    change: "Change it with Ask",
-    changeLabel: "What should change",
-    changeHint: "Shorter, warmer, ask for a day…",
-    rewrite: "Rewrite",
+    heldReply: "Written by your receptionist",
+    goesIn: (seconds: number) => `Going by itself in ${leftWords(seconds)}`,
     rewritten: "Rewritten. The new draft waits its turn.",
     gone: "It went before it could be stopped.",
   },
-  booked: { confirmation: "Confirmation", dontSend: "Don't send" },
+  /** A time asked for by text, answered in the sheet. */
+  booked: {
+    confirm: "Confirm and send",
+    confirmAnyway: "Confirm anyway",
+    anotherTime: "Another time",
+    offerAnother: "Offer another time",
+    anotherDay: "Another day",
+    calendar: "Calendar",
+    back: "Back",
+    theyGet: "What they'll get",
+    noneOpen: "Nothing open to offer on your calendar right now. Pick a day there, or say it to Ask.",
+    telling: (who: string, seconds: number) => `Booked. Telling ${shortName(who)} in ${leftWords(seconds)}`,
+    done: (when: string) => `Booked for ${when}`,
+    offered: (who: string) => `Offered to ${shortName(who)}`,
+    dontSend: "Don't send",
+  },
   visit: {
+    /** A visit's verb on its row: the sheet holds Kept and Missed. */
+    asks: "Did they come?",
+    didCome: (who: string) => `Did ${who} come?`,
+    missedOffer: (who: string) => `${who} missed it. Offer another time?`,
+    leaveIt: "Leave it",
     rebook: "Rebook",
     rebookAbout: (word: string, when: string) =>
       `They missed their ${word} ${when}. Say sorry we missed them, and ask whether they would like another time. Use the booking link where one helps.`,
@@ -212,7 +262,12 @@ export const NEED_YOU_WORDS = {
     noWay: (reason: string) => `Nothing to send a rebook by. ${reason}`,
     change: "Change",
   },
-  step: { moved: (day: string) => `Moved to ${day}`, moveFor: "Not now: move this step" },
+  step: {
+    moved: (day: string) => `Moved to ${day}`,
+    moveFor: "Not now: move this step",
+    write: (who: string) => `Say what to write to ${shortName(who)}`,
+    sendDone: "Send, and it's done",
+  },
   review: {
     draft: "Draft a reply",
     drafted: "Public reply",
@@ -222,6 +277,7 @@ export const NEED_YOU_WORDS = {
     posted: "Posted on Google",
     toAnswer: "To answer",
     stars: (n: number) => `${n} star${n === 1 ? "" : "s"}`,
+    say: "Say what to answer",
   },
   /** An idea of Ask's morning: its tag, its presses, and Details, which a new campaign's rules fold behind. */
   idea: {
@@ -237,24 +293,29 @@ export const NEED_YOU_WORDS = {
     details: "Details",
   },
   /**
-   * The sheet that walks Need you on a phone (the phone canvas, 28 Oct 2026): where it stands in the list, the way to the
-   * one before and the next, what it says once everyone is answered, and Change it with Ask on Ask's own draft.
+   * The sheet that walks Need you on a phone (one sheet, 9 Nov 2026): where it stands in the list, the way to the one before and
+   * the next, pulling up for the whole conversation, and what it says at its end.
    */
   walk: {
-    of: (at: number, n: number) => `Need you · ${at} of ${n}`,
-    /** Over what the row says where it is not their own words: a call's note is no quote of theirs. */
-    happened: "What happened",
-    read: "Read",
+    of: (at: number, n: number) => `${at} of ${n}`,
     before: "The one before",
     next: "The next one",
     close: "Close",
-    their: "Their words",
-    clear: "That's everyone",
-    clearSub: "Nobody is waiting on you now.",
+    pullUp: "Pull up for the whole conversation",
+    pullDown: "Back down",
+    openWhole: (personName: string) => `Open ${personName}`,
+    openInbox: "Open in Inbox",
+    clear: "That's today's",
+    doneCount: (n: number) => (n === 1 ? "1 done" : `${n} done`),
     back: "Back to Today",
     todos: (n: number) => `${n} to-do${n === 1 ? "" : "s"} left`,
-    quick: ["Shorter", "Warmer", "Ask for a day"],
-    rewriting: "Ask is rewriting…",
+    older: {
+      go: "Go through them",
+      says: (n: number) =>
+        n === 1
+          ? "1 older one has waited over a week. It may need nothing from you."
+          : `${n} older ones have waited over a week. Most need nothing from you.`,
+    },
   },
 } as const;
 
@@ -374,8 +435,6 @@ export function sendCountdown(pressedMs: number, untilMs: number, nowMs: number)
 export interface NeedYouSayFacts {
   /** Replies drafted and waiting for a press. */
   replies: number;
-  /** Briefs for a call, drafted. */
-  briefs: number;
   /** Drafts still being written. */
   writing: number;
   /** The first WhatsApp window to close among the rows, who and when on the business's clock; null when none is. */
@@ -384,11 +443,9 @@ export interface NeedYouSayFacts {
   held: { who: string } | null;
 }
 
-const oneOrCount = (n: number, one: string, many: string) => `${n === 1 ? "a" : n} ${n === 1 ? one : many}`;
-
 /**
  * What the head says after how many need you (the redesign of 1 Nov 2026): what Ask prepared, then the one thing that
- * cannot wait, in one sentence ("Ask drafted 3 replies, and Dana's window closes at 11:52 AM."). A reply that goes
+ * cannot wait, in one sentence ("Ask has 3 replies ready, and Dana's window closes at 11:52 AM."). A reply that goes
  * on its own leads, since it goes in minutes, before a window that closes in hours. Null when Ask prepared nothing,
  * writes nothing and nothing closes: the head says the count alone, and the rows say the rest.
  */
@@ -399,12 +456,8 @@ export function needYouSay(needYouSayFacts: NeedYouSayFacts): string | null {
   const held = needYouSayFacts.held
     ? `Your receptionist answers ${shortName(needYouSayFacts.held.who)} on its own unless you stop it.`
     : "";
-  const ready = [
-    needYouSayFacts.replies ? oneOrCount(needYouSayFacts.replies, "reply", "replies") : "",
-    needYouSayFacts.briefs ? oneOrCount(needYouSayFacts.briefs, "call brief", "call briefs") : "",
-  ].filter(Boolean);
-  const drafted = ready.length
-    ? `Ask drafted ${ready.join(" and ")}`
+  const drafted = needYouSayFacts.replies
+    ? `Ask has ${needYouSayFacts.replies === 1 ? "a reply" : `${needYouSayFacts.replies} replies`} ready`
     : needYouSayFacts.writing
       ? "Ask is drafting your replies"
       : "";

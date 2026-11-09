@@ -1,9 +1,9 @@
 /**
  * Need you's rows (decision 0071), each in the kit's one row grammar (AttnRow) with its work under its words: the people
- * and the team's own to-dos, and the reviews to answer (Ask's ideas are Ask found's, zones/found.tsx). Since the redesign
- * of 1 Nov 2026 a row says four things and no state line: who, what they want behind the glyph of the wire it came by, how
- * long they have waited or when its clock runs out (in the amber past the business's own target), and the verb, with
- * Ask's mark where Ask prepared it; why it was handed to you is said beside the name once the row is open. One row is the
+ * and the team's own to-dos and reviews (Ask's ideas are Ask found's, zones/found.tsx). A row says four things and no state
+ * line (one row, 9 Nov 2026): who or what, how long they have waited or when its clock runs out (in the amber past the
+ * business's own target), and the verb, with Ask's mark where Ask prepared it, on its first line, and what it is about
+ * across the whole row under them; why it was handed to you is said beside the name once the row is open. One row is the
  * focus and draws its work in place (the queue's `focus`: on a phone the card, the first open row; on a desk the one
  * opened, Up next until another is), its act the page's coral; a row acted on keeps its work, its receipt and its undo,
  * for the visit; every other row is drawn short and opens itself with its verb.
@@ -11,13 +11,14 @@
 import type { ReactElement } from "react";
 import {
   NEED_YOU_WORDS as W,
+  NOTE_WORDS,
   answerWithinMsOf,
   namesAPerson,
+  needYouLineOf,
   needYouVerbOf,
   needYouWaitOf,
-  reviewRoute,
+  reviewStars,
   type AppointmentWord,
-  type GoogleReviewDto,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
@@ -25,9 +26,8 @@ import { Icon } from "../../kit/icon/icon";
 import { businessTrailFor } from "../../people/business-trail";
 import { surfaceValue } from "../../surface-values";
 import type { Nav, VerbKind } from "../../waits/wait-rows";
-import type { Flash } from "../shell";
+import { gate, type Flash } from "../shell";
 import { useDraft } from "./drafts";
-import { ReviewWork, reviewerOf } from "./review-work";
 import { draftWantOf, opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
 
 /** What the section hands its rows. */
@@ -64,11 +64,6 @@ export interface NeedYouRowsCtx {
   shortKind?: VerbKind;
 }
 
-/** What the reviews are handed besides: a review acted on is kept in its place for the visit. */
-export interface NeedYouExtrasCtx extends NeedYouRowsCtx {
-  keepReview: (review: GoogleReviewDto) => void;
-}
-
 /**
  * The kind of a row's act: the coral for the focus still open, quiet for the rest. A reply of the receptionist's
  * counting down never takes it: it goes unless stopped, so its press is Stop, and the coral is for what waits on you.
@@ -87,6 +82,7 @@ const VIA_GLYPH: Record<TodayQueueRowVM["channel"], string> = {
   Leads: "search",
   "Next step": "check",
   Calendar: "calendar",
+  Google: "star",
 };
 
 /**
@@ -95,9 +91,11 @@ const VIA_GLYPH: Record<TodayQueueRowVM["channel"], string> = {
  */
 function VerbWords({ row, words }: { row: TodayQueueRowVM; words: string }) {
   const draft = useDraft(draftWantOf(row));
+  // A call's read says nothing of words ready: only a reply's mark says Ask has them.
+  const ready = draft?.state === "ready" && row.kind !== "callback" && !row.failed;
   return (
     <>
-      {draft?.state === "ready" ? <Icon name="three" size={13} className="ny-ready" /> : null}
+      {ready ? <Icon name="three" size={13} className="ny-ready" /> : null}
       {words}
     </>
   );
@@ -112,26 +110,37 @@ function answerWithin(): number {
   return answerWithinMsOf(reply?.limits);
 }
 
+/** How long, or a review's stars where a wait would stand. */
+function waitOf(row: TodayQueueRowVM) {
+  if (row.kind === "review") {
+    const rating = row.review?.rating;
+    return { words: [row.channel, rating ? reviewStars(rating) : ""].filter(Boolean).join(" · "), long: false };
+  }
+  return needYouWaitOf(row, W.held.goesAlone, answerWithin());
+}
+
 /**
- * What a row says whatever it asks: who, the wire, how long, what they want. Someone waiting on you says no state line: how
- * long is beside the name, and why it was handed over is said beside it once the row is open (row.why), never behind a mark
- * nobody could read (the 10/10 read, 2 Nov 2026). Your own to-do keeps its line (a step's day and whom it is for, a visit's
- * "Did they come?"), which is what it says, and so does a search waiting for your OK, as the runs beside it do ("nothing is
- * spent while it waits").
+ * What a row says whatever it asks: who or what, the wire for a screen reader, how long, what it is about (contracts
+ * needYouLineOf, which says a to-do by its job). Someone waiting on you says no state line: how long is beside the name, and
+ * why it was handed over is said beside it once the row is open (row.why), never behind a mark nobody could read (the 10/10
+ * read, 2 Nov 2026). A search waiting for your OK keeps its line, as the runs beside it do ("nothing is spent while it
+ * waits").
  */
 export function rowWords(row: TodayQueueRowVM) {
   const face = namesAPerson(row) ? { person: { name: row.who, initials: row.initials } } : { initials: row.initials };
   const verb = needYouVerbOf(row);
   const waits = verb === "reply" || verb === "call";
+  const line = needYouLineOf(row);
   return {
     ...face,
-    name: row.who,
-    trail: namesAPerson(row) ? businessTrailFor(row.person_id) : null,
-    // The wire is the glyph before what they want, and its name is the glyph's words for a screen reader.
+    name: line.name,
+    trail: namesAPerson(row) && row.kind !== "step" ? businessTrailFor(row.person_id) : null,
+    // No glyph is drawn (his call D2, 9 Nov 2026): a screen reader still hears the wire.
     via: { glyph: VIA_GLYPH[row.channel], words: [row.channel, row.via].filter(Boolean).join(", ") },
-    wait: needYouWaitOf(row, W.held.goesAlone, answerWithin()),
-    sentence: row.sentence,
-    quoted: row.quoted,
+    wait: waitOf(row),
+    sentence: line.sentence,
+    saidTone: line.tone,
+    quoted: line.quoted,
     lead: row.lead,
     status: waits ? [] : row.status,
     note: "",
@@ -166,12 +175,24 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
     if (opensToWork(r) && r.id !== c.focus && !kept) {
       const open = () => c.open(r.id);
       const kind = (c.shortKind ?? c.verbKind)();
+      // A to-do's Done is the one short verb that acts where it stands, with its toast and Undo: there is nothing to see first.
+      const done = r.kind === "step" && c.may;
       return (
         <AttnRow
           key={r.id}
           {...common}
           note=""
-          cta={{ label: <VerbWords row={r} words={shortLabel(r)} />, kind, onClick: open }}
+          cta={
+            done
+              ? {
+                  label: r.cta.label,
+                  kind,
+                  onClick: () => c.stepDone(r),
+                  // Several rows say Done: a reader hears whose, as the thread header's does.
+                  gate: { ...gate("approve", "mark a step done"), "aria-label": NOTE_WORDS.markDone(r.sentence) },
+                }
+              : { label: <VerbWords row={r} words={shortLabel(r)} />, kind, onClick: open }
+          }
           also={null}
           onOpen={open}
         />
@@ -190,6 +211,8 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
         keep: c.keep,
         unkeep: c.unkeep,
         read: card && phone ? () => phone.walk(r.id) : null,
+        // A desk's open row is drawn whole; a phone's Up next is short of it, and a row kept says only what became of it.
+        whole: !phone && !kept,
       },
       { word: c.word, stepDone: () => c.stepDone(r) },
     );
@@ -197,44 +220,12 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       <AttnRow
         key={r.id}
         {...common}
-        meta={waits ? (r.why ?? "") : ""}
+        // Why it was handed over, a desk's: on a phone its sentence says it, and a reply that never arrived says so itself.
+        meta={waits && !phone && !r.failed ? (r.why ?? "") : ""}
         cta={null}
         also={null}
         onOpen={card && phone ? () => phone.walk(r.id) : () => c.nav(r.cta.to)}
         work={work}
-      />
-    );
-  });
-}
-
-/** The reviews to answer: each a row, opening the review on Reports, with Ask's draft asked for in place. */
-export function reviewRows(reviews: readonly GoogleReviewDto[], c: NeedYouExtrasCtx): ReactElement[] {
-  return reviews.map((review) => {
-    const id = `q-r-${review.id}`;
-    const kind = actKindOf({ id }, c);
-    const who = reviewerOf(review);
-    return (
-      <AttnRow
-        key={id}
-        person={{ name: who }}
-        name={who}
-        meta={["Google", review.rating ? W.review.stars(review.rating) : ""].filter(Boolean).join(", ")}
-        sentence={review.body ?? ""}
-        quoted={!!review.body}
-        status={[W.review.toAnswer]}
-        tone="warn"
-        onOpen={() => c.nav(reviewRoute(review.id))}
-        testid="queue-review"
-        work={
-          <ReviewWork
-            review={review}
-            rowId={id}
-            main={kind === "primary" ? "primary" : "secondary"}
-            may={c.may}
-            flash={c.flash}
-            keep={() => c.keepReview(review)}
-          />
-        }
       />
     );
   });

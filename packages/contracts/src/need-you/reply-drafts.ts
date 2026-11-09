@@ -39,6 +39,13 @@ export type ReplyDraftSource = (typeof REPLY_DRAFT_SOURCES)[number];
 /** Why a draft was not written (conversation_drafts.why_failed): a gate's word, or that it would have named money. */
 export type ReplyDraftWhy = DraftWhy | "named_money";
 
+/**
+ * What a change said to Ask comes to when the model named a figure nobody gave: the words stay as they were, and saying the
+ * figure is the way through (his call D11, 9 Nov 2026).
+ */
+export const DRAFT_CHANGE_NAMED_MONEY =
+  "It named a price you didn't give, so your draft stays. Say the figure and Ask will use it.";
+
 /** What each why says on the page, and whether Try again can change it. */
 const DRAFT_FAILED_WORDS: Readonly<Record<ReplyDraftWhy, { words: string; again: boolean }>> = {
   no_receptionist: { words: "Set up your receptionist to have replies drafted.", again: false },

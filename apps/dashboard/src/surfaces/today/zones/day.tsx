@@ -371,7 +371,6 @@ function dayHead(title: string, note: string) {
 function linkRow() {
   return (
     <div className="tpd-li" data-kind="link" key="link">
-      <span className="tpd-tm" />
       <span className="tpd-tx">{dayLineWords({ glyph: "calendar", title: P.link.title, sub: P.link.sub })}</span>
       <Button variant="secondary" size="sm" {...routeDoor(CALENDAR_SETTING_ROUTE)} data-testid="today-day-link">
         {P.link.act}

@@ -145,6 +145,37 @@ export function holdReviewPost(key: string, r: { who: string; post: ReviewPost }
   tick();
 }
 
+/**
+ * An answer with no undo of its own, held for the grace and only then made (a booking's Confirm and send): Undo inside the
+ * grace is its never being made. A tab closed meanwhile leaves it unanswered, and the row waits again: nothing was said to anyone.
+ */
+export function holdAct(key: string, r: { who: string; wire: string; act: () => Promise<boolean> }): void {
+  const pressedMs = Date.now();
+  nowMs = pressedMs;
+  sends.set(key, {
+    state: "going",
+    going: {
+      pressedMs,
+      untilMs: pressedMs + REVIEW_GRACE_MS,
+      who: r.who,
+      wire: r.wire,
+      stop: { kind: "review", post: () => r.act() },
+    },
+  });
+  timers.set(
+    key,
+    setTimeout(() => {
+      timers.delete(key);
+      void r.act().then((ok) => {
+        sends.set(key, ok ? { state: "gone", atMs: Date.now() } : { state: "stopped" });
+        tellSends();
+      });
+    }, REVIEW_GRACE_MS),
+  );
+  tellSends();
+  tick();
+}
+
 /** Undo: the reply's own undo, or the review's post never made. Refused (it went), it says why. */
 export async function undoSend(key: string): Promise<{ ok: true } | { ok: false; message: string }> {
   const s = sends.get(key);

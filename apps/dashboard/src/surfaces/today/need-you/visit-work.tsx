@@ -9,6 +9,7 @@ import {
   NEED_YOU_WORDS as W,
   VISIT_ASK_WORDS,
   VISIT_WORDS,
+  shortName,
   writeWireName,
   type AppointmentWord,
   type PersonReachDto,
@@ -18,9 +19,11 @@ import { askDraft, readReach } from "../../inbox/new-conversation/verbs";
 import { sayVisit } from "../../visit-line";
 import { Button } from "../../kit";
 import { gate } from "../shell";
-import { Acts, Done, Going, Note, Words, Writing, whoseWords, type WorkProps } from "./parts";
+import { Acts, Done, Going, Note, State, Words, Writing, startKind, whoseWords, type WorkProps } from "./parts";
 import { useRowState } from "./row-state";
 import { sendWords, undoSend, useSend } from "./sends";
+
+const firstNameOf = shortName;
 
 /** The way a first message to a person can go with words of the member's own: theirs by default, else any that takes words. */
 function wordsWay(reach: PersonReachDto): PersonReachDto["ways"][number] | null {
@@ -130,11 +133,13 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
   if (rebook?.state === "none" && !way)
     return <Done words={VISIT_WORDS.missed} detail={rebook.why} act={{ label: W.visit.change, onPress: p.onChange }} />;
   // Typed where they stand, as a reply's are: the member's own from the first key, kept even emptied.
+  const whose = whoseWords(drafted, mine, () => setMine(null));
   const written =
     words || mine !== null ? (
       <Words
-        what={W.visit.rebook}
-        {...whoseWords(drafted, mine, () => setMine(null))}
+        label={whose.by}
+        asks={whose.asks}
+        onRestore={whose.onRestore}
         text={words}
         who={row.who}
         onChange={may ? setMine : null}
@@ -162,14 +167,14 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
     );
   return (
     <>
-      <Note>{VISIT_WORDS.missed}</Note>
+      <State>{W.visit.missedOffer(firstNameOf(row.who))}</State>
       {send?.state === "stopped" ? <Note>{W.canceled}</Note> : null}
       {written}
       <Acts
         foot={p.foot}
         start={
-          <Button variant="quiet" onClick={p.onDontSend}>
-            {W.booked.dontSend}
+          <Button variant={startKind(p.foot)} onClick={p.onDontSend}>
+            {W.visit.leaveIt}
           </Button>
         }
         end={end}
@@ -214,5 +219,14 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
       {VISIT_WORDS[status]}
     </Button>
   );
-  return <Acts foot={p.foot} start={second ? press(second, "quiet") : null} end={first ? press(first, main) : null} />;
+  return (
+    <>
+      {p.whole ? <State>{W.visit.didCome(firstNameOf(row.who))}</State> : null}
+      <Acts
+        foot={p.foot}
+        start={second ? press(second, startKind(p.foot)) : null}
+        end={first ? press(first, main) : null}
+      />
+    </>
+  );
 }

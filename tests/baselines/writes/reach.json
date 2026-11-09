@@ -877,7 +877,7 @@
     },
     "POST conversations/[id]/draft": {
       "changes": "",
-      "doors": "anthropic_profiles · conversation_drafts · conversations · escalations · mailbox_sender_reads · notifications",
+      "doors": "anthropic_profiles · conversation_drafts · conversations · escalations · mailbox_connections · mailbox_sender_reads · notifications",
       "door": {
         "reply_drafts": "inbox, today"
       }

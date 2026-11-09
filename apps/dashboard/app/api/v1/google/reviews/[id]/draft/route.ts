@@ -1,5 +1,5 @@
 import { write, workspace } from "@/server/shared/route";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, ReviewDraftAskSchema } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/shared/request-guards";
 import { callEdgeGoogle } from "@/server/connections/google";
 
@@ -27,9 +27,13 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "google_draft",
-  handle: async ({ ctx, member }) => {
+  input: ReviewDraftAskSchema,
+  handle: async ({ ctx, member, input }) => {
     const id = requireUuid(ctx.params.id, "review");
-    const answer = await callEdgeGoogle({ op: "draft", tenant_id: member.tenantId, user_id: ctx.userId, id }, 25_000);
+    const answer = await callEdgeGoogle(
+      { op: "draft", tenant_id: member.tenantId, user_id: ctx.userId, id, ...input },
+      25_000,
+    );
     const body = answer.body ?? {};
     if (answer.status !== 200 || body.ok !== true || typeof body.text !== "string") {
       const reason = typeof body.error === "string" ? body.error : "failed";

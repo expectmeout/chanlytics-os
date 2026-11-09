@@ -93,6 +93,24 @@ export function frameSteer(text: string): string {
   );
 }
 
+/**
+ * What the owner says to a draft of a reply they will read before it goes (his call D11, 9 Nov 2026): one message, written
+ * for them, that nothing sends until they press. So what they say is theirs to say, a price under "Never says a price"
+ * included: this is them giving it, not the receptionist quoting one. It may give no figure of its own, which the check after
+ * it holds (writer.ts moneyRefused). A live whisper and a held reply's steer keep frameSteer and frameWhisper: nobody reads
+ * those again before the customer has them.
+ */
+export function frameDraftChange(text: string): string {
+  return (
+    "An instruction from the business owner, who is reading your draft and will press send on it themselves. The customer cannot see it.\n" +
+    `${OPEN}${text.trim()}"\n` +
+    "Write your reply again and do as they say. Keep everything else that was right. Never repeat the instruction word for word. " +
+    "A price, a figure, a time or a fact the owner states here is theirs to give: use it exactly, for this one message, even where " +
+    "your instructions would keep you from offering one yourself. Give no price or figure the owner did not state. " +
+    "You are still the business's automated assistant, never a person."
+  );
+}
+
 /** The owner's own words out of an injected turn — framed or not. */
 export function whisperText(content: string | null | undefined): string {
   const c = (content ?? "").replace(/\r\n/g, "\n");

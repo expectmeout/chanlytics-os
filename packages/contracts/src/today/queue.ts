@@ -8,7 +8,9 @@ import { addressOf } from "../activity/record-address";
 import { HOLD_ACT_WORDS, holdActOf, reasonLabelOf, reasonShort } from "../conversations/escalations";
 import {
   draftSendsAtMs,
+  failedWayOf,
   heldDraftOf,
+  isHeldDraft,
   messageText,
   messageWords,
   clipAtWord,
@@ -17,7 +19,8 @@ import {
 import { threadChannelWords } from "../conversations/thread-channel";
 import { formatWaited } from "../conversations/thread-clock";
 import { contactName, initialsOf } from "../conversations/thread-contact";
-import type { ConversationDto } from "../conversations/thread-dto";
+import { recordingStateOf } from "../conversations/call-dto";
+import { messageAt, type ConversationDto, type MessageDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy/prices";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
 import { previewSaidOf, previewTriedWords, type PreviewTriedDto } from "../previews/tried";
@@ -97,6 +100,33 @@ function writesOf(
   };
 }
 
+/** How many of the newest messages a row carries for its sheet: three show at rest, and a pull up shows these. */
+const SAID_MAX = 12;
+/** How much of one message a row carries: a long email's first part. The thread holds the whole of it. */
+const SAID_CHARS = 600;
+
+/**
+ * What was said on a thread, the earliest first, as a sheet draws it: their words and the business's that went out, or
+ * failed. Not what is held and may yet not go (a draft counting down, its own row), nor a call's note or the system's.
+ */
+function saidOf(conv: ConversationDto | undefined): TodayQueueRowVM["said"] {
+  return conv ? saidOfMessages(conv.messages) : undefined;
+}
+
+/** What was said in these messages, as saidOf says it: a sheet reading a thread its row does not hold reads it the same way. */
+export function saidOfMessages(messages: readonly MessageDto[]): TodayQueueRowVM["said"] {
+  const said = messages
+    .filter((x) => x.sender !== "system" && x.type !== "call_summary" && !isHeldDraft(x) && !!messageWords(x).trim())
+    .slice(-SAID_MAX)
+    .map((x) => ({
+      from:
+        x.direction === "inbound" ? ("them" as const) : x.status === "failed" ? ("failed" as const) : ("us" as const),
+      text: clipAtWord(messageWords(x), SAID_CHARS),
+      at_ms: Date.parse(messageAt(x)),
+    }));
+  return said.length ? said : undefined;
+}
+
 /**
  * How long until a thread's WhatsApp window shuts, while it is open: the row's clock (need-you/groups.ts), which puts a
  * reply that must go before it shuts ahead of every wait. Null on another wire, or a window already shut.
@@ -137,6 +167,7 @@ function heldRow(conversation: ConversationDto, todayFacts: TodayFacts): TodayQu
     cta: { label: NEED_YOU_WORDS.openThread, to: addressOf({ kind: "conversation", id: conversation.id }) },
     also: null,
     writes: writesOf(conversation, todayFacts),
+    said: saidOf(conversation),
     held: { message_id: draft.id, text: messageText(draft), sends_at_ms: sendsAtMs },
     // Before everyone waiting: it goes on its own in seconds.
     waitedMs: Number.MAX_SAFE_INTEGER,
@@ -146,6 +177,17 @@ function heldRow(conversation: ConversationDto, todayFacts: TodayFacts): TodayQu
 
 /** The ask a call's to-do ends with (unansweredCallTodo), which the row's state line and its Call already say. */
 const CALL_BACK_ASK = ` ${HOLD_ACT_WORDS.call_back.notice}`;
+
+/**
+ * What a call-back's line says, without telling the owner to call: the row's verb says that (his note, 9 Nov 2026). "Call Priya
+ * back about onboarding her two offices" is "About onboarding her two offices".
+ */
+function wantOfCall(line: string): string {
+  const said = line.trim();
+  if (!said) return "The caller needs a call back.";
+  const about = /^call\s+.{1,60}?\s+back\s+(about|regarding|re:?)\s+/i.exec(said);
+  return about ? `About ${said.slice(about[0].length)}` : said;
+}
 
 /**
  * A call-back: the phone receptionist could not finish it. What happened is the sentence, without the ask its to-do ends
@@ -166,8 +208,7 @@ function callbackRow(escalation: EscalationRecord, todayFacts: TodayFacts): Toda
     initials: initialsOf(escalation.who),
     channel: "Phone",
     when: `waited ${formatWaited(escalation.waitedMs)}`,
-    sentence:
-      (todo.endsWith(CALL_BACK_ASK) ? todo.slice(0, -CALL_BACK_ASK.length) : todo) || "The caller needs a call back.",
+    sentence: wantOfCall(todo.endsWith(CALL_BACK_ASK) ? todo.slice(0, -CALL_BACK_ASK.length) : todo),
     quoted: false,
     status: ["Needs a call back", since],
     since,
@@ -181,6 +222,17 @@ function callbackRow(escalation: EscalationRecord, todayFacts: TodayFacts): Toda
     },
     also: { label: "Done", verb: "resolve", conversationId: error.conversation_id, escalationId: error.id },
     writes: writesOf(escalation.conv, todayFacts),
+    said: saidOf(escalation.conv),
+    ...(escalation.call
+      ? {
+          call: {
+            id: escalation.call.id,
+            at_ms: escalation.call.started_at ? Date.parse(escalation.call.started_at) : 0,
+            duration_ms: escalation.call.duration_ms ?? null,
+            recorded: recordingStateOf(escalation.call) === "ready",
+          },
+        }
+      : {}),
     phone: escalation.conv?.contact.phone_e164 ?? escalation.call?.contact?.phone_e164 ?? null,
     reason: say(error.details) || null,
     waitedMs: escalation.waitedMs,
@@ -196,7 +248,16 @@ function failedReplyOf(conv: ConversationDto | undefined): TodayQueueRowVM["fail
     ? [...conv.messages].reverse().find((x) => x.direction === "outbound" && x.status === "failed" && !!x.body)
     : undefined;
   if (!m) return undefined;
-  return { text: messageText(m), said: sendFailureWords(m.error, m.channel) ?? NEED_YOU_WORDS.failed.wire };
+  return {
+    text: messageText(m),
+    said: sendFailureWords(m.error, m.channel) ?? NEED_YOU_WORDS.failed.wire,
+    ...failedWayOf(m.error, m.channel),
+  };
+}
+
+/** A reply that never reached them, as its row says it: on which wire. Why, in plain words, is its sheet's. */
+function failedLine(conv: ConversationDto | undefined): string {
+  return conv ? NEED_YOU_WORDS.failed.on(threadChannelWords(conv.messages)) : NEED_YOU_WORDS.failed.sentence;
 }
 
 /** A handoff: the receptionist stopped and asked for a person; her words are the sentence, Snooze puts it aside. */
@@ -208,7 +269,17 @@ function handoffRow(escalation: EscalationRecord, todayFacts: TodayFacts): Today
       ...handoffOf(escalation, todayFacts),
       sentence: say(error.details) || reasonLabelOf(error.reason),
       quoted: false,
-      request: { conversationId: error.conversation_id },
+      request: {
+        conversationId: error.conversation_id,
+        ...(error.request
+          ? {
+              starts_at: error.request.starts_at,
+              ends_at: error.request.ends_at,
+              service: error.request.service,
+              expires_at: error.request.expires_at,
+            }
+          : {}),
+      },
     };
   // A reply that never reached them: what failed and why is the sentence, and the row's words are those that failed, to
   // send again as written with Try again, first among those waiting (needYouOrder). Their own last words stay in the thread.
@@ -216,7 +287,7 @@ function handoffRow(escalation: EscalationRecord, todayFacts: TodayFacts): Today
     const failed = failedReplyOf(escalation.conv);
     return {
       ...handoffOf(escalation, todayFacts),
-      sentence: [NEED_YOU_WORDS.failed.sentence, failed?.said ?? ""].filter(Boolean).join(" "),
+      sentence: failedLine(escalation.conv),
       quoted: false,
       ...(failed ? { failed, prepared: failed.text } : {}),
       why: NEED_YOU_WORDS.failed.why,
@@ -259,6 +330,9 @@ function handoffOf(escalation: EscalationRecord, todayFacts: TodayFacts): TodayQ
     },
     also: { label: "Snooze", verb: "snooze", conversationId: error.conversation_id, escalationId: error.id },
     writes: writesOf(escalation.conv, todayFacts),
+    said: saidOf(escalation.conv),
+    // The hold's number, for a call that follows a failure or a reply the receptionist asked a person to make.
+    phone: escalation.conv?.contact.phone_e164 ?? null,
     reason: reasonLabelOf(error.reason),
     waitedMs: escalation.waitedMs,
     act: holdActOf(error.reason),
@@ -305,6 +379,7 @@ function windowRow(conversation: ConversationDto, todayFacts: TodayFacts): Today
     cta: { label: "Open thread", to: addressOf({ kind: "conversation", id: conversation.id }) },
     also: null,
     writes: writesOf(conversation, todayFacts),
+    said: saidOf(conversation),
     // After every escalation (which waited ≥ 0), the soonest to close first.
     waitedMs: -leftMs,
     clock_ms: leftMs,
@@ -327,7 +402,7 @@ function owedRow({ conv: c, move, who, waitedMs, word, quote }: OwedThread, toda
     initials: initialsOf(who),
     channel: threadChannelWords(c.messages),
     when: `waited ${formatWaited(waitedMs)}`,
-    sentence: failed ? [NEED_YOU_WORDS.failed.sentence, failed.said].filter(Boolean).join(" ") : quote || word,
+    sentence: failed ? failedLine(c) : quote || word,
     quoted: !failed && !!quote,
     status: [word],
     tone: "escalated",
@@ -335,6 +410,8 @@ function owedRow({ conv: c, move, who, waitedMs, word, quote }: OwedThread, toda
     cta: { label: HOLD_ACT_WORDS.reply.cta, to: addressOf({ kind: "conversation", id: c.id }) },
     also: null,
     writes: writesOf(c, todayFacts),
+    said: saidOf(c),
+    phone: c.contact.phone_e164 ?? null,
     reason: word,
     waitedMs,
     act: "reply",

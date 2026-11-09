@@ -183,9 +183,11 @@ export {
   type BookingRequestFields,
   bookingRequestRefusalOf,
   type BookingRequestTerms,
+  otherTimeWords,
   type RequestedBooking,
   requestedBookingOf,
   slotLong,
+  slotNear,
   slotShort,
   takesBookingRequests,
 } from "./visit/booking-request";

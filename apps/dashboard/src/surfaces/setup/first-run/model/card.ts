@@ -234,6 +234,10 @@ export const SETUP_CARD_WORDS = {
   answering: "Answering",
   callsNotAnswered: "Calls aren't answered yet",
   next: (name: string) => `Next: ${name.toLowerCase()}`,
+  then: (names: readonly string[]) =>
+    names.length
+      ? `Then ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]}.`
+      : null,
   keptTitle: "Kept for you",
   goingLive: "Finish going live",
   needYou: (n: number) => `${n} need${n === 1 ? "s" : ""} you`,
@@ -325,14 +329,22 @@ export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCard
   if (!fr.complete && (fr.current !== "live" || !paid)) {
     const left = fr.steps.filter((s) => s.state !== "done").length;
     const def = firstRunStepDefOf(fr.current);
+    // Said by what comes next: the head over it has already said nothing answers yet (9 Nov 2026).
+    const after = fr.steps
+      .filter((s) => s.state !== "done" && s.key !== fr.current)
+      .map((s) => firstRunStepDefOf(s.key).name.toLowerCase());
     return {
       title: FINISH_SETTING_UP,
       left: `${left} ${left === 1 ? "step" : "steps"} left`,
       start: {
         // Said as it is: nothing answers yet; WhatsApp answers and calls do not; or calls are answered and a step is open.
-        name: !vm.readiness.answering ? words.notAnswering : vm.tryIt?.voice ? words.answering : words.callsNotAnswered,
-        sentence: def.lead,
-        status: words.next(def.name),
+        name: def.name,
+        sentence: words.then(after) ?? def.lead,
+        status: !vm.readiness.answering
+          ? words.notAnswering
+          : vm.tryIt?.voice
+            ? words.answering
+            : words.callsNotAnswered,
         cta: words.startCta,
         ctaShort: words.startShort,
         to: FIRST_RUN_ROUTE,

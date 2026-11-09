@@ -4,24 +4,75 @@
  * place, and Post holds it for the reply's grace before it goes public (sends.ts), with Undo the whole of it.
  */
 import { useState } from "react";
-import { NEED_YOU_WORDS as W, type GoogleReviewDto } from "@chanlytics/contracts";
+import { NEED_YOU_WORDS as W, reviewerOf, type GoogleReviewDto } from "@chanlytics/contracts";
 import { draftReply, replyToReview } from "@/bridge/google";
 import { Button } from "../../kit";
+import { Icon } from "../../kit/icon/icon";
 import { gate } from "../shell";
-import { Acts, Done, Going, Note, Words, Writing, whoseWords, type WorkProps } from "./parts";
+import { AskLine } from "./ask-line";
+import { Acts, Done, Going, Note, Words, Writing, startKind, whoseWords, type WorkProps } from "./parts";
 import { reviewRestKey, useRests } from "./rests";
 import { clearSend, holdReviewPost, undoSend, useSend } from "./sends";
 import { useRowState } from "./row-state";
 
-/** Who wrote a review, as its row names them. */
-export const reviewerOf = (r: GoogleReviewDto) => r.author?.trim() || "A Google reviewer";
+/** A review's stars, in the ink: how it landed, at a glance. */
+function Stars({ rating }: { rating: number }) {
+  return (
+    <span className="ny-stars" role="img" aria-label={W.review.stars(rating)}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Icon key={n} name="star" size={15} className={n <= rating ? "ny-star-on" : "ny-star-off"} />
+      ))}
+    </span>
+  );
+}
+
+/** A review's press: Post once there are words; Write it myself where Ask could not draft it; else Draft a reply. Called, not drawn. */
+function reviewEnd(e: {
+  main: WorkProps["main"];
+  may: boolean;
+  ready: boolean;
+  words: string;
+  failed: boolean;
+  writing: boolean;
+  post: () => void;
+  draft: () => void;
+  writeIt: () => void;
+}) {
+  if (e.ready)
+    return (
+      <Button variant={e.main} onClick={e.post} disabled={!e.words.trim()} {...gate("approve", "answer a review")}>
+        {W.review.post}
+      </Button>
+    );
+  if (e.failed && e.may)
+    return (
+      <Button variant={e.main} onClick={e.writeIt}>
+        {W.writeItMyself}
+      </Button>
+    );
+  return (
+    <Button
+      variant={e.main}
+      onClick={e.draft}
+      disabled={e.writing || !e.may}
+      aria-busy={e.writing || undefined}
+      {...gate("approve", "answer a review")}
+    >
+      {W.review.draft}
+    </Button>
+  );
+}
 
 /**
  * A review's row work: Draft a reply, the words to change, Post with its grace, or Not today. `keep` holds the row in its
  * place for the visit: a review answered or set aside leaves the next read of the reviews to answer.
  */
 export function ReviewWork(
-  p: Pick<WorkProps, "main" | "may" | "flash" | "foot"> & { review: GoogleReviewDto; rowId: string; keep: () => void },
+  p: Pick<WorkProps, "main" | "may" | "flash" | "foot" | "whole"> & {
+    review: GoogleReviewDto;
+    rowId: string;
+    keep: () => void;
+  },
 ) {
   const { review, rowId, main, may, flash } = p;
   const who = reviewerOf(review);
@@ -35,18 +86,20 @@ export function ReviewWork(
   const { s: send, seconds, share } = useSend(rowId);
   const { rest } = useRests();
 
-  const draft = async () => {
+  /** Ask's reply, with what the member said to put in it, if they said. */
+  const draft = async (instruction?: string) => {
     setPhase("writing");
     setWhy(null);
-    const r = await draftReply(review.id);
+    const r = await draftReply(review.id, instruction, text ?? undefined);
     if (!r.ok || !r.text) {
-      setPhase("idle");
+      setPhase(text === null ? "idle" : "ready");
       setWhy(r.message || W.couldNot);
-      return;
+      return false;
     }
     setText(r.text);
     setAsked(r.text);
     setPhase("ready");
+    return true;
   };
   const post = () => {
     const words = (text ?? "").trim();
@@ -76,20 +129,32 @@ export function ReviewWork(
         share={share}
         act={{ label: W.undo, onPress: () => void undoSend(rowId) }}
         takeFocus={postedHere}
+        foot={p.foot}
       />
     );
-  if (send?.state === "gone") return <Done words={W.review.posted} />;
-  if (phase === "aside") return <Done tone="rest" words={W.idea.gone} />;
+  if (send?.state === "gone") return <Done words={W.review.posted} foot={p.foot} />;
+  if (phase === "aside") return <Done tone="rest" words={W.idea.gone} foot={p.foot} />;
+  const whose = whoseWords(asked ?? "", text, () => setText(asked));
   return (
     <>
+      {p.whole && review.rating ? <Stars rating={review.rating} /> : null}
+      {p.whole && review.body ? (
+        <div className="ny-said">
+          <div className="ny-m" data-from="them">
+            {review.body}
+          </div>
+        </div>
+      ) : null}
       {send?.state === "stopped" ? <Note>{W.canceled}</Note> : null}
       {text !== null ? (
         // Typed where they stand, as a reply's are; Write it myself opens them empty, taking the keys.
         <Words
-          what={W.review.drafted}
-          {...whoseWords(asked ?? "", text, () => setText(asked))}
+          label={whose.by}
+          asks={whose.asks}
+          onRestore={whose.onRestore}
           text={text}
           who={who}
+          busy={phase === "writing"}
           onChange={
             may
               ? (words) => {
@@ -103,49 +168,39 @@ export function ReviewWork(
       ) : phase === "writing" ? (
         <Writing />
       ) : null}
-      {why ? <Note tone="danger">{why}</Note> : null}
+      {p.whole && may ? (
+        <AskLine
+          placeholder={text !== null ? W.say.tell : W.review.say}
+          onSay={draft}
+          busy={phase === "writing"}
+          why={why}
+        />
+      ) : why ? (
+        <Note tone="danger">{why}</Note>
+      ) : null}
       {!may ? <Note>{W.viewer}</Note> : null}
       <Acts
         foot={p.foot}
         start={
-          <Button variant="quiet" onClick={aside}>
+          <Button variant={startKind(p.foot)} onClick={aside}>
             {W.idea.notToday}
           </Button>
         }
-        end={
-          text !== null || phase === "editing" ? (
-            <Button
-              variant={main}
-              onClick={post}
-              disabled={!(text ?? "").trim()}
-              {...gate("approve", "answer a review")}
-            >
-              {W.review.post}
-            </Button>
-          ) : why && may ? (
-            // Ask could not draft it: the member writes it, as on a reply's row.
-            <Button
-              variant={main}
-              onClick={() => {
-                setWhy(null);
-                setText("");
-                setPhase("editing");
-              }}
-            >
-              {W.writeItMyself}
-            </Button>
-          ) : (
-            <Button
-              variant={main}
-              onClick={() => void draft()}
-              disabled={phase === "writing" || !may}
-              aria-busy={phase === "writing" || undefined}
-              {...gate("approve", "answer a review")}
-            >
-              {W.review.draft}
-            </Button>
-          )
-        }
+        end={reviewEnd({
+          main,
+          may,
+          ready: text !== null || phase === "editing",
+          words: text ?? "",
+          failed: !!why,
+          writing: phase === "writing",
+          post,
+          draft: () => void draft(),
+          writeIt: () => {
+            setWhy(null);
+            setText("");
+            setPhase("editing");
+          },
+        })}
       />
     </>
   );

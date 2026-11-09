@@ -91,6 +91,8 @@ export function restSwipe(o: {
     const t = e.touches[0];
     const el = e.currentTarget;
     if (!t || !o.when()) return;
+    // A press that holds its own finger (a mic held to talk) moves nothing: its finger may drift while it listens.
+    if (e.target instanceof Element && e.target.closest("[data-own-drag]")) return;
     const g: Grab = {
       el,
       y: t.clientY,

@@ -51,6 +51,8 @@ interface AttnRowProps {
    */
   via?: { glyph: string; words: string } | null;
   quoted?: boolean;
+  /** The tone the sentence itself takes where its words are the warning: a to-do past its day, a reply that never arrived. */
+  saidTone?: "warn" | "danger" | null;
   /** What the sentence is about, said before it in bold: an email's subject, before the words they wrote. */
   lead?: string;
   status?: readonly ReactNode[];
@@ -188,7 +190,13 @@ function attnName(
  * the wire's glyph before them where the row names it. Their words are theirs, whatever they say; a sentence of ours may say how
  * long a run has waited, with no element of its own to mark, so it says so whole.
  */
-function attnSentence(sentence: string, quoted: boolean, lead: string, via: { glyph: string; words: string } | null) {
+function attnSentence(
+  sentence: string,
+  quoted: boolean,
+  lead: string,
+  via: { glyph: string; words: string } | null,
+  saidTone: "warn" | "danger" | null,
+) {
   const said = quoted ? `“${sentence}”` : sentence;
   const when = quoted ? undefined : SAYS_WHEN;
   const wire = via ? (
@@ -199,7 +207,7 @@ function attnSentence(sentence: string, quoted: boolean, lead: string, via: { gl
   ) : null;
   if (!lead)
     return (
-      <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`} {...when}>
+      <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`} data-tone={saidTone ?? undefined} {...when}>
         {wire}
         {said}
       </div>
@@ -235,6 +243,7 @@ export function AttnRow({
   sentence = "",
   via = null,
   quoted = false,
+  saidTone = null,
   lead = "",
   status = [],
   note = "",
@@ -272,7 +281,7 @@ export function AttnRow({
       {attnFace(person, glyph, initials)}
       <div className="cl-attn-body" {...(work && onOpen ? opener : {})}>
         {attnName(name, trail, meta, { wait, mark: nameMark(note, status) })}
-        {attnSentence(sentence, quoted, lead, via)}
+        {attnSentence(sentence, quoted, lead, via, saidTone)}
         {/* The state line, where the row says one: a row of someone waiting says none (Today's), and draws no empty line. */}
         {attnStatus(status, note)}
       </div>

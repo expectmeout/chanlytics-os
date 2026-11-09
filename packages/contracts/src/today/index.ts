@@ -131,7 +131,7 @@ export {
 } from "./push";
 export type { MemberAlertsDto, PhoneDto, PushDevice, PushKind, PushMessage, PushPlatform } from "./push";
 export type { PushTarget } from "./push";
-export { isHoldRow, isPersonRow, namesAPerson } from "./queue";
+export { isHoldRow, isPersonRow, namesAPerson, saidOfMessages } from "./queue";
 export { NO_REPLY_AFTER_MS } from "./rows";
 export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./runs";
 export type { RunLike, TodayRunWordsVM } from "./runs";
@@ -147,6 +147,7 @@ export type {
   TodayQueueEmptyVM,
   TodayQueueRowVM,
   TodayReadDto,
+  TodayRowSaid,
   TodaySentenceVM,
   TodayVM,
 } from "./vm";

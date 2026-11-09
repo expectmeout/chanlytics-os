@@ -136,33 +136,25 @@ test("yesterday's unmarked visits are To do's rows: the person, 'Did they come?'
   );
   const first = rows[0];
   const said = textOf(first);
-  assert.ok(
-    said.includes("Did they come?") && said.includes("Not marked yet") && said.includes("Colour · Ana a"),
-    said,
-  );
+  assert.ok(said.includes("Did they come?") && said.includes("Colour"), said);
   assert.ok(textOf(find(first, (n) => classes(n).includes("cl-attn-via"))).includes("Calendar"), "where it is");
   assert.equal(textOf(find(first, (n) => classes(n).includes("cl-attn-wait"))), "Yesterday, 2:00 PM", "and when");
-  assert.equal(buttons(first, "Kept").length, 1);
-  assert.equal(buttons(first, "Missed").length, 1);
+  // A press on the row opens it in place, where its two verbs are; its words then open the visit, on its day.
+  first.props.onClick();
+  const open = rowsOf(again(() => W.React.createElement(NeedYou, {})))[0];
+  assert.equal(buttons(open, "Kept").length, 1);
+  assert.equal(buttons(open, "Missed").length, 1);
   assert.equal(
-    buttons(first, "Kept")[0].props["aria-label"],
+    buttons(open, "Kept")[0].props["aria-label"],
     "Kept: Ana a",
     "several rows say Kept: a reader hears whose",
   );
-  assert.equal(
-    all(first, (n) => classes(n).includes("cl-attn-cta")).length,
-    0,
-    "the row's two verbs are its work's, under its words",
-  );
-  // The row opens the visit on the Calendar, on its day: its words do, since the row holds presses of its own.
-  find(first, (n) => classes(n).includes("cl-attn-body")).props.onClick();
+  find(open, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "calendar/2026-09-17:a-r-a");
-  // The rest, at Need you's foot: how many more, and, nothing else being left out, the Calendar on yesterday as its door.
-  const foot = byTestId(queueOf(tree), "today-queue-foot");
-  assert.equal(textOf(foot).replace("See all", "").trim(), "1 more to do");
-  went.length = 0;
-  press(buttons(foot, "See all")[0]);
-  assert.equal(went.at(-1), "calendar/2026-09-17", "the Inbox holds no visit");
+  // The rest, at To do's foot: how many more, and, nothing else being left out, the Calendar on yesterday as its door.
+  const foot = byTestId(queueOf(tree), "today-group-todo-more");
+  assert.equal(textOf(foot).trim(), "1 more to do");
+  assert.match(foot.props.href, /calendar\/2026-09-17$/, "the Inbox holds no visit");
 });
 
 test("with nobody waiting, To do is the list: its three, nobody waiting over them", () => {
@@ -190,7 +182,7 @@ test("a day with only visits to mark is not an empty queue; none to mark, an unr
     all(queueOf(tree), (n) => String(n.props?.["data-testid"] ?? "").startsWith("today-queue-empty-")).length,
     0,
   );
-  assert.match(textOf(todoOf(tree)), /To do\s*1/);
+  assert.match(textOf(queueOf(tree)), /To do\s*1/);
   clear([block("a", 14, "kept")]);
   assert.equal(rowsOf(draw()).length, 0, "marked: nothing to ask");
   clear();
@@ -329,7 +321,9 @@ test("REGRESSION: a visit marked keeps its place in To do's three, with its word
   const tree = draw();
   const first = rowsOf(tree)[0];
   assert.equal(whoOf(first), "Ana a");
-  press(buttons(first, "Kept")[0]);
+  first.props.onClick();
+  const open = rowsOf(again(() => W.React.createElement(NeedYou, {})))[0];
+  press(buttons(open, "Kept")[0]);
   await until(() => doors.length === 1, "the Calendar's door was asked");
   // The read after it: Ana a's visit is kept now, so the Calendar asks nothing of it, and Ana g comes into the three.
   W.__CALENDAR = {
@@ -348,8 +342,7 @@ test("REGRESSION: a visit marked keeps its place in To do's three, with its word
     "REGRESSION: the row marked fell past the three and its word, its Change and Missed's rebook went with it",
   );
   assert.ok(textOf(rows[0]).includes("Kept"), "it says what it was marked");
-  const foot = byTestId(queueOf(after), "today-queue-foot");
+  const foot = byTestId(queueOf(after), "today-group-todo-more");
   assert.ok(foot && textOf(foot).includes("1 more to do"), "REGRESSION: the visit left out was said nowhere");
-  press(buttons(foot, "See all")[0]);
-  assert.equal(went.at(-1), "calendar/2026-09-17", "its door is the Calendar on yesterday");
+  assert.match(foot.props.href, /calendar\/2026-09-17$/, "its door is the Calendar on yesterday");
 });

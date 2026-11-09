@@ -1,47 +1,37 @@
 /**
  * Need you's parts around its rows (Today in three zones, 2 Nov 2026): each group under its own small head (Up next,
- * Waiting on you, To decide, To do, Older; contracts need-you/groups.ts), and the old ones let go at once, each handed back
- * to the receptionist with one Undo for all of them.
+ * Waiting on you, To decide, To do, Older; contracts need-you/groups.ts) with a press at its foot to what it could not hold,
+ * and the old ones let go at once, each handed back to the receptionist with one Undo for all of them.
  */
 import { useId, type ReactNode } from "react";
 import { NEED_YOU_WORDS as W, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
-import { Panel } from "../../kit/panel/panel";
+import { routeDoor } from "../../frame-verbs";
+import { Icon } from "../../kit/icon/icon";
+import { doorGlyph } from "../shell";
 
 /**
- * A group of Need you's rows under its small head: its words, and how many where it says so. On a phone its rows are a
- * pane of their own under the head (`pane`; the canvas of 2 Nov 2026), on a desk rows in Need you's pane.
+ * A group of Need you's rows under its small head, on a desk and a phone alike (one list, 9 Nov 2026: a phone drew five
+ * cards): its words, how many where it says so, and at its foot a press to what it could not hold.
  */
 export function NeedYouGroup({
   title,
   count,
-  pane = false,
   bare = false,
-  end = null,
+  more = null,
   testid,
   children,
 }: {
   title: string;
   count: number | null;
-  pane?: boolean;
-  /** What its head holds at its right edge, on a phone: the door to what it could not hold, or to the Inbox. */
-  end?: ReactNode;
   /** No head drawn, its name for a reader alone: its rows say what the head would. */
   bare?: boolean;
+  /** What the group could not hold: how many, in words, and where they are. */
+  more?: { label: string; to: string } | null;
   testid: string;
   children: ReactNode;
 }) {
   const id = useId();
-  // On a phone it is a card, with the head every card has (section-door.tsx); on a desk a small head over rows in one pane.
-  const head = bare ? null : (
-    <div className={pane ? "ny-group-head tz-head" : "ny-group-head"}>
-      <span className={pane ? "ny-group-title tz-name" : "ny-group-title"} id={id}>
-        {title}
-      </span>
-      {count !== null ? <span className={pane ? "tz-fact" : "ny-group-n tabular"}>{count}</span> : null}
-      {end}
-    </div>
-  );
   return (
     <div
       className="ny-group"
@@ -50,17 +40,23 @@ export function NeedYouGroup({
       aria-label={bare ? title : undefined}
       data-testid={testid}
     >
-      {pane ? (
-        <Panel size="flush" className="tq-list ny-pane">
-          {head}
-          {children}
-        </Panel>
-      ) : (
-        <>
-          {head}
-          <div className="tq-list">{children}</div>
-        </>
+      {bare ? null : (
+        <div className="ny-group-head">
+          <span className="ny-group-title" id={id}>
+            {title}
+          </span>
+          {count !== null ? <span className="ny-group-n tabular">{count}</span> : null}
+        </div>
       )}
+      <div className="tq-list">
+        {children}
+        {more ? (
+          <a className="ny-more" {...routeDoor(more.to)} data-testid={`${testid}-more`}>
+            {more.label}
+            <Icon name={doorGlyph()} size={11} />
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -214,7 +214,7 @@ const draw = () => {
 const queueOf = (tree) => byTestId(tree, "today-queue");
 /** To do's group in Need you, or null where it holds nothing. */
 const todoOf = (tree) => byTestId(tree, "today-group-todo");
-const footOf = (tree) => byTestId(queueOf(tree), "today-queue-foot");
+const moreOf = (tree) => byTestId(queueOf(tree), "today-group-todo-more");
 const stepRowsOf = (tree) => all(queueOf(tree), (n) => n.props?.["data-testid"] === "queue-step");
 const whoOf = (row) => textOf(find(row, (n) => classes(n).includes("cl-attn-who")));
 const doneCalls = [];
@@ -252,7 +252,7 @@ test("To do holds the steps due in its group under the person waiting, each in t
     "the person waiting is the queue's row",
   );
   const rows = stepRowsOf(tree);
-  assert.deepEqual(rows.map(whoOf), ["Di", "Hal", "Ana"], "three, the oldest first");
+  assert.deepEqual(rows.map(whoOf), ["Call Di", "Call Hal", "Call Ana"], "the job leads, three, the oldest first");
   assert.ok(
     rows.every((r) => all(todo, (n) => n === r).length),
     "in To do, under the person waiting",
@@ -260,8 +260,9 @@ test("To do holds the steps due in its group under the person waiting, each in t
   const di = rows[0];
   const steps = todaySteps(SIX(), nowMs, ZONE);
   const said = textOf(di);
-  assert.ok(said.includes("Call Di"), said);
-  assert.ok(said.includes(steps.items[0].when) && said.includes("For Maria"), said);
+  assert.ok(said.includes("Di"), said);
+  const when = steps.items[0].when;
+  assert.ok(said.includes(when.charAt(0).toLowerCase() + when.slice(1)) && said.includes("For Maria"), said);
   assert.ok(
     textOf(find(di, (n) => classes(n).includes("cl-attn-via"))).includes("Next step"),
     "the kind, said by the glyph before the words",
@@ -274,30 +275,30 @@ test("To do holds the steps due in its group under the person waiting, each in t
   );
   assert.equal(
     all(di, (n) => classes(n).includes("cl-attn-cta")).length,
-    0,
-    "its verb is the row's work's (decision 0071), beside Not now, which moves the step's day",
+    1,
+    "its one verb on the row, which acts where it stands: Not now is in the row opened",
   );
-  // The row opens the person: its words do, since the row holds presses of its own.
-  find(di, (n) => classes(n).includes("cl-attn-body")).props.onClick();
+  // A press on the row opens it in place: Not now beside Done, and its words then open the person.
+  di.props.onClick();
+  const open = stepRowsOf(again(() => W.React.createElement(NeedYou, {})))[0];
+  assert.ok(byTestId(open, "queue-step-work"), "its work, under its words");
+  find(open, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "clients/d");
-  // The rest, at Need you's foot: how many more, and, nothing else being left out, the door to People's Steps due.
-  const foot = footOf(tree);
-  assert.equal(textOf(foot).replace("See all", "").trim(), "3 more to do");
-  press(buttons(foot, "See all")[0]);
-  assert.equal(went.at(-1), "clients/seg:steps_due", "the Inbox holds no step");
+  // The rest, at To do's foot: how many more, and, nothing else being left out, the door to People's Steps due.
+  const foot = moreOf(tree);
+  assert.equal(textOf(foot).trim(), "3 more to do");
+  assert.match(foot.props.href, /people\/seg:steps_due$/, "the Inbox holds no step");
 });
 
-test("with nobody waiting, To do is the list: its three, and the foot's door to the rest", () => {
+test("with nobody waiting, To do is the list: its three, and its foot's door to the rest", () => {
   clear();
   const vm = handoffDay();
   vm.queue.rows = [];
   setSurfaceValue("today", vm);
   const tree = draw();
-  assert.deepEqual(stepRowsOf(tree).map(whoOf), ["Di", "Hal", "Ana"]);
+  assert.deepEqual(stepRowsOf(tree).map(whoOf), ["Call Di", "Call Hal", "Call Ana"]);
   assert.equal(byTestId(queueOf(tree), "today-group-waiting"), null, "nobody waits on you");
-  went.length = 0;
-  press(buttons(footOf(tree), "See all")[0]);
-  assert.deepEqual(went, ["clients/seg:steps_due"], "the rest's door goes to People's Steps due");
+  assert.match(moreOf(tree).props.href, /people\/seg:steps_due$/, "the rest's door goes to People's Steps due");
 });
 
 test("Done is the Inbox header's verb, press for press: the step's note, said done, answered in the one step toast with its Undo; a second press while the first is on its way waits", async () => {
@@ -320,7 +321,7 @@ test("Done is the Inbox header's verb, press for press: the step's note, said do
   assert.equal(typeof flashes.at(-1).undo, "function", "with its Undo, and nothing else (canvas A, M5)");
   // The row goes at once, as the thread header's line does; People is read again behind the verb.
   const after = again(() => W.React.createElement(NeedYou, {}));
-  assert.deepEqual(stepRowsOf(after).map(whoOf), ["Hal", "Ana"], "the step done is gone from To do");
+  assert.deepEqual(stepRowsOf(after).map(whoOf), ["Call Hal", "Call Ana"], "the step done is gone from To do");
 });
 
 test("a Done the door refuses says so in the door's words, keeps the row, and reads People again (S9-10)", async () => {
@@ -336,7 +337,11 @@ test("a Done the door refuses says so in the door's words, keeps the row, and re
     assert.equal(flashes.at(-1).tone, "danger");
     assert.equal(textOf(flashes.at(-1).msg), "Only an owner or an operator can mark a step done.");
     const after = again(() => W.React.createElement(NeedYou, {}));
-    assert.deepEqual(stepRowsOf(after).map(whoOf), ["Di", "Hal", "Ana"], "nothing was done, nothing goes");
+    assert.deepEqual(
+      stepRowsOf(after).map(whoOf),
+      ["Call Di", "Call Hal", "Call Ana"],
+      "nothing was done, nothing goes",
+    );
     // A refusal may be a step done a moment before in another tab: the rows are read again, as the Inbox's header reads them,
     // so the row stands or goes as the server has it rather than as this tab last read it.
     assert.deepEqual(readAgain, ["people"], "REGRESSION: a refused Done left the row as this tab last read it");
@@ -361,7 +366,7 @@ test("a day with only steps due is not an empty queue; no step due draws nothing
     0,
     "To do's rows are the work; the empty state says nothing waits",
   );
-  assert.match(textOf(todoOf(tree)), /To do\s*6/);
+  assert.match(textOf(queueOf(tree)), /To do\s*6/, "with nobody waiting, the pane is To do, by its name");
   // Nothing due, or People unread: there is no To do.
   W.__PEOPLE = { rows: peopleWithSteps([["e", "Eli", 2]]), fetchedAt: nowMs };
   assert.equal(todoOf(draw()), null);
@@ -369,7 +374,7 @@ test("a day with only steps due is not an empty queue; no step due draws nothing
   assert.equal(todoOf(draw()), null, "People not read yet: no step is claimed");
 });
 
-test("what To do holds is counted by its name whatever else waits, and the foot says what Need you could not hold, the Inbox's door first", () => {
+test("what To do holds is counted by its name whatever else waits, and each group's foot says what it could not hold", () => {
   clear();
   const vm = handoffDay();
   const [first] = vm.queue.rows;
@@ -387,10 +392,18 @@ test("what To do holds is counted by its name whatever else waits, and the foot 
     "Up next, the five waiting, and To do's three",
   );
   assert.match(textOf(todoOf(queue)), /To do\s*6/, "the steps are counted, never dropped");
-  const foot = byTestId(queue, "today-queue-foot");
-  assert.equal(textOf(foot).replace("See all", "").trim(), "2 more waiting · 3 more to do");
-  press(buttons(foot, "See all")[0]);
-  assert.equal(went.at(-1), "inbox", "people were left out: the Inbox holds them");
+  assert.equal(textOf(byTestId(queue, "today-group-waiting-more")).trim(), "2 more waiting");
+  assert.equal(textOf(byTestId(queue, "today-group-todo-more")).trim(), "3 more to do");
+  assert.match(
+    byTestId(queue, "today-group-waiting-more").props.href,
+    /inbox$/,
+    "people left out: the Inbox holds them",
+  );
+  assert.match(
+    byTestId(queue, "today-group-todo-more").props.href,
+    /people\/seg:steps_due$/,
+    "and each group's own door goes where its own rest is",
+  );
 });
 
 /* ------------------------------------------ a step done anywhere moves Today ------------------------------------------ */

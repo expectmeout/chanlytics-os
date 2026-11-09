@@ -48,7 +48,7 @@ export async function takeThreadControl(
  * brain a held reply is rewritten by, and keeps the words on the thread's row. The call's answer is that row.
  */
 export async function draftAtTheEdge(
-  ask: { conversationId: string; kind: ReplyDraftKind; instruction: string | null },
+  ask: { conversationId: string; kind: ReplyDraftKind; instruction: string | null; given?: string | null },
   asker: { workspace: string; user: string },
 ): Promise<{ ok: true; draft: ConversationDraftRow } | { ok: false; reason: EdgeReason; detail: string | null }> {
   if (!deployment.providersLive) return { ok: false, reason: "preview", detail: null };
@@ -58,6 +58,7 @@ export async function draftAtTheEdge(
       conversation_id: ask.conversationId,
       kind: ask.kind,
       ...(ask.instruction ? { instruction: ask.instruction } : {}),
+      ...(ask.instruction && ask.given ? { given: ask.given } : {}),
     },
     { ...asker, timeoutMs: STEER_TIMEOUT_MS },
   );

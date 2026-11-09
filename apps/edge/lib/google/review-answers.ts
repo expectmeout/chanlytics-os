@@ -70,6 +70,7 @@ export async function draftFor(
   db: Db,
   tenantId: TenantId,
   rowId: string,
+  asked?: { instruction: string; given: string | null } | null,
 ): Promise<{ ok: true; text: string } | EdgeRefusal> {
   const review = await findReviewToAnswer(db, tenantId, rowId);
   if (review.error) return { ok: false, error: "review_read_failed", detail: logFailure("read", review.error) };
@@ -84,6 +85,7 @@ export async function draftFor(
       written_at: review.data.published_at,
     },
     { tenantId, reviewId: review.data.id },
+    asked,
   );
   return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error, detail: result.detail };
 }

@@ -256,7 +256,12 @@ async function draft(googleCall: GoogleCall): Promise<Response> {
   const mode = await reviewReplyMode(googleCall.db, googleCall.tenantId);
   const never = draftRefusal(mode);
   if (never) return respond(never);
-  const { answer, log } = draftAnswer(id, mode, await draftFor(googleCall.db, googleCall.tenantId, id));
+  // What the member said for this one reply (their words, and what stands on their screen): nothing here posts it.
+  const instruction =
+    typeof googleCall.body.instruction === "string" ? googleCall.body.instruction.trim().slice(0, 1000) : "";
+  const given = typeof googleCall.body.given === "string" ? googleCall.body.given.trim().slice(0, 8000) : "";
+  const asked = instruction ? { instruction, given: given || null } : null;
+  const { answer, log } = draftAnswer(id, mode, await draftFor(googleCall.db, googleCall.tenantId, id, asked));
   googleCall.L.info(log.event, log.fields);
   return respond(answer);
 }

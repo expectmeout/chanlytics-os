@@ -588,6 +588,7 @@ export const LOG_EVENTS = [
   "reply_draft",
   "reply_draft_job",
   "reply_draft_lead_unavailable",
+  "reply_draft_openings_unavailable",
   "reply_draft_usage_failed",
   "reply_read",
   "resend_webhook_bad_signature",

@@ -308,7 +308,7 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   // runs it for each mode.
   const bridge = readCode("apps/dashboard/src/bridge/google.ts");
   // Keyed (decision 0035): a second press while the first is in flight is the same draft, not a second model call.
-  assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body: {}, once: true }'));
+  assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body, once: true }'));
 
   // The pane's row, as it is drawn: Auto, Veto (Holds it: a reply posted after its wait unless stopped, decision 0064),
   // Ask and Never.

@@ -38,6 +38,9 @@ export interface GoogleBody {
   account_name?: string;
   location_name?: string;
   id?: string;
+  /** A draft: what the member said to put in it, and the words on their screen it changes. */
+  instruction?: unknown;
+  given?: unknown;
   comment?: string;
   /** A post on the profile (op `post`, `unpost`): the file it is, what it says, and the picture Google fetches. */
   file_id?: string;

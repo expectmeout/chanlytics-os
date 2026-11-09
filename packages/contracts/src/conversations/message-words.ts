@@ -171,6 +171,45 @@ export function sendFailureWords(error: unknown, channel: string | null | undefi
   return carrier ?? settledWords(result);
 }
 
+/** What can still reach someone a reply never reached: a template, a call, a later try, nothing, or the same words again. */
+export type FailedWay = "template" | "call" | "later" | "done" | "again";
+
+/** The WhatsApp and text codes that say more than "again", with what can be done and, in plain words, why. No error numbers: Health holds those. */
+const FAILURE_WAYS: Readonly<Record<number, { way: FailedWay; plain: string }>> = {
+  131026: {
+    way: "call",
+    plain:
+      "WhatsApp couldn't deliver it. Their number may not be on WhatsApp, so a template wouldn't get through either.",
+  },
+  131047: {
+    way: "template",
+    plain: "WhatsApp's 24-hour window has closed. Only a template reaches them now, and your words go with you.",
+  },
+  130429: { way: "later", plain: "WhatsApp is limiting how fast your number can send. It will take this again soon." },
+  131048: { way: "later", plain: "WhatsApp is limiting how many messages your number can send right now." },
+  131056: {
+    way: "later",
+    plain: "You sent them a lot in a short while, and WhatsApp asks you to wait before sending more.",
+  },
+  131050: { way: "done", plain: "They've chosen to stop getting marketing messages from you on WhatsApp." },
+  21610: { way: "done", plain: "They've opted out of texts from your number." },
+  30003: { way: "call", plain: "Their phone couldn't be reached by text. It may be off or out of signal." },
+  30005: { way: "call", plain: "The carrier says this number may no longer exist for texts." },
+  30006: { way: "call", plain: "This number can't receive texts, which is typical of a landline." },
+  21614: { way: "call", plain: "That number can't receive texts." },
+};
+
+/**
+ * What a reply that never reached them can still do, and why, in plain words: the coral on its sheet is what can work (his call
+ * D6, 9 Nov 2026), since a template cannot reach a number that is not on WhatsApp. Any other failure is the same words again.
+ */
+export function failedWayOf(error: unknown, channel: string | null | undefined): { way: FailedWay; plain: string } {
+  const result = recordOrNull(error);
+  const code = result ? providerCodeOf(result) : null;
+  const known = code !== null && Object.hasOwn(FAILURE_WAYS, code) ? FAILURE_WAYS[code] : undefined;
+  return known ?? { way: "again", plain: sendFailureWords(error, channel) ?? "The line didn't take it." };
+}
+
 /** The ledger's word for a send the provider never answered (`outcome: "unknown"` on the row): it may have gone. */
 const OUTCOME_UNKNOWN_KIND = "outcome_unknown";
 
