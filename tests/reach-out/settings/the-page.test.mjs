@@ -759,3 +759,53 @@ test("What it's told opens on the drafter's words, and an answer's parts carry n
   tree = redrawTab();
   assert.match(textOf(byTestId(tree, "rec-told-part-thread")), /Each reply's own/);
 });
+
+test("the page reads again as a save changes its config, and as the owner comes back to the tab, at most once a minute", async () => {
+  const reads = [];
+  const answer = () =>
+    new Response(JSON.stringify({ ok: true, data: READ }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  const count = (url) => {
+    if (/settings\/reach-out(\?|$)/.test(String(url))) reads.push(String(url));
+    return Promise.resolve(answer());
+  };
+  globalThis.window.fetch = count;
+  await until(() => {
+    drawTab({ part: "outreach", config: GOAL });
+    return reads.length > 0 && byTestId(redrawTab(), "rec-card-sending");
+  }, "the page's first read");
+  // Settled, nothing asks again by itself.
+  const settled = reads.length;
+  redrawTab();
+  assert.equal(reads.length, settled, "a draw alone reads nothing");
+  const realNow = Date.now;
+  let ahead = 0;
+  Date.now = () => realNow() + ahead;
+  try {
+    // A save brings the config back: an address added moves Where it stands, which only this read says. (The client shares
+    // an identical read for two seconds, or until a write, which a save is.)
+    ahead = 3_000;
+    drawTab({ part: "outreach", config: { ...GOAL, ask: { goal: "Thirty new clinics a month" } } });
+    await until(() => {
+      redrawTab();
+      return reads.length > settled;
+    }, "the read after a save");
+    const saved = reads.length;
+    // Back within the minute, nothing is asked; a minute on, it is.
+    ahead += 10_000;
+    globalThis.window.dispatchEvent(new Event("chanly:front"));
+    redrawTab();
+    assert.equal(reads.length, saved, "within the minute");
+    ahead += 61_000;
+    globalThis.window.dispatchEvent(new Event("chanly:front"));
+    await until(() => {
+      redrawTab();
+      return reads.length > saved;
+    }, "the read on coming back");
+  } finally {
+    Date.now = realNow;
+  }
+  unmount();
+});

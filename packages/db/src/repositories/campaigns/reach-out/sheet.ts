@@ -233,10 +233,13 @@ export async function saveReachOutChain(
 }
 
 /** The runs waiting for their owner's approval, as their audiences say them (a reach-out's names its root). */
-export async function listRunsWaiting(db: Db, tenantId: TenantId): Promise<{ id: string; audience: unknown }[]> {
+export async function listRunsWaiting(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ id: string; audience: unknown; recipient_count: number }[]> {
   const { data, error } = await db
     .from("sequence_batches")
-    .select("id, audience")
+    .select("id, audience, recipient_count")
     .eq("tenant_id", tenantId)
     .eq("state", "pending_approval");
   if (error) throw new DbFailure(error, "cannot read the runs waiting");

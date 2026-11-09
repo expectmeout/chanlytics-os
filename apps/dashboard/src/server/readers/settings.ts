@@ -250,7 +250,7 @@ const openingEmailOf = (chain: ReachOutChainDto) => {
 };
 
 /** The sequences running to leads, newest first. */
-const runningNewestFirst = (chains: readonly ReachOutChainDto[]): ReachOutChainDto[] =>
+export const runningNewestFirst = <T extends { state: string; created_at: string }>(chains: readonly T[]): T[] =>
   chains.filter((c) => c.state === "running").sort((a, b) => b.created_at.localeCompare(a.created_at));
 
 /** The newest running sequence to leads whose first step is an email: Try it's words, and Signs as' first guess. */

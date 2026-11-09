@@ -296,6 +296,7 @@ export {
   NO_SENDING_BY_HAND,
 } from "./standing";
 export type {
+  ColdEmailNote,
   ColdEmailRunning,
   ColdEmailStanding,
   ColdEmailStandingFacts,

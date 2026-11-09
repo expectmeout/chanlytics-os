@@ -68,6 +68,13 @@ export interface ColdEmailStanding {
   steps: ColdEmailStep[];
 }
 
+/** Today's one line on cold email: what waits, the press, and where it goes. */
+export interface ColdEmailNote {
+  headline: string;
+  act: string;
+  to: string;
+}
+
 /** What refuses a new sequence to leads with no mailbox to send it, on New, on Ask's card and at the door. */
 export const COLD_EMAIL_NEEDS_MAILBOX =
   "Connect your mailbox first: a sequence to leads sends from your own address. Settings › Cold email has the way.";
@@ -284,7 +291,7 @@ const COLD_EMAIL_ROUTE = "admin/outreach";
  * What Today says of cold email, from the one answer: where it waits on the owner, and nothing otherwise. The caller asks
  * only once a workspace has started cold email, so a business that writes none is never asked about it (decision 0113).
  */
-export function coldEmailNoteOf(standing: ColdEmailStanding): { headline: string; act: string; to: string } | null {
+export function coldEmailNoteOf(standing: ColdEmailStanding): ColdEmailNote | null {
   if (!standing.needsYou) return null;
   return { headline: standing.headline, act: standing.act ?? "Open", to: standing.to ?? COLD_EMAIL_ROUTE };
 }

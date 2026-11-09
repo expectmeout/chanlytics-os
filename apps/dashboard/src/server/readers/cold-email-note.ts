@@ -1,0 +1,142 @@
+import "server-only";
+import {
+  coldEmailNoteOf,
+  coldEmailStandingOf,
+  hasFootAddress,
+  mailboxIsLive,
+  parseTenantConfig,
+  REACH_OUT_MONTH_EMAILS,
+  reachOutRootOf,
+  type ColdEmailNote,
+  type ColdEmailStandingFacts,
+} from "@chanlytics/contracts";
+import {
+  countHeldForAddress,
+  countSentByStep,
+  findSearchesByIds,
+  listReachOutSteps,
+  listRunsWaiting,
+} from "@chanlytics/db/campaigns";
+import { listMailboxConnectionsOf } from "@chanlytics/db/email";
+import { findNewestSearchName } from "@chanlytics/db/leads";
+import { chainOf } from "../campaigns/reach-outs/chain-acts";
+import { load, readerStamp, type Reader } from "../shared/reader";
+import * as readers from "./facts";
+import { runningNewestFirst } from "./settings";
+
+interface NoteRoot {
+  id: string;
+  name: string;
+  state: string;
+  created_at: string;
+}
+
+/**
+ * What the note decides from, read for its own sake. What only the page says is left unread and null: the month's emails and
+ * a running sequence's numbers, which never wait on the owner, and who is left in each, so a sequence with no one new stays
+ * the page's news and isn't a line on Today every morning.
+ */
+export function coldEmailNoteFactsOf(input: {
+  roots: readonly NoteRoot[];
+  waiting: readonly { id: string; audience: unknown; recipient_count: number }[];
+  mailboxes: readonly { state: string; held_why: string | null }[];
+  hasAddress: boolean;
+  heldForAddress: number | null;
+  hasSearch: boolean;
+  whoFor: string | null;
+  /** What the waiting run's sequence has sent, which says first from next; null where nothing waits. */
+  sent: number | null;
+  /** The name of the search the waiting run's sequence writes to. */
+  searchName: string | null;
+  nowMs: number;
+  tz: string;
+}): ColdEmailStandingFacts {
+  const running = runningNewestFirst(input.roots);
+  const run = waitingRunOf(running, input.waiting);
+  return {
+    mailboxes: input.mailboxes.filter((m) => mailboxIsLive(m)),
+    hasAddress: input.hasAddress,
+    heldForAddress: input.heldForAddress,
+    waitingRun: run
+      ? {
+          id: run.id,
+          planned: run.recipient_count,
+          name: input.searchName || run.root.name,
+          first: !input.sent,
+        }
+      : null,
+    month: { sent: null, of: REACH_OUT_MONTH_EMAILS },
+    running: running.map((r) => ({ name: r.name, sent: null, wroteBack: null, interested: null, waitingLeads: null })),
+    hadSequence: input.roots.length > 0,
+    hasSearch: input.hasSearch,
+    whoFor: input.whoFor,
+    nowMs: input.nowMs,
+    tz: input.tz,
+  };
+}
+
+/** The newest running sequence with a run waiting for its OK, and that run. */
+function waitingRunOf<R extends { id: string }>(
+  running: readonly R[],
+  waiting: readonly { id: string; audience: unknown; recipient_count: number }[],
+) {
+  for (const root of running) {
+    const run = waiting.find((w) => reachOutRootOf(w.audience) === root.id);
+    if (run) return { ...run, root };
+  }
+  return null;
+}
+
+/**
+ * GET settings/reach-out/note: Cold email's one line on Today, through the page's one answer (contracts coldEmailStandingOf),
+ * or none. Today opens all day, so this reads only what can make it speak. Its report's numbers, its counts of who is left
+ * and the page's other cards are the page's read (reachOutSettings). A read that fails fails the note, which says nothing.
+ */
+export const coldEmailNote: Reader<undefined, { note: ColdEmailNote | null }> = {
+  name: "cold_email_note",
+  async read(rc) {
+    const db = rc.ctx.supabase;
+    const tenantId = rc.tenantId;
+    const [row, facts, mailboxes, steps, waiting, newestSearch] = await Promise.all([
+      load(rc, readers.config, undefined),
+      load(rc, readers.facts, undefined),
+      listMailboxConnectionsOf(db, tenantId),
+      listReachOutSteps(db, tenantId),
+      listRunsWaiting(db, tenantId),
+      findNewestSearchName(db, tenantId),
+    ]);
+    const parsed = parseTenantConfig(row.data?.config);
+    const hasAddress = hasFootAddress(facts.data.name, parsed?.brain?.profile?.address);
+    const roots = steps.filter((s) => s.trigger === "lead_first");
+    const subject = waitingRunOf(runningNewestFirst(roots), waiting)?.root ?? null;
+    const [sent, searches, heldForAddress] = await Promise.all([
+      subject
+        ? countSentByStep(
+            db,
+            tenantId,
+            chainOf(subject, steps).map((s) => s.id),
+          )
+        : null,
+      subject?.lead_search_id ? findSearchesByIds(db, tenantId, [subject.lead_search_id]) : null,
+      hasAddress ? 0 : countHeldForAddress(db, tenantId),
+    ]);
+    const note = coldEmailNoteOf(
+      coldEmailStandingOf(
+        coldEmailNoteFactsOf({
+          roots,
+          waiting,
+          mailboxes,
+          hasAddress,
+          heldForAddress,
+          hasSearch: newestSearch !== null,
+          whoFor: parsed?.reach_out?.who_for?.trim() || null,
+          sent: sent ? [...sent.values()].reduce((n, v) => n + v, 0) : null,
+          searchName: subject?.lead_search_id ? (searches?.get(subject.lead_search_id)?.name ?? null) : null,
+          nowMs: rc.now.getTime(),
+          tz: facts.data.timezone,
+        }),
+      ),
+    );
+    return { data: { note }, rows: [], stamp: readerStamp() };
+  },
+};

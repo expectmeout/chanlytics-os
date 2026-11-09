@@ -210,10 +210,15 @@
     "fresh": "A link to one person's own file (R14 X5), made when it is fetched.",
     "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
   },
-  "apps/dashboard/src/surfaces/settings/connections/connected-mailboxes.ts GET mailbox-connections/connect": {
+  "apps/dashboard/src/surfaces/settings/connections/mailbox-connect.ts GET mailbox-connections/connect": {
     "kind": "link",
     "fresh": "The address the browser is sent to, to sign in with the mailbox's provider.",
     "why": "A step away to the provider's own sign-in, not a read the page draws; the mailbox it connects is told by the feed (mailbox_connections)."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/connected-mailboxes.ts GET mailbox-connections/connect": {
+    "kind": "link",
+    "fresh": "The link for a Microsoft 365 admin, asked for and shown under the block.",
+    "why": "A link to hand on, not a read the page draws; the mailbox it connects is told by the feed (mailbox_connections)."
   },
   "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET channels/instagram": {
     "kind": "on-open",
@@ -365,6 +370,11 @@
     "kind": "on-open",
     "fresh": "Read as Settings › Cold email opens and as its row is reached for, and again once the pasted email is read into the voice's lines; the tab keeps the last answer to draw the cards first.",
     "why": "It holds what the config does not: where cold email stands, what its mailboxes can send, who is kept off, the month's first emails, each claim's sends, the voice's lines, the newest sequence to leads and Autonomy's reply mode. Each moves on its own page (Connections, a send, New, Autonomy) or with this pane's paste, so the pane's next opening is when it is looked at again."
+  },
+  "apps/dashboard/src/surfaces/today/zones/cold-email-note.tsx GET settings/reach-out/note": {
+    "kind": "on-open",
+    "fresh": "Read as Today opens once the workspace has a search, and again as the day moves, at most once a minute; a read that fails says nothing and the next move asks again.",
+    "why": "One line of what waits on the owner: it hears no table of its own, and a mailbox or a run that changes moves Today's own read, which asks it again."
   },
   "apps/dashboard/src/surfaces/settings/outreach/told.tsx GET settings/reach-out/told": {
     "kind": "on-open",
