@@ -32,62 +32,47 @@
 import {
   PROPOSAL_WORDS,
   askCardLapsed,
+  cardWithSteps,
   planMadeOf,
   planPressOf,
-  planWaits,
-  resolveSteps,
+  type AskActAnswer,
   type AskPlanStamp,
   type AskProposal,
   type AskProposalOutcome,
   type PlanMade,
-  type ProposalRefusal,
   textOrEmpty,
+  UUID,
 } from "@chanlytics/contracts";
+import { refreshAfter } from "../refresh-map";
 import type { Api } from "../../client/api";
 import { apiFor } from "../api";
 import { isRefusal, saidHere, specOf, tabOf, undoVerb, walkVerb } from "../verbs/commit";
 
 /** What a commit did: its receipt, what its undo keeps, and the id it made that a later step of a plan names, or null. */
 export type CommitResult =
-  | { ok: true; receipt: string; undo: Record<string, unknown> | null; made: { kind: string; id: string } | null }
-  | { ok: false; message: string; moved?: boolean };
+  | {
+      ok: true;
+      receipt: string;
+      undo: Record<string, unknown> | null;
+      made: { kind: string; id: string } | null;
+      /** The act door kept it on the turn itself: nothing more to record. */
+      kept?: boolean;
+    }
+  | { ok: false; message: string; moved?: boolean; kept?: boolean; forward?: { to: string } | null; redraft?: boolean };
 
 /** What an undo did: its receipt, and nothing further to undo or to name. */
-export type UndoResult = { ok: true; receipt: string; undo: null } | { ok: false; message: string };
+export type UndoResult = { ok: true; receipt: string; undo: null; kept?: boolean } | { ok: false; message: string };
 
 /** What a commit is judged by beside the card: the clock it is fresh by, and what its plan's earlier steps made. */
 interface CommitAt {
   nowMs?: number;
   made?: PlanMade;
+  /** The turn the card is on: a saved one is acted on by the server (the act door), which reads it from there. */
+  messageId?: string | null;
 }
 
 /** A plan's step's key: one per step of one plan, whichever way the step is pressed (Review Focus 3). */
 const stepKey = (plan: AskPlanStamp): string => `plan:${plan.id}:${plan.step}`;
-
-/**
- * Why a step a card waits for or names by its token gives it nothing, in the person's words: the step undone, done with
- * nothing to name, or not done yet. The one spelling of a step's state as a refusal.
- */
-function unnamed(made: PlanMade, n: number): string {
-  const step = made[n];
-  if (!step) return PROPOSAL_WORDS.waitsForStep(n);
-  return "undone" in step ? PROPOSAL_WORDS.planUndone : PROPOSAL_WORDS.stepMadeNothing(n);
-}
-
-/**
- * A plan's card with what its earlier steps made in place of their tokens (`@step:n`, contracts resolveSteps); or the
- * refusal, and nothing is sent: where a step it waits for (its stamp's `after`, contracts planWaits: every step of its
- * plan that sends nothing, not only those its tokens name) was undone or is not committed yet, and where a step it names
- * was undone (what it made is gone), made nothing a token names (waiting would never help), or is not committed yet (it
- * is approved first). A card of no plan is as it was.
- */
-function withSteps(p: AskProposal, made: PlanMade): AskProposal | ProposalRefusal {
-  if (!p.plan) return p;
-  const wait = planWaits(p.plan, made);
-  if (wait) return { refused: unnamed(made, "undone" in wait ? wait.undone : wait.waits) };
-  const filled = resolveSteps(p.payload, made);
-  return "unresolved" in filled ? { refused: unnamed(made, Number(filled.unresolved)) } : { ...p, payload: filled };
-}
 
 /**
  * The settings a card writes over, read where this tab has not opened Settings: a press on Ask reads them itself, so a note
@@ -119,13 +104,15 @@ export async function commitProposal(
   client: Api = apiFor(win),
   at: CommitAt = {},
 ): Promise<CommitResult> {
+  // A card on a saved turn is acted on by the server, which reads it again and judges it there (D15 of the answers canvas).
+  if (at.messageId && UUID.test(at.messageId)) return actThroughDoor(win, client, "POST ask/act", at.messageId, p);
   const { spec, unreached } = await specOf(p.kind);
   if (unreached) return unreached;
   if (!spec) return { ok: false, message: PROPOSAL_WORDS.cannotApprove };
   // A card is approved while it is fresh: past a day (a plan's, a week) nothing is sent, and it is asked for again.
   if (askCardLapsed(p, at.nowMs ?? Date.now()))
     return { ok: false, message: p.plan ? PROPOSAL_WORDS.planLapsed : PROPOSAL_WORDS.lapsed };
-  const card = withSteps(p, at.made ?? {});
+  const card = cardWithSteps(p, at.made ?? {});
   if (isRefusal(card)) return { ok: false, message: card.refused };
   const key = card.plan ? stepKey(card.plan) : card.id;
   await settingsInHand(win, client, card.kind, false);
@@ -139,10 +126,56 @@ export async function commitProposal(
   return { ok: true, receipt: r.receipt, undo: r.undo, made: r.made ? { kind: card.kind, id: r.made } : null };
 }
 
+/**
+ * What the door did, told to this tab as if it had sent the calls itself: the window's events and the surfaces the refresh
+ * map names, read again behind the answer.
+ */
+function tellDoorCalls(win: Window, answer: AskActAnswer): void {
+  for (const c of answer.calls) {
+    for (const e of c.events)
+      win.dispatchEvent(e.detail ? new CustomEvent(e.type, { detail: e.detail }) : new CustomEvent(e.type));
+    void refreshAfter(c.route as never).catch(() => undefined); // a re-read that fails behind a write is the surface's own to say
+  }
+}
+
+/** The act door: a card pressed, or taken back, on the server. What it answers is what the turn now keeps. */
+async function actThroughDoor(
+  win: Window,
+  client: Api,
+  route: "POST ask/act" | "POST ask/act/undo",
+  messageId: string,
+  p: AskProposal,
+): Promise<CommitResult> {
+  const r = await client(route, {
+    body: { message_id: messageId, proposal_id: p.id, by: "press" } as never,
+    once: true,
+  });
+  if (!r.ok) return { ok: false, message: r.message, ...(r.status === 404 || r.status === 409 ? { moved: true } : {}) };
+  const answer = r.data as unknown as AskActAnswer;
+  tellDoorCalls(win, answer);
+  if (!answer.ok)
+    return {
+      ok: false,
+      message: answer.message,
+      kept: !!answer.outcome,
+      moved: answer.outcome?.moved === true,
+      forward: answer.forward,
+      redraft: answer.redraft === true,
+    };
+  return {
+    ok: true,
+    receipt: answer.outcome?.receipt ?? "",
+    undo: answer.outcome?.undo ?? null,
+    made: answer.outcome?.made ?? null,
+    kept: true,
+  };
+}
+
 /** A press's client and clock: the tab's own and now, unless a test hands its own. */
 interface PressWith {
   client?: Api;
   nowMs?: number;
+  messageId?: string | null;
 }
 
 /**
@@ -161,6 +194,7 @@ export function commitCard(
   return commitProposal(win, p, use.client ?? apiFor(win), {
     nowMs: use.nowMs,
     made: p.plan ? planMadeOf(p.plan.id, cards) : undefined,
+    messageId: use.messageId,
   });
 }
 
@@ -210,7 +244,7 @@ export async function commitPlan(win: Window, cards: readonly AskProposal[], use
       ("undone" in was ? run.undone : run.done).push(step);
       continue;
     }
-    const result = await commitProposal(win, p, client, { nowMs, made: run.made });
+    const result = await commitProposal(win, p, client, { nowMs, made: run.made, messageId: use.messageId });
     if (!result.ok) {
       const stopped = { ...result, message: PROPOSAL_WORDS.planStopped(result.message) };
       run.results.push({ step, result: stopped, id: null });
@@ -240,6 +274,7 @@ export async function undoPlan(
   cards: readonly AskProposal[],
   open: (p: AskProposal, o: AskProposalOutcome) => boolean,
   client: Api = apiFor(win),
+  messageId?: string | null,
 ): Promise<PlanUndo> {
   const made = cards
     .flatMap((p) =>
@@ -249,7 +284,7 @@ export async function undoPlan(
   const run: PlanUndo = { results: [], stoppedAt: null };
   for (const { p, o, step } of made) {
     if (!open(p, o)) continue;
-    const result = await undoProposal(win, p, o, client);
+    const result = await undoProposal(win, p, o, client, messageId);
     run.results.push({ step, result });
     if (!result.ok && !p.plan?.silent) return { ...run, stoppedAt: step };
   }
@@ -283,9 +318,14 @@ export async function undoProposal(
   p: AskProposal,
   outcome: AskProposalOutcome,
   client: Api = apiFor(win),
+  messageId?: string | null,
 ): Promise<UndoResult> {
   const record = outcome.undo ?? null;
   if (!record) return { ok: false, message: PROPOSAL_WORDS.noUndo };
+  if (messageId && UUID.test(messageId)) {
+    const r = await actThroughDoor(win, client, "POST ask/act/undo", messageId, p);
+    return r.ok ? { ok: true, receipt: r.receipt, undo: null, kept: true } : { ok: false, message: r.message };
+  }
   const { spec, unreached } = await specOf(p.kind);
   if (unreached) return unreached;
   if (!spec?.undo) return { ok: false, message: PROPOSAL_WORDS.noUndo };

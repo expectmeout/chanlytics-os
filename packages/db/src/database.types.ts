@@ -34,6 +34,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      ask_actions: {
+        Row: {
+          at: string;
+          by: string;
+          code: string | null;
+          finished_at: string | null;
+          id: string;
+          kind: string;
+          made_id: string | null;
+          made_kind: string | null;
+          message_id: string | null;
+          origin_by: string | null;
+          proposal_id: string;
+          reason: string | null;
+          state: string;
+          strangers: boolean;
+          tenant_id: string;
+          user_id: string;
+        };
+        Insert: {
+          at?: string;
+          by: string;
+          code?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          kind: string;
+          made_id?: string | null;
+          made_kind?: string | null;
+          message_id?: string | null;
+          origin_by?: string | null;
+          proposal_id: string;
+          reason?: string | null;
+          state?: string;
+          strangers?: boolean;
+          tenant_id: string;
+          user_id: string;
+        };
+        Update: {
+          at?: string;
+          by?: string;
+          code?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          kind?: string;
+          made_id?: string | null;
+          made_kind?: string | null;
+          message_id?: string | null;
+          origin_by?: string | null;
+          proposal_id?: string;
+          reason?: string | null;
+          state?: string;
+          strangers?: boolean;
+          tenant_id?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       ai_usage: {
         Row: {
           agrees: boolean | null

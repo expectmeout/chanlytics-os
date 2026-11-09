@@ -7,7 +7,7 @@
  */
 import type { AskPlanStamp, AskProposal } from "./thread-words";
 import type { AskLanguage } from "./language";
-import { ASK_SENDS, PROPOSAL_WORDS, rec } from "./proposals/spec";
+import { ASK_SENDS, PROPOSAL_WORDS, rec, type ProposalRefusal } from "./proposals/spec";
 
 /**
  * Every step of a plan committed so far, by step, as a card's commit fills its tokens from it and a press of the plan
@@ -88,6 +88,34 @@ export function planWaits(
   if (undone !== undefined) return { undone };
   const waits = plan.after.find((n) => !created[n]);
   return waits === undefined ? null : { waits };
+}
+
+/**
+ * Why a step a card waits for or names by its token gives it nothing, in the person's words: the step undone, done with
+ * nothing to name, or not done yet. The one spelling of a step's state as a refusal.
+ */
+function unnamedStep(made: PlanMade, n: number): string {
+  const step = made[n];
+  void n;
+  if (!step) return PROPOSAL_WORDS.waitsForStep();
+  return "undone" in step ? PROPOSAL_WORDS.planUndone : PROPOSAL_WORDS.stepMadeNothing();
+}
+
+/**
+ * A plan's card with what its earlier steps made in place of their tokens (`@step:n`); or the refusal, and nothing is sent:
+ * where a step it waits for (its stamp's `after`) was undone or is not committed yet, and where a step it names was undone
+ * (what it made is gone), made nothing a token names (waiting would never help), or is not committed yet (it is approved
+ * first). A card of no plan is as it was. The one reading, the browser's press and the act door's.
+ */
+export function cardWithSteps<P extends Pick<AskProposal, "plan" | "payload">>(
+  p: P,
+  made: PlanMade,
+): P | ProposalRefusal {
+  if (!p.plan) return p;
+  const wait = planWaits(p.plan, made);
+  if (wait) return { refused: unnamedStep(made, "undone" in wait ? wait.undone : wait.waits) };
+  const filled = resolveSteps(p.payload, made);
+  return "unresolved" in filled ? { refused: unnamedStep(made, Number(filled.unresolved)) } : { ...p, payload: filled };
 }
 
 /**
@@ -309,6 +337,26 @@ export function planPressOf<P extends HeldCard>(
  */
 export function planInReview<P extends HeldCard>(cards: readonly P[]): boolean {
   return planGroupOf(cards).steps.some((s) => s.review !== null && !s.card.outcome && !s.wait);
+}
+
+/** How many waiting cards the model is named: past it, the person says which. */
+const WAITING_NAMED = 6;
+
+/**
+ * The cards waiting in a thread for their press, as the turn's words name them to the model (D18 of the answers canvas), so a
+ * yes can be matched to one by its id. A plan is one card, named by its first step. Null where none waits.
+ */
+export function waitingCardsWords(cards: readonly Pick<AskProposal, "id" | "title" | "plan">[]): string | null {
+  const seen = new Set<string>();
+  const named = cards.flatMap((p) => {
+    if (p.plan) {
+      if (seen.has(p.plan.id)) return [];
+      seen.add(p.plan.id);
+    }
+    return [`“${p.plan?.head?.title ?? p.title}” (${p.id})`];
+  });
+  if (named.length === 0) return null;
+  return `Cards waiting in this thread for their press: ${named.slice(-WAITING_NAMED).join(", ")}.`;
 }
 
 /**

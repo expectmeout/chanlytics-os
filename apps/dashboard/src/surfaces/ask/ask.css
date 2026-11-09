@@ -831,6 +831,13 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-card.undone {
   opacity: 0.6;
 }
+/* A record, once kept: one line and its Undo, no card around it (the Keep shape). */
+.ask-card.ask-quiet {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
 .ask-card-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

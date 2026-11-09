@@ -83,6 +83,7 @@ export {
 export type { AskModelProfile } from "./model";
 export {
   cardsTogether,
+  cardWithSteps,
   holdsAlike,
   openCardOf,
   planGroupOf,
@@ -93,11 +94,14 @@ export {
   resolveSteps,
   STEP_TOKEN,
   stepToken,
+  waitingCardsWords,
   wordsLessHolds,
 } from "./plan-steps";
 export type { PlanMade } from "./plan-steps";
 export { PLAN_WORDS } from "./plan/intents";
 export type { PlanIntent, PlanStep, PlanWorld } from "./plan/intents";
+export { ASK_ALONE_DAY_MAX, ASK_ALONE_UNDOS_MAX, FREEDOM_REASONS, freedomOf, rowOf } from "./freedom";
+export type { FreedomAnswer, FreedomReason, FreedomVerdict, FreedomWorld } from "./freedom";
 export { planOf } from "./plan/plan";
 export type { PlanFigure, PlanHeadOf } from "./plan/plan";
 export { AskProposalOutcomeSchema } from "./schemas";
@@ -131,6 +135,7 @@ export {
   askCardLapsed,
 } from "./thread-words";
 export type {
+  AskActAnswer,
   AskAttached,
   AskCardSheet,
   AskMessageVM,

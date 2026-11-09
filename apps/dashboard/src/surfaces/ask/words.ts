@@ -3,7 +3,7 @@
  * carries a user-facing string, but the answers' own sentences, which are contracts' (ask/answer/normalize.ts). No key symbol is drawn
  * (the Line, D17).
  */
-import type { AskPressWord } from "@chanlytics/contracts";
+import { POLICY_CLASS_WORDS, type AskPressWord } from "@chanlytics/contracts";
 
 /** What each press says (contracts ASK_PRESS_WORDS), in English. `n` is how many it sends to, where the card knows. */
 const PRESS_EN: Record<AskPressWord, (n: number | null) => string> = {
@@ -98,6 +98,10 @@ const PRESS_ES: Record<AskPressWord, (n: number | null) => string> = {
   merge: () => "Unirlos",
   open: () => "Abrirlo",
 };
+
+/** An Autonomy row's short name. */
+const rowName = (row: string): string =>
+  (POLICY_CLASS_WORDS as Record<string, { short: string } | undefined>)[row]?.short ?? row;
 
 const ASK_TEXT = {
   en: {
@@ -211,6 +215,15 @@ const ASK_TEXT = {
     // The press says what it does (D14 of the answers canvas; contracts askPressOf names which).
     press: (word: AskPressWord, n: number | null): string => PRESS_EN[word](n),
     posting: "Posting on Google",
+    // Why it ran with no press (contracts freedomOf): the line under what it did.
+    whyAlone: (reason: string, row: string | null): string => {
+      const name = row ? rowName(row) : "that row";
+      if (reason === "row_auto") return `Because ${name} is set to Sends it.`;
+      if (reason === "row_veto") return `Because ${name} is set to Holds it.`;
+      if (reason === "at_once") return "This one always goes at once.";
+      return "It only keeps a record, and your rows allow that.";
+    },
+    whyChange: "Change it",
     pressOffer: "Start the offer",
     pressReview: "Send for review",
     pressPlan: "Do it",
@@ -219,6 +232,7 @@ const ASK_TEXT = {
     reviewFirst: "WhatsApp reads new words first, usually in minutes.",
     planFiled: "Words sent for review. Press Start once WhatsApp has read them.",
     planDone: "Done.",
+    fixIt: "Fix it",
     planUndone: "Undone. Nothing goes out.",
     planPaused: "Paused. Nothing goes out.",
     pause: "Pause",
@@ -336,6 +350,14 @@ const ASK_TEXT = {
       "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
     press: (word: AskPressWord, n: number | null): string => PRESS_ES[word](n),
     posting: "Publicando en Google",
+    whyAlone: (reason: string, row: string | null): string => {
+      const name = row ? rowName(row) : "esa fila";
+      if (reason === "row_auto") return `Porque ${name} está en Lo envía.`;
+      if (reason === "row_veto") return `Porque ${name} está en Lo retiene.`;
+      if (reason === "at_once") return "Esto siempre va al momento.";
+      return "Solo guarda un registro, y tus filas lo permiten.";
+    },
+    whyChange: "Cambiarlo",
     pressOffer: "Empezar la oferta",
     pressReview: "Enviar a revisión",
     pressPlan: "Hazlo",
@@ -343,6 +365,7 @@ const ASK_TEXT = {
     reviewFirst: "WhatsApp lee primero los textos nuevos, normalmente en minutos.",
     planFiled: "Texto enviado a revisión. Pulsa Empezar cuando WhatsApp lo haya leído.",
     planDone: "Hecho.",
+    fixIt: "Arreglarlo",
     planUndone: "Deshecho. No sale nada.",
     planPaused: "En pausa. No sale nada.",
     pause: "Pausar",

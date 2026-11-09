@@ -6,6 +6,7 @@
  */
 import type { FactSuggestionDto } from "@chanlytics/contracts";
 import { setPolicy } from "@/bridge/inbox-verbs";
+import { apiFor } from "@/bridge/api";
 import { commitVerb } from "@/bridge/verbs/commit";
 
 /** What an answer said: the receipt (the server's own where it gave one: "already said"), or the refusal. */
@@ -18,4 +19,16 @@ async function answerFact(s: Pick<FactSuggestionDto, "id" | "title">, keep: bool
   return { ok: true, receipt: typeof said === "string" ? said : r.receipt };
 }
 
-export const autonomyVerbs = { setPolicy, answerFact };
+/** The switch (D10 of the answers canvas): Ask may act on its own, following these rows. */
+async function setAskAlone(on: boolean): Promise<{ ok: boolean; message: string }> {
+  const r = await apiFor(window)("POST ask/alone", { body: { on } as never });
+  return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+}
+
+/** Stop everything, and its Resume (D22). */
+async function stopAll(stopped: boolean): Promise<{ ok: boolean; message: string }> {
+  const r = await apiFor(window)("POST ask/stop", { body: { stopped } as never });
+  return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+}
+
+export const autonomyVerbs = { setPolicy, answerFact, setAskAlone, stopAll };

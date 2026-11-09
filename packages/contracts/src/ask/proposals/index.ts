@@ -47,7 +47,7 @@ export {
   askTraitsOf,
 } from "./shapes";
 export type { AskAlone, AskCardShape, AskKindTraits, AskPressWord, AskReach } from "./shapes";
-export { PROPOSAL_WORDS } from "./spec";
+export { CARD_MOVED_WORDS, errorMessageOf, failureDoorOf, PROPOSAL_WORDS } from "./spec";
 export { ASK_SENDS } from "./spec";
 export type {
   ProposalCall,

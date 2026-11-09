@@ -1,6 +1,8 @@
 /**
  * The ask domain: `@chanlytics/db/ask`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export { askAloneCounts, finishAskAction, listAskActions, markAskActionUndone, startAskAction } from "./actions";
+export type { AskActionStart } from "./actions";
 export {
   findMessageCard,
   findOpenEscalationOf,
@@ -8,6 +10,7 @@ export {
   findPersonReplyModeRow,
   findThreadCard,
   findThreadForReply,
+  findThreadSince,
   findWorkspaceRule,
   listDealsOfPerson,
 } from "./cards";

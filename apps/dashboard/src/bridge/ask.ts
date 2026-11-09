@@ -70,13 +70,14 @@ export type AskApi = ReturnType<typeof askPalette> &
      * Approve a card: the verb's own route, then the surfaces refresh. A plan's card is judged by what the turn's other
      * cards of its plan became (`cards`, as the Line holds them: commit.ts commitCard), so a send fills its tokens.
      */
-    commit(p: AskProposal, cards?: readonly AskProposal[]): Promise<CommitResult>;
+    commit(p: AskProposal, cards?: readonly AskProposal[], messageId?: string | null): Promise<CommitResult>;
     /** A plan's one press: what it keeps and its first send (commit.ts commitPlan), what each became read from its cards. */
-    commitPlan(cards: readonly AskProposal[]): Promise<PlanRun>;
+    commitPlan(cards: readonly AskProposal[], messageId?: string | null): Promise<PlanRun>;
     /** A plan's one Undo: every step that can still be taken back, last first (commit.ts undoPlan). */
     undoPlan(
       cards: readonly AskProposal[],
       open: (p: AskProposal, o: AskProposalOutcome) => boolean,
+      messageId?: string | null,
     ): Promise<PlanUndo>;
     /** A running send paused or resumed from its receipt (commit.ts pauseSend). */
     pauseSend(p: AskProposal, paused: boolean): Promise<{ ok: true } | { ok: false; message: string }>;
@@ -86,7 +87,7 @@ export type AskApi = ReturnType<typeof askPalette> &
     planPressOf: typeof planPressOf;
     planInReview: typeof planInReview;
     /** Undo a committed card, where the verb has one. */
-    undo(p: AskProposal, outcome: AskProposalOutcome): Promise<UndoResult>;
+    undo(p: AskProposal, outcome: AskProposalOutcome, messageId?: string | null): Promise<UndoResult>;
     /** "Edit in the composer": open the thread with the words ready to change. */
     editReply(p: AskProposal): void;
     /** Whether a committed card's undo is still true to offer: contracts' askUndoOpen; false before the specs are in. */
@@ -226,14 +227,14 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     thread,
     sendSpoken,
     ...followUps,
-    commit: (p, cards = []) => keptOrCleared([p], commitCard(win, p, cards)),
-    commitPlan: (cards) => keptOrCleared(cards, commitPlan(win, cards)),
-    undoPlan: (cards, open) => keptOrCleared(cards, undoPlan(win, cards, open)),
+    commit: (p, cards = [], messageId) => keptOrCleared([p], commitCard(win, p, cards, { messageId })),
+    commitPlan: (cards, messageId) => keptOrCleared(cards, commitPlan(win, cards, { messageId })),
+    undoPlan: (cards, open, messageId) => keptOrCleared(cards, undoPlan(win, cards, open, apiFor(win), messageId)),
     pauseSend: (p, paused) => pauseSend(win, p, paused),
     planGroupOf,
     planPressOf,
     planInReview,
-    undo: (p, o) => keptOrCleared([p], undoProposal(win, p, o)),
+    undo: (p, o, messageId) => keptOrCleared([p], undoProposal(win, p, o, apiFor(win), messageId)),
     editReply: (p) => editReply(win, p),
     undoOpen: (...a) => pageSpecs.now()?.askUndoOpen(...a) ?? false,
     quick: quickAnswer(palette, api.openings),

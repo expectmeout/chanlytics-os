@@ -22,6 +22,7 @@ import type { AskApi, CommitResult } from "@/bridge/ask";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
+import { LinePress } from "../kit/line/line";
 import { AskPostCard, usePostCard } from "./card-post";
 import {
   AskCardActs,
@@ -64,11 +65,12 @@ const atDone = (r: Committed, at: number): AskProposalOutcome => ({
   undo: r.undo || null,
   made: r.made || null,
 });
-const atFailed = (message: string, at: number): AskProposalOutcome => ({
+const atFailed = (message: string, at: number, moved?: boolean): AskProposalOutcome => ({
   state: "failed",
   receipt: message,
   atMs: at,
   undo: null,
+  ...(moved ? { moved: true } : {}),
 });
 // Kept where the Line draws the card again (`onOutcome`) and on the turn (the outcome route); the route's answer is
 // handed back, so a press of several cards records them one after another and never two over one turn at once.
@@ -76,8 +78,11 @@ const atRecord = (
   { A, messageId, onOutcome }: { A: AskApi | undefined; messageId?: string | null; onOutcome?: OnOutcome },
   pid: string,
   o: AskProposalOutcome,
+  kept = false,
 ): Promise<boolean> => {
   if (onOutcome && messageId) onOutcome(messageId, pid, o);
+  // The act door already kept it on the turn; only what it did not see is written from here.
+  if (kept) return Promise.resolve(true);
   return A && messageId && UUID.test(messageId) ? A.outcome(messageId, pid, o) : Promise.resolve(false);
 };
 
@@ -230,18 +235,20 @@ export const AskCard = ({
     setBusy(b);
     step.onBusy(b);
   };
-  const record = (o: AskProposalOutcome) => {
+  const record = (o: AskProposalOutcome, kept = false) => {
     step.saw(p.id, o);
-    void atRecord({ A, messageId, onOutcome }, p.id, o);
+    void atRecord({ A, messageId, onOutcome }, p.id, o, kept);
   };
   // A public reply goes on a clock in this tab (D24 of the answers canvas): a review's answer has no way back once it posts,
   // so its press starts fifteen seconds, its end posts it and Undo clears it. A tab that closes first posts nothing.
   const [posting, setPosting] = useState<{ from: number; until: number } | null>(null);
+  // Where what stopped it is fixed, where the door knew (D37 of the answers canvas).
+  const [forward, setForward] = useState<{ to: string } | null>(null);
   const approveWith = async (proposal: AskProposal) => {
     if (held || !A) return;
     working(true);
     setErr("");
-    const r = await A.commit(proposal, step.cards);
+    const r = await A.commit(proposal, step.cards, messageId);
     working(false);
     land.current = "receipt";
     if (r.ok) {
@@ -250,7 +257,7 @@ export const AskCard = ({
       setReceipt(r.receipt);
       setUndoData(r.undo || null);
       setDoneAt(at);
-      record(atDone(r, at));
+      record(atDone(r, at), r.kept === true);
       // A search approved is opened (spec F4), and a search answered likewise (G4): the receipt's "Leads shows it" is
       // kept true by going where the contract says the card opens.
       if ((p.kind === "lead_search" || p.kind === "people_search") && onNav && A && A.cardOpenRoute) {
@@ -260,7 +267,8 @@ export const AskCard = ({
     } else {
       setState("failed");
       setErr(r.message);
-      record(atFailed(r.message, Date.now()));
+      setForward(r.forward ?? null);
+      record(atFailed(r.message, Date.now(), r.moved), r.kept === true);
     }
   };
   const dismiss = () => {
@@ -271,14 +279,14 @@ export const AskCard = ({
   const undo = async () => {
     if (held || !A) return;
     working(true);
-    const r = await A.undo(p, { state: "done", receipt, atMs: doneAt, undo: undoData });
+    const r = await A.undo(p, { state: "done", receipt, atMs: doneAt, undo: undoData }, messageId);
     working(false);
     if (r.ok) {
       land.current = "receipt";
       setState("undone");
       setReceipt(r.receipt);
       setUndoData(null);
-      record({ state: "undone", receipt: r.receipt, atMs: Date.now(), undo: null });
+      record({ state: "undone", receipt: r.receipt, atMs: Date.now(), undo: null }, r.kept === true);
     } else setErr(r.message);
   };
   const onClock = () => {
@@ -294,10 +302,17 @@ export const AskCard = ({
   const lead = idle ? searchCardView(p) : null;
   const shut = idle && !!step.fold && !step.fold.open;
   const decided = !idle && !!step.fold;
+  // A record, once kept, is one line: no card (the Keep shape, D14 of the answers canvas).
+  const quiet = state === "done" && askTraitsOf(p.kind).shape === "keep";
+  const why = p.outcome?.why ?? null;
   return (
-    <div className={`ask-card ${state}${shut ? " ask-shut" : ""}`} data-testid="ask-card" data-kind={p.kind}>
-      <AskCardHead p={post ? post.card : p} fold={idle ? step.fold : null} />
-      {shut || decided ? null : lead ? (
+    <div
+      className={`ask-card ${state}${shut ? " ask-shut" : ""}${quiet ? " ask-quiet" : ""}`}
+      data-testid="ask-card"
+      data-kind={p.kind}
+    >
+      {quiet ? null : <AskCardHead p={post ? post.card : p} fold={idle ? step.fold : null} />}
+      {shut || decided || quiet ? null : lead ? (
         <AskSearchCard lead={lead} t={t} alike={step.alike} />
       ) : post ? (
         <AskPostCard p={p} card={post} t={t} onNav={onNav} />
@@ -379,6 +394,21 @@ export const AskCard = ({
         )}
       </div>
       {err && state === "done" ? <div className="ask-card-note">{err}</div> : null}
+      {why && state === "done" ? (
+        <p className="ask-card-foot" data-testid="ask-card-why">
+          {t.whyAlone(why.reason, why.row)}{" "}
+          <LinePress kind="words" onClick={() => onNav("admin/autonomy")}>
+            {t.whyChange}
+          </LinePress>
+        </p>
+      ) : null}
+      {forward && state === "failed" ? (
+        <div className="ask-card-actions">
+          <Button variant="quiet" size="sm" onClick={() => onNav(forward.to)} data-testid="ask-card-forward">
+            {t.fixIt}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -467,15 +497,18 @@ export const AskCards = ({
 };
 
 /** A plan's cards as they stand, what its press and its Undo left them, each kept as a card's own press would keep it. */
-const usePlanCards = (cards: AskProposal[], record: (pid: string, o: AskProposalOutcome) => Promise<boolean>) => {
+const usePlanCards = (
+  cards: AskProposal[],
+  record: (pid: string, o: AskProposalOutcome, kept: boolean) => Promise<boolean>,
+) => {
   const [seen, setSeen] = useState<Record<string, AskProposalOutcome>>({});
   const now = cards.map((p) => (seen[p.id] ? { ...p, outcome: seen[p.id] } : p));
   return {
     now,
     /** Shown at once, and kept one after another: the store writes a turn whole, so two at once would lose one. */
-    keep: async (got: Record<string, AskProposalOutcome>) => {
+    keep: async (got: Record<string, AskProposalOutcome>, kept = false) => {
       setSeen((prev) => ({ ...prev, ...got }));
-      for (const [pid, outcome] of Object.entries(got)) await record(pid, outcome);
+      for (const [pid, outcome] of Object.entries(got)) await record(pid, outcome, kept);
     },
   };
 };
@@ -520,9 +553,10 @@ export const AskPlan = ({
   cardOpen?: Record<string, boolean>;
 }) => {
   const A = askCalls() as AskApi; // a plan is drawn only from a turn the bridge read
-  const { now, keep } = usePlanCards(cards, (pid, o) => atRecord({ A, messageId, onOutcome }, pid, o));
+  const { now, keep } = usePlanCards(cards, (pid, o, kept) => atRecord({ A, messageId, onOutcome }, pid, o, kept));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [forward, setForward] = useState<{ to: string } | null>(null);
   const landRef = useRef<HTMLDivElement>(null);
   const pressed = useRef(false);
   const ordered = [...now].sort((a, b) => (a.plan?.step ?? 0) - (b.plan?.step ?? 0));
@@ -568,15 +602,18 @@ export const AskPlan = ({
     setBusy(true);
     setErr("");
     try {
-      const run = await A.commitPlan(now);
+      const run = await A.commitPlan(now, messageId);
       const at = Date.now();
       const got: Record<string, AskProposalOutcome> = {};
+      let kept = false;
       for (const { step, result } of run.results) {
         const p = now.find((c) => c.plan && c.plan.step === step);
         if (p) got[p.id] = result.ok ? atDone(result, at) : atFailed(result.message, at);
+        kept = kept || result.kept === true;
+        if (!result.ok && result.forward) setForward(result.forward);
       }
       pressed.current = true;
-      await keep(got);
+      await keep(got, kept);
     } finally {
       setBusy(false);
     }
@@ -586,16 +623,18 @@ export const AskPlan = ({
     setBusy(true);
     setErr("");
     try {
-      const run = await A.undoPlan(now, undoable);
+      const run = await A.undoPlan(now, undoable, messageId);
       const at = Date.now();
       const got: Record<string, AskProposalOutcome> = {};
+      let kept = false;
       for (const { step, result } of run.results) {
         const p = now.find((c) => c.plan && c.plan.step === step);
         if (p && result.ok) got[p.id] = { state: "undone", receipt: result.receipt, atMs: at, undo: null };
         else if (!result.ok) setErr(result.message);
+        kept = kept || (result.ok && result.kept === true);
       }
       pressed.current = true;
-      await keep(got);
+      await keep(got, kept);
     } finally {
       setBusy(false);
     }
@@ -736,6 +775,11 @@ export const AskPlan = ({
             {openTo && !canUndo ? (
               <Button variant="quiet" size="sm" onClick={() => onNav(openTo)}>
                 {t.openIt}
+              </Button>
+            ) : null}
+            {forward && !said.ok ? (
+              <Button variant="quiet" size="sm" onClick={() => onNav(forward.to)} data-testid="ask-card-forward">
+                {t.fixIt}
               </Button>
             ) : null}
           </div>

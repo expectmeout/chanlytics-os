@@ -264,6 +264,22 @@ export interface AskProposalOutcome {
   moved?: boolean;
   /** A running send paused after its press (the plan card's Pause), so the card offers Resume. Absent otherwise. */
   paused?: boolean;
+  /** Why it ran with no press, where a row allowed it (contracts freedomOf): the line under what it did. */
+  why?: { reason: string; row: string | null };
+}
+
+/**
+ * What the act door answers (POST ask/act, D15 of the answers canvas): what became of the card, as the turn now keeps it, the
+ * calls it made, which the browser re-reads the surfaces for as it would had it sent them, and, where it stopped, its one
+ * sentence and its one way forward (D37). `redraft`: the card is stale in a way asking again would mend.
+ */
+export interface AskActAnswer {
+  ok: boolean;
+  message: string;
+  outcome: AskProposalOutcome | null;
+  calls: Array<{ route: string; events: Array<{ type: string; detail?: Record<string, unknown> }> }>;
+  forward: { to: string } | null;
+  redraft?: boolean;
 }
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */
@@ -309,6 +325,8 @@ export interface AskMessageVM {
   rounds?: number | null;
   /** Set on a turn that could not be answered; the text says why. */
   failed: boolean;
+  /** Cards of earlier turns this one pressed on a yes (D18): what became of each, so the thread draws it at once. */
+  pressed?: ReadonlyArray<{ messageId: string; proposalId: string; outcome: AskProposalOutcome }>;
   /** The answer as the Line draws it: set by the server from plan 3; absent on every answer made before (answerFromV1). */
   answer?: AskAnswer | null;
   /** The files a person's question came with; absent on a question with none. */

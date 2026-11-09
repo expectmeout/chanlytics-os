@@ -5,6 +5,7 @@
  * the database's as it came; the tool says a failure in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 
 import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
@@ -77,6 +78,32 @@ export const findThreadCard = async (db: Db, tenantId: TenantId, conversationId:
     .eq("id", conversationId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
+
+/**
+ * How many messages a thread has had since a moment, each way: what a card's words may not have seen (D35 of the answers
+ * canvas). A reply queued and not gone is not yet an answer, so only what was sent counts going out.
+ */
+export async function findThreadSince(
+  db: Db,
+  tenantId: TenantId,
+  conversationId: string,
+  since: string,
+): Promise<{ inbound: number; outbound: number }> {
+  const count = async (direction: "inbound" | "outbound") => {
+    const q = db
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("conversation_id", conversationId)
+      .eq("direction", direction)
+      .gt("created_at", since);
+    const { count: n, error } = await (direction === "outbound" ? q.neq("status", "queued") : q);
+    if (error) throw new DbFailure(error, "messages");
+    return n ?? 0;
+  };
+  const [inbound, outbound] = await Promise.all([count("inbound"), count("outbound")]);
+  return { inbound, outbound };
+}
 
 /** A thread's newest open escalation, or none. */
 export const findOpenEscalationOf = async (db: Db, tenantId: TenantId, conversationId: string) =>

@@ -23,6 +23,34 @@
       "rate": "ask",
       "spend": false
     },
+    "POST ask/act": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ask/act/undo": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ask/stop": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ask/alone": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "PATCH ask/memory/[id]": {
       "kind": "write",
       "scope": "workspace",

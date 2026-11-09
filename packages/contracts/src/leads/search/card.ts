@@ -208,13 +208,25 @@ export function withAnswerLanded<M extends Pick<AskMessageVM, "id" | "proposals"
   atMs: number,
 ): M[] {
   const gone = new Set(searchCardsReplaced(messages, landed.proposals ?? []).map((r) => r.proposalId));
-  const kept = gone.size
-    ? messages.map((m) =>
-        (m.proposals ?? []).some((p) => gone.has(p.id))
-          ? { ...m, proposals: m.proposals.map((p) => (gone.has(p.id) ? { ...p, outcome: replacedOutcome(atMs) } : p)) }
-          : m,
-      )
-    : [...messages];
+  // What this turn pressed on a yes (D18 of the answers canvas) is drawn on its own card, up the thread.
+  const pressed = new Map(
+    ((landed as { pressed?: AskMessageVM["pressed"] }).pressed ?? []).map((r) => [r.proposalId, r.outcome]),
+  );
+  const kept =
+    gone.size || pressed.size
+      ? messages.map((m) =>
+          (m.proposals ?? []).some((p) => gone.has(p.id) || pressed.has(p.id))
+            ? {
+                ...m,
+                proposals: m.proposals.map((p) => {
+                  const told = pressed.get(p.id);
+                  if (told) return { ...p, outcome: told };
+                  return gone.has(p.id) ? { ...p, outcome: replacedOutcome(atMs) } : p;
+                }),
+              }
+            : m,
+        )
+      : [...messages];
   return [...kept, landed];
 }
 

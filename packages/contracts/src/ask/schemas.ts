@@ -49,6 +49,11 @@ export const AskProposalOutcomeSchema = z.object({
   moved: z.boolean().optional().catch(undefined),
   // A running send paused from its receipt (AskProposalOutcome.paused): the card offers Resume after a reload.
   paused: z.boolean().optional().catch(undefined),
+  // Why it ran with no press (AskProposalOutcome.why), kept with what it did.
+  why: z
+    .object({ reason: z.string().max(40), row: z.string().max(40).nullable() })
+    .optional()
+    .catch(undefined),
 });
 
 /** A calendar day, YYYY-MM-DD: a closure's first and last, and a note's last. Its shape alone; the save judges the rest. */

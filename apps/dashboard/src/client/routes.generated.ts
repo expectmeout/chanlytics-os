@@ -148,12 +148,16 @@ export const ROUTES = {
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
+  "POST ask/act": { method: "POST", path: "/api/v1/ask/act" },
+  "POST ask/act/undo": { method: "POST", path: "/api/v1/ask/act/undo" },
+  "POST ask/alone": { method: "POST", path: "/api/v1/ask/alone" },
   "POST ask/idea": { method: "POST", path: "/api/v1/ask/idea" },
   "POST ask/memory": { method: "POST", path: "/api/v1/ask/memory" },
   "POST ask/messages/[id]/proposals/[pid]": { method: "POST", path: "/api/v1/ask/messages/[id]/proposals/[pid]" },
   "POST ask/morning": { method: "POST", path: "/api/v1/ask/morning" },
   "POST ask/quick": { method: "POST", path: "/api/v1/ask/quick" },
   "POST ask/speech": { method: "POST", path: "/api/v1/ask/speech" },
+  "POST ask/stop": { method: "POST", path: "/api/v1/ask/stop" },
   "POST ask/voice": { method: "POST", path: "/api/v1/ask/voice" },
   "POST ask/voice/end": { method: "POST", path: "/api/v1/ask/voice/end" },
   "POST ask/voice/page": { method: "POST", path: "/api/v1/ask/voice/page" },
@@ -525,12 +529,16 @@ export type Routes = {
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
+  "POST ask/act": typeof import("../../app/api/v1/ask/act/route").POST;
+  "POST ask/act/undo": typeof import("../../app/api/v1/ask/act/undo/route").POST;
+  "POST ask/alone": typeof import("../../app/api/v1/ask/alone/route").POST;
   "POST ask/idea": typeof import("../../app/api/v1/ask/idea/route").POST;
   "POST ask/memory": typeof import("../../app/api/v1/ask/memory/route").POST;
   "POST ask/messages/[id]/proposals/[pid]": typeof import("../../app/api/v1/ask/messages/[id]/proposals/[pid]/route").POST;
   "POST ask/morning": typeof import("../../app/api/v1/ask/morning/route").POST;
   "POST ask/quick": typeof import("../../app/api/v1/ask/quick/route").POST;
   "POST ask/speech": typeof import("../../app/api/v1/ask/speech/route").POST;
+  "POST ask/stop": typeof import("../../app/api/v1/ask/stop/route").POST;
   "POST ask/voice": typeof import("../../app/api/v1/ask/voice/route").POST;
   "POST ask/voice/end": typeof import("../../app/api/v1/ask/voice/end/route").POST;
   "POST ask/voice/page": typeof import("../../app/api/v1/ask/voice/page/route").POST;

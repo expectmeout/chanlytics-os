@@ -105,6 +105,19 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // What Ask remembers (00470, decision 0070): a line a member told it, and a day of its journal, which may name a customer
   // as the team does; one that names them goes with their turns. Where each came from is a closed set.
+  // What Ask did: closed sets and ids alone, its words stay on the turn, which ask_scrub reaches (00581).
+  ask_actions: all(
+    { kind: "not_personal" },
+    "proposal_id",
+    "kind",
+    "made_kind",
+    "made_id",
+    "reason",
+    "code",
+    "by",
+    "origin_by",
+    "state",
+  ),
   ask_journal_days: { text: scrubbedBy("ask_scrub") },
   ask_memory_lines: { text: scrubbedBy("ask_scrub") },
   ask_messages: { content: scrubbedBy("ask_scrub") },
