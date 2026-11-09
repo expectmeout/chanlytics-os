@@ -38,6 +38,7 @@ import { brainCallOf, generateReply, type BrainReply } from "../ai/receptionist-
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 const MAX_CASES = 6;
 
@@ -147,7 +148,7 @@ async function routedFor(
   db: NonNullable<ReturnType<typeof pg>>,
   tenantId: TenantId,
 ): Promise<RoutedChannel | undefined> {
-  const routed = await findOldestActiveChannel(db, tenantId, "whatsapp").catch(() => undefined);
+  const routed = await findOldestActiveChannel(db, tenantId, "whatsapp").catch(logAndGoOn("findOldestActiveChannel"));
   if (routed !== null) return routed;
   return {
     kind: "chat",

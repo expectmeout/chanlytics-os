@@ -25,7 +25,7 @@
  * Cross-workspace: the hourly sweeps page what is due across every workspace; each row carries its tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PLAYBOOK_HOURS, type NumberStanding } from "@chanlytics/contracts";
+import { PLAYBOOK_HOURS, type NumberStanding, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -75,7 +75,7 @@ export async function getDuePlaybooks(
     p_limit: params.limit,
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
-  if (error) throw new Error(`cannot read the playbooks due: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the playbooks due");
   const rows = data ?? [];
   return {
     // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
@@ -101,7 +101,7 @@ export async function stampPlaybooksTried(
     .update({ last_run_at: params.at.toISOString() })
     .eq("tenant_id", tenantId)
     .in("id", params.ids);
-  if (error) throw new Error(`cannot move the moments to the back of the page: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot move the moments to the back of the page");
 }
 
 export interface DueCalendar {
@@ -131,7 +131,7 @@ export async function getDueCalendars(
     p_limit: params.limit,
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
-  if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the calendars due");
   const rows = data ?? [];
   return {
     rows: rows.map((r) => ({
@@ -179,7 +179,7 @@ export async function listWhatsappNumbersToRead(db: Db, limit: number): Promise<
     .eq("status", "active")
     .order("config->>quality_read_at", { ascending: true, nullsFirst: true })
     .limit(limit);
-  if (error) throw new Error(`cannot read the WhatsApp numbers: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the WhatsApp numbers");
   return (data ?? []).map((r) => ({
     channel_id: r.id,
     tenant_id: r.tenant_id,
@@ -204,7 +204,7 @@ export async function findWhatsappNumber(db: Db, tenantId: TenantId): Promise<Wh
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the workspace's WhatsApp number: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace's WhatsApp number");
   if (!data) return null;
   return {
     channel_id: data.id,
@@ -235,7 +235,7 @@ export async function keepChannelQuality(
     p_channel_id: channelId,
     p_rating: rating,
   });
-  if (error) throw new Error(`channel_keep_quality: ${error.message}`);
+  if (error) throw new DbFailure(error, "channel_keep_quality");
   const kept = KEPT_ANSWERS.find((a) => a === data);
   if (kept === undefined) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
   return kept;
@@ -258,7 +258,7 @@ export async function keepChannelStanding(
     p_channel_id: channelId,
     p_standing: standing,
   });
-  if (error) throw new Error(`channel_keep_standing: ${error.message}`);
+  if (error) throw new DbFailure(error, "channel_keep_standing");
   const kept = KEPT_ANSWERS.find((a) => a === data);
   if (kept === undefined) throw new Error(`channel_keep_standing: answered ${JSON.stringify(data)}`);
   return kept;

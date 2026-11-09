@@ -23,6 +23,7 @@ export function resendLimitOf(row: { ok?: boolean; status: number; errorBody?: s
   try {
     name = (JSON.parse(row.errorBody ?? "") as { name?: unknown } | null)?.name ?? null;
   } catch {
+    // Not JSON: nothing to read.
     name = null;
   }
   if (name === "daily_quota_exceeded") return "daily";

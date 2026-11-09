@@ -63,6 +63,7 @@ import { recordTokens, getTokensLast24h } from "../ai/budget.js";
 import { senderFactsReaderFor } from "../email/mailbox/reader.js";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -101,11 +102,11 @@ async function channelFor(db: Db, tenantId: TenantId, wire: ChannelKind): Promis
     const found = await mailbox();
     if (found) return found;
   } else {
-    const same = await findOldestActiveChannel(db, tenantId, wire).catch(() => null);
+    const same = await findOldestActiveChannel(db, tenantId, wire).catch(logAndGoOn("findOldestActiveChannel", null));
     if (same) return same;
   }
   for (const kind of CHAT_WIRES) {
-    const any = await findOldestActiveChannel(db, tenantId, kind).catch(() => null);
+    const any = await findOldestActiveChannel(db, tenantId, kind).catch(logAndGoOn("findOldestActiveChannel", null));
     if (any) return any;
   }
   return mailbox();

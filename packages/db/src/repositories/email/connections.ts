@@ -8,7 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
-import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../shared/read-json";
@@ -27,7 +27,7 @@ export async function listMailboxConnectionsOf(db: Db, tenantId: TenantId): Prom
     .eq("tenant_id", tenantId)
     .neq("state", "removed")
     .order("connected_at", { ascending: true });
-  if (error) throw new Error(`cannot read the workspace's mailboxes: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace's mailboxes");
   return data ?? [];
 }
 
@@ -43,7 +43,7 @@ export async function findMailboxConnection(
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the mailbox");
   return data;
 }
 
@@ -55,7 +55,7 @@ export async function findLiveMailboxByAddress(db: Db, address: string): Promise
     .eq("address", address.trim().toLowerCase())
     .neq("state", "removed")
     .maybeSingle();
-  if (error) throw new Error(`cannot read the mailbox: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the mailbox");
   return data;
 }
 
@@ -77,7 +77,7 @@ export async function listMailboxesToTend(
   const done = [...skip];
   if (done.length) query = query.not("id", "in", `(${done.join(",")})`);
   const { data, error } = await query;
-  if (error) throw new Error(`cannot read the mailboxes to tend: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the mailboxes to tend");
   return data ?? [];
 }
 
@@ -114,7 +114,7 @@ export async function connectMailbox(
   if (error) {
     const hint = error.hint ?? "";
     if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
-    throw new Error(`cannot connect the mailbox: ${error.message}`);
+    throw new DbFailure(error, "cannot connect the mailbox");
   }
   const item = readAnswer("mailbox_connection_connect", ConnectAnswer, data ?? {});
   if (!item.id) throw new Error("cannot connect the mailbox: no row came back");
@@ -132,7 +132,7 @@ export async function patchMailboxConnection(
   let q = db.from("mailbox_connections").update(params.patch).eq("tenant_id", params.tenantId).eq("id", params.id);
   if (params.from?.length) q = q.in("state", [...params.from]);
   const { data, error } = await q.select("*");
-  if (error) throw new Error(`cannot change the mailbox: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot change the mailbox");
   return data?.[0] ?? null;
 }
 
@@ -151,20 +151,20 @@ export async function putMailboxCredentials(
   if (error) {
     // The token changed since it was read (a reconnect stored meanwhile): that one is kept.
     if (error.code === "40001") return "changed";
-    throw new Error(`cannot store the mailbox's token: ${error.message}`);
+    throw new DbFailure(error, "cannot store the mailbox's token");
   }
   return "stored";
 }
 
 export async function getMailboxCredentials(db: Db, id: string): Promise<Json | null> {
   const { data, error } = await db.rpc("get_mailbox_credentials", { p_connection_id: id });
-  if (error) throw new Error(`cannot read the mailbox's token: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the mailbox's token");
   return data ?? null;
 }
 
 export async function dropMailboxCredentials(db: Db, id: string): Promise<boolean> {
   const { data, error } = await db.rpc("drop_mailbox_credentials", { p_connection_id: id });
-  if (error) throw new Error(`cannot drop the mailbox's token: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot drop the mailbox's token");
   return data === true;
 }
 
@@ -188,7 +188,7 @@ export async function getMailboxCounts(
   said_no: number;
 }> {
   const { data, error } = await db.rpc("mailbox_connection_counts", { p_mailbox_id: id, p_since: since });
-  if (error) throw new Error(`cannot count the mailbox's emails: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count the mailbox's emails");
   const item = recordOrEmpty(data);
   const n = (k: string): number => Math.max(0, Number(item[k] ?? 0) || 0);
   if (typeof item.sent !== "number")
@@ -226,7 +226,7 @@ export async function stampEmailFromMailbox(
     p_thread_id: params.threadId,
     p_mailbox_id: params.mailboxId,
   });
-  if (error) throw new Error(`cannot stamp the email the mailbox sent: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot stamp the email the mailbox sent");
   return data === true;
 }
 
@@ -245,6 +245,6 @@ export async function noteCalendarGrant(
     p_on: params.on,
     ...(params.by ? { p_by: params.by } : {}),
   });
-  if (error) throw new Error(`calendar_grant_note: ${error.message}`);
+  if (error) throw new DbFailure(error, "calendar_grant_note");
   return data === true;
 }

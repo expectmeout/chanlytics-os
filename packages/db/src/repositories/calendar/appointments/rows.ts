@@ -6,6 +6,7 @@ import { readAllRows } from "../../../shared/paged";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../../shared/read-json";
+import { DbFailure } from "@chanlytics/contracts";
 
 /** What booking_request_open answers: a refusal, or the hold it opened and the appointment held. */
 const BookingRequestOpened = z
@@ -60,7 +61,7 @@ export async function findAppointmentByKey(
     .eq("source", source)
     .eq("external_id", externalId)
     .maybeSingle();
-  if (error) throw new Error(`appointment_by_key: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_by_key");
   return data;
 }
 
@@ -97,7 +98,7 @@ export async function findAppointmentByClientStart(
     .or(otherClientFilter)
     .order("starts_at", { ascending: true })
     .limit(10);
-  if (error) throw new Error(`appointment_by_client_start: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_by_client_start");
   const rows = data ?? [];
   rows.sort((a, b) => Math.abs(Date.parse(a.starts_at) - startMs) - Math.abs(Date.parse(b.starts_at) - startMs));
   return rows[0] ?? null;
@@ -109,8 +110,7 @@ export async function findAppointmentByClientStart(
  */
 export async function insertAppointment(db: Db, row: AppointmentInsert): Promise<{ id: string }> {
   const { data, error } = await db.from("appointments").insert(row).select("id").single();
-  if (error || !data)
-    throw Object.assign(new Error(`appointment_insert: ${error?.message ?? "no row"}`), { code: error?.code ?? null });
+  if (error || !data) throw new DbFailure(error ?? { message: "no row" }, "appointment_insert");
   return { id: data.id };
 }
 
@@ -127,7 +127,7 @@ export async function updateAppointment(
   const { error } = await db.from("appointments").update(patch).eq("tenant_id", tenantId).eq("id", id);
   if (!error) return "updated";
   if (error.code === "23514") return "refused";
-  throw new Error(`appointment_update: ${error.message}`);
+  throw new DbFailure(error, "appointment_update");
 }
 
 /* ------------------------------------------------------- a booking the receptionist asks for (00443) */
@@ -164,7 +164,7 @@ export async function openBookingRequest(
     p_timezone: bookingRequestOpen.timezone,
     p_words: bookingRequestOpen.words,
   });
-  if (error) throw new Error(`booking_request_open: ${error.message}`);
+  if (error) throw new DbFailure(error, "booking_request_open");
   const answer = readAnswer("booking_request_open", BookingRequestOpened, data ?? {});
   if (answer.error === "too_soon") return { error: "too_soon" };
   const hold = answer.hold;
@@ -207,7 +207,7 @@ export async function openRequestOfThread(db: Db, conversationId: string): Promi
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`open_request_of_thread: ${error.message}`);
+  if (error) throw new DbFailure(error, "open_request_of_thread");
   return data ?? null;
 }
 
@@ -235,7 +235,7 @@ export async function openRequestsOfThreads(
     .eq("source", "receptionist")
     .eq("status", "proposed")
     .order("created_at", { ascending: false });
-  if (error) throw new Error(`open_requests_of_threads: ${error.message}`);
+  if (error) throw new DbFailure(error, "open_requests_of_threads");
   return data ?? [];
 }
 
@@ -263,7 +263,7 @@ export async function listAppointmentsBetween(
     .lt("starts_at", toIso)
     .order("starts_at", { ascending: true })
     .limit(SPAN_MAX);
-  if (error) throw new Error(`appointments_between: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointments_between");
   return data ?? [];
 }
 
@@ -350,15 +350,15 @@ export async function listVisitOrigins(
       .in("lead_id", ids)
       .order("entered_at", { ascending: false }),
   ]);
-  if (leads.error) throw new Error(`visit_origins_leads: ${leads.error.message}`);
-  if (enrolled.error) throw new Error(`visit_origins_enrolled: ${enrolled.error.message}`);
+  if (leads.error) throw new DbFailure(leads.error, "visit_origins_leads");
+  if (enrolled.error) throw new DbFailure(enrolled.error, "visit_origins_enrolled");
   const newest = new Map<string, string>();
   for (const e of enrolled.data ?? []) if (e.lead_id && !newest.has(e.lead_id)) newest.set(e.lead_id, e.sequence_id);
   const sequenceIds = [...new Set(newest.values())];
   const named = new Map<string, string>();
   if (sequenceIds.length) {
     const seqs = await db.from("sequences").select("id, name").eq("tenant_id", tenantId).in("id", sequenceIds);
-    if (seqs.error) throw new Error(`visit_origins_sequences: ${seqs.error.message}`);
+    if (seqs.error) throw new DbFailure(seqs.error, "visit_origins_sequences");
     for (const q of seqs.data ?? []) named.set(q.id, q.name);
   }
   return (leads.data ?? [])

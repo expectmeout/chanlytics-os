@@ -15,6 +15,7 @@ import { lineProviderFromEnv } from "./lines.js";
 import { findLineAccount, refreshLineToken } from "./sms.js";
 import type { Db, LineRow } from "./a2p-register.js";
 import { saveLineRow } from "@chanlytics/db/lines";
+import { logAndGoOn } from "@chanlytics/log";
 
 const SYNC_READ_MS = 15000;
 
@@ -241,6 +242,6 @@ async function tellThenKeep(
     from: line.sms_state,
     to: smsState,
     mock,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event"));
   return true;
 }

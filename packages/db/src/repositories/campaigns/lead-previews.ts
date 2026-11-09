@@ -14,6 +14,7 @@ import type { PreviewTriedDto, TenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -48,7 +49,7 @@ export type PreviewDoor<T> = { ok: true; value: T } | { ok: false; reason: Previ
 function previewDoorOf<T>(r: { data: unknown; error: { code?: string; message: string } | null }): PreviewDoor<T> {
   if (!r.error) return { ok: true, value: r.data as T };
   const reason = previewRefusalOf(r.error);
-  if (reason === "refused" && r.error.code !== "22023") throw new Error(r.error.message);
+  if (reason === "refused" && r.error.code !== "22023") throw new DbFailure(r.error);
   return { ok: false, reason, message: r.error.message };
 }
 
@@ -85,21 +86,21 @@ export async function recordPreviewBuilt(
   reason: string | null = null,
 ): Promise<boolean> {
   const { data, error } = await db.rpc("preview_built", { p_id: id, p_ok: ok, ...(reason ? { p_why: reason } : {}) });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data === true;
 }
 
 /** The first email that carried it went: its thirty days start. True the first time. */
 export async function recordPreviewSent(db: Db, id: string): Promise<boolean> {
   const { data, error } = await db.rpc("preview_sent", { p_id: id });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data === true;
 }
 
 /** The page drew in a browser: the count, or null for a preview not open to try. */
 export async function recordPreviewOpened(db: Db, id: string): Promise<number | null> {
   const { data, error } = await db.rpc("preview_opened", { p_id: id });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return typeof data === "number" ? data : null;
 }
 
@@ -121,7 +122,7 @@ export async function recordPreviewCalled(db: Db, previewTenantId: TenantId, sec
     p_preview_tenant_id: previewTenantId,
     p_seconds: Math.max(0, Math.round(seconds)),
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data === true;
 }
 
@@ -159,7 +160,7 @@ export async function claimPreview(session: Db, token: string): Promise<PreviewD
 /** A preview past its end, ended: its words cleared, its workspace erased. True when it ended now. */
 export async function endPreview(db: Db, id: string): Promise<boolean> {
   const { data, error } = await db.rpc("preview_end", { p_id: id });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data === true;
 }
 
@@ -170,14 +171,14 @@ export async function findLeadPreview(db: Db, tenantId: TenantId, leadId: string
     .select("*")
     .eq("lead_id", leadId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
 /** A preview in its sender's workspace by its id, or null. */
 export async function findLeadPreviewById(db: Db, tenantId: TenantId, id: string): Promise<LeadPreviewRow | null> {
   const { data, error } = await tenantDb(db, tenantId).from("lead_previews").select("*").eq("id", id).maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -210,7 +211,7 @@ export async function findLeadForPreview(db: Db, tenantId: TenantId, leadId: str
     )
     .eq("id", leadId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -218,7 +219,7 @@ export async function findLeadForPreview(db: Db, tenantId: TenantId, leadId: str
 export async function findLeadPreviewByToken(db: Db, token: string): Promise<LeadPreviewRow | null> {
   if (!/^[A-Za-z0-9_-]{22}$/.test(token)) return null;
   const { data, error } = await platformWide(db).from("lead_previews").select("*").eq("token", token).maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -229,7 +230,7 @@ export async function findLeadPreviewOfWorkspace(db: Db, previewTenantId: Tenant
     .select("*")
     .eq("preview_tenant_id", previewTenantId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -241,7 +242,7 @@ export async function listPreviewsTriedSince(db: Db, tenantId: TenantId, since: 
     .gte("tried_at", since)
     .order("tried_at", { ascending: false })
     .limit(20);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []).flatMap((item) =>
     item.tried_at
       ? [
@@ -274,13 +275,13 @@ export async function listPreviewsPastTheirEnd(
     .lt("ends_at", now.toISOString())
     .order("ends_at", { ascending: true })
     .limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? [];
 }
 
 /** Whether a workspace makes previews: one marked ours (00469, decision 0079). Its own row, under its member's session. */
 export async function doesMakePreviews(db: Db, tenantId: TenantId): Promise<boolean> {
   const { data, error } = await db.from("tenants").select("ours").eq("id", tenantId).maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data?.ours === true;
 }

@@ -69,6 +69,7 @@ function runDaysOf(zone: string | null, now: Date): RunDays | null {
   try {
     return runDaysAt(zone, now);
   } catch {
+    // A zone or a code the runtime does not know.
     return null;
   }
 }

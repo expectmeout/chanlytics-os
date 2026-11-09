@@ -16,6 +16,7 @@ import {
   type OfferPauseReason,
   recordOrEmpty,
   recordOrNull,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -50,7 +51,7 @@ export async function pauseEmailOffersFor(db: Db, tenantId: TenantId): Promise<O
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (noColumn(error, "offers_paused_at", "offers_paused_reason")) return null;
-  if (error) throw new Error(`cannot read whether offers by email are paused: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read whether offers by email are paused");
   return offerPauseOf(data?.offers_paused_at, data?.offers_paused_reason);
 }
 
@@ -74,7 +75,7 @@ export async function pauseEmailOffers(
       bounces: params.counts.bounces,
     },
   });
-  if (error) throw new Error(`cannot pause offers by email: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot pause offers by email");
   return data === true;
 }
 
@@ -85,7 +86,7 @@ export async function pauseEmailOffers(
  */
 export async function getEmailOfferCounts(db: Db, params: { tenantId: TenantId; host: string }): Promise<OfferCounts> {
   const { data, error } = await db.rpc("email_offer_counts", { p_tenant_id: params.tenantId, p_host: params.host });
-  if (error) throw new Error(`cannot count the offers by email: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count the offers by email");
   const item = recordOrEmpty(data);
   const n = (k: string): number => (typeof item[k] === "number" ? item[k] : 0);
   return {
@@ -145,7 +146,7 @@ export async function setEmailOffersYes(
     ...(params.messageId ? { p_message_id: params.messageId } : {}),
     p_evidence: params.evidence,
   });
-  if (error) throw new Error(`cannot record the yes to offers by email: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot record the yes to offers by email");
   const answer = recordOrNull(data);
   if (answer?.changed === true) return "recorded";
   return typeof answer?.refused === "string" && REFUSALS.has(answer.refused)
@@ -168,7 +169,7 @@ export async function offerLanguageOf(
     .eq("tenant_id", params.tenantId)
     .eq("id", params.broadcastId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the language the offer was sent in: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the language the offer was sent in");
   return data?.template_language ?? null;
 }
 
@@ -196,7 +197,7 @@ export async function setEmailUnsubscribed(
     ...(params.messageId ? { p_message_id: params.messageId } : {}),
     p_evidence: params.evidence,
   });
-  if (error) throw new Error(`cannot record the unsubscribe: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot record the unsubscribe");
   const answer = recordOrNull(data);
   return {
     business: typeof answer?.business === "string" ? answer.business : null,
@@ -217,7 +218,7 @@ export async function stopAllMessages(
     p_contact_id: params.contactId,
     ...(params.messageId ? { p_message_id: params.messageId } : {}),
   });
-  if (error) throw new Error(`cannot record that all messages stop: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot record that all messages stop");
   const answer = recordOrNull(data);
   return {
     business: typeof answer?.business === "string" ? answer.business : null,
@@ -233,6 +234,6 @@ export async function stopAllMessages(
 export async function findOffersEmailReach(db: Db, tenantId: TenantId): Promise<number | null> {
   const { data, error } = await db.rpc("offers_email_reach", { p_tenant_id: tenantId });
   if (noFunction(error, "offers_email_reach")) return null;
-  if (error) throw new Error(`cannot count who an offer by email reaches: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count who an offer by email reaches");
   return typeof data === "number" ? data : null;
 }

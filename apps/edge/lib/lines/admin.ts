@@ -29,7 +29,7 @@
  * door (inbound-sms.ts with sms/ingress.ts) uses.
  */
 import { json, refuse } from "../shared/http.js";
-import { logger } from "../shared/log.js";
+import { logger, refuseFailure } from "../shared/log.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { errorMessage, respond, stop, workspaceOf, workspaceRow, type Refused } from "../shared/admin-door.js";
 import {
@@ -172,7 +172,7 @@ async function writingCall(
     read = await findWorkspaceCard(ws.db, ws.tenantId);
   } catch (e) {
     // This door answers a read that throws as one that failed; the Google and billing doors let it throw.
-    return stop(refuse(503, "read_failed", errorMessage(e)));
+    return stop(refuseFailure(503, "read_failed", e));
   }
   const tenant = workspaceRow(read);
   if (!tenant.ok) return tenant;
@@ -194,7 +194,7 @@ async function lineRowOf(c: LineCall): Promise<{ ok: true; row: LineDbRow } | Re
   const lineId = typeof c.body.line_id === "string" ? c.body.line_id.trim() : "";
   if (!UUID.test(lineId)) return stop(refuse(400, "bad_request", "line_id is required"));
   const row = await findLineRow(c.db, c.tenantId, lineId);
-  if (row.error) return stop(refuse(503, "read_failed", row.error.message));
+  if (row.error) return stop(refuseFailure(503, "read_failed", row.error));
   if (!row.data) return stop(refuse(404, "not_found", "no such line"));
   return { ok: true, row: row.data };
 }
@@ -222,7 +222,7 @@ async function buy(lineCall: LineCall): Promise<Response> {
   // (lines_one_live_per_tenant_idx, 00195), because two buys can both read
   // nothing -- see the insert below.
   const others = await listLinesOf(lineCall.db, lineCall.tenantId);
-  if (others.error) return refuse(503, "read_failed", others.error.message);
+  if (others.error) return refuseFailure(503, "read_failed", others.error);
   const now = new Date();
   const plan = planBuy({
     tenantId: lineCall.tenantId,
@@ -249,7 +249,7 @@ async function buy(lineCall: LineCall): Promise<Response> {
       const stands = liveLineOf(again.data ?? []);
       if (stands) return json(409, { ok: false, error: "line_exists", line: lineForClient(stands) });
     }
-    return refuse(503, "write_failed", ins.error.message);
+    return refuseFailure(503, "write_failed", ins.error);
   }
   return queue(lineCall, ins.data, "owner", now);
 }
@@ -270,7 +270,7 @@ async function retry(lineCall: LineCall): Promise<Response> {
   try {
     taken = await claimLineForResume(lineCall.db, read.row, now.getTime(), plan.by);
   } catch (e) {
-    return refuse(503, "write_failed", errorMessage(e));
+    return refuseFailure(503, "write_failed", e);
   }
   if (!taken) return respond(retryTakenAnswer(read.row));
   return queue(lineCall, taken, plan.by, now);
@@ -311,10 +311,10 @@ async function record(lineCall: LineCall): Promise<Response> {
   try {
     before = await findBusinessOnRecord(lineCall.db, lineCall.tenantId);
   } catch (e) {
-    return refuse(503, "read_failed", errorMessage(e));
+    return refuseFailure(503, "read_failed", e);
   }
   const up = await saveBusinessOnRecord(lineCall.db, lineCall.tenantId, plan.row);
-  if (up.error) return refuse(503, "write_failed", up.error.message);
+  if (up.error) return refuseFailure(503, "write_failed", up.error);
   const saved = recordSaved(before, up.data, lines);
   await emitEvent(lineCall.db, lineCall.tenantId, "business.recorded", "tenant", lineCall.tenantId, {
     legal_name: plan.row.legal_name,
@@ -342,7 +342,7 @@ async function register(lineCall: LineCall): Promise<Response> {
   try {
     onRecord = await findBusinessOnRecord(lineCall.db, lineCall.tenantId);
   } catch (e) {
-    return refuse(503, "read_failed", errorMessage(e));
+    return refuseFailure(503, "read_failed", e);
   }
   if (!onRecord) {
     const marked = await saveLineRow(
@@ -350,7 +350,7 @@ async function register(lineCall: LineCall): Promise<Response> {
       { id: row.id, tenant_id: lineCall.tenantId },
       { sms_state: "needs_record", state_since: new Date().toISOString() },
     );
-    if (marked.error) return refuse(503, "write_failed", marked.error.message);
+    if (marked.error) return refuseFailure(503, "write_failed", marked.error);
     return json(409, { ok: false, error: "no_business_record", hint: "op 'record' first" });
   }
   const pages = filingPages(dashboardOrigin(), lineCall.tenant.slug);
@@ -361,7 +361,7 @@ async function register(lineCall: LineCall): Promise<Response> {
   // resubmitted one.
   const saysYes = await listActiveRoutingKinds(lineCall.db, lineCall.tenantId, ["whatsapp", "sms"]);
   // Unread is not "nowhere to say yes": the carriers would be told the business takes no yes at all.
-  if (saysYes.error) return refuse(503, "read_failed", saysYes.error.message);
+  if (saysYes.error) return refuseFailure(503, "read_failed", saysYes.error);
   const plan = planFiling({
     row,
     record: onRecord,

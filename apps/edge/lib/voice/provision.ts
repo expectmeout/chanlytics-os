@@ -65,7 +65,7 @@ import {
 } from "@chanlytics/channels/voice";
 import { env } from "../shared/env.js";
 import { secretToProvision, signatureOnly } from "../shared/door-auth.js";
-import { logger, errField } from "../shared/log.js";
+import { logger, errField, refuseFailure } from "../shared/log.js";
 import { findVoiceRow } from "@chanlytics/db/lines";
 import { insertChannelRow } from "@chanlytics/db/channels";
 import { findWorkspaceCard } from "@chanlytics/db/workspace";
@@ -171,17 +171,17 @@ async function checkProvisionKnock(auth: Admitted, request: Request): Promise<Pr
 /** The workspace and its voice row, if it has one: an unreadable table is `read_failed`, no workspace `not_found`. */
 async function readWorkspaceLine(db: ProvisionDb, tenantId: TenantId) {
   const tenant = await findWorkspaceCard(db, tenantId);
-  if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
+  if (tenant.error) return refuseFailure(503, "read_failed", tenant.error);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
   const existing = await findVoiceRow(db, tenantId);
-  if (existing.error) return refuse(503, "read_failed", existing.error.message);
+  if (existing.error) return refuseFailure(503, "read_failed", existing.error);
   // The agent made before any number (a rehearsal's, decision 0069): adopted by a run that names none, so the number
   // answers in the agent the owner already heard.
   let before: Awaited<ReturnType<typeof findVoiceAgent>>;
   try {
     before = await findVoiceAgent(db, tenantId);
   } catch (e) {
-    return refuse(503, "read_failed", e instanceof Error ? e.message : String(e));
+    return refuseFailure(503, "read_failed", e);
   }
   return { tenant: tenant.data, existing: existing.data, before };
 }

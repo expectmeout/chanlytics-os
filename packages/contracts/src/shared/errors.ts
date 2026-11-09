@@ -86,6 +86,10 @@ export type ErrorDetails<C extends ErrorCode = ErrorCode> = C extends keyof Erro
  */
 const APP_ERROR = Symbol.for("@chanlytics/contracts:AppError");
 
+/** Whether `value` carries `mark`: what `instanceof` asks of a class every copy of this module must recognise. */
+const carries = (value: unknown, mark: symbol): boolean =>
+  typeof value === "object" && value !== null && Object.hasOwn(value, mark);
+
 export class AppError<C extends ErrorCode = ErrorCode> extends Error {
   readonly code: C;
   readonly status: number;
@@ -103,8 +107,56 @@ export class AppError<C extends ErrorCode = ErrorCode> extends Error {
 
   /** `e instanceof AppError` is true for an AppError made by any copy of this class (see APP_ERROR). */
   static override [Symbol.hasInstance](value: unknown): value is AppError {
-    return typeof value === "object" && value !== null && (value as { [APP_ERROR]?: unknown })[APP_ERROR] === true;
+    return carries(value, APP_ERROR);
   }
+}
+
+/** What a failed reply from the database carries, as its client says it: the sentence, and its code where it has one. */
+export interface DbReplyFailure {
+  readonly message: string;
+  readonly code?: string | null | undefined;
+}
+
+const DB_FAILURE = Symbol.for("@chanlytics/contracts:DbFailure");
+
+/**
+ * A reply from the database that failed, raised with what it knows. `throw new Error(error.message)` kept the sentence
+ * and left the code behind, in some 900 places, so nothing above could tell a door's own refusal ("Contact not found.",
+ * P0002) from a database that is down: every one reached a person as "Something went wrong." (decision 0114). The label
+ * says what was being done, written ahead of the database's sentence as `label: message`; `dbMessage` is the database's
+ * sentence alone, the only part a refusal may quote, and `cause` the reply itself. Marked as AppError is, so every copy
+ * of this module recognises every other.
+ */
+export class DbFailure extends Error {
+  readonly code: string | null;
+  readonly dbMessage: string;
+
+  constructor(reply: DbReplyFailure, label?: string) {
+    super(label === undefined ? reply.message : `${label}: ${reply.message}`, { cause: reply });
+    this.name = "DbFailure";
+    this.code = reply.code ?? null;
+    this.dbMessage = reply.message;
+    Object.defineProperty(this, DB_FAILURE, { value: true });
+  }
+
+  /** `e instanceof DbFailure` is true for a DbFailure made by any copy of this class. */
+  static override [Symbol.hasInstance](value: unknown): value is DbFailure {
+    return carries(value, DB_FAILURE);
+  }
+}
+
+/**
+ * A new error, keeping the one it replaces: `throw causedBy(new AppError("internal", "Try again."), e)`. Every class of
+ * ours takes it without a constructor of its own, and as `Error`'s own option does, it is no field a refusal compared or
+ * serialised shows. The log line then says what went wrong, not only what was being tried (decision 0114).
+ */
+export function causedBy<E extends Error>(failure: E, cause: unknown): E {
+  return Object.defineProperty(failure, "cause", {
+    value: cause,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
 }
 
 const DEFAULT_STATUS: Record<ErrorCode, number> = {

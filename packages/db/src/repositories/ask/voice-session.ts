@@ -11,7 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 // The closed set is contracts' (ask/ask.ts VOICE_END_REASONS): the route takes it from there, the row type reads it
 // from here, and 00300's CHECK holds the table to the same words.
-import { isVoiceEndReason, type VoiceEndReason, type SchemaSet } from "@chanlytics/contracts";
+import { isVoiceEndReason, type VoiceEndReason, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -75,13 +75,13 @@ function voiceRowOf(r: StoredRow): VoiceSessionRow {
 /** The row, as the member (RLS: their own, on a thread of their own in the workspace). */
 export async function insertVoiceSession(db: Db, row: NewVoiceSession): Promise<void> {
   const { error } = await db.from("ask_voice_sessions").insert(row);
-  if (error) throw new Error(`ask voice session: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask voice session");
 }
 
 /** The row by its hashed id, or null: on the service role for a provider's call, on the session client for the member's. */
 export async function readVoiceSession(db: Db, id: string): Promise<VoiceSessionRow | null> {
   const { data, error } = await db.from("ask_voice_sessions").select(VOICE_SESSION_COLUMNS).eq("id", id).maybeSingle();
-  if (error) throw new Error(`ask voice session: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask voice session");
   return data ? voiceRowOf(data) : null;
 }
 
@@ -94,7 +94,7 @@ export async function readVoiceSessionByConversation(db: Db, conversationId: str
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`ask voice session by conversation: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask voice session by conversation");
   return data ? voiceRowOf(data) : null;
 }
 
@@ -118,7 +118,7 @@ export async function claimVoiceTurn(
     .eq("id", id)
     .or(`turn_key.is.null,turn_key.neq.${turnKey},turn_started_at.lt.${stale}`)
     .select("id");
-  if (error) throw new Error(`ask voice session claim: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask voice session claim");
   return (data ?? []).length > 0;
 }
 
@@ -148,7 +148,7 @@ export async function endVoiceSession(
     })
     .eq("id", id)
     .select("id");
-  if (error) throw new Error(`ask voice session end: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask voice session end");
   return (data ?? []).length > 0;
 }
 
@@ -163,6 +163,6 @@ export async function moveVoiceSessionContext(
     .update({ context: fields.context, surface: fields.surface })
     .eq("id", id)
     .select("id");
-  if (error) throw new Error(`ask voice session context: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask voice session context");
   return (data ?? []).length > 0;
 }

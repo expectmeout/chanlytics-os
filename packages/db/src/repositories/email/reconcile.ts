@@ -6,7 +6,7 @@
  * clock asked to run now, for a push that must answer its provider at once.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { MIN_MS, recordOrEmpty, valueAt, listOrEmpty } from "@chanlytics/contracts";
+import { MIN_MS, recordOrEmpty, valueAt, listOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { IDS_PER_READ } from "../people/pages";
 import type { TenantId } from "@chanlytics/contracts";
@@ -43,7 +43,7 @@ export async function listUnknownMailboxEmails(
     .eq("state", "queued")
     .not("message_id", "is", null)
     .limit(500);
-  if (sends.error) throw new Error(`cannot read the mailbox's sends: ${sends.error.message}`);
+  if (sends.error) throw new DbFailure(sends.error, "cannot read the mailbox's sends");
   const ids = (sends.data ?? []).flatMap((s) => (s.message_id ? [s.message_id] : []));
   const rows: UnknownRow[] = [];
   for (let index = 0; index < ids.length; index += IDS_PER_READ) {
@@ -55,7 +55,7 @@ export async function listUnknownMailboxEmails(
       .eq("error->>outcome", "unknown")
       .gte("created_at", span.since.toISOString())
       .lte("created_at", span.before.toISOString());
-    if (error) throw new Error(`cannot read the mailbox's unsettled emails: ${error.message}`);
+    if (error) throw new DbFailure(error, "cannot read the mailbox's unsettled emails");
     rows.push(...(data ?? []));
   }
   return rows
@@ -86,7 +86,7 @@ const SWEEP_TIMEOUT_MS = 65_000;
  */
 export async function requestMailboxesSweep(db: Db, now: Date): Promise<boolean> {
   const last = await db.from("sweep_status").select("requested_at").eq("sweep", "mailboxes").maybeSingle();
-  if (last.error) throw new Error(`cannot read the mailboxes clock: ${last.error.message}`);
+  if (last.error) throw new DbFailure(last.error, "cannot read the mailboxes clock");
   const at = last.data?.requested_at ? Date.parse(last.data.requested_at) : Number.NaN;
   if (Number.isFinite(at) && now.getTime() - at < SWEEP_AGAIN_MS) return false;
   const { error } = await db.rpc("request_sweep", {
@@ -94,6 +94,6 @@ export async function requestMailboxesSweep(db: Db, now: Date): Promise<boolean>
     p_path: "/api/cron/mailboxes",
     p_timeout_ms: SWEEP_TIMEOUT_MS,
   });
-  if (error) throw new Error(`cannot ask the mailboxes clock: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot ask the mailboxes clock");
   return true;
 }

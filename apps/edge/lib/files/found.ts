@@ -17,6 +17,7 @@ import {
   type FileMime,
   type FileShows,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels/files";
 import { RESPONSE_MAX_BYTES, publicFetcher } from "@chanlytics/channels/shared";
@@ -115,7 +116,7 @@ export async function keepFoundFile(
     upsert: false,
     cacheControl: String(FILE_CACHE_S),
   });
-  if (stored.error) throw new Error(`file_fetch: ${stored.error.message}`);
+  if (stored.error) throw new DbFailure(stored.error, "file_fetch");
   let fate: FoundFate;
   try {
     fate = (await recordFileFound(db, request)).fate;

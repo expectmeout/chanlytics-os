@@ -13,6 +13,7 @@ import {
   type BroadcastState,
   recordOrEmpty,
   shaped,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { readAllRows, readColumn } from "@chanlytics/db/shared";
 import { runCounts } from "@chanlytics/db/reports";
@@ -273,7 +274,7 @@ export async function answeredAfter(
       convIds.slice(index, index + IN_CHUNK),
       since,
     );
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     for (const m of data ?? []) {
       const reply = replied.get(m.conversation_id);
       if (!reply || !(m.created_at > reply)) continue;

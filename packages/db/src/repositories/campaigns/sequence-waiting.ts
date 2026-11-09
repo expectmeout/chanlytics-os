@@ -5,7 +5,7 @@
  * security, as sequences.ts's readers are.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { wordsNeedOpening, valueAt, recordOrNull } from "@chanlytics/contracts";
+import { wordsNeedOpening, valueAt, recordOrNull, DbFailure } from "@chanlytics/contracts";
 import type {
   SequencePlaceDto,
   SequencePlaceOfDto,
@@ -29,7 +29,7 @@ async function batchSendsIn(db: Db, tenantId: TenantId, id: string, state: "plan
     .eq("tenant_id", tenantId)
     .eq("batch_id", id)
     .eq("state", state);
-  if (error) throw new Error(`cannot count the batch's emails: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count the batch's emails");
   return count ?? 0;
 }
 
@@ -110,7 +110,7 @@ export async function withOpenings<R extends { group: string; send_id: string | 
       .select("id, opening, checked_at, check_after, step_id, lead_id")
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(j, j + SENDS_IN_CHUNK));
-    if (sends.error) throw new Error(`cannot read the emails' openings: ${sends.error.message}`);
+    if (sends.error) throw new DbFailure(sends.error, "cannot read the emails' openings");
     sent.push(...(sends.data ?? []));
   }
   const words = await getLeadWordsOfLeads(
@@ -161,7 +161,7 @@ export async function putBackOf(
     .contains("payload", { put_back: { places: [{ id }] } })
     .order("created_at", { ascending: false })
     .limit(1);
-  if (error) throw new Error(`cannot read the leave to put back: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the leave to put back");
   const [leave] = data ?? [];
   const leftMeta = leave ? recordOrNull(leave.payload) : null;
   return leave && leftMeta && leftMeta.left === 1 && valueAt(leftMeta, "put_back", "why") === place.place.why

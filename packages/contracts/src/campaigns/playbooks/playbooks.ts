@@ -260,6 +260,7 @@ export function visitDayWord(
   try {
     return `on ${dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
   } catch {
+    // A zone or a code the runtime does not know.
     return delta > 0 ? "soon" : "recently";
   }
 }

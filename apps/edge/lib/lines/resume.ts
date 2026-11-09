@@ -29,6 +29,7 @@ import {
   LINE_FILED_NAMES,
   formatPhoneDisplay,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
@@ -115,7 +116,7 @@ export async function claimLineForResume(
   };
   if (row.voice_state === "failed") {
     const { data, error } = await claimFailedLine(db, row, values);
-    if (error) throw new Error(`claim_line: ${error.message}`);
+    if (error) throw new DbFailure(error, "claim_line");
     return data ?? null;
   }
   if (row.voice_state === "provisioning") {
@@ -123,7 +124,7 @@ export async function claimLineForResume(
     // genuinely still running has a `state_since` inside it and is never taken.
     const cutoff = new Date(nowMs - PROVISIONING_DEADLINE_MS).toISOString();
     const { data, error } = await claimStuckLine(db, row, values, cutoff);
-    if (error) throw new Error(`claim_line: ${error.message}`);
+    if (error) throw new DbFailure(error, "claim_line");
     return data ?? null;
   }
   return null;
@@ -203,7 +204,7 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
   const cutoff = new Date(deps.now() - PROVISIONING_DEADLINE_MS).toISOString();
   // Oldest first, so a backlog drains in the order it built up.
   const { data: rows, error } = await listStuckLines(db, cutoff, limit);
-  if (error) throw new Error(`lines_sweep_read: ${error.message}`);
+  if (error) throw new DbFailure(error, "lines_sweep_read");
 
   const out: StuckSweepResult = {
     stuck: (rows ?? []).length,

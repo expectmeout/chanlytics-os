@@ -18,7 +18,7 @@ import {
   type RunStop,
   runRoute,
 } from "@chanlytics/contracts";
-import { errField, logger } from "@chanlytics/log";
+import { errField, logger, logAndGoOn } from "@chanlytics/log";
 import { cancelBroadcast } from "../campaigns/cancel";
 import type { DeliveryRefusal } from "../deliver/deliver";
 import type { BroadcastChannel as Channel } from "./broadcast-channels";
@@ -166,7 +166,7 @@ export async function pageTheDomain(
         ? `Tenant ${run.tenantId}, broadcast ${run.id} stopped, everyone not yet sent still queued: ${how.cause}.`
         : `Tenant ${run.tenantId}, broadcast ${run.id}: its offers and news by email are skipped person by person while this lasts, and the run goes on for everyone else: ${how.cause}.`,
     )
-    ?.catch(() => undefined);
+    ?.catch(logAndGoOn("paging the platform"));
 }
 
 /**

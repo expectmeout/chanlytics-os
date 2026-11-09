@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
-import { recordOrEmpty, textOrEmpty, type TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty, textOrEmpty, type TenantId, DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -33,7 +33,7 @@ export interface MailboxCapacity {
 
 export async function getMailboxCapacity(db: Db, mailboxId: string, at: Date): Promise<MailboxCapacity> {
   const { data, error } = await db.rpc("mailbox_capacity", { p_mailbox_id: mailboxId, p_at: at.toISOString() });
-  if (error) throw new Error(`cannot read the mailbox's day: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the mailbox's day");
   return mailboxCapacityFrom(data);
 }
 
@@ -84,6 +84,6 @@ export async function listDueMailboxes(
     p_skip_tenants: [...(opts.skipTenants ?? [])],
     p_skip_mailboxes: [...(opts.skipMailboxes ?? [])],
   });
-  if (error) throw new Error(`cannot read the mailboxes with sends due: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the mailboxes with sends due");
   return data ?? [];
 }

@@ -35,6 +35,7 @@ export function isTimezone(raw: unknown): boolean {
     new Intl.DateTimeFormat("en-US", { timeZone: raw });
     return true;
   } catch {
+    // A zone or a code the runtime does not know.
     return false;
   }
 }
@@ -74,6 +75,7 @@ export function timezoneWords(
       minute: "2-digit",
     }).format(new Date(nowMs));
   } catch {
+    // A zone or a code the runtime does not know.
     timeThere = null;
   }
   return { city, zone, timeThere, line: timeThere ? `${city} · ${timeThere} there now` : city };

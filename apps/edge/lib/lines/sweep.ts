@@ -53,6 +53,7 @@ import { startOwedLines, type OwedLinesResult } from "./chosen-line.js";
 import { env } from "../shared/env.js";
 import { secretToProvision } from "../shared/door-auth.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import { refuseFailure } from "../shared/log.js";
 
 /**
  * A bound per tick, and a small one.
@@ -102,7 +103,7 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
       LINES_PER_TICK,
     );
   } catch (e) {
-    return refuse(503, "query_failed", e instanceof Error ? e.message : String(e));
+    return refuseFailure(503, "query_failed", e);
   }
 
   // The numbers of workspaces that stopped paying. Its own failure is said beside the stuck lines' result rather than

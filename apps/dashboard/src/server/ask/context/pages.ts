@@ -37,6 +37,7 @@ import { templates as templatesReader } from "../../readers/templates";
 import { channels as channelsReader } from "../../readers/channels";
 import { connections as connectionsReader } from "../../readers/connections";
 import { aggregateOf, idsOf, line, pageWithView, refsOf, sourceOf, type ContextRow, type Provider } from "./rows";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * The rest of the pages, as their context: Reports (the numbers, no rows), Campaigns (the playbooks, the broadcasts
@@ -57,7 +58,7 @@ const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) =>
 async function windowShown(rc: ReaderContext, view: string | null | undefined): Promise<ReportWindow> {
   const picked = reportRangeOfKey(view);
   if (picked !== null && typeof picked !== "string")
-    return reportWindowFor(rc, picked).catch(() => ({ days: 30, end: null }));
+    return reportWindowFor(rc, picked).catch(logAndGoOn("reportWindowFor", { days: 30, end: null }));
   return { days: reportDaysAsked(view) ?? 30, end: null };
 }
 

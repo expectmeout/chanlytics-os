@@ -32,6 +32,7 @@ import {
   type UnsubscribeView,
   MIN_MS,
   valueAt,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { offerUnsubscribeWords, STOP_ALL_REFUSALS, type OfferUnsubscribeView } from "./offers-unsubscribe";
 import { env } from "@/server/shared/env";
@@ -233,7 +234,7 @@ async function offerLanguage(
 async function emailOf(db: SupabaseClient<Database>, tenantId: TenantId, messageId: string): Promise<LinkedEmail> {
   try {
     const { data, error } = await findMessageMeta(db, tenantId, messageId);
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     if (!data) return { sender: null, lane: "unread", language: null };
     const from = valueAt(data.meta, "email", "request", "from");
     const offer = valueAt(data.meta, "source") === "broadcast";

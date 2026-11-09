@@ -45,6 +45,7 @@ import { getMemberContext, type RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The workspace's mailboxes, removed ones aside, oldest first, as the pages are told of them. */
 export async function listMailboxConnections(
@@ -73,9 +74,9 @@ export async function listMailboxConnectionsWithDays(
     rows.map(async (r) => {
       if (r.state === "removed" || r.state === "reconnect") return mailboxDtoOf(r);
       const [cameIn, day, counts] = await Promise.all([
-        getMailboxPeopleSince(db, tenantId, r.id, since).catch(() => null),
-        svc ? getMailboxCapacity(svc, r.id, now).catch(() => null) : null,
-        svc ? getMailboxCounts(svc, r.id, r.counted_since).catch(() => null) : null,
+        getMailboxPeopleSince(db, tenantId, r.id, since).catch(logAndGoOn("getMailboxPeopleSince", null)),
+        svc ? getMailboxCapacity(svc, r.id, now).catch(logAndGoOn("getMailboxCapacity", null)) : null,
+        svc ? getMailboxCounts(svc, r.id, r.counted_since).catch(logAndGoOn("getMailboxCounts", null)) : null,
       ]);
       return mailboxDtoOf(r, { sent_today: day?.sent_today ?? null, counts, came_in: cameIn });
     }),
@@ -88,7 +89,9 @@ export async function findMailboxesLeftToday(
   tenantId: TenantId,
   now = new Date(),
 ): Promise<number | null> {
-  return getMailboxLeftSince(db, tenantId, new Date(now.getTime() - DAY_MS)).catch(() => null);
+  return getMailboxLeftSince(db, tenantId, new Date(now.getTime() - DAY_MS)).catch(
+    logAndGoOn("getMailboxLeftSince", null),
+  );
 }
 
 type MailboxAnswer = EdgeAnswer<EdgeRead<"/api/admin/mailboxes">>;

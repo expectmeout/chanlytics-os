@@ -157,7 +157,13 @@ export function codeCallersOf(names = null) {
     const add = (fn, who) => (byFn.get(fn) ?? byFn.set(fn, new Set()).get(fn)).add(who);
     for (const f of repoFiles(trees).filter(keep)) {
       for (const fn of rpcCallNames(parse(f))) add(fn, f);
-      if (literal) for (const m of fs.readFileSync(path.join(ROOT, f), "utf8").matchAll(literal)) add(m[1], f);
+      // A DbFailure's label says what failed, and calls nothing.
+      if (literal)
+        for (const m of fs
+          .readFileSync(path.join(ROOT, f), "utf8")
+          .replace(/new DbFailure\([^)]*\)/g, "")
+          .matchAll(literal))
+          add(m[1], f);
     }
     return byFn;
   };

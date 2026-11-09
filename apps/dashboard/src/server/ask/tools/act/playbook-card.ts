@@ -58,6 +58,7 @@ import { lists as listsReader } from "../../../readers/lists";
 import { AUDIENCES_CALL, findTouchesThisWeek, getWhatsappHow } from "../context/tool-reads";
 import { propose, refuse } from "../context/context";
 import type { ProposalOutcome, ToolContext } from "../context/tool-defs";
+import { logAndGoOn } from "@chanlytics/log";
 
 export type Trigger = NonNullable<ReturnType<typeof triggerOf>>;
 
@@ -197,7 +198,9 @@ export async function readReachNow(
     // A proposal's moment is counted as the page counts it (0006): by the pace, less whoever had their follow-up.
     deal ? findDealPace(toolContext.ctx, toolContext.tenantId, toolContext.now) : Promise.resolve(null),
     deal
-      ? getProposalFollowUps(toolContext.ctx, toolContext.tenantId, toolContext.now).catch(() => null)
+      ? getProposalFollowUps(toolContext.ctx, toolContext.tenantId, toolContext.now).catch(
+          logAndGoOn("getProposalFollowUps", null),
+        )
       : Promise.resolve(noFollowUps()),
     // Who hears from you within a week either side, sent or due, by a campaign or a member (the week's breath), the
     // page's own read of it; one that fails is said in the log (context.ts findTouchesThisWeek) before the card is refused below.

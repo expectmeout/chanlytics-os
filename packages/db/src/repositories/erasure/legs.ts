@@ -7,7 +7,7 @@
  * notes, turns and visits are their own repositories'. A read or a write that fails throws: a leg that could not be
  * made is the caller's to stop on, never one that ran with nothing.
  */
-import { formatPhoneDisplay, normalizeEmail, type SchemaSet, recordOrEmpty } from "@chanlytics/contracts";
+import { formatPhoneDisplay, normalizeEmail, type SchemaSet, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { readAllRowsByKey } from "../../shared/paged";
@@ -41,7 +41,7 @@ export async function findErasableContact(db: Db, contactId: ContactId): Promise
     .select("id, tenant_id, phone_e164, email, erased_at, erasing_since")
     .eq("id", contactId)
     .maybeSingle();
-  if (error) throw new Error(`erasable_contact: ${error.message}`);
+  if (error) throw new DbFailure(error, "erasable_contact");
   return data;
 }
 
@@ -109,14 +109,14 @@ export function visitNeedles(needles: readonly string[]): string[] {
 /** The external id of each of the person's identities, read while the rows exist. Throws on a failed read. */
 export async function listIdentityExternalIds(db: Db, contactId: ContactId): Promise<(string | null)[]> {
   const { data, error } = await db.from("contact_identities").select("external_id").eq("contact_id", contactId);
-  if (error) throw new Error(`erasure_identities: ${error.message}`);
+  if (error) throw new DbFailure(error, "erasure_identities");
   return (data ?? []).map((i) => i.external_id);
 }
 
 /** The Storage paths the person's call recordings name, read while the rows exist. Throws on a failed read. */
 export async function listRecordingPaths(db: Db, contactId: ContactId): Promise<string[]> {
   const { data, error } = await db.from("calls").select("recording").eq("contact_id", contactId);
-  if (error) throw new Error(`erasure_recordings: ${error.message}`);
+  if (error) throw new DbFailure(error, "erasure_recordings");
   return storagePathsOf((data ?? []).map((c) => c.recording));
 }
 
@@ -127,7 +127,7 @@ export async function listMediaPaths(db: Db, contactId: ContactId): Promise<stri
     .select("media")
     .eq("contact_id", contactId)
     .not("media", "is", null);
-  if (error) throw new Error(`erasure_media: ${error.message}`);
+  if (error) throw new DbFailure(error, "erasure_media");
   return storagePathsOf((data ?? []).map((m) => m.media));
 }
 
@@ -172,7 +172,7 @@ export async function beginErasure(
     .eq("tenant_id", tenantId)
     .is("erased_at", null)
     .is("erasing_since", null);
-  if (error) throw new Error(`begin_erasure: ${error.message}`);
+  if (error) throw new DbFailure(error, "begin_erasure");
 }
 
 /**
@@ -189,7 +189,7 @@ export async function beginPeopleErasure(
     p_contact_ids: params.ids,
     p_not_a_person: params.notAPerson,
   });
-  if (error) throw new Error(`people_erase_begin: ${error.message}`);
+  if (error) throw new DbFailure(error, "people_erase_begin");
   const answer = readAnswer("people_erase_begin", EraseBeginAnswer, data);
   return { going: answer?.going ?? [], noAddress: answer?.no_address ?? [] };
 }
@@ -314,7 +314,7 @@ export async function dropPersonPolicy(db: Db, tenantId: TenantId, contactId: Co
     .eq("tenant_id", tenantId)
     .eq("subject_type", "contact")
     .eq("subject_id", contactId);
-  if (error) throw new Error(`erase_person_policy: ${error.message}`);
+  if (error) throw new DbFailure(error, "erase_person_policy");
 }
 
 /**
@@ -332,7 +332,7 @@ export async function scrubAskTurns(
     p_contact_id: contactId,
     p_needles: [...needles],
   });
-  if (error) throw new Error(`scrub_ask_for_contact: ${error.message}`);
+  if (error) throw new DbFailure(error, "scrub_ask_for_contact");
   return typeof data === "number" ? data : 0;
 }
 
@@ -353,7 +353,7 @@ export interface ErasedRows {
  */
 export async function eraseContactRows(db: Db, contactId: ContactId, legs: Json): Promise<ErasedRows> {
   const { data, error } = await db.rpc("erase_contact", { p_contact_id: contactId, p_legs: legs });
-  if (error) throw new Error(`erase_contact: ${error.message}`);
+  if (error) throw new DbFailure(error, "erase_contact");
   return erasedRowsOf(data);
 }
 

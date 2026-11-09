@@ -25,6 +25,7 @@
  * Workspace scope: no statement of its own; the caller's page() carries the client and the tenant filter, this only pages it.
  */
 import { dbLog } from "./observe";
+import { DbFailure } from "@chanlytics/contracts";
 
 /** `api.max_rows` in supabase/config.toml. A page is a whole one or the last one. */
 export const MAX_ROWS = 1000;
@@ -56,7 +57,7 @@ export async function readAllRows<T>(
   while (out.length < cap) {
     const size = Math.min(MAX_ROWS, cap - out.length);
     const { data, error } = await page(out.length, out.length + size - 1);
-    if (error) throw new Error(`${text}: ${error.message}`);
+    if (error) throw new DbFailure(error, `${text}`);
     const rows = data ?? [];
     out.push(...rows);
     if (rows.length < size) return out;
@@ -89,7 +90,7 @@ export async function readAllRowsByKey<T>(
   while (out.length < cap) {
     const size = Math.min(MAX_ROWS, cap - out.length);
     const { data, error } = await page(after, size);
-    if (error) throw new Error(`${text}: ${error.message}`);
+    if (error) throw new DbFailure(error, `${text}`);
     const rows = data ?? [];
     out.push(...rows);
     const last = rows.at(-1);

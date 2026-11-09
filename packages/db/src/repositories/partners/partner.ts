@@ -2,7 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { SCHEMA_SETS } from "@chanlytics/contracts";
+import { SCHEMA_SETS, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { isMissingFunction } from "../../shared/missing-door";
 import { readAnswer } from "../../shared/read-json";
@@ -44,7 +44,7 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
   const { data, error } = await db.from("partners").select(PARTNER_COLUMNS).maybeSingle();
   if (error) {
     if (noTable(error.message)) return null;
-    throw new Error(`getOwnPartner: ${error.message}`);
+    throw new DbFailure(error, "getOwnPartner");
   }
   return data;
 }
@@ -97,7 +97,7 @@ export async function getPartnerBalance(db: Db): Promise<PartnerBalanceLine[]> {
   if (error) {
     if (error.code === "PGRST202" || error.code === "42883" || /could not find the function/i.test(error.message))
       return [];
-    throw new Error(`getPartnerBalance: ${error.message}`);
+    throw new DbFailure(error, "getPartnerBalance");
   }
   return (data ?? []).map((r) => ({
     currency: r.currency,
@@ -151,7 +151,7 @@ export async function getPartnerWorkspaces(
 ): Promise<{ overview: PartnerOverviewRow[]; money: PartnerWorkspaceMoneyLine[] }> {
   const [o, m] = await Promise.all([db.rpc("partner_overview"), db.rpc("partner_workspace_money")]);
   for (const r of [o, m]) {
-    if (r.error && !isMissingFunction(r.error)) throw new Error(`getPartnerWorkspaces: ${r.error.message}`);
+    if (r.error && !isMissingFunction(r.error)) throw new DbFailure(r.error, "getPartnerWorkspaces");
   }
   return {
     overview: o.error ? [] : (o.data ?? []),
@@ -188,7 +188,7 @@ export async function getPlatformPartners(
 ): Promise<{ balances: PlatformPartnerBalanceLine[]; workspaces: PlatformPartnerWorkspaceLine[] }> {
   const [b, w] = await Promise.all([db.rpc("platform_partner_balances"), db.rpc("platform_partner_workspaces")]);
   for (const r of [b, w]) {
-    if (r.error && !isMissingFunction(r.error)) throw Object.assign(new Error(r.error.message), { code: r.error.code });
+    if (r.error && !isMissingFunction(r.error)) throw new DbFailure(r.error);
   }
   return {
     balances: b.error

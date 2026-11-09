@@ -146,6 +146,7 @@ async function changesOf(db: Db, part: Part, source: WhatsappSource, key: string
   try {
     body = JSON.parse(kept.body) as typeof body;
   } catch {
+    // Not JSON: nothing to read.
     return [];
   }
   const ours = new Map<string, boolean>();

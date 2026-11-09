@@ -9,6 +9,7 @@ import {
   zoneMidnight,
   UUID,
   PROPOSAL_SPECS,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { WHOSE, noteRow, str } from "../context/tool-reads";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
@@ -27,7 +28,7 @@ async function proposeThreadVerb(
   if (!UUID.test(id)) return refuse("conversation_id must be an id a read returned");
   if (!THREAD_VERBS.includes(verb)) return refuse(`verb must be one of ${THREAD_VERBS.join(", ")}`);
   const { data: conv, error } = await findThreadCard(toolContext.ctx.supabase, toolContext.tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!conv) return refuse("no such conversation in this workspace");
   // As the Inbox names them (personName): a saved name, else their WhatsApp name, else their number as it is printed.
   const contactName = personName(conv.contacts);

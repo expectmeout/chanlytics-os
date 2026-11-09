@@ -9,6 +9,7 @@ import { collectPeople } from "../people";
 import { settleSiteReads, siteReadsOf } from "../site-reads";
 import { CHECK_BATCH, LEASE_SECONDS, LeadRetry, POLL_SECONDS, iso, isRefused, minute, outOfTime } from "../rules";
 import { collectHeld, type CollectOutcome } from "./batches";
+import { logAndGoOn } from "@chanlytics/log";
 
 export async function collect(
   leadPorts: LeadPorts,
@@ -24,7 +25,7 @@ export async function collect(
   if (seq === "stop" || seq.startsWith("stop.")) return stopRun(leadPorts, round, run, owner);
   if (round.state === "ended") {
     if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state))
-      await leadPorts.apify.abortRun(run.apify_run_id).catch(() => undefined);
+      await leadPorts.apify.abortRun(run.apify_run_id).catch(logAndGoOn("abortRun"));
     return { kind: "round_ended" };
   }
   // A round on its way out decides nothing more (PRD §0.5, decision 17). Stop

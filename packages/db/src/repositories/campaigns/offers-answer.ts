@@ -7,7 +7,7 @@
  * contracts' mayMessageFor, which reads what these keep.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CARRIER_CONSENT_SOURCE, WHATSAPP_CONSENT_SOURCE } from "@chanlytics/contracts";
+import { CARRIER_CONSENT_SOURCE, WHATSAPP_CONSENT_SOURCE, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
@@ -42,7 +42,7 @@ export async function recordCarrierOptOut(
     p_channel: params.channel,
     p_source: CARRIER_CONSENT_SOURCE,
   });
-  if (error) throw new Error(`recording the carrier's opt-out for contact ${params.contactId}: ${error.message}`);
+  if (error) throw new DbFailure(error, `recording the carrier's opt-out for contact ${params.contactId}`);
   return data === true;
 }
 
@@ -62,7 +62,7 @@ export async function findOffersAnswer(
     .eq("tenant_id", tenantId)
     .eq("id", contactId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data
     ? { marketingConsent: data.marketing_consent, marketingConsentSource: data.marketing_consent_source }
     : null;
@@ -88,7 +88,7 @@ export async function recordWhatsAppOffersStop(
     .eq("tenant_id", params.tenantId)
     .eq("external_id", params.externalId)
     .maybeSingle();
-  if (sent.error) throw new Error(`reading the message WhatsApp refused (${params.externalId}): ${sent.error.message}`);
+  if (sent.error) throw new DbFailure(sent.error, `reading the message WhatsApp refused (${params.externalId})`);
   const contactId = sent.data?.contact_id;
   if (!contactId) return false;
   const { data, error } = await db.rpc("record_provider_stop", {
@@ -99,7 +99,7 @@ export async function recordWhatsAppOffersStop(
     p_source: WHATSAPP_CONSENT_SOURCE,
     p_message_external_id: params.externalId,
   });
-  if (error) throw new Error(`recording WhatsApp's stop for contact ${contactId}: ${error.message}`);
+  if (error) throw new DbFailure(error, `recording WhatsApp's stop for contact ${contactId}`);
   return data === true;
 }
 
@@ -127,7 +127,7 @@ export async function recordLateCarrierOptOut(
     .eq("tenant_id", params.tenantId)
     .eq("external_id", params.externalId)
     .maybeSingle();
-  if (sent.error) throw new Error(`reading the text the carrier refused (${params.externalId}): ${sent.error.message}`);
+  if (sent.error) throw new DbFailure(sent.error, `reading the text the carrier refused (${params.externalId})`);
   const text = sent.data;
   if (!text || text.direction !== "outbound" || text.channel !== "sms") return "not_our_text";
   let contactId = text.contact_id;
@@ -139,7 +139,7 @@ export async function recordLateCarrierOptOut(
       .eq("id", text.conversation_id)
       .eq("tenant_id", params.tenantId)
       .maybeSingle();
-    if (thread.error) throw new Error(`reading the thread of the text the carrier refused: ${thread.error.message}`);
+    if (thread.error) throw new DbFailure(thread.error, "reading the thread of the text the carrier refused");
     contactId = thread.data?.contact_id ?? null;
   }
   if (!contactId) return "no_person";
@@ -149,7 +149,7 @@ export async function recordLateCarrierOptOut(
     .eq("id", contactId)
     .eq("tenant_id", params.tenantId)
     .maybeSingle();
-  if (person.error) throw new Error(`reading contact ${contactId} for the carrier's stop: ${person.error.message}`);
+  if (person.error) throw new DbFailure(person.error, `reading contact ${contactId} for the carrier's stop`);
   if (!person.data || person.data.erased_at) return "no_person";
   if (person.data.consent === "opted_out") return "already_stopped";
   if (person.data.consent_updated_at && person.data.consent_updated_at > text.created_at) return "newer_answer";

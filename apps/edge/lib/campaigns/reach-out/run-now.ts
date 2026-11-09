@@ -25,11 +25,12 @@ import { json, refuse } from "../../shared/http.js";
 import { personFor, workspaceFor, type Admitted } from "../../shared/admin-auth.js";
 import { pg } from "../../shared/pg.js";
 import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks/playbooks.js";
-import { logger } from "../../shared/log.js";
+import { logger, refuseFailure } from "../../shared/log.js";
 import { runReachOutStep } from "./run-step.js";
 import { findStepRow, getSequenceModes } from "@chanlytics/db/campaigns";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import { UUID, CAMPAIGNS_PAUSED_WORDS, DEFAULT_TIMEZONE, isTenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export async function runPlaybookNow(
   auth: Admitted,
@@ -52,14 +53,14 @@ export async function runPlaybookNow(
   if (!db) return refuse(503, "no_database");
 
   const { data: p, error } = await findStepRow(db, tenantId, playbookId);
-  if (error) return refuse(500, "read_failed", error.message);
+  if (error) return refuseFailure(500, "read_failed", error);
   if (!p) return refuse(404, "not_found");
   // A reach-out's root runs its first step now through the sweep's own step runner (Part 4, R13): the sheet's Start.
   // Its answer says what happened, with its reason (R14); a later step runs on its day only.
   if (p.kind === "reach_out") {
     const row = p;
     if (row.trigger !== "lead_first") return refuse(409, "reach_out_step");
-    const tz = (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
+    const tz = (await findWorkspaceZone(db, tenantId).catch(logAndGoOn("findWorkspaceZone", null))) || DEFAULT_TIMEZONE;
     const run = await runReachOutStep(db, row, new Date(), tz, log);
     log.info("reach_out_run_now", {
       tenant_id: tenantId,
@@ -88,7 +89,7 @@ export async function runPlaybookNow(
   try {
     mode = (await getSequenceModes(db, tenantId, [step.sequence_id])).get(step.sequence_id);
   } catch (e) {
-    return refuse(500, "read_failed", e instanceof Error ? e.message : String(e));
+    return refuseFailure(500, "read_failed", e);
   }
   const ctx = await loadTenantRunContext(db, tenantId, new Date());
   // A paused workspace is a refusal a person can act on (Billing), not a failure to read the workspace: 402, as Ask and

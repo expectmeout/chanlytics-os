@@ -38,6 +38,7 @@ export const POST = write({
   role: "operator",
   rate: "ask",
   handle: async ({ ctx, req, member }) => {
+    // A body that is not JSON is none: what reads it next refuses.
     const body = (await req.json().catch(() => null)) as { language?: unknown; locale?: unknown } | null;
     const { morning, run } = await startMorning(
       ctx,

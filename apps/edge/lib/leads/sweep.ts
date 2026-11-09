@@ -41,7 +41,7 @@ import {
   markLeadRunUnknown,
   releaseLeadRun,
 } from "@chanlytics/db/leads";
-import { recordOrEmpty, type SchemaSet, textOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet, textOrEmpty, DbFailure } from "@chanlytics/contracts";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
@@ -65,7 +65,7 @@ async function inChunks<T>(ids: string[], read: (part: string[]) => Promise<T[]>
 
 /** A read's rows, or its error thrown: a read that failed is not an answer. */
 function rowsOf<T>(r: { data: T[] | null; error: { message: string } | null }): T[] {
-  if (r.error) throw new Error(r.error.message);
+  if (r.error) throw new DbFailure(r.error);
   return r.data ?? [];
 }
 
@@ -228,7 +228,7 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
     ({ runs, rounds, roundJobs } = await sweepRows(db));
   } catch (e) {
     L.error("leads_sweep_read_failed", { error: errField(e) });
-    return refuse(503, "read_failed", errField(e));
+    return refuse(503, "read_failed");
   }
 
   const actions = planLeadSweep({ runs, rounds, roundJobs }, now);
@@ -284,19 +284,19 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
         }
         case "mark_unknown": {
           const { error } = await markLeadRunUnknown(db, action.runId, action.owner);
-          if (error) throw new Error(error.message);
+          if (error) throw new DbFailure(error);
           counts.marked_unknown += 1;
           break;
         }
         case "release_lease": {
           const { error } = await releaseLeadRun(db, action.runId, action.owner, action.gen);
-          if (error) throw new Error(error.message);
+          if (error) throw new DbFailure(error);
           counts.released += 1;
           break;
         }
         case "end_question": {
           const { error } = await endLeadRound(db, action.roundId, "question_unanswered");
-          if (error) throw new Error(error.message);
+          if (error) throw new DbFailure(error);
           counts.questions_ended += 1;
           break;
         }
@@ -310,16 +310,16 @@ export async function sweepLeads({ db, L }: SweepTick): Promise<Response> {
           // Nothing can carry it on: the door looks again under its own lock and ends it with the ending it had pending,
           // giving back its allowance and its share of the day's cap (00140's lead_round_end).
           const { error } = await endStuckLeadRound(db, action.roundId, action.since, action.ending);
-          if (error) throw new Error(error.message);
+          if (error) throw new DbFailure(error);
           counts.rounds_ended += 1;
           break;
         }
         case "orphan": {
           // A row nobody claimed in an hour: the sweep claims it and marks it unknown, and the next tick reconciles it.
           const claimed = await claimLeadRun(db, action.runId, action.owner);
-          if (claimed.error) throw new Error(claimed.error.message);
+          if (claimed.error) throw new DbFailure(claimed.error);
           const marked = await markLeadRunUnknown(db, action.runId, action.owner);
-          if (marked.error) throw new Error(marked.error.message);
+          if (marked.error) throw new DbFailure(marked.error);
           counts.marked_unknown += 1;
           break;
         }

@@ -178,6 +178,7 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   `EDGE_ERROR_CODES` (`packages/contracts/src/shared/edge-errors.ts`), reused before one is added; the words for a
   person or for support go in `detail`. tsc refuses any other `error` at `json` and `refuse`, and
   `tests/edge/error-codes.test.mjs` holds the set both ways.
+- **A failure keeps what it knows.** A failed reply from the database is raised as `new DbFailure(error, "what was being done")`, which keeps its code, so a door's refusal reaches a person in the door's words. A failure's own text goes in the log and never in an answer (`refuseFailure`, `logFailure` on the edge). A catch that goes on logs it (`.catch(logAndGoOn("what", fallback))`) or says why beside it, and a new error raised from a catch keeps the old one (`causedBy`). `repo/errors/errors.test.mjs` holds all of it (decision 0114).
 - **Prettier owns formatting.** The hook formats what you stage; CI runs `format:check`. Never
   argue with it in a review.
 - **Nothing reaches Expo by itself.** The phone app is paused (Ruben, 7 October 2026), and every run there spends the

@@ -64,7 +64,7 @@ import { loadTenantRuntime } from "../shared/tenant-runtime.js";
 import { env } from "../shared/env.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import { signatureOnly } from "../shared/door-auth.js";
-import { logger } from "../shared/log.js";
+import { logger, refuseFailure } from "../shared/log.js";
 import type { Admitted } from "../shared/admin-auth.js";
 import { E164 } from "@chanlytics/contracts";
 import { listActiveVoiceAgentRows } from "@chanlytics/db/lines";
@@ -94,12 +94,12 @@ async function agentsNamed(body: Body): Promise<string[] | Response> {
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const { data, error } = await listActiveVoiceAgentRows(db);
-  if (error) return refuse(503, "read_failed", error.message);
+  if (error) return refuseFailure(503, "read_failed", error);
   let before: string[];
   try {
     before = await listVoiceAgentsBeforeANumber(db);
   } catch (e) {
-    return refuse(503, "read_failed", e instanceof Error ? e.message : String(e));
+    return refuseFailure(503, "read_failed", e);
   }
   const lines = (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
   return [...new Set([...lines, ...before])];

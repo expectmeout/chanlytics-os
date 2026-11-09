@@ -20,6 +20,7 @@
  */
 import type { BrainIntent, Handled } from "@chanlytics/contracts";
 import type { InboundSink } from "./ports";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** What the sink answered to an escalation: how it landed (packages/jobs EscalationOutcome), or nothing when it failed. */
 type EscalateAnswer = Awaited<ReturnType<InboundSink["escalate"]>>;
@@ -73,7 +74,9 @@ export async function getProcessedAfter(
   reply: Reply,
   intent: BrainIntent | null = null,
 ): Promise<unknown> {
-  const escalation: Escalation = request ? escalationOf(await request.catch(() => undefined)) : "none";
+  const escalation: Escalation = request
+    ? escalationOf(await request.catch(logAndGoOn("a hold's escalation")))
+    : "none";
   return sink.processed(handledOf({ escalation, reply }), intent);
 }
 
@@ -89,6 +92,6 @@ export async function noteHandledAfter(
   reply: Reply,
   intent: BrainIntent | null = null,
 ): Promise<unknown> {
-  const escalation = escalationOf(await request.catch(() => undefined));
+  const escalation = escalationOf(await request.catch(logAndGoOn("a hold's escalation")));
   return escalation === "landed" ? sink.noteHandled(handledOf({ escalation, reply }), intent) : undefined;
 }

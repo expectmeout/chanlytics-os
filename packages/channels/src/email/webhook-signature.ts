@@ -34,6 +34,7 @@ export async function resendWebhookSignature(
   try {
     keyBytes = bytesOfBase64(secret.startsWith("whsec_") ? secret.slice(6) : secret);
   } catch {
+    // Not the encoding it says.
     return null;
   }
   const key = await globalThis.crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, [

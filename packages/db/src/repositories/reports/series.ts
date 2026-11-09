@@ -19,6 +19,7 @@ import type { Database, Json } from "../../types";
 import type { JsonObject } from "../events/events";
 import { isMissingDoor } from "../../shared/missing-door";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -49,7 +50,7 @@ export async function reportSeries(db: Db, tenantId: TenantId, window: ReportWin
   const { data, error } = await db.rpc("report_series", windowArgs(tenantId, window));
   if (error) {
     if (notReadable(window, error)) throw new ReportWindowNotReadable("report_series");
-    throw new Error(`report_series: ${error.message}`);
+    throw new DbFailure(error, "report_series");
   }
   return data;
 }
@@ -59,7 +60,7 @@ export async function getCampaignSeries(db: Db, tenantId: TenantId, window: Repo
   const { data, error } = await db.rpc("campaign_series", windowArgs(tenantId, window));
   if (error) {
     if (notReadable(window, error)) throw new ReportWindowNotReadable("campaign_series");
-    throw new Error(`campaign_series: ${error.message}`);
+    throw new DbFailure(error, "campaign_series");
   }
   return data;
 }
@@ -76,7 +77,7 @@ export async function findReviewsLedger(db: Db, tenantId: TenantId, window: Repo
   const { data, error } = await db.rpc("reviews_ledger", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
-    throw new Error(`reviews_ledger: ${error.message}`);
+    throw new DbFailure(error, "reviews_ledger");
   }
   return data;
 }
@@ -94,7 +95,7 @@ export async function findReceptionistSeries(db: Db, tenantId: TenantId, window:
   const { data, error } = await db.rpc("receptionist_series", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
-    throw new Error(`receptionist_series: ${error.message}`);
+    throw new DbFailure(error, "receptionist_series");
   }
   return data;
 }
@@ -113,7 +114,7 @@ export async function findPeopleSeries(db: Db, tenantId: TenantId, window: Repor
   const { data, error } = await db.rpc("people_series", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
-    throw new Error(`people_series: ${error.message}`);
+    throw new DbFailure(error, "people_series");
   }
   return data;
 }
@@ -132,7 +133,7 @@ export async function findCampaignLedger(db: Db, tenantId: TenantId, window: Rep
   const { data, error } = await db.rpc("campaign_ledger", windowArgs(tenantId, window));
   if (error) {
     if (isMissingDoor(error)) return null;
-    throw new Error(`campaign_ledger: ${error.message}`);
+    throw new DbFailure(error, "campaign_ledger");
   }
   return data;
 }
@@ -149,7 +150,7 @@ export async function findCampaignStuck(db: Db, tenantId: TenantId): Promise<Jso
   const { data, error } = await db.rpc("campaign_stuck", { p_tenant_id: tenantId });
   if (error) {
     if (isMissingDoor(error)) return null;
-    throw new Error(`campaign_stuck: ${error.message}`);
+    throw new DbFailure(error, "campaign_stuck");
   }
   return data;
 }
@@ -186,7 +187,7 @@ function answerOrMissing(
 ): JsonObject | "missing" {
   if (error) {
     if (isMissingDoor(error)) return "missing";
-    throw new Error(`${name}: ${error.message}`);
+    throw new DbFailure(error, `${name}`);
   }
   if (data === null || typeof data !== "object" || Array.isArray(data)) throw new Error(`${name}: answered no object`);
   return data;

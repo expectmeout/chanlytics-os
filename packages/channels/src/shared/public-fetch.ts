@@ -267,6 +267,7 @@ export function publicFetch(deps: PublicFetchDeps = {}): typeof fetch {
       const res = await once(url, at);
       const next = REDIRECT_STATUSES.has(res.status) ? res.headers.get("location") : null;
       if (!next) return res;
+      // Closing what this is done with: nothing to do if that fails.
       await res.body?.cancel().catch(() => undefined);
       if (hop >= REDIRECTS_MAX) throw new NotPublicError(new URL(url).host, "too many redirects");
       url = new URL(next, url).toString();

@@ -24,7 +24,7 @@
  * and the Ask scrub admit for a person whose block an owner's press wrote (00501).
  */
 import type { ContactId } from "@chanlytics/contracts";
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, causedBy } from "@chanlytics/contracts";
 import { AppError, MIN_MS } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/log";
 import { scrubAppointments } from "@chanlytics/db/calendar";
@@ -163,8 +163,11 @@ async function readErasureKeys(db: Db, contact: ErasurePerson): Promise<ErasureK
 async function unread<T>(text: string, read: () => Promise<T>): Promise<T> {
   try {
     return await read();
-  } catch {
-    throw new AppError("internal", `Could not read this person's ${text}, so nothing was deleted. Try again.`, 500);
+  } catch (e) {
+    throw causedBy(
+      new AppError("internal", `Could not read this person's ${text}, so nothing was deleted. Try again.`, 500),
+      e,
+    );
   }
 }
 
@@ -180,10 +183,9 @@ async function blockErasure(db: Db, contact: ErasurePerson): Promise<void> {
     });
   } catch (e) {
     logger().error("erase_begin_failed", { tenant_id: contact.tenant_id, contact: contact.id, error: errText(e) });
-    throw new AppError(
-      "internal",
-      "Could not mark this person as being erased, so nothing was deleted. Try again.",
-      500,
+    throw causedBy(
+      new AppError("internal", "Could not mark this person as being erased, so nothing was deleted. Try again.", 500),
+      e,
     );
   }
 }
@@ -237,10 +239,13 @@ async function scrubCopiesFirst(
       contact: contact.id,
       error: errText(error),
     });
-    throw new AppError(
-      "internal",
-      `The assistant's memory of this person could not be scrubbed, so nothing was deleted. ${tryAgain(finishWaits)}`,
-      500,
+    throw causedBy(
+      new AppError(
+        "internal",
+        `The assistant's memory of this person could not be scrubbed, so nothing was deleted. ${tryAgain(finishWaits)}`,
+        500,
+      ),
+      error,
     );
   }
   try {
@@ -251,10 +256,13 @@ async function scrubCopiesFirst(
       contact: contact.id,
       error: errText(error),
     });
-    throw new AppError(
-      "internal",
-      stoppedPartway("The finished jobs that carried this person's number could not be scrubbed", finishWaits),
-      500,
+    throw causedBy(
+      new AppError(
+        "internal",
+        stoppedPartway("The finished jobs that carried this person's number could not be scrubbed", finishWaits),
+        500,
+      ),
+      error,
     );
   }
   // The deliveries the intake ledger keeps a week (00336) hold the number and the words as a provider sent them: found
@@ -267,13 +275,16 @@ async function scrubCopiesFirst(
       contact: contact.id,
       error: errText(error),
     });
-    throw new AppError(
-      "internal",
-      stoppedPartway(
-        "The deliveries kept for replay that carried this person's number could not be scrubbed",
-        finishWaits,
+    throw causedBy(
+      new AppError(
+        "internal",
+        stoppedPartway(
+          "The deliveries kept for replay that carried this person's number could not be scrubbed",
+          finishWaits,
+        ),
+        500,
       ),
-      500,
+      error,
     );
   }
   // Other people's notes that carry their number or address (00341, decision 0036): the needle overwritten in place,
@@ -286,10 +297,13 @@ async function scrubCopiesFirst(
       contact: contact.id,
       error: errText(error),
     });
-    throw new AppError(
-      "internal",
-      stoppedPartway("The notes that carried this person's number or address could not be scrubbed", finishWaits),
-      500,
+    throw causedBy(
+      new AppError(
+        "internal",
+        stoppedPartway("The notes that carried this person's number or address could not be scrubbed", finishWaits),
+        500,
+      ),
+      error,
     );
   }
   // The receptionist's kept turns (00401, decision 0039) that quote them from someone else's thread or notes: deleted
@@ -302,10 +316,13 @@ async function scrubCopiesFirst(
       contact: contact.id,
       error: errText(error),
     });
-    throw new AppError(
-      "internal",
-      stoppedPartway("The receptionist's kept turns that named this person could not be scrubbed", finishWaits),
-      500,
+    throw causedBy(
+      new AppError(
+        "internal",
+        stoppedPartway("The receptionist's kept turns that named this person could not be scrubbed", finishWaits),
+        500,
+      ),
+      error,
     );
   }
 }

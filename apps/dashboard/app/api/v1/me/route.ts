@@ -7,6 +7,7 @@ import { recordLeft, listSeats } from "@/server/workspace/team";
 import { log } from "@/server/shared/log";
 import { dbRefusal } from "@/server/shared/with-route";
 import { deleteOwnAccount, setOwnName } from "@/server/auth/account";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * PUT /api/v1/me — {display_name}: the name you go by. Yours alone to set;
@@ -65,7 +66,7 @@ export const DELETE = write({
       );
     }
     await recordLeft(seats.map(heldTenantId), ctx.userId);
-    await ctx.supabase.auth.signOut().catch(() => undefined);
+    await ctx.supabase.auth.signOut().catch(logAndGoOn("signOut"));
     const answer = recordOrEmpty(data);
     const left = Number(answer.workspaces_left_empty ?? 0);
     await endEmptiedWorkspaces(answer.workspaces_emptied);

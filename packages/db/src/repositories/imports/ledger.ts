@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 
-import { recordOrEmpty, type SchemaSet } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import { asJson } from "../../shared/json";
 import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
@@ -45,7 +45,7 @@ export async function listImports(db: Db, tenantId: TenantId): Promise<ImportLed
     .select(
       "source, connection_id, state, counts, parts_done, parts_total, oldest, started_at, finished_at, last_error, via",
     );
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []).map((r) => ({ ...r, counts: ledgerCountsOf(r.counts) }));
 }
 
@@ -87,7 +87,7 @@ export async function noteImport(db: Db, importNote: ImportNote): Promise<void> 
     p_run: importNote.run ?? undefined,
     p_take: importNote.take ?? undefined,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
 }
 
 /** A row as a part reads it before it reads on: where it stands, the run that holds it and its job's place. */
@@ -120,7 +120,7 @@ export async function importRowOf(
   const { data, error } = await (connectionId
     ? result.or(`connection_id.eq.${connectionId},connection_id.is.null`)
     : result.is("connection_id", null));
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const rows = data ?? [];
   const kept = rows.find((r) => r.connection_id === null);
   const named = kept ? namedIn(kept.job_cursor) : null;

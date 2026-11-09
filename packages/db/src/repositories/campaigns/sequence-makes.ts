@@ -5,7 +5,7 @@
  * (decisions_member_select), by the ledger's own index (decisions_tenant_subject).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { asDraftedFrom, type AsDrafted } from "@chanlytics/contracts";
+import { asDraftedFrom, type AsDrafted, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -37,7 +37,7 @@ export async function listSequenceMakes(
   if (params.by) query = query.eq("actor_user_id", params.by);
   if (params.since) query = query.gte("created_at", params.since);
   const { data, error } = await query.order("created_at", { ascending: false }).limit(params.limit);
-  if (error) throw new Error(`decisions: ${error.message}`);
+  if (error) throw new DbFailure(error, "decisions");
   const seen = new Set<string>();
   const out: SequenceMake[] = [];
   for (const row of data ?? []) {

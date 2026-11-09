@@ -272,6 +272,7 @@ export async function callEdge<A extends EdgeDoorPath>(
       cache: "no-store",
       signal: AbortSignal.timeout(opts.timeoutMs ?? EDGE_CALL_TIMEOUT_MS),
     });
+    // An answer that is not JSON is none: its status says the rest.
     const parsed: unknown = await result.json().catch(() => null);
     return { status: result.status, body: answerAsItCame(aud, result.status, parsed) };
   } catch (error) {

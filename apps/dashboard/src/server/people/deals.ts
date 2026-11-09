@@ -38,6 +38,7 @@ import { log } from "@/server/shared/log";
 import { findAppointmentWord } from "@chanlytics/db/workspace";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 import { z } from "zod";
+import { logKeptGoing } from "@chanlytics/log";
 
 /** What record_deal answers: its refusal, or the deal, where it stood before, and the decision it wrote. */
 const DealAnswer = z
@@ -101,7 +102,8 @@ export async function findCurrentDeal(
     const r = await listDealRowsOf(ctx.supabase, tenantId, contactId);
     if (r.error || !r.data) return null;
     return pickCurrentDeal(r.data);
-  } catch {
+  } catch (e) {
+    logKeptGoing("person's current deal", e);
     return null;
   }
 }

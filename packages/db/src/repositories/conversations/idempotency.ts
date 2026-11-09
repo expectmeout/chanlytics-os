@@ -22,6 +22,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -60,7 +61,7 @@ export async function claimIdempotencyKey(
       { onConflict: "tenant_id,key", ignoreDuplicates: true },
     )
     .select("key");
-  if (claimed.error) throw new Error(`idempotency claim: ${claimed.error.message}`);
+  if (claimed.error) throw new DbFailure(claimed.error, "idempotency claim");
   if ((claimed.data ?? []).length > 0) return { won: true };
   const held = await db
     .from("idempotency_keys")
@@ -68,7 +69,7 @@ export async function claimIdempotencyKey(
     .eq("tenant_id", params.tenantId)
     .eq("key", params.key)
     .maybeSingle();
-  if (held.error) throw new Error(`idempotency lookup: ${held.error.message}`);
+  if (held.error) throw new DbFailure(held.error, "idempotency lookup");
   return { won: false, held: held.data };
 }
 
@@ -89,7 +90,7 @@ export async function takeIdempotencyKey(
     .eq("key", params.key)
     .eq("created_at", params.from)
     .select("key");
-  if (taken.error) throw new Error(`idempotency take: ${taken.error.message}`);
+  if (taken.error) throw new DbFailure(taken.error, "idempotency take");
   return (taken.data ?? []).length > 0;
 }
 
@@ -108,7 +109,7 @@ export async function releaseIdempotencyKey(
     .eq("tenant_id", params.tenantId)
     .eq("key", params.key)
     .eq("created_at", params.nowIso);
-  if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
+  if (released.error) throw new DbFailure(released.error, "idempotency release");
 }
 
 /**
@@ -129,6 +130,6 @@ export async function keepIdempotencyReceipt(
     .eq("key", params.key)
     .eq("created_at", params.stamp)
     .select("key");
-  if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
+  if (kept.error) throw new DbFailure(kept.error, "idempotency receipt");
   return (kept.data ?? []).length > 0;
 }

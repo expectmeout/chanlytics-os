@@ -137,11 +137,12 @@ export const messageRoute = (name: string): string => `campaigns/messages/${enco
 /** The message a route opens in the Library (`campaigns/messages/<name>`, messageRoute's), or null for any other route. */
 export function messageOfRoute(route: string): string | null {
   const [path = ""] = route.split("?");
-  const m = /^campaigns\/messages\/([^/#]+)$/.exec(path);
-  if (!m?.[1]) return null;
+  const match = /^campaigns\/messages\/([^/#]+)$/.exec(path);
+  if (!match?.[1]) return null;
   try {
-    return decodeURIComponent(m[1]);
+    return decodeURIComponent(match[1]);
   } catch {
+    // Not valid percent-encoding.
     return null;
   }
 }

@@ -24,6 +24,7 @@ export function tzClock(iso: string | null | undefined, tz: string, now: Date): 
   try {
     return `${dateFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${result}`;
   } catch {
+    // A zone or a code the runtime does not know.
     return result;
   }
 }
@@ -46,6 +47,7 @@ export function tzSince(iso: string | null | undefined, tz: string, now: Date): 
     const day = dateFormat("en-US", within).format(new Date(iso));
     return days < 7 ? `${day} ${result}` : `${day}, ${result}`;
   } catch {
+    // A zone or a code the runtime does not know.
     return result;
   }
 }
@@ -59,6 +61,7 @@ export function tzTime(iso: string | null | undefined, tz: string): string | nul
       timeZone: tz,
     }).format(new Date(iso));
   } catch {
+    // A zone or a code the runtime does not know.
     return null;
   }
 }
@@ -88,6 +91,7 @@ export function tzDayAndTime(iso: string | null, tz: string, now: Date, form: "s
     const md = dateFormat("en-US", { month: "long", day: "numeric", timeZone: tz }).format(d);
     return `${md}${form === "sentence" ? " at " : ", "}${result}`;
   } catch {
+    // A zone or a code the runtime does not know.
     return result;
   }
 }

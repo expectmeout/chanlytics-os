@@ -35,7 +35,7 @@ import type {
   SendNowPorts,
   ThreadPorts,
 } from "@chanlytics/core";
-import { conversationPatch, shaped } from "@chanlytics/contracts";
+import { conversationPatch, shaped, DbFailure } from "@chanlytics/contracts";
 import { dbRefusal, type RouteContext } from "../shared/with-route";
 import {
   cancelPendingAiReply,
@@ -60,7 +60,7 @@ async function changed(
   q: PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
 ): Promise<boolean> {
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return !!data && data.length > 0;
 }
 
@@ -244,7 +244,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     template: async (tenantId, name, language) => {
       const { data, error } = await findTemplateForReply(ctx.supabase, tenantId, name, language);
       // A message that cannot be read is not one that does not exist: the verb would refuse it as missing.
-      if (error) throw new Error(`cannot read the message ${name}: ${error.message}`);
+      if (error) throw new DbFailure(error, `cannot read the message ${name}`);
       return data ?? null;
     },
     templateFacts: async (tenantId) => {
@@ -276,7 +276,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
         sender: "human",
         status: "queued",
       });
-      if (error) throw new Error(`reply insert: ${error.message}`);
+      if (error) throw new DbFailure(error, "reply insert");
       return data.id;
     },
     schedule: async (tenantId, dueAt, payload) => {

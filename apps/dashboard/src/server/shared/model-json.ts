@@ -28,6 +28,7 @@ import {
   type ModelEffort,
   type SkillCraftPurpose,
   isOneOf,
+  causedBy,
 } from "@chanlytics/contracts";
 import { GatewayRefused, streamModel, type GatewayCall } from "./model/gateway";
 
@@ -115,15 +116,21 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, oth
   } catch (error) {
     if (error instanceof GatewayRefused) {
       if (error.refusal.kind === "budget")
-        throw new AppError(
-          "rate_limited",
-          `Today's assistant budget is spent, so the ${otherText} waits until tomorrow.`,
+        throw causedBy(
+          new AppError("rate_limited", `Today's assistant budget is spent, so the ${otherText} waits until tomorrow.`),
+          error,
         );
       if (error.refusal.kind === "paused")
-        throw new AppError("payment_required", `The ${otherText} waits while this workspace is paused.`);
+        throw causedBy(
+          new AppError("payment_required", `The ${otherText} waits while this workspace is paused.`),
+          error,
+        );
       if (error.refusal.kind === "model_paused")
-        throw new AppError("payment_required", MODEL_PAUSED_WORDS.draft(otherText));
-      throw new AppError("upstream_anthropic", `The ${otherText} is not available here right now.`, 503);
+        throw causedBy(new AppError("payment_required", MODEL_PAUSED_WORDS.draft(otherText)), error);
+      throw causedBy(
+        new AppError("upstream_anthropic", `The ${otherText} is not available here right now.`, 503),
+        error,
+      );
     }
     throw error;
   }
@@ -132,8 +139,8 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, oth
   let value: unknown;
   try {
     value = JSON.parse(text);
-  } catch {
-    throw new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`);
+  } catch (e) {
+    throw causedBy(new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`), e);
   }
   const parsed = schema.safeParse(value);
   if (!parsed.success) throw new AppError("upstream_anthropic", `The ${otherText} came back unreadable. Try again.`);

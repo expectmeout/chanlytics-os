@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { unheldByDoor, type DoorRead, type EdgeDoor, type EdgeErrorCode, isTenantId } from "@chanlytics/contracts";
 import { json, refuse } from "./http.js";
-import { logger } from "./log.js";
+import { logger, refuseFailure } from "./log.js";
 import { pg } from "./pg.js";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -73,7 +73,7 @@ export function workspaceRow<R>(read: {
   data: R | null;
   error: { message: string } | null;
 }): { ok: true; row: R } | Refused {
-  if (read.error) return stop(refuse(503, "read_failed", read.error.message));
+  if (read.error) return stop(refuseFailure(503, "read_failed", read.error));
   if (!read.data) return stop(refuse(404, "not_found", "no such workspace"));
   return { ok: true, row: read.data };
 }

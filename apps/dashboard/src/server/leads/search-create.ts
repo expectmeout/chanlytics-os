@@ -8,7 +8,7 @@
  * search. CreateSchema is the body the route declares.
  */
 import { z } from "zod";
-import { isUuid, LeadSearchPlanSchema } from "@chanlytics/contracts";
+import { isUuid, LeadSearchPlanSchema, DbFailure } from "@chanlytics/contracts";
 import { recordActivation } from "@chanlytics/db/events";
 import { serviceDb } from "@/server/shared/service-db";
 import { answerOf, estimateForRound, refusalOf } from "@/server/leads/leads";
@@ -33,7 +33,7 @@ export async function createLeadSearch(ctx: RouteContext, member: Member, input:
     // Named only when there is one, so a search from the page calls the door as it always has.
     ...(threadId ? { p_thread_id: threadId } : {}),
   });
-  if (error) throw new Error(`lead_search_create: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_search_create");
   const answer = answerOf(data);
   const refused = refusalOf(answer);
   if (refused) throw refused;

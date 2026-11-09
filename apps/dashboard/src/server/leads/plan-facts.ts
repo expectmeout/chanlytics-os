@@ -5,7 +5,13 @@
  * Cross-workspace: the niche's prior is platform-wide by design: counts per kind of business, aggregates only, which
  * name no workspace and no place (lead_niche_priors, 00140). Nothing else here reads past the workspace.
  */
-import { LEAD_MONTHLY_BUDGET_USD, leadMonth, type LeadNichePrior, type LeadPlanFacts } from "@chanlytics/contracts";
+import {
+  LEAD_MONTHLY_BUDGET_USD,
+  leadMonth,
+  type LeadNichePrior,
+  type LeadPlanFacts,
+  DbFailure,
+} from "@chanlytics/contracts";
 import { readMonthUsed, renewsOnOf } from "./allowance";
 import { listSearchCounts } from "./searches";
 import { getTenantFacts } from "../shared/tenant";
@@ -27,7 +33,7 @@ export async function findNichePrior(
   categoryKey: string,
 ): Promise<LeadNichePrior | null> {
   const { data, error } = await readNichePrior(ctx.supabase, categoryKey);
-  if (error) throw new Error(`lead_niche_prior: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_niche_prior");
   const p = readAnswer("lead_niche_prior", NichePrior, data);
   return typeof p?.places === "number"
     ? { places: p.places, matched: p.matched ?? 0, with_email: p.with_email ?? 0 }

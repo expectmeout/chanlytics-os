@@ -4,6 +4,7 @@ import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from 
 import { conversations, whoOf } from "./conversations";
 import { escalations } from "./escalations";
 import { log } from "@/server/shared/log";
+import { logAndGoOn } from "@chanlytics/log";
 
 interface InboxRead {
   /** The escalated threads outside the newest hundred first, then the hundred: the Inbox's order. */
@@ -27,7 +28,7 @@ export async function findHeldThreadsBeyond(
   if (!missing.length) return { threads: [], missing };
   const threads = await load(rc, conversations, { ids: missing }).then(
     (r) => r.data.conversations,
-    () => null,
+    logAndGoOn("load conversations", null),
   );
   return { threads, missing };
 }

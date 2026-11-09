@@ -3749,3 +3749,51 @@ Read with GET; takes no body.
 | --- | --- | --- | --- |
 | `op` | string | no |  |
 | `since` | string | no |  |
+
+## What a refusal answers
+
+A route refuses with `{ ok: false, error: { code, message, details? } }`: a code from one closed set, a sentence a
+person may read, and what the code's `ErrorDetailsByCode` says it carries. Every answer carries `x-request-id`, which
+finds its lines in the log. A failure's own text is never in an answer.
+
+| Code | Status | What it says |
+| --- | --- | --- |
+| `unauthorized` | 401 | Not signed in, or the session has ended. |
+| `forbidden` | 403 | Signed in, and this role may not. |
+| `not_found` | 404 | No such thing in this workspace. |
+| `validation` | 400 | What was sent cannot be taken; the words say why. |
+| `choose_workspace` | 400 | The account is in several workspaces and the request did not say which. |
+| `mfa_required` | 403 | A partner's seat needs its second factor first. |
+| `conflict` | 409 | It already exists, or what it depends on has moved. |
+| `rate_limited` | 429 | Too many for now; `details.retry_after_s` says when it lifts. |
+| `payment_required` | 402 | The workspace may not do this until it pays. |
+| `window_closed` | 409 | The channel's reply window has closed. |
+| `upstream_meta` | 502 | Meta refused or could not be reached. |
+| `upstream_retell` | 502 | The voice provider refused or could not be reached. |
+| `upstream_anthropic` | 502 | The model refused or could not be reached. |
+| `upstream_email` | 502 | The email provider refused or failed. |
+| `upstream_auth` | 503 | Sign-in could not be checked just now; the session stands. |
+| `upstream_voice` | 503 | Ask's voice refused, could not be reached, or is not set up here. |
+| `internal` | 500 | Something failed on our side; its text is only in the log. |
+
+### What the database answers by
+
+A failed reply from the database keeps its code (`DbFailure`). These codes a door raises on purpose, so a route answers
+them as refusals, in the door's own sentence; a sentence Postgres wrote, which names a constraint or a table, is
+answered in plain words instead. Any other failure is `internal`.
+
+| Database code | Code | Status |
+| --- | --- | --- |
+| `22023` | `validation` | 400 |
+| `23505` | `conflict` | 409 |
+| `42501` | `forbidden` | 403 |
+| `P0002` | `not_found` | 404 |
+| `PE001` | `conflict` | 409 |
+
+### The edge's codes
+
+A door on the edge refuses with `{ ok: false, error, detail? }`: `error` is a code a caller compares, `detail` words a
+person or support may read (`packages/contracts/src/shared/edge-errors.ts`). A door that crashes answers `door_failed`,
+at 500, and logs `door_failed` with the stack and the request's name.
+
+`accounts_unreadable`, `already_registered`, `already_sent`, `already_subscribed`, `ask_budget`, `bad_request`, `bad_signature`, `bad_template`, `bad_tenant`, `brain_failed`, `calendar_backlog`, `campaign_rejected`, `channel_read_failed`, `channel_write_failed`, `check_unset`, `config_broken`, `connection_write_failed`, `context_failed`, `could_not_queue`, `could_not_retire_old_draft`, `credentials_failed`, `direct`, `door_failed`, `draft_not_owed`, `draft_refused`, `email_off`, `empty_draft`, `erasure_unreadable`, `exchange_failed`, `free_mail`, `google_refused`, `grant_unreadable`, `in_flight`, `ingest_failed`, `instagram_account_taken`, `instagram_account_unreadable`, `instagram_messages_not_granted`, `invalid`, `key_unavailable`, `lane_unset`, `line_exists`, `line_failed_retry`, `line_not_retryable`, `line_retry_taken`, `listing_read_failed`, `listing_write_failed`, `mailbox_taken`, `message_read_failed`, `meta_failed`, `meta_refused`, `mock_registration`, `model_failed`, `model_paused`, `model_unavailable`, `model_unreachable`, `no_account`, `no_app_credentials`, `no_billing_record`, `no_business_record`, `no_campaign_to_resubmit`, `no_channel`, `no_credentials`, `no_customer`, `no_database`, `no_fn_secret`, `no_line_credentials`, `no_line_provider`, `no_listing`, `no_location`, `no_locations`, `no_messaging_service`, `no_model_key`, `no_oauth_client`, `no_open_handover`, `no_open_invitation`, `no_persona`, `no_phone`, `no_places_key`, `no_platform_mailbox`, `no_primary_profile`, `no_provider`, `no_provider_credentials`, `no_provider_key`, `no_refresh_token`, `no_registration_readable`, `no_review`, `no_sender`, `no_subaccount`, `no_subscription`, `no_such_location`, `no_token`, `no_waba`, `no_workspace_readable`, `not_a_held_draft`, `not_connected`, `not_found`, `not_from_profile`, `not_held`, `not_on_maps`, `not_paused`, `not_ready`, `not_rejected`, `not_trialing`, `nothing_to_answer`, `number_ambiguous`, `number_missing`, `number_taken`, `number_unreadable`, `payment_required`, `pin_required`, `platform_hold`, `platform_only`, `playbooks_backlog`, `policy_block_price`, `policy_never`, `preview_failed`, `provider_refused`, `provider_unauthorized`, `provider_unreachable`, `purge_failed`, `query_failed`, `reach_out_step`, `read_failed`, `record_incomplete`, `register_failed`, `registration_pending`, `rehearsal_empty`, `rehearsal_minutes_used`, `replace_failed`, `resubmit_failed`, `review_read_failed`, `review_write_failed`, `routing_unreadable`, `run_failed`, `scope_missing`, `signature`, `sole_proprietor_incomplete`, `stripe_refused`, `stripe_unreadable`, `subscribe_failed`, `token_audience`, `token_body`, `token_expired`, `token_malformed`, `token_replayed`, `token_required`, `token_signature`, `too_large`, `too_many`, `too_many_on_domain`, `unauthorized`, `unavailable`, `unfile_failed`, `unknown_op`, `unreadable`, `voice_canary_failed`, `voice_canary_too_soon`, `voice_canary_unset`, `waba_not_granted`, `waba_unreadable`, `workspace_mismatch`, `write_failed`

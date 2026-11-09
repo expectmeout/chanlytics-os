@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
 import { withdrawQueued } from "../../conversations/control";
-import { heldContactId, recordOrEmpty, textOrEmpty } from "@chanlytics/contracts";
+import { heldContactId, recordOrEmpty, textOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../../shared/read-json";
@@ -60,7 +60,7 @@ export async function listReachOutAudience(
     p_limit: params.limit,
     p_include_unconfirmed: params.includeUnconfirmed,
   });
-  if (error) throw new Error(`cannot read who a reach-out may write to: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read who a reach-out may write to");
   return data ?? [];
 }
 
@@ -79,7 +79,7 @@ const ReachOutPersonAnswer = z
  */
 export async function addReachOutPerson(db: Db, tenantId: TenantId, leadId: string): Promise<PersonForSend> {
   const { data, error } = await db.rpc("reach_out_person", { p_tenant_id: tenantId, p_lead_id: leadId });
-  if (error) throw new Error(`cannot make the person this send is for: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot make the person this send is for");
   const row = readAnswer("reach_out_person", ReachOutPersonAnswer, data ?? {});
   if (
     row.refused === "lead_gone" ||
@@ -115,7 +115,7 @@ export async function claimSends(
     p_at: params.at.toISOString(),
     p_limit: params.limit,
   });
-  if (error) throw new Error(`cannot claim the mailbox's due sends: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot claim the mailbox's due sends");
   return leadSends(data);
 }
 
@@ -131,7 +131,7 @@ export async function moveSend(
     .eq("id", params.id)
     .eq("state", params.from)
     .select("id");
-  if (error) throw new Error(`cannot move the send: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot move the send");
   return (data ?? []).length === 1;
 }
 
@@ -167,7 +167,7 @@ export async function listReachOutFollowers(
     p_after_days: params.afterDays,
     p_limit: params.limit,
   });
-  if (error) throw new Error(`cannot read who a step may write to: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read who a step may write to");
   const rows = (data ?? []) as FollowerLead[];
   // The door's facts without the one it added last read as a failed read, as getOutreachFacts does (00181).
   for (const r of rows)
@@ -195,7 +195,7 @@ export async function listQueuedOutcomes(db: Db, limit: number, tenantId?: Tenan
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
-  if (error) throw new Error(`cannot read the queued sends: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the queued sends");
   return (data ?? []) as QueuedOutcome[];
 }
 
@@ -212,7 +212,7 @@ export async function listStuckClaims(
     .lt("claimed_at", before.toISOString())
     .order("claimed_at", { ascending: true })
     .limit(limit);
-  if (error) throw new Error(`cannot read the claimed sends: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the claimed sends");
   return leadSends(data);
 }
 
@@ -228,7 +228,7 @@ export async function listStaleSends(
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
-  if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the stale sends");
   return leadSends(data);
 }
 
@@ -244,7 +244,7 @@ export async function listClosedRunSends(
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
-  if (error) throw new Error(`cannot read the closed runs' sends: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the closed runs' sends");
   return (data ?? []) as Array<{ send: ReachOutSendRow; email_status: string | null }>;
 }
 
@@ -254,7 +254,7 @@ export async function listFinishableRuns(db: Db, limit: number, tenantId?: Tenan
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
-  if (error) throw new Error(`cannot read the runs to finish: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the runs to finish");
   return (data ?? []).map((r) => (typeof r === "string" ? r : textOrEmpty(recordOrEmpty(r).reach_out_finishable)));
 }
 
@@ -267,7 +267,7 @@ export async function getWrittenEmails(db: Db, ids: string[]): Promise<Set<strin
       .from("messages")
       .select("id")
       .in("id", all.slice(i, i + 100));
-    if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
+    if (error) throw new DbFailure(error, "cannot read the sends' emails");
     for (const m of data ?? []) out.add(m.id);
   }
   return out;
@@ -300,6 +300,6 @@ export async function findLeadSequenceMailbox(db: Db, tenantId: TenantId, leadId
     .not("mailbox_id", "is", null)
     .order("created_at", { ascending: false })
     .limit(1);
-  if (error) throw new Error(`cannot read the lead's sequence's mailbox: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead's sequence's mailbox");
   return data?.[0]?.mailbox_id ?? null;
 }

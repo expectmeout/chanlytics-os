@@ -33,7 +33,10 @@ const TREE = "apps/edge";
 const CODE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
 /** The calls that refuse, and where each is spelled: `refuse`, anywhere on the edge. */
-const BUILDERS = new Map([["refuse", null]]);
+const BUILDERS = new Map([
+  ["refuse", null],
+  ["refuseFailure", null],
+]);
 
 /**
  * The refusals whose code is not a literal, by file, as it is written: a code handed on, typed `EdgeErrorCode` where
@@ -53,6 +56,7 @@ const FORWARDED = {
   "apps/edge/lib/google/profile-sync.ts": ["error"], // a sync's read (CheckResult): Google's words, or the token's
   "apps/edge/lib/google/review-answers.ts": ["result.error"], // the draft's
   "apps/edge/lib/shared/http.ts": ["code", "code"], // refuse(), the envelope itself
+  "apps/edge/lib/shared/log.ts": ["code"], // refuseFailure(), which takes its code as refuse() does
   "apps/edge/lib/lines/a2p-sync.ts": ["fresh.error"], // refreshLineToken's (sms.ts)
   "apps/edge/lib/lines/ops/search-buy.ts": ["lineRelease.error"], // releaseLine's (line-release.ts)
   // the refile steps' (a2p-refile.ts), behind this door's own fallbacks

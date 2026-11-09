@@ -1,6 +1,6 @@
 /** Handlers: incoming email. */
 
-import { REACH_OUT_REPLY_DAYS, isBookingTool, senderVerdictOf } from "@chanlytics/contracts";
+import { REACH_OUT_REPLY_DAYS, isBookingTool, senderVerdictOf, DbFailure } from "@chanlytics/contracts";
 import {
   classifyReceived,
   senderAuthenticated,
@@ -50,7 +50,7 @@ export async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<vo
       // verb turns the error into the job's loud failure.
       queued: async (id) => {
         const { data, error } = await findOutboxMessage(ctx.db, job.tenant_id, id);
-        if (error) throw new Error(error.message);
+        if (error) throw new DbFailure(error);
         if (!data) return null;
         // The request an email was queued with (core reply.ts). meta is JSON, so its shape is checked, not assumed:
         // a row without a sendable one reaches the wire with none and fails there by name.

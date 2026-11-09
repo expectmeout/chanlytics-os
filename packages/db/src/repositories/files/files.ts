@@ -6,7 +6,7 @@
  * read leaves it out, and the tile that sends it draws it from the browser's own state.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { FILES_MAX, FILES_BUCKET, type FileKind, type FileShelfFilter } from "@chanlytics/contracts";
+import { FILES_MAX, FILES_BUCKET, type FileKind, type FileShelfFilter, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -59,7 +59,7 @@ export async function listFiles(db: Db, tenantId: TenantId): Promise<FileMemberR
     .or(ARRIVED)
     .order("created_at", { ascending: false })
     .limit(FILES_MAX);
-  if (error) throw new Error(`files: ${error.message}`);
+  if (error) throw new DbFailure(error, "files");
   return data ?? [];
 }
 
@@ -75,7 +75,7 @@ export async function listFilesTallied(
     .is("removed_at", null)
     .or(ARRIVED)
     .limit(FILES_MAX);
-  if (error) throw new Error(`files tallied: ${error.message}`);
+  if (error) throw new DbFailure(error, "files tallied");
   return data ?? [];
 }
 
@@ -109,7 +109,7 @@ export async function listFilesOnShelf(
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(page.limit);
-  if (error) throw new Error(`files on shelf: ${error.message}`);
+  if (error) throw new DbFailure(error, "files on shelf");
   return data ?? [];
 }
 
@@ -122,14 +122,14 @@ export async function findFile(db: Db, id: string): Promise<FileMemberRow | null
     .is("removed_at", null)
     .or(ARRIVED)
     .maybeSingle();
-  if (error) throw new Error(`file: ${error.message}`);
+  if (error) throw new DbFailure(error, "file");
   return data ?? null;
 }
 
 /** A video's sound whole, under the caller's RLS: what is said and how it sounds, read by id and never by the list. */
 export async function readFileSound(db: Db, id: string): Promise<FileRow["sound"]> {
   const { data, error } = await db.from("files").select("sound").eq("id", id).is("removed_at", null).maybeSingle();
-  if (error) throw new Error(`file sound: ${error.message}`);
+  if (error) throw new DbFailure(error, "file sound");
   return data?.sound ?? null;
 }
 
@@ -151,21 +151,21 @@ export async function listFilesNamedBy(
     .in("id", [...ids])
     .is("removed_at", null)
     .or(ARRIVED);
-  if (error) throw new Error(`files named: ${error.message}`);
+  if (error) throw new DbFailure(error, "files named");
   return data ?? [];
 }
 
 /** One file whole, for the service role's work on it, removed or not. */
 export async function findFileForWork(db: Db, tenantId: TenantId, id: string): Promise<FileRow | null> {
   const { data, error } = await db.from("files").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
-  if (error) throw new Error(`file: ${error.message}`);
+  if (error) throw new DbFailure(error, "file");
   return data ?? null;
 }
 
 /** How a post was made, for the service role: a member's session has no grant on it (00553). */
 export async function getFileMade(db: Db, tenantId: TenantId, id: string): Promise<FileRow["made"]> {
   const { data, error } = await db.from("files").select("made").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
-  if (error) throw new Error(`file made: ${error.message}`);
+  if (error) throw new DbFailure(error, "file made");
   return data?.made ?? null;
 }
 
@@ -180,7 +180,7 @@ export async function getNewestMade(db: Db, tenantId: TenantId): Promise<FileRow
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`newest made: ${error.message}`);
+  if (error) throw new DbFailure(error, "newest made");
   return data?.made ?? null;
 }
 
@@ -199,8 +199,8 @@ export async function markFileSeen(db: Db, tenantId: TenantId, fingerprint: stri
       .eq("tenant_id", tenantId)
       .eq("fingerprint", fingerprint),
   ]);
-  if (live.error) throw new Error(`file seen: ${live.error.message}`);
-  if (letGo.error) throw new Error(`file let go: ${letGo.error.message}`);
+  if (live.error) throw new DbFailure(live.error, "file seen");
+  if (letGo.error) throw new DbFailure(letGo.error, "file let go");
   return (live.count ?? 0) + (letGo.count ?? 0) > 0;
 }
 
@@ -221,7 +221,7 @@ export async function keepClaudeCopy(
     .eq("id", id)
     .is("removed_at", null)
     .select("id");
-  if (error) throw new Error(`file copy: ${error.message}`);
+  if (error) throw new DbFailure(error, "file copy");
   return (data ?? []).length > 0;
 }
 
@@ -252,8 +252,8 @@ export async function listFilesToLookAgain(
           .limit(args.limit),
     tried().lt("look_edition", args.edition).order("looked_at", { ascending: true }).limit(args.limit),
   ]);
-  if (young.error) throw new Error(`files to look again: ${young.error.message}`);
-  if (older.error) throw new Error(`files to read again: ${older.error.message}`);
+  if (young.error) throw new DbFailure(young.error, "files to look again");
+  if (older.error) throw new DbFailure(older.error, "files to read again");
   const seen = new Map([...(young.data ?? []), ...(older.data ?? [])].map((f) => [f.id, f]));
   return [...seen.values()].slice(0, args.limit);
 }
@@ -280,7 +280,7 @@ export async function listVideosToDigestAgain(
     .gte("created_at", range.bornAfter)
     .order("looked_at", { ascending: true })
     .limit(range.limit);
-  if (error) throw new Error(`videos to digest again: ${error.message}`);
+  if (error) throw new DbFailure(error, "videos to digest again");
   return data ?? [];
 }
 
@@ -304,7 +304,7 @@ export async function listVideosWaiting(
     .gte("updated_at", range.updatedAfter)
     .order("updated_at", { ascending: true })
     .limit(range.limit);
-  if (error) throw new Error(`videos waiting: ${error.message}`);
+  if (error) throw new DbFailure(error, "videos waiting");
   return data ?? [];
 }
 
@@ -320,7 +320,7 @@ export async function listFilesToPurgeAgain(
     .gte("removed_at", args.removedAfter)
     .order("removed_at", { ascending: true })
     .limit(args.limit);
-  if (error) throw new Error(`files to purge again: ${error.message}`);
+  if (error) throw new DbFailure(error, "files to purge again");
   return data ?? [];
 }
 

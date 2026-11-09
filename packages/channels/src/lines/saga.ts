@@ -123,7 +123,7 @@ export type SagaResult =
   | { ok: false; step: LineStep; error: string; line: LineRow };
 
 /** Thrown between two calls when the run is out of time; caught below as `later`, never as a failure. */
-const OUT_OF_TIME = Symbol("out of time");
+const OUT_OF_TIME = new Error("out of time");
 
 /**
  * The receptionist's step is three Retell calls at 8 s (the LLM, the agent, its publish): 24 s against the 15 s a

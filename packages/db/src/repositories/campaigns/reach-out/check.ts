@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
 import { leadSends, type ReachOutSendRow } from "./reach-out";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -92,7 +93,7 @@ export async function listUncheckedSends(
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
     ...(params.sendIds ? { p_send_ids: params.sendIds } : {}),
   });
-  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the sends to check");
   return (data ?? []).map((item) => {
     const send = item.send as ReachOutSendRow;
     return {
@@ -121,7 +122,7 @@ export async function getUncheckedWaiting(db: Db, tenantId?: TenantId): Promise<
     .is("checked_at", null);
   if (tenantId) query = query.eq("tenant_id", tenantId);
   const { data, error } = await query.limit(1);
-  if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the sends to check");
   return (data ?? []).length > 0;
 }
 
@@ -135,7 +136,7 @@ export async function readReachOutRecord(
     p_search_id: params.searchId,
     p_lead_id: params.leadId,
   });
-  if (error) throw new Error(`cannot read the business's record: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the business's record");
   const row = (data ?? [])[0];
   return row ? recordOf(row) : null;
 }
@@ -152,7 +153,7 @@ export async function listHeldStale(
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
-  if (error) throw new Error(`cannot read the held sends: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the held sends");
   return leadSends(data);
 }
 
@@ -166,7 +167,7 @@ export async function releaseUnavailableHolds(db: Db, params: { before: Date; te
     p_before: params.before.toISOString(),
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
-  if (error) throw new Error(`cannot put the holds back to be checked: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot put the holds back to be checked");
   return typeof data === "number" ? data : 0;
 }
 
@@ -183,6 +184,6 @@ export async function takeCheckAttempt(
     p_cap: params.cap,
     p_at: params.at.toISOString(),
   });
-  if (error) throw new Error(`cannot take the check's attempt: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot take the check's attempt");
   return data === true;
 }

@@ -1,6 +1,6 @@
 /** Billing: subscription. */
 
-import { isTenantId } from "@chanlytics/contracts";
+import { isTenantId, DbFailure } from "@chanlytics/contracts";
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
@@ -34,6 +34,7 @@ import { cardFingerprintOf, markCard } from "../partners/earnings.js";
 import { checkoutKeyOf, checkoutMadeOf, sessionReturn, type CheckoutMade } from "./checkout-session.js";
 import { findWorkspaceStanding } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export type Db = SupabaseClient<Database>;
 
@@ -114,14 +115,14 @@ export function stripeLivemode(): boolean | null {
 
 export async function accountOf(db: Db, tenantId: TenantId): Promise<BillingRow | null> {
   const { data, error } = await findBillingAccount(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
 /** The workspace's switch, when its last member left it (00262), and the zone its bells say a day in; null for none. */
 async function tenantState(db: Db, tenantId: TenantId) {
   const { data, error } = await findWorkspaceStanding(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -203,7 +204,7 @@ export async function findTenant(
   if (!customerId) return null;
   // Stripe names its customer, not the workspace: the account is found across workspaces by that id, by design.
   const { data, error } = await findBillingAccountOfCustomer(db, customerId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -282,7 +283,7 @@ export async function applySubscription(
     "subscription",
     null,
     { source, status: facts.status, subscription: sub.id, price_id: facts.price_id, ...(by ? { by } : {}) },
-  ).catch(() => {});
+  ).catch(logAndGoOn("event"));
   log.info("billing_applied", {
     source,
     status: facts.status,

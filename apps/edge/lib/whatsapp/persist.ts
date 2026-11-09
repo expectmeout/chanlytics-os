@@ -58,6 +58,7 @@ import {
   type BrainMeta,
   type Handled,
   type SendPurpose,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { logger, errField } from "../shared/log.js";
 import { findPersonEmailRow, setPersonEmail } from "@chanlytics/db/people";
@@ -534,7 +535,7 @@ export function pgSink(
               logger().info("inbound_email_taken", { tenant_id: tenantId, contact: ing.contact_id });
               return;
             }
-            if (error) throw new Error(error.message);
+            if (error) throw new DbFailure(error);
           })
         : Promise.resolve(),
     replyHeld: (n: HeldReplyFacts) => (on ? tellReplyHeld(db, tenantId, rt, ing, n) : Promise.resolve()),
@@ -598,7 +599,7 @@ export function pgSink(
               const ext = MIME_EXT[result.mime || ""] || "bin";
               const path = `${tenantId}/${ing.conversation_id}/${ing.message_id}.${ext}`;
               const { error } = await storeMedia(db, path, result.bytes, result.mime || "application/octet-stream");
-              if (error) throw new Error(error.message);
+              if (error) throw new DbFailure(error);
               mediaOut.fetch_state = "stored";
               mediaOut.storage_path = path;
               mediaOut.mime_type = result.mime;

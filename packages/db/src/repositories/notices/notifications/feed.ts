@@ -15,6 +15,7 @@ import {
   unreadFor,
   type SchemaSet,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { oneOr, type Db } from "./kept";
 import type { TenantId } from "@chanlytics/contracts";
@@ -47,7 +48,7 @@ export async function listBookedVisits(
     .is("vanished_at", null)
     .in("source", [...BOOKING_SOURCES])
     .gt("starts_at", new Date(nowMs).toISOString());
-  if (error) throw new Error(`cannot read the visits: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the visits");
   const visits = (data ?? []).filter((v) => v.source !== "calendar_feed" || v.contact_id);
   const personIds = [...new Set(visits.flatMap((v) => (v.contact_id ? [v.contact_id] : [])))];
   const people = new Map<string, { name: string | null; erased: boolean }>();
@@ -57,7 +58,7 @@ export async function listBookedVisits(
       .select("id, display_name, wa_profile_name, erased_at, erasing_since")
       .eq("tenant_id", tenantId)
       .in("id", personIds);
-    if (found.error) throw new Error(`cannot read the people of the visits: ${found.error.message}`);
+    if (found.error) throw new DbFailure(found.error, "cannot read the people of the visits");
     for (const c of found.data ?? [])
       people.set(c.id, {
         name: c.display_name ?? c.wa_profile_name ?? null,
@@ -103,7 +104,7 @@ export async function listFeedAdditionsWith(
     .eq("data->>change", "added")
     .order("id")
     .limit(CATCH_UP_VISITS + 1);
-  if (error) throw new Error(`cannot read the calendar's additions: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the calendar's additions");
   return (data ?? []).flatMap((e) =>
     e.subject_id ? [{ eventId: e.id, appointmentId: e.subject_id, data: e.data }] : [],
   );
@@ -144,7 +145,7 @@ export async function wasTwinTold(db: Db, tenantId: TenantId, appointmentId: str
     .eq("contact_id", visit.contact_id)
     .gte("starts_at", new Date(at - SAME_VISIT_MS).toISOString())
     .lte("starts_at", new Date(at + SAME_VISIT_MS).toISOString());
-  if (sightings.error) throw new Error(`cannot read the visit's other sightings: ${sightings.error.message}`);
+  if (sightings.error) throw new DbFailure(sightings.error, "cannot read the visit's other sightings");
   // Only a sighting that stands (contracts sightingStands): one cancelled or gone at that time, and booked again, is a
   // visit of its own, told as one.
   const ids = (sightings.data ?? []).filter((c) => sightingStands(c) && sameVisitOnRecord(visit, c)).map((c) => c.id);
@@ -155,7 +156,7 @@ export async function wasTwinTold(db: Db, tenantId: TenantId, appointmentId: str
     .eq("tenant_id", tenantId)
     .eq("kind", "appointment.changed")
     .in("subject_id", ids);
-  if (arrived.error) throw new Error(`cannot read how the visit arrived: ${arrived.error.message}`);
+  if (arrived.error) throw new DbFailure(arrived.error, "cannot read how the visit arrived");
   const events = (arrived.data ?? []).flatMap((e) => {
     const change = recordOrEmpty(e.data).change;
     return change === "added" || change === "confirmed" ? [e.id] : [];
@@ -167,7 +168,7 @@ export async function wasTwinTold(db: Db, tenantId: TenantId, appointmentId: str
     .eq("tenant_id", tenantId)
     .in("source_event", events)
     .limit(1);
-  if (notice.error) throw new Error(`cannot read what the workspace was told: ${notice.error.message}`);
+  if (notice.error) throw new DbFailure(notice.error, "cannot read what the workspace was told");
   return (notice.data ?? []).length > 0;
 }
 
@@ -192,7 +193,7 @@ export async function findMemberEmail(db: Db, userId: string): Promise<string | 
   const userById = await db.auth.admin.getUserById(userId);
   if (userById.error) {
     if (userById.error.status === 404) return null;
-    throw new Error(`cannot read who left: ${userById.error.message}`);
+    throw new DbFailure(userById.error, "cannot read who left");
   }
   return userById.data.user?.email ?? null;
 }
@@ -289,7 +290,7 @@ async function bellRowsOf(
       .gte("created_at", bellRange.fromIso);
     if (bellRange.throughIso) query = query.lte("created_at", bellRange.throughIso);
     const page = await query.order("created_at", { ascending: true }).range(from, from + BELL_READ_PAGE - 1);
-    if (page.error) throw new Error(`cannot read the bell: ${page.error.message}`);
+    if (page.error) throw new DbFailure(page.error, "cannot read the bell");
     rows.push(...(page.data ?? []).filter((r) => !bellRange.leaving?.has(r.id)));
     if ((page.data ?? []).length < BELL_READ_PAGE) break;
   }
@@ -298,7 +299,7 @@ async function bellRowsOf(
     .select("user_id, seen_at")
     .eq("tenant_id", bellRange.tenantId)
     .in("user_id", [...bellRange.readers]);
-  if (seen.error) throw new Error(`cannot read when the bell was opened: ${seen.error.message}`);
+  if (seen.error) throw new DbFailure(seen.error, "cannot read when the bell was opened");
   const batches: string[][] = [];
   for (let i = 0; i < rows.length; i += BELL_IN_BATCH) batches.push(rows.slice(i, i + BELL_IN_BATCH).map((r) => r.id));
   const reads = await Promise.all(
@@ -312,7 +313,7 @@ async function bellRowsOf(
   );
   const marks: BellMark[] = [];
   for (const r of reads) {
-    if (r.error) throw new Error(`cannot read the bell's marks: ${r.error.message}`);
+    if (r.error) throw new DbFailure(r.error, "cannot read the bell's marks");
     marks.push(...(r.data ?? []));
   }
   return { rows, seen: seen.data ?? [], marks };
@@ -350,7 +351,7 @@ export async function closeMendedNotices(
     if (warning.sameSubject && params.subject)
       query = query.eq("subject_type", params.subject.type).eq("subject_id", params.subject.id);
     const found = await query;
-    if (found.error) throw new Error(`cannot read the warnings a mend closes: ${found.error.message}`);
+    if (found.error) throw new DbFailure(found.error, "cannot read the warnings a mend closes");
     const ids = (found.data ?? [])
       .filter((r) => r.id !== params.keptId && warning.title.test(r.title))
       .map((r) => r.id);
@@ -362,7 +363,7 @@ export async function closeMendedNotices(
       .in("id", ids)
       .is("closed_at", null)
       .select("id");
-    if (up.error) throw new Error(`cannot close the mended warnings: ${up.error.message}`);
+    if (up.error) throw new DbFailure(up.error, "cannot close the mended warnings");
     closed += (up.data ?? []).length;
   }
   return closed;

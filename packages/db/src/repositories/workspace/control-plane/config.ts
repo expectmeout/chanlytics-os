@@ -8,6 +8,7 @@ import {
   type OpenToCustomers,
   type SchemaSet,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
@@ -31,7 +32,7 @@ export async function getTenantConfig(db: Db, tenantId: TenantId): Promise<Tenan
     .select("tenant_id, config, version, updated_at, updated_by")
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (error) throw new Error(`getTenantConfig: ${error.message}`);
+  if (error) throw new DbFailure(error, "getTenantConfig");
   return data;
 }
 
@@ -52,7 +53,7 @@ export async function getTenantConfigAsMember(
   if (row) return { ...row, feed_hidden: false };
   const { data, error } = await db.rpc("tenant_config_read", { p_tenant_id: tenantId }).maybeSingle();
   if (error && isMissingDoor(error)) return null;
-  if (error) throw new Error(`getTenantConfigAsMember: ${error.message}`);
+  if (error) throw new DbFailure(error, "getTenantConfigAsMember");
   return data;
 }
 
@@ -99,7 +100,7 @@ export async function putTenantConfig(
     .eq("version", expectedVersion)
     .select("tenant_id, config, version, updated_at, updated_by")
     .maybeSingle();
-  if (error) throw new Error(`putTenantConfig: ${error.message}`);
+  if (error) throw new DbFailure(error, "putTenantConfig");
   if (data) return { ok: true, row: data };
 
   // Zero rows: the door writes what the table would not show this member, and tells an absent row from a losing race.
@@ -116,7 +117,7 @@ export async function putTenantConfig(
     if (w?.outcome === "stale" || w?.outcome === "missing") return { ok: false, reason: w.outcome };
     throw new Error("putTenantConfig: the door answered without an outcome");
   }
-  if (!isMissingDoor(door.error)) throw new Error(`putTenantConfig: ${door.error.message}`);
+  if (!isMissingDoor(door.error)) throw new DbFailure(door.error, "putTenantConfig");
   // Before 00365. Distinguish an absent row from a losing race — one query, only on the failure path.
   const existing = await getTenantConfig(db, tenantId);
   return { ok: false, reason: existing ? "stale" : "missing" };
@@ -133,7 +134,7 @@ export async function markCalendarFeedKept(db: Db, tenantId: TenantId, now: Date
     .update({ calendar_feed_kept_at: now.toISOString() })
     .eq("tenant_id", tenantId)
     .is("calendar_feed_kept_at", null);
-  if (error) throw new Error(`stamping the calendar's first read: ${error.message}`);
+  if (error) throw new DbFailure(error, "stamping the calendar's first read");
 }
 
 export interface PolicyRecord {
@@ -155,7 +156,7 @@ export async function listPolicies(db: Db, tenantId: TenantId): Promise<PolicyRe
     .eq("tenant_id", tenantId)
     .is("subject_type", null)
     .order("class");
-  if (error) throw new Error(`listPolicies: ${error.message}`);
+  if (error) throw new DbFailure(error, "listPolicies");
   return data ?? [];
 }
 
@@ -184,7 +185,7 @@ export async function setPolicyMode(
       .is("subject_type", null)
       .maybeSingle();
     // A read that failed is not a row with no limits: merging over nothing would write every other setting away.
-    if (readError) throw new Error(`setPolicyMode: ${readError.message}`);
+    if (readError) throw new DbFailure(readError, "setPolicyMode");
     merged = { ...(recordOrEmpty(current?.limits) ?? {}), ...limits };
   }
   const { data, error } = await db
@@ -196,7 +197,7 @@ export async function setPolicyMode(
     .select("id, class, mode, subject_type, subject_id, limits, updated_at")
     .maybeSingle();
   // the money-lock trigger raises here — surface it as-is, the route maps it
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -218,7 +219,7 @@ export async function findPersonReplyMode(db: Db, tenantId: TenantId, contactId:
     .eq("subject_type", "contact")
     .eq("subject_id", contactId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data?.mode ?? null;
 }
 
@@ -243,7 +244,7 @@ export async function getPersonReplyModes(
       .eq("class", "reply")
       .eq("subject_type", "contact")
       .in("subject_id", contactIds.slice(index, index + MODE_IDS_AT_ONCE));
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     for (const r of data ?? []) if (r.subject_id) out.set(r.subject_id, r.mode);
   }
   return out;
@@ -280,7 +281,7 @@ export async function replyTokensSince(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .range(from, from + USAGE_PAGE - 1);
-    if (error) throw new Error(`replyTokensSince: ${error.message}`);
+    if (error) throw new DbFailure(error, "replyTokensSince");
     for (const r of data ?? []) {
       const d = recordOrEmpty(r.data);
       replies += 1;
@@ -315,7 +316,7 @@ export async function listPeopleOnTheirOwnMode(
       .order("updated_at", { ascending: false })
       .order("id")
       .range(from, from + OWN_MODES_PAGE - 1);
-    if (error) throw new Error(`listPeopleOnTheirOwnMode: ${error.message}`);
+    if (error) throw new DbFailure(error, "listPeopleOnTheirOwnMode");
     for (const r of data ?? []) if (r.subject_id) out.push({ id: r.subject_id, mode: r.mode });
     if ((data ?? []).length < OWN_MODES_PAGE) return out;
   }
@@ -343,7 +344,7 @@ export async function setPersonReplyMode(
       .eq("subject_type", "contact")
       .eq("subject_id", contactId)
       .select("mode");
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     return data?.[0]?.mode ?? null;
   }
   const { data: was, error: readError } = await db
@@ -354,14 +355,14 @@ export async function setPersonReplyMode(
     .eq("subject_type", "contact")
     .eq("subject_id", contactId)
     .maybeSingle();
-  if (readError) throw new Error(readError.message);
+  if (readError) throw new DbFailure(readError);
   const { error } = await db
     .from("policies")
     .upsert(
       { tenant_id: tenantId, class: "reply", mode, subject_type: "contact", subject_id: contactId },
       { onConflict: "tenant_id,class,subject_type,subject_id" },
     );
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return was?.mode ?? null;
 }
 
@@ -386,8 +387,8 @@ export async function isWorkspaceOpenToCustomers(db: Db, tenantId: TenantId): Pr
     db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
   ]);
-  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
-  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.error) throw new DbFailure(tenant.error, "cannot read the workspace");
+  if (billing.error) throw new DbFailure(billing.error, "cannot read the workspace's billing");
   const plan = billingPlanOf(billing.data);
   return {
     open: openToCustomersOf({
@@ -449,7 +450,7 @@ export interface PublicWorkspaceRead {
  */
 export async function findPublicWorkspaceBySlug(db: Db, slug: string): Promise<PublicWorkspaceRead | null> {
   const rows = await db.from("tenants").select("id, name, slug, status, left_empty_at").eq("slug", slug).maybeSingle();
-  if (rows.error) throw new Error(`reading the workspace: ${rows.error.message}`);
+  if (rows.error) throw new DbFailure(rows.error, "reading the workspace");
   if (!rows.data) return null;
   const id = rows.data.id;
   const [billing, record, sole, cfg, channels] = await Promise.all([
@@ -464,11 +465,11 @@ export async function findPublicWorkspaceBySlug(db: Db, slug: string): Promise<P
       .eq("status", "active")
       .order("created_at", { ascending: true }),
   ]);
-  if (billing.error) throw new Error(`reading the workspace's billing: ${billing.error.message}`);
-  if (record.error) throw new Error(`reading the business on record: ${record.error.message}`);
-  if (sole.error) throw new Error(`reading whether the business is a sole proprietor: ${sole.error.message}`);
-  if (cfg.error) throw new Error(`reading the workspace's configuration: ${cfg.error.message}`);
-  if (channels.error) throw new Error(`reading the workspace's channels: ${channels.error.message}`);
+  if (billing.error) throw new DbFailure(billing.error, "reading the workspace's billing");
+  if (record.error) throw new DbFailure(record.error, "reading the business on record");
+  if (sole.error) throw new DbFailure(sole.error, "reading whether the business is a sole proprietor");
+  if (cfg.error) throw new DbFailure(cfg.error, "reading the workspace's configuration");
+  if (channels.error) throw new DbFailure(channels.error, "reading the workspace's channels");
   return {
     id,
     name: rows.data.name,
@@ -501,6 +502,6 @@ export async function setupChoicesOf(db: Db, tenantId: TenantId): Promise<SetupC
     .select("phone, whatsapp, marks, version")
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the setup choices: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the setup choices");
   return data ? { phone: data.phone, whatsapp: data.whatsapp, marks: data.marks ?? [], version: data.version } : null;
 }

@@ -4,7 +4,7 @@
  * member's own session: RLS decides what it may read.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { personName } from "@chanlytics/contracts";
+import { personName, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { DELIVERED } from "../conversations/thread/history";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -19,7 +19,7 @@ export async function findBellSeenAt(db: Db, params: { tenantId: TenantId; userI
     .eq("tenant_id", params.tenantId)
     .eq("user_id", params.userId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read when the bell was opened: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read when the bell was opened");
   return data?.seen_at ?? null;
 }
 
@@ -44,7 +44,7 @@ export async function findAnsweredSince(
     .gt("created_at", params.since)
     .order("created_at", { ascending: false })
     .limit(1);
-  if (error) throw new Error(`cannot read what the receptionist answered: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read what the receptionist answered");
   const [last] = data ?? [];
   return {
     count: count ?? 0,
@@ -74,6 +74,6 @@ export async function findContactName(
     .eq("tenant_id", params.tenantId)
     .eq("id", params.contactId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read whom the reply was to: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read whom the reply was to");
   return data ? personName(data) : null;
 }

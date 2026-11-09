@@ -13,7 +13,7 @@
  */
 import { cancelScheduledJobs, hasRequeuedCopy, insertJob, insertJobOnce, readJobToRequeue } from "@chanlytics/db/jobs";
 import type { Json } from "@chanlytics/db/types";
-import { JOB_KINDS, type JobKind, recordOrEmpty, recordOrNull } from "@chanlytics/contracts";
+import { JOB_KINDS, type JobKind, recordOrEmpty, recordOrNull, DbFailure } from "@chanlytics/contracts";
 import { logger, requestId } from "@chanlytics/log";
 import { kindPolicyOf } from "./kinds";
 import { SPEAKS_TO_A_PERSON, type Db } from "./ledger";
@@ -97,7 +97,7 @@ function rowToInsert(scheduleParams: ScheduleParams) {
 
 export async function scheduleJob(db: Db, scheduleParams: ScheduleParams): Promise<{ jobId: string }> {
   const { data, error } = await insertJob(db, rowToInsert(scheduleParams));
-  if (error || !data) throw new Error(`schedule_job: ${error?.message ?? "no row"}`);
+  if (error || !data) throw new DbFailure(error ?? { message: "no row" }, "schedule_job");
   return { jobId: data.id };
 }
 
@@ -115,7 +115,7 @@ export async function scheduleJobOnce(
   if (error.code === "23505") return "already_scheduled";
   // The database's code travels with it: a caller tells a refusal (a kind the database does not know) from a write that
   // may have landed.
-  throw Object.assign(new Error(`schedule_job: ${error.message}`), { code: error.code });
+  throw new DbFailure(error, "schedule_job");
 }
 
 /**

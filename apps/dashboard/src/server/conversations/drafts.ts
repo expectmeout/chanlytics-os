@@ -21,6 +21,7 @@ import type { VerbConversation } from "../shared/verbs";
 import { getSignedByThread } from "../connections/email";
 import { draftAtTheEdge } from "./thread-control";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * A thread's drafts as every page reads them (decision 0093, 00538): written when a hold owes one, by the receptionist's
@@ -112,7 +113,9 @@ export async function draftUseOfReply(
   sent: string | undefined,
 ): Promise<Json | undefined> {
   if (!sent?.trim()) return undefined;
-  const kept = await listConversationDrafts(ctx.supabase, tenantId, [conversationId]).catch(() => []);
+  const kept = await listConversationDrafts(ctx.supabase, tenantId, [conversationId]).catch(
+    logAndGoOn("listConversationDrafts", []),
+  );
   const mine = kept.find((r) => r.kind === "reply" && r.state === "ready");
   const text = mine ? wordsFrom(mine.words).text : "";
   if (!mine || !text.trim()) return undefined;

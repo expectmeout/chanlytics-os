@@ -31,8 +31,10 @@ import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export async function saveSettings(ctx: RouteContext, req: Request, member: Member) {
+  // A body that is not JSON is none: what reads it next refuses.
   const body = recordOrNull(await req.json().catch(() => null));
   if (!body || typeof body.version !== "number") {
     throw new AppError("validation", "Body must be { config, version }.");
@@ -125,7 +127,7 @@ async function renamedWith(ctx: RouteContext, member: Member, was: unknown, next
     return { kept: null, refused: true };
   }
   if (!done) return null;
-  const filed = await findFiledNames(ctx.supabase, member.tenantId).catch(() => null);
+  const filed = await findFiledNames(ctx.supabase, member.tenantId).catch(logAndGoOn("findFiledNames", null));
   const held = filed?.campaign ?? null;
   return { ...done, carriers_hold: held && held !== done.to ? held : null };
 }

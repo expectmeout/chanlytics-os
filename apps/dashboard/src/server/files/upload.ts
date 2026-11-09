@@ -168,6 +168,7 @@ async function decoderRefuses(path: string, tenantId: TenantId, mime: FileMime, 
       say("ok");
       return false;
     }
+    // An answer that is not JSON is none: its status says the rest.
     const inBody = recordOrNull(await res.json().catch(() => null))?.statusCode;
     say(`${res.status}/${String(inBody)}`);
     return inBody === "400";

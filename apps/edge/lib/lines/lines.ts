@@ -28,7 +28,7 @@ import {
   type ProvisionSecrets,
 } from "@chanlytics/channels/voice";
 import { ensureVoiceAgent } from "./voice-agent.js";
-import { lineDtoOf, type LineDto, recordOrEmpty } from "@chanlytics/contracts";
+import { lineDtoOf, type LineDto, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import { env } from "../shared/env.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import {
@@ -123,16 +123,16 @@ export function linePorts(
         const row: Partial<Row> = {};
         for (const [k, v] of Object.entries(patch)) (row as Record<string, unknown>)[k] = v;
         const { error } = await saveLineRow(db, line, row);
-        if (error) throw new Error(`saving the line: ${error.message}`);
+        if (error) throw new DbFailure(error, "saving the line");
       },
       async getSecrets() {
         const { data, error } = await getLineCredentials(db, line.id);
-        if (error) throw new Error(`reading the line's credentials: ${error.message}`);
+        if (error) throw new DbFailure(error, "reading the line's credentials");
         return data && typeof data === "object" && !Array.isArray(data) ? data : {};
       },
       async putSecrets(s) {
         const { error } = await putLineCredentials(db, line.id, asJson(s));
-        if (error) throw new Error(`keeping the line's credentials: ${error.message}`);
+        if (error) throw new DbFailure(error, "keeping the line's credentials");
       },
     },
     agent: { ensure: () => ensureVoiceAgent(db, cfg, secrets, tenant) },
@@ -214,7 +214,7 @@ async function ensureRoutingRow(
   // fail on the constraint, which says "duplicate key" to an owner who has
   // just been told their number is being set up.
   const have = await findRoutingRowByKey(db, kind, externalId);
-  if (have.error) throw new Error(`reading the ${kind} row: ${have.error.message}`);
+  if (have.error) throw new DbFailure(have.error, `reading the ${kind} row`);
   if (have.data) {
     const mine = have.data.tenant_id === tenantId;
     // A row somebody else is still USING is a live claim on this key, and the
@@ -241,7 +241,7 @@ async function ensureRoutingRow(
         { id: have.data.id, tenantId: have.data.tenant_id, status: have.data.status },
         { tenant_id: tenantId, status: "active", number_e164: row.number_e164, config: row.config },
       );
-      if (take.error) throw new Error(`taking the ${kind} row: ${take.error.message}`);
+      if (take.error) throw new DbFailure(take.error, `taking the ${kind} row`);
       if (!take.data)
         throw new Error(
           `the ${kind} routing row for ${externalId} was claimed by another workspace while this line was being set up`,
@@ -250,7 +250,7 @@ async function ensureRoutingRow(
     return { channelId: have.data.id, created: false };
   }
   const ins = await insertRoutingRow(db, row);
-  if (ins.error) throw new Error(`writing the ${kind} row: ${ins.error.message}`);
+  if (ins.error) throw new DbFailure(ins.error, `writing the ${kind} row`);
   return { channelId: ins.data.id, created: true };
 }
 

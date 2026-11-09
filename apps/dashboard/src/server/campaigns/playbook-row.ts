@@ -26,6 +26,7 @@ import {
   type PlaybookPatch,
   recordOrNull,
   isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, playbookNameAsked, findUntil } from "@chanlytics/core";
 import { emitEvent } from "@chanlytics/db/events";
@@ -322,7 +323,7 @@ async function changeTheOldWay(
 
 /** A change the database refused: not there (P0002: another workspace's, or one the role may not change), else as it came. */
 function playbookChangeError(error: { code?: string; message: string }): Error {
-  return error.code === "P0002" ? new AppError("not_found", CAMPAIGN_NOT_FOUND, 404) : new Error(error.message);
+  return error.code === "P0002" ? new AppError("not_found", CAMPAIGN_NOT_FOUND, 404) : new DbFailure(error);
 }
 
 /**
@@ -396,7 +397,7 @@ export async function deletePlaybook(ctx: RouteContext, playbook: PlaybookRow) {
   if (triggerOf(playbook.trigger)?.kind === "reach_out")
     throw new AppError("conflict", REACH_OUT_REFUSALS.notHere, 409);
   const { error, count } = await removePlaybook(ctx.supabase, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!count) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   const decisionId = await recordDecision(ctx, playbook.tenant_id, "playbook", id, "pause_playbook", {
     name: playbook.name,

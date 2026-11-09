@@ -14,6 +14,7 @@ import { getReachOutRunId, runHandStep, runReachOut } from "@chanlytics/core";
 import { localDate } from "@chanlytics/contracts";
 import { getReachOutRunContext, type ReachOutRow } from "./run-context.js";
 import type { Logger } from "../../shared/log.js";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -54,7 +55,9 @@ export async function runReachOutStep(
   log.info("reach_out_ran", { tenant_id: row.tenant_id, playbook_id: row.id, ...item });
   const reason = "reason" in item ? item.reason : undefined;
   const settled = item.planned > 0 || reason === "already_ran" || item.outcome === "off";
-  await stampReachOutStep(db, row.id, settled ? { at: now, runFor } : { at: now }).catch(() => undefined);
+  await stampReachOutStep(db, row.id, settled ? { at: now, runFor } : { at: now }).catch(
+    logAndGoOn("stampReachOutStep"),
+  );
   const runId = item.planned > 0 || reason === "already_ran" ? await getReachOutRunId(row.id, runFor) : null;
   return { outcome: item.outcome, reason, planned: item.planned, runFor, runId };
 }

@@ -52,6 +52,7 @@ import {
   type PlatformQueue,
   type PlatformTenantDto,
   recordOrNull,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import type { BackOffice } from "../shared/back-office";
@@ -72,7 +73,7 @@ export async function listPlatformOverview(office: BackOffice): Promise<Platform
     // 42501 is the function's own refusal — which the caller has already been
     // cleared past, so seeing it here means the two checks disagree.
     if (error.code === "42501") throw new AppError("not_found", "No such page.", 404);
-    throw new Error(error.message);
+    throw new DbFailure(error);
   }
   // No cast: the generated Functions type is precise, so a column renamed in a
   // future migration fails the build here rather than shipping `undefined` to
@@ -164,7 +165,7 @@ export async function findPlatformTenant(
   tenantId: TenantId,
 ): Promise<{ id: string; slug: string; name: string; status: string; timezone: string; created_at: string } | null> {
   const { data, error } = await findWorkspaceForConsole(office.db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? null;
 }
 
@@ -192,7 +193,7 @@ interface PlatformEvent {
  */
 export async function listPlatformEvents(office: BackOffice, tenantId: TenantId, limit = 40): Promise<PlatformEvent[]> {
   const { data, error } = await listWorkspaceEvents(office.db, tenantId, limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? [];
 }
 
@@ -228,6 +229,7 @@ import {
   readSweepHealth,
 } from "@chanlytics/db/ops";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
 const EDGE_OP: Record<PlatformLineAction, (tenantId: TenantId, lineId: string) => EdgeBody<"/api/admin/lines">> = {
@@ -313,7 +315,7 @@ export async function findPlatformPartners(
       balances: r.balances,
       workspaces: r.workspaces.map((w) => ({ ...w, checks: recordOrNull(w.checks) })),
     }),
-    () => null,
+    logAndGoOn("getPlatformPartners", null),
   );
 }
 

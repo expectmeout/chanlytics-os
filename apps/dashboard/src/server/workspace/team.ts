@@ -27,12 +27,15 @@ import {
   type JoinedWorkspaceDto,
   type MembershipRole,
   recordOrEmpty,
+  DbFailure,
+  causedBy,
 } from "@chanlytics/contracts";
 import { serviceDb } from "../shared/service-db";
 import { getTenantFacts } from "../shared/tenant";
 import { requireSecondFactor, type RouteContext } from "../shared/with-route";
 import { log } from "@/server/shared/log";
 import type { TenantId } from "@chanlytics/contracts";
+import { logKeptGoing, logAndGoOn } from "@chanlytics/log";
 
 /**
  * Team operations: the roster, an invitation, a role change, a removal, and the sign-in that completes an invitation.
@@ -83,7 +86,7 @@ function teamRefusal(error: { code?: string; message: string }): Error {
   if (error.message === "last_owner") return new AppError("conflict", ONLY_OWNER, 409);
   if (error.message === "self_remove")
     return new AppError("conflict", "You cannot remove yourself. Ask another owner.", 409);
-  return new Error(error.message);
+  return new DbFailure(error);
 }
 
 /** A team function's answer; a refusal thrown in the owner's words. An undo whose decision is unknown is said once. */
@@ -121,8 +124,8 @@ export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: Tena
     // workspaces, so it never needed a privileged client.
     listOpenInvitations(db, tenantId),
   ]);
-  if (members.error) throw new Error(members.error.message);
-  if (invites.error) throw new Error(invites.error.message);
+  if (members.error) throw new DbFailure(members.error);
+  if (invites.error) throw new DbFailure(invites.error);
 
   const roster: TeamMember[] = (members.data ?? []).map((m) => ({
     membershipId: m.membership_id,
@@ -282,7 +285,7 @@ export async function resendInvite(
     );
   } catch (e) {
     if (e instanceof AppError && e.code === "not_found")
-      throw new AppError("not_found", "That invitation is no longer open.", 404);
+      throw causedBy(new AppError("not_found", "That invitation is no longer open.", 404), e);
     throw e;
   }
   const email = String(renewed.email);
@@ -319,7 +322,7 @@ export async function leaveTeam(ctx: TeamCtx, tenantId: TenantId, svc: SupabaseC
     );
   } catch (e) {
     if (e instanceof AppError && e.code === "conflict")
-      throw new AppError("conflict", "You're the only owner. Make someone else Owner first.", 409);
+      throw causedBy(new AppError("conflict", "You're the only owner. Make someone else Owner first.", 409), e);
     throw e;
   }
   return { left: true as const };
@@ -342,7 +345,8 @@ async function openInvitesFor(email: string | null): Promise<InviteToAccept[]> {
     // A person's open invitations, whichever workspaces they are to: by design, read by their address.
     const { data, error } = await listInvitesForAddress(serviceDb(), email.toLowerCase(), new Date().toISOString());
     return error ? [] : (data ?? []);
-  } catch {
+  } catch (e) {
+    logKeptGoing("open invitations of an address", e);
     return [];
   }
 }
@@ -412,7 +416,7 @@ export async function joinFromInvitations(
   const joined: JoinedWorkspaceDto[] = await Promise.all(
     seated.map(async (inv) => ({
       id: inv.tenant_id,
-      name: (await getTenantFacts(db, inv.tenant_id).catch(() => null))?.name ?? "a workspace",
+      name: (await getTenantFacts(db, inv.tenant_id).catch(logAndGoOn("getTenantFacts", null)))?.name ?? "a workspace",
       role: inv.role,
     })),
   );

@@ -46,6 +46,7 @@ import {
   type IdeaSearch,
   type LeadIdeaDto,
   type LeadSuggestionsDto,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   askForIdeasAgain,
@@ -70,6 +71,7 @@ import { tenantFactsOf } from "../shared/tenant";
 import type { RouteContext } from "../shared/with-route";
 import { asJson } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
+import { logKeptGoing, logAndGoOn } from "@chanlytics/log";
 
 /* ----------------------------------------------------------- what is kept */
 
@@ -146,7 +148,7 @@ export function setSuggestionsWriter(suggestionsWriter: SuggestionsWriter | Part
 /** The kept row, when there is one. */
 async function keptSuggestions(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SuggestionRow | null> {
   const { data, error } = await findLeadSuggestions(ctx.supabase, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? null;
 }
 
@@ -226,7 +228,8 @@ async function roomOf(
     const row = await findIdeasClockAndLanguage(ctx.supabase, tenantId);
     const used = await readMonthUsed(ctx, tenantId, leadMonth(tenantFactsOf(row).timezone, now));
     return { leadsLeft: Math.max(0, used.cap - used.allowance), language: languageOf(row?.locale ?? "") };
-  } catch {
+  } catch (e) {
+    logKeptGoing("lead ideas' allowance", e);
     return { leadsLeft: LEAD_MONTHLY_ALLOWANCE, language: "en" };
   }
 }
@@ -400,7 +403,7 @@ export async function getSuggestionsWritten(
       items: await withReach(ctx, written.items),
     };
   } catch (e) {
-    await ideaStore.fail(tenantId, claim).catch(() => undefined);
+    await ideaStore.fail(tenantId, claim).catch(logAndGoOn("marking lead ideas failed"));
     // The page is not worth failing over a model that would not answer: the older ideas stand, or the note says why
     // this part is empty, beside the composer that still opens.
     if (e instanceof AppError) return said(items, items.length ? {} : { note: LEAD_SUGGEST_UNAVAILABLE }, line);

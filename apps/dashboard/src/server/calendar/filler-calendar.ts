@@ -118,6 +118,7 @@ export function fillerFeedFor(url: string, nowMs = Date.now()): string | null {
   try {
     feedUrl = new URL(url);
   } catch {
+    // Not an address.
     return null;
   }
   if (feedUrl.pathname !== FILLER_FEED_PATH) return null;

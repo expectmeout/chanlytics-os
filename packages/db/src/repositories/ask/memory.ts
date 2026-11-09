@@ -12,6 +12,7 @@ import {
   type AskMemoryLineDto,
   type AskMemorySource,
   type TenantId,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 
@@ -32,7 +33,7 @@ export async function askMemoryLines(db: Db, tenantId: TenantId, limit: number):
     .order("made_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`ask_memory_lines: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_memory_lines");
   return (data ?? []).map((r) => ({
     id: r.id,
     text: r.text,
@@ -53,7 +54,7 @@ export async function askJournalDays(db: Db, tenantId: TenantId, limit: number):
     .eq("state", "written")
     .order("day", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`ask_journal_days: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_journal_days");
   return (data ?? []).flatMap((r) => (r.text ? [{ day: r.day, text: r.text }] : []));
 }
 
@@ -78,7 +79,7 @@ export async function keepAskMemory(
     p_source: params.source,
     ...(params.threadId ? { p_thread_id: params.threadId } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return doorAnswer("ask_memory_write keep", data);
 }
 
@@ -93,7 +94,7 @@ export async function changeAskMemory(
     p_id: params.id,
     p_text: params.text,
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return doorAnswer("ask_memory_write change", data);
 }
 
@@ -107,7 +108,7 @@ export async function forgetAskMemory(
     p_act: "forget",
     p_id: params.id,
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   const answer = doorAnswer("ask_memory_write forget", data);
   if ("refused" in answer) throw new Error(`ask_memory_write forget: ${answer.refused}`);
   return answer;
@@ -126,7 +127,7 @@ export interface AskRecallRow {
 /** What the member's own past turns, the memory and the journal say that holds the words (search_ask), newest first. */
 export async function searchAsk(db: Db, tenantId: TenantId, words: string, limit: number): Promise<AskRecallRow[]> {
   const { data, error } = await db.rpc("search_ask", { p_tenant: tenantId, p_words: words, p_limit: limit });
-  if (error) throw new Error(`search_ask: ${error.message}`);
+  if (error) throw new DbFailure(error, "search_ask");
   return (data ?? []).flatMap((r) =>
     r.kind === "turn" || r.kind === "memory" || r.kind === "journal"
       ? [{ kind: r.kind, id: r.id ?? null, thread_id: r.thread_id ?? null, at: r.at, snippet: r.snippet ?? "" }]

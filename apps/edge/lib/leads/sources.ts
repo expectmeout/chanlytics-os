@@ -24,6 +24,7 @@ import { leadPins } from "@chanlytics/core";
 import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -76,7 +77,7 @@ export async function watchLeadPins(
         return null;
       }
       if (number === pin.build) return null;
-      return { pin, number, latest: await apify.latestBuild(pin.actor).catch(() => null) };
+      return { pin, number, latest: await apify.latestBuild(pin.actor).catch(logAndGoOn("latestBuild", null)) };
     }),
   );
   let gone = 0;

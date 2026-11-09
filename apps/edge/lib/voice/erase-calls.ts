@@ -20,6 +20,7 @@ import { pg } from "../shared/pg.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { logKeptGoing } from "@chanlytics/log";
 
 /** The most calls one erasure asks the provider about: a person with more has the rest left to the provider's week. */
 const MAX_CALLS = 200;
@@ -55,7 +56,8 @@ export async function eraseCallsAtProvider(
         const r = await del({ apiKey }, id);
         if (r.ok) out.deleted += 1;
         else out.refused += 1;
-      } catch {
+      } catch (e) {
+        logKeptGoing("erasing a call at the provider", e);
         out.refused += 1;
       }
     },

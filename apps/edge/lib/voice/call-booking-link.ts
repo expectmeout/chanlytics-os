@@ -77,6 +77,7 @@ import {
 } from "./call-link-send.js";
 import { logger, errField } from "../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * Which template this path sends is the WORKSPACE'S to answer, not this file's.
@@ -132,7 +133,7 @@ async function sendReceiptOf(db: Db, tenantId: TenantId, wamid: string): Promise
   const until = Date.now() + RECEIPT_WAIT_MS;
   while (Date.now() < until) {
     await new Promise((r) => setTimeout(r, RECEIPT_LOOK_MS));
-    const m = await findMessageByExternalId(db, tenantId, wamid).catch(() => null);
+    const m = await findMessageByExternalId(db, tenantId, wamid).catch(logAndGoOn("findMessageByExternalId", null));
     if (m?.status === "failed") return "failed";
     if (m?.status === "delivered" || m?.status === "read") return "delivered";
   }

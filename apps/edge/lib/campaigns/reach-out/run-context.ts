@@ -23,7 +23,7 @@ import {
 import { emitEvent } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "@chanlytics/core";
-import { DEFAULT_TIMEZONE, handOf, waitEndsWords, runRoute } from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, handOf, waitEndsWords, runRoute, DbFailure } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
 import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
@@ -31,6 +31,7 @@ import { logger } from "../../shared/log.js";
 import { findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 import { asJson } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -51,7 +52,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
   let root = row;
   if (row.sequence_id !== row.id) {
     const { data, error } = await findStepRow(db, row.tenant_id, row.sequence_id);
-    if (error) throw new Error(`cannot read the step's chain: ${error.message}`);
+    if (error) throw new DbFailure(error, "cannot read the step's chain");
     if (!data) return null;
     root = data;
   }
@@ -149,13 +150,13 @@ export async function getReachOutRunContext(
     maySpend: spend,
     alreadyRan: async (stepId, runFor) => {
       const { data, error } = await findRunFor(db, tenantId, stepId, runFor);
-      if (error) throw new Error(`cannot read the step's runs: ${error.message}`);
+      if (error) throw new DbFailure(error, "cannot read the step's runs");
       return !!data;
     },
     // A run waiting for its owner holds the chain, whichever run it is: under ask they would pile up unanswered.
     chainWaits: async (rootId) => {
       const { data, error } = await findChainAwaitingApproval(db, tenantId, rootId);
-      if (error) throw new Error(`cannot read the chain's runs: ${error.message}`);
+      if (error) throw new DbFailure(error, "cannot read the chain's runs");
       return (data ?? []).length > 0;
     },
     // Twice the step's share: a lead the run skips (no open hour all week) leaves room for the next, not a short day.
@@ -173,7 +174,7 @@ export async function getReachOutRunContext(
     draftLoad: (rootId, runFor) => loadChainDraft(db, { tenantId, rootId, runFor }),
     planRun: async (run, sends) => {
       const { data, error } = await planReachOutRun(db, asJson(run), asJson(sends));
-      if (error) throw new Error(`cannot plan the step's run: ${error.message}`);
+      if (error) throw new DbFailure(error, "cannot plan the step's run");
       const item = (data ?? {}) as { id?: string; exists?: boolean };
       if (item.exists) return "exists";
       if (!item.id) throw new Error("cannot plan the step's run: no run came back");
@@ -181,7 +182,9 @@ export async function getReachOutRunContext(
     },
     recordRun: async (run, counts) => {
       const data = { run_for: run.run_for, broadcast_id: run.id, state: run.state, ...counts, reach_out: true };
-      await emitEvent(db, tenantId, "playbook.run", "playbook", run.playbook_id, data).catch(() => {});
+      await emitEvent(db, tenantId, "playbook.run", "playbook", run.playbook_id, data).catch(
+        logAndGoOn("event playbook.run"),
+      );
       // Scheduled without its owner's yes: the system's decision, under the mode the owner chose (veto).
       if (run.state === "scheduled") {
         const { error } = await insertDecision(db, {

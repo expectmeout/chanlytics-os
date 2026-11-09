@@ -18,7 +18,7 @@ import { pg } from "../shared/pg.js";
 import { platformFrom, platformTo, postMail } from "../shared/alerts/notify.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { env } from "../shared/env.js";
-import { logger } from "../shared/log.js";
+import { logger, refuseFailure } from "../shared/log.js";
 import { reportToMail } from "@chanlytics/db/console";
 import { oneLine } from "@chanlytics/channels/email";
 import { CONSOLE_PATH, SUPPORT_KIND_WORDS, UUID, pageWords, reportCode } from "@chanlytics/contracts";
@@ -87,7 +87,7 @@ export async function mailSupportReport(
   const id = typeof body.report_id === "string" ? body.report_id.trim() : "";
   if (!user || !UUID.test(id)) return refuse(400, "bad_request", "a report_id, sent for the member who wrote it");
   const { data, error } = await reportToMail(db, id, user);
-  if (error) return refuse(503, "read_failed", error.message);
+  if (error) return refuseFailure(503, "read_failed", error);
   if (!data) return refuse(404, "not_found", "no such report");
   const { subject, text } = supportMail(data, dashboardOrigin());
   const sent = await send({ from, to, subject, text, replyTo: data.email });

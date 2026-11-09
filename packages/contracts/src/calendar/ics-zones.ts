@@ -172,6 +172,7 @@ function clockReads(zone: string): boolean {
   try {
     dateFormat("en-US", { timeZone: zone });
   } catch {
+    // A zone or a code the runtime does not know.
     reads = false;
   }
   READ.set(zone, reads);

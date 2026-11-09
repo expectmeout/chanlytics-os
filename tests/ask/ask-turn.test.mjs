@@ -8566,7 +8566,7 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
     assert.equal(said[0].level, "error");
     assert.deepEqual(
       fieldsOf(said[0]),
-      { error: "Error: canceling statement due to timeout", tenant_id: A },
+      { error: "DbFailure: canceling statement due to timeout", tenant_id: A },
       "with the tenant",
     );
   } finally {

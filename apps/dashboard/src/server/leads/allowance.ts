@@ -9,6 +9,7 @@ import {
   wallClockAt,
   type IdeaAbout,
   valueAt,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { getLeadAllowance, readLeadMonthUsed } from "@chanlytics/db/leads";
 import type { Database } from "@chanlytics/db/types";
@@ -63,7 +64,7 @@ export async function readMonthUsed(
     readLeadMonthUsed(ctx.supabase, tenantId, period),
     getLeadAllowance(ctx.supabase, tenantId),
   ]);
-  if (error) throw new Error(`lead_month_used: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_month_used");
   const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
   const taken = (kind: "allowance" | "budget") => n(valueAt(data, kind, "used")) + n(valueAt(data, kind, "reserved"));
   return { allowance: taken("allowance"), budget: taken("budget"), cap };

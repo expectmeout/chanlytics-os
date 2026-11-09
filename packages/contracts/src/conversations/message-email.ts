@@ -93,6 +93,7 @@ export function repairMojibake(text: string): string {
     try {
       return readStrict(Uint8Array.from(bytes));
     } catch {
+      // Not valid in this encoding: kept as it came.
       return run;
     }
   });

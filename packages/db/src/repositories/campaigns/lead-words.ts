@@ -5,7 +5,7 @@
  * under row security. A read that fails throws: an email never falls back to the step's words because a read did not land.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { valueAt, type LeadEmailText, type LeadStepWordsDto, type TenantId } from "@chanlytics/contracts";
+import { valueAt, type LeadEmailText, type LeadStepWordsDto, type TenantId, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
 import { answer, type DoorResult } from "./reach-out/leads";
@@ -56,7 +56,7 @@ export async function listLeadWords(db: Db, tenantId: TenantId, leadId: string):
     .select("step_id, subject, body, written_at")
     .eq("tenant_id", tenantId)
     .eq("lead_id", leadId);
-  if (error) throw new Error(`cannot read the lead's own words: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead's own words");
   return (data ?? []).map((r) => ({ step_id: r.step_id, subject: r.subject, body: r.body, at: r.written_at }));
 }
 
@@ -72,7 +72,7 @@ export async function findLeadStepWords(
     .eq("step_id", params.stepId)
     .eq("lead_id", params.leadId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the lead's own words: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead's own words");
   return data ? { subject: data.subject, body: data.body } : null;
 }
 
@@ -88,7 +88,7 @@ export async function findLeadSentEmail(
     .eq("lead_id", params.leadId)
     .eq("id", params.sendId)
     .maybeSingle();
-  if (send.error) throw new Error(`cannot read the send: ${send.error.message}`);
+  if (send.error) throw new DbFailure(send.error, "cannot read the send");
   if (!send.data?.message_id) return null;
   const message = await db
     .from("messages")
@@ -96,7 +96,7 @@ export async function findLeadSentEmail(
     .eq("tenant_id", params.tenantId)
     .eq("id", send.data.message_id)
     .maybeSingle();
-  if (message.error) throw new Error(`cannot read the email: ${message.error.message}`);
+  if (message.error) throw new DbFailure(message.error, "cannot read the email");
   if (!message.data) return null;
   const subject = valueAt(message.data.meta, "email", "subject");
   return { subject: typeof subject === "string" ? subject : null, body: message.data.body ?? "" };

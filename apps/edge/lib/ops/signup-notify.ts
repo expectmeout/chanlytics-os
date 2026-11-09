@@ -19,7 +19,7 @@ import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { notify } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
-import { logger, errField } from "../shared/log.js";
+import { logger, refuseFailure } from "../shared/log.js";
 import { getHandoverInvite } from "@chanlytics/db/partners";
 import { isTenantId } from "@chanlytics/contracts";
 import { findNewWorkspace } from "@chanlytics/db/workspace";
@@ -41,7 +41,7 @@ export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise
   const email = typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
   if (!isTenantId(tenantId) || !email) return refuse(400, "bad_request", "tenant_id and email are required");
   const tenant = await findNewWorkspace(db, tenantId);
-  if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
+  if (tenant.error) return refuseFailure(503, "read_failed", tenant.error);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
   // A partner's workspace waits for the address it was handed to, who has not taken it and may never: nobody signed
   // up, and whoever reads this must not take that address for an owner's. Its handover is open until it is accepted.
@@ -49,7 +49,7 @@ export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise
   try {
     waiting = await getHandoverInvite(db, tenantId);
   } catch (e) {
-    return refuse(503, "read_failed", errField(e));
+    return refuseFailure(503, "read_failed", e);
   }
   const person = waiting
     ? `was set up by partner ${waiting.partnerCode}, for its owner to accept.\n` +

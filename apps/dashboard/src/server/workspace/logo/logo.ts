@@ -22,7 +22,7 @@ import { serviceDb } from "@/server/shared/service-db";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
-import type { RouteContext } from "@/server/shared/with-route";
+import { writeDoorRefusal, type RouteContext } from "@/server/shared/with-route";
 import { remadeLogo } from "@chanlytics/channels/files";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -34,9 +34,8 @@ const bucket = () => serviceDb().storage.from(WORKSPACE_LOGOS_BUCKET);
 
 /** The database's refusal, in the words the row shows; the colour's door (../look.ts) is refused the same way. */
 export function logoDoorRefusal(error: { code?: string; message: string }): AppError {
-  if (error.code === "42501") return new AppError("forbidden", error.message, 403);
-  if (error.code === "22023") return new AppError("validation", error.message);
-  if (error.code === "P0002") return new AppError("not_found", error.message, 404);
+  const refused = writeDoorRefusal(error);
+  if (refused) return refused;
   return new AppError("internal", LOGO_WORDS.notSaved, 500);
 }
 

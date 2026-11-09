@@ -37,7 +37,7 @@ export function tokenMatches(token: string, hash: string): boolean {
   try {
     b = Buffer.from(hash, "hex");
   } catch {
-    return false;
+    return false; // Not the encoding it says.
   }
   return a.length === 32 && b.length === 32 && crypto.timingSafeEqual(a, b);
 }

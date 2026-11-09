@@ -10,6 +10,7 @@ import type { DraftLeadFacts, TenantId, ContactId } from "@chanlytics/contracts"
 import type { Database, Json } from "../../../types";
 import { leadSends, type ReachOutSendRow } from "./reach-out";
 import { answer, type DoorResult } from "./leads";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -25,7 +26,7 @@ export async function claimDrafts(
     p_limit: params.limit,
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
-  if (error) throw new Error(`cannot claim the drafts due: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot claim the drafts due");
   return leadSends(data);
 }
 
@@ -62,8 +63,8 @@ export async function loadChainDraft(
       .not("lead_id", "is", null)
       .in("state", ["planned", "held", "claimed", "drafted"]),
   ]);
-  if (runs.error) throw new Error(`cannot read the reach-out's runs of the day: ${runs.error.message}`);
-  if (open.error) throw new Error(`cannot count the reach-out's emails waiting: ${open.error.message}`);
+  if (runs.error) throw new DbFailure(runs.error, "cannot read the reach-out's runs of the day");
+  if (open.error) throw new DbFailure(open.error, "cannot count the reach-out's emails waiting");
   const ids = (runs.data ?? []).map((r) => r.id);
   if (ids.length === 0) return { today: 0, open: open.count ?? 0 };
   const { count, error } = await db
@@ -72,7 +73,7 @@ export async function loadChainDraft(
     .eq("tenant_id", params.tenantId)
     .in("batch_id", ids)
     .neq("state", "skipped");
-  if (error) throw new Error(`cannot count the reach-out's emails of the day: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count the reach-out's emails of the day");
   return { today: count ?? 0, open: open.count ?? 0 };
 }
 
@@ -82,7 +83,7 @@ export async function loadChainDraft(
  */
 export async function draftFactsOf(db: Db, tenantId: TenantId, leadId: string): Promise<DraftLeadFacts | null> {
   const { data, error } = await db.rpc("reach_out_draft_facts", { p_tenant_id: tenantId, p_lead_id: leadId });
-  if (error) throw new Error(`cannot read the draft's lead: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the draft's lead");
   return (data as DraftLeadFacts | null) ?? null;
 }
 
@@ -116,7 +117,7 @@ export async function listDraftsWaiting(
     ...(params.runId ? { p_run_id: params.runId } : {}),
     ...(params.after ? { p_after_at: params.after.drafted_at, p_after_id: params.after.id } : {}),
   });
-  if (error) throw new Error(`cannot read the drafts waiting: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the drafts waiting");
   return (data ?? []).map((r) => ({ ...r, facts: (r.facts as DraftLeadFacts | null) ?? null }));
 }
 
@@ -137,7 +138,7 @@ export async function getOwnerSendFacts(
     .select("id, batch_id, state, said_at")
     .eq("tenant_id", params.tenantId)
     .in("id", [...params.sendIds]);
-  if (error) throw new Error(`cannot read the owner's sends: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the owner's sends");
   return new Map(
     (data ?? []).map((r) => [
       r.id,
@@ -223,6 +224,6 @@ export async function findLeadReplyFacts(
     .eq("tenant_id", params.tenantId)
     .eq("id", params.leadId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the lead: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead");
   return data ? { ...data, business_name: data.business_name ?? "" } : null;
 }

@@ -41,6 +41,7 @@ import type { Database } from "@chanlytics/db/types";
 import { patchConfigRow } from "@chanlytics/db/workspace";
 import { noteSweepBacklog } from "@chanlytics/db/ops";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -105,7 +106,7 @@ export async function markCalendarChecked(
 ): Promise<void> {
   const failing = "failedSince" in also ? { calendar_failed_since: also.failedSince?.toISOString() ?? null } : {};
   const { error } = await patchConfigRow(db, tenantId, { calendar_checked_at: now.toISOString(), ...failing });
-  if (error) throw new Error(`stamping the calendar read: ${error.message}`);
+  if (error) throw new DbFailure(error, "stamping the calendar read");
 }
 
 /**

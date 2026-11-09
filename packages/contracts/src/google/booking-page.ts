@@ -58,6 +58,7 @@ export function bookingToolOfLink(raw: string | null | undefined): BookingTool |
       .toLowerCase()
       .replace(/^www\./, "");
   } catch {
+    // Not an address.
     return null;
   }
   return BOOKING_PLATFORMS.find((p) => p.tool && onDomain(host, p.host))?.tool ?? null;
@@ -94,6 +95,7 @@ export function bookingPageOf(raw: string | null | undefined): string | null {
   try {
     url = new URL(text);
   } catch {
+    // Not an address.
     return null;
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;

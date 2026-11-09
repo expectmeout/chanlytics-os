@@ -24,6 +24,7 @@ import {
   type BroadcastState,
   recordOrNull,
   isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
@@ -62,7 +63,7 @@ export async function listStrandedRuns(
     .or("audience->>kind.is.null,audience->>kind.neq.reach_out")
     .order("scheduled_for", { ascending: true })
     .limit(params.limit);
-  if (error) throw new Error(`stranded runs: cannot read the scheduled runs: ${error.message}`);
+  if (error) throw new DbFailure(error, "stranded runs: cannot read the scheduled runs");
   // The test in the query is the test here too (contracts isReachOutRun): a row the filter could not see is not let through.
   const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
   if (!runs.length) return [];
@@ -75,7 +76,7 @@ export async function listStrandedRuns(
       "payload->>broadcast_id",
       runs.map((r) => r.id),
     );
-  if (jobs.error) throw new Error(`stranded runs: cannot read their jobs: ${jobs.error.message}`);
+  if (jobs.error) throw new DbFailure(jobs.error, "stranded runs: cannot read their jobs");
   const live = new Set(
     (jobs.data ?? []).map((j) => {
       const id = recordOrNull(j.payload)?.broadcast_id;
@@ -98,7 +99,7 @@ export async function failStrandedRun(db: Db, params: { tenantId: TenantId; id: 
     .eq("tenant_id", params.tenantId)
     .eq("state", "scheduled")
     .select("id");
-  if (error) throw new Error(`stranded runs: cannot mark run ${params.id} not sent: ${error.message}`);
+  if (error) throw new DbFailure(error, `stranded runs: cannot mark run ${params.id} not sent`);
   if (!(data ?? []).length) return false;
   // On the ledger as every stopped run is (broadcast.stopped), best effort. Nobody got it: it never left `scheduled`.
   await emitEvent(db, params.tenantId, "broadcast.stopped", "broadcast", params.id, {
@@ -123,7 +124,7 @@ async function waitingBy(db: Db, by: "run_for" | "offered_start", limit: number)
     .order(by, { ascending: true })
     .order("created_at", { ascending: true })
     .limit(limit);
-  if (error) throw new Error(`waiting runs: cannot read the runs waiting for approval: ${error.message}`);
+  if (error) throw new DbFailure(error, "waiting runs: cannot read the runs waiting for approval");
   return data ?? [];
 }
 
@@ -166,7 +167,7 @@ export async function listWaitingPlaybookRuns(db: Db, params: { limit: number })
     .from("tenants")
     .select("id, timezone")
     .in("id", [...new Set(runs.map((r) => r.tenant_id))]);
-  if (zones.error) throw new Error(`waiting runs: cannot read their workspaces' zones: ${zones.error.message}`);
+  if (zones.error) throw new DbFailure(zones.error, "waiting runs: cannot read their workspaces' zones");
   const zoneOf = new Map((zones.data ?? []).map((t) => [t.id, t.timezone]));
   return runs.flatMap((run) =>
     run.playbook_id && (run.run_for || run.offered_start)
@@ -204,7 +205,7 @@ export async function cancelBroadcastFrom(
     .eq("tenant_id", params.tenantId)
     .eq("state", params.from)
     .select("id");
-  if (error) throw new Error(`waiting runs: cannot end run ${params.id}: ${error.message}`);
+  if (error) throw new DbFailure(error, `waiting runs: cannot end run ${params.id}`);
   return (data ?? []).length > 0;
 }
 
@@ -232,7 +233,7 @@ export async function recordSystemDecision(
     })
     .select("id")
     .single();
-  if (error) throw new Error(`cannot record the system's decision: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot record the system's decision");
   return data.id;
 }
 
@@ -278,8 +279,8 @@ export async function listWaitingRuns(db: Db, tenantId: TenantId): Promise<Waiti
       .order("created_at", { ascending: false })
       .limit(200),
   ]);
-  if (pending.error) throw new Error(`cannot read the runs waiting for approval: ${pending.error.message}`);
-  if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
+  if (pending.error) throw new DbFailure(pending.error, "cannot read the runs waiting for approval");
+  if (going.error) throw new DbFailure(going.error, "cannot read the going runs");
   const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
   const runIds = reaching.map((r) => r.id);
   const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds }) : null;
@@ -298,7 +299,7 @@ export async function batchStatesOf(db: Db, tenantId: TenantId, ids: readonly st
     .select("id, state")
     .eq("tenant_id", tenantId)
     .in("id", [...ids]);
-  if (error) throw new Error(`cannot read the batches' states: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the batches' states");
   return new Map((data ?? []).map((b) => [b.id, b.state]));
 }
 
@@ -311,7 +312,7 @@ export async function getHeldSends(db: Db, tenantId: TenantId, ids: readonly str
     .eq("tenant_id", tenantId)
     .eq("state", "held")
     .in("id", [...ids]);
-  if (error) throw new Error(`cannot read the held sends: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the held sends");
   return new Set((data ?? []).map((s) => s.id));
 }
 
@@ -346,7 +347,7 @@ export async function listRunsGoingBetween(
     .lte("scheduled_for", until.toISOString())
     .order("scheduled_for", { ascending: true })
     .limit(100);
-  if (error) throw new Error(`cannot read the runs set to go: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the runs set to go");
   return data ?? [];
 }
 
@@ -363,7 +364,7 @@ export async function listRunsNamed(db: Db, tenantId: TenantId, ids: readonly st
     .select(WAITING_RUN_COLUMNS)
     .eq("tenant_id", tenantId)
     .in("id", [...ids]);
-  if (error) throw new Error(`cannot read the runs the notices name: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the runs the notices name");
   const rows = data ?? [];
   const reaching = rows.filter((r) => isReachOutRun(r.audience) && isOneOf(RUN_GOING_STATES, r.state));
   const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;

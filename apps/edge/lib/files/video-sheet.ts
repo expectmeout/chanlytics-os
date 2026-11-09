@@ -24,6 +24,7 @@ import {
 } from "@chanlytics/contracts";
 import { fetchStreamFrame, streamFrameUrl, streamTokenOf, type StreamSigning } from "@chanlytics/channels/files";
 import { imageHeaderOf } from "@chanlytics/core";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The edge's own tokens for a video's frames: minutes, never an hour. */
 const FRAME_TOKEN_S = 5 * 60;
@@ -179,7 +180,7 @@ export async function drawVideoSheet(
         ? sharp(bytes)
             .resize(plan.tileW, plan.tileH, { fit: "contain", background: black })
             .toBuffer()
-            .catch(() => null)
+            .catch(logAndGoOn("a video sheet's tile", null))
         : Promise.resolve(null),
     ),
   );

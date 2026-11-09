@@ -9,6 +9,7 @@ import { emitEvent } from "@chanlytics/db/events";
 import { connectionOf, type Db } from "../shared/google/rows.js";
 import { http } from "../shared/google/places.js";
 import { tokenFor } from "../shared/google/credentials.js";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The connection and a token good now, or why not. */
 async function asTheOwner(db: Db, tenantId: TenantId, now: Date) {
@@ -40,7 +41,7 @@ export async function postOnProfile(
     post_name: created.name,
     search_url: created.search_url,
     by: input.by,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event file.posted"));
   return { ok: true, ...created };
 }
 
@@ -63,6 +64,6 @@ export async function unpostOnProfile(
     file_id: input.fileId,
     post_name: input.name,
     by: input.by,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event file.unposted"));
   return { ok: true };
 }

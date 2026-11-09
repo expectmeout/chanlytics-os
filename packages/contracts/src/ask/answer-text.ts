@@ -602,6 +602,7 @@ export function firstJsonValue(text: string): { value: unknown; rest: string } |
       try {
         return { value: JSON.parse(text.slice(start, index + 1)), rest: text.slice(index + 1) };
       } catch {
+        // Not JSON: nothing to read.
         return null;
       }
     }

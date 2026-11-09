@@ -30,8 +30,9 @@ import {
 import { lineForClient, type LineProviderChoice } from "../lines.js";
 import { factsOf, FILED_NAME_FACT, retryRequestedBy, type LineDbRow } from "../resume.js";
 import type { LineReleaseResult } from "../release.js";
-import { errorMessage, type DoorAnswer } from "../../shared/admin-door.js";
+import type { DoorAnswer } from "../../shared/admin-door.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logFailure } from "../../shared/log.js";
 
 type LinesInsert = Database["public"]["Tables"]["lines"]["Insert"];
 
@@ -155,7 +156,8 @@ interface BillingRead {
  * asked where the ROW says what the filing will actually be (filingFlags).
  */
 export function spendRefusal(bill: BillingRead, doing: SpendWords): DoorAnswer | null {
-  if (bill.error) return { status: 503, body: { ok: false, error: "read_failed", detail: bill.error.message } };
+  if (bill.error)
+    return { status: 503, body: { ok: false, error: "read_failed", detail: logFailure("read", bill.error) } };
   if (!bill.data) return { status: 402, body: { ok: false, error: "no_billing_record" } };
   const reason = whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus, doing);
   if (reason)
@@ -268,7 +270,7 @@ export function queuedAnswer(choice: LineProviderChoice, row: LineDbRow): DoorAn
 export function notScheduledAnswer(error: unknown, row: LineDbRow): DoorAnswer {
   return {
     status: 503,
-    body: { ok: false, error: "could_not_queue", detail: errorMessage(error), line: lineForClient(row) },
+    body: { ok: false, error: "could_not_queue", detail: logFailure("write", error), line: lineForClient(row) },
   };
 }
 

@@ -21,7 +21,7 @@ import { load } from "../../../shared/reader";
 import { channelsReady } from "../../../readers/facts";
 import { getAskedMessage, str } from "../context/tool-reads";
 import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
-import { propose, refuse } from "../context/context";
+import { propose, refuse, refuseThrown } from "../context/context";
 
 /** Where a playbook's id is read, said as the model calls it. */
 const PLAYBOOK_FROM = "sequences with action moments";
@@ -82,7 +82,7 @@ async function proposePlaybookChannels(
       await checkPlaybookChannelsInput(toolContext.ctx, toolContext.tenantId, result, input.channels),
     );
   } catch (e) {
-    return refuse(e instanceof Error ? e.message : String(e));
+    return refuseThrown(e);
   }
   if (!channelsChanged(next, result.channels))
     return refuse(`“${result.name}” already goes by ${channelsGoesByWords(was)}: say so, and change nothing`);

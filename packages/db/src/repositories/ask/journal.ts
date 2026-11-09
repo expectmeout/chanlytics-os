@@ -4,7 +4,7 @@
  * reads them), and the door the entry goes through (ask_journal_write's keep). Service role throughout: the sweep reads every
  * workspace's day and writes none of its rows.
  */
-import { heldTenantId, recordOrEmpty } from "@chanlytics/contracts";
+import { heldTenantId, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, recordOrNull } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
@@ -25,7 +25,7 @@ export interface AskJournalDueRow {
 /** The sweep's batch (ask_journal_write, due): at most `limit` days due, each stamped looking as it is handed over. */
 export async function askJournalDue(db: Db, limit: number): Promise<AskJournalDueRow[]> {
   const { data, error } = await db.rpc("ask_journal_write", { p_act: "due", p_limit: limit });
-  if (error) throw new Error(`ask_journal_write due: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_journal_write due");
   const days = (data && typeof data === "object" && !Array.isArray(data) ? data.days : null) ?? [];
   if (!Array.isArray(days)) return [];
   return days.flatMap((day) => {
@@ -100,8 +100,8 @@ export async function askJournalDayRows(
       .limit(params.limit),
     events.order("created_at", { ascending: false }).limit(params.limit),
   ]);
-  if (d.error) throw new Error(`decisions: ${d.error.message}`);
-  if (e.error) throw new Error(`events: ${e.error.message}`);
+  if (d.error) throw new DbFailure(d.error, "decisions");
+  if (e.error) throw new DbFailure(e.error, "events");
   return { decisions: d.data ?? [], events: e.data ?? [] };
 }
 
@@ -116,7 +116,7 @@ export async function getJournalMemberNames(db: Db, userIds: readonly string[]):
     .from("profiles")
     .select("user_id, display_name")
     .in("user_id", [...userIds]);
-  if (error) throw new Error(`profiles: ${error.message}`);
+  if (error) throw new DbFailure(error, "profiles");
   const out: Record<string, string> = {};
   for (const r of data ?? []) if (r.display_name?.trim()) out[r.user_id] = r.display_name.trim();
   return out;
@@ -137,7 +137,7 @@ export async function keepAskJournal(
     p_text: params.failed ? "" : (params.text ?? ""),
     p_rows_read: params.failed ? -1 : params.rowsRead,
   });
-  if (error) throw new Error(`ask_journal_write keep: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_journal_write keep");
   const refused = recordOrNull(data)?.error;
   return { refused: typeof refused === "string" ? refused : null };
 }

@@ -69,6 +69,7 @@ import {
   type OwnerKnown,
 } from "../campaigns/sequences/draft-judge";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** How much of a message's words the model is handed. */
 const BODY_CHARS = 280;
@@ -461,10 +462,7 @@ export async function readDraftKnown(rc: ReaderContext): Promise<DraftKnown> {
       load(rc, templates, { all: false }),
       load(rc, facts.businessShape, undefined),
       load(rc, facts.facts, undefined),
-      findCalendar(ctx, tenantId).then(
-        (c) => !!c.url || c.lostCalendar,
-        () => false,
-      ),
+      findCalendar(ctx, tenantId).then((c) => !!c.url || c.lostCalendar, logAndGoOn("findCalendar", false)),
       readOrNull(load(rc, playbooks, undefined), "playbooks", tenantId),
       readOrNull(load(rc, sequences, undefined), "sequences", tenantId),
       readOrNull(getReachOutSources(ctx, tenantId), "sources", tenantId),

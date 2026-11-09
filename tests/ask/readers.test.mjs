@@ -961,7 +961,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(noCalls.data.calls, null, "a calls read that failed is its own state, not none");
   assert.equal(noCalls.data.conversations.length, 100);
   assert.equal(noCalls.data.searches.length, 1);
-  assert.deepEqual(callLines, [{ error: "Error: permission denied" }]);
+  assert.deepEqual(callLines, [{ error: "DbFailure: permission denied" }]);
 
   const { result: noSearches, lines: searchLines } = await logged("today_searches_fetch_failed", () =>
     kernel.load(
@@ -973,7 +973,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(noSearches.data.searches, null, "the queue says nothing of searches it could not read");
   assert.equal(noSearches.data.calls.length, 2);
   assert.deepEqual(noSearches.data.metrics, SUMMARY);
-  assert.deepEqual(searchLines, [{ error: "Error: down" }]);
+  assert.deepEqual(searchLines, [{ error: "DbFailure: down" }]);
 });
 
 /* -------------------------------------------------- the thread and the call (PR 1.3) */
@@ -5243,7 +5243,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
       "no calendar read: the moments it names are not counted",
     );
     assert.ok(blind.pools.everyone_monthly && blind.playbooks.length === 2, "and everything else stands");
-    assert.deepEqual(lines, [{ tenant_id: A, error: "Error: getTenantConfig: config down" }]);
+    assert.deepEqual(lines, [{ tenant_id: A, error: "DbFailure: getTenantConfig: config down" }]);
     const { result: r2 } = await logged("playbook_pools_visits_failed", () =>
       kernel.load(turnIn(worldCtx(w, down)), playbooksReader, undefined),
     );

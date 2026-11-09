@@ -27,6 +27,7 @@ import type { Database, Json } from "../../types";
 import { readAllRows, type Page } from "../../shared/paged";
 import { saysMissing } from "../../shared/missing-door";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -155,7 +156,7 @@ export async function findSavedList(db: Db, tenantId: TenantId, id: string): Pro
       .eq("id", id)
       .eq("tenant_id", tenantId)
       .maybeSingle()) as { data: ListCols | null; error: { message: string } | null };
-    if (error) throw new Error(`segments: ${error.message}`);
+    if (error) throw new DbFailure(error, "segments");
     return data;
   }, "id, name");
   if (!data) return null;
@@ -175,7 +176,7 @@ export async function listRow(db: Db, id: string): Promise<ListRow | null> {
       data: (ListCols & { tenant_id: TenantId }) | null;
       error: { message: string } | null;
     };
-    if (error) throw new Error(`segments: ${error.message}`);
+    if (error) throw new DbFailure(error, "segments");
     return data;
   }, "id, tenant_id, name");
   return data
@@ -291,7 +292,7 @@ export async function listPlaybooksOnList(
   if (error) {
     // A database 00155 has not reached has no list_id: no playbook names a list there.
     if (missingColumn(error.message, "list_id")) return [];
-    throw new Error(`playbooks: ${error.message}`);
+    throw new DbFailure(error, "playbooks");
   }
   return data ?? [];
 }

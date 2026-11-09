@@ -59,6 +59,7 @@ import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "@chanlytics/contracts";
 import type { SweepTick } from "../ops/sweep-door.js";
 import { listDeadmanCandidates, markDeadmanAlerted } from "@chanlytics/db/conversations";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** How long a customer may wait on a human before this is a problem. */
 const UNANSWERED_AFTER = "2 hours";
@@ -235,7 +236,7 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
         `and the workspace has no notification recipients on file — so its owner cannot be told, here or anywhere.\n\n` +
         `Set them in Settings › Notifications for that workspace. The warning is raised as soon as somebody is on file; ` +
         `nothing about this customer has been marked as handled.`,
-    ).catch(() => {});
+    ).catch(logAndGoOn("pageOperator"));
   }
 
   L.info("deadman_swept", { candidates: candidates.length, flagged, left, ...fields });

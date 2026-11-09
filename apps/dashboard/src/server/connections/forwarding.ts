@@ -25,6 +25,7 @@ import type { Member } from "@/server/shared/route";
 const NO_TEST_PHONE: string | null = null;
 
 export async function setLineForwarding(ctx: RouteContext, req: Request, member: Member) {
+  // A body that is not JSON is none: what reads it next refuses.
   const body = recordOrEmpty(await req.json().catch(() => ({})));
   const number = typeof body.number === "string" ? normalizePhone(body.number) : null;
   if (!number) throw new AppError("validation", "Give the number you keep, with its area code.", 400);

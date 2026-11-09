@@ -90,6 +90,7 @@ import {
   type CallStep,
 } from "./call-event.js";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { logAndGoOn, logKeptGoing } from "@chanlytics/log";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -229,7 +230,7 @@ function readDelivery(raw: string): Delivery | null {
   try {
     body = JSON.parse(raw) as typeof body;
   } catch {
-    return null;
+    return null; // Not JSON: nothing to read.
   }
   const { event, call } = body;
   log.info("retell_event", { retell_event: event, call_id: call?.call_id ?? null });
@@ -378,7 +379,7 @@ async function deadLetter(db: Db, n: NormalizedCall): Promise<void> {
   await emitEvent(db, PLATFORM_TENANT, "ingest.unroutable", null, null, {
     channel: "voice",
     agent_id: n.agentId,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event ingest.unroutable"));
 }
 
 /**
@@ -498,13 +499,14 @@ async function correctReceptionist(
  * Read at the call's start, where its prompt was composed (call-start.ts): a call that runs past midnight on an offer's
  * last day is judged by what the caller's receptionist was told, the offer's note and its price included.
  */
-async function allowedOnCall(db: Db, routed: RoutedChannel, n: NormalizedCall): Promise<ReadonlySet<string> | null> {
-  if (!spokenBreach(n.transcriptObject, null)) return null;
+async function allowedOnCall(db: Db, routed: RoutedChannel, call: NormalizedCall): Promise<ReadonlySet<string> | null> {
+  if (!spokenBreach(call.transcriptObject, null)) return null;
   try {
     const rt = await loadTenantRuntime(db, routed);
-    const composedAt = n.startedAtIso ? new Date(n.startedAtIso) : new Date();
+    const composedAt = call.startedAtIso ? new Date(call.startedAtIso) : new Date();
     return rt.loadFailed ? null : priceAllowance(rt.brain, rt.timezone, composedAt);
-  } catch {
+  } catch (e) {
+    logKeptGoing("a call's allowance", e);
     return null;
   }
 }

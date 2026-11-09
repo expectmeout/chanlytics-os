@@ -43,7 +43,7 @@ import { ingestInbound, stoppedNow, type IngestResult } from "../channels/ingest
 import { setEmailOffersYes, setEmailUnsubscribed } from "../campaigns/email-offers";
 import { stampEmailFromMailbox } from "./connections";
 import { dbLog } from "../../shared/observe";
-import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
+import { recordOrEmpty, valueAt, DbFailure } from "@chanlytics/contracts";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -51,7 +51,7 @@ export type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
 
 export async function findMailboxById(db: Db, id: string): Promise<MailboxRow | null> {
   const { data, error } = await db.from("mailboxes").select("*").eq("id", id).maybeSingle();
-  if (error) throw new Error(`mailbox: ${error.message}`);
+  if (error) throw new DbFailure(error, "mailbox");
   return data;
 }
 
@@ -65,7 +65,7 @@ export async function findMailbox(
     to.kind === "mailbox"
       ? await q.eq("local_part", to.localPart).maybeSingle()
       : await q.or(`reply_token.eq.${to.token},reply_token_prev.eq.${to.token}`).maybeSingle();
-  if (error) throw new Error(`mailbox: ${error.message}`);
+  if (error) throw new DbFailure(error, "mailbox");
   return data;
 }
 
@@ -144,7 +144,7 @@ export async function ingestInboundEmail(db: Db, ingestEmailParams: IngestEmailP
       .eq("tenant_id", ingestEmailParams.tenantId)
       .eq("email", ingestEmailParams.address)
       .eq("email_suppressed_reason", "hard_bounce");
-    if (error) throw new Error(`ingest_email: cannot lift the bounce from the address: ${error.message}`);
+    if (error) throw new DbFailure(error, "ingest_email: cannot lift the bounce from the address");
   }
 
   // Their word about offers by email, in their own message, once their address is on their row (an unsubscribe puts it on
@@ -208,7 +208,7 @@ export async function getSentEmailWithMessageId(db: Db, tenantId: TenantId, rfcM
     .eq("direction", "outbound")
     .eq("meta->email->>message_id", rfcMessageId)
     .limit(1);
-  if (error) throw new Error(`ingest_email: cannot read the ledger of sent emails: ${error.message}`);
+  if (error) throw new DbFailure(error, "ingest_email: cannot read the ledger of sent emails");
   return (data ?? []).length > 0;
 }
 
@@ -220,7 +220,7 @@ export async function stampMailboxReceived(db: Db, mailboxId: string, at: string
 /** A workspace's mailbox; null when it has none, which is a workspace with no email line. */
 export async function findMailboxOfTenant(db: Db, tenantId: TenantId): Promise<MailboxRow | null> {
   const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
-  if (error) throw new Error(`mailbox: ${error.message}`);
+  if (error) throw new DbFailure(error, "mailbox");
   return data;
 }
 
@@ -239,7 +239,7 @@ export async function keepForwardingConfirmation(
       forward_confirm_at: new Date().toISOString(),
     })
     .eq("id", mailboxId);
-  if (error) throw new Error(`forwarding_confirmation_keep: ${error.message}`);
+  if (error) throw new DbFailure(error, "forwarding_confirmation_keep");
 }
 
 /** The forward confirmed, as the first notice that arrived proves: the code and the link are let go of. */
@@ -254,7 +254,7 @@ export async function clearForwardingConfirmation(db: Db, mailboxId: string): Pr
     })
     .eq("id", mailboxId)
     .not("forward_confirm_code", "is", null);
-  if (error) throw new Error(`forwarding_confirmation_clear: ${error.message}`);
+  if (error) throw new DbFailure(error, "forwarding_confirmation_clear");
 }
 
 /** The email a reply answers: what the thread stores of the person's latest one. */
@@ -288,7 +288,7 @@ export async function findLastInboundEmail(
     .order("channel_ts", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`email: cannot read the email being answered: ${error.message}`);
+  if (error) throw new DbFailure(error, "email: cannot read the email being answered");
   if (!data) return null;
   const emailError = recordOrEmpty(valueAt(data.meta, "email"));
   const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
@@ -326,7 +326,7 @@ export async function findLastOutboundEmailSubject(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`email: cannot read the last email sent: ${error.message}`);
+  if (error) throw new DbFailure(error, "email: cannot read the last email sent");
   const subject = valueAt(data?.meta, "email", "subject");
   return typeof subject === "string" && subject.trim() ? subject : null;
 }
@@ -352,7 +352,7 @@ export async function findAnsweredReachOutEmail(
     .eq("direction", "outbound")
     .order("created_at", { ascending: false })
     .limit(ANSWERED_LOOKBACK);
-  if (error) throw new Error(`email: cannot read the reach-out being answered: ${error.message}`);
+  if (error) throw new DbFailure(error, "email: cannot read the reach-out being answered");
   const left = new Set(["sent", "delivered", "read"]);
   const sent = (data ?? []).flatMap((match) => {
     if (valueAt(match.meta, "source") !== "reach_out" || !left.has(String(match.status))) return [];
@@ -389,7 +389,7 @@ export async function stampEmailSent(
     p_provider_id: params.providerId,
     p_rfc_message_id: params.rfcMessageId,
   });
-  if (error) throw new Error(`stamp_email_sent: ${error.message}`);
+  if (error) throw new DbFailure(error, "stamp_email_sent");
   const row = data?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
@@ -409,7 +409,7 @@ export async function stampEmailLeftAs(
     p_left_as: params.leftAs,
     p_why: params.why,
   });
-  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  if (error) throw new DbFailure(error, "stamp_email_left_as");
   return data === true;
 }
 
@@ -430,7 +430,7 @@ export async function findSentEmail(
     .eq("channel", "email")
     .eq("direction", "outbound")
     .maybeSingle();
-  if (error) throw new Error(`sent email request: ${error.message}`);
+  if (error) throw new DbFailure(error, "sent email request");
   if (!data) return null;
   const lead = valueAt(data.meta, "reach_out", "lead_id");
   return {
@@ -452,7 +452,7 @@ export async function stampEmailComplaint(
     p_message_id: params.messageId,
     p_at: params.at,
   });
-  if (error) throw new Error(`stamp_email_complaint: ${error.message}`);
+  if (error) throw new DbFailure(error, "stamp_email_complaint");
   return data === true;
 }
 
@@ -474,7 +474,7 @@ export async function recordEmailNo(
     .eq("channel", "email")
     .eq("direction", "outbound")
     .maybeSingle();
-  if (error) throw new Error(`email receipt: cannot read message ${params.messageId}: ${error.message}`);
+  if (error) throw new DbFailure(error, `email receipt: cannot read message ${params.messageId}`);
   const sentFrom = valueAt(data?.meta, "email", "request", "from");
   const from = typeof sentFrom === "string" ? sentFrom : null;
   const contactId = data?.contact_id ?? null;
@@ -487,8 +487,7 @@ export async function recordEmailNo(
     p_message_id: params.messageId,
     p_evidence: { channel: "email", via: params.source },
   });
-  if (result.error)
-    throw new Error(`email receipt: cannot record the ${params.source} as a no: ${result.error.message}`);
+  if (result.error) throw new DbFailure(result.error, `email receipt: cannot record the ${params.source} as a no`);
   return { contactId, from };
 }
 
@@ -509,7 +508,7 @@ export async function recordEmailStatus(
     .eq("channel", "email")
     .eq("direction", "outbound");
   if (error && !/monotone|terminal/.test(error.message))
-    throw new Error(`email receipt: cannot move message ${params.messageId}: ${error.message}`);
+    throw new DbFailure(error, `email receipt: cannot move message ${params.messageId}`);
 }
 
 /**
@@ -535,8 +534,7 @@ export async function suppressEmailOf(
     .eq("id", params.messageId)
     .eq("tenant_id", params.tenantId)
     .maybeSingle();
-  if (sent.error)
-    throw new Error(`email receipt: cannot read who message ${params.messageId} went to: ${sent.error.message}`);
+  if (sent.error) throw new DbFailure(sent.error, `email receipt: cannot read who message ${params.messageId} went to`);
   if (!sent.data?.contact_id) return null;
   const { data, error } = await db
     .from("contacts")
@@ -546,7 +544,7 @@ export async function suppressEmailOf(
     .in("email", params.addresses)
     .is("email_suppressed_at", null)
     .select("id");
-  if (error) throw new Error(`email receipt: cannot stop sends to the address: ${error.message}`);
+  if (error) throw new DbFailure(error, "email receipt: cannot stop sends to the address");
   return data?.[0]?.id ?? null;
 }
 
@@ -569,7 +567,7 @@ async function settleUnknownEmail(
     .eq("status", "failed")
     .eq("error->>outcome", "unknown")
     .select("id");
-  if (error) throw new Error(`cannot settle the email ${params.id}: ${error.message}`);
+  if (error) throw new DbFailure(error, `cannot settle the email ${params.id}`);
   return (data ?? []).length > 0;
 }
 

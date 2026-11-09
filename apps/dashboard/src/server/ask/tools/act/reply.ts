@@ -16,6 +16,7 @@ import {
   violatesNoPrices,
   type ConsentChannel,
   UUID,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { mayBegin } from "@chanlytics/core";
 import { openRequestOfThread } from "@chanlytics/db/calendar";
@@ -54,7 +55,7 @@ async function startRefusal(
 /** A thread a card names, in this workspace, with who it is with as the Inbox names them; null where there is none. */
 async function threadOnCard(toolContext: ToolContext, id: string) {
   const { data: conv, error } = await findThreadForReply(toolContext.ctx.supabase, toolContext.tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!conv) return null;
   const asked: Parameters<typeof contactName>[0] = {
     contact: {
@@ -139,7 +140,7 @@ async function proposeSteer(
   if (!UUID.test(id)) return refuse("message_id must be a held draft's id from a read");
   if (!instruction) return refuse("instruction is required");
   const { data: m, error } = await findMessageCard(toolContext.ctx.supabase, toolContext.tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!m) return refuse("no such message in this workspace");
   if (!isHeldDraft({ sender: m.sender, status: m.status ?? undefined })) {
     return refuse("that reply is not waiting any more; there is nothing to rewrite");

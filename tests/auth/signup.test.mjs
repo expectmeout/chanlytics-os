@@ -191,7 +191,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
     "an address we already have is answered exactly as a new one is: nothing made, nothing sent, same sentence",
   );
   assert.ok(
-    server.indexOf("addressAlreadyKnown(error)") < server.indexOf("throw new Error(`signUp:"),
+    server.indexOf("addressAlreadyKnown(error)") < server.indexOf('throw new DbFailure(error, "signUp")'),
     "REGRESSION: an ordinary second sign-up becoming a 500, which is a dead end AND an oracle",
   );
   // Read from the `route` already in hand rather than a second read of the

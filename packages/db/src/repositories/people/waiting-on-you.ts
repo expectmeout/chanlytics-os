@@ -8,7 +8,7 @@
  * A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { standingOfThread, type SchemaSet } from "@chanlytics/contracts";
+import { standingOfThread, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import type { ContactId, TenantId } from "@chanlytics/contracts";
 
@@ -45,7 +45,7 @@ export async function listThreadsBy(
       .select(THREAD_COLUMNS)
       .eq("tenant_id", tenantId)
       .in(key, ids.slice(i, i + IN_CHUNK));
-    if (error) throw new Error(`cannot read the threads: ${error.message}`);
+    if (error) throw new DbFailure(error, "cannot read the threads");
     out.push(...(data ?? []));
   }
   return out;
@@ -65,7 +65,7 @@ async function openHoldsOf(
       .eq("tenant_id", tenantId)
       .eq("state", "open")
       .in("conversation_id", threadIds.slice(i, i + IN_CHUNK));
-    if (error) throw new Error(`cannot read the open holds: ${error.message}`);
+    if (error) throw new DbFailure(error, "cannot read the open holds");
     for (const h of data ?? []) if (h.conversation_id) out.set(h.conversation_id, h.reason);
   }
   return out;
@@ -162,7 +162,7 @@ export async function listLastClosedHolds(
       .in("conversation_id", conversationIds.slice(index, index + IN_CHUNK))
       .order("created_at", { ascending: false })
       .limit(CLOSED_HOLDS_MAX);
-    if (error) throw new Error(`listLastClosedHolds: ${error.message}`);
+    if (error) throw new DbFailure(error, "listLastClosedHolds");
     for (const r of data ?? []) if (!newest.has(r.conversation_id)) newest.set(r.conversation_id, r);
   }
   return [...newest.values()];
@@ -200,8 +200,8 @@ export async function getTodayDoneCount(
       .gte("created_at", params.since)
       .limit(DONE_READ_MAX),
   ]);
-  if (counted.error) throw new Error(`cannot read the day's decisions: ${counted.error.message}`);
-  if (undos.error) throw new Error(`cannot read the day's undos: ${undos.error.message}`);
+  if (counted.error) throw new DbFailure(counted.error, "cannot read the day's decisions");
+  if (undos.error) throw new DbFailure(undos.error, "cannot read the day's undos");
   const undone = new Set((undos.data ?? []).flatMap((u) => (u.undo_of ? [u.undo_of] : [])));
   const done = (counted.data ?? []).filter((d) => !undone.has(d.id));
   return new Set(done.map((d) => `${d.subject_type}:${d.subject_id ?? ""}`)).size;

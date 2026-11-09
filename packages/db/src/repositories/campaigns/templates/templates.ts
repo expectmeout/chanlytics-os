@@ -21,6 +21,7 @@ import {
   type OwnVersionChannel,
   type Within,
   type SchemaSet,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import type { TenantId } from "@chanlytics/contracts";
@@ -88,7 +89,7 @@ export async function listTemplates(
     .select("id, channel, name, language, category, meta_status, body_preview, title, variables")
     .eq("tenant_id", tenantId);
   const { data, error } = await (channel === null ? ofTenant : ofTenant.eq("channel", channel));
-  if (error) throw new Error(`listTemplates: ${error.message}`);
+  if (error) throw new DbFailure(error, "listTemplates");
   return data ?? [];
 }
 
@@ -108,7 +109,7 @@ export async function listTemplatesToSend(
     .select("name, language, category, meta_status, body_preview, title, variables, components")
     .eq("tenant_id", tenantId)
     .eq("channel", channel);
-  if (error) throw new Error(`listTemplatesToSend: ${error.message}`);
+  if (error) throw new DbFailure(error, "listTemplatesToSend");
   return data ?? [];
 }
 
@@ -142,7 +143,7 @@ export async function findHeldMessage(
     .select("channel, language, category, variables")
     .eq("tenant_id", tenantId)
     .eq("name", name);
-  if (error) throw new Error(`findHeldMessage: ${error.message}`);
+  if (error) throw new DbFailure(error, "findHeldMessage");
   const rows = (data ?? []).slice().sort((a, b) => {
     const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
     return wa || Number(b.language === language) - Number(a.language === language);
@@ -163,7 +164,7 @@ async function messageOfVersion(
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(`listMessageVersionRows: ${error.message}`);
+  if (error) throw new DbFailure(error, "listMessageVersionRows");
   return data;
 }
 
@@ -191,7 +192,7 @@ export async function listMessageVersionRows(
     .eq("tenant_id", tenantId)
     .eq("name", message.name)
     .eq("language", message.language);
-  if (error) throw new Error(`listMessageVersionRows: ${error.message}`);
+  if (error) throw new DbFailure(error, "listMessageVersionRows");
   return data ?? [];
 }
 
@@ -208,7 +209,7 @@ export async function listOwnVersionsFiled(
     .eq("tenant_id", tenantId)
     .in("channel", ["email", "sms"])
     .in("name", names);
-  if (error) throw new Error(`listOwnVersionsFiled: ${error.message}`);
+  if (error) throw new DbFailure(error, "listOwnVersionsFiled");
   return data ?? [];
 }
 
@@ -338,7 +339,7 @@ export async function findTemplateId(
     .eq("name", name)
     .eq("language", language)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data?.id ?? null;
 }
 
@@ -354,7 +355,7 @@ export async function listTemplatesNamed(
     .eq("tenant_id", tenantId)
     .eq("channel", "whatsapp")
     .in("name", names);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? [];
 }
 
@@ -374,7 +375,7 @@ export async function findTemplateStatus(
     .eq("language", language)
     .maybeSingle();
   // Null is "the workspace holds none"; a read that fails is not that.
-  if (error) throw new Error(`cannot read the template's status: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the template's status");
   return data;
 }
 
@@ -395,5 +396,5 @@ export async function setTemplateQuality(
     .eq("channel", "whatsapp")
     .eq("name", params.name)
     .eq("language", params.language);
-  if (error) throw new Error(`setTemplateQuality: ${error.message}`);
+  if (error) throw new DbFailure(error, "setTemplateQuality");
 }

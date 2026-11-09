@@ -23,6 +23,7 @@ import {
   type FreeWindowsInput,
   type Opening,
   type TenantConfig,
+  causedBy,
 } from "@chanlytics/contracts";
 import { publicFetcher } from "@chanlytics/channels/shared";
 import { fillerFeedFor } from "./filler-calendar";
@@ -190,7 +191,7 @@ async function fetchInto(tenantId: TenantId, url: string, hit: FeedEntry | undef
       res = result;
     } catch (e) {
       if (e instanceof FeedRefused) throw e;
-      throw new FeedRefused("unreachable");
+      throw causedBy(new FeedRefused("unreachable"), e);
     }
     if (!res.ok) throw new FeedRefused("http", res.status);
     const text = await res.text();

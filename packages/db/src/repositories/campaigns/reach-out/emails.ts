@@ -1,6 +1,13 @@
 /** Reach out: emails. */
 
-import { recordOrEmpty, type LeadEmailDto, type TenantId, type ContactId, valueAt } from "@chanlytics/contracts";
+import {
+  recordOrEmpty,
+  type LeadEmailDto,
+  type TenantId,
+  type ContactId,
+  valueAt,
+  DbFailure,
+} from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { emailWordsFrom } from "./sheet";
 import { moveSend, type Db, type ReachOutSendInsert, type ReachOutSendRow, withdrawEmail } from "./reach-out";
@@ -17,7 +24,7 @@ export async function getLeadEmailOnItsWay(db: Db, tenantId: TenantId, leadId: s
     .eq("lead_id", leadId)
     .is("sequence_id", null)
     .eq("state", "queued");
-  if (error) throw new Error(`cannot read the lead's emails: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead's emails");
   let waiting = false;
   for (const s of data ?? []) {
     const email = s.message_id ? await findWrittenEmail(db, { tenantId, id: s.message_id }) : null;
@@ -46,7 +53,7 @@ export async function keepLeadEmail(
       id: params.message.id ?? "",
       reason: "send_moved",
     }).catch(() => false);
-  if (error.code !== "23505") throw new Error(`cannot keep the lead's email: ${error.message}`);
+  if (error.code !== "23505") throw new DbFailure(error, "cannot keep the lead's email");
   return "on_its_way";
 }
 
@@ -61,7 +68,7 @@ export async function listLeadEmails(db: Db, tenantId: TenantId, leadId: string)
     .eq("lead_id", leadId)
     .is("sequence_id", null)
     .order("created_at", { ascending: true });
-  if (error) throw new Error(`cannot read the lead's emails: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead's emails");
   return (data ?? []).map((s) => ({
     id: s.id,
     state: s.state,
@@ -80,7 +87,7 @@ export async function readMonthSent(db: Db, tenantId: TenantId, at: Date): Promi
     p_tenant_id: tenantId,
     p_at: at.toISOString(),
   });
-  if (error) throw new Error(`cannot count the month's cold emails: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count the month's cold emails");
   if (typeof data !== "number") throw new Error("cannot count the month's cold emails: the database answered no count");
   return data;
 }
@@ -95,7 +102,7 @@ export async function insertQueuedEmail(db: Db, row: MessageInsert): Promise<"wr
   const { error } = await db.from("messages").insert(row);
   if (!error) return "written";
   if (error.code === "23505") return "exists";
-  throw new Error(`cannot write the email: ${error.message}`);
+  throw new DbFailure(error, "cannot write the email");
 }
 
 /** An email a writer wrote before, as it was frozen: its thread, its person, where it stands, and whom it names. */
@@ -116,7 +123,7 @@ export async function findWrittenEmail(
     .eq("tenant_id", params.tenantId)
     .eq("id", params.id)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the written email: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the written email");
   if (!data) return null;
   const to = valueAt(data.meta, "email", "request", "to");
   return {
@@ -136,7 +143,7 @@ export async function sendJobScheduled(db: Db, params: { tenantId: TenantId; mes
     .eq("kind", "outbound_send")
     .eq("payload->>message_id", params.messageId)
     .limit(1);
-  if (error) throw new Error(`cannot read the email's job: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the email's job");
   return (data ?? []).length > 0;
 }
 
@@ -167,8 +174,8 @@ export async function sendStanding(db: Db, reachOutSend: ReachOutSendRow): Promi
       .eq("tenant_id", reachOutSend.tenant_id)
       .in("id", [reachOutSend.step_id ?? reachOutSend.sequence_id, reachOutSend.sequence_id]),
   ]);
-  if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
-  if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
+  if (run.error) throw new DbFailure(run.error, "cannot read the send's run");
+  if (chain.error) throw new DbFailure(chain.error, "cannot read the send's chain");
   const step = reachOutSend.step_id ? (chain.data ?? []).find((p) => p.id === reachOutSend.step_id) : undefined;
   return {
     run: run.data?.state ?? null,
@@ -196,7 +203,7 @@ export async function findEmailWords(
     .eq("id", templateId)
     .eq("channel", "email")
     .maybeSingle();
-  if (error) throw new Error(`cannot read the step's words: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the step's words");
   return data ? emailWordsFrom(data) : null;
 }
 
@@ -209,8 +216,8 @@ export async function findWorkspaceNameAndConfig(
     db.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
-  if (t.error) throw new Error(`cannot read the workspace: ${t.error.message}`);
-  if (cfg.error) throw new Error(`cannot read the workspace's configuration: ${cfg.error.message}`);
+  if (t.error) throw new DbFailure(t.error, "cannot read the workspace");
+  if (cfg.error) throw new DbFailure(cfg.error, "cannot read the workspace's configuration");
   return { name: t.data?.name ?? null, config: cfg.data?.config ?? null };
 }
 
@@ -236,7 +243,7 @@ export async function findLeadSlots(
     .eq("tenant_id", tenantId)
     .eq("id", leadId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the lead: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead");
   return data;
 }
 
@@ -248,7 +255,7 @@ export async function findContactEmail(db: Db, tenantId: TenantId, contactId: Co
     .eq("tenant_id", tenantId)
     .eq("id", contactId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the person: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the person");
   return data?.email ?? null;
 }
 
@@ -263,7 +270,7 @@ export async function sendNow(
     .eq("tenant_id", params.tenantId)
     .eq("id", params.id)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the send: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the send");
   return data;
 }
 
@@ -279,7 +286,7 @@ export async function runHanded(db: Db, params: { tenantId: TenantId; id: string
     .eq("tenant_id", params.tenantId)
     .eq("id", params.id)
     .in("state", ["scheduled", "sending"]);
-  if (error) throw new Error(`cannot mark the run handed over: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot mark the run handed over");
 }
 
 /** A run whose first email is written: scheduled becomes sending, through its guard's own move. */
@@ -290,7 +297,7 @@ export async function runSending(db: Db, params: { tenantId: TenantId; id: strin
     .eq("tenant_id", params.tenantId)
     .eq("id", params.id)
     .eq("state", "scheduled");
-  if (error) throw new Error(`cannot start the run: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot start the run");
 }
 
 /** The email a step's send answers (D19): the lead's email on the step before, as its receipt stamped it. */
@@ -320,7 +327,7 @@ export async function findParentEmail(
     .eq("state", "sent")
     .order("sent_at", { ascending: false })
     .limit(1);
-  if (error) throw new Error(`cannot read the step before's send: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the step before's send");
   const id = sends?.[0]?.message_id;
   if (!id) return null;
   const { data: m, error: me } = await db
@@ -359,7 +366,7 @@ export async function recordLeadAddressBounced(
     .eq("tenant_id", params.tenantId)
     .eq("id", params.leadId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the lead whose address bounced: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead whose address bounced");
   if (!lead || lead.erased_at || lead.blanked_at || lead.email_state === "invalid") return false;
   const { data: moved, error: e2 } = await db
     .from("leads")

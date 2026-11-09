@@ -1,5 +1,5 @@
 /** One customer's whole record, as the export writes it. */
-import { recordOrEmpty, type ContactId } from "@chanlytics/contracts";
+import { recordOrEmpty, type ContactId, DbFailure } from "@chanlytics/contracts";
 import type { MessageDto, TenantId } from "@chanlytics/contracts";
 import { mediaPublic, toCallDto } from "@/server/conversations/dto";
 import { consentChangeOf, type BundleReaders } from "@/server/export/bundle";
@@ -19,7 +19,7 @@ export function customerRecord(
   const { supabase } = ctx;
   const rows = async <T>(q: PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> => {
     const { data, error } = await q;
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     return data ?? [];
   };
   return {
