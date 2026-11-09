@@ -67,6 +67,12 @@ budget, so a slow runner does not flake it and a read gone quadratic still shows
 Read at 60f6c43d05 on a quiet runner: Found, Fit, Rated and Business 232 to 283 ms, one search's queue 167, counts 405, the queue 641. Each
 is good to about half again between runners.
 
+That line caught a fault of its own on 8 Nov 2026. On 3 of 44 runs every read that asks for a place took 5 to 8 s, and `places_everyone` up
+to 24, over the same blocks. It was read first as JIT, then as a slow runner; the slowest machine of the 44 read the queue in 968 ms, and one
+of the three was among the quickest. The planner's guess of how many leads a list holds falls as lists are added across every workspace, and
+low enough it read a list against everyone enrolled, pair by pair. One walk is now read against another by a hash of it, which no guess
+chooses (00568). The test seeds 30,000 other lists, so every run reads under that guess, and a read past the line prints the plan it got.
+
 ## What it costs
 
 A whole-view read of the queue reads every open place of the workspace, and a first page waits on counts that read the same. That is the 405
