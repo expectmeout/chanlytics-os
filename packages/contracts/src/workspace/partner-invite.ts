@@ -5,7 +5,7 @@
  * is sent. The fourteen days and the rule on credit are the database's (00225); they are restated here only to be
  * said, never enforced.
  */
-import { dayWords } from "./partner";
+import { partnerDayWords } from "./partner/earnings";
 
 /** How long an owner's invitation to a partner is open (00225). */
 export const PARTNER_INVITE_DAYS = 14;
@@ -22,7 +22,7 @@ const AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
 export function partnerCodeFrom(raw: string): string {
   const typed = raw.trim();
   const inLink = CODE_IN_LINK.exec(typed);
-  return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
+  return ((inLink ? inLink[1] : typed) ?? "").replace(AROUND_A_CODE, "").toLowerCase();
 }
 
 /** The workspace's partner and the invitation waiting, as `GET team/partner` carries them to its owner. */
@@ -85,38 +85,38 @@ export interface WorkspacePartnerVM {
 }
 
 export function workspacePartnerVM(dto: WorkspacePartnerDto, nowMs: number = Date.now()): WorkspacePartnerVM {
-  const p = dto.partner;
-  if (p)
+  const partner = dto.partner;
+  if (partner)
     return {
       state: "partner",
-      sentence: p.seated
-        ? `${p.code} is your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords(p.since)}. Remove them in the team above at any time.`
-        : `${p.code} was your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords(p.since)}, and are no longer on your team. A workspace has one partner.`,
+      sentence: partner.seated
+        ? `${partner.code} is your partner: they ${ORIGIN_WORDS[partner.origin] ?? "joined"}, on ${partnerDayWords(partner.since)}. Remove them in the team above at any time.`
+        : `${partner.code} was your partner: they ${ORIGIN_WORDS[partner.origin] ?? "joined"}, on ${partnerDayWords(partner.since)}, and are no longer on your team. A workspace has one partner.`,
       canInvite: false,
       canWithdraw: false,
-      seated: p.seated,
+      seated: partner.seated,
     };
-  const i = dto.invitation;
-  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false, seated: false };
-  if (i.declinedAt)
+  const invitation = dto.invitation;
+  if (!invitation) return { state: "none", sentence: null, canInvite: true, canWithdraw: false, seated: false };
+  if (invitation.declinedAt)
     return {
       state: "declined",
-      sentence: `${i.code} declined on ${dayWords(i.declinedAt)}.`,
+      sentence: `${invitation.code} declined on ${partnerDayWords(invitation.declinedAt)}.`,
       canInvite: true,
       canWithdraw: false,
       seated: false,
     };
-  if (Date.parse(i.expiresAt) <= nowMs)
+  if (Date.parse(invitation.expiresAt) <= nowMs)
     return {
       state: "expired",
-      sentence: `Your invitation to ${i.code} expired on ${dayWords(i.expiresAt)}.`,
+      sentence: `Your invitation to ${invitation.code} expired on ${partnerDayWords(invitation.expiresAt)}.`,
       canInvite: true,
       canWithdraw: false,
       seated: false,
     };
   return {
     state: "waiting",
-    sentence: `Waiting for ${i.code} to accept: asked on ${dayWords(i.sentAt)}, open until ${dayWords(i.expiresAt)}.`,
+    sentence: `Waiting for ${invitation.code} to accept: asked on ${partnerDayWords(invitation.sentAt)}, open until ${partnerDayWords(invitation.expiresAt)}.`,
     canInvite: false,
     canWithdraw: true,
     seated: false,
@@ -124,8 +124,8 @@ export function workspacePartnerVM(dto: WorkspacePartnerDto, nowMs: number = Dat
 }
 
 /** A workspace asking the partner, as its row on their pane says it. */
-export const partnerInvitationWords = (i: PartnerInvitationDto): string =>
-  `${i.workspace.trim() || "A workspace"} asks you to be its partner. Open until ${dayWords(i.expiresAt)}.`;
+export const partnerInvitationWords = (partnerInvitation: PartnerInvitationDto): string =>
+  `${partnerInvitation.workspace.trim() || "A workspace"} asks you to be its partner. Open until ${partnerDayWords(partnerInvitation.expiresAt)}.`;
 
 /** What joining did, in the partner's flash: whether its plan earns them a share. */
 export function partnerJoinedWords(workspace: string, earns: boolean): string {
@@ -139,11 +139,11 @@ export function partnerJoinedWords(workspace: string, earns: boolean): string {
  * The email a partner is sent when a workspace asks for them: which workspace, what joining means, and where to
  * answer. Plain text; every fact is the invitation's own.
  */
-export function partnerInviteEmail(i: { workspace: string; expiresAt: string; signInUrl: string }): {
+export function partnerInviteEmail(input: { workspace: string; expiresAt: string; signInUrl: string }): {
   subject: string;
   body: string;
 } {
-  const workspace = i.workspace.trim() || "A workspace";
+  const workspace = input.workspace.trim() || "A workspace";
   return {
     subject: `${workspace} asks you to be its partner on Chanlytics`,
     body: [
@@ -151,9 +151,9 @@ export function partnerInviteEmail(i: { workspace: string; expiresAt: string; si
       "",
       "A workspace that has not paid for a plan yet earns you your share once it does, as one you brought. One that was already paying earns you none.",
       "",
-      `Sign in and open Settings › Partner to join or decline: ${i.signInUrl}`,
+      `Sign in and open Settings › Partner to join or decline: ${input.signInUrl}`,
       "",
-      `Open until ${dayWords(i.expiresAt)}. If you weren't expecting this, you can ignore it: nothing changes unless you join.`,
+      `Open until ${partnerDayWords(input.expiresAt)}. If you weren't expecting this, you can ignore it: nothing changes unless you join.`,
     ].join("\n"),
   };
 }

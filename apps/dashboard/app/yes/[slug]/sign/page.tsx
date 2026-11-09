@@ -3,8 +3,8 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { deskSignMetadata, deskSignVM } from "@chanlytics/contracts";
-import { consentPageFor } from "@/server/public/consent-page";
-import { printableOrigin } from "@/server/origin";
+import { findConsentPage } from "@/server/public/consent-page";
+import { printableOrigin } from "@/server/shared/origin";
 import { DeskSign } from "@/yes/DeskSign";
 
 /**
@@ -21,7 +21,7 @@ import { DeskSign } from "@/yes/DeskSign";
 // Named as the sheet it is, for the business on it, or Not found (the wiring audit's N14 and N21); the rule is contracts'.
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  return deskSignMetadata(await consentPageFor(slug));
+  return deskSignMetadata(await findConsentPage(slug));
 }
 // Rendered for each request, as it always was: it reads its slug and the workspace's record before anything is drawn,
 // and a business's page must say what is true now. Under cacheComponents a page that reads before it draws may block,
@@ -30,7 +30,7 @@ export const instant = false;
 
 export default async function DeskSignPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const facts = await consentPageFor(slug);
+  const facts = await findConsentPage(slug);
   if (!facts) notFound();
   const vm = deskSignVM(facts);
   // The addresses are PRINTED, so they come from the allow-list and never from the request's own headers: a sign

@@ -4,19 +4,26 @@
  * and each of these is one a reader could return. A state the model already draws is data here; a state a feature lane draws
  * is data too, so the lane starts from something to look at.
  *
- *   running      the default: four ads, and one the owner made on the platform itself (read-only here)
+ *   running      what a demo opens on: four ads, and one the owner made on the platform itself (read-only here)
  *   needs-you    a turned-down ad, a declined card, an ad paused in its platform, a price Services changed, a lapsing permission
  *   finished     an ad ended two days ago (still settling) and one that spent its total and stopped twenty days ago
  *   no-calendar  running, but no calendar link: nobody can be counted as booked
  *   setting-up   running, and one ad being made on its platform and one that could not be finished
  *   no-ads       Meta connected with no payment method yet, and no ad
  *   choose       Meta has three accounts to choose from; nothing else is connected
- *   v0           nothing connected: how new people first reached the business
+ *   v0           nothing connected, what a preview opens on: how new people first reached the business, a preview's its own (first-touch.ts)
  *   reading      running, while Meta's and Google's numbers are being read
  *   failed       running, but Meta's numbers could not be read since yesterday evening
+ *
+ * The fixtures stay as they are written, dated 11 Oct 2026 and of a made-up studio, so a test reads them so; a page draws one as of
+ * now, and in a workspace's preview as that business's (`exampleAt`).
  */
+import { addDays, appointmentWords, daysBetween, zoneDayKey, DAY_KEY } from "@chanlytics/contracts";
 import type { AdAccountRead, AdPersonRead, AdRead, AdsRead } from "@chanlytics/contracts";
-import type { AdsExample } from "@chanlytics/contracts/ads-page";
+import { EXAMPLE, dayShort } from "./model/words";
+import type { AdsExample } from "./model/words";
+import { DEMO_ZONE } from "../../demo-zone";
+import type { AdsOwn } from "./own";
 import {
   BUSINESS,
   NEAR_ME,
@@ -180,11 +187,11 @@ function v0(): AdsRead {
     firstTouch: {
       since: "2026-10-03",
       rows: [
-        { label: "An ad", n: 5, own: true },
-        { label: "WhatsApp", n: 3, own: false },
-        { label: "Phone", n: 2, own: false },
-        { label: "Text", n: 2, own: false },
-        { label: "Not recorded", n: 2, own: false },
+        { label: "An ad", n: 5, own: true, recorded: true },
+        { label: "WhatsApp", n: 3, own: false, recorded: true },
+        { label: "Phone", n: 2, own: false, recorded: true },
+        { label: "Text", n: 2, own: false, recorded: true },
+        { label: "Not recorded", n: 2, own: false, recorded: false },
       ],
     },
   };
@@ -212,3 +219,101 @@ export const EXAMPLE_READS: Record<AdsExample, () => AdsRead> = {
   reading,
   failed: readFailed,
 };
+
+// ---------------------------------------------------------------------------------------------------------------------
+// An example, as a page draws it
+
+/** A fixture with every word in it run through `each`, whichever field holds it, so a field added later cannot be left behind. */
+const everyWord = <T>(fixture: T, each: (word: string) => string): T =>
+  JSON.parse(JSON.stringify(fixture), (_key, word: unknown) => (typeof word === "string" ? each(word) : word)) as T;
+
+/**
+ * Words for words, in one pass: what goes in is never swapped again, so a business called Harbor Street keeps its name, and the
+ * longest goes first, so the studio's street is not found inside its name.
+ */
+function swapsOf(swaps: ReadonlyMap<string, string>): (word: string) => string {
+  const fromFirst = [...swaps.keys()].sort((a, b) => b.length - a.length);
+  const any = new RegExp(fromFirst.map((from) => from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+  return (word) => word.replace(any, (from) => swaps.get(from) ?? from);
+}
+
+/**
+ * A fixture as a workspace's preview draws it: the business the workspace says it is, its zone, its word for an appointment and its
+ * Services, around the same example ads and people. The accounts stay plainly examples, since none is connected, and nothing is made
+ * up for it: no posts, no rating and no first-touch counts, where none has been read (the page reads its own: first-touch.ts). What it
+ * has not said reads as what is missing.
+ */
+function ownedBy(read: AdsRead, own: AdsOwn): AdsRead {
+  const w = appointmentWords(own.appointmentWord);
+  const said = swapsOf(
+    new Map([
+      [BUSINESS.page, own.page ?? own.site ?? BUSINESS.site],
+      [BUSINESS.name, own.name],
+      [BUSINESS.address, own.address ?? EXAMPLE.preview.yourAddress],
+      [BUSINESS.street, own.street ?? EXAMPLE.preview.yourAddress],
+      [BUSINESS.hours, own.hours ?? EXAMPLE.preview.yourHours],
+      [BUSINESS.site, own.site ?? BUSINESS.site],
+      [BUSINESS.line, own.line ?? BUSINESS.line],
+      [DEMO_ZONE, own.timezone ?? DEMO_ZONE],
+      ["appointments", w.many],
+      ["appointment", w.one],
+      ["Appointments", w.Many],
+      ["Appointment", w.Title],
+    ]),
+  );
+  const accounts = everyWord(read.accounts, (word) => word.replaceAll(BUSINESS.name, EXAMPLE.pill));
+  const owned = everyWord({ ...read, accounts }, said);
+  return {
+    ...owned,
+    ads: owned.ads.map((ad) => ({ ...ad, shownAs: { ...ad.shownAs, handle: null } })),
+    posts: [],
+    rating: null,
+    firstTouch: null,
+    neverQuotePrices: own.neverQuotePrices,
+    services: own.services.length > 0 ? own.services : owned.services,
+  };
+}
+/** A moment as a read writes it (ads.ts): `2026-10-11T09:19:00-04:00`. */
+const ISO_MOMENT = /^\d{4}-\d{2}-\d{2}T/;
+
+/**
+ * A fixture as it reads at `now`, on the business's `today`. Each day moves by the whole days to that today, and each moment by the
+ * time since the fixture was read, so it was read just now and nothing it says has happened is still to come (9:19 AM, seen at 8:29).
+ * They are found by their shape and not by name. An ad's name is the one place a fixture says a day in words: a new ad's says the day
+ * it starts.
+ */
+function movedTo(read: AdsRead, today: string, now: number): AdsRead {
+  const days = daysBetween(read.today, today);
+  const since = now - Date.parse(read.readAt);
+  const moved = everyWord(read, (word) => {
+    if (DAY_KEY.test(word)) return addDays(word, days);
+    return ISO_MOMENT.test(word) ? new Date(Date.parse(word) + since).toISOString() : word;
+  });
+  const named = (ad: AdRead): AdRead => ({
+    ...ad,
+    name: ad.name.replace(dayShort(addDays(ad.startDay, -days)), dayShort(ad.startDay)),
+  });
+  return { ...moved, ads: moved.ads.map(named) };
+}
+
+/** An example, as the business's where it has one (own.ts), else the studio's whole. */
+function whoseExample(example: AdsExample, own: AdsOwn | null): AdsRead {
+  const read = EXAMPLE_READS[example]();
+  return own ? ownedBy(read, own) : read;
+}
+
+/** An example as of `now`, and the business's where it has one (own.ts): the one read every page draws, so an ad says the same on each. */
+export function exampleAt(example: AdsExample, now: number, own: AdsOwn | null): AdsRead {
+  const read = whoseExample(example, own);
+  return movedTo(read, zoneDayKey(now, read.timezone), now);
+}
+
+/**
+ * The same example on a `today` the caller already holds: Reports', the business's (ads-demo.ts). Where the read is the business's,
+ * it is the day `exampleAt` moves to. Where the studio's sample stands whole (a preview whose business has said no name) the sample
+ * is in New York, and on its own today Reports' days would cut it at New York's midnight, a day apart from the business's for the hours
+ * between the two: its latest day left out and an older one counted.
+ */
+export function exampleOn(example: AdsExample, today: string, now: number, own: AdsOwn | null): AdsRead {
+  return movedTo(whoseExample(example, own), today, now);
+}

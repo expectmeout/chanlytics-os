@@ -37,7 +37,7 @@
  * :root:has(.tbn-pop)), over a sheet's Save.
  */
 import { GLYPHS, SHEET_SERVICES } from "./kit-shared.mjs";
-import { legacyDocument } from "../serve-legacy.mjs";
+import { mockupDocument } from "../serve-mockup.mjs";
 
 /**
  * The names the kit's markup carries that classes.json lists as neither a class nor a modifier. A kit entry names one
@@ -136,10 +136,10 @@ const recDisclosureGroup = ({ open = false } = {}) =>
   `</div></div></div>`;
 
 /** A row of a list of properties (RecordDisclosure look="row", the lead sheet's lines): its label, its answer, and what it opens. */
-const recDisclosureRow = ({ open = false } = {}) =>
+const recDisclosureRow = ({ open = false, label = "Contact", value = "hello@example.com" } = {}) =>
   `<div class="rec-disclosure" data-open="${open}" data-look="row">` +
   `<button type="button" class="rec-disclosure-press" aria-expanded="${open}">` +
-  `<span class="rec-disclosure-label">Contact</span><span class="rec-disclosure-value">hello@example.com</span>` +
+  `<span class="rec-disclosure-label">${label}</span><span class="rec-disclosure-value">${value}</span>` +
   `${icon("chevron", 12)}</button>` +
   `<div class="rec-disclosure-panel" role="region"><div class="rec-disclosure-inner">` +
   `<p>Checked · the sequence writes here</p></div></div></div>`;
@@ -386,10 +386,16 @@ const tableHeading = (c, t) => {
       `${words}<span class="dtable-arrow" aria-hidden="true"${here ? "" : ' data-idle="true"'}>` +
       `${here ? (t.sortDir === "asc" ? "▲" : "▼") : "↕"}</span></button>`
     : `<span class="dtable-words">${words}</span>`;
+  // A heading a page gave a menu (head.tsx): its caret, lit while a filter in it is on.
+  const menu = t.menus?.[c.key];
+  const caret = menu
+    ? `<button type="button" class="dtable-menu" aria-label="${c.label}: filter and hide" aria-haspopup="menu" aria-expanded="${menu === "open"}"${menu === "on" ? ' data-on=""' : ""}>${icon("chevron-down", 11)}</button>`
+    : "";
   return (
     `<th data-key="${c.key}"${tableAttr("data-align", c.align)}${tableAttr("data-pin", pin)}${c.sorts ? ' data-sorts=""' : ""}` +
+    `${menu ? ' data-menu=""' : ""}${menu === "on" ? ' data-filtering=""' : ""}` +
     `${tableAttr("aria-sort", here ? (t.sortDir === "asc" ? "ascending" : "descending") : undefined)}` +
-    `${movable ? ' draggable="true"' : ""}${tableAttr("data-drop", t.drop?.[c.key])}>${inner}` +
+    `${movable ? ' draggable="true"' : ""}${tableAttr("data-drop", t.drop?.[c.key])}>${inner}${caret}` +
     `${t.desk && !c.fixed && c.label ? tableEdge(c, { dragging: t.dragging === c.key }) : ""}</th>`
   );
 };
@@ -444,6 +450,31 @@ const tableGroup = (g, t, span) =>
  * (`data-dragging`), a heading a column is dropped on (`data-drop`), a member's widths (`data-sizing`), and the head's
  * box with some of the rows picked (`data-gx-indeterminate`, which the gallery's script makes the box's state).
  */
+/** A cell's two lines (kit/table/lines.tsx): the fact, then what qualifies it; a number's stand at the column's end. */
+const tableLines = (top, sub = null, end = false, open = false) =>
+  `<span class="dtable-lines"${end ? ' data-end=""' : ""}${open ? ' data-open=""' : ""}>` +
+  `<span class="dtable-line-top">${top}</span>` +
+  `${sub ? `<span class="dtable-line-sub">${sub}</span>` : ""}</span>`;
+/**
+ * A table of such cells at a row height: two lines, one fact alone left open, two lines left open (a lead's Reach), a
+ * line its column cuts, and a number's at the column's end; its box as it stands once rows have passed under its heads
+ * (data-under).
+ */
+const dtableLines = (density) =>
+  `<div class="dtable-wrap" data-density="${density}"><div class="dtable-scroll" data-under>` +
+  `<table class="dtable" aria-label="People" data-fixed="true" data-density="${density}" data-sizing="fill">` +
+  `<colgroup><col data-col="name" /><col data-col="stands" width="260" /><col data-col="visits" width="120" /></colgroup>` +
+  `<thead><tr><th data-key="name" data-pin="start"><span class="dtable-words">Person</span></th>` +
+  `<th data-key="stands"><span class="dtable-words">Where they stand</span></th>` +
+  `<th data-key="visits" data-align="end"><span class="dtable-words">Visits</span></th></tr></thead>` +
+  `<tbody data-dims>${TABLE_PEOPLE.map(
+    (r, i) =>
+      `<tr data-index="${i}" id="person-${r.id}" tabindex="${i === 0 ? 0 : -1}">` +
+      `<td data-col="name" data-pin="start">${r.name}</td>` +
+      `<td data-col="stands">${tableLines(r.note, i === 2 ? null : "What qualifies it, on a line its column cuts where it ends", false, i === 2)}</td>` +
+      `<td data-col="visits">${tableLines(r.visits, "visits", true, i === 1)}</td></tr>`,
+  ).join("")}</tbody></table></div><div class="dtable-foot"><span>3 people</span></div></div>`;
+
 const dtable = ({
   desk = true,
   rows = TABLE_PEOPLE,
@@ -459,12 +490,14 @@ const dtable = ({
   total = rows.length,
   shown = rows.length,
   scrolled = false,
+  under = false,
   more = false,
   dragging = null,
   drop = null,
   sized = false,
+  menus = null,
 } = {}) => {
-  const t = { desk, selectable, picked, cursor, sortBy, sortDir, dragging, drop };
+  const t = { desk, selectable, picked, cursor, sortBy, sortDir, dragging, drop, menus };
   const columns = desk ? TABLE_COLUMNS : [{ key: "card", label: "Person", fill: true }];
   const span = columns.length + (selectable ? 1 : 0);
   const count = groups ? groups.reduce((n, g) => n + g.rows.length, 0) : rows.length;
@@ -503,7 +536,7 @@ const dtable = ({
       `${rows.length === 0 ? empty : ""}</tbody>`;
   return (
     `<div class="dtable-wrap${picked.length > 0 ? " selecting" : ""}"${desk ? ` data-density="${density}"` : ""}>` +
-    `<div class="dtable-scroll" data-testid="people-table-scroll"${scrolled ? " data-scrolled" : ""}${more ? " data-more" : ""}>` +
+    `<div class="dtable-scroll" data-testid="people-table-scroll"${scrolled ? " data-scrolled" : ""}${under ? " data-under" : ""}${more ? " data-more" : ""}>` +
     `<table class="dtable" aria-label="People"${tableAttr("aria-rowcount", indexed ? rows.length + 1 : undefined)}` +
     `${desk ? ` data-fixed="true" data-density="${density}"` : ""}${groups ? ' data-grouped="true"' : ""}` +
     `${stages ? ' data-groups="stages"' : ""}${sized ? ' data-sizing="sized"' : desk ? ' data-sizing="fill"' : ""}>` +
@@ -817,7 +850,7 @@ const kitMenu = () =>
     tone: " more-item-two",
     after: `<span class="more-item-meta">Goes the day before, at the time they booked</span>`,
   }) +
-  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item">` +
+  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item more-item-two">` +
   `<span class="more-glyph" aria-hidden="true">${icon("pause", 16)}</span>` +
   `<span class="more-item-label">Snooze</span><span class="more-item-meta">Until tomorrow, 10:00 AM</span></button>` +
   `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item danger">` +
@@ -930,6 +963,31 @@ const kitMenuLines = () =>
     { hint: "Sample" },
   ) +
   `</div><p class="more-cap">Not offered: 2 promotions (Fern hasn't said yes to offers).</p></div></div></div>`;
+
+/**
+ * The kit's Menu as a thread's sheet, open: who it is about at its head (their face, their name at 600, how to reach them,
+ * the chevron to their page at its end), an act on its square with the same chevron, and times with what is said of them
+ * all under them, on the edge their words stand on.
+ */
+const kitMenuWho = () =>
+  `<button type="button" tabindex="0" aria-label="More" aria-haspopup="menu" aria-expanded="true" ` +
+  `class="btn btn-icon btn-sm btn-ghost">${icon("more", 14)}</button>` +
+  `<div class="more-backdrop" role="presentation" data-open="true"></div>` +
+  `<div class="pop-place" role="presentation" ${placed("top: 56px; left: 16px;")}>` +
+  `<div class="more-menu align-right" role="menu" tabindex="-1">` +
+  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item">` +
+  `<span class="face face-xl" aria-hidden="true"><span>SO</span></span>` +
+  `<span class="more-item-label">Sam Ortega</span><span class="more-item-meta">sam@example.com</span>` +
+  `<span class="more-item-hint">${icon("chevron", 13)}</span></button>` +
+  `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
+  `<button type="button" aria-disabled="false" role="menuitem" tabindex="-1" class="more-item">` +
+  `<span class="more-glyph" aria-hidden="true">${icon("user", 16)}</span>` +
+  `<span class="more-item-label">See what it knows</span><span class="more-item-hint">${icon("chevron", 13)}</span></button>` +
+  `<div class="more-divider" role="separator" aria-orientation="horizontal"></div>` +
+  kitItem("calendar", "In an hour") +
+  kitItem("calendar", "Tomorrow") +
+  `<p class="more-cap">They hear nothing while it is snoozed.</p>` +
+  `</div></div>`;
 
 /**
  * The kit's Popover, open under its control: Base UI's dialog on the panel's pop, on the positioner that writes where it
@@ -1375,6 +1433,13 @@ const kitFieldWords = () =>
   `<textarea class="rec-input rec-input-words" rows="1" aria-label="Your reply to Ana" placeholder="Write to Ana…">` +
   `Friday at two works. See you then.</textarea></div></div>`;
 
+/** A box of sentences that grows with its words (RecordField `grows`), and a finger has no grip to drag. */
+const recFieldGrows = () =>
+  `<div class="rec-field"><label><span class="rec-field-label">Your offer</span>` +
+  `<textarea class="rec-input rec-input-grows" rows="3" placeholder="What you sell">` +
+  `Evening cleaning for clinics, so every morning starts spotless and nobody has to ask twice about the rooms that were missed.` +
+  `</textarea></label></div>`;
+
 /* ---- the families ---- */
 
 /** The kit's families and their entries. Every class in classes.json is drawn by at least one entry. */
@@ -1439,8 +1504,9 @@ export const FAMILIES = [
         html:
           `<button type="button" class="btn btn-touch btn-outline">${icon("refresh", 14)}Hand back</button> ` +
           `<button type="button" class="btn btn-sm btn-soft" aria-expanded="false">Signature${icon("chevron-down", 10)}</button> ` +
+          `<button type="button" class="btn btn-sm btn-soft" aria-expanded="true">Signature${icon("chevron-down", 10)}</button> ` +
           `<button type="button" class="btn btn-icon btn-touch btn-soft" aria-label="More">${icon("more", 18)}</button> ` +
-          `<button type="button" class="btn btn-lg btn-ink">Send now</button>`,
+          `<button type="button" class="btn btn-lg btn-ink">${icon("check", 14)}Send now</button>`,
       },
       {
         // A left chevron is the right one turned (kit.css .icon-turned): a walk's ‹ › between two people.
@@ -1497,6 +1563,8 @@ export const FAMILIES = [
           `<div class="gx-row"><span class="pill pill-accent pill-lit" data-tone="accent">Needs you</span>` +
           `<span class="pill pill-warn pill-lit" data-tone="warn">${icon("pause", 11)}Sends in 0:42</span>` +
           `<span class="pill pill-ok pill-lit" data-tone="ok">${icon("check", 11)}Handled</span>` +
+          `<span class="pill pill-info pill-lit" data-tone="info">Snoozed</span>` +
+          `<span class="pill pill-danger pill-lit" data-tone="danger">Didn't send</span>` +
           `<span class="pill pill-lit" data-tone="plain">Archived</span></div>`,
       },
       { id: "pill-dot", html: `<span class="pill pill-ok" data-tone="ok"><span class="dot"></span>Confirmed</span>` },
@@ -2039,7 +2107,12 @@ export const FAMILIES = [
       { id: "subtabs-capsule", html: kitSubtabsCapsule("About this lead", ["Why", "Contact", "Sequence"]) },
       {
         id: "subtabs-chips",
-        html: kitSubtabsChips("Need you, by what it asks of you", [["All"], ["Reply", 3], ["Call", 1], ["Approve", 1]]),
+        html: kitSubtabsChips("Need you, by what it asks of you", [
+          ["All", 5],
+          ["Reply", 3],
+          ["Call", 1],
+          ["Approve", 1],
+        ]),
       },
     ],
   },
@@ -2181,6 +2254,7 @@ export const FAMILIES = [
         id: "rec-field",
         html: recField("Booking link", "https://example.com/book", "Sent instead of booking a visit itself."),
       },
+      { id: "rec-field-grows", html: recFieldGrows() },
       {
         // The browser's own select in the box (kit.css, select.rec-input): for a form that can import no part of the kit.
         id: "rec-field-native-select",
@@ -2389,6 +2463,10 @@ export const FAMILIES = [
       { id: "rec-disclosure-group-open", html: recCard(recDisclosureGroup({ open: true })) },
       { id: "rec-disclosure-row", html: recCard(recDisclosureRow()) },
       { id: "rec-disclosure-row-open", html: recCard(recDisclosureRow({ open: true })) },
+      {
+        id: "rec-disclosure-rows",
+        html: recCard(recDisclosureRow() + recDisclosureRow({ label: "Sequence", value: "Bookstore intro" })),
+      },
       {
         id: "rec-inline-saving",
         html: recCard(
@@ -2647,24 +2725,7 @@ export const FAMILIES = [
           `<span class="face" aria-hidden="true"><span>SO</span></span></div>`,
       },
       { id: "face-glyph", html: `<span class="face face-glyph" aria-hidden="true">${icon("phone", 12)}</span>` },
-      {
-        id: "face-tile",
-        html:
-          `<div class="gx-row">` +
-          ["a", "b", "c", "d"]
-            .map((t) => `<span class="face face-tile face-tile-${t}" aria-hidden="true"><span>LA</span></span>`)
-            .join("") +
-          `</div>`,
-      },
-      {
-        id: "face-hue",
-        html:
-          `<div class="gx-row">` +
-          ["a", "b", "c", "d", "e", "f"]
-            .map((t) => `<span class="face face-lg face-hue face-hue-${t}" aria-hidden="true"><span>MC</span></span>`)
-            .join("") +
-          `</div>`,
-      },
+      { id: "face-tile", html: `<span class="face face-tile" aria-hidden="true"><span>LA</span></span>` },
       {
         id: "face-photo",
         html: `<span class="face" aria-hidden="true"><span>AR</span><img class="face-photo" src="${PHOTO}" alt=""></span>`,
@@ -2875,10 +2936,11 @@ export const FAMILIES = [
       "The kit's Menu (surfaces/kit/menu/menu.tsx), open: Base UI's menu on its positioner (.pop-place), a group under " +
       "its heading, a sentence under its item's words, a line, a door and the danger item; a set to choose one of, the " +
       "tick beside the one chosen; a set whose options say a line under their words, under the menu's head; and a " +
-      "set of switches it stays open over, ticked while on, one kept on by the page and refused; and one menu its " +
-      "rows' controls share, which says the row that opened it.",
+      "set of switches it stays open over, ticked while on, one kept on by the page and refused; one menu its " +
+      "rows' controls share, which says the row that opened it; and a thread's sheet, headed by who it is about.",
     entries: [
       { id: "menu-kit", stage: "pop", html: kitMenu() },
+      { id: "menu-kit-who", stage: "pop", html: kitMenuWho() },
       { id: "menu-kit-caption", stage: "pop", html: kitMenuCaption() },
       { id: "menu-kit-set", stage: "pop", html: kitMenuSet() },
       { id: "menu-kit-lines", stage: "pop", html: kitMenuLines() },
@@ -3080,7 +3142,11 @@ export const FAMILIES = [
         }),
       },
       { id: "dtable-empty", width: "desk", html: dtable({ rows: [], selectable: false, filtered: true, total: 12 }) },
-      { id: "dtable-groups", width: "desk", html: dtable({ groups: TABLE_STAGES, stages: true, selectable: false }) },
+      {
+        id: "dtable-groups",
+        width: "desk",
+        html: dtable({ groups: TABLE_STAGES, stages: true, selectable: false, under: true }),
+      },
       { id: "dtable-long", width: "desk", html: dtable({ rows: TABLE_MANY, selectable: false, shown: 40 }) },
       { id: "dtable-cards", width: "phone", html: dtable({ desk: false, cursor: "a1", picked: ["b2"] }) },
       {
@@ -3088,6 +3154,27 @@ export const FAMILIES = [
         width: "phone",
         html: dtable({ desk: false, groups: TABLE_STAGES, stages: true, selectable: false }),
       },
+    ],
+  },
+  {
+    family: "Table's heading menus",
+    about:
+      "A heading a page gave a menu wears a caret: at rest, with its menu open, and lit while a filter in it is on. The " +
+      "menu is the kit's.",
+    entries: [
+      { id: "dtable-menus", width: "desk", html: dtable({ menus: { name: "open", visits: "rest", note: "on" } }) },
+    ],
+  },
+  {
+    family: "Table's two lines",
+    about:
+      "A cell's two lines (surfaces/kit/table/lines.tsx): the fact, then what qualifies it a step smaller in the dim " +
+      "ink, each on a line of its own and cut in its own column; one fact alone; a number's at the column's end; and, " +
+      "at the compact height, the second beside the first. The box wears data-under, as it does once rows have passed " +
+      "under its heads, which then paint the pane's solid.",
+    entries: [
+      { id: "dtable-lines", width: "desk", html: dtableLines("comfortable") },
+      { id: "dtable-lines-compact", width: "desk", html: dtableLines("compact") },
     ],
   },
   {
@@ -3144,6 +3231,10 @@ export const FAMILIES = [
         html: `<button type="button" class="line-clear" aria-label="Clear">${icon("x", 9)}</button>`,
       },
       {
+        id: "line-attach",
+        html: `<button type="button" class="line-attach" aria-label="Add a photo">${icon("plus", 15)}</button>`,
+      },
+      {
         id: "line-remove",
         html: `<button type="button" class="line-remove" aria-label="Delete">${icon("x", 10)}</button>`,
       },
@@ -3192,24 +3283,24 @@ export const FAMILIES = [
 
 /** Every <link> in the head of the mockup's document, as it stands: the fonts, then the tokens, the kit and the rest. */
 function documentLinks() {
-  const doc = legacyDocument();
+  const doc = mockupDocument();
   const head = doc.slice(doc.indexOf("<head>"), doc.indexOf("</head>"));
   return head.match(/<link\b[^>]*>/g) ?? [];
 }
 
-/** The app's own rules (legacy-bridge/legacy.css, less its @imports), served by the harness after every stylesheet. */
+/** The app's own rules (bridge/frame.css, less its @imports), served by the harness after every stylesheet. */
 const APP_RULES = '<link rel="stylesheet" href="/_hx/app.css" />';
 
 /**
  * The gallery's own layout, under gx-* and on tokens, so it reads in both themes. The shell holds the page to the
- * window with nothing to scroll (html.legacy-on, legacy.css); the gallery scrolls, so a full-page shot takes it all.
+ * window with nothing to scroll (html.frame-on, frame.css); the gallery scrolls, so a full-page shot takes it all.
  * The faces are named as the harness's fixture names them on the mockup's page (fixture-src.ts, `fonts`), which the
  * gallery does not run: the app names them through next/font (app/layout.tsx), and --font-sans and --font-mono read it.
  */
 const GALLERY_CSS = `
     :root { --font-geist: "Geist"; --font-geist-mono: "Geist Mono"; }
-    html.legacy-on, html.legacy-on body { height: auto; overflow: visible; }
-    html.legacy-on #root { height: auto; }
+    html.frame-on, html.frame-on body { height: auto; overflow: visible; }
+    html.frame-on #root { height: auto; }
     .gx { max-width: var(--measure-wide); margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-16); display: flex; flex-direction: column; gap: var(--space-10); }
     .gx-head, .gx-family { display: flex; flex-direction: column; gap: var(--space-3); }
     .gx-title { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); color: var(--ink); }
@@ -3295,7 +3386,7 @@ const familyHtml = (f) =>
  */
 export function galleryDocument(families = FAMILIES) {
   return `<!doctype html>
-<html lang="en" data-theme="dark" data-look="glass" class="legacy-on">
+<html lang="en" data-theme="dark" data-look="glass" class="frame-on">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -3330,7 +3421,7 @@ const BEHAVES_CSS = `
  */
 export function askStatesDocument(bundle = "/_hx/ask-states.js") {
   return `<!doctype html>
-<html lang="en" data-theme="dark" data-look="glass" class="legacy-on">
+<html lang="en" data-theme="dark" data-look="glass" class="frame-on">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -3354,7 +3445,7 @@ export function askStatesDocument(bundle = "/_hx/ask-states.js") {
  */
 export function behavesDocument(bundle = "/_hx/kit-behaves.js") {
   return `<!doctype html>
-<html lang="en" data-theme="dark" data-look="glass" class="legacy-on">
+<html lang="en" data-theme="dark" data-look="glass" class="frame-on">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />

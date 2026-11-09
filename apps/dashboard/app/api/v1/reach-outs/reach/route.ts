@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { read, workspace } from "@/server/route";
-import { reachOf } from "@/server/campaigns/reach-outs";
+import { read, workspace } from "@/server/shared/route";
+import { getReach } from "@/server/campaigns/reach-outs/chain-acts";
 
 /**
  * GET /api/v1/reach-outs/reach?search= — a search's reach, for the sheet and the Leads door: who a chain over it
@@ -8,6 +8,6 @@ import { reachOf } from "@/server/campaigns/reach-outs";
  */
 export const GET = read({
   scope: workspace,
-  query: z.object({ search: z.string().uuid() }),
-  handle: ({ ctx, member, input }) => reachOf(ctx, member.tenantId, input.search),
+  query: z.object({ search: z.uuid() }),
+  handle: ({ ctx, member, input }) => getReach(ctx, member.tenantId, input.search),
 });

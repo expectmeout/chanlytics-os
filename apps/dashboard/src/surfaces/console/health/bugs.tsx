@@ -13,13 +13,12 @@
 import {
   SUPPORT_WORDS,
   consolePathOf,
-  errorGroupReport,
-  errorGroupsOf,
   reportOf,
   staffMay,
   supportClusters,
   type SupportReportDto,
 } from "@chanlytics/contracts";
+import { errorGroupReport, errorGroupsOf } from "./errors";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { CopyButton } from "../../kit/copy-button/copy-button";
 import {

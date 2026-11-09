@@ -35,7 +35,8 @@
  *                call recordings) live on the Supabase origin; a listing photo
  *                Google hands back lives on googleusercontent.com.
  *   frame-src    Meta's SDK plants a hidden iframe under its root element; Stripe's embedded Checkout is a frame of
- *                its own, and a bank's check one more (0073).
+ *                its own, and a bank's check one more (0073); a business's video plays in Stream's player (0099).
+ *   stream       a video goes from the browser straight to Stream's upload host (connect), and plays in its frame.
  *   stripe       the first run's Go live pays in the page (decision 0073, R16): Stripe.js from js.stripe.com, and the
  *                origins Stripe's own CSP guide names for it and for embedded Checkout (script, frame, connect, img).
  *   fonts        self-hosted by next/font, so no font host is named; only the
@@ -53,7 +54,7 @@ export interface CspInputs {
   /** NEXT_PUBLIC_SUPABASE_URL; its origin is allowed over https and wss. */
   supabaseUrl?: string | null;
   /**
-   * NEXT_PUBLIC_LEAD_MAP_BASE: where the lead map's basemap bundle lives (legacy-bridge/lead-map.ts). The browser
+   * NEXT_PUBLIC_LEAD_MAP_BASE: where the lead map's basemap bundle lives (bridge/lead-map.ts). The browser
    * reads byte ranges of the archive, its glyphs and its sprites from there, so its origin is allowed for
    * connections and images. A same-origin path (`/lead-map`) has no origin to name and adds nothing.
    */
@@ -93,14 +94,14 @@ const VOICE_AGENT = [
 /**
  * A rehearsal's call in the browser (docs/decisions/0069): the vendor's web client (retell-client-js-sdk 3.0.2) signals
  * its call on the provider's API (`https://api.retellai.com/webrtc-proxy/...`, with the call's own short-lived token;
- * the account's key never reaches the browser, legacy-bridge/rehearse/call.ts), or joins it on the provider's LiveKit
+ * the account's key never reaches the browser, bridge/rehearse/call.ts), or joins it on the provider's LiveKit
  * project (`wss://retell-ai-4ihahnq7.livekit.cloud`), whose client first asks the project's regions over https and then
  * joins a regional host under it. So the API's origin, and LiveKit's cloud over both schemes.
  */
 const REHEARSAL_CALL = ["https://api.retellai.com", "https://*.livekit.cloud", "wss://*.livekit.cloud"];
 /**
  * Paying in the page (docs/decisions/0073, R16): Stripe.js, loaded from Stripe's own host on Go live (Stripe requires it
- * be loaded from there, legacy-bridge/billing/embedded.ts), mounts embedded Checkout as Stripe's frame; Stripe's CSP
+ * be loaded from there, bridge/billing/embedded.ts), mounts embedded Checkout as Stripe's frame; Stripe's CSP
  * guide names these origins for the two. No key but the publishable one reaches the browser.
  */
 const STRIPE = {
@@ -113,6 +114,15 @@ const STRIPE = {
   ],
   connect: ["https://api.stripe.com", "https://checkout.stripe.com"],
   img: ["https://*.stripe.com"],
+};
+/**
+ * A business's videos (docs/decisions/0099, stage B), as Cloudflare's Stream FAQ lists them: its player is a frame of its own
+ * on the account's playback host, and the browser sends a clip straight to Stream's upload host over tus. Every video needs a
+ * token the edge signs, so naming the hosts plays nothing by itself.
+ */
+const STREAM = {
+  frame: ["https://videodelivery.net", "https://*.cloudflarestream.com"],
+  connect: ["https://*.videodelivery.net", "https://*.cloudflarestream.com"],
 };
 
 function originOf(url: string | null | undefined): string | null {
@@ -157,10 +167,11 @@ export function contentSecurityPolicy(o: CspInputs): string {
         ...VOICE_AGENT,
         ...REHEARSAL_CALL,
         ...STRIPE.connect,
+        ...STREAM.connect,
         ...(leadMap ? [leadMap] : []),
       ],
     ],
-    ["frame-src", [META[1], META[2], ...STRIPE.frame]],
+    ["frame-src", [META[1], META[2], ...STRIPE.frame, ...STREAM.frame]],
     ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],
     ["object-src", ["'none'"]],
@@ -169,7 +180,9 @@ export function contentSecurityPolicy(o: CspInputs): string {
     ["frame-ancestors", ["'none'"]],
   ];
   const parts = directives.map(([name, values]) => `${name} ${values.join(" ")}`);
-  if (!o.dev && !o.reportOnly) parts.push("upgrade-insecure-requests");
+  // A copy with its database on plain http (the nightly's own stack) has no https to be upgraded to: a picture's redirect
+  // to Storage went to an https nobody answers, and every file drew as its name.
+  if (!o.dev && !o.reportOnly && !supabase?.startsWith("http:")) parts.push("upgrade-insecure-requests");
   return parts.join("; ");
 }
 

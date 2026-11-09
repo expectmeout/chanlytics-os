@@ -1,0 +1,382 @@
+/**
+ * The email a reach-out send leaves as (channels email/cold-request.ts, Reach out Part 3 C9, C10, D19; from a
+ * mailbox the business connected since decision 0056), run over the real request builder, the real identity and the
+ * real unsubscribe seal: a first step's email, a step's that answers the one before, and the two refusals that hold one
+ * back.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { checkedWordsOf, reachOutDraft, reachOutRequest, reachOutWords } from "@chanlytics/channels/email";
+import { verifyUnsubscribeToken } from "@chanlytics/channels/tokens";
+
+const SECRET = "a-secret-only-this-file-holds";
+const T = "22222222-2222-4222-8222-222222222222";
+const K = "33333333-3333-4333-8333-333333333333";
+const M = "11111111-1111-4111-8111-111111111111";
+
+const input = (over = {}) => ({
+  tenantId: T,
+  messageId: M,
+  contactId: K,
+  to: "owner@fixture-movers.example",
+  words: { subject: "A quote for {{business}}", body: "Hi {{business}},\n\nMovers in {{city}} ask us for this." },
+  lead: { business_name: "Fixture Movers", city: "Austin" },
+  workspace: {
+    businessName: "Harbor Moving Co",
+    address: "100 Example St, Austin, TX 78701",
+    yourName: null,
+    bookingLink: null,
+  },
+  opening: null,
+  from: { address: "sam@getharbor.example", from_name: "Sam at Harbor", signature: null },
+  unsubscribe: { secret: SECRET, origin: "https://app.chanlytics.com" },
+  parent: null,
+  ...over,
+});
+
+test("a first step's email: from the mailbox the business connected and answered there, the lead's values, the foot, and one click to stop", () => {
+  const out = reachOutRequest(input());
+  assert.equal(out.ok, true);
+  const r = out.request;
+  assert.equal(r.from, `"Sam at Harbor" <sam@getharbor.example>`);
+  assert.deepEqual(r.to, ["owner@fixture-movers.example"]);
+  assert.deepEqual(r.reply_to, ["sam@getharbor.example"], "a reply lands in the mailbox, and its sync reads it back");
+  assert.equal(r.subject, "A quote for Fixture Movers");
+  assert.equal(out.subject, r.subject);
+  assert.equal(out.body, "Hi Fixture Movers,\n\nMovers in Austin ask us for this.", "the words, without the foot");
+  assert.ok(r.text.startsWith(out.body));
+
+  const [, token] =
+    /^<https:\/\/app\.chanlytics\.com\/u\/([A-Za-z0-9_-]{87})>$/.exec(r.headers["List-Unsubscribe"]) ?? [];
+  assert.ok(token, r.headers["List-Unsubscribe"]);
+  assert.equal(r.headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
+  assert.deepEqual(verifyUnsubscribeToken([SECRET], token), { tenantId: T, contactId: K, messageId: M });
+
+  for (const line of [
+    "I found your business on Google Maps.",
+    "This is a marketing email.",
+    "Harbor Moving Co · 100 Example St, Austin, TX 78701",
+    `Not interested? Reply "no thanks" and I won't write again.`,
+  ])
+    assert.ok(r.text.includes(line), `the foot says: ${line}`);
+  assert.ok(
+    !r.text.includes("https://"),
+    "no link in the words, nor the foot: the way out in one click is the header's",
+  );
+  assert.equal(r.html, "", "plain text, as one person writes: no HTML twin");
+
+  assert.equal(r.idempotency_key, M);
+  assert.deepEqual(r.tags, [
+    { name: "cl_message", value: M },
+    { name: "cl_tenant", value: T },
+  ]);
+  assert.equal(
+    r.headers["Auto-Submitted"],
+    undefined,
+    "one person's email from their own mailbox: marked as nothing else",
+  );
+  assert.equal(r.headers["In-Reply-To"], undefined, "a first email answers nothing");
+});
+
+test("a step's email answers the one before (D19): Re: its subject, once, and its Message-ID in the thread's headers", () => {
+  const out = reachOutRequest(
+    input({
+      words: { subject: "a heading a step never uses", body: "Following up, {{business}}." },
+      parent: {
+        messageId: "44444444-4444-4444-8444-444444444444",
+        rfcMessageId: "<second@getharbor.example>",
+        references: ["<first@getharbor.example>"],
+        subject: "Re: A quote for Fixture Movers",
+      },
+    }),
+  );
+  assert.equal(out.ok, true);
+  assert.equal(out.request.subject, "Re: A quote for Fixture Movers");
+  assert.equal(out.request.headers["In-Reply-To"], "<second@getharbor.example>");
+  assert.equal(out.request.headers.References, "<first@getharbor.example> <second@getharbor.example>");
+  assert.ok(out.request.headers["List-Unsubscribe"], "a nudge carries the way to stop too");
+  assert.ok(out.request.text.includes("This is a marketing email."));
+});
+
+test("a slot this lead has no value for is the lead's (missing_value); a slot no lead could fill, or no subject, is the step's", () => {
+  assert.deepEqual(reachOutRequest(input({ lead: { business_name: "Fixture Movers", city: null } })), {
+    ok: false,
+    reason: "missing_value",
+  });
+  for (const words of [
+    { subject: "Hi {{nickname}}", body: "Hello." },
+    { subject: "Hello", body: "Hi {{business_name}}" },
+    { subject: "Hello", body: "Hi {{business" },
+  ])
+    assert.deepEqual(reachOutRequest(input({ words })), { ok: false, reason: "unknown_slot" }, JSON.stringify(words));
+  // A step after the first never reads its own heading, so a slot there holds nothing.
+  const parent = { messageId: "m0", rfcMessageId: "<first@getharbor.example>", references: [], subject: "Hi" };
+  assert.equal(reachOutRequest(input({ parent, words: { subject: "{{nickname}}", body: "Hello." } })).ok, true);
+  assert.deepEqual(reachOutRequest(input({ words: { subject: null, body: "Hello." } })), {
+    ok: false,
+    reason: "no_subject",
+  });
+  assert.deepEqual(reachOutRequest(input({ words: { subject: "Re: your quote", body: "Hello." } })), {
+    ok: false,
+    reason: "words_unsendable",
+  });
+});
+
+test("no business address, or no business name, on the profile: no_business_address, before anything is sealed", () => {
+  for (const workspace of [
+    { businessName: "Harbor Moving Co", address: null, yourName: null, bookingLink: null },
+    { businessName: "Harbor Moving Co", address: "   ", yourName: null, bookingLink: null },
+    { businessName: null, address: "100 Example St", yourName: null, bookingLink: null },
+  ])
+    assert.deepEqual(reachOutRequest(input({ workspace, unsubscribe: { secret: "", origin: "https://x.example" } })), {
+      ok: false,
+      reason: "no_business_address",
+    });
+});
+
+test("a sequence that ends with its mailbox's signature: it closes the words, before the foot; the one click is on the origin given", () => {
+  const out = reachOutRequest(
+    input({ signsWith: "mailbox", from: { ...input().from, signature: "Sam Rivera\nHarbor Moving Co" } }),
+  );
+  assert.equal(
+    out.body,
+    "Hi Fixture Movers,\n\nMovers in Austin ask us for this.",
+    "the words alone, as the sheet shows them",
+  );
+  assert.ok(
+    out.request.text.startsWith(`${out.body}\n\nSam Rivera\nHarbor Moving Co\n\nI found your business on Google Maps.`),
+    out.request.text,
+  );
+  const links = reachOutRequest(input({ unsubscribe: { secret: SECRET, origin: "https://links.example.com" } }));
+  assert.match(links.request.headers["List-Unsubscribe"], /^<https:\/\/links\.example\.com\/u\/[A-Za-z0-9_-]{87}>$/);
+});
+
+/* ------------------------------------------------------------ Part 4: the six slots -- */
+
+test("the email a business reads: the opening written for it, the name the chain signs with, the booking link", () => {
+  const r = reachOutRequest(
+    input({
+      words: {
+        subject: "Quick one for {{business}}",
+        body: "{{opening}}\n\nFifteen minutes: {{booking link}}\n\n{{your name}}",
+      },
+      workspace: { ...input().workspace, yourName: "Sam", bookingLink: "https://example.com/book" },
+      opening: "A 4.9 from 16 reviews says people find you.",
+    }),
+  );
+  assert.equal(r.ok, true);
+  assert.equal(r.subject, "Quick one for Fixture Movers");
+  assert.equal(
+    r.body,
+    "A 4.9 from 16 reviews says people find you.\n\nFifteen minutes: https://example.com/book\n\nSam",
+  );
+});
+
+test("each of the six slots filled with its real value, and each missing one said as whose it is (R5, R6)", () => {
+  const lead = { business_name: "Fixture Movers", city: "Austin" };
+  const ws = { businessName: "Harbor Moving Co", yourName: "Sam", bookingLink: "https://example.com/book" };
+  const all = {
+    subject: "For {{business}} in {{city}}",
+    body: "{{opening}} {{your business}}, {{your name}}: {{booking link}}",
+  };
+  assert.deepEqual(reachOutWords(all, lead, ws, false, "Saw your 4.9."), {
+    ok: true,
+    subject: "For Fixture Movers in Austin",
+    body: "Saw your 4.9. Harbor Moving Co, Sam: https://example.com/book",
+  });
+  // The workspace's: it holds the send, and the lead keeps its place.
+  assert.deepEqual(reachOutWords(all, lead, { ...ws, yourName: " " }, false, "Hi."), {
+    ok: false,
+    reason: "no_signed_by",
+  });
+  assert.deepEqual(reachOutWords(all, lead, { ...ws, bookingLink: null }, false, "Hi."), {
+    ok: false,
+    reason: "no_booking_link",
+  });
+  // The send's: back to be checked, never a skip.
+  assert.deepEqual(reachOutWords(all, lead, ws, false, null), { ok: false, reason: "no_opening" });
+  // The lead's alone.
+  assert.deepEqual(reachOutWords(all, { ...lead, city: null }, ws, false, "Hi."), {
+    ok: false,
+    reason: "missing_value",
+  });
+  // The step's: no stand-in value hides a slot that is none of the six, or a brace left over.
+  for (const body of ["Hi {{nickname}}", "Hi {business}", "Hi {{{business}}}"])
+    assert.deepEqual(reachOutWords({ subject: "Hello", body }, lead, ws, false, "Hi."), {
+      ok: false,
+      reason: "unknown_slot",
+    });
+  // A slot named nowhere asks nothing: words with no opening need none.
+  assert.equal(
+    reachOutWords({ subject: "Hello", body: "Hi {{business}}" }, lead, { businessName: null }, false, null).ok,
+    true,
+  );
+});
+
+test("the words a send was checked against: one mark for the words, the name they sign with, and whether a link exists", () => {
+  const words = { subject: "Hello", body: "Hi {{business}}" };
+  const mark = checkedWordsOf(words, "Sam", false);
+  assert.match(mark, /^[0-9a-f]{64}$/, "within the column's 64 characters");
+  assert.equal(checkedWordsOf({ ...words }, " Sam ", false), mark, "the same words are the same mark");
+  for (const other of [
+    checkedWordsOf({ ...words, body: "Hi {{business}}!" }, "Sam", false),
+    checkedWordsOf({ ...words, subject: "Hi" }, "Sam", false),
+    checkedWordsOf(words, "Alex", false),
+    checkedWordsOf(words, null, false),
+    checkedWordsOf(words, "Sam", true),
+  ])
+    assert.notEqual(other, mark);
+});
+
+test("a sequence ends with its name by default: under the words, and no mailbox signature (decision 0077)", () => {
+  const signed = { ...input().workspace, yourName: "Sam" };
+  const from = { ...input().from, signature: "Sam Rivera\nHarbor Moving Co\nwww.getharbor.example" };
+  const named = reachOutRequest(input({ workspace: signed, from, signsWith: "name" }));
+  assert.equal(named.body, "Hi Fixture Movers,\n\nMovers in Austin ask us for this.\n\nSam");
+  assert.equal(named.signature, null);
+  assert.ok(
+    named.request.text.startsWith(`${named.body}\n\nI found your business on Google Maps.`),
+    named.request.text,
+  );
+  assert.doesNotMatch(
+    named.request.text,
+    /www\.getharbor\.example/,
+    "the mailbox's signature, and its link, are left off",
+  );
+  // Chosen, a signature with a link loses that line on a first email (the words' own rule, no link in one) and keeps
+  // the rest, as words: the email is plain text, never Gmail's markup (30 Oct 2026, decision 0077 amended).
+  const first = reachOutRequest(input({ workspace: signed, from, signsWith: "mailbox" }));
+  assert.equal(first.body, "Hi Fixture Movers,\n\nMovers in Austin ask us for this.");
+  assert.equal(first.signature, "Sam Rivera\nHarbor Moving Co");
+  assert.ok(
+    first.request.text.startsWith(`${first.body}\n\nSam Rivera\nHarbor Moving Co\n\nI found`),
+    first.request.text,
+  );
+  assert.doesNotMatch(first.request.text, /www\.getharbor\.example/);
+  assert.equal(first.request.html, "", "a cold email is words alone");
+  // The business's address on a line of its own is the foot's to say, once: left out of the signature.
+  const addressed = { ...from, signature: `Sam Rivera\n${input().workspace.address}` };
+  const once = reachOutRequest(input({ workspace: signed, from: addressed, signsWith: "mailbox" }));
+  assert.equal(once.signature, "Sam Rivera");
+  // A step after the first answers in the thread, and keeps the signature it chose.
+  const parent = { messageId: "m0", rfcMessageId: "<first@getharbor.example>", references: [], subject: "Hi" };
+  const later = reachOutRequest(
+    input({ workspace: signed, from, signsWith: "mailbox", parent, words: { subject: null, body: "Hi again." } }),
+  );
+  assert.equal(later.body, "Hi again.");
+  assert.equal(later.signature, from.signature);
+  assert.ok(later.request.text.startsWith(`Hi again.\n\n${from.signature}\n\n`), later.request.text);
+  // Words that end with the name already are not signed twice.
+  const twice = reachOutRequest(
+    input({ workspace: signed, words: { subject: "Hi", body: "Hello there.\n\n{{your name}}" }, signsWith: "name" }),
+  );
+  assert.equal(twice.body, "Hello there.\n\nSam");
+});
+
+test("the email its owner sends ends with the name, never a mailbox's signature: their own mail app adds theirs", () => {
+  const d = reachOutDraft({
+    words: { subject: "A quote for {{business}}", body: "Hi {{business}}." },
+    lead: { business_name: "Fixture Movers", city: "Austin" },
+    workspace: { ...input().workspace, yourName: "Sam" },
+    opening: null,
+    parent: null,
+    signsWith: "mailbox",
+  });
+  assert.equal(d.ok, true);
+  assert.equal(d.body, "Hi Fixture Movers.\n\nSam");
+  assert.ok(d.text.startsWith("Hi Fixture Movers.\n\nSam\n\nI found your business on Google Maps."), d.text);
+});
+
+test("the email its owner sends is the email the send makes, word for word: its subject, a nudge's under 'Re:' once, its words, its foot (contracts coldEmailOf)", () => {
+  const ws = { ...input().workspace, yourName: "Sam" };
+  const parent = {
+    messageId: "44444444-4444-4444-8444-444444444444",
+    rfcMessageId: "<first@getharbor.example>",
+    references: [],
+    subject: "RE: Re: A quote for Fixture Movers",
+  };
+  for (const [what, words, before] of [
+    [
+      "a first email",
+      { subject: "A quote for {{business}}", body: "Hi {{business}},\n\nMovers in {{city}} ask us." },
+      null,
+    ],
+    ["a nudge", { subject: null, body: "Hi {{business}}, just checking this reached you." }, parent],
+  ]) {
+    const sent = reachOutRequest(input({ words, workspace: ws, signsWith: "name", parent: before }));
+    const d = reachOutDraft({
+      words,
+      lead: input().lead,
+      workspace: ws,
+      opening: null,
+      parent: before ? { subject: before.subject } : null,
+      signsWith: "name",
+    });
+    assert.equal(sent.ok && d.ok, true, what);
+    assert.equal(d.subject, sent.request.subject, `${what}: its subject`);
+    assert.equal(d.text, sent.request.text, `${what}: its words and its foot, as the send writes them`);
+  }
+});
+
+test("their preview (decision 0079): its link filled in; being made holds, gone skips, before the lead's own values", () => {
+  const words = { subject: null, body: "Hi {{business}}, I set this up for you in {{city}}: {{their preview}}" };
+  const ws = input().workspace;
+  const lead = (preview) => ({ business_name: "Fixture Movers", city: null, preview });
+  // No city either: the preview's refusal comes first, since the sender may still make it.
+  assert.deepEqual(reachOutWords(words, lead({ state: "building" }), ws, true, null), {
+    ok: false,
+    reason: "preview_building",
+  });
+  assert.deepEqual(reachOutWords(words, lead(undefined), ws, true, null), { ok: false, reason: "preview_building" });
+  assert.deepEqual(reachOutWords(words, lead({ state: "gone" }), ws, true, null), { ok: false, reason: "no_preview" });
+  const url = "https://app.chanlytics.com/preview/TokenTokenTokenToken01";
+  const open = reachOutWords(words, { ...lead({ state: "open", url }), city: "Austin" }, ws, true, null);
+  assert.deepEqual(open, {
+    ok: true,
+    subject: null,
+    body: `Hi Fixture Movers, I set this up for you in Austin: ${url}`,
+  });
+  assert.deepEqual(
+    reachOutWords({ subject: null, body: "No preview named, {{business}}." }, lead({ state: "gone" }), ws, true, null)
+      .ok,
+    true,
+    "words that name no preview never ask after one",
+  );
+});
+
+test("a step that names their preview ends with the mailbox's signature less its link lines: the preview is its one link", () => {
+  const out = reachOutRequest(
+    input({
+      words: { subject: null, body: "Here it is, {{business}}: {{their preview}}" },
+      lead: {
+        business_name: "Fixture Movers",
+        city: "Austin",
+        preview: { state: "open", url: "https://app.chanlytics.com/preview/TokenTokenTokenToken01" },
+      },
+      signsWith: "mailbox",
+      from: { ...input().from, signature: "Sam Rivera\nhttps://getharbor.example\nHarbor Moving Co" },
+      parent: {
+        messageId: "44444444-4444-4444-8444-444444444444",
+        rfcMessageId: "<first@getharbor.example>",
+        references: [],
+        subject: "A quote for Fixture Movers",
+      },
+    }),
+  );
+  assert.equal(out.ok, true);
+  assert.equal(out.signature, "Sam Rivera\nHarbor Moving Co");
+  const plain = reachOutRequest(
+    input({
+      words: { subject: null, body: "Bumping this, {{business}}." },
+      signsWith: "mailbox",
+      from: { ...input().from, signature: "Sam Rivera\nhttps://getharbor.example" },
+      parent: {
+        messageId: "44444444-4444-4444-8444-444444444444",
+        rfcMessageId: "<first@getharbor.example>",
+        references: [],
+        subject: "A quote for Fixture Movers",
+      },
+    }),
+  );
+  assert.equal(plain.signature, "Sam Rivera\nhttps://getharbor.example", "a nudge naming no preview keeps its link");
+});

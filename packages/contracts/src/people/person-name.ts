@@ -39,8 +39,14 @@ export interface NameableCaller {
  * their email address. "Unknown" is a person with none of them — never a person
  * whose only identifier is an address.
  */
-export function personName(c: NameableContact | null | undefined): string {
-  return c?.display_name || c?.wa_profile_name || formatPhoneDisplay(c?.phone_e164) || c?.email || "Unknown";
+export function personName(nameableContact: NameableContact | null | undefined): string {
+  return (
+    nameableContact?.display_name ||
+    nameableContact?.wa_profile_name ||
+    formatPhoneDisplay(nameableContact?.phone_e164) ||
+    nameableContact?.email ||
+    "Unknown"
+  );
 }
 
 /**
@@ -50,9 +56,9 @@ export function personName(c: NameableContact | null | undefined): string {
  * page (toCallVM), Live (toLiveCallVM) and a call a citation names read it
  * here, so the three cannot drift.
  */
-export function callerName(c: NameableCaller): string {
-  const withheld = !c.from_e164 && !c.from_raw;
-  const phone = formatPhoneDisplay(c.from_e164);
-  const name = c.contact?.display_name || c.contact?.wa_profile_name || null;
-  return withheld ? "Caller ID withheld" : name || phone || c.from_raw || "Unknown caller";
+export function callerName(nameableCaller: NameableCaller): string {
+  const withheld = !nameableCaller.from_e164 && !nameableCaller.from_raw;
+  const phone = formatPhoneDisplay(nameableCaller.from_e164);
+  const name = nameableCaller.contact?.display_name || nameableCaller.contact?.wa_profile_name || null;
+  return withheld ? "Caller ID withheld" : name || phone || nameableCaller.from_raw || "Unknown caller";
 }

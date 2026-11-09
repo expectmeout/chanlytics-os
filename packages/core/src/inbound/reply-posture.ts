@@ -36,10 +36,10 @@ export function speaksUnattended(replyMode: string): boolean {
   return replyMode === "auto" || replyMode === "veto";
 }
 
-export function replyPosture(f: RoutingFacts): ReplyPosture {
+export function replyPosture(routingFacts: RoutingFacts): ReplyPosture {
   // A routed tenant's own policy, or 'ask'. Never 'auto' without a runtime to
   // say so: that is how an unroutable number once inherited a voice.
-  return { replyMode: f.runtimeUsable ? (f.policyMode ?? "ask") : "ask" };
+  return { replyMode: routingFacts.runtimeUsable ? (routingFacts.policyMode ?? "ask") : "ask" };
 }
 
 /**
@@ -70,7 +70,7 @@ export function effectiveReplyMode(posture: ReplyPosture, personMode: string | n
  */
 type UnattendedHold = "human_has_it" | "daily_cap" | "paused" | "booking_needs_a_person" | "policy_hold";
 
-export function unattendedHold(f: {
+export function unattendedHold(fields: {
   /** conversations.paused_until, as epoch ms: a person holds the thread until then. Null or past: nobody does. */
   pausedUntilMs: number | null;
   nowMs: number;
@@ -84,10 +84,10 @@ export function unattendedHold(f: {
   /** The mode in force: the workspace's, or the person's own when set (effectiveReplyMode). */
   mode: string;
 }): UnattendedHold | null {
-  if (f.pausedUntilMs !== null && f.nowMs < f.pausedUntilMs) return "human_has_it";
-  if (f.sentToday >= f.dailyCap) return "daily_cap";
-  if (f.workspacePaused) return "paused";
-  if (f.bookingHeld) return "booking_needs_a_person";
-  if (!speaksUnattended(f.mode)) return "policy_hold";
+  if (fields.pausedUntilMs !== null && fields.nowMs < fields.pausedUntilMs) return "human_has_it";
+  if (fields.sentToday >= fields.dailyCap) return "daily_cap";
+  if (fields.workspacePaused) return "paused";
+  if (fields.bookingHeld) return "booking_needs_a_person";
+  if (!speaksUnattended(fields.mode)) return "policy_hold";
   return null;
 }

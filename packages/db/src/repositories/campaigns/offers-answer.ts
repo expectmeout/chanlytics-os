@@ -7,8 +7,9 @@
  * contracts' mayMessageFor, which reads what these keep.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CARRIER_CONSENT_SOURCE, WHATSAPP_CONSENT_SOURCE } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import { CARRIER_CONSENT_SOURCE, WHATSAPP_CONSENT_SOURCE, DbFailure } from "@chanlytics/contracts";
+import type { Database } from "../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -32,16 +33,16 @@ type Db = SupabaseClient<Database>;
  */
 export async function recordCarrierOptOut(
   db: Db,
-  p: { tenantId: string; contactId: string; channel: "sms" },
+  params: { tenantId: TenantId; contactId: ContactId; channel: "sms" },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("record_provider_stop", {
-    p_tenant_id: p.tenantId,
-    p_contact_id: p.contactId,
+    p_tenant_id: params.tenantId,
+    p_contact_id: params.contactId,
     p_purpose: "conversational",
-    p_channel: p.channel,
+    p_channel: params.channel,
     p_source: CARRIER_CONSENT_SOURCE,
   });
-  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  if (error) throw new DbFailure(error, `recording the carrier's opt-out for contact ${params.contactId}`);
   return data === true;
 }
 
@@ -50,10 +51,10 @@ export async function recordCarrierOptOut(
  * there is no such person. Read by the edge when a START arrives on WhatsApp, to say whether a STOP ended their yes to
  * offers (00323; contracts offersAfterStart): one row on the primary key, by the id the ingest answered.
  */
-export async function offersAnswerOf(
+export async function findOffersAnswer(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Promise<{ marketingConsent: string | null; marketingConsentSource: string | null } | null> {
   const { data, error } = await db
     .from("contacts")
@@ -61,7 +62,7 @@ export async function offersAnswerOf(
     .eq("tenant_id", tenantId)
     .eq("id", contactId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data
     ? { marketingConsent: data.marketing_consent, marketingConsentSource: data.marketing_consent_source }
     : null;
@@ -77,25 +78,28 @@ export async function offersAnswerOf(
  * their own visit still reach them. A write that fails THROWS; the receipts door catches it in its own guard, so it
  * never costs the receipt its status.
  */
-export async function recordWhatsAppOffersStop(db: Db, p: { tenantId: string; externalId: string }): Promise<boolean> {
+export async function recordWhatsAppOffersStop(
+  db: Db,
+  params: { tenantId: TenantId; externalId: string },
+): Promise<boolean> {
   const sent = await db
     .from("messages")
     .select("contact_id")
-    .eq("tenant_id", p.tenantId)
-    .eq("external_id", p.externalId)
+    .eq("tenant_id", params.tenantId)
+    .eq("external_id", params.externalId)
     .maybeSingle();
-  if (sent.error) throw new Error(`reading the message WhatsApp refused (${p.externalId}): ${sent.error.message}`);
+  if (sent.error) throw new DbFailure(sent.error, `reading the message WhatsApp refused (${params.externalId})`);
   const contactId = sent.data?.contact_id;
   if (!contactId) return false;
   const { data, error } = await db.rpc("record_provider_stop", {
-    p_tenant_id: p.tenantId,
+    p_tenant_id: params.tenantId,
     p_contact_id: contactId,
     p_purpose: "marketing",
     p_channel: "whatsapp",
     p_source: WHATSAPP_CONSENT_SOURCE,
-    p_message_external_id: p.externalId,
+    p_message_external_id: params.externalId,
   });
-  if (error) throw new Error(`recording WhatsApp's stop for contact ${contactId}: ${error.message}`);
+  if (error) throw new DbFailure(error, `recording WhatsApp's stop for contact ${contactId}`);
   return data === true;
 }
 
@@ -115,15 +119,15 @@ export type LateCarrierStop = "recorded" | "already_stopped" | "newer_answer" | 
  */
 export async function recordLateCarrierOptOut(
   db: Db,
-  p: { tenantId: string; externalId: string },
+  params: { tenantId: TenantId; externalId: string },
 ): Promise<LateCarrierStop> {
   const sent = await db
     .from("messages")
     .select("contact_id, conversation_id, direction, channel, created_at")
-    .eq("tenant_id", p.tenantId)
-    .eq("external_id", p.externalId)
+    .eq("tenant_id", params.tenantId)
+    .eq("external_id", params.externalId)
     .maybeSingle();
-  if (sent.error) throw new Error(`reading the text the carrier refused (${p.externalId}): ${sent.error.message}`);
+  if (sent.error) throw new DbFailure(sent.error, `reading the text the carrier refused (${params.externalId})`);
   const text = sent.data;
   if (!text || text.direction !== "outbound" || text.channel !== "sms") return "not_our_text";
   let contactId = text.contact_id;
@@ -133,22 +137,22 @@ export async function recordLateCarrierOptOut(
       .from("conversations")
       .select("contact_id")
       .eq("id", text.conversation_id)
-      .eq("tenant_id", p.tenantId)
+      .eq("tenant_id", params.tenantId)
       .maybeSingle();
-    if (thread.error) throw new Error(`reading the thread of the text the carrier refused: ${thread.error.message}`);
+    if (thread.error) throw new DbFailure(thread.error, "reading the thread of the text the carrier refused");
     contactId = thread.data?.contact_id ?? null;
   }
   if (!contactId) return "no_person";
-  const who = await db
+  const person = await db
     .from("contacts")
     .select("consent, consent_updated_at, erased_at")
     .eq("id", contactId)
-    .eq("tenant_id", p.tenantId)
+    .eq("tenant_id", params.tenantId)
     .maybeSingle();
-  if (who.error) throw new Error(`reading contact ${contactId} for the carrier's stop: ${who.error.message}`);
-  if (!who.data || who.data.erased_at) return "no_person";
-  if (who.data.consent === "opted_out") return "already_stopped";
-  if (who.data.consent_updated_at && who.data.consent_updated_at > text.created_at) return "newer_answer";
-  const wrote = await recordCarrierOptOut(db, { tenantId: p.tenantId, contactId, channel: "sms" });
+  if (person.error) throw new DbFailure(person.error, `reading contact ${contactId} for the carrier's stop`);
+  if (!person.data || person.data.erased_at) return "no_person";
+  if (person.data.consent === "opted_out") return "already_stopped";
+  if (person.data.consent_updated_at && person.data.consent_updated_at > text.created_at) return "newer_answer";
+  const wrote = await recordCarrierOptOut(db, { tenantId: params.tenantId, contactId, channel: "sms" });
   return wrote ? "recorded" : "already_stopped";
 }

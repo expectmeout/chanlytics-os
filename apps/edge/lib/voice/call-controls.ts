@@ -7,17 +7,17 @@
  * dashboard can also listen to a call's audio and put a person on the line from a browser microphone, and its API
  * offers neither. The provider key lives on the edge and nowhere else, so a verb refuses (503, no_provider_key) before
  * it reads anything else; the dashboard's routes proved the call is the member's under RLS and checked the role before
- * they knocked, and the verb proves it again with the service role (refusedCall, live-call-door.ts: the token names the
+ * they knocked, and the verb proves it again with the service role (findRefusedCall, live-call-door.ts: the token names the
  * workspace, and the call must be its). The words and the numbers an operator sends stay out of the log; the outcome
  * and the length are what a search needs.
  */
-import { json, refuse } from "../http.js";
-import { refusedCall } from "./live-call-door.js";
-import { stopCall, updateLiveCall } from "../packages/channels.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
-import { frameWhisper, frameHandOver, isE164 } from "../packages/contracts.js";
-import type { Admitted } from "../admin-auth.js";
+import { json, refuse } from "../shared/http.js";
+import { findRefusedCall } from "./live-call-door.js";
+import { stopCall, updateLiveCall } from "@chanlytics/channels/voice";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
+import { frameWhisper, frameHandOver, isE164 } from "@chanlytics/contracts";
+import type { Admitted } from "../shared/admin-auth.js";
 
 /**
  * End a live call from the dashboard.
@@ -34,16 +34,16 @@ export async function stopLiveCall(
   aud: string,
   body: Partial<{ call_id?: string }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
   const callId = String(body.call_id || "");
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId)) return refuse(400, "bad_request", "call_id required");
-  const notYours = await refusedCall(auth, aud, callId);
+  const notYours = await findRefusedCall(auth, aud, callId);
   if (notYours) return notYours;
 
-  const r = await stopCall({ apiKey: env.RETELL_API_KEY }, callId);
-  L.info("admin_stop_call", { call_id: callId, ok: r.ok, status: r.status });
-  if (!r.ok) return json(502, { ok: false, error: "provider_refused", status: r.status });
+  const result = await stopCall({ apiKey: env.RETELL_API_KEY }, callId);
+  log.info("admin_stop_call", { call_id: callId, ok: result.ok, status: result.status });
+  if (!result.ok) return json(502, { ok: false, error: "provider_refused", status: result.status });
   return json(200, { ok: true });
 }
 
@@ -61,7 +61,7 @@ export async function whisperToCall(
   aud: string,
   body: Partial<{ call_id?: string; text?: string; trigger?: boolean }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   /** One answer's worth. A whisper is worked into the next thing said. */
   const MAX_CHARS = 500;
   if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
@@ -70,10 +70,10 @@ export async function whisperToCall(
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !text || text.length > MAX_CHARS) {
     return refuse(400, "bad_request", "call_id + text (1-500 chars) required");
   }
-  const notYours = await refusedCall(auth, aud, callId);
+  const notYours = await findRefusedCall(auth, aud, callId);
   if (notYours) return notYours;
 
-  const r = await updateLiveCall(
+  const result = await updateLiveCall(
     { apiKey: env.RETELL_API_KEY },
     callId,
     // Framed as the owner's instruction, not loose context — see contracts/whisper.ts.
@@ -81,8 +81,8 @@ export async function whisperToCall(
   );
   // The words are the operator's and stay out of the log; the length and the
   // outcome are what a search needs.
-  L.info("admin_whisper", { call_id: callId, chars: text.length, ok: r.ok, status: r.status });
-  if (!r.ok) return json(502, { ok: false, error: "provider_refused", status: r.status });
+  log.info("admin_whisper", { call_id: callId, chars: text.length, ok: result.ok, status: result.status });
+  if (!result.ok) return json(502, { ok: false, error: "provider_refused", status: result.status });
   return json(200, { ok: true });
 }
 
@@ -110,24 +110,24 @@ export async function handOverCall(
   aud: string,
   body: Partial<{ call_id?: string; line?: string }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
   const callId = String(body.call_id || "");
   const line = String(body.line || "").trim();
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !isE164(line)) {
     return refuse(400, "bad_request", "call_id + line (E.164) required");
   }
-  const notYours = await refusedCall(auth, aud, callId);
+  const notYours = await findRefusedCall(auth, aud, callId);
   if (notYours) return notYours;
 
-  const r = await updateLiveCall({ apiKey: env.RETELL_API_KEY }, callId, {
+  const result = await updateLiveCall({ apiKey: env.RETELL_API_KEY }, callId, {
     additionalContext: frameHandOver(),
     triggerResponse: true,
     variables: { handoff_number: line },
   });
   // The line is the business's own and stays out of the log; the outcome is
   // what a search needs.
-  L.info("admin_hand_over", { call_id: callId, ok: r.ok, status: r.status });
-  if (!r.ok) return json(502, { ok: false, error: "provider_refused", status: r.status });
+  log.info("admin_hand_over", { call_id: callId, ok: result.ok, status: result.status });
+  if (!result.ok) return json(502, { ok: false, error: "provider_refused", status: result.status });
   return json(200, { ok: true });
 }

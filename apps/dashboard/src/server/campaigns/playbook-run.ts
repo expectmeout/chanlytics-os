@@ -1,7 +1,8 @@
 import "server-only";
-import { deployment } from "../env";
+import { deployment } from "../shared/env";
 import { MIN_MS } from "@chanlytics/contracts";
-import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A run now plans its sends and may start them: the edge's work for one playbook, as long as its door may take. */
 const RUN_TIMEOUT_MS = MIN_MS;
@@ -25,56 +26,45 @@ export type RunPlaybookOutcome =
   | { ok: false; reason: EdgeReason; detail?: string };
 
 /**
- * The edge runs it (lib/playbooks.ts) as this person's decision: it sends
+ * The edge runs it (lib/campaigns/playbooks/playbooks.ts) as this person's decision: it sends
  * now unless the class is set to never, one run per local day.
  */
 export async function runPlaybookNow(
-  tenantId: string,
+  tenantId: TenantId,
   playbookId: string,
   userId: string,
 ): Promise<RunPlaybookOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   // An edge that cannot be reached is said as such: the hourly sweep runs what it would have (R14).
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/playbooks-run",
     { tenant_id: tenantId, playbook_id: playbookId, user_id: userId },
     { workspace: tenantId, user: userId, timeoutMs: RUN_TIMEOUT_MS },
   );
-  if (r.status === 503 && r.body?.error === "edge_unreachable") return { ok: false, reason: "edge_unreachable" };
-  const j = (r.body ?? {}) as {
-    ok?: boolean;
-    outcome?: string;
-    eligible?: number;
-    broadcast_id?: string;
-    skipped?: string;
-    scheduled_for?: unknown;
-    moved_from?: unknown;
-    reason?: unknown;
-    planned?: unknown;
-    run_id?: unknown;
-    detail?: string;
-  };
+  if (answer.status === 503 && answer.body?.error === "edge_unreachable")
+    return { ok: false, reason: "edge_unreachable" };
+  const body = answer.body ?? {};
   if (
-    edgeAnswered(r) &&
-    j.ok &&
-    (j.outcome === "sent" || j.outcome === "held" || j.outcome === "empty" || j.outcome === "off")
+    edgeAnswered(answer) &&
+    body.ok &&
+    (body.outcome === "sent" || body.outcome === "held" || body.outcome === "empty" || body.outcome === "off")
   ) {
     // When a sent run really goes, and what was asked for when the hours moved it; an edge older than this gives neither.
     const at = (v: unknown) => (typeof v === "string" ? v : null);
     return {
       ok: true,
-      outcome: j.outcome,
-      eligible: j.eligible,
-      broadcastId: j.broadcast_id,
-      skipped: j.skipped,
-      scheduledFor: at(j.scheduled_for),
-      movedFrom: at(j.moved_from),
-      reason: at(j.reason),
-      planned: typeof j.planned === "number" ? j.planned : undefined,
-      runId: at(j.run_id),
+      outcome: body.outcome,
+      eligible: body.eligible,
+      broadcastId: body.broadcast_id,
+      skipped: body.skipped,
+      scheduledFor: at(body.scheduled_for),
+      movedFrom: at(body.moved_from),
+      reason: at(body.reason),
+      planned: typeof body.planned === "number" ? body.planned : undefined,
+      runId: at(body.run_id),
     };
   }
-  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
+  return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }
 
 /** What Offer it came to: offered, to how many and whether it waits for an OK, or not, and why. */
@@ -89,27 +79,20 @@ type OfferFreedOutcome =
  * the time it reads from the visit itself.
  */
 export async function offerFreedNow(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   appointmentId: string,
 ): Promise<OfferFreedOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/calendar/freed-time",
     { tenant_id: tenantId, user_id: userId, appointment_id: appointmentId },
     { workspace: tenantId, user: userId, timeoutMs: RUN_TIMEOUT_MS },
   );
-  const j = (r.body ?? {}) as {
-    ok?: boolean;
-    offered?: boolean;
-    people?: number;
-    waits?: boolean;
-    why?: string;
-    detail?: string;
-  };
-  if (edgeAnswered(r) && j.ok)
-    return j.offered
-      ? { ok: true, offered: true, people: j.people ?? 0, waits: j.waits === true }
-      : { ok: true, offered: false, why: j.why ?? "nobody", ...(j.detail ? { detail: j.detail } : {}) };
-  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
+  const body = answer.body ?? {};
+  if (edgeAnswered(answer) && body.ok)
+    return body.offered
+      ? { ok: true, offered: true, people: body.people ?? 0, waits: body.waits === true }
+      : { ok: true, offered: false, why: body.why ?? "nobody", ...(body.detail ? { detail: body.detail } : {}) };
+  return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }

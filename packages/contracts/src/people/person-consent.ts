@@ -4,9 +4,9 @@
  * people.ts (Reach out Part 2.5); people/index.ts names it.
  */
 import { type AskedPurpose, type MessageAbout, mayMessageFor } from "../consent/consent";
-import type { ConsentChannel } from "../consent/consent-channels";
+import type { ConsentChannel } from "../consent/channels";
 import { MERGE_CONSENT_SOURCE } from "./person-merge";
-import type { PersonRowVM } from "./person-row";
+import type { PersonRowVM } from "./person-row/row-facts";
 
 export interface PersonConsent {
   state: "unknown" | "opted_in" | "opted_out";
@@ -32,7 +32,7 @@ export interface PersonConsent {
   /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
   marketingLabel: string;
   /**
-   * The channels each yes covers, as the row keeps them (consent-channels.ts): null where none are kept, a yes recorded
+   * The channels each yes covers, as the row keeps them (consent/channels.ts): null where none are kept, a yes recorded
    * before the channels were, which covers WhatsApp alone.
    */
   channels: readonly string[] | null;
@@ -197,12 +197,12 @@ export function consentSourceLabel(source: string | null | undefined): string | 
  * its registration path.
  */
 export function mayReceive(
-  r: ReceiveRow,
+  receive: ReceiveRow,
   purpose: AskedPurpose,
   channel: ConsentChannel,
   about: MessageAbout,
 ): boolean {
-  return whyNotReceive(r, purpose, channel, about) === null;
+  return whyNotReceive(receive, purpose, channel, about) === null;
 }
 
 /** What the receive predicates read of a person: their answers, and where to send. */
@@ -213,16 +213,16 @@ export type ReceiveRow = Pick<PersonRowVM, "consent" | "phone"> & {
 };
 
 /** A person's answers in the shape the one predicate reads (consent.ts mayMessageFor). */
-function bearingOf(c: PersonConsent) {
+function bearingOf(personConsent: PersonConsent) {
   return {
-    consent: c.state,
-    dnc: c.dnc,
-    marketing_consent: c.marketing,
-    consent_channels: c.channels,
-    marketing_channels: c.marketingChannels,
+    consent: personConsent.state,
+    dnc: personConsent.dnc,
+    marketing_consent: personConsent.marketing,
+    consent_channels: personConsent.channels,
+    marketing_channels: personConsent.marketingChannels,
     // Email's own answer and the relationship an offer by email may rest on; absent reads as nothing, and fails closed.
-    email_marketing: c.emailMarketing,
-    has_relationship: c.relationship,
+    email_marketing: personConsent.emailMarketing,
+    has_relationship: personConsent.relationship,
   };
 }
 
@@ -242,24 +242,24 @@ export type NotReceived = "no_number" | "no_address" | "address_stopped" | "stop
  * channel needs its own way to reach them, a number for WhatsApp or a text, an address for an email. An address that
  * has bounced or complained is no way to reach them: the door would refuse it (email_suppressed), so the pick must fall
  * back to another channel rather than choose email and hold the person. The pick asks it of each channel a campaign
- * ticks (broadcasts/reach-for.ts reachFor), and a page that has no campaign in view, of all three (broadcasts/reach-any.ts).
+ * ticks (campaigns/broadcasts/reach-for.ts reachFor), and a page that has no campaign in view, of all three (campaigns/broadcasts/reach-any.ts).
  * `about` is what the message is about (consent.ts MessageAbout): a visit or proposal moment's message is theirs, a
  * broadcast is ours, which by email asks for a yes covering email or a relationship (decision D1).
  */
 export function whyNotReceive(
-  r: ReceiveRow,
+  receive: ReceiveRow,
   purpose: AskedPurpose,
   channel: ConsentChannel,
   about: MessageAbout,
 ): NotReceived | null {
   if (channel === "email") {
-    if (!r.email) return "no_address";
-    if (r.emailSuppressed) return "address_stopped";
-  } else if (!r.phone) return "no_number";
-  const said = mayMessageFor(bearingOf(r.consent), purpose, { proactive: true, channel, about });
-  if (said.ok) return null;
+    if (!receive.email) return "no_address";
+    if (receive.emailSuppressed) return "address_stopped";
+  } else if (!receive.phone) return "no_number";
+  const verdict = mayMessageFor(bearingOf(receive.consent), purpose, { proactive: true, channel, about });
+  if (verdict.ok) return null;
   // Their own no to email (a press of Unsubscribe) is its own reason: it ends offers by email and leaves everything else.
-  const { reason } = said;
+  const { reason } = verdict;
   switch (reason) {
     case "opted_out":
       return "stopped";
@@ -281,10 +281,10 @@ export function whyNotReceive(
  * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
  */
 export function saidYesTo(
-  r: Pick<PersonRowVM, "consent">,
+  person: Pick<PersonRowVM, "consent">,
   purpose: AskedPurpose,
   channel: ConsentChannel,
   about: MessageAbout,
 ): boolean {
-  return mayMessageFor(bearingOf(r.consent), purpose, { proactive: true, channel, about }).ok;
+  return mayMessageFor(bearingOf(person.consent), purpose, { proactive: true, channel, about }).ok;
 }

@@ -3,24 +3,36 @@
  * the pills, the one time, what was said, and what is under it. Plain functions returning JSX, called by the list, so the
  * row has the nodes it always had.
  */
-import { heldPill, holdToDoOf, personFaceOf, PITCH_TODO, waitedSaid } from "@chanlytics/contracts";
-import { Face, faceHueOf } from "../../kit/face/face";
+import type { ThreadMoveKey } from "@chanlytics/contracts";
+import {
+  countdownClock,
+  heldPill,
+  holdToDoOf,
+  personFaceOf,
+  PITCH_TODO,
+  THREAD_PANE_WORDS,
+  waitedSaid,
+} from "@chanlytics/contracts";
+import { Face } from "../../kit/face/face";
 import { RowGap } from "../../kit/rows/row-gap";
 import { useShownRows, type ShownRows } from "../../kit/rows/shown-rows";
+import { SAYS_WHEN } from "../../kit/says-when";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { holderName } from "../../holder-names";
 import { CONF } from "../constants";
+import { ixMoveOf, ixMoveWaited, ixWaitSaid } from "../rules";
 import type { ListCtx } from "./inbox-list";
 import { pickBox } from "./pick";
 import { ReplyChip } from "../thread/reply-strip";
-import { keptPitchNow, keptReplyNow } from "../thread/kept-draft";
+import { threadDraftNow } from "../thread/kept-draft";
+import { useDraftsMoved } from "../../today/need-you/drafts";
 import { channelIconOf } from "../thread/timeline";
 import { inboxData } from "../store";
 import { threadUnread } from "../../seen";
 import { businessTrailFor } from "../../people/business-trail";
-import type { Thread } from "../types";
+import type { RealThread, Thread } from "../types";
 
 /**
  * The words a row says and the wire they came on: what they asked where a person is needed (their last words, or what
@@ -53,41 +65,61 @@ function rowWire(wire: string, who: string) {
 }
 
 /**
- * One time on a row: how long they have waited, in the one family (8d, 3h, 40m) and amber only
- * when it is waiting on you; when a snoozed thread wakes; or else when it last moved. A waiting
- * row said "waiting 12m" beside "5:51 PM".
+ * How long the row's move has stood, in the one family (8d, 3h, 40m), where the thread has a next move to wait on, and what
+ * the bare figure means: a real thread's by the rule, by the clock it is drawn at; a seeded one's as the mockup wrote it.
+ */
+function rowWaited(t: Thread): { figure: string; said: string } | null {
+  if (t.real) {
+    const move = ixMoveOf(t);
+    const figure = move.list === "escalated" || move.list === "waiting" ? ixMoveWaited(t, move) : null;
+    return figure ? { figure, said: ixWaitSaid(move, figure) } : null;
+  }
+  const waitingMin = t.waitingMin ?? 0;
+  if (t.state !== "escalated" || waitingMin <= 0) return null;
+  const figure = t.waited || `${waitingMin}m`;
+  return { figure, said: waitedSaid(figure) };
+}
+
+/**
+ * One time on a row: how long its move has stood, in the one family (8d, 3h, 40m); when a snoozed thread wakes; or else
+ * when it last moved. A waiting row said "waiting 12m" beside "5:51 PM".
  */
 function rowTime(t: Thread, sending: number | null) {
-  const waitingMin = t.waitingMin ?? 0;
   if (sending != null) {
     return (
-      <span className="pill pill-accent ix-wait ix-sending tabular">
-        <span className="ix-veto-dot" aria-hidden="true" /> sending in {sending}s
+      <span className="pill pill-accent ix-wait ix-sending tabular" {...SAYS_WHEN}>
+        <span className="ix-veto-dot" aria-hidden="true" /> {THREAD_PANE_WORDS.sendsIn} {countdownClock(sending)}
       </span>
     );
   }
   // How long they have waited, the bare figure in the mono face at the row's right (the thread canvas's list, 1 Nov
   // 2026): what the row asks of you is said in the coral under it, so the wait is no second signal.
-  if (t.state === "escalated" && waitingMin > 0) {
-    const waited = t.waited || `${waitingMin}m`;
+  const waited = rowWaited(t);
+  if (waited) {
     // The figure for the eye, and the whole of it for a screen reader, which read "2h" alone as nothing.
     return (
       <>
-        <span className="ix-thread-time ix-thread-wait tabular" title={waitedSaid(waited)} aria-hidden="true">
-          {waited}
+        <span className="ix-thread-time ix-thread-wait tabular" title={waited.said} aria-hidden="true" {...SAYS_WHEN}>
+          {waited.figure}
         </span>
-        <span className="ix-wait-said">{waitedSaid(waited)}</span>
+        <span className="ix-wait-said" {...SAYS_WHEN}>
+          {waited.said}
+        </span>
       </>
     );
   }
   if (t.state === "snoozed" && t.wake) {
     return (
-      <span className="pill ix-wait tabular">
+      <span className="pill ix-wait tabular" {...SAYS_WHEN}>
         <Icon name="clock" size={9} /> {t.wake}
       </span>
     );
   }
-  return <span className="ix-thread-time tabular">{t.lastAt}</span>;
+  return (
+    <span className="ix-thread-time tabular" {...SAYS_WHEN}>
+      {t.lastAt}
+    </span>
+  );
 }
 
 /**
@@ -134,19 +166,50 @@ function rowTrail(t: Thread) {
   ) : null;
 }
 
+/** The words a row's list or its time says already, or that no row wears: a pill would say nothing more. */
+const ROW_NO_PILL: ReadonlySet<ThreadMoveKey> = new Set<ThreadMoveKey>([
+  "answered",
+  "call",
+  "nothing",
+  "stopped",
+  "snoozed",
+  "aside",
+  "sending",
+]);
+
+/** A real thread's pill: whose move it is, in the tone map's word and colour, and no pill where its list has said it. */
+function rowMovePill(L: ListCtx, t: RealThread) {
+  const { move } = ixMoveOf(t);
+  // Needs you only on a thread that does, and not again in the list that already says it (I2); a search spans the lists,
+  // so a row there always says.
+  if (move === "needs_you")
+    return L.searching || !(L.inNeedsBucket || L.activeBucket === "escalated") ? (
+      <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />
+    ) : null;
+  // A teammate has it: say whose, never Needs you.
+  if (move === "theirs")
+    return (
+      <StatePill
+        kind="thread"
+        value="theirs"
+        label={heldPill("theirs", holderName(t.assigneeUserId))}
+        className="ix-state-pill ix-name-pill"
+        testid="thread-theirs"
+      />
+    );
+  // A thread you have is yours to answer, not waiting on you (I2).
+  if (move === "yours")
+    return <StatePill kind="thread" value="yours" className="ix-state-pill" testid="thread-yours" />;
+  return ROW_NO_PILL.has(move) ? null : (
+    <StatePill kind="thread" value={move} className="ix-state-pill" testid="thread-last-word" />
+  );
+}
+
 /** A row's first line: who, the pill and the one time. */
 function rowLine1(L: ListCtx, t: Thread) {
-  const { activeBucket, inNeedsBucket, searching, sendingIn } = L;
-  // Pills hide in the needs bucket (redundant there) but ALWAYS show on
-  // cross-bucket search results so actionable rows stay distinguishable
-  // A real thread's states are escalated | snoozed | done (viewmodels.ts). The
-  // pill and the wait chip used to look for "needs", a state no real thread
-  // has, so no real thread ever showed how long it had waited.
-  // Needs you only on a thread that does -- never one you or a teammate have -- and not again in the bucket
-  // that already says it: the check looked for the mockup's "needs", which no real thread is in (I2).
-  const inItsBucket = inNeedsBucket || (t.real && activeBucket === "escalated");
-  const showStatePill =
-    (searching || !inItsBucket) && t.state === "escalated" && (t.real ? t.needsYou : !t.claimedByOther);
+  const { inNeedsBucket, searching, sendingIn } = L;
+  // A seeded thread keeps the mockup's: a pill in the buckets that do not say it already.
+  const seededPill = !t.real && (searching || !inNeedsBucket) && t.state === "escalated" && !t.claimedByOther;
   // The seconds before a reply of its own goes out: the row's one time while they run.
   const sending = t.real ? sendingIn(t.id) : null;
   return (
@@ -154,36 +217,13 @@ function rowLine1(L: ListCtx, t: Thread) {
       <span className="ix-thread-who">{t.who}</span>
       {rowTrail(t)}
       {t.pinned && <Icon name="pin" size={10} />}
-      <div className="ix-thread-meta">
+      <div className="ix-thread-meta" data-gives={t.real && ixMoveOf(t).move === "theirs" ? true : undefined}>
         {/* They asked to stop: said beside the name, where the owner picks who to answer, not first at a reply box that
             will not take the words (D1-stop-unseen). */}
         {t.real && t.optedOut && <StoppedMark className="ix-state-pill" testid="thread-stopped" />}
-        {showStatePill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
-        {/* A teammate has it: say whose, never Needs you. */}
-        {t.real && t.claimedByOther && (
-          <StatePill
-            kind="thread"
-            value="theirs"
-            label={heldPill("theirs", holderName(t.assigneeUserId))}
-            className="ix-state-pill ix-name-pill"
-            testid="thread-theirs"
-          />
-        )}
-        {/* A thread you have is yours to answer, not waiting on you (I2). */}
-        {t.real && t.takenOver && (
-          <StatePill kind="thread" value="yours" className="ix-state-pill" testid="thread-yours" />
-        )}
+        {seededPill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
+        {t.real && rowMovePill(L, t)}
         <ReplyChip thread={t} />
-        {/* A Handled thread whose last reply didn't send says so here, not only in the pane (I1's lastWord). */}
-        {t.real && t.state === "done" && t.lastWord && t.lastWord.short && (
-          <StatePill
-            kind="tone"
-            value={t.lastWord.tone}
-            label={t.lastWord.short}
-            className="ix-state-pill"
-            testid="thread-last-word"
-          />
-        )}
         {/* One time on a row: how long they have waited, in the one family (8d, 3h, 40m) and amber only
             when it is waiting on you; when a snoozed thread wakes; or else when it last moved. A waiting
             row said "waiting 12m" beside "5:51 PM". */}
@@ -195,19 +235,26 @@ function rowLine1(L: ListCtx, t: Thread) {
 
 /**
  * What a row asks of you, its last line in the coral (the thread canvas's list, 1 Nov 2026): the hold's act ("Call back",
- * "Confirm a time"), and "Check the draft" where the receptionist drafted the reply; only on a thread that needs you. It
+ * "Confirm a time"), and "Draft ready" where one is; only on a thread that needs you. It
  * stood over their words as the reason's label, a sentence over a sentence. A flagged thread you or a teammate have says
  * the reason there instead, quietly: the pill beside the name says whose it is.
  */
 function rowToDo(t: Thread) {
   if (!t.real) return null;
-  // A pitch the receptionist's draft named for what it is asks whether they are a customer at all, before any reply.
-  const todo =
-    t.needsYou && t.state === "escalated"
-      ? keptPitchNow(t)
-        ? PITCH_TODO
-        : holdToDoOf(t.holdAct, !!keptReplyNow(t))
-      : null;
+  const { move, list } = ixMoveOf(t);
+  // A thread's one draft says whether its reply is ready to use; set aside, it is asked whether they are a customer at all;
+  // words that never left go again as they were, and whoever nobody has answered is owed a reply. A campaign's send that
+  // failed stands in Handled, and asks nothing: its run reports it.
+  const drafted = () => threadDraftNow(t).state === "ready";
+  const todo = t.setAside
+    ? PITCH_TODO
+    : move === "failed" && list === "escalated"
+      ? THREAD_PANE_WORDS.sendAgain
+      : move === "unanswered" || move === "wrote_again"
+        ? holdToDoOf("reply", drafted())
+        : move === "needs_you"
+          ? holdToDoOf(t.holdAct, drafted())
+          : null;
   if (todo)
     return (
       <div className="ix-thread-todo" data-testid="thread-todo">
@@ -228,7 +275,7 @@ function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
       {t.resolution && (
         <div className={`ix-thread-resolution ${t.resolution.declined ? "declined" : ""}`}>
           <Icon name={t.resolution.declined ? "x" : "check"} size={10} />
-          You: {t.resolution.action} · {t.resolution.at}
+          You: {t.resolution.action} · <span {...SAYS_WHEN}>{t.resolution.at}</span>
         </div>
       )}
       {words.text && (
@@ -247,8 +294,11 @@ function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
  * neighbours wherever they are, so the arrows and J/K that walk them find each (pick.tsx pickKeys).
  */
 export function useShownThreads(visible: readonly Thread[], openId: string | null, density: string): ShownRows {
+  // A row's last line reads its thread's draft (rowToDo), so the rows are drawn again as one lands.
+  useDraftsMoved();
   const open = visible.findIndex((t) => t.id === openId);
   return useShownRows({
+    name: "inbox",
     count: visible.length,
     estimate: density === "compact" ? 56 : 76,
     keyOf: (i) => visible[i]?.id ?? String(i),
@@ -298,12 +348,7 @@ function threadRow(L: ListCtx, t: Thread, i: number, place?: { measure: (el: Ele
 
       {/* The one face (the kit's, by contracts' personFaceOf), with the wire of the words as a badge at its foot. */}
       <span className="ix-thread-lead">
-        <Face
-          person={{ name: t.who, initials: t.avatar }}
-          priority={t.priority}
-          hue={faceHueOf(t.who)}
-          className="ix-thread-pic"
-        />
+        <Face person={{ name: t.who, initials: t.avatar }} priority={t.priority} className="ix-thread-pic" />
         {rowWire(words.wire, t.who)}
       </span>
 

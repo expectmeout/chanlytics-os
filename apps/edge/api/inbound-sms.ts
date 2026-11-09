@@ -7,7 +7,7 @@
  * the form is read, the line and the signature judged (planSmsIngress), the message recorded and its answer left to an
  * inbound_answer job; the answer is empty TwiML.
  */
-import { door } from "../lib/log.js";
+import { door } from "../lib/shared/log.js";
 import { receiveInboundText } from "../lib/sms/inbound-text.js";
 
 export const POST = door(receiveInboundText);

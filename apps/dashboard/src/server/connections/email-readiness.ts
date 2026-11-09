@@ -1,4 +1,4 @@
-import { callEdge, edgeConfigured, READY_TTL_MS } from "../edge";
+import { callEdge, edgeConfigured, READY_TTL_MS } from "../shared/edge";
 
 /**
  * Whether this deployment's email wire can send a campaign, and whether it can send an OFFER, as the edge says it (apps/edge
@@ -32,10 +32,10 @@ const COULD_NOT_ASK: EmailWire = { ready: null, offers: null };
  * kept, and keeps the answer: for a caller that must not read a stale one. `now` is the clock (tests', which step it past the
  * minutes).
  */
-export async function emailWire(o: { now?: number; fresh?: boolean } = {}): Promise<EmailWire> {
-  const now = o.now ?? Date.now();
+export async function getEmailWire(options: { now?: number; fresh?: boolean } = {}): Promise<EmailWire> {
+  const now = options.now ?? Date.now();
   if (
-    !o.fresh &&
+    !options.fresh &&
     wireCache &&
     now - wireCache.at <
       (wireCache.wire.ready === true && wireCache.wire.offers === true ? READY_TTL_MS : NOT_READY_TTL_MS)
@@ -49,12 +49,12 @@ export async function emailWire(o: { now?: number; fresh?: boolean } = {}): Prom
 async function askEdge(): Promise<EmailWire> {
   if (!edgeConfigured()) return COULD_NOT_ASK;
   // No workspace and no person: the answer is about the deployment (callEdge says so out loud).
-  const a = await callEdge(
+  const answer = await callEdge(
     "/api/admin/email/wire",
     { op: "status" },
     { workspace: null, user: null, timeoutMs: EMAIL_WIRE_TIMEOUT_MS },
   );
-  if (a.status !== 200 || a.body?.ok !== true || typeof a.body.ready !== "boolean") return COULD_NOT_ASK;
-  const offers = a.body.offers === true ? true : a.body.offers === null ? null : false;
-  return { ready: a.body.ready, offers };
+  if (answer.status !== 200 || answer.body?.ok !== true || typeof answer.body.ready !== "boolean") return COULD_NOT_ASK;
+  const offers = answer.body.offers === true ? true : answer.body.offers === null ? null : false;
+  return { ready: answer.body.ready, offers };
 }

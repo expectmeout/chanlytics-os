@@ -6,7 +6,7 @@
  * needs you (a batch waiting for your OK, a message gone, new words turned down, emails the check held) and quiet where it
  * is only coming (its next run, who is in line). Between two steps, the wait and who it keeps going, on the rail where it
  * happens. Then Add a step (a reminder says once why it takes none), and where it stops. A one-off is its day and its one
- * message, with the way out while it waits. Every word is contracts' (sequence-schedule.ts). A step opened is the kit's
+ * message, with the way out while it waits. Every word is contracts' (sequences/schedule.ts). A step opened is the kit's
  * sheet (step-sheet.tsx): its words, its facts and its acts, and its editor in the same sheet; the record's dock opens a
  * step to be changed there too (`editing`).
  *
@@ -41,8 +41,8 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { cx } from "../../kit/variants";
-import { gate, routeDoor } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate, routeDoor } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { LeadSteps } from "./leads/lead-steps";
 import { RailAdd, RailBox, RailRow, RailStart, StepsRail, type RailStep } from "./place/rail";
 import { SettingsSheet } from "./settings-sheet";
@@ -52,7 +52,7 @@ import { useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 import type { CmOffered } from "../parts/channels";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /** What a step's state is said from, but whether its message is gone: each step's own read says that. */
 export type StepsCtx = Omit<ScheduleCtx, "gone">;

@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { AppError, LeadSearchPlanSchema } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
-import { write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
-import { answerOf, answerPlanOf, refusalOf, searchRow } from "@/server/leads/leads";
+import { AppError, LeadSearchPlanSchema, DbFailure } from "@chanlytics/contracts";
+import { write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
+import { answerOf, answerPlanOf, planAsJson, refusalOf, searchRow } from "@/server/leads/leads";
+import { answerRound } from "@/server/leads/search-acts";
 
 const Body = z.object({
   answer: z.enum(["keep", "include", "stop"]),
@@ -28,12 +28,12 @@ export const POST = write({
     const search = await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search"));
     if (!search.round_id) throw new AppError("conflict", "This search has no round to answer for.", 409);
     if (input.answer === "include" && !input.plan) throw new AppError("validation", "Include needs the amended plan.");
-    const { data, error } = await ctx.supabase.rpc("lead_round_answer", {
+    const { data, error } = await answerRound(ctx, {
       p_round_id: search.round_id,
       p_answer: input.answer,
-      ...(input.plan ? { p_plan: answerPlanOf(search, input.plan) as unknown as Json } : {}),
+      ...(input.plan ? { p_plan: planAsJson(answerPlanOf(search, input.plan)) } : {}),
     });
-    if (error) throw new Error(`lead_round_answer: ${error.message}`);
+    if (error) throw new DbFailure(error, "lead_round_answer");
     const refused = refusalOf(answerOf(data));
     if (refused) throw refused;
     return { round_id: search.round_id, answered: input.answer };

@@ -12,7 +12,7 @@ import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { recFolds } from "../../kit/record/registry";
 import { RecordRow } from "../../kit/record/row";
-import { useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { PaneActivity } from "../activity/pane";
 import { PaneAutonomyReal } from "../autonomy/pane";
@@ -20,6 +20,7 @@ import { PaneBillingReal } from "../billing/pane";
 import { businessGapPane } from "../business/tab";
 import { PaneIntegrationsReal } from "../connections/pane";
 import { PaneNotificationsReal } from "../notifications/pane";
+import { PaneFiles } from "../../files/pane";
 import { PaneMemory } from "../memory/pane";
 import { PanePartner } from "../partner/pane";
 import { PaneTeam } from "../partner/team-card";
@@ -38,7 +39,7 @@ import {
 } from "./tabs";
 import { PaneWorkspace, WorkspaceData } from "./workspace";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /**
  * Each pane, warmed when the pointer, a finger or the keyboard reaches its row: by the time the press lands, its rows are in
@@ -87,14 +88,15 @@ function SetPane({ id, row, flash }: { id: string; row: string | null; flash: Fl
       {id === "profile" && <PaneProfile flash={flash} />}
       {id === "partner" && <PanePartner flash={flash} />}
       {id === "team" && <PaneTeam flash={flash} />}
-      {/* The business, one page per question: Details, Hours & booking and How it answers, over one record. */}
-      {(id === "workspace" || id === "hours" || id === "receptionist") && (
+      {/* The business, one page per question: Details, Hours & booking, How it answers and How it reaches out, over one record. */}
+      {(id === "workspace" || id === "hours" || id === "receptionist" || id === "outreach") && (
         <PaneWorkspace flash={flash} row={row} part={id} />
       )}
       {id === "autonomy" && <PaneAutonomyReal flash={flash} row={row} />}
       {id === "integrations" && <PaneIntegrationsReal row={row} />}
       {/* What Ask remembers about the business, and its journal (decision 0070). */}
       {id === "memory" && <PaneMemory flash={flash} />}
+      {id === "files" && <PaneFiles flash={flash} />}
       {id === "notifications" && <PaneNotificationsReal flash={flash} />}
       {/* The plan, then the workspace's own records: the account itself. */}
       {id === "billing" && (
@@ -187,7 +189,7 @@ export function SettingsPage({ tab = "", onTab = () => {} }: { tab?: string; onT
   const partner = !!useSurface("partner")?.dto;
   useSurface("settings");
   const gapPane = businessGapPane();
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   // The tab asked for while a pane holds unsaved changes (the fold registry answers: the record kit's open fold, whatever
   // pane drew it): the rail asks before the pane, and the changes with it, are replaced (S22). And while a fold's save is
   // out it asks in other words, kept from the moment it asked: "Leave without saving?" is untrue of a change on its way

@@ -4,21 +4,20 @@ import "server-only";
  * What a write of the settings says when it cannot land, and what it records when it does: the settings PUT's, and
  * the first receptionist's (first-receptionist.ts), which write the one config row the same versioned way.
  */
-import { changedConfigFields } from "@chanlytics/contracts";
-import { recordEvent } from "@chanlytics/db";
-import { log } from "@/server/log";
-import type { RouteContext } from "@/server/with-route";
-import { serviceDb } from "@/server/service-db";
-import { callEdge, edgeConfigured } from "@/server/edge";
+import { changedConfigFields, valueAt } from "@chanlytics/contracts";
+import { recordEvent } from "@chanlytics/db/events";
+import { log } from "@/server/shared/log";
+import type { RouteContext } from "@/server/shared/with-route";
+import { serviceDb } from "@/server/shared/service-db";
+import { callEdge, edgeConfigured } from "@/server/shared/edge";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long the edge has to queue a read of the website: one insert. */
 const WEBSITE_ASK_MS = 5_000;
 
 /** The website a config names (brain.profile.website), or null. */
 function websiteIn(config: unknown): string | null {
-  const brain = config && typeof config === "object" ? (config as { brain?: unknown }).brain : null;
-  const profile = brain && typeof brain === "object" ? (brain as { profile?: unknown }).profile : null;
-  const site = profile && typeof profile === "object" ? (profile as { website?: unknown }).website : null;
+  const site = valueAt(config, "brain", "profile", "website");
   return typeof site === "string" && site.trim() ? site.trim() : null;
 }
 
@@ -26,7 +25,7 @@ function websiteIn(config: unknown): string | null {
  * A website newly named is read for the first run's Check (decision 0073, R10): its services, prices and rules, offered
  * for the owner to tap in. Asked of the edge, which holds the reader and the model; best effort, never the save's failure.
  */
-async function askWebsiteRead(ctx: RouteContext, tenantId: string): Promise<void> {
+async function askWebsiteRead(ctx: RouteContext, tenantId: TenantId): Promise<void> {
   if (!edgeConfigured()) return;
   const a = await callEdge(
     "/api/admin/imports/website-read",
@@ -56,7 +55,7 @@ export const SETTINGS_REFUSED = {
  */
 export async function recordSettingsChanged(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   before: unknown,
   after: unknown,
   version: number,

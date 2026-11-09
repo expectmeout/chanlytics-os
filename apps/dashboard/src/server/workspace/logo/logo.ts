@@ -17,13 +17,14 @@ import {
   workspaceLogoPath,
   workspaceLogoSrc,
 } from "@chanlytics/contracts";
-import { setWorkspaceLogo } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
-import type { Member } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
-import { remadeLogo } from "@chanlytics/channels";
+import { setWorkspaceLogo } from "@chanlytics/db/workspace";
+import { serviceDb } from "@/server/shared/service-db";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
+import type { Member } from "@/server/shared/route";
+import { writeDoorRefusal, type RouteContext } from "@/server/shared/with-route";
+import { remadeLogo } from "@chanlytics/channels/files";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A day: a replaced picture has a new name, so only a removed one is held this long in a browser that saw it. */
 const CACHE_S = String(24 * 60 * 60);
@@ -32,19 +33,19 @@ const CACHE_S = String(24 * 60 * 60);
 const bucket = () => serviceDb().storage.from(WORKSPACE_LOGOS_BUCKET);
 
 /** The database's refusal, in the words the row shows; the colour's door (../look.ts) is refused the same way. */
-export function doorRefusal(error: { code?: string; message: string }): AppError {
-  if (error.code === "42501") return new AppError("forbidden", error.message, 403);
-  if (error.code === "22023") return new AppError("validation", error.message);
-  if (error.code === "P0002") return new AppError("not_found", error.message, 404);
+export function logoDoorRefusal(error: { code?: string; message: string }): AppError {
+  const refused = writeDoorRefusal(error);
+  if (refused) return refused;
   return new AppError("internal", LOGO_WORDS.notSaved, 500);
 }
 
 /** A file no workspace wears any more, removed; a failure is said, never thrown: the save it follows stands. */
-async function removeFile(tenantId: string, path: string, why: "replaced" | "refused" | "removed"): Promise<void> {
+async function removeFile(tenantId: TenantId, path: string, reason: "replaced" | "refused" | "removed"): Promise<void> {
   const { error } = await bucket()
     .remove([path])
     .catch((e: unknown) => ({ error: { message: String(e instanceof Error ? e.message : e) } }));
-  if (error) log.warn("workspace_logo_remove_failed", { tenant_id: tenantId, why, error: error.message.slice(0, 200) });
+  if (error)
+    log.warn("workspace_logo_remove_failed", { tenant_id: tenantId, why: reason, error: error.message.slice(0, 200) });
 }
 
 /** Point the workspace at `path` (or at nothing, ""), and let go of the file it wore before. */
@@ -52,7 +53,7 @@ async function wear(ctx: RouteContext, member: Member, path: string): Promise<vo
   const { data, error } = await setWorkspaceLogo(ctx.supabase, member.tenantId, path);
   if (error) {
     if (path) await removeFile(member.tenantId, path, "refused");
-    throw doorRefusal(error);
+    throw logoDoorRefusal(error);
   }
   const before = typeof data === "string" ? data : null;
   if (before !== path && isLogoPathOf(member.tenantId, before)) await removeFile(member.tenantId, before, "replaced");
@@ -60,17 +61,17 @@ async function wear(ctx: RouteContext, member: Member, path: string): Promise<vo
 
 /** PUT workspaces/logo: the picture the page made, as base64 (the route's schema has held its alphabet and length). */
 export async function saveLogo(ctx: RouteContext, member: Member, image: string): Promise<{ logo_url: string | null }> {
-  const made = remadeLogo(new Uint8Array(Buffer.from(image, "base64")));
-  if (!made.ok) throw new AppError("validation", LOGO_WORDS.unusable);
+  const created = remadeLogo(new Uint8Array(Buffer.from(image, "base64")));
+  if (!created.ok) throw new AppError("validation", LOGO_WORDS.unusable);
   const path = workspaceLogoPath(member.tenantId, randomUUID());
-  const { error } = await bucket().upload(path, made.png, {
+  const { error } = await bucket().upload(path, created.png, {
     contentType: "image/png",
     cacheControl: CACHE_S,
     upsert: false,
   });
   if (error) {
     log.error("workspace_logo_store_failed", { tenant_id: member.tenantId, error: error.message.slice(0, 200) });
-    throw new AppError("internal", LOGO_WORDS.notSaved, 503);
+    throw new AppError("unavailable", LOGO_WORDS.notSaved);
   }
   await wear(ctx, member, path);
   return { logo_url: workspaceLogoSrc(env.NEXT_PUBLIC_SUPABASE_URL, path) };

@@ -7,7 +7,7 @@
  * `Icon` and `FailedRead` on `window`: this is that line, and it is deleted with the last page that reads a name. The parts
  * only Ask's Line draws (the segmented bar, the answer's charts, the hold to talk) are imported by the Line (surfaces/ask/).
  * The app publishes it from seed-globals.ts, before any page loads; the standalone mockup gets the same object from a bundle
- * its server builds (tooling/scripts/serve-legacy.mjs, `data/kit-globals.js`). The state pill, the confirm, the more menu and
+ * its server builds (tooling/scripts/serve-mockup.mjs, `data/kit-globals.js`). The state pill, the confirm, the more menu and
  * the policy chip (`StatePill`, `Confirm`, `MoreMenu`, `PolicyChip`: data-bits.jsx's too) moved when the Inbox needed them in
  * TSX, and are published the same way.
  *

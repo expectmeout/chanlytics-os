@@ -151,12 +151,43 @@ export const JOB_KINDS = [
    */
   "preview_build",
   /**
-   * An erasure a press left unfinished, finished (00501, decision 0036): put on the ledger beside the block by every
-   * press, due once the press has had time to end, payload { contact_id }, keyed 'erasure_finish:<contact>' while one
-   * waits. erase_contact withdraws it when the press ends well; otherwise it runs the erasure again, on the service
+   * An erasure a press left to the ledger (00501, decision 0036): put there beside the block by every press, due once
+   * it has had time to end, or now by a press of many, payload { contact_id, by? }, keyed 'erasure_finish:<contact>'
+   * while one waits. erase_contact withdraws it when a press ends well; otherwise it runs the erasure, on the service
    * role, in the lane of someone waiting. Internal work written to be run again: every leg is keyed on the person.
    */
   "erasure_finish",
+  /**
+   * One thread's reply written ahead for a person (00538, decision 0093): scheduled by the hold's subscriber and the
+   * drafts' sweep, payload { conversation_id, draft_kind, message_id?, rules }, keyed on all four while one waits, in the
+   * reply lane: someone is about to read it. The receptionist's brain writes it and it is kept on the thread. Internal
+   * work written to be run again: a second run finds the draft and pays nothing.
+   */
+  "reply_draft",
+  /**
+   * One file read by the small model (00551, decision 0099): payload { file_id, edition }, once a file and an edition
+   * while one waits, in the bulk lane, since 200 from an import must not hold a customer's send, and paced when an import
+   * brought it. A lone upload still starts at once, a workspace with nothing running going first. Written to be run again.
+   */
+  "file_look",
+  /**
+   * Pictures an import found on the business's website or its public listing, fetched and kept (00551): payload
+   * { source, batch, items }, each kept once ever by its fingerprint, so a second run keeps nothing twice.
+   */
+  "file_fetch",
+  /** A removed file's bytes and Anthropic's copy of it let go (00551): payload { file_id }. */
+  "file_purge",
+  // A video made ready one step a run, each run again safely (00556, decision 0099 B): payload { file_id, step, edition }.
+  "video_digest",
+  /**
+   * A workspace's hourly work, handed out by its clock and run here (00569, decision 0115), one job a workspace while one
+   * waits or runs: its due moments read and run together, its due reach-out steps, its calendar read, its Google listings
+   * and profile read. Payload {}: each asks what is due when it runs.
+   */
+  "campaign_moments",
+  "reach_out_steps",
+  "calendar_read",
+  "google_read",
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
@@ -168,7 +199,8 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * `consent_notice` tells it once on the bell when a customer asked to stop, from the consent event whichever door wrote
  * it (decision 0048, 00409); `visit_notice` tells it once on the bell when a booking arrived, from the appointment's
  * event whichever door wrote it (00410, S1-01); `team_notice` tells it once on the bell when a teammate joined, from
- * the seat's event (00410, S1-19); `freed_time_offer` offers a freed time to who asked and never booked (decision 0082).
+ * the seat's event (00410, S1-19); `freed_time_offer` offers a freed time to who asked and never booked (decision 0082);
+ * `reply_draft` has a held thread's reply written ahead, from the hold's own events (decision 0093, 00538).
  */
 export const EVENT_SUBSCRIBERS = [
   "reach_out_booked",
@@ -177,6 +209,7 @@ export const EVENT_SUBSCRIBERS = [
   "visit_notice",
   "team_notice",
   "freed_time_offer",
+  "reply_draft",
 ] as const;
 export type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 
@@ -207,7 +240,7 @@ export type WabaEventKind = `channel.${(typeof WABA_FIELDS)[number]}`;
 /**
  * Every event kind the product writes, and nothing it does not.
  *
- * Held to the emitters by tooling/scripts/tests/event-kinds.test.mjs, a
+ * Held to the emitters by tests/event-kinds.test.mjs, a
  * repo-wide lint: a kind here that nothing emits is a dead declaration, a
  * kind emitted that is not here is a row nobody can name. Both were true for
  * months (three dead, fourteen undeclared) before the lint existed.
@@ -271,6 +304,13 @@ export const EVENT_KINDS = [
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
+  "file.added",
+  "file.changed",
+  "file.kept",
+  "file.posted",
+  "file.removed",
+  "file.set_aside",
+  "file.unposted",
   /**
    * A note for the receptionist suggested from an owner's correction, and the member's answer (00448, decision 0063):
    * { suggestion_id, source }, never the words; a Keep's note is the settings.changed beside it.
@@ -334,6 +374,11 @@ export const EVENT_KINDS = [
   "conversation.snooze_expired",
   /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
   "escalation.changed",
+  /**
+   * The door found this thread already handed to a person and the same reason standing (00538): they wrote again on a
+   * held thread, so its draft answers an older message. { reason }, on the conversation. Evidence: nothing is told of it.
+   */
+  "escalation.refreshed",
   /** A broadcast finished, with its tally; a playbook made a run. */
   "broadcast.sent",
   /**
@@ -454,6 +499,8 @@ export const EVENT_KINDS = [
   /** "Stop writing to them" on a reach-out's lead, and a held reach-out email decided ({ decision, by }), on its run. */
   "reach_out.lead_stopped",
   "reach_out.send_decided",
+  /** A lead's own email typed on their sheet, or the step's words put back (decision 0096; { step_id, kept, by }). */
+  "reach_out.lead_words_changed",
   /**
    * Leads added to a list-fed reach-out ({ search_id, n, by }), and an add taken back ({ search_id, taken, leaving,
    * sent, by }), on the reach-out (00426).
@@ -778,6 +825,13 @@ export const DECISION_VERBS = [
    * subject 'appointment' (the request's row), payload booked, its start, the person and the service.
    */
   "answer_booking_request",
+  /**
+   * A thread set aside as not a customer's (00539, decision 0093): a member said so, and it was archived with its address
+   * marked; or a member said it was one after all, and it waits on them again. Subject 'conversation', payload what was
+   * undone by it.
+   */
+  "not_a_customer",
+  "reply_anyway",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
@@ -816,7 +870,7 @@ export type TemplateStatus = (typeof TEMPLATE_STATUSES)[number];
 
 /**
  * What a member may say became of a visit (00397 mark_visit; decision 0002, step 8). Here, with the closed sets, and not in
- * calendar-words.ts, which says them: Today's view model names it and the phone app's program reaches that (mobile/widget.ts),
+ * calendar/words.ts, which says them: Today's view model names it and the phone app's program reaches that (mobile/widget.ts),
  * which must not reach the calendar's words.
  */
 export type VisitWord = "kept" | "missed" | "cancelled";

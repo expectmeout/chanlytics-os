@@ -8,8 +8,8 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 import type { Params, RouteKey } from "@/client/api";
-import { onSurfaceMoved, surfaceVersion } from "@/legacy-bridge/surface-status";
-import type { replies } from "@/legacy-bridge/reach-out/replies";
+import { onSurfaceMoved, surfaceVersion } from "@/bridge/surface-status";
+import type { replies } from "@/bridge/reach-out/replies";
 import { fn, object } from "../../shell-doors";
 import { agentIdFor } from "../shell";
 
@@ -27,7 +27,7 @@ export const detailField = (e: Event | null | undefined, field: string): unknown
 
 /**
  * People's rows land last on a cold boot (they are the heaviest read): a thread opened before them draws again once
- * they do (the legacy `useSurface("people")`, surface-status.ts). The number it answers is ignored, as the page ignored it.
+ * they do (the shell's `useSurface("people")`, surface-status.ts). The number it answers is ignored, as the page ignored it.
  */
 export function usePeopleMoved(): void {
   const key = "people";

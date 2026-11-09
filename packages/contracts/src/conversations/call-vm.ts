@@ -6,14 +6,14 @@ import { callLength, mmss } from "../shared/clock";
 import { whisperText } from "../voice/whisper";
 import { callerName } from "../people/person-name";
 import { isOptedOutContact } from "../consent/consent";
-import { isLiveCall } from "../config/policy";
+import { isLiveCall } from "../config/policy/reply-limits";
 import { callNotesOf, callOutcomeOf, callOutcomeWords, tidyCallSummary, type CallNotes } from "../voice/call-words";
 import { RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS } from "../workspace/retention";
 import { HOLD_ACT_WORDS } from "./escalations";
 import { initialsOf, shortName } from "./thread-contact";
 import { shortTime } from "./thread-clock";
 import {
-  CALL_OUTCOME_WORDS,
+  CALL_RESULT_WORDS,
   abandonedCall,
   callAttemptWords,
   endedHowOf,
@@ -22,7 +22,7 @@ import {
   reachedVoicemail,
   recordingStateOf,
   type CallDto,
-  type CallOutcome,
+  type CallResult,
   type RecordingState,
 } from "./call-dto";
 
@@ -50,7 +50,7 @@ export interface CallVM {
    *  failed: the provider could not place or keep it (status error) · abandoned · callback · voicemail: they
    *  reached the voicemail · handled: everything else. A voicemail and an errored call read "Receptionist
    *  handled it" until the 2 Oct 2026 audit. */
-  outcome: CallOutcome;
+  outcome: CallResult;
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
@@ -115,7 +115,7 @@ export function callOutcomeFor(
 function transcriptOf(turns: NonNullable<CallDto["transcript_object"]>): CallVM["transcript"] {
   const given = turns.map((turn) => (turn.role === "injected" ? null : (turn.start ?? turn.words?.[0]?.start ?? null)));
   const starts = given.map((s, i) => {
-    if (s != null || turns[i].role === "injected") return s;
+    if (s != null || turns[i]?.role === "injected") return s;
     const before =
       given
         .slice(0, i)
@@ -124,18 +124,18 @@ function transcriptOf(turns: NonNullable<CallDto["transcript_object"]>): CallVM[
     const after = given.slice(i + 1).find((x) => x != null) ?? null;
     return before != null && after != null ? (before + after) / 2 : (before ?? after);
   });
-  return turns.map((turn, i) => {
+  return turns.map((turn, turnIndex) => {
     // An injected turn is a whisper: the owner's own words, shown as theirs.
     if (turn.role === "injected") {
       return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content), start: null, end: null };
     }
-    const own = given[i];
-    const start = starts[i];
-    const next = start == null ? null : (starts.slice(i + 1).find((x) => x != null && x > start) ?? null);
+    const own = given[turnIndex];
+    const start = starts[turnIndex] ?? null;
+    const next = start == null ? null : (starts.slice(turnIndex + 1).find((x) => x != null && x > start) ?? null);
     const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
     return {
       t: typeof own === "number" ? mmss(own * 1000) : "—",
-      speaker: (turn.role === "agent" ? "agent" : "client") as "agent" | "client",
+      speaker: (turn.role === "agent" ? "agent" : "client") satisfies "agent" | "client",
       text: turn.content ?? "",
       start,
       end,
@@ -194,7 +194,7 @@ function linesOf(
 export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = callerName(dto);
+  const personName = callerName(dto);
   const whoShort = name ? shortName(name) : "Caller";
   const dur = callLength(dto.duration_ms);
   // Not `status === "ongoing"`. A lost call_ended leaves that flag set forever,
@@ -248,9 +248,9 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     id: `cv-${dto.id}`,
     real: true,
     callId: dto.id,
-    who,
+    who: personName,
     whoShort,
-    initials: withheld ? "–" : initialsOf(who),
+    initials: withheld ? "–" : initialsOf(personName),
     stopped: isOptedOutContact(dto.contact),
     clientId: dto.contact_id,
     channel: "phone",
@@ -305,5 +305,5 @@ export function callEndedWords(
   const outcome = callOutcomeFor(dto, isLiveCall(dto, now));
   return outcome === "missed"
     ? callAttemptWords(dto.direction === "outbound" ? "outbound" : "inbound")
-    : CALL_OUTCOME_WORDS[outcome];
+    : CALL_RESULT_WORDS[outcome];
 }

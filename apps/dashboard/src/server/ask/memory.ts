@@ -2,7 +2,7 @@ import "server-only";
 
 /**
  * What a turn keeps of its thread: the thread it continues and the history it is asked with, before the model is asked
- * (threadForTurn, the ask route's), and the turn as the model was sent it (rawTurn), which the turn's end keeps
+ * (findThreadForTurn, the ask route's), and the turn as the model was sent it (rawTurn), which the turn's end keeps
  * (turn-end.ts finishTurn, runAskTurn's).
  */
 
@@ -18,14 +18,21 @@ import {
   type AskProposal,
   type AskRowRef,
   type AskScope,
-  type AskTurnShape,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "../with-route";
-import { answerLine, titleFromQuestion, titleFromSearch, type CardOutcome, type SearchAnswering } from "./prompt";
+import type { AskTurnShape } from "./shape";
+import type { RouteContext } from "../shared/with-route";
+import {
+  answerLine,
+  titleFromQuestion,
+  titleFromSearch,
+  type CardOutcome,
+  type SearchAnswering,
+} from "./prompt/prompt";
 import { createThread, readRaws, readThread } from "./store";
 import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock } from "./round";
-import type { Msg, TurnInput } from "./loop";
-import { log } from "@/server/log";
+import type { Msg, TurnInput } from "./loop/turn-head";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The earlier turns a cold question is asked with: counted as turns -- a person's message and what follows it until the
@@ -134,10 +141,11 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
   ];
   const asBlocks = (c: unknown): unknown[] => (Array.isArray(c) ? c : [{ type: "text", text: String(c) }]);
   for (let i = messages.length - 2; i >= 0; i--) {
-    if (messages[i].role === messages[i + 1].role) {
-      const [a, b] = [messages[i].content, messages[i + 1].content];
+    const [one, two] = [messages[i], messages[i + 1]];
+    if (one && two && one.role === two.role) {
+      const [a, b] = [one.content, two.content];
       messages[i] = {
-        role: messages[i].role,
+        role: one.role,
         content: typeof a === "string" && typeof b === "string" ? `${a}\n${b}` : [...asBlocks(a), ...asBlocks(b)],
       };
       messages.splice(i + 1, 1);
@@ -178,7 +186,7 @@ export function withoutData(messages: Msg[], questionAt: number, words: unknown,
     const blocks: unknown[] = m.content;
     const data = (b: unknown) => !!b && typeof b === "object" && "type" in b && b.type === "search_result";
     const kept = i === questionAt ? blocks.filter((b) => !data(b)) : blocks;
-    return { ...m, content: kept.map(swap) } as Msg;
+    return Object.assign({}, m, { content: kept.map(swap) });
   });
 }
 
@@ -197,19 +205,20 @@ const questionsOf = (history: TurnInput["history"]): number[] =>
  * is frozen on the turn that made it.
  */
 function rebuiltHistory(messages: AskMessageVM[], turns: TurnInput["history"]): TurnInput["history"] {
-  const history = messages.map((m, i) =>
-    m.role === "assistant" ? { role: "assistant" as const, text: answerLine(m, HISTORY_CHARS) } : turns[i],
-  );
+  const history = messages.flatMap((m, i) => {
+    const line = m.role === "assistant" ? { role: "assistant" as const, text: answerLine(m, HISTORY_CHARS) } : turns[i];
+    return line ? [line] : [];
+  });
   const questions = questionsOf(history);
   const sent = (from: number) => history.slice(from).reduce((n, h) => n + Math.min(h.text.length, HISTORY_CHARS), 0);
   let k = Math.max(0, questions.length - HISTORY_TURNS);
-  while (k < questions.length - 1 && sent(questions[k]) > HISTORY_BASE_CHARS) k++;
+  while (k < questions.length - 1 && sent(questions[k] ?? 0) > HISTORY_BASE_CHARS) k++;
   return history.slice(questions[k] ?? history.length);
 }
 
 /** The question as the route read it, and the search it answers, if any. */
 interface Asked {
-  tenantId: string;
+  tenantId: TenantId;
   threadId: string | null;
   text: string;
   /** The question's scope: a scope, none (`null`, which clears the thread's), or no opinion (undefined: the thread's). */
@@ -222,9 +231,9 @@ interface Asked {
  * that is not the caller's is a 404, except for an answer to a search's question, which starts one of the caller's
  * own. The scope is the question's, none when it said none, else the thread's (the Phase 5 plan, D9).
  */
-export async function threadForTurn(
+export async function findThreadForTurn(
   ctx: RouteContext,
-  asked: Asked,
+  request: Asked,
 ): Promise<{
   thread: { id: string; title: string; scope: AskScope | null };
   /** The thread's earlier turns as a cold turn is asked with them (rebuiltHistory), oldest first. */
@@ -247,13 +256,13 @@ export async function threadForTurn(
   /** What the thread already asked and offered to ask next: a next question that says one again goes (turn.ts). */
   offered: string[];
 }> {
-  const { tenantId, threadId, text, answering } = asked;
-  let { scope } = asked;
+  const { tenantId, threadId, text, answering } = request;
+  let { scope } = request;
   let history: Array<{ role: "user" | "assistant"; text: string }> = [];
   let sinceLastMs: number | null = null;
   let thread: { id: string; title: string; scope: AskScope | null } | null = null;
   let chain: Chain | null = null;
-  let told: string[] | null = null;
+  let notices: string[] | null = null;
   let cited: AskRowRef[] = [];
   let waiting: AskProposal[] = [];
   let cards: Array<Pick<AskMessageVM, "id" | "proposals">> = [];
@@ -263,7 +272,7 @@ export async function threadForTurn(
     if (found && found.tenantId === tenantId) {
       thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
       history = rebuiltHistory(found.messages, found.turns);
-      told = history.length ? toldIn(found.messages) : null;
+      notices = history.length ? toldIn(found.messages) : null;
       cited = citedIn(found.messages);
       waiting = found.messages.flatMap((m) => m.proposals ?? []).filter((p) => !p.outcome);
       cards = found.messages.filter((m) => m.proposals?.length).map((m) => ({ id: m.id, proposals: m.proposals }));
@@ -285,7 +294,7 @@ export async function threadForTurn(
     const created = await createThread(ctx, tenantId, title, scope ?? null);
     thread = { id: created.id, title: created.title, scope: scope ?? null };
   }
-  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told, cited, waiting, cards, offered };
+  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told: notices, cited, waiting, cards, offered };
 }
 
 /**
@@ -330,8 +339,9 @@ function chainIds(rows: AskMessageVM[], replays: Array<AskTurnShape["replay"] | 
   if (now - last.atMs >= LIVE_WINDOW_MS) return null;
   const ids: string[] = [];
   for (let i = rows.length - 1; i >= 0 && ids.length < LIVE_TURNS; i--) {
-    if (rows[i].role !== "assistant") continue;
-    ids.push(rows[i].id);
+    const row = rows[i];
+    if (row?.role !== "assistant") continue;
+    ids.push(row.id);
     if (replays[i] !== "live") return ids;
   }
   return null;
@@ -365,28 +375,29 @@ const isMsg = (m: unknown): m is Msg =>
 const messagesOf = (v: unknown): Msg[] | null => (Array.isArray(v) && v.every(isMsg) ? v : null);
 
 /** A raw turn as the row keeps it (storedRaw), read back whole, or null for anything else: a replay takes no doubt. */
-function keptOf(v: unknown): Kept | null {
-  const raw = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+function keptOf(value: unknown): Kept | null {
+  const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   const { at, model, prefix, blocks, after } = raw;
   if (typeof at !== "number" || typeof model !== "string" || typeof prefix !== "string" || typeof blocks !== "string")
     return null;
-  const told = raw.told ?? null;
-  if (told !== null && (!Array.isArray(told) || !told.every((t) => typeof t === "string"))) return null;
-  let b: Record<string, unknown>;
+  const notice = raw.told ?? null;
+  if (notice !== null && (!Array.isArray(notice) || !notice.every((t) => typeof t === "string"))) return null;
+  let record: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(blocks);
-    b = (parsed && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+    record = (parsed && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
-  const base = b.base === undefined ? null : messagesOf(b.base);
-  const rounds = messagesOf(b.rounds);
-  const { question, final, results } = b;
-  if ((b.base !== undefined && !base) || !rounds || !Array.isArray(question) || !Array.isArray(final)) return null;
+  const base = record.base === undefined ? null : messagesOf(record.base);
+  const rounds = messagesOf(record.rounds);
+  const { question, final, results } = record;
+  if ((record.base !== undefined && !base) || !rounds || !Array.isArray(question) || !Array.isArray(final)) return null;
   if (!Array.isArray(results)) return null;
   const link = typeof after === "string" ? after : null;
   const id = typeof raw.id === "string" ? raw.id : null;
-  return { at, model, prefix, id, after: link, told, base, question, rounds, final, results };
+  return { at, model, prefix, id, after: link, told: notice, base, question, rounds, final, results };
 }
 
 /**
@@ -403,7 +414,8 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const [newest] = turns;
   const oldest = turns.at(-1);
   const base = oldest?.base;
-  if (turns.length !== ids.length || !newest || !base || now - newest.at >= LIVE_WINDOW_MS) return null;
+  const [after] = ids;
+  if (turns.length !== ids.length || !newest || !after || !base || now - newest.at >= LIVE_WINDOW_MS) return null;
   if (turns.slice(0, -1).some((t, i) => t.base || t.after !== ids[i + 1])) return null;
   const sent = [...base];
   for (const t of [...turns].reverse())
@@ -411,19 +423,19 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   if (sent.length > LIVE_MESSAGES) return null;
   const messages = sent.map(unmarked);
   // Where the last request's cache write ended: its last block, the turn's words where they came last (A3).
-  const asked = [...messages].reverse().find((m) => m.role !== "assistant" && !isEffortMessage(m))?.content;
-  const anchor = Array.isArray(asked) ? asked.at(-1) : undefined;
-  const told = new Set(turns.flatMap((t) => t.told ?? []));
+  const items = [...messages].reverse().find((m) => m.role !== "assistant" && !isEffortMessage(m))?.content;
+  const anchor: unknown = Array.isArray(items) ? items.at(-1) : undefined;
+  const notice = new Set(turns.flatMap((t) => t.told ?? []));
   const own = [...ids].reverse().flatMap((id) => rows.filter((r) => r.id === id));
   const cards = (oldest?.told ? rows : own).flatMap((r) => r.proposals);
   const since = cards
     .flatMap(({ id, title, outcome }) =>
       outcome ? [{ id, title, state: outcome.state, receipt: outcome.receipt, atMs: outcome.atMs }] : [],
     )
-    .filter((o) => !told.has(toldOf(o)));
+    .filter((o) => !notice.has(toldOf(o)));
   const { results, model, prefix } = newest;
   const readAt = [...turns].reverse().map((t) => t.at);
-  return { messages, anchor, results, model, prefix, after: ids[0], lastId: newest.id, since, readAt };
+  return { messages, anchor, results, model, prefix, after, lastId: newest.id, since, readAt };
 }
 
 /**
@@ -434,13 +446,13 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
  */
 export function replayFor<W extends { type: "text"; text: string }>(
   chain: Chain | null | undefined,
-  asked: { data: unknown[]; words: W; question: unknown; asSystem: boolean },
+  input: { data: unknown[]; words: W; question: unknown; asSystem: boolean },
   round1: (messages: Msg[], anchor: unknown) => LastRound["request"],
 ): { messages: Msg[]; anchor: unknown; words: W } | null {
   if (!chain) return null;
-  const { data, words, question } = asked;
+  const { data, words, question } = input;
   const turn: Msg = { role: "user", content: [...chain.results, ...data, question] };
-  const messages = withWords([...chain.messages, turn], words, asked.asSystem);
+  const messages = withWords([...chain.messages, turn], words, input.asSystem);
   const request = round1(messages, chain.anchor);
   // As round one sends it: the diagnostics name the chain's last message (the Phase 6 plan, D2), in the size, never the
   // prefix.
@@ -522,7 +534,7 @@ export interface RawTurn {
   /**
    * What the turn told of the thread's cards (`<card id>:<state>:<atMs>`), which no later turn of its chain tells again:
    * a live turn's, the outcomes it said happened since (Chain.since); a rebuilt turn's, every outcome its history's
-   * lines said (threadForTurn's `told`). A thread's first turn keeps none.
+   * lines said (findThreadForTurn's `told`). A thread's first turn keeps none.
    */
   told?: string[];
 }
@@ -567,12 +579,11 @@ export function withMarkers(messages: Msg[], anchor: unknown): Msg[] {
   return messages.map((m, i) => {
     if (isEffortMessage(m) || !Array.isArray(m.content)) return m;
     const blocks: unknown[] = m.content;
-    const at = anchor === undefined ? -1 : blocks.indexOf(anchor);
+    const at = anchor === undefined ? -1 : blocks.findIndex((b) => b === anchor);
     if (at < 0 && i !== last) return m;
-    return {
-      ...m,
+    return Object.assign({}, m, {
       content: blocks.map((b, j) => (j === at || (i === last && j === blocks.length - 1) ? marked(b) : b)),
-    } as Msg;
+    });
   });
 }
 
@@ -584,7 +595,7 @@ function unmarkedBlock(b: unknown): unknown {
 }
 /** A message less the cache's markers a request carried on it (D10): the turn as it was sent, whoever marked it. */
 const unmarked = (m: Msg): Msg =>
-  !isEffortMessage(m) && Array.isArray(m.content) ? ({ ...m, content: m.content.map(unmarkedBlock) } as Msg) : m;
+  !isEffortMessage(m) && Array.isArray(m.content) ? Object.assign({}, m, { content: m.content.map(unmarkedBlock) }) : m;
 
 /**
  * The turn as it was sent, from the round it ended on and where the question sits in that round's request, and what it
@@ -599,7 +610,7 @@ export function rawTurn(
   const messages = request.messages.map(unmarked);
   return {
     ...(kept.after ? {} : { base: messages.slice(0, questionAt) }),
-    question: messages[questionAt].content,
+    question: messages[questionAt]?.content,
     rounds: messages.slice(questionAt + 1),
     final: replayBlocks(blocks),
     results: resultBlocks(outcomes),

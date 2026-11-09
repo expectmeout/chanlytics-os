@@ -2,7 +2,7 @@
  * The call in progress on the Lock Screen and in the Dynamic Island (the phone app's PRD, PR 7): what the edge
  * pushes to start it, in the shape expo-widgets reads (`content-state.name` is the activity's name, `props` its
  * props as a JSON string), the name both sides agree on, and who is shown it. Pure; the wire is
- * apps/edge/lib/ops/apns.ts.
+ * apps/edge/lib/voice/apns.ts.
  */
 import { formatPhoneDisplay, phoneTail } from "../shared/phone";
 import { MIN_MS } from "../shared/time";
@@ -60,9 +60,9 @@ export function callActivityPropsOf(call: {
   started_at: string | null;
 }): CallActivityProps {
   const tail = phoneTail(call.from_e164) ?? phoneTail(call.from_raw);
-  const who = (call.name ?? "").trim() || (tail ? `Caller ending ${tail}` : "Someone");
+  const personName = (call.name ?? "").trim() || (tail ? `Caller ending ${tail}` : "Someone");
   return {
-    who,
+    who: personName,
     line: formatPhoneDisplay(call.to_e164) ?? "your line",
     startedAt: call.started_at ?? new Date(0).toISOString(),
   };

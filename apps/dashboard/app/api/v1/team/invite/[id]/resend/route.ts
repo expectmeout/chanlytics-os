@@ -1,6 +1,6 @@
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { resendInvite } from "@/server/workspace/team";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 
 /**
  * POST /api/v1/team/invite/:id/resend — an open invitation sent again: seven more days from now and its email

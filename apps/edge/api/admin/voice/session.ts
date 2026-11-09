@@ -11,13 +11,13 @@
  * reached, or said "not now" (a 429 is its concurrency or rate limit), is 503 provider_unreachable; one that refused
  * is 502 provider_refused. Body: { tenant_id, user_id }.
  */
-import { json, refuse } from "../../../lib/http.js";
-import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth.js";
-import { readBody } from "../../../lib/admin-door.js";
-import { mayUseModelFor } from "../../../lib/model.js";
+import { json, refuse } from "../../../lib/shared/http.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/shared/admin-auth.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { mayUseModelFor } from "../../../lib/ai/model.js";
 import { askVoiceConfigured, mintAskVoiceSession } from "../../../lib/voice/ask-voice.js";
-import { UUID } from "../../../lib/packages/contracts.js";
-import { logger, adminDoor } from "../../../lib/log.js";
+import { UUID, VOICE_IS_OFF, VOICE_SESSION_DOOR, isTenantId } from "@chanlytics/contracts";
+import { logger, adminDoor } from "../../../lib/shared/log.js";
 
 const L = logger();
 
@@ -28,16 +28,16 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!auth.ok) return auth.response;
   if (!askVoiceConfigured()) return refuse(503, "no_provider_key");
 
-  const body = await readBody<{ tenant_id?: string; user_id?: string }>(request);
+  const body = await readBody(request, VOICE_SESSION_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
   const userId = personFor(auth, body.user_id) ?? "";
-  if (!UUID.test(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
+  if (!isTenantId(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
 
   if (!(await mayUseModelFor("ask", tenantId))) {
     L.warn("voice_session_refused", { tenant_id: tenantId, why: "may_not_spend" });
-    return refuse(402, "payment_required", "Voice is off while this workspace is paused or its plan has ended.");
+    return refuse(402, "payment_required", VOICE_IS_OFF);
   }
 
   const minted = await mintAskVoiceSession();

@@ -1,7 +1,9 @@
 /**
- * A person's wires and where they came from, in the owner's words: the leaf both the person's view model (people.ts)
- * and the list rule language (list-rules.ts) read, so neither loads the other to name a channel (decision 0009).
+ * A person's wires, where they came from and since when, in the owner's words: the leaf both the person's view model
+ * (people.ts) and the list rule language (lists/rules.ts) read, so neither loads the other to name a channel (decision
+ * 0009), and a thread's sheet loads none of the person page's cards to say a date.
  */
+import type { PersonRowVM } from "./person-row/row-facts";
 
 export type PersonChannel = "whatsapp" | "sms" | "voice" | "email" | "instagram";
 
@@ -62,7 +64,7 @@ export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
 
 /**
  * The platforms an ad runs on, in the words the Ads page says them in (ads/words.ts PLATFORM_WORD, which is that page's
- * alone to load: this is People's copy of three words, and tooling/scripts/tests/ads/ads-connect.test.mjs holds the two equal).
+ * alone to load: this is People's copy of three words, and tests/ads/ads-connect.test.mjs holds the two equal).
  */
 export const PERSON_AD_ON: Record<"meta" | "google" | "tiktok", string> = {
   meta: "Facebook and Instagram",
@@ -72,3 +74,16 @@ export const PERSON_AD_ON: Record<"meta" | "google" | "tiktok", string> = {
 
 /** Where an ad brought someone, as a line under a name says it: `From an ad · Spring offer`, or `From an ad` where the ad is not known. */
 export const fromAdWords = (name: string | null): string => (name ? `From an ad · ${name}` : "From an ad");
+
+/**
+ * Since when they have been in touch, as a person's page says it and a thread's sheet says it again after their address:
+ * "Since Jul 14" / "Since before Aug 27" / "". It moved here from person-cards.ts, which the sheet would otherwise load
+ * whole (3 Nov 2026: 27 KB more on the first load of the Inbox and of Conversations).
+ */
+export function sinceWords(base: PersonRowVM): string {
+  return base.firstContact.label === "—"
+    ? ""
+    : base.firstContact.estimate
+      ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}`
+      : `Since ${base.firstContact.label}`;
+}

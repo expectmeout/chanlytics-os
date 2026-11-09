@@ -33,11 +33,13 @@
  * call it is handed and names that call's workspace.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { fetchRecording } from "../packages/channels.js";
-import { setCallRecording } from "../packages/db.js";
-import { DAY_MS, RECORDING_RETENTION_DAYS } from "../packages/contracts.js";
-import { logger } from "../log.js";
+import type { Database } from "@chanlytics/db/types";
+import { fetchRecording } from "@chanlytics/channels/voice";
+import { listRecordingsToPurge, markRecordingPurged, setCallRecording } from "@chanlytics/db/voice";
+import { DAY_MS, RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
+import { logger } from "../shared/log.js";
+import { storeMedia } from "@chanlytics/db/channels";
+import type { TenantId } from "@chanlytics/contracts";
 
 export const RECORDING_MAX_ATTEMPTS = 3;
 /** The webhook's budget: the agent allows 20 s for the whole event and the upsert has already spent some. */
@@ -113,17 +115,11 @@ export async function purgeExpiredRecordings(
   limit = 50,
 ): Promise<PurgeOutcome> {
   const cutoff = new Date(ports.now.getTime() - RECORDING_RETENTION_DAYS * 86_400_000).toISOString();
-  const { data, error } = await db
-    .from("calls")
-    .select("id, tenant_id, recording")
-    .filter("recording->>fetch_state", "eq", "stored")
-    .lt("started_at", cutoff)
-    .order("started_at", { ascending: true })
-    .limit(limit);
+  const { data, error } = await listRecordingsToPurge(db, cutoff, limit);
   if (error) return { candidates: 0, purged: 0, error: error.message };
   const rows = (data ?? []) as {
     id: string;
-    tenant_id: string;
+    tenant_id: TenantId;
     recording: { storage_path?: string; mime?: string | null } | null;
   }[];
   if (!rows.length) return { candidates: 0, purged: 0, error: null };
@@ -145,18 +141,12 @@ export async function purgeExpiredRecordings(
   let failure: string | null = null;
   for (const row of rows) {
     // Replaces the whole value: the path and the size go with the audio.
-    const marked = await db
-      .from("calls")
-      .update({
-        recording: {
-          fetch_state: "purged",
-          purged_at: ports.now.toISOString(),
-          retention_days: RECORDING_RETENTION_DAYS,
-          mime: row.recording?.mime ?? null,
-        },
-      })
-      .eq("id", row.id)
-      .eq("tenant_id", row.tenant_id);
+    const marked = await markRecordingPurged(db, row.tenant_id, row.id, {
+      fetch_state: "purged",
+      purged_at: ports.now.toISOString(),
+      retention_days: RECORDING_RETENTION_DAYS,
+      mime: row.recording?.mime ?? null,
+    });
     // One bad row does not hold the rest of the batch: the audio is already
     // gone for all of them, and a row still marked `stored` comes back next
     // tick, where the removal is a no-op and only the marker is retried.
@@ -174,11 +164,11 @@ const PERMANENT_REFUSALS = new Set([401, 403, 410]);
 const cdnUnavailable = (status: number): boolean => status === 429 || status >= 500;
 
 /** Bound a promise that offers no cancellation of its own. Rejects as the fetch's own signal does, by name. */
-function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+function withTimeout<T>(p: Promise<T>, ms: number, text: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const bound = new Promise<never>((_, reject) => {
     timer = setTimeout(
-      () => reject(Object.assign(new Error(`${what} timed out after ${ms} ms`), { name: "TimeoutError" })),
+      () => reject(Object.assign(new Error(`${text} timed out after ${ms} ms`), { name: "TimeoutError" })),
       ms,
     );
   });
@@ -187,8 +177,8 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
 
 export async function copyRecording(
   db: SupabaseClient<Database>,
-  p: {
-    tenantId: string;
+  params: {
+    tenantId: TenantId;
     callId: string;
     providerUrl: string;
     attempts?: number | null;
@@ -197,76 +187,76 @@ export async function copyRecording(
     deferralsSpend?: boolean;
   },
 ): Promise<CopyOutcome> {
-  const L = logger({ tenant_id: p.tenantId });
-  const attempt = (p.attempts ?? 0) + 1;
+  const log = logger({ tenant_id: params.tenantId });
+  const attempt = (params.attempts ?? 0) + 1;
   const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
   const settle = async (state: "stored" | "pending" | "failed", extra: Record<string, unknown>) =>
-    setCallRecording(db, p.tenantId, p.callId, { fetch_state: state, attempts: attempt, ...extra });
+    setCallRecording(db, params.tenantId, params.callId, { fetch_state: state, attempts: attempt, ...extra });
   // No try spent: the count stays, and the write alone (00007's trigger on
   // updated_at) sends the row to the back of the queue for the next tick.
   const defer = async (error: string, fields: Record<string, unknown>): Promise<CopyOutcome> => {
-    if (p.deferralsSpend) {
-      L.error("call_recording_copy_failed", { call: p.callId, attempt, exhausted, error, ...fields });
+    if (params.deferralsSpend) {
+      log.error("call_recording_copy_failed", { call: params.callId, attempt, exhausted, error, ...fields });
       await settle(exhausted ? "failed" : "pending", { error });
       return exhausted ? "failed" : "retry";
     }
-    L.warn("call_recording_copy_failed", {
-      call: p.callId,
+    log.warn("call_recording_copy_failed", {
+      call: params.callId,
       outcome: "deferred",
-      attempts: p.attempts ?? 0,
+      attempts: params.attempts ?? 0,
       error,
       ...fields,
     });
-    await setCallRecording(db, p.tenantId, p.callId, { fetch_state: "pending", attempts: p.attempts ?? 0, error });
+    await setCallRecording(db, params.tenantId, params.callId, {
+      fetch_state: "pending",
+      attempts: params.attempts ?? 0,
+      error,
+    });
     return "deferred";
   };
   try {
-    const got = await fetchRecording(p.providerUrl, { timeoutMs: p.timeoutMs });
-    if (!got.ok) {
-      if (PERMANENT_REFUSALS.has(got.status)) {
+    const result = await fetchRecording(params.providerUrl, { timeoutMs: params.timeoutMs });
+    if (!result.ok) {
+      if (PERMANENT_REFUSALS.has(result.status)) {
         // The provider answered and will keep answering the same way.
-        await settle("failed", { error: `provider_refused_${got.status}` });
+        await settle("failed", { error: `provider_refused_${result.status}` });
         return "failed";
       }
       // The CDN could not answer for the file just now: nobody's word on it.
-      if (cdnUnavailable(got.status)) return defer(`provider_${got.status}`, { status: got.status });
+      if (cdnUnavailable(result.status)) return defer(`provider_${result.status}`, { status: result.status });
       // Not published yet (404), or another refusal of the request: the
       // CDN's word, worth another look, within the bound.
-      await settle(exhausted ? "failed" : "pending", { error: `provider_${got.status}` });
+      await settle(exhausted ? "failed" : "pending", { error: `provider_${result.status}` });
       return exhausted ? "failed" : "retry";
     }
-    const mime = sniffAudioType(got.bytes, got.mime);
+    const mime = sniffAudioType(result.bytes, result.mime);
     const ext = REC_EXT[mime] || "wav";
-    const path = `${p.tenantId}/calls/${p.callId}.${ext}`;
-    const { error } = await withTimeout(
-      db.storage.from("media").upload(path, got.bytes, { contentType: mime, upsert: true }),
-      p.timeoutMs,
-      "storage upload",
-    );
+    const path = `${params.tenantId}/calls/${params.callId}.${ext}`;
+    const { error } = await withTimeout(storeMedia(db, path, result.bytes, mime), params.timeoutMs, "storage upload");
     if (error) {
       // The bucket refusing THIS file (a 4xx: too large, a policy) is a try
       // like any other, so such a copy ends failed instead of returning for
       // ever; the bucket being down (a 5xx, or no status at all) is not the
       // file's fault and spends none.
-      const status = (error as { status?: unknown }).status;
+      const status = error.status;
       const message = String(error.message).slice(0, 200);
       const refused = typeof status === "number" && status >= 400 && status < 500;
       const slug = `storage_${typeof status === "number" ? status : "unreachable"}`;
       if (!refused) return defer(slug, { message });
-      L.error("call_recording_copy_failed", { call: p.callId, attempt, exhausted, message, status });
+      log.error("call_recording_copy_failed", { call: params.callId, attempt, exhausted, message, status });
       await settle(exhausted ? "failed" : "pending", { error: slug });
       return exhausted ? "failed" : "retry";
     }
-    await settle("stored", { storage_path: path, mime, bytes: got.bytes.byteLength });
+    await settle("stored", { storage_path: path, mime, bytes: result.bytes.byteLength });
     return "stored";
-  } catch (e) {
+  } catch (error) {
     // A timeout is the bound the copy was given, and counts: the sweep's own
     // twenty seconds is what a long recording gets, a bounded number of
     // times. Anything else thrown -- a refused connection, a reset, a client
     // that threw -- is a fault around the copy, not a word on it.
-    const message = String(e instanceof Error ? e.message : e).slice(0, 200);
-    if (!(e instanceof Error && e.name === "TimeoutError")) return defer(message, {});
-    L.error("call_recording_copy_failed", { call: p.callId, attempt, exhausted, message });
+    const message = String(error instanceof Error ? error.message : error).slice(0, 200);
+    if (!(error instanceof Error && error.name === "TimeoutError")) return defer(message, {});
+    log.error("call_recording_copy_failed", { call: params.callId, attempt, exhausted, message });
     await settle(exhausted ? "failed" : "pending", { error: message });
     return exhausted ? "failed" : "retry";
   }

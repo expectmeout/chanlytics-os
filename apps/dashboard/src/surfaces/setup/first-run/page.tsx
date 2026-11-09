@@ -17,28 +17,27 @@
  */
 import { useRef, useState, type RefObject, type ReactNode } from "react";
 import {
-  FIRST_RUN_HELPERS,
   FIRST_RUN_ROUTE,
   firstRunStepOf,
   firstRunStepRoute,
   bookingToolOfLink,
   type FirstRunChannelsVM,
-  type FirstRunGoLiveVM,
   type FirstRunLiveVM,
   type FirstRunPhoneVM,
   type FirstRunStepKey,
-  type FirstRunTryVM,
-  type FirstRunVM,
-  type FirstRunWho,
 } from "@chanlytics/contracts";
-import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
-import { pageClock } from "@/legacy-bridge/zone";
+import { FIRST_RUN_HELPERS } from "./model/first-run-helpers";
+import type { FirstRunGoLiveVM } from "./model/golive";
+import type { FirstRunTryVM } from "./model/try";
+import type { FirstRunVM, FirstRunWho } from "./model/view";
+import type { SettingsSurface } from "@/bridge/surfaces/settings";
+import { pageClock } from "@/bridge/zone";
 import type { LiveSurface } from "../../live/surface";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { recFolds } from "../../kit/record/registry";
-import { canDo, refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { SetupRows } from "../rows/rows";
@@ -426,7 +425,7 @@ function pageActs(o: {
   param: string | null;
   onNavigate: FirstRunProps["onNavigate"];
   stays: Stays;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   setLeaving: (l: Leaving | null) => void;
   busy: { making: boolean; setMaking: (m: boolean) => void; going: boolean; setGoing: (g: boolean) => void };
   finishRefused: RefObject<boolean>;
@@ -515,7 +514,7 @@ function stepBody(o: {
   S: SetupSurface;
   v: StepView;
   acts: PageActs;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   making: boolean;
   read: SettingsSurface | undefined;
   setPhoneChoice: (c: KeptPhoneChoice | null) => void;
@@ -636,7 +635,7 @@ export const FirstRun = ({ param = null, onNavigate }: FirstRunProps) => {
   const [cardOpen, setCardOpen] = useState(false);
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   // The page's toast, lent to every step: a step's move ends what it drew, and what it says outlives it.
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   const [making, setMaking] = useState(false);
   const [going, setGoing] = useState(false);
   const stays: Stays = {

@@ -14,14 +14,18 @@
  *
  * Cross-workspace: the registration sweep asks after every workspace's waiting lines; each write is keyed by the line's own row.
  */
-import { json, refuse } from "../http.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import { json } from "../shared/http.js";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { registerLine } from "./a2p-register.js";
-import { filingPages, sweepFilingHold } from "./line-ops.js";
-import { workspaceOpenToCustomers } from "../packages/db.js";
+import { filingPages } from "./ops/filing.js";
+import { sweepFilingHold } from "./ops/search-buy.js";
+import { findWorkspaceNameSlug, isWorkspaceOpenToCustomers } from "@chanlytics/db/workspace";
 import { syncRegistration } from "./a2p-sync.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import { findBusinessOnRecord, findLineRow, listLinesAwaitingCarriers } from "@chanlytics/db/lines";
 
+import type { SchemaSet } from "@chanlytics/contracts";
+import { refuseFailure } from "../shared/log.js";
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const REGISTRATIONS_PER_TICK = 20;
 
@@ -34,7 +38,7 @@ const REGISTRATIONS_PER_TICK = 20;
  * reads as a brand approved with nothing filed, which for a waiting line means "file it now", and a filing is a new
  * vetting fee that is its owner's to spend (the replace door), never the sweep's.
  */
-const ASKED = ["registering", "approved", "rejected"];
+const ASKED: SchemaSet<"lines.sms_state">[] = ["registering", "approved", "rejected"];
 export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response> {
   // Every line the carriers still hold, LEAST RECENTLY ASKED ABOUT first, so a
   // backlog drains in order. BOTH waiting states: a line that reaches
@@ -48,16 +52,9 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
   // ordering on it meant the same twenty rows held the page every hour and a
   // twenty-first line was never asked about at all. Every read of a line
   // writes the row, so `updated_at` is exactly "when we last asked".
-  const { data: lines, error } = await db
-    .from("lines")
-    .select("*")
-    .in("sms_state", ASKED)
-    // A refused line, only with its campaign on file (above).
-    .or("sms_state.neq.rejected,campaign_sid.not.is.null")
-    .not("brand_sid", "is", null)
-    .order("updated_at", { ascending: true })
-    .limit(REGISTRATIONS_PER_TICK);
-  if (error) return refuse(503, "read_failed", error.message);
+  // A refused line, only with its campaign on file (above).
+  const { data: lines, error } = await listLinesAwaitingCarriers(db, ASKED, REGISTRATIONS_PER_TICK);
+  if (error) return refuseFailure(503, "read_failed", error);
   if (!lines?.length) return json(200, { ok: true, checked: 0 });
 
   const origin = dashboardOrigin();
@@ -72,41 +69,44 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
   let held = 0;
   for (const line of lines) {
     try {
-      const r = await syncRegistration(db, line);
-      if (!r.ok) {
+      const result = await syncRegistration(db, line);
+      if (!result.ok) {
         // We could not ask: the provider refused the credentials (the platform's, or the line's after a refresh), or
         // refused to give this line's subaccount at all, or the line has none on file. A provider that could not be
         // asked just now (unavailable) is not that: the next tick asks again.
         if (
-          r.error === "provider_unauthorized" ||
-          r.error === "provider_refused" ||
-          r.error === "no_line_credentials"
+          result.error === "provider_unauthorized" ||
+          result.error === "provider_refused" ||
+          result.error === "no_line_credentials"
         ) {
           unreadable++;
-          L.error("registration_unreadable", { line_id: line.id, error: r.error, detail: r.detail });
+          L.error("registration_unreadable", { line_id: line.id, error: result.error, detail: result.detail });
         }
         continue;
       }
       // Moved means CHANGED. Counting "not registering any more" called a
       // line that has sat in the same state for a week a move, every hour.
-      if (r.smsState !== line.sms_state) moved++;
+      if (result.smsState !== line.sms_state) moved++;
       // The wait's own ending: the brand is through, so the campaign can go. Never for a refused line (ASKED).
-      if (r.brand === "APPROVED" && !line.campaign_sid && line.sms_state !== "rejected") {
+      if (result.brand === "APPROVED" && !line.campaign_sid && line.sms_state !== "rejected") {
         // Asked first, as the owner's press asks it: nothing is filed, and nothing spent, for a workspace that is not
         // open to its customers or may not spend. The line goes to the back of the queue and is asked again next hour.
-        const hold = sweepFilingHold(await workspaceOpenToCustomers(db, line.tenant_id));
+        const hold = sweepFilingHold(await isWorkspaceOpenToCustomers(db, line.tenant_id));
         if (hold) {
           held++;
           L.info("registration_filing_held", { line_id: line.id, tenant_id: line.tenant_id, why: hold });
           continue;
         }
-        const rec = await db.from("business_records").select("*").eq("tenant_id", line.tenant_id).maybeSingle();
-        const tenant = await db.from("tenants").select("name, slug").eq("id", line.tenant_id).maybeSingle();
-        const fresh = await db.from("lines").select("*").eq("id", line.id).maybeSingle();
-        if (rec.data && tenant.data && fresh.data) {
+        // A read that fails is this line's failure (said below), never a record that is missing: tried again next hour.
+        const record = await findBusinessOnRecord(db, line.tenant_id);
+        const tenant = await findWorkspaceNameSlug(db, line.tenant_id);
+        const fresh = await findLineRow(db, line.tenant_id, line.id);
+        const unread = tenant.error ?? fresh.error;
+        if (unread) throw new Error(`cannot read the filing's facts: ${unread.message}`);
+        if (record && tenant.data && fresh.data) {
           const out = await registerLine(db, {
             line: fresh.data,
-            record: rec.data,
+            record,
             workspaceName: tenant.data.name,
             ...filingPages(origin, tenant.data.slug),
             mock: fresh.data.reg_mock,

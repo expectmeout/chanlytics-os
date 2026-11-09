@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError, TEMPLATE_LANGUAGES } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { VERSION_TONES, rewriteVersion } from "@/server/campaigns/templates";
+import { write, workspace } from "@/server/shared/route";
+import { VERSION_TONES, rewriteVersion } from "@/server/drafts/template/translate";
 
 /** The words a version holds at most, and its subject: past them nobody is writing one message. */
 const WORDS_MAX = 4000;
@@ -32,14 +32,15 @@ export const POST = write({
   rate: "ask",
   input: Body,
   handle: async ({ ctx, member, input }) => {
-    const r = await rewriteVersion(ctx, member.tenantId, {
+    const result = await rewriteVersion(ctx, member.tenantId, {
       channel: input.channel,
       language: input.language,
       subject: input.subject ?? null,
       body: input.body,
       tone: input.tone,
     });
-    if (!r.ok) throw new AppError(r.reason === "refused" ? "upstream_anthropic" : "validation", r.message);
-    return { subject: r.subject, body: r.body };
+    if (!result.ok)
+      throw new AppError(result.reason === "refused" ? "upstream_anthropic" : "validation", result.message);
+    return { subject: result.subject, body: result.body };
   },
 });

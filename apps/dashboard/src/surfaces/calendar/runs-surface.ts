@@ -11,12 +11,12 @@
  */
 import type { CalendarRunsDto } from "@chanlytics/contracts";
 import { windowFor, zoneDayKey } from "@chanlytics/contracts";
-import { read } from "@/legacy-bridge/api";
-import { heldViews } from "@/legacy-bridge/held-views";
-import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { aheadWhenIdle, routeOnScreen } from "@/legacy-bridge/workspace";
-import { knownZone } from "@/legacy-bridge/zone";
+import { read } from "@/bridge/api";
+import { heldViews } from "@/bridge/held-views";
+import { readAged, type SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads } from "@/bridge/surface-registry";
+import { aheadWhenIdle, routeOnScreen } from "@/bridge/workspace";
+import { knownZone } from "@/bridge/zone";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 import { getCalendarSpan } from "./surface";
 
@@ -46,7 +46,7 @@ const RUNS_IDLE_MS = 2000;
 
 /**
  * The Calendar's campaigns read once the frame is idle on any other page (`read`: the runner's read of this surface,
- * LegacyApp.tsx), where Show draws them and the tab holds none, so a move to the Calendar finds them in hand with its
+ * FrameApp.tsx), where Show draws them and the tab holds none, so a move to the Calendar finds them in hand with its
  * weeks, which every boot reads (Today draws them). Read only as the Calendar came on screen, they arrived about half a
  * second after its meetings in 66 of 294 moves there (page_vitals, 14-21 Oct 2026), the campaign rows pushing the
  * meetings down as they came (Ruben, 21 Oct 2026). Never where the page may not warm on its own (aheadWhenIdle).

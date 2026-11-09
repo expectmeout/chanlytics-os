@@ -1,10 +1,10 @@
 /**
  * The one To send (00429): the going runs whose emails are handed to their owner, and the ones that fold into its one row
  * of what waits for you. Pure, and without words: the count every page carries (the dashboard's needs-you.ts, through
- * wait-rows.ts) reads these, and the words of To send stay with its page (reach-out/reach-out-approval.ts
+ * waits/rows.ts) reads these, and the words of To send stay with its page (campaigns/reach-out/approval.ts
  * TO_SEND_ALL_WORDS), so what every page loads holds none of the reach-out's sheet.
  */
-import { reachOutRootOf } from "../reach-out/reach-out-rules";
+import { reachOutRootOf } from "../campaigns/reach-out/rules";
 import { runDraftedEmails, runHeldEmails } from "./waits";
 
 /** A run as Sent's list holds it (BroadcastVM), as far as the one To send reads it. */

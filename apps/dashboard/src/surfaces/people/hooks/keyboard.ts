@@ -37,6 +37,8 @@ export interface KeyDoors {
   canFind?: boolean;
   find?: () => void;
   call?: ((id: string) => void) | null;
+  /** Under Leads: A does what the row under the cursor offers (its one act: keep it, add it, open it at what waits). */
+  act?: ((id: string) => void) | null;
   /** Under Leads, while the pile is on (00426): A, L and N press its rail, ⇧A opens the picker, Z undoes, Esc leaves it. */
   pile?: {
     press: (key: "a" | "A" | "l" | "n" | "c" | "1" | "2" | "3" | "4" | "5") => void;
@@ -89,6 +91,21 @@ function ownOverlayKey(k: KeyDoors, e: KeyboardEvent): boolean {
   return false;
 }
 
+/**
+ * Under Leads, the keys that act on the lead under the cursor: C calls it from the owner's own phone, and arms the call
+ * question; A does what its row offers (the pile's own A is taken before this is reached, pileKey; Shift+A is the pile's
+ * picker and never this). True where one was taken.
+ */
+function leadKey(k: KeyDoors, e: KeyboardEvent): boolean {
+  if (!k.cursor) return false;
+  const key = e.key.toLowerCase();
+  const door = key === "c" ? k.call : key === "a" && !e.shiftKey ? k.act : null;
+  if (!door) return false;
+  e.preventDefault();
+  door(k.cursor);
+  return true;
+}
+
 /** A key that walks or acts on the rows: the cursor, the selection, Enter, and under Leads C. */
 function rowKey(k: KeyDoors, e: KeyboardEvent, from: Element | null): void {
   // Enter and Space on a focused button, link, box, tab or menu item are that control's: they opened the profile under
@@ -107,12 +124,7 @@ function rowKey(k: KeyDoors, e: KeyboardEvent, from: Element | null): void {
   } else if ((e.key === " " || e.key === "x" || e.key === "X") && k.cursor && k.canSelect) {
     e.preventDefault();
     k.toggle(k.cursor);
-  }
-  // C calls the lead under the cursor from the owner's own phone, and arms the call question.
-  else if ((e.key === "c" || e.key === "C") && k.cursor && k.call) {
-    e.preventDefault();
-    k.call(k.cursor);
-  }
+  } else leadKey(k, e);
 }
 
 export function onPageKey(k: KeyDoors | null, e: KeyboardEvent): void {

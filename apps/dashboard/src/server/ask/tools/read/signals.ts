@@ -1,8 +1,15 @@
 import "server-only";
 import { z } from "zod";
-import { DAY_MS, followUpsOf, freedTimesUnoffered, parseTenantConfigResult, plural } from "@chanlytics/contracts";
-import { cancellationsSince } from "@chanlytics/db";
-import { load } from "../../../readers";
+import {
+  DAY_MS,
+  followUpsOf,
+  freedTimesUnoffered,
+  parseTenantConfigResult,
+  plural,
+  type AskNoticeFacts,
+} from "@chanlytics/contracts";
+import { getCancellationsSince } from "@chanlytics/db/campaigns";
+import { load } from "../../../shared/reader";
 import { audiencePool } from "../../../readers/audience-pool";
 import { config as configReader, facts as factsReader } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
@@ -10,7 +17,8 @@ import { followUpsNow, memberViews } from "../../../readers/notifications";
 import { playbooks, reachOutChains } from "../../../readers/playbooks";
 import { searches as searchesReader } from "../../../readers/searches";
 import { sequences as sequencesReader } from "../../../readers/sequences";
-import { defineRead, unread, type ToolContext } from "../context";
+import { defineRead, type ToolContext } from "../context/tool-defs";
+import { unread } from "../context/tool-reads";
 
 /**
  * What Ask notices (the operator, 15 Oct 2026, D6): the workspace read across its pages, each thing that stands out said
@@ -23,8 +31,10 @@ import { defineRead, unread, type ToolContext } from "../context";
 /** Who counts as new: first heard from within this many days. */
 const NEW_DAYS = 30;
 
-interface Signal {
+export interface Signal {
   key: string;
+  /** Its numbers, which the home's sentence is written from (contracts noticeOf). */
+  facts?: AskNoticeFacts;
   /** What stands out, with its numbers, in a sentence. */
   says: string;
   /** The cards that fit it, by tool and action. */
@@ -34,23 +44,28 @@ interface Signal {
 }
 
 /** The workspace as the signals read it: each part as its page reads it, null where its read failed. */
-async function seeAll(t: ToolContext) {
-  const failed = (read: string) => unread(t, "signals", read);
-  const since = new Date(t.now.getTime() - NEW_DAYS * DAY_MS).toISOString();
+export async function seeAll(toolContext: ToolContext) {
+  const failed = (read: string) => unread(toolContext, "signals", read);
+  const since = new Date(toolContext.now.getTime() - NEW_DAYS * DAY_MS).toISOString();
   const [pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations] = await Promise.all([
-    load(t.rc, audiencePool, undefined).then((r) => r.data, failed("people")),
-    load(t.rc, listsReader, undefined).then((r) => r.data.lists, failed("lists")),
-    load(t.rc, sequencesReader, undefined).then((r) => r.data, failed("sequences")),
-    load(t.rc, playbooks, undefined).then((r) => r.data, failed("moments")),
-    load(t.rc, reachOutChains, undefined).then((r) => r.data.chains, failed("cold emails")),
-    load(t.rc, searchesReader, undefined).then((r) => r.data, failed("searches")),
-    load(t.rc, configReader, undefined).then((r) => r.data, failed("settings")),
-    load(t.rc, factsReader, undefined).then((r) => r.data.timezone, failed("facts")),
-    t.ctx.userId ? load(t.rc, memberViews, undefined).then((r) => r.data, failed("follow-ups")) : Promise.resolve(null),
+    load(toolContext.rc, audiencePool, undefined).then((r) => r.data, failed("people")),
+    load(toolContext.rc, listsReader, undefined).then((r) => r.data.lists, failed("lists")),
+    load(toolContext.rc, sequencesReader, undefined).then((r) => r.data, failed("sequences")),
+    load(toolContext.rc, playbooks, undefined).then((r) => r.data, failed("moments")),
+    load(toolContext.rc, reachOutChains, undefined).then((r) => r.data.chains, failed("cold emails")),
+    load(toolContext.rc, searchesReader, undefined).then((r) => r.data, failed("searches")),
+    load(toolContext.rc, configReader, undefined).then((r) => r.data, failed("settings")),
+    load(toolContext.rc, factsReader, undefined).then((r) => r.data.timezone, failed("facts")),
+    toolContext.ctx.userId
+      ? load(toolContext.rc, memberViews, undefined).then((r) => r.data, failed("follow-ups"))
+      : Promise.resolve(null),
     // The cancellations whose time a freed time's step would have offered (decision 0082), in the same window.
-    cancellationsSince(t.rc.ctx.supabase, t.rc.tenantId, since).then((n) => n, failed("cancellations")),
+    getCancellationsSince(toolContext.rc.ctx.supabase, toolContext.rc.tenantId, since).then(
+      (n) => n,
+      failed("cancellations"),
+    ),
   ]);
-  return { pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations, nowMs: t.now.getTime() };
+  return { pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations, nowMs: toolContext.now.getTime() };
 }
 type Seen = Awaited<ReturnType<typeof seeAll>>;
 /** One thing that may stand out, read off what was seen; null where it does not, or its parts could not be read. */
@@ -63,6 +78,7 @@ const nothingSends: Spot = ({ pool, seqs, nowMs }) => {
   const fresh = people.filter((r) => r.first_contact_at && nowMs - Date.parse(r.first_contact_at) <= NEW_DAYS * DAY_MS);
   return {
     key: "nothing_sends_on_its_own",
+    facts: { people: people.length },
     says: `${plural(people.length, "person is", "people are")} in People (${fresh.length} new in the last ${NEW_DAYS} days) and nothing sends on its own.`,
     next: "propose_plan with action steps: lists that group them (propose_list make), then a sequence for the strongest group (propose_sequence make); or propose_plan with action offer, intent cover_journey",
     weight: 1,
@@ -78,6 +94,7 @@ const listsFeedNothing: Spot = ({ kept, pb }) => {
   const names = idle.slice(0, 4).map((l) => l.name);
   return {
     key: "lists_feed_nothing",
+    facts: { lists: idle.length, names },
     says: `${plural(idle.length, "list feeds", "lists feed")} no sequence: ${names.join(", ")}${idle.length > 4 ? "…" : ""}.`,
     next: "propose_sequence with action moment on the list (trigger saved_list), after sequences with action lists counts who it reaches",
     weight: 2,
@@ -95,6 +112,7 @@ const leadsNotWrittenTo: Spot = ({ finder, chains }) => {
   const named = unwritten.slice(0, 3).map((s) => `${s.name}: ${found(s)}`);
   return {
     key: "leads_not_written_to",
+    facts: { leads, searches: unwritten.length },
     says: `${plural(leads, "lead was", "leads were")} found in ${plural(unwritten.length, "search", "searches")} no cold email writes to (${named.join("; ")}).`,
     next: "leads with action leads (list ready) to pick the best, propose_leads with action list, then propose_sequence with action cold_email on it, in one propose_plan with action steps",
     weight: 1,
@@ -122,6 +140,7 @@ const repliesWaiting: Spot = ({ seqs }) => {
   if (!n) return null;
   return {
     key: "replies_waiting",
+    facts: { replies: n },
     says: `${plural(n, "reply waits", "replies wait")} in the sequences.`,
     next: "inbox with action list, then propose_reply for each; for a business that wrote back interested, propose_leads with action said and propose_deal",
     weight: 1,
@@ -133,6 +152,7 @@ const batchesWaiting: Spot = ({ seqs }) => {
   if (!n) return null;
   return {
     key: "batches_waiting",
+    facts: { sends: n },
     says: `${plural(n, "batch waits", "batches wait")} for an OK before it sends.`,
     next: "sequences with action sent, then propose_sequence with action batch (approve or skip)",
     weight: 1,
@@ -153,6 +173,7 @@ const offersNeverAsked: Spot = ({ pool }) => {
   const saidYes = people.filter((r) => r.marketing_consent === "opted_in").length;
   return {
     key: "offers_never_asked",
+    facts: { never },
     says: `${plural(never, "person on WhatsApp has", "people on WhatsApp have")} never been asked for the yes to offers (${saidYes} said yes so far).`,
     next: "never a message whose purpose is the ask: the receptionist asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and sequences after a booking to people with a messages yes (propose_sequence with action moment)",
     weight: 3,
@@ -162,11 +183,12 @@ const offersNeverAsked: Spot = ({ pool }) => {
 /** Deals out with no next step: none where no proposal is out. */
 const dealsWithoutAStep: Spot = ({ pool }) => {
   if (!pool) return null;
-  const n = pool.people.filter((r) => r.deal_stage === "proposed" && !r.step_id).length;
-  if (!n) return null;
+  const count = pool.people.filter((r) => r.deal_stage === "proposed" && !r.step_id).length;
+  if (!count) return null;
   return {
     key: "deals_without_a_step",
-    says: `${plural(n, "proposal is", "proposals are")} out with no next step.`,
+    facts: { deals: count },
+    says: `${plural(count, "proposal is", "proposals are")} out with no next step.`,
     next: "people with action pipeline, then propose_deal with a next step for each",
     weight: 2,
   };
@@ -175,7 +197,7 @@ const dealsWithoutAStep: Spot = ({ pool }) => {
 /** Appointments cancelled in the window whose time nothing offered (contracts freedTimesUnoffered, decision 0082). */
 const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
   if (!pb) return null;
-  const said = freedTimesUnoffered({
+  const freedTimes = freedTimesUnoffered({
     cancellations,
     calendar: pb.calendar,
     steps: pb.playbooks,
@@ -183,7 +205,7 @@ const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
     nowMs,
     days: NEW_DAYS,
   });
-  return said ? { key: "freed_times_unoffered", ...said, weight: 2 } : null;
+  return freedTimes ? { key: "freed_times_unoffered", facts: { times: 1 }, ...freedTimes, weight: 2 } : null;
 };
 
 /** Every spot, in no order of its own: each signal's weight orders them. */
@@ -199,6 +221,12 @@ const SPOTS: readonly Spot[] = [
   freedTimesNotOffered,
 ];
 
+/** What stands out, by what was seen, most weight first. */
+export const spotsOf = (seen: Seen): Signal[] =>
+  SPOTS.map((spot) => spot(seen))
+    .filter((s): s is Signal => s !== null)
+    .sort((a, b) => a.weight - b.weight);
+
 /** The parts that could not be read, said beside the signals, never as nothing to notice. */
 const unreadOf = (s: Seen): string[] => [
   ...(s.pool ? [] : ["people"]),
@@ -213,18 +241,16 @@ function goalOf(cfg: Seen["cfg"]): string | null {
   return parsed && parsed.ok ? (parsed.config.ask?.goal ?? null) : null;
 }
 
-async function readSignals(t: ToolContext): Promise<unknown> {
-  const seen = await seeAll(t);
+async function readSignals(toolContext: ToolContext): Promise<unknown> {
+  const seen = await seeAll(toolContext);
   // The member's follow-ups that are due, by what the searches and the sequences say now: decided as Ask's home decides it.
   const { due, waiting } = followUpsNow(seen.views ? followUpsOf(seen.views) : [], {
     searches: seen.finder?.searches ?? null,
     sequences: seen.seqs?.sequences ?? null,
     nowMs: seen.nowMs,
-    zone: seen.zone ?? t.timezone,
+    zone: seen.zone ?? toolContext.timezone,
   });
-  const signals = SPOTS.map((spot) => spot(seen))
-    .filter((s): s is Signal => s !== null)
-    .sort((a, b) => a.weight - b.weight);
+  const signals = spotsOf(seen);
   const goal = goalOf(seen.cfg);
   const unreadParts = unreadOf(seen);
   return {
@@ -247,7 +273,7 @@ async function readSignals(t: ToolContext): Promise<unknown> {
 export const signalsTool = defineRead({
   name: "signals",
   description:
-    "What stands out across the workspace now, computed from its pages, each with its numbers and the cards that fit it: a follow-up of yours that is due, people with nothing sending on its own, lists that feed nothing, leads nobody writes to, a search that asks a question, replies and batches waiting, people never asked for the yes to offers, deals with no next step, cancellations whose time nothing offered; and the owner's goal. Read it at the start of a conversation, when they ask what to do next or how to get more customers, and before proposing a plan of your own. It takes nothing and changes nothing.",
+    "What stands out across the workspace now, from its pages, each with its numbers and the cards that fit it: a follow-up of yours that is due, people with nothing sending on its own, lists that feed nothing, leads nobody writes to, a search that asks a question, replies and batches waiting, people never asked for the yes to offers, deals with no next step, cancellations whose time nothing offered; and the owner's goal. Read it at the start of a conversation, when they ask what to do next or how to get more customers, and before proposing a plan of your own. It takes nothing and changes nothing.",
   input: z.object({}),
   label: "Looking across the workspace",
   run: readSignals,

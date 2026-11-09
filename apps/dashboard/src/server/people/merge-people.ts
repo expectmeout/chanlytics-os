@@ -8,13 +8,13 @@
  * numbers or addresses, a deleted or merged record, two open deals for one service, not an owner) is carried back in the
  * sentence it was said in, at the status its code says (dbRefusal).
  */
-import { mergePeople } from "@chanlytics/db";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+import { mergePeople } from "@chanlytics/db/people";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 
 export async function mergeRecords(ctx: RouteContext, keep: string, merge: string) {
   try {
     return await mergePeople(ctx.supabase, keep, merge);
   } catch (e) {
-    throw dbRefusal(e as { code?: string | null; message: string });
+    throw dbRefusal(e);
   }
 }

@@ -11,10 +11,10 @@ import {
   type AskMemoryPageDto,
   type AskMemorySource,
 } from "@chanlytics/contracts";
-import { askJournalDays, askMemoryLines, changeAskMemory, forgetAskMemory, keepAskMemory } from "@chanlytics/db";
-import { dbRefusal, type RouteContext } from "../../with-route";
-import type { Member } from "../../route";
-import { requireUuid } from "../../request-guards";
+import { askJournalDays, askMemoryLines, changeAskMemory, forgetAskMemory, keepAskMemory } from "@chanlytics/db/ask";
+import { dbRefusal, type RouteContext } from "../../shared/with-route";
+import type { Member } from "../../shared/route";
+import { requireUuid } from "../../shared/request-guards";
 
 /**
  * Settings › Memory (decision 0070): what Ask keeps about the business and its journal's newest days, as the member's own
@@ -25,7 +25,7 @@ import { requireUuid } from "../../request-guards";
  */
 
 /** The pane's read: the live lines, newest first, the journal's newest days, and whether the caller may change a line. */
-export async function memoryPage(ctx: RouteContext, member: Member): Promise<AskMemoryPageDto> {
+export async function getMemoryPage(ctx: RouteContext, member: Member): Promise<AskMemoryPageDto> {
   const [lines, journal] = await Promise.all([
     askMemoryLines(ctx.supabase, member.tenantId, ASK_MEMORY_LIMITS.liveMax),
     askJournalDays(ctx.supabase, member.tenantId, ASK_JOURNAL_LIMITS.shown),
@@ -58,7 +58,7 @@ function memoryRefusal(word: string): AppError {
 
 /** A door's refusal with its SQLSTATE, as the route answers it (a line the caller may not touch is not found). */
 const asRefusal = (e: unknown): never => {
-  throw e && typeof e === "object" && "message" in e ? dbRefusal(e as { code?: string | null; message: string }) : e;
+  throw e && typeof e === "object" && "message" in e ? dbRefusal(e) : e;
 };
 
 /** POST ask/memory: a line kept, from the pane (Add) or a card (a forgotten line kept again). */

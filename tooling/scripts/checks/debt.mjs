@@ -36,7 +36,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { compare } from "../tests/_ratchet.mjs";
+import { compare } from "../../../tests/_ratchet.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const SELF = "tooling/scripts/checks/debt.mjs";
@@ -44,8 +44,8 @@ export const PARTS = ["measures", "lint", "knip"];
 /** How the base's own copy of this file is run: as `check:debt` runs it. */
 export const LOADER = ["--max-old-space-size=5120", "--conditions=react-server", "--import", "tsx"];
 /** Where the numbers lived until 28 October 2026, and where a base from before then is read from. */
-const BASELINES = "tooling/scripts/tests/baselines";
-const SOURCE_SCAN_BASELINE = "tooling/scripts/tests/source-scan-baseline.json";
+const BASELINES = "tests/baselines";
+const SOURCE_SCAN_BASELINE = "tests/source-scan-baseline.json";
 
 const git = (args, cwd = ROOT) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 const sortedKeys = (o) =>
@@ -60,7 +60,7 @@ const sortedKeys = (o) =>
 /** One part of a record, measured on this tree. */
 export async function measurePart(part) {
   if (part === "measures") {
-    const { RATCHETS } = await import("../tests/_measures.mjs");
+    const { RATCHETS } = await import("../../../tests/_measures.mjs");
     return Object.fromEntries(
       RATCHETS.map((r) => [r.key, { name: r.name, mode: r.mode, advice: r.advice, entries: sortedKeys(r.measure()) }]),
     );
@@ -182,7 +182,7 @@ function lendInstalls(tree) {
 export async function baseRecord(ref, { out, parts = PARTS, inPlace = false } = {}) {
   const sha = git(["rev-parse", `${ref}^{commit}`]);
   if (!holds(sha, SELF)) {
-    const { RATCHETS } = await import("../tests/_measures.mjs");
+    const { RATCHETS } = await import("../../../tests/_measures.mjs");
     const show = (rel) => (holds(sha, rel) ? git(["show", `${sha}:${rel}`]) : null);
     const record = { ...recordFromBaselines(show, RATCHETS, parts), sha };
     fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
@@ -229,6 +229,18 @@ export function reasonIn(body) {
 }
 
 /**
+ * A measure's entries by what each names. A measure may answer a list of words (each edge code with its statuses), and
+ * a record keeps that under its places, 0, 1, 2. Each word is its own key: held by place, a word ahead of the others would
+ * read as every word after it changing, and a word compared as a number is read letter by letter and is never equal to itself.
+ */
+const wordsAsKeys = (entries) => {
+  const values = Object.values(entries ?? {});
+  return values.length > 0 && values.every((value) => typeof value === "string")
+    ? Object.fromEntries(values.map((word) => [word, 1]))
+    : (entries ?? {});
+};
+
+/**
  * What a head adds to a base, part by part: `worse` (each entry new, or each number that rose, as `<part> <key>:
  * <line>`) and `better` (each that fell or went). A measure the base did not have adds every entry it holds; one the
  * head no longer has is said, not judged.
@@ -250,7 +262,7 @@ export function judge(base, head) {
     for (const [key, now, before, mode, added] of pairs) {
       const label = part === "measures" ? key : part;
       if (added) notes.push(`${label}: a measure the base did not have`);
-      const { worse: w, better: b } = compare(now, before ?? {}, mode);
+      const { worse: w, better: b } = compare(wordsAsKeys(now), wordsAsKeys(before), mode);
       worse.push(...w.map((line) => `${label} ${line}`));
       better.push(...b.map((line) => `${label} ${line}`));
     }
@@ -291,7 +303,6 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
   const publishers = by["window-publishers"] ?? {};
   const copies = by.copies ?? {};
   const casts = by.casts ?? {};
-  const unchecked = by["unchecked-index"] ?? {};
   const wire = wireCounts(by["wire-casing"]);
   const effects = Object.entries(lint)
     .filter(([k]) => k.endsWith("::react-hooks/exhaustive-deps"))
@@ -313,10 +324,11 @@ export function totalsOf(record, { ceiling = {}, trees = [], wide = [] } = {}) {
     ["as unknown as", fieldTotal(casts, "unknownAs"), ""],
     ["as never", fieldTotal(casts, "never"), ""],
     ["non-null assertions, x!", fieldTotal(casts, "nonNull"), ""],
-    ["index reads the compiler lets pass", total(unchecked), `in ${keys(unchecked)} files`],
+    ["assertions, as T", total(by.assertions), `in ${keys(by.assertions)} files`],
     ["table names outside packages/db", total(tableCalls(by.tables, false)), ""],
     ["SQL functions outside packages/db", total(tableCalls(by.tables, true)), "called by .rpc"],
     ["edge statements naming no workspace", total(by.workspaceless), `in ${keys(by.workspaceless)} files`],
+    ["database errors dropped", total(by["dropped-db-errors"]), `in ${keys(by["dropped-db-errors"])} files`],
     ["service-role reaches, dashboard", total(by["service-role"]), `in ${keys(by["service-role"])} files`],
     ["doors importing db or channels", total(by["route-doors"]), `imports in ${keys(by["route-doors"])} files`],
     ["unnamed durations", total(by.durations), `in ${keys(by.durations)} files`],
@@ -378,7 +390,7 @@ async function totalsContext() {
 /** A part's or a measure's one number: its entries' total, or for a set its keys. */
 function sizeOf(entries, mode) {
   if (mode === "set") return keys(entries);
-  return Object.values(entries ?? {}).reduce(
+  return Object.values(wordsAsKeys(entries)).reduce(
     (a, v) => a + (typeof v === "number" ? v : Object.values(v).reduce((b, n) => b + n, 0)),
     0,
   );

@@ -22,56 +22,57 @@ import {
   firstReceptionistOf,
   foundOf,
   foundRecordOf,
-  leadAsListing,
   parseTenantConfigResult,
   withFoundWorn,
   withStoredKeysKept,
   type BrainConfig,
   type PreviewFailure,
-} from "../packages/contracts.js";
+  recordOrEmpty,
+} from "@chanlytics/contracts";
+import { leadAsListing } from "./lead-as-listing";
+import { getTenantConfig, putTenantConfig } from "@chanlytics/db/workspace";
 import {
-  getTenantConfig,
-  leadForPreview,
-  leadPreviewById,
-  previewBuilt,
-  putTenantConfig,
-  type Database,
+  findLeadForPreview,
+  findLeadPreviewById,
+  recordPreviewBuilt,
   type LeadPreviewRow,
-} from "../packages/db.js";
-import type { ClaimedJob, JobContext } from "../packages/jobs.js";
+} from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
+import type { ClaimedJob, JobContext } from "@chanlytics/jobs";
 import { readWebsite, type WebsiteReadKept } from "../imports/website-read.js";
-import { env } from "../env.js";
-import { errField, logger } from "../log.js";
+import { env } from "../shared/env.js";
+import { errField, logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The website's reader, as a port: the real one, or a test's. */
-type SiteReader = (db: Db, tenantId: string, url: string, deadline: number) => Promise<WebsiteReadKept>;
+type SiteReader = (db: Db, tenantId: TenantId, url: string, o: { deadline: number }) => Promise<WebsiteReadKept>;
 
 /** The receptionist from the lead's listing, with what its site said worn; null where the lead gives it no name. */
 async function receptionistFromListing(
   db: Db,
-  p: LeadPreviewRow & { preview_tenant_id: string },
+  leadPreview: LeadPreviewRow & { preview_tenant_id: string },
   deadline: number,
   read: SiteReader,
 ): Promise<BrainConfig | PreviewFailure> {
-  const lead = await leadForPreview(db, p.tenant_id, p.lead_id);
+  const lead = await findLeadForPreview(db, leadPreview.tenant_id, leadPreview.lead_id);
   if (!lead || lead.erased_at || lead.blanked_at) throw new Error("preview_build: the lead is gone");
   const listing = leadAsListing(lead);
   const brain = firstReceptionistOf({ workspaceName: listing.name, listing });
   if (!brain) return "no_name";
   const site = listing.facts?.website ?? null;
   if (!site) return brain;
-  const kept = await read(db, p.preview_tenant_id, site, deadline).catch((e: unknown) => {
-    logger({ tenant_id: p.tenant_id }).warn("preview_build_failed", {
-      preview_id: p.id,
+  const kept = await read(db, leadPreview.preview_tenant_id, site, { deadline }).catch((e: unknown) => {
+    logger({ tenant_id: leadPreview.tenant_id }).warn("preview_build_failed", {
+      preview_id: leadPreview.id,
       step: "site",
       error: errField(e),
     });
     return null;
   });
   if (!kept) return brain;
-  const profile = (brain.profile ?? {}) as Record<string, unknown>;
+  const profile = recordOrEmpty(brain.profile);
   const found = foundOf(
     [
       {
@@ -88,7 +89,7 @@ async function receptionistFromListing(
 }
 
 /** The receptionist written on the preview's workspace, through the settings' write schema and its version. */
-async function writeReceptionist(db: Db, tenantId: string, brain: BrainConfig): Promise<void> {
+async function writeReceptionist(db: Db, tenantId: TenantId, brain: BrainConfig): Promise<void> {
   const row = await getTenantConfig(db, tenantId);
   const parsed = row ? parseTenantConfigResult(row.config) : null;
   if (!row || !parsed?.ok) throw new Error("preview_build: the preview's config could not be read");
@@ -109,28 +110,28 @@ async function buildPreview(
   deadline: number,
   read: SiteReader = readWebsite,
 ): Promise<void | { skipped: string }> {
-  const L = logger({ tenant_id: job.tenant_id });
+  const log = logger({ tenant_id: job.tenant_id });
   const id = typeof job.payload.preview_id === "string" ? job.payload.preview_id : "";
   if (env.LEAD_PREVIEWS !== "on") {
-    L.info("preview_build_off", { preview_id: id || null });
+    log.info("preview_build_off", { preview_id: id || null });
     return { skipped: "previews_off" };
   }
   if (!UUID.test(id)) return { skipped: "no_preview" };
-  const p = await leadPreviewById(db, job.tenant_id, id);
-  if (!p || p.state !== "building" || !p.preview_tenant_id) return { skipped: "not_building" };
-  const preview = { ...p, preview_tenant_id: p.preview_tenant_id };
+  const result = await findLeadPreviewById(db, job.tenant_id, id);
+  if (!result || result.state !== "building" || !result.preview_tenant_id) return { skipped: "not_building" };
+  const preview = { ...result, preview_tenant_id: result.preview_tenant_id };
   try {
     const brain = await receptionistFromListing(db, preview, deadline, read);
     if (typeof brain === "string") {
-      await previewBuilt(db, p.id, false, brain);
-      L.info("preview_build_failed", { preview_id: p.id, why: brain });
+      await recordPreviewBuilt(db, result.id, false, brain);
+      log.info("preview_build_failed", { preview_id: result.id, why: brain });
       return;
     }
     await writeReceptionist(db, preview.preview_tenant_id, brain);
-    await previewBuilt(db, p.id, true);
-    L.info("preview_built", { preview_id: p.id, services: brain.profile?.services?.length ?? 0 });
+    await recordPreviewBuilt(db, result.id, true);
+    log.info("preview_built", { preview_id: result.id, services: brain.profile?.services?.length ?? 0 });
   } catch (e) {
-    L.error("preview_build_failed", { preview_id: p.id, step: "build", error: errField(e) });
+    log.error("preview_build_failed", { preview_id: result.id, step: "build", error: errField(e) });
     throw e;
   }
 }

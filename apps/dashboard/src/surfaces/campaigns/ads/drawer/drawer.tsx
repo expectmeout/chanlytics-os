@@ -10,19 +10,21 @@
  */
 import type { KeyboardEvent } from "react";
 import type { AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
-import { DOOR, DRAWER, EDIT, GATE, NO_AD, PLATFORM_WORD } from "@chanlytics/contracts/ads-page";
-import type { AdDrawerVM } from "@chanlytics/contracts/ads-page";
+import { DOOR, GATE, PLATFORM_WORD } from "../model/words";
+import { DRAWER, EDIT, NO_AD } from "../model/drawer/words";
+import type { AdDrawerVM } from "../model/drawer/view";
 import { Button } from "../../../kit/button/button";
 import { EmptyState } from "../../../kit/empty/empty";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Menu } from "../../../kit/menu/menu";
 import type { MenuItem } from "../../../kit/menu/menu";
-import { gate } from "../../../legacy-verbs";
+import { gate } from "../../../frame-verbs";
 import { useKept } from "../../home/pane-sheet";
 import { PaneSheet } from "../../home/pane-sheet";
 import { CmPreviewFold } from "../../parts/preview-fold";
 import { CmPane } from "../../parts/split";
+import { PreviewNote } from "../preview-note";
 import type { AdsVerbs } from "../store";
 import { AdCallout } from "./callout";
 import { AdEdit } from "./edit";
@@ -115,6 +117,7 @@ function AdBody({ pane }: { pane: Pane }) {
   const { vm, editing } = pane;
   return (
     <div className="cm-sentence ads-body" data-testid="ads-detail" data-mode={vm.mode}>
+      <PreviewNote />
       <AdCallout callout={vm.callout} onAct={pane.calloutAct} spent={pane.spent} />
       <p className="cm-next" data-testid="ads-next">
         <Icon name="calendar" size={13} />

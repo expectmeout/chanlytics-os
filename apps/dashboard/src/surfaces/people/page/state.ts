@@ -5,7 +5,7 @@
  */
 import { useMemo } from "react";
 import type { ScopeView } from "../scope-view";
-import { mayAtLeast, navigate } from "../../legacy-verbs";
+import { mayAtLeast, navigate } from "../../frame-verbs";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { TABLE_BODIES } from "../../kit/table/data-table";
 import { useDataTable } from "../../kit/table/use-data-table";

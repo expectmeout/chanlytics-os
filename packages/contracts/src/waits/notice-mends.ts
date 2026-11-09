@@ -12,10 +12,10 @@
  *
  * Titles are matched here, never in SQL, so the rule stays in one place.
  */
-import { OFFERS_NOTICE_WORDS } from "../broadcasts/email-offers";
-import { TEMPLATE_STATUS_WORDS } from "../templates/templates";
+import { OFFERS_NOTICE_WORDS } from "../campaigns/broadcasts/email-offers";
+import { TEMPLATE_STATUS_WORDS } from "../campaigns/templates/templates";
 import { CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS } from "../notices/connection-news";
-import type { ServerNotificationKind } from "../today/notifications";
+import type { ServerNotificationKind } from "../today/notifications/feed-input";
 
 /** A change the edge records that mends a warning, where no row of good news is kept for it. */
 export type MendChange =
@@ -69,7 +69,7 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
     sameSubject: true,
   },
   // A connected mailbox held for its own mail is mended by its owner's resume, one signed out by connecting it again, and
-  // either by its removal (decision 0056, mailbox-notices.ts words them).
+  // either by its removal (decision 0056, mailbox/notices.ts words them).
   {
     warns: { kind: "sweep", title: /^.+ is held: /u },
     by: { change: "mailbox_connection.resumed" },

@@ -1,7 +1,7 @@
 import { ReachOutAddSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { reachOutScope } from "@/server/verbs";
-import { addToReachOut } from "@/server/leads/lead-workbench";
+import { write } from "@/server/shared/route";
+import { reachOutScope } from "@/server/shared/verbs";
+import { addToReachOut } from "@/server/leads/workbench";
 
 /**
  * POST /api/v1/reach-outs/:id/leads/check — what adding these leads would do, and nothing written (00426 reach_out_add,

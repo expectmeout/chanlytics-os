@@ -1,5 +1,26 @@
 /** The model layer: which model each purpose asks, what a call cost, a turn as it is kept, the one fence for someone else's words, the switches. */
 export {
+  ANTHROPIC_ENFORCEMENT_STATUSES,
+  ANTHROPIC_PROFILE_KINDS,
+  anthropicActed,
+  anthropicPaused,
+  enforcementActionsOf,
+  enforcementStatusOf,
+  enforcementWords,
+  MODEL_PAUSED_WORDS,
+  modelStandingOf,
+} from "./anthropic-enforcement";
+export type {
+  AnthropicEnforcementStatus,
+  AnthropicProfileKind,
+  EnforcementAction,
+  HealthActedOnProfileDto,
+  HealthAnthropicProfilesDto,
+  ModelStanding,
+} from "./anthropic-enforcement";
+export { modelSubjectOf, profileDetailsOf, profileReferenceOf, subjectIdOf } from "./anthropic-profiles";
+export type { ModelSubject, ProfiledSubject } from "./anthropic-profiles";
+export {
   EFFORT_MESSAGE_BETA,
   effortAbove,
   effortInForce,
@@ -19,43 +40,43 @@ export {
   promptSafeName,
 } from "./fence";
 export type { FenceTag } from "./fence";
-export { daysToSunset, FLAG_MECHANISMS, FLAGS } from "./flags";
-export type { Flag, FlagMechanism, WeakerMode } from "./flags";
 export {
-  fallbackModel,
+  AI_USAGE_PORTS,
+  AI_USAGE_PURPOSES,
+  HEARING_MODELS,
+  hearingDollars,
+  videoEarModelOf,
+  videoWordsShapeOf,
+} from "./hearing";
+export type { AiUsagePort, AiUsagePurpose, HearingPort, HearingPurpose, VideoWordsShape } from "./hearing";
+export {
   FAST_MODE_BETA,
   hasFastMode,
+  MODEL_IDS,
+  MODEL_SPEEDS,
+  MODEL_TAKES,
+  MODELS,
+  modelTakes,
+  THINKING_TYPES,
+} from "./models/ids";
+export type { ModelId, ModelSpeed, ModelTakes, ThinkingType } from "./models/ids";
+export {
+  fallbackModel,
   isModelId,
   MODEL_EFFORTS,
-  MODEL_IDS,
   MODEL_PORTS,
   MODEL_PURPOSES,
   MODEL_ROUTES,
-  MODEL_SPEEDS,
-  MODEL_TAKES,
   modelRoute,
-  MODELS,
-  modelTakes,
   readsAsModel,
   RETELL_MODELS,
   routeThinkingFor,
   screenFloorOf,
   secondKeyFloorOf,
   shadowPortOf,
-  THINKING_TYPES,
   thinkingOffOf,
-} from "./models";
-export type {
-  ModelEffort,
-  ModelId,
-  ModelPort,
-  ModelPurpose,
-  ModelRoute,
-  ModelSpeed,
-  ModelTakes,
-  ShadowPort,
-  ThinkingType,
-} from "./models";
+} from "./models/routes";
+export type { ModelEffort, ModelPort, ModelPurpose, ModelRoute, ShadowPort } from "./models/routes";
 export {
   judgeShadowSpecs,
   LEAD_SCREEN_BOUND_MS,
@@ -94,6 +115,7 @@ export {
   aiUsageBodyOf,
   creditRanOut,
   FAST_MODE_PRICES,
+  hearingUsageBodyOf,
   MODEL_CALL_OUTCOMES,
   MODEL_PRICES,
   NO_USAGE,

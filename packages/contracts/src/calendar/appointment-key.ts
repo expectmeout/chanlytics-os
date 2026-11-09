@@ -10,8 +10,8 @@
  * CalendarBlockVM.visit carries, never by the key (a feed's UID has colons and an `@` in it) or by the block's id.
  */
 import type { AppointmentWord } from "../journey/appointment-word";
-import type { CalendarView } from "./calendar-views";
-import { isDayKey } from "./day-keys";
+import type { CalendarView } from "./views";
+import { isDayKey } from "../shared/zone/day-keys";
 import type { FeedItem } from "./feed";
 
 export function appointmentKeyOf(item: Pick<FeedItem, "uid" | "start" | "occurrence">): string {
@@ -78,17 +78,17 @@ export interface CalendarParam {
 }
 
 /** The day and the visit after a view's word, or the whole param: `2026-10-09`, `a-<id>`, `2026-10-09:a-<id>`; null for neither. */
-function dayAndVisitOf(s: string): { day: string | null; visitId: string | null } | null {
+function dayAndVisitOf(text: string): { day: string | null; visitId: string | null } | null {
   // isDayKey is a guard on unknown, which would narrow a string it refuses to nothing: asked as a plain answer.
   const dayOf = (k: string): string | null => (isDayKey(k) ? k : null);
-  const alone = dayOf(s);
+  const alone = dayOf(text);
   if (alone) return { day: alone, visitId: null };
-  const at = s.indexOf(":");
-  const word = at < 0 ? s : s.slice(at + 1);
+  const at = text.indexOf(":");
+  const word = at < 0 ? text : text.slice(at + 1);
   const id = word.startsWith("a-") ? word.slice(2) : "";
   if (!VISIT_ID.test(id)) return null;
   if (at < 0) return { day: null, visitId: id };
-  const day = dayOf(s.slice(0, at));
+  const day = dayOf(text.slice(0, at));
   return day ? { day, visitId: id } : null;
 }
 

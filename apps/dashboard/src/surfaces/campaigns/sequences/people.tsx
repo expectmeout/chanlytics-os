@@ -33,8 +33,8 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { RecordDisclosure } from "../../kit/record/disclosure";
-import { canDo, gate, routeDoor } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, routeDoor } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { leadOverDoor, useLeadOver } from "../../leads/sheet/lead-over";
 import { tripNow } from "./trip";
 import { SequenceNeeds } from "./needs";
@@ -42,7 +42,7 @@ import { usePeopleRead } from "./use-record";
 import { pressed } from "./verbs";
 import { RewriteAsk } from "../reach-out/rewrite-ask";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /** The groups folded under Needs you, in their order: added and not planned yet among those still to come. */
 const FOLDED: readonly SequencePeopleGroup[] = ["next", "queued", "in", "done", "left"];
@@ -246,10 +246,10 @@ function WaitingEmails({ rows, emails, rec, flash, moved, lit }: WaitingProps) {
                   {r ? personLineOf(r, rec.timezone, nowMs) : null}
                   {e.opening ? (
                     <q
-                      className={e.checking ? "sq-waiting-opening sq-waiting-writing" : "sq-waiting-opening"}
+                      className={e.checking || e.own ? "sq-waiting-opening sq-waiting-writing" : "sq-waiting-opening"}
                       data-testid="sq-waiting-opening"
                     >
-                      {e.checking ? e.opening : e.opening.slice(1, -1)}
+                      {e.checking || e.own ? e.opening : e.opening.slice(1, -1)}
                     </q>
                   ) : null}
                 </div>

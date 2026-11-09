@@ -12,11 +12,14 @@ import {
   type LeadRowDto,
   type SequenceRecordDto,
   type SlotWorkspace,
+  reachOutSignatureOf,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { workspaceName } from "../../../people/person-verbs";
 import { tplOwn } from "../../templates/words";
 import { sequenceVerbs as verbs } from "../verbs";
+import { surfaceValue } from "../../../surface-values";
+import { brainOf } from "../../templates/words";
 import { useSequenceRead } from "../use-record";
 
 /** A lead in it, as the preview steps through them. */
@@ -44,6 +47,17 @@ export function usePreviewLeads(rec: SequenceRecordDto): PreviewLead[] {
     out.push({ id: r.lead_id, name: r.name ?? "", written: opening && r.place ? { place: r.place, opening } : null });
   }
   return out;
+}
+
+/** The business's postal address as Settings holds it, which the foot says; "" while it is not set. */
+export function businessAddressOf(): string {
+  const brain = brainOf(surfaceValue("settings")?.settings);
+  return typeof brain.profile?.address === "string" ? brain.profile.address.trim() : "";
+}
+
+/** Sign-off's signature as Settings holds it (decision 0113), which the send puts under the name; null where none is set. */
+export function reachOutSignatureNow(): string | null {
+  return reachOutSignatureOf(surfaceValue("settings")?.settings?.config ?? null);
 }
 
 /** Each lead's row as its page read it, for the tab. */

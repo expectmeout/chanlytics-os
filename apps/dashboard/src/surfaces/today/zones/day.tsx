@@ -9,7 +9,7 @@
  * are the Calendar's, and the foot says how many. With no calendar linked, the one row that links one, under what goes and
  * the runs that went out.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   CALENDAR_SETTING_ROUTE,
   GOING_TODAY_WORDS,
@@ -33,17 +33,19 @@ import {
   type TodayZoneDayVM,
   type TodayZoneLineVM,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { pageClock, type PageClock } from "@/legacy-bridge/zone";
+import { api } from "@/bridge/api";
+import { pageClock, type PageClock } from "@/bridge/zone";
 import type { CalendarSurface } from "@/surfaces/calendar/surface";
 import { Button, Meter } from "../../kit";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
-import { routeDoor } from "../../legacy-verbs";
+import { SAYS_WHEN } from "../../kit/says-when";
+import { routeDoor } from "../../frame-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
 import { TODAY_HELPERS } from "../helpers";
 import { useTodayOnPhone } from "../phone";
+import { sectionDoor } from "./section-door";
 import { borrowed, canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
 import { useDayVm } from "./day-vm";
 
@@ -129,13 +131,15 @@ function dayCells(cells: readonly TodayZoneCellVM[]) {
           {...routeDoor(c.to)}
           data-testid={i === 0 ? "today-day-first" : undefined}
         >
-          <span className="tpd-eyebrow" data-now={c.now || undefined}>
+          <span className="tpd-eyebrow" data-now={c.now || undefined} {...SAYS_WHEN}>
             {c.eyebrow}
           </span>
-          <span className="tpd-when tabular">{c.when}</span>
+          <span className="tpd-when tabular" {...SAYS_WHEN}>
+            {c.when}
+          </span>
           <span className="tpd-what">{c.what}</span>
           {c.fact ? (
-            <span className="tpd-fact" data-testid="today-day-fact">
+            <span className="tpd-fact" data-testid="today-day-fact" {...SAYS_WHEN}>
               {c.fact}
             </span>
           ) : null}
@@ -145,16 +149,28 @@ function dayCells(cells: readonly TodayZoneCellVM[]) {
   );
 }
 
-/** A line's words: its glyph where it has one, its title, and what it says under it. Called, not drawn. */
-function dayLineWords(l: { glyph: string | null; title: string; sub: string }) {
+/**
+ * A line's words: its glyph where it has one, its title, and what it says under it. Called, not drawn. What it says under its
+ * title is a time more often than not; `timed` says the title is too (an hour freed: "Open · 45 min", which may be over by now).
+ */
+function dayLineWords(l: { glyph: string | null; title: string; sub: string }, timed = false) {
   return (
     <>
-      <b>
+      <b {...(timed ? SAYS_WHEN : undefined)}>
         {l.glyph ? <Icon name={l.glyph} size={12} /> : null}
         {l.title}
       </b>
-      <span>{l.sub}</span>
+      <span {...SAYS_WHEN}>{l.sub}</span>
     </>
+  );
+}
+
+/** A line's time, in the column they all stand in. Called, not drawn. */
+function dayLineTime(time: string) {
+  return (
+    <span className="tpd-tm tabular" {...SAYS_WHEN}>
+      {time}
+    </span>
   );
 }
 
@@ -162,12 +178,12 @@ function dayLineWords(l: { glyph: string | null; title: string; sub: string }) {
 function dayLine(l: TodayZoneLineVM) {
   return l.to ? (
     <a key={l.key} className="tpd-li" {...routeDoor(l.to)} data-kind={l.kind}>
-      <span className="tpd-tm tabular">{l.time}</span>
+      {dayLineTime(l.time)}
       <span className="tpd-tx">{dayLineWords(l)}</span>
     </a>
   ) : (
     <div key={l.key} className="tpd-li" data-kind={l.kind} data-open={l.open || undefined}>
-      <span className="tpd-tm tabular">{l.time}</span>
+      {dayLineTime(l.time)}
       <span className="tpd-tx">{dayLineWords(l)}</span>
     </div>
   );
@@ -209,8 +225,8 @@ function OpenLine({ line, onOffered }: { line: TodayZoneLineVM; onOffered: (visi
   const sub = said ? (said.ok ? offeredWords(said) : said.why) : line.sub;
   return (
     <div className="tpd-li" data-kind="open" data-open="true" data-testid="today-day-open">
-      <span className="tpd-tm tabular">{line.time}</span>
-      <span className="tpd-tx">{dayLineWords({ ...line, sub })}</span>
+      {dayLineTime(line.time)}
+      <span className="tpd-tx">{dayLineWords({ ...line, sub }, true)}</span>
       {line.freed && !said?.ok ? (
         <Button
           variant="secondary"
@@ -238,7 +254,7 @@ function wentOutRow({ run, at }: WentOut) {
       {...routeDoor(runRoute(run.id, run.sequence_id))}
       data-testid="today-day-went"
     >
-      <span className="tpd-tm tabular">{at}</span>
+      {dayLineTime(at)}
       <span className="tpd-tx">
         {dayLineWords({
           glyph: "check",
@@ -269,7 +285,7 @@ function SendRow({
   const stopWords = runStopWords("scheduled");
   return (
     <div className="tpd-li" data-testid="today-day-send">
-      <span className="tpd-tm tabular">{clock ? clock.time(g.atMs) : ""}</span>
+      {dayLineTime(clock ? clock.time(g.atMs) : "")}
       {/* Its words open its run, over Today, as Going today's row did. */}
       <a className="tpd-tx" {...routeDoor(g.to)} data-testid="today-day-send-open">
         {dayLineWords({ glyph: "bolt", title: g.name, sub: g.sentence })}
@@ -323,18 +339,30 @@ function onADesk(items: readonly DayItem[]): DayItem[] {
   return items.filter((i) => asks(i) || rest.includes(i));
 }
 
-/** The day's head: its name, how it stands, and the door to the Calendar. Called, not drawn. */
+/** How many letters a name and its note may come to and still stand on one line with the door, on a phone. */
+const HEAD_ONE_LINE_LETTERS = 26;
+
+/**
+ * The day's head: its name, how it stands, and the door to the Calendar, on one line where they fit it on a phone, and the
+ * note a line of its own where they do not (`data-long`; 8 Nov 2026: "The day" and "Closed today" took two). Called, not
+ * drawn.
+ */
 function dayHead(title: string, note: string) {
   return (
-    <div className="tpd-head">
-      <h2 className="tpd-title" id="today-day-title">
+    <div className="tpd-head tz-head">
+      <h2 className="tz-name" id="today-day-title">
         {title}
       </h2>
-      {note ? <span className="tpd-note">{note}</span> : null}
-      <a className="tpd-door" {...routeDoor("calendar")}>
-        {P.calendar}
-        <Icon name="chevron" size={12} />
-      </a>
+      {note ? (
+        <span
+          className="tpd-note tz-fact"
+          data-long={title.length + note.length > HEAD_ONE_LINE_LETTERS || undefined}
+          {...SAYS_WHEN}
+        >
+          {note}
+        </span>
+      ) : null}
+      {sectionDoor("calendar", P.calendar)}
     </div>
   );
 }
@@ -420,11 +448,30 @@ function dayBar(zone: TodayZoneDayVM, clock: ReturnType<typeof workspaceClock>) 
       aria-label={[zone.note, bar.now !== null && clock ? `now ${clock.time(Date.now())}` : ""]
         .filter(Boolean)
         .join("; ")}
+      {...(bar.now === null ? {} : SAYS_WHEN)}
     />
   );
 }
 
-export function DayZone() {
+/** The runs the day says: what goes on its own today, even on a day the business is closed, and what went out. */
+const runsOfTheDay = (zone: TodayZoneDayVM | null) => ({
+  going: zone?.tomorrow && !zone.closedToday ? [] : goingNow(),
+  wentOut: runsDoneToday(),
+});
+
+/** No day to say: what stands under it keeps its pane where there is any, else only the toast. Called, not drawn. */
+function dayAbsent(under: ReactNode, toastNode: ReactNode) {
+  return under ? (
+    <section className="tpd tz-day" data-testid="today-day" aria-label={P.soFar}>
+      {under}
+      {toastNode}
+    </section>
+  ) : (
+    toastNode
+  );
+}
+
+export function DayZone({ under = null }: { under?: ReactNode } = {}) {
   // The runs it says: a run made, canceled or sending; the calendar's weeks; who comes back, which is Today's own read.
   useMoved(["broadcasts", "calendar", "today"]);
   const day = useDayVm();
@@ -444,8 +491,8 @@ export function DayZone() {
   const zone = noCalendar
     ? null
     : todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, vm?.back ?? [], Date.now());
-  const runs = { going: zone?.tomorrow ? [] : goingNow(), wentOut: runsDoneToday() };
-  if (!zone && !noCalendar && !runs.going.length && !runs.wentOut.rows.length) return toastNode;
+  const runs = runsOfTheDay(zone);
+  if (!zone && !noCalendar && !runs.going.length && !runs.wentOut.rows.length) return dayAbsent(under, toastNode);
   const clock = workspaceClock();
   const offered = offeredHours();
   const { kept, foot } = dayLinesOf(zone, runs, {
@@ -472,6 +519,7 @@ export function DayZone() {
           {foot}
         </a>
       ) : null}
+      {under}
       {toastNode}
     </section>
   );

@@ -17,37 +17,42 @@ import {
   firstReceptionistOf,
   googleFillsOf,
   parseTenantConfigResult,
-  receptionistOf,
+  configReceptionistOf,
   withStoredKeysKept,
   type BrainConfig,
+  DbFailure,
 } from "@chanlytics/contracts";
-import { putTenantConfig } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
-import { listingFactsFor } from "../connections/google";
-import { configRowOf } from "../workspace/config-row";
+import { findWorkspaceName, putTenantConfig } from "@chanlytics/db/workspace";
+import type { RouteContext } from "@/server/shared/with-route";
+import { findListingFacts } from "../connections/google";
+import { findConfigRow } from "../workspace/config-row";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "../workspace/settings-write";
+import type { TenantId } from "@chanlytics/contracts";
 
-/** The config row as stored now, parsed, and whether it holds a receptionist (the one test, receptionistOf). */
-async function storedNow(ctx: RouteContext, tenantId: string) {
-  const row = await configRowOf(ctx.supabase, tenantId);
+/** The config row as stored now, parsed, and whether it holds a receptionist (the one test, personReceptionistOf). */
+async function storedNow(ctx: RouteContext, tenantId: TenantId) {
+  const row = await findConfigRow(ctx.supabase, tenantId);
   const parsed = row ? parseTenantConfigResult(row.config) : null;
-  return { row, parsed, receptionist: receptionistOf(parsed) };
+  return { row, parsed, receptionist: configReceptionistOf(parsed) };
 }
 
 /** The receptionist from what is known, and whether this call wrote it (false: there was nothing to add). */
-export async function receptionistFromWhatIsKnown(ctx: RouteContext, tenantId: string): Promise<{ wrote: boolean }> {
+export async function getReceptionistFromWhatIsKnown(
+  ctx: RouteContext,
+  tenantId: TenantId,
+): Promise<{ wrote: boolean }> {
   const { row, parsed, receptionist } = await storedNow(ctx, tenantId);
   if (!row || !parsed) throw new AppError("conflict", SETTINGS_REFUSED.missing, 409);
   if (!parsed.ok) throw new AppError("conflict", BROKEN_CONFIG_WORDS.clause, 409);
-  const listing = await listingFactsFor(ctx.supabase, tenantId);
+  const listing = await findListingFacts(ctx.supabase, tenantId);
   let brain: BrainConfig | null;
   if (receptionist === "set" && parsed.config.brain) {
     brain = googleFillsOf(parsed.config.brain, listing);
     if (!brain) return { wrote: false };
   } else {
     // The name typed at sign-up, which the resolver takes where no listing names the business.
-    const workspace = await ctx.supabase.from("tenants").select("name").eq("id", tenantId).maybeSingle();
-    if (workspace.error) throw new Error(workspace.error.message);
+    const workspace = await findWorkspaceName(ctx.supabase, tenantId);
+    if (workspace.error) throw new DbFailure(workspace.error);
     brain = firstReceptionistOf({ workspaceName: workspace.data?.name ?? null, listing });
     if (!brain) throw new AppError("validation", "This workspace has no name to give the receptionist yet.");
   }

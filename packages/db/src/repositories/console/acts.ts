@@ -6,7 +6,8 @@
  * Cross-workspace: the Console's own log; the service-role client exists only behind backOffice(ctx)'s admin check.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -36,10 +37,10 @@ export async function finishAct(
 }
 
 /** A page of the log, newest first: everyone's or one person's, one workspace's or all, older than `before`. */
-export async function listActs(db: Db, q: { who?: string; tenantId?: string; before?: string; limit: number }) {
-  let query = db.from("platform_acts").select(ACT_COLUMNS).order("at", { ascending: false }).limit(q.limit);
-  if (q.who) query = query.eq("actor_id", q.who);
-  if (q.tenantId) query = query.eq("tenant_id", q.tenantId);
-  if (q.before) query = query.lt("at", q.before);
+export async function listActs(db: Db, input: { who?: string; tenantId?: TenantId; before?: string; limit: number }) {
+  let query = db.from("platform_acts").select(ACT_COLUMNS).order("at", { ascending: false }).limit(input.limit);
+  if (input.who) query = query.eq("actor_id", input.who);
+  if (input.tenantId) query = query.eq("tenant_id", input.tenantId);
+  if (input.before) query = query.lt("at", input.before);
   return query;
 }

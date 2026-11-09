@@ -1,8 +1,6 @@
-import { read, platform } from "@/server/route";
-import { AppError, CONSOLE_WORDS } from "@chanlytics/contracts";
-import { consoleWorkspace } from "@/server/platform/console";
-
-const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
+import { read, platform } from "@/server/shared/route";
+import { AppError, CONSOLE_WORDS, SLUG } from "@chanlytics/contracts";
+import { getConsoleWorkspace } from "@/server/console/console";
 
 /**
  * GET /api/v1/platform/workspaces/:slug — one workspace in the Console, by the address /w/ says it with (decision 0066):
@@ -15,6 +13,6 @@ export const GET = read({
   handle: async ({ ctx, office }) => {
     const slug = typeof ctx.params.slug === "string" ? ctx.params.slug.toLowerCase() : "";
     if (!SLUG.test(slug)) throw new AppError("not_found", CONSOLE_WORDS.noSuchWorkspace, 404);
-    return consoleWorkspace(office, slug);
+    return getConsoleWorkspace(office, slug);
   },
 });

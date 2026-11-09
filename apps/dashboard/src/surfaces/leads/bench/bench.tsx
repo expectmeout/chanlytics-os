@@ -20,7 +20,7 @@ import {
   type LeadRowVM,
   type LeadSearchDto,
 } from "@chanlytics/contracts";
-import { gate, holdStill } from "../../legacy-verbs";
+import { gate, holdStill } from "../../frame-verbs";
 import { LeadSlot } from "../cells/shapes";
 import { LeadTile } from "../cells/tile";
 import type { LeadCellCtx } from "../cells/types";

@@ -14,9 +14,9 @@
  * the head (head.ts); the date range is the page's act at the strip's right, a capsule that opens it (period-picker.tsx), with what
  * its word leaves out beside it on a desk; the page draws the lens's body (lenses/), which is a view of its own: replaced as the lens
  * changes (keyed by it), and moved by the deck every change of view moves by (kit/motion/view-deck.ts), from the side its lens stands
- * on, while the page and what it holds of a range stay. The Ads lens (a demo session's, until a workspace's ad accounts are read)
- * draws a fold of its own over the days the address says, from a chunk fetched on demand (lenses/ads-load.ts), and its one fact
- * stands in Worth knowing. A real workspace draws the bridge's own numbers (`useSurface("reports")`); a
+ * on, while the page and what it holds of a range stay. The Ads lens (a demo's or a preview's, until a workspace's ad accounts are read)
+ * draws a fold of its own over the days the address says, from a chunk fetched on demand (lenses/ads-load.ts), and in a demo its one
+ * fact stands in Worth knowing. A real workspace draws the bridge's own numbers (`useSurface("reports")`); a
  * demo session draws the same page from the contracts sample (sample.ts); without either, the page says what Reports reads.
  *
  * What it shows is a range: a period by name, kept in this browser, or the days a member picked, which the address says
@@ -29,19 +29,18 @@ import {
   REPORT_LENSES,
   REPORT_PERIOD_DEFAULT,
   lensRoute,
-  reportFacts,
   reportRangeKey,
   reportsRouteParts,
   routeOfPath,
   type LensId,
-  type ReportFactVM,
   type ReportRange,
   type ReportsParts,
   type ReportVM,
 } from "@chanlytics/contracts";
+import { reportFacts, type ReportFactVM } from "./model/facts";
 import type { CampaignLensVM, PeopleReportVM } from "@chanlytics/contracts/report-lens";
 import { reportWindowOf } from "@chanlytics/contracts/report-window";
-import { navigate } from "../legacy-verbs";
+import { navigate } from "../frame-verbs";
 import { EmptyState } from "../kit/empty/empty";
 import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
@@ -250,7 +249,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   const demo = useReportsDemo();
   const R = live || (demo ? demo.reportsSample(sampleRange) : null);
   const own = useOwnReads(live, R, demo);
-  // The Ads (a demo session's): the lens's head, the Overview's one fact, and what the lens draws, from a chunk fetched on demand.
+  // The Ads, where they are on: the lens's head, a demo's one fact on the Overview, and what the lens draws, from a chunk fetched on demand.
   const adsHere = useAdsLens(lens, at, R);
   const scope = useCampaignsScope(lens, at, R);
   const desk = useRptDesk();

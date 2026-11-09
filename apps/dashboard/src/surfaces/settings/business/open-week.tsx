@@ -13,7 +13,7 @@
 import { Fragment } from "react";
 import type { ComponentProps, KeyboardEvent, ReactNode } from "react";
 import { clockLabel } from "@chanlytics/contracts";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";

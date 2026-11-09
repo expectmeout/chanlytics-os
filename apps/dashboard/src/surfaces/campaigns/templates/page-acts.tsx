@@ -9,7 +9,7 @@ import { VERSION_CHANNEL_WORDS, reachOutEditedWords } from "@chanlytics/contract
 import type { OwnVersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import type { useLegacyToast } from "../../legacy-verbs";
+import type { useFrameToast } from "../../frame-verbs";
 import { starterWords } from "./composer";
 import type { TemplateGroup, TplLang } from "./group";
 import { syncTemplates, templates as templateVerbs } from "./verbs";
@@ -19,7 +19,7 @@ import { TPL_VERSION_WORDS, tplLangLabel, tplTitle } from "./words";
 interface ActsProps {
   doingRef: RefObject<string | null>;
   setDoing: (doing: string | null) => void;
-  flash: ReturnType<typeof useLegacyToast>[1];
+  flash: ReturnType<typeof useFrameToast>[1];
 }
 
 export function pageActs({ doingRef, setDoing, flash }: ActsProps) {

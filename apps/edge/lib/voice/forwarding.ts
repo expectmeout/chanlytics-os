@@ -19,17 +19,20 @@
  * carriers say so.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { emitEvent } from "../packages/db.js";
+import type { Database } from "@chanlytics/db/types";
+import { emitEvent } from "@chanlytics/db/events";
 import {
   FIRST_RUN_ROUTE,
   forwardingMatch,
   forwardingProof,
   formatPhoneDisplay,
   type ForwardingFacts,
-} from "../packages/contracts.js";
-import { recordNotification } from "../ops/notify.js";
-import { logger, errField } from "../log.js";
+} from "@chanlytics/contracts";
+import { recordNotification } from "../shared/alerts/notify.js";
+import { logger, errField } from "../shared/log.js";
+import { listLinesAwaitingForwarding, saveForwardingVerified } from "@chanlytics/db/lines";
+import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export interface ForwardingCall {
   fromE164: string | null;
@@ -43,17 +46,12 @@ export interface ForwardingCall {
 
 export async function markForwardingVerified(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   call: ForwardingCall,
 ): Promise<boolean> {
-  const L = logger({ tenant_id: tenantId });
+  const log = logger({ tenant_id: tenantId });
   try {
-    const { data, error } = await db
-      .from("lines")
-      .select("id, e164, facts")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "forwarded")
-      .eq("forwarding_state", "instructed");
+    const { data, error } = await listLinesAwaitingForwarding(db, tenantId);
     if (error || !data?.length) return false;
     const now = new Date().toISOString();
     for (const row of data) {
@@ -62,29 +60,24 @@ export async function markForwardingVerified(
       ) as ForwardingFacts & Record<string, unknown>;
       if (!forwardingMatch(facts, call)) continue;
       const proof = forwardingProof(row.e164, call.diverted ?? null);
-      L.info("forwarding_evidence", {
+      log.info("forwarding_evidence", {
         line: row.id,
         call: call.callId,
         proof,
         headers: call.diverted === undefined ? "not_read" : call.diverted === null ? "none" : call.diverted.length,
       });
-      const upd = await db
-        .from("lines")
-        .update({
-          forwarding_state: "verified",
-          state_since: now,
-          facts: {
-            ...facts,
-            verified_at: now,
-            verified_call_id: call.callId,
-            verified_from: call.fromE164,
-            // "carrier": the call's headers named the kept number; "window": a call reached the line inside the test.
-            verified_by: proof === "carrier" ? "carrier" : "window",
-          },
-        })
-        .eq("id", row.id)
-        .eq("forwarding_state", "instructed")
-        .select("id");
+      const upd = await saveForwardingVerified(db, tenantId, row.id, {
+        forwarding_state: "verified",
+        state_since: now,
+        facts: {
+          ...facts,
+          verified_at: now,
+          verified_call_id: call.callId,
+          verified_from: call.fromE164,
+          // "carrier": the call's headers named the kept number; "window": a call reached the line inside the test.
+          verified_by: proof === "carrier" ? "carrier" : "window",
+        },
+      });
       if (upd.error || !upd.data?.length) continue;
       const kept = formatPhoneDisplay(row.e164) ?? row.e164 ?? "your number";
       await recordNotification(tenantId, {
@@ -98,12 +91,12 @@ export async function markForwardingVerified(
         from: call.fromE164,
         call_id: call.callId,
         proof,
-      }).catch(() => {});
-      L.info("forwarding_verified", { line: row.id, call: call.callId });
+      }).catch(logAndGoOn("event line.forwarding_verified"));
+      log.info("forwarding_verified", { line: row.id, call: call.callId });
       return true;
     }
   } catch (e) {
-    L.error("forwarding_verify_failed", { error: errField(e) });
+    log.error("forwarding_verify_failed", { error: errField(e) });
   }
   return false;
 }

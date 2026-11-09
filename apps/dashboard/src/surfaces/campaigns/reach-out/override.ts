@@ -4,9 +4,9 @@
  * every first load, for a read whose own code is a few lines (the loadability review, 19 Oct 2026).
  */
 import type { ReachOutChainDto } from "@chanlytics/contracts";
-import { read } from "@/legacy-bridge/api";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import { read } from "@/bridge/api";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads } from "@/bridge/surface-registry";
 import { declareSurfaceValue, setSurfaceValue } from "../../surface-values";
 
 /** The chains GET reach-outs lists; null when they could not be read (each page says so), never an empty list it did not read. */

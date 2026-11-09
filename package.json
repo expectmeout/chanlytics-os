@@ -12,6 +12,8 @@
     "gen:schema-snapshot": "node tooling/scripts/gen/schema-snapshot.mjs",
     "gen:data-model": "node tooling/scripts/gen/data-model.mjs",
     "gen:inbound-gates": "node --import tsx tooling/scripts/gen/inbound-gates.mjs",
+    "gen:sql-map": "node tooling/scripts/gen/sql-map.mjs",
+    "gen:capacity": "node tooling/scripts/gen/capacity.mjs",
     "gen:sorted-lists": "node tooling/scripts/gen/sorted-lists.mjs",
     "check:db-types": "node tooling/scripts/gen/db-types.mjs --check",
     "check:dead-exports": "node tooling/scripts/checks/dead-exports.mjs",

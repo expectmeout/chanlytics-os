@@ -14,27 +14,29 @@ import "server-only";
  * unsubscribe-token.ts); the one write is 00174's set_email_marketing, which can only ever narrow what may be
  * sent, and says nothing twice.
  *
- * It holds the service role, like consent-page.ts, because the person pressing has no session; unlike it, it
+ * It holds the service role, like consent/public-page.ts, because the person pressing has no session; unlike it, it
  * writes, and only through that door. The page draws its own small HTML: it is the one screen a stranger sees
  * from an email, and it must not depend on the app's bundle to say "you're unsubscribed".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { offerLanguageOf, setEmailUnsubscribed, stopAllMessages, type Database } from "@chanlytics/db";
-import { addressOf, verifyUnsubscribeToken } from "@chanlytics/channels";
+import { offerLanguageOf, setEmailUnsubscribed, stopAllMessages } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
+import { addressOf } from "@chanlytics/channels/email";
+import { verifyUnsubscribeToken } from "@chanlytics/channels/tokens";
 import {
   escapeHtml,
-  offerUnsubscribeWords,
   senderLanguage,
-  STOP_ALL_REFUSALS,
   UNSUBSCRIBE_PAGE_HEADER,
   unsubscribePageWords,
-  type OfferUnsubscribeView,
   type SenderLanguage,
   type UnsubscribeView,
   MIN_MS,
+  valueAt,
+  DbFailure,
 } from "@chanlytics/contracts";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
+import { offerUnsubscribeWords, STOP_ALL_REFUSALS, type OfferUnsubscribeView } from "./offers-unsubscribe";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
 import {
   LINK_PAGE_HEADERS,
   LINK_PAGE_MAX_BYTES,
@@ -47,15 +49,18 @@ import {
   setLinkPageClient,
   type LinkPageLook,
 } from "./link-page";
+import { findWorkspaceName } from "@chanlytics/db/workspace";
+import { findMessageMeta } from "@chanlytics/db/conversations";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** For tests: the database the page reads and writes through (link-page.ts holds it for both links' pages). */
-export const setServiceClient = setLinkPageClient;
+export const setUnsubscribeServiceClient = setLinkPageClient;
 
 /**
  * The secrets a link may be sealed under: the current one first, then the one before it while a rotation settles.
  * Null without the current one, whatever the previous says: the door is either set up or it is not.
  */
-function secrets(): string[] | null {
+export function secrets(): string[] | null {
   const current = env.UNSUBSCRIBE_SECRET;
   if (!current) return null;
   const previous = env.UNSUBSCRIBE_SECRET_PREVIOUS;
@@ -80,8 +85,8 @@ function sayOnceAMinute(
 }
 
 /** A door that cannot answer, said to the platform (never the link, which is the authority to stop). */
-function sayUnavailable(why: "no_secret" | "no_database"): void {
-  sayOnceAMinute("error", "unsubscribe_unavailable", { why });
+function sayUnavailable(reason: "no_secret" | "no_database"): void {
+  sayOnceAMinute("error", "unsubscribe_unavailable", { why: reason });
 }
 
 /** Links this instance refused since its last line said so. */
@@ -134,19 +139,19 @@ interface Paper {
  * The page every view is drawn on: the product's paper and ink, the business's mark and colour where it has them
  * (decision 0075), one card, no script, whatever the words, in the language of its `<html>`.
  */
-function draw(status: number, kind: string, w: PageWords, paper: Paper): Response {
-  const forms = w.buttons
+function draw(status: number, kind: string, pageWords: PageWords, paper: Paper): Response {
+  const forms = pageWords.buttons
     .map(
       (b) =>
         `<form method="post"><input type="hidden" name="${escapeHtml(b.name)}" value="${escapeHtml(b.value)}">` +
         `<button type="submit"${b.quiet ? ' class="quiet"' : ""}>${escapeHtml(b.label)}</button></form>`,
     )
     .join("");
-  const foot = w.foot ? `<p class="foot">${escapeHtml(w.foot)}</p>` : "";
+  const foot = pageWords.foot ? `<p class="foot">${escapeHtml(pageWords.foot)}</p>` : "";
   const html = `<!doctype html>
 <html lang="${paper.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${linkPageStyle(paper.look)}</style></head>
-<body><main>${linkPageMark(paper.look)}<div class="card"><h1>${escapeHtml(w.lead)}</h1><p>${escapeHtml(w.body)}</p>${forms}</div>${foot}</main></body></html>`;
+<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(pageWords.title)}</title><style>${linkPageStyle(paper.look)}</style></head>
+<body><main>${linkPageMark(paper.look)}<div class="card"><h1>${escapeHtml(pageWords.lead)}</h1><p>${escapeHtml(pageWords.body)}</p>${forms}</div>${foot}</main></body></html>`;
   // Which view this is, so the edge can tell the page answering from anything else answering at its address. The words
   // true of both kinds of email are the same view to the edge (its probe's link names no email, so it draws them): an
   // "ask" or a "done", whichever words the page says it in.
@@ -179,9 +184,9 @@ function plainText(status: number, body: string): Response {
 }
 
 /** The business's name for the page's words; null when it cannot be read, which the words say without. */
-async function businessName(db: SupabaseClient<Database>, tenantId: string): Promise<string | null> {
+async function businessName(db: SupabaseClient<Database>, tenantId: TenantId): Promise<string | null> {
   try {
-    const { data, error } = await db.from("tenants").select("name").eq("id", tenantId).maybeSingle();
+    const { data, error } = await findWorkspaceName(db, tenantId);
     return error ? null : (data?.name ?? null);
   } catch {
     return null;
@@ -202,7 +207,7 @@ interface LinkedEmail {
  */
 async function offerLanguage(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   messageId: string,
   broadcastId: unknown,
 ): Promise<string | null> {
@@ -226,27 +231,17 @@ async function offerLanguage(
  * page then says only what is true of both kinds, and a press of "Stop all messages" is refused in words that say why,
  * never answered as the cold email's page by default. A read that fails is said in the log.
  */
-async function emailOf(db: SupabaseClient<Database>, tenantId: string, messageId: string): Promise<LinkedEmail> {
+async function emailOf(db: SupabaseClient<Database>, tenantId: TenantId, messageId: string): Promise<LinkedEmail> {
   try {
-    const { data, error } = await db
-      .from("messages")
-      .select("meta")
-      .eq("id", messageId)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+    const { data, error } = await findMessageMeta(db, tenantId, messageId);
+    if (error) throw new DbFailure(error);
     if (!data) return { sender: null, lane: "unread", language: null };
-    const meta = data.meta as {
-      source?: unknown;
-      broadcast_id?: unknown;
-      email?: { request?: { from?: unknown } };
-    } | null;
-    const from = meta?.email?.request?.from;
-    const offer = meta?.source === "broadcast";
+    const from = valueAt(data.meta, "email", "request", "from");
+    const offer = valueAt(data.meta, "source") === "broadcast";
     return {
       sender: typeof from === "string" ? (addressOf(from)?.address ?? null) : null,
       lane: offer ? "offer" : "reach_out",
-      language: offer ? await offerLanguage(db, tenantId, messageId, meta?.broadcast_id) : null,
+      language: offer ? await offerLanguage(db, tenantId, messageId, valueAt(data.meta, "broadcast_id")) : null,
     };
   } catch (e) {
     log.warn("unsubscribe_lane_unread", {
@@ -307,9 +302,9 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     return plainText(400, "An unsubscribe says List-Unsubscribe=One-Click.");
   if (stopAll) return stopAllMessagesPage(db, claims, stopAll === "yes");
 
-  let said: { business: string | null };
+  let place: { business: string | null };
   try {
-    said = await setEmailUnsubscribed(db, {
+    place = await setEmailUnsubscribed(db, {
       tenantId: claims.tenantId,
       contactId: claims.contactId,
       messageId: claims.messageId,
@@ -330,7 +325,7 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
     emailOf(db, claims.tenantId, claims.messageId),
     linkPageLookOf(db, claims.tenantId),
   ]);
-  return pageFor(email, said.business, "done", look);
+  return pageFor(email, place.business, "done", look);
 }
 
 /**
@@ -340,7 +335,7 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
  */
 async function stopAllMessagesPage(
   db: SupabaseClient<Database>,
-  claims: { tenantId: string; contactId: string; messageId: string },
+  claims: { tenantId: TenantId; contactId: ContactId; messageId: string },
   confirmed: boolean,
 ): Promise<Response> {
   const email = await emailOf(db, claims.tenantId, claims.messageId);

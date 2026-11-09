@@ -14,11 +14,14 @@ import {
   offeringHorizon,
   parseTenantConfig,
   type FreedTimeCalendar,
-  type FreedTimeRow,
+  type FreedTimeLine,
   type SequenceMode,
+  recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
-import { sequenceModesOf } from "./sequences";
+import type { Database } from "../../types";
+import { getSequenceModes } from "./sequences/reads";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type StepRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -36,12 +39,12 @@ const SPAN_MAX = 2000;
  * zone is the workspace's, as every run reads it (DEFAULT_TIMEZONE where it keeps none); the hours, closures and rules
  * its profile's, none where it keeps none (the rule then offers nothing: no_hours).
  */
-export async function freedTimeFactsOf(
+export async function findFreedTimeFacts(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   appointmentId: string,
   nowMs: number,
-): Promise<{ row: FreedTimeRow; calendar: FreedTimeCalendar } | null> {
+): Promise<{ row: FreedTimeLine; calendar: FreedTimeCalendar } | null> {
   const [appt, tenant, cfg] = await Promise.all([
     db
       .from("appointments")
@@ -52,9 +55,9 @@ export async function freedTimeFactsOf(
     db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle(),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
-  if (appt.error) throw new Error(`freed_time_facts: the appointment: ${appt.error.message}`);
-  if (tenant.error) throw new Error(`freed_time_facts: the workspace: ${tenant.error.message}`);
-  if (cfg.error) throw new Error(`freed_time_facts: the config: ${cfg.error.message}`);
+  if (appt.error) throw new DbFailure(appt.error, "freed_time_facts: the appointment");
+  if (tenant.error) throw new DbFailure(tenant.error, "freed_time_facts: the workspace");
+  if (cfg.error) throw new DbFailure(cfg.error, "freed_time_facts: the config");
   if (!appt.data) return null;
   const profile = parseTenantConfig(cfg.data?.config ?? null)?.brain?.profile;
   const rules = profile?.booking_rules ?? null;
@@ -71,7 +74,7 @@ export async function freedTimeFactsOf(
     .lt("starts_at", new Date(span.to).toISOString())
     .order("starts_at", { ascending: true })
     .limit(SPAN_MAX);
-  if (standing.error) throw new Error(`freed_time_facts: what stands: ${standing.error.message}`);
+  if (standing.error) throw new DbFailure(standing.error, "freed_time_facts: what stands");
   return {
     row: {
       id: appt.data.id,
@@ -99,9 +102,9 @@ export async function freedTimeFactsOf(
  * The workspace's step on `slot_opened`: the running one, with its sequence's mode as a run reads it (the oldest,
  * should two sequences hold one: a freed time is offered once), else whether one stands paused, else none.
  */
-export async function freedTimeStepOf(
+export async function findFreedTimeStep(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ state: "running"; step: StepRow & { mode: SequenceMode | undefined } } | { state: "paused" | "none" }> {
   const { data, error } = await db
     .from("sequence_steps")
@@ -109,11 +112,11 @@ export async function freedTimeStepOf(
     .eq("tenant_id", tenantId)
     .eq("trigger", FREED_MOMENT)
     .order("created_at", { ascending: true });
-  if (error) throw new Error(`cannot read the step that offers a freed time: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the step that offers a freed time");
   const steps = data ?? [];
   const running = steps.find((s) => s.state === "running");
   if (!running) return { state: steps.length ? "paused" : "none" };
-  const modes = await sequenceModesOf(db, tenantId, [running.sequence_id]);
+  const modes = await getSequenceModes(db, tenantId, [running.sequence_id]);
   return { state: "running", step: { ...running, mode: modes.get(running.sequence_id) } };
 }
 
@@ -121,9 +124,9 @@ export async function freedTimeStepOf(
  * The batch a step made for an appointment's freed time: how many people it offers the time to, and whether it waits
  * for the owner's OK; null when it made none.
  */
-export async function freedTimeBatchOf(
+export async function findFreedTimeBatch(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   stepId: string,
   appointmentId: string,
 ): Promise<{ id: string; people: number; waits: boolean } | null> {
@@ -134,7 +137,7 @@ export async function freedTimeBatchOf(
     .eq("step_id", stepId)
     .eq("offered_from", appointmentId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the batch a freed time made: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the batch a freed time made");
   return data ? { id: data.id, people: data.recipient_count, waits: data.state === "pending_approval" } : null;
 }
 
@@ -149,7 +152,7 @@ const CANCELLATIONS_IN_CHUNK = 200;
  * the service, 00436, or vanished from the feed). Ask's signals count them where nothing offers them. Under the caller's
  * row security; a read that fails throws.
  */
-export async function cancellationsSince(db: Db, tenantId: string, sinceIso: string): Promise<number> {
+export async function getCancellationsSince(db: Db, tenantId: TenantId, sinceIso: string): Promise<number> {
   const { data, error } = await db
     .from("events")
     .select("subject_id, data")
@@ -159,9 +162,8 @@ export async function cancellationsSince(db: Db, tenantId: string, sinceIso: str
     .in("data->>change", ["cancelled", "vanished"])
     .gte("created_at", sinceIso)
     .limit(EVENTS_MAX);
-  if (error) throw new Error(`cannot read the cancellations: ${error.message}`);
-  const said = (e: { data: unknown }, k: string): unknown =>
-    e.data && typeof e.data === "object" && !Array.isArray(e.data) ? (e.data as Record<string, unknown>)[k] : undefined;
+  if (error) throw new DbFailure(error, "cannot read the cancellations");
+  const said = (e: { data: unknown }, k: string): unknown => recordOrEmpty(e.data)[k];
   const ids = [
     ...new Set(
       (data ?? [])

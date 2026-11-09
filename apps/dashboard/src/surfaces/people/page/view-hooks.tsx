@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { parsePeopleRoute, peopleRoute } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
-import { refusalToast } from "../../legacy-verbs";
+import { refusalToast } from "../../frame-verbs";
 import { lists as listsDoor } from "../people-lists";
 import { peopleMore, peopleSearch } from "../surface";
 import { plListGone } from "../rail/rail-kit";

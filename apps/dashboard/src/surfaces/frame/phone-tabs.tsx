@@ -8,7 +8,7 @@
 import { useEffect } from "react";
 import type { TabBar } from "../kit/tab-bar/tab-bar";
 import { frameGlyph, fromGlobal } from "./frame-window";
-import { PHONE_MORE, PHONE_TABS } from "./places";
+import { PHONE_MORE, PHONE_TABS, PHONE_WARM_ROUTES } from "./places";
 import { pageToTop } from "./shell-hooks";
 import { shellAddress } from "./shell-routes";
 
@@ -27,11 +27,12 @@ interface PhoneTabsProps {
  * screen pressed again goes to its first page, or to the top.
  */
 export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace }: PhoneTabsProps) {
-  // The four places a thumb goes, kept warm: warmed once the page is idle, again when the tab comes back to the screen or
-  // is first pressed after the router let them go, and when a finger reaches one (workspace.ts keepWarm, warmRoute).
+  // What a thumb goes to, kept warm: first asked for on a phone as the router arrives (workspace.ts warmPhonePlaces), and from
+  // here once the page is idle, again when the tab comes back to the screen or is first pressed after the router let them go,
+  // and when a finger reaches a tab (workspace.ts keepWarm, warmRoute).
   useEffect(() => {
     const a = shellAddress();
-    if (a && a.keepWarm) a.keepWarm(PHONE_TABS.map((t) => t.route));
+    if (a && a.keepWarm) a.keepWarm(PHONE_WARM_ROUTES);
   }, [page]);
   const Glyph = frameGlyph();
   const Bar = fromGlobal<typeof TabBar | null>("TabBar", null);

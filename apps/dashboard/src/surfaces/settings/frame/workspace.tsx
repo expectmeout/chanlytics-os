@@ -14,13 +14,13 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordTip } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
-import { askAbout, canDo, gate, hrefOf, navigate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { askAbout, canDo, gate, hrefOf, navigate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { BtCreateCard } from "../business/create";
 import { setupVerbs } from "../../setup/surface";
 import { settingsNow, setupNow } from "../business/shell";
 import { BusinessTab, type BusinessPart } from "../business/tab";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /**
  * What the file holds, said behind the mark beside the link and to a screen reader: what is in it, and what it leaves out,

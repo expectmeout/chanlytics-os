@@ -1,16 +1,20 @@
 import "server-only";
 import { noteRows } from "@chanlytics/contracts";
-import { log } from "@/server/log";
-import { load, type ReaderContext } from "../../readers";
+import { log } from "@/server/shared/log";
+import { load, type ReaderContext } from "../../shared/reader";
 import { shape as shapeReader } from "../../readers/shape";
+import { listFileCopiesOf } from "../../files/copies";
+import { attachedPictures } from "../../files/attached";
 import { shapeBlock, type BuiltContext } from "../context";
 import { remembered, rememberedBlock } from "../companion/remembered";
 import { crossPagePlan, scopedRead } from "../cross-page";
+import type { Chain } from "../memory";
+import { openedPicture, pictureBlocks } from "../tools/context/tool-defs";
 import type { ToolContext, ToolRun } from "../tools";
-import type { AskPorts, TurnInput } from "../loop";
+import type { AskPorts, TurnInput } from "./turn-head";
 
 /** The workspace's shape and, after it, what Ask remembers: the port's own (loop.ts AskPorts shape). */
-export const shapeOf = async (rc: ReaderContext): Promise<string> => {
+export const readShape = async (rc: ReaderContext): Promise<string> => {
   const [shape, kept] = await Promise.all([
     load(rc, shapeReader, undefined).then((r) => shapeBlock(r.data)),
     load(rc, remembered, undefined).then(
@@ -31,7 +35,7 @@ export const shapeOf = async (rc: ReaderContext): Promise<string> => {
  * the first round as data, so its rows enter the read set and the answer can cite them. A failure costs that block,
  * never the turn.
  */
-export async function firstReads(input: TurnInput, ports: AskPorts, tc: ToolContext) {
+export async function getFirstReads(input: TurnInput, ports: AskPorts, tc: ToolContext) {
   const tCtx = Date.now();
   const plan = crossPagePlan(input.text, input.surface, input.context?.view ?? null);
   const scoped = scopedRead(input.scope, input.context?.route);
@@ -40,10 +44,11 @@ export async function firstReads(input: TurnInput, ports: AskPorts, tc: ToolCont
       return { run, out: await ports.tool(tc, run) };
     } catch (e) {
       log.error("ask_cross_page_failed", { error: e, tenant_id: input.tenantId });
-      return { run, out: { result: "", isError: true } };
+      return { run, out: { result: "", isError: true, pictures: undefined } };
     }
   };
-  const [built, shape, preOuts, scopedOut] = await Promise.all([
+  const attached = input.attached ?? [];
+  const [built, shape, preOuts, scopedOut, copies] = await Promise.all([
     input.context
       ? ports.context(tc.rc, input.context).catch((e: unknown): BuiltContext | null => {
           log.error("ask_context_failed", { error: e, tenant_id: input.tenantId });
@@ -56,6 +61,12 @@ export async function firstReads(input: TurnInput, ports: AskPorts, tc: ToolCont
     }),
     Promise.all(plan.map(runRead)),
     scoped ? runRead(scoped) : null,
+    // The copies of what the question came with, by the time the turn has left. listFileCopiesOf never fails a turn.
+    listFileCopiesOf(
+      { tenantId: input.tenantId, userId: input.ctx.userId },
+      attached.map((f) => f.id),
+      tc.endsAt === undefined ? undefined : tc.endsAt - Date.now(),
+    ),
   ]);
   // The page's rows a citation may name enter the read set; the page counts as one read, so a figure answered from it
   // is grounded (isUngrounded) -- when something on it was read: not a page whose read failed, nor one that is its
@@ -65,10 +76,29 @@ export async function firstReads(input: TurnInput, ports: AskPorts, tc: ToolCont
     !!built && built.blocks.length > 0 && (built.rows > 0 || (!built.failed && input.context?.surface !== "other"));
   const prefetched = preOuts.filter((p) => !p.out.isError);
   const scopedRow = scopedOut && !scopedOut.out.isError ? scopedOut : null;
-  return { plan, built, shape, pageRead, prefetched, scopedRow, contextMs: Date.now() - tCtx };
+  return {
+    plan,
+    built,
+    shape,
+    pageRead,
+    prefetched,
+    scopedRow,
+    attachedPictures: attachedPictures(attached, copies),
+    contextMs: Date.now() - tCtx,
+  };
 }
 
-export type FirstReads = Awaited<ReturnType<typeof firstReads>>;
+export type FirstReads = Awaited<ReturnType<typeof getFirstReads>>;
+
+/**
+ * The pictures the question carries, ahead of its words: the file the scope names, then the files it came with. A thread keeps
+ * its scope, so a follow-up reads that file again, and a live chain that already holds its picture is not sent it twice.
+ */
+export function questionPictures(first: FirstReads, chain?: Chain | null): unknown[] {
+  const held = chain ? JSON.stringify(chain.messages) : "";
+  const scoped = (first.scopedRow?.out.pictures ?? []).filter((p) => !held.includes(p.fileId)).map(openedPicture);
+  return pictureBlocks([...scoped, ...first.attachedPictures]);
+}
 
 /**
  * The reads a turn's first reads count: the page, when something on it was read; each read made for another page; and

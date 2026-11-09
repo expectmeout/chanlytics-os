@@ -50,8 +50,7 @@ export function waitedSince(sinceMs: number, nowMs: number): string {
 export type ThreadMoments = Pick<InboxThreadVM, "lastAtMs" | "escalatedAtMs" | "wakeAtMs">;
 
 /** What a thread says of the clock: the words its moments come to at one moment. */
-type ThreadClockWords = Pick<InboxThreadVM, "lastAt" | "lastAtFull" | "waitingMin" | "waited" | "wake"> &
-  Partial<Pick<InboxThreadVM, "unanswered">>;
+type ThreadClockWords = Pick<InboxThreadVM, "lastAt" | "lastAtFull" | "waitingMin" | "waited" | "wake">;
 
 /**
  * What a thread says of the clock as of `nowMs`, by the business's (`tz`): when it last moved, how long its hold has
@@ -60,19 +59,14 @@ type ThreadClockWords = Pick<InboxThreadVM, "lastAt" | "lastAtFull" | "waitingMi
  * moments the thread keeps: a refresh painted the tab's cached words, "9:00 AM" on yesterday's thread and "waiting 2h" on
  * a wait of 22, until the read landed a beat later and moved the rows (Ruben, 21 Oct 2026).
  */
-export function inboxThreadClock(
-  t: ThreadMoments & Partial<Pick<InboxThreadVM, "unanswered">>,
-  tz: string,
-  nowMs: number,
-): ThreadClockWords {
-  const lastAt = t.lastAtMs > 0 ? clockShort(t.lastAtMs, tz, nowMs) : "";
+export function inboxThreadClock(threadMoments: ThreadMoments, tz: string, nowMs: number): ThreadClockWords {
+  const lastAt = threadMoments.lastAtMs > 0 ? clockShort(threadMoments.lastAtMs, tz, nowMs) : "";
   const words: ThreadClockWords = { lastAt, lastAtFull: lastAt };
-  if (t.escalatedAtMs !== undefined) {
+  if (threadMoments.escalatedAtMs !== undefined) {
     // A minute at the least: a hold opened this minute has waited, where "0m" would say it has not.
-    words.waitingMin = Math.max(1, Math.round((nowMs - t.escalatedAtMs) / MIN_MS));
+    words.waitingMin = Math.max(1, Math.round((nowMs - threadMoments.escalatedAtMs) / MIN_MS));
     if (words.waitingMin) words.waited = formatWaited(words.waitingMin * MIN_MS);
   }
-  if (t.wakeAtMs !== undefined) words.wake = clockShort(t.wakeAtMs, tz, nowMs);
-  if (t.unanswered) words.unanswered = { ...t.unanswered, waited: waitedSince(t.unanswered.sinceMs, nowMs) };
+  if (threadMoments.wakeAtMs !== undefined) words.wake = clockShort(threadMoments.wakeAtMs, tz, nowMs);
   return words;
 }

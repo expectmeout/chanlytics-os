@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
-import { leadLinesOf, leadTimelineOf } from "@/server/campaigns/reach-out-leads";
+import { read, workspace } from "@/server/shared/route";
+import { getLeadLines, findLeadTimeline } from "@/server/campaigns/reach-out-leads";
 
 /**
  * GET /api/v1/reach-outs/leads?search= — Leads while a reach-out writes (Reach out Part 6, H8): the open search's
@@ -11,10 +11,10 @@ import { leadLinesOf, leadTimelineOf } from "@/server/campaigns/reach-out-leads"
  */
 export const GET = read({
   scope: workspace,
-  query: z.object({ search: z.string().uuid().optional(), lead: z.string().uuid().optional() }),
+  query: z.object({ search: z.uuid().optional(), lead: z.uuid().optional() }),
   handle: async ({ ctx, member, input }) => {
     if (!!input.search === !!input.lead) throw new AppError("validation", "Ask for one search or one lead.");
-    if (input.search) return leadLinesOf(ctx, member.tenantId, input.search);
-    return { lines: null, chain: null, timeline: await leadTimelineOf(ctx, member.tenantId, input.lead!) };
+    if (input.search) return getLeadLines(ctx, member.tenantId, input.search);
+    return { lines: null, chain: null, timeline: await findLeadTimeline(ctx, member.tenantId, input.lead ?? "") };
   },
 });

@@ -3,10 +3,10 @@
  * when its inbox receives a message, carrying the clientState it was made with (GRAPH_NOTIFY_SECRET); and once, when it
  * is made, a validation token to echo.
  *
- * The door names the request and calls receiveGraphPush in lib/email/mailbox/mailbox-push.ts: the token echoed, or each
- * notification's clientState checked and its mailbox read back (mailbox-sync.ts). Answered 202.
+ * The door names the request and calls receiveGraphPush in lib/email/mailbox/push.ts: the token echoed, or each
+ * notification's clientState checked and its mailbox read back (mailbox/sync.ts). Answered 202.
  */
-import { door } from "../../lib/log.js";
-import { receiveGraphPush } from "../../lib/email/mailbox/mailbox-push.js";
+import { door } from "../../lib/shared/log.js";
+import { receiveGraphPush } from "../../lib/email/mailbox/push.js";
 
 export const POST = door(receiveGraphPush);

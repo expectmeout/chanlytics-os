@@ -1,7 +1,7 @@
 /**
  * Ask, spoken, on the edge (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.2, §3.6): what the two doors
  * call, so each door holds no provider client and no repository of its own (a route file is a door: route-doors).
- * The key, the agent's id and the webhook's secret are this edge's (lib/env.ts), as every provider's are.
+ * The key, the agent's id and the webhook's secret are this edge's (lib/shared/env.ts), as every provider's are.
  *
  *   - The mint (door B, api/admin/voice/session.ts): the agent's conversation token for one member's conversation,
  *     through the ElevenLabs port.
@@ -9,7 +9,7 @@
  *     the conversation names ended with its minutes once, and the vendor's record erased after.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { env } from "../env.js";
+import { env } from "../shared/env.js";
 import {
   deleteConversation,
   mintConversationToken,
@@ -18,14 +18,10 @@ import {
   ELEVENLABS_SIGNATURE_HEADER,
   type ConversationMint,
   type SpeechStream,
-} from "../packages/channels.js";
-import { ASK_VOICE_ID, ASK_VOICE_MODEL } from "../packages/contracts.js";
-import {
-  endVoiceSession,
-  readVoiceSessionByConversation,
-  type Database,
-  type VoiceSessionRow,
-} from "../packages/db.js";
+} from "@chanlytics/channels/voice";
+import { ASK_VOICE_ID, ASK_VOICE_MODEL } from "@chanlytics/contracts";
+import { endVoiceSession, readVoiceSessionByConversation, type VoiceSessionRow } from "@chanlytics/db/ask";
+import type { Database } from "@chanlytics/db/types";
 
 type Db = SupabaseClient<Database>;
 

@@ -1,8 +1,9 @@
-import { read, platform } from "@/server/route";
+import { asTenantId } from "@chanlytics/contracts";
+import { read, platform } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
-import { requireUuid } from "@/server/request-guards";
-import { platformTenant, platformEvents } from "@/server/platform/platform";
-import { setupDtoFor } from "@/server/workspace/setup";
+import { requireUuid } from "@/server/shared/request-guards";
+import { findPlatformTenant, listPlatformEvents } from "@/server/console/platform";
+import { setupDtoFor } from "@/server/setup/setup";
 
 /**
  * GET /api/v1/platform/tenants/:id — one workspace, as its own owner sees it.
@@ -31,12 +32,12 @@ import { setupDtoFor } from "@/server/workspace/setup";
 export const GET = read({
   scope: platform,
   handle: async ({ ctx, office }) => {
-    const id = requireUuid(ctx.params.id, "workspace");
-    const tenant = await platformTenant(office, id);
+    const id = asTenantId(requireUuid(ctx.params.id, "workspace"));
+    const tenant = await findPlatformTenant(office, id);
     if (!tenant) throw new AppError("not_found", "No such workspace.", 404);
     const [setup, events] = await Promise.all([
       setupDtoFor(office.db, id, { kind: "back_office" }),
-      platformEvents(office, id),
+      listPlatformEvents(office, id),
     ]);
     return { tenant, setup, events };
   },

@@ -19,19 +19,23 @@
  * has always been.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { pg } from "../pg.js";
-import { readLeadContext, personReplyMode, offersAnswerOf, describeLead, filedNamesOf } from "../packages/db.js";
-import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
-import { openingsFor, visitsFor, takesRequests, requestTermsFor } from "../calendar/availability.js";
-import { tokensLast24h } from "../receptionist/budget.js";
-import { pgThread, pgIngest, pgSink, queueReply, replyTurn, pgAnswered } from "./persist.js";
+import type { Database } from "@chanlytics/db/types";
+import { pg } from "../shared/pg.js";
+import { readLeadContext, describeLead } from "@chanlytics/db/conversations";
+import { findPersonReplyMode } from "@chanlytics/db/workspace";
+import { findOffersAnswer } from "@chanlytics/db/campaigns";
+import { findFiledNames } from "@chanlytics/db/lines";
+import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../shared/tenant-runtime.js";
+import { findOpenings, findVisits, takesRequests, requestTermsFor } from "../calendar/availability.js";
+import { getTokensLast24h } from "../ai/budget.js";
+import { readPgThread, runPgIngest, pgSink, queueReply, replyTurn, readPgAnswered } from "./persist.js";
 import { alertStaff } from "./alerts.js";
-import { pageOperator } from "../ops/page-operator.js";
-import { whatsappSender, type InboundPorts as CoreInboundPorts } from "../packages/core.js";
-import { sendTypingIndicator } from "../packages/channels.js";
-import { logger } from "../log.js";
-import { env } from "../env.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
+import { whatsappSender, type InboundPorts as CoreInboundPorts } from "@chanlytics/core";
+import { logger } from "../shared/log.js";
+import { env } from "../shared/env.js";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { sendTypingIndicator } from "@chanlytics/channels/whatsapp";
 
 export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "leads" | "filing"> {
   /** The database, or null when this deployment persists nothing. */
@@ -43,39 +47,39 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
     /** By the person's own row, for a wire with no number (a DM); a test's world may leave it out. */
     readById?: (
       db: SupabaseClient<Database>,
-      tenantId: string,
-      contactId: string,
+      tenantId: TenantId,
+      contactId: ContactId,
       historyLimit?: number,
       answering?: string,
     ) => ReturnType<typeof readLeadContext>;
-    personReplyMode: typeof personReplyMode;
-    offersAnswer?: typeof offersAnswerOf;
+    personReplyMode: typeof findPersonReplyMode;
+    offersAnswer?: typeof findOffersAnswer;
   };
   /** The names the workspace's filings hold: a START by text is confirmed in its campaign's (X4-5). A test's world may leave it out. */
-  filing?: { names: typeof filedNamesOf };
+  filing?: { names: typeof findFiledNames };
   calendar: {
     openings(rt: TenantRuntime, now?: Date): Promise<string | null>;
     visits(rt: TenantRuntime, who: { phone: string | null; name: string | null }, now?: Date): Promise<string | null>;
     /** Booking requests (decision 0061); a test's world may leave it out, and no turn then takes one. */
     requests?: { takes: typeof takesRequests; terms: typeof requestTermsFor };
   };
-  budget: { tokensLast24h: typeof tokensLast24h };
+  budget: { tokensLast24h: typeof getTokensLast24h };
   /** The Postgres bookkeeping of one message: ingest, the memory, the held draft, the sink. */
   persist: {
-    thread: typeof pgThread;
-    ingest: typeof pgIngest;
+    thread: typeof readPgThread;
+    ingest: typeof runPgIngest;
     sink: typeof pgSink;
     queueReply: typeof queueReply;
     /** The thread's reply turn (00284); a test's world may leave it out, and every message then holds its turn. */
     turn?: typeof replyTurn;
     /** Whether a reply names a message already (a text's answer taken up again); a test's world may leave it out. */
-    answered?: typeof pgAnswered;
+    answered?: typeof readPgAnswered;
   };
   alertStaff: typeof alertStaff;
   page: typeof pageOperator;
   sender: typeof whatsappSender;
   /** The model, loaded only when there is a key: it is the one import that pulls the SDK. */
-  brain: () => Promise<Pick<typeof import("../receptionist/brain.js"), "generateReply">>;
+  brain: () => Promise<Pick<typeof import("../ai/receptionist-brain.js"), "generateReply">>;
   env: {
     /** The pilot allowlist for the environment's own number: comma-separated E.164 digits; empty disables it. */
     allowlist: string;
@@ -100,8 +104,8 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
  */
 let injectedPorts: InboundPorts | null = null;
 
-export function setInboundPorts(p: InboundPorts | null): void {
-  injectedPorts = p;
+export function setInboundPorts(inboundPorts: InboundPorts | null): void {
+  injectedPorts = inboundPorts;
 }
 
 export function realPorts(): InboundPorts {
@@ -113,23 +117,30 @@ export function realPorts(): InboundPorts {
       read: readLeadContext,
       readById: (db, tenantId, contactId, limit, answering) =>
         readLeadContext(db, tenantId, { contactId }, limit, answering),
-      personReplyMode,
-      offersAnswer: offersAnswerOf,
+      personReplyMode: findPersonReplyMode,
+      offersAnswer: findOffersAnswer,
     },
-    filing: { names: filedNamesOf },
+    filing: { names: findFiledNames },
     // A chat: what follows an opening or a visit may offer any link (calendar/availability.ts linkOfferedOn).
     calendar: {
-      openings: (rt, now) => openingsFor(rt, "chat", now),
-      visits: (rt, who, now) => visitsFor(rt, who, "chat", now),
+      openings: (rt, now) => findOpenings(rt, "chat", now),
+      visits: (rt, person, now) => findVisits(rt, person, "chat", now),
       requests: { takes: takesRequests, terms: requestTermsFor },
     },
-    budget: { tokensLast24h },
-    persist: { thread: pgThread, ingest: pgIngest, sink: pgSink, queueReply, turn: replyTurn, answered: pgAnswered },
+    budget: { tokensLast24h: getTokensLast24h },
+    persist: {
+      thread: readPgThread,
+      ingest: runPgIngest,
+      sink: pgSink,
+      queueReply,
+      turn: replyTurn,
+      answered: readPgAnswered,
+    },
     alertStaff,
     page: pageOperator,
     sender: whatsappSender,
     typing: async (cfg, messageId) => (cfg ? sendTypingIndicator(cfg, messageId) : false),
-    brain: () => import("../receptionist/brain.js"),
+    brain: () => import("../ai/receptionist-brain.js"),
     env: {
       allowlist: env.WHATSAPP_TEST_ALLOWLIST || "",
       modelKey: env.ANTHROPIC_API_KEY,
@@ -145,10 +156,10 @@ export function realPorts(): InboundPorts {
  * credentials resolver, and the lead description, which is a VALUE from the db
  * package. Added here so a test's ports stay the shape they have always been.
  */
-export function corePorts(p: InboundPorts): CoreInboundPorts {
+export function corePorts(inboundPorts: InboundPorts): CoreInboundPorts {
   return {
-    ...p,
-    leads: { ...p.leads, describe: describeLead },
+    ...inboundPorts,
+    leads: { ...inboundPorts.leads, describe: describeLead },
     log: logger,
     waCfg: waCfgFor,
   };

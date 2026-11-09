@@ -1,6 +1,7 @@
-import { write, platform } from "@/server/route";
+import { heldTenantId } from "@chanlytics/contracts";
+import { write, platform } from "@/server/shared/route";
 import { PartnerStandingSchema } from "@chanlytics/contracts";
-import { platformPartnerStanding } from "@/server/platform/platform";
+import { findPlatformPartnerStanding } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/partners/standing — a person decides the standing of a workspace a partner brought
@@ -20,6 +21,6 @@ export const POST = write({
   act: "partner_standing",
   input: PartnerStandingSchema,
   handle: async ({ office, input }) => ({
-    result: await platformPartnerStanding(office, input.tenant_id, input.standing, input.why),
+    result: await findPlatformPartnerStanding(office, heldTenantId(input.tenant_id), input.standing, input.why),
   }),
 });

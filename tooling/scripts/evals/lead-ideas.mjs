@@ -8,7 +8,7 @@
  *   node --import tsx tooling/scripts/evals/lead-ideas.mjs --live --repeats 3   # three askings each: the model is not the same twice
  *
  * Each workspace (fixtures/lead-ideas/workspaces.json) goes through what the dashboard's reader does
- * (server/leads/lead-suggestions.ts): lead_suggest_history's answer narrowed (ideaHistoryOf), the code's decisions made
+ * (server/leads/suggestions.ts): lead_suggest_history's answer narrowed (ideaHistoryOf), the code's decisions made
  * (ideaPacket: each kind's verdict, the places an idea may name, the sizes this month allows), the question and its
  * schema, the model's answer read leniently (LeadIdeasAnswerSchema) and back into plans (ideasFrom). The ideas are
  * judged by code: at least three, each a plan in a listed place, none of a kind that did not work nor the business's
@@ -21,7 +21,7 @@
  * root (ignored by git) when the environment has none. With --live and no eval key it asks nothing, judges nothing,
  * says SKIPPED and exits 0: a skip is never a pass. It writes no row and touches no workspace, and it lives
  * outside tests/ so `pnpm test` never runs it (it costs money and needs a key); its pure parts (workspaceOf,
- * judgeIdeas) are executed by tooling/scripts/tests/leads/finder/lead-ideas.test.mjs.
+ * judgeIdeas) are executed by tests/leads/finder/lead-ideas.test.mjs.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -137,7 +137,7 @@ export function judgeIdeas(fx, ws, items) {
   return { pass: failures.length === 0, failures };
 }
 
-/** The SDK the edge asks the model through (lib/model.ts), loaded only for a live run, on the eval key. */
+/** The SDK the edge asks the model through (lib/ai/model.ts), loaded only for a live run, on the eval key. */
 async function messagesClient() {
   const require = createRequire(path.join(ROOT, "apps/edge/package.json"));
   const { default: Anthropic } = await import(pathToFileURL(require.resolve("@anthropic-ai/sdk")).href);

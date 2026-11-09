@@ -92,10 +92,10 @@ async function freshLoad(page: Page, hash: string): Promise<void> {
  * Robin's thread, opened from the bucket the page files it under. The pane
  * shows a thread of the selected bucket only, so finding the row there is
  * itself what the page says about the thread. Retried while a load settles.
- * Since #852 Needs you holds what waits on you and nothing else: a thread you
- * hold, by a reply or a take-over, is Handled however it is flagged.
+ * Needs you holds what is yours to do and nothing else, Waiting what is someone
+ * else's next, Handled what nobody owes (contracts thread-move.ts, decision 0102).
  */
-async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"): Promise<Locator> {
+async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed" | "Waiting"): Promise<Locator> {
   const list = page.locator(".ix-list");
   const pane = page.locator(".ix-thread-pane");
   await expect(async () => {
@@ -112,6 +112,42 @@ async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"
  * grace window called back, one the job already holds allowed to land, every
  * open escalation in the workspace resolved, and the thread handed back.
  */
+/**
+ * On a copy of the app no edge runs, so no job ever takes a queued reply (nightly-e2e.yml, the whole suite). What this spec
+ * holds is what the page says of a reply that failed, so the two rows are written here as the send door and its job write
+ * them when the number has no credentials (core deliver.ts, the job's `send_failed`), and those are tested with the edge's.
+ */
+const NO_EDGE = !!process.env.EDGE_URL;
+
+async function theSendFails(conversationId: string, messageId: string): Promise<void> {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const headers = {
+    apikey: key,
+    authorization: `Bearer ${key}`,
+    "content-type": "application/json",
+    prefer: "return=representation",
+  };
+  const failed = await fetch(`${base}/rest/v1/messages?id=eq.${messageId}&status=eq.queued`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ status: "failed", error: { http_status: 0, body: "the WhatsApp number is not connected" } }),
+  });
+  const [row] = (await failed.json()) as { tenant_id: string }[];
+  expect(row, "the queued reply, marked failed").toBeTruthy();
+  const opened = await fetch(`${base}/rest/v1/escalations`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      tenant_id: row?.tenant_id,
+      conversation_id: conversationId,
+      reason: "send_failed",
+      details: "The reply could not be delivered: the WhatsApp number is not connected.",
+    }),
+  });
+  expect(opened.ok, "the escalation, opened").toBeTruthy();
+}
+
 async function putItBack(page: Page, ws: string, id: string): Promise<void> {
   for (const m of (await readThread(page, id)).messages) {
     // A 409 means the job has it already; the wait below lets it land.
@@ -173,10 +209,10 @@ test.describe("The thread, in the nightly's own workspace", () => {
     await test.step("the seeded thread is quiet: the receptionist answered and nobody asked for a person", async () => {
       await freshLoad(page, "#/inbox");
       const pane = await openRobin(page, "Handled");
-      // The receptionist's reply wears its spark, and a quiet thread says nothing over it: no standing line, and nobody
-      // asked for a person (#1660: the sentence for the ordinary state stood over every thread).
+      // The receptionist's reply wears its spark, the head says Handled because it answered (waits/thread-move.ts), and nobody
+      // asked for a person.
       await expect(pane.locator(".tl-msg .tl-stamp-spark").last()).toBeVisible();
-      await expect(pane.getByTestId("ix-th-standing")).toHaveCount(0);
+      await expect(pane.getByTestId("ix-th-standing")).toContainText("Handled");
       await expect(pane.getByTestId("ix-needs-you")).toHaveCount(0);
     });
 
@@ -201,6 +237,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
     });
 
     await test.step("the number has no credentials: the send fails, and the thread says so in its own words", async () => {
+      if (NO_EDGE) await theSendFails(id, messageId);
       await expect
         .poll(async () => (await readThread(page, id)).messages.find((m) => m.id === messageId)?.status, {
           timeout: 90_000,
@@ -214,20 +251,20 @@ test.describe("The thread, in the nightly's own workspace", () => {
         })
         .toEqual(["send_failed"]);
       const [opened] = (await openEscalations(page)).filter((e) => e.conversation_id === id);
-      expect(opened.details, "the cause in words, not an HTTP status").toContain(
+      expect(opened?.details, "the cause in words, not an HTTP status").toContain(
         "the WhatsApp number is not connected",
       );
-      escalationId = opened.id;
+      escalationId = opened?.id ?? "";
 
       await freshLoad(page, "#/inbox");
-      // Yours since the reply, so Handled (#852), with the failure said on the thread itself.
-      const pane = await openRobin(page, "Handled");
+      // Yours since the reply, and the reply never left, so it is yours to do (thread-move.ts), said on the thread itself.
+      const pane = await openRobin(page, "Needs you");
       await expect(
         pane.locator(".tl-msg").filter({ hasText: words }).getByRole("img", { name: "Didn't send" }),
       ).toBeVisible();
       // Where it was held, a quiet mark with its reason as a clause; the cause a press away under the dock's Why? (the
       // thread canvas, 1 Nov 2026): the flag quoted it over a dock that said the reason again.
-      await expect(pane.getByTestId("tl-held")).toContainText("reply failed to deliver");
+      await expect(pane.getByTestId("tl-held")).toHaveAttribute("title", /reply failed to deliver/);
       await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
       await pane.getByTestId("ix-yours").getByRole("button", { name: "Why?" }).click();
       await expect(pane.getByTestId("ix-hold-why")).toContainText("the WhatsApp number is not connected");
@@ -279,10 +316,10 @@ test.describe("The thread, in the nightly's own workspace", () => {
               pane.evaluate((el) => {
                 const scroller = el.querySelector(".ix-th-scroll")?.getBoundingClientRect();
                 const all = el.querySelectorAll(".ix-timeline > *");
-                const last = all.length ? all[all.length - 1].getBoundingClientRect() : null;
+                const last = all[all.length - 1]?.getBoundingClientRect() ?? null;
                 if (!scroller || !last) return true;
-                // On a phone the window scrolls the conversation, and what shows of it ends at the screen's foot, over
-                // the thread's foot standing there (mobile.css, "The window scrolls"); on a desk the foot is no box.
+                // What shows of the conversation ends at its own box's foot, over the thread's foot on a phone
+                // (mobile.css, "An open thread is a screen of its own"); on a desk the foot is no box.
                 const foot = el.querySelector(".ix-th-foot")?.getBoundingClientRect();
                 const top = Math.max(scroller.top, 0);
                 const bottom = Math.min(
@@ -305,7 +342,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(queue).toBeVisible();
       // One rule (standing.ts): a thread you took by replying is yours, and the Inbox lists it under Handled as yours
       // (#852). What Today must never be quiet about is the failure itself: since Today in three zones (2 Nov 2026) a reply
-      // of yours that never left is yours to answer (today-facts.ts YOURS_STILL_WAIT), one row of Need you with its words
+      // of yours that never left is yours to answer (today/facts.ts YOURS_STILL_WAIT), one row of Need you with its words
       // kept and Try again, and nothing under the head. Try again is not pressed here: it sends.
       const row = queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name });
       await expect(row).toHaveCount(1);
@@ -317,7 +354,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
 
     await test.step("snoozed, the thread lets go of the person holding it and keeps the request; woken, it waits for someone", async () => {
       await freshLoad(page, "#/inbox");
-      let pane = await openRobin(page, "Handled");
+      let pane = await openRobin(page, "Needs you");
       // Snooze is in the thread's More: the header had it as a button too, beside the menu that held it.
       await pane.getByRole("button", { name: /^More for the conversation with/ }).click();
       // The menu is the kit's (Base UI), drawn on the page's body, not inside the pane.
@@ -337,8 +374,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await pane.getByRole("button", { name: /^More for the conversation with/ }).click();
       await page.getByRole("menuitem", { name: /^I'll answer this/ }).click();
       await expect(page.getByText(/the receptionist is paused/)).toBeVisible();
-      // Taken over, it is yours: Handled (#852).
-      pane = await openRobin(page, "Handled");
+      // Taken over, it is yours, and a reply of yours never left: still yours to do (thread-move.ts).
+      pane = await openRobin(page, "Needs you");
       await expect(pane.getByTestId("ix-yours")).toBeVisible();
       const { conversation: c } = await readThread(page, id);
       expect(c.state).toBe("needs_human");
@@ -360,20 +397,24 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await freshLoad(page, "#/today");
       const queue = page.getByTestId("today-queue");
       await expect(queue).toBeVisible();
-      await expect(queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name })).toHaveCount(0);
+      // What the thread was about is resolved, and the words still never left: the row stays until someone tries again
+      // or hands it back (thread-move.ts, a thread's move is `failed`; #2133).
+      await expect(queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name })).toContainText(
+        "Your reply didn't reach them",
+      );
 
       await freshLoad(page, "#/inbox");
-      const pane = await openRobin(page, "Handled");
+      const pane = await openRobin(page, "Needs you");
       await expect(pane.getByTestId("tl-held")).toHaveCount(0);
       // Resolving what the thread was about does not hand it back: it is still yours.
       await expect(pane.getByTestId("ix-yours")).toBeVisible();
     });
 
     await test.step("handed back from the thread: the receptionist answers again, and the words that never left still say so", async () => {
-      let pane = await openRobin(page, "Handled");
+      let pane = await openRobin(page, "Needs you");
       await pane.getByRole("button", { name: /^Hand back to/ }).click();
       await expect(page.getByText(/handed back/)).toBeVisible();
-      pane = await openRobin(page, "Handled");
+      pane = await openRobin(page, "Needs you");
       // Nobody holds it now, and the bar still says the team's last words didn't send, as the row's pill does.
       await expect(pane.getByTestId("ix-yours")).toHaveCount(0);
       await expect(pane.getByTestId("ix-th-standing")).toContainText("Didn't send");

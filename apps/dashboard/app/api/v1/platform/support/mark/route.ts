@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { SupportMarkSchema } from "@chanlytics/contracts";
-import { supportMark } from "@/server/platform/support";
+import { markSupport } from "@/server/console/support";
 
 /**
  * POST /api/v1/platform/support/mark — {target, id, mark}: a question answered or open again; a setup ask answered,
@@ -13,5 +13,5 @@ export const POST = write({
   rate: "platform_support",
   act: "report_answered",
   input: SupportMarkSchema,
-  handle: async ({ office, input }) => supportMark(office, input),
+  handle: async ({ office, input }) => markSupport(office, input),
 });

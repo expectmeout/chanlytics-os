@@ -4,16 +4,16 @@
  * (dealStepOf), which its card says.
  */
 import { foldName } from "../../calendar/service-offer";
-import { visitDay } from "../../calendar/calendar-people";
-import { visitStateOf } from "../../calendar/calendar-words";
+import { visitDay } from "../../calendar/people/visits";
+import { visitStateOf } from "../../calendar/words/visit";
 import { clockDate } from "../../shared/clock";
-import { DEAL_LINE_NONE, DEAL_STAGE_WORDS } from "../deal-words";
-import type { DealVM } from "../deal-vm";
-import { proposalTone, waitingOnProposal } from "../deal-waits";
-import { consultationsWithoutProposal } from "../deal-consultations";
+import { DEAL_LINE_NONE, DEAL_STAGE_WORDS } from "../words";
+import type { DealVM } from "../vm";
+import { proposalTone, waitingOnProposal } from "../waits";
+import { consultationsWithoutProposal } from "../consultations";
 import type { StepDayVM } from "../../notes/steps";
 import { stateTone, type Tone } from "../../shell/tone";
-import { followUpWords } from "../../playbooks/playbooks";
+import { followUpWords } from "../../campaigns/playbooks/playbooks";
 import { act, consultedService, dealNextAct, followUpOn, sentOf, type DealAct, type DealPerson } from "./deal-acts";
 
 /* --------------------------------------------- the card ----------------------------------------------------- */
@@ -148,9 +148,9 @@ function namesService(title: string, service: string): boolean {
     foldName(s)
       .split(/[^\p{L}\p{N}]+/u)
       .filter(Boolean);
-  const said = words(title);
+  const titleWords = words(title);
   const named = words(service);
-  return named.length > 0 && said.some((_, i) => named.every((w, j) => said[i + j] === w));
+  return named.length > 0 && titleWords.some((_, i) => named.every((w, j) => titleWords[i + j] === w));
 }
 
 /**
@@ -169,26 +169,26 @@ function consultedDealOf(p: DealPerson, open: readonly DealVM[]): DealVM | null 
  * sheet, for a consultation with no proposal after it, read this one.
  */
 export function consultationStepOf(
-  p: Pick<DealPerson, "consultedMs" | "lastVisitLine">,
+  dealPerson: Pick<DealPerson, "consultedMs" | "lastVisitLine">,
   nowMs: number,
   tz: string,
 ): { day: string; word: string | null } | null {
-  const consulted = p.consultedMs ?? null;
+  const consulted = dealPerson.consultedMs ?? null;
   if (consulted === null || consulted > nowMs) return null;
   return {
     day: clockDate(consulted, tz, nowMs),
-    word: visitStateOf(p.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null,
+    word: visitStateOf(dealPerson.lastVisitLine?.mark ?? null, consulted, nowMs)?.text ?? null,
   };
 }
 
-function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consultation: boolean): DealStepVM[] {
+function stepsOf(dealPerson: DealPerson, deal: DealVM, tz: string, nowMs: number, consultation: boolean): DealStepVM[] {
   const day = (ms: number | null) => (ms === null ? null : clockDate(ms, tz, nowMs));
   const won = deal.stage === "won";
   const steps: DealStepVM[] = [];
   // A consultation is a step only on the card of the deal it began: done once it ended, ahead while Coming up says
   // when.
   if (consultation) {
-    const held = consultationStepOf(p, nowMs, tz);
+    const held = consultationStepOf(dealPerson, nowMs, tz);
     steps.push({
       key: "consultation",
       label: DEAL_CARD_WORDS.consultation,
@@ -198,14 +198,14 @@ function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consult
       tone: null,
     });
   }
-  // A proposal out is drawn in the tone of who it waits on, the Pipeline row's own rule (deal-waits.ts proposalTone).
+  // A proposal out is drawn in the tone of who it waits on, the Pipeline row's own rule (deals/waits.ts proposalTone).
   const waits = won
     ? null
     : proposalTone(
-        { deal, askedMs: p.askedMs ?? null },
+        { deal, askedMs: dealPerson.askedMs ?? null },
         nowMs,
-        p.dealPace ?? null,
-        followUpOn(p, deal)?.kind === "will",
+        dealPerson.dealPace ?? null,
+        followUpOn(dealPerson, deal)?.kind === "will",
       );
   steps.push({
     key: "proposal",
@@ -226,14 +226,14 @@ function stepsOf(p: DealPerson, deal: DealVM, tz: string, nowMs: number, consult
   return steps;
 }
 
-function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consultation: boolean): DealCardVM {
+function cardOf(dealPerson: DealPerson, deal: DealVM, nowMs: number, tz: string, consultation: boolean): DealCardVM {
   const won = deal.stage === "won";
-  const next = dealNextAct(p, nowMs, deal);
-  const steps = stepsOf(p, deal, tz, nowMs, consultation);
+  const next = dealNextAct(dealPerson, nowMs, deal);
+  const steps = stepsOf(dealPerson, deal, tz, nowMs, consultation);
   const facts: string[] = [];
   const flags: DealCardVM["flags"] = [];
   if (!won) {
-    const sent = sentOf(p, deal);
+    const sent = sentOf(dealPerson, deal);
     const stepDay = steps.find((s) => s.key === "proposal")?.day ?? null;
     facts.push(
       !deal.proposal
@@ -250,10 +250,10 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consulta
     // link (it went some other way). A link that never went has not waited on anyone.
     if (
       (sent || !deal.proposal) &&
-      waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null)
+      waitingOnProposal({ deal, askedMs: dealPerson.askedMs ?? null }, nowMs, dealPerson.dealPace ?? null)
     ) {
       // Where the follow-up has them in hand (0006), the day its run goes, as their row on the Pipeline says it.
-      const fu = followUpOn(p, deal);
+      const fu = followUpOn(dealPerson, deal);
       flags.push(
         fu?.kind === "will"
           ? { words: followUpWords(fu, tz, nowMs), tone: "info", rowSays: true }
@@ -273,11 +273,11 @@ function cardOf(p: DealPerson, deal: DealVM, nowMs: number, tz: string, consulta
     facts,
     flags,
     // How long this workspace's proposals usually take, once five are decided (0008, amended): said beside the wait.
-    pace: !won && p.dealPace ? p.dealPace.words : null,
+    pace: !won && dealPerson.dealPace ? dealPerson.dealPace.words : null,
     next,
     // Each move once: the one the card leads with is not said again among the quiet ones.
     more: others.filter((o) => o.mode !== nextMode),
-    step: dealStepOf(p.noteList, deal.id),
+    step: dealStepOf(dealPerson.noteList, deal.id),
   };
 }
 
@@ -307,37 +307,39 @@ export function dealStepOf(notes: DealPerson["noteList"], dealId: string | null)
 }
 
 /** Where no deal is open: the most recent that closed, else none; and the consultation nobody has followed up. */
-function quietOf(p: DealPerson, nowMs: number, tz: string): DealQuietVM {
-  const deals = p.deals ?? (p.deal ? [p.deal] : []);
+function quietOf(dealPerson: DealPerson, nowMs: number, tz: string): DealQuietVM {
+  const deals = dealPerson.deals ?? (dealPerson.deal ? [dealPerson.deal] : []);
   const closed =
     [...deals]
       .filter((d) => d.stage === "lost" || d.stage === "ended")
       .sort((a, b) => (b.sinceMs ?? 0) - (a.sinceMs ?? 0))[0] ?? null;
-  const consulted = p.consultedMs ?? null;
+  const consulted = dealPerson.consultedMs ?? null;
   const fresh =
     consulted !== null &&
-    consultationsWithoutProposal([{ consultedMs: consulted, deal: p.deal, nextVisitMs: p.nextVisitMs ?? null }], nowMs)
-      .length > 0;
+    consultationsWithoutProposal(
+      [{ consultedMs: consulted, deal: dealPerson.deal, nextVisitMs: dealPerson.nextVisitMs ?? null }],
+      nowMs,
+    ).length > 0;
   const sub = fresh && consulted !== null ? consultationWas(consulted, tz, nowMs) : null;
   if (!closed)
     return {
       words: DEAL_LINE_NONE,
       sub,
-      act: act("propose", { service: consultedService(p) }),
+      act: act("propose", { service: consultedService(dealPerson) }),
       dealId: null,
       primary: fresh,
     };
   const day = closed.sinceMs === null ? null : clockDate(closed.sinceMs, tz, nowMs);
-  const said =
+  const phrases =
     closed.stage === "lost"
       ? [closed.service, day ? `${DEAL_STAGE_WORDS.lost} ${day}` : DEAL_STAGE_WORDS.lost, closed.reason?.words ?? null]
       : [closed.service, day ? `${DEAL_STAGE_WORDS.ended} ${day}` : DEAL_STAGE_WORDS.ended];
   // A consultation since it closed began something new: a new proposal, not the passed one again.
   const again = !fresh && closed.stage === "lost";
   return {
-    words: said.filter((x): x is string => !!x).join(" · "),
+    words: phrases.filter((x): x is string => !!x).join(" · "),
     sub,
-    act: again ? act("again") : act("propose", { service: consultedService(p) }),
+    act: again ? act("again") : act("propose", { service: consultedService(dealPerson) }),
     dealId: again ? closed.id : null,
     primary: fresh,
   };
@@ -348,10 +350,10 @@ function quietOf(p: DealPerson, nowMs: number, tz: string): DealQuietVM {
  * first, or, with none open, one quiet line. Say each fact once: an upcoming consultation is Coming up's, so it is
  * never said here, and a consultation is a step on one card only, the deal's it began (consultedDealOf).
  */
-export function dealCardsOf(p: DealPerson, nowMs: number, tz: string): PersonDealsVM {
-  const deals = p.deals ?? (p.deal ? [p.deal] : []);
+export function dealCardsOf(dealPerson: DealPerson, nowMs: number, tz: string): PersonDealsVM {
+  const deals = dealPerson.deals ?? (dealPerson.deal ? [dealPerson.deal] : []);
   const open = deals.filter((d) => d.stage === "proposed" || d.stage === "won");
-  if (!open.length) return { cards: [], quiet: quietOf(p, nowMs, tz) };
-  const consulted = consultedDealOf(p, open);
-  return { cards: open.map((d) => cardOf(p, d, nowMs, tz, d === consulted)), quiet: null };
+  if (!open.length) return { cards: [], quiet: quietOf(dealPerson, nowMs, tz) };
+  const consulted = consultedDealOf(dealPerson, open);
+  return { cards: open.map((d) => cardOf(dealPerson, d, nowMs, tz, d === consulted)), quiet: null };
 }

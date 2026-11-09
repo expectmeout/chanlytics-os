@@ -8,27 +8,27 @@
  * profile, which is what makes these businesses ours to register.
  *
  * This module holds the filing itself: the row types the A2P modules share, the
- * pre-flight every door to the carriers asks (`filingProblems`), and `registerLine`.
+ * pre-flight every door to the carriers asks (`listFilingProblems`), and `registerLine`.
  * Its neighbours: the campaign's words in a2p-campaign-facts.ts, the corrections
  * of a filed line in a2p-refile.ts, and the status read in a2p-sync.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import type { Database } from "@chanlytics/db/types";
+import { answerObject } from "@chanlytics/channels/shared";
 import {
-  answerObject,
   runA2PSaga,
   LOW_VOLUME_USECASE,
   encodeForm,
   brandNameOf,
   brandTypeFor,
-  twilioRequest,
+  requestTwilio,
   type A2PPorts,
   type A2PRequest,
   type A2PResult,
   type A2PState,
   type BusinessRecord,
   type ProviderAccount,
-} from "../packages/channels.js";
+} from "@chanlytics/channels/lines";
 import {
   MIN_MS,
   formatPhoneDisplay,
@@ -38,15 +38,19 @@ import {
   registrationPathOf,
   registrationPreflight,
   type EdgeErrorCode,
-} from "../packages/contracts.js";
-import { platformTo } from "../ops/notify.js";
+  DbFailure,
+} from "@chanlytics/contracts";
+import { platformTo } from "../shared/alerts/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
-import { lineAccount } from "../sms/sms.js";
-import { logger } from "../log.js";
-import { getTenantConfig, tenantDb } from "../packages/db.js";
-import { env } from "../env.js";
+import { findLineAccount } from "./sms.js";
+import { logger } from "../shared/log.js";
+import { getTenantConfig } from "@chanlytics/db/workspace";
+import { env } from "../shared/env.js";
 import { campaignFactsFor } from "./a2p-campaign-facts.js";
-import { CAMPAIGN_NAME_FACT, factsOf, FILED_NAME_FACT } from "./line-resume.js";
+import { CAMPAIGN_NAME_FACT, factsOf, FILED_NAME_FACT } from "./resume.js";
+import { claimLineForFiling, listLineNumbersOf, saveLineRow } from "@chanlytics/db/lines";
+import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
 export type LineRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -64,47 +68,47 @@ function platformEmail(): string | null {
   return platformTo()[0] ?? null;
 }
 
-function businessRecordFrom(r: RecordRow): BusinessRecord {
+function businessRecordFrom(record: RecordRow): BusinessRecord {
   return {
-    legalName: r.legal_name,
-    tradeName: r.trade_name,
-    ein: r.ein,
-    street: r.street,
-    streetSecondary: r.street_secondary,
-    city: r.city,
-    region: r.region,
-    postalCode: r.postal_code,
-    country: r.country,
-    websiteUrl: r.website_url,
-    industry: r.industry,
-    contactFirstName: r.contact_first_name,
-    contactLastName: r.contact_last_name,
-    contactEmail: r.contact_email,
-    contactPhone: r.contact_phone,
-    contactTitle: r.contact_title,
-    contactJobPosition: r.contact_job_position,
-    businessType: r.business_type,
-    companyType: r.company_type,
+    legalName: record.legal_name,
+    tradeName: record.trade_name,
+    ein: record.ein,
+    street: record.street,
+    streetSecondary: record.street_secondary,
+    city: record.city,
+    region: record.region,
+    postalCode: record.postal_code,
+    country: record.country,
+    websiteUrl: record.website_url,
+    industry: record.industry,
+    contactFirstName: record.contact_first_name,
+    contactLastName: record.contact_last_name,
+    contactEmail: record.contact_email,
+    contactPhone: record.contact_phone,
+    contactTitle: record.contact_title,
+    contactJobPosition: record.contact_job_position,
+    businessType: record.business_type,
+    companyType: record.company_type,
   };
 }
 
 /** The receipts, as the row keeps them. */
-function a2pStateFrom(l: LineRow): A2PState {
-  const f = (l.facts && typeof l.facts === "object" && !Array.isArray(l.facts) ? l.facts : {}) as Record<
+function a2pStateFrom(line: LineRow): A2PState {
+  const item = (line.facts && typeof line.facts === "object" && !Array.isArray(line.facts) ? line.facts : {}) as Record<
     string,
     unknown
   >;
   return {
-    profileSid: l.profile_sid,
-    businessSid: typeof f.a2p_business_sid === "string" ? f.a2p_business_sid : null,
-    representativeSid: typeof f.a2p_representative_sid === "string" ? f.a2p_representative_sid : null,
-    addressSid: typeof f.a2p_address_sid === "string" ? f.a2p_address_sid : null,
-    documentSid: typeof f.a2p_document_sid === "string" ? f.a2p_document_sid : null,
-    primaryAssigned: f.a2p_primary_assigned === true,
-    profileSubmitted: f.a2p_profile_submitted === true,
-    a2pProfileSid: l.a2p_profile_sid,
-    brandSid: l.brand_sid,
-    campaignSid: l.campaign_sid,
+    profileSid: line.profile_sid,
+    businessSid: typeof item.a2p_business_sid === "string" ? item.a2p_business_sid : null,
+    representativeSid: typeof item.a2p_representative_sid === "string" ? item.a2p_representative_sid : null,
+    addressSid: typeof item.a2p_address_sid === "string" ? item.a2p_address_sid : null,
+    documentSid: typeof item.a2p_document_sid === "string" ? item.a2p_document_sid : null,
+    primaryAssigned: item.a2p_primary_assigned === true,
+    profileSubmitted: item.a2p_profile_submitted === true,
+    a2pProfileSid: line.a2p_profile_sid,
+    brandSid: line.brand_sid,
+    campaignSid: line.campaign_sid,
   };
 }
 
@@ -133,10 +137,10 @@ function a2pStateFrom(l: LineRow): A2PState {
  * carrying the CARRIERS' verdict and their reason, and overwriting that with our
  * own pre-check would erase the only record of what they actually said.
  */
-export async function filingProblems(
+export async function listFilingProblems(
   db: Db,
   line: LineRow,
-  o: {
+  options: {
     record: RecordRow;
     /** What the CAMPAIGN will state. Not the record's name, which is what the brand states. */
     workspaceName: string;
@@ -150,32 +154,34 @@ export async function filingProblems(
   // nothing to drift. This replaced a second, channels-side list of what a sole
   // proprietor needs -- two lists answering one question, which is how a form
   // comes to accept what the filing then refuses.
-  const path = registrationPathOf(o.record) ?? "standard";
+  const path = registrationPathOf(options.record) ?? "standard";
   // The numbers this workspace was given by us, so the check can tell an owner's
   // handset from the line we answer on their behalf.
   const [ours, receptionistName] = await Promise.all([
-    db.from("lines").select("e164").eq("tenant_id", line.tenant_id),
+    listLineNumbersOf(db, line.tenant_id),
     receptionistNameOf(db, line.tenant_id),
   ]);
+  // Our numbers unread are not none: the check would take the line we answer on for the owner's own phone.
+  if (ours.error) throw new DbFailure(ours.error, "cannot read the workspace's lines");
   const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
-  const problems = Object.values(businessRecordProblems(o.record, path, { ourNumbers }));
+  const problems = Object.values(businessRecordProblems(options.record, path, { ourNumbers }));
 
   // And the things a REVIEWER will check, which a complete record does not
   // guarantee. The name check is the one that bit this product: the campaign
   // states the WORKSPACE'S name and the brand registers the RECORD'S, and a live
   // campaign went to the carriers describing a business called "Billing probe".
-  for (const p of registrationPreflight({
-    workspaceName: o.workspaceName,
+  for (const item of registrationPreflight({
+    workspaceName: options.workspaceName,
     receptionistName,
-    legalName: o.record.legal_name,
-    tradeName: o.record.trade_name,
-    street: o.record.street,
-    city: o.record.city,
-    websiteUrl: o.record.website_url,
-    about: o.record.about,
-    hasOptInNumber: o.hasOptInNumber ?? true,
+    legalName: options.record.legal_name,
+    tradeName: options.record.trade_name,
+    street: options.record.street,
+    city: options.record.city,
+    websiteUrl: options.record.website_url,
+    about: options.record.about,
+    hasOptInNumber: options.hasOptInNumber ?? true,
   })) {
-    problems.push(`${p.what} ${p.fix}`);
+    problems.push(`${item.what} ${item.fix}`);
   }
   return problems;
 }
@@ -185,7 +191,7 @@ export async function filingProblems(
  * the name the campaign states (X4-5). A read that fails, or settings that do not parse, say none: the check that cannot
  * be made does not refuse a filing.
  */
-async function receptionistNameOf(db: Db, tenantId: string): Promise<string | null> {
+async function receptionistNameOf(db: Db, tenantId: TenantId): Promise<string | null> {
   try {
     const row = await getTenantConfig(db, tenantId);
     return parseTenantConfig(row?.config)?.brain?.business_name ?? null;
@@ -269,33 +275,32 @@ function campaignNameFiled(line: LineRow, workspaceName: string): Record<string,
  * filed. Now the second finds the row moved (its `updated_at`) or held, writes nothing, and says the filing is under
  * way. Answers the row as taken, or null.
  */
-async function takeFiling(db: Db, o: Filing, record: BusinessRecord): Promise<LineRow | null> {
+async function takeFiling(db: Db, filing: Filing, record: BusinessRecord): Promise<LineRow | null> {
   const now = Date.now();
   // reg_sole_prop is written HERE, with reg_mock, and never derived later: an
   // owner who incorporates and types their new tax id would otherwise read
   // back as a standard brand while the carriers still hold the narrow one --
   // promising throughput the line does not have.
-  const { data, error } = await tenantDb(db, o.line.tenant_id)
-    .from("lines")
-    .update({
+  // Held by no other filing, asked in the same statement: the lease is the claim, whatever the row read said.
+  const { data, error } = await claimLineForFiling(
+    db,
+    filing.line,
+    {
       sms_state: "registering",
-      reg_mock: o.mock,
+      reg_mock: filing.mock,
       reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR",
       last_error: null,
       state_since: new Date(now).toISOString(),
       facts: {
-        ...factsOf(o.line),
-        ...(sendsBrandName(o.line, record) ? { [FILED_NAME_FACT]: brandNameOf(record) } : {}),
-        ...campaignNameFiled(o.line, o.workspaceName),
+        ...factsOf(filing.line),
+        ...(sendsBrandName(filing.line, record) ? { [FILED_NAME_FACT]: brandNameOf(record) } : {}),
+        ...campaignNameFiled(filing.line, filing.workspaceName),
         [LEASE_FACT]: new Date(now + A2P_FILING_LEASE_MS).toISOString(),
       },
-    })
-    .eq("id", o.line.id)
-    .eq("updated_at", o.line.updated_at)
-    // And held by no other filing, asked in the same statement: the lease is the claim, whatever the row read said.
-    .or(`facts->>${LEASE_FACT}.is.null,facts->>${LEASE_FACT}.lt.${new Date(now).toISOString()}`)
-    .select("*");
-  if (error) throw new Error(`taking the line for its filing: ${error.message}`);
+    },
+    { fact: LEASE_FACT, now: new Date(now).toISOString() },
+  );
+  if (error) throw new DbFailure(error, "taking the line for its filing");
   return data?.[0] ?? null;
 }
 
@@ -306,7 +311,7 @@ async function takeFiling(db: Db, o: Filing, record: BusinessRecord): Promise<Li
  */
 export async function registerLine(
   db: Db,
-  o: {
+  options: {
     line: LineRow;
     record: RecordRow;
     workspaceName: string;
@@ -329,23 +334,23 @@ export async function registerLine(
     statusCallback?: string;
   },
 ): Promise<RegisterResult> {
-  const state = a2pStateFrom(o.line);
+  const state = a2pStateFrom(options.line);
   // Another filing of this line is under way (a second press of Register, the sweep filing the held campaign): it is
   // answered as the wait it is, before the pre-flight could write over the row that filing holds.
-  if (filingUnderWay(o.line, Date.now())) return filingInProgress(state);
-  const ready = filingPrerequisites(o.line, state);
+  if (filingUnderWay(options.line, Date.now())) return filingInProgress(state);
+  const ready = filingPrerequisites(options.line, state);
   if (!ready.ok) return ready;
-  const refused = await preflightRefusal(db, o, state);
+  const refused = await preflightRefusal(db, options, state);
   if (refused) return refused;
-  const record = recordAsFiled(o);
+  const record = recordAsFiled(options);
 
   // Everything is filed as the WORKSPACE'S OWN subaccount, per Twilio's ISV
   // guide; our primary profile is referenced by sid, never moved.
-  const sub = await lineAccount(db, o.line).catch(() => null);
-  if (!sub) return { ok: false, error: "no_line_credentials", state, smsState: o.line.sms_state };
-  const taken = await takeFiling(db, o, record);
+  const sub = await findLineAccount(db, options.line).catch(() => null);
+  if (!sub) return { ok: false, error: "no_line_credentials", state, smsState: options.line.sms_state };
+  const taken = await takeFiling(db, options, record);
   if (!taken) return filingInProgress(state);
-  const filing = { ...o, line: taken };
+  const filing = { ...options, line: taken };
   const facts = factsOf(taken);
   const ports = filingPorts(db, filing, { ...ready, sub, record, facts });
   const result = await runA2PSaga(state, ports);
@@ -376,16 +381,16 @@ function filingPrerequisites(
 }
 
 /** The pre-flight: null when the filing may go ahead, else the refusal, with the row set to `needs_record`. */
-async function preflightRefusal(db: Db, o: Filing, state: A2PState): Promise<RegisterResult | null> {
+async function preflightRefusal(db: Db, filing: Filing, state: A2PState): Promise<RegisterResult | null> {
   // Checked before a single call is made, because on a real filing an incomplete
   // record is a fee spent on a rejection that arrives days later. The decision
-  // itself lives in `filingProblems` above, which the refile path asks too -- so
+  // itself lives in `listFilingProblems` above, which the refile path asks too -- so
   // the check cannot be skipped by reaching the carriers through the other door.
-  const path = registrationPathOf(o.record) ?? "standard";
-  const problems = await filingProblems(db, o.line, {
-    record: o.record,
-    workspaceName: o.workspaceName,
-    hasOptInNumber: o.hasOptInNumber,
+  const path = registrationPathOf(filing.record) ?? "standard";
+  const problems = await listFilingProblems(db, filing.line, {
+    record: filing.record,
+    workspaceName: filing.workspaceName,
+    hasOptInNumber: filing.hasOptInNumber,
   });
   if (!problems.length) return null;
 
@@ -393,14 +398,16 @@ async function preflightRefusal(db: Db, o: Filing, state: A2PState): Promise<Reg
   // sentences are what the owner has to act on. They are RETURNED as well as
   // stored: the row is read by a page that reloads, and the person who just
   // pressed the button is owed the answer now rather than an error token.
-  await tenantDb(db, o.line.tenant_id)
-    .from("lines")
-    .update({
-      sms_state: "needs_record",
-      last_error: problems.join(" "),
-      state_since: new Date().toISOString(),
-    })
-    .eq("id", o.line.id);
+  const marked = await saveLineRow(db, filing.line, {
+    sms_state: "needs_record",
+    last_error: problems.join(" "),
+    state_since: new Date().toISOString(),
+  });
+  if (marked.error)
+    logger({ tenant_id: filing.line.tenant_id }).error("line_state_write_failed", {
+      line_id: filing.line.id,
+      error: marked.error.message,
+    });
   return {
     ok: false,
     error: path === "sole_proprietor" ? "sole_proprietor_incomplete" : "record_incomplete",
@@ -424,7 +431,7 @@ function recordAsFiled(o: Filing): BusinessRecord {
 /** The saga's one way to Twilio: a request made as the subaccount, and what Twilio answered, parsed once. */
 function subaccountSend(sub: ProviderAccount): A2PPorts["send"] {
   const send = async (req: A2PRequest) => {
-    const r = await twilioRequest(sub, req.method, req.url, {
+    const r = await requestTwilio(sub, req.method, req.url, {
       ...(req.form ? { form: encodeForm(req.form) } : {}),
       timeoutMs: TWILIO_TIMEOUT_MS,
     });
@@ -473,19 +480,16 @@ function receiptSaver(db: Db, line: LineRow, facts: Record<string, unknown>): A2
       }
     }
     if (touchedFacts) row.facts = facts;
-    const { error } = await tenantDb(db, line.tenant_id)
-      .from("lines")
-      .update(row as Database["public"]["Tables"]["lines"]["Update"])
-      .eq("id", line.id);
-    if (error) throw new Error(`keeping the registration's receipt: ${error.message}`);
+    const { error } = await saveLineRow(db, line, row);
+    if (error) throw new DbFailure(error, "keeping the registration's receipt");
   };
 }
 
 /** What the saga runs over: the subaccount's send, the business and the campaign's words, and the receipts' save. */
 function filingPorts(
   db: Db,
-  o: Filing,
-  f: {
+  filing: Filing,
+  fields: {
     sub: ProviderAccount;
     record: BusinessRecord;
     primary: string;
@@ -494,31 +498,31 @@ function filingPorts(
     facts: Record<string, unknown>;
   },
 ): A2PPorts {
-  const { sub, record, primary, email } = f;
+  const { sub, record, primary, email } = fields;
   const ports: A2PPorts = {
     send: subaccountSend(sub),
     accountSid: sub.sid,
     primaryProfileSid: primary,
     email,
-    ...(o.statusCallback ? { statusCallback: o.statusCallback } : {}),
-    workspace: { name: o.workspaceName },
+    ...(filing.statusCallback ? { statusCallback: filing.statusCallback } : {}),
+    workspace: { name: filing.workspaceName },
     record,
     // Twilio's vertical enum. The sole-proprietor end user asks for it by
     // name; the standard path carries it inside the business end user.
     industry: industryOf(record.industry),
     campaign: campaignFactsFor({
-      businessName: o.workspaceName,
-      legalName: o.record.legal_name,
-      about: o.record.about,
-      optInUrl: o.optInUrl,
-      privacyUrl: o.privacyUrl,
-      termsUrl: o.termsUrl,
-      hostedUrl: o.hostedUrl,
-      lineNumber: formatPhoneDisplay(o.line.e164),
+      businessName: filing.workspaceName,
+      legalName: filing.record.legal_name,
+      about: filing.record.about,
+      optInUrl: filing.optInUrl,
+      privacyUrl: filing.privacyUrl,
+      termsUrl: filing.termsUrl,
+      hostedUrl: filing.hostedUrl,
+      lineNumber: formatPhoneDisplay(filing.line.e164),
     }),
-    messagingServiceSid: f.messagingServiceSid,
+    messagingServiceSid: fields.messagingServiceSid,
     useCase: LOW_VOLUME_USECASE,
-    mock: o.mock,
+    mock: filing.mock,
     // Tied to the use case above, deliberately: everything this product files
     // is LOW_VOLUME, and secondary vetting only buys throughput a low-volume
     // campaign cannot use. It is the expensive half of a registration -- $46
@@ -526,7 +530,7 @@ function filingPorts(
     // that ever files something bigger should turn it back on with its eyes
     // open rather than inherit it by silence.
     skipVetting: true,
-    save: receiptSaver(db, o.line, f.facts),
+    save: receiptSaver(db, filing.line, fields.facts),
   };
   return ports;
 }
@@ -534,11 +538,11 @@ function filingPorts(
 /** Where the filing ended, written to the row and the log, and answered; the line's lease given back with it. */
 async function settleFiling(
   db: Db,
-  o: Filing,
+  filing: Filing,
   result: A2PResult,
   facts: Record<string, unknown>,
 ): Promise<RegisterResult> {
-  const L = logger({ tenant_id: o.line.tenant_id, line_id: o.line.id });
+  const log = logger({ tenant_id: filing.line.tenant_id, line_id: filing.line.id });
   // A campaign that cannot be filed until the carriers finish with the brand
   // is a WAIT: everything asked for was accepted. The row says "waiting on
   // carriers", carries no error, and the next status check files it.
@@ -547,20 +551,19 @@ async function settleFiling(
   // The receipts as this filing kept them, without its lease: the next press or the next hour may file again.
   const kept = { ...facts };
   delete kept[LEASE_FACT];
-  await tenantDb(db, o.line.tenant_id)
-    .from("lines")
-    .update({
-      sms_state: smsState,
-      reg_step: result.ok ? null : result.step,
-      last_error: result.ok || waiting ? null : result.error,
-      state_since: new Date().toISOString(),
-      facts: kept as Json,
-    })
-    .eq("id", o.line.id);
+  const written = await saveLineRow(db, filing.line, {
+    sms_state: smsState,
+    reg_step: result.ok ? null : result.step,
+    last_error: result.ok || waiting ? null : result.error,
+    state_since: new Date().toISOString(),
+    facts: jsonCopyOf(kept),
+  });
+  // The filing happened whatever the row says; a row that could not take it is said, and the next status read writes it.
+  if (written.error) log.error("line_state_write_failed", { line_id: filing.line.id, error: written.error.message });
   if (result.ok)
-    L.info("a2p_filed", { mock: o.mock, brand: result.state.brandSid, campaign: result.state.campaignSid });
-  else if (waiting) L.info("a2p_waiting_on_brand", { brand: result.state.brandSid });
-  else L.error("a2p_failed", { step: result.step, error: result.error });
+    log.info("a2p_filed", { mock: filing.mock, brand: result.state.brandSid, campaign: result.state.campaignSid });
+  else if (waiting) log.info("a2p_waiting_on_brand", { brand: result.state.brandSid });
+  else log.error("a2p_failed", { step: result.step, error: result.error });
   return result.ok ? { ok: true, state: result.state, smsState } : stoppedFiling(result, smsState);
 }
 

@@ -1,8 +1,8 @@
-import { read, write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { load, readerContext } from "@/server/readers";
+import { read, write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { load, readerContext } from "@/server/shared/reader";
 import { sequence } from "@/server/readers/sequences";
-import { discardSequenceNow } from "@/server/sequences/doors";
+import { discardSequenceNow } from "@/server/campaigns/sequences/doors";
 
 /**
  * GET /api/v1/sequences/:id — one sequence (decision 0060): its row as the list reads it, its steps in their places

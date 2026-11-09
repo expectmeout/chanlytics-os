@@ -1,8 +1,8 @@
 import { ReachOutCheckSchema, type ReachOutOpeningDto } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { checkOpeningsNow, streamOpeningsNow } from "@/server/sequences/opening";
+import { write, workspace } from "@/server/shared/route";
+import { checkOpeningsNow, streamOpeningsNow } from "@/server/campaigns/sequences/opening";
 
-/** A press waits for its check (server/sequences/opening.ts CHECK_NOW_MS), and the openings are read after it. */
+/** A press waits for its check (server/campaigns/sequences/opening.ts CHECK_NOW_MS), and the openings are read after it. */
 export const maxDuration = 30;
 
 /**

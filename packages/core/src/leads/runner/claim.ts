@@ -7,17 +7,18 @@ import { MIN_MS } from "@chanlytics/contracts";
 import { runStateOf } from "../endings";
 import type { LeadPorts, LeadRunRow } from "../ports";
 import { INPUT_MARKER, PROVIDER_RUN_PAGE, iso, isRefused, isRetryable } from "./rules";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The provider's run that carries this row's id in its input, if one exists. */
 async function findOurRun(
-  p: LeadPorts,
+  leadPorts: LeadPorts,
   actor: string,
   row: LeadRunRow,
 ): Promise<{ id: string; status: string; datasetId: string | null } | null> {
   const since = new Date(Date.parse(row.claimed_at ?? row.created_at) - 5 * MIN_MS);
-  const runs = await p.apify.listActorRuns(actor, iso(since));
+  const runs = await leadPorts.apify.listActorRuns(actor, iso(since));
   for (const r of runs.slice(0, PROVIDER_RUN_PAGE)) {
-    const input = (await p.apify.runInput(r.id)) as Record<string, unknown> | null;
+    const input = (await leadPorts.apify.runInput(r.id)) as Record<string, unknown> | null;
     if (input && input[INPUT_MARKER] === row.id) return r;
   }
   return null;
@@ -30,18 +31,18 @@ async function findOurRun(
  * "mine" to start. Anybody else's is "not_mine".
  */
 async function claimOrRecover(
-  p: LeadPorts,
+  leadPorts: LeadPorts,
   actor: string,
   row: LeadRunRow,
   owner: string,
 ): Promise<"mine" | "recovered" | "not_mine"> {
-  if (await p.db.runClaim(row.id, owner)) return "mine";
+  if (await leadPorts.db.runClaim(row.id, owner)) return "mine";
   if (!(row.claimed_by === owner && row.state === "starting")) return "not_mine";
-  const found = await findOurRun(p, actor, row);
+  const found = await findOurRun(leadPorts, actor, row);
   if (!found) return "mine";
-  await p.db.runMarkUnknown(row.id, owner);
-  await p.db.runReconcile(row.id, found.id, found.datasetId, runStateOf(found.status));
-  await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, 0);
+  await leadPorts.db.runMarkUnknown(row.id, owner);
+  await leadPorts.db.runReconcile(row.id, found.id, found.datasetId, runStateOf(found.status));
+  await leadPorts.schedule("lead_collect", { run_id: row.id, seq: "p0" }, 0);
   return "recovered";
 }
 
@@ -52,24 +53,26 @@ async function claimOrRecover(
  * throws for the ledger.
  */
 async function startFailed(
-  p: LeadPorts,
+  leadPorts: LeadPorts,
   row: LeadRunRow,
   owner: string,
-  e: unknown,
+  error: unknown,
 ): Promise<{ kind: "refused"; why: string } | { kind: "unknown" }> {
-  if (isRefused(e)) {
-    await p.db.runMarkUnknown(row.id, owner);
-    await p.db.runReconcile(row.id, null, null, "failed");
-    const why = e instanceof Error ? e.message : String(e);
-    await p.tell?.({ kind: "source_refused", actor: row.actor, build: row.build, why }).catch(() => undefined);
-    return { kind: "refused", why };
+  if (isRefused(error)) {
+    await leadPorts.db.runMarkUnknown(row.id, owner);
+    await leadPorts.db.runReconcile(row.id, null, null, "failed");
+    const reason = error instanceof Error ? error.message : String(error);
+    await leadPorts
+      .tell?.({ kind: "source_refused", actor: row.actor, build: row.build, why: reason })
+      .catch(logAndGoOn("telling the platform a lead source refused"));
+    return { kind: "refused", why: reason };
   }
-  if (isRetryable(e) && e.status === null) {
+  if (isRetryable(error) && error.status === null) {
     // Nobody knows whether it runs. Never started again blindly; the sweep reconciles it (PRD §0.5).
-    await p.db.runMarkUnknown(row.id, owner);
+    await leadPorts.db.runMarkUnknown(row.id, owner);
     return { kind: "unknown" };
   }
-  throw e; // 429 or 5xx: nothing started, and the row is this job's to start when the ledger tries again
+  throw error; // 429 or 5xx: nothing started, and the row is this job's to start when the ledger tries again
 }
 
 export { findOurRun, claimOrRecover, startFailed };

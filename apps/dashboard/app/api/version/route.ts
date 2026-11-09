@@ -1,5 +1,5 @@
 import { NextResponse, connection } from "next/server";
-import { env } from "@/server/env";
+import { env } from "@/server/shared/env";
 
 /**
  * Public build identifier — the client heartbeat flags stale long-lived tabs, and the smoke after a deploy asks it which

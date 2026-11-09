@@ -73,7 +73,9 @@ export function scrollMade(box: HTMLElement, from: number, stands: () => boolean
  * came back, and the place put the rows back under the sheet.
  */
 export function placeReader(box: HTMLElement, top: number): void {
+  const from = box.scrollTop;
   box.scrollTop = top;
+  if (isDocumentScroller(box)) windowAsked(top, from);
   const made = madeScrolls.get(box);
   if (!made) return;
   if (!made.stands()) {
@@ -164,4 +166,91 @@ export function clearOfFoot(bottom: number, top = 0): string {
 export function offsetIn(box: Element, el: Element): number {
   const top = isDocumentScroller(box) ? 0 : box.getBoundingClientRect().top - box.clientTop;
   return el.getBoundingClientRect().top - top + box.scrollTop;
+}
+
+/**
+ * How many frames the window is heard after it is asked for a top: Safari said where it stood within three on the
+ * recording, and its chrome moves in well under twenty.
+ */
+const SAFARI_PUTS_BACK_FRAMES = 20;
+/** How many times the window is asked again within them. A Back on 23 Oct 2026 answered 40 for 4.5 seconds: never a loop. */
+const ASK_AGAIN_MAX = 2;
+/** What ends the asking: a hand on the window, a wheel, a key. */
+const ASKING_ENDS = ["touchstart", "touchmove", "pointerdown", "wheel", "keydown"] as const;
+
+/** The asking under way, to end; null with none. One at a time: a page's next ask replaces the last. */
+let asking: (() => void) | null = null;
+
+/** What the asking needs of a window. */
+type HeardWindow = Pick<
+  Window,
+  "scrollY" | "scrollTo" | "addEventListener" | "removeEventListener" | "requestAnimationFrame" | "cancelAnimationFrame"
+>;
+/** A window as a test may stand in for it: with less of that, it is scrolled once and not heard. */
+type AskedWindow = Pick<Window, "scrollY"> & Partial<Omit<HeardWindow, "scrollY">>;
+
+const canBeHeard = (win: AskedWindow): win is HeardWindow =>
+  typeof win.addEventListener === "function" &&
+  typeof win.removeEventListener === "function" &&
+  typeof win.requestAnimationFrame === "function" &&
+  typeof win.cancelAnimationFrame === "function" &&
+  typeof win.scrollTo === "function";
+
+/**
+ * The window heard after it was asked for `top` from `from`, and asked again once Safari has put it back. On an iPhone the
+ * window's scroll is Safari's, and a page's own scroll, made in the instant the address changes, is thrown away inside
+ * Safari while it changes its chrome (WebKit's WKWebViewIOS.mm `_scrollToContentScrollPosition:` returns, saying nothing,
+ * while `_shouldDeferGeometryUpdates` or a restore's commit): the page believes it for a few frames, then Safari says where
+ * the window still stands. Every page opened after a little scroll on People sat 22px down from its first frame (Ruben's
+ * recording, 7 Nov 2026: the frame top's fade, drawn only while the page believes it is scrolled, blinked off for three
+ * frames at each arrival, and the content never moved). So for SAFARI_PUTS_BACK_FRAMES after the ask: the window put
+ * back between `top` and where it stood (there, or as far back as a shorter page allows), with no touch, wheel or key
+ * since, is asked again, at most ASK_AGAIN_MAX times. A scroll past either is the page's own (a row brought into view),
+ * and a page's next ask replaces this one, so what a page scrolls to as it arrives (the Calendar's hour) is what is kept.
+ */
+export function windowAsked(top: number, from: number, win: AskedWindow = window): void {
+  asking?.();
+  if (!canBeHeard(win)) return;
+  const heard: HeardWindow = win;
+  const at = Math.max(0, top);
+  const stood = Number.isFinite(from) ? from : at;
+  const low = Math.min(at, stood) - 0.5;
+  const high = Math.max(at, stood) + 0.5;
+  let again = 0;
+  let left = SAFARI_PUTS_BACK_FRAMES;
+  let frame = 0;
+  const end = (): void => {
+    if (asking !== end) return;
+    asking = null;
+    heard.cancelAnimationFrame(frame);
+    heard.removeEventListener("scroll", onScroll);
+    for (const kind of ASKING_ENDS) heard.removeEventListener(kind, end, true);
+  };
+  const onScroll = (): void => {
+    const y = heard.scrollY;
+    if (Math.abs(y - at) < 1 || y < low || y > high) return;
+    if (again >= ASK_AGAIN_MAX) return end();
+    again += 1;
+    heard.scrollTo(0, at);
+  };
+  const tick = (): void => {
+    left -= 1;
+    if (left > 0) frame = heard.requestAnimationFrame(tick);
+    else end();
+  };
+  heard.addEventListener("scroll", onScroll, { passive: true });
+  for (const kind of ASKING_ENDS) heard.addEventListener(kind, end, { capture: true, passive: true });
+  frame = heard.requestAnimationFrame(tick);
+  asking = end;
+}
+
+/**
+ * The window asked for a top (its own `scrollTo`), and heard after (windowAsked). A box of its own is set as before; a
+ * stand-in with no `scrollTo` is left alone, as the deck left it before it asked unconditionally.
+ */
+export function windowTo(top: number, win: AskedWindow = window): void {
+  const at = Math.max(0, top);
+  const from = win.scrollY;
+  win.scrollTo?.(0, at);
+  windowAsked(at, from, win);
 }

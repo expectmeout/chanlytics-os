@@ -19,18 +19,18 @@ import type { ComponentProps, Dispatch, ReactNode, RefObject, SetStateAction } f
 import {
   DEAL_ACT_WORDS,
   DEAL_SHEET_WORDS,
-  dealSheetBody,
   dealSheetDirty,
   dealSheetFor,
   dealSheetMerge,
   dealSheetFill,
-  dealSheetRefusal,
   isDealSheetMode,
   shortName,
 } from "@chanlytics/contracts";
-import type { DealSheetDraft, DealSheetMode, DealSheetProblem, DealSheetVM, PersonVM } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
-import { gate } from "../../legacy-verbs";
+import { dealSheetBody, dealSheetRefusal } from "./body";
+import type { DealSheetDraft, DealSheetMode, DealSheetVM, PersonVM } from "@chanlytics/contracts";
+import type { DealSheetProblem } from "./body";
+import { pageClock } from "@/bridge/zone";
+import { gate } from "../../frame-verbs";
 import { Confirm } from "../../kit/confirm/confirm";
 import { FailedRead } from "../../kit/empty/empty";
 import { FieldError } from "../../kit/field-error/field-error";

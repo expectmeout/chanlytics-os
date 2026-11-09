@@ -21,19 +21,13 @@
  * the role door has been checked there. The token names that workspace, and a
  * draft of another is refused. Body: { message_id, text }.
  */
-import { json, refuse } from "../http.js";
-import { tokenWorkspace, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
-import {
-  readThreadState,
-  readLeadContext,
-  describeLead,
-  instagramIdOf,
-  oldestActiveChannel,
-  withdrawQueued,
-} from "../packages/db.js";
-import type { InboundChannel } from "../packages/core.js";
+import { json, refuse } from "../shared/http.js";
+import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
+import { readThreadState, readLeadContext, describeLead, withdrawQueued } from "@chanlytics/db/conversations";
+import { findInstagramId, findOldestActiveChannel } from "@chanlytics/db/channels";
+import type { InboundChannel } from "@chanlytics/core";
 import {
   resolveSystemPrompt,
   describeNow,
@@ -45,12 +39,15 @@ import {
   replyDelayMs,
   fallbackMessages,
   UUID,
-} from "../packages/contracts.js";
-import { smsBody } from "../packages/channels.js";
-import { brainCallOf, generateReply } from "./brain.js";
-import { queueDraft } from "./draft-queue.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
+  isTenantId,
+} from "@chanlytics/contracts";
+import { smsBody } from "@chanlytics/channels/lines";
+import { brainCallOf, generateReply } from "../ai/receptionist-brain.js";
+import { queueDraft } from "../ai/draft-queue.js";
+import { env } from "../shared/env.js";
+import { logger, errField } from "../shared/log.js";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 const MAX_CHARS = 500;
 
@@ -61,7 +58,7 @@ const steerLog = logger();
  * test hands in an answer, because lib/brain.ts speaks to the Anthropic SDK
  * and has no seam of its own. Anything else that may arrive in this position
  * carries no generateReply and changes nothing. BOTH branches are run in
- * tooling/scripts/tests/steer-door.test.mjs: most cases hand a brain in, and
+ * tests/steer-door.test.mjs: most cases hand a brain in, and
  * the last three call POST the way Vercel calls it and watch the real brain
  * reach the model.
  */
@@ -122,17 +119,17 @@ function replyToOf(meta: unknown): string | undefined {
  */
 async function leadNoteOf(
   db: NonNullable<ReturnType<typeof pg>>,
-  m: { tenant_id: string; meta: unknown },
-  who: { phone: string | null; contactId: string | null },
+  message: { tenant_id: TenantId; meta: unknown },
+  customer: { phone: string | null; contactId: ContactId | null },
   timezone: string,
   channel: InboundChannel,
 ): Promise<string | undefined> {
   try {
     // By the number, or, for a person with none (a DM's), by their own row: as the receptionist reads them (model-turn.ts).
-    const lead = who.phone
-      ? await readLeadContext(db, m.tenant_id, who.phone, 1, replyToOf(m.meta))
-      : who.contactId
-        ? await readLeadContext(db, m.tenant_id, { contactId: who.contactId }, 1, replyToOf(m.meta))
+    const lead = customer.phone
+      ? await readLeadContext(db, message.tenant_id, customer.phone, 1, replyToOf(message.meta))
+      : customer.contactId
+        ? await readLeadContext(db, message.tenant_id, { contactId: customer.contactId }, 1, replyToOf(message.meta))
         : null;
     if (!lead) return undefined;
     return describeLead(lead, undefined, timezone, channel);
@@ -149,14 +146,16 @@ const draftChannelOf = (c: string | null): InboundChannel => (c === "sms" || c =
 async function draftAddressOf(
   db: NonNullable<ReturnType<typeof pg>>,
   channel: InboundChannel,
-  m: { tenant_id: string; contact_id: string | null },
+  message: { tenant_id: TenantId; contact_id: ContactId | null },
   phone: string | null,
 ): Promise<string | null> {
   if (channel !== "instagram") return phone;
-  return m.contact_id ? instagramIdOf(db, m.tenant_id, m.contact_id).catch(() => null) : null;
+  return message.contact_id
+    ? findInstagramId(db, message.tenant_id, message.contact_id).catch(logAndGoOn("findInstagramId", null))
+    : null;
 }
 
-function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: string | null) {
+function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: TenantId | null) {
   const draft = db
     .from("messages")
     .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel, sending_at")
@@ -171,8 +170,8 @@ function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, work
 function refusedBeforeRead(auth: Admitted): Response | null {
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
   const workspace = tokenWorkspace(auth);
-  if (auth.via !== "token" || (workspace && UUID.test(workspace))) return null;
-  return refuse(400, "bad_tenant", "this door acts only for a workspace its credential names, and this one names none");
+  if (auth.via !== "token" || (workspace && isTenantId(workspace))) return null;
+  return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
 }
 
 /**
@@ -208,7 +207,7 @@ function wordsForTheWire(channel: InboundChannel, text: string, textedBefore: bo
  */
 async function retireForTheRewrite(
   db: NonNullable<ReturnType<typeof pg>>,
-  old: { id: string; tenant_id: string },
+  old: { id: string; tenant_id: TenantId },
   newId: string,
 ): Promise<Response | null> {
   // Through the one door (00387): the old draft and its send job, only while no run has claimed it.
@@ -218,8 +217,8 @@ async function retireForTheRewrite(
     messageIds: [old.id],
     reason: { reason: "steered", replaced_by: newId },
   }).then(
-    (ids) => ({ ids, error: null as string | null }),
-    (e: unknown) => ({ ids: [] as string[], error: failed(e) }),
+    (ids) => ({ ids, error: null }),
+    (e: unknown) => ({ ids: [], error: failed(e) }),
   );
   if (retired.ids.length) return null;
   const lost = retired.error === null;
@@ -273,7 +272,7 @@ export async function steerHeldDraft(
   const to = await draftAddressOf(db, channel, m, phone);
   if (!to) return refuse(409, "no_phone");
   // Its oldest active one, where a workspace holds two of the kind; a read that failed finds none, as it always did.
-  const routed = await oldestActiveChannel(db, m.tenant_id, channel).catch(() => null);
+  const routed = await findOldestActiveChannel(db, m.tenant_id, channel).catch(() => null);
   if (!routed) return refuse(409, "no_channel");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
@@ -288,9 +287,9 @@ export async function steerHeldDraft(
   const leadNote = await leadNoteOf(db, m, { phone, contactId: m.contact_id }, rt.timezone ?? "UTC", channel);
 
   const now = new Date(); // the rewrite's one clock: its prompt, its price check (steerAllowance) and its timing
-  let r: Awaited<ReturnType<typeof generateReply>>;
+  let item: Awaited<ReturnType<typeof generateReply>>;
   try {
-    r = await ask({
+    item = await ask({
       history: thread.history,
       userText: lastUser.content,
       systemPrompt: resolveSystemPrompt(rt.brain, channel, rt.timezone, now, rt.policy, rt.known),
@@ -305,8 +304,8 @@ export async function steerHeldDraft(
     return refuse(502, "brain_failed");
   }
   // The same second door the handler keeps: no price, no money a person decides; the original draft stays.
-  if (rewriteBlocked(r.text, messageId, steerAllowance(rt, now, text))) return refuse(409, "policy_block_price");
-  const words = wordsForTheWire(channel, r.text, thread.textedBefore);
+  if (rewriteBlocked(item.text, messageId, steerAllowance(rt, now, text))) return refuse(409, "policy_block_price");
+  const words = wordsForTheWire(channel, item.text, thread.textedBefore);
 
   const delayMs =
     typeof m.meta === "object" && m.meta && typeof (m.meta as { delay_ms?: unknown }).delay_ms === "number"
@@ -324,17 +323,17 @@ export async function steerHeldDraft(
       body: words,
       delayMs,
       source: "steered",
-      brainMeta: r.meta,
+      brainMeta: item.meta,
       // The rewrite goes out on the wire the draft it replaces was written for.
       // Unsaid, the row defaulted to WhatsApp, so a steered text was sent over
       // WhatsApp to a number that had only ever texted — and the customer's own
       // thread never got its answer.
       channel,
-      extra: { steer: text, steered_from: m.id, escalate: r.escalate, reply_to: replyToOf(m.meta) },
+      extra: { steer: text, steered_from: m.id, escalate: item.escalate, reply_to: replyToOf(m.meta) },
     },
     steerLog,
   );
-  if (!newId) return refuse(502, "could_not_queue");
+  if (!newId) return refuse(503, "could_not_queue");
 
   // Then the old one, counted (retireForTheRewrite): a draft the tick sent or claimed meanwhile takes the rewrite back.
   const lost = await retireForTheRewrite(db, m, newId);
@@ -346,15 +345,15 @@ export async function steerHeldDraft(
     new_message_id: newId,
     chars: text.length,
     ms: Date.now() - now.getTime(),
-    escalate: r.escalate,
+    escalate: item.escalate,
     delay_ms: delayMs,
   });
   return json(200, {
     ok: true,
     message_id: newId,
     text: words,
-    meta: r.meta ?? null,
-    escalate: r.escalate,
+    meta: item.meta ?? null,
+    escalate: item.escalate,
     delay_ms: delayMs,
   });
 }

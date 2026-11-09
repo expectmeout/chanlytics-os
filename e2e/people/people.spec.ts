@@ -197,15 +197,21 @@ test.describe("People on a real workspace", () => {
     );
     const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
-    await openPersonPage(page, rows.first());
+    // Someone no deal is true of: people-consent.spec.ts, which runs before this one, leaves Robin Example the proposal
+    // whose link it emptied, and the first row is hers, so this walk skipped every night it mattered.
+    const { people } = (await (await apiGet(page, "/api/v1/contacts")).json()).data as {
+      people: Array<{ display_name: string | null; deal_id?: string | null }>;
+    };
+    const free = people.find((p) => !p.deal_id && p.display_name);
+    test.skip(!free?.display_name, "everyone here already has a proposal out or an engagement running");
+    await openPersonPage(page, rows.filter({ hasText: free?.display_name ?? "" }).first());
     // The deal says itself once, in its section: no Deal row among the card's settings, no Proposal row in About.
     await expect(page.getByTestId("rec-row-person-deal")).toHaveCount(0);
     await expect(page.locator(".cl-prof-attr-key", { hasText: /^Proposal$/ })).toHaveCount(0);
     if ((await page.getByTestId("person-deal").count()) > 0) {
       const start = page.getByTestId("person-deal-start");
-      test.skip(
-        (await start.count()) === 0 || (await start.innerText()).trim() !== "Start a proposal",
-        "the first person already has a proposal out or an engagement running",
+      await expect(start, "with no deal of theirs, the section's act is the one that starts one").toHaveText(
+        "Start a proposal",
       );
       await start.click();
     } else {
@@ -387,10 +393,11 @@ test.describe("People on a real workspace", () => {
     const saved = (
       (await (await apiGet(page, "/api/v1/segments")).json()).data as { lists: Array<{ id: string; name: string }> }
     ).lists;
-    if (saved.length) {
-      await page.goto(`/#/clients/list:${saved[0].id}`);
+    const [list] = saved;
+    if (list) {
+      await page.goto(`/#/clients/list:${list.id}`);
       await page.waitForLoadState("networkidle");
-      await expect(page.getByTestId("saved-filter")).toContainText(saved[0].name);
+      await expect(page.getByTestId("saved-filter")).toContainText(list.name);
     }
   });
 
@@ -472,6 +479,7 @@ test.describe("People on a real workspace", () => {
     const consentWrites = () => seen.filter((r) => r.url.includes("consent"));
     await expect.poll(() => consentWrites().length).toBe(1);
     const [yes] = consentWrites();
+    if (!yes) throw new Error("the poll saw this write");
     expect(yes.method).toBe("PUT");
     expect(new URL(yes.url).pathname).toBe("/api/v1/contacts/consent");
     const sent = yes.body as { ids: string[]; consent: string; source: string };
@@ -619,9 +627,9 @@ test.describe("People on a real workspace", () => {
         message: "the column's save reached the one address answered here",
       })
       .toBe(true);
-    const last = saved[saved.length - 1];
-    expect(typeof last.view?.sortBy, "the sort rides with the columns").toBe("string");
-    expect(["asc", "desc"]).toContain(last.view?.sortDir);
+    const last = saved.at(-1);
+    expect(typeof last?.view?.sortBy, "the sort rides with the columns").toBe("string");
+    expect(["asc", "desc"]).toContain(last?.view?.sortDir);
     // Offers waits in the menu too: switched on, every cell is one of the three answers.
     await menu.getByRole("menuitemcheckbox", { name: "Offers" }).click();
     await expect.poll(headers).toContain("offers");

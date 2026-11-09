@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { JobRequeueKindSchema } from "@chanlytics/contracts";
-import { healthRequeueKind } from "@/server/platform/health";
+import { requeueHealthKind } from "@/server/console/health";
 
 /**
  * POST /api/v1/platform/jobs/requeue-kind — {kind, since, why}: every job of one kind that failed for good since a
@@ -14,5 +14,5 @@ export const POST = write({
   rate: "platform_job_requeue_kind",
   act: "job_requeue_kind",
   input: JobRequeueKindSchema,
-  handle: async ({ office, input }) => healthRequeueKind(office, input.kind, input.since, input.why),
+  handle: async ({ office, input }) => requeueHealthKind(office, input.kind, input.since, input.why),
 });

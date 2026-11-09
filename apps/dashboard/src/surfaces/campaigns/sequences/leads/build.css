@@ -126,11 +126,6 @@
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-.ld-foot-line {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink);
-}
 
 /* Preview as a real lead: who it is, ‹ ›, the email whole, what the check held. */
 .ld-pre {
@@ -160,6 +155,15 @@
 .ld-pre-step {
   display: flex;
   gap: var(--space-1);
+}
+/* The email whole, flush with the pager over it: one inset, its words 14 in from its own edge, at the reading step, where
+   the lead card's 18px margin stood it inside the sheet's and the pager's (the phone pass, 3 Nov 2026: its words 54px in,
+   235 wide, 38 characters a line at 13.5). */
+.ld-pre > .lw-mail {
+  margin: 0;
+}
+.ld-pre > .lw-mail .lw-mail-b {
+  font-size: var(--text-read);
 }
 .ld-pre-held {
   display: flex;

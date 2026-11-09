@@ -5,10 +5,11 @@
  * look a step that waits takes at its own pace, and the once-a-session landing.
  */
 import { useEffect, useReducer, useRef, useState } from "react";
-import { FIRST_RUN_HELPERS, FIRST_RUN_LANDED_KEY } from "@chanlytics/contracts";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { FIRST_RUN_LANDED_KEY } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "./model/first-run-helpers";
+import type { FrameFlash } from "../../frame-verbs";
 import { scrollerOf } from "../../kit/motion/page-scroll";
-import { refreshSurfaces } from "@/legacy-bridge/surface-runner";
+import { refreshSurfaces } from "@/bridge/surface-runner";
 import { liveOverride } from "../../live/surface";
 import { billingVerbs } from "../../settings/billing/surface";
 import { waConnect } from "../../settings/connections/whatsapp";
@@ -90,7 +91,7 @@ export function useBusinessTabRedraw(): () => void {
 export function usePhoneChoice(
   param: string | null,
   replace: (to: string) => void,
-  flash: (f: LegacyFlash) => void,
+  flash: (f: FrameFlash) => void,
 ): [KeptPhoneChoice | null, (c: KeptPhoneChoice | null) => void] {
   const [phoneChoice, setPhoneChoiceState] = useState<KeptPhoneChoice | null>(phoneChoiceKept);
   const setPhoneChoice = (c: KeptPhoneChoice | null) => {

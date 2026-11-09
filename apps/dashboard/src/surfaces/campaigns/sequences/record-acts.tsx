@@ -39,15 +39,15 @@ import { Menu, type MenuItem } from "../../kit/menu/menu";
 import { Notice } from "../../kit/notice/notice";
 import { StatePill } from "../../kit/pill/state-pill";
 import { keepTabDraft } from "../../kit/record/work";
-import { askAbout, gate, navigate, refusalToast, routeDoor } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { askAbout, gate, navigate, refusalToast, routeDoor } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { runDetail } from "../broadcasts/detail-read";
 import { keptSendOf } from "./new/kept-send";
 import { useSequenceRead } from "./use-record";
 import { pressed, sequenceVerbs as verbs } from "./verbs";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /** A question an act asks before it acts: Skip a batch, Turn on, Discard a draft, Cancel a one-off's send, End it. */
 type Asking = "skip" | "resume" | "discard" | "cancel" | "end";

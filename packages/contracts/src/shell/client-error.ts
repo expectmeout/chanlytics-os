@@ -38,11 +38,11 @@ export const WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/;
  * them apart.
  */
 export function errorIdOf(page: string | null, name: string, message: string): string {
-  const said = `${page ?? ""}|${name}|${(message.split(/\r?\n/)[0] ?? "").trim()}`;
+  const sentence = `${page ?? ""}|${name}|${(message.split(/\r?\n/)[0] ?? "").trim()}`;
   // FNV-1a, 32 bits: small, stable, and the same in every browser.
   let h = 0x811c9dc5;
-  for (let i = 0; i < said.length; i++) {
-    h ^= said.charCodeAt(i);
+  for (let i = 0; i < sentence.length; i++) {
+    h ^= sentence.charCodeAt(i);
     h = Math.imul(h, 0x01000193) >>> 0;
   }
   return (h >>> 16).toString(16).padStart(4, "0");
@@ -56,14 +56,14 @@ export function clientErrorOf(
   digest?: string | null,
   workspace?: string | null,
 ): ClientErrorInputDto {
-  const e = error instanceof Error ? error : new Error(String(error));
+  const asError = error instanceof Error ? error : new Error(String(error));
   const first = (page ?? "").split(/[/?#]/)[0] ?? "";
   return {
     boundary,
     page: PAGE.test(first) ? first : null,
-    name: (e.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
-    message: (e.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
-    stack: e.stack ? e.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,
+    name: (asError.name || "Error").slice(0, CLIENT_ERROR_LIMITS.name),
+    message: (asError.message || "").slice(0, CLIENT_ERROR_LIMITS.message),
+    stack: asError.stack ? asError.stack.slice(0, CLIENT_ERROR_LIMITS.stack) : null,
     digest: digest ? digest.slice(0, CLIENT_ERROR_LIMITS.digest) : null,
     workspace: workspace && WORKSPACE.test(workspace) ? workspace : null,
   };

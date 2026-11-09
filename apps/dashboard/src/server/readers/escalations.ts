@@ -1,7 +1,15 @@
 import "server-only";
-import { HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX, type EscalationDto } from "@chanlytics/contracts";
-import { openRequestsOfThreads } from "@chanlytics/db";
-import { stamp, type Reader } from "./index";
+import {
+  HAND_BACK_REASONS,
+  OPEN_HOLDS_READ_MAX,
+  type EscalationDto,
+  type EscalationState,
+  DbFailure,
+} from "@chanlytics/contracts";
+import { openRequestsOfThreads } from "@chanlytics/db/calendar";
+import { readerStamp, type Reader } from "../shared/reader";
+import { isGoing } from "../people/going";
+import { listHoldsHandedBack, listHoldsWaiting } from "@chanlytics/db/conversations";
 
 /**
  * The booking each open booking_request hold asks to confirm (decision 0061), laid on its hold: the request card's day,
@@ -18,20 +26,20 @@ async function withRequests(
   const byThread = new Map<string, (typeof requests)[number]>();
   for (const r of requests)
     if (r.conversation_id && !byThread.has(r.conversation_id)) byThread.set(r.conversation_id, r);
-  return rows.map((e) => {
-    const r = e.reason === "booking_request" ? byThread.get(e.conversation_id) : undefined;
-    return r
+  return rows.map((row) => {
+    const item = row.reason === "booking_request" ? byThread.get(row.conversation_id) : undefined;
+    return item
       ? {
-          ...e,
+          ...row,
           request: {
-            id: r.id,
-            starts_at: r.starts_at,
-            ends_at: r.ends_at,
-            service: r.service ?? null,
-            expires_at: r.expires_at ?? null,
+            id: item.id,
+            starts_at: item.starts_at,
+            ends_at: item.ends_at,
+            service: item.service ?? null,
+            expires_at: item.expires_at ?? null,
           },
         }
-      : e;
+      : row;
   });
 }
 
@@ -45,38 +53,36 @@ async function withRequests(
  * cited by its thread.
  */
 export const escalations: Reader<
-  { state: string },
+  { state: EscalationState },
   { escalations: Array<EscalationDto & { conversation_id: string }> }
 > = {
   name: "escalations",
   async read(rc, { state }) {
     const { supabase } = rc.ctx;
     const tenantId = rc.tenantId;
-    const base = () =>
-      supabase
-        .from("escalations")
-        .select("id, reason, details, state, created_at, conversation_id")
-        .eq("tenant_id", tenantId)
-        .eq("state", state);
     const [waiting, handBack] = await Promise.all([
-      base()
-        .not("reason", "in", `(${HAND_BACK_REASONS.join(",")})`)
-        .order("created_at", { ascending: false })
-        .limit(OPEN_HOLDS_READ_MAX),
-      base()
-        .in("reason", [...HAND_BACK_REASONS])
-        .order("created_at", { ascending: false })
-        .limit(OPEN_HOLDS_READ_MAX),
+      listHoldsWaiting(supabase, tenantId, state, HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX),
+      listHoldsHandedBack(supabase, tenantId, state, HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX),
     ]);
-    if (waiting.error) throw new Error(waiting.error.message);
-    if (handBack.error) throw new Error(handBack.error.message);
+    if (waiting.error) throw new DbFailure(waiting.error);
+    if (handBack.error) throw new DbFailure(handBack.error);
     // The column is text under a CHECK; the contract names the two states, so the client reads the enum, not a string.
+    const now = rc.now.getTime();
     const escalations: Array<EscalationDto & { conversation_id: string }> = [
       ...(waiting.data ?? []),
       ...(handBack.data ?? []),
     ]
+      // Nobody waits on someone being erased, and a hold of theirs would read their thread back into the Inbox by its id.
+      .filter((e) => !isGoing(e.conversations?.contacts?.erasing_since, now))
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
-      .map((e) => ({ ...e, state: e.state as EscalationDto["state"] }));
-    return { data: { escalations: await withRequests(rc, escalations) }, rows: [], stamp: stamp() };
+      .map(({ id, reason, details, state: held, created_at, conversation_id }) => ({
+        id,
+        reason,
+        details,
+        state: held,
+        created_at,
+        conversation_id,
+      }));
+    return { data: { escalations: await withRequests(rc, escalations) }, rows: [], stamp: readerStamp() };
   },
 };

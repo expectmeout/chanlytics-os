@@ -3,7 +3,7 @@
  * and set beside the refresh map.
  *
  * One request in twenty says, in its `route_answered` line, the tables its database calls touched and how, the SQL functions it
- * called, its method and the page of the app it was asked from (apps/dashboard/src/server/server-timing.ts touchedLine). This reads
+ * called, its method and the page of the app it was asked from (apps/dashboard/src/server/shared/server-timing.ts touchedLine). This reads
  * a file of such lines (the logger's JSON, one a line, or a log export that carries each in `message`) and says two things:
  *
  *  1. What the trace missed: for each route, a table a request touched that the route's trace (tooling/scripts/trace-routes.mjs)
@@ -30,9 +30,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const SELF = fileURLToPath(import.meta.url);
 /** The tests' own stand-ins for the network, Base UI and stylesheets (tooling/scripts/checks/test.mjs), which the shell's modules import. */
 const STAND_INS = [
-  "tooling/scripts/tests/calendar/_stand-in-network.mjs",
-  "tooling/scripts/tests/shared/_stand-in-base-ui.mjs",
-  "tooling/scripts/tests/shared/_stand-in-css.mjs",
+  "tests/calendar/_stand-in-network.mjs",
+  "tests/shared/_stand-in-base-ui.mjs",
+  "tests/shared/_stand-in-css.mjs",
 ];
 const LOADED = "CHANLY_WRITE_SHADOW_LOADED";
 
@@ -131,7 +131,7 @@ async function main(argv) {
   const { ROUTES } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/client/routes.generated.ts")).href);
   const { PLUMBING } = await import(pathToFileURL(path.join(ROOT, "tooling/scripts/trace-routes.mjs")).href);
   const { PERSON, writeReach } = await import(
-    pathToFileURL(path.join(ROOT, "tooling/scripts/tests/shell/hearing/_write-reach.mjs")).href
+    pathToFileURL(path.join(ROOT, "tests/shell/hearing/_write-reach.mjs")).href
   );
   const reach = await writeReach();
 

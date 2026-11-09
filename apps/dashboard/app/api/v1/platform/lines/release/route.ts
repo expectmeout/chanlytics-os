@@ -1,11 +1,12 @@
-import { write, platform } from "@/server/route";
+import { heldTenantId } from "@chanlytics/contracts";
+import { write, platform } from "@/server/shared/route";
 import { LINE_ACTS, LineActSchema } from "@chanlytics/contracts";
-import { platformLineAct } from "@/server/platform/platform";
+import { runPlatformLineAct } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/lines/release — give a workspace's number back.
  *
- * Releases the number, drops the trunk and forgets the line. The routing row it
+ * Releases the number, drops the trunk and the campaign, closes the subaccount and forgets the line. The routing row it
  * created is switched off rather than deleted, so calls keep their history.
  *
  * Permanent: the number goes back to the carrier's pool and cannot be reclaimed.
@@ -24,7 +25,7 @@ export const POST = write({
   act: LINE_ACTS.release,
   input: LineActSchema,
   handle: async ({ office, input }) => {
-    const r = await platformLineAct(office, "release", input.tenant_id, input.line_id, input.why);
+    const r = await runPlatformLineAct(office, "release", heldTenantId(input.tenant_id), input.line_id, input.why);
     // The edge's own answer, unchanged. A 409 from it is a real fact about the
     // line -- "the line is answering, not failed", "already_registered" -- and
     // rewording it here would put a second opinion between support and the truth.

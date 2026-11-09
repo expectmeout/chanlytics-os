@@ -12,18 +12,20 @@ import {
   noteRows,
   toInboxThreadVM,
   type PersonChannel,
+  UUID,
 } from "@chanlytics/contracts";
-import { load } from "../../../readers";
+import { load } from "../../../shared/reader";
 import { conversation } from "../../../readers/conversation";
 import { escalations as escalationsReader } from "../../../readers/escalations";
 import { inbox } from "../../../readers/inbox";
 import { messageSearch } from "../../../readers/messages";
 import { threadState } from "../../thread-state";
-import { UUID, defineActions, noteRow, readAction, str, unlessNotFound, type ToolContext } from "../context";
+import { noteRow, str, readUnlessNotFound } from "../context/tool-reads";
+import { defineActions, readAction, type ToolContext } from "../context/tool-defs";
 
 /**
  * The open escalation the Inbox shows on each thread, as the page picks it
- * (legacy-bridge/surface-data.ts, inboxOverride): the open escalations come
+ * (bridge/surface-data.ts, inboxOverride): the open escalations come
  * newest first and the last one keyed for a thread wins, so a thread shows its
  * oldest. The inbox tool's two actions, list and thread, both pick with this.
  */
@@ -38,29 +40,31 @@ function inboxEscalations<E extends { conversation_id: string }>(open: E[]): Map
 const writerOf = (m: { direction: string; sender: string | null }): "customer" | "receptionist" | "you" =>
   m.direction === "inbound" ? "customer" : m.sender === "ai" ? "receptionist" : "you";
 
-async function listThreads(t: ToolContext, input: { filter: string }): Promise<unknown> {
+async function listThreads(toolContext: ToolContext, input: { filter: string }): Promise<unknown> {
   const filter = str(input.filter) || "recent";
   // The Inbox as the page composes it (readers/inbox.ts): the newest hundred, and every escalated thread outside it.
-  const { conversations, escalations } = (await load(t.rc, inbox, undefined)).data;
+  const { conversations, escalations } = (await load(toolContext.rc, inbox, undefined)).data;
   const byConv = inboxEscalations(escalations);
-  const vms = conversations.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.timezone, t.now));
-  // What waits on you as the Inbox counts it (contracts conversationWaitsOnYou, waits.ts threadWait): a hold nobody has
-  // taken, or a reply counting down that can still be stopped. The filter read the holds alone: 4 where the Inbox said
-  // "5 need you" and Ask's Today said 5 (the wiring's second audit, R13 X5-2).
-  const waiting = new Set(
-    conversations.filter((c) => conversationWaitsOnYou(c, byConv.get(c.id) ?? null, t.now)).map((c) => c.id),
+  const vms = conversations.map((c) =>
+    toInboxThreadVM(c, byConv.get(c.id) ?? null, toolContext.timezone, toolContext.now),
   );
-  const matching = vms.filter((v) => {
+  // What waits on you as the Inbox counts it (contracts conversationWaitsOnYou, waits.ts threadWait, thread-move.ts): what
+  // the rule puts in Needs you, or a reply counting down that can still be stopped. The filter read the holds alone: 4 where
+  // the Inbox said "5 need you" and Ask's Today said 5 (the wiring's second audit, R13 X5-2).
+  const waiting = new Set(
+    conversations.filter((c) => conversationWaitsOnYou(c, byConv.get(c.id) ?? null, toolContext.now)).map((c) => c.id),
+  );
+  const matching = vms.filter((value) => {
     switch (filter) {
       case "needs_you":
-        return waiting.has(v.conversationId);
+        return waiting.has(value.conversationId);
       case "held":
         // A draft still waiting to send, by the Inbox's rule: one past its deadline is going out, not held.
-        return heldDraftWaits(v, t.now.getTime());
+        return heldDraftWaits(value, toolContext.now.getTime());
       case "waiting":
-        return v.takenOver;
+        return value.move.list === "waiting";
       case "snoozed":
-        return v.state === "snoozed";
+        return value.state === "snoozed";
       default:
         return true;
     }
@@ -70,43 +74,50 @@ async function listThreads(t: ToolContext, input: { filter: string }): Promise<u
   // server orders the hundred by, so the hundred keep their order. Every other filter keeps the Inbox's order, the
   // fetched threads first, as the page lists them: the cap never drops a customer waiting outside the hundred.
   if (filter === "recent") matching.sort((a, b) => b.lastAtMs - a.lastAtMs);
-  // Counted BEFORE the cap, like people.search's `matches` (read/people.ts).
+  // Counted BEFORE the cap, like people.search's `matches` (read/people/people.ts).
   // Counted after, "total_matching" reported 20 for 25 held drafts.
   const picked = matching.slice(0, ASK_CAPS.threads);
-  for (const v of picked) noteRow(t, "thread", v.conversationId, v.who, `inbox/th-${v.conversationId}`);
+  for (const v of picked) noteRow(toolContext, "thread", v.conversationId, v.who, `inbox/th-${v.conversationId}`);
   return {
     filter,
     total_matching: matching.length,
-    threads: picked.map((v) => ({
-      conversation_id: v.conversationId,
-      route: `inbox/th-${v.conversationId}`,
-      who: v.who,
-      state: threadState(v),
+    threads: picked.map((value) => ({
+      conversation_id: value.conversationId,
+      route: `inbox/th-${value.conversationId}`,
+      who: value.who,
+      state: threadState(value),
       // A draft still waiting (heldDraftWaits), as the held filter counts it: one past its deadline is going out.
       held_draft:
-        v.veto && heldDraftWaits(v, t.now.getTime())
-          ? { message_id: v.veto.messageId, text: v.veto.draft.slice(0, 200), why: v.veto.why?.summary ?? null }
+        value.veto && heldDraftWaits(value, toolContext.now.getTime())
+          ? {
+              message_id: value.veto.messageId,
+              text: value.veto.draft.slice(0, 200),
+              why: value.veto.why?.summary ?? null,
+            }
           : null,
-      last_message: v.preview.slice(0, 160),
-      recent: v.timeline
+      last_message: value.preview.slice(0, 160),
+      recent: value.timeline
         .filter((x): x is Extract<typeof x, { type: "msg" }> => x.type === "msg")
         .slice(-3)
         .map((x) => ({
           from: x.from === "client" ? "customer" : x.byYou ? "you" : "receptionist",
           text: x.body.slice(0, 140),
         })),
-      last_at: v.lastAtFull,
-      waiting_min: v.waitingMin ?? null,
-      window_open: v.windowOpen,
+      last_at: value.lastAtFull,
+      waiting_min: value.waitingMin ?? null,
+      window_open: value.windowOpen,
       // Which wire, from the one derivation (threadChannelOf/replyVia). This
       // said `tags`, which toInboxThreadVM sets to [] on every real thread --
       // a field that has never carried anything.
-      channel: v.replyVia,
+      channel: value.replyVia,
     })),
   };
 }
 
-async function getThread(t: ToolContext, input: { conversation_id: string; more?: boolean }): Promise<unknown> {
+async function getThread(
+  toolContext: ToolContext,
+  input: { conversation_id: string; more?: boolean },
+): Promise<unknown> {
   const id = str(input.conversation_id);
   if (!UUID.test(id)) return { error: "conversation_id must be an id a tool returned" };
   const more = input.more === true;
@@ -114,18 +125,19 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
   // newest messages with their wire and their attachment, so the window and the wire are the page's (ledger #5). The
   // open escalations beside it, as the Inbox reads them. Each once a turn; a thread not here is the reader's 404.
   const [r, open] = await Promise.all([
-    unlessNotFound(load(t.rc, conversation, { id, before: null })),
-    load(t.rc, escalationsReader, { state: "open" }),
+    readUnlessNotFound(load(toolContext.rc, conversation, { id, before: null })),
+    load(toolContext.rc, escalationsReader, { state: "open" }),
   ]);
   if (!r) return { error: "no such conversation in this workspace" };
   const esc = inboxEscalations(open.data.escalations).get(id) ?? null;
   const cap = more ? ASK_CAPS.messagesMore : ASK_CAPS.messages;
   const dto = { ...r.data.conversation, messages: r.data.messages };
   // The page's own builder, over the page's own payload.
-  const vm = toInboxThreadVM(dto, esc, t.timezone, t.now);
+  const vm = toInboxThreadVM(dto, esc, toolContext.timezone, toolContext.now);
   // The thread and its person as the reader gave them, and the thread again where Conversations opens it.
-  noteRows(t.read, r.rows);
-  noteRow(t, "conversation", id, r.rows[0].label, `conversations/${id}`);
+  noteRows(toolContext.read, r.rows);
+  const who = r.rows[0]?.label ?? "";
+  noteRow(toolContext, "conversation", id, who, `conversations/${id}`);
   return {
     conversation_id: id,
     route: `inbox/th-${id}`,
@@ -134,13 +146,13 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
     // Named as the Inbox row names them, which is the reader's row: the route's payload carries no email, so its view
     // model would call a person reached only by email "Unknown" where the Inbox names them by their address. The
     // reader's first row is the thread.
-    who: r.rows[0].label,
+    who,
     channel: vm.replyVia,
     state: threadState(vm),
     escalation: esc ? { id: esc.id, reason: reasonLabelOf(esc.reason), details: esc.details } : null,
     window_open: vm.windowOpen,
     held_draft:
-      vm.veto && heldDraftWaits(vm, t.now.getTime())
+      vm.veto && heldDraftWaits(vm, toolContext.now.getTime())
         ? {
             message_id: vm.veto.messageId,
             text: vm.veto.draft,
@@ -149,15 +161,15 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
               : null,
           }
         : null,
-    messages: dto.messages.slice(-cap).map((m) => {
-      const why = messageWhy(m);
+    messages: dto.messages.slice(-cap).map((row) => {
+      const reason = messageWhy(row);
       return {
         // By the business's clock, as the pages say it: the time today, the date and the time before.
-        at: clockStamp(Date.parse(m.created_at), t.timezone, t.now.getTime()),
-        from: writerOf(m),
-        text: messageText(m).slice(0, 600),
-        status: m.status ?? null,
-        ...(why ? { why: why.summary } : {}),
+        at: clockStamp(Date.parse(row.created_at), toolContext.timezone, toolContext.now.getTime()),
+        from: writerOf(row),
+        text: messageText(row).slice(0, 600),
+        status: row.status ?? null,
+        ...(reason ? { why: reason.summary } : {}),
       };
     }),
     shown: Math.min(dto.messages.length, cap),
@@ -186,25 +198,25 @@ function wordsToFind(words: string): boolean {
       groups.push([]);
       continue;
     }
-    if (/[\p{L}\p{N}]/u.test(m[3] ?? m[2]))
-      groups[groups.length - 1].push(m[3] !== undefined ? !m[3].startsWith("-") : m[1] !== "-");
+    if (/[\p{L}\p{N}]/u.test(m[3] ?? m[2] ?? ""))
+      groups.at(-1)?.push(m[3] !== undefined ? !m[3].startsWith("-") : m[1] !== "-");
   }
   const kept = groups.filter((g) => g.length > 0);
   return kept.length > 0 && kept.every((g) => g.some(Boolean));
 }
 
-async function searchSaid(t: ToolContext, input: { words: string; days?: number }): Promise<unknown> {
+async function searchSaid(toolContext: ToolContext, input: { words: string; days?: number }): Promise<unknown> {
   if (!input.words.trim()) return { error: "words must say what to look for" };
   // The reader trims and cuts the words, bounds the window from the turn's clock and holds the cap (readers/messages.ts);
   // one hit more than is shown says exactly whether there are more.
   const { words, days, hits } = (
-    await load(t.rc, messageSearch, { words: input.words, days: input.days ?? null, limit: SEARCH_HITS + 1 })
+    await load(toolContext.rc, messageSearch, { words: input.words, days: input.days ?? null, limit: SEARCH_HITS + 1 })
   ).data;
   const shown = hits.slice(0, SEARCH_HITS);
   // Each shown hit's row as the reader gave it: a message's thread, or the call. The one past the cap is not shown, so
   // it is no row an answer may cite.
   noteRows(
-    t.read,
+    toolContext.read,
     shown.flatMap((h) => (h.ref ? [h.ref] : [])),
   );
   return {
@@ -212,26 +224,26 @@ async function searchSaid(t: ToolContext, input: { words: string; days?: number 
     days,
     shown: shown.length,
     more_available: hits.length > SEARCH_HITS,
-    hits: shown.map((h) => ({
-      kind: h.kind,
-      who: h.who,
+    hits: shown.map((hit) => ({
+      kind: hit.kind,
+      who: hit.who,
       // By the business's clock, as inbox.thread says a message's time.
-      at: clockStamp(Date.parse(h.at), t.timezone, t.now.getTime()),
-      ...(h.kind === "message"
+      at: clockStamp(Date.parse(hit.at), toolContext.timezone, toolContext.now.getTime()),
+      ...(hit.kind === "message"
         ? {
-            channel: wireOf(h.channel),
+            channel: wireOf(hit.channel),
             // Who wrote it and what became of it, as inbox.thread says them; a call's note in its thread is recorded as
             // inbound whichever way the call went, so it is the call's note, never the customer's words.
             from:
-              h.sent?.type === "call_summary"
+              hit.sent?.type === "call_summary"
                 ? "call note"
-                : writerOf({ direction: h.direction, sender: h.sent?.sender ?? null }),
-            status: h.sent?.status ?? null,
-            conversation_id: h.conversationId,
+                : writerOf({ direction: hit.direction, sender: hit.sent?.sender ?? null }),
+            status: hit.sent?.status ?? null,
+            conversation_id: hit.conversationId,
           }
-        : { called_by: h.direction === "inbound" ? "customer" : "business", call_id: h.id }),
-      snippet: h.snippet,
-      route: h.ref?.route ?? null,
+        : { called_by: hit.direction === "inbound" ? "customer" : "business", call_id: hit.id }),
+      snippet: hit.snippet,
+      route: hit.ref?.route ?? null,
     })),
     ...(shown.length
       ? {}
@@ -258,7 +270,7 @@ export const inboxTool = defineActions({
       examples: [{ filter: "held" }],
       label: "Reading the Inbox",
       words:
-        "Action list takes filter and finds threads: needs_you (what waits on you, as the Inbox counts it: a hold nobody has taken, or a reply counting down that can still be stopped), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
+        "Action list takes filter and finds threads: needs_you (what waits on you, as the Inbox counts it: someone asked for a person, nobody answered them, a reply that did not send, or a reply counting down that can still be stopped), held (a draft waiting to send), waiting (the next move is theirs or a teammate's: threads a person holds, and ones with no reply yet), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
       run: listThreads,
     }),
     thread: readAction({

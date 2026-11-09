@@ -1,19 +1,11 @@
 import "server-only";
 import { z } from "zod";
-import { ASK_CAPS, abandonedCall, askCallOutcome, dayInZone, noteRows, toCallVM } from "@chanlytics/contracts";
-import { load } from "../../../readers";
+import { ASK_CAPS, abandonedCall, askCallOutcome, dayInZone, noteRows, toCallVM, UUID } from "@chanlytics/contracts";
+import { load } from "../../../shared/reader";
 import { call } from "../../../readers/call";
 import { calls as callsReader } from "../../../readers/calls";
-import {
-  UUID,
-  defineActions,
-  notePerson,
-  noteRow,
-  readAction,
-  str,
-  unlessNotFound,
-  type ToolContext,
-} from "../context";
+import { notePerson, noteRow, str, readUnlessNotFound } from "../context/tool-reads";
+import { defineActions, readAction, type ToolContext } from "../context/tool-defs";
 
 /** The business's day a call fell on (zone-math), or none for a time or a zone that is none. */
 function dayKey(iso: string | null | undefined, tz: string): string | null {
@@ -21,32 +13,34 @@ function dayKey(iso: string | null | undefined, tz: string): string | null {
   try {
     return dayInZone(tz, Date.parse(iso)).key;
   } catch {
+    // A zone or a code the runtime does not know.
     return null;
   }
 }
 
-async function listCalls(t: ToolContext, input: { filter: string }): Promise<unknown> {
+async function listCalls(toolContext: ToolContext, input: { filter: string }): Promise<unknown> {
   const filter = str(input.filter) || "recent";
   // The business's zone, as the turn read it (the route's facts): not read again.
-  const { timezone } = t;
+  const { timezone } = toolContext;
   // The hundred newest, as the Calls page reads them (readers/calls.ts), once in the turn.
-  const calls = (await load(t.rc, callsReader, {})).data.calls;
-  const todayKey = dayKey(t.now.toISOString(), timezone);
-  const vms = calls.map((c) => toCallVM(c, timezone, t.now));
+  const calls = (await load(toolContext.rc, callsReader, {})).data.calls;
+  const todayKey = dayKey(toolContext.now.toISOString(), timezone);
+  const vms = calls.map((c) => toCallVM(c, timezone, toolContext.now));
   const abandoned = new Set(calls.filter(abandonedCall).map((c) => c.id));
   const picked = vms
-    .filter((v, i) => {
-      const c = calls[i];
+    .filter((value, index) => {
+      const item = calls[index];
+      if (!item) return false;
       switch (filter) {
         case "missed":
           // The outcome the rows below say: a dial the receptionist placed that nobody answered is not_connected, not missed.
-          return askCallOutcome(v) === "missed" && dayKey(c.started_at, timezone) === todayKey;
+          return askCallOutcome(value) === "missed" && dayKey(item.started_at, timezone) === todayKey;
         case "abandoned":
-          return abandoned.has(c.id) && dayKey(c.started_at, timezone) === todayKey;
+          return abandoned.has(item.id) && dayKey(item.started_at, timezone) === todayKey;
         case "today":
-          return dayKey(c.started_at, timezone) === todayKey;
+          return dayKey(item.started_at, timezone) === todayKey;
         case "live":
-          return v.outcome === "live";
+          return value.outcome === "live";
         default:
           return true;
       }
@@ -54,52 +48,52 @@ async function listCalls(t: ToolContext, input: { filter: string }): Promise<unk
     .slice(0, ASK_CAPS.calls);
   // Each call, and its caller where People holds them: the rows say contact_id, so their profile opens.
   for (const v of picked) {
-    noteRow(t, "call", v.callId, v.who, `conversations/cv-${v.callId}`);
-    notePerson(t, v.clientId, v.who);
+    noteRow(toolContext, "call", v.callId, v.who, `conversations/cv-${v.callId}`);
+    notePerson(toolContext, v.clientId, v.who);
   }
   return {
     filter,
-    calls: picked.map((v) => ({
-      call_id: v.callId,
-      route: `conversations/cv-${v.callId}`,
-      who: v.who,
-      direction: v.direction,
-      at: v.at,
-      duration: v.duration ?? null,
-      outcome: askCallOutcome(v),
-      ...(abandoned.has(v.callId) ? { abandoned: true } : {}),
-      summary: v.summary.headline,
-      conversation_id: v.threadId ? v.threadId.replace(/^th-/, "") : null,
-      contact_id: v.clientId,
+    calls: picked.map((call) => ({
+      call_id: call.callId,
+      route: `conversations/cv-${call.callId}`,
+      who: call.who,
+      direction: call.direction,
+      at: call.at,
+      duration: call.duration ?? null,
+      outcome: askCallOutcome(call),
+      ...(abandoned.has(call.callId) ? { abandoned: true } : {}),
+      summary: call.summary.headline,
+      conversation_id: call.threadId ? call.threadId.replace(/^th-/, "") : null,
+      contact_id: call.clientId,
     })),
   };
 }
 
-async function getCall(t: ToolContext, input: { call_id: string }): Promise<unknown> {
+async function getCall(toolContext: ToolContext, input: { call_id: string }): Promise<unknown> {
   const id = str(input.call_id);
   if (!UUID.test(id)) return { error: "call_id must be an id a tool returned" };
   // The call as the Calls page maps it, under this workspace's own filter (readers/call.ts), once a turn; a call not
   // here is the reader's 404.
-  const r = await unlessNotFound(load(t.rc, call, { id }));
-  if (!r) return { error: "no such call in this workspace" };
-  const v = toCallVM(r.data.call, t.timezone, t.now);
+  const result = await readUnlessNotFound(load(toolContext.rc, call, { id }));
+  if (!result) return { error: "no such call in this workspace" };
+  const callVM = toCallVM(result.data.call, toolContext.timezone, toolContext.now);
   // The call and its person, as the reader gave them.
-  noteRows(t.read, r.rows);
+  noteRows(toolContext.read, result.rows);
   return {
     call_id: id,
     route: `conversations/cv-${id}`,
-    who: v.who,
-    direction: v.direction,
-    at: v.at,
-    duration: v.duration ?? null,
-    outcome: askCallOutcome(v),
-    summary: v.summary,
-    recording: v.recordingState,
-    contact_id: v.clientId,
-    transcript: v.transcript
+    who: callVM.who,
+    direction: callVM.direction,
+    at: callVM.at,
+    duration: callVM.duration ?? null,
+    outcome: askCallOutcome(callVM),
+    summary: callVM.summary,
+    recording: callVM.recordingState,
+    contact_id: callVM.clientId,
+    transcript: callVM.transcript
       .slice(0, ASK_CAPS.transcript)
       .map((x) => `${x.speaker === "client" ? "caller" : x.speaker}: ${x.text}`),
-    transcript_turns: v.transcript.length,
+    transcript_turns: callVM.transcript.length,
   };
 }
 

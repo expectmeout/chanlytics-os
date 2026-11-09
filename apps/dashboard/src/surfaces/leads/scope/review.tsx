@@ -6,7 +6,7 @@
  * its workbench.
  */
 import { LEAD_REVIEW_ACT_WORDS, type LeadReviewAct, type LeadReviewGroup, type LeadRowVM } from "@chanlytics/contracts";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import type { TableSection } from "../../kit/table/groups";
 import type { ReviewDoors } from "../bench/types";
 

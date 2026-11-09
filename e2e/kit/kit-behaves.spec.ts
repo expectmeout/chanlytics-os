@@ -13,7 +13,7 @@ import { kitSkeleton, trappedUnder, type SkeletonAsk } from "./kit-behaves-check
  *    (kit-gallery.mjs), element for element (kit-behaves-checks.ts, kitSkeleton). So the gallery that the class,
  *    rule and token checks read (e2e/kit/kit.spec.ts) draws what the components draw. The node suite cannot hold this:
  *    its stub React runs no Base UI hook, and under its react-server condition React has none to run (see
- *    tooling/scripts/tests/styles/kit-components.test.mjs).
+ *    tests/styles/kit-components.test.mjs).
  * 2. What each does, with a keyboard and a pointer: Escape closes the sheet, a menu and the popover and gives focus back
  *    to what opened them; Tab stays inside the sheet, and the page behind it does not scroll; a menu's arrows walk it
  *    and typing finds an item; a switch answers Space and the segmented control the arrows; the combobox narrows its
@@ -28,10 +28,12 @@ import { kitSkeleton, trappedUnder, type SkeletonAsk } from "./kit-behaves-check
  *    is held: each is portaled to the body, under no ancestor that makes a containing block, and stands by its control.
  * And each check is shown to fail when what it checks is broken, on a fault planted in the page, never on disk (one
  * fault for a check, not one for every line of it). It waits by condition, never for a fixed time; a React or Base UI
- * warning in the console fails the run it came in. No CI job runs this spec: the harness page is compiled by the
- * dashboard's tsc, and a pull request that changes a component, or Base UI's version, shows this run.
+ * warning in the console fails the run it came in. It runs each night (nightly-kit.yml) and on no pull request: the
+ * harness page is compiled by the dashboard's tsc, and a pull request that changes a component, or Base UI's version,
+ * shows this run.
  *
- * Production has no gallery: the nightly skips this with a reason its skip ceiling does not count (skip-ceiling.ts).
+ * Production has no gallery: the nightly against it skips this with a reason its skip ceiling does not count
+ * (skip-ceiling.ts).
  */
 test.skip(process.env.E2E_SCENARIO !== "kit", KIT_SKIP_REASON);
 
@@ -79,8 +81,12 @@ async function show(page: Page, theme: Theme = "dark", look: Look = "glass") {
   await page.evaluate(() => document.fonts.ready);
 }
 
+/** A condition the page runs on what it is handed, as Playwright's own wait types it (its PageFunction, not exported). */
+declare const _page: Page;
+type PageCondition<A> = Exclude<Parameters<typeof _page.waitForFunction<boolean, A>>[0], string>;
+
 /** Whether a condition in the page comes true within the wait: the one way this spec waits. */
-async function met<A>(page: Page, predicate: (arg: A) => boolean, arg: A, timeout = WAIT_MS): Promise<boolean> {
+async function met<A>(page: Page, predicate: PageCondition<A>, arg: A, timeout = WAIT_MS): Promise<boolean> {
   try {
     await page.waitForFunction(predicate, arg, { timeout });
     return true;
@@ -129,6 +135,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     ready: "section.sheet.sheet-rests",
   },
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
+  { entry: "menu-kit-who", bring: (p) => p.getByTestId("menu-who-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-lines", bring: (p) => p.getByTestId("menu-lines-open").click(), ready: ".more-menu .more-head" },
   { entry: "menu-kit-switches", bring: (p) => p.getByTestId("menu-switches-open").click(), ready: ".more-menu" },
@@ -1084,10 +1091,15 @@ async function heldByNothing(page: Page, pop: (typeof POPS)[number]): Promise<st
         const b = document.querySelector(control)!.getBoundingClientRect();
         const gap = Math.min(Math.abs(a.top - b.bottom), Math.abs(b.top - a.bottom));
         // A phone's menu is the action sheet, floating just clear of the window's sides and foot (tokens.css
-        // --sheet-float): it stands by its thumb, not its control.
+        // --sheet-float and --sheet-foot, a min() a fixed probe resolves): it stands by its thumb, not its control.
         const float = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sheet-float")) || 0;
+        const probe = document.createElement("div");
+        probe.style.cssText = "position: fixed; bottom: var(--sheet-foot, 0px)";
+        document.body.append(probe);
+        const foot = parseFloat(getComputedStyle(probe).bottom) || 0;
+        probe.remove();
         const sheet =
-          Math.abs(a.bottom - (window.innerHeight - float)) < 2 && a.width >= window.innerWidth - 2 * float - 2;
+          Math.abs(a.bottom - (window.innerHeight - foot)) < 2 && a.width >= window.innerWidth - 2 * float - 2;
         return { gap, reach: b.height * 1.5 + 12, sheet };
       },
       { root: pop.root, control: pop.control },

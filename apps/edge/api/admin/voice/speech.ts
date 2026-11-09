@@ -13,13 +13,20 @@
  * read just before these in the clip this one follows (a reading's first sentence, asked for by itself so the first
  * word is not behind the whole): the vendor reads these as carrying on from them, and is not billed for them.
  */
-import { refuse } from "../../../lib/http.js";
-import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/admin-auth.js";
-import { readBody } from "../../../lib/admin-door.js";
-import { mayUseModelFor } from "../../../lib/model.js";
+import { refuse } from "../../../lib/shared/http.js";
+import { authorizeAdmin, personFor, workspaceFor } from "../../../lib/shared/admin-auth.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { mayUseModelFor } from "../../../lib/ai/model.js";
 import { askSpeechConfigured, speakAskVoice } from "../../../lib/voice/ask-voice.js";
-import { ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, UUID } from "../../../lib/packages/contracts.js";
-import { logger, adminDoor } from "../../../lib/log.js";
+import {
+  ASK_SPEECH_MAX_CHARS,
+  SPEECH_PURPOSES,
+  UUID,
+  VOICE_IS_OFF,
+  VOICE_SPEECH_DOOR,
+  isTenantId,
+} from "@chanlytics/contracts";
+import { logger, adminDoor } from "../../../lib/shared/log.js";
 
 const L = logger();
 
@@ -32,18 +39,12 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
   if (!auth.ok) return auth.response;
   if (!askSpeechConfigured()) return refuse(503, "no_provider_key");
 
-  const body = await readBody<{
-    tenant_id?: string;
-    user_id?: string;
-    text?: string;
-    purpose?: string;
-    before?: string;
-  }>(request);
+  const body = await readBody(request, VOICE_SPEECH_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
   const userId = personFor(auth, body.user_id) ?? "";
-  if (!UUID.test(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
+  if (!isTenantId(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
   const text = typeof body.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
   if (!text) return refuse(400, "bad_request", "text required");
   if (text.length > ASK_SPEECH_MAX_CHARS)
@@ -55,7 +56,7 @@ export const POST = adminDoor(async function POST(request: Request): Promise<Res
 
   if (!(await mayUseModelFor("ask", tenantId))) {
     L.warn("voice_speech_refused", { tenant_id: tenantId, why: "may_not_spend" });
-    return refuse(402, "payment_required", "Voice is off while this workspace is paused or its plan has ended.");
+    return refuse(402, "payment_required", VOICE_IS_OFF);
   }
 
   const spoken = await speakAskVoice(text, before || undefined);

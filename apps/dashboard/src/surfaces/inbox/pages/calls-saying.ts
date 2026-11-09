@@ -8,9 +8,9 @@
  * and a thread's its conversation's).
  */
 import { useEffect, useMemo, useState } from "react";
-import { read } from "@/legacy-bridge/api";
+import { read } from "@/bridge/api";
 import { cvOnePerPerson, inChannel } from "../cv-rules";
-import type { ConversationRow } from "../types";
+import type { ConversationLine } from "../types";
 
 /** How long the box waits after a key before it asks. */
 const ASK_AFTER_KEY_MS = 250;
@@ -59,7 +59,7 @@ function useRowsSaying(query: string): ReadonlySet<string> {
  * when the rows are read anew (each read publishes new ones: kept on a counter only a decision moved, the list and the tabs'
  * counts were the first read's for as long as the page was open, 5 Oct 2026), the tab or the words change.
  */
-export function useCvVisible(rows: readonly ConversationRow[], channel: string, query: string): ConversationRow[] {
+export function useCvVisible(rows: readonly ConversationLine[], channel: string, query: string): ConversationLine[] {
   const saying = useRowsSaying(query);
   return useMemo(() => {
     let list = rows.filter((c) => inChannel(c, channel));

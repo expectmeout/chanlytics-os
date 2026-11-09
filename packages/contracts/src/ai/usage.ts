@@ -1,13 +1,21 @@
 /**
  * What a model call cost: its tokens by kind, and their price at the models' list prices (scorecard move 10; category
- * 39, metering). Every model call the platform makes is written once, through one writer (packages/db ai-usage.ts
+ * 39, metering). Every model call the platform makes is written once, through one writer (packages/db ai/usage.ts
  * recordModelUsage), as one row of the kept ledger (00273 ai_usage); this module is the row's shape and its dollars.
  *
  * Tokens come in four kinds and each has its own price: uncached input, output, a five-minute cache write and a cache
  * read. A budget that counted only input and output missed the writes (the scorecard, 29 September); the ledger keeps
  * all four and the dollars they came to.
  */
-import { MODELS, type ModelId, type ModelPort, type ModelPurpose, type ModelSpeed } from "./models";
+import {
+  hearingDollars,
+  type AiUsagePort,
+  type AiUsagePurpose,
+  type HearingPort,
+  type HearingPurpose,
+} from "./hearing";
+import { MODELS, type ModelId, type ModelSpeed } from "./models/ids";
+import type { ModelPurpose } from "./models/routes";
 
 /**
  * One call's tokens, as the API counts them, and the speed it ran at when that was fast mode (the API's own
@@ -85,29 +93,33 @@ export function priceOf(model: string, speed: ModelSpeed = "standard"): ModelPri
  * The dollars one call came to at list price, at the speed it ran, to a hundredth of a cent's hundredth; null when
  * the model has no price.
  */
-export function usageDollars(model: string, u: ModelUsage): number | null {
-  const p = priceOf(model, u.speed ?? "standard");
-  if (!p) return null;
-  const d =
-    (u.input * p.input + u.output * p.output + u.cacheWrite * p.cacheWrite + u.cacheRead * p.cacheRead) / PER_TOKEN;
-  return Math.round(d * 1_000_000) / 1_000_000;
+export function usageDollars(model: string, modelUsage: ModelUsage): number | null {
+  const price = priceOf(model, modelUsage.speed ?? "standard");
+  if (!price) return null;
+  const item =
+    (modelUsage.input * price.input +
+      modelUsage.output * price.output +
+      modelUsage.cacheWrite * price.cacheWrite +
+      modelUsage.cacheRead * price.cacheRead) /
+    PER_TOKEN;
+  return Math.round(item * 1_000_000) / 1_000_000;
 }
 
 /** Every token of a call, whatever its kind: what a day's cap counts. */
-export function usageTokens(u: ModelUsage): number {
-  return u.input + u.output + u.cacheRead + u.cacheWrite;
+export function usageTokens(modelUsage: ModelUsage): number {
+  return modelUsage.input + modelUsage.output + modelUsage.cacheRead + modelUsage.cacheWrite;
 }
 
 /** The API's own usage object read into the four kinds, and its speed when it says fast; a missing count is zero. */
 export function usageOf(raw: unknown): ModelUsage {
-  const u = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const url = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : 0);
   return {
-    input: n(u.input_tokens),
-    output: n(u.output_tokens),
-    cacheRead: n(u.cache_read_input_tokens),
-    cacheWrite: n(u.cache_creation_input_tokens),
-    ...(u.speed === "fast" ? { speed: "fast" as const } : {}),
+    input: n(url.input_tokens),
+    output: n(url.output_tokens),
+    cacheRead: n(url.cache_read_input_tokens),
+    cacheWrite: n(url.cache_creation_input_tokens),
+    ...(url.speed === "fast" ? { speed: "fast" as const } : {}),
   };
 }
 
@@ -129,7 +141,8 @@ export type ModelCallOutcome = (typeof MODEL_CALL_OUTCOMES)[number];
 /** One row of the ledger, as the writer takes it (the wire: snake_case, as the table). */
 export interface AiUsageBody {
   tenant_id: string;
-  purpose: ModelPurpose;
+  /** An Anthropic route's purpose, or a hearing model's (hearing.ts). */
+  purpose: AiUsagePurpose;
   /** The model the purpose asked first. */
   model_asked: string;
   /** The model that answered: the fallback's when it answered, the API's own name for it. */
@@ -150,9 +163,9 @@ export interface AiUsageBody {
   /**
    * A shadow call's own columns (00275; shadow.ts): the port it left by, and, for a question it answered, the label the
    * primary gave, the label the shadow gave, how sure it was, whether that cleared the line, and whether they agree.
-   * A row the model port writes for the primary carries none of them.
+   * A row the model port writes for the primary carries none of them; a hearing model's row names its port (hearing.ts).
    */
-  port?: ModelPort;
+  port?: AiUsagePort;
   shadow?: boolean;
   question?: string | null;
   primary_answer?: string | null;
@@ -199,6 +212,45 @@ export function aiUsageBodyOf(call: {
     prompt_hash: call.promptHash ?? null,
     user_id: call.userId ?? null,
     subject_id: call.subjectId ?? null,
+    ...(call.error
+      ? {
+          error_type: call.error.type.slice(0, 80) || null,
+          error_message: call.error.message.slice(0, AI_USAGE_ERROR_CHARS) || null,
+        }
+      : {}),
+  };
+}
+
+/** One hearing call's row of the ledger. */
+export function hearingUsageBodyOf(call: {
+  tenantId: string;
+  purpose: HearingPurpose;
+  port: HearingPort;
+  model: string;
+  outcome: ModelCallOutcome;
+  input: number;
+  output: number;
+  /** Seconds of audio heard, for a model priced by the hour. */
+  seconds?: number;
+  userId?: string | null;
+  subjectId?: string | null;
+  error?: { type: string; message: string } | null;
+}): AiUsageBody {
+  return {
+    tenant_id: call.tenantId,
+    purpose: call.purpose,
+    model_asked: call.model,
+    model: call.model,
+    outcome: call.outcome,
+    input_tokens: Math.max(0, Math.round(call.input)),
+    output_tokens: Math.max(0, Math.round(call.output)),
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    usd: hearingDollars(call.model, { input: call.input, output: call.output, seconds: call.seconds ?? 0 }),
+    prompt_hash: null,
+    user_id: call.userId ?? null,
+    subject_id: call.subjectId ?? null,
+    port: call.port,
     ...(call.error
       ? {
           error_type: call.error.type.slice(0, 80) || null,

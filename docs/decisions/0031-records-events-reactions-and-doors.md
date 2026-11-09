@@ -2,8 +2,8 @@
 
 **Status:** Decided on 6 October 2026 (Ruben: "all approved"); of Phase 0, the fixes (00330, 00331) and the five numbers
 (00332) are built; of Phase 1, the spine (00333 to 00336, through 0032 and 0033), intake lag (00337), the event-shaped
-clocks ratchet that holds invariant 6 (`tooling/scripts/tests/clocks/_clocks.mjs`) and the writers-per-table ratchet that
-shows invariant 1 (`tooling/scripts/tests/baselines/writers.json`); of Phase 2, 0034's door with every writer on it and
+clocks ratchet that holds invariant 6 (`tests/clocks/_clocks.mjs`) and the writers-per-table ratchet that
+shows invariant 1 (`tests/baselines/writers.json`); of Phase 2, 0034's door with every writer on it and
 its doubt queue (00342 and 00344, 7 October 2026); the rest is not yet built: this note is the frame, and each step below is a note of its own,
 three of them decided with it (0032, 0033, 0034), and "Where it stands" below says, phase by phase and invariant by
 invariant, what is built and what is not, and its entry of 9 October 2026 what that day's review against production
@@ -17,9 +17,9 @@ code. Where this note and the code disagree, the code wins.
 
 ### Inside each area the rules hold; between areas a fact is pulled
 
-Everything a customer receives leaves through one door, `packages/core/src/deliver.ts`, which re-reads consent, the
+Everything a customer receives leaves through one door, `packages/core/src/deliver/deliver.ts`, which re-reads consent, the
 pause and the workspace's status at the wire and refuses rather than guesses. Every route declares its policy with
-`route()` (`apps/dashboard/src/server/route.ts`), pinned in `tooling/scripts/tests/route-policy.json`. The state
+`route()` (`apps/dashboard/src/server/shared/route.ts`), pinned in `tests/route-policy.json`. The state
 machines live in the database where every writer passes them (`messages_guard`, `jobs_guard`, 00106). Decisions are
 pure functions proved over a database in memory (`planSmsIngress`, `planResendEvent`, `planCallEvent`, `replyPosture`).
 None of that changes here.
@@ -28,7 +28,7 @@ Between the five areas it is different. Traced on 5 October 2026, a fact made in
 four ways: in the writer's own transaction (6 of 38 wires), pushed as a job or a notice (4), noticed later by a clock
 (9), or worked out again by whoever read it (19). The `events` ledger records what happened (`supabase/schema.sql`,
 `events`: a kind, a subject, `request_id` from the caller's header, the kind's schema `version` since 00264) and
-nothing subscribes to it: no table names a subscriber, no trigger wakes a reader, and `packages/jobs/src/schedule.ts`
+nothing subscribes to it: no table names a subscriber, no trigger wakes a reader, and `packages/jobs/src/runner/schedule.ts`
 enqueues with a plain insert that only pg_cron's ten-second poll notices (`trigger_jobs_tick`, 00098).
 
 Three gaps follow from that, each traced to its lines:
@@ -36,14 +36,14 @@ Three gaps follow from that, each traced to its lines:
 - **No appointment is a record.** The owner's calendar is one iCal address (`tenant_config.config.calendar.ical_url`)
   fetched and parsed by every reader that needs a time: the receptionist (`apps/edge/lib/calendar/availability.ts`),
   the board and People (`apps/dashboard/src/server/calendar/`), Reports, the visit playbooks
-  (`apps/edge/lib/playbooks.ts`), the sweep (`apps/edge/lib/calendar/calendar-sweep.ts`). Two caches per instance can
+  (`apps/edge/lib/campaigns/playbooks/playbooks.ts`), the sweep (`apps/edge/lib/calendar/sweep.ts`). Two caches per instance can
   disagree for up to thirty minutes, a reminder frozen into a run goes after a cancellation, and the product learns of
   a booking only when the feed shows it. 0002 decided the record on 21 September 2026 and it is not built.
 - **A person has nine writers, and a merge only by hand.** `ingest_inbound` (00110), `ingest_call` (00164),
   `create_person` (00053), `import_person` (00263), the calendar sweep's own insert
-  (`apps/edge/lib/calendar/calendar-people.ts`), `lead_set_stage` (00220), `reach_out_person` (00184), the call's
+  (`apps/edge/lib/calendar/people.ts`), `lead_set_stage` (00220), `reach_out_person` (00184), the call's
   booking link (`apps/edge/lib/voice/call-booking-link.ts`) and the email backfill
-  (`packages/db/src/repositories/email.ts`) each match their own way; `contacts.merged_into_contact_id` was only ever
+  (`packages/db/src/repositories/email/email.ts`) each match their own way; `contacts.merged_into_contact_id` was only ever
   cleared (00027, 00151) until 00326 (decision 0028, 5 October 2026) let an owner merge two records through one door,
   named by hand and never by a match; and until 00331 `create_person` never asked whether a number had been erased, so
   opening the Calendar could bring back a person who asked to be forgotten
@@ -51,7 +51,7 @@ Three gaps follow from that, each traced to its lines:
 - **Every multi-step process is status columns and a clock.** Thirty-one pg_cron jobs run on 5 October 2026 (sixteen
   of them calling an edge door through `request_sweep`, 00086); ten do work that is a due time or a reaction (the job
   poll, two ten-second scans of `conversations`, the two reach-out clocks, the deadman, the lines, notes, playbooks and
-  calendar sweeps). Only line provisioning keeps saga state (`packages/channels/src/lines/lines-saga.ts`). Moments,
+  calendar sweeps). Only line provisioning keeps saga state (`packages/channels/src/lines/saga.ts`). Moments,
   reach-out chains and broadcasts are three schedulers for one job; WhatsApp connect, carrier registration and the
   Google callback run provider calls inside the owner's request; a configuration save is live at the next message,
   with no version and no rollback (`packages/db/src/repositories/control-plane.ts`).
@@ -79,20 +79,20 @@ reconcilers. **Doors** are where privilege or irreversibility lives: `route()`, 
 `deliver()`, a provider's webhook. In one sentence: one record, one door, one event; many reactions after the commit;
 one guarded way out.
 
-| #   | Invariant                                                                                                                   | Mechanism                                                                                            | Held by                                                                                       | Shown by                      |
-| --- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------- |
-| 1   | One record for each thing, and one door writes it                                                                           | SQL doors and core verbs; `resolve_person` for people (0034)                                         | A table-to-door registry test; the table-names ratchet keeps falling                          | Writers per table             |
-| 2   | A fact and its event share a transaction, and no door names a subscriber                                                    | `events` written inside the door; subscriptions as rows; the relay after the commit (0032)           | A conformance test per door: after it runs, its event exists; a doors-without-events baseline | Relay lag                     |
-| 3   | Below the commit line, everything is at least once and idempotent                                                           | One delivery per event and subscriber; `jobs.dedupe_key`; projectors apply by version (0032, 0033)   | The double-delivery harness: a subscriber run twice on one delivery leaves the same rows      | Dead letters by subscriber    |
-| 4   | A send to a person is at most once                                                                                          | `deliver()` claims the row before the wire; `SPEAKS_TO_A_PERSON` (`packages/jobs/src/ledger.ts`)     | The existing suite, unchanged                                                                 | Duplicate sends, target zero  |
-| 5   | Order is per subject; a reader applies by version                                                                           | `aggregate_version` on the event; a projector ignores what is older than it holds (0032)             | A projector fed out of order ends in the same state                                           | Stale notices skipped         |
-| 6   | Time is a row                                                                                                               | A timer is a job's `due_at`; a clock only reconciles, judges or purges (0033)                        | An event-shaped-clocks baseline that may only fall                                            | Timer punctuality             |
-| 7   | Capacity and fairness are rows, counted in the claim                                                                        | `job_capacity` read by `claim_due_jobs`; lanes 0 and 1 take turns as lane 2 does (0033)              | Claim tests over a database in memory, and `jobs/jobs-lanes.db.test.mjs`                      | Lane lag per workspace        |
-| 8   | Configuration is published; the runtime is keyed by a version; providers are converged to it, and drift is a fact           | Published versions; reconcilers writing observed provider state (a note to come)                     | Publish and reconciler tests                                                                  | Drift count; time to converge |
-| 9   | Readiness is one predicate                                                                                                  | A `capabilities` projection read by Setup, the gates and the back office (a note to come)            | Three readers import one function                                                             | Capabilities false, with why  |
-| 10  | Every table has a tenant, a floor and an erasure strategy                                                                   | RLS and the revokes (00120 to 00122); an erasure registry (a note to come)                           | `database/tenancy.db.test.mjs`, which exists; a registry test naming an unregistered column   | Erasure completeness          |
-| 11  | Every model turn is a record, and a change to what the receptionist says is tested on recorded turns before it is published | `model_turns`; evals over them; a shadow canary for a new version (a note to come; 0023 is the base) | The publish gate                                                                              | Hold rate; override rate      |
-| 12  | Every promise has a number with a target                                                                                    | Columns on `platform_metrics` (00277) and alarms on them                                             | A test that every number names a target, as `docs/debt.md`'s register holds its rows          | The numbers below             |
+| #   | Invariant                                                                                                                   | Mechanism                                                                                               | Held by                                                                                       | Shown by                      |
+| --- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------- |
+| 1   | One record for each thing, and one door writes it                                                                           | SQL doors and core verbs; `resolve_person` for people (0034)                                            | A table-to-door registry test; the table-names ratchet keeps falling                          | Writers per table             |
+| 2   | A fact and its event share a transaction, and no door names a subscriber                                                    | `events` written inside the door; subscriptions as rows; the relay after the commit (0032)              | A conformance test per door: after it runs, its event exists; a doors-without-events baseline | Relay lag                     |
+| 3   | Below the commit line, everything is at least once and idempotent                                                           | One delivery per event and subscriber; `jobs.dedupe_key`; projectors apply by version (0032, 0033)      | The double-delivery harness: a subscriber run twice on one delivery leaves the same rows      | Dead letters by subscriber    |
+| 4   | A send to a person is at most once                                                                                          | `deliver()` claims the row before the wire; `SPEAKS_TO_A_PERSON` (`packages/jobs/src/runner/ledger.ts`) | The existing suite, unchanged                                                                 | Duplicate sends, target zero  |
+| 5   | Order is per subject; a reader applies by version                                                                           | `aggregate_version` on the event; a projector ignores what is older than it holds (0032)                | A projector fed out of order ends in the same state                                           | Stale notices skipped         |
+| 6   | Time is a row                                                                                                               | A timer is a job's `due_at`; a clock only reconciles, judges or purges (0033)                           | An event-shaped-clocks baseline that may only fall                                            | Timer punctuality             |
+| 7   | Capacity and fairness are rows, counted in the claim                                                                        | `job_capacity` read by `claim_due_jobs`; lanes 0 and 1 take turns as lane 2 does (0033)                 | Claim tests over a database in memory, and `jobs/jobs-lanes.db.test.mjs`                      | Lane lag per workspace        |
+| 8   | Configuration is published; the runtime is keyed by a version; providers are converged to it, and drift is a fact           | Published versions; reconcilers writing observed provider state (a note to come)                        | Publish and reconciler tests                                                                  | Drift count; time to converge |
+| 9   | Readiness is one predicate                                                                                                  | A `capabilities` projection read by Setup, the gates and the back office (a note to come)               | Three readers import one function                                                             | Capabilities false, with why  |
+| 10  | Every table has a tenant, a floor and an erasure strategy                                                                   | RLS and the revokes (00120 to 00122); an erasure registry (a note to come)                              | `database/tenancy.db.test.mjs`, which exists; a registry test naming an unregistered column   | Erasure completeness          |
+| 11  | Every model turn is a record, and a change to what the receptionist says is tested on recorded turns before it is published | `model_turns`; evals over them; a shadow canary for a new version (a note to come; 0023 is the base)    | The publish gate                                                                              | Hold rate; override rate      |
+| 12  | Every promise has a number with a target                                                                                    | Columns on `platform_metrics` (00277) and alarms on them                                                | A test that every number names a target, as `docs/debt.md`'s register holds its rows          | The numbers below             |
 
 What the framework refuses, each considered: event sourcing (records stay the truth; evidence events are purged at
 thirty days, 00115, and RLS, the doors and the tenancy proof stand on records); a message broker (the ledger has lanes,
@@ -121,8 +121,8 @@ Each phase ends on a number, not a feeling, and each step ships in either deploy
 
 **0 · Fix, instrument, stage.** The defects the trace found, each with a test: `create_person` refusing an erased
 number (00331, with 0034); the runtime stamp covering channels, listings and lines (00330); a WhatsApp number routing
-only once its token is in Vault (`apps/edge/lib/whatsapp/connect-number.ts`); the booking door handed the newest
-appointments first (`packages/contracts/src/reach-out/reach-out-booked.ts`); the calendar sweep under a time budget;
+only once its token is in Vault (`apps/edge/lib/connections/whatsapp-number.ts`); the booking door handed the newest
+appointments first (`apps/edge/lib/calendar/reach-out-booked-rule.ts`); the calendar sweep under a time budget;
 the dashboard's assemble port keeping the counted list; the merge-conflict remnant in `apps/edge/lib/sms/inbound-text.ts`.
 Then five numbers in SQL before anything moves, built as 00332 (columns of `platform_metrics`, rolled nightly and read
 on the back office: lag per lane from `jobs.fired_at - due_at` at the 95th percentile, time to first answer per channel
@@ -145,11 +145,11 @@ for a cancelled appointment, the calendar creates no duplicate person in a week,
 answers.
 
 **3 · The receptionist as a governed system.** The runtime generalised from the reminder (the line saga first);
-WhatsApp after the acknowledgement once the App Review contract (`apps/edge/lib/whatsapp/webhook.ts`) is re-read;
+WhatsApp after the acknowledgement once the App Review contract (`apps/edge/lib/intake/whatsapp.ts`) is re-read;
 0001 steps 2 to 8; one action registry and one policy evaluator for text, voice, Ask and journeys (0027 steps 2 and
 3); one record for every wait on a person, where today there are four (an escalation, a run `pending_approval`, a
 send `held`, an Ask card); every model turn a record, with a grounding check as the reach-out check already makes
-(`packages/contracts/src/reach-out/reach-out-opening.ts`, `facts_used`, `unbacked`). Each a note of its own.
+(`packages/contracts/src/campaigns/reach-out/opening.ts`, `facts_used`, `unbacked`). Each a note of its own.
 
 **4 · Orchestration and the control plane.** Journeys in place of moments, chains and follow-ups; timers in place of
 the scans; configuration as published versions with a canary in shadow and a rollback that is a publish; reconcilers
@@ -213,7 +213,7 @@ between the provider's yes and the reply's row). A run that waited is approved t
 job and its decision together (`approve_broadcast`, 00353), which is invariant 1's shape for one more record. And
 Phase 3's first step is built behind a switch: a WhatsApp message of a workspace the edge names
 (`WHATSAPP_ANSWERS_AS_JOBS`) is recorded, its answer scheduled as the same `inbound_answer` job a text's is, and
-acknowledged (`apps/edge/lib/whatsapp/answer-later.ts`). Unset, which is the default, the webhook answers inside
+acknowledged (`apps/edge/lib/intake/answer-later.ts`). Unset, which is the default, the webhook answers inside
 Meta's request as its reviewed contract says; the switch is how the road is tried on one workspace's traffic before
 that contract is changed for all.
 
@@ -343,13 +343,13 @@ How many phases are left: three lanes (0046), with Phase 0's four switches besid
 every WhatsApp message is recorded at its door and answered by its `inbound_answer` job, as a text and a DM are, and
 the switch that tried it (`WHATSAPP_ANSWERS_AS_JOBS`) and the in-request road are deleted (open question 2 above).
 The three doors share one adapter (`apps/edge/lib/inbound/arrival.ts`: record, then schedule); a turn ends by its job's
-deadline; a message and the yeses it carries are kept in one transaction (00534); every gate that asks a person hands
+deadline; a message and the yeses it carries are kept in one transaction (00576); every gate that asks a person hands
 the message over one way (core `handToAPerson`); and the order a message is taken through is said once, as data (core
 `INBOUND_GATES`, written out as `docs/inbound-gates.md`).
 
 ## Tests
 
-The invariants' holds, each a baseline under `tooling/scripts/tests/baselines/` that may only fall, in
+The invariants' holds, each a baseline under `tests/baselines/` that may only fall, in
 `docs/debt.md`'s register: event-shaped clocks (ten on 5 October 2026); doors that write a record with no event (built
 10 October 2026); subscribers with no double-delivery test; personal columns with no erasure strategy; tables with more than one
 writer. Each arrives with the note that builds its mechanism.

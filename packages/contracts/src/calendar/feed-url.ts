@@ -28,17 +28,22 @@ const PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.
 export function feedUrlOk(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u: URL;
+  let parsedUrl: URL;
   try {
-    u = new URL(url);
+    parsedUrl = new URL(url);
   } catch {
     return null;
   }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+  if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") return null;
+  const hostname = parsedUrl.hostname;
+  if (
+    PRIVATE_HOST.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+    CARRIER_NAT.test(hostname) ||
+    PRIVATE_V6.test(hostname)
+  )
     return null;
-  return u.toString();
+  return parsedUrl.toString();
 }
 
 /** A redirect is followed this many times at most: an http to https hop and a host move are what a calendar does. */
@@ -63,6 +68,7 @@ export async function fetchPublic(
     const res = await fetchImpl(at, { ...init, redirect: "manual" });
     if (res.status >= 300 && res.status < 400) {
       const next = res.headers.get("location");
+      // Closing what this is done with: nothing to do if that fails.
       await res.body?.cancel().catch(() => undefined);
       at = next ? feedUrlOk(URL.canParse(next, at) ? new URL(next, at).toString() : null) : null;
       continue;

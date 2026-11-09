@@ -7,7 +7,7 @@
  * Google is its own: the key that signs the OAuth state.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
+import type { Database } from "@chanlytics/db/types";
 import {
   appLink,
   listingFactsOf,
@@ -17,32 +17,28 @@ import {
   type GoogleListingDto,
   type GoogleListingFacts,
   DAY_MS,
+  DbFailure,
 } from "@chanlytics/contracts";
 
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
-import { deployment, env } from "../env";
-
-const LISTING_COLUMNS =
-  "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
-// The reply the receptionist holds, and when it goes under Holds it (00462, decision 0064 step 6), with the rest.
-const REVIEW_COLUMNS =
-  "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, draft_text, posts_at, maps_uri, first_seen_at";
-/** Never the credentials name: the row says who and when, not where the token is. */
-export const CONNECTION_COLUMNS =
-  "google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
+import { deployment, env } from "../shared/env";
+import {
+  findConnectionCard,
+  findGoogleListingFacts,
+  findListingCard,
+  listListingDaysSince,
+  listRecentReviews,
+} from "@chanlytics/db/google";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The reviews a screen shows; the rest are on Google. */
 const REVIEWS_SHOWN = 20;
 /** Days of snapshots the longest report period reads, with one to spare. */
 const DAYS_KEPT = 92;
 
-export async function listingFor(db: SupabaseClient<Database>, tenantId: string): Promise<GoogleListingDto | null> {
-  const { data, error } = await db
-    .from("google_listings")
-    .select(LISTING_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+export async function findListing(db: SupabaseClient<Database>, tenantId: TenantId): Promise<GoogleListingDto | null> {
+  const { data, error } = await findListingCard(db, tenantId);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -50,29 +46,21 @@ export async function listingFor(db: SupabaseClient<Database>, tenantId: string)
  * The listing's name and address, and Google's facts as the edge stored them (contracts listingFactsOf), which no read
  * above hands the browser: what the first receptionist is built from, and what the first run's Check asks about.
  */
-export async function listingFactsFor(
+export async function findListingFacts(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ name: string; address: string | null; facts: GoogleListingFacts | null } | null> {
-  const { data, error } = await db
-    .from("google_listings")
-    .select("name, address, facts")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const { data, error } = await findGoogleListingFacts(db, tenantId);
+  if (error) throw new DbFailure(error);
   return data ? { name: data.name, address: data.address, facts: listingFactsOf(data.facts) } : null;
 }
 
-export async function connectionFor(
+export async function findConnection(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<GoogleConnectionDto | null> {
-  const { data, error } = await db
-    .from("google_connections")
-    .select(CONNECTION_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const { data, error } = await findConnectionCard(db, tenantId);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -82,30 +70,21 @@ export async function connectionFor(
  * listing has none, and they need not wait to learn so). `now` is the turn's clock, which says how far back the days go.
  * The Google reader (readers/connections.ts) adds the Autonomy row to it.
  */
-export async function googleRead(
+export async function getGoogle(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   now: number,
 ): Promise<Omit<GoogleReadDto, "reply_mode">> {
   const sinceDay = new Date(now - DAYS_KEPT * DAY_MS).toISOString().slice(0, 10);
   const [listing, connection, reviews, days] = await Promise.all([
-    listingFor(db, tenantId),
-    connectionFor(db, tenantId),
-    db
-      .from("google_reviews")
-      .select(REVIEW_COLUMNS)
-      .eq("tenant_id", tenantId)
-      .order("published_at", { ascending: false, nullsFirst: false })
-      .limit(REVIEWS_SHOWN),
-    db
-      .from("google_listing_days")
-      .select("day, rating, review_count")
-      .eq("tenant_id", tenantId)
-      .gte("day", sinceDay)
-      .order("day", { ascending: true }),
+    findListing(db, tenantId),
+    findConnection(db, tenantId),
+    // The reply the receptionist holds, and when it goes under Holds it (00462, decision 0064 step 6), with the rest.
+    listRecentReviews(db, tenantId, REVIEWS_SHOWN),
+    listListingDaysSince(db, tenantId, sinceDay),
   ]);
-  if (reviews.error) throw new Error(reviews.error.message);
-  if (days.error) throw new Error(days.error.message);
+  if (reviews.error) throw new DbFailure(reviews.error);
+  if (days.error) throw new DbFailure(days.error);
   return {
     listing,
     connection,
@@ -115,7 +94,10 @@ export async function googleRead(
 }
 
 /** One call to the edge's google endpoint. Never throws: a failure is a status the caller reads. */
-export async function edgeGoogle(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
+export async function callEdgeGoogle(
+  body: EdgeBody<"/api/admin/google">,
+  timeoutMs = 20_000,
+): Promise<EdgeAnswer<EdgeRead<"/api/admin/google">>> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate the other provider doors keep: a preview never reaches Google under the business's name.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
@@ -144,20 +126,14 @@ let googleReadyCache: { at: number; value: GoogleReadiness } | null = null;
  * page loads. Unreachable edge → nothing, so nothing draws a verb that
  * cannot work.
  */
-export async function googleReadiness(now = Date.now()): Promise<GoogleReadiness> {
+export async function getGoogleReadiness(now = Date.now()): Promise<GoogleReadiness> {
   if (googleReadyCache && now - googleReadyCache.at < READY_TTL_MS) return googleReadyCache.value;
-  const a = await edgeGoogle({ op: "status" }, 4_000);
-  const b = a.body ?? {};
-  const ready =
-    b.ready && typeof b.ready === "object"
-      ? (b.ready as Partial<Record<"places" | "profile" | "audience", unknown>>)
-      : null;
-  const oauth =
-    b.profile && typeof b.profile === "object"
-      ? (b.profile as Partial<Record<"client_id" | "redirect_uri", unknown>>)
-      : null;
+  const answer = await callEdgeGoogle({ op: "status" }, 4_000);
+  const body = answer.body ?? {};
+  const ready = body.ready ?? null;
+  const oauth = body.profile ?? null;
   const value: GoogleReadiness =
-    a.status === 200 && b.ok === true && ready
+    answer.status === 200 && body.ok === true && ready
       ? {
           places: ready.places === true,
           profile:
@@ -195,17 +171,17 @@ export function stateSecret(): string | null {
 export function afterGoogle(
   origin: string,
   outcome: string,
-  why?: string,
+  reason?: string,
   to: { slug?: string | null; backTo?: string | null } = {},
 ): string {
   // The first run's Your business asked (decision 0073, R17): back to it, the outcome said there.
   const page = to.backTo === "start" ? "start/business" : "admin/integrations";
-  return `${origin}${appLink(to.slug, page, { google: outcome, why: why || null })}`;
+  return `${origin}${appLink(to.slug, page, { google: outcome, why: reason || null })}`;
 }
 
 /** The edge's word on the listing read that follows a link or a choice: what it found, or why it could not look. */
 type ReadOutcome = { ok: true; fresh: number; counted: number } | { ok: false; error: string };
 
-export function readOutcome(v: unknown): ReadOutcome | null {
-  return v && typeof v === "object" ? (v as ReadOutcome) : null;
+export function readOutcome(value: unknown): ReadOutcome | null {
+  return value && typeof value === "object" ? (value as ReadOutcome) : null;
 }

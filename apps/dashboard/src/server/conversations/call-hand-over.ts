@@ -4,16 +4,16 @@
  * the decision recorded last. The route declares who may and how often.
  */
 import { AppError, parseTenantConfigResult } from "@chanlytics/contracts";
-import { configRowOf } from "@/server/workspace/config-row";
-import { recordDecision, type VerbCall } from "@/server/verbs";
+import { findConfigRow } from "@/server/workspace/config-row";
+import { recordDecision, type VerbCall } from "@/server/shared/verbs";
 import { handOverLiveCall } from "@/server/conversations/live-call";
-import type { RouteContext } from "@/server/with-route";
+import type { RouteContext } from "@/server/shared/with-route";
 
 export async function passCallToOwnerLine(ctx: RouteContext, call: VerbCall) {
   if (call.status !== "ongoing") {
     throw new AppError("conflict", "This call is not in progress — there is nobody on the line to pass to you.", 409);
   }
-  const row = await configRowOf(ctx.supabase, call.tenant_id);
+  const row = await findConfigRow(ctx.supabase, call.tenant_id);
   const parsed = parseTenantConfigResult(row?.config);
   const line = parsed.ok ? (parsed.config.brain?.profile?.handoff_number ?? null) : null;
   if (!line) {

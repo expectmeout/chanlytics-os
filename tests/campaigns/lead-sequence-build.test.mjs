@@ -1,0 +1,841 @@
+/**
+ * A sequence to leads written on its record (the lead-to-sequence canvas's Build boards, 18 Oct 2026: the draft is the
+ * record, campaigns/sequences/leads/), run on the stub React over the real hook and parts with the wire answered here:
+ *
+ * - The chain (use-chain.ts): a change is saved through the record's own door (PUT sequences/:id/chain), the chain's body
+ *   less its list and under the record's name; new steps take the ids the save gave them; the auto-add switch saves at
+ *   once; a refused save says the door's words and stands failed.
+ * - A step's sheet (step-sheet.tsx): the first step has no Take out and a later one says how long it waits; Take out
+ *   closes the sheet and says so with Undo, which puts the step back where it stood, as new. Ask rewrites it asks what
+ *   should change there, the email in sight, and the answer stands in the box as if typed, with Undo.
+ * - Preview as a real lead (preview.tsx): nobody in it yet reads as the example business, said so, with the foot the send
+ *   writes under it (why they hear from you, the business and its address), and none while the address is not set.
+ * - Send me a test: what is typed is saved first, then the step goes to your own inbox as the lead previewed gets it.
+ *
+ * The composer's sheet these replace (reach-out/sheet.tsx) and its tests went with it.
+ */
+import { test, beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import { until } from "../shared/_until.mjs";
+import * as contracts from "@chanlytics/contracts";
+import { installStubReact, fresh, again, find, byTestId, textOf, press, settle, unmount } from "../_stub-react.mjs";
+
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
+const W = globalThis;
+Object.assign(W, {
+  CHANLY: { nav: () => {}, R: {} },
+  appNavigate: () => {},
+  // The role store's gate (the frame's window.gate, canDo), over an owner and contracts' table.
+  ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
+  __roleGate: contracts.roleGate,
+  useHotkey: () => {},
+});
+const SRC = "../../apps/dashboard/src";
+(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+const S = "../../apps/dashboard/src/surfaces";
+const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+const { sequenceVerbs } = await import(`${S}/campaigns/sequences/verbs.ts`);
+const { reachOuts } = await import(`${S}/campaigns/reach-out/surface.ts`);
+const { Sheet } = await import(`${S}/kit/sheet/sheet.tsx`);
+const { EmailAs } = await import(`${S}/campaigns/sequences/place/email-as.tsx`);
+const { useLeadChain } = await import(`${S}/campaigns/sequences/leads/use-chain.ts`);
+const { LeadStepSheet } = await import(`${S}/campaigns/sequences/leads/step-sheet.tsx`);
+const { LeadPreview } = await import(`${S}/campaigns/sequences/leads/preview.tsx`);
+const { LeadRunsSheet } = await import(`${S}/campaigns/sequences/leads/runs-sheet.tsx`);
+
+const SEQ = "seq-1";
+const chainOf = (over = {}) => ({
+  root_id: SEQ,
+  name: "Gift shops · fall",
+  search: { id: "list-1", name: "Gift shops · fall" },
+  state: "paused",
+  include_unconfirmed: false,
+  gap_minutes: 12,
+  mailbox_ids: [],
+  owner_sends: true,
+  signed_by: "Sam",
+  created_at: "2026-10-18T00:00:00Z",
+  mailboxes: [],
+  steps: [
+    {
+      id: "st-1",
+      n: 0,
+      after_days: null,
+      subject: "A quick one for {{business}}",
+      body: "{{opening}}\n\n{{your name}}",
+      template_id: "t1",
+      state: "paused",
+    },
+    { id: "st-2", n: 1, after_days: 4, subject: null, body: "Just checking in.", template_id: "t2", state: "paused" },
+  ],
+  next: { run_hour: 9, last_run_for: null, mode: "ask", may_spend: true, waiting_run_id: null },
+  ...over,
+});
+/** The record as GET sequences/:id answers a sequence to leads: its row and its chain. */
+const recOf = (chain = chainOf()) => ({
+  sequence: { id: SEQ, name: "Gift shops · fall (renamed)", in_it: 0, needs: { held: 0 } },
+  chain,
+});
+
+/** The wire: each request recorded, answered by the route it names. */
+let wire = [];
+let answer = () => ({ ok: true, data: {} });
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+W.fetch = async (url, init = {}) => {
+  const path = new URL(String(url), "https://app.example").pathname.replace(/^.*\/api\/v1\//, "");
+  const call = [init.method || "GET", path, init.body ? JSON.parse(init.body) : null];
+  wire.push(call);
+  const r = answer(call);
+  return r.ok ? json(200, r) : json(r.status ?? 422, { ok: false, error: { code: "invalid", message: r.message } });
+};
+// Nobody is in it yet: its people read as none, so the preview reads as the example business.
+sequenceVerbs.people = async () => ({ ok: true, status: 200, data: { rows: [] } });
+sequenceVerbs.peekPeople = () => ({ ok: true, status: 200, data: { rows: [] } });
+
+let flashes = [];
+let lc = null;
+function Probe({ rec }) {
+  lc = useLeadChain(
+    rec,
+    (f) => flashes.push(f),
+    () => {},
+  );
+  return null;
+}
+const drawChain = (rec = REC_CHAIN) => again(() => W.React.createElement(Probe, { rec }));
+let REC_CHAIN = recOf();
+
+beforeEach(() => {
+  unmount();
+  fresh();
+  wire = [];
+  flashes = [];
+  lc = null;
+  REC = recOf();
+  REC_CHAIN = recOf();
+  answer = ([m, p]) =>
+    m === "PUT" && p === `sequences/${SEQ}/chain`
+      ? { ok: true, data: { step_ids: ["st-1", "st-2", "st-3"] } }
+      : { ok: true, data: {} };
+  setSurfaceValue("settings", {
+    settings: {
+      config: { brain: { business_name: "Harbor Studio", profile: { address: "1200 Barton Springs Rd, Austin, TX" } } },
+    },
+  });
+});
+
+/* ------------------------------------------------------------------ the chain */
+
+test("a change is saved through the record's chain: the chain's body less its list, under the record's name; a new step takes the id the save gave it", async () => {
+  drawChain();
+  lc.edit((d) => contracts.reachOutAddStep(d));
+  drawChain();
+  assert.equal(lc.draft.steps.length, 3);
+  assert.equal(lc.draft.steps[2].id, null, "a new step has no id until it is saved");
+  const ids = await lc.flush();
+  const puts = wire.filter(([m]) => m === "PUT");
+  assert.equal(puts.length, 1, "one save for the change");
+  const [, path, body] = puts[0];
+  assert.equal(path, `sequences/${SEQ}/chain`, "the record's own door, by the sequence");
+  assert.equal("search_id" in body, false, "its list is the sequence's own, never sent");
+  assert.equal(body.name, "Gift shops · fall (renamed)", "the record's name, never the one the draft opened with");
+  assert.equal(body.steps.length, 3);
+  assert.deepEqual(ids, ["st-1", "st-2", "st-3"]);
+  drawChain();
+  assert.equal(lc.draft.steps[2].id, "st-3", "the next save changes it rather than adding another");
+  assert.equal(lc.saving, "saved");
+});
+
+test("the auto-add switch saves at once, with the search new ready leads join from, or none", async () => {
+  drawChain();
+  lc.setSource("s-9");
+  await settle();
+  lc.setSource(null);
+  await settle();
+  const bodies = wire.filter(([m]) => m === "PUT").map(([, , b]) => b.source_search_id);
+  assert.deepEqual(bodies, ["s-9", null]);
+});
+
+test("a refused save says the door's words and stands failed, and what was typed is kept", async () => {
+  answer = () => ({ ok: false, status: 422, message: "Step 2 needs words before it can go." });
+  drawChain();
+  lc.edit((d) => ({ ...d, steps: d.steps.map((s, i) => (i === 1 ? { ...s, body: "" } : s)) }));
+  drawChain();
+  assert.equal(await lc.flush(), null);
+  drawChain();
+  assert.equal(lc.saving, "failed");
+  assert.match(textOf(flashes.at(-1).msg), /Step 2 needs words before it can go\./);
+  assert.equal(lc.draft.steps[1].body, "", "the draft stands as typed");
+});
+
+/* ---------------------------------------------------------------- a step's sheet */
+
+/** The chain's hook and a step's sheet over it, as the record draws them. */
+function Build({ rec, place, onClose }) {
+  lc = useLeadChain(
+    rec,
+    (f) => flashes.push(f),
+    () => {},
+  );
+  if (!lc) return null;
+  return W.React.createElement(LeadStepSheet, {
+    open: true,
+    place,
+    rec,
+    lc,
+    flash: (f) => flashes.push(f),
+    onClose,
+  });
+}
+let closed = 0;
+// One record across a test's draws: a new one is the record read again, whose chain the draft takes back.
+let REC = recOf();
+const drawStep = (place, rec = REC) =>
+  again(() => W.React.createElement(Build, { rec, place, onClose: () => (closed += 1) }));
+/** What the open sheet draws: its body and its foot, by what the record hands the kit's Sheet. */
+const sheetOf = (tree) => {
+  const s = find(tree, (n) => n.type === Sheet && n.props.open);
+  return s ? [s.props.children, s.props.foot] : null;
+};
+
+test("the first step has no Take out; a later one says how long it waits, then only if they have not written back", () => {
+  let body = sheetOf(drawStep(1));
+  assert.ok(byTestId(body, "ld-subject"), "the first email's subject");
+  assert.equal(byTestId(body, "ld-step-remove"), null, "the first step is the sequence's start");
+  assert.equal(byTestId(body, "ld-wait-1"), null);
+  fresh();
+  body = sheetOf(drawStep(2));
+  assert.equal(byTestId(body, "ld-subject"), null, "a later one answers in the thread");
+  assert.ok(byTestId(body, "ld-wait-2"));
+  assert.ok(byTestId(body, "ld-step-remove"));
+});
+
+test("Take out closes the sheet and says so with Undo, which puts the step back where it stood, as new", async () => {
+  closed = 0;
+  const body = sheetOf(drawStep(2));
+  press(byTestId(body, "ld-step-remove"));
+  drawStep(2);
+  assert.equal(closed, 1, "the sheet closes");
+  assert.deepEqual(
+    lc.draft.steps.map((s) => s.id),
+    ["st-1"],
+    "the step is out of the draft",
+  );
+  const said = flashes.at(-1);
+  assert.equal(said.msg, contracts.LEAD_BUILD_WORDS.stepOut(2));
+  said.undo();
+  drawStep(2);
+  assert.deepEqual(
+    lc.draft.steps.map((s) => [s.id, s.body]),
+    [
+      ["st-1", "{{opening}}\n\n{{your name}}"],
+      [null, "Just checking in."],
+    ],
+    "back in its place with its words, saved as a new step",
+  );
+  await lc.flush();
+});
+
+const R = contracts.LEAD_BUILD_WORDS;
+/** The box of words a test id names: what it is drawn with, and where its caret opens once it has been drawn again. */
+const boxOf = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id && "value" in n.props).props;
+/** Ask rewrites it, pressed, and what should change said: the sheet as it then stands. */
+const askToChange = (place, change) => {
+  press(byTestId(sheetOf(drawStep(place)), "ld-ask-rewrite"));
+  byTestId(sheetOf(drawStep(place)), "ld-rewrite-change").props.onValueChange(change);
+  return sheetOf(drawStep(place));
+};
+/** The rewrite pressed, and the sheet once its answer has landed. */
+const rewriteAnswered = async (place, tree) => {
+  press(byTestId(tree, "ld-rewrite-go"));
+  await until(() => !byTestId(sheetOf(drawStep(place)), "ld-rewrite-go").props["aria-busy"], "the rewrite is answered");
+  return sheetOf(drawStep(place));
+};
+const rewriteAnswers = (data) => {
+  const saves = answer;
+  answer = (call) => (call[1] === `sequences/${SEQ}/rewrite` ? { ok: true, data } : saves(call));
+};
+/**
+ * The rewrite's answer in the test's hands, for one test: it lands when the function this returns is called, so what stands
+ * while it is out never rests on how long a response takes to read, which Node 22 and Node 24 do not agree on.
+ */
+const rewriteHeld = (t, data) => {
+  const { promise, resolve } = Promise.withResolvers();
+  const asked = reachOuts.rewrite;
+  reachOuts.rewrite = () => promise;
+  t.after(() => {
+    reachOuts.rewrite = asked;
+  });
+  return () => resolve({ ok: true, status: 200, data });
+};
+
+test("Ask rewrites it asks what should change in the sheet, the email in sight: the words go to the rewrite, and the answer stands in the box", async () => {
+  closed = 0;
+  assert.equal(byTestId(sheetOf(drawStep(1)), "ld-rewrite-change"), null, "asked only once pressed");
+  const tree = askToChange(1, "Shorter, and less formal");
+  assert.equal(closed, 0, "the sheet stays open");
+  assert.ok(byTestId(tree, "ld-body"), "the email stays on screen");
+  rewriteAnswers({ subject: "Your phones", body: "{{opening}}\n\nWorth a look?", cannot: null });
+  const after = await rewriteAnswered(1, tree);
+  assert.deepEqual(
+    wire.find(([, p]) => p === `sequences/${SEQ}/rewrite`),
+    [
+      "POST",
+      `sequences/${SEQ}/rewrite`,
+      {
+        subject: "A quick one for {{business}}",
+        body: "{{opening}}\n\n{{your name}}",
+        change: "Shorter, and less formal",
+      },
+    ],
+  );
+  assert.deepEqual(
+    [lc.draft.steps[0].subject, lc.draft.steps[0].body],
+    ["Your phones", "{{opening}}\n\nWorth a look?"],
+    "in the box, as if typed",
+  );
+  // REGRESSION: the box of words keeps what it drew until it is drawn again, so the saved words never showed in it.
+  assert.equal(boxOf(tree, "ld-body").caret, null, "a box as it first opened");
+  assert.deepEqual(
+    ["ld-subject", "ld-body"].map((id) => [boxOf(after, id).value, boxOf(after, id).caret]),
+    [
+      ["Your phones", "Your phones".length],
+      ["{{opening}}\n\nWorth a look?", "{{opening}}\n\nWorth a look?".length],
+    ],
+    "both boxes are drawn again with the new words",
+  );
+  assert.equal(byTestId(after, "ld-rewrite-change").props.value, "", "the line is ready for the next change");
+});
+
+test("a later email is rewritten with no subject, in its thread", async () => {
+  const tree = askToChange(2, "Warmer");
+  rewriteAnswers({ subject: null, body: "Still happy to help.", cannot: null });
+  await rewriteAnswered(2, tree);
+  assert.equal(wire.find(([, p]) => p === `sequences/${SEQ}/rewrite`)[2].subject, null);
+  assert.deepEqual([lc.draft.steps[1].subject, lc.draft.steps[1].body], [null, "Still happy to help."]);
+});
+
+test("Undo puts back the words a rewrite replaced, and goes once the owner types over them", async () => {
+  rewriteAnswers({ subject: "Your phones", body: "{{opening}}\n\nWorth a look?", cannot: null });
+  let after = await rewriteAnswered(1, askToChange(1, "Shorter"));
+  press(byTestId(after, "ld-rewrite-undo"));
+  after = sheetOf(drawStep(1));
+  assert.deepEqual(
+    [lc.draft.steps[0].subject, lc.draft.steps[0].body],
+    ["A quick one for {{business}}", "{{opening}}\n\n{{your name}}"],
+  );
+  assert.equal(byTestId(after, "ld-rewrite-undo"), null, "said once");
+
+  byTestId(after, "ld-rewrite-change").props.onValueChange("Shorter");
+  after = await rewriteAnswered(1, sheetOf(drawStep(1)));
+  assert.ok(byTestId(after, "ld-rewrite-undo"));
+  lc.edit((d) => ({ ...d, steps: d.steps.map((s, i) => (i === 0 ? { ...s, body: `${s.body} Typed.` } : s)) }));
+  assert.equal(byTestId(sheetOf(drawStep(1)), "ld-rewrite-undo"), null, "what they typed is never undone by it");
+});
+
+test("what a rewrite left out is said under the line", async () => {
+  rewriteAnswers({
+    subject: "Your phones",
+    body: "{{opening}}\n\nWorth a look?",
+    cannot: "Left out: “mention $99”. A first email names no price.",
+  });
+  const after = await rewriteAnswered(1, askToChange(1, "Mention $99"));
+  assert.match(textOf(byTestId(after, "ld-rewrite-left")), /Left out: “mention \$99”/);
+});
+
+test("a rewrite refused says the door's words on the line, and the email stays as it was", async () => {
+  const tree = askToChange(1, "Add a link");
+  const saves = answer;
+  answer = (call) =>
+    call[1] === `sequences/${SEQ}/rewrite` ? { ok: false, status: 422, message: R.rewriteBroke } : saves(call);
+  const after = await rewriteAnswered(1, tree);
+  assert.equal(byTestId(after, "ld-rewrite-change").props.value, "Add a link", "what they said is kept to change");
+  assert.equal(find(after, (n) => n.props?.problem === R.rewriteBroke) !== null, true);
+  assert.equal(lc.draft.steps[0].body, "{{opening}}\n\n{{your name}}");
+});
+
+test("the email is not typed into while it is written again, and an empty line asks nothing", async (t) => {
+  const tree = askToChange(1, "   ");
+  press(byTestId(tree, "ld-rewrite-go"));
+  await settle();
+  assert.equal(wire.filter(([, p]) => p === `sequences/${SEQ}/rewrite`).length, 0);
+
+  byTestId(tree, "ld-rewrite-change").props.onValueChange("Warmer");
+  const land = rewriteHeld(t, { subject: "Hi", body: "{{opening}}\n\nHello.", cannot: null });
+  press(byTestId(sheetOf(drawStep(1)), "ld-rewrite-go"));
+  await settle();
+  const busy = sheetOf(drawStep(1));
+  assert.equal(byTestId(busy, "ld-body").props.readOnly, true);
+  assert.equal(byTestId(busy, "ld-rewrite-go").props["aria-busy"], true);
+  land();
+  await until(() => {
+    drawStep(1);
+    return lc.draft.steps[0].body === "{{opening}}\n\nHello.";
+  }, "the rewrite lands");
+});
+
+test("a sheet closed while it is written leaves the email alone", async (t) => {
+  const tree = askToChange(1, "Warmer");
+  const land = rewriteHeld(t, { subject: "Hi", body: "{{opening}}\n\nHello.", cannot: null });
+  press(byTestId(tree, "ld-rewrite-go"));
+  const edits = [];
+  lc.edit = (change) => edits.push(change);
+  // The sheet gone, as React lets it go: a part the stub simply stops drawing keeps its cells and runs no cleanup.
+  unmount();
+  land();
+  await settle();
+  assert.deepEqual(edits, [], "the answer has nowhere to land");
+});
+
+/* ---------------------------------------------------------------- the preview */
+
+const drawPreview = (rec = REC) => {
+  let tree = null;
+  again(() => {
+    tree = W.React.createElement(() => {
+      lc = useLeadChain(
+        rec,
+        (f) => flashes.push(f),
+        () => {},
+      );
+      return lc ? W.React.createElement(LeadPreview, { rec, lc, place: 1, leads: [], at: 0, onAt: () => {} }) : null;
+    });
+    return tree;
+  });
+  return tree;
+};
+
+test("nobody in it yet: the preview reads as the example business, said so, with the foot the send writes under it", () => {
+  const tree = drawPreview();
+  assert.equal(textOf(byTestId(tree, "ld-preview-who")), contracts.reachOutExampleLead().business_name);
+  assert.ok(textOf(tree).includes(contracts.LEAD_BUILD_WORDS.example), "said to be an example");
+  const email = find(tree, (n) => n.type === EmailAs);
+  assert.ok(email, "the email, drawn whole by the part the lead sheet draws it with");
+  assert.match(email.props.foot, /1200 Barton Springs Rd, Austin, TX/, "the business's address, as the send writes it");
+  assert.match(email.props.from, /^Sam · /, "from the name it signs with, and your own inbox");
+});
+
+test("a lead whose listing says a fact is previewed with that fact as its opening, read in the browser with no call (0078)", async () => {
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const row = {
+    id: "lead-1",
+    business_name: "Harbor Auto Repair",
+    city: "Staten Island",
+    kind: "place",
+    facts: null,
+    email: "hello@harborauto.example",
+    email_state: "ok",
+    phone: null,
+    phone_wrong: false,
+    rating: 4.8,
+    reviews: 66,
+    hours: days.map((day, i) => ({ day, hours: i < 5 ? "8 AM to 5 PM" : "Closed" })),
+  };
+  answer = ([m, p]) =>
+    m === "GET" && p === "leads/lead-1"
+      ? { ok: true, data: { row } }
+      : { ok: true, data: p === "leads/lead-1/words" ? [] : {} };
+  const draw = () => {
+    let tree = null;
+    again(() => {
+      tree = W.React.createElement(() => {
+        lc = useLeadChain(
+          REC,
+          (f) => flashes.push(f),
+          () => {},
+        );
+        const leads = [{ id: "lead-1", name: "Harbor Auto Repair" }];
+        return lc ? W.React.createElement(LeadPreview, { rec: REC, lc, place: 1, leads, at: 0, onAt: () => {} }) : null;
+      });
+      return tree;
+    });
+    return tree;
+  };
+  draw();
+  // The lead's row is read as the preview opens; the opening is said once it is in.
+  const opened = (t) =>
+    find(
+      t,
+      (n) => n.type === "span" && n.props?.["data-testid"] === "lead-card-opening" && n.props?.className === "lw-val",
+    );
+  await until(() => opened(draw()), "the lead's row read, and its opening said");
+  const tree = draw();
+  const email = find(tree, (n) => n.type === EmailAs);
+  assert.ok(email, "the lead's email");
+  const said = find(tree, (n) => n.type === "span" && n.props?.["data-testid"] === "lead-card-opening");
+  assert.ok(said, "the opening is drawn");
+  assert.equal(said.props.className, "lw-val", "a said opening wears a value's mark, not the line still to come");
+  assert.deepEqual(
+    email.props.email.body.filter((p) => p.kind === "opening"),
+    [{ kind: "opening", text: "Harbor Auto Repair is open until 5 PM on weekdays and closed on weekends." }],
+  );
+  assert.deepEqual(
+    wire.map(([m, p]) => `${m} ${p}`),
+    ["GET leads/lead-1", "GET leads/lead-1/words"],
+    "the fact is read off the lead's row, beside any words of their own: no call writes it",
+  );
+});
+
+test("a lead whose email at this step has its opening written is previewed with that one, as its test sends it, under the name its email says (3 Nov 2026)", async () => {
+  const row = {
+    id: "lead-2",
+    business_name: "Lakeview Plumbing | Staten Island NY | Water Heaters",
+    city: "Staten Island",
+    kind: "place",
+    facts: null,
+    email: "hello@lakeview.example",
+    email_state: "ok",
+    phone: null,
+    phone_wrong: false,
+    rating: 4.8,
+    reviews: 66,
+    hours: [],
+  };
+  answer = ([m, p]) =>
+    m === "GET" && p === "leads/lead-2"
+      ? { ok: true, data: { row } }
+      : { ok: true, data: p === "leads/lead-2/words" ? [] : {} };
+  const WRITTEN = "Lakeview Plumbing answers its phone around the clock.";
+  const draw = (writtenAt) => {
+    let tree = null;
+    again(() => {
+      tree = W.React.createElement(() => {
+        lc = useLeadChain(
+          REC,
+          (f) => flashes.push(f),
+          () => {},
+        );
+        const leads = [{ id: "lead-2", name: row.business_name, written: { place: writtenAt, opening: WRITTEN } }];
+        return lc ? W.React.createElement(LeadPreview, { rec: REC, lc, place: 1, leads, at: 0, onAt: () => {} }) : null;
+      });
+      return tree;
+    });
+    return tree;
+  };
+  const openingOf = (t) => {
+    const email = find(t, (n) => n.type === EmailAs);
+    return email?.props.email.body.find((p) => p.kind === "opening")?.text ?? null;
+  };
+  draw(1);
+  await until(() => openingOf(draw(1)), "the lead's row read, and its opening said");
+  assert.equal(openingOf(draw(1)), WRITTEN, "the one its check wrote for this step's email, over the listing's");
+  assert.equal(
+    textOf(byTestId(draw(1), "ld-preview-who")),
+    contracts.LEAD_BUILD_WORDS.previewOf("Lakeview Plumbing", 1, 1),
+    "the name the business is called by, not its listing's keywords",
+  );
+  assert.equal(
+    openingOf(draw(2)),
+    "Lakeview Plumbing has a 4.8 rating across 66 reviews.",
+    "one written for another step's email is not this one's: the listing's sentence stands",
+  );
+});
+
+test("with no business address the preview carries no foot: the send refuses then, and How it runs says so", () => {
+  setSurfaceValue("settings", { settings: { config: { brain: { business_name: "Harbor Studio", profile: {} } } } });
+  const email = find(drawPreview(), (n) => n.type === EmailAs);
+  assert.equal(email.props.foot, null);
+});
+
+/* ------------------------------------------------------------ Send me a test */
+
+test("Send me a test saves what is typed first, then sends the step to your own inbox as the lead previewed gets it", async () => {
+  answer = ([m, p]) =>
+    m === "PUT"
+      ? { ok: true, data: { step_ids: ["st-1", "st-2"] } }
+      : p === `sequences/${SEQ}/steps/st-1/test`
+        ? { ok: true, data: { to: "sam@harbor.example" } }
+        : { ok: true, data: {} };
+  drawStep(1);
+  lc.edit((d) => ({ ...d, steps: d.steps.map((s, i) => (i === 0 ? { ...s, subject: "Hello {{business}}" } : s)) }));
+  let body = sheetOf(drawStep(1));
+  press(byTestId(body, "ld-preview-open"));
+  await settle();
+  body = sheetOf(drawStep(1));
+  press(byTestId(body, "ld-step-test"));
+  // The press lands, then says its receipt: on the clock, as the client reads the wire's answer.
+  for (let n = 0; n < 100 && flashes.length === 0; n += 1) await new Promise((r) => setTimeout(r, 5));
+  const sent = wire.filter(([m]) => m !== "GET");
+  assert.equal(sent.at(0)[0], "PUT", "the words as they stand are saved first");
+  assert.equal(sent.at(0)[2].steps[0].subject, "Hello {{business}}");
+  assert.deepEqual(
+    sent.at(-1),
+    ["POST", `sequences/${SEQ}/steps/st-1/test`, null],
+    "nobody previewed: the example, no lead named",
+  );
+  assert.deepEqual(
+    [flashes.at(-1).tone, flashes.at(-1).msg],
+    ["ok", contracts.SEQUENCE_TEST_WORDS.sent("sam@harbor.example")],
+  );
+});
+
+/* ------------------------------------------------------------ how it runs */
+
+/** The chain's hook and its How it runs sheet over it, as the record draws them. */
+function Runs({ rec }) {
+  lc = useLeadChain(
+    rec,
+    (f) => flashes.push(f),
+    () => {},
+  );
+  if (!lc) return null;
+  return W.React.createElement(LeadRunsSheet, {
+    open: true,
+    rec,
+    lc,
+    flash: (f) => flashes.push(f),
+    moved: () => {},
+    onClose: () => {},
+  });
+}
+
+test("Before each batch, picked, reaches the change door as the sequence's own mode, beside its name and nothing else (decision 0064)", async () => {
+  // The picker once sent the payload's `mode`, which the change's spec reads as a card's reading of how its runs go, so
+  // nothing was written; the door reads a sequence's under `sequence_mode` (contracts playbookChangeSpec).
+  const rec = { ...REC, sequence: { ...REC.sequence, starts: "leads", mode: "veto", evidence: null } };
+  const pick = byTestId(sheetOf(again(() => W.React.createElement(Runs, { rec }))), "ld-runs-approves-pick");
+  assert.equal(pick.props.value, "veto", "it opens on the sequence's own mode");
+  pick.props.onValueChange("ask");
+  const put = () => wire.find(([m, p]) => m === "PUT" && p === `playbooks/${SEQ}`);
+  for (let i = 0; i < 200 && !put(); i += 1) await new Promise((r) => setTimeout(r, 5));
+  assert.ok(put(), "one change, at the campaign's own door");
+  assert.deepEqual(put()[2], { name: rec.sequence.name, mode: "ask" });
+});
+
+test("Sends from says what is saved: the mailboxes kept in sight while chosen with none sending, and a mailbox offered once one is", () => {
+  const pickOf = (chain) => {
+    // Each case its own tree: a chain read again is taken on the next draw, never the one drawn now.
+    unmount();
+    fresh();
+    const rec = recOf(chainOf(chain));
+    const tree = sheetOf(again(() => W.React.createElement(Runs, { rec })));
+    return {
+      pick: byTestId(tree, "ld-runs-from-pick"),
+      note: byTestId(tree, "ld-runs-from-note"),
+      day: byTestId(tree, "ld-runs-day"),
+      tree,
+    };
+  };
+  // Saved to send from the mailboxes, none connected: not shown as the inbox it is not; nothing goes, and it says so.
+  const none = pickOf({ owner_sends: false, mailboxes: [] });
+  assert.equal(none.pick.props.value, "mailboxes");
+  assert.deepEqual(
+    none.pick.props.groups[0].options.map((o) => o.label),
+    ["Your inbox · you send", "Your mailboxes · none yet"],
+  );
+  assert.match(textOf(none.note), /No mailbox sends now, so nothing goes/);
+  assert.match(textOf(none.day), /None until a mailbox sends/);
+  assert.doesNotMatch(textOf(none.day), /You send each/, "never the owner's pace for a chain they do not send");
+  // The owner sends, and a mailbox is connected now: it is offered, and said once.
+  const box = { address: "sam@getharbor.example", sent_days: 9, daily_cap: 40, customer_domain: false };
+  const switchable = pickOf({ owner_sends: true, mailboxes: [box] });
+  assert.equal(switchable.pick.props.value, "inbox");
+  assert.match(textOf(switchable.note), /Your mailbox is connected: choose it to send these for you/);
+  // The owner sends, with none connected: one choice, nothing to say.
+  const plain = pickOf({ owner_sends: true, mailboxes: [] });
+  assert.deepEqual(
+    plain.pick.props.groups[0].options.map((o) => o.value),
+    ["inbox"],
+  );
+  assert.equal(plain.note ?? null, null);
+});
+
+test("A day, at most keeps the slowest spacing for each count, and the saved spacing is always one of the choices (0077)", () => {
+  const pace = (mailboxes, saved) => contracts.leadPaceChoicesOf(mailboxes, saved).map((p) => [p.share, p.gap]);
+  const fresh = { address: "sam@getharbor.example", sent_days: 0, daily_cap: 40, customer_domain: false };
+  const settled = { ...fresh, sent_days: 30 };
+  // A new mailbox sends ten a day at any spacing up to 30 minutes: the slowest of them is offered, never one every 5.
+  assert.deepEqual(pace([fresh]), [
+    [10, 30],
+    [9, 60],
+  ]);
+  assert.deepEqual(pace([fresh, { ...fresh, address: "lee@getharbor.example" }]), [
+    [20, 30],
+    [18, 60],
+  ]);
+  // A settled one's forty a day fits from 12 minutes apart; the wider spacings each give a smaller day.
+  assert.deepEqual(pace([settled]), [
+    [40, 12],
+    [25, 20],
+    [17, 30],
+    [9, 60],
+  ]);
+  // Saved at a spacing no count keeps (12, as New once wrote it): it is a choice of its own, beside its count's.
+  assert.deepEqual(pace([fresh], 12), [
+    [10, 30],
+    [10, 12],
+    [9, 60],
+  ]);
+  assert.equal(
+    contracts.leadPaceChoicesOf([fresh], 12).find((p) => p.gap === 12).hint,
+    "one every 12 min or so",
+    "it says its own spacing",
+  );
+  // Saved at one that is kept: nothing is added.
+  assert.deepEqual(pace([fresh], 30), [
+    [10, 30],
+    [9, 60],
+  ]);
+});
+
+/** A mailbox as the chain's read offers it (0077): its tick, its standing, its DNS and its signature's words. */
+const choiceOf = (id, over = {}) => ({
+  id,
+  address: `${id}@getharbor.example`,
+  state: "connected",
+  sends_now: true,
+  picked: true,
+  dns: { spf: "found", dkim: "found", dmarc: "found" },
+  facts: { address: `${id}@getharbor.example`, sent_days: 30, daily_cap: 40, customer_domain: false },
+  signature: { words: "Sam Lee\nHarbor Studio", has_link: false },
+  connected_at: "2026-10-01T00:00:00Z",
+  ...over,
+});
+
+test("Each mailbox is a row: its day, why it does not send now, the records DNS is missing, New, and the last tick kept (0077)", () => {
+  const sam = choiceOf("sam", { facts: { ...choiceOf("sam").facts, sent_days: 0 } });
+  const lee = choiceOf("lee", {
+    state: "paused",
+    sends_now: false,
+    dns: { spf: "missing", dkim: "missing", dmarc: "found" },
+    connected_at: "2026-10-20T00:00:00Z",
+  });
+  const tired = choiceOf("ann", { sends_now: false });
+  // Connected since the sequence was made, and still ramping: "New" once, before its day, never "new" twice.
+  const kim = choiceOf("kim", {
+    facts: { ...choiceOf("kim").facts, sent_days: 0 },
+    connected_at: "2026-10-21T00:00:00Z",
+  });
+  const chain = { mailbox_choices: [sam, lee, tired, kim], created_at: "2026-10-18T00:00:00Z" };
+  const rows = contracts.leadMailboxRowsOf(chain, []);
+  assert.deepEqual(
+    rows.map((r) => [r.address, r.on, r.locked, r.sub, r.dnsMissing]),
+    [
+      ["sam@getharbor.example", true, false, "10 a day, rising to 40", false],
+      ["lee@getharbor.example", true, false, "New · 40 a day · Paused · SPF and DKIM missing", true],
+      ["ann@getharbor.example", true, false, "40 a day · Done for today", false],
+      ["kim@getharbor.example", true, false, "New · 10 a day, rising to 40", false],
+    ],
+    "a sequence that names none writes from every one",
+  );
+  // One ticked: it stays, and says why.
+  const one = contracts.leadMailboxRowsOf(chain, ["sam"]);
+  assert.deepEqual(
+    one.map((r) => [r.on, r.locked]),
+    [
+      [true, true],
+      [false, false],
+      [false, false],
+      [false, false],
+    ],
+  );
+  assert.match(one[0].sub, /One has to send\. To stop them all, choose Your inbox · you send\.$/);
+  // A tick names its own list from then on, and the last one is never taken off.
+  assert.deepEqual(contracts.leadMailboxesTicked(chain, [], "lee", false), ["sam", "ann", "kim"]);
+  assert.deepEqual(contracts.leadMailboxesTicked(chain, ["sam"], "sam", false), ["sam"]);
+  assert.deepEqual(contracts.leadMailboxesTicked(chain, ["sam"], "lee", true), ["sam", "lee"]);
+  // The day is made of the ticked ones that send now.
+  assert.deepEqual(
+    contracts.leadSendingFactsOf(chain, ["sam", "lee"]).map((f) => f.address),
+    ["sam@getharbor.example"],
+  );
+});
+
+test("Ends with offers the name and the first ticked mailbox's signature, and says what it will not do (0077, D10)", () => {
+  const draft = { mailbox_ids: [], signs_with: "name", signed_by: "Sam", owner_sends: false };
+  const linked = choiceOf("lee", { signature: { words: "Lee\nharbor.example", has_link: true } });
+  const chain = { mailbox_choices: [choiceOf("sam", { sends_now: false }), linked] };
+  const ends = contracts.leadEndingOf(chain, draft);
+  assert.equal(ends.value, "name");
+  assert.deepEqual(
+    ends.options.map((o) => [o.value, o.label]),
+    [
+      ["name", "“Sam”"],
+      ["mailbox", "lee@getharbor.example's signature"],
+    ],
+    "the first ticked that sends now is the one first emails leave from",
+  );
+  assert.equal(ends.note, null);
+  assert.equal(
+    contracts.leadEndingOf(chain, { ...draft, signs_with: "mailbox" }).note,
+    "Its link stays out of first emails, and of any that has a link already.",
+  );
+  // The owner sends: their own mail app signs, so the name alone.
+  const owner = contracts.leadEndingOf(chain, { ...draft, owner_sends: true, signs_with: "mailbox" });
+  assert.deepEqual([owner.value, owner.options.length], ["name", 1]);
+  // No mailbox signature: the name alone; no name: asked for.
+  const bare = { mailbox_choices: [choiceOf("sam", { signature: null })] };
+  assert.equal(contracts.leadEndingOf(bare, draft).options.length, 1);
+  assert.equal(contracts.leadEndingOf(bare, { ...draft, signed_by: " " }).note, "Write the name it ends with.");
+});
+
+test("How it runs draws the mailboxes' ticks, every batch of first emails waiting, Follow-ups and Ends with, each saved as the sheet saves", async () => {
+  const lee = choiceOf("lee", { dns: { spf: "missing", dkim: "found", dmarc: "found" } });
+  const rec = {
+    ...recOf(
+      chainOf({
+        owner_sends: false,
+        mailboxes: [choiceOf("sam").facts, lee.facts],
+        mailbox_choices: [choiceOf("sam"), lee],
+      }),
+    ),
+  };
+  rec.sequence = { ...rec.sequence, starts: "leads", mode: "veto", evidence: null };
+  const draw = () => sheetOf(again(() => W.React.createElement(Runs, { rec })));
+  let tree = draw();
+  assert.equal(textOf(byTestId(tree, "ld-runs-every-mailbox")), "Every mailbox, and any you connect later");
+  assert.match(textOf(byTestId(tree, "ld-runs-mailbox-lee")), /SPF missing/);
+  assert.ok(byTestId(tree, "ld-runs-mailbox-lee-dns"), "a missing record offers Set up DNS");
+  assert.equal(byTestId(tree, "ld-runs-mailbox-sam-dns") ?? null, null);
+  // Taking one off names the rest; the last one left cannot be.
+  byTestId(tree, "ld-runs-mailbox-lee-switch").props.onCheckedChange(false);
+  tree = draw();
+  assert.deepEqual(lc.draft.mailbox_ids, ["sam"]);
+  assert.equal(byTestId(tree, "ld-runs-every-mailbox") ?? null, null, "a list of its own now");
+  assert.equal(byTestId(tree, "ld-runs-mailbox-sam-switch").props.readOnly, true);
+  // The batch rule as a fact, the choice for the follow-ups.
+  assert.equal(textOf(byTestId(tree, "ld-runs-first-emails")), "Every batch of first emails waits for your OK");
+  const follow = byTestId(tree, "ld-runs-approves-pick");
+  assert.deepEqual(
+    follow.props.groups[0].options.map((o) => o.label),
+    ["Your OK first, then 30 minutes to stop", "Each waits for your OK"],
+  );
+  // Ends with: the signature, saved with the chain.
+  const ends = byTestId(tree, "ld-runs-ends-pick");
+  assert.deepEqual(
+    ends.props.groups[0].options.map((o) => o.value),
+    ["name", "mailbox"],
+  );
+  ends.props.onValueChange("mailbox");
+  draw();
+  assert.equal(lc.draft.signs_with, "mailbox");
+  await lc.flush();
+  const put = wire.filter(([m, p]) => m === "PUT" && p === `sequences/${SEQ}/chain`).at(-1);
+  assert.deepEqual([put[2].signs_with, put[2].mailbox_ids], ["mailbox", ["sam"]]);
+});
+
+test("their preview (decision 0079): Insert offers it in a later email of a workspace that makes previews, or says why not", () => {
+  const { leadInsertRowsOf, leadPreviewOfferOf, LEAD_BUILD_WORDS: B } = contracts;
+  const place = { business_name: "Fixture Barbers", city: "Austin", kind: "place" };
+  const company = { business_name: "Fixture Agency", city: "Austin", kind: "company" };
+  assert.deepEqual(leadPreviewOfferOf({ makes: false, first: false, lead: place }), { offered: false, why: null });
+  assert.deepEqual(leadPreviewOfferOf({ makes: true, first: true, lead: place }), {
+    offered: false,
+    why: B.previewLater,
+  });
+  assert.deepEqual(leadPreviewOfferOf({ makes: true, first: false, lead: company }), {
+    offered: false,
+    why: B.previewNotForCompanies,
+  });
+  const offer = leadPreviewOfferOf({ makes: true, first: false, lead: place });
+  assert.deepEqual(offer, { offered: true, why: null });
+  const workspace = { businessName: "Chanlytics", bookingLink: null, yourName: "Ruben" };
+  const rows = leadInsertRowsOf(place, workspace, offer);
+  const row = rows.find((r) => r.key === "their preview");
+  assert.deepEqual([row.group, row.value, row.look], ["them", B.previewMade, "later"], "made when it goes");
+  assert.equal(
+    leadInsertRowsOf(place, workspace, { offered: false }).some((r) => r.key === "their preview"),
+    false,
+  );
+});

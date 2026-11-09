@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { read, write, workspace } from "@/server/route";
-import { mailboxSendersFor, sortSender } from "@/server/connections/mailbox-senders";
+import { read, write, workspace } from "@/server/shared/route";
+import { getMailboxSenders, sortSender } from "@/server/people/mailbox-senders";
 
 /**
  * GET /api/v1/mailbox-senders
@@ -12,7 +12,7 @@ export const GET = read({
   scope: workspace,
   role: "viewer",
   rate: "aggregate",
-  handle: async ({ ctx, member }) => mailboxSendersFor(ctx, member.tenantId),
+  handle: async ({ ctx, member }) => getMailboxSenders(ctx, member.tenantId),
 });
 
 const Body = z

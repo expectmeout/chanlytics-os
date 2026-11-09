@@ -1,12 +1,13 @@
 /**
  * Who sent one of our messages: the receptionist, the team, or the broadcast or playbook run that sent it, and
  * a chat row's line saying who had the last word. The Inbox (inbox-thread.ts) and Conversations
- * (conversation-vm.ts) say it in these words. And the two things a row's `sender` does not say: a send written as a
+ * (conversations/vm.ts) say it in these words. And the two things a row's `sender` does not say: a send written as a
  * person's that no person made (isAutomatedSend), and a message from a person's address that no person wrote
  * (isPersonsWords).
  */
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import type { MessageDto } from "./thread-dto";
+import { textOrEmpty } from "../shared/unknown";
 
 export interface MessageAuthor {
   kind: "receptionist" | "team" | "broadcast" | "playbook";
@@ -77,15 +78,15 @@ export function isPersonsWords(meta: unknown): boolean {
 }
 
 /**
- * Which run sent one of our messages, read off the row the send wrote (core messages/broadcast.ts): a playbook's run,
+ * Which run sent one of our messages, read off the row the send wrote (core messages/broadcast/batch.ts): a playbook's run,
  * named for its playbook, or a broadcast someone sent, named for itself. Null for every other message. The thread's
  * bubble, `messageAuthor` and a person's page read it here, and nowhere else reads the meta.
  */
-export function messageVia(m: Pick<MessageDto, "meta">): { kind: "broadcast" | "playbook"; name: string } | null {
-  if (m.meta?.source !== "broadcast") return null;
-  return m.meta.playbook_name
-    ? { kind: "playbook", name: String(m.meta.playbook_name) }
-    : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
+export function messageVia(message: Pick<MessageDto, "meta">): { kind: "broadcast" | "playbook"; name: string } | null {
+  if (message.meta?.source !== "broadcast") return null;
+  return message.meta.playbook_name
+    ? { kind: "playbook", name: textOrEmpty(message.meta.playbook_name) }
+    : { kind: "broadcast", name: textOrEmpty(message.meta.broadcast_name ?? "broadcast") };
 }
 
 /**
@@ -96,17 +97,19 @@ export function messageVia(m: Pick<MessageDto, "meta">): { kind: "broadcast" | "
  * run is named from the run. The customer's words and a call note have no
  * author here.
  */
-export function messageAuthor(m: MessageDto): MessageAuthor | null {
-  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
-  const via = messageVia(m);
+export function messageAuthor(message: MessageDto): MessageAuthor | null {
+  if (message.sender === "customer" || message.sender === "system" || message.type === "call_summary") return null;
+  const via = messageVia(message);
   if (via) {
     return via.kind === "playbook"
       ? // A campaign named "The month's offer" is not "the The month's offer campaign"; a person reads "campaign", never
         // "playbook" (decision 19), and the kind keeps its name.
         { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} campaign` }
-      : { kind: "broadcast", words: m.meta?.broadcast_name ? `a one-off send (${via.name})` : "a one-off send" };
+      : { kind: "broadcast", words: message.meta?.broadcast_name ? `a one-off send (${via.name})` : "a one-off send" };
   }
-  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
+  return message.sender === "ai"
+    ? { kind: "receptionist", words: "the receptionist" }
+    : { kind: "team", words: "your team" };
 }
 
 /** A chat row's second line: that a person has the thread, or who had the last word. */
@@ -126,6 +129,6 @@ export function lastWordLine(needsHuman: boolean, last: MessageDto | null, autho
  * it), and that is the topic of their words, not why anyone said anything. The Inbox, Conversations and Ask's thread
  * tool say it here.
  */
-export function messageWhy(m: Pick<MessageDto, "sender" | "meta">): ReplyWhyVM | null {
-  return m.sender === "ai" ? replyWhy(m.meta) : null;
+export function messageWhy(message: Pick<MessageDto, "sender" | "meta">): ReplyWhyVM | null {
+  return message.sender === "ai" ? replyWhy(message.meta) : null;
 }

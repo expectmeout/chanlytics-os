@@ -1,17 +1,17 @@
 /**
  * The Inbox's override: the open escalations and the threads that need a person, bucketed as the page draws them, and the
  * approved templates a reply can use, which are the settings read's, the one read of the templates (moved from
- * legacy-bridge/surfaces/inbox.ts, decision 0015). Part of the SurfaceData seam (legacy-bridge/surface-data.ts); the page
+ * bridge/surfaces/inbox.ts, decision 0015). Part of the SurfaceData seam (bridge/surface-data.ts); the page
  * reads what it publishes through `useSurface("inbox")`.
  */
-import { api, read } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
-import { LEFT_THE_QUEUE, deliveryTicksOnly, type RealtimeChange } from "@/legacy-bridge/surface-realtime";
+import { api, read } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
+import { LEFT_THE_QUEUE, deliveryTicksOnly, type RealtimeChange } from "@/bridge/surface-realtime";
 import type { Output } from "@/client/api";
-import { declareReads, routeGateOpen, routePartsOf } from "@/legacy-bridge/surface-registry";
-import { firstDrawWaitsFor, surfaceSettles } from "@/legacy-bridge/surface-status";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
+import { declareReads, routeGateOpen, routePartsOf } from "@/bridge/surface-registry";
+import { firstDrawWaitsFor, surfaceSettles } from "@/bridge/surface-status";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { routeOnScreen } from "@/bridge/workspace";
 import {
   heldThreadIds,
   inboxThreadClock,
@@ -41,7 +41,7 @@ import type { Thread } from "./types";
 // The pages that have not moved (the sidebar, the bell, Ask, Today) still read this under its old name.
 declareSurfaceValue("inbox", "INBOX_DATA");
 
-// A refresh paints the Inbox from the tab's cache before anything is read (legacy-bridge/surface-cache.ts): each real
+// A refresh paints the Inbox from the tab's cache before anything is read (bridge/surface-cache.ts): each real
 // thread's times are said again by the clock that paints them, from the moments it keeps, in the zone the read said them
 // in (contracts inboxThreadClock). The cache's words were the read's: "9:00 AM" on yesterday's thread and "waiting 2h" on a
 // wait of 22, until the next read landed a beat later and moved the rows (Ruben, 21 Oct 2026). A snapshot that keeps no
@@ -60,8 +60,7 @@ revivesFromCache("inbox", (held) => {
 });
 
 /**
- * Slice 2: the Inbox flips to the real escalations queue. Open escalations + needs_human conversations land in the
- * "escalated" bucket (the mockup's built-in take-over/hand-back UX), snoozed in "snoozed", the rest in "done".
+ * Slice 2: the Inbox flips to the real escalations queue, each thread in the list the rule says (contracts thread-move.ts).
  * Approval cards/confidence/$ stay hidden — v1.1 material, never fabricated.
  */
 interface EscalationRow extends EscalationDto {

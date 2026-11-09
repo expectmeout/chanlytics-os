@@ -16,13 +16,14 @@
  * (contracts' support-playbooks.ts), so the mail and Support's panel say the
  * same steps. Signed admin token only.
  */
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { notify } from "./notify.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
-import { setupAskMail } from "../packages/contracts.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { notify } from "../shared/alerts/notify.js";
+import { env } from "../shared/env.js";
+import { logger, refuseFailure } from "../shared/log.js";
+import { setupAskMail, isTenantId } from "@chanlytics/contracts";
+import { findWorkspaceCard } from "@chanlytics/db/workspace";
 
 interface Body {
   tenant_id?: string;
@@ -31,7 +32,7 @@ interface Body {
 }
 
 export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): Promise<Response> {
-  const L = logger();
+  const log = logger();
   if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -39,17 +40,16 @@ export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): P
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
-  const what = typeof body.what === "string" ? body.what : "";
-  const w = setupAskMail(what);
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !w)
-    return refuse(400, "bad_request", "tenant_id and a known `what` are required");
+  const subject = typeof body.what === "string" ? body.what : "";
+  const result = setupAskMail(subject);
+  if (!isTenantId(tenantId) || !result) return refuse(400, "bad_request", "tenant_id and a known `what` are required");
 
-  const tenant = await db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle();
-  if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
+  const tenant = await findWorkspaceCard(db, tenantId);
+  if (tenant.error) return refuseFailure(503, "read_failed", tenant.error);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
 
   const by = typeof body.by === "string" && body.by.trim() ? body.by.trim().slice(0, 120) : "a member";
-  const how = w
+  const how = result
     .steps({ first: null, workspace: tenant.data.name, me: "Chanlytics", tenantId: tenant.data.id })
     .join("\n");
   const sent = await notify(
@@ -57,13 +57,13 @@ export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): P
     { tenantId: null, notifications: null, isEnvDefault: true },
     {
       kind: "alert",
-      subject: `${tenant.data.name} ${w.subject}`,
+      subject: `${tenant.data.name} ${result.subject}`,
       body:
-        `${tenant.data.name} (${tenant.data.slug}) ${w.subject}.\n` +
+        `${tenant.data.name} (${tenant.data.slug}) ${result.subject}.\n` +
         `Requested by: ${by}\n` +
         `Workspace id: ${tenant.data.id}\n\n${how}\n`,
     },
   );
-  L.info("setup_request_told", { tenant_id: tenantId, what, sent });
-  return json(sent ? 200 : 502, { ok: sent, what, tenant: tenant.data.slug });
+  log.info("setup_request_told", { tenant_id: tenantId, what: subject, sent });
+  return json(sent ? 200 : 502, { ok: sent, what: subject, tenant: tenant.data.slug });
 }

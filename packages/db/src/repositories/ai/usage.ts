@@ -1,0 +1,137 @@
+/**
+ * The usage ledger (00273 ai_usage): the one writer every model call goes through, the reads that gate and alarm on it,
+ * and the one that keeps it. A table is typed here and nowhere else.
+ *
+ *   recordModelUsage      one call's row, as contracts' aiUsageBodyOf priced it, or the rows of one shadow call
+ *                         (contracts shadowBodies: one per question, written together). A write that fails throws; the
+ *                         model port (apps/edge/lib/model.ts) and the shadow (apps/edge/lib/shadow.ts) log it and keep
+ *                         the answer.
+ *   mayWorkspaceUseModels whether a workspace may spend the model key on what a person asks for (contracts
+ *                         mayUseModels): not paused, not ended, not unbilled. A read that fails throws.
+ *   listAiFailuresHour        the workspaces whose model calls or receptionist turns failed at least `min` times in the
+ *                         last hour (ai_failures_hour): what the health sweep pages on.
+ *   purgeAiUsage          the rows past their keep (ai_usage_purge).
+ *
+ * And what a row of it names (decision 0039; 00401 model_prompts, model_turns):
+ *
+ *   keepModelTurn         one receptionist turn as the model read it, and the text of the prompt it read, in one
+ *                         write (model_turn_keep). A write that fails throws; the model port logs it and keeps the answer.
+ *   scrubModelTurns       an erasure's hand (model_turns_scrub): the workspace's kept turns that name the person.
+ *
+ * The turns' two clocks are the database's own (purge_model_turns and purge_model_prompts, nightly on one registered
+ * job), so nothing here runs them.
+ */
+import { heldTenantId, DbFailure } from "@chanlytics/contracts";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { mayUseModels, RETENTION_DAYS } from "@chanlytics/contracts";
+import type { AiUsageBody, ModelTurnRequest, ModelTurnResponse, TenantId } from "@chanlytics/contracts";
+import type { Database } from "../../types";
+import { platformWide } from "../../shared/tenant-db";
+
+type Db = SupabaseClient<Database>;
+
+export async function recordModelUsage(db: Db, rows: AiUsageBody | AiUsageBody[]): Promise<void> {
+  const held = (row: AiUsageBody) => ({ ...row, tenant_id: heldTenantId(row.tenant_id) });
+  const { error } = await db.from("ai_usage").insert(Array.isArray(rows) ? rows.map(held) : held(rows));
+  if (error) throw new DbFailure(error, "ai_usage");
+}
+
+export async function mayWorkspaceUseModels(db: Db, tenantId: TenantId): Promise<boolean> {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  if (tenant.error) throw new DbFailure(tenant.error, "cannot read the workspace");
+  if (billing.error) throw new DbFailure(billing.error, "cannot read the workspace's billing");
+  // Every workspace has a billing row since 00073 (the ones before it on `direct`): none is not a yes.
+  if (!tenant.data || !billing.data) return false;
+  return mayUseModels(billing.data.mode, billing.data.status, {
+    paused: tenant.data.status === "paused",
+    ended: !!tenant.data.left_empty_at,
+  });
+}
+
+export interface AiFailures {
+  tenant_id: TenantId;
+  failed_calls: number;
+  brain_errors: number;
+}
+
+export async function listAiFailuresHour(db: Db, min: number): Promise<AiFailures[]> {
+  const { data, error } = await db.rpc("ai_failures_hour", { p_min: min });
+  if (error) throw new DbFailure(error, "ai_failures_hour");
+  return (data ?? []).map((r) => ({
+    tenant_id: r.tenant_id,
+    failed_calls: Number(r.failed_calls) || 0,
+    brain_errors: Number(r.brain_errors) || 0,
+  }));
+}
+
+export async function purgeAiUsage(db: Db): Promise<number> {
+  const { data, error } = await db.rpc("ai_usage_purge", { p_keep: `${RETENTION_DAYS.ai_usage} days` });
+  if (error) throw new DbFailure(error, "ai_usage_purge");
+  return Number(data) || 0;
+}
+
+/** One turn to keep: the conversation it was about, the prompt it read, and the two records of it. */
+export interface ModelTurnKept {
+  /** The model port's own id for the turn: what the reply's meta names it by. */
+  turnId: string;
+  tenantId: TenantId;
+  conversationId: string;
+  promptHash: string;
+  promptText: string;
+  request: ModelTurnRequest;
+  /** Null where no answer came. */
+  response: ModelTurnResponse | null;
+  model: string | null;
+  latencyMs: number | null;
+}
+
+export async function keepModelTurn(db: Db, turn: ModelTurnKept): Promise<void> {
+  const { error } = await db.rpc("model_turn_keep", {
+    p_tenant_id: turn.tenantId,
+    p_turn_id: turn.turnId,
+    p_conversation_id: turn.conversationId,
+    p_prompt_hash: turn.promptHash,
+    p_prompt_text: turn.promptText,
+    p_request: turn.request,
+    ...(turn.response ? { p_response: turn.response } : {}),
+    ...(turn.model ? { p_model: turn.model } : {}),
+    ...(turn.latencyMs === null ? {} : { p_latency_ms: Math.max(0, Math.round(turn.latencyMs)) }),
+  });
+  if (error) throw new DbFailure(error, "model_turn_keep");
+}
+
+/** An erasure's hand: the workspace's kept turns that name any of the person's identifiers, deleted; how many went. */
+export async function scrubModelTurns(db: Db, tenantId: TenantId, needles: readonly string[]): Promise<number> {
+  const { data, error } = await db.rpc("model_turns_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
+  // A database before 00401 keeps no turn, so nothing is there to scrub: the dashboard may deploy first (either order).
+  if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
+  if (error) throw new DbFailure(error, "model_turns_scrub");
+  return data ?? 0;
+}
+
+/** The tokens the workspace's Ask spent in the last day (ask_tokens_day). */
+export const findAskTokensToday = async (db: Db, tenantId: TenantId) =>
+  db.rpc("ask_tokens_day", { p_tenant: tenantId });
+
+/**
+ * One page (`from` to `to`) of the model's spend between `since` and `until`, the newest first: every workspace's, or
+ * with `tenantId` one workspace's.
+ */
+export const pageLlmUsage = async (
+  db: Db,
+  page: { tenantId: TenantId | null; since: string; until: string; from: number; to: number },
+) => {
+  const query = platformWide(db)
+    .from("events")
+    .select("created_at, data")
+    .eq("kind", "usage.llm_tokens")
+    .gte("created_at", page.since)
+    .lte("created_at", page.until)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(page.from, page.to);
+  return page.tenantId ? query.eq("tenant_id", page.tenantId) : query;
+};

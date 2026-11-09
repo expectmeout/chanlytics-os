@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { env } from "./src/server/env";
+import { env } from "./src/server/shared/env";
 
 /**
  * Response headers for an application that renders other people's customers.
@@ -30,7 +30,11 @@ const SECURITY_HEADERS = [
   // Ask palette, the live whisper) asks the browser for on this origin only;
   // denying the rest removes a whole class of prompt-and-permission abuse
   // from an embedded or compromised page. Framing is already refused above,
-  // so (self) can never be a frame on someone else's page.
+  // so (self) can never be a frame on someone else's page. A business's video
+  // plays in Stream's frame (decision 0099, stage B), which its `allow` names
+  // fullscreen, autoplay, picture-in-picture and encrypted-media: none of the
+  // four is denied here, and naming its host here would need a wildcard origin
+  // some browsers read as no origin at all, which would deny it fullscreen.
   {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()",
@@ -55,6 +59,7 @@ const PACKAGES = [
   "@chanlytics/core",
   "@chanlytics/db",
   "@chanlytics/jobs",
+  "@chanlytics/log",
 ];
 
 const nextConfig: NextConfig = {
@@ -64,7 +69,7 @@ const nextConfig: NextConfig = {
   // A build's own pass would compile the five packages' sources into the dashboard's one program, which ran out of
   // memory on 28 October 2026, and repeat what the gate already proved before anything merged.
   typescript: { ignoreBuildErrors: true },
-  // The legacy mockup bridge (Slice 0B) mounts client-only under app/(os).
+  // The frame (Slice 0B) mounts client-only under app/(os).
   reactStrictMode: true,
   // Every route is prerendered as far as it reads nothing of the request (decision 0053, step 5): the OS's frame whole,
   // so a document of it is served without running a function and a page warmed is warmed for every address of its
@@ -84,8 +89,8 @@ const nextConfig: NextConfig = {
     // restore the old shape into new components — a new sha starts cold.
     NEXT_PUBLIC_BUILD_SHA: env.VERCEL_GIT_COMMIT_SHA ?? "dev",
   },
-  async headers() {
-    return [
+  headers() {
+    return Promise.resolve([
       { source: "/:path*", headers: SECURITY_HEADERS },
       {
         // The sign-in page must never sit in a shared or back-button cache: it
@@ -115,20 +120,20 @@ const nextConfig: NextConfig = {
       // The OS's documents: the home, and every workspace's address.
       { source: "/", ...OS_DOCUMENT },
       { source: "/w/:path*", ...OS_DOCUMENT },
-    ];
+    ]);
   },
-  async rewrites() {
-    return {
+  rewrites() {
+    return Promise.resolve({
       // The two files a phone's OS reads before it lets a link open the app. One route renders both
       // (app/api/app-links/[store]); the proxy leaves /.well-known/ public.
       beforeFiles: [
         { source: "/.well-known/apple-app-site-association", destination: "/api/app-links/apple" },
         { source: "/.well-known/assetlinks.json", destination: "/api/app-links/android" },
       ],
-    };
+    });
   },
-  async redirects() {
-    return [
+  redirects() {
+    return Promise.resolve([
       // A workspace's public pages move with its slug; a carrier filing does not.
       // RJ Capital LLC's A2P registration was filed while this workspace was
       // "billing-probe" and names /yes/billing-probe as its website. The workspace
@@ -150,7 +155,7 @@ const nextConfig: NextConfig = {
       { source: "/yes/billing-probe", destination: "https://www.chanlytics.com/", permanent: false },
       { source: "/yes/billing-probe/:path*", destination: "/yes/chanlytics/:path*", permanent: true },
       { source: "/b/billing-probe/:path*", destination: "/b/chanlytics/:path*", permanent: true },
-    ];
+    ]);
   },
 };
 

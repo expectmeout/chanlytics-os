@@ -1,7 +1,7 @@
-import { write, workspace } from "@/server/route";
-import { readerContext } from "@/server/readers";
-import { DRAFT_BODY } from "@/server/sequences/bodies";
-import { draftSequence } from "@/server/sequences/draft";
+import { write, workspace } from "@/server/shared/route";
+import { readerContext } from "@/server/shared/reader";
+import { DRAFT_BODY } from "@/server/campaigns/sequences/bodies";
+import { draftSequence } from "@/server/drafts/sequence";
 
 /**
  * POST /api/v1/sequences/draft — { words, kind?, audience?, who?, previous? } → what New makes, drafted by Ask (decision

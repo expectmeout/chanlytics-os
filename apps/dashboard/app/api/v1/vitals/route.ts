@@ -1,6 +1,6 @@
-import { write, account } from "@/server/route";
+import { write, account } from "@/server/shared/route";
 import { PageVitalsInput } from "@chanlytics/contracts";
-import { keepPageVitals } from "@/server/platform/vitals";
+import { keepPageVitals } from "@/server/console/vitals";
 
 /**
  * POST /api/v1/vitals — {page, vitals: [{id, name, value}]}: what a page load's five numbers came to, sent by the

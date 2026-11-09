@@ -2,8 +2,10 @@
  * What became of an email we sent: the provider's signed receipt, read (emailReceiptFrom), and what it changes for the
  * row and the address (emailReceiptEffect). The request whose tags a receipt names is request.ts.
  */
-import { UUID } from "@chanlytics/contracts";
+import { heldTenantId } from "@chanlytics/contracts";
+import { UUID, recordOrNull, isOneOf, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { addressesOf, messageIdHeader } from "./header-values";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ---------------------------------------------------------------- receipts
  *
@@ -15,7 +17,7 @@ import { addressesOf, messageIdHeader } from "./header-values";
 
 export type EmailReceiptType =
   "sent" | "delivered" | "delivery_delayed" | "bounced" | "complained" | "failed" | "suppressed";
-const RECEIPT_TYPES: ReadonlySet<string> = new Set<EmailReceiptType>([
+const RECEIPT_TYPES = [
   "sent",
   "delivered",
   "delivery_delayed",
@@ -23,7 +25,7 @@ const RECEIPT_TYPES: ReadonlySet<string> = new Set<EmailReceiptType>([
   "complained",
   "failed",
   "suppressed",
-]);
+] as const satisfies readonly EmailReceiptType[];
 
 export interface EmailReceipt {
   type: EmailReceiptType;
@@ -35,7 +37,7 @@ export interface EmailReceipt {
   to: string[];
   /** The row and the workspace the request was tagged with; null on an email that was not a workspace's (a platform notification). */
   messageId: string | null;
-  tenantId: string | null;
+  tenantId: TenantId | null;
   /** The provider's own account of a bounce, a failure or a suppression. Kept on the row as the provider's words, never shown as ours. */
   detail: { kind: string | null; subKind: string | null; message: string | null };
 }
@@ -43,32 +45,38 @@ export interface EmailReceipt {
 /** Tags as the webhook carries them (a map) or as the request sent them (a list of pairs): one reader for both. */
 function tagOf(tags: unknown, name: string): string | null {
   const v = Array.isArray(tags)
-    ? (tags.find((t) => (t as { name?: unknown } | null)?.name === name) as { value?: unknown } | undefined)?.value
-    : tags && typeof tags === "object"
-      ? (tags as Record<string, unknown>)[name]
-      : undefined;
+    ? valueAt(
+        tags.find((t) => valueAt(t, "name") === name),
+        "value",
+      )
+    : valueAt(tags, name);
   return typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null;
 }
 
 /** A receipt, or null for any other event or shape. */
 export function emailReceiptFrom(payload: unknown): EmailReceipt | null {
-  const p = payload as { type?: unknown; data?: Record<string, unknown> } | null;
-  if (!p || typeof p.type !== "string" || !p.type.startsWith("email.") || !p.data || typeof p.data !== "object")
-    return null;
-  const type = p.type.slice("email.".length);
-  if (!RECEIPT_TYPES.has(type)) return null;
-  const d = p.data;
-  if (typeof d.email_id !== "string" || !d.email_id) return null;
+  const item = recordOrNull(payload);
+  const data = recordOrNull(item?.data);
+  if (!item || typeof item.type !== "string" || !item.type.startsWith("email.") || !data) return null;
+  const type = item.type.slice("email.".length);
+  if (!isOneOf(RECEIPT_TYPES, type)) return null;
+  if (typeof data.email_id !== "string" || !data.email_id) return null;
   const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const said = (d.bounce ?? d.failed ?? d.suppressed ?? {}) as Record<string, unknown>;
+  const bounce = recordOrEmpty(data.bounce ?? data.failed ?? data.suppressed);
+  // The workspace this side tagged the send with, as it comes back.
+  const tagged = tagOf(data.tags, "cl_tenant");
   return {
-    type: type as EmailReceiptType,
-    providerId: d.email_id,
-    rfcMessageId: messageIdHeader(str(d.message_id)),
-    to: addressesOf(d.to),
-    messageId: tagOf(d.tags, "cl_message"),
-    tenantId: tagOf(d.tags, "cl_tenant"),
-    detail: { kind: str(said.type) ?? str(said.reason), subKind: str(said.subType), message: str(said.message) },
+    type,
+    providerId: data.email_id,
+    rfcMessageId: messageIdHeader(str(data.message_id)),
+    to: addressesOf(data.to),
+    messageId: tagOf(data.tags, "cl_message"),
+    tenantId: tagged ? heldTenantId(tagged) : null,
+    detail: {
+      kind: str(bounce.type) ?? str(bounce.reason),
+      subKind: str(bounce.subType),
+      message: str(bounce.message),
+    },
   };
 }
 
@@ -95,13 +103,22 @@ export interface EmailReceiptEffect {
  * nothing: the first is the send's own word to say (deliver.ts), the second is
  * interim.
  */
-export function emailReceiptEffect(r: EmailReceipt): EmailReceiptEffect {
-  const error = { provider: r.type, kind: r.detail.kind, sub_kind: r.detail.subKind, message: r.detail.message };
-  switch (r.type) {
+export function emailReceiptEffect(emailReceipt: EmailReceipt): EmailReceiptEffect {
+  const error = {
+    provider: emailReceipt.type,
+    kind: emailReceipt.detail.kind,
+    sub_kind: emailReceipt.detail.subKind,
+    message: emailReceipt.detail.message,
+  };
+  switch (emailReceipt.type) {
     case "delivered":
       return { status: "delivered", error: null, suppress: null };
     case "bounced":
-      return { status: "failed", error, suppress: /^permanent$/i.test(r.detail.kind ?? "") ? "hard_bounce" : null };
+      return {
+        status: "failed",
+        error,
+        suppress: /^permanent$/i.test(emailReceipt.detail.kind ?? "") ? "hard_bounce" : null,
+      };
     case "failed":
       return { status: "failed", error, suppress: null };
     case "suppressed":

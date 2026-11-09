@@ -1,4 +1,4 @@
-import { previewOpenedBy } from "@/server/previews/preview-doors";
+import { recordPreviewOpenedBy } from "@/server/previews/doors";
 import { previewRoute } from "@/server/previews/public-route";
 
 /**
@@ -6,7 +6,7 @@ import { previewRoute } from "@/server/previews/public-route";
  * the page's own script once it has drawn, so a mail scanner fetching the link is no open. Public: the token is the
  * authority (server/previews/public-route.ts).
  */
-const door = previewRoute({ bucket: "preview_ip", spends: false }, (token) => previewOpenedBy(token));
+const door = previewRoute({ bucket: "preview_ip", spends: false }, (token) => recordPreviewOpenedBy(token));
 
 /** A function of its own, as /api/v1/signup's: these doors are no route() and the typed client does not post them. */
 export async function POST(req: Request, ctx: { params: Promise<{ token: string }> }): Promise<Response> {

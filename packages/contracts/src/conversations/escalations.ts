@@ -9,6 +9,7 @@
  */
 import { STOP_WORDS } from "../consent/consent";
 import type { EscalationReason } from "../shared/enums";
+import { entryOf, keysOf } from "../shared/unknown";
 
 export interface EscalationDto {
   id: string;
@@ -95,7 +96,7 @@ export const ESCALATION_REASON_SHORT: Record<EscalationReason, string> = {
 /** The clause for a reason, or the reason's own words for one the set does not know; nothing for none. */
 export function reasonShort(reason: string | null | undefined): string {
   if (!reason) return "";
-  return (ESCALATION_REASON_SHORT as Record<string, string>)[reason] ?? reason.replace(/_/g, " ");
+  return entryOf(ESCALATION_REASON_SHORT, reason) ?? reason.replace(/_/g, " ");
 }
 
 /**
@@ -131,7 +132,7 @@ const ESCALATION_REASON_WHY: Record<EscalationReason, string> = {
 
 /** Why a reason handed a conversation over; a reason the set does not know is said by its clause. */
 export function reasonWhy(reason: string): string {
-  return (ESCALATION_REASON_WHY as Record<string, string>)[reason] ?? `because ${reasonShort(reason)}`;
+  return entryOf(ESCALATION_REASON_WHY, reason) ?? `because ${reasonShort(reason)}`;
 }
 
 /**
@@ -173,8 +174,7 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
     "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
   carriers:
     "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review:
-    "They wrote by email. Nothing was sent: a reply is drafted for you in Need you, to change or send from here.",
+  email_review: "They wrote by email. Nothing was sent: email is always yours to answer.",
   booking_request:
     "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
   booking_reply:
@@ -185,12 +185,12 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
 
 /** The label for a reason, or the reason's own words for one the set does not know: a row never reads as nothing. */
 export function reasonLabelOf(reason: string): string {
-  return (ESCALATION_REASON_LABELS as Record<string, string>)[reason] ?? reason;
+  return entryOf(ESCALATION_REASON_LABELS, reason) ?? reason;
 }
 
 /** The operator's first sentence for a reason, or the label with "Needs a human." for one the set does not know. */
 export function reasonSummaryOf(reason: string): string {
-  return (ESCALATION_SUMMARIES as Record<string, string>)[reason] ?? `${reasonLabelOf(reason)}. Needs a human.`;
+  return entryOf(ESCALATION_SUMMARIES, reason) ?? `${reasonLabelOf(reason)}. Needs a human.`;
 }
 
 /**
@@ -207,33 +207,33 @@ const ESCALATION_LINES: Record<EscalationReason, string> = {
   brain_error: "The receptionist hit an error — a holding message went out",
   non_text: "They sent something the receptionist can't read",
   send_failed: "Our reply never reached them",
-  policy_block: "Held by your reply setting — nothing has been sent",
+  policy_block: "Held by your reply setting — nothing sent",
   policy_ask: "Set to Ask me first — they were told someone will follow up",
-  person_hold: "You handle this person — nothing has been sent",
-  rate_cap: "The daily reply limit was reached — nothing has been sent",
+  person_hold: "You handle this person — nothing sent",
+  rate_cap: "The daily reply limit was reached — nothing sent",
   deadman: "Nobody has replied yet",
   manual: "Flagged by hand",
   opt_out: `${STOP_WORDS.said("They")} — nothing may be sent`,
-  state_unavailable: "The receptionist couldn't read this thread — nothing has been sent",
-  stale: "Too late for an automatic reply — nothing has been sent",
-  budget: "The day's model budget is used up — nothing has been sent",
+  state_unavailable: "The receptionist couldn't read this thread — nothing sent",
+  stale: "Too late for an automatic reply — nothing sent",
+  budget: "The day's model budget is used up — nothing sent",
   callback: "They're owed a call back",
-  paused: "The workspace is paused — nothing has been sent",
-  carriers: "Texting isn't approved for this line yet — nothing has been sent",
-  email_review: "They wrote by email — nothing has been sent",
+  paused: "The workspace is paused — nothing sent",
+  carriers: "Texting isn't approved for this line yet — nothing sent",
+  email_review: "They wrote by email — nothing sent",
   booking_request: "Confirm the time — they're waiting to hear",
   booking_reply: "They asked to book — reply with a time that works",
-  wrote_while_held: "They wrote while your team had the thread — nothing has been sent",
+  wrote_while_held: "They wrote while your team had the thread — nothing sent",
 };
 
 /** The dock's line for a reason, or the reason's label for one the set does not know. */
 export function reasonLineOf(reason: string): string {
-  return (ESCALATION_LINES as Record<string, string>)[reason] ?? reasonLabelOf(reason);
+  return entryOf(ESCALATION_LINES, reason) ?? reasonLabelOf(reason);
 }
 
 /**
  * A dock's line as the thread canvas draws it (1 Nov 2026): what is owed in the ink at 600, and the clause after its dash
- * in the muted ink ("Check the draft — nothing has been sent"). A line with no clause is all lead.
+ * in the muted ink ("Check the draft — nothing sent"). A line with no clause is all lead.
  */
 export function dockLineOf(line: string): { lead: string; rest: string | null } {
   const at = line.indexOf(" — ");
@@ -276,7 +276,7 @@ export const ESCALATION_ACTS: Record<EscalationReason, HoldAct> = {
 
 /** The act of a reason; a reason the set does not know is answered, as a person is needed for it. */
 export function holdActOf(reason: string | null | undefined): HoldAct {
-  return (ESCALATION_ACTS as Record<string, HoldAct>)[reason ?? ""] ?? "reply";
+  return entryOf(ESCALATION_ACTS, reason) ?? "reply";
 }
 
 /**
@@ -290,17 +290,15 @@ export const OPEN_HOLDS_READ_MAX = 100;
  * for these apart from the rest, so a page of them never crowds out a hold that waits on a person (legacy STOP holds
  * were left open, 00409); the rest is read as waiting, so a reason added later is counted, as holdActOf counts it.
  */
-export const HAND_BACK_REASONS: readonly EscalationReason[] = (
-  Object.keys(ESCALATION_ACTS) as EscalationReason[]
-).filter((r) => ESCALATION_ACTS[r] === "hand_back");
+export const HAND_BACK_REASONS: readonly EscalationReason[] = keysOf(ESCALATION_ACTS).filter(
+  (r) => ESCALATION_ACTS[r] === "hand_back",
+);
 
 /**
  * The reasons whose hold waits on a person (waitsOnAPerson): what a person's answer settles. A reply typed in the
  * WhatsApp Business app resolves the open holds of these on its thread (00438 conversation_echo_settles), never a STOP.
  */
-export const WAITING_REASONS: readonly EscalationReason[] = (Object.keys(ESCALATION_ACTS) as EscalationReason[]).filter(
-  (r) => waitsOnAPerson(r),
-);
+export const WAITING_REASONS: readonly EscalationReason[] = keysOf(ESCALATION_ACTS).filter((r) => waitsOnAPerson(r));
 
 /** The act of the open hold a thread has, or null where it has none. */
 export function openHoldAct(hold: { reason: string } | null | undefined): HoldAct | null {
@@ -340,17 +338,24 @@ export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null;
   confirm: { cta: "Booked it", take: "Booked it", notice: "Confirm it or say you can't.", todo: "Confirm a time" },
 };
 
-/** Where the receptionist drafted the reply a hold asks for: what is owed is a look at its words (the dock says so too). */
-export const DRAFTED_TODO = "Check the draft";
-/** What a row asks where its kept draft found they were not a customer (a sales pitch, a vendor, a newsletter). */
+/** Where Ask's draft of the reply a hold asks for is ready (decision 0093): the row says so, and the dock too. */
+export const DRAFTED_TODO = "Draft ready";
+/** What a row asks where the thread was set aside as not a customer's (a sales pitch, a vendor, a newsletter). */
 export const PITCH_TODO = "Not a customer?";
 
 /**
- * What a hold asks of you, as the Inbox's row says it under what they said (the thread canvas's list, 1 Nov 2026: "Check
- * the draft", "Confirm a time", "Call back"), in the coral: the act's own word, and a look at the draft where the reply box
- * holds one the receptionist wrote. Nothing with no hold to act on.
+ * What a hold asks of you, as the Inbox's row says it under what they said (the thread canvas's list, 1 Nov 2026: "Draft
+ * ready", "Confirm a time", "Call back"), in the coral: the act's own word, and the draft where one is ready for the reply
+ * box. Nothing with no hold to act on.
  */
 export function holdToDoOf(act: HoldAct | null | undefined, drafted: boolean): string | null {
   if (!act) return null;
   return act === "reply" && drafted ? DRAFTED_TODO : HOLD_ACT_WORDS[act].todo;
 }
+
+/**
+ * The holds on a thread you have taken that still ask something of you (Today in three zones, 2 Nov 2026): a reply of
+ * yours that never reached them, and a customer who wrote again while you had the thread. The receptionist stays out of
+ * a thread you hold, so nobody else will answer either. Today's queue and the Inbox's rule (thread-move.ts) both read it.
+ */
+export const YOURS_STILL_WAIT: ReadonlySet<string> = new Set(["send_failed", "wrote_while_held"]);

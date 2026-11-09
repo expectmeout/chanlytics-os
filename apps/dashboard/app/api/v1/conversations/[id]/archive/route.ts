@@ -1,7 +1,7 @@
 import { archive } from "@chanlytics/core";
-import { write } from "@/server/route";
-import { conversationScope } from "@/server/verbs";
-import { threadPorts } from "@/server/ports/core-ports";
+import { write } from "@/server/shared/route";
+import { conversationScope } from "@/server/shared/verbs";
+import { threadPorts } from "@/server/conversations/ports";
 
 /** Archive: close the thread (a state, never a deletion — P3). */
 export const POST = write({

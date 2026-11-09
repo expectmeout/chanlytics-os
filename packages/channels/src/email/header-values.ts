@@ -2,13 +2,10 @@
  * The header values the rest of email/ reads and writes: one line (oneLine), a Message-ID as a header carries it,
  * and an address apart from its phrase, one or a list. The request is request.ts; what arrives is intake.ts.
  */
+import { oneLine } from "@chanlytics/contracts";
 
-/** A header value is one line: a newline in one is how a second header is smuggled in. */
-export const oneLine = (s: string): string =>
-  s
-    .replace(/\p{Cc}+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+/** A header value is one line: contracts' rule, which an email's subject is cut by too (contracts email/subject.ts). */
+export { oneLine };
 
 /** A Message-ID as a header carries it, angle brackets and all; null for anything that is not one. */
 export function messageIdHeader(id: string | null | undefined): string | null {
@@ -19,10 +16,10 @@ export function messageIdHeader(id: string | null | undefined): string | null {
 
 /** `Ana Reyes <ana@x.com>` or `ana@x.com`: the address and the phrase, apart. The phrase is the sender's own and proves nothing. */
 export function addressOf(header: string | null | undefined): { address: string; name: string | null } | null {
-  const s = oneLine(header ?? "");
-  if (!s) return null;
-  const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
-  const address = (angle ? (angle[2] ?? "") : s).trim().toLowerCase();
+  const text = oneLine(header ?? "");
+  if (!text) return null;
+  const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(text);
+  const address = (angle ? (angle[2] ?? "") : text).trim().toLowerCase();
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
   const name = angle
     ? (angle[1] ?? "")
@@ -38,7 +35,7 @@ const stringsOf = (v: unknown): string[] =>
     (x): x is string => typeof x === "string" && x.length > 0,
   );
 
-export const addressesOf = (v: unknown): string[] =>
-  stringsOf(v)
+export const addressesOf = (value: unknown): string[] =>
+  stringsOf(value)
     .map((r) => addressOf(r)?.address)
     .filter((a): a is string => !!a);

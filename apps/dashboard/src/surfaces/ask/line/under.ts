@@ -22,7 +22,7 @@ export const arUnder = ({
   composing,
 }: Line) => {
   const turns = active ? A.turns(active.messages) : []; // its questions and their answers, in order (palette.ts)
-  const latest = turns.length ? turns[turns.length - 1] : null;
+  const latest = turns.at(-1) ?? null;
   const folded = turns.slice(0, -1).filter((tn): tn is FoldedTurn => !!tn.q && !!tn.a); // the thread's earlier turns, each drawn in full
   const answerMsg = latest && latest.a ? latest.a : null;
   const showRows = arShowRows({ talk, view, query, active, quick, live, answerMsg });
@@ -90,7 +90,8 @@ const arThreadOf = ({
   const thread = view === "rows" && (!!active || !!quick) && (!showRows || composing || talk.listening);
   const listen = thread && (composing || talk.listening) && !live && !(quick && quick.pending);
   const nowQ = live ? live.q : quick ? quick.q : latest && latest.q ? latest.q.text : "";
-  return { thread, listen, nowQ };
+  const nowFiles = live ? live.files : quick ? [] : (latest?.q?.files ?? []);
+  return { thread, listen, nowQ, nowFiles };
 };
 
 /** A row or a move taken: a conversation opened, Earlier, a place gone to, words to finish, or a question asked. */
@@ -107,6 +108,11 @@ export const arActivate = ({ openThread, nav, setQuery, inputRef, submit }: Line
     }
     if (it.type === "item" || it.type === "open") {
       nav(it.to as string);
+      return;
+    }
+    // What Ask noticed, where the thing to do is on a page: one step (D36 of the answers canvas).
+    if (it.rest && it.to) {
+      nav(it.to, { leave: true });
       return;
     }
     if (it.compose) {
@@ -144,6 +150,7 @@ export const arOnKey = ({
   setView,
   activate,
   submit,
+  attached,
 }: Line) => {
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (hold.onKeyDown(e) || arFieldKey(e, query)) return;
@@ -191,14 +198,35 @@ export const arOnKey = ({
     }
     if (e.key === "Enter") {
       e.preventDefault();
-      const q = query.trim();
-      // Typed words are asked, unless the keys moved to a row; in Earlier they only find a conversation to open.
-      if (showRows && rows[sel] && (!q || sel > 0 || view === "earlier")) activate(rows[sel]);
-      else if (q) void submit(q);
-      else if (moves[move]) activate(moves[move]);
+      arEnter({ query, attached, submit, showRows, rows, sel, view, activate, moves, move });
     }
   };
   return onKey;
+};
+
+/** Enter on the line: what it stands on, or what is typed. */
+const arEnter = ({
+  query,
+  attached,
+  submit,
+  showRows,
+  rows,
+  sel,
+  view,
+  activate,
+  moves,
+  move,
+}: Pick<
+  Line,
+  "query" | "attached" | "submit" | "showRows" | "rows" | "sel" | "view" | "activate" | "moves" | "move"
+>) => {
+  const q = query.trim();
+  // A photo beside the field makes a question of an empty line.
+  if (attached.length && !q) void submit();
+  // Typed words are asked, unless the keys moved to a row; in Earlier they only find a conversation to open.
+  else if (showRows && rows[sel] && (!q || sel > 0 || view === "earlier")) activate(rows[sel]);
+  else if (q) void submit(q);
+  else if (moves[move]) activate(moves[move]);
 };
 /** The hero as it stands: shrunk with the question under it, at rest, and the standing pills. */
 export const arHeroState = ({

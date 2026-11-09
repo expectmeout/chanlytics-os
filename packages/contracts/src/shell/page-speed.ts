@@ -6,6 +6,16 @@
  * opens and as a move reaches it, the parts of a page that are drawn last, and the taps, paints and shifts that cost
  * the most, each by the element's test id. Pure: the rows in, the card's words out.
  */
+import {
+  FIRST_ROWS_ENDS,
+  FIRST_ROWS_MISSES,
+  FIRST_ROWS_PAGES,
+  FIRST_ROWS_PART,
+  firstRowsEndPart,
+  firstRowsMissPart,
+  type FirstRowsEnd,
+  type FirstRowsMiss,
+} from "./first-rows";
 import { PAGE_VITAL_BANDS, vitalValueWords, type PageVitalVerdict } from "./vitals";
 import type { Tone } from "./tone";
 
@@ -92,6 +102,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
   table: "the table",
   board: "the board",
   hero: "the person",
+  [FIRST_ROWS_PART]: "the first paint",
 };
 
 function pageSpeedLabel(page: string): string {
@@ -149,6 +160,10 @@ export interface PageSpeedVM {
   /** What the elements' card says above its lines. */
   spotsSentence: string;
   parts: PageSpeedPartVM[];
+  /** What the card of a phone's first paint says above its lines. */
+  firstRowsSentence: string;
+  /** Each page that keeps a copy: how often a phone opened on it, and why not. */
+  firstRows: PageSpeedPartVM[];
   taps: PageSpeedSpotVM[];
   paints: PageSpeedSpotVM[];
   shifts: PageSpeedSpotVM[];
@@ -177,22 +192,22 @@ const DEFERRED_SAID = "A speed step put off until its number passes its line: ea
 
 /** Each step put off: its page's moves three in four against its line, warn once past it, and not yet where too few. */
 function deferredLines(at: Lookup): PageSpeedPartVM[] {
-  return DEFERRED_STEPS.map((s) => {
-    const move = at("READY", s.page, "", "move");
-    const taken = `Taken when ${pageSpeedLabel(s.page)}'s moves pass ${msWords(s.line)}, three in four, ${s.also}`;
+  return DEFERRED_STEPS.map((deferredStep) => {
+    const move = at("READY", deferredStep.page, "", "move");
+    const taken = `Taken when ${pageSpeedLabel(deferredStep.page)}'s moves pass ${msWords(deferredStep.line)}, three in four, ${deferredStep.also}`;
     if (!move)
       return {
-        key: s.key,
-        label: s.label,
+        key: deferredStep.key,
+        label: deferredStep.label,
         value: "too few moves",
         tone: "ok",
         hint: `${taken}. Too few moves to say yet.`,
       };
-    const past = move.p75 > s.line;
+    const past = move.p75 > deferredStep.line;
     return {
-      key: s.key,
-      label: s.label,
-      value: `${msWords(move.p75)} of ${msWords(s.line)}`,
+      key: deferredStep.key,
+      label: deferredStep.label,
+      value: `${msWords(move.p75)} of ${msWords(deferredStep.line)}`,
       tone: past ? "warn" : "ok",
       hint: past ? `${taken}. Past its line: take it.` : `${taken}.`,
     };
@@ -234,7 +249,7 @@ function pageLine(at: Lookup, page: string): PageSpeedPageVM | null {
   const settled = at("SETTLED", page, "", "load");
   const phone = at("READY", page, "", how, "phone");
   const waits = read?.waits_on ?? load?.waits_on ?? null;
-  const said = [
+  const phrases = [
     load ? `opened ${msWords(load.p75)}` : null,
     move ? `moved to ${msWords(move.p75)}${held ? `, ${share(held.samples, move.samples)} from held rows` : ""}` : null,
     read ? `${msWords(read.p75)} when it had to read` : null,
@@ -242,7 +257,7 @@ function pageLine(at: Lookup, page: string): PageSpeedPageVM | null {
     waits ? `waits on ${waits}` : null,
     phone ? `on a phone ${msWords(phone.p75)}` : null,
   ].filter(Boolean);
-  const text = said.join(" · ");
+  const text = phrases.join(" · ");
   const verdict = speedVerdict(how, lead.p75);
   return {
     page,
@@ -261,6 +276,7 @@ function partLines(rows: readonly PageSpeedRowDto[], shown: number): PageSpeedPa
         r.metric === "READY" &&
         r.page !== null &&
         r.part !== "" &&
+        !r.part.startsWith(`${FIRST_ROWS_PART}-`) &&
         r.how === "all" &&
         r.device === "all" &&
         r.warm === "all" &&
@@ -268,17 +284,86 @@ function partLines(rows: readonly PageSpeedRowDto[], shown: number): PageSpeedPa
     )
     .sort((a, b) => b.p75 - a.p75 || `${a.page}.${a.part}`.localeCompare(`${b.page}.${b.part}`))
     .slice(0, shown)
-    .map((r) => {
-      const page = r.page ?? "";
-      const verdict = speedVerdict(r.part === "thread" || r.part === "call" ? "within" : "move", r.p75);
+    .map((item) => {
+      const page = item.page ?? "";
+      const verdict = speedVerdict(item.part === "thread" || item.part === "call" ? "within" : "move", item.p75);
       return {
-        key: `${page}.${r.part}`,
-        label: `${pageSpeedLabel(page)} · ${partLabel(r.part)}`,
-        value: msWords(r.p75),
+        key: `${page}.${item.part}`,
+        label: `${pageSpeedLabel(page)} · ${partLabel(item.part)}`,
+        value: msWords(item.p75),
         tone: VERDICT_TONES[verdict],
-        hint: `${msWords(r.p75)} · ${countWords(r.samples, "time")} drawn${r.waits_on ? ` · waits on ${r.waits_on}` : ""}`,
+        hint: `${msWords(item.p75)} · ${countWords(item.samples, "time")} drawn${item.waits_on ? ` · waits on ${item.waits_on}` : ""}`,
       };
     });
+}
+
+/** Why a phone drew no copy, as the card says it. */
+const MISS_WORDS: Readonly<Record<FirstRowsMiss, string>> = {
+  none: "none kept",
+  address: "a longer address",
+  width: "another width",
+  sheets: "styles changed",
+  aged: "too old",
+};
+/** How a copy went before its page's rows came, as the card says it. */
+const END_WORDS: Readonly<Record<Exclude<FirstRowsEnd, "page">, string>> = {
+  "other-route": "another page",
+  unavailable: "page unavailable",
+  "held-8s": "held 8 s",
+  "held-20s": "held 20 s",
+  "no-frame": "no page",
+};
+
+/** "styles changed 6, none kept 2": what each word's reports came to, the most first, those with none left out. */
+function saidMostFirst(wordSamples: readonly (readonly [words: string, samples: number])[]): string {
+  return wordSamples
+    .filter(([, samples]) => samples > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([words, samples]) => `${words} ${samples.toLocaleString("en-US")}`)
+    .join(", ");
+}
+
+/** A phone's opens of one page, those with a copy and those without: its reports by their part, a miss's and an end's counted. */
+function firstRowsLine(rows: readonly PageSpeedRowDto[], page: string): PageSpeedPartVM | null {
+  const ofPart = (part: string): PageSpeedRowDto | undefined =>
+    rows.find(
+      (r) =>
+        r.metric === "READY" &&
+        r.page === page &&
+        r.part === part &&
+        r.how === "all" &&
+        r.device === "all" &&
+        r.warm === "all",
+    );
+  const samplesOf = (part: string): number => ofPart(part)?.samples ?? 0;
+  const drawn = samplesOf(FIRST_ROWS_PART);
+  const missed = FIRST_ROWS_MISSES.map((reason) => [MISS_WORDS[reason], samplesOf(firstRowsMissPart(reason))] as const);
+  const opens = missed.reduce((sum, [, samples]) => sum + samples, drawn);
+  if (opens < PAGE_SPEED_MIN) return null;
+  const painted = drawn > 0 ? ofPart(FIRST_ROWS_PART) : undefined;
+  const stood = ofPart(firstRowsEndPart("page"));
+  const notDrawn = saidMostFirst(missed);
+  const early = saidMostFirst(
+    FIRST_ROWS_ENDS.filter((how) => how !== "page").map(
+      (how) => [END_WORDS[how], samplesOf(firstRowsEndPart(how))] as const,
+    ),
+  );
+  const text = [
+    painted ? `drew it in ${msWords(painted.p75)}` : null,
+    stood ? `stood ${msWords(stood.p75)}` : null,
+    notDrawn ? `not drawn: ${notDrawn}` : null,
+    early ? `let go early: ${early}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const value = share(drawn, opens);
+  return {
+    key: `${FIRST_ROWS_PART}.${page}`,
+    label: `${pageSpeedLabel(page)} · ${value}`,
+    value,
+    tone: drawn / opens >= FIRST_ROWS_WELL ? "ok" : "warn",
+    hint: `${text.charAt(0).toUpperCase()}${text.slice(1)} · ${countWords(opens, "open")}`,
+  };
 }
 
 /** The phase the time went on most, as a person reads it. */
@@ -304,16 +389,16 @@ function spotLines(
     .filter((s) => s.metric === metric && s.samples >= SPOT_MIN && (metric !== "CLS" || s.p75 > band[0] / 2))
     .sort((a, b) => b.p75 - a.p75 || `${a.page}.${a.el}`.localeCompare(`${b.page}.${b.el}`))
     .slice(0, shown)
-    .map((s) => {
-      const value = vitalValueWords(metric, s.p75);
-      const verdict: PageVitalVerdict = s.p75 <= band[0] ? "good" : s.p75 <= band[1] ? "needs work" : "poor";
-      const phase = s.phase ? PHASE_WORDS[s.phase] : undefined;
+    .map((spot) => {
+      const value = vitalValueWords(metric, spot.p75);
+      const verdict: PageVitalVerdict = spot.p75 <= band[0] ? "good" : spot.p75 <= band[1] ? "needs work" : "poor";
+      const phase = spot.phase ? PHASE_WORDS[spot.phase] : undefined;
       return {
-        key: `${metric}.${s.page}.${s.el}`,
-        label: `${s.el} on ${pageSpeedLabel(s.page)}`,
+        key: `${metric}.${spot.page}.${spot.el}`,
+        label: `${spot.el} on ${pageSpeedLabel(spot.page)}`,
         value,
         tone: VERDICT_TONES[verdict],
-        hint: `${value} · ${countWords(s.samples, noun)}${phase ? ` · mostly ${phase}` : ""}`,
+        hint: `${value} · ${countWords(spot.samples, noun)}${phase ? ` · mostly ${phase}` : ""}`,
       };
     });
 }
@@ -336,6 +421,9 @@ const PARTS_SAID =
   "The parts of a page drawn last, three in four times, from the page's start or from the press that opened them.";
 const SPOTS_SAID =
   "The taps that waited longest, the paints drawn last and what moved under a person's eye, each by the element's test id.";
+const FIRST_ROWS_SAID = "How often a phone opened on the rows it last showed, and why not when it did not.";
+/** The share of a phone's opens drawn from a copy that is as it should be: fewer has a reason to read on the line. */
+const FIRST_ROWS_WELL = 0.8;
 
 /** The pages on the card, slowest first: a page enough moves or loads reached. */
 const PAGES_SHOWN = 12;
@@ -351,10 +439,12 @@ export function pageSpeedWords(
   const none = {
     pages: [],
     parts: [],
+    firstRows: [],
     taps: [],
     paints: [],
     shifts: [],
     partsSentence: PARTS_SAID,
+    firstRowsSentence: FIRST_ROWS_SAID,
     spotsSentence: SPOTS_SAID,
     deferredSentence: DEFERRED_SAID,
     deferred: [],
@@ -377,6 +467,10 @@ export function pageSpeedWords(
     partsSentence: PARTS_SAID,
     spotsSentence: SPOTS_SAID,
     parts: partLines(speed.rows, PARTS_SHOWN),
+    firstRowsSentence: FIRST_ROWS_SAID,
+    firstRows: Object.values(FIRST_ROWS_PAGES)
+      .map((p) => firstRowsLine(speed.rows, p.page))
+      .filter((l): l is PageSpeedPartVM => l !== null),
     taps: spotLines(speed.spots, "INP", 6, "tap"),
     paints: spotLines(speed.spots, "LCP", 4, "paint"),
     shifts: spotLines(speed.spots, "CLS", 4, "shift"),

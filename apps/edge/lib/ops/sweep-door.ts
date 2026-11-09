@@ -11,11 +11,11 @@
  * (vercel.json): the door's own reads and a cold start are inside that limit too.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { authorizeCron } from "../cron-auth.js";
-import { refuse } from "../http.js";
-import { door, logger, type Logger, type LogEvent } from "../log.js";
-import { pg } from "../pg.js";
+import type { Database } from "@chanlytics/db/types";
+import { authorizeCron } from "../shared/cron-auth.js";
+import { refuse } from "../shared/http.js";
+import { door, logger, type Logger, type LogEvent } from "../shared/log.js";
+import { pg } from "../shared/pg.js";
 
 /** What a sweep is handed: the service-role database, its logger, and when its door was reached (Date.now()). */
 export interface SweepTick {
@@ -40,14 +40,14 @@ export function sweepDoor(
 ): (request: Request) => Promise<Response> {
   return door(async (request: Request): Promise<Response> => {
     const started = Date.now();
-    const L = logger({ sweep });
+    const log = logger({ sweep });
     const db = pg();
     if (!db) {
-      if (noDbEvent) L.error(noDbEvent);
+      if (noDbEvent) log.error(noDbEvent);
       return refuse(503, "no_database");
     }
-    const denied = await authorizeCron(request, db, L);
+    const denied = await authorizeCron(request, db, log);
     if (denied) return denied;
-    return run({ db, L, started });
+    return run({ db, L: log, started });
   });
 }

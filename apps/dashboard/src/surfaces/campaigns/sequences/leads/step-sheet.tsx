@@ -25,7 +25,7 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Picker } from "../../../kit/picker/picker";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { gate, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, type FrameFlash } from "../../../frame-verbs";
 import { cmChevron, cmNumbers } from "../../parts/picks";
 import { useSlotSeats } from "../../templates/slots/slot-seats";
 import { tplOwn } from "../../templates/words";
@@ -33,19 +33,11 @@ import { WordsField } from "../../templates/slots/words-field";
 import { pressed } from "../verbs";
 import { LeadInsert } from "./insert";
 import { LeadPreview } from "./preview";
-import {
-  cardLeadOf,
-  exampleCardLead,
-  useLeadRow,
-  usePreviewLeads,
-  usePreviewName,
-  workspaceOf,
-  type PreviewLead,
-} from "./reads";
+import { cardLeadOf, exampleCardLead, useLeadRow, usePreviewLeads, workspaceOf, type PreviewLead } from "./reads";
 import { LeadRewrite, useLeadRewrite } from "./rewrite";
 import type { LeadChain } from "./use-chain";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /** Each step's day on the rail, from the draft's waits: the first on day 1. */
 const stepDaysOf = (steps: readonly ReachOutDraftStep[]) =>
@@ -76,6 +68,7 @@ function EmailWrite({ sequenceId, lc, place, step, lead, flash, onPreview }: Wri
   const box = { slots: REACH_OUT_SLOT_SET, readOnly: rewrite.asking, seats };
   const [inserting, setInserting] = useState(false);
   const [rewriting, setRewriting] = useState(false);
+  const keepOwn = lc.chain.steps.find((s) => s.id === step.id)?.own_words ?? 0;
   const row = useLeadRow(lead?.id ?? null);
   const slotLead = row ? cardLeadOf(row) : lead ? null : exampleCardLead();
   return (
@@ -102,6 +95,11 @@ function EmailWrite({ sequenceId, lc, place, step, lead, flash, onPreview }: Wri
         onType={(words) => set({ body: words })}
         testid="ld-body"
       />
+      {keepOwn > 0 ? (
+        <p className="ld-note" data-testid="ld-keep-own">
+          {W.keepOwn(keepOwn)}
+        </p>
+      ) : null}
       <div className="ld-write-acts">
         <Button
           size="sm"
@@ -186,7 +184,6 @@ function WriteFoot(p: { lc: LeadChain; place: number; onDone: () => void; onRemo
 /** The foot while previewing: the step as this lead gets it, and Send me a test, to your own inbox. */
 function TestFoot(p: { rec: SequenceRecordDto; lc: LeadChain; place: number; lead: PreviewLead | null; flash: Flash }) {
   const [busy, setBusy] = useState(false);
-  const name = usePreviewName(p.lead);
   const test = async () => {
     setBusy(true);
     // What is typed goes first, so the test is the words as they stand.
@@ -204,7 +201,6 @@ function TestFoot(p: { rec: SequenceRecordDto; lc: LeadChain; place: number; lea
   return (
     <div className="ld-foot">
       <span className="ld-foot-said">
-        <span className="ld-foot-line">{W.testLine(p.place, name)}</span>
         <span className="ld-foot-fact">{W.testFact}</span>
       </span>
       <Button
@@ -254,8 +250,8 @@ export function LeadStepSheet({ open, place, rec, lc, flash, onClose }: LeadStep
     <Sheet
       open={open && !!step && !!place}
       onClose={close}
-      title={previewing ? W.preview : place ? W.stepTitle(place, hand) : ""}
-      sub={previewing && place ? W.previewSub(place) : W.stepSub(day, rec.sequence.in_it)}
+      title={previewing && place ? W.previewTitle(place) : place ? W.stepTitle(place, hand) : ""}
+      sub={previewing ? undefined : W.stepSub(day, rec.sequence.in_it)}
       close={{ label: W.done, glyph: <Icon name="x" size={13} /> }}
       backCloses
       testid="ld-step-sheet"
@@ -273,7 +269,7 @@ export function LeadStepSheet({ open, place, rec, lc, flash, onClose }: LeadStep
             <span className="ld-flip">
               <Icon name="chevron" size={13} />
             </span>{" "}
-            {W.stepTitle(place, hand)}
+            {W.previewBack}
           </Button>
           <LeadPreview
             rec={rec}

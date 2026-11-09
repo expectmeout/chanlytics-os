@@ -11,7 +11,7 @@
  * draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves; the mockup's
  * seeded twin (its own matrix, defaults and guardrails, kept in the browser) left with it.
  */
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type ComponentProps } from "react";
 import {
   MIN_MS,
   REPLY_DELAY_DEFAULT_MS,
@@ -21,11 +21,13 @@ import {
   tokensPerReply,
   type BudgetDial,
 } from "@chanlytics/contracts";
-import type { PolicyDials } from "@/legacy-bridge/inbox-verbs";
-import { modeLabel, uiRows, type UiRow } from "@/legacy-bridge/policy-store";
+import type { PolicyDials } from "@/bridge/inbox-verbs";
+import { modeLabel, uiRows, type UiRow } from "@/bridge/policy-store";
+import { Button } from "../../kit/button/button";
+import { Switch } from "../../kit/switch/switch";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
-import { gate, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
@@ -215,7 +217,112 @@ function replyDials(reply: UiRow): DialRow[] {
  */
 const AUT_ASKED_ELSEWHERE = new Set(["reply", "booking", "faq", "money"]);
 
-export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash) => void; row?: string | null }) => {
+/** One row for what goes to many (D41 of the answers canvas): a page's merge, and nothing stored changes. */
+const AUT_MOVES_WITH: Record<string, readonly string[]> = { campaign: ["reengage", "follow_up"] };
+const AUT_MOVED_WITH = new Set(Object.values(AUT_MOVES_WITH).flat());
+const AUT_MANY_ROW = {
+  label: "Sends to many people",
+  note: "how a new offer, win-back or follow-up starts · each keeps its own on its page, and asks you before its first batch and after new words",
+};
+
+/** What else it may do without you, as a table at a desk and a list on a phone. */
+const AutMatrix = ({ phone, rows, put, busy, lines }: { phone: boolean } & ComponentProps<typeof PolicyTable>) => (
+  <section className="rec-card set-card">
+    <div className="rec-card-head">
+      <h2 className="rec-card-title">Policy matrix</h2>
+      <span className="rec-card-sub">What else it may do without you. Every row is one it consults before acting.</span>
+    </div>
+    {phone ? (
+      <PolPhoneRows rows={rows} put={put} busy={busy} lines={lines} />
+    ) : (
+      <PolicyTable rows={rows} put={put} busy={busy} lines={lines} />
+    )}
+  </section>
+);
+
+/**
+ * Ask on its own (D10) and Stop everything (D22): the switch that lets what it proposes follow the rows below with no press,
+ * off until an owner turns it on, and the one press that pauses all sending. What always waits for a person is said here,
+ * since that is what makes the switch safe to turn on.
+ */
+function AskOnItsOwn({
+  alone,
+  stopped,
+  flash,
+}: {
+  alone: boolean;
+  stopped: { playbooks: string[] } | null;
+  flash: (f: FrameFlash) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    setBusy(true);
+    const r = await autonomyVerbs.setAskAlone(!alone);
+    setBusy(false);
+    flash(
+      r.ok
+        ? { msg: <>{alone ? "Ask waits for you again." : "Ask now follows these rows."}</> }
+        : { tone: "danger", msg: <>{r.message}</> },
+    );
+  };
+  const stop = async () => {
+    setBusy(true);
+    const r = await autonomyVerbs.stopAll(!stopped);
+    setBusy(false);
+    flash(
+      r.ok
+        ? { msg: <>{stopped ? "Back as it was." : "Everything is paused. Nothing goes out."}</> }
+        : { tone: "danger", msg: <>{r.message}</> },
+    );
+  };
+  return (
+    <section className="rec-card set-card" data-testid="aut-ask-alone">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title">Ask on its own</h2>
+        <span className="rec-card-sub">
+          Whether what you ask it to do needs a press. Money, new words, cold email, searches, settings and anything
+          final always wait for you.
+        </span>
+      </div>
+      <RecordRow
+        id="aut-ask-alone-row"
+        label="Follow the rows below"
+        hint="It says why under whatever it does, with a way to undo it."
+        value={
+          <Switch
+            checked={alone}
+            onCheckedChange={() => void toggle()}
+            label="Ask follows the rows below"
+            readOnly={busy || !canDo("settings")}
+            data-testid="aut-ask-alone-press"
+          />
+        }
+      />
+      <RecordRow
+        id="aut-stop-everything"
+        label={stopped ? "Everything is paused" : "All sending"}
+        hint={
+          stopped
+            ? `${stopped.playbooks.length} paused, and replies wait for you.`
+            : "Pauses every send and holds replies for you, at once."
+        }
+        value={
+          <Button
+            size="sm"
+            variant={stopped ? "quiet" : "danger"}
+            onClick={stop}
+            aria-disabled={busy || undefined}
+            data-testid="aut-stop-press"
+          >
+            {stopped ? "Resume" : "Stop everything"}
+          </Button>
+        }
+      />
+    </section>
+  );
+}
+
+export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash) => void; row?: string | null }) => {
   const read = useSurface("settings");
   const [busy, setBusy] = useState<string | null>(null);
   const phone = useSetPhone();
@@ -259,6 +366,8 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
   const put = async (r: UiRow, mode: string | undefined, dials: PolicyDials = {}) => {
     setBusy(r.cls);
     const res = await autonomyVerbs.setPolicy(r.cls, mode, dials);
+    // One row for what goes to many (D41 of the answers canvas): the classes it stands for move with it. Nothing stored changes.
+    if (res.ok && mode) for (const cls of AUT_MOVES_WITH[r.cls] ?? []) await autonomyVerbs.setPolicy(cls, mode, {});
     setBusy(null);
     if (!res.ok) {
       flash({
@@ -275,7 +384,12 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
   };
   const putDial = (r: UiRow, m: undefined, d: PolicyDials) => void put(r, m, d);
   const putMode = (r: UiRow, m: string) => void put(r, m);
-  const matrix = rows.filter((r) => !AUT_ASKED_ELSEWHERE.has(r.cls));
+  const matrix = rows
+    .filter((r) => !AUT_ASKED_ELSEWHERE.has(r.cls) && !AUT_MOVED_WITH.has(r.cls))
+    .map((r) => (r.cls === "campaign" ? { ...r, ...AUT_MANY_ROW } : r));
+  const ask = (
+    read.settings?.config as { ask?: { alone?: boolean; stopped?: { playbooks: string[] } } } | null | undefined
+  )?.ask;
 
   return (
     <>
@@ -291,19 +405,9 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
         </section>
       ) : null}
 
-      <section className="rec-card set-card">
-        <div className="rec-card-head">
-          <h2 className="rec-card-title">Policy matrix</h2>
-          <span className="rec-card-sub">
-            What else it may do without you. Every row is one it consults before acting.
-          </span>
-        </div>
-        {phone ? (
-          <PolPhoneRows rows={matrix} put={putMode} busy={busy} lines={lines} />
-        ) : (
-          <PolicyTable rows={matrix} put={putMode} busy={busy} lines={lines} />
-        )}
-      </section>
+      <AskOnItsOwn alone={ask?.alone === true} stopped={ask?.stopped ?? null} flash={flash} />
+
+      <AutMatrix phone={phone} rows={matrix} put={putMode} busy={busy} lines={lines} />
 
       <section className="rec-card set-card">
         <div className="rec-card-head">

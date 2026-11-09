@@ -1,6 +1,6 @@
-import { write, account } from "@/server/route";
+import { write, account } from "@/server/shared/route";
 import { ReportProblemInput } from "@chanlytics/contracts";
-import { fileProblemReport } from "@/server/platform/report";
+import { fileProblemReport } from "@/server/console/report";
 
 /**
  * POST /api/v1/support/report — {kind, words, page, error, workspace}: Get help, from anywhere in the app (decisions

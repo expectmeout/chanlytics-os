@@ -5,8 +5,9 @@
  */
 import type { SchemaSet } from "../../shared/schema-sets";
 import type { SystemOneQuestion } from "../../ai/system-one";
-import { PLAYBOOK_VETO_DELAY_WORDS } from "../../playbooks/playbook-triggers";
+import { PLAYBOOK_VETO_DELAY_WORDS } from "../../campaigns/playbooks/triggers/notices";
 import type { PolicyLimits } from "./policy-limits-schema";
+import { isOneOf } from "../../shared/unknown";
 
 /* --------------------------------------------------------------- E3 policy */
 
@@ -143,10 +144,7 @@ export const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]> = {
  * by (POLICY_CLASS_MODES). An unknown class or mode is not offered.
  */
 export function policyModeOffered(cls: string, mode: string): boolean {
-  return (
-    (POLICY_CLASSES as readonly string[]).includes(cls) &&
-    (POLICY_CLASS_MODES[cls as PolicyClass] as readonly string[]).includes(mode)
-  );
+  return isOneOf(POLICY_CLASSES, cls) && isOneOf(POLICY_CLASS_MODES[cls], mode);
 }
 
 /** Why a class cannot be set to a mode, in the words the route says; null where it can. */
@@ -270,6 +268,11 @@ export function policyRules(
   return out;
 }
 
+/** The money row as a draft says it (decision 0093): the person who will send it decides, in their own words. */
+export function draftMoneyRule(): string {
+  return `Money: ${POLICY_COVERS.money} is not yours to decide or promise. Do not agree, refuse or quote terms; say you will come back to them about it.`;
+}
+
 export interface PolicyRow {
   id: string;
   class: PolicyClass;
@@ -309,16 +312,16 @@ export function heldDraftsByClass(
   rows: readonly HeldDraftsByIntent[],
 ): Partial<Record<HeldDraftsClass, HeldDraftsCount>> {
   const out: Partial<Record<HeldDraftsClass, HeldDraftsCount>> = {};
-  for (const r of rows) {
-    const c = policyClassOfIntent(r.intent);
-    const cls: HeldDraftsClass = c === "booking" || c === "faq" ? c : "reply";
+  for (const row of rows) {
+    const result = policyClassOfIntent(row.intent);
+    const cls: HeldDraftsClass = result === "booking" || result === "faq" ? result : "reply";
     const was = out[cls] ?? { held: 0, sent: 0, steered: 0, canceled: 0, person_first: 0 };
     out[cls] = {
-      held: was.held + r.held,
-      sent: was.sent + r.sent,
-      steered: was.steered + r.steered,
-      canceled: was.canceled + r.canceled,
-      person_first: was.person_first + r.person_first,
+      held: was.held + row.held,
+      sent: was.sent + row.sent,
+      steered: was.steered + row.steered,
+      canceled: was.canceled + row.canceled,
+      person_first: was.person_first + row.person_first,
     };
   }
   return out;
@@ -328,13 +331,13 @@ export function heldDraftsByClass(
  * The row's line: the drafts held for the owner in the window, and how many went as written, then each way the owner
  * changed one that happened at all. Null with none held: the row says nothing it has no evidence for.
  */
-export function heldDraftsLine(c: HeldDraftsCount | undefined): string | null {
-  if (!c || c.held <= 0) return null;
+export function heldDraftsLine(heldDraftsCount: HeldDraftsCount | undefined): string | null {
+  if (!heldDraftsCount || heldDraftsCount.held <= 0) return null;
   const parts = [
-    `${c.sent} sent as written`,
-    c.steered > 0 ? `${c.steered} rewritten` : "",
-    c.canceled > 0 ? `${c.canceled} stopped` : "",
-    c.person_first > 0 ? `${c.person_first} you answered first` : "",
+    `${heldDraftsCount.sent} sent as written`,
+    heldDraftsCount.steered > 0 ? `${heldDraftsCount.steered} rewritten` : "",
+    heldDraftsCount.canceled > 0 ? `${heldDraftsCount.canceled} stopped` : "",
+    heldDraftsCount.person_first > 0 ? `${heldDraftsCount.person_first} you answered first` : "",
   ].filter(Boolean);
-  return `${c.held} held for you in ${HELD_DRAFTS_DAYS} days: ${parts.join(", ")}`;
+  return `${heldDraftsCount.held} held for you in ${HELD_DRAFTS_DAYS} days: ${parts.join(", ")}`;
 }

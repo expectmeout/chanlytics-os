@@ -1,3 +1,5 @@
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
+import type { ContactId } from "@chanlytics/contracts";
 import "server-only";
 import {
   AppError,
@@ -8,25 +10,28 @@ import {
   consentChangeOf,
   personName,
   readyOrWhatsApp,
-  writeReachOf,
   type MessageDto,
   type PersonDetailDto,
-  type PersonEscalationDto,
   type PersonReachDto,
+  DAY_KEY,
+  recordOrEmpty,
+  recordOrNull,
+  textOrEmpty,
 } from "@chanlytics/contracts";
-import { SMS_FOOTER } from "@chanlytics/channels";
+import { writeReachOf } from "@/server/new-conversation/write-reach";
+import { SMS_FOOTER } from "@chanlytics/channels/lines";
 import {
   openDoubtsOf,
-  keptPersonOf,
-  peopleAtLead,
-  personDecisions,
-  personReplyMode,
-  personRow,
-  readAllRows,
-  sequencesOfPerson,
-  signersOf,
-  textReached,
-} from "@chanlytics/db";
+  findKeptPerson,
+  listPeopleAtLead,
+  listPersonDecisions,
+  findPersonRow,
+  listSigners,
+} from "@chanlytics/db/people";
+import { findPersonReplyMode } from "@chanlytics/db/workspace";
+import { readAllRows } from "@chanlytics/db/shared";
+import { listSequencesOfPerson } from "@chanlytics/db/campaigns";
+import { wasTextReached } from "@chanlytics/db/conversations";
 import {
   CALL_COLUMNS,
   CONVERSATION_COLUMNS,
@@ -34,18 +39,19 @@ import {
   groupMessages,
   toCallDto,
   toConversationDto,
-} from "../dto";
-import { personLike } from "../calendar/calendar-week";
-import { signedByThreadOf, signedFirstOf } from "../connections/email";
-import { personVisits } from "../calendar/person-visits";
-import { personRuns } from "../campaigns/broadcasts";
-import { leadOfPerson } from "../leads/leads";
-import { leadOne } from "../leads/lead-page";
-import { personNotesRead, stepFor } from "../people/person-notes";
-import { DEAL_DTO_COLUMNS, dealPaceRead } from "../people/deals";
-import { load, stamp, type Reader, type ReaderContext, type RowRef } from "./index";
+} from "../conversations/dto";
+import { personLike } from "../calendar/week/items";
+import { getSignedByThread, findSignedFirst } from "../connections/email";
+import { findPersonVisits } from "../calendar/person-visits";
+import { listPersonRuns } from "../campaigns/broadcasts/broadcasts";
+import { findLeadOfPerson } from "../leads/leads";
+import { getLeadOne } from "../leads/page-read";
+import { getPersonNotes, stepFor } from "../people/person-notes";
+import { DEAL_DTO_COLUMNS, findDealPace } from "../people/deals";
+import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
 import * as facts from "./facts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How many of a person's messages their page holds: the newest, so what drops is the oldest history. */
 const PERSON_MESSAGES = 2000;
@@ -75,10 +81,10 @@ function personMessages(rc: ReaderContext, convIds: string[]) {
 /** Where they came from, as the profile says it: the door's contact.added row for them, when there is one. */
 function cameFrom(row: { created_at: string; data: unknown } | null): PersonDetailDto["added"] {
   if (!row) return undefined;
-  const data = row.data as { source?: unknown; title?: unknown } | null;
+  const data = recordOrNull(row.data);
   return {
     at: row.created_at,
-    source: String(data?.source ?? "manual"),
+    source: textOrEmpty(data?.source ?? "manual"),
     title: typeof data?.title === "string" ? data.title : null,
   };
 }
@@ -90,12 +96,14 @@ function cameFrom(row: { created_at: string; data: unknown } | null): PersonDeta
 function beforeOf(row: { before?: unknown } | null): PersonDetailDto["before"] {
   const raw = row?.before;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const b = raw as Record<string, unknown>;
+  const record = recordOrEmpty(raw);
   const out: NonNullable<PersonDetailDto["before"]> = {};
-  if (typeof b.via === "string" && b.via) out.via = b.via;
-  if (typeof b.last_visit === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.last_visit)) out.last_visit = b.last_visit;
-  if (typeof b.visits === "number" && Number.isFinite(b.visits) && b.visits >= 0) out.visits = b.visits;
-  if (typeof b.birthday === "string" && /^(\d{4}|-)-\d{2}-\d{2}$/.test(b.birthday)) out.birthday = b.birthday;
+  if (typeof record.via === "string" && record.via) out.via = record.via;
+  if (typeof record.last_visit === "string" && DAY_KEY.test(record.last_visit)) out.last_visit = record.last_visit;
+  if (typeof record.visits === "number" && Number.isFinite(record.visits) && record.visits >= 0)
+    out.visits = record.visits;
+  if (typeof record.birthday === "string" && /^(\d{4}|-)-\d{2}-\d{2}$/.test(record.birthday))
+    out.birthday = record.birthday;
   return Object.keys(out).length ? out : null;
 }
 
@@ -139,8 +147,8 @@ function configFacts(config: unknown): { bookingLink: string | null; services: s
  */
 async function businessAndSigners(
   rc: ReaderContext,
-  tenantId: string,
-  id: string,
+  tenantId: TenantId,
+  id: ContactId,
   rowRead: Promise<{ lead_id?: string | null; lead_gone?: boolean | null } | null>,
 ): Promise<Pick<PersonDetailDto, "business" | "signers">> {
   const sb = rc.ctx.supabase;
@@ -148,14 +156,17 @@ async function businessAndSigners(
     .then(async (r) => {
       const leadId = r?.lead_id && !r.lead_gone ? r.lead_id : null;
       if (!leadId) return null;
-      const [one, people] = await Promise.all([leadOne(rc.ctx, tenantId, leadId), peopleAtLead(sb, tenantId, leadId)]);
+      const [one, people] = await Promise.all([
+        getLeadOne(rc.ctx, tenantId, leadId),
+        listPeopleAtLead(sb, tenantId, leadId),
+      ]);
       return { lead: one.row, people };
     })
     .catch((e: unknown) => {
       log.error("person_business_failed", { contact: id, error: e instanceof Error ? e.message : String(e) });
       return null;
     });
-  const signers = signersOf(sb, tenantId, id).catch((e: unknown) => {
+  const signers = listSigners(sb, tenantId, id).catch((e: unknown) => {
     log.error("person_signers_failed", { contact: id, error: e instanceof Error ? e.message : String(e) });
     return [];
   });
@@ -166,8 +177,8 @@ async function businessAndSigners(
  * The 404 for a person this workspace does not show: in its words, and, for one combined into another since (0028),
  * naming the record kept (contracts combinedInto), so their old address opens the person they became (S5-3).
  */
-async function notHere(sb: Parameters<typeof keptPersonOf>[0], tenantId: string, id: string): Promise<AppError> {
-  const kept = await keptPersonOf(sb, tenantId, id);
+async function notHere(sb: Parameters<typeof findKeptPerson>[0], tenantId: TenantId, id: ContactId): Promise<AppError> {
+  const kept = await findKeptPerson(sb, tenantId, id);
   return new AppError("not_found", "This person is not in your workspace.", 404, kept ? combinedInto(kept) : undefined);
 }
 
@@ -181,24 +192,25 @@ async function notHere(sb: Parameters<typeof keptPersonOf>[0], tenantId: string,
  * the Calls page names them.
  */
 /**
- * What went to a person and what is still to come: the runs that named them (personRuns), and the sequences they are in
+ * What went to a person and what is still to come: the runs that named them (listPersonRuns), and the sequences they are in
  * now (0060, S5), which a database before them leaves empty, never the profile.
  */
-async function campaignsOfPerson(rc: ReaderContext, id: string) {
+async function campaignsOfPerson(rc: ReaderContext, id: ContactId) {
   const [campaigns, sequences] = await Promise.all([
-    personRuns(rc.ctx, rc.tenantId, id),
-    sequencesOfPerson(rc.ctx.supabase, rc.tenantId, id).catch(() => []),
+    listPersonRuns(rc.ctx, rc.tenantId, id),
+    listSequencesOfPerson(rc.ctx.supabase, rc.tenantId, id).catch(() => []),
   ]);
   return { campaigns, sequences };
 }
 
 export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
   name: "person",
-  async read(rc, { id }) {
+  async read(rc, { id: asked }) {
+    const id = heldContactId(asked);
     const tenantId = rc.tenantId;
     const sb = rc.ctx.supabase;
     // The row the list shows, read as the list reads it (packages/db personRow: every open deal in its shape, 0029).
-    const rowRead = personRow(sb, tenantId, id);
+    const rowRead = findPersonRow(sb, tenantId, id);
     // A query builder runs again each time it is awaited: the conversations are read once and handed to both readers.
     const convsRead = Promise.resolve(
       sb
@@ -215,8 +227,8 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       if (!convIds.length) {
         return {
           byConv: new Map<string, MessageDto[]>(),
-          escalations: [] as PersonEscalationDto[],
-          decisions: await personDecisions(sb, tenantId, id, []),
+          escalations: [],
+          decisions: await listPersonDecisions(sb, tenantId, id, []),
         };
       }
       const [msgs, escs, decided] = await Promise.all([
@@ -226,15 +238,15 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
           .select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id")
           .in("conversation_id", convIds)
           .order("created_at", { ascending: false }),
-        personDecisions(sb, tenantId, id, convIds),
+        listPersonDecisions(sb, tenantId, id, convIds),
       ]);
-      if (escs.error) throw new Error(escs.error.message);
+      if (escs.error) throw new DbFailure(escs.error);
       return { byConv: groupMessages(msgs), escalations: escs.data ?? [], decisions: decided };
     });
     // Their appointments on the owner's calendar, when one is connected: the feed is read now, and matched to them once
     // their row says who they are. Never fatal: a feed that cannot be read costs this line, not the profile. A row that
     // could not be read is the route's to say, not the calendar's.
-    const visitsRead = personVisits(
+    const visitsRead = findPersonVisits(
       rc.ctx,
       tenantId,
       rowRead.then(
@@ -246,7 +258,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       return null;
     });
     // Their notes and the team a note can be for (0007), read beside everything else; never fatal either.
-    const notesRead = personNotesRead(rc.ctx, tenantId, id);
+    const notesRead = getPersonNotes(rc.ctx, tenantId, id);
 
     const [
       row,
@@ -313,7 +325,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       // The booking link, so the profile can text it in one step. The workspace's config, read once in a turn: a read
       // that fails is kept, not thrown here, and checked below, in the route's order.
       load(rc, facts.config, undefined).then(
-        (r) => ({ data: r.data, error: null as Error | null }),
+        (r) => ({ data: r.data, error: null }),
         (e: unknown) => ({ data: null, error: e instanceof Error ? e : new Error(String(e)) }),
       ),
       // Every change to either answer: the ledger rows the doors write, which
@@ -330,7 +342,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       // The runs that named them and the sequences they are in, and the lead they were found as: what a playbook or a
       // broadcast sent them, what is still to come, and the way back to where the finder found them.
       campaignsOfPerson(rc, id),
-      leadOfPerson(rc.ctx, tenantId, id),
+      findLeadOfPerson(rc.ctx, tenantId, id),
       // Their deals, newest first, each with its link, the day it stands until and why they passed (0008); and what the
       // workspace calls an appointment, which every card says. Each is safe on an older database: a table or a column
       // that is not there costs the section, never the profile.
@@ -346,27 +358,27 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       visitsRead,
       notesRead,
       // The workspace's pace (0008, amended), for their deal card: when their proposal waits, and how long a yes takes.
-      dealPaceRead(rc.ctx, tenantId),
+      findDealPace(rc.ctx, tenantId),
       // The open doubts naming them (0034 step 4); none on a database before the table.
       openDoubtsOf(sb, tenantId, id),
       // The business they work at and who signed their replies (0052); never fatal.
       businessAndSigners(rc, tenantId, id, rowRead),
     ]);
     if (!row) throw await notHere(sb, tenantId, id);
-    if (history.error) throw new Error(history.error.message);
-    if (own.error) throw new Error(own.error.message);
+    if (history.error) throw new DbFailure(history.error);
+    if (own.error) throw new DbFailure(own.error);
     // Checked like the other seven. A dropped error here reads as "this
     // workspace has no booking link", which is indistinguishable on the page
     // from one that never set one -- so the "text them the link" step simply
     // vanishes for a workspace that has it configured.
-    if (cfg.error) throw cfg.error;
-    if (added.error) throw new Error(added.error.message);
+    if (cfg.error) throw new DbFailure(cfg.error);
+    if (added.error) throw new DbFailure(added.error);
     const fromConfig = configFacts(cfg.data?.config);
-    if (idents.error) throw new Error(idents.error.message);
-    if (personPol.error) throw new Error(personPol.error.message);
-    if (wsPol.error) throw new Error(wsPol.error.message);
-    if (convs.error) throw new Error(convs.error.message);
-    if (calls.error) throw new Error(calls.error.message);
+    if (idents.error) throw new DbFailure(idents.error);
+    if (personPol.error) throw new DbFailure(personPol.error);
+    if (wsPol.error) throw new DbFailure(wsPol.error);
+    if (convs.error) throw new DbFailure(convs.error);
+    if (calls.error) throw new DbFailure(calls.error);
     const { byConv, escalations, decisions } = thread;
 
     const person: PersonDetailDto = {
@@ -401,7 +413,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       added: cameFrom(added.data),
       ...work,
     };
-    return { data: { person }, rows: rowsOfPerson(person, personName(row)), stamp: stamp() };
+    return { data: { person }, rows: rowsOfPerson(person, personName(row)), stamp: readerStamp() };
   },
 };
 
@@ -431,19 +443,20 @@ function rowsOfPerson(person: PersonDetailDto, label: string): RowRef[] {
  * How one person can be written to and called now (GET people/[id]/reach; a conversation begins from the Inbox): People's
  * own row for them, asked the one rule (contracts writeReachOf) against what the workspace can send on, with the
  * receptionist's mode in force for them, and the workspace's own words for an approved message's slots, read as the
- * send reads them (ports/core-ports.ts templateFacts), and whether a text of ours has reached them, which decides the
+ * send reads them (conversations/ports.ts templateFacts), and whether a text of ours has reached them, which decides the
  * line a first text carries (the sheet shows it before the send). Small reads, and none of their messages: the sheet
  * asks this as a person is picked. Channels that could not be read are WhatsApp alone, the others "could not be checked", as
  * People counts.
  */
 export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
   name: "personReach",
-  async read(rc, { id }) {
+  async read(rc, { id: asked }) {
+    const id = heldContactId(asked);
     const sb = rc.ctx.supabase;
     const [row, ready, own, workspace, settings] = await Promise.all([
-      personRow(sb, rc.tenantId, id),
+      findPersonRow(sb, rc.tenantId, id),
       load(rc, facts.channelsReady, undefined).then((r) => r.data),
-      personReplyMode(sb, rc.tenantId, id),
+      findPersonReplyMode(sb, rc.tenantId, id),
       load(rc, facts.policies, undefined).then((r) => r.data),
       load(rc, facts.config, undefined).then((r) => r.data),
     ]);
@@ -453,10 +466,10 @@ export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
     // sign it, else as a first email is.
     const thread = row.latest_conversation_id;
     const [texted, emailSigned] = await Promise.all([
-      thread ? textReached(sb, rc.tenantId, thread) : false,
+      thread ? wasTextReached(sb, rc.tenantId, thread) : false,
       thread
-        ? signedByThreadOf(rc.ctx, rc.tenantId, [thread]).then((s) => s.get(thread) ?? null)
-        : signedFirstOf(rc.ctx, rc.tenantId),
+        ? getSignedByThread(rc.ctx, rc.tenantId, [thread]).then((s) => s.get(thread) ?? null)
+        : findSignedFirst(rc.ctx, rc.tenantId),
     ]);
     const mode = own ?? workspace.find((p) => p.class === "reply")?.mode ?? null;
     const brain = (settings?.config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
@@ -476,7 +489,7 @@ export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
       rows: [
         { kind: "person", id: row.id, route: addressOf({ kind: "person", id: row.id }), label: reach.person.name },
       ],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

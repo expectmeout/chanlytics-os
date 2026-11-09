@@ -3,15 +3,19 @@
  * member pinned (decision 0009), each its count and the page it opens. On a desk they are one strip under the zones; on a
  * phone the week stands in Today so far under the day's four figures, the pins under it, and the page says it is done.
  * The week is contracts' (todayPeriodLine over Reports' headline, one small read); the pins' counts are People's lists'
- * (people-lists.ts), read as Today's page loads.
+ * (lists/actions.ts), read as Today's page loads.
  */
-import { LIST_GROUP_WORDS, TODAY_PHONE_WORDS as P, type PeopleListsLike } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS, TODAY_PHONE_WORDS as P } from "@chanlytics/contracts";
+import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
-import { routeDoor } from "../../legacy-verbs";
+import { SAYS_WHEN } from "../../kit/says-when";
+import { routeDoor } from "../../frame-verbs";
+import { useNeedsYou } from "../../needs-you";
+import { surfaceValue } from "../../surface-values";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { borrowed, useMoved } from "../shell";
@@ -63,7 +67,7 @@ function WeekLine() {
   if (period)
     return (
       <a className="tz-week" {...routeDoor(period.to)} data-testid="today-period">
-        <span>{period.text}</span>
+        <span {...SAYS_WHEN}>{period.text}</span>
         <Icon name="chevron" size={11} />
       </a>
     );
@@ -99,14 +103,34 @@ export function DeskFoot() {
 export function PhoneSoFar() {
   return (
     <section className="tz-pane tz-sofar" data-testid="today-card" aria-labelledby="today-sofar-title">
-      <div className="tz-sec">
-        <h2 className="tz-sec-title" id="today-sofar-title">
+      <div className="tz-head">
+        <h2 className="tz-name" id="today-sofar-title">
           {P.soFar}
         </h2>
       </div>
       <TodayFigures className="tz-sofar-figs" />
       <WeekLine />
     </section>
+  );
+}
+
+/**
+ * Whether nothing at all was counted today: every figure read, and zero, and no message for the answered to be "of". A
+ * count that could not be read is no zero, and keeps its dash in the row.
+ */
+export function useNothingSoFar(): boolean {
+  useMoved(["today"]);
+  const figures = surfaceValue("today")?.figures ?? null;
+  return !!figures?.length && figures.every((f) => f.value === 0 && !f.of);
+}
+
+/** Today so far on a day nothing was counted: one line, and the week under it, at the foot of the day's card. */
+export function PhoneNothingYet() {
+  return (
+    <div className="tz-nothing" data-testid="today-sofar-none">
+      <b {...SAYS_WHEN}>{P.soFarNothing}</b>
+      <WeekLine />
+    </div>
   );
 }
 
@@ -122,8 +146,11 @@ export function PhonePins() {
 
 /** The page says it is done: on a phone the last thing above the tab bar. */
 export function TodayEnd() {
+  // "That's everything" under "2 need you" read as all done: while anyone waits the page just ends.
+  const waiting = useNeedsYou() ?? 0;
+  if (waiting > 0) return null;
   return (
-    <p className="tz-end" data-testid="today-end">
+    <p className="tz-end" data-testid="today-end" {...SAYS_WHEN}>
       <Icon name="check" size={13} />
       {P.end}
     </p>

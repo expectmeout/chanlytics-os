@@ -1,5 +1,5 @@
-import { read, write, account, workspace } from "@/server/route";
-import { readWorkspaces, patchWorkspace } from "@/server/workspace/workspace-list";
+import { read, write, account, workspace } from "@/server/shared/route";
+import { readWorkspaces, patchWorkspace } from "@/server/workspace/list";
 
 /**
  * GET /api/v1/workspaces — the session's tenants, RLS-scoped, plus who is
@@ -13,11 +13,11 @@ import { readWorkspaces, patchWorkspace } from "@/server/workspace/workspace-lis
  *
  * Declared on the account: this is the endpoint whose whole job is answering
  * "where am I", so it must answer for an account in no workspace yet, and it
- * chooses the active workspace itself, below, by memberContext's one rule
+ * chooses the active workspace itself, below, by getMemberContext's one rule
  * with the one degradation that keeps a stale preference from bricking the
  * app.
  *
- * The handle is readWorkspaces in src/server/workspace/workspace-list.ts: the route is its declaration (who may, how
+ * The handle is readWorkspaces in src/server/workspace/list.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 export const GET = read({
@@ -38,7 +38,7 @@ export const GET = read({
  * for. Only what was sent is written, and only what was written is read back,
  * so a zone saved on a database 00458 has not reached still saves.
  *
- * The handle is patchWorkspace in src/server/workspace/workspace-list.ts: the route is its declaration (who may, how
+ * The handle is patchWorkspace in src/server/workspace/list.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 export const PATCH = write({

@@ -32,6 +32,7 @@ import {
   usStateCode,
   usStateName,
   websiteHostOf,
+  CONTROL_CHARS,
 } from "@chanlytics/contracts";
 
 /** The Maps item fields a lead is built from. Nothing else is asked for. */
@@ -208,12 +209,12 @@ const CHECKER: LeadCheckerRunner = {
   },
   mapItem(item) {
     // The checker's item: `status` with `is_catch_all` (read from the calibration's 141 items, Appendix B).
-    const o = recordOrNull(item);
-    const email = trimmedOrNull(o?.email)?.toLowerCase() ?? null;
-    if (!o || !email) return null;
-    const status = (trimmedOrNull(o.status) ?? "").toLowerCase();
+    const record = recordOrNull(item);
+    const email = trimmedOrNull(record?.email)?.toLowerCase() ?? null;
+    if (!record || !email) return null;
+    const status = (trimmedOrNull(record.status) ?? "").toLowerCase();
     const state =
-      o.is_catch_all === true || status === "risky"
+      record.is_catch_all === true || status === "risky"
         ? "catch_all"
         : status === "valid"
           ? "ok"
@@ -264,8 +265,8 @@ function countryOf(raw: string | null): string | null {
 
 /** A size in the provider's ranges, from a range it wrote or from a head count. */
 function sizeOf(raw: unknown): string | null {
-  const n = finiteOrNull(raw);
-  if (n === null) return trimmedOrNull(raw)?.slice(0, 20) ?? null;
+  const finite = finiteOrNull(raw);
+  if (finite === null) return trimmedOrNull(raw)?.slice(0, 20) ?? null;
   const bands: [number, string][] = [
     [10, "1 - 10"],
     [50, "11 - 50"],
@@ -275,7 +276,7 @@ function sizeOf(raw: unknown): string | null {
     [5000, "1001 - 5000"],
     [10000, "5001 - 10000"],
   ];
-  return bands.find(([max]) => n <= max)?.[1] ?? "10001+";
+  return bands.find(([max]) => finite <= max)?.[1] ?? "10001+";
 }
 
 /**
@@ -292,10 +293,7 @@ function workEmailOf(raw: unknown): string | null {
 
 /** A capped line of a company's own words, with no control or format characters in it. */
 const providerWords = (v: unknown, max: number): string | null =>
-  trimmedOrNull(v)
-    ?.replace(/[\p{Cc}\p{Cf}]/gu, " ")
-    .trim()
-    .slice(0, max) || null;
+  trimmedOrNull(v)?.replace(CONTROL_CHARS, " ").trim().slice(0, max) || null;
 
 /**
  * The company an item of the people card names: its name and its domain (the lead's key), or nothing. The card searches
@@ -303,24 +301,24 @@ const providerWords = (v: unknown, max: number): string | null =>
  * calibration's one company in India, its person in Texas). Its place is the company's own, never its person's: a
  * Texan's company may stand in New York, and one with no state said has none.
  */
-function companyOf(o: Record<string, unknown>): PersonAtCompany["company"] | null {
-  const name = providerWords(o.organizationName, 120);
-  const key = websiteHostOf(trimmedOrNull(o.organizationWebsite));
+function companyOf(record: Record<string, unknown>): PersonAtCompany["company"] | null {
+  const name = providerWords(record.organizationName, 120);
+  const key = websiteHostOf(trimmedOrNull(record.organizationWebsite));
   // None said is the card's own country; one said that reads as none is not the US.
-  const where = trimmedOrNull(o.organizationCountry);
+  const where = trimmedOrNull(record.organizationCountry);
   const country = where === null ? "US" : countryOf(where);
   if (!name || !key || country !== "US") return null;
   return {
     key,
     name,
-    industry: providerWords(o.organizationIndustry, 120),
-    city: providerWords(o.organizationCity, 120),
-    region: usStateCode(trimmedOrNull(o.organizationState)),
+    industry: providerWords(record.organizationIndustry, 120),
+    city: providerWords(record.organizationCity, 120),
+    region: usStateCode(trimmedOrNull(record.organizationState)),
     country,
-    linkedin: trimmedOrNull(o.organizationLinkedinUrl)?.slice(0, 300) ?? null,
+    linkedin: trimmedOrNull(record.organizationLinkedinUrl)?.slice(0, 300) ?? null,
     // The range it writes ("11 - 50"), else its head count put in a range.
-    size: sizeOf(trimmedOrNull(o.organizationEmployeeRange) ?? o.organizationSize ?? null),
-    about: providerWords(o.organizationDescription, 600),
+    size: sizeOf(trimmedOrNull(record.organizationEmployeeRange) ?? record.organizationSize ?? null),
+    about: providerWords(record.organizationDescription, 600),
   };
 }
 
@@ -328,17 +326,17 @@ function companyOf(o: Record<string, unknown>): PersonAtCompany["company"] | nul
  * The person an item of the people card names: a name, or nothing; their work address where they have one. The
  * provider's first item is a note to read its log, in `firstName`: with no company it never reads.
  */
-function personOf(o: Record<string, unknown>): PersonAtCompany["person"] | null {
-  const first = providerWords(o.firstName, 60);
-  const name = [first, providerWords(o.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
+function personOf(record: Record<string, unknown>): PersonAtCompany["person"] | null {
+  const first = providerWords(record.firstName, 60);
+  const name = [first, providerWords(record.lastName, 60)].filter(Boolean).join(" ").slice(0, 120);
   if (!name) return null;
   return {
     name,
     first_name: first,
-    title: providerWords(o.title, 120),
-    seniority: trimmedOrNull(o.seniority)?.toLowerCase().slice(0, 20) ?? null,
-    email: workEmailOf(o.email),
-    profile_url: trimmedOrNull(o.linkedinUrl)?.slice(0, 300) ?? null,
+    title: providerWords(record.title, 120),
+    seniority: trimmedOrNull(record.seniority)?.toLowerCase().slice(0, 20) ?? null,
+    email: workEmailOf(record.email),
+    profile_url: trimmedOrNull(record.linkedinUrl)?.slice(0, 300) ?? null,
   };
 }
 
@@ -400,6 +398,8 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
           : { locationQuery: plan.area.query }),
         maxCrawledPlacesPerSearch: places,
         language: "en",
+        // The provider visits the place's own site for its emails and social links: it answers those and no page, so a
+        // read of the site for its mark or the judge (site-reads.ts) is a second visit, and no duplicate (decision 0095).
         scrapeContacts: true,
         scrapeReviewsPersonalData: false,
         maxReviews: 0,
@@ -408,49 +408,49 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
       };
     },
     mapItem(item) {
-      const o = recordOrNull(item);
-      const title = trimmedOrNull(o?.title);
-      const placeId = trimmedOrNull(o?.placeId);
-      if (!o || !title || !placeId) return null;
-      const loc = recordOrNull(o.location);
+      const record = recordOrNull(item);
+      const title = trimmedOrNull(record?.title);
+      const placeId = trimmedOrNull(record?.placeId);
+      if (!record || !title || !placeId) return null;
+      const loc = recordOrNull(record.location);
       const lat = finiteOrNull(loc?.lat);
       const lng = finiteOrNull(loc?.lng);
       return {
         placeId,
         title: title.slice(0, 120),
-        category: trimmedOrNull(o.categoryName),
-        neighborhood: trimmedOrNull(o.neighborhood),
-        street: trimmedOrNull(o.street),
-        city: trimmedOrNull(o.city),
-        state: trimmedOrNull(o.state),
-        postalCode: trimmedOrNull(o.postalCode),
-        countryCode: trimmedOrNull(o.countryCode),
-        phoneRaw: trimmedOrNull(o.phoneUnformatted) ?? trimmedOrNull(o.phone),
-        sitePhones: strs(o.phones),
-        website: trimmedOrNull(o.website),
-        emails: strs(o.emails),
+        category: trimmedOrNull(record.categoryName),
+        neighborhood: trimmedOrNull(record.neighborhood),
+        street: trimmedOrNull(record.street),
+        city: trimmedOrNull(record.city),
+        state: trimmedOrNull(record.state),
+        postalCode: trimmedOrNull(record.postalCode),
+        countryCode: trimmedOrNull(record.countryCode),
+        phoneRaw: trimmedOrNull(record.phoneUnformatted) ?? trimmedOrNull(record.phone),
+        sitePhones: strs(record.phones),
+        website: trimmedOrNull(record.website),
+        emails: strs(record.emails),
         // Only the first: the business's own account; later ones can be staff members' (Appendix B).
-        instagram: strs(o.instagrams)[0] ?? null,
-        rating: finiteOrNull(o.totalScore),
-        reviews: finiteOrNull(o.reviewsCount),
-        closed: o.permanentlyClosed === true || o.temporarilyClosed === true,
+        instagram: strs(record.instagrams)[0] ?? null,
+        rating: finiteOrNull(record.totalScore),
+        reviews: finiteOrNull(record.reviewsCount),
+        closed: record.permanentlyClosed === true || record.temporarilyClosed === true,
         location: lat !== null && lng !== null ? { lat, lng } : null,
         about:
-          (trimmedOrNull(o.description) ?? trimmedOrNull(o.ownerDescription))
-            ?.replace(/[\p{Cc}\p{Cf}]/gu, "")
+          (trimmedOrNull(record.description) ?? trimmedOrNull(record.ownerDescription))
+            ?.replace(CONTROL_CHARS, "")
             .slice(0, 600) ?? null,
-        hours: (Array.isArray(o.openingHours) ? o.openingHours : [])
+        hours: (Array.isArray(record.openingHours) ? record.openingHours : [])
           .map((h) => ({
             day: trimmedOrNull(recordOrNull(h)?.day) ?? "",
             hours: trimmedOrNull(recordOrNull(h)?.hours) ?? "",
           }))
           .filter((h) => h.day && h.hours)
           .slice(0, 7),
-        imageUrl: trimmedOrNull(o.imageUrl),
+        imageUrl: trimmedOrNull(record.imageUrl),
         reviewsDist: (() => {
-          const d = recordOrNull(o.reviewsDistribution);
-          if (!d) return null;
-          const n = (k: string) => finiteOrNull(d[k]) ?? 0;
+          const result = recordOrNull(record.reviewsDistribution);
+          if (!result) return null;
+          const n = (k: string) => finiteOrNull(result[k]) ?? 0;
           return {
             one: n("oneStar"),
             two: n("twoStar"),
@@ -459,13 +459,13 @@ export const CARDS: { local_businesses: LeadCardRunner; people_at_companies: Peo
             five: n("fiveStar"),
           };
         })(),
-        price: trimmedOrNull(o.price)?.slice(0, 8) ?? null,
-        facebook: strs(o.facebooks)[0] ?? null,
-        linkedin: strs(o.linkedIns)[0] ?? null,
-        tiktok: strs(o.tiktoks)[0] ?? null,
-        claimed: o.claimThisBusiness === true ? false : o.claimThisBusiness === false ? true : null,
-        rank: finiteOrNull(o.rank),
-        mapsUrl: trimmedOrNull(o.url),
+        price: trimmedOrNull(record.price)?.slice(0, 8) ?? null,
+        facebook: strs(record.facebooks)[0] ?? null,
+        linkedin: strs(record.linkedIns)[0] ?? null,
+        tiktok: strs(record.tiktoks)[0] ?? null,
+        claimed: record.claimThisBusiness === true ? false : record.claimThisBusiness === false ? true : null,
+        rank: finiteOrNull(record.rank),
+        mapsUrl: trimmedOrNull(record.url),
       };
     },
     checker: CHECKER,

@@ -2,10 +2,10 @@
  * Make it mine (decision 0079, L4), the browser's half: the claim (POST preview-claims), and where the workspace made
  * theirs opens, its first run. Pressed on the preview's sign-up screen (SignupScreen.tsx, drawn by
  * /preview/<token>/mine), where someone signed in makes it theirs with one press and a new account as its code signs it
- * in; and asked by the first screen (legacy-bridge/CreateWorkspace.tsx), for an account that comes back to sign in later.
+ * in; and asked by the first screen (bridge/CreateWorkspace.tsx), for an account that comes back to sign in later.
  */
 import { FIRST_RUN_ROUTE, SIGNUP_WORDS, appLink } from "@chanlytics/contracts";
-import { rememberWorkspace } from "@/legacy-bridge/workspace";
+import { rememberWorkspace } from "@/bridge/workspace";
 
 /** A preview's link as sign-up reads it (server/previews/claim.ts): whose receptionist, and the address it was sent to. */
 export interface SignupPreview {

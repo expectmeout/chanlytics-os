@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError, CHECKOUT_RETURNS } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
+import { write, workspace } from "@/server/shared/route";
+import { BILLING_SAID, callEdgeBilling } from "@/server/workspace/billing";
 
 /**
  * POST /api/v1/billing/checkout — the way to Stripe Checkout for this
@@ -27,7 +27,7 @@ export const POST = write({
     embedded: z.boolean().optional(),
   }),
   handle: async ({ ctx, input, member }) => {
-    const a = await edgeBilling(
+    const edgeAnswer = await callEdgeBilling(
       {
         op: "checkout",
         tenant_id: member.tenantId,
@@ -38,22 +38,22 @@ export const POST = write({
       },
       25_000,
     );
-    const b = a.body ?? {};
+    const body = edgeAnswer.body ?? {};
     if (
-      a.status === 200 &&
-      b.ok === true &&
-      typeof b.client_secret === "string" &&
-      typeof b.publishable_key === "string"
+      edgeAnswer.status === 200 &&
+      body.ok === true &&
+      typeof body.client_secret === "string" &&
+      typeof body.publishable_key === "string"
     )
-      return { client_secret: b.client_secret, publishable_key: b.publishable_key };
-    if (a.status !== 200 || b.ok !== true || typeof b.url !== "string") {
-      const reason = typeof b.error === "string" ? b.error : "failed";
+      return { client_secret: body.client_secret, publishable_key: body.publishable_key };
+    if (edgeAnswer.status !== 200 || body.ok !== true || typeof body.url !== "string") {
+      const reason = typeof body.error === "string" ? body.error : "failed";
       throw new AppError(
-        a.status === 409 ? "conflict" : a.status === 503 ? "upstream_auth" : "internal",
+        edgeAnswer.status === 409 ? "conflict" : edgeAnswer.status === 503 ? "upstream_auth" : "upstream_provider",
         BILLING_SAID[reason] ?? `Checkout could not be opened (${reason}).`,
-        a.status === 409 ? 409 : a.status === 503 ? 503 : 502,
+        edgeAnswer.status === 409 ? 409 : edgeAnswer.status === 503 ? 503 : 502,
       );
     }
-    return { url: b.url };
+    return { url: body.url };
   },
 });

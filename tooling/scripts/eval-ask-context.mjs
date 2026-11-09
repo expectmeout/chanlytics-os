@@ -1,6 +1,6 @@
 /**
  * The page a case is asked on (the Phase 2 plan, PR 2.3): what eval-ask.mjs sends with a question that carries a
- * `context`, built the way the palette builds it (legacy-bridge/ask/context.ts) from what the page's own GETs answer.
+ * `context`, built the way the palette builds it (bridge/ask/context.ts) from what the page's own GETs answer.
  *
  * A case's context names its page and, where the page draws rows, the GET those rows come from:
  *
@@ -49,7 +49,7 @@ import {
   unquoted,
   answerBlocks,
 } from "@chanlytics/contracts";
-import { readAllRows } from "@chanlytics/db";
+import { readAllRows } from "@chanlytics/db/shared";
 import { toolNow } from "../evals/rename-ask-tools.mjs";
 
 /** A row of a GET's answer: its id, the name the page shows for it, and when it last moved (for a merge by time). */
@@ -106,7 +106,7 @@ export const ROW_SOURCES = {
 };
 
 /**
- * The kind each surface's provider sends a GET's row as (legacy-bridge/ask/context.ts): a surface names only the GETs
+ * The kind each surface's provider sends a GET's row as (bridge/ask/context.ts): a surface names only the GETs
  * its page draws from. Calendar, Reports, Settings and Start draw no rows the eval can read without writing (the
  * calendar's GET puts the people it names in People), so they carry a route and a view alone.
  */
@@ -226,7 +226,7 @@ export function resolveContext(spec, answers = {}, now = Date.now(), first = nul
     throw new Error(`the route ${route} opens a ${scope.kind}, and the row there is a ${opened.kind}`);
   const n = ordinal(spec.focus);
   // Undefined past turn 1's items (or with no turn 1), null for an item no focus may be, else that item as a focus.
-  // Paired with the palette (legacy-bridge/ask/context.ts pageContext): there a refused kind's null falls to the page's
+  // Paired with the palette (bridge/ask/context.ts pageContext): there a refused kind's null falls to the page's
   // own focus, then the route's (`got.focus ?? scopeFromRoute`), never to the page's row at that place; a case's page
   // has no focus of its own, so here it falls to the route's, `item ?? scope`. Change one, change the other.
   const item = n !== null && first ? itemFocus(first, n) : undefined;
@@ -683,6 +683,8 @@ export function shapeAskedFails(e, m) {
     "table_cols_max",
     "chart",
     "chart_none",
+    "chars_max",
+    "figures_min",
   ];
   if (!keys.some((k) => e[k] !== undefined)) return fails;
   if (!a || a.form !== "structured")
@@ -721,6 +723,12 @@ export function shapeAskedFails(e, m) {
     );
   if (e.detail_empty && a.say.detail)
     fails.push(`a detail where only the headline was asked: “${a.say.detail.slice(0, 80)}”`);
+  if (typeof e.chars_max === "number" && a.say.headline.length + (a.say.detail ?? "").length > e.chars_max)
+    fails.push(
+      `${a.say.headline.length + (a.say.detail ?? "").length} characters, where ${e.chars_max} fit on a phone`,
+    );
+  if (typeof e.figures_min === "number" && a.show.figures.length < e.figures_min)
+    fails.push(`${a.show.figures.length} figures, where its sentence rests on at least ${e.figures_min}`);
   if (e.all_caps) {
     const low = [a.say.headline, a.say.detail, ...entries].find((s) => /\p{Ll}/u.test(s));
     if (low) fails.push(`lower case where capitals were asked: “${low.slice(0, 80)}”`);
@@ -922,7 +930,7 @@ const DOOR_MS = 30_000;
 /**
  * One of the Line's requests, made from the eval. `io` is `{ fetch, at, cookie, origin, now, timeoutMs? }`: `at(path)`
  * names the workspace as the client names it on every request. A write goes same-origin and marked as a card's
- * (`x-via: ask`, legacy-bridge/ask/api.ts viaAsk). Never throws: a request that could not be made, that was not
+ * (`x-via: ask`, bridge/ask/api.ts viaAsk). Never throws: a request that could not be made, that was not
  * answered in DOOR_MS, or whose answer could not be read answers status 0, so a door that hangs never holds a note out.
  */
 async function send(io, method, path, body) {
@@ -1006,7 +1014,7 @@ function lost(note, now, why) {
 }
 
 /**
- * Turn 1's card, approved between the turns as the Line approves it (surfaces/ask/turn.tsx approveWith; legacy-bridge/ask/
+ * Turn 1's card, approved between the turns as the Line approves it (surfaces/ask/turn.tsx approveWith; bridge/ask/
  * commit.ts commitProposal), for `then.between: "approve"`. Only a settings card whose change is add_note: one note
  * more in the receptionist's profile, the smallest change there is to put back, which no other case reads. The
  * settings read (the tab's `__SETTINGS`), the card's own commit (proposalSpec("settings").commit) sent as the Line
@@ -1287,7 +1295,7 @@ export async function turnShapes(rest, ids) {
 /* ---- a turn's stream ---- */
 
 /**
- * A turn's JSON lines, read across chunk boundaries as the bridge reads them (legacy-bridge/ask/api.ts): a line that
+ * A turn's JSON lines, read across chunk boundaries as the bridge reads them (bridge/ask/api.ts): a line that
  * does not parse -- the torn end of a stream that broke -- is skipped, never the whole turn's failure. `push` each
  * decoded chunk, then `end`.
  */

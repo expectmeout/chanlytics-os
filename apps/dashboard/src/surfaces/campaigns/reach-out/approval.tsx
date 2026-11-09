@@ -15,13 +15,13 @@
  */
 import { Fragment, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { REACH_OUT_SHEET_WORDS, WHO_GETS_IT_WORDS } from "@chanlytics/contracts";
+import { OWN_WORDS_SAID, REACH_OUT_SHEET_WORDS, WHO_GETS_IT_WORDS } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, HeldChoice, RunPartVM } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
-import { canDo, gateTitle, type LegacyFlash } from "../../legacy-verbs";
+import { commitVerb } from "@/bridge/verbs/commit";
+import { canDo, gateTitle, type FrameFlash } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
-import { Face, faceTileOf } from "../../kit/face/face";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Meter } from "../../kit/meter/meter";
@@ -44,7 +44,7 @@ interface Said {
 }
 
 /** The page's toast, which says a Take out's receipt with its Put back; none where the run is read alone. */
-type Flash = ((flash: LegacyFlash) => void) | null;
+type Flash = ((flash: FrameFlash) => void) | null;
 
 /** Each part of a run in the meter's tones: ready green, the coming days at rest, held amber, being checked its outline. */
 const PART_TONES: Record<RunPartVM["key"], "ok" | "rest" | "warn" | "open"> = {
@@ -183,7 +183,7 @@ function RoRunMail({ vm }: { vm: RunWords }) {
       </p>
       <article className="ro-mail" data-testid="ro-run-words">
         <div className="ro-mail-head">
-          <Face person={{ name: mail.name }} tile={faceTileOf(mail.name)} />
+          <Face person={{ name: mail.name }} tile />
           <span className="ro-mail-who">
             <b>{mail.name}</b>
             <small data-testid="ro-run-reader">{mail.as}</small>
@@ -336,13 +336,17 @@ function RoRunList({
         {open
           ? vm.list.map((x) => (
               <div key={x.id} className="ro-whor" data-testid="ro-run-person">
-                <Face person={{ name: x.name }} tile={faceTileOf(x.name)} />
+                <Face person={{ name: x.name }} tile />
                 <div className="ro-whor-main">
                   <RoName name={x.name} leadId={x.leadId} testid="ro-person-lead" />
                   {x.opening ? (
                     <q className="ro-whor-opening" data-testid="ro-person-opening">
                       {x.opening}
                     </q>
+                  ) : x.own ? (
+                    <span className="ro-whor-opening" data-testid="ro-person-own">
+                      {OWN_WORDS_SAID.yours}
+                    </span>
                   ) : null}
                   {doors.askOf(x.id, x.name)}
                   {may && doors.asking !== x.id && x.answers.length > 0 ? (
@@ -546,8 +550,8 @@ export function RoRunDock(p: { d: BroadcastDetailDto; sheet: RunSheet | null; ac
 export function roRunHead(d: BroadcastDetailDto, sheet: RunSheet | null, phone = false) {
   const vm = reachOuts.run(d);
   if (!vm) return null;
-  const pos = sheet && sheet.position;
-  const place = pos && pos[1] > 1 ? `${pos[0]} of ${pos[1]}` : null;
+  const [at = 0, of = 0] = sheet?.position ?? [];
+  const place = of > 1 ? `${at} of ${of}` : null;
   const parts = (
     phone ? [place, vm.who, vm.step] : [vm.labels.toLeads, vm.who, vm.step, place ? `${place} waiting` : null]
   ).filter((x): x is string => !!x);

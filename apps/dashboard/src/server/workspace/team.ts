@@ -1,25 +1,46 @@
 import "server-only";
+import { recordEvent, getSubjectsWith } from "@chanlytics/db/events";
+import { getOwnPartner } from "@chanlytics/db/partners";
+import { inviteUserByEmail } from "@chanlytics/db/auth";
 import {
-  emitEvent,
-  getOwnPartner,
-  inviteUserByEmail,
-  recordEvent,
-  subjectsWith,
-  workspaceIdsOf,
-  type Database,
-} from "@chanlytics/db";
+  changeTeamRole,
+  insertMembership,
+  inviteToTeam,
+  joinTeam,
+  leaveWorkspaceTeam,
+  listInvitesForAddress,
+  listOpenInvitations,
+  lookupUserForInvite,
+  readTeamRoster,
+  removeFromTeam,
+  renewTeamInvite,
+  stampInvitationAccepted,
+  withdrawInviteRenewal,
+  withdrawTeamInvite,
+} from "@chanlytics/db/workspace";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AppError, type InvitationsAcceptedDto, type JoinedWorkspaceDto } from "@chanlytics/contracts";
-import { serviceDb } from "../service-db";
-import { tenantFacts } from "../tenant";
-import { requireSecondFactor, type RouteContext } from "../with-route";
-import { log } from "@/server/log";
+import {
+  AppError,
+  type InvitationsAcceptedDto,
+  type JoinedWorkspaceDto,
+  type MembershipRole,
+  recordOrEmpty,
+  DbFailure,
+  causedBy,
+} from "@chanlytics/contracts";
+import { serviceDb } from "../shared/service-db";
+import { getTenantFacts } from "../shared/tenant";
+import { requireSecondFactor, type RouteContext } from "../shared/with-route";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
+import { logKeptGoing, logAndGoOn } from "@chanlytics/log";
 
 /**
  * Team operations: the roster, an invitation, a role change, a removal, and the sign-in that completes an invitation.
  * The one email it sends, the invitation's, goes through packages/db's inviteUserByEmail (SQL cannot send mail); no file
  * here names the admin API. A function takes the workspace the route has already proven the caller belongs
- * to (memberContext) and hands it to the database's team_* functions with the session's verified user as the actor;
+ * to (getMemberContext) and hands it to the database's team_* functions with the session's verified user as the actor;
  * each checks that the actor owns the workspace before it changes anything. The service role bypasses RLS, so that
  * scoping lives in those functions and in the tenant each call names.
  *
@@ -43,14 +64,6 @@ interface TeamMember {
   isMe?: boolean;
 }
 
-interface OpenInvite {
-  id: string;
-  email: string;
-  role: string;
-  created_at: string;
-  expires_at: string;
-}
-
 /**
  * A team change and its row on the ledger, in one transaction (00277: team_change_role, team_remove, team_join,
  * team_invite).
@@ -72,7 +85,7 @@ function teamRefusal(error: { code?: string; message: string }): Error {
   if (error.message === "last_owner") return new AppError("conflict", ONLY_OWNER, 409);
   if (error.message === "self_remove")
     return new AppError("conflict", "You cannot remove yourself. Ask another owner.", 409);
-  return new Error(error.message);
+  return new DbFailure(error);
 }
 
 /** A team function's answer; a refusal thrown in the owner's words. An undo whose decision is unknown is said once. */
@@ -83,7 +96,7 @@ async function teamCall(
 ): Promise<Record<string, unknown>> {
   const { data, error } = await call;
   if (error) throw teamRefusal(error);
-  const answer = (data ?? {}) as Record<string, unknown>;
+  const answer = recordOrEmpty(data);
   // A card kept from a stale tab, or a header nobody should have sent: the change is kept without the link.
   if (answer.undo_dropped === true) log.error("decision_undo_of_unknown", { undo_of: undoOf, verb });
   return answer;
@@ -103,21 +116,15 @@ async function teamCall(
  * lets this drop the service role rather than merely parallelise it. Fewer
  * privileged paths is the point; the speed is a side effect.
  */
-export async function teamRoster(db: SupabaseClient<Database>, tenantId: string) {
+export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: TenantId) {
   const [members, invites] = await Promise.all([
-    db.rpc("team_roster", { p_tenant_id: tenantId }),
+    readTeamRoster(db, tenantId),
     // Plain RLS: invitations_member_read already scopes this to the caller's
     // workspaces, so it never needed a privileged client.
-    db
-      .from("invitations")
-      .select("id, email, role, created_at, expires_at")
-      .eq("tenant_id", tenantId)
-      .is("accepted_at", null)
-      .is("revoked_at", null)
-      .order("created_at"),
+    listOpenInvitations(db, tenantId),
   ]);
-  if (members.error) throw new Error(members.error.message);
-  if (invites.error) throw new Error(invites.error.message);
+  if (members.error) throw new DbFailure(members.error);
+  if (invites.error) throw new DbFailure(invites.error);
 
   const roster: TeamMember[] = (members.data ?? []).map((m) => ({
     membershipId: m.membership_id,
@@ -127,11 +134,11 @@ export async function teamRoster(db: SupabaseClient<Database>, tenantId: string)
     role: m.role,
     joined_at: m.joined_at ?? null,
   }));
-  return { members: roster, invites: (invites.data ?? []) as OpenInvite[] };
+  return { members: roster, invites: invites.data ?? [] };
 }
 
 export async function inviteMember(
-  tenantId: string,
+  tenantId: TenantId,
   invitedBy: string,
   email: string,
   role: "operator" | "viewer",
@@ -155,15 +162,12 @@ export async function inviteMember(
   // account is an oracle, and a session that could call this could ask it about
   // every address at API speed, outside the owner check and rate bucket the
   // invite route runs first (00121).
-  const { data: existingId, error: lookupErr } = await db.rpc("lookup_user_for_invite", {
-    p_tenant_id: tenantId,
-    p_email: email,
-  });
+  const { data: existingId, error: lookupErr } = await lookupUserForInvite(db, tenantId, email);
   if (lookupErr) throw new Error(lookupErr.message);
   if (existingId) {
     // Known account, new workspace: membership now, no email ceremony needed, and the ledger saying so, together.
     const joined = await teamCall(
-      db.rpc("team_join", {
+      joinTeam(db, {
         p_tenant_id: tenantId,
         p_actor: invitedBy,
         p_user_id: existingId,
@@ -179,7 +183,7 @@ export async function inviteMember(
   // The invitation and its row, before the mail: the mail cannot be part of a transaction, so a mail that could not
   // go takes both back, and the ledger never says an invitation went that did not.
   const inv = await teamCall(
-    db.rpc("team_invite", {
+    inviteToTeam(db, {
       p_tenant_id: tenantId,
       p_actor: invitedBy,
       p_email: email,
@@ -191,8 +195,15 @@ export async function inviteMember(
   if (inv.already_invited === true) return { alreadyInvited: true as const };
   const { error: mailErr } = await inviteUserByEmail(db, email);
   if (mailErr) {
-    // The intent row without the email is a lie in the invites list, and on the ledger: take both back.
-    await db.rpc("team_invite_withdraw", { p_tenant_id: tenantId, p_invitation_id: String(inv.invitation_id) });
+    // The intent row without the email is a lie in the invites list, and on the ledger: take both back. The email's
+    // failure is what the person is told; a withdrawal that fails too is logged beside it.
+    const withdrawn = await withdrawTeamInvite(db, tenantId, String(inv.invitation_id));
+    if (withdrawn.error)
+      log.error("db_failed", {
+        tenant_id: tenantId,
+        code: withdrawn.error.code ?? null,
+        error: withdrawn.error.message,
+      });
     throw new AppError("upstream_email", `We could not send the invitation email: ${mailErr.message}`, 502);
   }
   return { invited: true as const };
@@ -200,7 +211,7 @@ export async function inviteMember(
 
 export async function setMemberRole(
   ctx: TeamCtx,
-  tenantId: string,
+  tenantId: TenantId,
   membershipId: string,
   role: string,
   svc: SupabaseClient<Database> = serviceDb(),
@@ -208,7 +219,7 @@ export async function setMemberRole(
   // Read and written in one transaction: the previous role is the part of the audit that matters later ("was
   // promoted to owner" is a different fact from "was already one"), and the row is the only place it is written.
   const changed = await teamCall(
-    svc.rpc("team_change_role", {
+    changeTeamRole(svc, {
       p_tenant_id: tenantId,
       p_actor: ctx.userId,
       p_membership_id: membershipId,
@@ -224,7 +235,7 @@ export async function setMemberRole(
 
 export async function removeMember(
   ctx: TeamCtx,
-  tenantId: string,
+  tenantId: TenantId,
   /** A membership or an open invitation; nobody removes themself (the actor is ctx's user). */
   id: string,
   svc: SupabaseClient<Database> = serviceDb(),
@@ -232,7 +243,7 @@ export async function removeMember(
   // id may be a membership or an open invite; the database tries the invite first. Recorded in the same transaction
   // as the delete, carrying the role they held: the membership row is gone, so the ledger's is the surviving record.
   const removed = await teamCall(
-    svc.rpc("team_remove", {
+    removeFromTeam(svc, {
       p_tenant_id: tenantId,
       p_actor: ctx.userId,
       p_id: id,
@@ -256,14 +267,14 @@ const EMAIL_HAS_ACCOUNT = "email_exists";
  */
 export async function resendInvite(
   ctx: TeamCtx,
-  tenantId: string,
+  tenantId: TenantId,
   invitationId: string,
   svc: SupabaseClient<Database> = serviceDb(),
 ) {
   let renewed: Record<string, unknown>;
   try {
     renewed = await teamCall(
-      svc.rpc("team_invite_renew", {
+      renewTeamInvite(svc, {
         p_tenant_id: tenantId,
         p_actor: ctx.userId,
         p_invitation_id: invitationId,
@@ -273,18 +284,21 @@ export async function resendInvite(
     );
   } catch (e) {
     if (e instanceof AppError && e.code === "not_found")
-      throw new AppError("not_found", "That invitation is no longer open.", 404);
+      throw causedBy(new AppError("not_found", "That invitation is no longer open.", 404), e);
     throw e;
   }
   const email = String(renewed.email);
   const { error: mailErr } = await inviteUserByEmail(svc, email);
   if (!mailErr) return { resent: true as const, email };
-  await svc.rpc("team_invite_renew_withdraw", {
+  // The email's failure is what the person is told; a renewal that cannot be taken back is logged beside it.
+  const withdrawn = await withdrawInviteRenewal(svc, {
     p_tenant_id: tenantId,
     p_invitation_id: invitationId,
     p_decision_id: String(renewed.decision_id),
     p_was: String(renewed.was),
   });
+  if (withdrawn.error)
+    log.error("db_failed", { tenant_id: tenantId, code: withdrawn.error.code ?? null, error: withdrawn.error.message });
   if (mailErr.code === EMAIL_HAS_ACCOUNT)
     throw new AppError(
       "conflict",
@@ -299,15 +313,15 @@ export async function resendInvite(
  * team_remove refuses a removal of oneself and is an owner's alone, so an operator who had left the business had to
  * ask to be taken off.
  */
-export async function leaveTeam(ctx: TeamCtx, tenantId: string, svc: SupabaseClient<Database> = serviceDb()) {
+export async function leaveTeam(ctx: TeamCtx, tenantId: TenantId, svc: SupabaseClient<Database> = serviceDb()) {
   try {
     await teamCall(
-      svc.rpc("team_leave", { p_tenant_id: tenantId, p_actor: ctx.userId, ...(ctx.via ? { p_via: ctx.via } : {}) }),
+      leaveWorkspaceTeam(svc, { p_tenant_id: tenantId, p_actor: ctx.userId, ...(ctx.via ? { p_via: ctx.via } : {}) }),
       "leave",
     );
   } catch (e) {
     if (e instanceof AppError && e.code === "conflict")
-      throw new AppError("conflict", "You're the only owner. Make someone else Owner first.", 409);
+      throw causedBy(new AppError("conflict", "You're the only owner. Make someone else Owner first.", 409), e);
     throw e;
   }
   return { left: true as const };
@@ -316,8 +330,8 @@ export async function leaveTeam(ctx: TeamCtx, tenantId: string, svc: SupabaseCli
 /** An invitation still open for an address: where it seats them, and as what. */
 interface InviteToAccept {
   id: string;
-  tenant_id: string;
-  role: string;
+  tenant_id: TenantId;
+  role: MembershipRole;
 }
 
 /**
@@ -327,15 +341,11 @@ interface InviteToAccept {
 async function openInvitesFor(email: string | null): Promise<InviteToAccept[]> {
   if (!email) return [];
   try {
-    const { data, error } = await serviceDb()
-      .from("invitations")
-      .select("id, tenant_id, role")
-      .eq("email", email.toLowerCase())
-      .is("accepted_at", null)
-      .is("revoked_at", null)
-      .gt("expires_at", new Date().toISOString());
+    // A person's open invitations, whichever workspaces they are to: by design, read by their address.
+    const { data, error } = await listInvitesForAddress(serviceDb(), email.toLowerCase(), new Date().toISOString());
     return error ? [] : (data ?? []);
-  } catch {
+  } catch (e) {
+    logKeptGoing("open invitations of an address", e);
     return [];
   }
 }
@@ -354,9 +364,7 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
   const db = serviceDb();
   const seated: InviteToAccept[] = [];
   for (const inv of invites) {
-    const { error: mErr } = await db
-      .from("memberships")
-      .insert({ tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
+    const { error: mErr } = await insertMembership(db, { tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
     // A refusal other than "they hold the seat" leaves the invitation open for the next read.
     if (mErr && mErr.code !== "23505") continue;
     // The seat, the news and the stamp are three writes that cannot share a transaction, so they are ordered to be finished
@@ -365,9 +373,9 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
     // between the seat and its news is finished by the next one, which finds the seat held (23505) and the ledger without
     // the news. The ledger is asked first, so a read that finds the news there writes none, and a seat that was held from
     // another door while the invitation stayed open is accepted and said once, when it is first signed in to.
-    const said = await subjectsWith(db, inv.tenant_id, "member.joined", [inv.id]).catch(() => null);
-    if (!said) continue;
-    if (!said.has(inv.id)) {
+    const recorded = await getSubjectsWith(db, inv.tenant_id, "member.joined", [inv.id]).catch(() => null);
+    if (!recorded) continue;
+    if (!recorded.has(inv.id)) {
       const { error } = await recordEvent(db, inv.tenant_id, "member.joined", "invitation", inv.id, {
         by: userId,
         role: inv.role,
@@ -377,12 +385,15 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
         continue;
       }
     }
-    // Stamped only if nobody stamped it first (a second tab's read at once), which is the one that counts it.
-    await db
-      .from("invitations")
-      .update({ accepted_at: new Date().toISOString() })
-      .eq("id", inv.id)
-      .is("accepted_at", null);
+    // Stamped only if nobody stamped it first (a second tab's read at once), which is the one that counts it. A stamp
+    // that fails is logged and leaves the invitation open: the seat is written already, and the next accept stamps it.
+    const stamped = await stampInvitationAccepted(db, inv.tenant_id, inv.id, new Date().toISOString());
+    if (stamped.error)
+      log.error("db_failed", {
+        tenant_id: inv.tenant_id,
+        code: stamped.error.code ?? null,
+        error: stamped.error.message,
+      });
     seated.push(inv);
   }
   return seated;
@@ -404,28 +415,9 @@ export async function joinFromInvitations(
   const joined: JoinedWorkspaceDto[] = await Promise.all(
     seated.map(async (inv) => ({
       id: inv.tenant_id,
-      name: (await tenantFacts(db, inv.tenant_id).catch(() => null))?.name ?? "a workspace",
+      name: (await getTenantFacts(db, inv.tenant_id).catch(logAndGoOn("getTenantFacts", null)))?.name ?? "a workspace",
       role: inv.role,
     })),
   );
   return { joined };
-}
-
-/**
- * The workspaces a person is in, read before their account goes: its rows go with it, and each of those workspaces
- * is told a member left (saidLeft). A read that fails is no list, and the deletion goes on without the record.
- */
-export async function seatsOf(db: SupabaseClient<Database>, userId: string): Promise<string[]> {
-  return workspaceIdsOf(db, userId).catch(() => []);
-}
-
-/**
- * A person deleted their account: said on the ledger of each workspace they sat in, so the team that reads the log
- * sees a seat go rather than a name vanish from the roster with no trace. Who they were is not kept: the account is
- * gone, and the id names no row. As the service role: their own session ended with the account.
- */
-export async function saidLeft(tenantIds: readonly string[], userId: string): Promise<void> {
-  const db = serviceDb();
-  for (const tenantId of tenantIds)
-    await emitEvent(db, tenantId, "member.left", "workspace", tenantId, { by: userId, how: "account_deleted" });
 }

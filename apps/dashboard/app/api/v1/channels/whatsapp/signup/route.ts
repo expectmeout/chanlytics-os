@@ -1,5 +1,5 @@
-import { read, workspace } from "@/server/route";
-import { whatsappSignupConfig } from "@/server/connections/whatsapp";
+import { read, workspace } from "@/server/shared/route";
+import { getWhatsappSignupConfig } from "@/server/connections/whatsapp";
 import { ROLE_PERMS } from "@chanlytics/contracts";
 
 /**
@@ -12,7 +12,7 @@ import { ROLE_PERMS } from "@chanlytics/contracts";
 export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => {
-    const cfg = await whatsappSignupConfig({ workspace: member.tenantId, user: ctx.userId });
+    const cfg = await getWhatsappSignupConfig({ workspace: member.tenantId, user: ctx.userId });
     return { ...cfg, canConnect: !!ROLE_PERMS[member.role]?.disconnect && cfg.ready };
   },
 });

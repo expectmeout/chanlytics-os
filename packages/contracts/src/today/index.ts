@@ -1,4 +1,47 @@
 /** What needs the owner now: Today's brief, the bell's feed, and the phone it pushes to. */
+export { bellSections, todayAwayGrouped, todaySince } from "./away";
+export type {
+  AwayGroupVM,
+  AwayQueueRef,
+  AwayRowLike,
+  BellLineVM,
+  BellNoteLike,
+  BellSectionVM,
+  SinceNoteLike,
+  TodayAwayVM,
+  TodaySinceAnsweredDto,
+  TodaySinceRowVM,
+  TodaySinceVM,
+} from "./away";
+export {
+  offerRefusedWords,
+  standingWithRuns,
+  TODAY_PHONE_WORDS,
+  todayDraftsSub,
+  todayHeadLine,
+  todayWentLine,
+} from "./bands";
+export { todayAlsoWaiting } from "./bands";
+export type { TodayHeadLineVM } from "./bands";
+export { toTodayVM } from "./brief";
+export { tzClock, tzSince } from "./clock";
+export { durationLabel, TODAY_DAY_MAX, todayDay, todayDayBar, todayDayNext, todayDayNote } from "./day/frame";
+export type {
+  CalendarLike,
+  DayFrameLike,
+  PlaybookCardLike,
+  TodayDayBarVM,
+  TodayDayFrameVM,
+  TodayDayItemVM,
+  TodayDayNextVM,
+  TodayDayVM,
+} from "./day/frame";
+export { todayBackOf, todayDayFoot, todayWentFoot, todayZoneDay } from "./day/zone";
+export type { TodayBackVM, TodayZoneCellVM, TodayZoneDayVM, TodayZoneLineVM } from "./day/zone";
+export { QUOTE_MAX } from "./facts";
+export { figureDoorOf, todayProof } from "./figures";
+export { emailWires, TODAY_BOOKED_SHOWN } from "./metrics";
+export type { MetricsChannelDto, MetricsSummaryDto, TodayBookedDto, TodayBookingsDto } from "./metrics";
 export {
   ALERT_PANE_WORDS,
   ALERT_TOPICS,
@@ -26,15 +69,10 @@ export type {
   EmailHeld,
 } from "./notification-kinds";
 export {
-  agoLabel,
-  ALERT_KINDS,
-  applyReadState,
-  bellCalls,
   buildNotificationFeed,
   callOfKey,
   conversationOfNeedsKey,
   dedupeFeed,
-  EMPTY_READ_STATE,
   jobNewsWords,
   kindListDoor,
   nameKnownCustomers,
@@ -42,18 +80,25 @@ export {
   noticeRoute,
   REACH_OUT_DAY_ROUTE,
   SERVER_KEY_PREFIX,
-  SERVER_NOTIFICATION_KINDS,
   serverNotificationRows,
-  unreadCount,
   verbForRoute,
-} from "./notifications";
+} from "./notifications/feed";
+export type { JobEnd } from "./notifications/feed";
+export {
+  agoLabel,
+  ALERT_KINDS,
+  applyReadState,
+  bellCalls,
+  EMPTY_READ_STATE,
+  SERVER_NOTIFICATION_KINDS,
+  unreadCount,
+} from "./notifications/feed-input";
 export type {
   FeedCall,
   FeedInput,
   FeedInvite,
   FeedLive,
   FeedThread,
-  JobEnd,
   JobNews,
   JobNewsKind,
   NotificationDto,
@@ -63,7 +108,7 @@ export type {
   NotificationRow,
   NotificationsDto,
   ServerNotificationKind,
-} from "./notifications";
+} from "./notifications/feed-input";
 export {
   firstLine,
   isPushKind,
@@ -86,72 +131,12 @@ export {
 } from "./push";
 export type { MemberAlertsDto, PhoneDto, PushDevice, PushKind, PushMessage, PushPlatform } from "./push";
 export type { PushTarget } from "./push";
-export { bellSections, todayAwayGrouped, todaySince } from "./today-away";
-export type {
-  AwayGroupVM,
-  AwayQueueRef,
-  AwayRowLike,
-  BellLineVM,
-  BellNoteLike,
-  BellSectionVM,
-  SinceNoteLike,
-  TodayAwayVM,
-  TodaySinceAnsweredDto,
-  TodaySinceRowVM,
-  TodaySinceVM,
-} from "./today-away";
-export {
-  offerRefusedWords,
-  standingWithRuns,
-  TODAY_PHONE_WORDS,
-  todayDraftsSub,
-  todayHeadLine,
-  todayWentLine,
-} from "./today-bands";
-export type { TodayHeadLineVM } from "./today-bands";
-export { toTodayVM } from "./today-brief";
-export { todayBriefWords } from "./today-brief-words";
-export type { TodayBriefRun, TodayBriefWords } from "./today-brief-words";
-export { tzClock, tzSince } from "./today-clock";
-export {
-  durationLabel,
-  TODAY_DAY_MAX,
-  todayBackOf,
-  todayDay,
-  todayDayBar,
-  todayDayFoot,
-  todayDayNext,
-  todayDayNote,
-  todayWentFoot,
-  todayZoneDay,
-} from "./today-day";
-export type {
-  CalendarLike,
-  DayFrameLike,
-  PlaybookCardLike,
-  TodayBackVM,
-  TodayDayBarVM,
-  TodayDayFrameVM,
-  TodayDayItemVM,
-  TodayDayNextVM,
-  TodayDayVM,
-  TodayZoneCellVM,
-  TodayZoneDayVM,
-  TodayZoneLineVM,
-} from "./today-day";
-export { QUOTE_MAX } from "./today-facts";
-export { todayProof } from "./today-figures";
-export { TODAY_LEAK_MAX, todayLeaks } from "./today-leaks";
-export type { JourneyListLike, PeopleListsLike, TodayLeakId, TodayLeaksVM, TodayLeakVM } from "./today-leaks";
-export { emailWires, TODAY_BOOKED_SHOWN } from "./today-metrics";
-export type { MetricsChannelDto, MetricsSummaryDto, TodayBookedDto, TodayBookingsDto } from "./today-metrics";
-export { todayPeriodLine } from "./today-period";
-export { isHoldRow, isPersonRow, namesAPerson } from "./today-queue";
-export { NO_REPLY_AFTER_MS } from "./today-rows";
-export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./today-runs";
-export type { RunLike, TodayRunWordsVM } from "./today-runs";
-export { todaySteps, todayStepsSub, todayVisitsAsked, todayVisitsSub, withSteps, withVisitsAsked } from "./today-to-do";
-export type { TodayStepsVM, TodayStepVM, TodayVisitAskVM, TodayVisitsAskedVM } from "./today-to-do";
+export { isHoldRow, isPersonRow, namesAPerson } from "./queue";
+export { NO_REPLY_AFTER_MS } from "./rows";
+export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./runs";
+export type { RunLike, TodayRunWordsVM } from "./runs";
+export { todaySteps, todayStepsSub, todayVisitsAsked, todayVisitsSub, withSteps, withVisitsAsked } from "./to-do";
+export type { TodayStepsVM, TodayStepVM, TodayVisitAskVM, TodayVisitsAskedVM } from "./to-do";
 export type {
   TodayCallRowVM,
   TodayFactVM,
@@ -164,4 +149,4 @@ export type {
   TodayReadDto,
   TodaySentenceVM,
   TodayVM,
-} from "./today-vm";
+} from "./vm";

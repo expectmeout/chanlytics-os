@@ -5,8 +5,9 @@
  * the choices and what each one changes. On a phone the sentence is clamped to two lines until it is opened.
  */
 import { useState } from "react";
-import { NEW_AD, SENTENCE } from "@chanlytics/contracts/ads-page";
-import type { ChipId, SentencePart } from "@chanlytics/contracts/ads-page";
+import { NEW_AD } from "../model/words-new";
+import { SENTENCE } from "../model/words";
+import type { ChipId, SentencePart } from "../model/vm-base";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { AdSentence } from "../drawer/sentence";

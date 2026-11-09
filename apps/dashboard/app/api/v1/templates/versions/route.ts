@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { OWN_VERSION_CHANNELS, TEMPLATE_CATEGORIES, type OwnVersionChannel } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { MESSAGE_VALUES_WORDS, saveVersion } from "@/server/campaigns/template-versions";
 
 /**

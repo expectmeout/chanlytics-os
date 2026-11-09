@@ -1,4 +1,15 @@
 /** May we contact this person: the one predicate, and the public page where a yes is said. */
+export { consentGuardWords, consentRuleWords, yesAsked } from "./asks";
+export type { YesAsk } from "./asks";
+export {
+  channelsOfYes,
+  channelsWords,
+  CONSENT_CHANNEL_WORDS,
+  CONSENT_CHANNELS,
+  coveredChannels,
+  yesCovers,
+} from "./channels";
+export type { ConsentChannel } from "./channels";
 export {
   consentChangeOf,
   DELIVERY_REFUSALS,
@@ -25,17 +36,8 @@ export type {
   PurposeRefusal,
   SendPurpose,
 } from "./consent";
-export { consentGuardWords, consentRuleWords, yesAsked } from "./consent-asks";
-export type { YesAsk } from "./consent-asks";
-export {
-  channelsOfYes,
-  channelsWords,
-  CONSENT_CHANNEL_WORDS,
-  CONSENT_CHANNELS,
-  coveredChannels,
-  yesCovers,
-} from "./consent-channels";
-export type { ConsentChannel } from "./consent-channels";
+export { optOutNotice, optOutOf } from "./opt-out-notice";
+export type { OptOutHow, OptOutPerson, OptOutSaid } from "./opt-out-notice";
 export {
   confirmationNameOf,
   CONSENT_PHRASE,
@@ -57,7 +59,7 @@ export {
   policyLinks,
   verbalOptInScript,
   YES_WHILE_PAUSED,
-} from "./consent-page";
+} from "./public-page";
 export type {
   ConsentAsk,
   ConsentFormSection,
@@ -68,9 +70,5 @@ export type {
   ConsentWayKind,
   DeskSignVM,
   PolicyLinks,
-} from "./consent-page";
-export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./offers-unsubscribe";
-export type { OfferPageButton, OfferPageWords, OfferUnsubscribeView } from "./offers-unsubscribe";
-export { optOutNotice, optOutOf } from "./opt-out-notice";
-export type { OptOutHow, OptOutPerson, OptOutSaid } from "./opt-out-notice";
+} from "./public-page";
 export { optInLink, waMeDigits, waMeLink } from "./wa-links";

@@ -3,11 +3,10 @@ import {
   fenced,
   isAskMorningQuestion,
   parseLeadsRoute,
-  skillGuide,
-  skillsAsked,
   type AskScope,
   type AskSurface,
 } from "@chanlytics/contracts";
+import { skillGuide, skillsAsked } from "./skills/registry";
 import type { SearchResultBlock } from "./context";
 import { calledName, type ToolRun } from "./tools";
 
@@ -123,7 +122,7 @@ const SETUP = new RegExp(
 /**
  * An offer, asked for (the marketing manager's spec §5.7): the journey and the Library (sequences.journey,
  * sequences.messages), read before round 1 on any page, Campaigns included, which propose_sequence's plan then reads
- * again from the turn's cache (readers/index.ts TurnCache), never from the database twice. Only an offer to make, at a
+ * again from the turn's cache (shared/reader.ts TurnCache), never from the database twice. Only an offer to make, at a
  * sentence's start past a setup's openers or a "we":
  *   - an amount off, its article before it or none ("10% off every service all November", "a 10% discount", "un 10% de
  *     descuento");
@@ -206,7 +205,7 @@ const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
 export function crossPagePlan(text: string, surface: string | null, view: string | null = null): ToolRun[] {
   // The table reads a person's words; the morning's are Ask's own, and what they name ("call briefs", "your drafts") is
   // what to leave alone. The page's own read below still rides in.
-  const q = isAskMorningQuestion(text) ? "" : text.replace(/\s+/g, " ").trim();
+  const query = isAskMorningQuestion(text) ? "" : text.replace(/\s+/g, " ").trim();
   const own = ON_PAGE[surface as AskSurface] ?? new Set<string>();
   const out: ToolRun[] = [];
   // `answered`: the reads the page's rows answer, skipped; none where the question asks what they do not hold.
@@ -215,31 +214,31 @@ export function crossPagePlan(text: string, surface: string | null, view: string
     if (!answered.has(called) && !out.some((r) => calledName(r.name, r.input) === called)) out.push({ name, input });
   };
   // A setup's two reads come first and are read whatever page asks (A4): the page's rows hold neither.
-  const setup = setupAsked(q);
+  const setup = setupAsked(query);
   if (setup) for (const action of ["moments", "lists"]) out.push({ name: "sequences", input: { action } });
   // Then the plan's two, the journey and the Library (the marketing manager's §5.7), whatever page asks: no page's rows
   // are either. The cap leaves a setup its own two, whose one campaign alone reads nothing else (prompt.ts, the setup
   // rule); a whole setup's plan reads these on its call, the campaigns and the lines among them read already. An offer
   // said of a campaign that runs is a change to it: PLAYBOOKS reads it below.
-  if (setup || offerAsked(q))
+  if (setup || offerAsked(query))
     for (const action of ["journey", "messages"]) out.push({ name: "sequences", input: { action } });
-  const overview = OVERVIEW.test(q);
+  const overview = OVERVIEW.test(query);
   if (overview) add("today", {});
-  if (overview || REPORT.test(q)) {
-    const days = daysOf(q);
+  if (overview || REPORT.test(query)) {
+    const days = daysOf(query);
     if (surface !== "reports" || String(days) !== view) add("report", { period: `${days}d` });
   }
-  if (OPENINGS.test(q)) add("calendar", { action: "openings", day: dayOf(q, ""), service: "" });
-  else if (CANCELED.test(q)) add("inbox", { action: "search", words: CANCEL_WORDS, days: cancelDaysOf(q) });
-  else if (CALENDAR.test(q)) add("calendar", { action: "week", day: dayOf(q, "today") });
-  if (PIPELINE.test(q)) add("people", { action: "pipeline" });
-  if (PLAYBOOKS.test(q)) add("sequences", { action: "moments" });
-  if (surface === "campaigns" && REACH.test(q)) add("sequences", { action: "lists" }, new Set());
-  else if (AUDIENCES.test(q)) add("sequences", { action: "lists" });
-  if (MISSED.test(q)) add("calls", { action: "list", filter: "missed" });
-  else if (CALLS.test(q)) add("calls", { action: "list", filter: "recent" });
-  if (HELD.test(q)) add("inbox", { action: "list", filter: "held" });
-  else if (WROTE.test(q)) add("inbox", { action: "list", filter: "recent" });
+  if (OPENINGS.test(query)) add("calendar", { action: "openings", day: dayOf(query, ""), service: "" });
+  else if (CANCELED.test(query)) add("inbox", { action: "search", words: CANCEL_WORDS, days: cancelDaysOf(query) });
+  else if (CALENDAR.test(query)) add("calendar", { action: "week", day: dayOf(query, "today") });
+  if (PIPELINE.test(query)) add("people", { action: "pipeline" });
+  if (PLAYBOOKS.test(query)) add("sequences", { action: "moments" });
+  if (surface === "campaigns" && REACH.test(query)) add("sequences", { action: "lists" }, new Set());
+  else if (AUDIENCES.test(query)) add("sequences", { action: "lists" });
+  if (MISSED.test(query)) add("calls", { action: "list", filter: "missed" });
+  else if (CALLS.test(query)) add("calls", { action: "list", filter: "recent" });
+  if (HELD.test(query)) add("inbox", { action: "list", filter: "held" });
+  else if (WROTE.test(query)) add("inbox", { action: "list", filter: "recent" });
   // On Today, the day's own read, after what the question named: it fills the cap's room (the speed plan, A1).
   if (surface === "today") add("today", {});
   // On Leads, the searches a plan reads first: the page has read them and says only their count, and every watched
@@ -272,6 +271,8 @@ export function scopedRead(scope: AskScope | null, route?: string | null): ToolR
   if (scope?.kind === "search") return { name: "leads", input: { action: "search", search_id: scope.id } };
   if (scope?.kind === "run") return { name: "sequences", input: { action: "batch", broadcast_id: scope.id } };
   if (scope?.kind === "playbook") return { name: "sequences", input: { action: "moments" } };
+  // A file is opened whole, picture and all: "this photo" is the one on screen, by its id, whatever it is called by now.
+  if (scope?.kind === "file") return { name: "files", input: { action: "view", names: [scope.id] } };
   return null;
 }
 

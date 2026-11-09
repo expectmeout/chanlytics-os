@@ -5,58 +5,54 @@
  * what to which list. The names and rules are judged by lists.ts in the words the edit route uses; the routes declare
  * who may and how often, and the list is the row (listScope), found under RLS.
  */
-import { AppError, ruleNeedsViewer, asListRule, ruleLists } from "@chanlytics/contracts";
-import { jsonBody } from "@/server/request-guards";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
+import { AppError, ruleNeedsViewer, asListRule, ruleLists, recordOrNull } from "@chanlytics/contracts";
+import { readJsonBody } from "@/server/shared/request-guards";
 import {
   createList,
-  savedListsFor,
+  listSavedLists,
   addToList,
   archiveList,
   deleteList,
   dropFromList,
   listMemberIds,
-  playbooksOnList,
+  listPlaybooksOnList,
   renameList,
   setListRule,
-  type Json,
-} from "@chanlytics/db";
+} from "@chanlytics/db/people";
 import { LIST_NAME_TAKEN, cleanListName, cleanListRule, cleanIdList, type SavedListDto } from "@/server/people/lists";
-import { recordDecision, type listScope } from "@/server/verbs";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import { recordDecision, type listScope } from "@/server/shared/verbs";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
+import { pauseStepRow } from "@chanlytics/db/campaigns";
+import { asJson } from "@chanlytics/db/shared";
 
 /** The saved list a listScope route acts on, as the scope read it (RLS: one the caller cannot see is a 404). */
 type SavedListRow = Awaited<ReturnType<typeof listScope.load>>;
 
 export async function createSavedList(ctx: RouteContext, req: Request, member: Member) {
-  const body = (await jsonBody(req)) as { name?: unknown; rule?: unknown } | null;
+  const body = recordOrNull(await readJsonBody(req));
   const name = cleanListName(body?.name);
   // A rule may read the workspace's other lists (in_list): they are read to check it can (cleanListRule).
-  const rule = cleanListRule(body?.rule, body?.rule != null ? await savedListsFor(ctx.supabase, member.tenantId) : []);
+  const rule = cleanListRule(body?.rule, body?.rule != null ? await listSavedLists(ctx.supabase, member.tenantId) : []);
   const { list, error } = await createList(ctx.supabase, member.tenantId, name, ctx.userId, rule);
   if (error || !list) {
     if (error?.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);
-    throw new Error(error?.message ?? "The list was not made.");
+    throw new DbFailure(error ?? { message: "The list was not made." });
   }
   // The ledger's (00169, decision 0009): Activity says who made which list, kept by hand or by a rule.
   await recordDecision(ctx, member.tenantId, "list", list.id, "make_list", {
     name: list.name,
     kept: rule ? "rule" : "hand",
-    ...(rule ? { rule: rule as unknown as Json } : {}),
+    ...(rule ? { rule: asJson(rule) } : {}),
   });
-  const made: SavedListDto = { id: list.id, name: list.name, ids: [], rule, archived_at: null };
-  return made;
+  const created: SavedListDto = { id: list.id, name: list.name, ids: [], rule, archived_at: null };
+  return created;
 }
 
 export async function changeSavedList(ctx: RouteContext, req: Request, list: SavedListRow) {
   const id = list.id;
-  const body = (await jsonBody(req)) as {
-    name?: unknown;
-    add?: unknown;
-    remove?: unknown;
-    rule?: unknown;
-    archived?: unknown;
-  } | null;
+  const body = recordOrNull(await readJsonBody(req));
   const add = cleanIdList(body?.add, "add");
   const remove = cleanIdList(body?.remove, "remove");
   const rename = body?.name !== undefined ? cleanListName(body.name) : null;
@@ -64,7 +60,7 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
   const restore = body?.archived === false && !!list.archived_at;
   const rule = cleanListRule(
     body?.rule,
-    body?.rule != null ? await savedListsFor(ctx.supabase, list.tenant_id) : [],
+    body?.rule != null ? await listSavedLists(ctx.supabase, list.tenant_id) : [],
     list.id,
   );
   if (!rename && !add.length && !remove.length && !rule && !restore)
@@ -88,7 +84,7 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
           "A list with that name is on People now. Rename this one to bring it back.",
           409,
         );
-      throw new Error(error.message);
+      throw new DbFailure(error);
     }
     if (!count) throw new AppError("not_found", "List not found.", 404);
     if (renamed) await recordDecision(ctx, tenantId, "list", id, "rename_list", { from: list.name, to: renamed });
@@ -98,14 +94,14 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
     const { error } = await renameList(ctx.supabase, id, rename);
     if (error) {
       if (error.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);
-      throw new Error(error.message);
+      throw new DbFailure(error);
     }
     await recordDecision(ctx, tenantId, "list", id, "rename_list", { from: list.name, to: rename });
   }
   if (rule) {
     // A playbook runs on it with no one looking: a rule about "me" would stop it every day, so it is refused here.
     if (ruleNeedsViewer(rule)) {
-      const on = await playbooksOnList(ctx.supabase, tenantId, id);
+      const on = await listPlaybooksOnList(ctx.supabase, tenantId, id);
       if (on.length)
         throw new AppError(
           "conflict",
@@ -114,28 +110,28 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
         );
     }
     const { error } = await setListRule(ctx.supabase, id, rule);
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     await recordDecision(ctx, tenantId, "list", id, "change_list_rule", {
       name: rename ?? list.name,
-      rule: rule as unknown as Json,
+      rule: asJson(rule),
     });
   }
   if (remove.length) {
-    const { error } = await dropFromList(ctx.supabase, id, remove);
-    if (error) throw new Error(error.message);
+    const { error } = await dropFromList(ctx.supabase, id, remove.map(heldContactId));
+    if (error) throw new DbFailure(error);
     await recordDecision(ctx, tenantId, "list", id, "drop_from_list", {
       name: rename ?? list.name,
       count: remove.length,
     });
   }
   if (add.length) {
-    const { error } = await addToList(ctx.supabase, list, add, ctx.userId);
+    const { error } = await addToList(ctx.supabase, list, add.map(heldContactId), ctx.userId);
     if (error) {
       // RLS's with-check is the refusal for a person of another workspace or
       // one who was erased; PostgREST reports it as a policy violation.
       if (error.code === "42501")
         throw new AppError("validation", "One of those people is not in this workspace any more.");
-      throw new Error(error.message);
+      throw new DbFailure(error);
     }
     await recordDecision(ctx, tenantId, "list", id, "add_to_list", { name: rename ?? list.name, count: add.length });
   }
@@ -153,8 +149,8 @@ export async function removeSavedList(ctx: RouteContext, list: SavedListRow) {
   const tenantId = list.tenant_id;
   // What depends on it (decision 0009): the playbooks that name it, and the workspace's lists whose rule reads it.
   const [playbooks, lists] = await Promise.all([
-    playbooksOnList(ctx.supabase, tenantId, id),
-    savedListsFor(ctx.supabase, tenantId),
+    listPlaybooksOnList(ctx.supabase, tenantId, id),
+    listSavedLists(ctx.supabase, tenantId),
   ]);
   const token = `list:${id.toLowerCase()}`;
   const readBy = lists.filter((l) => {
@@ -168,12 +164,12 @@ export async function removeSavedList(ctx: RouteContext, list: SavedListRow) {
     const paused = playbooks.filter((p) => p.state === "running");
     if (!list.archived_at) {
       const { error, count } = await archiveList(ctx.supabase, id, new Date());
-      if (error) throw new Error(error.message);
+      if (error) throw new DbFailure(error);
       if (!count) throw new AppError("not_found", "List not found.", 404);
     }
     for (const p of paused) {
-      const { error } = await ctx.supabase.from("sequence_steps").update({ state: "paused" }).eq("id", p.id);
-      if (error) throw new Error(error.message);
+      const { error } = await pauseStepRow(ctx.supabase, p.id);
+      if (error) throw new DbFailure(error);
       await recordDecision(ctx, tenantId, "playbook", p.id, "pause_playbook", { name: p.name, why: "list_archived" });
     }
     await recordDecision(ctx, tenantId, "list", id, "archive_list", {
@@ -195,7 +191,7 @@ export async function removeSavedList(ctx: RouteContext, list: SavedListRow) {
     // A playbook put on it between the read above and this delete: 00169's reference refuses the delete.
     if (error.code === "23503")
       throw new AppError("conflict", "A campaign was just put on this list. Delete it again to archive it.", 409);
-    throw new Error(error.message);
+    throw new DbFailure(error);
   }
   if (!count) throw new AppError("not_found", "List not found.", 404);
   await recordDecision(ctx, tenantId, "list", id, "delete_list", { name: list.name });

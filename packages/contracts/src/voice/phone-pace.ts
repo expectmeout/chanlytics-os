@@ -4,6 +4,7 @@
  * and the rehearsal's call as the voice is (phone-voices.ts), so a change reaches the next call and nothing saved on the
  * agent moves. Natural sends nothing: the line keeps its own pace.
  */
+import { isOneOf } from "../shared/unknown";
 
 export const PHONE_PACES = ["slower", "a_bit_slower", "natural", "a_bit_faster", "faster"] as const;
 export type PhonePace = (typeof PHONE_PACES)[number];
@@ -25,7 +26,7 @@ export const PHONE_PACE_WORDS = {
     natural: "Natural",
     a_bit_faster: "A bit faster",
     faster: "Faster",
-  } as Record<PhonePace, string>,
+  } satisfies Record<PhonePace, string>,
   gate: "change how fast it speaks",
   /** A pace not on the list, refused before it is sent: the edge would send no other. */
   unlisted: "Pick one of the five paces.",
@@ -34,9 +35,7 @@ export const PHONE_PACE_WORDS = {
 
 /** The pace a stored value names, or null where it names none on the list (absent, retired or mistyped). */
 export function phonePaceOf(stored: unknown): PhonePace | null {
-  return typeof stored === "string" && (PHONE_PACES as readonly string[]).includes(stored)
-    ? (stored as PhonePace)
-    : null;
+  return isOneOf(PHONE_PACES, stored) ? stored : null;
 }
 
 /** The pace a call is spoken at, as the page says it: the one chosen, else natural. */

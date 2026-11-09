@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
-import { SETUP_REQUEST_KINDS } from "@chanlytics/contracts";
+import { write, workspace } from "@/server/shared/route";
+import { SETUP_REQUEST_KINDS, isOneOf } from "@chanlytics/contracts";
 import { tellPlatformOfSetupRequest } from "@/server/workspace/tell";
-import { dbRefusal } from "@/server/with-route";
+import { dbRefusal } from "@/server/shared/with-route";
+import { requestWorkspaceSetup } from "@/server/setup/setup";
 
 const ASK = "Say what you are asking for.";
 const Body = z.object({
-  what: z.string({ message: ASK }).refine((w) => (SETUP_REQUEST_KINDS as readonly string[]).includes(w), ASK),
+  what: z.string({ message: ASK }).refine((w) => isOneOf(SETUP_REQUEST_KINDS, w), ASK),
 });
 
 /**
@@ -28,8 +29,8 @@ export const POST = write({
   rate: "setup_request",
   input: Body,
   handle: async ({ ctx, member, input }) => {
-    const what = input.what;
-    const { data, error } = await ctx.supabase.rpc("setup_request", { p_tenant_id: member.tenantId, p_what: what });
+    const subject = input.what;
+    const { data, error } = await requestWorkspaceSetup(ctx, { p_tenant_id: member.tenantId, p_what: subject });
     if (error) throw dbRefusal(error, { code: "conflict", status: 409 });
     const already = !!(
       data &&
@@ -37,9 +38,9 @@ export const POST = write({
       !Array.isArray(data) &&
       (data as { already?: unknown }).already === true
     );
-    const told = already
+    const wasTold = already
       ? false
-      : await tellPlatformOfSetupRequest(member.tenantId, what, ctx.email ?? null, ctx.userId);
-    return { request: data, told };
+      : await tellPlatformOfSetupRequest(member.tenantId, subject, ctx.email ?? null, ctx.userId);
+    return { request: data, told: wasTold };
   },
 });

@@ -1,7 +1,8 @@
 /** The Line as its parts read it: one bag, filled as AskReal draws (line.tsx). */
-import type { KeyboardEvent, ReactNode, RefObject } from "react";
+import type { DOMAttributes, KeyboardEvent, ReactNode, RefObject } from "react";
 import type {
   AskAnswer,
+  AskAttached,
   AskLanguage,
   AskMessageVM,
   AskProposalOutcome,
@@ -11,12 +12,13 @@ import type {
   AskSurface,
   AskThreadVM,
 } from "@chanlytics/contracts";
-import type { AskApi } from "@/legacy-bridge/ask";
-import type { Mascot } from "@/legacy-bridge/mascot";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { AskApi } from "@/bridge/ask";
+import type { Mascot } from "@/bridge/mascot";
+import type { FrameFlash } from "../../frame-verbs";
 import type { ahSlideFrom, useAskSpeech, useAskTalk, useHoldPress, useHoldSpace } from "../hooks";
 import type { LineRow, LineSection } from "../home";
 import type { LineWords } from "../words";
+import type { AttachedPhoto, arAttach } from "./attached";
 
 /** What a turn in flight writes and its landing reads: its thread, its final message, and what it has said. */
 export interface Turn {
@@ -36,6 +38,8 @@ export type LiveSay = Omit<AskSayPreview, "show"> & { show?: AskShowPreview | nu
 /** The turn in flight, as the Line draws it. */
 export interface LiveTurn {
   q: string;
+  /** What the question came with. */
+  files: readonly AskAttached[];
   text: string;
   say: LiveSay | null;
   traces: string[];
@@ -66,17 +70,21 @@ export interface AskedHow {
   spoken?: boolean;
   following?: string | null;
   fresh?: boolean;
+  /** A question asked again with what it first came with (its Retry), rather than what stands beside the field. */
+  files?: readonly AskAttached[];
 }
 
 /** What the shell sends as it opens the Line (`askAbout`, frame-doors.ts). */
 export interface AskedSeed {
   prompt?: string;
+  prompts?: Readonly<Record<"en" | "es", string>>;
   mode?: string;
   thread?: string;
   about?: AskScope | string | boolean;
   fresh?: boolean;
 }
 
+type DragProps = DOMAttributes<HTMLDivElement>;
 type Ref<T> = RefObject<T>;
 type ElementRef<T extends HTMLElement> = RefObject<T | null>;
 
@@ -114,6 +122,9 @@ export interface LineTurn {
 export interface LineState {
   query: string;
   setQuery: (q: string) => void;
+  /** The photos beside the field (attached.tsx). */
+  attached: AttachedPhoto[];
+  setAttached: (next: AttachedPhoto[] | ((prev: AttachedPhoto[]) => AttachedPhoto[])) => void;
   threads: AskThreadVM[];
   setThreads: (next: AskThreadVM[] | ((prev: AskThreadVM[]) => AskThreadVM[])) => void;
   active: Conversation | null;
@@ -141,7 +152,7 @@ export interface LineState {
   slideFrom: Ref<ReturnType<typeof ahSlideFrom>>;
   speech: ReturnType<typeof useAskSpeech>;
   toastNode: ReactNode;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   inputRef: ElementRef<HTMLTextAreaElement>;
   faceRef: ElementRef<HTMLSpanElement>;
   heroRef: ElementRef<HTMLDivElement>;
@@ -179,6 +190,13 @@ export interface Line extends LineState {
   askDelete: (th: AskThreadVM) => void;
   removeThread: (th: AskThreadVM) => Promise<void>;
   stop: () => void;
+  // The photos beside the field (attached.tsx).
+  attach: ReturnType<typeof arAttach>["attach"];
+  detach: ReturnType<typeof arAttach>["detach"];
+  attachAgain: ReturnType<typeof arAttach>["attachAgain"];
+  clearAttached: ReturnType<typeof arAttach>["clearAttached"];
+  dropping: boolean;
+  dropProps: Pick<DragProps, "onDragOver" | "onDragLeave" | "onDrop">;
   // The turn (turns.tsx).
   submit: (q?: unknown, chip?: AskScope | null, how?: AskedHow) => Promise<void>;
   // Talking (hooks.ts useArVoice).
@@ -206,6 +224,7 @@ export interface Line extends LineState {
   thread: boolean;
   listen: boolean;
   nowQ: string;
+  nowFiles: readonly AskAttached[];
   activate: (it: LineTaken | undefined) => void;
   onKey: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
   // The field's end and what stands around it (draw.tsx).

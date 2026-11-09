@@ -19,11 +19,16 @@ import {
   type BillingMode,
   type BillingStatus,
   type SetupPhoneWant,
-} from "../packages/contracts.js";
-import { setupChoicesOf, type Database } from "../packages/db.js";
-import { scheduleJob } from "../packages/jobs.js";
+  DbFailure,
+} from "@chanlytics/contracts";
+import { findSetupAsked, setupChoicesOf } from "@chanlytics/db/workspace";
+import type { Database } from "@chanlytics/db/types";
+import { scheduleJob } from "@chanlytics/jobs";
 import { lineProviderFromEnv, type LineProviderChoice } from "./lines.js";
-import { liveLineOf, planBuy, provisionJob } from "./line-ops.js";
+import { liveLineOf, planBuy, provisionJob } from "./ops/search-buy.js";
+import { insertLineRow, listLinesOf } from "@chanlytics/db/lines";
+import { findPlanStanding } from "@chanlytics/db/billing";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -44,7 +49,7 @@ type ChosenLinePlan =
   | { kind: "stands" }
   | { kind: "none"; why: "no_choice" | "no_calls" | "moving" | "may_not_spend" | "no_number" };
 
-export function planChosenLine(f: {
+export function planChosenLine(fields: {
   want: SetupPhoneWant | null;
   /** The business chose Not by phone (callsNotByPhone). */
   noCalls: boolean;
@@ -53,14 +58,15 @@ export function planChosenLine(f: {
   /** A person was asked for a line or a move: theirs, not this. */
   asked: boolean;
 }): ChosenLinePlan {
-  if (liveLineOf([...f.lines]) || f.lines.some((l) => l.voice_state === "failed")) return { kind: "stands" };
-  if (f.noCalls) return { kind: "none", why: "no_calls" };
-  if (!f.want) return { kind: "none", why: "no_choice" };
-  if (f.want.way === "move" || f.asked) return { kind: "none", why: "moving" };
-  if (!f.billing || !maySpend(f.billing.mode, f.billing.status, "number"))
+  if (liveLineOf([...fields.lines]) || fields.lines.some((l) => l.voice_state === "failed")) return { kind: "stands" };
+  if (fields.noCalls) return { kind: "none", why: "no_calls" };
+  if (!fields.want) return { kind: "none", why: "no_choice" };
+  if (fields.want.way === "move" || fields.asked) return { kind: "none", why: "moving" };
+  if (!fields.billing || !maySpend(fields.billing.mode, fields.billing.status, "number"))
     return { kind: "none", why: "may_not_spend" };
-  const area = areaCodeOf(f.want.number);
-  if (f.want.way === "new") return { kind: "buy", number: f.want.number, areaCode: area ? Number(area) : null };
+  const area = areaCodeOf(fields.want.number);
+  if (fields.want.way === "new")
+    return { kind: "buy", number: fields.want.number, areaCode: area ? Number(area) : null };
   return area ? { kind: "search", areaCode: Number(area) } : { kind: "none", why: "no_number" };
 }
 
@@ -77,31 +83,23 @@ interface ChosenLinePorts {
  */
 export async function startChosenLine(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   ports: ChosenLinePorts = { choice: lineProviderFromEnv(), now: () => new Date() },
 ): Promise<ChosenLineOutcome> {
   try {
     const [choices, billing, lines, asked] = await Promise.all([
       setupChoicesOf(db, tenantId),
-      db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
-      db.from("lines").select("*").eq("tenant_id", tenantId).order("created_at"),
-      db
-        .from("events")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("kind", "setup.requested")
-        .in("data->>what", ["line", "port"])
-        .limit(1),
+      findPlanStanding(db, tenantId),
+      listLinesOf(db, tenantId),
+      findSetupAsked(db, tenantId, ["line", "port"]),
     ]);
-    if (billing.error) throw new Error(billing.error.message);
-    if (lines.error) throw new Error(lines.error.message);
-    if (asked.error) throw new Error(asked.error.message);
+    if (billing.error) throw new DbFailure(billing.error);
+    if (lines.error) throw new DbFailure(lines.error);
+    if (asked.error) throw new DbFailure(asked.error);
     const plan = planChosenLine({
       want: choices ? setupPhoneWantOf({ phone: choices.phone }) : null,
       noCalls: !!choices && callsNotByPhone({ phone: choices.phone }),
-      billing: billing.data
-        ? { mode: billing.data.mode as BillingMode, status: billing.data.status as BillingStatus }
-        : null,
+      billing: billing.data ? { mode: billing.data.mode, status: billing.data.status } : null,
       lines: lines.data ?? [],
       asked: (asked.data ?? []).length > 0,
     });
@@ -132,7 +130,7 @@ export async function startChosenLine(
       now,
     });
     if (buy.kind === "refuse") return { kind: "stands" };
-    const ins = await db.from("lines").insert(buy.row).select("*").single();
+    const ins = await insertLineRow(db, tenantId, buy.row);
     // Two starts crossed (the webhook and the sweep, or the owner's own tab): the database holds one line a workspace
     // (lines_one_live_per_tenant_idx, 00195), and the other's line stands.
     if (ins.error) return ins.error.code === "23505" ? { kind: "stands" } : startFailed(ins.error.message);
@@ -161,20 +159,20 @@ export interface OwedLinesResult {
  */
 export async function startOwedLines(
   db: Db,
-  ids: readonly string[],
+  ids: readonly TenantId[],
   ports: ChosenLinePorts & { alert: (subject: string, body: string) => Promise<unknown> },
   max = CHOSEN_LINES_PER_TICK,
 ): Promise<OwedLinesResult> {
   const out: OwedLinesResult = { looked: 0, started: 0, failed: 0 };
   for (const tenantId of ids.slice(0, max)) {
     out.looked += 1;
-    const r = await startChosenLine(db, tenantId, ports);
-    if (r.kind === "started") out.started += 1;
-    if (r.kind === "none" && (r.why === "failed" || r.why === "no_number")) {
+    const result = await startChosenLine(db, tenantId, ports);
+    if (result.kind === "started") out.started += 1;
+    if (result.kind === "none" && (result.why === "failed" || result.why === "no_number")) {
       out.failed += 1;
       await ports.alert(
         "A paid workspace's number did not start",
-        `Workspace ${tenantId} pays and chose a number, and starting it failed: ${r.detail ?? r.why}. The lines sweep asks again within the quarter hour.`,
+        `Workspace ${tenantId} pays and chose a number, and starting it failed: ${result.detail ?? result.why}. The lines sweep asks again within the quarter hour.`,
       );
     }
   }

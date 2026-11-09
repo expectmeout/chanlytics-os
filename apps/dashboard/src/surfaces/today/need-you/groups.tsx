@@ -1,11 +1,11 @@
 /**
  * Need you's parts around its rows (Today in three zones, 2 Nov 2026): each group under its own small head (Up next,
- * Waiting on you, To decide, To do, Older; contracts need-you-groups.ts), and the old ones let go at once, each handed back
+ * Waiting on you, To decide, To do, Older; contracts need-you/groups.ts), and the old ones let go at once, each handed back
  * to the receptionist with one Undo for all of them.
  */
 import { useId, type ReactNode } from "react";
 import { NEED_YOU_WORDS as W, type TodayQueueRowVM } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { Panel } from "../../kit/panel/panel";
 
 /**
@@ -16,30 +16,50 @@ export function NeedYouGroup({
   title,
   count,
   pane = false,
+  bare = false,
+  end = null,
   testid,
   children,
 }: {
   title: string;
   count: number | null;
   pane?: boolean;
+  /** What its head holds at its right edge, on a phone: the door to what it could not hold, or to the Inbox. */
+  end?: ReactNode;
+  /** No head drawn, its name for a reader alone: its rows say what the head would. */
+  bare?: boolean;
   testid: string;
   children: ReactNode;
 }) {
   const id = useId();
+  // On a phone it is a card, with the head every card has (section-door.tsx); on a desk a small head over rows in one pane.
+  const head = bare ? null : (
+    <div className={pane ? "ny-group-head tz-head" : "ny-group-head"}>
+      <span className={pane ? "ny-group-title tz-name" : "ny-group-title"} id={id}>
+        {title}
+      </span>
+      {count !== null ? <span className={pane ? "tz-fact" : "ny-group-n tabular"}>{count}</span> : null}
+      {end}
+    </div>
+  );
   return (
-    <div className="ny-group" role="group" aria-labelledby={id} data-testid={testid}>
-      <div className="ny-group-head">
-        <span className="ny-group-title" id={id}>
-          {title}
-        </span>
-        {count !== null ? <span className="ny-group-n tabular">{count}</span> : null}
-      </div>
+    <div
+      className="ny-group"
+      role="group"
+      aria-labelledby={bare ? undefined : id}
+      aria-label={bare ? title : undefined}
+      data-testid={testid}
+    >
       {pane ? (
         <Panel size="flush" className="tq-list ny-pane">
+          {head}
           {children}
         </Panel>
       ) : (
-        <div className="tq-list">{children}</div>
+        <>
+          {head}
+          <div className="tq-list">{children}</div>
+        </>
       )}
     </div>
   );
@@ -64,7 +84,7 @@ export async function handBackAll(rows: readonly TodayQueueRowVM[]): Promise<Han
   for (const [i, row] of threads.entries()) {
     const r = await commitVerb(
       "thread_verb",
-      { verb: "hand_back", conversation_id: row.conversationId, who: row.who },
+      { verb: row.closes ?? "hand_back", conversation_id: row.conversationId, who: row.who },
       { refresh: i === threads.length - 1 },
     );
     if (r.ok && r.undo) undos.push(r.undo);

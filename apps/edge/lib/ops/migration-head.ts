@@ -4,14 +4,15 @@
  * line's own words rather than failing whole.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { migrationHead } from "../packages/db.js";
-import type { Database, MigrationHead } from "../packages/db.js";
+import { getMigrationHead } from "@chanlytics/db/console";
+import type { Database } from "@chanlytics/db/types";
+import type { MigrationHead } from "@chanlytics/db/console";
 
 type MigrationsLine = MigrationHead | { error: string };
 
-export async function migrationsLine(db: SupabaseClient<Database>): Promise<MigrationsLine> {
+export async function getMigrationsLine(db: SupabaseClient<Database>): Promise<MigrationsLine> {
   try {
-    return await migrationHead(db);
+    return await getMigrationHead(db);
   } catch (e) {
     return { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
   }

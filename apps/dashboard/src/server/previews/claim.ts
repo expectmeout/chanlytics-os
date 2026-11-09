@@ -1,14 +1,15 @@
+import { heldTenantId } from "@chanlytics/contracts";
 import "server-only";
 
 /**
  * Make it mine (decision 0079, L4): a lead's own receptionist made a workspace of the person who claims it.
  *
- *   previewForSignup  what sign-up says of a preview's link, asked by its token alone: the business's name and the
+ *   findPreviewForSignup  what sign-up says of a preview's link, asked by its token alone: the business's name and the
  *                     address the sender wrote to, while it can still be made theirs; else nothing, the same for a
  *                     token that names nothing. Make it mine's page draws it (app/preview/[token]/mine), and the
  *                     sign-up route asks it, for which a live link stands for an invite code (signupPostureFor)
  *   claimPreviewFor   the claim, signed in (POST preview-claims): preview_claim on the claimer's own session, then what
- *                     a first workspace's making does after its door (workspace-create.ts): the platform's notice, the
+ *                     a first workspace's making does after its door (workspace/create.ts): the platform's notice, the
  *                     claimer's first alert address, sign-up's answers cleared. And what the preview was used for, as
  *                     the claimer's own first-run marks (previewFirstRunMarks), so its first run starts where they are
  */
@@ -21,16 +22,18 @@ import {
 } from "@chanlytics/contracts";
 import {
   claimPreview,
-  leadForPreview,
-  leadPreviewByToken,
-  setMemberView,
+  findLeadForPreview,
+  findLeadPreviewByToken,
   type LeadPreviewRow,
   type PreviewRefusal,
-} from "@chanlytics/db";
+} from "@chanlytics/db/campaigns";
+import { setMemberView } from "@chanlytics/db/notices";
 import { linkPageDb, linkPageLookOf } from "../public/link-page";
-import { workspaceBegun } from "../workspace/workspace-create";
-import { log } from "../log";
-import type { RouteContext } from "../with-route";
+import { recordWorkspaceBegun } from "../workspace/create";
+import { log } from "../shared/log";
+import type { RouteContext } from "../shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The service role, where this deployment holds it: the page and sign-up know only the link. */
 type Db = ReturnType<typeof linkPageDb>;
@@ -45,18 +48,18 @@ interface PreviewForSignup {
 /** A preview's row by its link, where it can still be made theirs; null for any other, or none. */
 async function claimableRow(db: Db, token: string): Promise<LeadPreviewRow | null> {
   if (!db || !PreviewTokenSchema.safeParse(token).success) return null;
-  const row = await leadPreviewByToken(db, token);
+  const row = await findLeadPreviewByToken(db, token);
   return row?.preview_tenant_id && previewClaimable(previewStateOf(row, new Date())) ? row : null;
 }
 
 /** What sign-up says of a preview's link, or null where it says nothing about it. */
-export async function previewForSignup(token: string): Promise<PreviewForSignup | null> {
+export async function findPreviewForSignup(token: string): Promise<PreviewForSignup | null> {
   const db = linkPageDb();
   const row = await claimableRow(db, token);
   if (!db || !row?.preview_tenant_id) return null;
   const [look, lead] = await Promise.all([
     linkPageLookOf(db, row.preview_tenant_id),
-    leadForPreview(db, row.tenant_id, row.lead_id).catch(() => null),
+    findLeadForPreview(db, row.tenant_id, row.lead_id).catch(logAndGoOn("findLeadForPreview", null)),
   ]);
   return look.business ? { business: look.business, email: lead?.email ?? null } : null;
 }
@@ -70,7 +73,7 @@ function claimRefusalOf(reason: PreviewRefusal, message: string): AppError {
 }
 
 /** The preview's use, as the claimer's first-run marks. Best effort: a workspace made theirs is never undone by it. */
-async function markFirstRun(ctx: RouteContext, tenantId: string, row: LeadPreviewRow | null): Promise<void> {
+async function markFirstRun(ctx: RouteContext, tenantId: TenantId, row: LeadPreviewRow | null): Promise<void> {
   const later = row ? previewFirstRunMarks(row) : [];
   if (!later.length) return;
   try {
@@ -84,20 +87,20 @@ async function markFirstRun(ctx: RouteContext, tenantId: string, row: LeadPrevie
 export async function claimPreviewFor(ctx: RouteContext, token: string) {
   // Read before the claim, for its marks: what it was used for does not change once it is theirs.
   const used = await claimableRow(linkPageDb(), token).catch(() => null);
-  const r = await claimPreview(ctx.supabase, token);
-  if (!r.ok) throw claimRefusalOf(r.reason, r.message);
-  const workspace = r.value;
+  const result = await claimPreview(ctx.supabase, token);
+  if (!result.ok) throw claimRefusalOf(result.reason, result.message);
+  const workspace = result.value;
   log.info("preview_claimed", { tenant_id: workspace.id });
 
-  // What follows every workspace made (workspaceBegun), with the first run's marks its preview earned kept on the
+  // What follows every workspace made (recordWorkspaceBegun), with the first run's marks its preview earned kept on the
   // workspace (decision 0091) as well as on the claimer's own view.
   const marks = used ? previewFirstRunMarks(used) : [];
-  await workspaceBegun(ctx, workspace.id, {
+  await recordWorkspaceBegun(ctx, heldTenantId(workspace.id), {
     by: "claimed",
     notify: ctx.email ?? "",
     alertTo: ctx.email ?? null,
     marks,
   });
-  await markFirstRun(ctx, workspace.id, used);
+  await markFirstRun(ctx, heldTenantId(workspace.id), used);
   return { workspace };
 }

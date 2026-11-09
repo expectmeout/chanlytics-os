@@ -14,8 +14,8 @@ export interface ServiceLike {
 // says "depilacion" means the service written "Depilación". Exported for the
 // Business tab's services sheet, whose search folds a name the same way: one
 // rule for what counts as the same name, not a copy of it in the page.
-export const foldName = (s: string): string =>
-  s
+export const foldName = (text: string): string =>
+  text
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
@@ -27,9 +27,9 @@ export const foldName = (s: string): string =>
  * and is not offered again beside it. An empty name is no name, and the same as none. A business's own name is
  * facts.ts sameName's, which lets punctuation go too.
  */
-export function sameListed(a: string, b: string): boolean {
-  const x = foldName(String(a ?? "").trim());
-  return x !== "" && x === foldName(String(b ?? "").trim());
+export function sameListed(first: string, second: string): boolean {
+  const x = foldName(String(first ?? "").trim());
+  return x !== "" && x === foldName(String(second ?? "").trim());
 }
 
 const wordsOf = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -43,15 +43,15 @@ const wordsOf = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boole
  * replaced split words differently, and the phone's cut "uñas" at the ñ into
  * two pieces too short to count, so a caller asking for nails matched nothing.
  */
-export function matchService<S extends ServiceLike>(services: readonly S[] | undefined, asked: unknown): S | null {
-  const q = typeof asked === "string" ? foldName(asked.trim()) : "";
-  if (!q || !services?.length) return null;
+export function matchService<S extends ServiceLike>(services: readonly S[] | undefined, value: unknown): S | null {
+  const query = typeof value === "string" ? foldName(value.trim()) : "";
+  if (!query || !services?.length) return null;
   const named = services.map((s) => ({ s, n: foldName(s.name) }));
-  const exact = named.find((x) => x.n === q);
+  const exact = named.find((x) => x.n === query);
   if (exact) return exact.s;
-  const contains = named.find((x) => x.n && (x.n.includes(q) || q.includes(x.n)));
+  const contains = named.find((x) => x.n && (x.n.includes(query) || query.includes(x.n)));
   if (contains) return contains.s;
-  const asks = wordsOf(q).filter((w) => w.length >= 4);
+  const asks = wordsOf(query).filter((w) => w.length >= 4);
   let best: S | null = null;
   let bestScore = 0;
   for (const { s, n } of named) {
@@ -75,13 +75,13 @@ export function serviceNamedIn(
   services: readonly { name: string }[] | undefined,
   only?: (name: string) => boolean,
 ): string | null {
-  const t = foldName(String(title ?? "").trim());
-  if (!t) return null;
+  const result = foldName(String(title ?? "").trim());
+  if (!result) return null;
   let best: { name: string; folded: string } | null = null;
   for (const s of services ?? []) {
     const name = String(s.name ?? "").trim();
     const folded = foldName(name);
-    if (!folded || !t.includes(folded) || (only && !only(name))) continue;
+    if (!folded || !result.includes(folded) || (only && !only(name))) continue;
     if (!best || folded.length > best.folded.length) best = { name, folded };
   }
   return best ? best.name : null;
@@ -125,10 +125,10 @@ export interface ServiceOffer<S extends ServiceLike = ServiceLike> {
 export function offerFor<S extends ServiceLike>(
   services: readonly S[] | undefined,
   rules: ConsultRules | null | undefined,
-  asked: unknown,
+  value: unknown,
   opts: { client?: boolean } = {},
 ): ServiceOffer<S> | null {
-  const service = matchService(services, asked);
+  const service = matchService(services, value);
   if (!service) return null;
   // A client is past the consultation (0004): the service itself, sized by its own length.
   if (opts.client)
@@ -160,9 +160,9 @@ export function offerLead(offer: ServiceOffer | null): string {
     return offer.service.duration_min
       ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): `
       : "";
-  const c = offer.consultationService;
+  const consultationService = offer.consultationService;
   const detail = [
-    c && foldName(c.name.trim()) !== "consultation" ? c.name : "",
+    consultationService && foldName(consultationService.name.trim()) !== "consultation" ? consultationService.name : "",
     offer.minMinutes ? `about ${offer.minMinutes} minutes` : "",
   ]
     .filter(Boolean)

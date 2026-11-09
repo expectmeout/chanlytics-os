@@ -5,7 +5,7 @@
  *
  * The shell's globals, as the bridge publishes them (zone.ts installClock, identity.ts, seed-globals.ts and
  * inbox-verbs.ts' own), and window.__SETTINGS / window.__FACTS
- * built from the scenario the way legacy-bridge/surface-data.ts's settings apply builds them -- through the same
+ * built from the scenario the way bridge/surface-data.ts's settings apply builds them -- through the same
  * contracts functions, from this worktree's SOURCE. The server bundles this with the scenario's own object as a
  * banner (window.__HX_SCENARIO) and puts it FIRST in the document's head, before data/bridge-stubs.jsx, which writes
  * only what is missing. The server answers the spec's reads from that same object, so the page and the spec see one
@@ -22,16 +22,16 @@
  * eslint's config matches no `.ts` here. What holds it is e2e-harness.test.mjs, which builds it and runs it.
  */
 import * as C from "@chanlytics/contracts";
-import { installClock } from "@/legacy-bridge/zone";
-import { installRoleStore, installRoles } from "@/legacy-bridge/identity";
-import { startSurfaces } from "@/legacy-bridge/surface-runner";
+import { installClock } from "@/bridge/zone";
+import { installRoleStore, installRoles } from "@/bridge/identity";
+import { startSurfaces } from "@/bridge/surface-runner";
 import { peopleOverride } from "@/surfaces/people/surface";
 import { installPeopleCourier, personDetail } from "@/surfaces/people/people-detail";
-import { installRouteGate, installSurfaceRegistry } from "@/legacy-bridge/surface-registry";
-import { setStatus } from "@/legacy-bridge/surface-status";
-import { installTabMemory } from "@/legacy-bridge/tab-memory";
-import { installNotifications } from "@/legacy-bridge/notifications";
-import { installAsk } from "@/legacy-bridge/ask";
+import { installRouteGate, installSurfaceRegistry } from "@/bridge/surface-registry";
+import { setStatus } from "@/bridge/surface-status";
+import { installTabMemory } from "@/bridge/tab-memory";
+import { installNotifications } from "@/bridge/notifications";
+import { installAsk } from "@/bridge/ask";
 import { templatesRead } from "./templates-read.mjs";
 
 interface Scenario {
@@ -83,7 +83,7 @@ w.__ME = {
 };
 installClock();
 
-/* ---- the role store: the shell's own reading of who is acting (legacy-bridge/identity.ts installRoleStore, installRoles) ---- */
+/* ---- the role store: the shell's own reading of who is acting (bridge/identity.ts installRoleStore, installRoles) ---- */
 // Every gate asks the role store (`ST_STORE.myRole()`, `.mayAtLeast()`). The mockup used to make it when settings.jsx ran;
 // Settings has left the mockup, so the fixture makes it as the app's seed-globals does and gives it the app's reading
 // right after: the same two functions over this window's `__ME` and the store's own View-as, and no second copy of the
@@ -122,7 +122,7 @@ w.__roleGate = C.roleGate;
 w.__workspace = { setTimezone: async () => ({ ok: false, tz: "", message: "The harness never saves." }) };
 w.__saveSettings = () => Promise.resolve({ ok: false, code: "refused", message: "The harness never saves." });
 
-/* ---- the settings read (legacy-bridge/surface-data.ts) ---- */
+/* ---- the settings read (bridge/surface-data.ts) ---- */
 // composePromptPreview's own three lines (apps/dashboard/src/server/receptionist/prompt-preview.ts), which cannot be imported here.
 const preview = (brain: C.BrainConfig) => ({
   whatsapp: C.resolveSystemPrompt(brain, "whatsapp", zone, new Date(), {}, S.known),
@@ -153,12 +153,12 @@ w.__FACTS = { facts: resolved, conflicts: C.factConflicts(resolved) };
 // workspace an approved message its own seed writes no row for.
 const profile = (S.config.brain.profile ?? {}) as Record<string, any>;
 // The scenario's own templates as GET templates?all=1 hands them over (templates-read.mjs), and the WhatsApp ones among
-// them, which are all Settings publishes as __TEMPLATES_ALL (legacy-bridge/surfaces/settings.ts): the Inbox, Setup and the
+// them, which are all Settings publishes as __TEMPLATES_ALL (bridge/surfaces/settings.ts): the Inbox, Setup and the
 // phone read WhatsApp's alone, and a message's email and text versions belong to the Library's own list.
 const whatsappTemplates: any[] = templatesRead(S.templates ?? [], { all: true }).templates.filter(
   (t: any) => t.channel === "whatsapp",
 );
-// Meta's verdicts, counted rather than claimed and as the real read counts them (server/workspace/setup.ts
+// Meta's verdicts, counted rather than claimed and as the real read counts them (server/setup/setup.ts
 // templatesSection): a WhatsApp row Meta approved or is still reading, not hidden. An email or a text version is approved
 // the moment it is written, nobody's verdict but its author's, so a record's messages with no WhatsApp row add nothing here.
 const verdicts = (status: string) => whatsappTemplates.filter((t) => t.meta_status === status && !t.hidden_at);
@@ -230,7 +230,7 @@ if (inBrowser && !w.location.pathname.startsWith(`/w/${WORKSPACE.slug}/`)) {
 
 /* ---- People, real, where the record has people (the pipeline scenario) ----
  * The app's own pieces over the harness's own answers (server.mjs peopleAnswer): the People surface booted by the
- * runner, the profile's courier, the registry that says which surfaces are real, and the route gate LegacyApp.tsx
+ * runner, the profile's courier, the registry that says which surfaces are real, and the route gate FrameApp.tsx
  * installs, so a route waits for its surface and draws when it lands, never the seeded page first. Who is looking
  * is published above (__ME), so the workspace surface, which carries it in the app, is ready as the page opens. The
  * Pipeline's helpers are imported by the page (pipeline-helpers.ts). A record with no people changes
@@ -256,7 +256,7 @@ if (S.people && inBrowser) {
 }
 
 /* ---- Ask ----
- * The Line over whatever the page holds (legacy-bridge/ask.ts installAsk, as LegacyApp.tsx installs it), so ⌘K opens
+ * The Line over whatever the page holds (bridge/ask.ts installAsk, as FrameApp.tsx installs it), so ⌘K opens
  * it on a spec's page, the first run's among them (Ask Rewired, Phase 7). Its reads answer as the harness answers any
  * route it does not serve, and a question is a POST, which the harness refuses: a spec that asks one stops it in the
  * browser first. Only in a browser, as People's are.
@@ -264,7 +264,7 @@ if (S.people && inBrowser) {
 if (inBrowser) installAsk(w as unknown as Window);
 
 /* ---- the bell ----
- * The kept rows as the notifications surface publishes them, and the app's own bell over them (legacy-bridge/
+ * The kept rows as the notifications surface publishes them, and the app's own bell over them (bridge/
  * notifications.ts), so the top bar draws the real feed. A mark would be a write, which the harness refuses: the bell
  * says nothing of it, as in the app when a mark fails. Only in a browser, as People's are.
  */
@@ -278,7 +278,7 @@ const fonts = () => {
   const s = document.createElement("style");
   s.textContent = ':root{--font-geist:"Geist";--font-geist-mono:"Geist Mono"}';
   document.head.appendChild(s);
-  document.documentElement.classList.add("legacy-on");
+  document.documentElement.classList.add("frame-on");
 };
 if (document.head) fonts();
 else document.addEventListener("DOMContentLoaded", fonts);

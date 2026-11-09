@@ -7,11 +7,20 @@ import {
   theyWroteLast,
   type ConversationDto,
   type MessageDto,
+  DbFailure,
 } from "@chanlytics/contracts";
-import { failedMessageErrors, lastClosedHolds, searchMessages } from "@chanlytics/db";
-import { CONVERSATION_COLUMNS, groupMessages, messageRowsOf, toConversationDto } from "../dto";
-import { seenOfPeople } from "../people/person-seen";
-import { stamp, type Reader, type ReaderContext, type RowRef } from "./index";
+import { listFailedMessageErrors, searchMessages } from "@chanlytics/db/conversations";
+import { listLastClosedHolds } from "@chanlytics/db/people";
+import {
+  CONVERSATION_COLUMNS,
+  LISTED_CONVERSATION_COLUMNS,
+  groupMessages,
+  messageRowsOf,
+  toConversationDto,
+} from "../conversations/dto";
+import { stillListed } from "../people/going";
+import { getSeenOfPeople } from "../people/person-seen";
+import { readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
 
 /** The threads the Inbox's read holds: the newest hundred, or as many as one read by id names. */
 const THREADS_MAX = 100;
@@ -42,7 +51,9 @@ async function threadsSaying(rc: ReaderContext, words: string): Promise<string[]
  * route), or the ones whose messages say `said`. A thread's messages are its
  * newest LIST_MESSAGES_EACH: a thread opened reads the rest (GET
  * conversations/:id). Each is a thread a citation may name, called what the
- * Inbox calls it.
+ * Inbox calls it. A list, the newest or what a search found, leaves out whoever
+ * is being erased (people/going.ts), before it is cut to its hundred; a thread
+ * named by its id is one record, and still reads.
  */
 export const conversations: Reader<
   { ids: string[] | null; said?: string | null },
@@ -52,13 +63,20 @@ export const conversations: Reader<
   async read(rc, { ids: named, said }) {
     const { supabase } = rc.ctx;
     const { tenantId, userId } = rc;
-    const asked = said ? await threadsSaying(rc, said) : named;
-    if (asked && !asked.length) return { data: { conversations: [] }, rows: [], stamp: stamp() };
-    const base = supabase.from("conversations").select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId);
-    const { data: convs, error } = await (asked
-      ? base.in("id", asked)
-      : base.order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS_MAX));
-    if (error) throw new Error(error.message);
+    const threadIds = said ? await threadsSaying(rc, said) : named;
+    if (threadIds && !threadIds.length) return { data: { conversations: [] }, rows: [], stamp: readerStamp() };
+    const threads = () => supabase.from("conversations");
+    const listed = () =>
+      threads()
+        .select(LISTED_CONVERSATION_COLUMNS)
+        .eq("tenant_id", tenantId)
+        .or(stillListed(rc.now.getTime()), { referencedTable: "contacts" });
+    const { data: convs, error } = await (said && threadIds
+      ? listed().in("id", threadIds)
+      : threadIds
+        ? threads().select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).in("id", threadIds)
+        : listed().order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS_MAX));
+    if (error) throw new DbFailure(error);
     const ids = (convs ?? []).map((c) => c.id);
     const messagesOf = async (): Promise<Map<string, MessageDto[]>> => {
       if (!ids.length) return new Map();
@@ -80,8 +98,11 @@ export const conversations: Reader<
         list.filter((m) => m.status === "failed").map((m) => m.id),
       );
       if (failed.length) {
-        const why = new Map((await failedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]));
-        for (const list of grouped.values()) for (const m of list) if (why.has(m.id)) m.error = why.get(m.id);
+        const errorsByMessage = new Map(
+          (await listFailedMessageErrors(supabase, tenantId, failed)).map((r) => [r.id, r.error]),
+        );
+        for (const list of grouped.values())
+          for (const m of list) if (errorsByMessage.has(m.id)) m.error = errorsByMessage.get(m.id);
       }
       return grouped;
     };
@@ -92,22 +113,32 @@ export const conversations: Reader<
     // waits on no round trip more: one held and closed with nothing sent waits on a person for good (unansweredOf).
     const [byConv, seenOf, closedHolds] = await Promise.all([
       messagesOf(),
-      seenOfPeople(
+      getSeenOfPeople(
         rc.ctx,
         tenantId,
         (convs ?? []).flatMap((c) => (c.contacts?.id ? [c.contacts.id] : [])),
       ),
-      ids.length ? lastClosedHolds(supabase, tenantId, ids) : Promise.resolve([]),
+      ids.length ? listLastClosedHolds(supabase, tenantId, ids) : Promise.resolve([]),
     ]);
     const holdOf = new Map(closedHolds.map((h) => [h.conversation_id, h]));
-    const conversations: ConversationDto[] = (convs ?? []).map((c) => {
-      const dto = toConversationDto(c, byConv.get(c.id) ?? [], userId, c.contacts?.id ? seenOf(c.contacts.id) : {});
+    const conversations: ConversationDto[] = (convs ?? []).map((item) => {
+      const dto = toConversationDto(
+        item,
+        byConv.get(item.id) ?? [],
+        userId,
+        item.contacts?.id ? seenOf(item.contacts.id) : {},
+      );
       // Carried only where the customer wrote last: on any other thread a closed hold says nothing about who is waiting.
-      const h = holdOf.get(c.id);
-      return h && theyWroteLast(dto.messages)
+      const result = holdOf.get(item.id);
+      return result && theyWroteLast(dto.messages)
         ? {
             ...dto,
-            last_hold: { reason: h.reason, details: h.details, created_at: h.created_at, resolved_at: h.resolved_at },
+            last_hold: {
+              reason: result.reason,
+              details: result.details,
+              created_at: result.created_at,
+              resolved_at: result.resolved_at,
+            },
           }
         : dto;
     });
@@ -119,7 +150,7 @@ export const conversations: Reader<
         route: addressOf({ kind: "conversation", id: c.id }),
         label: whoOf(c),
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

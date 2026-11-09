@@ -15,12 +15,11 @@ import {
   MERGE_WORDS,
   NEW_CONVERSATION_WORDS,
   PERSON_CALL_WORDS,
-  PERSON_WALK_WORDS,
   PERSON_WASH_WORDS,
   appointmentWords,
-  personHeadStateOf,
   proposalMessage,
 } from "@chanlytics/contracts";
+import { personHeadStateOf } from "./model/head-state";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Menu } from "../../kit/menu/menu";
@@ -37,7 +36,7 @@ import { RecordDisclosure } from "../../kit/record/disclosure";
 import { leaveSheet } from "../../kit/sheet/back";
 import { Sheet } from "../../kit/sheet/sheet";
 import type { PickerGroup } from "../../kit/picker/picker";
-import { gate, navigate, openDealSheet } from "../../legacy-verbs";
+import { gate, navigate, openDealSheet } from "../../frame-verbs";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { visitWordHere } from "../../workspace-word";
@@ -53,7 +52,11 @@ import { MERGE_CLOSED, askDelete, digitsOf } from "./ctx";
 import { combineAsk } from "./sheets/combine";
 import type { PageCtx } from "./ctx";
 import type { PersonActVM, PersonDoubtVM, PersonRowVM } from "@chanlytics/contracts";
-import type { PersonWalk } from "../walk";
+
+// The walk's arrows live with the frame; the page and both peeks take them from here, with the head, as before the frame
+// held them. A peek that took them from the frame alone left the head's modules out of its chunk group, and the build
+// regrouped the chunks the route shares with Settings: Settings +10 KB gzipped on the bundle check (4 Nov 2026).
+export { PersonWalkNav } from "./frame";
 
 /** Each of More's acts by its glyph: one for every act contracts names, so a new act cannot arrive without one. */
 const ACT_ICON: Record<PersonActVM["id"], string> = {
@@ -510,39 +513,95 @@ export function threadCtaOf(c: Pick<PageCtx, "p">): { label: string; to: string 
   return p.rightNow.cta || (p.openThread ? { label: "Open the thread", to: p.openThread } : null);
 }
 
+/**
+ * A phone's Call and Note, in the thread's caret (the phone pass, 3 Nov 2026): the member's own phone rings them and the
+ * page asks how it went once the app is back, as the circle did; Note brings Overview's composer into view.
+ */
+function phoneActs(c: PageCtx): MenuGroup[] {
+  const vm = c.call.vm;
+  const items: MenuItem[] = [
+    ...(callInHead(c) && vm?.rings
+      ? [
+          {
+            label: PERSON_CALL_WORDS.call,
+            glyph: <Icon name="phone" size={16} />,
+            onSelect: () => {
+              if (c.canRecord) c.call.dialled();
+              window.location.href = vm.tel;
+            },
+          },
+        ]
+      : []),
+    ...(c.canRecord ? [{ label: "Note", glyph: <Icon name="note" size={16} />, onSelect: () => toTheNote(c) }] : []),
+  ];
+  return items.length ? [{ items }] : [];
+}
+
 /** The page's acts: its one primary, their thread; then Call, Note and the More menu. */
 function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
   const { p, who } = c;
   // The action lives in Right now, beside what needs doing. Its own button is the thread in every state that has one,
   // except a person who opted out: the header's Open thread was their only way in, so it falls back to it.
   const threadCta = threadCtaOf(c);
+  // Someone with no thread had no way to be written to from here: the door to begin one (the Inbox's New conversation,
+  // opened on them where they stand), which says what can go to them and why not.
+  const lead = threadCta ? (
+    <Button
+      size={c.phone ? "touch" : "lg"}
+      variant="primary"
+      className={c.phone ? "cl-prof-lead-act" : undefined}
+      onClick={() => navigate(threadCta.to)}
+      data-testid="person-open-thread"
+    >
+      {threadCta.label}
+    </Button>
+  ) : (
+    <Button
+      size={c.phone ? "touch" : "lg"}
+      variant="primary"
+      className={c.phone ? "cl-prof-lead-act" : undefined}
+      onClick={() => openNewConversation(p.id)}
+      data-testid="person-start-conversation"
+      {...gate("approve", NEW_CONVERSATION_WORDS.gate)}
+    >
+      {NEW_CONVERSATION_WORDS.personDoor}
+    </Button>
+  );
+  // On a phone the thread and its caret are one pill, the caret holding Call, Note and the rest (the phone pass, 3 Nov
+  // 2026; Ruben, 20 Oct 2026: a menu rides its pill as a caret), where three circles and a ⋯ stood beside it.
+  const caret = [...phoneActs(c), ...more];
+  if (c.phone)
+    return (
+      <div className="cl-prof-queue-actions" data-testid="person-acts">
+        <span className="cl-prof-lead">
+          {lead}
+          {caret.length > 0 && (
+            <Menu
+              label={`More for ${who}`}
+              groups={caret}
+              trigger={
+                <Button
+                  iconOnly
+                  size="touch"
+                  variant="primary"
+                  className="cl-prof-lead-more"
+                  aria-label={`More for ${who}`}
+                  title="More"
+                  data-testid="person-more"
+                >
+                  <Icon name="chevron-down" size={16} />
+                </Button>
+              }
+            />
+          )}
+        </span>
+      </div>
+    );
   return (
     <div className="cl-prof-queue-actions" data-testid="person-acts">
-      {threadCta && (
-        <Button
-          size={c.phone ? "touch" : "lg"}
-          variant="primary"
-          onClick={() => navigate(threadCta.to)}
-          data-testid="person-open-thread"
-        >
-          {threadCta.label}
-        </Button>
-      )}
-      {/* Someone with no thread had no way to be written to from here: the door to begin one (the Inbox's New
-          conversation, opened on them where they stand), which says what can go to them and why not. */}
-      {!threadCta && (
-        <Button
-          size={c.phone ? "touch" : "lg"}
-          variant="primary"
-          onClick={() => openNewConversation(p.id)}
-          data-testid="person-start-conversation"
-          {...gate("approve", NEW_CONVERSATION_WORDS.gate)}
-        >
-          {NEW_CONVERSATION_WORDS.personDoor}
-        </Button>
-      )}
+      {lead}
       {/* The member's own phone rings them, as a lead is called; never the receptionist. Then: how did it go? On a desk
-          Call, Note and More are words on a line under the thread; on a phone three 44px circles beside it (canvas A). */}
+          Call, Note and More are words on a line under the thread (canvas A); a phone's are in the thread's caret. */}
       <div className="cl-prof-acts-row">
         {callInHead(c) ? <CallAct c={c} /> : null}
         {c.canRecord ? noteAct(c) : null}
@@ -551,22 +610,9 @@ function heroActs(c: PageCtx, more: MenuGroup[]): ReactNode {
             label={`More for ${who}`}
             groups={more}
             trigger={
-              c.phone ? (
-                <Button
-                  iconOnly
-                  size="touch"
-                  variant="glass"
-                  aria-label={`More for ${who}`}
-                  title="More"
-                  data-testid="person-more"
-                >
-                  <Icon name="more" size={18} />
-                </Button>
-              ) : (
-                <Button size="sm" title={`More for ${who}`} data-testid="person-more">
-                  More <Icon name="chevron-down" size={10} />
-                </Button>
-              )
+              <Button size="sm" title={`More for ${who}`} data-testid="person-more">
+                More <Icon name="chevron-down" size={10} />
+              </Button>
             }
           />
         )}
@@ -593,57 +639,6 @@ function noteAct(c: PageCtx) {
     <Button size="sm" onClick={() => toTheNote(c)} data-testid="person-note-act">
       Note
     </Button>
-  );
-}
-
-/**
- * Stepping to the person before or after them in the People view they were opened from (0052, canvas A): "‹ 4 of 24 ›" in
- * the top bar's row, beside the frame's ‹ People on a desk and a capsule of the control layer's glass in the bell's place
- * on a phone (the page's standing, person-real.tsx; components.css). J and K step too, on a desk. The page turns toward
- * the side it steps (walk.ts noteStep).
- */
-export function PersonWalkNav({
-  walk: w,
-  step,
-  words = PERSON_WALK_WORDS,
-}: {
-  walk: PersonWalk;
-  step: (to: string) => void;
-  /** What it walks, where it is not people: the Pipeline's deal sheet walks deals. */
-  words?: { label: string; at: (at: number, of: number) => string; next: string; previous: string };
-}) {
-  const W = words;
-  const go = (to: string | null) => () => {
-    if (to) step(to);
-  };
-  return (
-    <nav className="cl-prof-walk" aria-label={W.label} data-testid="person-walk">
-      <Button
-        variant="quiet"
-        size="sm"
-        iconOnly
-        aria-label={W.previous}
-        title={W.previous}
-        disabled={!w.prev}
-        onClick={go(w.prev)}
-        data-testid="person-walk-prev"
-      >
-        <Icon name="chevron" size={12} className="icon-turned" />
-      </Button>
-      <span className="cl-prof-walk-at tabular">{W.at(w.at, w.of)}</span>
-      <Button
-        variant="quiet"
-        size="sm"
-        iconOnly
-        aria-label={W.next}
-        title={W.next}
-        disabled={!w.next}
-        onClick={go(w.next)}
-        data-testid="person-walk-next"
-      >
-        <Icon name="chevron" size={12} />
-      </Button>
-    </nav>
   );
 }
 

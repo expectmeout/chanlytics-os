@@ -1,13 +1,14 @@
 import "server-only";
 import { ASK_WARM_MAX_TOKENS, MIN_MS } from "@chanlytics/contracts";
-import type { RouteContext } from "../with-route";
-import type { Member } from "../route";
-import { log } from "@/server/log";
-import { readerContext } from "../readers";
-import { GatewayRefused } from "./gateway";
-import { askPorts, turnHead, type AskPorts } from "./loop";
+import type { RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
+import { log } from "@/server/shared/log";
+import { readerContext } from "../shared/reader";
+import { GatewayRefused } from "../shared/model/gateway";
+import { askPorts, turnHead, type AskPorts } from "./loop/turn-head";
 import { askModel } from "./model";
-import { turnFacts } from "./turn";
+import { getTurnFacts } from "./turn";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * The model's cache, written ahead of the question (5 Oct 2026).
@@ -60,10 +61,11 @@ export async function warmAskModel(
   // Kept before the model is asked, so two warms a moment apart are one; forgotten again if this one fails.
   warmedAt.delete(key);
   warmedAt.set(key, Date.now());
-  if (warmedAt.size > WARMED_CAP) warmedAt.delete(warmedAt.keys().next().value as string);
+  const oldest = warmedAt.keys().next();
+  if (warmedAt.size > WARMED_CAP && !oldest.done) warmedAt.delete(oldest.value);
   try {
     const rc = readerContext(ctx, member, undefined, { keep: true });
-    const [{ facts }, shape] = await Promise.all([turnFacts(rc), ports.shape(rc).catch(() => "")]);
+    const [{ facts }, shape] = await Promise.all([getTurnFacts(rc), ports.shape(rc).catch(logAndGoOn("shape", ""))]);
     const t0 = Date.now();
     const round = await ports.round(
       {

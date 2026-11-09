@@ -83,9 +83,9 @@ export const PLUMBING = new Set([
  * seat, the workspace's standing, the replay guard) says nothing of what the route answers. Not entered.
  */
 const WRAPPER = new Set([
-  "apps/dashboard/src/server/route.ts",
-  "apps/dashboard/src/server/with-route.ts",
-  "apps/dashboard/src/server/tenant.ts",
+  "apps/dashboard/src/server/shared/route.ts",
+  "apps/dashboard/src/server/shared/with-route.ts",
+  "apps/dashboard/src/server/shared/tenant.ts",
   "apps/dashboard/src/server/idempotency.ts",
 ]);
 
@@ -150,29 +150,29 @@ export function traceRoutes(root = ROOT) {
   return cache.get(root);
 }
 
-const LEGACY_APP = "apps/dashboard/src/legacy-bridge/LegacyApp.tsx";
-const legacyApp = (root) => fs.readFileSync(path.join(root, LEGACY_APP), "utf8").replace(/\r\n/g, "\n");
+const FRAME_APP = "apps/dashboard/src/bridge/FrameApp.tsx";
+const frameApp = (root) => fs.readFileSync(path.join(root, FRAME_APP), "utf8").replace(/\r\n/g, "\n");
 
 /**
- * The surfaces the shell registers, by the name of each one's override (`peopleOverride`), in the order `LegacyApp.tsx` lists
+ * The surfaces the shell registers, by the name of each one's override (`peopleOverride`), in the order `FrameApp.tsx` lists
  * them: what the page starts and the live feed is joined for, so the list a test reads is the shell's own.
  */
 export function registeredOverrides(root = ROOT) {
   // The list holds names and comments alone, so the comments are cut by hand: the file is a component, and its markup's apostrophes
   // would lose the comment-stripper's place.
-  const list = legacyApp(root).match(/\bconst SURFACES = \[([\s\S]*?)\n\];/);
+  const list = frameApp(root).match(/\bconst SURFACES = \[([\s\S]*?)\n\];/);
   const names = list ? list[1].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "") : "";
   return [...names.matchAll(/\b(\w+Override)\b/g)].map((m) => m[1]);
 }
 
 /**
- * The surfaces the shell registers, each with the module its override comes from, as `LegacyApp.tsx` imports it:
+ * The surfaces the shell registers, each with the module its override comes from, as `FrameApp.tsx` imports it:
  * `[{ name: "peopleOverride", file: "apps/dashboard/src/surfaces/people/surface.ts" }]`, in the list's order. A test imports
  * each file and takes the name, so the surfaces it holds are the shell's own and no test keeps a copy of the list. A name the
  * shell lists and imports from nowhere it can find is `file: null`, which a test fails.
  */
 export function registeredSurfaces(root = ROOT) {
-  const app = legacyApp(root);
+  const app = frameApp(root);
   const from = new Map();
   for (const m of app.matchAll(/^import\s+(?:type\s+)?([^;]*?)\s+from\s+["']([^"']+)["'];?$/gm))
     for (const name of m[1].matchAll(/\b(\w+Override)\b/g)) from.set(name[1], m[2]);
@@ -185,7 +185,7 @@ function moduleOf(root, spec) {
   const base = spec.startsWith("@/")
     ? path.join("apps/dashboard/src", spec.slice(2))
     : spec.startsWith(".")
-      ? path.join(path.dirname(LEGACY_APP), spec)
+      ? path.join(path.dirname(FRAME_APP), spec)
       : null;
   if (!base) return null;
   for (const ext of [".ts", ".tsx", "/index.ts"]) {
@@ -307,7 +307,8 @@ function trace(repo) {
     const pk = spec.match(/^@chanlytics\/(db|core|jobs|channels)(\/.*)?$/);
     if (pk) {
       if (!pk[2]) return P(PKG_ENTRY[pk[1]]);
-      base = P(`packages/${pk[1]}/src${pk[2]}`);
+      const inRepositories = pk[1] === "db" && !/^\/(shared|realtime)$/.test(pk[2]);
+      base = P(`packages/${pk[1]}/src${inRepositories ? "/repositories" : ""}${pk[2]}`);
     } else if (spec.startsWith("@/")) base = P("apps/dashboard/src", spec.slice(2));
     else if (spec.startsWith(".")) base = path.resolve(path.dirname(from), spec);
     if (!base) return null;

@@ -1,6 +1,8 @@
 import { DECISION_VERBS, EVENT_KINDS, WABA_FIELDS } from "../shared/enums";
 import { isUuid } from "../shared/identity";
-import { activityWords, type ActivityRowDto } from "./activity";
+import { activityWords } from "./activity/words";
+import type { ActivityRowDto } from "./activity/dtos";
+import { isOneOf } from "../shared/unknown";
 
 /**
  * The activity log's rows, as both ledgers become them: which kinds are kept from an owner unless asked for by name, which
@@ -20,6 +22,8 @@ export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."] as cons
  */
 export const ACTIVITY_NOISE_KINDS = [
   "escalation.changed",
+  // They wrote again on a thread already held (00538): it asks for a new draft, and the message is what the owner reads.
+  "escalation.refreshed",
   "lead.set_aside",
   // Later, in a pass of the pile (00426): a soft word for this sitting, not a decision the owner reads back.
   "lead.later",
@@ -56,10 +60,7 @@ export const ACTIVITY_KINDS: readonly string[] = [
 
 /** true for a kind an owner is not shown unless they ask for it by name. */
 export function isActivityNoise(kind: string): boolean {
-  return (
-    ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) ||
-    (ACTIVITY_NOISE_KINDS as readonly string[]).includes(kind)
-  );
+  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p)) || isOneOf(ACTIVITY_NOISE_KINDS, kind);
 }
 
 /** One row of the decisions ledger, as the log reads it. */
@@ -85,44 +86,55 @@ export interface ActivityEventRow {
   created_at: string;
 }
 
-/** A decision as a row of the log: what a person (or the receptionist, or the system) did, in its sentence. */
-export function activityRowOfDecision(d: ActivityDecisionRow): ActivityRowDto {
-  return {
-    id: `d-${d.id}`,
-    at: d.created_at,
-    source: "decision",
-    kind: d.verb,
-    subject_type: d.subject_type,
-    subject_id: d.subject_id,
-    actor_user_id: d.actor_user_id,
-    actor_type: d.actor_type,
-    text: activityWords(d.verb, d.payload),
-    category: null,
-  };
-}
-
-/** The member an event's own data names (`by`, contracts event-data.ts), where it names one. */
+/** The member a record's own words name (`by`, contracts event-data.ts), where they name one. */
 function activityEventBy(data: unknown): string | null {
   const by = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>).by : null;
   return typeof by === "string" && isUuid(by) ? by : null;
 }
 
 /**
+ * The member a decision of the system's was made on the word of, where its ledger row names one: an erasure a press of
+ * many handed the ledger (jobs erasure.ts), whose row keeps who pressed among what its legs did.
+ */
+function activityDecisionBy(payload: unknown): string | null {
+  const legs =
+    payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as { legs?: unknown }).legs : null;
+  return activityEventBy(legs);
+}
+
+/** A decision as a row of the log: what a person (or the receptionist, or the system) did, in its sentence. */
+export function activityRowOfDecision(activityDecision: ActivityDecisionRow): ActivityRowDto {
+  const by = activityDecision.actor_user_id ? null : activityDecisionBy(activityDecision.payload);
+  return {
+    id: `d-${activityDecision.id}`,
+    at: activityDecision.created_at,
+    source: "decision",
+    kind: activityDecision.verb,
+    subject_type: activityDecision.subject_type,
+    subject_id: activityDecision.subject_id,
+    actor_user_id: by ?? activityDecision.actor_user_id,
+    actor_type: by ? "user" : activityDecision.actor_type,
+    text: activityWords(activityDecision.verb, activityDecision.payload),
+    category: null,
+  };
+}
+
+/**
  * An event as a row of the log: what happened, in its sentence. An event has no hand of its own; the member its data
  * names did it (contact.added's `by`, a consent answer's), so the log says who.
  */
-export function activityRowOfEvent(e: ActivityEventRow): ActivityRowDto {
-  const by = activityEventBy(e.data);
+export function activityRowOfEvent(activityEvent: ActivityEventRow): ActivityRowDto {
+  const by = activityEventBy(activityEvent.data);
   return {
-    id: `e-${e.id}`,
-    at: e.created_at,
+    id: `e-${activityEvent.id}`,
+    at: activityEvent.created_at,
     source: "event",
-    kind: e.kind,
-    subject_type: e.subject_type,
-    subject_id: e.subject_id,
+    kind: activityEvent.kind,
+    subject_type: activityEvent.subject_type,
+    subject_id: activityEvent.subject_id,
     actor_user_id: by,
     actor_type: by ? "user" : null,
-    text: activityWords(e.kind, e.data),
-    category: e.category,
+    text: activityWords(activityEvent.kind, activityEvent.data),
+    category: activityEvent.category,
   };
 }

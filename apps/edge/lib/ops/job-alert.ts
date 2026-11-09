@@ -15,13 +15,13 @@
  * to leave here as `job_failed`, so a broadcast that ran to completion was
  * counted into Today's "N jobs did not finish" (00141).
  */
-import { notify, notifyEvent, type NotifyMessage, type NotifyPorts } from "./notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
-import type { pg } from "../pg.js";
-import type { JobNews, JobNewsKind } from "../packages/contracts.js";
+import { notify, notifyEvent, type NotifyMessage, type NotifyPorts } from "../shared/alerts/notify.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import type { pg } from "../shared/pg.js";
+import type { JobNews, JobNewsKind, TenantId } from "@chanlytics/contracts";
 
 interface AlertableJob {
-  tenant_id: string;
+  tenant_id: TenantId;
   kind: string;
 }
 

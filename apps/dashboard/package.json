@@ -4,7 +4,7 @@
   "private": true,
   "imports": {
     "#frame-shell": {
-      "browser": "./src/legacy-bridge/LegacyApp.tsx",
+      "browser": "./src/bridge/FrameApp.tsx",
       "default": "./src/frame-shell.ts"
     }
   },
@@ -21,6 +21,7 @@
     "@chanlytics/core": "workspace:*",
     "@chanlytics/db": "workspace:*",
     "@chanlytics/jobs": "workspace:*",
+    "@chanlytics/log": "workspace:*",
     "@elevenlabs/client": "1.30.0",
     "@protomaps/basemaps": "5.7.2",
     "@supabase/ssr": "^0.12.7",
@@ -35,7 +36,9 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "retell-client-js-sdk": "3.0.3",
+    "satori": "0.63.2",
     "server-only": "^0.0.1",
+    "sharp": "0.35.5",
     "web-vitals": "6.2.3",
     "zod": "^4.6.7"
   },

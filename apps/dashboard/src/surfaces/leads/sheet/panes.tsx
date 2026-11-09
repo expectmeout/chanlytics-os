@@ -9,30 +9,23 @@
  * Hookless: the sheet hands down the lead, its facts, its acts and which line is open. Every word is contracts'.
  */
 import type { ReactNode } from "react";
+import { PLACE_RAIL_WORDS, type LeadPeekVM, type PlaceRailStepVM } from "@chanlytics/contracts";
 import {
   LEAD_SHEET_CARD_WORDS as CW,
-  LEAD_SHEET_WORDS as W,
-  PLACE_RAIL_WORDS,
-  leadSheetAboutOf,
   leadSheetExceptionWords,
-  type LeadCardEmailVM,
-  type LeadCardStepVM,
-  type LeadLineId,
-  type LeadLineVM,
-  type LeadPeekVM,
   type LeadSheetCheckVM,
-  type LeadSheetFactVM,
   type LeadSheetWhyVM,
-  type PlaceRailStepVM,
-} from "@chanlytics/contracts";
-import { EmailAs } from "../../campaigns/sequences/place/email-as";
+} from "./model/card";
+import { LEAD_SHEET_WORDS as W, leadSheetAboutOf, type LeadSheetFactVM } from "./model/view";
+import type { LeadLineId, LeadLineVM } from "./model/lines";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Popover } from "../../kit/popover/popover";
 import { RecordDisclosure } from "../../kit/record/disclosure";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 import { LeadCallMenu } from "../cells/call-menu";
+import { SentEmail, SheetEmail, type EmailBox } from "./email-box";
 import { ldCheckMark } from "../peek/hint";
 import { LeadPeekParts } from "../peek/info";
 import { LeadPeekCompany, LeadPeekPeople } from "../peek/people";
@@ -209,6 +202,7 @@ function aboutLine(vm: LeadPeekVM) {
 
 /** What the Sequence line's record door, Take out and a step opened do. */
 interface SequenceActs {
+  box: EmailBox;
   onOpenRecord: (sequenceId: string) => void;
   onTakeOut: (() => void) | null;
   /** A step pressed: the email as they get it, opened under it. */
@@ -217,17 +211,17 @@ interface SequenceActs {
   busy: boolean;
 }
 
-/** One step's email for this lead, as a step opened draws it. */
-const stepEmail = (s: LeadCardStepVM): LeadCardEmailVM => ({
-  head: s.label,
-  to: null,
-  subject: s.subject,
-  body: s.body,
-  when: null,
-  note: null,
-  blocked: null,
-  instead: null,
-});
+/**
+ * A step opened: what went, where it went; else the email as they get it, typed in where it stands. The one the card
+ * carries is read and typed on the card, so it is never drawn twice.
+ */
+function stepEmailOf(f: SheetFacts, a: SequenceActs, leadId: string) {
+  const mail = a.openStep !== null ? f.railMail(a.openStep) : null;
+  if (!mail) return null;
+  if (mail.sent) return <SentEmail leadId={leadId} sendId={mail.sent} box={a.box} />;
+  const onCard = f.mail && f.mail.edit && mail.edit && f.mail.edit.stepId === mail.edit.stepId;
+  return onCard ? null : <SheetEmail mail={mail} whole onWhole={null} onRewrite={null} onUndo={null} box={a.box} />;
+}
 
 /** A step in a row: its number, a tick once it went; what it is, a press where it opens; and what it is doing for them. */
 function stepRow(s: PlaceRailStepVM, a: SequenceActs) {
@@ -262,7 +256,6 @@ function stepRow(s: PlaceRailStepVM, a: SequenceActs) {
 /** Sequence: the record's steps a row each, the record and Take out under them, and their preview. */
 function sequenceOf(f: SheetFacts, a: SequenceActs, leadId: string) {
   const rail = f.rail;
-  const open = rail && a.openStep !== null ? rail.steps.get(a.openStep) : null;
   const stands = f.place && f.place.place.group !== "left" && f.place.place.group !== "done";
   if (!rail) return <p className="lw-note">{f.state === "phone" ? W.noEmailToWrite : W.noPick}</p>;
   return (
@@ -271,9 +264,7 @@ function sequenceOf(f: SheetFacts, a: SequenceActs, leadId: string) {
       <div className="lw-rungs" data-testid="lead-sheet-rail">
         {rail.vm.steps.map((s) => stepRow(s, a))}
       </div>
-      {open && f.card.email ? (
-        <EmailAs email={{ ...f.card.email, ...stepEmail(open) }} whole testid="lead-sheet-step-email" />
-      ) : null}
+      {stepEmailOf(f, a, leadId)}
       <p className="lw-note">{rail.vm.end.head}</p>
       <div className="lw-seq-foot">
         <LinkButton

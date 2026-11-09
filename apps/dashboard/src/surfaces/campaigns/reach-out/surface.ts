@@ -88,8 +88,8 @@ import {
   leadChainStepOf,
 } from "@chanlytics/contracts";
 import type { Input } from "@/client/api";
-import { api, read } from "@/legacy-bridge/api";
-import { readCache } from "@/legacy-bridge/read-cache";
+import { api, read } from "@/bridge/api";
+import { readCache } from "@/bridge/read-cache";
 import { broadcasts } from "../broadcasts/verbs";
 import { peekSources, readSources } from "./sources";
 
@@ -281,7 +281,7 @@ export const reachOuts = {
   },
   /**
    * A list of your own (Part 7, 00242): a file's rows as a search a sequence writes to. The door answers or refuses in
-   * words (the typed client's result); the rest is contracts' reading of a file (lead-import.ts) and every sentence the
+   * words (the typed client's result); the rest is contracts' reading of a file (leads/import.ts) and every sentence the
    * import sheet and a list's strip say.
    */
   lists: {

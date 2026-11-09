@@ -38,10 +38,45 @@ export const ERROR_CODES = [
   "upstream_auth",
   /** The voice agent's provider (ElevenLabs) could not be reached, refused, or is not set up on this deployment. */
   "upstream_voice",
+  /** A provider, or the edge asked on our behalf, refused or never answered; no provider named above says which. */
+  "upstream_provider",
+  /** It could not be done just now, and trying again may do it: a read or a write that failed, or what this deployment has not switched on. */
+  "unavailable",
+  /** Something failed that nothing here expected. */
   "internal",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
+
+/**
+ * What a refusal carries beside its words, by its code: one shape for each thing a client acts on (decision 0109), read
+ * by shell/refusal.ts. A code not named here carries none. They were `unknown`, in seven shapes nothing declared, so a
+ * page that read one read a guess.
+ */
+export interface ErrorDetailsByCode {
+  /** The fields a body breaks, each with its first sentence (route()'s parse); or a chain's issues in order, each said. */
+  validation:
+    { readonly fields: Readonly<Record<string, string>> } | { readonly issues: readonly { readonly words: string }[] };
+  /** How long until the limit lets this through. */
+  rate_limited: { readonly retry_after_s: number };
+  /** The least role that may, so a page titles the refusal "Owner only" rather than guess it from the sentence. */
+  forbidden: { readonly needs: string };
+  /** The session ended: sign in again (shell/refusal.ts SESSION_ENDED). */
+  unauthorized: { readonly session_ended: true };
+  /** The record the person became (shell/refusal.ts combinedInto). */
+  not_found: { readonly moved_to: string };
+  /** What a rehearsal may still use; or the address a reply will go to, for the member to confirm. */
+  conflict: { readonly allowance: unknown } | { readonly confirm_email_to: string };
+  /** The edge's reason, the code support reads. */
+  upstream_voice: { readonly reason: string };
+  upstream_anthropic: { readonly reason: string };
+  upstream_retell: { readonly reason: string };
+}
+
+/** The details a code's refusal may carry: never, for a code that carries none. */
+export type ErrorDetails<C extends ErrorCode = ErrorCode> = C extends keyof ErrorDetailsByCode
+  ? ErrorDetailsByCode[C]
+  : never;
 
 /**
  * The mark every AppError carries, in the runtime's global symbol registry so that every copy of this module
@@ -56,12 +91,16 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
  */
 const APP_ERROR = Symbol.for("@chanlytics/contracts:AppError");
 
-export class AppError extends Error {
-  readonly code: ErrorCode;
-  readonly status: number;
-  readonly details?: unknown;
+/** Whether `value` carries `mark`: what `instanceof` asks of a class every copy of this module must recognise. */
+const carries = (value: unknown, mark: symbol): boolean =>
+  typeof value === "object" && value !== null && Object.hasOwn(value, mark);
 
-  constructor(code: ErrorCode, message: string, status?: number, details?: unknown) {
+export class AppError<C extends ErrorCode = ErrorCode> extends Error {
+  readonly code: C;
+  readonly status: number;
+  readonly details?: ErrorDetails<C> | undefined;
+
+  constructor(code: C, message: string, status?: number, details?: ErrorDetails<C>) {
     super(message);
     this.name = "AppError";
     this.code = code;
@@ -73,8 +112,56 @@ export class AppError extends Error {
 
   /** `e instanceof AppError` is true for an AppError made by any copy of this class (see APP_ERROR). */
   static override [Symbol.hasInstance](value: unknown): value is AppError {
-    return typeof value === "object" && value !== null && (value as { [APP_ERROR]?: unknown })[APP_ERROR] === true;
+    return carries(value, APP_ERROR);
   }
+}
+
+/** What a failed reply from the database carries, as its client says it: the sentence, and its code where it has one. */
+export interface DbReplyFailure {
+  readonly message: string;
+  readonly code?: string | null | undefined;
+}
+
+const DB_FAILURE = Symbol.for("@chanlytics/contracts:DbFailure");
+
+/**
+ * A reply from the database that failed, raised with what it knows. `throw new Error(error.message)` kept the sentence
+ * and left the code behind, in some 900 places, so nothing above could tell a door's own refusal ("Contact not found.",
+ * P0002) from a database that is down: every one reached a person as "Something went wrong." (decision 0114). The label
+ * says what was being done, written ahead of the database's sentence as `label: message`; `dbMessage` is the database's
+ * sentence alone, the only part a refusal may quote, and `cause` the reply itself. Marked as AppError is, so every copy
+ * of this module recognises every other.
+ */
+export class DbFailure extends Error {
+  readonly code: string | null;
+  readonly dbMessage: string;
+
+  constructor(reply: DbReplyFailure, label?: string) {
+    super(label === undefined ? reply.message : `${label}: ${reply.message}`, { cause: reply });
+    this.name = "DbFailure";
+    this.code = reply.code ?? null;
+    this.dbMessage = reply.message;
+    Object.defineProperty(this, DB_FAILURE, { value: true });
+  }
+
+  /** `e instanceof DbFailure` is true for a DbFailure made by any copy of this class. */
+  static override [Symbol.hasInstance](value: unknown): value is DbFailure {
+    return carries(value, DB_FAILURE);
+  }
+}
+
+/**
+ * A new error, keeping the one it replaces: `throw causedBy(new AppError("internal", "Try again."), e)`. Every class of
+ * ours takes it without a constructor of its own, and as `Error`'s own option does, it is no field a refusal compared or
+ * serialised shows. The log line then says what went wrong, not only what was being tried (decision 0114).
+ */
+export function causedBy<E extends Error>(failure: E, cause: unknown): E {
+  return Object.defineProperty(failure, "cause", {
+    value: cause,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
 }
 
 const DEFAULT_STATUS: Record<ErrorCode, number> = {
@@ -94,12 +181,14 @@ const DEFAULT_STATUS: Record<ErrorCode, number> = {
   upstream_email: 502,
   upstream_auth: 503,
   upstream_voice: 503,
+  upstream_provider: 502,
+  unavailable: 503,
   internal: 500,
 };
 
 /**
  * The first thing a body breaks, as a sentence a refusal can say: the field and its schema's own words, or null where
- * the body holds. One reading for every door's schema (deals/deal-body.ts, people/doors/person-bodies.ts), so an act
+ * the body holds. One reading for every door's schema (deals/body.ts, people/doors/person-bodies.ts), so an act
  * tool refuses a card in the words the route would have answered with (the sheets as verbs, 14 Oct 2026).
  */
 export function bodyRefusal(schema: z.ZodType, body: unknown): string | null {

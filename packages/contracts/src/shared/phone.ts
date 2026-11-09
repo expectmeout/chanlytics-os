@@ -15,6 +15,12 @@
  * Provider ids (e.g. Meta wa_id) are stored verbatim in contact_identities --
  * this normalizer is for the display/dial identity only.
  */
+
+/** E.164: a plus, then 7–15 digits, no leading zero. No `g` flag, so one shared pattern keeps no state between two tests. */
+export const E164 = /^\+[1-9]\d{6,14}$/;
+
+/** What a US area code looks like, as a person asks for one when getting a line. */
+export const US_AREA_CODE = /^\d{3}$/;
 export function normalizePhone(raw: string | null | undefined): string | null {
   if (raw == null) return null;
   const typed = String(raw).trim();
@@ -26,9 +32,9 @@ export function normalizePhone(raw: string | null | undefined): string | null {
 }
 
 /** Two ways of writing one number. `(646) 555-0175` and `+16465550175` are the same fact; nothing is never a match. */
-export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
-  const x = normalizePhone(a);
-  const y = normalizePhone(b);
+export function samePhone(first: string | null | undefined, second: string | null | undefined): boolean {
+  const x = normalizePhone(first);
+  const y = normalizePhone(second);
   return !!x && !!y && x === y;
 }
 
@@ -60,6 +66,18 @@ export function shortCode(raw: string | null | undefined): boolean {
   return digits.length >= 3 && digits.length <= 6;
 }
 
+/** North America's toll-free area codes. */
+const TOLL_FREE_AREAS: ReadonlySet<string> = new Set(["800", "833", "844", "855", "866", "877", "888"]);
+
+/**
+ * A number in one of North America's toll-free area codes: a business's or a call centre's line, rarely a customer's own
+ * phone. It says what the number is, and nothing of who called.
+ */
+export function tollFreeNumber(raw: string | null | undefined): boolean {
+  const e164 = normalizePhone(raw);
+  return !!e164 && e164.startsWith("+1") && e164.length === 12 && TOLL_FREE_AREAS.has(e164.slice(2, 5));
+}
+
 /**
  * A number someone could dial, as far as its digits can say (a lead's phone, decision 0010): E.164 by normalizePhone,
  * and in North America a real area code and exchange -- each starting 2 to 9, neither an N11 service code (211, 411,
@@ -75,6 +93,19 @@ export function phoneDialable(raw: string | null | undefined): boolean {
   const [area, exchange] = [d.slice(0, 3), d.slice(3, 6)];
   const n11 = (x: string) => x[1] === "1" && x[2] === "1";
   return /^[2-9]/.test(area) && /^[2-9]/.test(exchange) && !n11(area) && !n11(exchange);
+}
+
+/** An extension written after a number: "ext. 4", "x12". */
+const EXTENSION = /\s*(?:ext\.?|x)\s*\d{1,6}$/i;
+
+/**
+ * A number as a person writes one for others to read and dial (a cold email's signature, decision 0113): its digits,
+ * with spaces, dashes, dots, brackets and a leading plus, an extension after it, and nothing else; what is left is a
+ * number normalizePhone takes. Words beside it ("or email") are a second thing, not a phone.
+ */
+export function phoneAsWritten(text: string): boolean {
+  const number = text.trim().replace(EXTENSION, "");
+  return /^\+?[\d\s().-]+$/.test(number) && normalizePhone(number) !== null;
 }
 
 export function whyNotAPhone(raw: string | null | undefined): string | null {
@@ -117,7 +148,7 @@ export function whyNotAHandoff(
   const typed = String(raw ?? "").trim();
   if (!typed) return null; // Empty is a choice: take a message instead.
   const norm = "+" + typed.replace(/[^0-9]/g, "");
-  if (!(/^\+/.test(typed) && /^\+[1-9][0-9]{6,14}$/.test(norm))) {
+  if (!(/^\+/.test(typed) && E164.test(norm))) {
     return "The transfer number needs the country code, like +1 212 555 0143.";
   }
   if (samePhone(norm, ownLine)) {
@@ -168,6 +199,18 @@ export function formatPhoneDisplay(e164: string | null | undefined): string | nu
   }
   if (digits.length < 7) return `+${digits}`;
   return `+${digits.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
+}
+
+/**
+ * A number as a list of them reads best: a North American one as its own country writes it, `(718) 419-9255`, where a
+ * `+1` on every row said nothing; any other as formatPhoneDisplay says it. Null for none.
+ */
+export function formatPhoneLocal(e164: string | null | undefined): string | null {
+  if (!e164) return null;
+  const digits = String(e164).replace(/[^\d]/g, "");
+  return digits.length === 11 && digits.startsWith("1")
+    ? `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`
+    : formatPhoneDisplay(e164);
 }
 
 /** The three digits a US number is bought in: `+13055550100` → `305`; null for anything else. */

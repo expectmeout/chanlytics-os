@@ -1,6 +1,6 @@
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
-import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
+import { BILLING_SAID, callEdgeBilling } from "@/server/workspace/billing";
 
 /**
  * POST /api/v1/billing/sync — read the subscription from Stripe now and
@@ -12,16 +12,16 @@ export const POST = write({
   role: "operator",
   rate: "billing",
   handle: async ({ ctx, member }) => {
-    const a = await edgeBilling({ op: "sync", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
-    const b = a.body ?? {};
-    if (a.status !== 200 || b.ok !== true) {
-      const reason = typeof b.error === "string" ? b.error : "failed";
+    const answer = await callEdgeBilling({ op: "sync", tenant_id: member.tenantId, user_id: ctx.userId }, 25_000);
+    const body = answer.body ?? {};
+    if (answer.status !== 200 || body.ok !== true) {
+      const reason = typeof body.error === "string" ? body.error : "failed";
       throw new AppError(
-        a.status === 409 ? "conflict" : a.status === 503 ? "upstream_auth" : "internal",
+        answer.status === 409 ? "conflict" : answer.status === 503 ? "upstream_auth" : "upstream_provider",
         BILLING_SAID[reason] ?? `Billing could not be refreshed (${reason}).`,
-        a.status === 409 ? 409 : a.status === 503 ? 503 : 502,
+        answer.status === 409 ? 409 : answer.status === 503 ? 503 : 502,
       );
     }
-    return { status: typeof b.status === "string" ? b.status : "none" };
+    return { status: typeof body.status === "string" ? body.status : "none" };
   },
 });

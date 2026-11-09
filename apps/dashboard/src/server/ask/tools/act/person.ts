@@ -1,3 +1,4 @@
+import { isContactId, DbFailure } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -16,34 +17,26 @@ import {
   offersYesRefusal,
   ownMessageRefusal,
   personName,
-  proposalBelowNeeds,
   stepDayOf,
   STEP_SHEET_WORDS,
   whyNotAPhone,
   whyNotAnEmail,
   type WriteWay,
+  proposalBelowNeeds,
+  isOneOf,
 } from "@chanlytics/contracts";
-import { load } from "../../../readers";
-import { openDealsOf } from "@chanlytics/db";
+import { load } from "../../../shared/reader";
+import { openDealsOf } from "@chanlytics/db/deals";
 import { personReach } from "../../../readers/person";
-import {
-  UUID,
-  actAction,
-  unlessNotFound,
-  approvalWords,
-  defineActions,
-  noteRow,
-  offeredTo,
-  propose,
-  refuse,
-  str,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../context";
+import { readUnlessNotFound, noteRow, str } from "../context/tool-reads";
+import { actAction, defineActions, offeredTo, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { approvalWords, propose, refuse } from "../context/context";
+import { findPersonCard, findPersonReplyModeRow } from "@chanlytics/db/ask";
+import type { ContactId } from "@chanlytics/contracts";
 
 /** The person a card names, as every action of this tool reads them: the name the card calls them, and the profile's. */
 interface CardPerson {
-  id: string;
+  id: ContactId;
   who: string;
   /** The profile's own two fields as they stand: what a details card changes, and what its undo sets back. */
   name: string | null;
@@ -57,44 +50,37 @@ interface CardPerson {
  * the model's words. One read of the profile for every action of this tool, and the person into the turn's read set,
  * so an answer may cite them. This workspace's alone: RLS shows a member everyone in every workspace they belong to.
  */
-async function personOnCard(t: ToolContext, contactId: string): Promise<CardPerson | ProposalOutcome> {
+async function personOnCard(toolContext: ToolContext, contactId: string): Promise<CardPerson | ProposalOutcome> {
   const id = str(contactId, 40);
-  if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
-  const { data: c, error } = await t.ctx.supabase
-    .from("contacts")
-    .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
-    .eq("tenant_id", t.tenantId)
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (!isContactId(id)) return refuse("contact_id must be an id a read returned");
+  const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
+  if (error) throw new DbFailure(error);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
   // As People names them (personName). What the page shows in place of a name of their own is that, minus the typed name.
-  const who = personName(c);
+  const contactName = personName(c);
   const shows = c.wa_profile_name || c.phone_e164 || c.email ? personName({ ...c, display_name: null }) : null;
-  noteRow(t, "person", id, who, addressOf({ kind: "person", id }));
-  return { id, who, name: c.display_name ?? null, email: c.email ?? null, shows };
+  noteRow(toolContext, "person", id, contactName, addressOf({ kind: "person", id }));
+  return { id, who: contactName, name: c.display_name ?? null, email: c.email ?? null, shows };
 }
 const refused = (p: CardPerson | ProposalOutcome): p is ProposalOutcome => "result" in p;
 
 async function proposePersonMode(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { contact_id: string; mode: string },
 ): Promise<ProposalOutcome> {
   // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
-  if (!offeredTo(modeAction, t.role)) return refuse(proposalBelowNeeds("person_mode"));
+  if (!offeredTo(modeAction, toolContext.role)) return refuse(proposalBelowNeeds("person_mode"));
   const mode = str(input.mode, 10);
-  if (!(["inherit", ...PERSON_MODES] as string[]).includes(mode))
-    return refuse("mode must be auto, ask, never or inherit");
-  const person = await personOnCard(t, input.contact_id);
+  if (!["inherit", ...PERSON_MODES].includes(mode)) return refuse("mode must be auto, ask, never or inherit");
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
-  const { data: pol } = await t.ctx.supabase
-    .from("policies")
-    .select("mode")
-    .eq("tenant_id", t.tenantId)
-    .eq("class", "reply")
-    .eq("subject_type", "contact")
-    .eq("subject_id", person.id)
-    .maybeSingle();
+  const { data: pol, error: polErr } = await findPersonReplyModeRow(
+    toolContext.ctx.supabase,
+    toolContext.tenantId,
+    person.id,
+  );
+  // A mode that cannot be read is not "inherit": the card would say a change that may change nothing.
+  if (polErr) throw new Error(`cannot read the person's reply mode: ${polErr.message}`);
   const LABEL: Record<string, string> = {
     auto: "answers them",
     ask: "asks you first",
@@ -120,21 +106,21 @@ type NoteFor = (typeof NOTE_FOR)[number];
  * alone is read before every answer to that person), or the team alone, in the person page's own words (NOTE_WORDS).
  */
 const NOTE_READERS: Record<NoteFor, (who: string) => string> = {
-  receptionist: (who) => `The receptionist reads it before it answers ${who}`,
+  receptionist: (person) => `The receptionist reads it before it answers ${person}`,
   team: () =>
     `${NOTE_WORDS.teamOnly}: ${NOTE_WORDS.teamOnlyHint.charAt(0).toLowerCase()}${NOTE_WORDS.teamOnlyHint.slice(1)}`,
 };
 
 async function proposePersonNote(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { contact_id: string; body: string; for: NoteFor },
 ): Promise<ProposalOutcome> {
   // As the route takes it: trimmed, something, and no longer than the table holds -- refused, never cut.
   const body = typeof input.body === "string" ? input.body.trim() : "";
   if (!body) return refuse("body must be the note's words");
   if (body.length > NOTE_MAX) return refuse(`body is ${body.length} characters; a note is at most ${NOTE_MAX}`);
-  if (!(NOTE_FOR as readonly string[]).includes(input.for)) return refuse("for must be receptionist or team");
-  const person = await personOnCard(t, input.contact_id);
+  if (!isOneOf(NOTE_FOR, input.for)) return refuse("for must be receptionist or team");
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
   return propose({
     kind: "note",
@@ -153,11 +139,11 @@ const STEP_FOR = ["anyone", "me"] as const;
  * of theirs is for is refused in words, never guessed.
  */
 async function stepDeal(
-  t: ToolContext,
-  personId: string,
+  toolContext: ToolContext,
+  personId: ContactId,
   service: string | null,
 ): Promise<{ id: string; service: string | null } | null | ProposalOutcome> {
-  const open = await openDealsOf(t.ctx.supabase, t.tenantId, personId);
+  const open = await openDealsOf(toolContext.ctx.supabase, toolContext.tenantId, personId);
   if (service) {
     const named = open.find((d) => foldName((d.service ?? "").trim()) === foldName(service));
     if (named) return { id: named.id, service: named.service };
@@ -178,43 +164,49 @@ async function stepDeal(
  * making it a step (noteSpec), so the door, the receipt and the undo are the note's.
  */
 async function proposePersonStep(
-  t: ToolContext,
-  input: { contact_id: string; what: string; due_on: string; step_for?: (typeof STEP_FOR)[number]; service?: string },
+  toolContext: ToolContext,
+  input: {
+    contact_id: string;
+    what: string;
+    due_on: string;
+    step_for?: (typeof STEP_FOR)[number];
+    service?: string;
+  },
 ): Promise<ProposalOutcome> {
   // As the notes door takes a step: its words, trimmed and refused past the table's length, and a real day from today on.
-  const what = typeof input.what === "string" ? input.what.trim() : "";
-  if (!what) return refuse("what must be the step's words");
-  if (what.length > NOTE_MAX) return refuse(`what is ${what.length} characters; a step is at most ${NOTE_MAX}`);
-  const day = stepDayOf(str(input.due_on, 10), t.timezone, t.now.getTime());
+  const subject = typeof input.what === "string" ? input.what.trim() : "";
+  if (!subject) return refuse("what must be the step's words");
+  if (subject.length > NOTE_MAX) return refuse(`what is ${subject.length} characters; a step is at most ${NOTE_MAX}`);
+  const day = stepDayOf(str(input.due_on, 10), toolContext.timezone, toolContext.now.getTime());
   if (!day) return refuse("due_on must be a day, like 2026-09-30");
   if (day.due === "past") return refuse("due_on must be today or later");
   const forMe = input.step_for === "me";
-  if (forMe && !t.ctx.userId) return refuse("for me needs the member asking; give anyone");
-  const person = await personOnCard(t, input.contact_id);
+  if (forMe && !toolContext.ctx.userId) return refuse("for me needs the member asking; give anyone");
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
-  const deal = await stepDeal(t, person.id, str(input.service, 80) || null);
+  const deal = await stepDeal(toolContext, person.id, str(input.service, 80) || null);
   if (deal && "result" in deal) return deal;
-  const W = STEP_SHEET_WORDS;
+  const words = STEP_SHEET_WORDS;
   return propose({
     kind: "note",
     title: `${NOTE_WORDS.next} for ${person.who}`,
-    summary: [clipAtWord(what, 80), day.words, deal?.service ?? null, forMe ? W.for.me : W.for.anyone]
+    summary: [clipAtWord(subject, 80), day.words, deal?.service ?? null, forMe ? words.for.me : words.for.anyone]
       .filter((x): x is string => !!x)
       .join(" · "),
     payload: {
       contact_id: person.id,
-      body: what,
+      body: subject,
       due_on: day.day,
       team_only: true,
       ...(deal ? { deal_id: deal.id } : {}),
-      ...(forMe ? { for_user_id: t.ctx.userId } : {}),
+      ...(forMe ? { for_user_id: toolContext.ctx.userId } : {}),
       who: person.who,
     },
   });
 }
 
 async function proposePersonDetails(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { contact_id: string; name?: string; email?: string },
 ): Promise<ProposalOutcome> {
   if (input.name === undefined && input.email === undefined) return refuse("details takes name, email or both");
@@ -225,17 +217,17 @@ async function proposePersonDetails(
   const typed = input.email?.trim();
   const email = typed === undefined ? undefined : normalizeEmail(typed);
   if (typed !== undefined && !email) return refuse(whyNotAnEmail(typed) ?? "That is not an email address.");
-  const person = await personOnCard(t, input.contact_id);
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
   // Only what would change: a field that already says it is left out, and a card that changes nothing is none.
-  const asked = { name, email: email ?? undefined };
-  const changed = (["name", "email"] as const).filter((k) => asked[k] !== undefined && asked[k] !== person[k]);
+  const fields = { name, email: email ?? undefined };
+  const changed = (["name", "email"] as const).filter((k) => fields[k] !== undefined && fields[k] !== person[k]);
   if (!changed.length)
-    return refuse(`already their ${(["name", "email"] as const).filter((k) => asked[k] !== undefined).join(" and ")}`);
-  const to = Object.fromEntries(changed.map((k) => [k, asked[k] as string]));
+    return refuse(`already their ${(["name", "email"] as const).filter((k) => fields[k] !== undefined).join(" and ")}`);
+  const to = Object.fromEntries(changed.map((k) => [k, fields[k] as string]));
   const previous = Object.fromEntries(changed.map((k) => [k, person[k]]));
   // A field asked that already says it is left off the card, and said beside it.
-  const same = (["name", "email"] as const).filter((k) => asked[k] !== undefined && !changed.includes(k));
+  const same = (["name", "email"] as const).filter((k) => fields[k] !== undefined && !changed.includes(k));
   return propose(
     {
       kind: "person_details",
@@ -266,7 +258,7 @@ const SOURCE_IDS = CONSENT_SOURCES.map((x) => x.id) as [string, ...string[]];
  * message), and an answer "in their own message" names that message.
  */
 async function proposeAnswer(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: {
     contact_id: string;
     question: keyof typeof QUESTIONS;
@@ -289,7 +281,7 @@ async function proposeAnswer(
     const own = ownMessageRefusal(source, messageId);
     if (own) return refuse(own);
   }
-  const person = await personOnCard(t, input.contact_id);
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
   const how = source ? (CONSENT_SOURCES.find((x) => x.id === source)?.label ?? source) : null;
   return propose({
@@ -318,22 +310,25 @@ function proposeAdd(_t: ToolContext, input: { phone?: string; email?: string; na
   const email = emailTyped ? normalizeEmail(emailTyped) : null;
   if (emailTyped && !email) return refuse(whyNotAnEmail(emailTyped) ?? "That is not an email address.");
   const name = input.name?.trim().slice(0, 80).replace(/\s+/g, " ") || undefined;
-  const who = name || phone || email || "them";
+  const personName = name || phone || email || "them";
   return propose({
     kind: "person_add",
-    title: `Add ${who} to People`,
+    title: `Add ${personName} to People`,
     summary: `${[name, phone, email].filter(Boolean).join(" · ")} — nobody is messaged by adding them, and their answers start as not asked.`,
     payload: { ...(phone ? { phone } : {}), ...(email ? { email } : {}), ...(name ? { name } : {}) },
   });
 }
 
 /** Two records of one person made one (POST contacts/:id/merge): the owner's, and it cannot be undone. */
-async function proposeMerge(t: ToolContext, input: { contact_id: string; other_id: string }): Promise<ProposalOutcome> {
-  if (!offeredTo(mergeAction, t.role)) return refuse(proposalBelowNeeds("person_merge"));
+async function proposeMerge(
+  toolContext: ToolContext,
+  input: { contact_id: string; other_id: string },
+): Promise<ProposalOutcome> {
+  if (!offeredTo(mergeAction, toolContext.role)) return refuse(proposalBelowNeeds("person_merge"));
   if (str(input.contact_id, 40) === str(input.other_id, 40)) return refuse("they are the same record");
-  const kept = await personOnCard(t, input.contact_id);
+  const kept = await personOnCard(toolContext, input.contact_id);
   if (refused(kept)) return kept;
-  const other = await personOnCard(t, input.other_id);
+  const other = await personOnCard(toolContext, input.other_id);
   if (refused(other)) return other;
   return propose({
     kind: "person_merge",
@@ -364,7 +359,7 @@ interface MessageAsk {
 function carried(
   input: MessageAsk,
   carries: WriteWay["carries"],
-  who: string,
+  personName: string,
 ): { text: string; template: { name: string; language: string } | null } | { refusal: string } {
   const text = input.text?.trim() ?? "";
   const name = input.template_name?.trim();
@@ -372,16 +367,16 @@ function carried(
   const template = name && language ? { name, language } : null;
   if (carries === "approved" && !template)
     return {
-      refusal: `only a message WhatsApp approved can go to ${who} on WhatsApp now: name it with template_name and template_language (sequences with action messages lists them)`,
+      refusal: `only a message WhatsApp approved can go to ${personName} on WhatsApp now: name it with template_name and template_language (sequences with action messages lists them)`,
     };
   if (carries === "words" && !text && !template) return { refusal: "text is required: the words to send" };
   return { text, template };
 }
 
-async function proposeMessage(t: ToolContext, input: MessageAsk): Promise<ProposalOutcome> {
-  const person = await personOnCard(t, input.contact_id);
+async function proposeMessage(toolContext: ToolContext, input: MessageAsk): Promise<ProposalOutcome> {
+  const person = await personOnCard(toolContext, input.contact_id);
   if (refused(person)) return person;
-  const read = await unlessNotFound(load(t.rc, personReach, { id: person.id }));
+  const read = await readUnlessNotFound(load(toolContext.rc, personReach, { id: person.id }));
   if (!read) return refuse("no such person in this workspace");
   const reach = read.data.reach;
   const wire = input.wire ?? reach.default_wire;
@@ -415,12 +410,12 @@ async function proposeMessage(t: ToolContext, input: MessageAsk): Promise<Propos
 const mergeAction = actAction({
   kind: "person_merge",
   input: z.object({
-    contact_id: z.string().describe("The record kept: an id a read returned."),
+    contact_id: z.string().describe("An id a read returned."),
     other_id: z.string().describe("The other record of the same person, merged into the kept one."),
   }),
   examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", other_id: "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e" }],
   label: "Preparing a merge",
-  words: `Action merge takes contact_id, the record kept, and other_id, another record of the same person: the kept one takes the other's messages, calls, deals, notes and lists. It cannot be undone. Call it only when two records are plainly one person (the same name with the same number or address, or they said so). ${approvalWords("person_merge")}.`,
+  words: `Action merge takes contact_id, the record kept, and other_id, another record of the same person: the kept one takes the other's messages, calls, deals, notes and lists, and nothing undoes it. Call it only when two records are plainly one person (the same name with the same number or address, or they said so). ${approvalWords("person_merge")}.`,
   build: proposeMerge,
 });
 
@@ -431,7 +426,7 @@ const modeAction = actAction({
   examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", mode: "never" }],
   label: "Preparing a receptionist change",
   // Its card's role clause, its own (approvalWords, one derivation): an action beside it may need another role.
-  words: `Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class instead, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
+  words: `Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them) or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
   build: proposePersonMode,
 });
 
@@ -443,7 +438,7 @@ const modeAction = actAction({
 export const propose_person = defineActions({
   name: "propose_person",
   description:
-    "Propose an act on one person in People, by action: how the receptionist treats them, a note, a next step with its day, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do.",
+    "Propose an act on one person in People, by action: how the receptionist treats them, a note, a next step with its day, their name or email, their answer to messages or offers, a new person, two records merged, or a first message, as a card the person asking approves; nothing changes until they do.",
   actions: {
     mode: modeAction,
     note: actAction({
@@ -457,13 +452,13 @@ export const propose_person = defineActions({
         },
       ],
       label: "Preparing a note",
-      words: `Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it is action step.`,
+      words: `Action note takes contact_id, the id a read returned, body, the note to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how it answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, a preference or what to remember next time; a fact about the business itself (parking, a policy) is a settings change, and a next step with a day is action step.`,
       build: proposePersonNote,
     }),
     step: actAction({
       kind: "note",
       input: z.object({
-        contact_id: z.string().describe("Whose step: an id a read returned."),
+        contact_id: z.string().describe("An id a read returned."),
         what: z.string().describe("What to do, in a few words: Call about the timeline."),
         due_on: z.string().describe("The day it is due, YYYY-MM-DD by the business's calendar, today or later."),
         step_for: z.enum(STEP_FOR).optional().describe("anyone on the team (the default), or me, the member asking."),
@@ -473,7 +468,7 @@ export const propose_person = defineActions({
         { contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", what: "Call about the timeline", due_on: "2026-10-24" },
       ],
       label: "Preparing a next step",
-      words: `Action step sets one person's next step on its own: what to do (at most ${NOTE_MAX} characters) and the day it is due, today or later, for anyone on the team or for the member asking. It is the team's, shown on their row, the Pipeline and their page and read back by you; the receptionist never reads it. It stands on their open deal (the one whose service is named where they have two), else it is about them. Call it for a reminder or a follow-up with a day ("call Ethan back Friday"); a step that comes with a deal's move rides on propose_deal instead.`,
+      words: `Action step sets one person's next step: what to do (at most ${NOTE_MAX} characters) and the day it is due, today or later, for anyone on the team or the member asking. It is the team's, shown on their row, the Pipeline and their page and read back by you; the receptionist never reads it. It stands on their open deal (the one whose service is named where they have two), else on them. Call it for a reminder or a follow-up with a day ("call Ethan back Friday"); a step that comes with a deal's move rides on propose_deal.`,
       build: proposePersonStep,
     }),
     details: actAction({
@@ -482,21 +477,18 @@ export const propose_person = defineActions({
       examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", name: "Rosa Diaz", email: "rosa@example.com" }],
       label: "Preparing a profile change",
       words:
-        "Action details takes contact_id, the id a read returned, and name, email or both: the name the business calls them by and the address they can be written to, the two fields of their profile. Call it when a customer gave their name or an email address in a message and their profile lacks it or says otherwise; read them first (people with action get), since an address a customer writes back when the receptionist asks for one is kept already, and never propose what the profile holds. It never touches their notes, and the card shows each field as it was and as it becomes.",
+        "Action details takes contact_id, the id a read returned, and name, email or both: what the business calls them and the address they can be written to, the two fields of their profile. Call it when a customer gave a name or an email in a message and their profile lacks it or says otherwise; read it first (people with action get), since an address a customer writes back when the receptionist asks is kept already, and never propose what the profile holds. It never touches their notes; the card shows each field as it was and as it becomes.",
       build: proposePersonDetails,
     }),
     answer: actAction({
       kind: "answer",
       input: z.object({
-        contact_id: z.string().describe("Whose answer: an id a read returned."),
+        contact_id: z.string().describe("An id a read returned."),
         question: z
           .enum(["messages", "offers"])
           .describe("messages: about their own bookings; offers: offers and news."),
         answer: z.enum(["yes", "no", "not_asked"]).describe("What they said, or not_asked to clear it."),
-        how: z
-          .enum(SOURCE_IDS)
-          .optional()
-          .describe("How they told you: in_person, phone, form or customer_message (required for a yes or a no)."),
+        how: z.enum(SOURCE_IDS).optional().describe("How they told you; required for a yes or a no."),
         message_id: z.string().optional().describe("The message they said it in, for customer_message."),
         note: z.string().optional().describe("A few words kept with the answer."),
       }),
@@ -505,7 +497,7 @@ export const propose_person = defineActions({
       ],
       label: "Preparing their answer",
       words:
-        "Action answer records what one person said to one of the two questions: messages (about their own bookings) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came.",
+        "Action answer records what one person said to one of the two questions, messages (about their own bookings) or offers (offers and news): yes, no or not_asked again, with how they told you. Only what they said: never a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), a spoken yes covers messages alone, and a no is honoured however it came.",
       build: proposeAnswer,
     }),
     add: actAction({
@@ -518,14 +510,14 @@ export const propose_person = defineActions({
       examples: [{ name: "Rosa Diaz", phone: "+1 555 010 0199" }],
       label: "Preparing a new person",
       words:
-        "Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them and their answers start as not asked; a number or address already in People opens that person instead.",
+        "Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them, their answers start as not asked, and a number or address already in People opens that person instead.",
       build: (t, input) => Promise.resolve(proposeAdd(t, input)),
     }),
     merge: mergeAction,
     message: actAction({
       kind: "person_message",
       input: z.object({
-        contact_id: z.string().describe("Who: an id a read returned."),
+        contact_id: z.string().describe("An id a read returned."),
         wire: z
           .enum(["whatsapp", "sms", "email"])
           .optional()
@@ -537,7 +529,7 @@ export const propose_person = defineActions({
         then: z
           .enum(["receptionist", "me"])
           .optional()
-          .describe("Who has the thread after it: the receptionist (the default) or the member."),
+          .describe("Who has the thread after: the receptionist (the default) or the member."),
         note: z.string().optional().describe("A note the receptionist reads before it answers them."),
       }),
       examples: [
@@ -545,7 +537,7 @@ export const propose_person = defineActions({
       ],
       label: "Preparing a message",
       words:
-        "Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a message WhatsApp approved can go, that message by name. Use propose_reply for a thread that waits on an answer. The card says the channel and who has the thread after; it leaves 15 seconds after it is approved and can be cancelled within them.",
+        "Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a WhatsApp-approved message can go, that message by name; propose_reply answers a thread that waits. The card says the channel and who has the thread after; it leaves 15 seconds after approval and can be cancelled within them.",
       build: proposeMessage,
     }),
   },

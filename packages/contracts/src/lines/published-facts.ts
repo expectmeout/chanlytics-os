@@ -13,6 +13,7 @@
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import type { BusinessRecordDto } from "./business-record";
+import { keysOf } from "../shared/unknown";
 
 /** A column of the business on record that an owner fills (the row's own clock is not one). */
 export type BusinessRecordColumn = Exclude<keyof BusinessRecordDto, "updated_at">;
@@ -46,7 +47,7 @@ export type PublishedRecordColumn = {
   [K in BusinessRecordColumn]: (typeof PUBLISHED_FACTS)[K] extends true ? K : never;
 }[BusinessRecordColumn];
 
-const RECORD_COLUMNS = Object.keys(PUBLISHED_FACTS) as BusinessRecordColumn[];
+const RECORD_COLUMNS = keysOf(PUBLISHED_FACTS);
 const PUBLISHED = new Set<string>(RECORD_COLUMNS.filter((c) => PUBLISHED_FACTS[c]));
 
 /** Whether a column of the record is on the business's public page. */
@@ -155,28 +156,28 @@ const FILINGS: readonly string[] = RECORD_FILINGS;
 /** The save's answer, read off the edge's: null from an edge that does not say (one deployed before this). */
 export function recordSavedOf(raw: unknown): RecordSavedDto | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const r = raw as Record<string, unknown>;
-  if (typeof r.first !== "boolean" || !Array.isArray(r.changed) || typeof r.filing !== "string") return null;
-  if (!FILINGS.includes(r.filing)) return null;
-  const changed: unknown[] = r.changed;
-  const name = typeof r.filed_name === "string" ? r.filed_name.trim() : "";
+  const item = raw as Record<string, unknown>;
+  if (typeof item.first !== "boolean" || !Array.isArray(item.changed) || typeof item.filing !== "string") return null;
+  if (!FILINGS.includes(item.filing)) return null;
+  const changed: unknown[] = item.changed;
+  const name = typeof item.filed_name === "string" ? item.filed_name.trim() : "";
   return {
-    first: r.first,
+    first: item.first,
     changed: RECORD_COLUMNS.filter((c) => changed.includes(c)),
-    filing: r.filing as RecordFiling,
+    filing: item.filing as RecordFiling,
     filed_name: name || null,
   };
 }
 
 /** What the owner is told when the record is saved: what the public page shows, and what the carriers hold. */
-export function recordSavedWords(s: RecordSavedDto | null): string {
-  if (!s) return "Saved.";
+export function recordSavedWords(recordSaved: RecordSavedDto | null): string {
+  if (!recordSaved) return "Saved.";
   const page = "Your public page shows it now";
-  if (s.first) return `Saved. ${page}, and the carriers see it when you file.`;
-  if (!s.changed.length) return "Saved. Nothing in it had changed.";
-  const published = s.changed.some(isPublishedFact);
-  const filed = s.filed_name ? `“${s.filed_name}” as you filed it` : "what you filed";
-  switch (s.filing) {
+  if (recordSaved.first) return `Saved. ${page}, and the carriers see it when you file.`;
+  if (!recordSaved.changed.length) return "Saved. Nothing in it had changed.";
+  const published = recordSaved.changed.some(isPublishedFact);
+  const filed = recordSaved.filed_name ? `“${recordSaved.filed_name}” as you filed it` : "what you filed";
+  switch (recordSaved.filing) {
     case "none":
       return published
         ? `Saved. ${page}, and the carriers see it when you file.`

@@ -10,7 +10,7 @@ import type { ConversationDto } from "./thread-dto";
 
 /** The display name for a contact, without building a whole thread viewmodel
  *  to read one field (Today was doing exactly that per open escalation). */
-export function contactName(dto: ConversationDto): string {
+export function contactName(dto: Pick<ConversationDto, "contact">): string {
   return personName(dto.contact);
 }
 
@@ -22,9 +22,19 @@ export function isIdentifierName(name: string): boolean {
   return /^[+\d(]/.test(name) || name.includes("@");
 }
 
-/** A name shortened for a line that says it again: the first name, or an identifier whole. The call row, Live's bar and Conversations' row read it. */
+/**
+ * A name whose first word is no first name: "The" ("The Google Workspace Team") or a possessive ("Rosa's Nail Bar"), a
+ * team's or a business's. Never "A" or "An": An is a given name.
+ */
+const NO_FIRST_NAME = /^(the|\S+['’]s)\s/i;
+
+/**
+ * A name shortened for a line that says it again: the first name, or an identifier or a name with no first name in it
+ * whole (3 Nov 2026: a person page said "THE · OCT 28" for "The Google Workspace Team", and a thread's sheet "Receptionist
+ * for" a business's first word). The call row, Live's bar and Conversations' row read it.
+ */
 export function shortName(name: string): string {
-  return isIdentifierName(name) ? name : name.split(" ")[0] || name;
+  return isIdentifierName(name) || NO_FIRST_NAME.test(name) ? name : name.split(" ")[0] || name;
 }
 
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
@@ -46,9 +56,9 @@ export function initialsOf(name: string): string {
     .replace(/[^\p{L}\p{N} ]/gu, "")
     .trim()
     .split(/\s+/);
-  if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
-  const p = parts[0] || "?";
-  return p.slice(0, 2).toUpperCase();
+  if (parts.length >= 2 && parts[0] && parts[1]) return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+  const firstPart = parts[0] || "?";
+  return firstPart.slice(0, 2).toUpperCase();
 }
 
 /**
@@ -85,8 +95,8 @@ export interface EmailStopBearing {
  * conversations/reply.ts), the send door asks it at the wire (core deliver.ts), and the thread's reply box asks it before
  * it offers an email to write (emailStoppedWords). The route refused after the owner had written the reply.
  */
-export function isEmailStopped(c: Pick<EmailStopBearing, "email_suppressed_at">): boolean {
-  return !!c.email_suppressed_at;
+export function isEmailStopped(emailStopBearing: Pick<EmailStopBearing, "email_suppressed_at">): boolean {
+  return !!emailStopBearing.email_suppressed_at;
 }
 
 /**
@@ -94,15 +104,15 @@ export function isEmailStopped(c: Pick<EmailStopBearing, "email_suppressed_at">)
  * while mail can reach them. `tz` is the workspace's, which says the day ("Sep 3"). The reason is the column's closed
  * set: a bounce, a complaint, or the provider's own word, which is also what any reason this does not know reads as.
  */
-export function emailStoppedWords(c: EmailStopBearing, tz: string, now: Date): string | null {
-  if (!isEmailStopped(c)) return null;
-  const at = Date.parse(c.email_suppressed_at as string);
+export function emailStoppedWords(emailStopBearing: EmailStopBearing, tz: string, now: Date): string | null {
+  if (!isEmailStopped(emailStopBearing)) return null;
+  const at = Date.parse(emailStopBearing.email_suppressed_at as string);
   const on = Number.isNaN(at) ? "" : ` on ${clockDate(at, tz, now.getTime())}`;
-  const why =
-    c.email_suppressed_reason === "hard_bounce"
+  const reason =
+    emailStopBearing.email_suppressed_reason === "hard_bounce"
       ? `Their address bounced${on}.`
-      : c.email_suppressed_reason === "complaint"
+      : emailStopBearing.email_suppressed_reason === "complaint"
         ? `They marked a message as spam${on}.`
         : `The mail provider stopped sending to their address${on}.`;
-  return `${why} Email can't reach them: correct the address on their page, or reach them another way.`;
+  return `${reason} Email can't reach them: correct the address on their page, or reach them another way.`;
 }

@@ -5,7 +5,7 @@
  *
  * Three things, and nothing else:
  *   - the two Supabase auth calls e2e/session.ts makes, answered so `signIn()` mints a harmless local cookie;
- *   - the standalone mockup (apps/dashboard/src/legacy), read from disk on every request through serve-legacy.mjs's
+ *   - the standalone mockup (apps/dashboard/mockup), read from disk on every request through serve-mockup.mjs's
  *     own static serving, so a change to a page or a stylesheet shows on the next load -- which is what makes a
  *     mutation run possible; for the `kit` record, the kit's gallery in its place (kit-gallery.mjs), on the same
  *     stylesheets, and at /behaves the page that runs the kit's components with behaviour of their own
@@ -34,15 +34,15 @@ import {
   frameAppBundle,
   kitGlobalsBundle,
   askLineBundle,
-  legacyDocument,
+  mockupDocument,
   peopleGlobalsHarnessBundle,
   send,
   serveStatic,
   TYPES,
-} from "../serve-legacy.mjs";
+} from "../serve-mockup.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
+const MOCKUP = path.resolve(HERE, "../../../apps/dashboard/mockup");
 
 /** The two calls `signIn()` makes, which are POSTs. Every other route the harness answers is a read. */
 const AUTH = { LINK: "/auth/v1/admin/generate_link", VERIFY: "/auth/v1/verify" };
@@ -76,8 +76,8 @@ export function answer(method, pathname, params, record) {
   // landed -- on a harness that has nothing to write to.
   if (!read) return refused(pathname);
   // Every read the app makes names its workspace (surface-data.ts scoped()), by its id or, from a page at its
-  // address, by its slug (legacy-bridge/workspace.ts getActiveWorkspace); one that did not would be refused in
-  // production by memberContext, and is refused here for the same reason.
+  // address, by its slug (bridge/workspace.ts getActiveWorkspace); one that did not would be refused in
+  // production by getMemberContext, and is refused here for the same reason.
   const named = params.get("workspace");
   if (pathname !== "/api/v1/workspaces" && named !== WORKSPACE.id && named !== WORKSPACE.slug) {
     return { status: 400, body: err("choose_workspace", "Which workspace do you mean?") };
@@ -183,13 +183,13 @@ const refused = (pathname) => ({
 });
 
 /**
- * The app's own rules beside its stylesheets: legacy-bridge/legacy.css, which the app imports (app/(os)/layout.tsx),
+ * The app's own rules beside its stylesheets: bridge/frame.css, which the app imports (app/(os)/layout.tsx),
  * is the mockup's stylesheets in their order and then rules of its own, the 44px floor under a coarse pointer among
  * them. The mockup's document already links the stylesheets, so the @imports are left out and the rest is served as
  * it stands, read on every request as the pages are. Without it, a spec on a touch phone measured a Save 26px tall
  * that the app draws at 44.
  */
-const APP_CSS = path.resolve(HERE, "../../../apps/dashboard/src/legacy-bridge/legacy.css");
+const APP_CSS = path.resolve(HERE, "../../../apps/dashboard/src/bridge/frame.css");
 export const appRules = () => fs.readFileSync(APP_CSS, "utf8").replace(/^@import[^\n]*\n/gm, "");
 
 /**
@@ -197,7 +197,7 @@ export const appRules = () => fs.readFileSync(APP_CSS, "utf8").replace(/^@import
  * what is missing -- and the app's own rules LAST, after every stylesheet, where the app has them.
  */
 export function documentWithFixture() {
-  return legacyDocument()
+  return mockupDocument()
     .replace("<head>", '<head>\n  <script src="/_hx/fixture.js"></script>')
     .replace("</head>", '  <link rel="stylesheet" href="/_hx/app.css" />\n</head>');
 }
@@ -283,7 +283,7 @@ export async function startHarness({ name = "nightly", port = 0, now = Date.now(
         send(res, 200, TYPES[".html"], pageOf(record));
         return;
       }
-      serveStatic(res, LEGACY, p);
+      serveStatic(res, MOCKUP, p);
     } catch (e) {
       send(res, 500, "text/plain", String((e && e.stack) || e));
     }

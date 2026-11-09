@@ -17,23 +17,19 @@
  * projects. No script or operator's command knocks on these doors. A platform road, should one be wanted, is a token
  * that names its own scope, never no scope.
  */
-import { refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { logger } from "../log.js";
-import { isWorkspaceCall } from "../packages/db.js";
-import { UUID } from "../packages/contracts.js";
-import { tokenWorkspace, type Admitted } from "../admin-auth.js";
+import { refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { logger } from "../shared/log.js";
+import { isWorkspaceCall } from "@chanlytics/db/voice";
+import { isTenantId } from "@chanlytics/contracts";
+import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../shared/admin-auth.js";
 
 /** Whether this door may act on this call for the token's workspace: an answer to return, or null to go on. */
-export async function refusedCall(auth: Admitted, aud: string, callId: string): Promise<Response | null> {
+export async function findRefusedCall(auth: Admitted, aud: string, callId: string): Promise<Response | null> {
   const workspace = tokenWorkspace(auth);
-  if (!workspace || !UUID.test(workspace)) {
+  if (!workspace || !isTenantId(workspace)) {
     logger().warn("live_call_unbound_refused", { door: aud, via: auth.via, call_id: callId });
-    return refuse(
-      400,
-      "bad_tenant",
-      "this door acts only for a workspace its credential names, and this one names none",
-    );
+    return refuse(400, "bad_tenant", NAMES_NO_WORKSPACE);
   }
   const db = pg();
   if (!db) return refuse(503, "no_database");

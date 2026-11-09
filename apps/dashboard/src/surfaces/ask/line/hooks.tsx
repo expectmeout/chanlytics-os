@@ -1,7 +1,8 @@
 /** The Line's hooks: one concern each, called in the order AskReal always called them. */
+import { askedWords, takeAskedOfTheLine } from "../../frame-doors";
 import type { AskedSeed, Line } from "./types";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { MASCOT } from "@/legacy-bridge/mascot";
+import { MASCOT } from "@/bridge/mascot";
 import { trapFocus } from "../../kit/focus/trap";
 import {
   ahSlide,
@@ -97,7 +98,7 @@ export const useArMood = ({ M, talk, live, quick, speech, composing }: Line) => 
               ? "listening"
               : "idle";
   // Said as it changes, never the same word twice: at mount, and at a strict mode's second mount, the Line has nothing
-  // to say, and the three may be reading the page in for a face that mounted a moment before (legacy-bridge/arrival.ts);
+  // to say, and the three may be reading the page in for a face that mounted a moment before (bridge/arrival.ts);
   // a first word of "idle" ended that read on nothing.
   const moodSaid = useRef("idle");
   useEffect(() => {
@@ -124,7 +125,18 @@ export const useArSlide = ({ open, composing, setComposing, slideFrom, stageRef,
 };
 
 /** What opening does: the route's scope, the threads and the surfaces the rows read, and the three coming in from the button. */
-export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, setThreads, setTick, faceRef }: Line) => {
+export const useArOpen = ({
+  lang,
+  open,
+  A,
+  route,
+  openedAt,
+  setScope,
+  threadsReady,
+  setThreads,
+  setTick,
+  faceRef,
+}: Line) => {
   // Open: the route's scope, the threads, and the surfaces the rows read (Right now reads Today's and Broadcasts').
   useEffect(() => {
     if (!open || !A) return;
@@ -136,6 +148,7 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
       return list;
     });
     if (A.readFollowUps) void A.readFollowUps();
+    if (A.readNotices) void A.readNotices(lang ?? "en");
     const bump = () => setTick((n) => n + 1);
     const evs = [
       "surface:inbox",
@@ -150,12 +163,12 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
     return () => evs.forEach((e) => window.removeEventListener(e, bump));
   }, [open, A, openedAt, setScope, threadsReady, setThreads, setTick]);
 
-  // Open, and the page under the Line changing while it is open: the page is warmed (POST ask/warm; legacy-bridge/ask/api.ts),
+  // Open, and the page under the Line changing while it is open: the page is warmed (POST ask/warm; bridge/ask/api.ts),
   // so the server has read the rows on screen before the question comes. Never waited on; a page that cannot say what it
   // holds, or a warm that fails, costs nothing.
   useEffect(() => {
     if (!open || !A || !A.warm || !A.context) return;
-    // A tick later, so a page that has just come under the Line has said what it drew (legacy-bridge/ask/context.ts).
+    // A tick later, so a page that has just come under the Line has said what it drew (bridge/ask/context.ts).
     const id = setTimeout(() => {
       try {
         Promise.resolve(A.warm(A.context(arRoute()))).catch(() => {});
@@ -183,7 +196,7 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
       const box = to.closest ? to.closest(".ask-line") : null;
       const slid =
         box && window.getComputedStyle
-          ? parseFloat(String(window.getComputedStyle(box).translate || "0").split(" ")[0]) || 0
+          ? parseFloat(String(window.getComputedStyle(box).translate || "0").split(" ")[0] ?? "") || 0
           : 0;
       const fit = MASCOT.fitSide;
       const dx = a.left + a.width / 2 - (b.left - slid + b.width / 2);
@@ -233,7 +246,7 @@ export const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech
   }, [open]);
 };
 
-// The draft and the conversation's id, kept in the tab (legacy-bridge/tab-memory.ts) so a reload keeps them too (S9):
+// The draft and the conversation's id, kept in the tab (bridge/tab-memory.ts) so a reload keeps them too (S9):
 // the words as typed, never on a timer (record-fold.jsx useUnsavedWork), forgotten when the field empties while open;
 // the Line is made closed, so being made forgets nothing. The id whenever a thread is opened or made, forgotten when
 // the conversation ends (Clear, or deleted), never by the Line being made, or when the kept one cannot be read, so a
@@ -342,10 +355,17 @@ export const useArSeedKeys = ({
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
   useEffect(() => {
     const onSeed = (e: Event) => {
+      takeAskedOfTheLine();
       asked.current = (e && (e as CustomEvent<AskedSeed>).detail) || {};
       setTick((n) => n + 1);
     };
     window.addEventListener("ask:seed", onSeed);
+    // A door pressed before this code landed: it kept what it asked.
+    const waiting = takeAskedOfTheLine();
+    if (waiting) {
+      asked.current = waiting;
+      setTick((n) => n + 1);
+    }
     return () => window.removeEventListener("ask:seed", onSeed);
   }, [asked, setTick]);
 
@@ -376,12 +396,13 @@ export const useArSeedKeys = ({
             : null
           : A.scopeFor(r.page, r.param, arScopeLabel(r.page, r.param));
       if (d.about) setScope(chip);
+      const prompt = askedWords(d, A.language());
       if (d.thread) void openThread({ id: d.thread });
-      else if (d.mode === "compose" || !d.prompt) {
+      else if (d.mode === "compose" || !prompt) {
         setActive(null);
         setQuick(null);
-        setQuery(d.prompt || "");
-      } else void submit(d.prompt, chip, d.fresh ? { fresh: true } : undefined); // the chip this opening shows: `scope` is still the last opening's until the next draw; a page's own search (`fresh`) its own conversation
+        setQuery(prompt || "");
+      } else void submit(prompt, chip, d.fresh ? { fresh: true } : undefined); // the chip this opening shows: `scope` is still the last opening's until the next draw; a page's own search (`fresh`) its own conversation
     }
     return () => window.removeEventListener("keydown", onKeys);
   });

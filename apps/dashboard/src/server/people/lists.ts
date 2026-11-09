@@ -12,9 +12,10 @@ import {
   UUID,
   type ListRule,
 } from "@chanlytics/contracts";
-import { askForJson } from "../model-json";
-import type { RouteContext } from "../with-route";
-import type { SavedListRow } from "@chanlytics/db";
+import { askForJson } from "../shared/model-json";
+import type { RouteContext } from "../shared/with-route";
+import type { SavedListRow } from "@chanlytics/db/people";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Saved lists: what the routes agree on. The tables are read and written in packages/db lists.ts.
@@ -56,9 +57,8 @@ export function cleanListRule(
   if (!rule) throw new AppError("validation", "That rule can't be read. Describe who is on the list again.");
   // The lists this one already reads: an archived one among them (00169) is kept, and no new one is taken up.
   const was = self ? saved.find((l) => l.id.toLowerCase() === self.toLowerCase())?.rule : null;
-  const before = new Set(
-    (was == null ? null : asListRule(was)) ? ruleLists(asListRule(was)!).map((t) => t.toLowerCase()) : [],
-  );
+  const wasRule = was == null ? null : asListRule(was);
+  const before = new Set(wasRule ? ruleLists(wasRule).map((t) => t.toLowerCase()) : []);
   for (const token of ruleLists(rule)) {
     const ref = parseListToken(token);
     const known =
@@ -92,12 +92,12 @@ export function cleanListRule(
 }
 
 /** An optional array of contact ids: absent is empty; anything else must be uuids, deduplicated, bounded. */
-export function cleanIdList(raw: unknown, what: string): string[] {
+export function cleanIdList(raw: unknown, text: string): string[] {
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw) || raw.some((x) => typeof x !== "string" || !UUID.test(x))) {
-    throw new AppError("validation", `${what} must be a list of contact ids.`);
+    throw new AppError("validation", `${text} must be a list of contact ids.`);
   }
-  const ids = Array.from(new Set(raw as string[]));
+  const ids = Array.from(new Set<string>(raw));
   if (ids.length > LIST_BATCH_MAX) throw new AppError("validation", `At most ${LIST_BATCH_MAX} people at a time.`);
   return ids;
 }
@@ -124,13 +124,13 @@ const LIST_DRAFT_SYSTEM = [
 ].join("\n");
 
 /**
- * A smart list drafted from the owner's own words: a name, a rule in the vocabulary (contracts list-rules.ts), and
+ * A smart list drafted from the owner's own words: a name, a rule in the vocabulary (contracts lists/rules.ts), and
  * what the words asked that the vocabulary cannot say. A draft, never a list: the owner sees its chips and its count
  * and saves it themselves. Words the vocabulary cannot say anything of are refused with what was missing.
  */
 export async function draftList(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   words: string,
 ): Promise<{ name: string; rule: ListRule; cannot: string | null }> {
   const answer = await askForJson(

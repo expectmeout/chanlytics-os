@@ -1,0 +1,609 @@
+/**
+ * The day on Today: today and tomorrow from the calendar the receptionist
+ * reads and the visit playbooks' line, capped at the rows the card draws —
+ * computed in contracts from the surfaces the page already holds.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  batchFactsOf,
+  batchHeldEmails,
+  todayDay,
+  TODAY_DAY_MAX,
+  toTodayVM,
+  todayRunWords,
+  todayRunsSub,
+  todayLateRunsSub,
+  todayDraftsSub,
+  todayRunApproved,
+  todaySteps,
+  todayStepsSub,
+  withSteps,
+} from "@chanlytics/contracts";
+import { todayBriefWords } from "../../apps/dashboard/src/surfaces/today/brief-words.ts";
+import { todayPeriodLine } from "../../apps/dashboard/src/surfaces/today/period.ts";
+import { todayLeaks } from "../../apps/dashboard/src/surfaces/today/leaks.ts";
+import { withReplies } from "../../apps/dashboard/src/surfaces/campaigns/reach-out/reply-today.ts";
+import { readCode, readRaw } from "../_source.mjs";
+import { installStubReact, fresh, all, byTestId, find, textOf } from "../_stub-react.mjs";
+
+// The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
+installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live" });
+const { TODAY_HELPERS } = await import("../../apps/dashboard/src/surfaces/today/helpers.ts");
+const { TodayAlertBand } = await import("../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
+const { TodayHeadFigures } = await import("../../apps/dashboard/src/surfaces/today/zones/figures.tsx");
+const { PhoneSoFar } = await import("../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
+const { TodayZones } = await import("../../apps/dashboard/src/surfaces/today/zones/page.tsx");
+const { DayZone } = await import("../../apps/dashboard/src/surfaces/today/zones/day.tsx");
+const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
+
+const person = (id, name) => ({ id, name, via: "phone" });
+const block = (id, t, time, title, p = null) => ({
+  id,
+  t,
+  dur: 60,
+  time,
+  title,
+  person: p,
+  description: null,
+  location: null,
+  contacts: { phones: [], e164: [], emails: [] },
+  guess: null,
+  start: "",
+  end: "",
+});
+const day = (key, over = {}) => ({
+  key,
+  dow: "Sun",
+  date: "Sep 6",
+  long: "Sunday, September 6",
+  dayNum: "6",
+  today: false,
+  past: false,
+  closed: { yes: false, note: null },
+  bands: [],
+  blocks: [],
+  allDay: [],
+  windows: [],
+  ...over,
+});
+const cal = (days, over = {}) => ({
+  timezone: "America/New_York",
+  from: "2026-09-06",
+  to: "2026-11-07",
+  rangeLabel: "",
+  monthLabel: "",
+  hours: { start: 8, end: 20 },
+  days,
+  today: "2026-09-06",
+  now: 10,
+  feed: { present: true, state: "ok", line: "", events: 3, source: "Google Calendar" },
+  stats: { events: 3, windows: 2, next: "Mon 9:30 AM" },
+  rules: "",
+  hoursLines: [],
+  closuresAhead: [],
+  services: [],
+  bookingLink: null,
+  ...over,
+});
+/** The playbooks surface as the day reads it: its cards, and what the workspace calls an appointment (its shape's word). */
+const pb = (rows, word = "appointment") => ({ rows, word });
+
+test("today and tomorrow, as the calendar reads them: items in time order with their person, the open windows, closed days said plainly", () => {
+  const days = [
+    day("2026-09-05", { past: true, long: "Saturday, September 5", blocks: [block("b0", 10, "10 – 11 AM", "Trim")] }),
+    day("2026-09-06", {
+      today: true,
+      blocks: [
+        block("b2", 14, "2 – 3 PM", "Balayage", person("c1", "Daniela R.")),
+        block("b1", 10, "10 – 11 AM", "Gloss"),
+      ],
+      allDay: [block("a1", 0, "", "Stock count")],
+      windows: [
+        { t: 11, dur: 120, label: "11 AM – 1 PM" },
+        { t: 15, dur: 60, label: "3 – 4 PM" },
+      ],
+    }),
+    day("2026-09-07", {
+      long: "Monday, September 7",
+      closed: { yes: true, note: "Labor Day" },
+      windows: [{ t: 9, dur: 60, label: "9 – 10 AM" }],
+    }),
+    day("2026-09-08", { long: "Tuesday, September 8", blocks: [block("b3", 9, "9 – 10 AM", "Cut")] }),
+  ];
+  const vm = todayDay(
+    cal(days),
+    pb([
+      { trigger: "visit_tomorrow", state: "running", run_hour: 10, candidates: 2, next: "today 10:00 AM", runs: true },
+      { trigger: "quiet_30", state: "running", run_hour: 10, candidates: 5, next: "today 10:00 AM", runs: true },
+    ]),
+    { rows: [{ id: "c1", state: "needs_you" }] },
+  );
+  assert.equal(vm.feed, "ok");
+  assert.deepEqual(
+    vm.frames.map((f) => f.key),
+    ["2026-09-06", "2026-09-07"],
+    "today and tomorrow, never yesterday",
+  );
+  const today = vm.frames[0];
+  assert.equal(today.label, "Today · Sunday, September 6");
+  assert.deepEqual(
+    today.items.map((i) => [i.time, i.title, i.person ? i.person.name : null, i.allDay]),
+    [
+      ["", "Stock count", null, true],
+      ["10 – 11 AM", "Gloss", null, false],
+      ["2 – 3 PM", "Balayage", "Daniela R.", false],
+    ],
+    "all-day first, then by the clock",
+  );
+  assert.deepEqual(today.open, ["11 AM – 1 PM", "3 – 4 PM"]);
+  // The schedule's own words: the start in a column, the length, the place against the clock (now is 10), the person's open thread.
+  assert.deepEqual(
+    today.items.map((i) => [i.start, i.dur, i.phase, i.flag]),
+    [
+      ["All day", "", "later", null],
+      ["10 AM", "1h", "now", null],
+      ["2 PM", "1h", "next", "Needs you — in Inbox"],
+    ],
+  );
+  assert.deepEqual(today.summary, { booked: "3 booked", flagged: "1 needs you" });
+  const later = todayDay(
+    cal([
+      day("2026-09-06", {
+        today: true,
+        blocks: [block("b1", 8, "8 – 9 AM", "Trim"), block("b2", 9, "9 – 10 AM", "Cut")],
+      }),
+      day("2026-09-07", { blocks: [block("b3", 9, "9 – 10 AM", "Cut", person("c9", "Ana"))] }),
+    ]),
+    pb([]),
+    null,
+  );
+  assert.deepEqual(
+    later.frames[0].items.map((i) => i.phase),
+    ["past", "past"],
+    "over by ten",
+  );
+  assert.deepEqual(
+    [later.frames[1].items[0].phase, later.frames[1].items[0].flag, later.frames[1].summary],
+    ["later", null, { booked: "1 booked", flagged: null }],
+    "tomorrow has no clock and no rows to flag from",
+  );
+  const tomorrow = vm.frames[1];
+  assert.equal(tomorrow.label, "Tomorrow · Monday, September 7");
+  assert.equal(tomorrow.summary, null);
+  assert.deepEqual(
+    tomorrow.items.map((i) => i.phase),
+    [],
+    "tomorrow is closed with nothing on it",
+  );
+  assert.deepEqual(
+    [tomorrow.closed, tomorrow.open, tomorrow.items],
+    [{ yes: true, note: "Labor Day" }, [], []],
+    "a closed day offers no windows",
+  );
+  assert.equal(vm.nextOpening, "Mon 9:30 AM");
+  assert.deepEqual(
+    vm.reminders,
+    { text: "Appointment reminder: 2 people · next run today 10:00 AM", to: "campaigns/sequences" },
+    "only the visit playbooks speak here",
+  );
+});
+
+test("without a feed the day says nothing; with one and no visit playbook it offers to start one; a dash is no next open time", () => {
+  assert.deepEqual(todayDay(null, null), {
+    feed: "none",
+    frames: [],
+    nextOpening: null,
+    reminders: null,
+    word: "appointment",
+  });
+  const off = todayDay(
+    cal([day("2026-09-06", { today: true })], {
+      feed: { present: true, state: "unavailable", line: "", events: 0, source: "x" },
+    }),
+    pb([]),
+  );
+  assert.equal(off.feed, "unavailable");
+  assert.equal(off.reminders, null);
+  const on = todayDay(
+    cal([day("2026-09-06", { today: true })], { stats: { events: 0, windows: 0, next: "—" } }),
+    pb([]),
+  );
+  assert.equal(on.nextOpening, null);
+  assert.match(on.reminders.text, /^No appointment reminders yet/);
+  assert.equal(on.reminders.to, "campaigns/sequences");
+  const paused = todayDay(
+    cal([day("2026-09-06", { today: true })]),
+    pb([{ trigger: "visited", state: "paused", run_hour: 18, candidates: 1, next: "paused", runs: false }]),
+  );
+  assert.match(paused.reminders.text, /^No appointment reminders yet/, "a paused playbook is not a reminder going out");
+  // Nor is one still on but past its last day (00416 `until`): it runs on no day to come (campaignRunsOn, the wiring's second
+  // audit S1-3), where the strip said it was.
+  const ended = todayDay(
+    cal([day("2026-09-06", { today: true })]),
+    pb([
+      {
+        trigger: "visited",
+        state: "running",
+        run_hour: 18,
+        candidates: 1,
+        next: "none: its last day has passed",
+        runs: false,
+      },
+    ]),
+  );
+  assert.match(ended.reminders.text, /^No appointment reminders yet/, "a campaign past its last day is no reminder");
+  // A campaign goes by WhatsApp, text or email, so the offer to start one says "write", not "text"; and a person reads
+  // "campaign", never "playbook" (decision 19).
+  assert.equal(
+    on.reminders.text,
+    "No appointment reminders yet — a campaign can write the day before an appointment and the day after.",
+  );
+  // A count the server could not make is left out, never said as "null people".
+  const uncounted = todayDay(
+    cal([day("2026-09-06", { today: true })]),
+    pb([
+      {
+        trigger: "visit_tomorrow",
+        state: "running",
+        run_hour: 10,
+        candidates: null,
+        next: "today 10:00 AM",
+        runs: true,
+      },
+      { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM", runs: true },
+    ]),
+  );
+  assert.equal(
+    uncounted.reminders.text,
+    "Appointment reminder: next run today 10:00 AM · After the appointment: 1 person · next run today 6:00 PM",
+  );
+});
+
+test("the day's reminders say the workspace's word, as Campaigns does, from the playbooks surface the page already reads; unread, they say nothing", () => {
+  const today = cal([day("2026-09-06", { today: true })]);
+  // A deals-on workspace calls an appointment a meeting (contracts appointmentWordOf): Campaigns' drawer says "Meeting
+  // reminder", and so does Today, from the same surface's word, never a constant of its own.
+  const meeting = todayDay(
+    today,
+    pb(
+      [
+        {
+          trigger: "visit_tomorrow",
+          state: "running",
+          run_hour: 10,
+          candidates: 2,
+          next: "today 10:00 AM",
+          runs: true,
+        },
+        { trigger: "visited", state: "running", run_hour: 18, candidates: 1, next: "today 6:00 PM", runs: true },
+      ],
+      "meeting",
+    ),
+  );
+  assert.equal(
+    meeting.reminders.text,
+    "Meeting reminder: 2 people · next run today 10:00 AM · After the meeting: 1 person · next run today 6:00 PM",
+  );
+  assert.equal(
+    todayDay(today, pb([], "session")).reminders.text,
+    "No session reminders yet — a campaign can write the day before a session and the day after.",
+  );
+  // The playbooks not read yet (or a read that failed): the day does not know whether a reminder runs, so it says none.
+  assert.equal(todayDay(today, null).reminders, null);
+});
+
+test("the day says the workspace's word from Today's own read: with the playbooks off or unread, never a playbook's default (the canvas of 2 Nov 2026)", async () => {
+  const { useDayVm, useTodayWord } = await import("../../apps/dashboard/src/surfaces/today/zones/day-vm.ts");
+  let said = null;
+  function Probe() {
+    said = { day: useDayVm()?.word ?? null, word: useTodayWord() };
+    return null;
+  }
+  const at = (over) => {
+    setSurfaceValue("today", { ...toTodayVM(busyMetrics(), [], [], [], NOW), ...over });
+    draw(Probe);
+    return said;
+  };
+  globalThis.__CALENDAR = {
+    vm: cal([day("2026-09-06", { today: true, blocks: [block("b1", 10, "10 – 11 AM", "Lesson")] })]),
+  };
+  try {
+    // A workspace that calls them lessons, with no playbooks read: the day was "appointment", Campaigns' default.
+    assert.deepEqual(at({ word: "lesson" }), { day: "lesson", word: "lesson" });
+    // The playbooks read, saying the same workspace's word: one word.
+    globalThis.__PLAYBOOKS = { rows: [], shape: { calendar: "feed", hasDeals: false, word: "lesson" } };
+    assert.deepEqual(at({ word: "lesson" }), { day: "lesson", word: "lesson" });
+    // No calendar to read: the rows that say it still say the workspace's.
+    delete globalThis.__CALENDAR;
+    assert.deepEqual(at({ word: "session" }), { day: null, word: "session" });
+    // A server from before, which says none: the word a workspace has until it picks.
+    assert.deepEqual(at({ word: null }), { day: null, word: "appointment" });
+  } finally {
+    delete globalThis.__CALENDAR;
+    delete globalThis.__PLAYBOOKS;
+    setSurfaceValue("today", undefined);
+  }
+});
+
+test("five rows on Today, the rest a line to the Calendar: what is over goes first, what is coming stays", () => {
+  const blocks = [8, 9, 10, 11, 13, 14, 16, 18].map((h) => block(`b${h}`, h, `${h}:00`, `Slot ${h}`));
+  const vm = todayDay(cal([day("2026-09-06", { today: true, blocks })]), pb([]), null);
+  const [today] = vm.frames;
+  assert.equal(TODAY_DAY_MAX, 5);
+  assert.deepEqual(
+    today.items.map((i) => i.title),
+    ["Slot 10", "Slot 11", "Slot 13", "Slot 14", "Slot 16"],
+    "at ten: what is on now and the four coming; the two over and the last of the evening are the three cut",
+  );
+  const noon = todayDay(cal([day("2026-09-06", { today: true, blocks })], { now: 12 }), pb([]), null).frames[0];
+  assert.deepEqual(
+    noon.items.map((i) => i.title),
+    ["Slot 11", "Slot 13", "Slot 14", "Slot 16", "Slot 18"],
+    "at noon: the four coming, then the most recent of what is over, back in the day's order",
+  );
+  assert.equal(today.more, 3);
+  assert.equal(today.moreLine, "3 more on the Calendar");
+  assert.equal(today.summary.booked, "8 booked", "the summary counts the day, not the rows drawn");
+  const few = todayDay(cal([day("2026-09-06", { today: true, blocks: blocks.slice(0, 3) })]), pb([]), null).frames[0];
+  assert.deepEqual([few.more, few.moreLine], [0, null]);
+});
+
+// The day the hero and the card draw: traffic, so the card has its four figures.
+const NOW = new Date("2026-09-06T14:00:00Z");
+const busyMetrics = () => ({
+  workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
+  channels: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
+  window: {
+    days: 1,
+    since: "2026-09-06T04:00:00Z",
+    since_local: "2026-09-06T00:00:00",
+    now_local: "2026-09-06T10:00:00",
+  },
+  now: {
+    escalations_open: 0,
+    oldest_open_escalation_at: null,
+    threads_needing_human: 0,
+    threads_snoozed: 0,
+    threads_awaiting_reply: 0,
+    last_inbound_at: "2026-09-06T13:00:00Z",
+    last_outbound_at: "2026-09-06T13:01:00Z",
+  },
+  period: {
+    messages_in: 9,
+    messages_out_ai: 11,
+    messages_out_you: 0,
+    conversations_active: 6,
+    answered_by_ai: 7,
+    answered_by_you: 0,
+    unanswered_in_window: 1,
+    median_reply_seconds_ai: 34,
+    send_failures: 0,
+    escalations_new: 0,
+    escalation_reasons: {},
+    calls: 3,
+    call_seconds: 412,
+    call_sentiments: { Positive: 2, Neutral: 1 },
+    calls_voicemail: 1,
+    new_contacts: 2,
+  },
+});
+const draw = (Comp) => {
+  fresh();
+  return globalThis.React.createElement(Comp, {});
+};
+
+test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
+  // The helpers (surfaces/today/helpers.ts), as contracts' own functions and in this order; installed, not re-listed.
+  assert.deepEqual(
+    Object.keys(TODAY_HELPERS),
+    [
+      "day",
+      "headLine",
+      "dayNote",
+      "briefWords",
+      "periodLine",
+      "runs",
+      "runsSub",
+      "lateRunsSub",
+      "draftsSub",
+      "runApproved",
+      "leaks",
+      "steps",
+      "stepsSub",
+      "withSteps",
+      "visitsAsked",
+      "visitsSub",
+      "withVisitsAsked",
+      "withReplies",
+      "withoutWrongPerson",
+    ],
+    "the helpers, in order",
+  );
+  // (The dashboard resolves contracts through its own path mapping, so a function is its own by name and by what it says.)
+  for (const [key, own] of Object.entries({
+    day: todayDay,
+    briefWords: todayBriefWords,
+    periodLine: todayPeriodLine,
+    runs: todayRunWords,
+    runsSub: todayRunsSub,
+    lateRunsSub: todayLateRunsSub,
+    draftsSub: todayDraftsSub,
+    runApproved: todayRunApproved,
+    leaks: todayLeaks,
+    steps: todaySteps,
+    stepsSub: todayStepsSub,
+    withSteps,
+  }))
+    assert.equal(TODAY_HELPERS[key].name, own.name, `${key} is contracts' ${own.name}`);
+  assert.deepEqual(TODAY_HELPERS.day(null, null), todayDay(null, null));
+  assert.deepEqual(TODAY_HELPERS.runsSub(2), todayRunsSub(2));
+  assert.deepEqual(
+    TODAY_HELPERS.runApproved("Win-back", 3, "sending now"),
+    todayRunApproved("Win-back", 3, "sending now"),
+  );
+  // The queue's replies are read where the Inbox's surface publishes them (`window.__REPLIES`): none when unread.
+  const handoff = {
+    id: "h1",
+    kind: "handoff",
+    conversationId: "cv1",
+    callId: null,
+    who: "Brightwater & Co.",
+    initials: "BC",
+    channel: "Email",
+    when: "waited 2h",
+    sentence: "They wrote back to your sequence. Nothing is sent without you.",
+    quoted: false,
+    status: ["Escalated", "Needs review", "since 2:04 PM"],
+    tone: "escalated",
+    warn: false,
+    cta: { label: "Open and reply", to: "inbox/th-cv1" },
+    also: { label: "Snooze", verb: "snooze", conversationId: "cv1", escalationId: "e-h1" },
+    waitedMs: 7_200_000,
+  };
+  const reading = {
+    message_id: "m1",
+    conversation_id: "cv1",
+    read_at: "2026-09-06T13:00:00.000Z",
+    intent: "interested",
+    claim: "person",
+    summary: "Wants more details",
+    unread: null,
+    undone: false,
+    draft: "Thank you for writing.",
+    draft_state: "written",
+  };
+  delete globalThis.__REPLIES;
+  assert.deepEqual(TODAY_HELPERS.withReplies([handoff]), [handoff], "no readings read, no row changed");
+  globalThis.__REPLIES = { replies: [reading] };
+  assert.deepEqual(TODAY_HELPERS.withReplies([handoff]), withReplies([handoff], [reading]));
+  assert.equal(TODAY_HELPERS.withReplies([handoff])[0].kind, "reply", "the reading is the surface's, read when asked");
+  // And so is who waits with nothing back, less a wrong person: laid over by the same readings, none when unread.
+  const waiting = [{ conversationId: "cv1", who: "Brightwater & Co.", sinceMs: 0, to: "inbox/th-cv1" }];
+  assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "a reading of another intent leaves them");
+  globalThis.__REPLIES = { replies: [{ ...reading, intent: "wrong_person" }] };
+  assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), [], "a wrong person is nobody waiting");
+  globalThis.__REPLIES = null;
+  assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "a read that failed takes nobody for gone");
+  delete globalThis.__REPLIES;
+  assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "and one not read yet");
+  // The helpers are the page's by import, and nothing publishes them on the window (window.__today had no reader).
+  assert.equal(globalThis.__today, undefined, "no window name for the helpers");
+  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installToday"));
+  const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
+  for (const s of [
+    // The day's one derivation (dayVmOf), which the strip and the brief both read: a feed that is not ok is no day.
+    'if (!C || !C.vm || C.vm.feed.state !== "ok") return null;',
+    "export function useDayVm()",
+  ])
+    assert.ok(dayModule.includes(s), s);
+  // And no pane: the day is folded into the strip and the brief (canvas E3), and the steps due are rows of the queue.
+  for (const gone of [
+    "export const DayZone ",
+    "TodaySteps",
+    'data-testid="today-day',
+    "agendaItems",
+    "TODAY_HELPERS.steps",
+  ])
+    assert.ok(!dayModule.includes(gone), `${gone} is not drawn from day.tsx`);
+  assert.match(
+    dayModule,
+    /TODAY_HELPERS\.day\(\s*C\.vm[^,]*,\s*P \? \{ rows: P\.rows, word: word \?\? P\.shape\.word \} : null,\s*word \? \{ rows: \[\], word \} : null,\s*Number\.POSITIVE_INFINITY,?\s*\)/,
+    "the page composes the module: the calendar, the playbooks' rows, and the workspace's word as Today's read says it " +
+      "before a playbook's, every entry of the day (the zone folds what is over itself); who is coming is the board's " +
+      "own read's (calendar-person-facts.ts), so People's book is no read of the day's",
+  );
+  assert.ok(!dayModule.includes("__PEOPLE"), "Today in three zones reads no People for its day");
+  // The hero and the card over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
+  // from): the day's numbers are the card's figures, not a sentence or a strip of stat cards; no calendar line.
+  setSurfaceValue("today", toTodayVM(busyMetrics(), [], [], [], NOW));
+  globalThis.__CALENDAR = {
+    vm: {
+      timezone: "America/New_York",
+      feed: { present: true, state: "ok", line: "", events: 3, source: "Google Calendar" },
+      stats: { events: 3, windows: 2, next: "Mon 9:30 AM" },
+      days: [],
+    },
+  };
+  const hero = draw(TodayAlertBand);
+  assert.equal(textOf(hero), "", "the hero says nothing while every line is up: no sentence of the day, no stat cards");
+  const card = draw(PhoneSoFar);
+  // A desk draws the four in the head beside the greeting (the page heads canvas, H1, 31 Oct 2026); Today so far, which
+  // draws them on a phone, is no pane of a desk's (Today in three zones, 2 Nov 2026), so they are said once on each.
+  assert.ok(byTestId(draw(TodayHeadFigures), "today-figures"), "the day's numbers are the figures");
+  assert.ok(byTestId(card, "today-figures"), "Today so far's, on a phone");
+  assert.equal(byTestId(draw(TodayZones), "today-card"), null, "said once: the head's on a desk");
+  for (const tree of [hero, card]) {
+    assert.equal(byTestId(tree, "brief-calendar"), null, "the one-line calendar beat is the module now");
+    const parts = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);
+    assert.ok(!parts.includes("CalendarLine") && !parts.includes("DayFacts"), parts.join(", "));
+  }
+  assert.ok(!("dayLine" in TODAY_HELPERS), "no helper says the day's numbers as a sentence");
+  // The day is a zone beside the work on a desk (Today in three zones, 2 Nov 2026), drawn from the same one derivation;
+  // the steps due are To do's, a group of Need you.
+  assert.ok(
+    find(draw(TodayZones), (n) => n.type === DayZone),
+    "the day stands beside the work",
+  );
+  delete globalThis.__CALENDAR;
+  setSurfaceValue("today", undefined);
+  const css = readRaw("apps/dashboard/src/styles/dashboard-a-v2.css");
+  // The zones' one column below a desk's width is a browser's to see: e2e/today/today.spec.ts measures the bento's tracks.
+  assert.ok(
+    !css.includes(".td-") && !dayModule.includes("cal-agenda"),
+    "the old pane's rules (.td-day*, .td-frame*, .td-step*) went with it",
+  );
+});
+
+/** A batch as the page holds it, the waiting one or one beside it. */
+const batchRun = (id, over = {}) => ({
+  id,
+  sequence_id: "seq-1",
+  state: "sent",
+  scheduled_for: "2026-11-02T15:00:00.000Z",
+  when: "today 10:00 AM",
+  started_at: null,
+  created_at: "2026-10-20T15:00:00.000Z",
+  recipient_count: 17,
+  audience: { kind: "reach_out", root_id: "seq-1", label: "Agencies" },
+  counts: { sent: 0, replied: 0 },
+  ...over,
+});
+const BEFORE_IT = Date.parse("2026-11-02T14:00:00.000Z");
+
+test("a batch waiting for an OK says when its first email goes and what its last batch earned, and how its wait ends where it has neither", () => {
+  const waiting = batchRun("w", { state: "pending_approval" });
+  const older = batchRun("a", { started_at: "2026-10-01T15:00:00.000Z", counts: { sent: 40, replied: 1 } });
+  const newest = batchRun("b", { started_at: "2026-10-20T15:00:00.000Z", counts: { sent: 20, replied: 3 } });
+  const another = batchRun("c", {
+    sequence_id: "seq-2",
+    started_at: "2026-10-30T15:00:00.000Z",
+    counts: { sent: 9, replied: 9 },
+  });
+  const facts = batchFactsOf(
+    waiting,
+    [waiting, older, newest, another, batchRun("d", { sequence_id: "seq-1" })],
+    BEFORE_IT,
+  );
+  assert.deepEqual(facts, { firstGoes: "today 10:00 AM", last: { sent: 20, replied: 3 } });
+  assert.equal(
+    todayRunWords(waiting, facts).waiting.sentence,
+    "17 businesses. Waits for your OK; the first goes today 10:00 AM. Last batch: 20 sent, 3 replied.",
+  );
+  // Its time has passed: the clock plans its sends again after an OK, so it names no time.
+  const late = batchFactsOf(waiting, [waiting], Date.parse("2026-11-02T16:00:00.000Z"));
+  assert.deepEqual(late, { firstGoes: null, last: null });
+  // A time it cannot name still says your OK: a phone draws no state line under it.
+  assert.match(
+    todayRunWords(waiting, { firstGoes: null, last: { sent: 20, replied: 3 } }).waiting.sentence,
+    /Waits for your OK.*Last batch: 20 sent, 3 replied./,
+  );
+  assert.equal(todayRunWords(waiting, late).waiting.sentence, todayRunWords(waiting).waiting.sentence);
+});
+
+test("a batch waiting for an OK offers the emails an OK does not send, apart from a going run, and counts no second wait", () => {
+  assert.equal(batchHeldEmails({ state: "pending_approval", held: 2 }), 2);
+  assert.equal(batchHeldEmails({ state: "pending_approval", held: 0 }), 0);
+  assert.equal(batchHeldEmails({ state: "pending_approval" }), 0);
+  assert.equal(batchHeldEmails({ state: "sending", held: 2 }), 0);
+});

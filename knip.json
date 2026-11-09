@@ -34,8 +34,8 @@
         "middleware.ts",
         "next.config.ts",
         "src/*.ts",
-        "src/legacy-bridge/manifest.ts",
-        "src/legacy-bridge/**/*.{ts,tsx}",
+        "src/bridge/manifest.ts",
+        "src/bridge/**/*.{ts,tsx}",
         "src/**/*.type-test.ts"
       ],
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "*.{ts,mjs}"]
@@ -47,9 +47,9 @@
       "entry": [
         "src/index.ts",
         "src/write-rules.ts",
-        "src/reports/report-window.ts",
-        "src/reports/report-lens.ts",
-        "src/ads/ads-page.ts",
+        "src/reports/window.ts",
+        "src/reports/lens.ts",
+        "src/ads/page-entry.ts",
         "src/**/*.type-test.ts"
       ],
       "project": ["src/**/*.ts"]
@@ -61,11 +61,14 @@
         "gen/*.mjs",
         "ops/**/*.mjs",
         "voice/*.mjs",
-        "tests/**/*.mjs",
         "e2e-harness/**/*.{ts,mjs}",
         "mobile/{sign-in,cold-start,walk}.mjs"
       ],
       "project": ["**/*.{ts,mjs}"]
+    },
+    "tests": {
+      "entry": ["**/*.mjs"],
+      "project": ["**/*.mjs"]
     }
   }
 }

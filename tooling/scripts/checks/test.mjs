@@ -10,7 +10,7 @@
  * the clock at import).
  *
  *   corepack pnpm test                                     the node suite, in UTC, and what it ran of the code
- *   corepack pnpm test -- tooling/scripts/tests/calendar   only these files or globs (a directory is every test in it)
+ *   corepack pnpm test -- tests/calendar   only these files or globs (a directory is every test in it)
  *   TEST_TZ=Pacific/Auckland corepack pnpm test            the whole suite, twelve hours east (PowerShell:
  *                                                          $env:TEST_TZ='Pacific/Auckland'; corepack pnpm test)
  *   corepack pnpm test:db                                  the stack suites, in the same zone
@@ -48,27 +48,27 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
  * typed go through channels' guarded fetcher, and a suite that stubs `globalThis.fetch` must not reach the real guard or
  * DNS (tests/calendar/_stand-in-network.mjs says how).
  */
-const STAND_IN_NETWORK = "./tooling/scripts/tests/calendar/_stand-in-network.mjs";
+const STAND_IN_NETWORK = "./tests/calendar/_stand-in-network.mjs";
 
 /**
  * Base UI, as the page tests stand in for it, loaded before every test file: the suite's react-server condition cannot
  * load a Base UI module, so a surface that draws one of the kit's Base UI parts gets a stand-in
  * (tests/shared/_stand-in-base-ui.mjs says how).
  */
-const STAND_IN_BASE_UI = "./tooling/scripts/tests/shared/_stand-in-base-ui.mjs";
+const STAND_IN_BASE_UI = "./tests/shared/_stand-in-base-ui.mjs";
 
 /**
  * Stylesheets, as the page tests stand in for them, loaded before every test file: a module loaded on demand imports its
  * own rules, which the suite (no bundler) would read as JavaScript (tests/shared/_stand-in-css.mjs says how).
  */
-const STAND_IN_CSS = "./tooling/scripts/tests/shared/_stand-in-css.mjs";
+const STAND_IN_CSS = "./tests/shared/_stand-in-css.mjs";
 
 /**
  * Every import a test makes, slow, loaded before every test file when `TEST_SLOW_IMPORTS=1`: a test that counts turns
  * of the loop for work that reads a module fails every time, as it fails once in a while beside a heavy job
  * (tests/shared/_slow-imports.mjs says how). Only where tsx loads modules off the main thread (importsLeaveTheThread).
  */
-const SLOW_IMPORTS = "./tooling/scripts/tests/shared/_slow-imports.mjs";
+const SLOW_IMPORTS = "./tests/shared/_slow-imports.mjs";
 
 /**
  * Whether tsx answers an import off the main thread, which is what TEST_SLOW_IMPORTS slows: twenty imports asked under
@@ -102,8 +102,8 @@ export const BUNDLED = "bundled";
 
 /** What each command runs when it is given no files. */
 export const SUITES = {
-  test: ["tooling/scripts/tests/**/*.test.mjs", "apps/mobile/test/*.test.mjs"],
-  db: ["tooling/scripts/tests/**/*.db.test.mjs", "tooling/scripts/tests/**/*.integration.test.mjs"],
+  test: ["tests/**/*.test.mjs", "apps/mobile/test/*.test.mjs"],
+  db: ["tests/**/*.db.test.mjs", "tests/**/*.integration.test.mjs"],
 };
 
 /**
@@ -137,9 +137,12 @@ export const REPLAYS_A_MIGRATION =
  * the shared tables are many times their size, and a read another suite plans then can be planned for that size (its
  * own reads wait for its `analyze`; the others' do not). On 31 Oct 2026, in the three red runs of main that could be
  * timed, every reach-out read that passed the service role's 30 seconds (reach_out_followers) began while playbook-totals
- * wrote its 180,000 rows; the same read answers in under 200 ms. So such a suite runs alone, after the others.
+ * wrote its 180,000 rows; the same read answers in under 200 ms. So such a suite runs alone, after the others. One whose
+ * world is never committed is removed by nothing, so it is known by its size: ten thousand rows or more from one
+ * `generate_series` (leads-at-volume's 250,000 sends). On 7 Nov 2026, on a runner half the usual speed, the blocks
+ * lead-status-groups counts of the same tables rose past its bound twice in a row in the same pass as it.
  */
-export const BUILDS_AT_SCALE = /\bdelete\s+from\s+public\.tenants\b/i;
+export const BUILDS_AT_SCALE = /\bdelete\s+from\s+public\.tenants\b|\bgenerate_series\s*\(\s*\d+\s*,\s*\d{5,}\b/i;
 
 /** The names a database suite ends with: SUITES.db's two kinds. */
 const DATABASE_ENDINGS = SUITES.db.map((glob) => glob.slice(glob.lastIndexOf("*") + 1));
@@ -163,7 +166,7 @@ function testsUnder(dir, databaseOnly) {
 export function databasePasses(asked, read = (f) => fs.readFileSync(path.resolve(ROOT, f), "utf8")) {
   const files = asked.length
     ? asked.flatMap((a) => (isDirectory(a) ? testsUnder(a, false) : [a]))
-    : testsUnder("tooling/scripts/tests", true);
+    : testsUnder("tests", true);
   const runsAlone = (text) => [CHANGES_A_TABLE, REPLAYS_A_MIGRATION, BUILDS_AT_SCALE].some((rule) => rule.test(text));
   const alone = files.filter((f) => !/[*?[{]/.test(f) && f.endsWith(".mjs") && runsAlone(read(f)));
   return { together: files.filter((f) => !alone.includes(f)), alone };

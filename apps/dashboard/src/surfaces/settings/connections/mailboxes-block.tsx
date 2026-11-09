@@ -23,7 +23,6 @@ import {
   IMPORT_WORDS,
   importLineOf,
   sourceRowsOf,
-  type ConnectionRow,
   type ImportRowDto,
   type ImportSource,
   type MailboxConnectionDto,
@@ -32,8 +31,9 @@ import {
   type MailboxProvider,
   type SetupDto,
 } from "@chanlytics/contracts";
+import type { ConnectionLine } from "./model/setup";
 import type { ApiResult } from "@/client/api";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Face } from "../../kit/face/face";
@@ -41,7 +41,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { StatePill } from "../../kit/pill/state-pill";
-import { canDo, gate, gateTitle, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, gateTitle, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { connectedMailboxes } from "./connected-mailboxes";
 import { LeftSenders } from "./left-senders";
 import { DnsSheet, copyWords } from "./dns-sheet";
@@ -53,7 +53,7 @@ const MAILBOXES = connectedMailboxes;
 /** The permission a mailbox's acts ask (contracts ROLE_PERMS): the one the doors' own role check stands on. */
 const MAILBOX_PERM = "settings";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 type Email = NonNullable<SetupDto["email"]>;
 
 /** The mailbox an owner has armed a question on, or opened the settings or the DNS sheet of. */
@@ -562,7 +562,7 @@ function cardFacts(one: MailboxConnectionDto | null, imports: readonly ImportRow
 }
 
 /** The card's words beside its tile: Email, then the one mailbox's address and what came in, or how many there are. */
-function cardWords(r: ConnectionRow, one: MailboxConnectionDto | null, now: number, zone: string) {
+function cardWords(r: ConnectionLine, one: MailboxConnectionDto | null, now: number, zone: string) {
   const w = one ? MAILBOXES.row(one, now, zone) : null;
   return (
     <span className="set-team-body">
@@ -591,7 +591,7 @@ function cardWords(r: ConnectionRow, one: MailboxConnectionDto | null, now: numb
 
 interface EmailCardProps {
   /** The mailbox row, titled Email: the hosted address's row folds into it (contracts connectionRows). */
-  r: ConnectionRow;
+  r: ConnectionLine;
   email: Email;
   /** What was brought in (Setup's imports ledger): the card's Inbox and Contacts. */
   imports: readonly ImportRowDto[] | null | undefined;

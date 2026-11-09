@@ -6,19 +6,23 @@
  * connect signs with too: the state names its provider, and each callback refuses another's).
  */
 import { AppError, appLink, ROLE_PERMS } from "@chanlytics/contracts";
-import { instagramAuthorizeUrl, newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
-import { deployment } from "../env";
-import { log } from "../log";
-import { memberContext, type RouteContext } from "../with-route";
-import type { Member } from "../route";
+import { instagramAuthorizeUrl } from "@chanlytics/channels/instagram";
+import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels/google";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
+import { deployment } from "../shared/env";
+import { log } from "../shared/log";
+import { getMemberContext, type RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
 
 /** The provider a state for Instagram names (OAuthState.p): the Google and mailbox callbacks refuse it. */
 const PROVIDER = "instagram";
 
 /** The edge's Instagram door, behind the dashboard's own credential, for the workspace and the person it acts for. */
-async function edgeInstagram(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
+async function edgeInstagram(
+  body: EdgeBody<"/api/admin/instagram/account">,
+  timeoutMs = 20_000,
+): Promise<EdgeAnswer<EdgeRead<"/api/admin/instagram/account">>> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // A preview never reaches Instagram under a business's name, as no provider door does.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
@@ -40,14 +44,13 @@ let readyCache: { at: number; value: InstagramReadiness } | null = null;
 /** The edge's word on the app, kept READY_TTL_MS: a page's Connections asks it on every open. */
 async function instagramReadiness(now = Date.now()): Promise<InstagramReadiness> {
   if (readyCache && now - readyCache.at < READY_TTL_MS) return readyCache.value;
-  const a = await edgeInstagram({ op: "status" }, 4_000);
-  const b = a.body ?? {};
-  const app =
-    b.app && typeof b.app === "object" ? (b.app as Partial<Record<"client_id" | "redirect_uri", unknown>>) : null;
+  const answer = await edgeInstagram({ op: "status" }, 4_000);
+  const body = answer.body ?? {};
+  const app = body.app ?? null;
   const value: InstagramReadiness =
-    a.status === 200 &&
-    b.ok === true &&
-    b.ready === true &&
+    answer.status === 200 &&
+    body.ok === true &&
+    body.ready === true &&
     typeof app?.client_id === "string" &&
     typeof app.redirect_uri === "string"
       ? { ready: true, app: { client_id: app.client_id, redirect_uri: app.redirect_uri } }
@@ -66,8 +69,8 @@ export async function readInstagram(member: Member): Promise<{ ready: boolean; c
  * Where the browser lands after Instagram: Connections, with the outcome in a word the row reads once, on the workspace's
  * own address once the signed state has proved whose workspace it was (contracts appLink), else on the front door.
  */
-function afterInstagram(origin: string, outcome: string, why?: string, slug?: string | null): string {
-  return `${origin}${appLink(slug, "admin/integrations", { instagram: outcome, why: why || null })}`;
+function afterInstagram(origin: string, outcome: string, reason?: string, slug?: string | null): string {
+  return `${origin}${appLink(slug, "admin/integrations", { instagram: outcome, why: reason || null })}`;
 }
 
 /** `GET channels/instagram/connect`: a signed state naming the workspace and the person, then Instagram's consent screen. */
@@ -92,11 +95,11 @@ export async function startInstagramConnect(ctx: RouteContext, member: Member): 
  * this person's standing in the workspace it names is judged, and only then does the code go to the edge, which trades
  * it. Every outcome is a redirect to Connections with one word the row reads once.
  */
-export async function instagramCallback(ctx: RouteContext, req: Request): Promise<Response> {
+export async function handleInstagramCallback(ctx: RouteContext, req: Request): Promise<Response> {
   const url = new URL(req.url);
   let slug: string | null = null;
-  const back = (outcome: string, why?: string) =>
-    new Response(null, { status: 302, headers: { location: afterInstagram(url.origin, outcome, why, slug) } });
+  const back = (outcome: string, reason?: string) =>
+    new Response(null, { status: 302, headers: { location: afterInstagram(url.origin, outcome, reason, slug) } });
   // A person who pressed Cancel on Instagram's screen comes back with error=access_denied.
   const refused = url.searchParams.get("error");
   if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
@@ -108,7 +111,7 @@ export async function instagramCallback(ctx: RouteContext, req: Request): Promis
   if (proof.state.u !== ctx.userId) return back("error", "someone_else");
   let tenantId: string;
   try {
-    const member = await memberContext(ctx, proof.state.t);
+    const member = await getMemberContext(ctx, proof.state.t);
     slug = member.slug ?? null;
     if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");
     tenantId = member.tenantId;
@@ -117,14 +120,14 @@ export async function instagramCallback(ctx: RouteContext, req: Request): Promis
   }
   const code = url.searchParams.get("code") ?? "";
   if (!code) return back("error", "no_code");
-  const a = await edgeInstagram({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
-  const b = a.body ?? {};
-  if (a.status !== 200 || b.ok !== true) {
-    const reason = typeof b.error === "string" ? b.error : `edge_${a.status}`;
+  const answer = await edgeInstagram({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
+  const body = answer.body ?? {};
+  if (answer.status !== 200 || body.ok !== true) {
+    const reason = typeof body.error === "string" ? body.error : `edge_${answer.status}`;
     log.error("instagram_connect_failed", {
       tenant_id: tenantId,
       reason,
-      detail: typeof b.detail === "string" ? b.detail.slice(0, 200) : null,
+      detail: typeof body.detail === "string" ? body.detail.slice(0, 200) : null,
     });
     return back("error", reason);
   }
@@ -133,15 +136,15 @@ export async function instagramCallback(ctx: RouteContext, req: Request): Promis
 
 /** `POST channels/instagram/disconnect`: the account's row turned off, so nothing it is sent routes. */
 export async function disconnectInstagram(ctx: RouteContext, member: Member, channelId: string): Promise<{ ok: true }> {
-  const a = await edgeInstagram({
+  const answer = await edgeInstagram({
     op: "disconnect",
     tenant_id: member.tenantId,
     user_id: ctx.userId,
     channel_id: channelId,
   });
-  const b = a.body ?? {};
-  if (a.status === 404) throw new AppError("not_found", "That Instagram account is not connected here.", 404);
-  if (a.status !== 200 || b.ok !== true)
-    throw new AppError("internal", "Instagram could not be disconnected just now. Try again.", 502);
+  const body = answer.body ?? {};
+  if (answer.status === 404) throw new AppError("not_found", "That Instagram account is not connected here.", 404);
+  if (answer.status !== 200 || body.ok !== true)
+    throw new AppError("upstream_provider", "Instagram could not be disconnected just now. Try again.");
   return { ok: true };
 }

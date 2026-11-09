@@ -11,8 +11,9 @@ import {
   type EmailClaim,
   type MailboxSenderVerdict,
 } from "@chanlytics/contracts";
-import { logger } from "@chanlytics/channels";
-import type { Json } from "@chanlytics/db";
+import { logger } from "@chanlytics/log";
+import type { Json } from "@chanlytics/db/types";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The intake's own lines, by name: a yes the sender's proof does not stand behind. */
 const emailLog = logger();
@@ -73,24 +74,24 @@ export interface IncomingEmail {
 
 export interface EmailIngestPorts {
   /** The mailbox the delivery named, or null when it is gone. */
-  mailbox(id: string): Promise<{ id: string; tenant_id: string; address: string } | null>;
+  mailbox(id: string): Promise<{ id: string; tenant_id: TenantId; address: string } | null>;
   /** The email, by the provider's id; null when the provider no longer has it. Throws when it cannot be asked. */
   fetch(receivedId: string): Promise<IncomingEmail | null>;
   /**
    * A booking tool's notice is read into an appointment, not kept as a conversation (docs/plans/
    * 2026-10-07-bookings-arrive-by-email.md): one booking_read for the delivery, however often this intake runs.
    */
-  readBooking(tenantId: string, mailboxId: string, receivedId: string, tool: BookingTool): Promise<void>;
+  readBooking(tenantId: TenantId, mailboxId: string, receivedId: string, tool: BookingTool): Promise<void>;
   /**
    * The booking tool the workspace named as its own (config bookings.tool), or null for none: only that tool's notices
    * are read as bookings. A workspace that named none keeps every tool's email as the automated email it is.
    */
-  bookingTool(tenantId: string): Promise<BookingTool | null>;
+  bookingTool(tenantId: TenantId): Promise<BookingTool | null>;
   /**
    * Is this address a member's of the workspace: the second thing a notice forwarded by hand must be, after its
    * sender is proved (00345).
    */
-  memberAddress(tenantId: string, address: string): Promise<boolean>;
+  memberAddress(tenantId: TenantId, address: string): Promise<boolean>;
   /**
    * Gmail's confirmation that it may forward to this mailbox (contracts forwardingConfirmationOf), kept on the mailbox
    * for Settings to show with one press, never as a thread (00345).
@@ -101,11 +102,11 @@ export interface EmailIngestPorts {
    * before the person asked to be forgotten: taking it in late would make them again from data they asked us to
    * drop. An email received AFTER the request is the person coming back, and is a new conversation (edge erased.ts).
    */
-  erasedBefore(tenantId: string, address: string, receivedAtIso: string): Promise<boolean>;
+  erasedBefore(tenantId: TenantId, address: string, receivedAtIso: string): Promise<boolean>;
   /** Our own email, coming back: a forward loop, or a copy. */
-  ours(tenantId: string, rfcMessageId: string): Promise<boolean>;
+  ours(tenantId: TenantId, rfcMessageId: string): Promise<boolean>;
   record(p: {
-    tenantId: string;
+    tenantId: TenantId;
     address: string;
     receivedId: string;
     body: string | null;
@@ -135,14 +136,14 @@ export interface EmailIngestPorts {
    * a refresh of the same one, or a write that did not land.
    */
   escalate(
-    tenantId: string,
+    tenantId: TenantId,
     conversationId: string,
     reason: "email_review",
     details: string,
   ): Promise<"opened" | "changed" | "refreshed" | "failed">;
   /** Tell the workspace's people, once per hold: the bell, and the mail their alerts go to. Never throws. */
   tell(
-    tenantId: string,
+    tenantId: TenantId,
     note: {
       conversationId: string;
       from: string;
@@ -156,17 +157,17 @@ export interface EmailIngestPorts {
    * Is this kept message a reply to one of the workspace's reach-outs (00222 reach_out_reply_of)? Throws when it cannot
    * be asked: a reply taken for nobody's would never be read, and a no in it would be missed.
    */
-  reachOutReply(tenantId: string, messageId: string): Promise<boolean>;
+  reachOutReply(tenantId: TenantId, messageId: string): Promise<boolean>;
   /** Hand the reply to the reading (a reply_read job), at most once per message however often this runs. */
-  readReply(tenantId: string, messageId: string): Promise<void>;
-  markProcessed(tenantId: string, messageId: string): Promise<void>;
+  readReply(tenantId: TenantId, messageId: string): Promise<void>;
+  markProcessed(tenantId: TenantId, messageId: string): Promise<void>;
   received(mailboxId: string, at: string): Promise<void>;
   /**
    * Whether one of these addresses is a mailbox the workspace connected that its sync reads (00423: connected, paused or
    * held): a copy of an email that mailbox holds too, which its sync takes in (Gmail forwarding its mail to the hosted
    * address, or an email to both). A connected mailbox's own intake answers false.
    */
-  readByMailbox(tenantId: string, addresses: readonly string[]): Promise<boolean>;
+  readByMailbox(tenantId: TenantId, addresses: readonly string[]): Promise<boolean>;
   /**
    * What the workspace said of the sender (00483 mailbox_senders, by address and then by domain: contracts
    * senderVerdictOf), or null where it said nothing. It comes before what the email claims (decision 0080's order): one
@@ -174,7 +175,18 @@ export interface EmailIngestPorts {
    * the owner deleted is not made again, nor put in front of them; one said to be a person is asked of, whatever it
    * claims. Absent on a connected mailbox's own intake, whose sorting asked it before the email was scheduled.
    */
-  senderSaid?(tenantId: string, address: string): Promise<MailboxSenderVerdict | null>;
+  senderSaid?(tenantId: TenantId, address: string): Promise<MailboxSenderVerdict | null>;
+  /**
+   * What the sender was read to be, on this road as on a connected mailbox's (decision 0093, one judge), for an email that
+   * claims to be a person's from someone the business does not talk with: the kept reading, or one read now. A sender read
+   * as selling to the business, or as a program, answers why it is left, and is noted on the owner's list; anything else,
+   * a model that did not answer among them, answers null, and it comes in. Never throws. Absent on a connected mailbox's own
+   * intake, whose sorting asked it before the email was scheduled.
+   */
+  senderLeft?(
+    tenantId: TenantId,
+    email: { from: string; name: string | null; subject: string | null; words: string | null; answers: boolean },
+  ): Promise<"pitch" | "notice" | null>;
   now(): number;
 }
 
@@ -190,6 +202,7 @@ export type EmailIngestOutcome =
   | "our_own"
   | "erased_person"
   | "left_as_said"
+  | "left_as_read"
   | "no_sender"
   | "gone";
 
@@ -198,14 +211,15 @@ export const EMAIL_BODY_MAX = 20_000;
 
 /** What the person who opens the thread is told, by what the email claimed to be. */
 export const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated"> | "reach_out", string> = {
-  // Nothing sends an email on its own (decision 0073, R15): Need you drafts the reply in the owner's voice (decision
-  // 0071), and it leaves from their mailbox on their press.
-  person: "An email arrived. Nothing was sent: a reply is drafted for you in Need you, to change or send from here.",
+  // Nothing sends an email on its own (decision 0073, R15), and it leaves from their mailbox on their press. Whether a
+  // draft is ready is the draft's own to say (decision 0093): this is kept on the hold, and a sentence kept here said "a
+  // reply is drafted for you" of a thread Ask had written nothing for, or a pitch it never would.
+  person: "An email arrived. Nothing was sent: it's yours to answer.",
   automated:
     "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
   // A reply to a reach-out (Reach out Part 5): the reading tells the owner what it meant, so this flag says only where.
   reach_out:
-    "They wrote back to your sequence. Nothing is sent without you: read it here, with the receptionist's draft when it wrote one.",
+    "They wrote back to your sequence. Nothing is sent without you: read it here, and answer it when you're ready.",
 };
 
 export async function ingestEmail(
@@ -248,15 +262,15 @@ export async function ingestEmail(
   if (aside) return aside;
   // What the workspace said of the sender, before what the email claims: "Not a person" holds on this road as on a
   // connected mailbox's, and the address still heard from its forward, so it is stamped.
-  const word = await senderWordOf(ports, mailbox.tenant_id, address);
-  if (word === "automated") {
+  const { word, left } = await senderSortedAs(ports, mailbox.tenant_id, email, address);
+  if (left) {
     await ports.received(mailbox.id, at);
-    return "left_as_said";
+    return left;
   }
   const taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation"> =
     claim === "booking_notice" || claim === "forwarding_confirmation" ? "automated" : claim;
 
-  const said = answersOf(email);
+  const answers = answersOf(email);
   const kept = await ports.record({
     tenantId: mailbox.tenant_id,
     address,
@@ -264,16 +278,16 @@ export async function ingestEmail(
     body: bodyOf(email),
     channelTs: email.receivedAt ?? at,
     meta: metaOf(email),
-    optOut: said.optOut,
-    optIn: said.optIn,
-    unsubscribe: said.unsubscribe,
-    optInOffers: said.optInOffers,
-    fromThemProven: said.fromThemProven,
+    optOut: answers.optOut,
+    optIn: answers.optIn,
+    unsubscribe: answers.unsubscribe,
+    optInOffers: answers.optInOffers,
+    fromThemProven: answers.fromThemProven,
     words: replyTextOf(email.text).slice(0, 80) || null,
   });
   if (!kept.is_new && kept.processed) return "already_handled";
   // Said once the email is known to be new work, so a delivery the provider repeats says it once.
-  if (said.unproven)
+  if (answers.unproven)
     emailLog.warn("email_yes_unauthenticated", { tenant_id: mailbox.tenant_id, message_id: kept.message_id });
 
   // A reply to a reach-out is read for what it means (reply_read), whatever it claims: an automatic reply may still
@@ -302,10 +316,33 @@ export async function ingestEmail(
   return flagged ? "kept_for_a_person" : "kept_quietly";
 }
 
+/**
+ * What the workspace said of the sender, and whether the email is left where it is: as it said, or, where it said nothing and
+ * the email claims to be a person's, as they were read to be (decision 0093, one judge, where this road asks: senderLeft).
+ */
+async function senderSortedAs(
+  ports: EmailIngestPorts,
+  tenantId: TenantId,
+  email: IncomingEmail,
+  address: string,
+): Promise<{ word: MailboxSenderVerdict | null; left: "left_as_said" | "left_as_read" | null }> {
+  const word = await senderWordOf(ports, tenantId, address);
+  if (word === "automated") return { word, left: "left_as_said" };
+  if (word || email.claim !== "person") return { word, left: null };
+  const read = await ports.senderLeft?.(tenantId, {
+    from: address,
+    name: email.from?.name ?? null,
+    subject: email.subject,
+    words: email.text ? replyTextOf(email.text) : null,
+    answers: !!email.inReplyTo,
+  });
+  return { word, left: read ? "left_as_read" : null };
+}
+
 /** What the workspace said of the sender, or null where it said nothing, or this road does not ask (senderSaid). */
 async function senderWordOf(
   ports: EmailIngestPorts,
-  tenantId: string,
+  tenantId: TenantId,
   address: string,
 ): Promise<MailboxSenderVerdict | null> {
   return (await ports.senderSaid?.(tenantId, address)) ?? null;
@@ -317,15 +354,15 @@ async function senderWordOf(
  * sender the workspace said is a person), and a tool's notice or a forwarding check the intake could not trust, which is
  * about the business's own appointments or settings. An automatic reply and a program's own mail (a notification, a
  * list, a no-reply sender's) are kept for the record, and nobody is asked to answer them, as a connected mailbox leaves
- * them where they are (edge mailbox-sorting.ts).
+ * them where they are (edge mailbox/sorting.ts).
  */
 function flaggedAs(
   taken: Exclude<EmailClaim, "report" | "booking_notice" | "forwarding_confirmation">,
   claim: EmailClaim,
-  asked: boolean,
+  enabled: boolean,
 ): "person" | "automated" | null {
   if (taken === "auto_reply") return null;
-  return taken === "person" || asked || claim !== "automated" ? taken : null;
+  return taken === "person" || enabled || claim !== "automated" ? taken : null;
 }
 
 /**
@@ -348,7 +385,7 @@ function flaggedAs(
  */
 async function keptAside(
   ports: EmailIngestPorts,
-  mailbox: { id: string; tenant_id: string },
+  mailbox: { id: string; tenant_id: TenantId },
   email: IncomingEmail,
   // The sender in the one spelling a person is stored under, and the moment the intake runs.
   { address, at }: { address: string; at: string },
@@ -383,9 +420,15 @@ async function keptAside(
 async function flagForAPerson(
   ports: EmailIngestPorts,
   email: IncomingEmail,
-  p: { tenantId: string; conversationId: string; address: string; claim: "person" | "automated"; reachOut: boolean },
+  params: {
+    tenantId: TenantId;
+    conversationId: string;
+    address: string;
+    claim: "person" | "automated";
+    reachOut: boolean;
+  },
 ): Promise<void> {
-  const { tenantId, conversationId, claim, reachOut } = p;
+  const { tenantId, conversationId, claim, reachOut } = params;
   const flagged = await ports.escalate(
     tenantId,
     conversationId,
@@ -405,7 +448,7 @@ async function flagForAPerson(
   if (reachOut || (flagged !== "opened" && flagged !== "changed")) return;
   await ports.tell(tenantId, {
     conversationId,
-    from: p.address,
+    from: params.address,
     fromName: email.from?.name ?? null,
     subject: email.subject,
     preview: bodyOf(email)?.slice(0, 280) ?? null,
@@ -421,7 +464,7 @@ async function flagForAPerson(
  * (`senderAuthenticated`): one whose words say yes and whose proof is missing or says no is not recorded, and
  * `unproven` has it said in the log, as either a forgery or an email the provider gave no verdict on.
  */
-function answersOf(e: IncomingEmail): {
+function answersOf(incomingEmail: IncomingEmail): {
   optOut: boolean;
   unsubscribe: boolean;
   optInOffers: boolean;
@@ -430,17 +473,17 @@ function answersOf(e: IncomingEmail): {
   /** A person's own email from a proven sender, whatever it says: proof that their address takes and sends mail. */
   fromThemProven: boolean;
 } {
-  const optOut = asksToStop(e);
-  const yes = !optOut && saysYesToOffers(e);
-  const start = !optOut && asksToStart(e);
-  const proven = e.senderAuthenticated === true;
+  const optOut = asksToStop(incomingEmail);
+  const yes = !optOut && saysYesToOffers(incomingEmail);
+  const start = !optOut && asksToStart(incomingEmail);
+  const proven = incomingEmail.senderAuthenticated === true;
   return {
     optOut,
-    unsubscribe: !optOut && asksToUnsubscribe(e),
+    unsubscribe: !optOut && asksToUnsubscribe(incomingEmail),
     optInOffers: yes && proven,
     optIn: start && proven,
     unproven: (yes || start) && !proven,
-    fromThemProven: e.claim === "person" && proven,
+    fromThemProven: incomingEmail.claim === "person" && proven,
   };
 }
 
@@ -490,21 +533,21 @@ function bodyOf(e: IncomingEmail): string | null {
 }
 
 /** What the row remembers about the email beside its words: enough to thread a reply under it and to show who it was from. */
-function metaOf(e: IncomingEmail): Json {
+function metaOf(incomingEmail: IncomingEmail): Json {
   return {
     email: {
-      subject: e.subject,
-      message_id: e.messageId,
-      in_reply_to: e.inReplyTo,
-      references: e.references.slice(-20),
-      from: e.from?.address ?? null,
-      from_name: e.from?.name ?? null,
-      to: e.to,
-      cc: e.cc,
-      claim: e.claim,
-      attachments: e.attachments.slice(0, 5),
-      more_attachments: Math.max(0, e.attachments.length - 5),
-      truncated: (e.text?.length ?? 0) > EMAIL_BODY_MAX,
+      subject: incomingEmail.subject,
+      message_id: incomingEmail.messageId,
+      in_reply_to: incomingEmail.inReplyTo,
+      references: incomingEmail.references.slice(-20),
+      from: incomingEmail.from?.address ?? null,
+      from_name: incomingEmail.from?.name ?? null,
+      to: incomingEmail.to,
+      cc: incomingEmail.cc,
+      claim: incomingEmail.claim,
+      attachments: incomingEmail.attachments.slice(0, 5),
+      more_attachments: Math.max(0, incomingEmail.attachments.length - 5),
+      truncated: (incomingEmail.text?.length ?? 0) > EMAIL_BODY_MAX,
     },
   };
 }

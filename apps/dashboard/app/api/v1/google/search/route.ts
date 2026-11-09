@@ -1,5 +1,5 @@
-import { write, workspace } from "@/server/route";
-import { searchGoogleFor } from "@/server/connections/google-actions";
+import { write, workspace } from "@/server/shared/route";
+import { searchGoogleFor } from "@/server/settings/google-actions";
 
 /**
  * POST /api/v1/google/search — {query?}: what Google finds for the
@@ -9,7 +9,7 @@ import { searchGoogleFor } from "@/server/connections/google-actions";
  * sign-up, the workspace's own: the first run's Find asks with it. Owners
  * only (linking is theirs); the edge asks Google.
  *
- * The handle is searchGoogleFor in src/server/connections/google-actions.ts: the route is its declaration (who may, how
+ * The handle is searchGoogleFor in src/server/settings/google-actions.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 export const POST = write({

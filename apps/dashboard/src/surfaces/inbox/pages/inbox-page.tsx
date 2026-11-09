@@ -32,7 +32,7 @@ import {
 } from "./inbox-state";
 import { ixKeyLeft } from "../keys";
 import { ixKeepPlace } from "../place";
-import { ixBucketOf, ixOnPhone, ixRank } from "../rules";
+import { ixBucketOf, ixNextMoveAt, ixOnPhone, ixRank } from "../rules";
 import { useNeedsYouParts } from "../../needs-you";
 import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";
 import { canDo, gate, presenceAway } from "../shell";
@@ -65,6 +65,8 @@ const inboxOnScreen = (
   const activeThread: Thread | undefined =
     visible.find((t) => t.id === activeThreadId) ||
     (keepOpenId && keepOpenId === activeThreadId ? threads.find((t) => t.id === keepOpenId) : undefined) ||
+    // Archived is in no list: a link or a search still opens it, beside whichever list is on screen.
+    threads.find((t) => t.id === activeThreadId && ixBucketOf(t) === "out") ||
     visible[0];
   // A deep link (People → "Open thread") to a thread outside the newest
   // hundred must not open someone else's thread in silence. Loaded is the test,
@@ -184,10 +186,9 @@ const inboxCounts = (
   runs: number,
 ) => {
   // Live bucket counts (done keeps its archive baseline of 48 resolved this week)
-  // The Needs you chip counts the threads its list holds that wait on you (the badge's one count is Today's rows, 0048
-  // amended 2 Nov 2026: a week-old hold is here and not there): it counted every flagged thread, yours and a teammate's
-  // too, and a thread you have just answered stays flagged for the whole pause (I2). A reply about to send counts here
-  // and sits in this bucket, by that same rule, and leaves Handled while it counts down.
+  // Needs you's chip counts the threads its list holds, by the rule (thread-move.ts): the badge's one count is Today's rows
+  // (0048, amended 2 Nov 2026), so a week-old wait is here and not there. Waiting's chip counts the threads whose move is
+  // someone else's. A reply about to send counts in Needs you, and leaves wherever it stood while it counts down.
   const bucketsWithCounts = INBOX_BUCKETS.map((b) => ({
     ...b,
     // One rule, so the chip cannot say a number the list does not hold: `ixBucketOf`. It used to ask
@@ -196,11 +197,12 @@ const inboxCounts = (
       threads.filter((t) => ixBucketOf(t) === b.id).length +
       (b.id === "done" ? (INBOX_BASELINE?.doneThisWeek ?? 48) : 0) +
       (b.id === "escalated" ? runs : 0),
-  }));
-  const viewsWithCounts = INBOX_VIEWS.map((v) => ({
-    ...v,
-    count: IX_VIEW_FILTERS[v.id] ? threads.filter(IX_VIEW_FILTERS[v.id]).length : v.count,
-  }));
+    // Set aside stands only where it holds something: it is no list to keep an eye on.
+  })).filter((b) => !b.onlyWithRows || b.count > 0);
+  const viewsWithCounts = INBOX_VIEWS.map((v) => {
+    const inView = IX_VIEW_FILTERS[v.id];
+    return { ...v, count: inView ? threads.filter(inView).length : v.count };
+  });
 
   // Needs-bucket stake summary
   const needsThreads = threads.filter((t) => t.state === "needs");
@@ -497,6 +499,22 @@ const inboxPage = (
   );
 };
 
+/**
+ * A thread's word can end by the clock with no read to say so (contracts threadMoveNow): a reply being worked out that never
+ * comes would say "Replying…" until something else moved. The page draws itself again as the next one runs out, and what it
+ * counts moves with it (inbox-state.tsx needsCount).
+ */
+const useMoveClock = (threads: Thread[]) => {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const now = Date.now();
+    const next = ixNextMoveAt(threads, now);
+    if (next === null) return undefined;
+    const timer = setTimeout(() => tick((n) => n + 1), Math.max(0, next - now));
+    return () => clearTimeout(timer);
+  });
+};
+
 export const Inbox = ({
   density = "medium",
   showAgentRail = true,
@@ -548,6 +566,7 @@ export const Inbox = ({
   // Each thread opened, timed from the press that opened it: a move inside the page.
   usePartShown("inbox", "thread", !!open, open ? open.id : null);
   const withBucketMoves = Object.assign(withScreen, inboxBucketMoves(withScreen));
+  useMoveClock(withBucketMoves.threads);
   const runs = useNeedsYouParts()?.runs ?? 0;
   const full = Object.assign(
     withBucketMoves,

@@ -1,5 +1,5 @@
-import { write, workspace } from "@/server/route";
-import { ActivateBody, activateCapability, deactivateCapability } from "@/server/workspace/capabilities";
+import { write, workspace } from "@/server/shared/route";
+import { ActivateBody, activateCapability, deactivateCapability } from "@/server/setup/capabilities";
 
 /**
  * POST /api/v1/capabilities/:kind — the owner switches a capability on.
@@ -13,7 +13,7 @@ import { ActivateBody, activateCapability, deactivateCapability } from "@/server
  * switching on the workspace's first channel of any kind, also emails the owner that the receptionist is answering.
  * The row and its event are one write on the member's session (00514).
  *
- * The handles are activateCapability and deactivateCapability in src/server/workspace/capabilities.ts: the route is
+ * The handles are activateCapability and deactivateCapability in src/server/setup/capabilities.ts: the route is
  * their declaration (who may, how often), the verbs are what they do.
  */
 export const POST = write({

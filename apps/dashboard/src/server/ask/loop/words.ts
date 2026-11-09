@@ -1,10 +1,10 @@
 import "server-only";
-import { waitingSearchWords, type AskReadSet } from "@chanlytics/contracts";
+import { waitingCardsWords, waitingSearchWords, type AskReadSet } from "@chanlytics/contracts";
 import type { BuiltContext, SearchResultBlock } from "../context";
 import { withSkillGuides } from "../cross-page";
-import { turnWords } from "../prompt";
+import { turnWords } from "../prompt/prompt";
 import { aboveRoleWords } from "../tools";
-import type { TurnInput } from "../loop";
+import type { TurnInput } from "./turn-head";
 
 /**
  * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, the row
@@ -19,14 +19,16 @@ export function wordsBlock(
   rode: { built: BuiltContext | null; crossBlocks: SearchResultBlock[]; scopedRow: unknown; read: AskReadSet },
 ) {
   const focus = input.context?.focus;
-  // A focus is a scope: a run is cited, and so read, as its broadcast; a page is never a row, and an ad has no read
-  // until the Ads read lands (decision 0049), so neither is looked for in the read set.
-  const kind = focus?.kind === "run" ? "broadcast" : focus?.kind === "ad" ? "page" : focus?.kind;
+  // A focus is a scope: a run is cited, and so read, as its broadcast; a page is never a row, an ad has no read until the
+  // Ads read lands (decision 0049), and a file is seen, never cited, so none of those is looked for in the read set.
+  const kind =
+    focus?.kind === "run" ? "broadcast" : focus?.kind === "ad" || focus?.kind === "file" ? "page" : focus?.kind;
   const facts = {
     role: input.role,
     personLabel: input.personLabel,
     scope: input.scope,
     surface: input.surface,
+    pageView: input.context?.view ?? null,
     timezone: input.timezone,
     closures: input.facts.closures,
     focus,
@@ -43,7 +45,8 @@ export function wordsBlock(
   // The search card waiting in this thread for its press, said whole as find would take its plan (contracts
   // waitingSearchWords), so a change said to Ask is that plan changed only there, never planned again from its title.
   const searchCard = waitingSearchWords(input.waiting ?? []);
-  const words = (live: boolean, dataDropped: boolean) => ({
+  const waitingCards = waitingCardsWords(input.waiting ?? []);
+  const closingBlock = (live: boolean, dataDropped: boolean) => ({
     type: "text" as const,
     text: [
       turnWords({
@@ -55,7 +58,8 @@ export function wordsBlock(
         scopeRead: !dataDropped && !!rode.scopedRow,
       }),
       ...(searchCard ? [searchCard] : []),
+      ...(waitingCards ? [waitingCards] : []),
     ].join("\n"),
   });
-  return withSkillGuides(words, input.text);
+  return withSkillGuides(closingBlock, input.text);
 }

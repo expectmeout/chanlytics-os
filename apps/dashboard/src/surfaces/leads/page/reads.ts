@@ -7,16 +7,19 @@ import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
   leadReachOf,
+  leadStatusGroupsOf,
   leadsRoute,
   type LeadBand,
   type LeadChips,
   type LeadReachFilter,
   type LeadRowVM,
   type LeadSort,
+  type LeadStatusGroup,
   type PersonRowVM,
 } from "@chanlytics/contracts";
+import { hrefOfRoute } from "@/bridge/workspace";
 import type { TableState } from "../../kit/table/state";
-import { refusalToast } from "../../legacy-verbs";
+import { refusalToast } from "../../frame-verbs";
 import { placeLoad } from "../../people/shell-verbs";
 import type { Flash } from "../../people/types";
 import { leadPhotoWarm } from "../peek/seams";
@@ -37,10 +40,12 @@ export const leadChipsOf = (n: {
   chip: string | null;
   fitChip: LeadChips["fit"] | null;
   reach: readonly LeadReachFilter[];
+  statusGroups: readonly LeadStatusGroup[];
 }): LeadChips => ({
   ...(n.chip ? { excluded_by: n.chip } : {}),
   ...(n.fitChip ? { fit: n.fitChip } : {}),
   ...(n.reach.length ? { reach: [...n.reach] } : {}),
+  ...(n.statusGroups.length ? { status_group: [...n.statusGroups] } : {}),
 });
 
 /** The words a view's place keeps (use-place.ts): what its box says again as it opens, and what its read asks. */
@@ -100,8 +105,8 @@ export const useLeadsRead = ({
       pileList,
     });
   }, [viewRoute, chipped, q, sortBy, sortDir, pileList]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The next page, its own flag, so the button says Loading… while THIS is out and not while a Keep is, and a second press
-  // while it loads asks for nothing.
+  // The next page, its own flag, so the button says Loading more… while THIS is out and not while a Keep is, and a second
+  // press, or the scroll's own asking, while it loads asks for nothing.
   const [leadsMoreBusy, setLeadsMoreBusy] = useState(false);
   const loadMore = async () => {
     if (leadsMoreBusy) return;
@@ -120,15 +125,17 @@ export const useLeadsRead = ({
 /** One of the band's fits (D5): the strong ones, the ones worth a look, the long shots. */
 type LeadFit = LeadBand["fits"][number]["id"];
 const NO_REACH: LeadReachFilter[] = [];
+const NO_GROUPS: LeadStatusGroup[] = [];
 
 /**
  * The page's narrowings, each a filter of the table's (kit/table/state.ts) on its column (cells/columns.tsx): one
- * criterion of the Excluded view (`f_excluded`), a fit, and the Filter's reach (`f_reach`: a checked email, a checked
- * phone, or both). The Filter is kept with the view's place, as the map is, so Back puts it back and another view starts
- * without it.
+ * criterion of the Excluded view (`f_excluded`), a fit, the Filter's reach (`f_reach`: a checked email, a checked phone,
+ * or both), and the status groups a heading's menu asks (`f_status`, 00552). Each is kept with the view's place, as the
+ * map is, so Back puts it back and another view starts without it.
  */
 export const leadNarrowings = (table: TableState) => {
   const reach = table.filterOf("f_reach");
+  const groups = table.filterOf("f_status");
   return {
     chip: (table.filterOf("f_excluded") as string | null) ?? null,
     setChip: (why: string | null) => table.setFilter("f_excluded", why),
@@ -136,6 +143,9 @@ export const leadNarrowings = (table: TableState) => {
     setFitChip: (fit: LeadFit | null) => table.setFilter("fit", fit),
     reach: Array.isArray(reach) ? leadReachOf(reach) : NO_REACH,
     setReach: (r: readonly LeadReachFilter[]) => table.setFilter("f_reach", r.length ? leadReachOf(r) : null),
+    statusGroups: Array.isArray(groups) ? leadStatusGroupsOf(groups) : NO_GROUPS,
+    setStatusGroups: (g: readonly LeadStatusGroup[]) =>
+      table.setFilter("f_status", g.length ? leadStatusGroupsOf(g) : null),
   };
 };
 export type LeadNarrowings = ReturnType<typeof leadNarrowings>;
@@ -175,6 +185,7 @@ export const useLeadChipsAddress = ({
         narrow.setChip(leadView.chips.excluded_by ?? null);
         narrow.setFitChip(leadView.chips.fit ?? null);
         narrow.setReach(leadView.chips.reach ?? NO_REACH);
+        narrow.setStatusGroups(leadView.chips.status_group ?? NO_GROUPS);
       }
       return;
     }
@@ -267,17 +278,22 @@ type LeadCellDoors = Pick<
   | "onKeep"
   | "onExclude"
   | "onPutBack"
+  | "onAdd"
 >;
-type CellValues = Pick<LeadCellCtx, "values" | "mixedFits" | "hasCenter" | "canFind" | "peopleRows" | "stageShown">;
+type CellValues = Pick<
+  LeadCellCtx,
+  "mixedFits" | "hasCenter" | "canFind" | "peopleRows" | "stageShown" | "pickName" | "grouped"
+>;
 type Kept = (CellValues & { ctx: LeadCellCtx }) | null;
 
 const sameValues = (k: CellValues, v: CellValues) =>
-  k.values === v.values &&
   k.mixedFits === v.mixedFits &&
   k.hasCenter === v.hasCenter &&
   k.canFind === v.canFind &&
   k.peopleRows === v.peopleRows &&
-  k.stageShown === v.stageShown;
+  k.stageShown === v.stageShown &&
+  k.pickName === v.pickName &&
+  k.grouped === v.grouped;
 
 /**
  * A cell context for the Leads scope that changes only when a value a cell draws from changes. The doors go to the page's
@@ -292,16 +308,22 @@ const leadCellCtxFor = (
   acts: RefObject<LeadCellDoors | null>,
   kept: RefObject<Kept>,
   v: {
-    values: boolean;
     mixedFits: boolean;
     hasCenter: boolean;
     canFind: boolean;
     peopleRows: readonly PersonRowVM[];
     stageShown?: boolean;
+    pickName?: string | null;
+    grouped?: boolean;
   },
   callMenu: LeadCallHandle,
 ): LeadCellCtx => {
-  const now: CellValues = { ...v, stageShown: v.stageShown ?? false };
+  const now: CellValues = {
+    ...v,
+    stageShown: v.stageShown ?? false,
+    pickName: v.pickName ?? null,
+    grouped: v.grouped ?? false,
+  };
   const k = kept.current;
   if (k && sameValues(k, now)) return k.ctx;
   const door = (name: keyof LeadCellDoors) => (id: string) => {
@@ -310,6 +332,8 @@ const leadCellCtxFor = (
   };
   const ctx: LeadCellCtx = {
     onOpen: door("onOpen"),
+    // Over All leads whatever view the row stands in: the lead's own address, the same from every view.
+    hrefOf: (id) => hrefOfRoute(leadsRoute({ peek: id })),
     onOpenPerson: door("onOpenPerson"),
     onExpand: door("onExpand"),
     ...now,
@@ -322,6 +346,7 @@ const leadCellCtxFor = (
     onKeep: door("onKeep"),
     onExclude: door("onExclude"),
     onPutBack: door("onPutBack"),
+    onAdd: door("onAdd"),
     callMenu,
   };
   kept.current = { ...now, ctx };

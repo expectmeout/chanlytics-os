@@ -4,10 +4,10 @@ import {
   CALL_UNANSWERED_WORDS,
   REACH_OUT_EMAILED_WORDS,
   activityKindWords,
-} from "../workspace/activity";
+} from "../workspace/activity/kinds";
 
 /**
- * The activity log, read the way the bell reads its notes (today/today-away.ts bellSections): rows of one kind by one
+ * The activity log, read the way the bell reads its notes (today/away.ts bellSections): rows of one kind by one
  * hand on one day are said once, where the newest of them stood, and open with a press.
  *
  * On the owner's own log a hundred lines in one minute read "Ruben Segura · Listened to a call's recording", every one
@@ -158,13 +158,13 @@ export interface ActivityLineVM<T extends ActivityFoldRow> {
 function foldTitle(members: readonly ActivityFoldRow[], words: FoldWords): string {
   const newest = members[0];
   if (!newest) return "";
-  const n =
+  const count =
     words.counts === "rows"
       ? members.length
       : new Set(members.map((m) => (m.subject_id ? `${m.subject_type ?? ""}:${m.subject_id}` : `@${m.id}`))).size;
   // Several rows about one thing (a call's recording opened in two different hours) are that thing, said once, and how
   // often: "Listened to 1 calls' recordings" is not a sentence.
-  return n === 1 ? `${activityKindWords(newest.kind)} · ${members.length} times` : words.many(n, newest);
+  return count === 1 ? `${activityKindWords(newest.kind)} · ${members.length} times` : words.many(count, newest);
 }
 
 /**
@@ -189,8 +189,8 @@ export function activityLines<T extends ActivityFoldRow>(
     }
   }
   const lines: ActivityLineVM<T>[] = [];
-  for (const k of order) {
-    const members = byKey.get(k) ?? [];
+  for (const key of order) {
+    const members = byKey.get(key) ?? [];
     const newest = members[0];
     if (!newest) continue;
     const words = FOLD_WORDS[newest.kind];
@@ -199,7 +199,7 @@ export function activityLines<T extends ActivityFoldRow>(
       continue;
     }
     lines.push({
-      key: k,
+      key: key,
       row: newest,
       count: members.length,
       title: foldTitle(members, words),
@@ -241,12 +241,14 @@ export function activityRowsForLines<T extends ActivityFoldRow>(
  * add (a visit's own address, calendar/<day>:a-<id>): the id alone is the shape the board reads without one.
  */
 export function activityDoor(
-  r: Pick<ActivityFoldRow, "subject_type" | "subject_id"> & { kind?: string },
+  activityFold: Pick<ActivityFoldRow, "subject_type" | "subject_id"> & { kind?: string },
 ): string | null {
-  const home = activitySubjectHome(r.subject_type);
-  if (home && "door" in home) return home.door(r.subject_id);
+  const home = activitySubjectHome(activityFold.subject_type);
+  if (home && "door" in home) return home.door(activityFold.subject_id);
   // The workspace has no page, but a change of one of its panes opens that pane (subjects.ts workspaceChangeDoor).
-  return (r.subject_type === "workspace" || r.subject_type === "tenant") && r.kind ? workspaceChangeDoor(r.kind) : null;
+  return (activityFold.subject_type === "workspace" || activityFold.subject_type === "tenant") && activityFold.kind
+    ? workspaceChangeDoor(activityFold.kind)
+    : null;
 }
 
 /**

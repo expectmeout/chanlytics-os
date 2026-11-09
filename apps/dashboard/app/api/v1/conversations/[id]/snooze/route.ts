@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { NEEDS_UNTIL, snooze } from "@chanlytics/core";
-import { write } from "@/server/route";
-import { conversationScope } from "@/server/verbs";
-import { threadPorts } from "@/server/ports/core-ports";
+import { write } from "@/server/shared/route";
+import { conversationScope } from "@/server/shared/verbs";
+import { threadPorts } from "@/server/conversations/ports";
 
 /** Snooze: hide from the queue until a wake time. The receptionist stays active. */
 export const POST = write({

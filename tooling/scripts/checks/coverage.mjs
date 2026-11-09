@@ -36,7 +36,7 @@ export const AREAS = [
   { key: "server", label: "the dashboard's server (apps/dashboard/src/server)", tree: "apps/dashboard/src/server" },
 ];
 
-export const FLOORS = "tooling/scripts/tests/baselines/coverage.json";
+export const FLOORS = "tests/baselines/coverage.json";
 /** How far under the last measure a floor sits, in points: V8 on another platform or version counts a line differently. */
 export const SLACK = 2;
 
@@ -78,15 +78,22 @@ const ratio = ({ found, hit }) => (found ? hit / found : 0);
 
 /** A package's own modules: each read from its bundle and from its source, whichever ran more of it. */
 function packageArea(pkg, report, root) {
-  const bundlePath = `packages/${pkg}/dist/index.js`;
-  const bundle = fs.existsSync(path.join(root, bundlePath))
-    ? modulesOfBundle(fs.readFileSync(path.join(root, bundlePath), "utf8"))
-    : new Map();
-  const ran = report.get(bundlePath);
+  const dist = path.join(root, `packages/${pkg}/dist`);
+  const bundles = !fs.existsSync(dist)
+    ? []
+    : fs.existsSync(path.join(dist, "index.js"))
+      ? ["index.js"]
+      : fs.readdirSync(dist).filter((f) => f.endsWith(".js"));
   const byModule = new Map();
-  for (const [mod, lines] of bundle) {
-    const counted = ran ? lines.filter((l) => ran.has(l)) : lines;
-    byModule.set(mod, { found: counted.length, hit: ran ? counted.filter((l) => ran.get(l) > 0).length : 0 });
+  for (const name of bundles) {
+    const bundlePath = `packages/${pkg}/dist/${name}`;
+    const ran = report.get(bundlePath);
+    for (const [mod, lines] of modulesOfBundle(fs.readFileSync(path.join(root, bundlePath), "utf8"))) {
+      const counted = ran ? lines.filter((l) => ran.has(l)) : lines;
+      const one = { found: counted.length, hit: ran ? counted.filter((l) => ran.get(l) > 0).length : 0 };
+      const was = byModule.get(mod);
+      if (!was || ratio(one) > ratio(was)) byModule.set(mod, one);
+    }
   }
   const prefix = `packages/${pkg}/`;
   for (const [file, lines] of report) {

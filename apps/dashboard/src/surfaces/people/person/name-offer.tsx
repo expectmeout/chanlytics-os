@@ -12,10 +12,10 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { PERSON_NAME_WORDS, type PersonNameAct } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { api } from "@/bridge/api";
 import { Button } from "../../kit/button/button";
 import { Notice } from "../../kit/notice/notice";
-import { meNow } from "../../legacy-verbs";
+import { meNow } from "../../frame-verbs";
 
 /** What the page's toast is told. */
 type NameSay = (flash: { tone?: string; msg: ReactNode; ms?: number; undo?: (() => void) | null }) => void;

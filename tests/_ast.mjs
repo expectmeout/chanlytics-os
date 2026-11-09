@@ -1,0 +1,2021 @@
+/**
+ * Measuring the code as code, for the ratchets that hold a number.
+ *
+ * Every measure here walks the syntax tree the TypeScript compiler builds, never
+ * the text: a comment that mentions `window.__foo` or `as unknown as` is not a
+ * global or a cast, and a string that contains one is not either. That is also
+ * why none of this counts against the source-scan ratchet — nothing in here
+ * reads a file to search it.
+ *
+ * The file set is `git ls-files`, so a checkout and a desk measure the same
+ * thing (the lesson the source-scan ratchet learned on its first CI run), less
+ * what is not our source: built and generated files, and `apps/<app>/public/`, the
+ * files the browser loads as they are (the vendored MapLibre bundle, the service
+ * worker), which Prettier leaves alone for the same reason. It is dropped here,
+ * once, so no measure counts it.
+ *
+ * Definitions, so a number here can be re-derived by hand:
+ *   lines     from a function's first token to its closing brace, inclusive
+ *   branches  cyclomatic complexity as ESLint's `complexity` counts it: one, plus
+ *             one per if, loop, case, catch, ternary, `&&`, `||`, `??`, `&&=`,
+ *             `||=`, `??=`, `?.`, and default (a parameter's, a destructured
+ *             name's)
+ *   depth     the nesting ESLint's `max-depth` counts: if, switch, try and loops;
+ *             an `if` that is an `else` adds none, so an else-if chain is flat
+ * A nested function, and a class's static block, is a function of its own: its
+ * branches and depth are not its container's, as they are not to ESLint, so when
+ * a tree's baseline empties and the rules go on, they find what this found. A
+ * class field's initializer counts toward no function (ESLint measures it apart,
+ * and nothing here writes one that is complex). Checked against ESLint itself in
+ * repo/measures.test.mjs.
+ *
+ * Not named *.test.mjs on purpose: the runner globs that pattern.
+ */
+import ts from "typescript";
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { builtinModules } from "node:module";
+import { ROOT } from "./_source.mjs";
+
+export const SOURCE = /\.(ts|tsx|js|jsx|mjs)$/;
+const NOT_SOURCE =
+  /(^|\/)(dist|node_modules|\.next)\/|^apps\/[^/]+\/public\/|\.generated\.ts$|database\.types\.ts$|\.d\.ts$/;
+
+/** Repo-relative paths under `trees`, as the repository has them, that exist on disk. */
+export function repoFiles(trees, { keep = SOURCE, drop = NOT_SOURCE } = {}) {
+  let list;
+  try {
+    list = execFileSync("git", ["ls-files", "--", ...trees], { cwd: ROOT, encoding: "utf8" }).split("\n");
+  } catch {
+    list = trees.flatMap((t) => walk(path.join(ROOT, t)).map((p) => path.relative(ROOT, p)));
+  }
+  return list
+    .map((l) => l.trim().split(path.sep).join("/"))
+    .filter((f) => f && keep.test(f) && !drop.test(f) && fs.existsSync(path.join(ROOT, f)));
+}
+
+function walk(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => {
+    const p = path.join(dir, d.name);
+    return d.isDirectory() ? walk(p) : [p];
+  });
+}
+
+const parsed = new Map();
+
+/** The syntax tree of one repo-relative file, parsed once per process. */
+export function parse(file) {
+  const hit = parsed.get(file);
+  if (hit) return hit;
+  const text = fs.readFileSync(path.join(ROOT, file), "utf8");
+  const kind = file.endsWith(".tsx")
+    ? ts.ScriptKind.TSX
+    : file.endsWith(".jsx")
+      ? ts.ScriptKind.JSX
+      : file.endsWith(".ts")
+        ? ts.ScriptKind.TS
+        : ts.ScriptKind.JS;
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
+  parsed.set(file, sf);
+  return sf;
+}
+
+/**
+ * A function in ESLint's sense: a code path of its own, whose branches and depth are
+ * its own and not its container's. A class's static block is one too (ESLint's
+ * `complexity` and `max-depth` both start over in it).
+ */
+const isFunction = (n) =>
+  ts.isFunctionDeclaration(n) ||
+  ts.isFunctionExpression(n) ||
+  ts.isArrowFunction(n) ||
+  ts.isMethodDeclaration(n) ||
+  ts.isConstructorDeclaration(n) ||
+  ts.isGetAccessor(n) ||
+  ts.isSetAccessor(n) ||
+  ts.isClassStaticBlockDeclaration(n);
+
+/** A class field's initializer: its own code path to ESLint, so no function's branches, and not a function here. */
+const isFieldInitializer = (n) => n.parent && ts.isPropertyDeclaration(n.parent) && n.parent.initializer === n;
+
+/** What ESLint's `complexity` adds one for: these statements and clauses (a `case`, never `default`)... */
+const BRANCHES = new Set([
+  ts.SyntaxKind.IfStatement,
+  ts.SyntaxKind.ConditionalExpression,
+  ts.SyntaxKind.ForStatement,
+  ts.SyntaxKind.ForInStatement,
+  ts.SyntaxKind.ForOfStatement,
+  ts.SyntaxKind.WhileStatement,
+  ts.SyntaxKind.DoStatement,
+  ts.SyntaxKind.CaseClause,
+  ts.SyntaxKind.CatchClause,
+]);
+/** ...each `&&`, `||` and `??`, and each logical assignment, which short-circuits as they do... */
+const SHORT_CIRCUIT = new Set([
+  ts.SyntaxKind.AmpersandAmpersandToken,
+  ts.SyntaxKind.BarBarToken,
+  ts.SyntaxKind.QuestionQuestionToken,
+  ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+  ts.SyntaxKind.BarBarEqualsToken,
+  ts.SyntaxKind.QuestionQuestionEqualsToken,
+]);
+/** ESLint `max-depth`: the statements that nest; an `if` that is another's `else` does not. */
+const NESTS = new Set([
+  ts.SyntaxKind.IfStatement,
+  ts.SyntaxKind.SwitchStatement,
+  ts.SyntaxKind.TryStatement,
+  ts.SyntaxKind.DoStatement,
+  ts.SyntaxKind.WhileStatement,
+  ts.SyntaxKind.WithStatement,
+  ts.SyntaxKind.ForStatement,
+  ts.SyntaxKind.ForInStatement,
+  ts.SyntaxKind.ForOfStatement,
+]);
+const isElseIf = (n) => ts.isIfStatement(n) && ts.isIfStatement(n.parent) && n.parent.elseStatement === n;
+
+/** Whether an array or object literal is written to, as a destructuring target (`[a = 1] = xs`), and not read. */
+function isDestructured(n) {
+  const p = n.parent;
+  if (ts.isParenthesizedExpression(p) || ts.isArrayLiteralExpression(p) || ts.isSpreadElement(p))
+    return isDestructured(p);
+  if (ts.isPropertyAssignment(p) || ts.isSpreadAssignment(p)) return isDestructured(p.parent);
+  // The left of `=` is written, wherever the `=` stands (`[a] = xs`, and the `[a]` of `[[a] = []] = xs`).
+  if (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.EqualsToken) return p.left === n;
+  if (ts.isForOfStatement(p) || ts.isForInStatement(p)) return p.initializer === n;
+  return false;
+}
+
+/**
+ * ESLint's AssignmentPattern, a default that runs only when a value is missing: a
+ * parameter's, a destructured binding's (`const { a = 1 } = o`), and a destructuring
+ * assignment's (`({ a = 1 } = o)`, `[a = 1] = xs`).
+ */
+function isDefault(n) {
+  if (ts.isParameter(n) || ts.isBindingElement(n)) return n.initializer !== undefined;
+  if (ts.isShorthandPropertyAssignment(n)) return n.objectAssignmentInitializer !== undefined;
+  if (!ts.isBinaryExpression(n) || n.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return false;
+  const p = n.parent;
+  if (ts.isArrayLiteralExpression(p)) return isDestructured(p);
+  return ts.isPropertyAssignment(p) && p.initializer === n && isDestructured(p.parent);
+}
+
+/** ...and each `?.` and each default. */
+function addsBranch(n) {
+  if (BRANCHES.has(n.kind) || isDefault(n)) return true;
+  if (ts.isBinaryExpression(n)) return SHORT_CIRCUIT.has(n.operatorToken.kind);
+  // `a?.b`, `a?.[k]` and `f?.()`: each `?.` is a branch; the links after it are not.
+  if (ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n) || ts.isCallExpression(n)) {
+    return n.questionDotToken !== undefined;
+  }
+  return false;
+}
+
+/** One function's branches and depth: its parameters and body, stopping at every function inside it. */
+function measureOf(fn) {
+  let branches = 1;
+  let depth = 0;
+  const walk = (n, d) => {
+    if (isFunction(n) || isFieldInitializer(n)) return;
+    if (addsBranch(n)) branches++;
+    if (NESTS.has(n.kind) && !isElseIf(n)) depth = Math.max(depth, ++d);
+    ts.forEachChild(n, (c) => walk(c, d));
+  };
+  ts.forEachChild(fn, (c) => walk(c, 0));
+  return { branches, depth };
+}
+
+/** A function's own name, or null for one that has none (a callback, a handler, an IIFE). */
+function nameOf(n) {
+  if (ts.isClassStaticBlockDeclaration(n)) return "(static)";
+  if (n.name && ts.isIdentifier(n.name)) return n.name.text;
+  if (ts.isConstructorDeclaration(n)) return "constructor";
+  const p = n.parent;
+  if (p && ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) return p.name.text;
+  if (p && ts.isPropertyAssignment(p) && ts.isIdentifier(p.name)) return p.name.text;
+  return null;
+}
+
+/**
+ * Where a function with no name is written: what it is handed to (`useEffect(fn)`,
+ * `Promise(fn)`, `onClick={fn}`), under the named function around it
+ * (`PeopleReal/useEffect(fn)`). A callback is numbered among those alone, so one
+ * added elsewhere in the file does not rename it.
+ */
+function placeOf(n) {
+  const p = n.parent;
+  let place = "(anonymous)";
+  if (p && (ts.isCallExpression(p) || ts.isNewExpression(p)) && p.expression !== n) {
+    const callee = p.expression;
+    const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : "";
+    place = `${name || "(call)"}(fn)`;
+  } else if (p && ts.isJsxExpression(p) && p.parent && ts.isJsxAttribute(p.parent)) {
+    place = `${p.parent.name.getText()}={fn}`;
+  }
+  for (let a = p; a; a = a.parent) {
+    const owner = isFunction(a) ? nameOf(a) : null;
+    if (owner) return `${owner}/${place}`;
+  }
+  return place;
+}
+
+/**
+ * Every function with a body in one file: `{ key, name, line, lines, branches, depth }`.
+ * `key` is `<name>#<n>`, the n-th function of that name in the file in source order —
+ * stable across edits above it, which a line number is not. A function with no name
+ * is named by its place (`placeOf`).
+ */
+export function functionsIn(sf) {
+  const out = [];
+  const seen = new Map();
+  const visit = (node) => {
+    if (isFunction(node) && node.body) {
+      const name = nameOf(node) ?? placeOf(node);
+      const n = (seen.get(name) ?? 0) + 1;
+      seen.set(name, n);
+      const start = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line;
+      const end = sf.getLineAndCharacterOfPosition(node.end).line;
+      out.push({ key: `${name}#${n}`, name, line: start + 1, lines: end - start + 1, ...measureOf(node) });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** Lines in a file, as an editor counts them. */
+export function linesOf(sf) {
+  return sf.getLineAndCharacterOfPosition(sf.end).line + (sf.text.endsWith("\n") ? 0 : 1);
+}
+
+/** An expression under its parentheses, casts, `satisfies` and `!` (`(window as any)`, `<T>window` and `window!` are
+ * `window`); nothing stays nothing. The window measures and the durations measure read through it alike. */
+function bare(e) {
+  while (
+    e &&
+    (ts.isParenthesizedExpression(e) ||
+      ts.isAsExpression(e) ||
+      ts.isTypeAssertionExpression(e) ||
+      ts.isNonNullExpression(e) ||
+      ts.isSatisfiesExpression(e))
+  ) {
+    e = e.expression;
+  }
+  return e;
+}
+
+/** The node a declaration's name is visible in: a `var`'s function, a `let`'s or `const`'s block or loop, a catch clause. */
+function scopeOf(decl) {
+  const list = decl.parent;
+  if (ts.isCatchClause(list)) return list;
+  if (ts.isVariableDeclarationList(list) && !(list.flags & ts.NodeFlags.BlockScoped)) {
+    let n = list.parent;
+    while (n && !ts.isFunctionLike(n) && !ts.isSourceFile(n)) n = n.parent;
+    return n;
+  }
+  return ts.isVariableStatement(list.parent) ? list.parent.parent : list.parent;
+}
+
+/**
+ * A test for "this expression is the window" in one file: `window` or `globalThis`
+ * under any cast, or a name bound to one (`const w = window as unknown as {…}`).
+ * A name is resolved to its nearest declaration, so a `w` that is a parameter or
+ * some other value in another function is not the window because one `w` is.
+ */
+function windowTest(sf) {
+  const declared = new Map(); // scope node → Map(name → initializer or null)
+  const bind = (name, scope, init) => {
+    if (ts.isIdentifier(name)) {
+      if (!declared.has(scope)) declared.set(scope, new Map());
+      declared.get(scope).set(name.text, init ?? null);
+    } else {
+      for (const el of name.elements) if (!ts.isOmittedExpression(el)) bind(el.name, scope, null);
+    }
+  };
+  const collect = (n) => {
+    if (ts.isVariableDeclaration(n)) bind(n.name, scopeOf(n), n.initializer);
+    else if (ts.isParameter(n)) bind(n.name, n.parent, null);
+    ts.forEachChild(n, collect);
+  };
+  collect(sf);
+  const isWindow = (e, hops = 0) => {
+    e = bare(e);
+    if (!ts.isIdentifier(e) || hops > 8) return false;
+    for (let s = e.parent; s; s = s.parent) {
+      const names = declared.get(s);
+      if (names?.has(e.text)) {
+        const init = names.get(e.text);
+        return init !== null && init !== e && isWindow(init, hops + 1);
+      }
+    }
+    return e.text === "window" || e.text === "globalThis";
+  };
+  return isWindow;
+}
+
+/**
+ * How one file uses the window: the `__names` it reads or writes, and the sites that
+ * publish something on it (`Object.assign(window, {…})` and `window.x = …`). A cast
+ * hides none of it: `(window as any).__x`, `(<T>window).__x`, `const w = window as T;
+ * w.__x` and `const { __x } = window as T` all read `__x`.
+ */
+export function windowUse(sf) {
+  const isWindow = windowTest(sf);
+  const names = new Set();
+  let publishers = 0;
+  const quoted = (e) => ts.isStringLiteral(e) && e.text.startsWith("__");
+  const visit = (n) => {
+    if (ts.isPropertyAccessExpression(n) && n.name.text.startsWith("__") && isWindow(n.expression)) {
+      names.add(n.name.text);
+    }
+    if (ts.isElementAccessExpression(n) && quoted(n.argumentExpression) && isWindow(n.expression)) {
+      names.add(n.argumentExpression.text);
+    }
+    if (ts.isVariableDeclaration(n) && ts.isObjectBindingPattern(n.name) && n.initializer && isWindow(n.initializer)) {
+      for (const el of n.name.elements) {
+        const key = el.propertyName ?? el.name;
+        if ((ts.isIdentifier(key) && key.text.startsWith("__")) || quoted(key)) names.add(key.text);
+      }
+    }
+    if (
+      ts.isBinaryExpression(n) &&
+      n.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      (ts.isPropertyAccessExpression(n.left) || ts.isElementAccessExpression(n.left)) &&
+      isWindow(n.left.expression)
+    ) {
+      publishers++;
+    }
+    if (
+      ts.isCallExpression(n) &&
+      ts.isPropertyAccessExpression(n.expression) &&
+      n.expression.name.text === "assign" &&
+      ts.isIdentifier(n.expression.expression) &&
+      n.expression.expression.text === "Object" &&
+      n.arguments[0] &&
+      isWindow(n.arguments[0])
+    ) {
+      publishers++;
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return { names, publishers };
+}
+
+/** The names a file declares at its top level: functions, and `const`/`let`/`var` bindings. */
+export function topLevelNames(sf) {
+  const names = [];
+  for (const st of sf.statements) {
+    if (ts.isFunctionDeclaration(st) && st.name) names.push(st.name.text);
+    if (ts.isVariableStatement(st)) {
+      for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name)) names.push(d.name.text);
+    }
+  }
+  return names;
+}
+
+/** Names declared at top level in `limit` or more of these files, each with the number of files. */
+export function copiesAmong(sourceFiles, limit) {
+  const files = new Map();
+  for (const sf of sourceFiles) {
+    for (const n of new Set(topLevelNames(sf))) files.set(n, (files.get(n) ?? 0) + 1);
+  }
+  return Object.fromEntries([...files].filter(([, count]) => count >= limit));
+}
+
+const isCast = (n) => ts.isAsExpression(n) || ts.isTypeAssertionExpression(n);
+
+/**
+ * `x as unknown as T`: the number of times a value is laundered through `unknown`,
+ * however it is written: `(x as unknown) as T`, `<T><unknown>x` and `<T>(<unknown>x)` too.
+ */
+export function unknownCasts(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (isCast(m) && m.type.kind === ts.SyntaxKind.UnknownKeyword) {
+      let outer = m.parent;
+      while (outer && ts.isParenthesizedExpression(outer)) outer = outer.parent;
+      if (outer && isCast(outer)) n++;
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** A cast to `unknown`, parentheses and all: the inner half of `x as unknown as T`. */
+const isUnknownCast = (n) => {
+  while (ts.isParenthesizedExpression(n)) n = n.expression;
+  return isCast(n) && n.type.kind === ts.SyntaxKind.UnknownKeyword;
+};
+
+/**
+ * `x as never`: a value told it is nothing, so the compiler stops checking where it goes (the keys of an RPC's
+ * arguments, a column's type), however it is written, `<never>x` too. The outer half of `x as unknown as never` is
+ * laundering through unknown, counted there and not here.
+ */
+export function neverCasts(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (isCast(m) && m.type.kind === ts.SyntaxKind.NeverKeyword && !isUnknownCast(m.expression)) n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** `x!`: a value the compiler is told is neither null nor undefined, and takes on trust. `let x!: T` is not one. */
+export function nonNullAssertions(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isNonNullExpression(m)) n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/**
+ * The casts the casts measure holds, by family, for one module: `{ unknownAs, never, nonNull }`, a family the
+ * module has none of left out, so a module with none is no entry.
+ */
+export function castsIn(sf) {
+  const counts = { unknownAs: unknownCasts(sf), never: neverCasts(sf), nonNull: nonNullAssertions(sf) };
+  return Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0));
+}
+
+/**
+ * The `style` props a module's markup carries: `style={{ … }}` or `style={value}`, on an element or a component. A
+ * prop is a value no look can reach (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, rule 1); a class that
+ * reads tokens can. A `style` key in an object, or a string that says `style=`, is not one.
+ */
+export function inlineStyles(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isJsxAttribute(m) && ts.isIdentifier(m.name) && m.name.text === "style") n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/**
+ * A piece of a string that ends where a record's route, or a link to a page of a workspace, is built by hand: a record's
+ * route head (`inbox/th-`, `conversations/cv-`, `broadcasts/run:`, `campaigns/moment:`, `campaigns/message:`, the retired
+ * `outbound/`, `clients/`, `live/`) or a link's (`/w/`, `#/`), with the id or the slug to follow.
+ */
+const HAND_ROUTE =
+  /(?:^|[^\w-])(?:inbox\/th-|conversations\/(?:cv-)?|broadcasts\/run:|campaigns\/(?:moment|message):|outbound\/|clients\/|live\/|w\/|#\/)$/;
+
+/**
+ * The routes and links a module builds by hand (the wiring's second audit, S5-6): a template literal or a `+` whose text
+ * before a value is a record's route head or a link's (HAND_ROUTE), each counted once. contracts' addressOf and appLink
+ * are the one writer of them; a place that builds its own spells a route the page may not open, or a retired one.
+ */
+export function handRoutesIn(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isTemplateExpression(m)) {
+      // The text before each value: the head, then each span's text but the last's (which no value follows).
+      const before = [m.head.text, ...m.templateSpans.slice(0, -1).map((s) => s.literal.text)];
+      if (before.some((t) => HAND_ROUTE.test(t))) n++;
+    } else if (
+      ts.isBinaryExpression(m) &&
+      m.operatorToken.kind === ts.SyntaxKind.PlusToken &&
+      ts.isStringLiteral(m.left) &&
+      HAND_ROUTE.test(m.left.text)
+    )
+      n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+const NOT_A_TABLE = new Set([
+  "Buffer",
+  "Array",
+  "Uint8Array",
+  "Int8Array",
+  "Float32Array",
+  "Float64Array",
+  "ArrayBuffer",
+  "Set",
+  "Map",
+  "Object",
+  "Blob",
+  "String",
+]);
+
+/** `.from("<table>")`: each table named by its string in this file, once per call. `Buffer.from("…")` is not one. */
+export function tablesNamedIn(sf) {
+  const names = [];
+  const visit = (m) => {
+    if (
+      ts.isCallExpression(m) &&
+      ts.isPropertyAccessExpression(m.expression) &&
+      m.expression.name.text === "from" &&
+      !(ts.isIdentifier(m.expression.expression) && NOT_A_TABLE.has(m.expression.expression.text)) &&
+      m.arguments.length >= 1 &&
+      ts.isStringLiteralLike(m.arguments[0]) &&
+      /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text)
+    ) {
+      names.push(m.arguments[0].text);
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return names;
+}
+
+/** The supabase-js calls that write rows, as a chain's next link after `.from("<table>")`. */
+const ROW_WRITES = new Set(["insert", "upsert", "update", "delete"]);
+
+/**
+ * The tables this module writes through supabase-js: each `.from("<table>")` whose next link inserts, upserts, updates
+ * or deletes. Storage's `.from("<bucket>")` is not a table, and neither is a name the schema does not have; the writers
+ * ratchet (_measures.mjs) keeps only the schema's tables.
+ */
+export function tablesWrittenIn(sf) {
+  const names = new Set();
+  const visit = (m) => {
+    if (
+      ts.isCallExpression(m) &&
+      ts.isPropertyAccessExpression(m.expression) &&
+      m.expression.name.text === "from" &&
+      m.arguments.length >= 1 &&
+      ts.isStringLiteralLike(m.arguments[0]) &&
+      /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text) &&
+      !(ts.isPropertyAccessExpression(m.expression.expression) && m.expression.expression.name.text === "storage") &&
+      !(ts.isIdentifier(m.expression.expression) && NOT_A_TABLE.has(m.expression.expression.text)) &&
+      ts.isPropertyAccessExpression(m.parent) &&
+      ROW_WRITES.has(m.parent.name.text) &&
+      ts.isCallExpression(m.parent.parent)
+    ) {
+      names.add(m.arguments[0].text);
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return [...names];
+}
+
+/**
+ * `.rpc("<function>", …)`: a SQL function called by its string, in this file. The tables ratchet counts it beside
+ * `.from("<table>")`: a door or a reader that calls a function is reading or writing a table all the same.
+ */
+export function rpcNames(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (isRpcCall(m)) n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** The SQL functions this file calls by name, `.rpc("<function>", …)`, each once: who calls what, for docs/sql-map.md. */
+export function rpcCallNames(sf) {
+  const names = new Set();
+  const visit = (m) => {
+    if (isRpcCall(m)) names.add(m.arguments[0].text);
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return [...names];
+}
+
+// `.rpc("x")`, or `rpc("x")` through a client's rpc bound to a name (people/person-details.ts): the bound calls went
+// uncounted until 25 Oct 2026, and the setup review read three of People's doors as reached by nothing.
+const isRpcCall = (m) =>
+  ts.isCallExpression(m) &&
+  ((ts.isPropertyAccessExpression(m.expression) && m.expression.name.text === "rpc") ||
+    (ts.isIdentifier(m.expression) && m.expression.text === "rpc")) &&
+  m.arguments.length >= 1 &&
+  ts.isStringLiteralLike(m.arguments[0]) &&
+  /^[a-z][a-z0-9_]*$/.test(m.arguments[0].text);
+
+/** The links that answer a chain's failed statement: a `.then` or a `.catch` has it in hand, `.throwOnError()` throws it. */
+const ERROR_ANSWERED_BY = new Set(["then", "catch", "throwOnError"]);
+
+/**
+ * What a chain asks of the database, read from its outermost link in: `write` (`.from(…)` with a row write), `read`
+ * (`.from(…)` with none) or `rpc`. Null for a chain that answers its own error and for anything else: a call handed the
+ * statement (`teamCall(db.rpc("x"))`) reads what it was handed, and `Array.from(…)` is no table.
+ */
+function dbStatementOf(chain) {
+  let writes = false;
+  for (let n = bare(chain); ts.isCallExpression(n);) {
+    const link = bare(n.expression);
+    if (!ts.isPropertyAccessExpression(link)) return isRpcCall(n) ? "rpc" : null;
+    const word = link.name.text;
+    if (ERROR_ANSWERED_BY.has(word)) return null;
+    if (word === "rpc" && n.arguments.length) return "rpc";
+    const on = bare(link.expression);
+    if (word === "from" && n.arguments.length) {
+      if (ts.isIdentifier(on) && NOT_A_TABLE.has(on.text)) return null;
+      return writes ? "write" : "read";
+    }
+    writes ||= ROW_WRITES.has(word);
+    n = on;
+  }
+  return null;
+}
+
+/** What an `await` holds, each on its own: the statements written in a `Promise.all([…])` or `Promise.allSettled([…])`, else itself. */
+function awaitedEach(awaited) {
+  const call = bare(awaited);
+  if (!ts.isCallExpression(call) || !ts.isPropertyAccessExpression(call.expression)) return [call];
+  const { expression: on, name } = call.expression;
+  const list = bare(call.arguments[0]);
+  const all = ts.isIdentifier(on) && on.text === "Promise" && (name.text === "all" || name.text === "allSettled");
+  return all && list && ts.isArrayLiteralExpression(list) ? list.elements : [call];
+}
+
+/** Each name a file declares, by the node it is visible in (scopeOf), a parameter's by its function: how a use finds its own. */
+function namesDeclaredIn(sf) {
+  const scopes = new Map();
+  const bind = (name, scope) => {
+    if (ts.isIdentifier(name)) scopes.set(scope, (scopes.get(scope) ?? new Map()).set(name.text, name));
+    else for (const el of name.elements) if (!ts.isOmittedExpression(el)) bind(el.name, scope);
+  };
+  const walk = (n) => {
+    if (ts.isVariableDeclaration(n)) bind(n.name, scopeOf(n));
+    else if (ts.isParameter(n)) bind(n.name, n.parent);
+    ts.forEachChild(n, walk);
+  };
+  walk(sf);
+  return scopes;
+}
+
+/**
+ * Whether a result held by a name drops its error: every use of the name reads a field of it, and none reads `.error`. A
+ * result handed on whole (to a call, a return, another destructure) is read by what it goes to, so it is not counted.
+ */
+function heldWithoutItsError(name, scope, declared) {
+  const isOwn = (m) => {
+    for (let s = m.parent; s; s = s.parent) {
+      const nearest = declared.get(s)?.get(m.text);
+      if (nearest) return nearest === name;
+    }
+    return false;
+  };
+  // A property's or a declaration's own name is no use of the result; `{ r }` is one.
+  const merelyNames = (m) =>
+    (m.parent.name === m && !ts.isShorthandPropertyAssignment(m.parent)) || m.parent.propertyName === m;
+  const uses = [];
+  const walk = (m) => {
+    if (ts.isIdentifier(m) && m.text === name.text && !merelyNames(m) && isOwn(m)) uses.push(m);
+    ts.forEachChild(m, walk);
+  };
+  walk(scope);
+  return uses.every((use) => {
+    let at = use;
+    while (bare(at.parent) !== at.parent) at = at.parent;
+    return ts.isPropertyAccessExpression(at.parent) && at.parent.expression === at && at.parent.name.text !== "error";
+  });
+}
+
+/** What an expression awaits, under its parentheses and casts; null when it is no `await`. */
+function awaitedIn(e) {
+  const held = bare(e);
+  return held && ts.isAwaitExpression(held) ? held.expression : null;
+}
+
+/**
+ * The line of each database result whose error is dropped. supabase-js answers a failed statement with `{ error }` and
+ * never throws, and `tenantDb` throws only on misuse, so a `try` around it catches nothing and nothing else says it failed.
+ * A write or an rpc awaited as a statement, whose result nobody reads, looks done. A read looks like no row when `error`
+ * is left out of its destructure (one out of a `Promise.all` too), when it is `(await …).data`, and when a name holds the
+ * result and is read only for other fields. A model cannot hold this class (a trial on 6 Nov 2026 scored the real cases as
+ * it scored fixed code), so this does.
+ */
+export function droppedDbErrorsIn(sf) {
+  const lines = [];
+  const found = (n) => lines.push(sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1);
+  let declared = null;
+  const drops = (name, decl) => {
+    if (ts.isObjectBindingPattern(name))
+      return !name.elements.some((e) => (e.propertyName ?? e.name).getText(sf) === "error");
+    declared ??= namesDeclaredIn(sf);
+    return ts.isIdentifier(name) && heldWithoutItsError(name, scopeOf(decl), declared);
+  };
+  const visit = (m) => {
+    const unread = ts.isExpressionStatement(m) ? awaitedIn(m.expression) : null;
+    if (unread) {
+      for (const e of awaitedEach(unread)) {
+        const asks = dbStatementOf(e);
+        if (asks === "write" || asks === "rpc") found(e);
+      }
+    }
+    const bound = ts.isVariableDeclaration(m) ? awaitedIn(m.initializer) : null;
+    if (bound && ts.isArrayBindingPattern(m.name)) {
+      const each = awaitedEach(bound);
+      m.name.elements.forEach((el, i) => {
+        if (!ts.isOmittedExpression(el) && each[i] && dbStatementOf(each[i]) && drops(el.name, m)) found(el);
+      });
+    } else if (bound && dbStatementOf(bound) && drops(m.name, m)) found(m);
+    const field = ts.isPropertyAccessExpression(m) && m.name.text !== "error" ? awaitedIn(m.expression) : null;
+    if (field && dbStatementOf(field)) found(m);
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return lines;
+}
+
+/** The dashboard's service-role client: RLS off, its tenant fence written by hand at each place that takes it. */
+const SERVICE_ROLE = new Set(["serviceDb", "serviceDbIfConfigured"]);
+
+/**
+ * Whether a client expression in this file is the service role's: a call of `serviceDb()` or `serviceDbIfConfigured()`,
+ * or a name bound to one (`const db = serviceDb()`). A route's session client is fenced by row-level security, so the
+ * dashboard's workspaceless measure reads only statements built on this (decision 0111).
+ */
+export function serviceRoleClientsOf(sf) {
+  const isServiceCall = (e) =>
+    ts.isCallExpression(e) && ts.isIdentifier(e.expression) && SERVICE_ROLE.has(e.expression.text);
+  const bound = new Set();
+  const visit = (m) => {
+    if (ts.isVariableDeclaration(m) && ts.isIdentifier(m.name) && m.initializer && isServiceCall(m.initializer))
+      bound.add(m.name.text);
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return (client) => isServiceCall(client) || (ts.isIdentifier(client) && bound.has(client.text));
+}
+
+/**
+ * Each place this file takes the service-role client: a call of `serviceDb()` or `serviceDbIfConfigured()`, or the
+ * function handed on as a value. An import names it without taking it, and its own module declares it.
+ */
+export function serviceRoleReaches(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isImportDeclaration(m)) return;
+    if (
+      ts.isIdentifier(m) &&
+      SERVICE_ROLE.has(m.text) &&
+      !(ts.isFunctionDeclaration(m.parent) && m.parent.name === m) &&
+      !(ts.isPropertyAccessExpression(m.parent) && m.parent.name === m)
+    )
+      n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/**
+ * The modules a file names: each `import … from`, `export … from`, `import("…")` with a literal, and
+ * `import x = require("…")`. `typeOnly` is true when nothing the statement names survives compilation (`import type`,
+ * `export type`, or an import whose every name is `type`). A dynamic import is never type-only. `names` are the
+ * values an `import { … }` takes (the module's own names, type-only elements left out); empty for anything else.
+ */
+export function importsOf(sf) {
+  const out = [];
+  const visit = (n) => {
+    if (
+      (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) &&
+      n.moduleSpecifier &&
+      ts.isStringLiteral(n.moduleSpecifier)
+    ) {
+      out.push({ specifier: n.moduleSpecifier.text, typeOnly: statementIsTypeOnly(n), names: valueNamesOf(n) });
+    } else if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference)) {
+      const e = n.moduleReference.expression;
+      if (ts.isStringLiteral(e)) out.push({ specifier: e.text, typeOnly: n.isTypeOnly });
+    } else if (
+      ts.isCallExpression(n) &&
+      n.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      n.arguments.length >= 1 &&
+      ts.isStringLiteralLike(n.arguments[0])
+    ) {
+      out.push({ specifier: n.arguments[0].text, typeOnly: false });
+    } else if (ts.isImportTypeNode(n) && ts.isLiteralTypeNode(n.argument) && ts.isStringLiteral(n.argument.literal)) {
+      out.push({ specifier: n.argument.literal.text, typeOnly: true });
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** The names an `import { a, b as c }` takes from its module, as the module calls them; none for any other statement. */
+function valueNamesOf(n) {
+  const named =
+    ts.isImportDeclaration(n) && n.importClause && !n.importClause.isTypeOnly ? n.importClause.namedBindings : null;
+  if (!named || !ts.isNamedImports(named)) return [];
+  return named.elements.filter((e) => !e.isTypeOnly).map((e) => (e.propertyName ?? e.name).text);
+}
+
+function statementIsTypeOnly(n) {
+  if (ts.isExportDeclaration(n)) {
+    if (n.isTypeOnly) return true;
+    const named = n.exportClause && ts.isNamedExports(n.exportClause) ? n.exportClause.elements : null;
+    return !!named && named.length > 0 && named.every((e) => e.isTypeOnly);
+  }
+  const clause = n.importClause;
+  if (!clause) return false; // `import "x"`: a side effect, never a type
+  if (clause.isTypeOnly) return true;
+  if (clause.name) return false;
+  const named = clause.namedBindings;
+  return !!named && ts.isNamedImports(named) && named.elements.length > 0 && named.elements.every((e) => e.isTypeOnly);
+}
+
+/**
+ * How many of a file's imports name one of `forbidden` (module specifiers as patterns), types left out: an import that
+ * survives compilation is the one that holds the module's code in the file. A specifier is read as written, so a
+ * relative facade (`../lib/pg.js`) and its package (`@chanlytics/db`) are two patterns.
+ */
+export function importsMatching(sf, forbidden) {
+  return importsOf(sf).filter((i) => !i.typeOnly && forbidden.some((re) => re.test(i.specifier))).length;
+}
+
+/** The names a built bundle exports: its `export { a, b as c }` clauses of its own (esbuild writes one, at the end). */
+export function bundleExports(sf) {
+  const out = new Set();
+  for (const st of sf.statements) {
+    if (!ts.isExportDeclaration(st) || st.moduleSpecifier || !st.exportClause || !ts.isNamedExports(st.exportClause))
+      continue;
+    for (const e of st.exportClause.elements) out.add(e.name.text);
+  }
+  return out;
+}
+
+/** The values a module declares with `export`: a function, a class, an enum, a `const`/`let`/`var` binding. */
+function exportedValues(sf) {
+  const out = [];
+  for (const st of sf.statements) {
+    if (!(ts.canHaveModifiers(st) && ts.getModifiers(st)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)))
+      continue;
+    if (ts.isVariableStatement(st)) {
+      for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name)) out.push(d.name.text);
+    } else if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st) || ts.isEnumDeclaration(st)) && st.name) {
+      out.push(st.name.text);
+    }
+  }
+  return out;
+}
+
+/** Every identifier a file writes, and every string that could name one (`m["toVM"]`, a name read through a string). */
+function namesIn(sf) {
+  const out = new Set();
+  const visit = (n) => {
+    if (ts.isIdentifier(n)) out.add(n.text);
+    else if (ts.isStringLiteralLike(n) && /^[A-Za-z_$][\w$]*$/.test(n.text)) out.add(n.text);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/**
+ * A package's exported values that no other module imports: `{ file: [name, …] }` over `modules`, the package's own
+ * modules, for each value its barrel makes public (`publicNames`) that no file of `readers` but its own mentions.
+ * The caller leaves the package's barrels out of `readers`: a barrel re-exports a name, it does not read it. knip
+ * enters each package at its barrel, so to knip every one of these is public and used; this is the pass it cannot
+ * make. A name another module happens to share counts as read, so the count is a floor.
+ */
+export function unimportedExports(modules, publicNames, readers) {
+  const readBy = new Map();
+  for (const { file, sf } of readers) {
+    for (const name of namesIn(sf)) {
+      if (!publicNames.has(name)) continue;
+      if (!readBy.has(name)) readBy.set(name, new Set());
+      readBy.get(name).add(file);
+    }
+  }
+  const out = {};
+  for (const { file, sf } of modules) {
+    for (const name of exportedValues(sf)) {
+      if (!publicNames.has(name)) continue;
+      const by = readBy.get(name);
+      if (!by || [...by].every((f) => f === file)) (out[file] ??= []).push(name);
+    }
+  }
+  return out;
+}
+
+/** The package a bare specifier names (`@scope/name`, `name`), or null for a relative path or a Node built-in. */
+export function packageOf(specifier) {
+  if (specifier.startsWith(".") || specifier.startsWith("/") || specifier.startsWith("node:")) return null;
+  const parts = specifier.split("/");
+  const name = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
+  return NODE_BUILTINS.has(name) ? null : name;
+}
+
+const NODE_BUILTINS = new Set(builtinModules);
+/** How many `.from("<table>")` calls this file makes: what the tables ratchet counts. */
+export const tableNames = (sf) => tablesNamedIn(sf).length;
+
+/* ---- Statements on a workspace's table that name no workspace (the workspaceless ratchet) ---- */
+
+/** The comments at the top of a module, before its first statement: its header, as text. */
+export function headerOf(sf) {
+  const text = sf.getFullText();
+  return (ts.getLeadingCommentRanges(text, 0) ?? []).map((r) => text.slice(r.pos, r.end)).join("\n");
+}
+
+/** What a chain may start at and be counted for neither: `tenantDb` names the workspace, `platformWide` says it chose none. */
+const SCOPING_ROOTS = new Set(["tenantDb", "platformWide"]);
+
+/** The methods that carry a filter, and the ones that write a row (whose object may name its workspace). */
+const FILTERS = new Set(["eq", "match", "filter", "in"]);
+const WRITES = new Set(["insert", "upsert", "update"]);
+
+/** Whether an object literal names the workspace: a `tenant_id` key, or a spread we cannot see into is not one. */
+const namesTenantKey = (o) =>
+  ts.isObjectLiteralExpression(o) &&
+  o.properties.some(
+    (p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && p.name.getText() === "tenant_id",
+  );
+
+/**
+ * The statements in this module that read or write a table with a `tenant_id` and name no workspace: a `.from("t")`
+ * chain with no `.eq("tenant_id", …)` (or `.match({ tenant_id })`, `.in("tenant_id", …)`), whose rows carry no
+ * `tenant_id` key when it writes, and that does not start at `tenantDb(db, id)`, which names the workspace for every
+ * statement it builds (packages/db tenant-db.ts). The service role skips row-level security, so such a statement is
+ * scoped only by an id its author trusted; where that is on purpose (a sweep, a provider's webhook) the file says so in
+ * its header, `Cross-workspace: <why>`, and is not measured at all (workspaceless in _measures.mjs).
+ */
+export function workspacelessStatements(sf, tenantTables, where = [], { onClient = () => true } = {}) {
+  let n = 0;
+  const visit = (m) => {
+    if (
+      ts.isCallExpression(m) &&
+      ts.isPropertyAccessExpression(m.expression) &&
+      m.expression.name.text === "from" &&
+      onClient(m.expression.expression) &&
+      !(ts.isIdentifier(m.expression.expression) && NOT_A_TABLE.has(m.expression.expression.text)) &&
+      m.arguments.length >= 1 &&
+      ts.isStringLiteralLike(m.arguments[0]) &&
+      tenantTables.has(m.arguments[0].text) &&
+      !(
+        ts.isCallExpression(m.expression.expression) &&
+        ts.isIdentifier(m.expression.expression.expression) &&
+        SCOPING_ROOTS.has(m.expression.expression.expression.text)
+      )
+    ) {
+      // The chain from this `.from(...)` outward: each `.method(args)` that hangs off it.
+      let named = false;
+      let at = m;
+      for (;;) {
+        const access = at.parent;
+        if (!access || !ts.isPropertyAccessExpression(access) || access.expression !== at) break;
+        const call = access.parent;
+        if (!call || !ts.isCallExpression(call) || call.expression !== access) break;
+        const method = access.name.text;
+        const [first] = call.arguments;
+        if (FILTERS.has(method) && first) {
+          if (method === "match" ? namesTenantKey(first) : ts.isStringLiteralLike(first) && first.text === "tenant_id")
+            named = true;
+        }
+        if (WRITES.has(method) && first) {
+          const rows = ts.isArrayLiteralExpression(first) ? first.elements : [first];
+          if (method !== "update" && rows.length > 0 && rows.every(namesTenantKey)) named = true;
+        }
+        at = call;
+      }
+      if (!named) {
+        n++;
+        where.push(sf.getLineAndCharacterOfPosition(m.getStart(sf)).line + 1);
+      }
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/* ---- Lengths of time written as bare numbers (the durations ratchet) ---- */
+
+const K = ts.SyntaxKind;
+/** A minute, an hour, a day and a week in milliseconds: what contracts' shared/time.ts names MIN_MS … WEEK_MS. */
+const UNIT_MS = new Set([60_000, 3_600_000, 86_400_000, 604_800_000]);
+/** A name that says it holds milliseconds (`LEASE_MS`, `ttlMs`, `max_call_duration_ms`) or is a unit (`MIN`, `DAY`). */
+const SAYS_MS = /(^|[a-z0-9])Ms$|(^|_)(MS|ms)$|^(MIN|MINUTE|HOUR|DAY|WEEK)S?$/;
+/** The words of a name that say its value is in another unit: metres, characters, bytes, tokens, cents, seconds. */
+const OTHER_UNITS = new Set(
+  "m km meters metres chars characters bytes kb mb tokens cents s sec secs seconds".split(" "),
+);
+/** A name with such a word anywhere (`RADIUS_MAX_M`, `TAB_TOTAL_CHARS`, `ASK_TOKENS_DAY`, `maxBytes`): not a time. */
+const saysOtherUnit = (name) =>
+  name.split(/[^A-Za-z0-9]+|(?<=[a-z0-9])(?=[A-Z])/).some((w) => OTHER_UNITS.has(w.toLowerCase()));
+const OFFSET_OPS = new Set([
+  K.PlusToken,
+  K.MinusToken,
+  K.LessThanToken,
+  K.LessThanEqualsToken,
+  K.GreaterThanToken,
+  K.GreaterThanEqualsToken,
+]);
+
+const numberOf = (n) => Number(n.text.replace(/_/g, ""));
+const isProduct = (n) => ts.isBinaryExpression(n) && n.operatorToken.kind === K.AsteriskToken;
+/** `n` with the parentheses around it: the node its parent sees. */
+function inParens(n) {
+  let c = n;
+  while (c.parent && ts.isParenthesizedExpression(c.parent)) c = c.parent;
+  return c;
+}
+/** The factors of a product, through parentheses: `hours * (3600 * 1000)` is hours, 3600 and 1000. */
+function factorsOf(n, out = []) {
+  const b = bare(n);
+  if (isProduct(b)) {
+    factorsOf(b.left, out);
+    factorsOf(b.right, out);
+  } else out.push(b);
+  return out;
+}
+/** The whole product a number is a factor of, or the number itself. */
+function productAround(n) {
+  let c = n;
+  for (;;) {
+    const up = inParens(c);
+    if (up.parent && isProduct(up.parent)) c = up.parent;
+    else return c;
+  }
+}
+/** The name a value initialises (a const, a property, a parameter's default), or null. */
+function slotNameOf(n) {
+  const o = inParens(n);
+  const p = o.parent;
+  const slot =
+    p &&
+    (ts.isVariableDeclaration(p) ||
+      ts.isPropertyAssignment(p) ||
+      ts.isPropertyDeclaration(p) ||
+      ts.isParameter(p) ||
+      ts.isBindingElement(p)) &&
+    p.initializer === o;
+  return slot ? p.name.getText() : null;
+}
+/** The name of the nearest declaration whose value holds `n` (`reply_delay_ms: z.number().max(600000)`), or null. */
+function holderNameOf(n) {
+  for (let p = n.parent; p; p = p.parent) {
+    if (ts.isVariableDeclaration(p) || ts.isPropertyAssignment(p) || ts.isPropertyDeclaration(p) || ts.isParameter(p))
+      return p.name.getText();
+    if (ts.isBlock(p) || ts.isSourceFile(p) || ts.isFunctionLike(p)) return null;
+  }
+  return null;
+}
+/** A timer's delay, AbortSignal.timeout's argument, or a `timeout:` option handed to a call: a length of time by place. */
+function isTimerSlot(n) {
+  const o = inParens(n);
+  const p = o.parent;
+  if (!p) return false;
+  if (ts.isCallExpression(p)) {
+    const c = p.expression;
+    const name = ts.isIdentifier(c) ? c.text : ts.isPropertyAccessExpression(c) ? c.name.text : "";
+    if ((name === "setTimeout" || name === "setInterval") && p.arguments[1] === o) return true;
+    if (name === "timeout" && ts.isPropertyAccessExpression(c) && c.expression.getText() === "AbortSignal")
+      return p.arguments[0] === o;
+  }
+  if (ts.isPropertyAssignment(p) && p.initializer === o && /^(timeout|timeoutMs)$/.test(p.name.getText())) {
+    const holder = inParens(p.parent).parent;
+    return !!holder && (ts.isCallExpression(holder) || ts.isNewExpression(holder));
+  }
+  return false;
+}
+/** A number that makes a timer's value: the value, its floor or cap (`Math.max(500, …)`), its default (`?? 400`), a branch. */
+function inTimerSlot(n) {
+  for (let c = n; ;) {
+    if (isTimerSlot(c)) return true;
+    const up = inParens(c);
+    const p = up.parent;
+    const passes =
+      p &&
+      ((ts.isConditionalExpression(p) && p.condition !== up) ||
+        (ts.isBinaryExpression(p) &&
+          (p.operatorToken.kind === K.QuestionQuestionToken || p.operatorToken.kind === K.BarBarToken)) ||
+        (ts.isCallExpression(p) && p.arguments.includes(up) && /^Math\.(min|max)$/.test(p.expression.getText())));
+    if (!passes) return false;
+    c = p;
+  }
+}
+/** A value in milliseconds: Date.now(), x.getTime(), performance.now(), or a name that says so (`now`, `sentAt`, `budgetMs`). */
+function inMs(e) {
+  const b = bare(e);
+  if (ts.isCallExpression(b)) {
+    if (/^(Date\.(now|parse|UTC)|performance\.now|now)$/.test(b.expression.getText())) return true;
+    return ts.isPropertyAccessExpression(b.expression) && /^(getTime|now)$/.test(b.expression.name.text);
+  }
+  if (ts.isIdentifier(b) || ts.isPropertyAccessExpression(b)) {
+    return /^now(Ms)?$|[a-z0-9](At|Ms)$|AtMs$|_(at|ms)$|_MS$/.test(ts.isIdentifier(b) ? b.text : b.name.text);
+  }
+  if (ts.isBinaryExpression(b) && (b.operatorToken.kind === K.MinusToken || b.operatorToken.kind === K.PlusToken))
+    return inMs(b.left) || inMs(b.right);
+  return false;
+}
+
+/** Why the product (or lone number) `top` is an unnamed length of time, or null when it is not one. */
+function durationOf(top) {
+  const factors = factorsOf(top);
+  const numbers = factors.filter((f) => ts.isNumericLiteral(f));
+  if (numbers.length === 0) return null;
+  const values = numbers.map(numberOf);
+  const v = values.reduce((a, b) => a * b, 1);
+  if (v === 0) return null;
+  const allNumbers = numbers.length === factors.length;
+  if (allNumbers && inTimerSlot(top)) return "a timer's delay";
+  if (v >= 60_000 && v % 60_000 === 0) {
+    // A name that says another unit wins: RADIUS_MAX_M = 60_000 is metres, not a minute.
+    const slot = allNumbers ? slotNameOf(top) : null;
+    if (slot !== null && saysOtherUnit(slot)) return null;
+    // Then the spelling, whatever the name: time's own factors, or a unit's own value.
+    const spelled =
+      (values.includes(1000) && values.some((x) => x === 60 || x === 3600 || x === 24 || x === 86_400)) ||
+      (numbers.length > 1 && values.some((x) => UNIT_MS.has(x)));
+    if (spelled) return "a unit spelled by hand";
+    if (numbers.length === 1 && UNIT_MS.has(v)) return "a unit's value";
+    // Then a bare whole number of minutes (300_000): as the value of a name that says no other unit, a time, so
+    // dropping `_MS` from the name hides nothing; inside an expression, only when the name holding it says so.
+    if (slot !== null) return `the value of ${slot}`;
+    const holder = holderNameOf(top);
+    return holder && SAYS_MS.test(holder) ? `a length of time in ${holder}` : null;
+  }
+  if (allNumbers && v >= 100) {
+    const o = inParens(top);
+    const p = o.parent;
+    if (p && ts.isBinaryExpression(p) && OFFSET_OPS.has(p.operatorToken.kind) && inMs(p.left === o ? p.right : p.left))
+      return "an offset from a time";
+  }
+  return null;
+}
+
+/**
+ * The lengths of time in one file written as bare numbers, where contracts' shared/time.ts (MIN_MS, HOUR_MS,
+ * DAY_MS, WEEK_MS) or a named constant should say what they are: `{ line, text, why }`, one per number or product
+ * of numbers. A number is a length of time when its place or its spelling says so:
+ *
+ *   - a timer's delay: setTimeout's and setInterval's, AbortSignal.timeout's, a `timeout:` option handed to a call,
+ *     or a floor, cap, default or branch of one (`Math.max(500, …)`, `?? 400`); a zero is not a delay;
+ *   - a whole number of minutes in milliseconds, spelled by hand, judged in this order. A name that says another
+ *     unit wins: `RADIUS_MAX_M = 60_000` is metres, `TAB_TOTAL_CHARS = 600_000` characters, `ASK_TOKENS_DAY`
+ *     tokens. Then the spelling, wherever it stands and whatever the name: time's own factors
+ *     (`LEASE = 5 * 60 * 1000`, `[5 * 60_000]`, `hours * 3600 * 1000`) or a unit's own value (`WINDOW = 60_000`,
+ *     `days * 86_400_000`, `/ 60000`). Then a bare whole number of minutes (`300_000`), which is the value of any
+ *     other name (`TIMEOUT = 300_000`, `ttlMs: 300_000`), so dropping the unit from a name hides nothing, and
+ *     inside an expression counts only when the name holding it says milliseconds
+ *     (`reply_delay_ms: z.number().max(600000)`);
+ *   - a number of at least 100 added to, taken from or compared with a value in milliseconds (`now + 50_000`).
+ *
+ * Not counted, on purpose: seconds (`24 * 60 * 60`, a max-age), which stay in their unit; `* 1000` and `/ 1000`,
+ * which change the unit and are not a length; a named constant that is not a whole minute (`RETRY_MS = 800`), which is
+ * already named; and a call's argument whose parameter is a timeout, which the tree cannot see without types.
+ */
+export function durationsIn(sf) {
+  const out = [];
+  const seen = new Set();
+  const visit = (n) => {
+    if (ts.isNumericLiteral(n)) {
+      const top = productAround(n);
+      if (!seen.has(top)) {
+        seen.add(top);
+        const why = durationOf(top);
+        if (why)
+          out.push({ line: sf.getLineAndCharacterOfPosition(top.getStart(sf)).line + 1, text: top.getText(sf), why });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** The options a date formatter takes that say a part of a date or a time (Intl.DateTimeFormatOptions). */
+const DATE_PARTS = new Set([
+  "weekday",
+  "era",
+  "year",
+  "month",
+  "day",
+  "dayPeriod",
+  "hour",
+  "minute",
+  "second",
+  "fractionalSecondDigits",
+  "timeZoneName",
+  "dateStyle",
+  "timeStyle",
+]);
+
+/** A property's name as written, when it is a name or a string; null for a computed one or a spread. */
+const propertyName = (p) =>
+  (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p) || ts.isMethodDeclaration(p)) &&
+  (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))
+    ? p.name.text
+    : null;
+
+/**
+ * What a formatter's options say of a zone: "none" when there are none or a literal names no `timeZone`, "zoned" when
+ * it names one, and "unread" when they are a value the tree cannot read (a name, a call, a literal with a spread).
+ */
+function zoneOfOptions(options) {
+  if (!options) return "none";
+  const o = ts.isParenthesizedExpression(options) ? options.expression : options;
+  if (!ts.isObjectLiteralExpression(o) || o.properties.some((p) => ts.isSpreadAssignment(p))) return "unread";
+  return o.properties.some((p) => propertyName(p) === "timeZone") ? "zoned" : "none";
+}
+
+/** Whether a literal of options names a part of a date or a time. */
+const saysADate = (options) =>
+  !!options &&
+  ts.isObjectLiteralExpression(options) &&
+  options.properties.some((p) => DATE_PARTS.has(propertyName(p) ?? ""));
+
+/** `Intl.DateTimeFormat`, as written. */
+const isDateTimeFormat = (e) =>
+  ts.isPropertyAccessExpression(e) &&
+  e.name.text === "DateTimeFormat" &&
+  ts.isIdentifier(e.expression) &&
+  e.expression.text === "Intl";
+
+/**
+ * The dates one file says with no zone (`{ line, text }`, one per site): an instant formatted in the zone the code runs
+ * in, the browser's or a server's UTC, where contracts' clock.ts says it in the workspace's. A site is:
+ *
+ *   - `new Intl.DateTimeFormat(…)` or `Intl.DateTimeFormat(…)`, or contracts' `formatterOnUse(…)`, whose options name
+ *     no `timeZone`, none given included; a call read only for `.resolvedOptions()`, the runtime's own zone asked for,
+ *     is not one;
+ *   - `.toLocaleDateString(…)` or `.toLocaleTimeString(…)` with no `timeZone`, and `.toLocaleString(…)` with none on a
+ *     `new Date(…)` or with a date's parts among its options (a number's is not one).
+ *
+ * Options handed as a value the tree cannot read are not counted: it can see neither a zone in them nor its absence.
+ * contracts' `dateFormat` takes a zone by its type, and is never one.
+ */
+export function zonelessDatesIn(sf) {
+  const out = [];
+  const site = (n) =>
+    out.push({ line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1, text: n.getText(sf).slice(0, 120) });
+  const visit = (n) => {
+    if ((ts.isNewExpression(n) || ts.isCallExpression(n)) && isDateTimeFormat(n.expression)) {
+      const asked = ts.isPropertyAccessExpression(n.parent) && n.parent.name.text === "resolvedOptions";
+      if (!asked && zoneOfOptions(n.arguments?.[1]) === "none") site(n);
+    } else if (ts.isCallExpression(n)) {
+      const callee = n.expression;
+      const name = ts.isIdentifier(callee)
+        ? callee.text
+        : ts.isPropertyAccessExpression(callee)
+          ? callee.name.text
+          : null;
+      const options = n.arguments[1];
+      if (name === "formatterOnUse" && zoneOfOptions(options) === "none") site(n);
+      else if ((name === "toLocaleDateString" || name === "toLocaleTimeString") && zoneOfOptions(options) === "none")
+        site(n);
+      else if (
+        name === "toLocaleString" &&
+        ts.isPropertyAccessExpression(callee) &&
+        zoneOfOptions(options) === "none"
+      ) {
+        let on = callee.expression;
+        while (ts.isParenthesizedExpression(on)) on = on.expression;
+        const ofADate = ts.isNewExpression(on) && ts.isIdentifier(on.expression) && on.expression.text === "Date";
+        if (ofADate || saysADate(options)) site(n);
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** The locales whose format of a date is "YYYY-MM-DD", which a hand-written day key borrows. */
+const DAY_KEY_LOCALES = new Set(["en-CA", "sv-SE"]);
+
+/** A call or a `new` of a number formatter: `numberFormat(…)`, `Intl.NumberFormat(…)`. */
+const isNumberFormat = (e) => {
+  while (ts.isParenthesizedExpression(e)) e = e.expression;
+  if (!ts.isCallExpression(e) && !ts.isNewExpression(e)) return false;
+  const callee = e.expression;
+  return (
+    (ts.isIdentifier(callee) && callee.text === "numberFormat") ||
+    (ts.isPropertyAccessExpression(callee) &&
+      callee.name.text === "NumberFormat" &&
+      ts.isIdentifier(callee.expression) &&
+      callee.expression.text === "Intl")
+  );
+};
+
+/**
+ * The places one file reads a time zone itself (`{ line, text }`, one per site), where contracts' shared/zone/math.ts
+ * is the one reading of a zone (zoneParts, dayInZone, clockInZone, dayPlusInZone, usableZone):
+ *
+ *   - `.formatToParts(…)` of anything but a number formatter (`numberFormat(…)`, `Intl.NumberFormat`), since the
+ *     parts of a date are a zone's reading;
+ *   - a day key borrowed from a locale's format: `Intl.DateTimeFormat`, `dateFormat` or `formatterOnUse` built for
+ *     "en-CA" or "sv-SE", whose dates read "YYYY-MM-DD".
+ *
+ * Five modules read a zone's parts and a dozen wrote their own day key until 29 October 2026, each with its own answer
+ * to a zone Intl cannot use (throw, UTC, null, the machine's own day) and three of them a day as 24 hours.
+ */
+export function zoneReadersIn(sf) {
+  const out = [];
+  const site = (n) =>
+    out.push({ line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1, text: n.getText(sf).slice(0, 120) });
+  const visit = (n) => {
+    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+      if (n.expression.name.text === "formatToParts" && !isNumberFormat(n.expression.expression)) site(n);
+    }
+    if ((ts.isNewExpression(n) || ts.isCallExpression(n)) && n.arguments?.length) {
+      const callee = n.expression;
+      const formatter =
+        isDateTimeFormat(callee) ||
+        (ts.isIdentifier(callee) && (callee.text === "dateFormat" || callee.text === "formatterOnUse"));
+      const locale = n.arguments[0];
+      if (formatter && (ts.isStringLiteral(locale) || ts.isNoSubstitutionTemplateLiteral(locale)))
+        if (DAY_KEY_LOCALES.has(locale.text)) site(n);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** A call of `readFileSync`, bare or as a property (`fs.readFileSync`). */
+const isReadFileSync = (n) =>
+  ts.isCallExpression(n) &&
+  ((ts.isIdentifier(n.expression) && n.expression.text === "readFileSync") ||
+    (ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === "readFileSync"));
+
+/** Whether a subtree holds a node `test` answers true for. */
+const holdsNode = (node, test) => {
+  let hit = false;
+  const visit = (n) => {
+    if (hit) return;
+    if (test(n)) hit = true;
+    else ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return hit;
+};
+
+/** The file a string in an argument names, when it names a source file (`.ts`, `.jsx`, `.css`, `.sql`, …). */
+const SOURCE_PATH = /\.(ts|tsx|js|jsx|mjs|cjs|css|sql)$/;
+const namesSource = (arg) =>
+  holdsNode(
+    arg,
+    (n) =>
+      ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && SOURCE_PATH.test(n.text)) ||
+      (ts.isTemplateTail(n) && SOURCE_PATH.test(n.text)),
+  );
+
+/** The names a scope node declares directly: its statements' functions and variables, a function's parameters. */
+function declaredIn(scope, name) {
+  const found = [];
+  const bindsName = (b) =>
+    ts.isIdentifier(b)
+      ? b.text === name
+      : (ts.isObjectBindingPattern(b) || ts.isArrayBindingPattern(b)) &&
+        b.elements.some((e) => !ts.isOmittedExpression(e) && bindsName(e.name));
+  const statements = ts.isSourceFile(scope) || ts.isBlock(scope) || ts.isModuleBlock(scope) ? scope.statements : [];
+  for (const s of statements) {
+    if (ts.isFunctionDeclaration(s) && s.name?.text === name) found.push(s);
+    if (ts.isVariableStatement(s)) for (const d of s.declarationList.declarations) if (bindsName(d.name)) found.push(d);
+  }
+  if (isFunction(scope)) for (const p of scope.parameters ?? []) if (bindsName(p.name)) found.push(p);
+  if (
+    (ts.isForStatement(scope) || ts.isForOfStatement(scope) || ts.isForInStatement(scope)) &&
+    scope.initializer &&
+    ts.isVariableDeclarationList(scope.initializer)
+  )
+    for (const d of scope.initializer.declarations) if (bindsName(d.name)) found.push(d);
+  if (ts.isCatchClause(scope) && scope.variableDeclaration && bindsName(scope.variableDeclaration.name))
+    found.push(scope.variableDeclaration);
+  return found[0] ?? null;
+}
+
+/** The declaration an identifier at `node` reads: the nearest scope, walking out, that declares its name. */
+function bindingOf(node, name) {
+  for (let s = node.parent; s; s = s.parent) {
+    const d = declaredIn(s, name);
+    if (d) return d;
+  }
+  return null;
+}
+
+/**
+ * Source read as text in one test file through a helper of the file's own, which `readCode(` and `readRaw(` do not
+ * name: each call of a local function whose body calls `readFileSync` (`const read = (p) => fs.readFileSync(path.join(ROOT,
+ * p), "utf8")`, then `read("x.ts")`) with a source file's path (`.ts`, `.jsx`, `.css`, `.sql`, …) in its argument. A
+ * helper is judged by what its name is bound to where it is called, so an inner `const read = async (tenants) => …`
+ * that shadows one is not a read, and a helper that loads data (a `.json` fixture) is not source.
+ */
+export function sourceReads(sf) {
+  const helpers = new Set();
+  const visit = (n) => {
+    const fn =
+      ts.isFunctionDeclaration(n) && n.name
+        ? n
+        : ts.isVariableDeclaration(n) &&
+            ts.isIdentifier(n.name) &&
+            n.initializer &&
+            (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))
+          ? n.initializer
+          : null;
+    if (fn && fn.body && holdsNode(fn.body, isReadFileSync)) helpers.add(n);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  let count = 0;
+  const calls = (n) => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.arguments.length && namesSource(n.arguments[0])) {
+      const d = bindingOf(n, n.expression.text);
+      if (d && helpers.has(d)) count++;
+    }
+    ts.forEachChild(n, calls);
+  };
+  calls(sf);
+  return count;
+}
+
+/* ---- The widths a layout changes at (the breakpoints ratchet) ---- */
+
+/** A number and its unit in a media query: `720px`, `45em`. */
+const WIDTH = String.raw`(\d+(?:\.\d+)?)(px|em|rem)`;
+/** `(max-width: 720px)`, `(min-width: 721px)`. */
+const MIN_MAX = new RegExp(String.raw`\(\s*(min|max)-width\s*:\s*${WIDTH}\s*\)`, "g");
+/** `(width > 900px)`, and the same condition written the other way round, `(900px < width)`. */
+const RANGE = new RegExp(String.raw`\(\s*width\s*(<=|>=|<|>)\s*${WIDTH}\s*\)`, "g");
+const RANGE_REVERSED = new RegExp(String.raw`\(\s*${WIDTH}\s*(<=|>=|<|>)\s*width\s*\)`, "g");
+/** `(721px <= width <= 900px)`: two conditions in one pair of brackets. */
+const RANGE_BOTH = new RegExp(String.raw`\(\s*${WIDTH}\s*(<=|<)\s*width\s*(<=|<)\s*${WIDTH}\s*\)`, "g");
+
+/**
+ * Where a width condition splits the screens: the widest width still on its narrow side. `(max-width: 720px)`,
+ * `(width <= 720px)`, `(min-width: 721px)` and `(width > 720px)` all split at 720, so a rule and its other side read as
+ * the one breakpoint they are; `(min-width: 900px)` splits at 899, a pixel off `(max-width: 900px)`, and reads so. A
+ * width in another unit, or a fraction of a pixel, is kept as written (`45em`): no set of pixels can hold it.
+ */
+const splitAt = (value, unit, narrowSideIncludesIt) => {
+  if (unit !== "px") return `${value}${unit}`;
+  const n = Number(value);
+  if (!Number.isInteger(n)) return value + unit;
+  return narrowSideIncludesIt ? n : n - 1;
+};
+
+/** Each width condition `text` holds, as where it splits the screens (splitAt), in the order they are written. */
+export function mediaWidths(text) {
+  const out = [];
+  for (const m of text.matchAll(MIN_MAX)) out.push({ at: m.index, w: splitAt(m[2], m[3], m[1] === "max") });
+  for (const m of text.matchAll(RANGE))
+    out.push({ at: m.index, w: splitAt(m[2], m[3], m[1] === "<=" || m[1] === ">") });
+  for (const m of text.matchAll(RANGE_REVERSED))
+    out.push({ at: m.index, w: splitAt(m[1], m[2], m[3] === ">=" || m[3] === "<") });
+  for (const m of text.matchAll(RANGE_BOTH)) {
+    out.push({ at: m.index, w: splitAt(m[1], m[2], m[3] === "<") });
+    out.push({ at: m.index + 1, w: splitAt(m[5], m[6], m[4] === "<=") });
+  }
+  return out.sort((a, b) => a.at - b.at).map((x) => x.w);
+}
+
+/** What each @media rule of a stylesheet asks, as written, its comments aside. */
+export function mediaPreludes(css) {
+  return [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/@media\b([^{;]*)\{/g)].map((m) => m[1]);
+}
+
+/** Every string a script writes out whole: its literals, and the fixed parts of its templates. */
+export function stringsIn(sf) {
+  const out = [];
+  const visit = (n) => {
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) out.push(n.text);
+    else if (ts.isTemplateExpression(n)) out.push(n.head.text, ...n.templateSpans.map((s) => s.literal.text));
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** The whole word "visit" (and its forms), as a page or a sentence would say it. */
+const VISIT_WORD = /\bvisit(?:s|ed)?\b/i;
+/** A route's key, `POST calendar/visits/[id]`: an id with a space in it, never a word. */
+const ROUTE_KEY = /^(GET|POST|PUT|PATCH|DELETE) \S+$/;
+/** The attributes a person never reads: a style, a key, a test's handle, an address, a kind. */
+const UNREAD_ATTRIBUTE =
+  /^(className|key|id|htmlFor|href|to|role|type|name|variant|size|tone|icon|kind|testid|testId|data-[\w-]+)$/;
+
+/** Whether a string stands for an id where it is: imported, a key, a type, compared, a case, an index, an unread attribute. */
+function idPlace(node) {
+  for (let n = node; n.parent; n = n.parent) {
+    const p = n.parent;
+    if (ts.isJsxAttribute(p)) return UNREAD_ATTRIBUTE.test(p.name.getText());
+    if (ts.isJsxElement(p) || ts.isJsxSelfClosingElement(p) || ts.isBlock(p) || ts.isSourceFile(p)) return false;
+    if (n !== node) continue;
+    if (ts.isImportDeclaration(p) || ts.isExportDeclaration(p) || ts.isExternalModuleReference(p)) return true;
+    if ((ts.isPropertyAssignment(p) || ts.isPropertySignature(p) || ts.isMethodDeclaration(p)) && p.name === n)
+      return true;
+    if (ts.isLiteralTypeNode(p) || ts.isCaseClause(p)) return true;
+    if (ts.isElementAccessExpression(p) && p.argumentExpression === n) return true;
+    if (ts.isBinaryExpression(p) && EQUALITY.has(p.operatorToken.kind)) return true;
+  }
+  return false;
+}
+
+/**
+ * Every place a file says "visit" to a person (the appointment words' ratchet, journey.test.mjs): a string, a template's
+ * own text (its `${…}` code is no word), or a JSX text, whose words name a visit: a sentence (it holds a space) or a label
+ * (a capital: "Visits"). A lowercase word alone ("visit", "visits") is an id, and so is a route's key and any string
+ * standing where an id stands (idPlace). A line, or the comment line over it, that says `trade-word:` keeps its word.
+ */
+export function visitsWrittenIn(sf) {
+  const lines = sf.text.split(/\r?\n/);
+  const exempt = (node) => {
+    const at = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line;
+    const above = (lines[at - 1] ?? "").trim();
+    return /trade-word:/.test(lines[at] ?? "") || (/^(\/\/|\/\*|\*|\{\/\*)/.test(above) && /trade-word:/.test(above));
+  };
+  const out = [];
+  const say = (node, text) => {
+    const t = text.trim();
+    if (!VISIT_WORD.test(t) || ROUTE_KEY.test(t)) return;
+    if (!/\s/.test(t) && !/^[A-Z]/.test(t)) return;
+    if (exempt(node)) return;
+    out.push({ line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, text: t });
+  };
+  const visit = (n) => {
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
+      if (!idPlace(n)) say(n, n.text);
+    } else if (ts.isTemplateExpression(n)) {
+      if (!idPlace(n)) say(n, [n.head.text, ...n.templateSpans.map((s) => s.literal.text)].join("…"));
+    } else if (ts.isJsxText(n)) say(n, n.text);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/**
+ * A demo's seeds: a module that holds invented rows (a surface's `sample` or `examples`, its `sample-*` parts, a
+ * `*-sample`, a `demo-*` or `*-demo`, a `*-mock`, anything under a `sample/` folder), by the path an import names or a
+ * file has.
+ */
+export const SEED_MODULE =
+  /(^|\/)(sample|examples|sample-[\w-]+|[\w-]+-sample|demo-[\w-]+|[\w-]+-demo|[\w-]+-mock)(\.[jt]sx?)?$|(^|\/)sample\//;
+
+/** Whether an expression asks if the session is a demo: `demoSession()`, `isDemo…()`, `….__DEMO_MODE`, or a `demo` flag. */
+function asksDemo(n) {
+  let hit = false;
+  const visit = (m) => {
+    if (hit) return;
+    if (ts.isIdentifier(m) && /^(demoSession|isDemo\w*|demo|inDemo)$/.test(m.text)) hit = true;
+    else if (ts.isPropertyAccessExpression(m) && m.name.text === "__DEMO_MODE") hit = true;
+    else ts.forEachChild(m, visit);
+  };
+  visit(n);
+  return hit;
+}
+
+/**
+ * A condition's side, from what one of its parts says (`says`: +1 where the part holds on the side asked about, -1 where
+ * it holds off it, else 0), read through parentheses and a negation: `!demoSession()` is the far side of a demo.
+ */
+const sideBy = (says) => {
+  const side = (cond) => {
+    let c = cond;
+    while (ts.isParenthesizedExpression(c)) c = c.expression;
+    if (ts.isPrefixUnaryExpression(c) && c.operator === ts.SyntaxKind.ExclamationToken) return -side(c.operand);
+    return says(c);
+  };
+  return side;
+};
+
+/** +1 when a condition holds in a demo (`demoSession()`, `demo && x`), -1 when it holds outside one (`!demoSession()`), else 0. */
+const demoSide = sideBy((c) => (asksDemo(c) ? 1 : 0));
+
+/** Whether a statement always leaves its block: a return or a throw, or a block that ends in one. */
+const leaves = (s) =>
+  ts.isReturnStatement(s) ||
+  ts.isThrowStatement(s) ||
+  (ts.isBlock(s) && s.statements.length > 0 && leaves(s.statements[s.statements.length - 1]));
+
+/** Whether a condition holds whenever its side does not: the far side itself, or an `||` with it among its parts. */
+function holdsOffSide(cond, side) {
+  let c = cond;
+  while (ts.isParenthesizedExpression(c)) c = c.expression;
+  if (ts.isBinaryExpression(c) && c.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+    return holdsOffSide(c.left, side) || holdsOffSide(c.right, side);
+  return side(c) < 0;
+}
+
+/** A guard before `child` in its block that leaves the block off the side (`if (!demoSession() || …) return …;`). */
+const guardedBefore = (block, child, side) =>
+  block.statements
+    .slice(0, block.statements.indexOf(child))
+    .some(
+      (s) => ts.isIfStatement(s) && !s.elseStatement && leaves(s.thenStatement) && holdsOffSide(s.expression, side),
+    );
+
+/**
+ * Whether `n` runs only on a condition's side: under the true branch of a condition on it, the false branch of its
+ * negation, the right of an `&&` after it (or of an `||` after its negation), or after a guard that leaves its block off it.
+ */
+function behind(n, side) {
+  for (let child = n, p = n.parent; p; child = p, p = p.parent) {
+    if ((ts.isBlock(p) || ts.isSourceFile(p)) && guardedBefore(p, child, side)) return true;
+    if (ts.isConditionalExpression(p)) {
+      const at = side(p.condition);
+      if ((child === p.whenTrue && at > 0) || (child === p.whenFalse && at < 0)) return true;
+    } else if (ts.isIfStatement(p)) {
+      const at = side(p.expression);
+      if ((child === p.thenStatement && at > 0) || (child === p.elseStatement && at < 0)) return true;
+    } else if (ts.isBinaryExpression(p) && child === p.right) {
+      const op = p.operatorToken.kind;
+      if (op === ts.SyntaxKind.AmpersandAmpersandToken && side(p.left) > 0) return true;
+      if (op === ts.SyntaxKind.BarBarToken && side(p.left) < 0) return true;
+    }
+  }
+  return false;
+}
+
+/** Whether `n` runs only in a demo session. */
+const behindADemo = (n) => behind(n, demoSide);
+
+/**
+ * Each read of a demo's seeds outside a demo's gate (the wiring's second audit, X6-1, X6-3): a value a module imports from a
+ * seed module (SEED_MODULE), named anywhere but under a condition that holds only in a demo session. A seed module's own reads
+ * are its own business; a type is no read. The seeded Inbox that stood in on every real session before its read was one.
+ */
+export function seedReadsOutsideADemo(sf) {
+  if (SEED_MODULE.test(sf.fileName)) return 0;
+  const seeds = new Set();
+  for (const st of sf.statements) {
+    if (
+      !ts.isImportDeclaration(st) ||
+      !ts.isStringLiteral(st.moduleSpecifier) ||
+      !SEED_MODULE.test(st.moduleSpecifier.text)
+    )
+      continue;
+    const clause = st.importClause;
+    if (!clause || clause.isTypeOnly) continue;
+    if (clause.name) seeds.add(clause.name.text);
+    const named = clause.namedBindings;
+    if (named && ts.isNamespaceImport(named)) seeds.add(named.name.text);
+    else if (named) for (const e of named.elements) if (!e.isTypeOnly) seeds.add(e.name.text);
+  }
+  if (!seeds.size) return 0;
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isImportDeclaration(m) || ts.isTypeNode(m)) return;
+    if (ts.isIdentifier(m) && seeds.has(m.text) && !behindADemo(m)) {
+      const p = m.parent;
+      // A property's own name (`x.sample`, `{ sample: 1 }`) is not the binding.
+      const ownName =
+        (ts.isPropertyAccessExpression(p) && p.name === m) || (ts.isPropertyAssignment(p) && p.name === m);
+      if (!ownName) n += 1;
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** The standing rule's own modules, where the raw `needs_human` state is read to decide who has a thread. */
+export const STANDING_RULE = [
+  "packages/contracts/src/conversations/standing.ts",
+  "packages/contracts/src/people/person-state.ts",
+  "packages/contracts/src/conversations/moves.ts",
+];
+const EQUALITY = new Set([
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  ts.SyntaxKind.EqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsToken,
+]);
+/** The query filters and set reads that compare a column with a value they are handed. */
+const COMPARED_BY = new Set(["eq", "neq", "is", "in", "includes", "not", "filter", "match"]);
+
+/**
+ * Each comparison with the raw `needs_human` state outside the standing rule (the wiring's second audit, S9-1): an equality,
+ * a `case`, or a filter or set read handed the literal. The column says a thread was flagged; who has it (yours, a
+ * teammate's, nobody's) is standingOf's answer, and two readers that compared the column said "Needs you" of replies a
+ * member had already taken. A write of the state (`state: "needs_human"`) is no comparison.
+ */
+export function needsHumanReads(sf) {
+  if (STANDING_RULE.includes(sf.fileName) || SEED_MODULE.test(sf.fileName)) return 0;
+  let n = 0;
+  const visit = (m) => {
+    if ((ts.isStringLiteral(m) || ts.isNoSubstitutionTemplateLiteral(m)) && m.text === "needs_human") {
+      const p = m.parent;
+      if (
+        (ts.isBinaryExpression(p) && EQUALITY.has(p.operatorToken.kind)) ||
+        (ts.isCaseClause(p) && p.expression === m) ||
+        (ts.isCallExpression(p) &&
+          p.arguments.includes(m) &&
+          ts.isPropertyAccessExpression(p.expression) &&
+          COMPARED_BY.has(p.expression.name.text)) ||
+        // A list of states asked whether it holds one (`["needs_human", …].includes(s)`).
+        (ts.isArrayLiteralExpression(p) &&
+          ts.isPropertyAccessExpression(p.parent) &&
+          p.parent.expression === p &&
+          COMPARED_BY.has(p.parent.name.text))
+      )
+        n += 1;
+    }
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/** Where a campaign's and a reach-out's Resume are sent (the playbooks' verbs, the chains' surface), and where it is asked. */
+const RESUME_VERBS = /(^|\/)(playbooks\/verbs|reach-out\/surface)$/;
+const RESUME_ASKED = /(^|\/)home\/resume-act$/;
+const RESUME_QUESTION = new Set(["ResumeQuestion", "ResumeAct", "useResumeAsk"]);
+
+/** +1 for a test that an act is a Resume (`act.kind === "resume"`), -1 for one that it is not, else 0. */
+const resumeSide = sideBy((c) => {
+  if (!ts.isBinaryExpression(c)) return 0;
+  const [a, b] = [c.left, c.right];
+  const isKind = (x) => ts.isPropertyAccessExpression(x) && x.name.text === "kind";
+  const isResume = (x) => ts.isStringLiteralLike(x) && x.text === "resume";
+  if (!((isKind(a) && isResume(b)) || (isKind(b) && isResume(a)))) return 0;
+  const op = c.operatorToken.kind;
+  return op === ts.SyntaxKind.EqualsEqualsEqualsToken || op === ts.SyntaxKind.EqualsEqualsToken ? 1 : -1;
+});
+
+/** The name a function is held by (`const resume = async () => …`, `function resume()`), or null. */
+function heldAs(fn) {
+  if (ts.isFunctionDeclaration(fn)) return fn.name ?? null;
+  const p = fn.parent;
+  return p && ts.isVariableDeclaration(p) && ts.isIdentifier(p.name) && p.initializer === fn ? p.name : null;
+}
+
+/**
+ * Whether a Resume's call runs only once a Resume act was answered: behind `act.kind === "resume"`, or in a function
+ * every use of which is (a runner whose acts come from Campaigns' ResumeAct, home/resume-act.tsx, which asks).
+ */
+function resumeAnswered(call, sf) {
+  if (behind(call, resumeSide)) return true;
+  for (let p = call.parent; p; p = p.parent) {
+    if (!(ts.isArrowFunction(p) || ts.isFunctionExpression(p) || ts.isFunctionDeclaration(p))) continue;
+    const name = heldAs(p);
+    if (!name) continue;
+    const uses = [];
+    const visit = (m) => {
+      // A property of that name (`verbs.resume`, `{ resume: … }`) is not the function.
+      const own = (p) => (ts.isPropertyAccessExpression(p) || ts.isPropertyAssignment(p)) && p.name === m;
+      if (ts.isIdentifier(m) && m.text === name.text && m !== name && !own(m.parent)) uses.push(m);
+      ts.forEachChild(m, visit);
+    };
+    visit(sf);
+    return uses.length > 0 && uses.every((u) => behind(u, resumeSide));
+  }
+  return false;
+}
+
+/**
+ * Each Resume of a campaign or a reach-out sent where nothing asks first (the wiring's second audit, S9-2): a `.resume(`
+ * on the playbooks' verbs or the chains' surface (or a name a module gives them), in a module that draws none of the
+ * ledger's question (ResumeQuestion, ResumeAct, useResumeAsk) and not behind a Resume act already answered. The list
+ * asked "Resume Win-back? Next run tomorrow, about 25 people" where a drawer, a reach-out's drawer and the Leads strip
+ * resumed on one tap.
+ */
+export function resumesUnasked(sf) {
+  const verbs = new Set();
+  let asks = false;
+  for (const st of sf.statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier)) continue;
+    const clause = st.importClause;
+    const named = clause && !clause.isTypeOnly ? clause.namedBindings : null;
+    if (!named || !ts.isNamedImports(named)) continue;
+    for (const e of named.elements) {
+      if (e.isTypeOnly) continue;
+      if (RESUME_VERBS.test(st.moduleSpecifier.text)) verbs.add(e.name.text);
+      if (RESUME_ASKED.test(st.moduleSpecifier.text) && RESUME_QUESTION.has((e.propertyName ?? e.name).text))
+        asks = true;
+    }
+  }
+  if (!verbs.size || asks) return 0;
+  let n = 0;
+  const visit = (m) => {
+    // A name given to the verbs (`const V = reachOuts`) is the verbs.
+    if (ts.isVariableDeclaration(m) && ts.isIdentifier(m.name) && m.initializer && ts.isIdentifier(m.initializer))
+      if (verbs.has(m.initializer.text)) verbs.add(m.name.text);
+    if (
+      ts.isCallExpression(m) &&
+      ts.isPropertyAccessExpression(m.expression) &&
+      m.expression.name.text === "resume" &&
+      ts.isIdentifier(m.expression.expression) &&
+      verbs.has(m.expression.expression.text) &&
+      !resumeAnswered(m, sf)
+    )
+      n += 1;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+/* ---- Waits that count turns of the loop or time (the counted-waits ratchet) ---- */
+
+/** `Date.now()` or `performance.now()`: a loop whose condition reads one is a wait bounded by time, as until's is. */
+const isNow = (n) =>
+  ts.isCallExpression(n) &&
+  ts.isPropertyAccessExpression(n.expression) &&
+  n.expression.name.text === "now" &&
+  ts.isIdentifier(n.expression.expression) &&
+  (n.expression.expression.text === "Date" || n.expression.expression.text === "performance");
+const loopCondition = (n) =>
+  ts.isForStatement(n) ? n.condition : ts.isWhileStatement(n) || ts.isDoStatement(n) ? n.expression : undefined;
+const boundedByTime = (n) => {
+  const condition = loopCondition(n);
+  return !!condition && holdsNode(condition, isNow);
+};
+
+/**
+ * One turn of the loop, or a sleep: a promise whose executor hands its resolve to `setImmediate` or `setTimeout`
+ * (`new Promise((r) => setImmediate(r))`, `new Promise((go) => setTimeout(go, 20))`, `setTimeout(() => r(), 0)`).
+ */
+const isTurn = (n) => {
+  if (!ts.isNewExpression(n) || !ts.isIdentifier(n.expression) || n.expression.text !== "Promise") return false;
+  const executor = n.arguments?.[0];
+  const resolve = executor && isFunction(executor) ? executor.parameters[0]?.name : null;
+  if (!resolve || !ts.isIdentifier(resolve)) return false;
+  const isResolve = (a) => ts.isIdentifier(a) && a.text === resolve.text;
+  const handsResolve = (a) =>
+    isResolve(a) || (isFunction(a) && holdsNode(a.body, (c) => ts.isCallExpression(c) && isResolve(c.expression)));
+  return holdsNode(
+    executor.body,
+    (c) =>
+      ts.isCallExpression(c) &&
+      ts.isIdentifier(c.expression) &&
+      (c.expression.text === "setImmediate" || c.expression.text === "setTimeout") &&
+      c.arguments.length > 0 &&
+      handsResolve(c.arguments[0]),
+  );
+};
+
+/**
+ * Whether a function is a wait and nothing else: its body one wait (`() => new Promise((r) => setImmediate(r))`), or
+ * statements that are each one (`await tick();`, `return settle();`) or a loop of them not bounded by time
+ * (`for (let i = 0; i < n; i += 1) await tick();`).
+ */
+function isWaitOnly(fn, isWait) {
+  if (!fn.body) return false;
+  const waits = (e) => !!e && isWait(ts.isAwaitExpression(e) ? e.expression : e);
+  if (!ts.isBlock(fn.body)) return waits(fn.body);
+  const waitStatement = (s) => {
+    if (ts.isExpressionStatement(s) || ts.isReturnStatement(s)) return waits(s.expression);
+    if (!loopCondition(s) && !ts.isForStatement(s)) return false;
+    if (boundedByTime(s)) return false;
+    const inner = ts.isBlock(s.statement) ? s.statement.statements : [s.statement];
+    return inner.length > 0 && inner.every(waitStatement);
+  };
+  return fn.body.statements.length > 0 && fn.body.statements.every(waitStatement);
+}
+
+/** The wait helpers a module exports by name (`export const settle = () => …`), read once per file. */
+const exportedWaitHelpers = new Map();
+function exportedWaitsOf(file) {
+  const known = exportedWaitHelpers.get(file);
+  if (known) return known;
+  const out = new Set();
+  exportedWaitHelpers.set(file, out); // a module that imports one importing it reads as exporting none meanwhile
+  const sf = parse(file);
+  const { helpers } = waitsOf(sf);
+  for (const s of sf.statements) {
+    if (!s.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    if (ts.isFunctionDeclaration(s) && s.name && helpers.has(s)) out.add(s.name.text);
+    if (ts.isVariableStatement(s))
+      for (const d of s.declarationList.declarations)
+        if (helpers.has(d) && ts.isIdentifier(d.name)) out.add(d.name.text);
+  }
+  return out;
+}
+
+/** The wait helpers a file takes from the modules beside it: by name (`settle`) and by namespace (`LR.settle`). */
+function importedWaitsOf(sf) {
+  const names = new Set();
+  const namespaces = new Map();
+  for (const s of sf.statements) {
+    if (!ts.isImportDeclaration(s) || !ts.isStringLiteral(s.moduleSpecifier)) continue;
+    const file = besideOf(sf, s.moduleSpecifier.text);
+    if (!file) continue;
+    const waits = exportedWaitsOf(file);
+    const bound = s.importClause?.namedBindings;
+    if (bound && ts.isNamedImports(bound))
+      for (const e of bound.elements) if (waits.has((e.propertyName ?? e.name).text)) names.add(e.name.text);
+    if (bound && ts.isNamespaceImport(bound)) namespaces.set(bound.name.text, waits);
+  }
+  return { names, namespaces };
+}
+
+/** The module beside `sf` a relative specifier names, when it is a script there is: `../_stub-react.mjs`. */
+const besideOf = (sf, specifier) => {
+  if (!specifier.startsWith(".")) return null;
+  const file = path.posix.normalize(path.posix.join(path.posix.dirname(sf.fileName), specifier));
+  return /\.m?js$/.test(file) && fs.existsSync(path.join(ROOT, file)) ? file : null;
+};
+
+/** `await import("../_stub-react.mjs")`: the module beside it a declaration takes, or null. */
+const awaitedImportOf = (sf, init) =>
+  init &&
+  ts.isAwaitExpression(init) &&
+  ts.isCallExpression(init.expression) &&
+  init.expression.expression.kind === ts.SyntaxKind.ImportKeyword &&
+  init.expression.arguments[0] &&
+  ts.isStringLiteral(init.expression.arguments[0])
+    ? besideOf(sf, init.expression.arguments[0].text)
+    : null;
+
+/** A file's wait helpers, each by the declaration its name is bound to, and the test a wait answers. */
+function waitsOf(sf) {
+  const fns = new Map();
+  // `const LR = await import("../_stub-react.mjs")` and `const { settle } = await import(…)`: the module's own waits.
+  const loaded = new Map();
+  const collect = (n) => {
+    if (ts.isFunctionDeclaration(n) && n.name && n.body) fns.set(n, n);
+    else if (
+      ts.isVariableDeclaration(n) &&
+      ts.isIdentifier(n.name) &&
+      n.initializer &&
+      (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))
+    )
+      fns.set(n, n.initializer);
+    else if (ts.isVariableDeclaration(n)) {
+      const file = awaitedImportOf(sf, n.initializer);
+      if (file) loaded.set(n, exportedWaitsOf(file));
+    }
+    ts.forEachChild(n, collect);
+  };
+  collect(sf);
+  const imported = importedWaitsOf(sf);
+  const helpers = new Set();
+  const isWaitCall = (x) => {
+    if (!ts.isCallExpression(x)) return false;
+    const callee = x.expression;
+    if (ts.isIdentifier(callee)) {
+      const d = bindingOf(x, callee.text);
+      if (!d) return imported.names.has(callee.text);
+      if (helpers.has(d)) return true;
+      const waits = loaded.get(d);
+      const element =
+        waits && ts.isObjectBindingPattern(d.name)
+          ? d.name.elements.find((e) => ts.isIdentifier(e.name) && e.name.text === callee.text)
+          : null;
+      return !!element && waits.has((element.propertyName ?? element.name).getText(sf));
+    }
+    if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)) {
+      const d = bindingOf(x, callee.expression.text);
+      const waits = d
+        ? ts.isIdentifier(d.name)
+          ? loaded.get(d)
+          : null
+        : imported.namespaces.get(callee.expression.text);
+      return !!waits && waits.has(callee.name.text);
+    }
+    return false;
+  };
+  const isWait = (x) => isTurn(x) || isWaitCall(x);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [d, fn] of fns)
+      if (!helpers.has(d) && isWaitOnly(fn, isWait)) {
+        helpers.add(d);
+        grew = true;
+      }
+  }
+  return { helpers, functions: new Set([...helpers].map((d) => fns.get(d))), isWait };
+}
+
+/**
+ * Each wait in a test that waits a fixed count of turns of the loop, or a fixed time, for work it cannot await: an
+ * `await` of one turn or sleep (isTurn), or of a call of a wait helper, a function that is waits and nothing else
+ * (isWaitOnly: `settle`, `tick`, `idle`), the file's own or one it imports from a module beside it. A wait in a loop is
+ * one wait, however many times the loop turns.
+ *
+ * Not counted: a loop bounded by time (`Date.now()` in its condition: until's, `drained()`), which waits for a
+ * condition; a wait helper's own turns, counted where it is called; `await Promise.resolve()`, whose count of microtask
+ * hops a busy machine cannot change; and a mocked clock's ticks, which are not awaited turns.
+ */
+/**
+ * A browser spec's tests in quarantine: `test.fixme(true, "quarantine: <date> <why>")`, the one shape of a test that is
+ * red, known and not worth today (e2e/skip-ceiling.ts says them apart at night). Any other skip is not one.
+ */
+export function quarantinesIn(sf) {
+  let n = 0;
+  const visit = (c) => {
+    if (
+      ts.isCallExpression(c) &&
+      c.expression.getText(sf) === "test.fixme" &&
+      c.arguments.some((a) => ts.isStringLiteralLike(a) && a.text.startsWith("quarantine: "))
+    )
+      n += 1;
+    ts.forEachChild(c, visit);
+  };
+  visit(sf);
+  return n;
+}
+
+export function fixedWaitsIn(sf) {
+  const { functions, isWait } = waitsOf(sf);
+  const out = [];
+  const visit = (n) => {
+    if (boundedByTime(n) || functions.has(n)) return;
+    if (ts.isAwaitExpression(n) && isWait(n.expression))
+      out.push({ line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1, text: n.getText(sf).slice(0, 120) });
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}

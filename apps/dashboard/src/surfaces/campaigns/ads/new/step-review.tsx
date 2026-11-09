@@ -8,13 +8,16 @@
  * screen until that press.
  */
 import { useState } from "react";
-import { NEW_AD, allWord } from "@chanlytics/contracts/ads-page";
-import type { CheckRowVM, DoorVM, NewAdVM } from "@chanlytics/contracts/ads-page";
+import { NEW_AD } from "../model/words-new";
+import { allWord } from "../model/words";
+import type { CheckRowVM } from "../model/new-ad-parts";
+import type { DoorVM } from "../model/vm-base";
+import type { NewAdVM } from "../model/new-ad";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Popover } from "../../../kit/popover/popover";
 import { RecordDisclosure } from "../../../kit/record/disclosure";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { DotRows } from "./new-bits";
 import type { StepProps } from "./new-bits";
 

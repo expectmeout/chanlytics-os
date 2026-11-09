@@ -1,7 +1,7 @@
 /**
  * One sheet for every deal move, and the deal where the work is (0008).
  *
- * The deal sheet (legacy components/deal-sheet.jsx) is the only place a deal is created or moved: a new proposal, the
+ * The deal sheet (the frame's components/deal-sheet.jsx) is the only place a deal is created or moved: a new proposal, the
  * proposal edited, a passed one proposed again, a yes, a pass, an end. Everything it says is here -- each mode's
  * title, fields, words and defaults (dealSheetFor), the body the deal route takes (dealSheetBody), the field a refusal
  * names (dealSheetRefusal), and whether the proposal can go now (dealSendOf) -- so the sheet says nothing of its own.
@@ -23,11 +23,12 @@ import {
   type DealLostReason,
   type DealPer,
   type DealStage,
-} from "../deal-words";
-import { amountWords } from "../deal-amount";
-import type { DealVM } from "../deal-vm";
+} from "../words";
+import { amountWords } from "../amount";
+import type { DealVM } from "../vm";
 import { proposalMessage } from "../../people/person-reach";
 import { consultedService, dealSendOf, type DealPerson, type DealSend, type DealSheetMode } from "./deal-acts";
+import { keysOf } from "../../shared/unknown";
 
 /* --------------------------------------------- the sheet ---------------------------------------------------- */
 
@@ -220,7 +221,7 @@ const DRAFT_EMPTY: DealSheetDraft = {
   message: null,
 };
 
-const capital = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const capital = (s: string) => (s ? (s[0] ?? "").toUpperCase() + s.slice(1) : s);
 
 /** The deal a move is about: the one it was opened for, else the person's current one. */
 function targetOf(mode: DealSheetMode, p: DealPerson, dealId: string | null | undefined): DealVM | null {
@@ -247,21 +248,21 @@ const VALUE_WORDS = {
  */
 export function dealSheetFor(
   mode: DealSheetMode,
-  p: DealPerson,
+  dealPerson: DealPerson,
   nowMs: number,
   tz: string,
   target: { dealId?: string | null; service?: string | null } = {},
 ): DealSheetVM {
-  const W = DEAL_SHEET_WORDS;
-  const deal = targetOf(mode, p, target.dealId);
-  const blocked = mode !== "propose" && (!deal || deal.stage !== MOVES_FROM[mode]) ? W.moved : null;
+  const words = DEAL_SHEET_WORDS;
+  const deal = targetOf(mode, dealPerson, target.dealId);
+  const blocked = mode !== "propose" && (!deal || deal.stage !== MOVES_FROM[mode]) ? words.moved : null;
   const today = zoneDayKey(nowMs, tz);
   const proposing = mode === "propose" || mode === "again";
   const shapes = mode === "propose" || mode === "edit" || mode === "again";
   const dated = mode === "won" || mode === "lost" || mode === "ended";
-  const send = proposing ? dealSendOf(p) : null;
-  const services = p.services ?? [];
-  const messages = (p.ownMessages ?? []).map((m) => ({
+  const send = proposing ? dealSendOf(dealPerson) : null;
+  const services = dealPerson.services ?? [];
+  const messages = (dealPerson.ownMessages ?? []).map((m) => ({
     value: m.id,
     label: [`“${m.words}”`, m.via, m.when].filter(Boolean).join(" · "),
   }));
@@ -273,78 +274,80 @@ export function dealSheetFor(
     ...DRAFT_EMPTY,
     ...(mode === "propose"
       ? {
-          service: target.service?.trim() || consultedService(p) || "",
+          service: target.service?.trim() || consultedService(dealPerson) || "",
           // The link left on the person (00154) is theirs only with no deal at all (proposalLinkOf).
-          link: !p.deal && p.proposal ? p.proposal.url : "",
+          link: !dealPerson.deal && dealPerson.proposal ? dealPerson.proposal.url : "",
         }
       : {}),
     ...(mode === "again" || mode === "edit"
       ? { link: deal?.proposal?.url ?? "", value: valueOf, per: deal?.per ?? "once" }
       : {}),
     ...(mode === "edit" ? { validUntil: deal?.validUntil?.day ?? "" } : {}),
-    ...(mode === "won" ? { value: valueOf, per: deal?.per ?? "once", messageId: p.ownMessages?.[0]?.id ?? "" } : {}),
+    ...(mode === "won"
+      ? { value: valueOf, per: deal?.per ?? "once", messageId: dealPerson.ownMessages?.[0]?.id ?? "" }
+      : {}),
     ...(dated ? { when: today } : {}),
     ...(send ? { send: send.can } : {}),
   };
   const open = !blocked;
   return {
     mode,
-    title: W.titles[mode],
-    sub: [p.name, deal?.service ?? null].filter((x): x is string => !!x).join(" · "),
+    title: words.titles[mode],
+    sub: [dealPerson.name, deal?.service ?? null].filter((x): x is string => !!x).join(" · "),
     deal,
     blocked,
     service:
       open && mode === "propose" && services.length > 1
         ? {
-            label: W.service.label,
-            options: [{ value: "", label: W.service.any }, ...services.map((s) => ({ value: s, label: s }))],
+            label: words.service.label,
+            options: [{ value: "", label: words.service.any }, ...services.map((s) => ({ value: s, label: s }))],
           }
         : null,
-    link: open && shapes ? { ...W.link } : null,
+    link: open && shapes ? { ...words.link } : null,
     value:
       open && (shapes || mode === "won")
         ? {
-            label: mode === "won" ? W.agreed.label : W.value.label,
+            label: mode === "won" ? words.agreed.label : words.value.label,
             ...VALUE_WORDS,
-            hint: mode === "won" && valueOf ? W.agreed.fromProposal : null,
+            hint: mode === "won" && valueOf ? words.agreed.fromProposal : null,
             pers,
           }
         : null,
-    validUntil: open && shapes ? { ...W.validUntil, today } : null,
-    when: open && dated ? { label: W.when[mode], max: today } : null,
+    validUntil: open && shapes ? { ...words.validUntil, today } : null,
+    when: open && dated ? { label: words.when[mode], max: today } : null,
     reason:
       open && mode === "lost"
         ? {
-            label: W.reason.label,
+            label: words.reason.label,
             options: DEAL_LOST_REASONS.map((r) => ({ value: r, label: DEAL_LOST_REASON_WORDS[r] })),
           }
         : null,
-    note: open && mode === "lost" ? { ...W.note, max: DEAL_NOTE_MAX } : null,
+    note: open && mode === "lost" ? { ...words.note, max: DEAL_NOTE_MAX } : null,
     how:
       open && mode === "won"
         ? {
-            label: W.how.label,
+            label: words.how.label,
             options: [
-              { value: "", label: W.how.none },
-              ...(messages.length ? [{ value: "customer_message" as const, label: W.how.message }] : []),
-              { value: "form", label: W.how.form },
+              { value: "", label: words.how.none },
+              ...(messages.length ? [{ value: "customer_message" as const, label: words.how.message }] : []),
+              { value: "form", label: words.how.form },
             ],
-            which: W.how.which,
+            which: words.how.which,
             messages,
-            where: W.how.where,
-            wherePlaceholder: W.how.wherePlaceholder,
+            where: words.how.where,
+            wherePlaceholder: words.how.wherePlaceholder,
             max: DEAL_NOTE_MAX,
           }
         : null,
-    send: open && send ? { ...send, message: { ...W.message } } : null,
+    send: open && send ? { ...send, message: { ...words.message } } : null,
     draft,
     save: {
-      label: W.save[mode],
-      withSend: proposing && send?.can ? W.withSend : null,
-      saving: W.saving,
-      sending: W.sending,
+      label: words.save[mode],
+      withSend: proposing && send?.can ? words.withSend : null,
+      saving: words.saving,
+      sending: words.sending,
     },
-    done: W.done[mode],
+    done: words.done[mode],
   };
 }
 
@@ -357,7 +360,7 @@ export function dealSheetMessage(draft: Pick<DealSheetDraft, "link" | "message">
 
 /** Whether the person has changed anything the sheet opened with: what the registry asks before it is thrown away. */
 export function dealSheetDirty(draft: DealSheetDraft, opened: DealSheetDraft): boolean {
-  const keys = Object.keys(DRAFT_EMPTY) as (keyof DealSheetDraft)[];
+  const keys = keysOf(DRAFT_EMPTY);
   return (
     keys.some((k) => k !== "message" && draft[k] !== opened[k]) || dealSheetMessage(draft) !== dealSheetMessage(opened)
   );
@@ -370,7 +373,7 @@ export function dealSheetDirty(draft: DealSheetDraft, opened: DealSheetDraft): b
  * emptied here.
  */
 export function dealSheetMerge(draft: DealSheetDraft, opened: DealSheetDraft, fresh: DealSheetDraft): DealSheetDraft {
-  const keys = Object.keys(DRAFT_EMPTY) as (keyof DealSheetDraft)[];
+  const keys = keysOf(DRAFT_EMPTY);
   return keys.reduce<DealSheetDraft>((out, k) => (draft[k] === opened[k] ? out : { ...out, [k]: draft[k] }), {
     ...fresh,
   });

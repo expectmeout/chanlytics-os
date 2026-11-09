@@ -14,8 +14,9 @@
  * (ixPlace) is place.ts, a row, with the words of confidence, is list-rows.tsx, and the pick -- the boxes, the bar
  * of acts over it, its keys -- is pick.tsx, which Conversations draws too.
  */
-import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { BAR_LINE_WORDS, NEEDS_YOU_LIST_END } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
@@ -137,6 +138,8 @@ export interface ListCtx extends ReturnType<typeof listProps> {
   setQuery: (v: string) => void;
   /** The search is the bar's line (a desk's): the row draws no box of its own. */
   inLine: boolean;
+  /** The phone's search field, which the buckets' glyph puts the caret in while it rests folded. */
+  findRef: RefObject<HTMLInputElement | null>;
   showViews: boolean;
   setShowViews: (v: boolean) => void;
   askArchive: boolean;
@@ -208,6 +211,7 @@ export function InboxList(props: InboxListProps) {
     testid: "inbox-search",
   });
   const [showViews, setShowViews] = useState(false);
+  const findRef = useRef<HTMLInputElement | null>(null);
   // Archiving real threads cannot be undone, so the bar asks first; a cleared selection drops the question.
   const [askArchive, setAskArchive] = useState(false);
   useEffect(() => {
@@ -221,7 +225,7 @@ export function InboxList(props: InboxListProps) {
   // At a desk the first rows fade in as the list arrives, as People's do; on a phone they stand whole on the first frame
   // (kit/motion/use-rows-arrive.ts). The rows the window draws after, as the list is scrolled, come as they are. One ref
   // on the rows' element gives it to the kit and to the window.
-  const arrive = useRowsArrive<HTMLDivElement>(":scope > .ix-thread", { onPhone: false });
+  const arrive = useRowsArrive<HTMLDivElement>(":scope > .ix-thread");
   const { listRef } = shown;
   const rowsRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -245,7 +249,7 @@ export function InboxList(props: InboxListProps) {
   const searching = !!query.trim();
   // A search finds threads: the runs stand aside while one is typed, and Needs you with a run in it is not empty.
   const runRows = activeBucket === "escalated" && !searching && !activeView;
-  // What Ask is told is on screen (legacy-bridge/ask/context.ts): the rows this list draws, in its order, forty at most,
+  // What Ask is told is on screen (bridge/ask/context.ts): the rows this list draws, in its order, forty at most,
   // and what chose them -- a search, a saved view or the bucket. The list is the one place that knows its order.
   const askRows = visible.slice(0, 40);
   // No deps array, as the JSX drew it: what Ask is told follows every draw.
@@ -276,6 +280,7 @@ export function InboxList(props: InboxListProps) {
     query,
     setQuery,
     inLine,
+    findRef,
     showViews,
     setShowViews,
     askArchive,
@@ -330,17 +335,17 @@ export function InboxList(props: InboxListProps) {
 /* --------------------------------- the parts --------------------------------- */
 
 /**
- * Buckets, the kit's sub-tabs. A real workspace has three, and they sit in one line of words, with no glyph: the glyph
+ * Buckets, the kit's sub-tabs. A real workspace has four, and they sit in one line of words, with no glyph: the glyph
  * said again what the label says, and a grid of two took two rows with the third alone on the second. Six seeded
  * buckets keep theirs. The canvases count a bucket only where there is something to count ("Snoozed" stands alone,
  * I1), and on a phone only the bucket that needs you says its figure.
  */
 function bucketTabs(L: ListCtx) {
   const { buckets, activeBucket, onBucketChange } = L;
-  return (
+  const tabs = (
     <SubTabs
       label="Conversations by status"
-      className="ix-buckets"
+      className={buckets.length === 5 ? "ix-buckets ix-buckets-five" : "ix-buckets"}
       quietCounts
       value={activeBucket}
       onSelect={onBucketChange}
@@ -349,10 +354,33 @@ function bucketTabs(L: ListCtx) {
         label: b.label,
         hint: b.hint,
         tone: b.accent ? ("warn" as const) : undefined,
-        glyph: buckets.length > 3 ? <Icon name={b.icon} size={13} /> : undefined,
+        // A real inbox's words alone, its Set aside among them: with glyphs, four tabs ran past a desk's list.
+        glyph: buckets.length > 5 ? <Icon name={b.icon} size={13} /> : undefined,
         count: (b.count ?? 0) > 0 ? b.count : undefined,
       }))}
     />
+  );
+  if (L.inLine) return tabs;
+  // On a phone the search rests in a glyph at the buckets' end while it holds no words, as People's does: the field stays
+  // drawn, so the glyph's press puts the caret in it and a phone's keyboard with it (the phone pass, 3 Nov 2026: the
+  // capsule's own row stood the first conversation at 248).
+  return (
+    <div className="ix-bucket-row">
+      {tabs}
+      {L.query ? null : (
+        <Button
+          variant="plain"
+          size="sm"
+          iconOnly
+          className="ix-find"
+          aria-label={BAR_LINE_WORDS.inbox}
+          onClick={() => L.findRef.current?.focus()}
+          data-testid="inbox-find"
+        >
+          <Icon name="search" size={16} />
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -366,8 +394,10 @@ function bucketTabs(L: ListCtx) {
 function searchBox(L: ListCtx) {
   const { visible, allThreads, query, setQuery, views, showViews, setShowViews, inLine } = L;
   const toggle = views.some((v) => v.count > 0);
+  // A phone's empty search rests folded under the buckets' glyph (bucketTabs), open while it has the caret or words.
+  const folded = !inLine && !query;
   return (
-    <div className="ix-search-row">
+    <div className="ix-search-row" data-folded={folded || undefined}>
       {visible.length > 0 &&
         pickAll({
           ids: visible.map((t) => t.id),
@@ -381,6 +411,7 @@ function searchBox(L: ListCtx) {
           label={allThreads.some((t) => t.real) ? "Search by name or message" : "Search threads, clients, tags"}
           value={query}
           onChange={setQuery}
+          inputRef={L.findRef}
           testid="inbox-search"
         />
       )}
@@ -534,11 +565,16 @@ interface EmptyWords {
  */
 function emptyWords(isReal: boolean): Record<string, EmptyWords> {
   return {
+    waiting: {
+      icon: "users",
+      title: "Nothing waiting",
+      body: "Threads where the next move is theirs, or a teammate's, show here.",
+    },
     done: isReal
       ? {
           icon: "check",
-          title: "No conversations yet",
-          body: "Messages to your WhatsApp number show up here once they arrive.",
+          title: "Nothing handled yet",
+          body: "Conversations that were answered or closed show here.",
           cta: { label: "Open Conversations", to: "conversations" },
         }
       : {
@@ -569,7 +605,7 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
       ? {
           icon: "check",
           title: "Nobody's waiting on you",
-          body: "The receptionist is answering on its own. Anything it can't handle lands here.",
+          body: "The receptionist is answering on its own. Anything left for you lands here.",
         }
       : { icon: "flag", title: "No escalations", body: "Sensitive threads that need a human land here." },
   };

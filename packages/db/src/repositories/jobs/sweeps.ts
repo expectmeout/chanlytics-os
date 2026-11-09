@@ -1,0 +1,308 @@
+/**
+ * What the hourly sweeps read to find their work, and the one stamp they write to keep it moving (00245). The database
+ * judges what is due; each read answers a bounded page of it, the longest waiting first, with the exact count of what
+ * is due beyond the page (`remaining`), so what a sweep says it could not reach never counts a row that was not due.
+ * Judging in the database is what keeps a due row from waiting behind rows that are not, and one paused workspace's
+ * playbooks from holding the page for every workspace.
+ *   duePlaybooks         the running playbooks of one kind (moment or reach_out) due at a moment by their
+ *                        workspace's own clock (playbooks_due), each with the zone it was judged in. A paused
+ *                        workspace's are not due.
+ *   dueCalendars         the workspaces whose calendar feed was never read, or not since a moment (calendars_due),
+ *                        each with its zone. A row whose calendar has no address is not a feed and is never due.
+ *   stampPlaybooksTried  a due moment that could not run this tick is stamped last_run_at with its day left open,
+ *                        which sorts it behind the moments that can run, so it never holds the page's first places.
+ *   whatsappNumbersToRead  the active WhatsApp numbers, never read first and then the longest unread: what the
+ *                          channel-quality sweep (apps/edge/api/cron/channel-quality.ts, every six hours) reads.
+ *   keepChannelQuality     the one write that sweep makes, through channel_keep_quality (00315).
+ *   whatsappNumberOf       the one active WhatsApp number of a workspace, as that sweep reads a number: what an owner's
+ *                          check of its standing reads (apps/edge/lib/whatsapp/number-standing.ts).
+ *   keepChannelStanding    what Meta holds about the number, kept through channel_keep_standing (00338): the sweep's second
+ *                          write, and the owner's check's and the connection's only one.
+ * The functions are the service role's alone. The edge's calendar and playbooks sweeps read the pages through
+ * lib/shared/sweep-rotation.ts, and the playbooks sweep calls the stamp. A read that fails throws, and so does a page
+ * whose rows lack the count, so a database without the function is a sweep that says so, never a quiet tick.
+ *
+ * Cross-workspace: the hourly sweeps page what is due across every workspace; each row carries its tenant_id.
+ */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { PLAYBOOK_HOURS, type JobKind, type NumberStanding, DbFailure } from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
+
+type Db = SupabaseClient<Database>;
+
+/** A sweep's page: this tick's rows, the longest waiting first, and how many due rows were left beyond them. */
+export interface DuePage<T> {
+  rows: T[];
+  /** Due rows beyond the page. 0 means the queue drained. */
+  remaining: number;
+}
+
+/** What is left beyond a page whose every row carries the count of all that were due. An empty page left nothing. */
+function remainingOf(rows: Array<{ due_total: unknown }>): number {
+  const first = rows[0];
+  if (first === undefined) return 0;
+  const total = first.due_total;
+  if (typeof total !== "number") throw new Error("the database answered without its count of what is due");
+  return Math.max(0, total - rows.length);
+}
+
+type StepRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
+
+export interface DueStep {
+  /** The step as its row reads (sequence_steps, 00440). */
+  step: StepRow;
+  /** The zone it was judged due in: its workspace's own (tenants.timezone), the one its run keeps to. */
+  timezone: string;
+}
+
+/**
+ * The running steps of one kind due at `at` (00245 playbooks_due's rule; sequence_steps_due, 00441): at or past their hour
+ * by their workspace's own clock, not past the last hour a message may go out, and not yet run for that clock's day --
+ * runDueNow's rule, judged in the database -- never run first, then the least recently run, `limit` of them, with the
+ * exact count of due steps beyond the page. A paused workspace's are not due: they run the hour after it resumes, their
+ * day still open. A customer's step after the first is due only while its sequence is on (D6). `tenantId` keeps to one
+ * workspace (a test's); the sweep asks for every workspace.
+ */
+export async function getDuePlaybooks(
+  db: Db,
+  params: { kind: "moment" | "reach_out"; at: Date; limit: number; tenantId?: TenantId },
+): Promise<DuePage<DueStep>> {
+  const { data, error } = await db.rpc("sequence_steps_due", {
+    p_kind: params.kind,
+    p_at: params.at.toISOString(),
+    p_last_hour: PLAYBOOK_HOURS.max,
+    p_limit: params.limit,
+    ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
+  });
+  if (error) throw new DbFailure(error, "cannot read the playbooks due");
+  const rows = data ?? [];
+  return {
+    // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
+    rows: rows.map((r) => ({ step: r.step as StepRow, timezone: r.timezone })),
+    remaining: remainingOf(rows),
+  };
+}
+
+/**
+ * A job for each workspace with a step of that kind due (00569 sequence_steps_hand_out, decision 0115), each due within the
+ * spread. Answers how many it wrote: a workspace with one already waiting or running writes none.
+ */
+export async function handOutStepsDue(
+  db: Db,
+  params: { kind: "moment" | "reach_out"; jobKind: JobKind; at: Date; spreadSeconds: number },
+): Promise<number> {
+  const { data, error } = await db.rpc("sequence_steps_hand_out", {
+    p_kind: params.kind,
+    p_job_kind: params.jobKind,
+    p_at: params.at.toISOString(),
+    p_last_hour: PLAYBOOK_HOURS.max,
+    p_spread_seconds: params.spreadSeconds,
+  });
+  if (error) throw new DbFailure(error, "cannot hand out the steps due");
+  return data;
+}
+
+/** A calendar_read for each workspace whose calendar is due (00569 calendars_hand_out, decision 0115). Answers how many. */
+export async function handOutCalendarsDue(db: Db, params: { before: Date; spreadSeconds: number }): Promise<number> {
+  const { data, error } = await db.rpc("calendars_hand_out", {
+    p_before: params.before.toISOString(),
+    p_spread_seconds: params.spreadSeconds,
+  });
+  if (error) throw new DbFailure(error, "cannot hand out the calendars due");
+  return data;
+}
+
+/** One job of a kind per workspace named, each due within the spread (00569 jobs_hand_out, decision 0115). Answers how many. */
+export async function handOutJobs(
+  db: Db,
+  params: { kind: JobKind; tenants: readonly TenantId[]; spreadSeconds: number },
+): Promise<number> {
+  const { data, error } = await db.rpc("jobs_hand_out", {
+    p_kind: params.kind,
+    p_tenants: [...params.tenants],
+    p_spread_seconds: params.spreadSeconds,
+  });
+  if (error) throw new DbFailure(error, "cannot hand out the jobs due");
+  return data;
+}
+
+/**
+ * Due moments of one workspace that could not run this tick (its workspace paused since the page was read, its context
+ * unreadable), moved to the back of the page: `last_run_at` stamped, the day (`last_run_for`) left open, so the next
+ * hour tries them again behind the moments that can run. A page is at most a sweep's cap of ids, so they ride in one
+ * statement. Throws when the write fails.
+ */
+export async function stampPlaybooksTried(
+  db: Db,
+  tenantId: TenantId,
+  params: { ids: string[]; at: Date },
+): Promise<void> {
+  if (params.ids.length === 0) return;
+  const { error } = await db
+    .from("sequence_steps")
+    .update({ last_run_at: params.at.toISOString() })
+    .eq("tenant_id", tenantId)
+    .in("id", params.ids);
+  if (error) throw new DbFailure(error, "cannot move the moments to the back of the page");
+}
+
+export interface DueCalendar {
+  tenant_id: TenantId;
+  /** The workspace's configuration as stored; its calendar's address is in it. */
+  config: Json;
+  /** The zone its feed is read in: the workspace's own (tenants.timezone), UTC when that is a name nobody knows. */
+  timezone: string;
+  /**
+   * Since when every read of its link has failed (tenant_config.calendar_failed_since, 00435), null while they work.
+   * Absent from a database before 00435, which keeps no such stamp: the sweep then writes none.
+   */
+  failed_since?: string | null;
+}
+
+/**
+ * The workspaces whose calendar is due before `before` (00245 calendars_due): a feed's address on the row, never read
+ * or last read before then; never read first, then the least recently read, `limit` of them, each with its zone, with
+ * the exact count of due calendars beyond the page. A row whose `calendar` has no address is not a feed, and is neither.
+ */
+export async function getDueCalendars(
+  db: Db,
+  params: { before: Date; limit: number; tenantId?: TenantId },
+): Promise<DuePage<DueCalendar>> {
+  const { data, error } = await db.rpc("calendars_due", {
+    p_before: params.before.toISOString(),
+    p_limit: params.limit,
+    ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
+  });
+  if (error) throw new DbFailure(error, "cannot read the calendars due");
+  const rows = data ?? [];
+  return {
+    rows: rows.map((r) => ({
+      tenant_id: r.tenant_id,
+      config: r.config,
+      timezone: r.timezone,
+      // A database before 00435 answers no such column: left out, so the sweep knows to write no stamp.
+      ...("failed_since" in r ? { failed_since: r.failed_since ?? null } : {}),
+    })),
+    remaining: remainingOf(rows),
+  };
+}
+
+/** A connected WhatsApp number as the channel-quality sweep sees it. */
+export interface WhatsappNumber {
+  channel_id: string;
+  tenant_id: TenantId;
+  /** Meta's phone number id: the channel's external_id. */
+  phone_number_id: string;
+  /** The WhatsApp Business Account the number belongs to, which the standing's verification and tier are read from; null where none is on the row. */
+  waba_id: string | null;
+  /** The number as the owner knows it, E.164; the words of an alert about it say it. */
+  number_e164: string | null;
+  /** When a rating was last kept for it (config.quality_read_at); null before its first read. */
+  read_at: string | null;
+}
+
+/** The moment config.quality_read_at holds, when it holds one. */
+function readAtOf(config: Json): string | null {
+  if (config === null || typeof config !== "object" || Array.isArray(config)) return null;
+  const at = config.quality_read_at;
+  return typeof at === "string" ? at : null;
+}
+
+/**
+ * The active WhatsApp numbers, never read first and then the longest unread, at most `limit`: the order is the
+ * database's (the moment of the last read, read out of config), so the numbers a tick has no time for are the first
+ * of the next, however many there are. A read that fails throws.
+ */
+export async function listWhatsappNumbersToRead(db: Db, limit: number): Promise<WhatsappNumber[]> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("id, tenant_id, external_id, waba_id, number_e164, config")
+    .eq("kind", "whatsapp")
+    .eq("status", "active")
+    .order("config->>quality_read_at", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  if (error) throw new DbFailure(error, "cannot read the WhatsApp numbers");
+  return (data ?? []).map((r) => ({
+    channel_id: r.id,
+    tenant_id: r.tenant_id,
+    phone_number_id: r.external_id,
+    waba_id: r.waba_id,
+    number_e164: r.number_e164,
+    read_at: readAtOf(r.config),
+  }));
+}
+
+/**
+ * One workspace's WhatsApp number: its oldest active channel, the one `channelFor` (contracts) picks, as the sweep reads a
+ * number. Null where the workspace has none. A read that fails throws.
+ */
+export async function findWhatsappNumber(db: Db, tenantId: TenantId): Promise<WhatsappNumber | null> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("id, tenant_id, external_id, waba_id, number_e164, config")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "whatsapp")
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "cannot read the workspace's WhatsApp number");
+  if (!data) return null;
+  return {
+    channel_id: data.id,
+    tenant_id: data.tenant_id,
+    phone_number_id: data.external_id,
+    waba_id: data.waba_id,
+    number_e164: data.number_e164,
+    read_at: readAtOf(data.config),
+  };
+}
+
+const KEPT_ANSWERS = ["first", "changed", "same", "gone"] as const;
+type ChannelQualityKept = (typeof KEPT_ANSWERS)[number];
+
+/**
+ * A number's rating, kept (channel_keep_quality, 00315): first read, changed, the same as the last, or gone (not this
+ * workspace's WhatsApp channel any more). Throws on the database's refusal and on an answer it does not know, so a
+ * sweep counts the number as unread and tries it next tick.
+ */
+export async function keepChannelQuality(
+  db: Db,
+  tenantId: TenantId,
+  channelId: string,
+  rating: string,
+): Promise<ChannelQualityKept> {
+  const { data, error } = await db.rpc("channel_keep_quality", {
+    p_tenant_id: tenantId,
+    p_channel_id: channelId,
+    p_rating: rating,
+  });
+  if (error) throw new DbFailure(error, "channel_keep_quality");
+  const kept = KEPT_ANSWERS.find((a) => a === data);
+  if (kept === undefined) throw new Error(`channel_keep_quality: answered ${JSON.stringify(data)}`);
+  return kept;
+}
+
+/**
+ * What Meta holds about a number, kept (channel_keep_standing, 00338): first read, changed (the word of `can_send`), the
+ * same as the last, or gone (not this workspace's WhatsApp channel any more). The whole standing is kept each time, and the
+ * event is written only when the word changed. Throws on the database's refusal and on an answer it does not know, so a
+ * caller counts the number as unread and tries it again.
+ */
+export async function keepChannelStanding(
+  db: Db,
+  tenantId: TenantId,
+  channelId: string,
+  standing: NumberStanding,
+): Promise<(typeof KEPT_ANSWERS)[number]> {
+  const { data, error } = await db.rpc("channel_keep_standing", {
+    p_tenant_id: tenantId,
+    p_channel_id: channelId,
+    p_standing: standing,
+  });
+  if (error) throw new DbFailure(error, "channel_keep_standing");
+  const kept = KEPT_ANSWERS.find((a) => a === data);
+  if (kept === undefined) throw new Error(`channel_keep_standing: answered ${JSON.stringify(data)}`);
+  return kept;
+}

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { read } from "@/server/route";
-import { conversationScope } from "@/server/verbs";
-import { load, readerContext } from "@/server/readers";
+import { read } from "@/server/shared/route";
+import { conversationScope } from "@/server/shared/verbs";
+import { load, readerContext } from "@/server/shared/reader";
 import { conversationDtoOf, messagesOf } from "@/server/readers/conversation";
 
 const Query = z.object({

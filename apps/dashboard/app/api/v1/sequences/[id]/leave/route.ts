@@ -1,7 +1,7 @@
-import { write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { LEAVE_BODY } from "@/server/sequences/bodies";
-import { leaveSequenceNow } from "@/server/sequences/doors";
+import { write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { LEAVE_BODY } from "@/server/campaigns/sequences/bodies";
+import { leaveSequenceNow } from "@/server/campaigns/sequences/doors";
 
 /**
  * POST /api/v1/sequences/:id/leave — { enrollment_ids, lead_ids }: people taken out of a sequence (decision 0060), up to

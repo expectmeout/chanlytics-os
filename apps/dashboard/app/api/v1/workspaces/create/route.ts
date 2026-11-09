@@ -1,5 +1,5 @@
-import { write, account } from "@/server/route";
-import { createWorkspace } from "@/server/workspace/workspace-create";
+import { write, account } from "@/server/shared/route";
+import { createWorkspace } from "@/server/workspace/create";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.
@@ -40,7 +40,7 @@ import { createWorkspace } from "@/server/workspace/workspace-create";
  * three-argument function does not exist; the call is made again without the code, and the drop is logged, so
  * either deploy order makes the workspace.
  *
- * The handle is createWorkspace in src/server/workspace/workspace-create.ts: the route is its declaration (who may,
+ * The handle is createWorkspace in src/server/workspace/create.ts: the route is its declaration (who may,
  * how often), the verb is what it does.
  */
 export const POST = write({

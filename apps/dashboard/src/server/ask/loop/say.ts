@@ -1,10 +1,10 @@
 import "server-only";
 import { answerSoFar, partialSay, proseAnswer } from "@chanlytics/contracts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import { answerHasItsWay, type Offer } from "../refusals";
 import type { ToolContext } from "../tools";
 import type { turnMeter } from "../turn-end";
-import type { TurnInput } from "../loop";
+import type { TurnInput } from "./turn-head";
 
 /** Say is sent at most this often while it is written (spec 7.4). */
 const SAY_EVERY_MS = 50;
@@ -18,7 +18,7 @@ const SAY_EVERY_MS = 50;
  * said.
  */
 export function sayAsWritten(input: TurnInput, tc: ToolContext, offer: Offer, meter: ReturnType<typeof turnMeter>) {
-  let said = "";
+  let sentence = "";
   let saidAt = 0;
   let firstKey: string | null = null;
   const onText = (soFar: string) => {
@@ -26,7 +26,7 @@ export function sayAsWritten(input: TurnInput, tc: ToolContext, offer: Offer, me
     if (json && firstKey === null) {
       const k = /^\s*\{\s*"([^"]*)"/.exec(soFar);
       if (k) {
-        firstKey = k[1];
+        firstKey = k[1] ?? "";
         if (firstKey !== "say")
           log.warn("ask_say_not_first", { first: firstKey.slice(0, 40), tenant_id: input.tenantId });
       }
@@ -38,16 +38,16 @@ export function sayAsWritten(input: TurnInput, tc: ToolContext, offer: Offer, me
     const say = answerSoFar(part, json ? soFar : "", tc.read, input.language);
     const key = JSON.stringify(say);
     const at = Date.now();
-    if (key === said || at - saidAt < SAY_EVERY_MS) return;
-    said = key;
+    if (key === sentence || at - saidAt < SAY_EVERY_MS) return;
+    sentence = key;
     saidAt = at;
     meter.said();
     input.emit({ t: "say", ...say });
   };
   /** An answer set aside after its Say was sent: an empty Say takes it back, and the Line shows the reads again. */
   const unsay = () => {
-    if (!said) return;
-    said = "";
+    if (!sentence) return;
+    sentence = "";
     saidAt = 0;
     input.emit({ t: "say", headline: "", detail: "" });
   };

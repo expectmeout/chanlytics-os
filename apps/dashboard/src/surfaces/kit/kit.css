@@ -15,8 +15,8 @@
    A page's stylesheet holds its layout only: display, grid, flex, gap, position, size and overflow.
 
    Loaded right after tokens.css, before every other stylesheet those entries import: by the shell's entry file
-   (legacy-bridge/legacy.css) and by the standalone document (legacy/Chanlytics.html, at the one path outside its tree
-   that tooling/scripts/serve-legacy.mjs serves). In the built app the root layout's app/globals.css comes first, the
+   (bridge/frame.css) and by the standalone document (mockup/Chanlytics.html, at the one path outside its tree
+   that tooling/scripts/serve-mockup.mjs serves). In the built app the root layout's app/globals.css comes first, the
    tokens at its head, so its own rules, the pages' outside the shell, stand between the tokens and the kit; none of
    them names a kit class. It imports the kit in the change that first draws a kit class on a page outside the shell
    (the plan's §3.3), which styles/kit-css.test.mjs holds: none does yet.
@@ -25,7 +25,7 @@
    in the order they stood, so nothing a member sees changed. They still write some values as numbers
    (the style-values measure counts them), which fall as the kit takes its roles. What of theirs stayed behind says
    why where it stands: a width this sheet does not take yet (the record kit's 760px phone, 761px desk and 1140px
-   toast, the tab strip's 720px), a rule that names a page's class or the shell's (html.legacy-on), and a busy Save's
+   toast, the tab strip's 720px), a rule that names a page's class or the shell's (html.frame-on), and a busy Save's
    pointer and the record kit's reduced motion, which must still come after a rule of those sheets. */
 
 /* ---------- Buttons ---------- */
@@ -248,7 +248,7 @@ a.btn {
    from the first word. Under a mouse its focus is a box's (--focus-field-edged: the capsule has no border of its own);
    on a touch screen no ring, since the caret and the keyboard say it (Ruben, 10 Oct 2026). The page places it (the
    room round it, a box before it or a toggle after it), never what it looks like. Two classes name each part, so the
-   touch floor's `html.legacy-on button` and `input` (legacy.css, 44px) give way to the capsule's own height. */
+   touch floor's `html.frame-on button` and `input` (frame.css, 44px) give way to the capsule's own height. */
 .search {
   display: flex;
   align-items: center;
@@ -887,14 +887,15 @@ a.chip:focus-visible {
   }
 }
 /* A short word at the item's end -- what it will do ("until tomorrow 10:00"), a count: one line, set to the right,
-   as readable as the meta line. */
+   as readable as the meta line. One value a row, so its figures are the face's own: tabular ones only help a column,
+   and their zeros read as struck through on a phone (the phone pass, 3 Nov 2026). */
 .more-item-hint {
   margin-left: auto;
   padding-left: 16px;
-  font-size: 12px;
+  font-size: var(--text-label);
   color: var(--ink-dim);
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: proportional-nums;
 }
 .more-divider {
   height: 1px;
@@ -918,13 +919,18 @@ a.chip:focus-visible {
 .icon-turned {
   rotate: 180deg;
 }
-/* One thing said of a group's items, under them (Menu's `caption`): why its sends cannot go, in from the glyphs' edge. */
+/* One thing said of a group's items, under them (Menu's `caption`): why its sends cannot go, on the edge its items' words
+   stand on: past the glyphs where they wear them, else at the item's own padding (the phone pass, 3 Nov 2026: the Not now
+   sheet's times stood at 30, its caption at 52 and its glyphs' words at 57). */
 .more-cap {
   margin: 0;
-  padding: 2px 10px 8px 34px;
+  padding: 2px 10px 8px;
   font-size: var(--text-xs);
   line-height: 1.45;
   color: var(--ink-dim);
+}
+.more-item:has(> .icon) ~ .more-cap {
+  padding-left: 37px;
 }
 /* A menu's switches as chips (the Menu's toggles, `chips`: what a board shows): rows on a desk, as any switches are; on a
    phone one compact line of chips, each lit while it is on as a segmented control's choice is, its small tick beside its
@@ -1082,7 +1088,7 @@ a.more-item {
 @media (max-width: 900px) {
   .pop-place:has(> .more-menu) {
     position: fixed !important;
-    inset: auto var(--sheet-float) var(--sheet-float) !important;
+    inset: auto var(--sheet-float) var(--sheet-foot) !important;
     transform: none !important;
   }
   /* The house's MoreMenu (Settings' filters and rows) is the same sheet (10 Oct 2026: a phone's menu is a bottom action
@@ -1092,7 +1098,7 @@ a.more-item {
      time's or a copy's list opened behind the Hours sheet that held its trigger, and only its veil showed. */
   .more-menu[data-sheet] {
     position: fixed;
-    inset: auto var(--sheet-float) var(--sheet-float);
+    inset: auto var(--sheet-float) var(--sheet-foot);
     z-index: 420;
     min-width: 0;
     transform-origin: bottom center;
@@ -1101,13 +1107,13 @@ a.more-item {
     z-index: 419;
     background: var(--surface-veil);
   }
-  /* Floating clear of the foot (tokens.css --sheet-float), it keeps of the home bar's room only what the float has not
+  /* Floating clear of the foot (tokens.css --sheet-foot), it keeps of the home bar's room only what the float has not
      already given it. */
   :is(.pop-place > .more-menu, .more-menu[data-sheet]) {
     max-width: none;
     max-height: 72vh;
     overflow-y: auto;
-    padding: 6px 10px calc(14px + max(0px, env(safe-area-inset-bottom) - var(--sheet-float)));
+    padding: 6px 10px calc(14px + max(0px, env(safe-area-inset-bottom) - var(--sheet-foot)));
     border-radius: var(--radius-sheet);
     border-bottom: 0;
     animation: more-sheet-in 220ms var(--ease-out);
@@ -1131,6 +1137,17 @@ a.more-item {
   :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item .icon {
     width: 18px;
     height: 18px;
+  }
+  /* A time or a count at an item's end, at the sheet's meta step. */
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item > .more-item-hint {
+    font-size: var(--text-base);
+  }
+  /* A caption on the sheet stands where its items' words do: the item's 12, past an 18px glyph and its 14 where they wear one. */
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-cap {
+    padding-left: 12px;
+  }
+  :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item:has(> .icon) ~ .more-cap {
+    padding-left: 44px;
   }
   /* An item whose glyph stands on its square keeps its two lines together beside it (the item's gap is its columns'). */
   :is(.pop-place > .more-menu, .more-menu[data-sheet]) .more-item:has(> .more-glyph, > .face) {
@@ -1248,7 +1265,7 @@ a.more-item {
 @media (max-width: 900px) {
   .pop-place:has(> .rec-combo-pop[data-sheet]) {
     position: fixed !important;
-    inset: auto var(--sheet-float) max(var(--kb, 0px), var(--sheet-float)) !important;
+    inset: auto var(--sheet-float) max(var(--kb, 0px), var(--sheet-foot)) !important;
     transform: none !important;
   }
   .pop-place > .rec-combo-pop[data-sheet] {
@@ -1257,7 +1274,7 @@ a.more-item {
     min-width: 0;
     max-width: none;
     max-height: calc(72dvh - var(--kb, 0px));
-    padding-bottom: max(0px, env(safe-area-inset-bottom) - var(--sheet-float));
+    padding-bottom: max(0px, env(safe-area-inset-bottom) - var(--sheet-foot));
     border-radius: var(--radius-sheet);
     border-bottom: 0;
     animation: more-sheet-in 220ms var(--ease-out);
@@ -1830,7 +1847,7 @@ a.more-item {
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
-/* Under a thumb a tab is pressed over the 44px every button is (legacy-bridge/legacy.css, the touch floor) and drawn
+/* Under a thumb a tab is pressed over the 44px every button is (bridge/frame.css, the touch floor) and drawn
    38px tall, as the Calendar's views are: its press area reaches 3px over and under it, inside the strip's 4px. Drawn
    44px tall, a tab made its strip 52px, a step taller than the Calendar's capsule of views under the same head (Ruben,
    7 Oct 2026). Named under its strip, so it outweighs the floor on a tab that is a button (Settings' sections): a
@@ -1844,6 +1861,19 @@ a.more-item {
     content: "";
     position: absolute;
     inset: -3px 0;
+  }
+}
+/* A phone's strip stands at the height of the capsules beside it, which a phone's rules hold at 36 over the floor: at 38 a
+   tab made its strip 46 (Ruben, 4 Nov 2026). A tab keeps its drawn 28, as a coral act beside it does (components.css), and
+   is pressed across the whole of its strip, the strip's 4px over and under it. The strip scrolls across, so it clips
+   anything past its own edge, and a tab is pressed the strip's 36 tall, not the 44 of the act. Wider, the floor still holds
+   the act at 44 and the 46 above stands beside it. */
+@media (pointer: coarse) and (max-width: 900px) {
+  .stabs .stabs-tab {
+    min-height: var(--control-h-sm);
+  }
+  .stabs-tab::after {
+    inset: -4px 0;
   }
 }
 .stabs-tab.active {
@@ -1893,7 +1923,7 @@ a.more-item {
    from its foot say it beside their translate, and a pull says it inline (motion/swipe.ts). A sheet with two rests says
    how far down its half rest holds it, or a pull between the two (sheet/rests.ts). The sheet is cut that far up from
    its foot (the sheet's glass, below), so nothing of it ever stands lower than its rest, where Safari would read it and
-   keep its bar's band (tokens.css, --sheet-float). Registered, so each moves as what it follows moves. */
+   keep its bar's band (tokens.css, --sheet-foot). Registered, so each moves as what it follows moves. */
 @property --sheet-down {
   syntax: "<length-percentage>";
   inherits: false;
@@ -2875,7 +2905,7 @@ a.more-item {
   text-align: inherit;
   cursor: pointer;
 }
-/* Its size is what it draws, never a button's touch floor (legacy.css, a coarse pointer's 44px on every button), which
+/* Its size is what it draws, never a button's touch floor (frame.css, a coarse pointer's 44px on every button), which
    stood the name 44 tall and the head 19px taller: the floor is an invisible margin round it, as a chip's is. */
 .rec-sheet-opens[type="button"] {
   min-width: 0;
@@ -3046,6 +3076,13 @@ textarea.rec-input {
   padding: 8px 10px;
   line-height: var(--leading-normal);
   resize: vertical;
+}
+/* A box of sentences that grows with its words (RecordField `grows`): what is written is all on screen, up to half of it,
+   with no grip to drag, which a finger cannot. Where the browser cannot size a box by its words, useGrowAsTyped does. */
+textarea.rec-input.rec-input-grows {
+  max-height: 50dvh;
+  resize: none;
+  field-sizing: content;
 }
 /* Sentences said in place (a reply drafted in its row, Today's Need you; the refined canvas, 31 Oct 2026): the words
    are the page's own, in its own type, and the box is the field's panel they stand in (.panel-field), so beginning to
@@ -3773,7 +3810,7 @@ select.rec-input :is(option, optgroup) {
   rotate: 180deg;
 }
 /* Under a finger the token keeps its own height and the touch floor's 44px is the press round it, not its size (named
-   twice to stand over that floor, html.legacy-on button): three 44px capsules in a composer's rows stood like buttons
+   twice to stand over that floor, html.frame-on button): three 44px capsules in a composer's rows stood like buttons
    of a form (Ruben, 11 Oct 2026: the drawers too cluttered). */
 @media (pointer: coarse) {
   .token.token {
@@ -4525,19 +4562,20 @@ a.list-row {
   .rec-sheet-backdrop {
     background: var(--surface-veil);
   }
-  /* A sheet floats clear of the screen's sides and foot (tokens.css --sheet-float), or stands on the keyboard. */
+  /* A sheet floats clear of the screen's sides and foot (tokens.css --sheet-float, --sheet-foot), or stands on the
+     keyboard. */
   .sheet {
     top: auto;
     left: var(--sheet-float);
     right: var(--sheet-float);
-    bottom: max(var(--kb, 0px), var(--sheet-float));
+    bottom: max(var(--kb, 0px), var(--sheet-foot));
     width: auto;
     max-height: calc(88vh - var(--kb, 0px));
     max-height: calc(88dvh - var(--kb, 0px));
     min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px)));
     overflow: auto;
     overscroll-behavior-y: none;
-    padding: 0 0 calc(16px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-float)));
+    padding: 0 0 calc(16px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-foot)));
     animation-name: sheet-in;
   }
   .sheet[data-leaving="true"] {
@@ -4672,7 +4710,7 @@ a.list-row {
   cursor: pointer;
   transition: color var(--duration-base) var(--ease-out);
 }
-/* The shell's touch floor (legacy.css: a coarse pointer's buttons and tabs are 44px, `[role="tab"]` too) would make a tab as
+/* The shell's touch floor (frame.css: a coarse pointer's buttons and tabs are 44px, `[role="tab"]` too) would make a tab as
    tall as its own margin is: the strip's height is the words', and a thumb's reach is the invisible margin on a phone
    (below). */
 .subtabs > .subtab[role="tab"] {
@@ -5202,6 +5240,9 @@ a.list-row {
     pointer-events: none;
   }
 }
+/* A tab is the small control's height inside the strip's 4px, so the strip stands 36px, the large control's height and
+   so the height of what stands beside it: the page's coral act, Reports' period, the Calendar's Settings (Ruben, 4 Nov
+   2026: a phone's tab was the large control's, and the strip stood taller than the coral). */
 .stabs-tab {
   height: var(--control-h-sm);
   padding: 0 14px;
@@ -5209,13 +5250,6 @@ a.list-row {
   border-radius: var(--radius-full);
   font-size: var(--text-base);
   color: var(--ink-muted);
-}
-/* On a phone the strip is the Calendar's capsule of views: a tab is the large control's height, so the strip stands
-   44px tall, the height of the act beside it (Reports' period) and of the Calendar's views and options. */
-@media (max-width: 900px) {
-  .stabs-tab {
-    height: var(--control-h-lg);
-  }
 }
 /* A tab's count is the canvases' neutral figure beside the word (I1: "Needs you 4", 12.5 at 500 in the dim ink), never
    an amber disc: the amber is the row's wait, said once there. */
@@ -5466,56 +5500,10 @@ a.list-row {
   letter-spacing: 0.01em;
   color: var(--ink);
 }
-/* A face drawn as a tile (the run-to-leads canvas's businesses): a rounded square in its hue, its initials white, after
-   the canvases' avatar so its hue and its ring hold over the avatar's fill. */
+/* A face drawn as a tile (the run-to-leads canvas's businesses): the avatar's own ground, in a rounded square where a
+   person's is a circle. After the canvases' avatar, so its corners hold. */
 .face-tile {
-  border: 0;
   border-radius: var(--radius-tile);
-  box-shadow: var(--tile-ring);
-  font-weight: var(--weight-semibold);
-  color: var(--tile-ink);
-}
-.face-tile-a {
-  background: var(--tile-a);
-}
-.face-tile-b {
-  background: var(--tile-b);
-}
-.face-tile-c {
-  background: var(--tile-c);
-}
-.face-tile-d {
-  background: var(--tile-d);
-}
-/* A person's face in their hue (the thread canvas, 1 Nov 2026: the thread's head, its sheet and the rail beside it): the
-   circle in one of six soft hues, the initials in its ink, picked by the name (face.tsx faceHueOf), so a person wears
-   one hue wherever these draw them. */
-.face-hue {
-  box-shadow: none;
-}
-.face-hue-a {
-  background: var(--face-hue-a);
-  color: var(--face-hue-a-ink);
-}
-.face-hue-b {
-  background: var(--face-hue-b);
-  color: var(--face-hue-b-ink);
-}
-.face-hue-c {
-  background: var(--face-hue-c);
-  color: var(--face-hue-c-ink);
-}
-.face-hue-d {
-  background: var(--face-hue-d);
-  color: var(--face-hue-d-ink);
-}
-.face-hue-e {
-  background: var(--face-hue-e);
-  color: var(--face-hue-e-ink);
-}
-.face-hue-f {
-  background: var(--face-hue-f);
-  color: var(--face-hue-f-ink);
 }
 
 /* ---- What pops over the page (every canvas's popover) ----
@@ -5677,7 +5665,7 @@ a.list-row {
 }
 .rec-sheet-foot {
   position: relative;
-  margin: 0 14px calc(14px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-float, 0px)));
+  margin: 0 14px calc(14px + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-foot, 0px)));
   padding: 6px 6px 6px 16px;
   border-top: 0;
   border-radius: var(--surface-control-radius);
@@ -6675,9 +6663,6 @@ textarea.rec-input,
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
 }
-.pill-lit > .live-dot {
-  display: none;
-}
 .pill-lit.pill-accent {
   background: var(--accent-soft);
   color: var(--accent-ink);
@@ -6879,6 +6864,8 @@ textarea.rec-input,
   /* A picked row: an ink tint that shows in light as in dark (7% of the ink on light paper, 12% on dark, where 7% sat
      within a shade of a hovered row and the cursor's). */
   --dtable-picked: oklch(from var(--ink) l c h / 0.07);
+  /* The room a cell's two lines take (.dtable-lines), which a page's own name block keeps too. */
+  --dtable-two-lines: calc((var(--text-sm) + var(--text-xs)) * var(--leading-snug) + 3px);
 }
 [data-theme="dark"] .dtable-wrap {
   --dtable-picked: oklch(from var(--ink) l c h / 0.12);
@@ -6954,6 +6941,39 @@ textarea.rec-input,
 /* The row's acts' heading takes no more than they need where nothing sets the columns' widths. */
 .dtable th[data-pin="end"] {
   width: 1%;
+}
+/* A cell's two lines (table/lines.tsx): the fact, then what qualifies it a step smaller in the dim ink, each on a line
+   of its own, cut in its own column. A number's stand at the column's end, with its heading. The two keep the room of
+   two whether or not there is a second, so a cell with one fact stands on the first line, where every other cell's fact
+   and the row's name stand, and not between the two (a cell stands at its row's middle). */
+.dtable-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  min-height: var(--dtable-two-lines);
+}
+.dtable-line-top,
+.dtable-line-sub {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: var(--leading-snug);
+}
+.dtable-line-sub {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.dtable-lines[data-end] {
+  align-items: flex-end;
+  text-align: right;
+}
+/* A line left open: what it holds cuts its own words, so a control's focus ring and its tip are not clipped with them. */
+.dtable-lines[data-open] > .dtable-line-top,
+.dtable-lines[data-open] > .dtable-line-sub {
+  overflow: visible;
 }
 .dtable-foot {
   padding: 10px 14px;
@@ -7189,6 +7209,41 @@ textarea.rec-input,
   .dtable thead .dtable-sort:focus-visible .dtable-arrow[data-idle] {
     opacity: 1;
   }
+  /* A heading a page gave a menu: its caret stands where the idle arrow did, above the press that sorts (the cell's whole
+     box, ::after above), and lit while a filter in it is on, so the view says what it is with the menu closed. */
+  .dtable thead th[data-menu] .dtable-arrow[data-idle] {
+    display: none;
+  }
+  .dtable thead th .dtable-menu {
+    all: unset;
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
+    vertical-align: middle;
+    border-radius: var(--radius-xs);
+    color: var(--ink-faint);
+    cursor: pointer;
+    transition: color 120ms ease;
+  }
+  @media (hover: hover) {
+    .dtable thead th:hover .dtable-menu {
+      color: var(--ink-muted);
+    }
+  }
+  .dtable thead th .dtable-menu[aria-expanded="true"] {
+    color: var(--ink-muted);
+  }
+  .dtable thead th .dtable-menu[data-on] {
+    color: var(--ink);
+  }
+  .dtable thead th .dtable-menu:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
   /* The edge: a thin separator at the heading's right, wider to hit than to see. It is the keyboard's too (it takes focus). */
   .dtable-edge {
     position: absolute;
@@ -7261,6 +7316,24 @@ textarea.rec-input,
     padding-top: 4px;
     padding-bottom: 4px;
   }
+  /* A cell's two lines stand side by side there: what qualifies the fact gives way, all of the way, before the fact is
+     cut at the cell's own width (a share of the squeeze, however small, cut "5.0" to "5.…" beside "16 re…"). */
+  .dtable-wrap[data-density="compact"] .dtable-lines {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 10px;
+    min-height: 0;
+  }
+  .dtable-wrap[data-density="compact"] .dtable-lines[data-end] {
+    justify-content: flex-end;
+  }
+  .dtable-wrap[data-density="compact"] .dtable-line-top {
+    flex: 0 0 auto;
+    max-width: 100%;
+  }
+  .dtable-wrap[data-density="compact"] .dtable-line-sub {
+    flex: 0 1 auto;
+  }
 }
 
 /* ---------- A phone's cards ----------
@@ -7299,6 +7372,14 @@ textarea.rec-input,
     margin: 0;
     opacity: 0;
     cursor: pointer;
+  }
+}
+/* The cursor's row takes focus for a keyboard's Tab, and its ring is the keyboard's: a screen with no pointer that hovers
+   draws none on a card, where the page moved focus for itself after a finger's touch and an iPhone drew the ring round a
+   row nobody chose (Ruben, 7 Nov 2026). A desk, and a tablet with a pointer, keep it. */
+@media (max-width: 900px) and (hover: none) {
+  .dtable tbody tr[data-card]:focus-visible {
+    outline: none;
   }
 }
 
@@ -7372,7 +7453,7 @@ textarea.rec-input,
   border-radius: 2px;
 }
 /* On a touch screen the word keeps its look and grows its target, as a pressed chip does: named twice to stand over the
-   touch floor (legacy.css, html.legacy-on button), which would make it a 44px box in a line of small type. */
+   touch floor (frame.css, html.frame-on button), which would make it a 44px box in a line of small type. */
 @media (pointer: coarse) {
   .dtable-group-toggle.dtable-group-toggle {
     position: relative;
@@ -7407,6 +7488,11 @@ textarea.rec-input,
   }
   .dtable[data-grouped] thead th {
     z-index: 4;
+  }
+  /* A pinned heading stays over the headings scrolled under it, as an ungrouped table's does: on one layer they drew over it
+     in their own order ("BUSINESSEMAIL", 6 Nov 2026). */
+  .dtable[data-grouped] thead :is(th.dtable-sel, th[data-pin]) {
+    z-index: 5;
   }
 }
 @media (max-width: 900px) {
@@ -7499,8 +7585,9 @@ textarea.rec-input,
   .dtable-wrap .dtable tbody tr > td {
     border-bottom: 0;
   }
+  /* 20px between two columns' words (12 ran a long line into its neighbour's, 5 Nov 2026). */
   .dtable-wrap .dtable td {
-    padding: 10px 6px;
+    padding: 10px;
   }
   .dtable-wrap .dtable td:first-child,
   .dtable-wrap .dtable thead th:first-child {
@@ -7587,17 +7674,22 @@ textarea.rec-input,
   .dtable-wrap .dtable th .dtable-check:indeterminate {
     opacity: 1;
   }
-  /* The head is clear on the pane; it stays sticky, so it blurs the rows that pass under it. */
+  /* The head is clear on the pane while nothing is under it. It stays sticky, and once rows pass under it (data-under,
+     said on the box as it scrolls) it paints the pane's solid: as clear glass it blurred each row under it to a smear
+     behind its words (5 Nov 2026), as the pinned heads did sideways. */
   .dtable-wrap .dtable thead th,
   .dtable-wrap .dtable thead th.dtable-sel,
   .dtable-wrap .dtable thead th[data-pin="start"] {
-    padding: 6px 6px 8px;
+    padding: 6px 10px 8px;
     font-family: var(--font-mono);
     font-size: var(--text-2xs);
     letter-spacing: 0.08em;
     color: var(--ink-dim);
     background: transparent;
-    backdrop-filter: blur(var(--blur-md));
+  }
+  .dtable-wrap .dtable-scroll[data-under] .dtable thead th,
+  .dtable-wrap .dtable-scroll[data-under] .dtable-group > th {
+    background: var(--surface-pane-solid);
   }
   /* The foot (P1): how many, at the small step, over a hairline. */
   .dtable-wrap .dtable-foot {
@@ -7621,7 +7713,6 @@ textarea.rec-input,
     padding-top: 16px;
     font-size: var(--text-sm);
     background: transparent;
-    backdrop-filter: blur(var(--blur-md));
   }
   .dtable-wrap .dtable-group .dtable-group-label {
     font-size: var(--text-base);
@@ -7820,6 +7911,25 @@ textarea.rec-input,
     color: var(--ink);
   }
 }
+/* The + at a field's start: what a question goes with. A quiet circle, the send's size, so the two end the field alike. */
+.line-attach {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .line-attach:hover {
+    background: var(--bg-hover);
+    color: var(--ink);
+  }
+}
 .line-remove {
   flex: none;
   align-items: center;
@@ -7867,8 +7977,8 @@ textarea.rec-input,
   height: 60px;
   border: 0;
   border-radius: var(--radius-bubble);
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: var(--primary-fill);
+  color: var(--primary-ink);
   font: inherit;
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);

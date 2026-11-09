@@ -1,12 +1,14 @@
 /**
- * Campaigns › Ads (MOCKUP): paid ads on Facebook and Instagram, Google and TikTok, measured in conversations and appointments.
- * Drawn in a demo session only (campaigns/home/route.tsx), from a sample until the wiring lane reads real ads; every press goes
- * through the store's verbs (store.ts) and says its answer in a toast, and nothing leaves the browser. A quiet "Example" pill
- * (also the Menu that chooses the example) says so, always.
+ * Campaigns › Ads: paid ads on Facebook and Instagram, Google and TikTok, measured in conversations and appointments. Drawn in a
+ * demo session or a workspace's preview (shown.ts, campaigns/home/route.tsx). A preview opens on what is true of the workspace today,
+ * nothing connected, with its own counts (first-touch.ts); a demo opens on ads running. Every other state is a MOCKUP, from a sample
+ * until the wiring lane reads real ads: every press goes through the store's verbs (store.ts) and says its answer in a toast, and
+ * nothing leaves the browser. The pill (also the Menu that chooses the example) says which it is, always, and a preview says it in
+ * words under the head.
  *
  * The store holds the read once, and the page hands `read` and `verbs` down: the drawer and New ad keep no copy of an ad. Ten
- * examples (examples.ts): ads running (the default), ads that need the owner, finished ones, no calendar link, one being made,
- * a connected account with no ad yet, an account to choose, nothing connected (v0), and the accounts being read or unreadable.
+ * examples (examples.ts): ads running, ads that need the owner, finished ones, no calendar link, one being made, a connected account
+ * with no ad yet, an account to choose, nothing connected (v0), and the accounts being read or unreadable.
  * On a desk: the frame's head (the sentence, Ask, New ad), the money-calm line, the pane line (the window, the Example pill, the
  * three platforms), a line under it for an account that could not be read, four figures with their one quiet line and its
  * doors (how it is counted, Results), the Ask line, the ledger by what an ad asks people to do or by platform, and three tiles.
@@ -21,23 +23,19 @@
 import "./ads.css";
 import "./drawer/drawer.css";
 import "./new/new.css";
-import { useMemo, useState } from "react";
-import { ADS_WORDS, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
+import { useEffect, useMemo, useState } from "react";
+import { ADS_WORDS, ASK_ADS_VIEW, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
 import type { AdPlatform, AdsAddress } from "@chanlytics/contracts";
-import {
-  CHOOSE,
-  GATE,
-  HEAD,
-  NEW_AD,
-  PLATFORM_OWNER,
-  REVIEW_WITHIN,
-  adFollowOn,
-  adsModel,
-} from "@chanlytics/contracts/ads-page";
-import type { AdDraft, AdsGroupBy, AdsVM, AskVM, HeadVM } from "@chanlytics/contracts/ads-page";
+import { CHOOSE, HEAD } from "./model/words-page";
+import { EXAMPLE, GATE, PLATFORM_OWNER, REVIEW_WITHIN } from "./model/words";
+import { NEW_AD } from "./model/words-new";
+import { adFollowOn } from "./model/new-ad-parts";
+import { adsModel } from "./model/page";
+import type { AdDraft } from "./model/new-ad";
+import type { AdsGroupBy, AdsVM, AskVM, HeadVM } from "./model/page";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { afterMove, askAbout, gate, useLegacyToast } from "../../legacy-verbs";
+import { afterMove, askAbout, askOnScreenKey, gate, setAskOnScreen, useFrameToast } from "../../frame-verbs";
 import { CmHead } from "../parts/head";
 import {
   pressRowOpener,
@@ -51,13 +49,17 @@ import { useCmPhone } from "../parts/split";
 import { AskLine } from "./ask-line";
 import { AdDrawer } from "./drawer/drawer";
 import { Figures } from "./figures";
+import { useFirstTouch } from "./first-touch";
+import type { FirstTouchHere } from "./first-touch";
 import { ChooseCards, NoAdsCard, V0Page } from "./hero";
 import { AdsLedger } from "./ledger/ledger";
 import { AdsPhone } from "./ledger/phone";
 import { NewAd } from "./new/new-ad";
+import { PreviewNote } from "./preview-note";
 import { ResultsSheet } from "./results/results-sheet";
 import { PaneLine, ReadNotes } from "./standing";
-import { tellOf, useAdsStore } from "./store";
+import { adsInPreview } from "./shown";
+import { adsOpening, tellOf, useAdsStore } from "./store";
 import { CameBackBlock, ComingBlock, WaitingBlock } from "./tiles";
 import { useAdsNav, useGroupBy } from "./use-ads";
 
@@ -123,6 +125,8 @@ interface BodyProps {
   /** The row the keys' cursor is on, if any. */
   cursor: string | null;
   acts: PageActs;
+  /** Where the counts of nothing connected stand. */
+  touch: FirstTouchHere;
 }
 
 /** Under the head, on a desk the money-calm line; on a phone the sentence, the muted line, then the money-calm line. */
@@ -179,7 +183,7 @@ function DeskRunning({ vm, ask, arrived, cursor, acts }: BodyProps) {
 /** The page's body: v0, an account to choose, the first ad's card, or the ads. */
 function AdsBody(p: BodyProps) {
   const { vm, phone, ask, arrived, acts } = p;
-  if (vm.v0) return <V0Page v0={vm.v0} />;
+  if (vm.v0) return <V0Page v0={vm.v0} touch={p.touch} />;
   if (vm.noAds) {
     return vm.noAds.choose.length > 0 ? (
       <ChooseCards choose={vm.noAds.choose} onChoose={acts.onChoose} />
@@ -232,15 +236,38 @@ interface AdsPageProps {
   param: string;
 }
 
+/**
+ * Ask is told what this page shows, in a word: what is true of the workspace, or an example, whose ads, numbers and people must never
+ * be said as theirs. Taken back as the page goes, so an address of it Sequences draws is asked about as Sequences.
+ */
+function useAskKnowsThePage(today: boolean) {
+  useEffect(() => {
+    setAskOnScreen({ key: "ads", ids: [], view: today ? ASK_ADS_VIEW.today : ASK_ADS_VIEW.example });
+    return () => {
+      if (askOnScreenKey() === "ads") setAskOnScreen(null);
+    };
+  }, [today]);
+}
+
+/** What the page opens on: an address that names an ad, New ad or Results is about the example's ads, else what the page opens on. */
+const opensOnOfAddress = (address: AdsAddress) =>
+  address.ad !== null || address.compose !== null || address.results ? "running" : adsOpening();
+
 export function AdsPage({ param }: AdsPageProps) {
   const address = parseAds(param);
   const nav = useAdsNav(address);
-  const { read, config, example, setExample, verbs, readAgain } = useAdsStore();
-  const [toastNode, flash] = useLegacyToast();
+  const { read, config, example, setExample, verbs, readAgain } = useAdsStore(opensOnOfAddress(address));
+  const [toastNode, flash] = useFrameToast();
   const phone = useCmPhone();
   const [groupBy, setGroupBy] = useGroupBy();
   const [hushed, setHushed] = useState<string | null>(null);
-  const vm = useMemo(() => adsModel(read, config, groupBy), [read, config, groupBy]);
+  const today = example === "v0" && adsInPreview();
+  const touch = useFirstTouch(today);
+  useAskKnowsThePage(today);
+  const vm = useMemo(
+    () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),
+    [read, touch.firstTouch, config, groupBy],
+  );
   const keys = useAdsLedgerKeys(vm, address);
   const ask = vm.ask && askKey(vm.ask) !== hushed ? vm.ask : null;
   const acts: PageActs = {
@@ -294,6 +321,7 @@ export function AdsPage({ param }: AdsPageProps) {
         sub={<HeadSentence head={vm.head} />}
         right={<HeadActs mode={vm.mode} onNew={acts.onNew} />}
       />
+      <PreviewNote said={today ? EXAMPLE.preview.today : undefined} />
       <AdsUnder vm={vm} phone={phone} />
       <PaneLine
         said={vm.pane}
@@ -303,7 +331,7 @@ export function AdsPage({ param }: AdsPageProps) {
         onExample={setExample}
       />
       <ReadNotes failed={vm.failed} onAgain={readAgain} />
-      <AdsBody vm={vm} phone={phone} ask={ask} arrived={keys.arrived} cursor={keys.cursor} acts={acts} />
+      <AdsBody vm={vm} phone={phone} ask={ask} arrived={keys.arrived} cursor={keys.cursor} acts={acts} touch={touch} />
       <AdDrawer
         id={address.ad}
         read={read}

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import {
+  firstRowsScript,
   inAppBootScript,
   outlineBootScript,
   routePrefetchScript,
@@ -8,6 +9,7 @@ import {
   themeColorOf,
   DEFAULT_LOOK_PREF,
 } from "@chanlytics/contracts";
+import { homeBootScript } from "@/frame-boot";
 import { OUTLINE_ROUTES } from "@/surfaces/frame/places";
 import "./globals.css";
 
@@ -19,7 +21,7 @@ import "./globals.css";
  * resolve ("next/font/google queries have exactly one entry", vercel/next.js#99114): the production build of
  * #1348 died on it on 30 Sep 2026 while CI's build of the same commit passed. A build asks nothing over the
  * network now. Each weight range is the set of weights that was loaded before, so a heavier request still renders
- * as it did. The CSS variables are what the legacy design system consumes (tokens.css --font-sans/--font-mono), so
+ * as it did. The CSS variables are what the design system consumes (tokens.css --font-sans/--font-mono), so
  * the literal family name "Geist" never has to resolve for the UI to look right.
  *
  * Glass's type is Mona Sans, the canvases' (tokens.css, the look's --font-sans): three @font-face rules in globals.css
@@ -85,7 +87,7 @@ export const viewport: Viewport = {
   // the data-theme below, resolved from the member's stored preference. Anyone whose two disagreed read every screen
   // through a strip of the other theme, for good, because nothing in the app ever re-read the meta. One colour
   // stands here now, the dark the document below also stands in, and it is what a device running no script keeps;
-  // the boot script writes the resolved theme's over it before first paint, and LegacyApp's paintThemeColor writes
+  // the boot script writes the resolved theme's over it before first paint, and FrameApp's paintThemeColor writes
   // it again on every change.
   themeColor: themeColorOf("dark"),
 };
@@ -106,6 +108,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geist.variable} ${geistMono.variable}`}
     >
       <head>
+        {/* The home sends a tab on to its workspace before anything else here has been fetched or run (contracts homeBootScript).
+            An async module, inline, as the route's reads below: a plain inline script waits for every stylesheet before it. */}
+        <script type="module" async dangerouslySetInnerHTML={{ __html: homeBootScript() }} />
         <link rel="preload" href="/fonts/MonaSans-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
         {/* Inside the native shell (a User-Agent token, contracts inAppBootScript): html.in-app and window.__IN_APP, before paint. */}
@@ -120,7 +125,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             inline fetches nothing. A browser without modules skips it, and the page asks for its reads itself. */}
         <script type="module" async dangerouslySetInnerHTML={{ __html: routePrefetchScript() }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* After what the document draws: the rows a phone last showed, over the outline, in the first paint (contracts
+            firstRowsScript). A plain inline script, as the head's above: they hold the parser for the stylesheets already, so this
+            waits for nothing more. An async module runs when it may, and a phone drew the outline for 80 ms ahead of the rows. */}
+        <script dangerouslySetInnerHTML={{ __html: firstRowsScript() }} />
+      </body>
     </html>
   );
 }

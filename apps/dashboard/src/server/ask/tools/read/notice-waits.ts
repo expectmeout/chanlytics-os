@@ -7,8 +7,12 @@ import {
   type RunDays,
   type WhatWaits,
 } from "@chanlytics/contracts";
-import { heldNoticeKeys, reviewsNamed, runsNamed, type Database } from "@chanlytics/db";
-import { log } from "@/server/log";
+import { findHeldNoticeKeys } from "@chanlytics/db/calendar";
+import { listReviewsNamed } from "@chanlytics/db/notices";
+import { listRunsNamed } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * What still waits on the owner of what the kept notices are about, read on the server for Ask's read of the notices (the
@@ -21,9 +25,9 @@ import { log } from "@/server/log";
  *
  * A subject that cannot be read settles nothing (null), as a surface not yet read settles nothing on the bell.
  */
-export async function noticeWaitsOf(
+export async function getNoticeWaits(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   notices: readonly NotificationDto[],
   now: Date,
   zone: string | null,
@@ -33,20 +37,20 @@ export async function noticeWaitsOf(
   ];
   const runIds = named("broadcast");
   const reviewIds = named("review");
-  const asked = (what: string) => (e: unknown) => {
+  const asked = (text: string) => (e: unknown) => {
     log.error("ask_notice_waits_failed", {
       tenant_id: tenantId,
-      what,
+      what: text,
       error: e instanceof Error ? e.message : String(e),
     });
     return null;
   };
   const [runs, heldEmails, reviews] = await Promise.all([
-    runIds.length ? runsNamed(db, tenantId, runIds).catch(asked("runs")) : Promise.resolve(null),
+    runIds.length ? listRunsNamed(db, tenantId, runIds).catch(asked("runs")) : Promise.resolve(null),
     notices.some((n) => n.subject_type === "booking_notice")
-      ? heldNoticeKeys(db, tenantId).catch(asked("booking emails"))
+      ? findHeldNoticeKeys(db, tenantId).catch(asked("booking emails"))
       : Promise.resolve(null),
-    reviewIds.length ? reviewsNamed(db, tenantId, reviewIds).catch(asked("reviews")) : Promise.resolve(null),
+    reviewIds.length ? listReviewsNamed(db, tenantId, reviewIds).catch(asked("reviews")) : Promise.resolve(null),
   ]);
   // Read now: every kept row is older than this, so each is judged by it (contracts notice-closes heldFor).
   const readAt = now.getTime();
@@ -65,6 +69,7 @@ function runDaysOf(zone: string | null, now: Date): RunDays | null {
   try {
     return runDaysAt(zone, now);
   } catch {
+    // A zone or a code the runtime does not know.
     return null;
   }
 }

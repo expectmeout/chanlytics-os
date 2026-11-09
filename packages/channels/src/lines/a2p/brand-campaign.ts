@@ -29,7 +29,7 @@ import { MESSAGING, type A2PRequest } from "./wire";
  * the throughput. Paying up front for every salon, in case one of them turns
  * into a sender, is the wrong way round.
  */
-export function brandRequest(o: {
+export function brandRequest(options: {
   customerProfileBundleSid: string;
   a2pProfileBundleSid: string;
   brandType: BrandType;
@@ -40,11 +40,11 @@ export function brandRequest(o: {
     url: `${MESSAGING}/a2p/BrandRegistrations`,
     method: "POST",
     form: {
-      CustomerProfileBundleSid: o.customerProfileBundleSid,
-      A2PProfileBundleSid: o.a2pProfileBundleSid,
-      BrandType: o.brandType,
-      ...(o.skipVetting ? { SkipAutomaticSecVet: "true" } : {}),
-      ...(o.mock ? { Mock: "true" } : {}),
+      CustomerProfileBundleSid: options.customerProfileBundleSid,
+      A2PProfileBundleSid: options.a2pProfileBundleSid,
+      BrandType: options.brandType,
+      ...(options.skipVetting ? { SkipAutomaticSecVet: "true" } : {}),
+      ...(options.mock ? { Mock: "true" } : {}),
     },
   };
 }
@@ -91,27 +91,27 @@ export function keywordsFor(words: readonly string[]): string[] {
  */
 export const LOW_VOLUME_USECASE = "LOW_VOLUME";
 
-export function campaignRequest(f: CampaignFacts): A2PRequest {
+export function campaignRequest(campaignFacts: CampaignFacts): A2PRequest {
   const form: Record<string, string | string[]> = {
-    BrandRegistrationSid: f.brandSid,
-    Description: f.description,
-    MessageFlow: f.messageFlow,
-    UsAppToPersonUsecase: f.useCase,
+    BrandRegistrationSid: campaignFacts.brandSid,
+    Description: campaignFacts.description,
+    MessageFlow: campaignFacts.messageFlow,
+    UsAppToPersonUsecase: campaignFacts.useCase,
     HasEmbeddedLinks: "true",
     HasEmbeddedPhone: "true",
     SubscriberOptIn: "true",
     AgeGated: "false",
     DirectLending: "false",
-    OptInMessage: f.optInMessage,
-    PrivacyPolicyUrl: f.privacyPolicyUrl,
-    TermsAndConditionsUrl: f.termsUrl,
+    OptInMessage: campaignFacts.optInMessage,
+    PrivacyPolicyUrl: campaignFacts.privacyPolicyUrl,
+    TermsAndConditionsUrl: campaignFacts.termsUrl,
   };
   // Repeated keys, the way Twilio's form encoding takes a list.
-  form.MessageSamples = f.samples.slice(0, 5);
-  const keywords = keywordsFor(f.optInKeywords);
+  form.MessageSamples = campaignFacts.samples.slice(0, 5);
+  const keywords = keywordsFor(campaignFacts.optInKeywords);
   if (keywords.length) form.OptInKeywords = keywords;
   else delete form.OptInMessage;
-  return { url: `${MESSAGING}/Services/${f.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form };
+  return { url: `${MESSAGING}/Services/${campaignFacts.messagingServiceSid}/Compliance/Usa2p`, method: "POST", form };
 }
 
 /**
@@ -157,19 +157,19 @@ export function campaignRequest(f: CampaignFacts): A2PRequest {
 export function updateCampaignRequest(
   messagingServiceSid: string,
   campaignSid: string,
-  f: Pick<CampaignFacts, "description" | "messageFlow" | "samples" | "privacyPolicyUrl" | "termsUrl">,
+  campaignFacts: Pick<CampaignFacts, "description" | "messageFlow" | "samples" | "privacyPolicyUrl" | "termsUrl">,
 ): A2PRequest {
   const form: Record<string, string | string[]> = {
-    Description: f.description,
-    MessageFlow: f.messageFlow,
+    Description: campaignFacts.description,
+    MessageFlow: campaignFacts.messageFlow,
     HasEmbeddedLinks: "true",
     HasEmbeddedPhone: "true",
     AgeGated: "false",
     DirectLending: "false",
-    PrivacyPolicyUrl: f.privacyPolicyUrl,
-    TermsAndConditionsUrl: f.termsUrl,
+    PrivacyPolicyUrl: campaignFacts.privacyPolicyUrl,
+    TermsAndConditionsUrl: campaignFacts.termsUrl,
   };
-  form.MessageSamples = f.samples.slice(0, 5);
+  form.MessageSamples = campaignFacts.samples.slice(0, 5);
   return { url: `${MESSAGING}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "POST", form };
 }
 

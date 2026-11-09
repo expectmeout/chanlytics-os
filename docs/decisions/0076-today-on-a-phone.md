@@ -166,3 +166,27 @@ of M, Calls, New people, each with its receipt) and the week under them; the pin
 someone waits; and the page saying it is done. The head says the greeting, one sentence, Listen beside the bell, and
 Since you looked under it. The chips, To do's line and Ask found's line at Need you's foot went, and the walk in a sheet
 stays.
+
+## Amended 8 November 2026 · Calm days, and every press goes somewhere
+
+Listen is a circle the bell's size beside it on a phone, only where the brief has news; while it plays a capsule stands in the
+date's place on every page, whose press stops it, and a call going on outranks and ends it (`BriefPlaying`). With nobody waiting
+the head says what is listening on any day, and "That's everyone" only once the member has cleared rows today. Older has no say
+in the page: no coral, no part in whether Ask found leads, and alone it stands at the page's end; one person is their own row,
+which opens, and a toll-free number says so. A folded setup card keeps its next step. A day the business is closed with nothing
+on it turns to tomorrow at once. Today so far on a phone is one line under the day where nothing was counted (always the four
+stands on a desk's head and wherever anything was), and each of a phone's four figures opens. Booking gap asks first whether
+anyone in People is on the calendar at all. Not today rests a row a week wherever Today says it, in the member's saved view, with
+the day it comes back and an Undo in its toast. Ask found's "and N more" opens in place, and Since you looked's answered row
+opens the thread it names.
+
+## Amended 8 November 2026, later · One head for every section
+
+Five kinds of head stood on one page: a small label outside the card on Need you's groups and a title inside the others, and at
+their right a pill under one card over a divider, a word and an arrow in another, a chevron in a third. Now every section, on a
+phone and a desk, has one head (`zones/section-door.tsx`, `tz-head`): its name, one quiet fact, and at its right edge one press. A
+word and › goes to a page; a chevron, with a word where it says more, opens here. On a phone each of Need you's groups keeps its
+own pane and holds its head inside it: the first holds `Inbox ›`, and one that could not hold all it has holds `See all ›`, so
+nothing stands under the list. How many were done today moves to the head's sentence there. The page's last line, "That's
+everything for today", waits until nobody does. An old call's sheet leads with Mark done, as its note says to, with Call the quiet
+press beside it and no Not now. Ask found's glyph and a desk's See all capsule go with it, overriding the boards that drew them.

@@ -1,7 +1,7 @@
-import { write } from "@/server/route";
-import { sequenceScope } from "@/server/verbs";
-import { NEW_STEP_BODY } from "@/server/sequences/bodies";
-import { addSequenceStep } from "@/server/sequences/doors";
+import { write } from "@/server/shared/route";
+import { sequenceScope } from "@/server/shared/verbs";
+import { NEW_STEP_BODY } from "@/server/campaigns/sequences/bodies";
+import { addSequenceStep } from "@/server/campaigns/sequences/doors";
 
 /**
  * POST /api/v1/sequences/:id/steps — { after_days, template_id | hand, only_if?, channels?, name?, params? }: a customer's

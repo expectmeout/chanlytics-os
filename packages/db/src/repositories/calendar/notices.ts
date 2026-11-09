@@ -2,24 +2,26 @@
  * The notices ledger (00345, docs/plans/2026-10-07-bookings-arrive-by-email.md): every booking tool's notice the
  * workspace's address took in, what it became or why it is held. Groups:
  *
- *   one delivery      appointmentNoticeOf (what it became, or null), keepAppointmentNotice (once per delivery: the same
+ *   one delivery      findAppointmentNotice (what it became, or null), keepAppointmentNotice (once per delivery: the same
  *                     delivery kept again replaces the row, appointment_notices_delivery_uq).
- *   the health line   appointmentNoticesOf: the latest notice (its tool and when) and how many are held for a person,
+ *   the health line   findAppointmentNotices: the latest notice (its tool and when) and how many are held for a person,
  *                     read one after the other so a turn's reads are in one order (ask/readers.test.mjs pins them).
  *
  * Written by the booking_read job on the service role; read by the dashboard on the member's client, where RLS decides.
  * A failed read or write throws, so the caller's retry meets it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 export type AppointmentNoticeRow = Database["public"]["Tables"]["appointment_notices"]["Row"];
 export type AppointmentNoticeInsert = Database["public"]["Tables"]["appointment_notices"]["Insert"];
 
-export async function appointmentNoticeOf(
+export async function findAppointmentNotice(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   noticeId: string,
 ): Promise<AppointmentNoticeRow | null> {
   const { data, error } = await db
@@ -28,7 +30,7 @@ export async function appointmentNoticeOf(
     .eq("tenant_id", tenantId)
     .eq("notice_id", noticeId)
     .maybeSingle();
-  if (error) throw new Error(`appointment_notice: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice");
   return data;
 }
 
@@ -37,7 +39,7 @@ export async function keepAppointmentNotice(db: Db, row: AppointmentNoticeInsert
   const { error } = await db
     .from("appointment_notices")
     .upsert({ ...row, read_at: new Date().toISOString() }, { onConflict: "tenant_id,notice_id" });
-  if (error) throw new Error(`appointment_notice_keep: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice_keep");
 }
 
 /**
@@ -53,7 +55,7 @@ export async function holdNoticeIfUnkept(db: Db, row: AppointmentNoticeInsert): 
       { onConflict: "tenant_id,notice_id", ignoreDuplicates: true },
     )
     .select("notice_id");
-  if (error) throw new Error(`appointment_notice_hold: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice_hold");
   return (data?.length ?? 0) > 0;
 }
 
@@ -62,9 +64,9 @@ export async function holdNoticeIfUnkept(db: Db, row: AppointmentNoticeInsert): 
  * how many are held for a person. A tool's receipt set aside, a notice held and one dismissed are none of them "the
  * last booking email": a workspace whose only mail was those is not working yet.
  */
-export async function appointmentNoticesOf(
+export async function findAppointmentNotices(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ tool: string | null; last_at: string | null; held: number }> {
   // Together: neither needs the other, and each is a round trip the Calendar's board waits on (9 Oct 2026: its read
   // spent 180 ms on the server for a workspace with no calendar, every one of seven round trips after the one before).
@@ -83,8 +85,8 @@ export async function appointmentNoticesOf(
       .eq("tenant_id", tenantId)
       .eq("outcome", "held"),
   ]);
-  if (latest.error) throw new Error(`appointment_notices_latest: ${latest.error.message}`);
-  if (held.error) throw new Error(`appointment_notices_held: ${held.error.message}`);
+  if (latest.error) throw new DbFailure(latest.error, "appointment_notices_latest");
+  if (held.error) throw new DbFailure(held.error, "appointment_notices_held");
   return { tool: latest.data?.tool ?? null, last_at: latest.data?.received_at ?? null, held: held.count ?? 0 };
 }
 
@@ -95,9 +97,9 @@ export async function appointmentNoticesOf(
  * forwarded by hand. Service role only; a failed ask throws, so the intake's retry meets it rather than booking on a
  * stranger's word.
  */
-export async function memberHasAddress(db: Db, tenantId: string, address: string): Promise<boolean> {
+export async function hasMemberAddress(db: Db, tenantId: TenantId, address: string): Promise<boolean> {
   const { data, error } = await db.rpc("member_has_address", { p_tenant_id: tenantId, p_address: address });
-  if (error) throw new Error(`member_has_address: ${error.message}`);
+  if (error) throw new DbFailure(error, "member_has_address");
   return data === true;
 }
 
@@ -107,7 +109,7 @@ export async function memberHasAddress(db: Db, tenantId: string, address: string
 const HELD_MAX = 20;
 
 /** The notices held for a person, latest first, as the card lists them. */
-export async function heldNoticesOf(db: Db, tenantId: string): Promise<AppointmentNoticeRow[]> {
+export async function listHeldNotices(db: Db, tenantId: TenantId): Promise<AppointmentNoticeRow[]> {
   const { data, error } = await db
     .from("appointment_notices")
     .select("*")
@@ -115,7 +117,7 @@ export async function heldNoticesOf(db: Db, tenantId: string): Promise<Appointme
     .eq("outcome", "held")
     .order("received_at", { ascending: false })
     .limit(HELD_MAX);
-  if (error) throw new Error(`appointment_notices_held_list: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notices_held_list");
   return data ?? [];
 }
 
@@ -128,7 +130,7 @@ const HELD_KEYS_CAP = 1000;
  * list (the wiring's second audit, R13 X5-1). Null where the read is not the whole of them, which settles nothing. Throws when
  * it cannot be read.
  */
-export async function heldNoticeKeys(db: Db, tenantId: string): Promise<ReadonlySet<string> | null> {
+export async function findHeldNoticeKeys(db: Db, tenantId: TenantId): Promise<ReadonlySet<string> | null> {
   const { data, error } = await db
     .from("appointment_notices")
     .select("id, notice_id")
@@ -137,16 +139,16 @@ export async function heldNoticeKeys(db: Db, tenantId: string): Promise<Readonly
     .order("received_at", { ascending: false })
     .order("id", { ascending: true })
     .limit(HELD_KEYS_CAP);
-  if (error) throw new Error(`appointment_notices_held_keys: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notices_held_keys");
   const rows = data ?? [];
   if (rows.length >= HELD_KEYS_CAP) return null;
   return new Set(rows.flatMap((r) => [r.id, r.notice_id]));
 }
 
 /** One notice of the workspace by its row id, or null. */
-export async function appointmentNoticeById(
+export async function findAppointmentNoticeById(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
 ): Promise<AppointmentNoticeRow | null> {
   const { data, error } = await db
@@ -155,7 +157,7 @@ export async function appointmentNoticeById(
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(`appointment_notice_by_id: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice_by_id");
   return data;
 }
 
@@ -163,7 +165,7 @@ export async function appointmentNoticeById(
  * A person let a held notice go: dismissed, its reason kept. Only a held one moves; answers whether one did, so the
  * route can say "nothing to dismiss" rather than succeed over a row that was already read.
  */
-export async function dismissAppointmentNotice(db: Db, tenantId: string, id: string): Promise<boolean> {
+export async function dismissAppointmentNotice(db: Db, tenantId: TenantId, id: string): Promise<boolean> {
   const { data, error } = await db
     .from("appointment_notices")
     .update({ outcome: "dismissed" })
@@ -171,6 +173,6 @@ export async function dismissAppointmentNotice(db: Db, tenantId: string, id: str
     .eq("id", id)
     .eq("outcome", "held")
     .select("id");
-  if (error) throw new Error(`appointment_notice_dismiss: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice_dismiss");
   return (data?.length ?? 0) > 0;
 }

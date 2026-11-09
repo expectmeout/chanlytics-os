@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { LEAD_BUILD_WORDS as W, LEAD_REWRITE_CHANGE_MAX } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Field, fieldProblem } from "../../../kit/field/field";
-import { focusAsDrawn, gate } from "../../../legacy-verbs";
+import { focusAsDrawn, gate } from "../../../frame-verbs";
 import { reachOuts } from "../../reach-out/surface";
 
 /** An email's words, as the sheet holds them: a later one has no subject (null). */

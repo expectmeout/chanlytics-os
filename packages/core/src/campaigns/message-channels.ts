@@ -24,12 +24,12 @@ import {
  * before changes), in the product's order (contracts CONSENT_CHANNELS). Anything but a list of the three is refused.
  * `kept` is the channels a playbook already holds, which an edit that names none keeps.
  */
-export function parseChannels(asked: unknown, kept: readonly string[] | null = null): ConsentChannel[] {
-  if (asked === undefined || asked === null) {
+export function parseChannels(value: unknown, kept: readonly string[] | null = null): ConsentChannel[] {
+  if (value === undefined || value === null) {
     const base = kept && kept.length > 0 ? kept : DEFAULT_CAMPAIGN_CHANNELS;
     return CONSENT_CHANNELS.filter((c) => base.includes(c));
   }
-  const list: unknown[] = Array.isArray(asked) ? asked : [];
+  const list: unknown[] = Array.isArray(value) ? value : [];
   const known = CONSENT_CHANNELS.filter((c) => list.includes(c));
   if (known.length === 0 || known.length !== new Set(list).size)
     throw new AppError("validation", "Pick WhatsApp, text or email to send by.");

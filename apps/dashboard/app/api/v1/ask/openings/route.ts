@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { read, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { openings } from "@/server/readers/openings";
 
 const Query = z.object({

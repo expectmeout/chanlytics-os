@@ -6,8 +6,8 @@
  * waits on People's whole book (the Inbox's run review, 18 Oct 2026).
  */
 
-import { api, read } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
+import { api, read } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
 import {
   BROADCAST_CHUNK,
   BROADCAST_SCHEDULE_MAX_DAYS,
@@ -24,9 +24,9 @@ import {
   type NumberHealth,
   type OpenToCustomers,
 } from "@chanlytics/contracts";
-import { type SurfaceOverride, workspaceOverride } from "@/legacy-bridge/surface-data";
-import { COUNTED_RECEIPTS, RECEIPTS_QUIET_MS } from "@/legacy-bridge/surface-realtime";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import { type SurfaceOverride, workspaceOverride } from "@/bridge/surface-data";
+import { COUNTED_RECEIPTS, RECEIPTS_QUIET_MS } from "@/bridge/surface-realtime";
+import { declareReads } from "@/bridge/surface-registry";
 import { followSettings } from "../../offered-templates";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
 import { channelsHeld, followChannels } from "../../channels/surface";
@@ -74,7 +74,7 @@ export interface BroadcastsSurface {
    */
   month_sent: MonthSent | null;
   /**
-   * The month after it and the instant it begins (server/campaigns/month-sent.ts monthSentNext), which a send scheduled
+   * The month after it and the instant it begins (server/campaigns/month-sent.ts readMonthSentNext), which a send scheduled
    * past the month's end counts against: the composer reads the month at the time it is set to go (contracts monthSentAt).
    * Null where the workspace's clock could not be read, and on a server from before it was carried.
    */

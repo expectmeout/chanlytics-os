@@ -180,7 +180,7 @@ const cardOpener = (stage: string): string =>
 /**
  * Where focus comes home as a sheet closes: the card's name where a card opened it; else the row's own name; else, the
  * row gone (deleted, or out of the tab), the name of the row now in its place; else the last row's; else the search.
- * Never the page's body, which sends the next Tab, and a screen reader, back to the top of the page (legacy-verbs
+ * Never the page's body, which sends the next Tab, and a screen reader, back to the top of the page (frame-verbs
  * editorBox).
  */
 function homeOf(from: CameFrom, ids: readonly string[]): HTMLElement | null {

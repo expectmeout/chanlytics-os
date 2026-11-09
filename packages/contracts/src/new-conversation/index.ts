@@ -1,13 +1,5 @@
 /** A new conversation: which wire carries a message to a person, the sheet's words, and Ask's draft for one person. */
 export {
-  approvedWordsFor,
-  NEW_CONVERSATION_WORDS,
-  newConversationOf,
-  planNoteOf,
-  writeWayWords,
-  writeWireName,
-} from "./new-conversation-words";
-export {
   DRAFT_ABOUT_MAX,
   DRAFT_ANSWER_MAX,
   DRAFT_ASKS_MAX,
@@ -19,7 +11,14 @@ export {
 export type { CallBrief, DraftAsk, DraftHow, DraftTone, PersonDraftDto, PersonReachDto } from "./person-draft";
 export { PersonDraftAnswerSchema, PersonDraftInputSchema, PersonMessageBodySchema } from "./person-draft-schema";
 export type { PersonDraftAnswer, PersonDraftInput, PersonMessageBody } from "./person-draft-schema";
-export { writeReachOf } from "./write-reach";
+export {
+  approvedWordsFor,
+  NEW_CONVERSATION_WORDS,
+  newConversationOf,
+  planNoteOf,
+  writeWayWords,
+  writeWireName,
+} from "./words";
 export {
   defaultWriteWire,
   startsOn,

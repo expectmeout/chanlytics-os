@@ -1,8 +1,8 @@
 import { SPEND_LEADS } from "@chanlytics/contracts";
-import { read, write, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, write, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { searches } from "@/server/readers/searches";
-import { createLeadSearch, CreateSchema } from "@/server/leads/lead-search-create";
+import { createLeadSearch, CreateSchema } from "@/server/leads/search-create";
 
 /**
  * GET /api/v1/lead-searches: every kept search of this workspace with its
@@ -32,7 +32,7 @@ export const GET = read({
  * otherwise; the plan the door stores never carries it. A thread that is not
  * an id is dropped, never a refusal: the search is what was approved.
  *
- * The handle is createLeadSearch in src/server/leads/lead-search-create.ts: the route is its declaration (who may, how
+ * The handle is createLeadSearch in src/server/leads/search-create.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 

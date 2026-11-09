@@ -28,7 +28,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordRow } from "../../kit/record/row";
-import { canDo, gate, gateTitle, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, gateTitle, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { billingVerbs as api } from "./surface";
 
@@ -322,7 +322,7 @@ function invoicesCard(invoices: BillingInvoiceDto[] | null, busy: Busy, showInvo
   );
 }
 
-export const PaneBillingReal = ({ flash }: { flash: (f: LegacyFlash) => void }) => {
+export const PaneBillingReal = ({ flash }: { flash: (f: FrameFlash) => void }) => {
   const B = useSurface("billing");
   const [busy, setBusy] = useState<Busy>(null);
   const [invoices, setInvoices] = useState<BillingInvoiceDto[] | null>(null);

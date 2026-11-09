@@ -21,12 +21,13 @@ import {
   type NewMessage,
   type NewWrittenMessage,
   type ParamSpec,
+  NUMBERED_SLOT,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Segmented } from "../../../kit/segmented/segmented";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { templates as templateVerbs } from "../../templates/verbs";
 import { tplOwn } from "../../templates/words";
 import { channelsSaidOf, heldMessageOf } from "./new-model";
@@ -127,7 +128,7 @@ const valueSayOf = (kind: string): string => NEW_VALUES.find((v) => v.kind === k
 
 /** A written message's words with its values by name, for writing; and back, numbered, on Save. */
 function valuesByName(text: string, slots: NewWrittenMessage["slots"]): string {
-  return text.replace(/\{\{(\d+)\}\}/g, (all, n: string) => {
+  return text.replace(NUMBERED_SLOT, (all, n: string) => {
     const s = slots.find((x) => x.position === Number(n));
     return s ? `{{${valueSayOf(s.kind)}}}` : all;
   });

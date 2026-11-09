@@ -10,35 +10,36 @@ import {
   toTodayVM,
   type WaitingRun,
 } from "@chanlytics/contracts";
-import { load } from "../../../readers";
+import { load } from "../../../shared/reader";
 import { today } from "../../../readers/today";
-import { defineRead, noteRow, type ToolContext } from "../context";
+import { defineRead, type ToolContext } from "../context/tool-defs";
+import { noteRow } from "../context/tool-reads";
 
-async function getToday(t: ToolContext): Promise<unknown> {
+async function getToday(toolContext: ToolContext): Promise<unknown> {
   // Today as the page composes it (readers/today.ts), read once in the turn: the Inbox's threads, the metrics the
   // page's Today reads (every line, the workspace's email one too), the calls and the searches. A calls or searches
   // read that failed is null, its own state on the page, never none.
   const { metrics, conversations, escalations, calls, searches, runs, heldThreads, going, previewsTried } = (
-    await load(t.rc, today, undefined)
+    await load(toolContext.rc, today, undefined)
   ).data;
   // The page's own builder, with the waiting searches the page passes (the queue reads them), and the runs waiting and
   // the threads of holds past the hundred beside it, so the head and the count are the badge's (the wiring's second
   // audit, S7-1 and W-thread-wait-step-4).
-  const vm = toTodayVM(metrics, conversations, escalations, calls, t.now, searches, {
+  const vm = toTodayVM(metrics, conversations, escalations, calls, toolContext.now, searches, {
     runs,
     heldThreads,
     previewsTried,
   });
   const searchRows = vm.queue.rows.filter((r) => r.kind === "search");
   // A search waiting on its owner is a row a citation names (the queue's row id is `q-s-<search>`).
-  for (const r of searchRows) noteRow(t, "search", r.id.replace(/^q-s-/, ""), r.who, r.cta.to);
+  for (const r of searchRows) noteRow(toolContext, "search", r.id.replace(/^q-s-/, ""), r.who, r.cta.to);
   for (const r of vm.needsYou?.rows ?? [])
-    noteRow(t, "thread", r.conversationId, r.who, `inbox/th-${r.conversationId}`);
+    noteRow(toolContext, "thread", r.conversationId, r.who, `inbox/th-${r.conversationId}`);
   // A row this read RETURNS is a row a citation may name (see the header).
   // These were returned and not recorded, so the assistant could warn about a
   // closing window and then be unable to open the thread it had just named.
-  for (const r of vm.windowClosing?.rows ?? []) noteRow(t, "thread", r.id.replace(/^wc-/, ""), r.text, r.to);
-  for (const c of calls ?? []) noteRow(t, "call", c.id, callerName(c), `conversations/cv-${c.id}`);
+  for (const r of vm.windowClosing?.rows ?? []) noteRow(toolContext, "thread", r.id.replace(/^wc-/, ""), r.text, r.to);
+  for (const c of calls ?? []) noteRow(toolContext, "call", c.id, callerName(c), `conversations/cv-${c.id}`);
   return {
     standing: {
       headline: vm.standing.headline,
@@ -106,8 +107,8 @@ async function getToday(t: ToolContext): Promise<unknown> {
         : {
             count: vm.runs_waiting,
             runs: waitingRunsNamed(
-              t,
-              runsThatWait(runs ?? [], runDaysAt(metrics.workspace.timezone, t.now)),
+              toolContext,
+              runsThatWait(runs ?? [], runDaysAt(metrics.workspace.timezone, toolContext.now)),
               vm.runs_waiting,
             ),
           },
@@ -119,11 +120,11 @@ async function getToday(t: ToolContext): Promise<unknown> {
         : goingTodayOf({
             runs: going.map((r) => ({ ...r, title: r.name })),
             tz: metrics.workspace.timezone,
-            nowMs: t.now.getTime(),
+            nowMs: toolContext.now.getTime(),
           })
             .slice(0, 5)
             .map((r) => {
-              noteRow(t, "broadcast", r.stop.id, r.name, r.to);
+              noteRow(toolContext, "broadcast", r.stop.id, r.name, r.to);
               return { name: r.name, what: r.meta, sentence: r.sentence, route: r.to };
             }),
     searches_waiting: searchRows.map((r) => ({ name: r.who, question: r.sentence, route: r.cta.to })),
@@ -143,14 +144,14 @@ async function getToday(t: ToolContext): Promise<unknown> {
  * named for the answer (five at most), each a row a citation names.
  */
 function waitingRunsNamed(
-  t: ToolContext,
+  toolContext: ToolContext,
   waiting: ReadonlyArray<WaitingRun & { id: string; name: string }>,
   count: number,
 ): Array<{ name: string; route: string }> {
   if (!count) return [];
   return waiting.slice(0, 5).map((r) => {
     const route = addressOf({ kind: "send", id: r.id });
-    noteRow(t, "broadcast", r.id, r.name, route);
+    noteRow(toolContext, "broadcast", r.id, r.name, route);
     return { name: r.name, route };
   });
 }
@@ -158,7 +159,7 @@ function waitingRunsNamed(
 export const todayTool = defineRead({
   name: "today",
   description:
-    "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. needs_you counts the holds and the replies counting down to send in your name (replies_on_their_way, which it does not list: inbox with action list has them); campaign_runs_waiting are the runs waiting for your say: those an approval can still send, and going reach-out runs whose check holds emails for you (sequences with action sent lists them); going_today is what goes on its own later today unless it is stopped (a batch held for a stop, a message sent once and set for later, a reach-out's run), each with when it goes, as Today's Going today draws it; searches_waiting stopped to ask you. It holds no drafts: inbox with action list and filter held has them, and inbox with action thread has a whole conversation. Nor the bell's notifications, what was sent to this person: workspace with action notifications reads them. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
+    "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the receptionist's standing, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. needs_you counts the holds and the replies counting down to send in your name (replies_on_their_way, which it does not list: inbox with action list has them); campaign_runs_waiting are the runs waiting for your say, those an approval can still send and going reach-out runs whose check holds emails for you (sequences with action sent lists them); going_today is what goes on its own later today unless stopped (a batch held for a stop, a message sent once and set for later, a reach-out's run), each with when, as Today's Going today draws it; searches_waiting stopped to ask you. It holds no drafts (inbox with action list and filter held has them, and inbox with action thread a whole conversation) and not the bell's notifications, what was sent to this person (workspace with action notifications). needs_you and calls are capped, the counts are not; nothing changes because it was read.",
   input: z.object({}),
   label: "Reading Today",
   run: getToday,

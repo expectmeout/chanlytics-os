@@ -26,17 +26,19 @@
  * A lead's own receptionist's page asks the same way for its preview's workspace and no person (decision 0079), and is
  * answered only while previews are switched on.
  */
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
-import { openingsFor, takesRequests } from "../calendar/availability.js";
-import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, UUID } from "../packages/contracts.js";
-import { holdPlan, layerTwo } from "../packages/core.js";
-import { oldestActiveChannel, type RoutedChannel } from "../packages/db.js";
-import { brainCallOf, generateReply, type BrainReply } from "./brain.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
+import { findOpenings, takesRequests } from "../calendar/availability.js";
+import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, isTenantId } from "@chanlytics/contracts";
+import { holdPlan, layerTwo } from "@chanlytics/core";
+import { findOldestActiveChannel, type RoutedChannel } from "@chanlytics/db/channels";
+import { brainCallOf, generateReply, type BrainReply } from "../ai/receptionist-brain.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 const MAX_CASES = 6;
 
@@ -51,11 +53,11 @@ interface EvalCase {
  * gets the real brain; a test hands in an answer, because lib/brain.ts speaks
  * to the Anthropic SDK and has no seam of its own. Anything else that may
  * arrive in this position carries no generateReply and changes nothing. BOTH
- * branches are run in tooling/scripts/tests/eval-door.test.mjs: most cases
+ * branches are run in tests/eval-door.test.mjs: most cases
  * hand a brain in, and the last two call POST the way Vercel calls it and
  * watch the real brain reach the model.
  */
-export interface BrainPort {
+export interface EvalBrainPort {
   generateReply?: typeof generateReply;
 }
 
@@ -86,7 +88,7 @@ function evalAnswer(
  * 0061). A workspace with no calendar is told the clock alone, as before; one that takes no requests answers as before.
  */
 async function turnOf(rt: TenantRuntime, now: Date) {
-  const openings = await openingsFor(rt, "chat", now);
+  const openings = await findOpenings(rt, "chat", now);
   const clock = describeNow(rt.timezone, now, rt.brain?.profile?.closures);
   const takes = takesRequests(rt);
   return {
@@ -108,27 +110,27 @@ ${openings}`
  * The words go out either way, as they do live: a hand-off sends them and holds the thread for a person. Under "ask" or
  * "never" the live receptionist is not asked at all (core reply-gates.ts), which the mode says.
  */
-function thenOf(rt: TenantRuntime, brainCfg: NonNullable<TenantRuntime["brain"]>, r: BrainReply, now: Date) {
+function thenOf(rt: TenantRuntime, brainCfg: NonNullable<TenantRuntime["brain"]>, brainReply: BrainReply, now: Date) {
   const reply = rt.policy["reply"];
   // A workspace with no reply row holds every message for a person, as the runtime reads it (an unexpected mode is ask).
   const mode = reply?.mode ?? "ask";
   const two = layerTwo({
-    replyText: r.text,
-    escalate: r.escalate,
-    escalationReason: r.reason ?? "human_token",
+    replyText: brainReply.text,
+    escalate: brainReply.escalate,
+    escalationReason: brainReply.reason ?? "human_token",
     brainCfg,
     policy: rt.policy,
-    intent: r.meta?.intent ?? null,
-    language: r.meta?.language ?? null,
+    intent: brainReply.meta?.intent ?? null,
+    language: brainReply.meta?.language ?? null,
     known: rt.known,
     tz: rt.timezone,
     now,
   });
-  const plan = holdPlan(mode, reply?.limits ?? {}, r.meta);
+  const plan = holdPlan(mode, reply?.limits ?? {}, brainReply.meta);
   return {
     mode,
     text: two.replyText,
-    changed: two.replyText === r.text ? null : two.priceBlocked ? "price" : two.askClass,
+    changed: two.replyText === brainReply.text ? null : two.priceBlocked ? "price" : two.askClass,
     escalate: two.escalate,
     reason: two.escalate ? two.escalationReason : null,
     hold_ms: plan.delayMs,
@@ -139,11 +141,14 @@ function thenOf(rt: TenantRuntime, brainCfg: NonNullable<TenantRuntime["brain"]>
 
 /**
  * The channel the cases are answered as: the workspace's WhatsApp, as the webhook would route it (its oldest active one,
- * where it holds two), else the workspace's chat before it has a line, loaded by the workspace (reach-out/reply-draft.ts
+ * where it holds two), else the workspace's chat before it has a line, loaded by the workspace (campaigns/reach-out/reply-draft.ts
  * builds its mailbox's the same way: a kind that is not WhatsApp binds no number and reads every setting by the tenant).
  */
-async function routedFor(db: NonNullable<ReturnType<typeof pg>>, tenantId: string): Promise<RoutedChannel | undefined> {
-  const routed = await oldestActiveChannel(db, tenantId, "whatsapp").catch(() => undefined);
+async function routedFor(
+  db: NonNullable<ReturnType<typeof pg>>,
+  tenantId: TenantId,
+): Promise<RoutedChannel | undefined> {
+  const routed = await findOldestActiveChannel(db, tenantId, "whatsapp").catch(logAndGoOn("findOldestActiveChannel"));
   if (routed !== null) return routed;
   return {
     kind: "chat",
@@ -161,21 +166,23 @@ const CASE_MAX_CHARS = 500;
 
 /** The first case the door refuses, in its own words; null where every one is whole. */
 function caseRefusal(cases: readonly EvalCase[]): Response | null {
-  for (const c of cases) {
+  for (const evalCase of cases) {
     if (
-      !c ||
-      typeof c.id !== "string" ||
-      typeof c.text !== "string" ||
-      !c.text.trim() ||
-      c.text.length > CASE_MAX_CHARS
+      !evalCase ||
+      typeof evalCase.id !== "string" ||
+      typeof evalCase.text !== "string" ||
+      !evalCase.text.trim() ||
+      evalCase.text.length > CASE_MAX_CHARS
     ) {
       return refuse(400, "bad_request", `each case needs an id and a text of 1-${CASE_MAX_CHARS} chars`);
     }
     if (
-      c.history &&
-      (!Array.isArray(c.history) ||
-        c.history.length > 12 ||
-        c.history.some((h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string"))
+      evalCase.history &&
+      (!Array.isArray(evalCase.history) ||
+        evalCase.history.length > 12 ||
+        evalCase.history.some(
+          (h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string",
+        ))
     ) {
       return refuse(400, "bad_request", "history is up to 12 turns of { role, content }");
     }
@@ -186,9 +193,9 @@ function caseRefusal(cases: readonly EvalCase[]): Response | null {
 export async function evaluateCases(
   auth: Admitted,
   body: Partial<{ tenant_id?: string; cases?: EvalCase[] }>,
-  brain?: BrainPort | null,
+  brain?: EvalBrainPort | null,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const ask = brain?.generateReply ?? generateReply;
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
   const ws = workspaceFor(auth, body.tenant_id);
@@ -196,7 +203,7 @@ export async function evaluateCases(
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = String(body.tenant_id || "");
   const cases = Array.isArray(body.cases) ? body.cases : [];
-  if (!UUID.test(tenantId) || !cases.length || cases.length > MAX_CASES) {
+  if (!isTenantId(tenantId) || !cases.length || cases.length > MAX_CASES) {
     return refuse(400, "bad_request", `tenant_id and 1-${MAX_CASES} cases required`);
   }
   const badCase = caseRefusal(cases);
@@ -205,7 +212,7 @@ export async function evaluateCases(
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const routed = await routedFor(db, tenantId);
-  if (routed === undefined) return refuse(500, "channel_read_failed");
+  if (routed === undefined) return refuse(503, "channel_read_failed");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
   // A lead's own receptionist nobody has made theirs answers only while previews are switched on (decision 0079): the
@@ -218,32 +225,32 @@ export async function evaluateCases(
   const holding = fallbackMessages(rt.brain, rt.known).error;
   const call = { ...brainCallOf(tenantId, rt), ...asks };
   const results = [];
-  for (const c of cases) {
+  for (const otherCase of cases) {
     const t0 = Date.now();
     try {
-      const r = await ask({
-        history: c.history ?? [],
-        userText: c.text,
+      const result = await ask({
+        history: otherCase.history ?? [],
+        userText: otherCase.text,
         systemPrompt: system,
         fallbackText: holding,
         nowNote,
         call,
       });
       results.push({
-        id: c.id,
+        id: otherCase.id,
         ok: true,
-        text: r.text,
-        escalate: r.escalate,
-        reason: r.reason ?? null,
-        meta: r.meta ?? null,
-        usage: r.usage ?? null,
+        text: result.text,
+        escalate: result.escalate,
+        reason: result.reason ?? null,
+        meta: result.meta ?? null,
+        usage: result.usage ?? null,
         ms: Date.now() - t0,
-        then: thenOf(rt, rt.brain, r, now),
-        ...said(r),
+        then: thenOf(rt, rt.brain, result, now),
+        ...said(result),
       });
     } catch (e) {
       results.push({
-        id: c.id,
+        id: otherCase.id,
         ok: false,
         error: String(e instanceof Error ? e.message : e).slice(0, 200),
         ms: Date.now() - t0,
@@ -251,7 +258,7 @@ export async function evaluateCases(
     }
   }
   // The texts are the model's and stay out of the log; the count and the time are what a search needs.
-  L.info("admin_eval", {
+  log.info("admin_eval", {
     tenant_id: tenantId,
     cases: cases.length,
     ms: Date.now() - now.getTime(),

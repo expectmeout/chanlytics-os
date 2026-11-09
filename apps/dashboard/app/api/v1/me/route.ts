@@ -1,9 +1,11 @@
-import { write, account } from "@/server/route";
-import { AppError, cleanDisplayName } from "@chanlytics/contracts";
+import { z } from "zod";
+import { write, account } from "@/server/shared/route";
+import { AppError, cleanDisplayName, recordOrEmpty } from "@chanlytics/contracts";
 import { endEmptiedWorkspaces } from "@/server/workspace/billing";
-import { saidLeft, seatsOf } from "@/server/workspace/team";
-import { log } from "@/server/log";
-import { dbRefusal } from "@/server/with-route";
+import { log } from "@/server/shared/log";
+import { dbRefusal } from "@/server/shared/with-route";
+import { deleteOwnAccount, setOwnName } from "@/server/auth/account";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * PUT /api/v1/me — {display_name}: the name you go by. Yours alone to set;
@@ -15,11 +17,12 @@ export const PUT = write({
   scope: account,
   role: null,
   rate: "profile_set",
-  handle: async ({ ctx, req }) => {
-    const body = (await req.json().catch(() => ({}))) as { display_name?: unknown };
-    const cleaned = cleanDisplayName(body.display_name ?? "");
+  // What a name may be is the contracts' rule (cleanDisplayName), in its words: the schema hands the value on whole.
+  input: z.object({ display_name: z.unknown().optional() }),
+  handle: async ({ ctx, input }) => {
+    const cleaned = cleanDisplayName(input.display_name ?? "");
     if (!cleaned.ok) throw new AppError("validation", cleaned.reason, 400);
-    const { data, error } = await ctx.supabase.rpc("profile_set", { p_display_name: cleaned.name });
+    const { data, error } = await setOwnName(ctx, { p_display_name: cleaned.name });
     if (error) throw dbRefusal(error);
     const saved =
       data && typeof data === "object" && !Array.isArray(data)
@@ -49,20 +52,18 @@ export const DELETE = write({
   role: null,
   rate: "profile_set",
   handle: async ({ ctx }) => {
-    const seats = await seatsOf(ctx.supabase, ctx.userId);
-    const { data, error } = await ctx.supabase.rpc("delete_my_account");
+    const { data, error } = await deleteOwnAccount(ctx);
     if (error) {
-      const named = Object.keys(REFUSALS).find((k) => error.message.includes(k));
-      if (named) throw new AppError("conflict", REFUSALS[named], 409);
+      const named = Object.entries(REFUSALS).find(([k]) => error.message.includes(k));
+      if (named) throw new AppError("conflict", named[1], 409);
       log.error("account_delete_failed", { message: error.message.slice(0, 200) });
       throw new AppError(
         "internal",
         "Your account could not be deleted. Nothing was changed. Try again, or write to us.",
       );
     }
-    await saidLeft(seats, ctx.userId);
-    await ctx.supabase.auth.signOut().catch(() => undefined);
-    const answer = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+    await ctx.supabase.auth.signOut().catch(logAndGoOn("signOut"));
+    const answer = recordOrEmpty(data);
     const left = Number(answer.workspaces_left_empty ?? 0);
     await endEmptiedWorkspaces(answer.workspaces_emptied);
     return { deleted: true, workspaces_left_empty: left };

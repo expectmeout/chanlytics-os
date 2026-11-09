@@ -137,7 +137,7 @@ export function cleanEmailCandidates(emails: string[], host: string | null): Cle
       continue;
     }
     seen.add(address);
-    const [local, domain] = address.split("@");
+    const [local = "", domain = ""] = address.split("@");
     if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => onDomain(domain, d))) {
       dropped.push({ email: address, why: "junk_domain" });
       continue;
@@ -146,7 +146,7 @@ export function cleanEmailCandidates(emails: string[], host: string | null): Cle
       dropped.push({ email: address, why: "placeholder" });
       continue;
     }
-    if (has(LEAD_ROLE_LOCALS, local.split(/[.+_-]/)[0])) {
+    if (has(LEAD_ROLE_LOCALS, local.split(/[.+_-]/)[0] ?? "")) {
       dropped.push({ email: address, why: "role" });
       continue;
     }
@@ -158,7 +158,7 @@ export function cleanEmailCandidates(emails: string[], host: string | null): Cle
     (isOwn ? own : isFreeMail(domain) ? free : foreign).push(address);
   }
   const deskRank = (a: string) => {
-    const i = DESK_LOCALS.indexOf(a.split("@")[0]);
+    const i = DESK_LOCALS.indexOf(a.split("@")[0] ?? "");
     return i < 0 ? DESK_LOCALS.length : i;
   };
   own.sort((a, b) => deskRank(a) - deskRank(b));
@@ -238,7 +238,7 @@ const oneOf = (w: string): string =>
  * one day and the singular the next names one kind.
  */
 export function leadKindKey(words: string): string {
-  const k = words
+  const slug = words
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^[^a-z]+/, "")
@@ -246,5 +246,5 @@ export function leadKindKey(words: string): string {
     .slice(0, 40)
     .replace(/_+$/, "")
     .replace(/[a-z]+$/, oneOf);
-  return k.length >= 2 ? k : "business";
+  return slug.length >= 2 ? slug : "business";
 }

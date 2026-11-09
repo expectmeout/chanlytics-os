@@ -13,11 +13,12 @@
  * is. The account's payment method (is one on file), the business that owns the account and the account itself ride with the
  * standing, so the row can send the owner to Meta's own page for each (whatsapp-cost.ts addPaymentMethodLink, and the links here).
  */
-import { dailyLimit, numberHealth, type NumberHealth } from "../broadcasts/broadcast-number";
+import { dailyLimit, numberHealth, type NumberHealth } from "../campaigns/broadcasts/number";
 import { formatPhoneDisplay } from "../shared/phone";
 import { MIN_MS } from "../shared/time";
 import type { ConnectionNote } from "./connection-note";
 import { addPaymentMethodLink } from "./whatsapp-cost";
+import { listOrEmpty, recordOrNull } from "../shared/unknown";
 
 /**
  * One thing Meta says stands in the way, from an entity's errors: whose it is, Meta's code, what it said, and how to fix it.
@@ -65,11 +66,6 @@ const NEW_BUSINESS_LIMIT = 250;
 /** How long a page that opens trusts a standing that is not AVAILABLE, before it asks Meta again. */
 const STANDING_STALE_MS = 10 * MIN_MS;
 
-const heldObject = (v: unknown): Record<string, unknown> | null =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
-
-const listOf = (v: unknown): unknown[] => (Array.isArray(v) ? (v as unknown[]) : []);
-
 /** Text that says something: trimmed, and null where it is not a string or is blank. */
 const textOrNull = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
@@ -78,23 +74,23 @@ const textOrNull = (v: unknown): string | null => (typeof v === "string" && v.tr
  * else nothing. A problem with nothing said, or a note that is not text, is dropped; nothing is mended into a sentence.
  */
 export function standingFromConfig(value: unknown): NumberStanding | null {
-  const s = heldObject(value);
-  const canSend = textOrNull(s?.can_send);
-  if (!s || !canSend) return null;
-  const problems = listOf(s.problems).flatMap((p): StandingProblem[] => {
-    const r = heldObject(p);
-    const said = textOrNull(r?.said);
-    if (!r || !said) return [];
+  const result = recordOrNull(value);
+  const canSend = textOrNull(result?.can_send);
+  if (!result || !canSend) return null;
+  const problems = listOrEmpty(result.problems).flatMap((item): StandingProblem[] => {
+    const held = recordOrNull(item);
+    const sentence = textOrNull(held?.said);
+    if (!held || !sentence) return [];
     return [
       {
-        entity: textOrNull(r.entity) ?? "UNKNOWN",
-        code: typeof r.code === "number" ? r.code : null,
-        said,
-        fix: textOrNull(r.fix),
+        entity: textOrNull(held.entity) ?? "UNKNOWN",
+        code: typeof held.code === "number" ? held.code : null,
+        said: sentence,
+        fix: textOrNull(held.fix),
       },
     ];
   });
-  const notes = listOf(s.notes).flatMap((n): string[] => {
+  const notes = listOrEmpty(result.notes).flatMap((n): string[] => {
     const text = textOrNull(n);
     return text ? [text] : [];
   });
@@ -102,13 +98,13 @@ export function standingFromConfig(value: unknown): NumberStanding | null {
     can_send: canSend,
     problems,
     notes,
-    name: textOrNull(s.name),
-    name_status: textOrNull(s.name_status),
-    verification: textOrNull(s.verification),
-    limit: textOrNull(s.limit),
-    has_payment_method: typeof s.has_payment_method === "boolean" ? s.has_payment_method : null,
-    owner_business_id: textOrNull(s.owner_business_id),
-    waba_id: textOrNull(s.waba_id),
+    name: textOrNull(result.name),
+    name_status: textOrNull(result.name_status),
+    verification: textOrNull(result.verification),
+    limit: textOrNull(result.limit),
+    has_payment_method: typeof result.has_payment_method === "boolean" ? result.has_payment_method : null,
+    owner_business_id: textOrNull(result.owner_business_id),
+    waba_id: textOrNull(result.waba_id),
   };
 }
 
@@ -119,12 +115,12 @@ export function standingFromConfig(value: unknown): NumberStanding | null {
  * AVAILABLE number is the clock's to renew.
  */
 export function standingNeedsRead(
-  n: { standing: NumberStanding | null; standingReadAt: string | null },
+  input: { standing: NumberStanding | null; standingReadAt: string | null },
   nowMs: number,
 ): boolean {
-  if (!n.standing) return true;
-  if (n.standing.can_send === "AVAILABLE" && n.standing.has_payment_method !== false) return false;
-  const readAt = n.standingReadAt ? Date.parse(n.standingReadAt) : Number.NaN;
+  if (!input.standing) return true;
+  if (input.standing.can_send === "AVAILABLE" && input.standing.has_payment_method !== false) return false;
+  const readAt = input.standingReadAt ? Date.parse(input.standingReadAt) : Number.NaN;
   return Number.isNaN(readAt) || nowMs - readAt > STANDING_STALE_MS;
 }
 
@@ -226,7 +222,7 @@ const PAYMENT_ACT: Record<PaymentTrouble, string> = { missing: "Add a card", fai
  */
 export const PAYMENT_HOLD_WORD = "Payment needed";
 
-interface StandingRow {
+interface StandingLine {
   stateWords: typeof PAYMENT_HOLD_WORD | "Needs attention";
   sentence: string;
   act: { label: string; href: string } | null;
@@ -239,13 +235,13 @@ interface StandingRow {
  * rest. Nothing else of Meta's is repeated: its notes, its calling problems, and a limit or a review the notes say in
  * Chanlytics' words (standingNotes).
  */
-export function standingRow(s: NumberStanding): StandingRow | null {
-  const payment = paymentTrouble(s);
+export function standingRow(numberStanding: NumberStanding): StandingLine | null {
+  const payment = paymentTrouble(numberStanding);
   if (payment) {
-    const href = addPaymentMethodLink(s.owner_business_id, s.waba_id);
+    const href = addPaymentMethodLink(numberStanding.owner_business_id, numberStanding.waba_id);
     const words = [
       PAYMENT_SENTENCE[payment],
-      ...(s.can_send === "BLOCKED" ? [] : [REPLIES_STILL_GO]),
+      ...(numberStanding.can_send === "BLOCKED" ? [] : [REPLIES_STILL_GO]),
       ...(href ? [] : [ADD_ONE_IN_SUITE]),
     ];
     return {
@@ -254,12 +250,15 @@ export function standingRow(s: NumberStanding): StandingRow | null {
       act: href ? { label: PAYMENT_ACT[payment], href } : null,
     };
   }
-  if (s.can_send !== "BLOCKED") return null;
-  const first = messagingProblems(s).at(0);
+  if (numberStanding.can_send !== "BLOCKED") return null;
+  const first = messagingProblems(numberStanding).at(0);
   return {
     stateWords: "Needs attention",
     sentence: first ? `Meta has stopped this number from sending: ${saidToOwner(first)}` : BLOCKED_SENTENCE,
-    act: { label: "Open WhatsApp Manager", href: whatsappManagerLink(s.owner_business_id, s.waba_id) },
+    act: {
+      label: "Open WhatsApp Manager",
+      href: whatsappManagerLink(numberStanding.owner_business_id, numberStanding.waba_id),
+    },
   };
 }
 
@@ -273,12 +272,12 @@ const displayNameWords = (name: string | null): string => (name ? `the display n
  * notice (nameDecisionWords). One set of words.
  */
 function nameWords(status: string | null, name: string | null): string | null {
-  const who = displayNameWords(name);
+  const personName = displayNameWords(name);
   switch (status) {
     case "DECLINED":
-      return `Meta declined ${who} — change it in WhatsApp Manager.`;
+      return `Meta declined ${personName} — change it in WhatsApp Manager.`;
     case "EXPIRED":
-      return `The request for ${who} expired — submit it again in WhatsApp Manager.`;
+      return `The request for ${personName} expired — submit it again in WhatsApp Manager.`;
     default:
       return null;
   }
@@ -306,13 +305,13 @@ const nameStatusOf = (decision: unknown): string | null =>
  * back; the owner's notice (nameDecisionWords) is what told them.
  */
 export function standingAfterNameDecision(
-  s: NumberStanding,
+  numberStanding: NumberStanding,
   decision: unknown,
   requestedName: unknown,
 ): NumberStanding | null {
   const status = nameStatusOf(decision);
   if (!status) return null;
-  return { ...s, name: textOrNull(requestedName) ?? s.name, name_status: status };
+  return { ...numberStanding, name: textOrNull(requestedName) ?? numberStanding.name, name_status: status };
 }
 
 /**
@@ -335,10 +334,12 @@ export function nameDecisionWords(
     };
   const declined = status === "DECLINED" ? nameWords(status, name) : null;
   if (!declined) return null;
-  const why = textOrNull(reason);
-  const said =
-    why && why !== "UNKNOWN" && why !== "NONE" ? ` Meta's reason: ${why.toLowerCase().replace(/_/g, " ")}.` : "";
-  return { subject: "WhatsApp display name declined", body: `${declined}${said}`, alert: true };
+  const reasonText = textOrNull(reason);
+  const sentence =
+    reasonText && reasonText !== "UNKNOWN" && reasonText !== "NONE"
+      ? ` Meta's reason: ${reasonText.toLowerCase().replace(/_/g, " ")}.`
+      : "";
+  return { subject: "WhatsApp display name declined", body: `${declined}${sentence}`, alert: true };
 }
 
 /** How many people a day a tier is, in words: "up to 1,000 people a day". */
@@ -353,14 +354,14 @@ const peopleADay = (n: number): string => `up to ${n.toLocaleString("en-US")} pe
  * Verification is not asked of anyone: a receptionist whose customers write first needs none, and a business grows into it
  * (more than the day's conversations, its name shown, a third number).
  */
-function verificationNote(s: NumberStanding, limitSaid: boolean): ConnectionNote | null {
-  if (s.verification === null) return null;
-  const word = s.verification.toLowerCase();
+function verificationNote(numberStanding: NumberStanding, limitSaid: boolean): ConnectionNote | null {
+  if (numberStanding.verification === null) return null;
+  const word = numberStanding.verification.toLowerCase();
   if (word === "verified") return null;
-  const tier = dailyLimit(s.limit);
+  const tier = dailyLimit(numberStanding.limit);
   const cap = tier === null || tier === Number.POSITIVE_INFINITY ? NEW_BUSINESS_LIMIT : tier;
   const capWords = limitSaid ? "" : `, and you can start conversations with ${peopleADay(cap)}`;
-  const link = { label: "Verify in Meta", href: securityCenterLink(s.owner_business_id) };
+  const link = { label: "Verify in Meta", href: securityCenterLink(numberStanding.owner_business_id) };
   return word.startsWith("pending")
     ? {
         text: `Meta is reviewing your business's verification: until then customers see your number instead of your name${capWords}.`,
@@ -378,14 +379,17 @@ function verificationNote(s: NumberStanding, limitSaid: boolean): ConnectionNote
  * a number nothing was read for, nothing of Meta's own notes and problems (the row's sentence says the one that matters), and
  * nothing of what is fine.
  */
-export function standingNotes(s: NumberStanding | null, o: { limitSaid: boolean }): ConnectionNote[] {
-  if (!s) return [];
+export function standingNotes(
+  numberStanding: NumberStanding | null,
+  options: { limitSaid: boolean },
+): ConnectionNote[] {
+  if (!numberStanding) return [];
   const out: ConnectionNote[] = [];
   // A name Meta declined or let lapse stops messages until the owner acts: on the row, never behind a press
   // (ConnectionNote.live). The verification is what Meta holds, to act on "when you need more": it waits to be asked.
-  const name = nameWords(s.name_status, s.name);
+  const name = nameWords(numberStanding.name_status, numberStanding.name);
   if (name) out.push({ text: name, live: true });
-  const verification = verificationNote(s, o.limitSaid);
+  const verification = verificationNote(numberStanding, options.limitSaid);
   if (verification) out.push(verification);
   return out;
 }
@@ -396,9 +400,12 @@ export function standingNotes(s: NumberStanding | null, o: { limitSaid: boolean 
  * number, Meta's first problem about messaging and Meta's fix. A number Meta blocked without a reason says so and sends the
  * owner to Connections.
  */
-export function standingAlertWords(number: string | null, s: NumberStanding): { subject: string; body: string } {
+export function standingAlertWords(
+  number: string | null,
+  numberStanding: NumberStanding,
+): { subject: string; body: string } {
   const which = formatPhoneDisplay(number) ?? "your number";
-  const payment = paymentTrouble(s);
+  const payment = paymentTrouble(numberStanding);
   if (payment) {
     const where = payment === "missing" ? ADD_ONE_IN_SUITE : "Fix it in Meta Business Suite › Billing.";
     return {
@@ -406,7 +413,7 @@ export function standingAlertWords(number: string | null, s: NumberStanding): { 
       body: `WhatsApp can't start conversations from ${which}: ${PAYMENT_SENTENCE[payment]} ${where}`,
     };
   }
-  const first = messagingProblems(s).at(0);
+  const first = messagingProblems(numberStanding).at(0);
   const body = first
     ? `WhatsApp can't send from ${which}: ${problemWords(first)}`
     : `WhatsApp can't send from ${which}. Meta did not say why; open Connections to read what it holds.`;
@@ -427,7 +434,7 @@ export function numberHealthWithStanding(health: NumberHealth, standing: NumberS
  * The health of the connected WhatsApp number, from what its channel's config holds: the rating Meta gave at connection
  * (`quality_rating`), the newest quality webhook (`quality_event`) and messaging limit (`messaging_limit`), each read when it
  * is a string and as nothing when it is not, and the standing Meta keeps for the number (`standing`, 00338). THE derivation,
- * so the composer's gate (`whatsappHealthOf`) and Reports' Campaigns lens say the same of the same number.
+ * so the composer's gate (`findWhatsappHealth`) and Reports' Campaigns lens say the same of the same number.
  */
 export function numberHealthOfConfig(config: Record<string, unknown>): NumberHealth {
   const s = (key: string): string | null => {
@@ -450,9 +457,9 @@ const sendWords = (w: unknown): string | null => {
 };
 
 /** The Activity log's words for a `channel.standing` event { from?, to }: "from can send to blocked", or the first word read. */
-export function standingChangeWords(p: Record<string, unknown>): string | null {
-  const to = sendWords(p.to);
-  const from = sendWords(p.from);
+export function standingChangeWords(record: Record<string, unknown>): string | null {
+  const to = sendWords(record.to);
+  const from = sendWords(record.from);
   if (!to) return null;
   return from ? `from ${from} to ${to}` : to;
 }

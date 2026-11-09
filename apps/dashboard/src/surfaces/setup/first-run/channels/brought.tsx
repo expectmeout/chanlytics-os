@@ -7,19 +7,15 @@
  * mailbox set aside a door to where it is listed; the first run's sheet keeps its owner on the step.
  */
 import { useState, type ReactNode } from "react";
-import {
-  FIRST_RUN_HELPERS,
-  type FirstRunChannelsVM,
-  type ImportLineVM,
-  type ImportSource,
-} from "@chanlytics/contracts";
+import type { FirstRunChannelsVM, ImportLineVM, ImportSource } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 // Each part from its own module, never the kit's index: the index brings every part on Base UI into the first run's
 // and Today's pages (+21 KB and +10 KB gzipped, #1854's first build), and the first run draws its buttons by class.
 import { Meter } from "../../../kit/meter/meter";
 import { Icon } from "../../../kit/icon/icon";
 import { useCountGlide } from "../../../kit/motion/use-count-glide";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { refusalToast, routeDoor, type LegacyFlash } from "../../../legacy-verbs";
+import { refusalToast, routeDoor, type FrameFlash } from "../../../frame-verbs";
 import { setupVerbs } from "../../surface";
 
 const IW = FIRST_RUN_HELPERS.importWords;
@@ -33,6 +29,7 @@ const SOURCE_GLYPH: Record<ImportSource, string> = {
   contacts: "users",
   whatsapp_contacts: "users",
   whatsapp_history: "chat",
+  google_photos: "image",
 };
 
 /**
@@ -45,7 +42,7 @@ const STARTING_HOLD_MS = 30_000;
  * Where a line stands, at its end: Try again where it stopped (Starting, and still, once pressed), a tick once in, the
  * live dot while it reads with no bar to say how far, and otherwise its word ("Starting", "2 of 3", "At Go live").
  */
-function LineStand({ line, flash }: { line: ImportLineVM; flash: (f: LegacyFlash) => void }): ReactNode {
+function LineStand({ line, flash }: { line: ImportLineVM; flash: (f: FrameFlash) => void }): ReactNode {
   const [pressedAt, setPressedAt] = useState<number | null>(null);
   const starting = pressedAt !== null && Date.now() - pressedAt < STARTING_HOLD_MS;
   const again = async () => {
@@ -115,7 +112,7 @@ function ImportLine({
   doors,
 }: {
   line: ImportLineVM;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   doors: boolean;
 }): ReactNode {
   const door = doors ? line.door : null;
@@ -177,7 +174,7 @@ export function ImportLines({
   doors = false,
 }: {
   lines: ImportLineVM[];
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   doors?: boolean;
 }) {
   return (
@@ -209,7 +206,7 @@ export function FrBringing({
   open: boolean;
   onClose: () => void;
   lines: ImportLineVM[];
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }) {
   const running = lines.some((l) => l.state === "running" || l.state === "queued");
   return (

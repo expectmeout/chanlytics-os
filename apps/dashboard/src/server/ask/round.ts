@@ -1,8 +1,10 @@
 import "server-only";
 import { fenced, type ModelSpeed } from "@chanlytics/contracts";
-import { streamModel, type GatewayCall } from "./gateway";
-import type { GatewayBlockStart } from "./sse";
-import { log } from "@/server/log";
+import { streamModel, type GatewayCall } from "../shared/model/gateway";
+import type { GatewayBlockStart } from "../shared/model/stream";
+import { openedPicture, pictureBlocks, type ToolPicture } from "./tools/context/tool-defs";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * One model round: the request goes out, the stream comes back, the content
@@ -72,17 +74,17 @@ export interface RoundResult {
  * A block as its start opens it: a call's id and name where it is one (ours, or the tool search's own), and what its
  * kind carries back unmodified (a thinking block's signature, a redacted one's data, a search's result).
  */
-function opened(b: GatewayBlockStart["block"]): RoundBlock {
-  const called = b.type === "tool_use" || b.type === "server_tool_use";
+function opened(block: GatewayBlockStart["block"]): RoundBlock {
+  const called = block.type === "tool_use" || block.type === "server_tool_use";
   return {
-    type: b.type,
-    id: called ? b.id : "",
-    name: called ? b.name : "",
+    type: block.type,
+    id: called ? block.id : "",
+    name: called ? block.name : "",
     text: "",
     json: "",
-    ...(b.type === "thinking" ? { thinking: "", signature: "" } : {}),
-    ...(b.type === "redacted_thinking" ? { data: b.data } : {}),
-    ...(b.type === "tool_search_tool_result" ? { toolUseId: b.toolUseId, content: b.content } : {}),
+    ...(block.type === "thinking" ? { thinking: "", signature: "" } : {}),
+    ...(block.type === "redacted_thinking" ? { data: block.data } : {}),
+    ...(block.type === "tool_search_tool_result" ? { toolUseId: block.toolUseId, content: block.content } : {}),
   };
 }
 
@@ -182,6 +184,7 @@ export function parseInput(json: string): Record<string, unknown> {
   try {
     return json ? (JSON.parse(json) as Record<string, unknown>) : {};
   } catch {
+    // Not JSON: nothing to read.
     return {};
   }
 }
@@ -198,18 +201,19 @@ export function parseInput(json: string): Record<string, unknown> {
  * (cutOff, below), so the retry is a shorter call rather than a guess at a
  * field that was never wrong.
  */
-export function argsOf(b: RoundBlock): Record<string, unknown> | null {
-  if (!b.json) return {};
+export function argsOf(roundBlock: RoundBlock): Record<string, unknown> | null {
+  if (!roundBlock.json) return {};
   try {
-    return JSON.parse(b.json) as Record<string, unknown>;
+    return JSON.parse(roundBlock.json) as Record<string, unknown>;
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
 }
 
 /** A call whose arguments did not arrive whole (argsOf): the round hit its cap mid-argument, and is told so. */
-export function cutOff(b: RoundBlock, tenantId: string): { result: string; isError: true } {
-  log.error("ask_tool_input_cut_off", { tool: b.name, bytes: b.json.length, tenant_id: tenantId });
+export function cutOff(roundBlock: RoundBlock, tenantId: TenantId): { result: string; isError: true } {
+  log.error("ask_tool_input_cut_off", { tool: roundBlock.name, bytes: roundBlock.json.length, tenant_id: tenantId });
   return {
     result: JSON.stringify({
       error:
@@ -228,21 +232,21 @@ export function cutOff(b: RoundBlock, tenantId: string): { result: string; isErr
  * its parsed input.
  */
 export function replayBlocks(blocks: RoundBlock[]): unknown[] {
-  return blocks.map((b) => {
-    switch (b.type) {
+  return blocks.map((block) => {
+    switch (block.type) {
       case "thinking":
-        return { type: "thinking", thinking: b.thinking ?? "", signature: b.signature ?? "" };
+        return { type: "thinking", thinking: block.thinking ?? "", signature: block.signature ?? "" };
       case "redacted_thinking":
-        return { type: "redacted_thinking", data: b.data ?? "" };
+        return { type: "redacted_thinking", data: block.data ?? "" };
       case "text":
-        return { type: "text", text: b.text || " " };
+        return { type: "text", text: block.text || " " };
       // Tool search's own blocks, as the API wrote them: never a result of ours under them (D11).
       case "server_tool_use":
-        return { type: "server_tool_use", id: b.id, name: b.name, input: parseInput(b.json) };
+        return { type: "server_tool_use", id: block.id, name: block.name, input: parseInput(block.json) };
       case "tool_search_tool_result":
-        return { type: "tool_search_tool_result", tool_use_id: b.toolUseId ?? "", content: b.content ?? null };
+        return { type: "tool_search_tool_result", tool_use_id: block.toolUseId ?? "", content: block.content ?? null };
       default:
-        return { type: "tool_use", id: b.id, name: b.name, input: parseInput(b.json) };
+        return { type: "tool_use", id: block.id, name: block.name, input: parseInput(block.json) };
     }
   });
 }
@@ -250,7 +254,17 @@ export function replayBlocks(blocks: RoundBlock[]): unknown[] {
 /** A call a round made, and what it answered: a read's rows or an act's card, or the error said in words. */
 export interface CallOutcome {
   block: RoundBlock;
-  out: { result: string; isError: boolean };
+  out: { result: string; isError: boolean; pictures?: readonly ToolPicture[] };
+}
+
+/**
+ * A read's answer as the model reads it: its words, and any pictures it opened, each named just before it, by the id of the copy
+ * Anthropic holds. An id never serves other bytes, so a live chain replays this exactly as it was sent.
+ */
+function resultContent(out: CallOutcome["out"]): unknown {
+  const words = fenced("record", out.result);
+  if (!out.pictures?.length) return words;
+  return [{ type: "text", text: words }, ...pictureBlocks(out.pictures.map(openedPicture))];
 }
 
 /**
@@ -267,7 +281,7 @@ export function resultBlocks(outcomes: CallOutcome[]): unknown[] {
   return outcomes.map(({ block, out }) => ({
     type: "tool_result",
     tool_use_id: block.id,
-    content: fenced("record", out.result),
+    content: resultContent(out),
     is_error: out.isError,
   }));
 }

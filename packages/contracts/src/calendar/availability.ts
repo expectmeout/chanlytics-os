@@ -17,12 +17,13 @@
  * them in (describeOpenings). The feed is read in feed.ts and its text in ics-text.ts, the clock is
  * zone-math.ts, and the service a caller means, and what it is offered as, is service-offer.ts.
  */
+import { MIN_MS } from "../shared/time";
 import type { Closure, Hours } from "../config/workspace-config/business-profile";
 import { DAYS } from "../config/workspace-config/config-rules";
 import { NO_LINK_DETAILS } from "../config/no-booking-link";
 import { BOOKING_REQUEST_INSTRUCTION } from "./visit/booking-request";
-import { keyParts, weekdayNamed } from "./day-keys";
-import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "./zone-math";
+import { keyParts, weekdayNamed, DAY_KEY } from "../shared/zone/day-keys";
+import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "../shared/zone/math";
 import type { BusyBlock } from "./feed";
 import { dateFormat } from "../shared/time";
 
@@ -71,10 +72,10 @@ function hhmm(s: string): [number, number] | null {
  * unioned the two, this one let intervals win -- so a row holding both could
  * be described two ways, and "are you open at nine?" had two answers.
  */
-export function dayIntervals(h: Hours | undefined): Array<[string, string]> {
+export function dayIntervals(hours: Hours | undefined): Array<[string, string]> {
   const raw: Array<[string, string]> = [];
-  if (h?.open && h?.close) raw.push([h.open, h.close]);
-  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
+  if (hours?.open && hours?.close) raw.push([hours.open, hours.close]);
+  for (const iv of hours?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
   const usable = raw.filter(([o, c]) => c > o).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   const merged: Array<[string, string]> = [];
   for (const [o, c] of usable) {
@@ -158,11 +159,11 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
     const ranges = dayIntervals(input.hours?.[day.weekday]);
     const windows: Array<{ start: number; end: number }> = [];
     for (const [open, close] of ranges) {
-      const o = hhmm(open),
-        c = hhmm(close);
-      if (!o || !c) continue;
-      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, o[0], o[1]), earliest);
-      const end = localToUtcMs(input.tz, day.y, day.m, day.d, c[0], c[1]);
+      const opening = hhmm(open),
+        closing = hhmm(close);
+      if (!opening || !closing) continue;
+      let start = Math.max(localToUtcMs(input.tz, day.y, day.m, day.d, opening[0], opening[1]), earliest);
+      const end = localToUtcMs(input.tz, day.y, day.m, day.d, closing[0], closing[1]);
       for (const b of busy) {
         if (b.end <= start) continue;
         if (b.start >= end) break;
@@ -202,7 +203,7 @@ export function filterOpenings(
 ): Opening[] {
   const day = (by.day ?? "").trim().toLowerCase();
   const weekday = weekdayNamed(day) ?? undefined;
-  const key = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined;
+  const key = DAY_KEY.test(day) ? day : undefined;
   const minMs = by.minMinutes && by.minMinutes > 0 ? by.minMinutes * 60_000 : 0;
   const picked = openings.filter((o) => (key ? o.key === key : weekday ? o.weekday === weekday : true));
   const first = weekday && !key ? picked.slice(0, 1) : picked; // "Tuesday" means the next one
@@ -273,4 +274,33 @@ export function describeOpenings(
         ? "Offer up to three of these that fit what they want, then send the booking link to lock one in. Never confirm a slot yourself; the calendar decides."
         : `Offer up to three of these that fit what they want, then take ${NO_LINK_DETAILS} so the team can confirm one. Never confirm a slot yourself; the calendar decides.`)
   );
+}
+
+/** The days the room is counted over: the first fourteen on offer, the receptionist's span until a business sets it longer. */
+export const ROOM_DAYS = 14;
+
+/** How full the book is: the days counted, the slots open on each with any, and the slots taken. */
+export interface BookRoom {
+  days: number;
+  by_day: Array<{ day: string; open: number }>;
+  taken: number;
+}
+
+/**
+ * How full the book is, for pacing an offer to what the business can take (Ask's calendar.room, and a paced offer's own run,
+ * D39 of the answers canvas): the openings, every day and service, counted in whole slots of the business's slot length on each
+ * day with any, over the first ROOM_DAYS on offer (fewer where the business offers fewer); and `taken`, the slots the feed's busy
+ * blocks and the record's (each widened by the buffer) take out of the same hours -- what the hours alone offer on the same clock
+ * and rules, less what is open. A slot is the calendar's, one booking at a time: it counts no one who works there.
+ */
+export function roomOf(openings: Opening[], free: Omit<FreeWindowsInput, "busy">, daysAhead: number): BookRoom {
+  const days = Math.min(daysAhead, ROOM_DAYS);
+  const slotMs = (free.rules?.slot_min ?? BOOKING_DEFAULTS.slot_min) * MIN_MS;
+  const hours = freeWindows({ ...free, busy: [], rules: { ...free.rules, max_days_ahead: days } });
+  // A day with room is a day the hours offer, so the hours' days are the span.
+  const span = new Set(hours.map((o) => o.key));
+  const open = openings.filter((o) => span.has(o.key));
+  const slots = (o: Opening) => o.windows.reduce((n, w) => n + Math.floor((w.end - w.start) / slotMs), 0);
+  const total = (list: Opening[]) => list.reduce((n, o) => n + slots(o), 0);
+  return { days, by_day: open.map((o) => ({ day: o.key, open: slots(o) })), taken: total(hours) - total(open) };
 }

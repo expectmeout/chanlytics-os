@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { asContactId, REPLY_MAX_ANY } from "@chanlytics/contracts";
 import { beginConversation, replyToConversation } from "@chanlytics/core";
-import { write } from "@/server/route";
-import { conversationScope, replyChannelOf } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { conversationScope, replyChannelOf } from "@/server/shared/verbs";
 import { beginPorts } from "@/server/new-conversation/ports";
-import { replyPorts } from "@/server/ports/core-ports";
+import { replyPorts } from "@/server/conversations/ports";
+import { draftUseOfReply } from "@/server/conversations/drafts";
 
 /**
  * Validated at the door, not read hopefully.
@@ -84,7 +85,14 @@ export const POST = write({
     const conv = { ...row, contact_id: asContactId(row.contact_id) };
     const idempotencyKey = req.headers.get("idempotency-key");
     if (row.last_inbound_at) {
-      return replyToConversation(replyPorts(ctx), { conv, userId: ctx.userId, body: input, idempotencyKey });
+      const draftUse = await draftUseOfReply(ctx, row.tenant_id, row.id, input.text);
+      return replyToConversation(replyPorts(ctx), {
+        conv,
+        userId: ctx.userId,
+        body: input,
+        idempotencyKey,
+        ...(draftUse ? { draftUse } : {}),
+      });
     }
     const wire = await replyChannelOf(ctx, row);
     // A DM thread began with their own DM, so it is never a first message: answered as a reply, which Instagram's window

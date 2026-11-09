@@ -1,7 +1,7 @@
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
-import { requireUuid } from "@/server/request-guards";
-import { edgeGoogle } from "@/server/connections/google";
+import { requireUuid } from "@/server/shared/request-guards";
+import { callEdgeGoogle } from "@/server/connections/google";
 
 /**
  * POST /api/v1/google/reviews/:id/draft — the receptionist's draft of a
@@ -14,7 +14,7 @@ import { edgeGoogle } from "@/server/connections/google";
  * review lives on the edge's side of the door, which answers 404 for one
  * that is not on record.
  */
-const SAID: Record<string, string> = {
+const REASON_WORDS: Record<string, string> = {
   policy_never:
     "Review replies are set to Never on Autonomy. Set them to Ask for a draft, or Auto to have new reviews answered.",
   no_review: "That review is not on record.",
@@ -29,17 +29,17 @@ export const POST = write({
   rate: "google_draft",
   handle: async ({ ctx, member }) => {
     const id = requireUuid(ctx.params.id, "review");
-    const a = await edgeGoogle({ op: "draft", tenant_id: member.tenantId, user_id: ctx.userId, id }, 25_000);
-    const b = a.body ?? {};
-    if (a.status !== 200 || b.ok !== true || typeof b.text !== "string") {
-      const reason = typeof b.error === "string" ? b.error : "failed";
-      const said = SAID[reason] ?? `No draft this time (${reason}).`;
+    const answer = await callEdgeGoogle({ op: "draft", tenant_id: member.tenantId, user_id: ctx.userId, id }, 25_000);
+    const body = answer.body ?? {};
+    if (answer.status !== 200 || body.ok !== true || typeof body.text !== "string") {
+      const reason = typeof body.error === "string" ? body.error : "failed";
+      const sentence = REASON_WORDS[reason] ?? `No draft this time (${reason}).`;
       throw new AppError(
-        a.status === 404 ? "not_found" : a.status === 409 ? "conflict" : "internal",
-        said,
-        a.status === 404 ? 404 : a.status === 409 ? 409 : 502,
+        answer.status === 404 ? "not_found" : answer.status === 409 ? "conflict" : "upstream_provider",
+        sentence,
+        answer.status === 404 ? 404 : answer.status === 409 ? 409 : 502,
       );
     }
-    return { text: b.text, mode: typeof b.mode === "string" ? b.mode : "ask" };
+    return { text: body.text, mode: typeof body.mode === "string" ? body.mode : "ask" };
   },
 });

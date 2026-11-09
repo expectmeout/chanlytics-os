@@ -35,24 +35,26 @@ function zctaTable(): ZctaRow[] {
 const R = 6_371_000;
 const rad = (deg: number) => (deg * Math.PI) / 180;
 
-export function haversineM(a: LatLng, b: LatLng): number {
-  const dLat = rad(b.lat - a.lat);
-  const dLng = rad(b.lng - a.lng);
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+export function haversineM(latLng: LatLng, otherLatLng: LatLng): number {
+  const dLat = rad(otherLatLng.lat - latLng.lat);
+  const dLng = rad(otherLatLng.lng - latLng.lng);
+  const s =
+    Math.sin(dLat / 2) ** 2 + Math.cos(rad(latLng.lat)) * Math.cos(rad(otherLatLng.lat)) * Math.sin(dLng / 2) ** 2;
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 
 /** The ZCTA's internal point, or null for a ZIP the table does not have (a PO-box-only ZIP, a typo). */
 export function zctaCenter(zip: string): LatLng | null {
-  const z = zip.trim();
+  const text = zip.trim();
   const rows = zctaTable();
   let lo = 0;
   let hi = rows.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     const row = rows[mid];
-    if (row[0] === z) return { lat: row[1], lng: row[2] };
-    if (row[0] < z) lo = mid + 1;
+    if (!row) return null;
+    if (row[0] === text) return { lat: row[1], lng: row[2] };
+    if (row[0] < text) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;
@@ -61,7 +63,8 @@ export function zctaCenter(zip: string): LatLng | null {
 const median = (xs: number[]): number => {
   const s = [...xs].sort((a, b) => a - b);
   const m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  const at = (i: number): number => s[i] ?? 0;
+  return s.length % 2 ? at(m) : (at(m - 1) + at(m)) / 2;
 };
 
 /** The median of the points, coordinate by coordinate: robust to one listing geocoded on the wrong coast. */
@@ -77,7 +80,7 @@ export const RADIUS_MAX_M = 60_000;
 export function radiusFromSpread(center: LatLng, points: LatLng[]): number {
   if (!points.length) return RADIUS_MIN_M;
   const ds = points.map((p) => haversineM(center, p)).sort((a, b) => a - b);
-  const q3 = ds[Math.min(ds.length - 1, Math.floor(ds.length * 0.75))];
+  const q3 = ds[Math.min(ds.length - 1, Math.floor(ds.length * 0.75))] ?? 0;
   return Math.max(RADIUS_MIN_M, Math.min(RADIUS_MAX_M, q3 * 2));
 }
 
@@ -94,15 +97,15 @@ export function inArea(center: LatLng | null, radiusM: number, point: LatLng | n
  */
 export function nearestAreas(
   center: LatLng,
-  o: { excludeWithinM: number; take: number; maxM?: number; state?: string },
+  options: { excludeWithinM: number; take: number; maxM?: number; state?: string },
 ): LeadArea[] {
-  const max = o.maxM ?? RADIUS_MAX_M;
-  const state = (o.state ?? "").trim().toUpperCase();
+  const max = options.maxM ?? RADIUS_MAX_M;
+  const state = (options.state ?? "").trim().toUpperCase();
   return zctaTable()
     .map(([zip, lat, lng]) => ({ zip, lat, lng, d: haversineM(center, { lat, lng }) }))
-    .filter((x) => x.d >= o.excludeWithinM && x.d <= max)
+    .filter((x) => x.d >= options.excludeWithinM && x.d <= max)
     .sort((a, b) => a.d - b.d || (a.zip < b.zip ? -1 : 1))
-    .slice(0, Math.max(0, o.take))
+    .slice(0, Math.max(0, options.take))
     .map((x) => ({
       kind: "zip" as const,
       label: `near ${x.zip}`,

@@ -1,6 +1,6 @@
 import { PersonWorksAtSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
 import { linkPersonToLead, unlinkPersonFromLead } from "@/server/people/person-works-at";
 
 /**

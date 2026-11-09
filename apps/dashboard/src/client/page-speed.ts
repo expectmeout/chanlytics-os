@@ -48,7 +48,7 @@ const LANDED_HELD = 300;
 
 /* --------------------------------- the browser's side --------------------------------- */
 
-/** What the shell hands the measures: its address, its surfaces, and its gate (LegacyApp). */
+/** What the shell hands the measures: its address, its surfaces, and its gate (FrameApp). */
 export interface SpeedShell {
   /** The route on screen (workspace.ts routeOnScreen). */
   route(): string;
@@ -99,13 +99,26 @@ export function partBegins(begun: PartBegun): void {
   speedInstalled.speed.partBegins(begun, speedInstalled.inputAt(performance.now()));
 }
 
-/** A part's rows are drawn (usePartShown). */
+/** Who hears a part's rows drawn, beside the measures (hearPartReady). */
+const partHeard = new Set<(page: string, part: string) => void>();
+
+/**
+ * Hear each part's rows drawn, in the very draw that puts them on the screen: what stands in for a page until its rows are there
+ * goes by it (surfaces/frame/first-rows.ts), so the measures need know nothing of it. Answers the stop.
+ */
+export function hearPartReady(fn: (page: string, part: string) => void): () => void {
+  partHeard.add(fn);
+  return () => void partHeard.delete(fn);
+}
+
+/** A part's rows are drawn (usePartShown): said to the measures, where they are installed, and to whoever hears it. */
 export function partReady(page: string, part: string, key: string): void {
   speedInstalled?.speed.partReady(page, part, key);
+  for (const fn of partHeard) fn(page, part);
 }
 
 /**
- * The frame committed a draw (LegacyApp, after each of its renders): where its gate is open on the page on screen, the
+ * The frame committed a draw (FrameApp, after each of its renders): where its gate is open on the page on screen, the
  * page is drawn, and its READY, if it names no first part, is the next frame. Said from a draw, never from a status
  * change, so a load is never READY at a frame before the page was put on it.
  */

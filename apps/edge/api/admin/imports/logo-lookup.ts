@@ -5,13 +5,14 @@
  * The door is the knock (authorizeAdmin: a token the dashboard minted for this door, the member and the workspace) and
  * the body (readBody); lookupLogoFor in lib/imports/logo-lookup.ts is everything after.
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { lookupLogoFor } from "../../../lib/imports/logo-lookup.js";
+import { LOGO_LOOKUP_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/imports/logo-lookup");
   if (!auth.ok) return auth.response;
-  return lookupLogoFor(auth, await readBody(request));
+  return lookupLogoFor(auth, await readBody(request, LOGO_LOOKUP_DOOR));
 });

@@ -11,7 +11,7 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import type { ReportKind } from "@chanlytics/contracts";
 import { REPORT_AFTER_KEY, lastClientError } from "@/client/client-error";
-import { aheadWhenIdle } from "@/legacy-bridge/workspace";
+import { aheadWhenIdle } from "@/bridge/workspace";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { setReportDoor } from "../kit/empty/report-door";

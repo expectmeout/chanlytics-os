@@ -14,88 +14,61 @@
  * Addressed to the workspace's alert addresses only (mail(): no bell row, and nothing to the platform when there are
  * none). Signed admin token only.
  */
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { mail, reachesTenant } from "./notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
-import { logger, errField } from "../log.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { sendOpsMail, reachesTenant } from "../shared/alerts/notify.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import { logger, errField, refuseFailure } from "../shared/log.js";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import {
   alertTestMail,
   appLink,
   parseTenantConfigResult,
   spokenDuration,
   youAreLiveEmail,
-} from "../packages/contracts.js";
-import { workspaceNamed } from "../packages/db.js";
+  recordOrNull,
+  isTenantId,
+} from "@chanlytics/contracts";
+import { findConfigRow, findWorkspaceCard, findWorkspaceNamed } from "@chanlytics/db/workspace";
+import { findChannelNumber } from "@chanlytics/db/channels";
+import { findForwardedLine } from "@chanlytics/db/lines";
+import { findLastAnsweredCall } from "@chanlytics/db/voice";
 
 export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
 
   const [tenant, voice, kept, cfg, call, whatsapp] = await Promise.all([
-    db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle(),
-    db
-      .from("tenant_channels")
-      .select("number_e164")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "voice")
-      .eq("status", "active")
-      .order("created_at")
-      .limit(1)
-      .maybeSingle(),
-    db
-      .from("lines")
-      .select("e164, forwarding_state, facts")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "forwarded")
-      .neq("forwarding_state", "none")
-      .order("created_at")
-      .limit(1)
-      .maybeSingle(),
-    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
-    db
-      .from("calls")
-      .select("from_e164, duration_ms")
-      .eq("tenant_id", tenantId)
-      .eq("direction", "inbound")
-      .neq("status", "not_connected")
-      .order("started_at", { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle(),
+    findWorkspaceCard(db, tenantId),
+    findChannelNumber(db, tenantId, "voice"),
+    findForwardedLine(db, tenantId),
+    findConfigRow(db, tenantId),
+    findLastAnsweredCall(db, tenantId),
     // Going live is any channel (decision 0091): the WhatsApp number it answers, where one is connected.
-    db
-      .from("tenant_channels")
-      .select("number_e164")
-      .eq("tenant_id", tenantId)
-      .eq("kind", "whatsapp")
-      .eq("status", "active")
-      .order("created_at")
-      .limit(1)
-      .maybeSingle(),
+    findChannelNumber(db, tenantId, "whatsapp"),
   ]);
   // A read that failed would send a thinner email that says less than is true: none is sent instead.
   const failed = [tenant, voice, kept, cfg, call, whatsapp].find((q) => q.error);
-  if (failed?.error) return refuse(503, "read_failed", failed.error.message);
+  if (failed?.error) return refuseFailure(503, "read_failed", failed.error);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
 
   const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };
   // Only the workspace's own people: without an address of theirs there is nobody to tell.
   if (!reachesTenant(target)) {
-    L.info("you_are_live_unaddressed", { tenant_id: tenantId });
+    log.info("you_are_live_unaddressed", { tenant_id: tenantId });
     return json(200, { ok: true, sent: false, why: "no_address" });
   }
   const parsed = parseTenantConfigResult(cfg.data?.config);
   const brain = parsed.ok ? parsed.config.brain : null;
   // The kept number is said only once a call proved its forwarding, and with the mode saved.
   const proven = kept.data?.forwarding_state === "verified";
-  const facts = (kept.data?.facts ?? null) as { mode?: unknown } | null;
+  const facts = recordOrNull(kept.data?.facts);
   const message = youAreLiveEmail({
     business: brain?.business_name || tenant.data.name,
     own: voice.data?.number_e164 ?? null,
@@ -111,8 +84,8 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
     todayUrl: `${dashboardOrigin()}${appLink(tenant.data.slug, "today")}`,
     whatsapp: whatsapp.data?.number_e164 ?? null,
   });
-  const sent = await mail(target, message);
-  L.info("you_are_live_sent", { tenant_id: tenantId, sent });
+  const sent = await sendOpsMail(target, message);
+  log.info("you_are_live_sent", { tenant_id: tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, sent });
 }
 
@@ -127,23 +100,23 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
  * often a workspace may ask is the dashboard route's (three an hour).
  */
 export async function sendAlertTest(auth: Admitted, body: Partial<{ tenant_id?: string }>): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
 
   const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };
   const to = target.notifications?.escalation_emails ?? [];
   // Only the workspace's own addresses: a test that would reach the platform's instead is not sent.
   if (!reachesTenant(target) || !to.length) {
-    L.info("alert_test_unaddressed", { tenant_id: tenantId });
+    log.info("alert_test_unaddressed", { tenant_id: tenantId });
     return json(200, { ok: true, sent: false, why: "no_address", to: 0 });
   }
-  const named = await workspaceNamed(db, tenantId).catch((e: unknown) => {
-    L.warn("notify_link_unavailable", { tenant_id: tenantId, error: errField(e) });
+  const named = await findWorkspaceNamed(db, tenantId).catch((e: unknown) => {
+    log.warn("notify_link_unavailable", { tenant_id: tenantId, error: errField(e) });
     return null;
   });
   const message = alertTestMail({
@@ -152,7 +125,7 @@ export async function sendAlertTest(auth: Admitted, body: Partial<{ tenant_id?: 
     // which the home carries to the workspace this browser used last. Never the origin and a path the app does not have.
     link: `${dashboardOrigin()}${appLink(named?.slug, "admin/notifications")}`,
   });
-  const sent = await mail(target, message);
-  L.info("alert_test_sent", { tenant_id: tenantId, sent, to: to.length });
+  const sent = await sendOpsMail(target, message);
+  log.info("alert_test_sent", { tenant_id: tenantId, sent, to: to.length });
   return json(sent ? 200 : 502, { ok: sent, sent, to: to.length });
 }

@@ -270,7 +270,7 @@ test.describe("Ask on a real workspace", () => {
 
 /**
  * One paid question on each of five surfaces, each carrying its page the way the palette sends it: the context is the
- * palette's own (window.__ask.context, legacy-bridge/ask/context.ts, over what the page drew), warmed as the Line
+ * palette's own (window.__ask.context, bridge/ask/context.ts, over what the page drew), warmed as the Line
  * warms it on open (POST ask/warm), then sent with the question. The turn answers, carries no failure and names
  * nothing the workspace does not hold. The eval's cases on these surfaces (tooling/evals/ask-cases.json) grade the
  * answers; this proves the page rides a real turn end to end.
@@ -338,7 +338,7 @@ test.describe("Ask with the page it is asked on", () => {
  * plan is refused in its own words (contracts PLAN_WORDS.noChannel) and nothing that sends is proposed: no broadcast
  * card, no campaign card, and no words claiming one was made. That holds whatever else the model writes on that seed.
  * A plan approved, the message it writes in the Library, the receptionist's note and Undo need a workspace that sends
- * offers by email: the node tests prove them (tooling/scripts/tests/ask/plan/), and so does Ruben's own run on such a
+ * offers by email: the node tests prove them (tests/ask/plan/), and so does Ruben's own run on such a
  * workspace. Written and typechecked with the lane, never run by it: its first run is after 00415 and 00416 are
  * applied to production, with E2E_PAID_MODEL=1.
  */
@@ -446,7 +446,12 @@ const campaign = (n: number, title: string, line: string, moment: string, runs: 
 });
 
 /** The first card's facts: what goes out, when, to whom and by what channel, each to be seen before its Approve. */
-const FIRST_CARD_SAYS = ["The day before an appointment", "Daily, 10:00 AM", "6 people tomorrow", "On WhatsApp"];
+const FIRST_CARD_SAYS = [
+  "The day before an appointment",
+  "Daily, 10:00 AM",
+  "6 people tomorrow",
+  "On WhatsApp",
+] as const;
 const NEXT = ["Change the reminder's hour?", "Why the reminder first?"];
 
 /** The turn: the answer says the warning again, as a model may, and offers two next questions. */
@@ -695,10 +700,10 @@ for (const view of [
     }) => {
       test.setTimeout(120_000);
       for (const theme of ["dark", "light"]) {
-        await page.addInitScript(
-          ([key, t]) => localStorage.setItem(key, JSON.stringify({ theme: t })),
-          [DEVICE_PREFS, theme],
-        );
+        await page.addInitScript(({ key, t }) => localStorage.setItem(key, JSON.stringify({ theme: t })), {
+          key: DEVICE_PREFS,
+          t: theme,
+        });
         await openAsk(page);
         await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
         await scanAsk(page, `${theme}, at rest`);

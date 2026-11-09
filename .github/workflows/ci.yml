@@ -116,6 +116,52 @@ jobs:
         env:
           EXPO_PUBLIC_SITE_ORIGIN: https://example.com
 
+  # The kit's gallery in a browser, when a pull request changes what these checks read. e2e/kit/kit.spec.ts ran only
+  # when a person ran it, and 15 undrawn selectors appeared in the five days to 4 Nov 2026, each on a pull request of its
+  # own. The whole spec is 10.7 minutes on a quiet laptop, past the ten below before a runner has set up, so this runs
+  # the four checks that take seconds, by the names kit-paths-changed.test.mjs holds to the spec's titles; the tokens'
+  # and the contrast's walks, most of its time, run each night with the rest (nightly-kit.yml). As `mobile` does, its
+  # first step asks whether the change touches what they read (tooling/scripts/e2e-harness/kit-paths-changed.mjs: about 15%
+  # of main's commits), every step after it waits for a yes, and the job reports either way, in seconds when the answer
+  # is no. A run asked for by hand is a yes. The cap is Ruben's ten. It is a part of no gate: he decides when it may
+  # block. The browser is not cached: of the install's 155 seconds on the nightly's runner, apt's packages took 145 and
+  # the browser's download 9 (5 Nov 2026).
+  kit:
+    name: Kit gallery (classes, selectors, toast, rings)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # the commit before this one too: the question is asked of this change's own files
+          fetch-depth: 2
+      - name: Could this change have reached what the gallery's fast checks read?
+        id: changed
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "Asked for by hand, so the checks run."
+            echo "kit=true" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only HEAD^1 HEAD | node tooling/scripts/e2e-harness/kit-paths-changed.mjs >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v6
+        if: steps.changed.outputs.kit == 'true'
+      - uses: actions/setup-node@v7
+        if: steps.changed.outputs.kit == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: steps.changed.outputs.kit == 'true'
+      - run: pnpm e2e:install
+        if: steps.changed.outputs.kit == 'true'
+      - run: pnpm e2e:local -- e2e/kit/kit.spec.ts --scenario=kit --grep "every class in classes.json|every selector of every rule|a toast raised over|every control an entry draws"
+        if: steps.changed.outputs.kit == 'true'
+
   # Ruben, 10 Oct 2026: a push is through CI in under ten minutes. What was one job of fifteen steps in a row (seven
   # minutes of checks before a test ran, then the build) is four that run side by side once `scope` has answered, and
   # the check branch protection requires by name, Typecheck, is the last: a gate that passes when every part passed or
@@ -180,8 +226,7 @@ jobs:
       # The packages' sources compiled with the app, as Vercel builds (decision 0074).
       # The production build, the way Vercel runs it for the dashboard (Root
       # Directory apps/dashboard, `next build`, on Node 24 like this job). Nothing
-      # above compiles a page: typecheck skips src/legacy, the ported JSX shell,
-      # and no step prerendered a page or applied Next's own rules, such as a
+      # above compiles a page: no step prerendered a page or applied Next's own rules, such as a
       # "use client" page that may not export metadata. Until this step a build
       # failure first appeared as a failed deployment. Typecheck, the check branch
       # protection requires by name, needs this job, so a build that fails blocks
@@ -295,7 +340,8 @@ jobs:
       # ESLint's cache (tooling/scripts/checks/lint.mjs): a file whose content and config are as main last linted them
       # is not linted again, which takes the job from about four minutes to seconds. Main's own run after a merge lints
       # every file afresh (LINT_CACHE=0: a typed rule can turn on an unchanged file when a type it reads moved) and its
-      # result is the cache a pull request starts from; a pull request's run saves its own for its next push.
+      # result is the cache a pull request starts from; a pull request's run saves its own for its next push. A pull
+      # request that moves a shared type lints every file too: lint.mjs's openCache empties a cache stamped over others.
       - uses: actions/cache@v6
         with:
           path: node_modules/.cache/eslint
@@ -351,7 +397,7 @@ jobs:
       - run: pnpm format:check
 
   # Every number the build holds, measured on the change's base and on its head (decision 0074): the measures of
-  # tooling/scripts/tests/_measures.mjs, the lint's warnings and knip's dead exports. The base is the merge commit's
+  # tests/_measures.mjs, the lint's warnings and knip's dead exports. The base is the merge commit's
   # first parent, checked out here, measured by its own code, and the head checked out again; a base from before the
   # numbers left git is read from its baselines. A number that rose, or an offender that is new, fails until the
   # description says why, in a line `Debt: <why>`, read as the step runs (a re-run reads an edited one), as the bundle's

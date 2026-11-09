@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { orIfItMoved } from "./ready";
 
 /**
  * Nothing lands over what a page has drawn (docs/architecture.md, "How a page opens"; the page-open PRD of 3 Nov 2026, L9):
@@ -59,12 +60,15 @@ async function expectStill(page: import("@playwright/test").Page, name: string):
   await expect
     .poll(
       async () => {
-        drawnAt = await page.evaluate(() => {
-          const ready = (performance.getEntriesByType("measure") as PerformanceMeasure[]).find(
-            (m) => (m.detail as { speed?: { name?: string; part?: string } } | null)?.speed?.name === "READY",
-          );
-          return ready ? ready.startTime + ready.duration : -1;
-        });
+        drawnAt = await orIfItMoved(
+          page.evaluate(() => {
+            const ready = (performance.getEntriesByType("measure") as PerformanceMeasure[]).find(
+              (m) => (m.detail as { speed?: { name?: string; part?: string } } | null)?.speed?.name === "READY",
+            );
+            return ready ? ready.startTime + ready.duration : -1;
+          }),
+          -1,
+        );
         return drawnAt >= 0;
       },
       { timeout: 30_000, message: `${name} says it was drawn` },

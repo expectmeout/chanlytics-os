@@ -131,7 +131,7 @@ export async function expectNoQueueRepeat(page: Page): Promise<void> {
 /**
  * Since you looked opens in place: the line's few words, and once pressed its rows under it, closed again by a second
  * press. Nothing where the member never looked. (What each row says is contracts todaySince's, which
- * tooling/scripts/tests/today-zones/since-you-looked.test.mjs executes: a row per bit is so by construction, so counting
+ * tests/today/zones/since-you-looked.test.mjs executes: a row per bit is so by construction, so counting
  * one against the other here proved nothing.)
  */
 export async function expectSinceOpens(page: Page): Promise<void> {
@@ -151,7 +151,7 @@ export async function expectSinceOpens(page: Page): Promise<void> {
 
 /**
  * The Leads scope, as an owner sees it: the People | Leads switch with Leads
- * chosen, the one standing line, and the strongest fit at the top of the table.
+ * chosen, the one standing line, and who is first in the queue at the top of the table.
  * "Reached" means in the viewport here too -- a standing line below the fold
  * says nothing about whether the owner can see what the search found.
  */
@@ -161,11 +161,12 @@ export async function expectLeadsScope(page: Page, want: { standing: string; fir
   await expect(tabs).toBeVisible();
   await expect(tabs.getByRole("link", { name: "Leads" })).toHaveAttribute("aria-current", "page");
   // In Glass the standing line is the frame's head's sentence (the page's own line, leads-standing, is drawn on a
-  // phone alone): "3 leads · 2 ready · 1 search", each part read on its own. On a desk the head is kept for a reader
+  // phone alone): "3 leads · 2 not contacted · 2 searches", each part read on its own. On a desk the head is kept for a reader
   // and the frame's focus alone (components.css, the head's slot, 1 Oct 2026), so it is read, not looked for on screen.
   const standing = page.locator(".pg-head .pg-sentence");
   for (const part of want.standing.split("·")) await expect(standing).toContainText(part.trim());
-  await expect(page.locator(".cl-table tbody tr").first()).toContainText(want.first);
+  // A row, not its group's heading (Leads is a queue, #2137).
+  await expect(page.locator(".cl-table tbody tr:not(.dtable-group)").first()).toContainText(want.first);
 }
 
 /** The strip says how the round ended, in words, where the owner can read them. */
@@ -292,6 +293,21 @@ export async function sheetFloat(page: Page): Promise<number> {
   return page.evaluate(
     () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sheet-float")) || 0,
   );
+}
+
+/**
+ * How far a phone's sheet rests clear of the screen's foot (tokens.css --sheet-foot, 4 Nov 2026: never higher than the
+ * tab bar's, so a sheet covers the bar). The token is a min() of two others, so a fixed probe resolves it to pixels.
+ */
+export async function sheetFoot(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.cssText = "position: fixed; bottom: var(--sheet-foot, 0px)";
+    document.body.append(probe);
+    const foot = parseFloat(getComputedStyle(probe).bottom) || 0;
+    probe.remove();
+    return foot;
+  });
 }
 
 /**

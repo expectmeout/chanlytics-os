@@ -379,6 +379,13 @@ const GLYPHS: Record<string, Drawing> = {
       <path d="M6 10l-3 3.5" />
     </svg>
   ),
+  image: (p) => (
+    <svg {...p}>
+      <rect x="2" y="3" width="12" height="10" rx="1.5" />
+      <circle cx="5.5" cy="6.5" r="1" />
+      <path d="M14 10.5l-3-3-5.5 5.5" />
+    </svg>
+  ),
   star: (p) => (
     <svg {...p}>
       <path d="M8 2l1.8 4 4.2.5-3 3 .9 4.2L8 11.7 4.1 13.7 5 9.5 2 6.5 6.2 6z" />
@@ -469,11 +476,6 @@ const GLYPHS: Record<string, Drawing> = {
     <svg {...p}>
       <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
       <path d="M5.5 7V5a2.5 2.5 0 015 0v2" />
-    </svg>
-  ),
-  dashring: (p) => (
-    <svg {...p}>
-      <path d="M8 2a6 6 0 013.2 1M14 6.2a6 6 0 010 3.6M11.2 13A6 6 0 018 14M4.8 13A6 6 0 012 9.8M2 6.2A6 6 0 014.8 3" />
     </svg>
   ),
   copy: (p) => (

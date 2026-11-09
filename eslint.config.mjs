@@ -43,7 +43,7 @@ const OURS = {
     "error",
     { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
   ],
-  "no-empty": ["error", { allowEmptyCatch: true }],
+  "no-empty": "error",
   // A line that must not compile says why: the type tests' negatives (`*.type-test.ts`) are `@ts-expect-error <why>`,
   // and one whose line starts to compile is TS2578, an unused directive, so the typecheck fails. `@ts-ignore` stays
   // silent when the line it hides is fixed, and `@ts-nocheck` hides a whole file: neither is written. The phone app
@@ -66,6 +66,22 @@ const OURS = {
     { prefer: "type-imports", fixStyle: "inline-type-imports", disallowTypeAnnotations: false },
   ],
   "@typescript-eslint/no-import-type-side-effects": "error",
+  // Names follow docs/naming.md. A warning, each held per file by check:debt, until the last of them goes (decision 0105):
+  // types PascalCase with no `I`, no enum (a closed set is an `as const` array), functions camelCase or a component's
+  // PascalCase, variables camelCase, CONSTANT_CASE or a component's. A property is left alone, since the wire says
+  // snake_case, and so is a name a destructure takes from one. It reads no type, so it runs where no program is built too.
+  "@typescript-eslint/naming-convention": [
+    "warn",
+    { selector: "typeLike", format: ["PascalCase"], leadingUnderscore: "allow" },
+    { selector: "interface", format: ["PascalCase"], custom: { regex: "^I[A-Z]", match: false } },
+    { selector: "enum", format: null, custom: { regex: ".*", match: false } },
+    { selector: "function", format: ["camelCase", "PascalCase"], leadingUnderscore: "allow" },
+    { selector: "function", filter: "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$", format: null },
+    { selector: "variable", format: ["camelCase", "UPPER_CASE", "PascalCase"], leadingUnderscore: "allow" },
+    { selector: "variable", modifiers: ["destructured"], format: null },
+    { selector: "parameter", format: ["camelCase"], leadingUnderscore: "allow" },
+    { selector: "parameter", modifiers: ["destructured"], format: null },
+  ],
 };
 
 /** The TypeScript no program is built for (the browser specs, until e2e has a tsconfig): ESLint's recommended set. */
@@ -95,27 +111,14 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * changed nothing (each project typechecks after it), and what it still reports is either in a file another lane was
  * rewriting that day (Ask's server, routes, bridge and contracts, the kit's components, the Retell availability door,
  * the policies route, the edge-token doors, the jobs handlers), left for that lane, or an assertion the rule misreads
- * as doing nothing. One gives a generic its type: `(await jsonBody(req)) as T` infers `jsonBody`'s T from the
+ * as doing nothing. One gives a generic its type: `(await readJsonBody(req)) as T` infers `readJsonBody`'s T from the
  * assertion, and without it the body is `unknown`; those leave as the routes declare their `input`. The other keeps
  * a literal's type in an object a map builds (`role: (…) as ThreadTurn["role"]`), which widens to string without it.
- * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error. no-misused-promises holds one, a route context's params
- * read as a condition in the dashboard's request pipeline (`with-route.ts`), which the request-id lane was rewriting.
+ * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error.
  */
 export const HELD_TYPED = [
-  "@typescript-eslint/no-base-to-string",
+  // The colour model's four (it misreads a `??`, decision 0112).
   "@typescript-eslint/no-unnecessary-type-assertion",
-  "@typescript-eslint/no-deprecated",
-  "@typescript-eslint/no-misused-promises",
-  "@typescript-eslint/no-redundant-type-constituents",
-  "@typescript-eslint/no-unsafe-argument",
-  "@typescript-eslint/no-unsafe-assignment",
-  "@typescript-eslint/no-unsafe-call",
-  "@typescript-eslint/no-unsafe-member-access",
-  "@typescript-eslint/no-unsafe-return",
-  "@typescript-eslint/only-throw-error",
-  "@typescript-eslint/require-await",
-  "@typescript-eslint/restrict-template-expressions",
-  "@typescript-eslint/unbound-method",
 ];
 
 /** A rule's entry at warning, its options kept. */
@@ -136,6 +139,38 @@ const OUR_TYPED_TS_RULES = {
   ...Object.fromEntries(HELD_TYPED.map((rule) => [rule, asWarning(TYPED_AT_ERROR[rule] ?? "error")])),
 };
 
+/**
+ * Rules of typescript-eslint's strict set, on the backend alone (decision 0112): the edge, the packages and the
+ * dashboard's server and routes (BACKEND_TYPED). A page's findings are the frontend's to take on. Each is held as a
+ * warning while the backend has findings of it, as HELD_TYPED's are, and is an error in the change that fixes its last:
+ * checks/lint.mjs fails a run in which a rule of HELD_STRICT has none. no-unnecessary-condition is fixed last, after
+ * outside data is parsed where it comes in: while an assertion gives a value a shape on trust, the rule reads the check
+ * that value still needs as one that can never fire.
+ */
+const STRICT_AT_ERROR = {
+  // An object literal told its type passes a missing or misspelled field; an annotation or `satisfies` refuses one.
+  "@typescript-eslint/consistent-type-assertions": [
+    "error",
+    { assertionStyle: "as", objectLiteralTypeAssertions: "never" },
+  ],
+  // A condition the types say is always true or always false: a dead branch, or a type that says less than the code knows.
+  "@typescript-eslint/no-unnecessary-condition": "error",
+  // `x!` tells the checker a value is there; a check (or a reader that says why, as the line sagas' written()) proves it.
+  "@typescript-eslint/no-non-null-assertion": "error",
+  // What a promise rejects with is unknown until read: `.catch((e: unknown) => …)`, as a catch block already is.
+  "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
+};
+export const HELD_STRICT = ["@typescript-eslint/no-unnecessary-condition"];
+const BACKEND_TYPED = [
+  "apps/edge/**/*.ts",
+  "packages/*/src/**/*.ts",
+  "apps/dashboard/src/server/**/*.ts",
+  "apps/dashboard/app/api/**/*.ts",
+];
+const BACKEND_STRICT_RULES = Object.fromEntries(
+  Object.entries(STRICT_AT_ERROR).map(([rule, entry]) => [rule, HELD_STRICT.includes(rule) ? asWarning(entry) : entry]),
+);
+
 /** Plugin map for every TypeScript block. */
 const TS_PLUGINS = { "@typescript-eslint": tseslint.plugin };
 
@@ -155,12 +190,12 @@ const A11Y_RULES = Object.fromEntries(
 /** The markup the browser draws, each path one a block below already parses. */
 const DASHBOARD_MARKUP = [
   "apps/dashboard/app/**/*.tsx",
-  "apps/dashboard/src/legacy-bridge/**/*.tsx",
+  "apps/dashboard/src/bridge/**/*.tsx",
   "apps/dashboard/src/client/**/*.tsx",
   "apps/dashboard/src/auth/**/*.tsx",
   "apps/dashboard/src/yes/**/*.tsx",
   "apps/dashboard/src/surfaces/**/*.tsx",
-  "apps/dashboard/src/legacy/**/*.jsx",
+  "apps/dashboard/mockup/**/*.jsx",
 ];
 
 /**
@@ -169,7 +204,7 @@ const DASHBOARD_MARKUP = [
  * file could reach into a server module, and only a failed Vercel build would
  * have said so. Type-only imports cross freely; they carry a shape, not code.
  *
- *   browser code (legacy-bridge, client, yes, auth, → never the server, never
+ *   browser code (bridge, client, yes, auth, → never the server, never
  *                 surfaces)                           the packages that hold
  *                                                     rules or providers
  *   server code (src/server, app/api)               → never the shell or the
@@ -189,6 +224,8 @@ const BROWSER_MAY_NOT_IMPORT = [
       "@chanlytics/core/**",
       "@chanlytics/jobs",
       "@chanlytics/jobs/**",
+      "@chanlytics/log",
+      "@chanlytics/log/**",
       "@chanlytics/channels",
       "@chanlytics/channels/**",
       "server-only",
@@ -201,11 +238,10 @@ const BROWSER_MAY_NOT_IMPORT = [
 const SERVER_MAY_NOT_IMPORT = [
   {
     group: [
-      "**/legacy-bridge/**",
-      "**/legacy-bridge",
-      "@/legacy-bridge",
-      "@/legacy-bridge/**",
-      "**/legacy/**",
+      "**/bridge/**",
+      "**/bridge",
+      "@/bridge",
+      "@/bridge/**",
       "**/src/client/**",
       "@/client/**",
       "../client/**",
@@ -303,7 +339,7 @@ export const rawElementsRule = (pending) => ({
 });
 
 /**
- * A function's limits, the complexity measure's (tooling/scripts/tests/_measures.mjs, LIMIT): 150 lines, 30
+ * A function's limits, the complexity measure's (tests/_measures.mjs, LIMIT): 150 lines, 30
  * branches, 5 levels. The measure finds every function over them by name, counted as these rules count
  * (repo/measures.test.mjs), and check:debt holds each change to what it adds. Where a tree holds none any more, the
  * limits become lint errors there: said in the editor as the function is written, and no longer a number a change can
@@ -324,15 +360,15 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
 export const LIMITED_TREES = [
   "apps/dashboard/src/auth",
   "apps/dashboard/src/client",
-  "apps/dashboard/src/legacy-bridge/ask",
-  "apps/dashboard/src/legacy-bridge/billing",
-  "apps/dashboard/src/legacy-bridge/hearing",
-  "apps/dashboard/src/legacy-bridge/invitations",
-  "apps/dashboard/src/legacy-bridge/mascot",
-  "apps/dashboard/src/legacy-bridge/reach-out",
-  "apps/dashboard/src/legacy-bridge/rehearse",
-  "apps/dashboard/src/legacy-bridge/surfaces",
-  "apps/dashboard/src/legacy-bridge/verbs",
+  "apps/dashboard/src/bridge/ask",
+  "apps/dashboard/src/bridge/billing",
+  "apps/dashboard/src/bridge/hearing",
+  "apps/dashboard/src/bridge/invitations",
+  "apps/dashboard/src/bridge/mascot",
+  "apps/dashboard/src/bridge/reach-out",
+  "apps/dashboard/src/bridge/rehearse",
+  "apps/dashboard/src/bridge/surfaces",
+  "apps/dashboard/src/bridge/verbs",
   "apps/dashboard/src/lib",
   "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/auth",
@@ -340,15 +376,22 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/connections",
   "apps/dashboard/src/server/conversations",
   "apps/dashboard/src/server/export",
+  "apps/dashboard/src/server/files",
   "apps/dashboard/src/server/leads",
+  "apps/dashboard/src/server/lines",
+  "apps/dashboard/src/server/notices",
   "apps/dashboard/src/server/metrics",
   "apps/dashboard/src/server/new-conversation",
-  "apps/dashboard/src/server/platform",
-  "apps/dashboard/src/server/ports",
+  "apps/dashboard/src/server/console",
+  "apps/dashboard/src/server/drafts",
+  "apps/dashboard/src/server/posts",
   "apps/dashboard/src/server/previews",
   "apps/dashboard/src/server/public",
   "apps/dashboard/src/server/receptionist",
-  "apps/dashboard/src/server/sequences",
+  "apps/dashboard/src/server/settings",
+  "apps/dashboard/src/server/setup",
+  "apps/dashboard/src/server/shared",
+  "apps/dashboard/src/server/campaigns/sequences",
   "apps/dashboard/src/server/workspace",
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
@@ -356,32 +399,50 @@ export const LIMITED_TREES = [
   "apps/edge/api/cron",
   "apps/edge/api/jobs",
   "apps/edge/api/mailbox",
+  "apps/edge/lib/ai",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
+  "apps/edge/lib/drafts",
   "apps/edge/lib/email",
+  "apps/edge/lib/files",
   "apps/edge/lib/google",
   "apps/edge/lib/imports",
   "apps/edge/lib/instagram",
-  "apps/edge/lib/intake",
   "apps/edge/lib/lines",
+  "apps/edge/lib/notes",
   "apps/edge/lib/ops",
-  "apps/edge/lib/packages",
   "apps/edge/lib/partners",
   "apps/edge/lib/previews",
+  "apps/edge/lib/shared",
   "apps/edge/lib/sms",
+  "apps/edge/lib/support",
   "apps/edge/lib/website",
+  "packages/channels/src/ai",
+  "packages/channels/src/email",
+  "packages/channels/src/files",
+  "packages/channels/src/google",
+  "packages/channels/src/inbound",
+  "packages/channels/src/instagram",
+  "packages/channels/src/leads",
+  "packages/channels/src/shared",
+  "packages/channels/src/tokens",
+  "packages/channels/src/voice",
+  "packages/channels/src/website",
   "packages/contracts/src/activity",
   "packages/contracts/src/ads",
   "packages/contracts/src/ai",
   "packages/contracts/src/ask",
-  "packages/contracts/src/ask-memory",
-  "packages/contracts/src/ask-proposals",
-  "packages/contracts/src/ask-skills",
-  "packages/contracts/src/broadcasts",
+  "packages/contracts/src/ask/memory",
+  "packages/contracts/src/ask/proposals",
+  "packages/contracts/src/ask/skills",
+  "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
+  "packages/contracts/src/jobs",
   "packages/contracts/src/consent",
   "packages/contracts/src/console",
   "packages/contracts/src/email",
+  "packages/contracts/src/events",
+  "packages/contracts/src/files",
   "packages/contracts/src/google",
   "packages/contracts/src/imports",
   "packages/contracts/src/journey",
@@ -393,16 +454,16 @@ export const LIMITED_TREES = [
   "packages/contracts/src/new-conversation",
   "packages/contracts/src/notes",
   "packages/contracts/src/notices",
-  "packages/contracts/src/person-page",
-  "packages/contracts/src/playbooks",
+  "packages/contracts/src/people/person-page",
+  "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/previews",
-  "packages/contracts/src/reach-out",
+  "packages/contracts/src/campaigns/reach-out",
   "packages/contracts/src/rehearsal",
   "packages/contracts/src/reports",
-  "packages/contracts/src/sequences",
+  "packages/contracts/src/campaigns/sequences",
   "packages/contracts/src/shared",
   "packages/contracts/src/waits",
-  "packages/core/src/appointments",
+  "packages/core/src/calendar",
   "packages/core/src/campaigns",
   "packages/core/src/conversations",
   "packages/core/src/inbound",
@@ -410,6 +471,7 @@ export const LIMITED_TREES = [
   "packages/core/src/messages",
   "packages/db/src",
   "packages/jobs/src",
+  "packages/log/src",
 ];
 
 /**
@@ -427,17 +489,17 @@ export const WIDE_PARAMS = [
   "packages/jobs/src",
   "packages/contracts/src/ai",
   "packages/contracts/src/ask",
-  "packages/contracts/src/ask-proposals",
-  "packages/contracts/src/broadcasts",
+  "packages/contracts/src/ask/proposals",
+  "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
-  "packages/contracts/src/playbooks",
-  "packages/contracts/src/reach-out",
-  "apps/dashboard/src/legacy-bridge/mascot",
+  "packages/contracts/src/campaigns/playbooks",
+  "packages/contracts/src/campaigns/reach-out",
+  "apps/dashboard/src/bridge/mascot",
   "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/calendar",
-  "apps/dashboard/src/server/platform",
-  "apps/dashboard/src/server/ports",
+  "apps/dashboard/src/server/console",
   "apps/dashboard/src/server/receptionist",
+  "apps/dashboard/src/server/shared",
   "apps/dashboard/src/server/workspace",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
@@ -445,6 +507,16 @@ export const WIDE_PARAMS = [
   "apps/edge/lib/google",
   "apps/edge/lib/lines",
   "apps/edge/lib/partners",
+  "apps/edge/lib/shared",
+  "apps/dashboard/src/server/conversations",
+  "apps/dashboard/src/server/drafts",
+  "apps/dashboard/src/server/settings",
+  "apps/edge/lib/ai",
+  "packages/contracts/src/shared",
+  "packages/channels/src/ai",
+  "packages/channels/src/email",
+  "packages/channels/src/google",
+  "packages/channels/src/shared",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
@@ -456,7 +528,7 @@ const DASHBOARD_CODE = [
   "apps/dashboard/app/**/*.{ts,tsx}",
   "apps/dashboard/src/server/**/*.ts",
   "apps/dashboard/src/lib/**/*.ts",
-  "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
+  "apps/dashboard/src/bridge/**/*.{ts,tsx}",
   // The typed client and the sign-in screens ran without any static
   // analysis until the boundaries below needed to see them.
   "apps/dashboard/src/client/**/*.{ts,tsx}",
@@ -472,7 +544,7 @@ const DASHBOARD_CODE = [
 ];
 
 /** The two modules that read the dashboard's environment; a read anywhere else in DASHBOARD_CODE is refused. */
-const DASHBOARD_ENV_READERS = ["apps/dashboard/src/server/env.ts", "apps/dashboard/src/lib/public-env.ts"];
+const DASHBOARD_ENV_READERS = ["apps/dashboard/src/server/shared/env.ts", "apps/dashboard/src/lib/public-env.ts"];
 
 /** The typescript-eslint rules that read a type, which a block without a program cannot run. */
 const NEEDS_TYPES = new Set(
@@ -490,12 +562,15 @@ const NEEDS_TYPES = new Set(
 export const withoutTypes = (config) =>
   config.map((block) => {
     const parserOptions = block.languageOptions?.parserOptions;
-    if (!parserOptions?.projectService) return block;
+    // A block of rules alone (the backend's strict rules) adds typed rules to files another block parses: off too.
+    const rules =
+      block.rules &&
+      Object.fromEntries(
+        Object.entries(block.rules).map(([rule, entry]) => [rule, NEEDS_TYPES.has(rule) ? "off" : entry]),
+      );
+    if (!parserOptions?.projectService) return rules ? { ...block, rules } : block;
     const { projectService: _service, tsconfigRootDir: _root, ...rest } = parserOptions;
-    const rules = Object.fromEntries(
-      Object.entries(block.rules ?? {}).map(([rule, entry]) => [rule, NEEDS_TYPES.has(rule) ? "off" : entry]),
-    );
-    return { ...block, languageOptions: { ...block.languageOptions, parserOptions: rest }, rules };
+    return { ...block, languageOptions: { ...block.languageOptions, parserOptions: rest }, rules: rules ?? {} };
   });
 
 export default [
@@ -533,30 +608,30 @@ export default [
       // this catches a write that races the await before it.
       "require-atomic-updates": "error",
       // Every line the edge logs is one JSON object with a level, an event and
-      // whatever context is bound (lib/log.ts). A bare console call is a line
+      // whatever context is bound (lib/shared/log.ts). A bare console call is a line
       // no query returns and no tenant can be joined to.
       "no-console": "error",
-      // The environment is read in one place (lib/env.ts), typed, trimmed,
+      // The environment is read in one place (lib/shared/env.ts), typed, trimmed,
       // blank as unset. A read anywhere else is a second opinion on what a
       // variable means.
       "no-restricted-syntax": [
         "error",
         {
           selector: "MemberExpression[object.object.name='process'][object.property.name='env']",
-          message: "Read the environment through lib/env.ts, which types every variable once.",
+          message: "Read the environment through lib/shared/env.ts, which types every variable once.",
         },
       ],
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: EDGE_MAY_NOT_IMPORT }],
     },
   },
   // The one module that is allowed to do what the block above forbids: the edge reads its environment here. Logging is
-  // not its own: the logger is packages/channels/src/log/logger.ts, the one place a line reaches stdout.
+  // not its own: the logger is packages/log/src/logger.ts, the one place a line reaches stdout.
   {
-    files: ["apps/edge/lib/env.ts"],
+    files: ["apps/edge/lib/shared/env.ts"],
     rules: { "no-restricted-syntax": "off" },
   },
   // The dashboard's server, its auth routes, Ask's modules and the packages log through the one logger too
-  // (packages/channels log/, re-exported as src/server/log.ts): one JSON object per line, named by its event,
+  // (packages/channels log/, re-exported as src/server/shared/log.ts): one JSON object per line, named by its event,
   // carrying the request it belongs to. The exceptions, each with the program that owns it:
   //   - the logger's own writer, and db's until an app hands it the logger (packages/db observe.ts);
   //   - db's realtime subscription, which runs in the browser and is #1333's (decision 0019).
@@ -567,7 +642,7 @@ export default [
       "apps/dashboard/app/auth/**/*.ts",
       "packages/*/src/**/*.ts",
     ],
-    ignores: ["packages/channels/src/log/logger.ts", "packages/db/src/observe.ts", "packages/db/src/realtime.ts"],
+    ignores: ["packages/log/src/logger.ts", "packages/db/src/shared/observe.ts", "packages/db/src/realtime.ts"],
     rules: { "no-console": "error" },
   },
 
@@ -621,7 +696,13 @@ export default [
     },
   },
 
-  // The dashboard reads its environment in one place too, as the edge does: src/server/env.ts on the server, typed by
+  // The backend's strict rules (decision 0112, STRICT_AT_ERROR above), after every block that types it.
+  {
+    files: BACKEND_TYPED,
+    rules: BACKEND_STRICT_RULES,
+  },
+
+  // The dashboard reads its environment in one place too, as the edge does: src/server/shared/env.ts on the server, typed by
   // one zod schema and checked at boot, and src/lib/public-env.ts for the NEXT_PUBLIC_ values the browser's bundles
   // carry. A read anywhere else is a second opinion on what a variable means, and a default nobody checks at boot.
   {
@@ -633,7 +714,7 @@ export default [
         {
           object: "process",
           property: "env",
-          message: "Read the environment through src/server/env.ts (or src/lib/public-env.ts in the browser).",
+          message: "Read the environment through src/server/shared/env.ts (or src/lib/public-env.ts in the browser).",
         },
       ],
     },
@@ -642,7 +723,7 @@ export default [
   // The dashboard's layers, held apart (see BROWSER_MAY_NOT_IMPORT).
   {
     files: [
-      "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
+      "apps/dashboard/src/bridge/**/*.{ts,tsx}",
       "apps/dashboard/src/client/**/*.{ts,tsx}",
       "apps/dashboard/src/yes/**/*.tsx",
       "apps/dashboard/src/auth/**/*.{ts,tsx}",
@@ -718,7 +799,7 @@ export default [
   // repo/shell-names-are-published.test.mjs against what the shell publishes on
   // the window; no-undef here would believe the files' `/* global */` headers.
   {
-    files: ["apps/dashboard/src/legacy/**/*.jsx"],
+    files: ["apps/dashboard/mockup/**/*.jsx"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "script",
@@ -741,7 +822,7 @@ export default [
 
   // Test and operational scripts.
   {
-    files: ["tooling/{scripts,evals}/**/*.mjs"],
+    files: ["tooling/{scripts,evals}/**/*.mjs", "tests/**/*.mjs"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",
@@ -752,7 +833,7 @@ export default [
       // An error since the scripts held none (27 September): a new unused name
       // fails outright, never a warning a change could argue.
       "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
-      "no-empty": ["error", { allowEmptyCatch: true }],
+      "no-empty": "error",
     },
   },
 ];

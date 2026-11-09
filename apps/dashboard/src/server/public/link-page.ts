@@ -8,9 +8,11 @@ import "server-only";
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { accentOf, escapeHtml, workspaceLogoSrc } from "@chanlytics/contracts";
-import { workspaceLookOf, type Database } from "@chanlytics/db";
-import { env } from "@/server/env";
-import { serviceDbIfConfigured } from "@/server/service-db";
+import { findWorkspaceLook } from "@chanlytics/db/look";
+import type { Database } from "@chanlytics/db/types";
+import { env } from "@/server/shared/env";
+import { serviceDbIfConfigured } from "@/server/shared/service-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A test's database; otherwise the dashboard's one service-role client, when this deployment holds its keys. */
 let linkDb: SupabaseClient<Database> | null = null;
@@ -35,7 +37,7 @@ export const LINK_PAGE_HEADERS = {
   "referrer-policy": "no-referrer",
 };
 
-/** The product's paper and ink (legacy tokens.css), light and dark, so the page reads as the app's. */
+/** The product's paper and ink (tokens.css), light and dark, so the page reads as the app's. */
 const LINK_PAGE_STYLE = `
 :root{--bg:oklch(0.985 0.003 80);--raised:oklch(1 0 0);--line:oklch(0.92 0.005 80);--ink:oklch(0.18 0.01 260);
 --muted:oklch(0.42 0.01 260);--accent:oklch(0.52 0.19 25);--on-accent:#fff;color-scheme:light dark}
@@ -72,9 +74,9 @@ export const NO_LOOK: LinkPageLook = { business: null, logo_url: null, accent: n
  * The workspace's look for its page, read on the service role; a workspace that cannot be read wears none, and the
  * page still answers (the look is never the reason a stop or a yes is lost).
  */
-export async function linkPageLookOf(db: SupabaseClient<Database>, tenantId: string): Promise<LinkPageLook> {
+export async function linkPageLookOf(db: SupabaseClient<Database>, tenantId: TenantId): Promise<LinkPageLook> {
   try {
-    const row = await workspaceLookOf(db, tenantId);
+    const row = await findWorkspaceLook(db, tenantId);
     if (!row) return NO_LOOK;
     return {
       business: row.name,
@@ -115,6 +117,7 @@ export async function readLinkFields(req: Request): Promise<Map<string, string> 
       if (done) break;
       size += value.byteLength;
       if (size > LINK_PAGE_MAX_BYTES) {
+        // Closing what this is done with: nothing to do if that fails.
         await reader.cancel().catch(() => {});
         return "too_large";
       }
@@ -137,6 +140,7 @@ export async function readLinkFields(req: Request): Promise<Map<string, string> 
       for (const [k, v] of new URLSearchParams(new TextDecoder().decode(bytes).trim())) fields.set(k, v.trim());
     }
   } catch {
+    // A body this cannot decode: said as unreadable.
     return "unreadable";
   }
   return fields;

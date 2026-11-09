@@ -20,9 +20,9 @@
  * themselves did it, whatever source it came by. `visitChangeNews` words it. VISIT_CHANGES_TOLD says, for every change
  * the record makes, what the owner is told of it or why nothing.
  */
-import type { JobNews } from "../today/notifications";
+import type { JobNews } from "../today/notifications/feed-input";
 import { visitRoute } from "../calendar/appointment-key";
-import { visitDateKey, visitLine } from "../calendar/calendar-people";
+import { visitDateKey, visitLine } from "../calendar/people/visits";
 import type { FreedTimeOffer } from "../calendar/visit/freed-time";
 import { MIN_MS } from "../shared/time";
 import { plural } from "../shared/words";
@@ -48,7 +48,7 @@ export const VISIT_CHANGES_TOLD = {
 
 /** The sources a customer's booking comes by. A member's own entry (`person`) is the owner's, not news. */
 export type BookingVia = "booking_email" | "booking_tool" | "calendar_feed";
-/** The sources a customer's booking comes by, each once: the record's reads ask for these (db bookedVisitsOf). */
+/** The sources a customer's booking comes by, each once: the record's reads ask for these (db listBookedVisits). */
 export const BOOKING_VIAS: readonly BookingVia[] = ["booking_email", "booking_tool", "calendar_feed"];
 const ARRIVES_BY: ReadonlySet<string> = new Set<BookingVia>(BOOKING_VIAS);
 
@@ -90,14 +90,14 @@ interface EventLike {
  */
 export function feedAdditionIsBooking(data: unknown): boolean {
   if (!data || typeof data !== "object" || Array.isArray(data)) return false;
-  const d = data as Record<string, unknown>;
+  const item = data as Record<string, unknown>;
   return (
-    d.change === "added" &&
-    d.source === "calendar_feed" &&
-    d.named === true &&
-    d.series === false &&
-    d.twin === false &&
-    d.first === false
+    item.change === "added" &&
+    item.source === "calendar_feed" &&
+    item.named === true &&
+    item.series === false &&
+    item.twin === false &&
+    item.first === false
   );
 }
 
@@ -193,12 +193,14 @@ const visitDayOf = (v: BookedVisit): string => visitDateKey(v.start, v.timezone)
  * offers no freed time, and an offer not asked yet, hear it as before.
  */
 function freedAgainLine(offer: FreedTimeOffer | null): string {
-  const said = "That time is free again";
+  const sentence = "That time is free again";
   if (offer?.offered) {
     const people = plural(offer.people, "person", "people");
-    return offer.waits ? `${said} · ready to offer to ${people} when you OK it.` : `${said} · offered to ${people}.`;
+    return offer.waits
+      ? `${sentence} · ready to offer to ${people} when you OK it.`
+      : `${sentence} · offered to ${people}.`;
   }
-  return offer?.why === "nobody" ? `${said} · nobody asked this month who hasn't booked.` : `${said}.`;
+  return offer?.why === "nobody" ? `${sentence} · nobody asked this month who hasn't booked.` : `${sentence}.`;
 }
 
 /**
@@ -207,26 +209,30 @@ function freedAgainLine(offer: FreedTimeOffer | null): string {
  * a line on the bell, no mail.
  */
 export function visitChangeNews(
-  v: BookedVisit,
+  bookedVisit: BookedVisit,
   change: VisitChange,
   nowMs: number,
   offer: FreedTimeOffer | null = null,
 ): Omit<JobNews, "sourceEvent"> {
-  const when = visitLine({ start: v.start, end: v.end, allDay: v.allDay }, v.timezone, nowMs);
-  const who = v.who ?? "Someone";
+  const when = visitLine(
+    { start: bookedVisit.start, end: bookedVisit.end, allDay: bookedVisit.allDay },
+    bookedVisit.timezone,
+    nowMs,
+  );
+  const person = bookedVisit.who ?? "Someone";
   const cancelled = change === "cancelled";
   return {
     kind: "booking",
-    route: visitRoute(v.id, visitDayOf(v)),
-    about: { type: "appointment", id: v.id },
+    route: visitRoute(bookedVisit.id, visitDayOf(bookedVisit)),
+    about: { type: "appointment", id: bookedVisit.id },
     // Said without the workspace's word for an appointment, as visitNews says a booking arriving: a booking is the act.
-    subject: (cancelled ? `${who} cancelled their booking` : `${who} moved their booking`).slice(0, 200),
+    subject: (cancelled ? `${person} cancelled their booking` : `${person} moved their booking`).slice(0, 200),
     body: [
       cancelled ? when : `Now ${when}`,
-      ...(v.service ? [v.service] : []),
+      ...(bookedVisit.service ? [bookedVisit.service] : []),
       ...(cancelled ? [freedAgainLine(offer)] : []),
       "",
-      VIA_WORDS[v.via],
+      VIA_WORDS[bookedVisit.via],
     ].join("\n"),
     redactedBody: cancelled
       ? "A booking was cancelled, and nobody could be told."

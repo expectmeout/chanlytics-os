@@ -2,9 +2,11 @@
  * Check's chips (moved from legacy/pages/first-run.jsx, decision 0015): what the business offers and the languages its
  * receptionist speaks, a toggle each, saved as the Business tab saves that list.
  */
-import { sameListed, type CheckChipSetVM, type CheckChipVM, type FIRST_RUN_WORDS } from "@chanlytics/contracts";
+import { sameListed } from "@chanlytics/contracts";
+import type { CheckChipSetVM, CheckChipVM } from "./model/check-chips";
+import type { FIRST_RUN_WORDS } from "./model/view";
 import { Icon } from "../../kit/icon/icon";
-import { canDo, gate, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 import { businessTabSave } from "../shell";
 
 type ChipWords = (typeof FIRST_RUN_WORDS)["check"]["chips"];
@@ -31,14 +33,14 @@ const LISTS: Record<ChipList, { row: (name: string) => unknown; nameOf: (r: unkn
  * service keeps its minutes and its price. Only a refusal is said, in the saver's words. A role that may not change the
  * business sends nothing, whatever pressed it.
  */
-function chipPress(o: { list: ChipList; chip: CheckChipVM; flash: (f: LegacyFlash) => void; words: ChipWords }) {
+function chipPress(o: { list: ChipList; chip: CheckChipVM; flash: (f: FrameFlash) => void; words: ChipWords }) {
   const { list, chip, flash, words } = o;
   if (!canDo("settings")) return;
   const S = businessTabSave;
   const L = LISTS[list];
   const same = (r: unknown) => sameListed(L.nameOf(r), chip.name);
   const refusals = (f: unknown) => {
-    if (f && typeof f === "object" && Reflect.get(f, "tone") === "danger") flash(f as LegacyFlash);
+    if (f && typeof f === "object" && Reflect.get(f, "tone") === "danger") flash(f as FrameFlash);
   };
   // `edit` is run once, now, on the list as the next save finds it, and hands back the list the press leaves.
   const send = (edit: (rows: unknown[]) => unknown[], done?: () => void) => {
@@ -81,7 +83,7 @@ interface ChipsProps {
   set: CheckChipSetVM;
   doing: string;
   canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   words: ChipWords;
   more: { label: string; onClick: () => void; act?: string } | null;
   moreTestid: string;

@@ -1,11 +1,11 @@
 import { visitRoute } from "../calendar/appointment-key";
-import { pipelineRoute } from "../deals/pipeline/pipeline-views";
-import { pipelineRowId } from "../deals/pipeline/pipeline-vm";
-import { leadsRoute } from "../leads/lead-plan";
-import { listToken } from "../people/lists/list-token";
-import { personTabRoute, type PersonTab } from "../person-page/route";
+import { pipelineRoute } from "../deals/pipeline/views";
+import { pipelineRowId } from "../deals/pipeline/vm";
+import { leadsRoute } from "../leads/plan";
+import { listToken } from "../people/lists/token";
+import { personTabRoute, type PersonTab } from "../people/person-page/route";
 import { lensRoute, reviewRoute } from "../reports/lenses";
-import { messageRoute, runRoute, sequenceRoute } from "../sequences/sequence-address";
+import { messageRoute, runRoute, sequenceRoute } from "../campaigns/sequences/address";
 import type { RecordKind } from "./record-kinds";
 
 /**
@@ -64,13 +64,15 @@ export type RecordRef =
   | { kind: "rules" }
   | { kind: "channel" }
   | { kind: "team" }
-  | { kind: "billing" };
+  | { kind: "billing" }
+  | { kind: "file" };
 
 /**
  * The kinds of record that open nowhere, and why: the other half of RECORD_KINDS, so a kind added there says where it opens
  * (a variant of RecordRef) or why it cannot (a row here) before it compiles.
  */
 export const RECORDS_WITHOUT_AN_ADDRESS = {
+  draft: "a draft has no page of its own: it is read and used on its thread, whose address is the thread's.",
   notification:
     "a kept notice opens where its own row says (noticeRoute), which is the address of the record it is about; the notice has no page of its own",
   workspace:
@@ -82,7 +84,12 @@ export const RECORDS_WITHOUT_AN_ADDRESS = {
 } as const satisfies Partial<Record<RecordKind, string>>;
 
 /** Settings' panes a record kind is the whole of: the route is Settings' (`admin`), and the pane is the word after it. */
-const PANE = { channel: "admin/integrations", team: "admin/team", billing: "admin/billing" } as const;
+const PANE = {
+  channel: "admin/integrations",
+  team: "admin/team",
+  billing: "admin/billing",
+  file: "admin/files",
+} as const;
 
 /**
  * Where a record opens, as a route without its slash (the shell's own word: `clients/<id>`, which `workspacePath` turns into
@@ -92,7 +99,7 @@ const PANE = { channel: "admin/integrations", team: "admin/team", billing: "admi
 export function addressOf(ref: RecordRef): string {
   switch (ref.kind) {
     case "person":
-      // Their page, on the tab named (person-page/route.ts personTabRoute, the one writer of a tab's address).
+      // Their page, on the tab named (people/person-page/route.ts personTabRoute, the one writer of a tab's address).
       return personTabRoute(ref.id, ref.tab ?? "overview");
     case "conversation":
       return ref.in === "conversations" ? `conversations/${ref.id}` : `inbox/th-${ref.id}`;
@@ -132,6 +139,8 @@ export function addressOf(ref: RecordRef): string {
       return PANE.team;
     case "billing":
       return PANE.billing;
+    case "file":
+      return PANE.file;
   }
 }
 

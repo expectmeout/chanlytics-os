@@ -2,19 +2,23 @@
  * What an id looks like: the uuid every table keys on, as Postgres writes one, in either case.
  *
  * The test was spelled out in each module that took an id from outside -- a route's parameter, a job's payload, a
- * signed token, a form's field -- and they all agreed, so it is one pattern here. A module that looks for an id
- * inside a longer text (Ask's answers) or takes a looser shape is a different test and keeps its own.
+ * signed token, a form's field -- so it is one pattern here (decision 0108). A module that looks for an id inside a
+ * longer text (Ask's answers) is a different test and keeps its own.
  */
+import { textOrEmpty } from "./unknown";
 
 /** A whole string that is a uuid. No `g` flag, so one shared pattern keeps no state between two tests. */
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** What a workspace's address looks like, as /w/ says it. No `g` flag, for the same reason. */
+export const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
 /**
  * Whether a value is an id. Anything that is not a string is read as its text (`null` and `undefined` as nothing),
  * so a number or a missing field is simply not an id, never a throw.
  */
 export function isUuid(value: unknown): boolean {
-  return UUID.test(String(value ?? ""));
+  return UUID.test(textOrEmpty(value));
 }
 
 /**
@@ -26,6 +30,24 @@ export function isUuid(value: unknown): boolean {
 declare const whoseId: unique symbol;
 export type TenantId = string & { readonly [whoseId]: "tenant" };
 export type ContactId = string & { readonly [whoseId]: "contact" };
+
+/**
+ * Whether a value is a workspace's id, as the check where one enters (a door's body, a job's payload, a route's
+ * parameter): exactly the strings `isUuid` takes, and the value carries the type from there (decision 0112).
+ */
+export const isTenantId = (value: unknown): value is TenantId => typeof value === "string" && isUuid(value);
+
+/** Whether a value is a person's id, the same way. */
+export const isContactId = (value: unknown): value is ContactId => typeof value === "string" && isUuid(value);
+
+/**
+ * An id the database already holds as a workspace's or a person's, read out of a SQL function's JSON or a row named by hand, or
+ * one a door's schema has checked and zod does not carry: taken as it is, with no check, as the overlay takes a column's
+ * (packages/db/src/types.ts). What still tells two ids apart is the type, which is the point (decision 0112). Not for what comes
+ * from outside unchecked: that is `isTenantId` or `asTenantId`.
+ */
+export const heldTenantId = (value: string): TenantId => value as TenantId;
+export const heldContactId = (value: string): ContactId => value as ContactId;
 
 /** A tenant id: exactly the strings `isUuid` takes. Anything else throws, because a row that holds it is our fault. */
 export function asTenantId(value: string): TenantId {

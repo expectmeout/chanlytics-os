@@ -6,16 +6,18 @@
  * is the list's "Needs you").
  */
 import { adRoute } from "@chanlytics/contracts";
-import { DASH } from "@chanlytics/contracts/ads-page";
-import type { DoorVM, TilesVM } from "@chanlytics/contracts/ads-page";
+import { DASH } from "./model/vm-base";
+import type { AdWaitingRowVM, TilesVM } from "./model/page-parts";
+import type { DoorVM } from "./model/vm-base";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { Panel } from "../../kit/panel/panel";
 import { Tooltip } from "../../kit/tooltip/tooltip";
 import { cx } from "../../kit/variants";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { cmRowPress } from "../parts/head";
+import { adsInPreview } from "./shown";
 
 interface OpenProps {
   /** Open an ad over the page, pushed so Back closes it. */
@@ -32,11 +34,37 @@ function AdsBlockHead({ title, note }: { title: string; note?: string }) {
   );
 }
 
+/** A name that waits: the link to where they are, whose tip says which; in a preview the name alone, as no page holds them. */
+function WaitingName({ row }: { row: AdWaitingRowVM }) {
+  if (adsInPreview()) {
+    return (
+      <span className="cmh-row-name" data-testid="ads-waiting-name">
+        {row.name}
+      </span>
+    );
+  }
+  return (
+    <Tooltip tip={row.tip}>
+      <LinkButton
+        {...routeDoor(row.open)}
+        size="inherit"
+        className="cmh-row-name"
+        aria-description={row.tip}
+        data-row-open
+        data-testid="ads-waiting-door"
+      >
+        {row.name}
+      </LinkButton>
+    </Tooltip>
+  );
+}
+
 /**
  * Waiting on you: a face, the name, which ad and since when, and the days in amber. The name is a real link to their
- * conversation where there is one, else to their page, and its tip says which. Nobody waiting says so.
+ * conversation where there is one, else to their page, and a press anywhere on the row opens it. Nobody waiting says so.
  */
 export function WaitingBlock({ tile }: { tile: TilesVM["waiting"] }) {
+  const press = adsInPreview() ? null : ({ role: "presentation", onClick: cmRowPress } as const);
   return (
     <Panel as="section" size="flush" className="cmh-block" aria-label={tile.title} data-testid="ads-waiting">
       <AdsBlockHead title={tile.title} />
@@ -46,24 +74,10 @@ export function WaitingBlock({ tile }: { tile: TilesVM["waiting"] }) {
             <li key={r.personId} className="ads-waiting-row" data-testid="ads-waiting-row">
               <ListRow
                 face={{ initials: r.initials, size: "sm" }}
-                name={
-                  <Tooltip tip={r.tip}>
-                    <LinkButton
-                      {...routeDoor(r.open)}
-                      size="inherit"
-                      className="cmh-row-name"
-                      aria-description={r.tip}
-                      data-row-open
-                      data-testid="ads-waiting-door"
-                    >
-                      {r.name}
-                    </LinkButton>
-                  </Tooltip>
-                }
+                name={<WaitingName row={r} />}
                 end={(place) => <span className={cx(place, "ads-since")}>{r.since}</span>}
                 said={r.line}
-                role="presentation"
-                onClick={cmRowPress}
+                {...press}
               />
             </li>
           ))}

@@ -1,5 +1,5 @@
 import { LeadsBulkSchema } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { bulkStage } from "@/server/leads/leads";
 
 /**

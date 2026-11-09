@@ -5,8 +5,10 @@
  * platform and a door take. Nothing here spends anything.
  */
 import type { AdsRead } from "@chanlytics/contracts";
-import { ADS_COPY_LIMITS, NEW_AD, dayShort, dayWord } from "@chanlytics/contracts/ads-page";
-import type { AdDraft } from "@chanlytics/contracts/ads-page";
+import { ADS_COPY_LIMITS } from "../model/rules";
+import { NEW_AD } from "../model/words-new";
+import { dayShort, dayWord } from "../model/words";
+import type { AdDraft } from "../model/new-ad";
 import { Icon } from "../../../kit/icon/icon";
 import { Field } from "../../../kit/field/field";
 import { LinkButton } from "../../../kit/link-button/link-button";
@@ -14,9 +16,11 @@ import { Picker } from "../../../kit/picker/picker";
 import type { PickerGroup } from "../../../kit/picker/picker";
 import { RecordDisclosure } from "../../../kit/record/disclosure";
 import { Segmented } from "../../../kit/segmented/segmented";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { cmChevron } from "../../parts/picks";
+import { adsInPreview } from "../shown";
 import { Cap, Ctl, OnOffRow, Sec } from "./new-bits";
+import { FilesSec } from "./step-ad-files";
 import type { StepProps } from "./new-bits";
 import type { Completion } from "./new-state";
 
@@ -105,55 +109,63 @@ function postsLabel(platform: AdDraft["platform"], format: AdDraft["format"]): s
 
 /**
  * The photo or post: the owner's posts of the kind chosen first, then a photo (a video, on TikTok and where Meta's is a video)
- * of their own; a post can run as it is or lend its photo. TikTok says the sound line when a post is used.
+ * of their own; a post can run as it is or lend its photo. TikTok says the sound line when a post is used. In a workspace's preview a
+ * photo comes from its Files (step-ad-files.tsx), and with no post to choose from there is no section of posts to hold a lone tile.
  */
-export function PostsSec({ state, read, patch }: StepProps) {
+export function PostsSec(p: StepProps) {
+  const { state, read, patch } = p;
   const { platform, postId, postMode, format } = state.draft;
   const tiktok = platform === "tiktok";
   const video = tiktok || format === "video";
   const posts = read.posts
-    .filter((p) => p.platform === (tiktok ? "tiktok" : "meta") && (tiktok || p.kind === format))
+    .filter((one) => one.platform === (tiktok ? "tiktok" : "meta") && (tiktok || one.kind === format))
     .sort((a, b) => b.day.localeCompare(a.day));
-  const post = posts.find((p) => p.id === postId) ?? null;
+  const post = posts.find((one) => one.id === postId) ?? null;
   const label = postsLabel(platform, format);
+  const fromFiles = !video && adsInPreview();
+  const filesSec = fromFiles && post === null ? <FilesSec {...p} /> : null;
+  if (fromFiles && posts.length === 0) return filesSec;
   return (
-    <Sec label={label}>
-      <div className="ads-new-posts" role="group" aria-label={label}>
-        {posts.map((p) => (
-          <PostTile key={p.id} post={p} picked={p.id === postId} onPick={() => patch({ postId: p.id })} />
-        ))}
-        <LinkButton
-          size="inherit"
-          className="ads-new-post"
-          aria-pressed={post === null}
-          onClick={() => patch({ postId: null })}
-          data-testid="ads-new-post-add"
-        >
-          <span className="ads-new-post-art" aria-hidden="true">
-            <Icon name="plus" size={14} />
-          </span>
-          <span className="ads-new-post-day">{video ? NEW_AD.step2.addVideo : NEW_AD.step2.addPhoto}</span>
-        </LinkButton>
-      </div>
-      {tiktok ? <Cap>{NEW_AD.step2.video}</Cap> : null}
-      {tiktok && post !== null ? <Cap>{NEW_AD.step2.sound}</Cap> : null}
-      {!video && post === null ? <Cap>{NEW_AD.step2.photoHint}</Cap> : null}
-      {!tiktok && post !== null ? (
-        <Segmented
-          label={NEW_AD.step2.postUse}
-          value={postMode}
-          onValueChange={(next) => patch({ postMode: next })}
-          options={[
-            { value: "as-is", label: NEW_AD.step2.asIs, testid: "ads-new-as-is" },
-            {
-              value: "new-words",
-              label: video ? NEW_AD.step2.newWordsVideo : NEW_AD.step2.newWords,
-              testid: "ads-new-new-words",
-            },
-          ]}
-        />
-      ) : null}
-    </Sec>
+    <>
+      <Sec label={label}>
+        <div className="ads-new-posts" role="group" aria-label={label}>
+          {posts.map((one) => (
+            <PostTile key={one.id} post={one} picked={one.id === postId} onPick={() => patch({ postId: one.id })} />
+          ))}
+          <LinkButton
+            size="inherit"
+            className="ads-new-post"
+            aria-pressed={post === null}
+            onClick={() => patch({ postId: null })}
+            data-testid="ads-new-post-add"
+          >
+            <span className="ads-new-post-art" aria-hidden="true">
+              <Icon name="plus" size={14} />
+            </span>
+            <span className="ads-new-post-day">{video ? NEW_AD.step2.addVideo : NEW_AD.step2.addPhoto}</span>
+          </LinkButton>
+        </div>
+        {tiktok ? <Cap>{NEW_AD.step2.video}</Cap> : null}
+        {tiktok && post !== null ? <Cap>{NEW_AD.step2.sound}</Cap> : null}
+        {!video && post === null && !fromFiles ? <Cap>{NEW_AD.step2.photoHint}</Cap> : null}
+        {!tiktok && post !== null ? (
+          <Segmented
+            label={NEW_AD.step2.postUse}
+            value={postMode}
+            onValueChange={(next) => patch({ postMode: next })}
+            options={[
+              { value: "as-is", label: NEW_AD.step2.asIs, testid: "ads-new-as-is" },
+              {
+                value: "new-words",
+                label: video ? NEW_AD.step2.newWordsVideo : NEW_AD.step2.newWords,
+                testid: "ads-new-new-words",
+              },
+            ]}
+          />
+        ) : null}
+      </Sec>
+      {filesSec}
+    </>
   );
 }
 

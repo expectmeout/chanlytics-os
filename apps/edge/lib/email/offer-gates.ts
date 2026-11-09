@@ -1,7 +1,7 @@
 /**
  * The gates on offers by email (One message, every channel, step 4; the campaigns-on-every-channel spec, 4.5): complaints
  * above 0.1% of the last 1,000 offers that left, or hard bounces above 2% of the last 500, pause a workspace's offers by
- * email (contracts OFFER_GATES). Judged where the receipts that move them arrive (email-receipts.ts), from the receipts the
+ * email (contracts OFFER_GATES). Judged where the receipts that move them arrive (email/receipts.ts), from the receipts the
  * edge already stores (a complaint stamped on its row, a bounce its status): nothing is counted twice and no sweep is needed.
  *
  * The pause is the workspace's, and holds offers alone: reminders and replies by email, and offers by WhatsApp, go on. The
@@ -15,14 +15,16 @@
  * bounce judges again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { addressOf } from "../packages/channels.js";
-import { OFFERS_NOTICE_WORDS, offerGate, type OfferPauseReason, SEQUENCES_ROUTE } from "../packages/contracts.js";
-import { emailOfferCounts, pauseEmailOffers, type Database } from "../packages/db.js";
-import { logger, errField } from "../log.js";
-import { notify } from "../ops/notify.js";
-import { pageOperator } from "../ops/page-operator.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
+import { addressOf } from "@chanlytics/channels/email";
+import { OFFERS_NOTICE_WORDS, offerGate, type OfferPauseReason, SEQUENCES_ROUTE } from "@chanlytics/contracts";
+import { getEmailOfferCounts, pauseEmailOffers } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
+import { logger, errField } from "../shared/log.js";
+import { notify } from "../shared/alerts/notify.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import { campaignsDomain } from "./campaigns-domain.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -32,7 +34,7 @@ type Db = SupabaseClient<Database>;
  * else, so the rest of a run stopped with its owner never told why. Best effort: the pause already holds, and a notice that
  * could not be sent is said in the log, never a receipt refused.
  */
-async function tellOffersPaused(db: Db, tenantId: string, reason: OfferPauseReason): Promise<void> {
+async function tellOffersPaused(db: Db, tenantId: TenantId, reason: OfferPauseReason): Promise<void> {
   try {
     const addressing = await loadTenantNotifications(db, tenantId);
     const words = OFFERS_NOTICE_WORDS.paused(reason);
@@ -57,13 +59,17 @@ async function tellOffersPaused(db: Db, tenantId: string, reason: OfferPauseReas
  * touches. The reason it paused them for; null when they are not paused (the email was no offer, a gate is within bounds,
  * or the pause could not be written, which is said in the log).
  */
-export async function judgeOfferGates(db: Db, tenantId: string, from: string | null): Promise<OfferPauseReason | null> {
+export async function judgeOfferGates(
+  db: Db,
+  tenantId: TenantId,
+  from: string | null,
+): Promise<OfferPauseReason | null> {
   const campaigns = campaignsDomain();
   const host = addressOf(from)?.address.split("@")[1] ?? null;
   if (!campaigns || !host || host !== campaigns) return null;
   const log = logger({ tenant_id: tenantId });
   try {
-    const counts = await emailOfferCounts(db, { tenantId, host });
+    const counts = await getEmailOfferCounts(db, { tenantId, host });
     const reason = offerGate(counts);
     if (!reason) return null;
     // Once: a pause already in force keeps its first moment and reason, and says nothing twice.

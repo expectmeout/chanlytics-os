@@ -6,7 +6,9 @@
  */
 import { useState } from "react";
 import type { KeyboardEvent } from "react";
-import { ADS_ZIP_DIGITS, DRAWER, ZIPS, zipIssue } from "@chanlytics/contracts/ads-page";
+import { ADS_ZIP_DIGITS } from "../model/rules";
+import { DRAWER, ZIPS } from "../model/drawer/words";
+import { zipIssue } from "../model/drawer/edit-lists";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";

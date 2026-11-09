@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
-import { focusAsDrawn, leaving, type GateProps } from "../../legacy-verbs";
+import { focusAsDrawn, leaving, type GateProps } from "../../frame-verbs";
 import { JOB_CANCEL, PhoneSheetRow, jobBack } from "../sheets/phone-sheet";
 import { PERSON_ABOUT_WORDS } from "@chanlytics/contracts";
 import type { BulkActs } from "./bulk-acts";

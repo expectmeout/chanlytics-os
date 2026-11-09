@@ -1,20 +1,13 @@
 import { z } from "zod";
-import { AppError, E164 } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
-import { edgeRefusalWords } from "@/server/edge";
+import { AppError, E164, US_AREA_CODE } from "@chanlytics/contracts";
+import { write, workspace } from "@/server/shared/route";
+import { callEdgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
+import { edgeRefusalWords } from "@/server/shared/edge";
+import { LINES_PRODUCTION_ONLY, CARRIER_DID_NOT_ANSWER } from "@/server/connections/line-words";
 
 const Body = z.object({
   number: z.string().trim().regex(E164, "Choose one of the numbers offered."),
-  area_code: z
-    .union([
-      z.number().int(),
-      z
-        .string()
-        .trim()
-        .regex(/^\d{3}$/),
-    ])
-    .optional(),
+  area_code: z.union([z.number().int(), z.string().trim().regex(US_AREA_CODE)]).optional(),
 });
 
 /**
@@ -41,7 +34,7 @@ export const POST = write({
     // code rather than refusing -- and "012" a 12, a different area code than
     // the one the owner typed.
     const areaCode = input.area_code === undefined || input.area_code === null ? undefined : String(input.area_code);
-    const a = await edgeLines(
+    const edgeAnswer = await callEdgeLines(
       {
         op: "buy",
         tenant_id: member.tenantId,
@@ -51,38 +44,39 @@ export const POST = write({
       },
       EDGE_LINES_TIMEOUT_MS,
     );
-    const b = a.body ?? {};
+    const body = edgeAnswer.body ?? {};
     // The line already being set up is what this press asked for: the server starts the number the workspace chose
     // once its trial or plan does (decision 0091), often before the tab that paid presses, so the line that stands is
     // the answer, not a refusal.
-    if (a.status === 409 && b.error === "line_exists")
-      return { ok: true, queued: false, line: b.line ?? null, step: null, error: null };
-    if (a.status === 409)
+    if (edgeAnswer.status === 409 && body.error === "line_exists")
+      return { ok: true, queued: false, line: body.line ?? null, step: null, error: null };
+    if (edgeAnswer.status === 409)
       throw new AppError(
         "conflict",
-        b.error === "line_failed_retry"
+        body.error === "line_failed_retry"
           ? "This workspace has a line that stopped part-way — retry it from Setup."
           : "This workspace already has a line.",
         409,
       );
-    if (a.status === 503 && b.error === "preview")
-      throw new AppError("conflict", "Getting a line only works on the production dashboard.", 409);
-    if (a.status === 503 && b.error === "no_line_provider")
+    if (edgeAnswer.status === 503 && body.error === "preview")
+      throw new AppError("conflict", LINES_PRODUCTION_ONLY, 409);
+    if (edgeAnswer.status === 503 && body.error === "no_line_provider")
       throw new AppError(
         "conflict",
         "Getting a line is not available here yet — ask us and a person at Chanlytics sets it up with you.",
         409,
       );
-    if (a.status === 400) throw new AppError("validation", edgeRefusalWords(b) ?? "That number cannot be used.", 400);
-    if (a.status !== 200 && a.status !== 202 && a.status !== 502)
-      throw new AppError("internal", edgeRefusalWords(b) ?? "The carrier did not answer. Try again in a moment.", 502);
+    if (edgeAnswer.status === 400)
+      throw new AppError("validation", edgeRefusalWords(body) ?? "That number cannot be used.", 400);
+    if (edgeAnswer.status !== 200 && edgeAnswer.status !== 202 && edgeAnswer.status !== 502)
+      throw new AppError("upstream_provider", edgeRefusalWords(body) ?? CARRIER_DID_NOT_ANSWER);
     // 202: the saga is on the ledger; the row says the step, and Setup repaints from it.
     return {
-      ok: b.ok === true,
-      queued: b.queued === true,
-      line: b.line ?? null,
-      step: typeof b.step === "string" ? b.step : null,
-      error: typeof b.error === "string" ? b.error : null,
+      ok: body.ok === true,
+      queued: body.queued === true,
+      line: body.line ?? null,
+      step: typeof body.step === "string" ? body.step : null,
+      error: typeof body.error === "string" ? body.error : null,
     };
   },
 });

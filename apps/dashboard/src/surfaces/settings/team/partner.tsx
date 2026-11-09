@@ -16,7 +16,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { RecordField } from "../../kit/record/field";
-import { gate, type LegacyFlash } from "../../legacy-verbs";
+import { gate, type FrameFlash } from "../../frame-verbs";
 import { partnerVerbs } from "../partner/surface";
 
 /**
@@ -89,7 +89,7 @@ function PartnerAsk({
 }
 
 /** The partner's row, read on its own (GET team/partner), under the members. */
-export function PartnerRow({ flash, previewing }: { flash: (f: LegacyFlash) => void; previewing: boolean }) {
+export function PartnerRow({ flash, previewing }: { flash: (f: FrameFlash) => void; previewing: boolean }) {
   const api = partnerVerbs;
   const W = api.inviteWords;
   // What the tab last held, drawn at once: read on mount, the card came a beat after the members on every visit, 97 to 135 px

@@ -1,10 +1,18 @@
 import "server-only";
 import { z } from "zod";
-import { afterPersonRefused, normalizeEmail, normalizePhone, whyNotAPhone, whyNotAnEmail } from "@chanlytics/contracts";
-import { importPerson, noteImport, personBeforeNote } from "@chanlytics/db";
-import { recordDecision } from "../verbs";
-import { log } from "../log";
-import type { RouteContext } from "../with-route";
+import {
+  afterPersonRefused,
+  normalizeEmail,
+  normalizePhone,
+  whyNotAPhone,
+  whyNotAnEmail,
+  DAY_KEY,
+} from "@chanlytics/contracts";
+import { importPerson, noteImport, recordPersonBeforeNote } from "@chanlytics/db/imports";
+import { recordDecision } from "../shared/verbs";
+import { log } from "../shared/log";
+import type { RouteContext } from "../shared/with-route";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * A part of a business's own client list, brought in (POST contacts/import): each line through `import_person`, what a
@@ -15,10 +23,7 @@ import type { RouteContext } from "../with-route";
 /** What a client file says of a person beyond who they are (contracts csv.ts ImportFacts), as the door takes it. */
 const Facts = z
   .object({
-    last_visit: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
+    last_visit: z.string().regex(DAY_KEY).optional(),
     visits: z.number().int().min(0).max(999_999).optional(),
     birthday: z
       .string()
@@ -65,14 +70,14 @@ interface ImportOut {
 /** What the file says of a person beyond who they are: kept where nothing is. A refusal keeps the person, said in the log. */
 async function keepBefore(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: ImportInput,
-  contactId: string,
+  contactId: ContactId,
   facts: z.infer<typeof Facts>,
 ): Promise<void> {
   const { notes, ...dates } = facts;
   try {
-    await personBeforeNote(
+    await recordPersonBeforeNote(
       ctx.supabase,
       tenantId,
       contactId,
@@ -94,7 +99,7 @@ async function keepBefore(
  * after adds to them, and the last says done. A part that stopped says the file stopped. Never a refusal of the rows:
  * they are on file by now, and a ledger that will not take the note is said in the log.
  */
-async function noteThePart(ctx: RouteContext, tenantId: string, input: ImportInput, out: ImportOut): Promise<void> {
+async function noteThePart(ctx: RouteContext, tenantId: TenantId, input: ImportInput, out: ImportOut): Promise<void> {
   if (!input.part) return;
   const { n, of } = input.part;
   try {
@@ -122,24 +127,28 @@ async function noteThePart(ctx: RouteContext, tenantId: string, input: ImportInp
 /** One line through the door: added, found, or the reason it was skipped; a fault the door raises for every row stops the part. */
 async function importLine(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: ImportInput,
-  r: z.infer<typeof Row>,
+  item: z.infer<typeof Row>,
   line: number,
   out: ImportOut,
 ): Promise<void> {
-  const phone = normalizePhone(r.phone ?? null);
-  const email = normalizeEmail(r.email ?? null);
+  const phone = normalizePhone(item.phone ?? null);
+  const email = normalizeEmail(item.email ?? null);
   if (!phone && !email) {
-    const said = r.phone?.trim() ? whyNotAPhone(r.phone) : r.email?.trim() ? whyNotAnEmail(r.email) : null;
-    out.skipped.push({ line, reason: said ?? "No number and no address." });
+    const sentence = item.phone?.trim()
+      ? whyNotAPhone(item.phone)
+      : item.email?.trim()
+        ? whyNotAnEmail(item.email)
+        : null;
+    out.skipped.push({ line, reason: sentence ?? "No number and no address." });
     return;
   }
   // What the row does not have is sent as empty, which the door reads as none: database.types.ts types the name, the
   // number and the address as strings, as it does set_person_email's address. No digest is sent: the door makes its own
   // (00263), since only the database holds the pepper. The name is not cut here: the door keeps its first 80
   // characters, and a cut by code unit could split an emoji in half (csv.ts says the same of the reader).
-  const person = await importPerson(ctx.supabase, tenantId, { name: (r.name ?? "").trim(), phone, email });
+  const person = await importPerson(ctx.supabase, tenantId, { name: (item.name ?? "").trim(), phone, email });
   if (!person.ok) {
     if (afterPersonRefused(person.code) === "skip" || person.code === ERASED) {
       out.skipped.push({ line, reason: person.message });
@@ -153,7 +162,7 @@ async function importLine(
   if (made.existed) out.existed += 1;
   else out.added += 1;
   if (made.email === "set") out.emails_set += 1;
-  if (r.facts) await keepBefore(ctx, tenantId, input, made.contact_id, r.facts);
+  if (item.facts) await keepBefore(ctx, tenantId, input, made.contact_id, item.facts);
 }
 
 /**
@@ -162,7 +171,7 @@ async function importLine(
  * workspace, with the counts and nothing that names a person; a decision the ledger will not take is logged, never
  * answered as a refusal of rows already on file.
  */
-export async function importPeopleRows(ctx: RouteContext, tenantId: string, input: ImportInput): Promise<ImportOut> {
+export async function importPeopleRows(ctx: RouteContext, tenantId: TenantId, input: ImportInput): Promise<ImportOut> {
   const out: ImportOut = { added: 0, existed: 0, emails_set: 0, skipped: [], failed: [], stopped: false };
   for (const [i, r] of input.rows.entries()) {
     await importLine(ctx, tenantId, input, r, i + 1, out);
@@ -183,7 +192,7 @@ export async function importPeopleRows(ctx: RouteContext, tenantId: string, inpu
       skipped: out.skipped.length,
       failed: out.failed.length,
     });
-  } catch (e) {
+  } catch (error) {
     log.error("import_decision_failed", {
       tenant_id: tenantId,
       import_id: input.import_id,
@@ -191,7 +200,7 @@ export async function importPeopleRows(ctx: RouteContext, tenantId: string, inpu
       existed: out.existed,
       skipped: out.skipped.length,
       failed: out.failed.length,
-      error: e instanceof Error ? e.message : String(e),
+      error: error instanceof Error ? error.message : String(error),
     });
   }
   await noteThePart(ctx, tenantId, input, out);

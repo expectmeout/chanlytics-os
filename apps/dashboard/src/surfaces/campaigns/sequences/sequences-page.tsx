@@ -29,7 +29,7 @@ import { ActWords } from "../../kit/head/act-words";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { useHeldList, type Arrival } from "../../kit/motion/held-list";
-import { gate, navigate, routeDoor } from "../../legacy-verbs";
+import { gate, navigate, routeDoor } from "../../frame-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { CmSplit, cmGoing, useCmPhone, type CmView } from "../parts/split";
 import { SequencesList, sequencesList } from "./list";

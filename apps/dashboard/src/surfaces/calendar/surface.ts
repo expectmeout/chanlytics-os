@@ -1,15 +1,15 @@
 /**
  * The Calendar's override: the span the page shows, held between reads, and the bookings over it (moved from
- * legacy-bridge/surfaces/calendar.ts, decision 0015). Part of the SurfaceData seam (legacy-bridge/surface-data.ts); the page
+ * bridge/surfaces/calendar.ts, decision 0015). Part of the SurfaceData seam (bridge/surface-data.ts); the page
  * reads what it publishes through `useSurface("calendar")`.
  */
-import { read } from "@/legacy-bridge/api";
-import { heldViews } from "@/legacy-bridge/held-views";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
-import { knownZone } from "@/legacy-bridge/zone";
-import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM } from "@chanlytics/contracts";
+import { read } from "@/bridge/api";
+import { heldViews } from "@/bridge/held-views";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads } from "@/bridge/surface-registry";
+import { getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
+import { knownZone } from "@/bridge/zone";
+import { toCalendarVM, windowFor, zoneDayKey, type CalendarVM, DAY_KEY } from "@chanlytics/contracts";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { calendarAddress, calendarParam } from "./address";
 import { CR_REFRESH_MS } from "./words";
@@ -36,7 +36,7 @@ export function getCalendarSpan(): { from: string | null; days: number } {
 }
 
 export function setCalendarSpan(from: string | null, days = 63): void {
-  calendarFrom = from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null;
+  calendarFrom = from && DAY_KEY.test(from) ? from : null;
   calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));
 }
 

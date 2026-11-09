@@ -1,0 +1,291 @@
+/** Partner: partner. */
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import { SCHEMA_SETS, DbFailure } from "@chanlytics/contracts";
+import type { Database } from "../../types";
+import { isMissingFunction } from "../../shared/missing-door";
+import { readAnswer } from "../../shared/read-json";
+import type { TenantId } from "@chanlytics/contracts";
+
+export type Db = SupabaseClient<Database>;
+
+export type PartnerRow = Database["public"]["Tables"]["partners"]["Row"];
+
+export type PartnerTenantRow = Database["public"]["Tables"]["partner_tenants"]["Row"];
+
+/** The columns the pane reads: never the payout facts, which are the platform's. */
+const PARTNER_COLUMNS = "id, code, status, share_bp, terms_accepted_at, created_at";
+
+export type PartnerPublicRow = Pick<
+  PartnerRow,
+  "id" | "code" | "status" | "share_bp" | "terms_accepted_at" | "created_at"
+>;
+
+/** The row partner_become answers: the caller's partner row, its public columns. */
+const PartnerPublicAnswer = z.object({
+  id: z.string(),
+  code: z.string(),
+  status: z.enum(SCHEMA_SETS["partners.status"]),
+  share_bp: z.number(),
+  terms_accepted_at: z.string().nullable(),
+  created_at: z.string(),
+});
+
+/** The error a database 00202 has not reached answers a read of the table with. */
+const noTable = (message: string): boolean =>
+  /\bpartners\b/.test(message) && /does not exist|could not find|schema cache/i.test(message);
+
+/**
+ * The caller's own partner row, or null: none, or a database 00202 has not reached, which reads as none so the app
+ * boots whichever deploys first. Any other failure is thrown.
+ */
+export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
+  const { data, error } = await db.from("partners").select(PARTNER_COLUMNS).maybeSingle();
+  if (error) {
+    if (noTable(error.message)) return null;
+    throw new DbFailure(error, "getOwnPartner");
+  }
+  return data;
+}
+
+/**
+ * Whether the session holds a partner's seat that row policy hides from it until it shows its second factor (00280
+ * session_has_partner_seat): how a password-only partner is sent to the second step instead of being told there is no
+ * workspace. A database that does not have the door yet, or one that cannot answer, says no: the request is a 404 as it
+ * was.
+ */
+export async function doesSessionHoldPartnerSeat(db: Db): Promise<boolean> {
+  try {
+    const { data, error } = await db.rpc("session_has_partner_seat");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * How many workspaces the caller brought (their partner_tenants rows, which partner_tenants_partner_select lets them
+ * read): through their link, set up and accepted by an owner (0016), or joined at an owner's invitation (0020); one
+ * still waiting for its owner is not brought yet. The same count whether or not they still sit on each team. On a database 00214 has not reached every
+ * row is a link's. Null when it cannot be read.
+ */
+export async function getPartnerBroughtCount(db: Db, partnerId: string): Promise<number | null> {
+  const of = () =>
+    db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
+  const r = await of().or("origin.eq.link,origin.eq.invite,handover_accepted_at.not.is.null");
+  if (!r.error) return r.count ?? 0;
+  if (!/\b(origin|handover_accepted_at)\b/.test(r.error.message)) return null;
+  const older = await of();
+  return older.error ? null : (older.count ?? 0);
+}
+
+/** One line of the caller's balance: a currency's total in one state, and when the next held one is due. */
+export interface PartnerBalanceLine {
+  currency: string;
+  state: string;
+  earned_cents: number;
+  next_payable_at: string | null;
+}
+
+/**
+ * The caller's own totals (00203 partner_balance): held, payable and paid, by currency. Empty on a database 00203
+ * has not reached, which reads as nothing earned yet, which is true.
+ */
+export async function getPartnerBalance(db: Db): Promise<PartnerBalanceLine[]> {
+  const { data, error } = await db.rpc("partner_balance");
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883" || /could not find the function/i.test(error.message))
+      return [];
+    throw new DbFailure(error, "getPartnerBalance");
+  }
+  return (data ?? []).map((r) => ({
+    currency: r.currency,
+    state: r.state,
+    earned_cents: Number(r.earned_cents),
+    next_payable_at: r.next_payable_at ?? null,
+  }));
+}
+
+/**
+ * Whether the caller's daily letter is on (00209 partners.letters): read apart from the row, so a database 00209 has
+ * not reached still answers the row, and the letter reads as null (the pane shows no switch).
+ */
+export async function getPartnerLetters(db: Db): Promise<boolean | null> {
+  const { data, error } = await db.from("partners").select("letters").maybeSingle();
+  if (error || !data) return null;
+  return typeof data.letters === "boolean" ? data.letters : null;
+}
+
+/** The caller turns their daily letter on or off (00209 partner_letters_set); the function's own words on a refusal. */
+export async function setPartnerLetters(
+  db: Db,
+  on: boolean,
+): Promise<{ ok: true; letters: boolean } | { ok: false; code: string; message: string }> {
+  const { data, error } = await db.rpc("partner_letters_set", { p_on: on });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, letters: data === true };
+}
+
+/** The caller becomes a partner with this code: the function's own words come back as the error's message. */
+export async function becomePartner(
+  db: Db,
+  code: string,
+): Promise<{ ok: true; row: PartnerPublicRow } | { ok: false; code: string; message: string }> {
+  const { data, error } = await db.rpc("partner_become", { p_code: code });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, row: readAnswer("partner_become", PartnerPublicAnswer, data) };
+}
+
+export type PartnerOverviewRow = Database["public"]["Functions"]["partner_overview"]["Returns"][number];
+
+export type PartnerWorkspaceMoneyLine = Database["public"]["Functions"]["partner_workspace_money"]["Returns"][number];
+
+/**
+ * The back office's row for each workspace the caller brought and still sits on the team of (00204
+ * partner_overview), and what each they ever brought earned them (partner_workspace_money). Both answer about the
+ * caller alone; both read as none on a database 00204 has not reached.
+ */
+export async function getPartnerWorkspaces(
+  db: Db,
+): Promise<{ overview: PartnerOverviewRow[]; money: PartnerWorkspaceMoneyLine[] }> {
+  const [o, m] = await Promise.all([db.rpc("partner_overview"), db.rpc("partner_workspace_money")]);
+  for (const r of [o, m]) {
+    if (r.error && !isMissingFunction(r.error)) throw new DbFailure(r.error, "getPartnerWorkspaces");
+  }
+  return {
+    overview: o.error ? [] : (o.data ?? []),
+    money: m.error
+      ? []
+      : (m.data ?? []).map((r) => ({
+          ...r,
+          held_cents: Number(r.held_cents),
+          payable_cents: Number(r.payable_cents),
+          paid_cents: Number(r.paid_cents),
+          month_cents: Number(r.month_cents),
+        })),
+  };
+}
+
+/* ------------------------------------------------------------------------------ the back office's partner verbs */
+
+export type PlatformPartnerBalanceLine =
+  Database["public"]["Functions"]["platform_partner_balances"]["Returns"][number];
+
+export type PlatformPartnerWorkspaceLine =
+  Database["public"]["Functions"]["platform_partner_workspaces"]["Returns"][number];
+
+/** An answer from one of the platform's partner verbs: the value, or the function's own code and words. */
+export type PartnerVerbResult<T> = { ok: true; value: T } | { ok: false; code: string; message: string };
+
+/**
+ * Every partner and every workspace one brought (00205), for the back office. Both functions check the caller is a
+ * platform admin themselves, so this is called on the session client, never the service role. A database 00205 has
+ * not reached reads as no partners.
+ */
+export async function getPlatformPartners(
+  db: Db,
+): Promise<{ balances: PlatformPartnerBalanceLine[]; workspaces: PlatformPartnerWorkspaceLine[] }> {
+  const [b, w] = await Promise.all([db.rpc("platform_partner_balances"), db.rpc("platform_partner_workspaces")]);
+  for (const r of [b, w]) {
+    if (r.error && !isMissingFunction(r.error)) throw new DbFailure(r.error);
+  }
+  return {
+    balances: b.error
+      ? []
+      : (b.data ?? []).map((r) => ({
+          ...r,
+          held_cents: Number(r.held_cents),
+          payable_cents: Number(r.payable_cents),
+          paid_cents: Number(r.paid_cents),
+        })),
+    workspaces: w.error ? [] : (w.data ?? []),
+  };
+}
+
+/** A platform admin decides a brought workspace's standing (00205 partner_standing_set). */
+export async function setPartnerStanding(
+  db: Db,
+  tenantId: TenantId,
+  standing: string,
+  reason: string,
+): Promise<PartnerVerbResult<{ standing: string; from: string | null; voided: number; matured: number }>> {
+  const { data, error } = await db.rpc("partner_standing_set", {
+    p_tenant: tenantId,
+    p_standing: standing,
+    p_why: reason,
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: readAnswer("partner_standing_set", StandingAnswer, data) };
+}
+
+/** What partner_standing_set answers: the standing now and before, and the earnings it voided or matured. */
+const StandingAnswer = z.object({
+  standing: z.string(),
+  from: z.string().nullable(),
+  voided: z.number(),
+  matured: z.number(),
+});
+
+/** What partner_payout_mark answers: paid, or not and why (changed: what is payable moved since it was read). */
+const PayoutAnswer = z.object({
+  paid: z.boolean(),
+  changed: z.boolean().optional(),
+  // A bigint sum in SQL: JSON may carry it as a number or as its digits.
+  total_cents: z.union([z.number(), z.string()]),
+  currency: z.string(),
+  earnings: z.number().optional(),
+  payout_id: z.string().optional(),
+});
+export type PartnerPayoutAnswer = Omit<z.output<typeof PayoutAnswer>, "total_cents"> & { total_cents: number };
+
+/** What partner_status_set answers: the status now and before, and the seats it holds. */
+const StatusAnswer = z.object({ status: z.string(), from: z.string(), seats: z.number() });
+
+/**
+ * A platform admin records a payout sent by hand (00205, 00207 partner_payout_mark). `expectedCents` is what the
+ * person saw and sent; the function records nothing when what is payable is no longer that.
+ */
+export async function markPartnerPaid(
+  db: Db,
+  partnerId: string,
+  currency: string,
+  reference: string,
+  expectedCents?: number,
+): Promise<PartnerVerbResult<PartnerPayoutAnswer>> {
+  const { data, error } = await db.rpc("partner_payout_mark", {
+    p_partner: partnerId,
+    p_currency: currency,
+    p_reference: reference,
+    ...(expectedCents === undefined ? {} : { p_expected_cents: expectedCents }),
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const payoutAnswer = readAnswer("partner_payout_mark", PayoutAnswer, data);
+  return { ok: true, value: { ...payoutAnswer, total_cents: Number(payoutAnswer.total_cents) } };
+}
+
+/** A platform admin pauses, closes or restores a partner (00206 partner_status_set). */
+export async function setPartnerStatus(
+  db: Db,
+  partnerId: string,
+  status: string,
+  reason: string,
+): Promise<PartnerVerbResult<{ status: string; from: string; seats: number }>> {
+  const { data, error } = await db.rpc("partner_status_set", { p_partner: partnerId, p_status: status, p_why: reason });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: readAnswer("partner_status_set", StatusAnswer, data) };
+}
+
+/**
+ * A platform admin records the reset of a partner's second factor (00217 partner_second_factor_reset, decision 0013)
+ * and learns whose account to act on; the factor itself is removed in Supabase Auth by the caller.
+ */
+export async function recordPartnerSecondFactorReset(
+  db: Db,
+  partnerId: string,
+  reason: string,
+): Promise<PartnerVerbResult<string>> {
+  const { data, error } = await db.rpc("partner_second_factor_reset", { p_partner: partnerId, p_why: reason });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: String(data) };
+}

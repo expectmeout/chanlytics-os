@@ -15,8 +15,8 @@
 import { useEffect, useRef, useState } from "react";
 import { liveStillUp } from "@chanlytics/contracts";
 import type { LiveCallVM } from "@chanlytics/contracts";
-import { refreshLive } from "@/legacy-bridge/inbox-verbs";
-import { navigate, replaceRoute } from "../legacy-verbs";
+import { refreshLive } from "@/bridge/inbox-verbs";
+import { navigate, replaceRoute } from "../frame-verbs";
 import { usePartShown, useSurface } from "../use-surface";
 import { LrList } from "./list";
 import { lmPhone, LrPanel } from "./panel";

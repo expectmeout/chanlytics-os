@@ -29,29 +29,29 @@ export function foldDuplicates(places: CleanPlace[]): { kept: CleanPlace[]; fold
   const kept: CleanPlace[] = [];
   const folded = new Map<string, string>();
   const byKey = new Map<string, string>();
-  for (const p of places) {
-    if (!p.phone || !p.raw.street) {
-      kept.push(p);
+  for (const place of places) {
+    if (!place.phone || !place.raw.street) {
+      kept.push(place);
       continue;
     }
-    const key = `${norm(p.raw.title)}|${norm(p.raw.street)}|${p.phone}`;
+    const key = `${norm(place.raw.title)}|${norm(place.raw.street)}|${place.phone}`;
     const first = byKey.get(key);
     if (first) {
-      folded.set(p.raw.placeId, first);
+      folded.set(place.raw.placeId, first);
       continue;
     }
-    byKey.set(key, p.raw.placeId);
-    kept.push(p);
+    byKey.set(key, place.raw.placeId);
+    kept.push(place);
   }
   return { kept, folded };
 }
 
 /** The details a place could share with a lead or a person: its phone, its own-domain emails, its host. */
-export function shareKeysOf(p: CleanPlace): { phones: string[]; emails: string[]; hosts: string[] } {
+export function shareKeysOf(cleanPlace: CleanPlace): { phones: string[]; emails: string[]; hosts: string[] } {
   return {
-    phones: p.phone ? [p.phone] : [],
-    emails: p.emails.filter((e) => !isFreeMail(e)),
-    hosts: p.host ? [p.host] : [],
+    phones: cleanPlace.phone ? [cleanPlace.phone] : [],
+    emails: cleanPlace.emails.filter((e) => !isFreeMail(e)),
+    hosts: cleanPlace.host ? [cleanPlace.host] : [],
   };
 }
 
@@ -63,8 +63,8 @@ export function shareKeysOf(p: CleanPlace): { phones: string[]; emails: string[]
 export function sharesWithin(places: CleanPlace[]): Map<string, LeadShare[]> {
   const firstBy = new Map<string, string>();
   const out = new Map<string, LeadShare[]>();
-  for (const p of places) {
-    const keys = shareKeysOf(p);
+  for (const place of places) {
+    const keys = shareKeysOf(place);
     for (const [kind, values] of [
       ["phone", keys.phones],
       ["email", keys.emails],
@@ -73,9 +73,9 @@ export function sharesWithin(places: CleanPlace[]): Map<string, LeadShare[]> {
       for (const v of values) {
         const key = `${kind}:${v}`;
         const first = firstBy.get(key);
-        if (!first) firstBy.set(key, p.raw.placeId);
-        else if (first !== p.raw.placeId)
-          out.set(p.raw.placeId, [...(out.get(p.raw.placeId) ?? []), { kind, place_id: first }]);
+        if (!first) firstBy.set(key, place.raw.placeId);
+        else if (first !== place.raw.placeId)
+          out.set(place.raw.placeId, [...(out.get(place.raw.placeId) ?? []), { kind, place_id: first }]);
       }
     }
   }
@@ -91,15 +91,15 @@ export type Identity =
  * shared details marked from what was looked up.
  */
 export function identityOf(
-  p: CleanPlace,
+  cleanPlace: CleanPlace,
   held: Map<string, string>,
   suppressedPlaceIds: Set<string>,
   shares: { key: string; share: LeadShare }[],
 ): Identity {
-  const leadId = held.get(p.raw.placeId);
+  const leadId = held.get(cleanPlace.raw.placeId);
   if (leadId) return { kind: "already_yours", leadId };
-  if (suppressedPlaceIds.has(p.raw.placeId)) return { kind: "hidden" };
-  const keys = shareKeysOf(p);
+  if (suppressedPlaceIds.has(cleanPlace.raw.placeId)) return { kind: "hidden" };
+  const keys = shareKeysOf(cleanPlace);
   const mine = new Set([...keys.phones, ...keys.emails, ...keys.hosts]);
   const seen = new Set<string>();
   const out: LeadShare[] = [];

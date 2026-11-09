@@ -1,7 +1,7 @@
 /**
  * The shell's shared contracts (moved from legacy/data/constants.jsx, the one-system plan's step 7e): the confidence
  * thresholds, the seed clock, the route builders, the frame's move and the address, and the money words. Canonical values
- * live here and in legacy/CLAUDE.md: never fork a threshold, a route string or an agent's identity in a page. Published
+ * live here and in mockup/CLAUDE.md: never fork a threshold, a route string or an agent's identity in a page. Published
  * as `window.CHANLY` by frame-globals.ts, where the pages and the adapters read it (step 9 ends the reads).
  */
 import { frameShell } from "./frame-window";
@@ -12,7 +12,7 @@ interface GoOptions {
   quiet?: boolean;
 }
 
-/** The bridge's address (legacy-bridge/shell.ts `__shell`), where the frame has one. */
+/** The bridge's address (bridge/shell.ts `__shell`), where the frame has one. */
 type ShellAddress = {
   route: () => string;
   href: (route: string) => string;
@@ -20,7 +20,7 @@ type ShellAddress = {
   hear: (fn: () => void) => () => void;
   warm?: (route: string) => void;
   warmSoon?: (routes: string[]) => void;
-  keepWarm?: (routes: string[]) => void;
+  keepWarm?: (routes: readonly string[]) => void;
 };
 const shellAddress = (): ShellAddress | null => {
   const s: Partial<ShellAddress> | undefined = frameShell();
@@ -49,7 +49,7 @@ const addressGo = (route: string, opts?: GoOptions): void => {
 };
 
 // The address: the route on screen, followed and moved, in one place. In the app it is /w/<slug>/<route> and the bridge's
-// (legacy-bridge/workspace.ts, on window.__shell); the standalone mockup has no workspace path and keeps its #/<route>.
+// (bridge/workspace.ts, on window.__shell); the standalone mockup has no workspace path and keeps its #/<route>.
 const address = {
   route: routeOnScreen,
   href(route: string): string {
@@ -73,7 +73,7 @@ const address = {
     const s = shellAddress();
     if (s && s.warmSoon) s.warmSoon(routes);
   },
-  keepWarm(routes: string[]): void {
+  keepWarm(routes: readonly string[]): void {
     const s = shellAddress();
     if (s && s.keepWarm) s.keepWarm(routes);
   },
@@ -82,7 +82,7 @@ const address = {
 const CONF = { SAFE: 0.8, MED: 0.5 };
 
 export const CHANLY = {
-  // ---- Confidence (0–1 float everywhere; see legacy/CLAUDE.md) ----
+  // ---- Confidence (0–1 float everywhere; see mockup/CLAUDE.md) ----
   CONF,
   isSafe(level: number): boolean {
     return level >= CONF.SAFE;
@@ -97,7 +97,7 @@ export const CHANLY = {
 
   // ---- Seed clock ----
   IX_NOW: "12:04",
-  // The seed's "today" (legacy/CLAUDE.md, Numeric contracts): 26 April of the seed year.
+  // The seed's "today" (mockup/CLAUDE.md, Numeric contracts): 26 April of the seed year.
   SEED_TODAY: new Date(2026, 3, 26),
   WAIT_WARN_MIN: 30,
 

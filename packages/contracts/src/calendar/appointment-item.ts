@@ -4,16 +4,17 @@
  * carry, or says more about one it does (the client, the service, the staff). A visit both name is drawn once, from
  * the row, since the notice states what the event's title only hints at.
  *
- * Pure: the dashboard's week assembler (server/calendar/calendar-week.ts) hands the rows in and takes the items out.
+ * Pure: the dashboard's week assembler (server/calendar/week/week.ts) hands the rows in and takes the items out.
  */
-import type { CalendarItemDto, VisitMark } from "./calendar-dto";
-import { APPOINTMENT_STATUSES, type AppointmentStatus } from "./feed-appointments";
+import type { CalendarItemDto, VisitMark } from "./dto";
+import { APPOINTMENT_STATUSES } from "./feed-appointments";
 import type { BusyBlock, FeedItem } from "./feed";
-import { visitStands } from "./calendar-words";
-import { replyFactsOf, type MatchVia, type OwnAddresses, type PersonLike, type PersonMatch } from "./calendar-people";
+import { visitStands } from "./words/visit";
+import { replyFactsOf, type MatchVia, type OwnAddresses, type PersonLike, type PersonMatch } from "./people/matching";
 import { bookingCopyTest, bookingToolName } from "./booking-notice";
 import { appointmentKeyOf, recordKeyOf } from "./appointment-key";
-import { shiftKey, zoneMidnight } from "./day-keys";
+import { shiftKey, zoneMidnight } from "../shared/zone/day-keys";
+import { isOneOf } from "../shared/unknown";
 
 /** An appointment row as the board reads it: the columns a notice fills (packages/db appointments). */
 export interface AppointmentLike {
@@ -105,9 +106,7 @@ export function personOfAppointment(row: AppointmentLike, people: PersonLike[]):
 
 /** The row's id and status as the board carries them: null for a status the record does not hold. */
 function visitMarkOf(row: Pick<AppointmentLike, "id" | "status">): VisitMark | null {
-  return (APPOINTMENT_STATUSES as readonly string[]).includes(row.status)
-    ? { id: row.id, status: row.status as AppointmentStatus }
-    : null;
+  return isOneOf(APPOINTMENT_STATUSES, row.status) ? { id: row.id, status: row.status } : null;
 }
 
 /** A feed row's word, with the start the row holds: the event's start when the word was said. */
@@ -170,9 +169,11 @@ export function feedWithRecord(
     const mark = markOn(record.marks, it);
     // One rule for a cancelled visit (visitStands): it is none, whoever cancelled it.
     if (!visitStands(mark)) continue;
-    const said = mark?.status;
+    const sentence = mark?.status;
     const withRow = mark ? { recordId: mark.id } : {};
-    out.push(said === "kept" || said === "missed" ? { ...it, ...withRow, said } : { ...it, ...withRow });
+    out.push(
+      sentence === "kept" || sentence === "missed" ? { ...it, ...withRow, said: sentence } : { ...it, ...withRow },
+    );
   }
   for (const r of record.noted) {
     if (r.status !== "booked" && r.status !== "kept" && r.status !== "missed") continue;

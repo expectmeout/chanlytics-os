@@ -1,24 +1,25 @@
 /**
- * Slice 1: the Conversations surface flips to real data (moved from legacy-bridge/surfaces/conversations.ts, decision
+ * Slice 1: the Conversations surface flips to real data (moved from bridge/surfaces/conversations.ts, decision
  * 0015). Fetch → map through the contracts viewmodel → publish the surface's value → dispatch its refresh event.
  * Siblings keep their seeds. Realtime message inserts re-run this apply (debounced in the bridge).
  *
- * Also the tab strip Conversations draws, one tab per wire. Part of the SurfaceData seam (legacy-bridge/surface-data.ts);
+ * Also the tab strip Conversations draws, one tab per wire. Part of the SurfaceData seam (bridge/surface-data.ts);
  * the page reads what it publishes through `useSurface("conversations")`.
  */
-import { read } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
-import { deliveryTicksOnly, isLiveCallTurn, LEFT_THE_QUEUE } from "@/legacy-bridge/surface-realtime";
+import { read } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
+import { deliveryTicksOnly, isLiveCallTurn, LEFT_THE_QUEUE } from "@/bridge/surface-realtime";
 import type { Output } from "@/client/api";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
-import { toConversationVM, toCallVM, type CallDto, type ConversationDto } from "@chanlytics/contracts";
+import { declareReads } from "@/bridge/surface-registry";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { routeOnScreen } from "@/bridge/workspace";
+import { toCallVM, type CallDto, type ConversationDto } from "@chanlytics/contracts";
+import { toConversationVM } from "./model/thread-vm";
 import { carriedReading, carriesMark } from "../seen-carry";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
 import { cvCallsStandAsTheirThread } from "./cv-rules";
-import type { ConversationRow } from "./types";
+import type { ConversationLine } from "./types";
 
 // The pages that have not moved (a person's profile, Ask) still read this under its old name.
 declareSurfaceValue("conversations", "CONVERSATIONS_DATA");
@@ -120,7 +121,7 @@ export const conversationsOverride: SurfaceOverride = {
     const allThreads = [...data.conversations, ...chatExtra].map((c) =>
       toConversationVM(c, openByConv.get(c.id) ?? null, tz),
     );
-    let callRows: ConversationRow[] = [];
+    let callRows: ConversationLine[] = [];
     try {
       if (callsRes instanceof Error) throw callsRes;
       callRows = cvCallsStandAsTheirThread(
@@ -136,7 +137,7 @@ export const conversationsOverride: SurfaceOverride = {
     // Newest first by REAL timestamp. The previous sort localeCompare'd the
     // display strings ("Aug 26" vs "3:22 AM"), which is not an ordering at all
     // — a message sent this morning listed below yesterday's calls.
-    const merged: ConversationRow[] = [...threads, ...callRows].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+    const merged: ConversationLine[] = [...threads, ...callRows].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
     const was = surfaceValue("conversations");
     setSurfaceValue("conversations", {
       // A row the read gave as it was keeps its object, so it is not drawn again (shareUnchanged), as the Inbox's threads.
@@ -163,7 +164,7 @@ carriesMark(conversationsOverride, (personId, mark) => {
   const held = surfaceValue("conversations");
   if (!held) return false;
   let moved = false;
-  const one = (c: ConversationRow): ConversationRow => {
+  const one = (c: ConversationLine): ConversationLine => {
     if (c.clientId !== personId || c.unseen === undefined) return c;
     const reading = carriedReading(c, mark);
     if (!reading) return c;

@@ -4,6 +4,7 @@
  * of a provider summary written before the analysis carried what the caller
  * wanted.
  */
+import { isOneOf } from "../shared/unknown";
 
 /** How a call ended for the caller. The agent's analysis picks one; the CHECK on calls.outcome admits the same six. */
 export const CALL_OUTCOMES = [
@@ -26,13 +27,13 @@ export const CALL_OUTCOME_WORDS: Record<CallOutcome, string> = {
   other: "Handled",
 };
 
-export function callOutcomeOf(v: unknown): CallOutcome | null {
-  return typeof v === "string" && (CALL_OUTCOMES as readonly string[]).includes(v) ? (v as CallOutcome) : null;
+export function callOutcomeOf(value: unknown): CallOutcome | null {
+  return isOneOf(CALL_OUTCOMES, value) ? value : null;
 }
 
 /** The outcome's words, or null when the call has none on record. */
-export function callOutcomeWords(v: unknown): string | null {
-  const o = callOutcomeOf(v);
+export function callOutcomeWords(value: unknown): string | null {
+  const o = callOutcomeOf(value);
   return o ? CALL_OUTCOME_WORDS[o] : null;
 }
 
@@ -50,27 +51,27 @@ export interface CallNotes {
 
 /** The to-do the receptionist noted on a call, as a line: null when it noted none. */
 export function callTodoWords(followUp: string | null | undefined): string | null {
-  const said = followUp?.trim();
-  return said ? `To do: ${said}` : null;
+  const sentence = followUp?.trim();
+  return sentence ? `To do: ${sentence}` : null;
 }
 
 /** What the call's analysis left, from the call's own row (the call DTO has these three). */
-export function callNotesOf(a: {
+export function callNotesOf(args: {
   follow_up?: string | null;
   caller_name?: string | null;
   caller_email?: string | null;
 }): CallNotes {
-  const name = a.caller_name?.trim();
-  const email = a.caller_email?.trim();
+  const name = args.caller_name?.trim();
+  const email = args.caller_email?.trim();
   return {
-    todo: callTodoWords(a.follow_up),
+    todo: callTodoWords(args.follow_up),
     gave: [name ? `Gave their name as ${name}` : "", email ? `Gave their email as ${email}` : ""].filter(Boolean),
   };
 }
 
 /** The lines a surface draws for them, the to-do first: what a card or a history row says under the call. */
-export function callNoteLines(n: CallNotes): string[] {
-  return n.todo ? [n.todo, ...n.gave] : n.gave;
+export function callNoteLines(callNotes: CallNotes): string[] {
+  return callNotes.todo ? [callNotes.todo, ...callNotes.gave] : callNotes.gave;
 }
 
 /**

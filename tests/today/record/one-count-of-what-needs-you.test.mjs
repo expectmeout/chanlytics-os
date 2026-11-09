@@ -1,0 +1,683 @@
+/**
+ * One count of what needs you (decision 0048, point 1; task 5.1 of the wiring plan; OW1).
+ *
+ * The Inbox's badge in the sidebar, the phone's Inbox tab, the title of the browser's tab, the phone app's badge and Today's
+ * head each showed the number the last `inbox:counts` event carried, from two senders that counted a reply the owner had just
+ * held differently, and the Needs-you tab beside Conversations counted a third time off the Inbox's rows. Three things wait on
+ * a person: a hold nobody has taken (not snoozed, not a teammate's, never a customer's STOP), a reply counting down that can
+ * still be stopped, and a run waiting for a word. They are counted once, in contracts (`waitsOf`, `needsYouCount`), for the
+ * pages that say them apart. Since Today in three zones (2 Nov 2026), the number every surface says is Need you's: the rows
+ * above To do as Today's read makes them and this tab has worked them, and the rows of the runs waiting for a word, as the
+ * list draws them (surfaces/needs-you.ts `needsYouNow`; contracts needYouCountOf).
+ *
+ * Run on the contracts over the four sources, on the selector over the surfaces' values with what this tab has done, and
+ * on Today's head drawn on the stub React: its number is the badge's. The threads stand on the real clock, because the
+ * selector and the page count a reply down to the server's deadline with Date.now().
+ */
+import { test, after } from "node:test";
+import assert from "node:assert/strict";
+import {
+  conversationWaitsOnYou,
+  heldEmailsWords,
+  moveWaits,
+  needsYouCount,
+  runHeldEmails,
+  runsWaitingSentence,
+  todayRunWords,
+  threadWait,
+  threadsWaitingOnYou,
+  toInboxThreadVM,
+  toTodayVM,
+  waitsOf,
+} from "@chanlytics/contracts";
+import { listWaitingRuns } from "@chanlytics/db/campaigns";
+import { fakeDb } from "../../_fake-db.mjs";
+import { installStubReact, fresh, byTestId, textOf } from "../../_stub-react.mjs";
+import { importSrc } from "../../_source.mjs";
+import { PLAN } from "../../_lead-fixtures.mjs";
+import { NOW as DAY, ZONE, handoffDay, metrics, msg, thread } from "./_world.mjs";
+
+installStubReact({
+  __DEMO_MODE: false,
+  __surfaceState: () => "live",
+  appNavigate() {},
+  usePPToast: () => [null, () => {}],
+  canDo: () => true,
+  gate: () => ({}),
+  setInterval: () => 1,
+  clearInterval() {},
+});
+const W = globalThis.window;
+const SRC = "apps/dashboard/src";
+const { needsYouNow, hearNeedsYou, needsYouMoved, needsYouActed } = await importSrc(`${SRC}/surfaces/needs-you.ts`);
+const { setSurfaceValue } = await importSrc(`${SRC}/surfaces/surface-values.ts`);
+const { surfaceMoved } = await importSrc(`${SRC}/bridge/surface-status.ts`);
+const { VW_STORE, IX_STORE, inboxData } = await importSrc(`${SRC}/surfaces/inbox/store.ts`);
+// The demo's seed, fetched only in a demo session (inbox/shell.ts demoCode): it hands its rows to the store as it lands.
+const { demoCode } = await importSrc(`${SRC}/surfaces/inbox/shell.ts`);
+const { useZonesStanding } = await importSrc(`${SRC}/surfaces/today/zones/head.tsx`);
+const { standingSaid } = await importSrc(`${SRC}/surfaces/kit/head/standing.ts`);
+
+const nowMs = Date.now();
+const NOW = new Date(nowMs);
+/** The business's days the runs are judged by (contracts runDaysAt): none of these runs is made for a day. */
+const DAYS = { today: "2026-09-26", sendsOn: "2026-09-26" };
+const ago = (min) => new Date(nowMs - min * 60_000).toISOString();
+
+/* ------------------------------------- the salon's threads, as the wire has them ------------------------------------- */
+
+const wrote = (id, body, min) => ({
+  id,
+  direction: "inbound",
+  sender: "customer",
+  type: "text",
+  body,
+  media: null,
+  meta: null,
+  status: "received",
+  channel: "whatsapp",
+  created_at: ago(min),
+  channel_ts: ago(min),
+});
+/** The receptionist's reply, written `min` minutes ago and waiting out `holdMin` minutes before it goes. */
+const queued = (id, min, holdMin) => ({
+  id,
+  direction: "outbound",
+  sender: "ai",
+  type: "text",
+  body: "Friday at 3 works.",
+  media: null,
+  meta: { delay_ms: holdMin * 60_000 },
+  status: "queued",
+  channel: "whatsapp",
+  created_at: ago(min),
+  channel_ts: null,
+});
+const person = (id, name, over = {}) => ({
+  id: `p-${id}`,
+  display_name: name,
+  wa_profile_name: null,
+  phone_e164: "+16465550123",
+  consent: "opted_in",
+  dnc: false,
+  ...over,
+});
+const conv = (id, name, over = {}) => ({
+  id,
+  state: "needs_human",
+  paused_until: null,
+  snooze_until: null,
+  assignee_user_id: null,
+  assignee_is_me: false,
+  last_wa_inbound_at: ago(40),
+  last_message_at: ago(40),
+  last_inbound_at: ago(40),
+  contact: person(id, name),
+  messages: [wrote(`m-${id}`, "Can someone call me back?", 40)],
+  ...over,
+});
+const hold = (id, reason = "human_token") => ({
+  id: `e-${id}`,
+  conversation_id: id,
+  reason,
+  details: null,
+  state: "open",
+  created_at: ago(35),
+});
+
+/** Seven threads, one per way of waiting or not: the two that wait are the first two. */
+const salon = () => [
+  { dto: conv("c-hold", "Hana Hold"), esc: hold("c-hold") },
+  {
+    dto: conv("c-send", "Sam Send", {
+      state: "open",
+      messages: [wrote("m-c-send", "Any slots Friday?", 3), queued("d-c-send", 1, 10)],
+    }),
+    esc: null,
+  },
+  {
+    dto: conv("c-late", "Lee Late", {
+      state: "open",
+      messages: [wrote("m-c-late", "Any slots?", 7), queued("d-c-late", 6, 5)],
+    }),
+    esc: null,
+  },
+  { dto: conv("c-snz", "Zoe Snoozed", { state: "snoozed", snooze_until: ago(-600) }), esc: hold("c-snz") },
+  {
+    dto: conv("c-mine", "Nina Mine", { assignee_user_id: "u-me", assignee_is_me: true, paused_until: ago(-60) }),
+    esc: hold("c-mine"),
+  },
+  {
+    dto: conv("c-theirs", "Ada Theirs", { assignee_user_id: "u-ana", assignee_is_me: false, paused_until: ago(-60) }),
+    esc: hold("c-theirs"),
+  },
+  {
+    dto: conv("c-stop", "Dulce Stop", {
+      state: "open",
+      contact: person("c-stop", "Dulce Stop", { consent: "opted_out", dnc: true }),
+      messages: [wrote("m-c-stop", "STOP", 20)],
+    }),
+    esc: hold("c-stop", "opt_out"),
+  },
+];
+const viewModels = (rows = salon()) => rows.map(({ dto, esc }) => toInboxThreadVM(dto, esc, ZONE, NOW));
+const facts = (vm) => moveWaits(vm.move);
+
+/* ------------------------------------------------ the count, in contracts ------------------------------------------------ */
+
+test("a thread waits on you as a hold or as a held send, and a hold wins: one wait, whatever else is on it", () => {
+  const soon = nowMs + 60_000;
+  assert.equal(threadWait({ needsYou: true }, nowMs), "hold");
+  assert.equal(
+    threadWait({ needsYou: true, send: { endsAtMs: soon } }, nowMs),
+    "hold",
+    "a hold with a reply on its way",
+  );
+  assert.equal(threadWait({ needsYou: false, send: { endsAtMs: soon } }, nowMs), "send", "a reply that can be stopped");
+  assert.equal(
+    threadWait({ needsYou: false, send: { endsAtMs: soon, held: true } }, nowMs),
+    null,
+    "a reply this tab has just held is stopped, though the wire has not said so yet",
+  );
+  assert.equal(
+    threadWait({ needsYou: false, send: { endsAtMs: nowMs - 1 } }, nowMs),
+    null,
+    "past its deadline it is going out in the owner's name, not waiting on them",
+  );
+  assert.equal(threadWait({ needsYou: false }, nowMs), null);
+});
+
+test("waitsOf counts the holds, the held sends and the runs waiting; needsYouCount is their sum", () => {
+  const soon = { endsAtMs: nowMs + 60_000 };
+  const w = waitsOf({
+    threads: [
+      { needsYou: true },
+      { needsYou: true, send: soon },
+      { needsYou: false, send: soon },
+      { needsYou: false, send: { ...soon, held: true } },
+      { needsYou: false, send: { endsAtMs: nowMs - 1 } },
+      { needsYou: false },
+    ],
+    // Only a run waiting for a word waits on a person: one about to go, one going, one gone and one stopped do not.
+    runs: [
+      { state: "pending_approval" },
+      { state: "scheduled" },
+      { state: "sending" },
+      { state: "sent" },
+      { state: "canceled" },
+      { state: "failed" },
+      { state: "pending_approval" },
+    ],
+    unreadHolds: 1,
+    days: DAYS,
+    nowMs,
+  });
+  assert.deepEqual(
+    w,
+    { holds: 3, sends: 1, runs: 2 },
+    "two holds and the one whose thread could not be read; one send; two runs",
+  );
+  assert.equal(needsYouCount(w), 6);
+  // A visit's run made for a day that has passed waits on nobody: the verb would refuse it (contracts runApprovalRefusal).
+  const late = waitsOf({
+    threads: [],
+    runs: [{ state: "pending_approval", playbook_id: "p1", run_for: "2026-09-25" }],
+    unreadHolds: 0,
+    days: DAYS,
+    nowMs,
+  });
+  assert.equal(
+    late.runs,
+    0,
+    "REGRESSION (S7-4): yesterday's run, which can only be skipped, was counted as needing you",
+  );
+  assert.equal(
+    needsYouCount(waitsOf({ threads: [], runs: [], unreadHolds: 0, days: DAYS, nowMs })),
+    0,
+    "a zero is shown",
+  );
+});
+
+test("a going run whose emails the check holds waits on you once, however many it holds; one holding none, or not going, does not (Ruben, 13 Oct 2026)", () => {
+  const reach = { kind: "reach_out" };
+  const w = waitsOf({
+    threads: [],
+    runs: [
+      { state: "sending", audience: reach, held: 12 },
+      { state: "scheduled", audience: reach, held: 1 },
+      { state: "sending", audience: reach, held: 0 },
+      { state: "sending", audience: reach },
+      // A run that is not going holds nothing for your say: its held count, if any, is not read.
+      { state: "sent", audience: reach, held: 3 },
+      { state: "canceled", audience: reach, held: 2 },
+    ],
+    unreadHolds: 0,
+    days: DAYS,
+    nowMs,
+  });
+  assert.equal(w.runs, 2, "two going runs hold emails: one wait each, never one per email");
+  assert.deepEqual(
+    [
+      runHeldEmails({ state: "sending", held: 12 }),
+      runHeldEmails({ state: "sent", held: 3 }),
+      runHeldEmails({ state: "sending" }),
+    ],
+    [12, 0, 0],
+  );
+  // The words every page draws the run with: the held emails, and the rest of the run going as planned.
+  const words = todayRunWords({
+    state: "sending",
+    recipient_count: 40,
+    when: "",
+    counts: { sent: 9, replied: 0 },
+    audience: reach,
+    held: 2,
+  });
+  assert.equal(words.held.sentence, "2 emails wait for your say. The rest of the run goes as planned.");
+  assert.equal(heldEmailsWords(1), "1 email waits for your say");
+  assert.equal(
+    runsWaitingSentence(2),
+    "2 campaign runs are waiting for your say.",
+    "one sentence for both kinds of wait",
+  );
+});
+
+test("the server reads the runs waiting for a word as the page counts them: those waiting for approval, and the going reach-out runs whose check holds emails, with how many", async () => {
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const reach = { kind: "reach_out", chain_id: "c1" };
+  const run = (id, state, audience, created_at) => ({
+    id,
+    tenant_id: T,
+    name: id,
+    state,
+    playbook_id: null,
+    run_for: null,
+    audience,
+    recipient_count: 3,
+    created_at,
+  });
+  const send = (broadcast_id, state) => ({ tenant_id: T, broadcast_id, state });
+  const db = fakeDb({
+    broadcasts: [
+      run("waiting", "pending_approval", { kind: "list" }, "2026-09-26T08:00:00Z"),
+      run("holding", "sending", reach, "2026-09-26T09:00:00Z"),
+      run("clear", "sending", reach, "2026-09-26T10:00:00Z"),
+      run("playbook-going", "scheduled", { kind: "list" }, "2026-09-26T11:00:00Z"),
+      run("done", "sent", reach, "2026-09-26T07:00:00Z"),
+    ],
+    reach_out_sends: [send("holding", "held"), send("holding", "held"), send("clear", "sent"), send("done", "held")],
+  });
+  const runs = await listWaitingRuns(db, T);
+  assert.deepEqual(
+    runs.map((r) => [r.id, r.held ?? null]),
+    [
+      ["holding", 2],
+      ["waiting", null],
+    ],
+    "newest first: the going run holding two emails, then the run waiting for approval; nothing else waits",
+  );
+  assert.equal(waitsOf({ threads: [], runs, unreadHolds: 0, days: DAYS, nowMs }).runs, 2, "and the count says both");
+});
+
+test("a hold is not snoozed, not a teammate's, not yours, and never a customer's STOP; a held send is not past its deadline", () => {
+  const rows = salon();
+  const wire = rows.map(({ dto, esc }) => conversationWaitsOnYou(dto, esc, NOW));
+  assert.deepEqual(
+    wire,
+    [true, true, false, false, false, false, false],
+    "Hana (a hold) and Sam (a reply counting down); not Lee (late), Zoe (snoozed), Nina (yours), Ada (a teammate's), Dulce (a STOP)",
+  );
+  assert.equal(
+    threadsWaitingOnYou(
+      rows.map((r) => r.dto),
+      rows.flatMap((r) => (r.esc ? [r.esc] : [])),
+      NOW,
+    ),
+    2,
+    "Today's headline counts the same two",
+  );
+});
+
+test("a hold whose thread the page could not read counts as waiting, unless it waits on nobody", () => {
+  const rows = salon();
+  const convs = rows.map((r) => r.dto);
+  const escs = rows.flatMap((r) => (r.esc ? [r.esc] : []));
+  assert.equal(
+    threadsWaitingOnYou(convs, [...escs, hold("c-old")], NOW),
+    3,
+    "unknown is not handled: a customer flagged before the newest page is waiting",
+  );
+  assert.equal(
+    threadsWaitingOnYou(convs, [...escs, hold("c-old-stop", "opt_out")], NOW),
+    2,
+    "and a STOP nobody could read is news, not a wait",
+  );
+});
+
+test("the wire's rule and the Inbox's rule are one: each thread waits exactly when its view model says it does", () => {
+  const rows = salon();
+  const vms = viewModels(rows);
+  rows.forEach(({ dto, esc }, i) => {
+    assert.equal(
+      conversationWaitsOnYou(dto, esc, NOW),
+      threadWait(facts(vms[i]), nowMs) !== null,
+      `${dto.id}: the wire and the view model say the same`,
+    );
+  });
+  // The sum of the threads' part is Today's headline's count.
+  assert.equal(
+    needsYouCount(waitsOf({ threads: vms.map(facts), runs: [], unreadHolds: 0, days: DAYS, nowMs })),
+    threadsWaitingOnYou(
+      rows.map((r) => r.dto),
+      rows.flatMap((r) => (r.esc ? [r.esc] : [])),
+      NOW,
+    ),
+  );
+});
+
+/* ---- what the rule owes, with no hold to read it from (waits/thread-move.ts) ---- */
+
+const reply = (id, min, status) => ({ ...queued(id, min, 0), status, meta: null, channel_ts: ago(min) });
+
+test("nobody answered them, or a reply never reached them: a row of Need you, once, counted as the Inbox counts it", () => {
+  const rows = [
+    conv("c-un", "Una Unanswered", { state: "open", messages: [wrote("m-un", "Anyone there?", 40)] }),
+    conv("c-fail", "Fay Failed", {
+      state: "open",
+      messages: [wrote("m-f", "Can I book?", 40), reply("r-f", 39, "failed")],
+    }),
+    conv("c-ok", "Ola Answered", {
+      state: "open",
+      messages: [wrote("m-o", "Open Sunday?", 40), reply("r-o", 39, "delivered")],
+    }),
+    conv("c-new", "Nia New", { state: "open", messages: [wrote("m-n", "Hi", 1)] }),
+  ];
+  const vm = toTodayVM(metrics(), rows, [], [], NOW);
+  const row = (id) => vm.queue.rows.find((r) => r.conversationId === id);
+  assert.deepEqual(
+    rows.map((c) => !!row(c.id)),
+    [true, true, false, false],
+    "Una and Fay; Ola was answered, and a reply to Nia is still being worked out",
+  );
+  assert.equal(threadsWaitingOnYou(rows, [], NOW), 2, "the headline counts the same two");
+  assert.deepEqual(
+    [row("c-un").kind, row("c-un").act, row("c-un").also, row("c-un").closes],
+    ["handoff", "reply", null, "archive"],
+    "a reply to write, and with no hold to give back, letting it go archives the thread",
+  );
+  assert.equal(row("c-un").sentence, "Anyone there?", "their own words");
+  assert.ok(row("c-fail").failed, "the words that never left, to send again");
+});
+
+test("a thread that is already a row is not a second one: a hold, a reply counting down, a window closing", () => {
+  const rows = [
+    conv("c-hold", "Hana Hold"),
+    conv("c-send", "Sam Send", { state: "open", messages: [wrote("m-s", "Any slots?", 3), queued("d-s", 1, 10)] }),
+    conv("c-win", "Wren Window", {
+      state: "open",
+      last_wa_inbound_at: ago(23 * 60),
+      messages: [wrote("m-w", "Still open?", 23 * 60)],
+    }),
+  ];
+  const vm = toTodayVM(metrics(), rows, [hold("c-hold")], [], NOW);
+  for (const c of rows)
+    assert.equal(vm.queue.rows.filter((r) => r.conversationId === c.id).length, 1, `${c.id}: one row for one person`);
+  assert.equal(vm.queue.rows.find((r) => r.conversationId === "c-win").kind, "window");
+});
+
+/* ------------------------------------------ the selector, over the surfaces ------------------------------------------ */
+
+const inboxOf = (vms) => ({ INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: vms });
+/** A run as the broadcasts surface publishes it (toBroadcastVM), as far as the queue and the count read it. */
+const runRow = (id, state, over = {}) => ({
+  id,
+  state,
+  recipient_count: 3,
+  audience: { label: "Win-back" },
+  playbook_id: "p1",
+  scheduled_for: null,
+  when: "today 6:00 PM",
+  counts: { sent: 0, replied: 0 },
+  ...over,
+});
+const reset = () => {
+  setSurfaceValue("today", undefined);
+  setSurfaceValue("inbox", undefined);
+  setSurfaceValue("broadcasts", undefined);
+  VW_STORE.state = {};
+  needsYouActed([]);
+};
+after(reset);
+
+/** Today as its read makes it over the salon's threads, on the real clock: what Need you draws and the count counts. */
+const salonToday = () => {
+  const rows = salon();
+  return toTodayVM(
+    metrics(),
+    rows.map((r) => r.dto),
+    rows.flatMap((r) => (r.esc ? [r.esc] : [])),
+    [],
+    NOW,
+  );
+};
+
+test("the badge's number is none before Today has been read: a count of what nothing has read is no count", () => {
+  reset();
+  assert.equal(needsYouNow(nowMs), null);
+  setSurfaceValue("inbox", inboxOf(viewModels()));
+  assert.equal(needsYouNow(nowMs), null, "the Inbox's threads are not the count: Need you's rows are");
+  setSurfaceValue("today", toTodayVM(metrics(), [], [], [], NOW));
+  assert.equal(needsYouNow(nowMs), 0, "a zero is shown once Today has been read");
+  reset();
+});
+
+test("Need you's rows above To do and the runs waiting are one number, and a row acted on here, or a reply held in this tab, leaves it before the re-read", () => {
+  reset();
+  const today = salonToday();
+  setSurfaceValue("today", today);
+  const [hana, sam] = ["c-hold", "c-send"].map((id) => today.queue.rows.find((r) => r.conversationId === id));
+  assert.equal(sam.kind, "held", "Sam's reply counting down is a row of its own");
+  assert.equal(
+    needsYouNow(nowMs),
+    2,
+    "Hana, and Sam whose reply is on its way; nobody snoozed, taken, theirs or a STOP",
+  );
+  // The campaigns surface: two runs wait for a word, one is about to go, one went.
+  setSurfaceValue("broadcasts", {
+    rows: [
+      runRow("r1", "pending_approval"),
+      runRow("r2", "scheduled"),
+      runRow("r3", "pending_approval"),
+      runRow("r4", "sent"),
+    ],
+  });
+  assert.equal(
+    needsYouNow(nowMs),
+    3,
+    "and the two runs as the list draws them: one row, each one answered opening the next (contracts waitRowsOf)",
+  );
+  // The owner presses Stop on Sam's reply in Need you: the list keeps it with its receipt, and the read has not landed.
+  needsYouActed([sam]);
+  assert.equal(
+    needsYouNow(nowMs),
+    2,
+    "the row acted on leaves the count the moment it is pressed, as it leaves the list's",
+  );
+  needsYouActed([]);
+  assert.equal(needsYouNow(nowMs), 3, "and comes back to the read's word once the list is gone");
+  // Or holds it in the Inbox, in this tab: the cancel's re-read has not landed, so Today's read still carries the draft.
+  VW_STORE.state = { [`draft:${sam.held.message_id}`]: { held: true } };
+  assert.equal(
+    needsYouNow(nowMs),
+    2,
+    "REGRESSION: the badge kept the reply this tab had held until something else moved it, one over the chip",
+  );
+  VW_STORE.state = {};
+  // Past its deadline a reply goes out in the owner's name: it does not wait.
+  assert.equal(needsYouNow(sam.held.sends_at_ms + 1), 2, "Sam's reply is gone; Hana and the runs remain");
+  // A thread acted on stands for itself: the read's other row of it is not counted either, as the list does not draw it.
+  needsYouActed([{ id: "kept-elsewhere", conversationId: hana.conversationId }]);
+  assert.equal(needsYouNow(nowMs), 2, "Hana's thread was worked here: Sam and the runs remain");
+  reset();
+});
+
+test("a demo session counts its seeded threads by the mockup's rule, less the decisions it made", async () => {
+  reset();
+  W.__DEMO_MODE = true;
+  await demoCode();
+  try {
+    const seeded = needsYouNow(nowMs);
+    assert.ok(seeded > 0, "the demo's Inbox has threads that wait");
+    assert.deepEqual(Object.values(IX_STORE.decisions), [], "no decision yet");
+    // A decision on a seeded thread that waits takes it out of the count, the way it leaves the Inbox's Needs you.
+    const waiting = inboxData().THREADS.find(
+      (t) => !t.real && (t.state === "needs" || (t.state === "escalated" && !t.takenOver)),
+    );
+    IX_STORE.set(waiting.id, { action: "Approve", at: "12:04", kind: "decided" });
+    assert.equal(needsYouNow(nowMs), seeded - 1);
+    IX_STORE.clear(waiting.id);
+    assert.equal(needsYouNow(nowMs), seeded);
+  } finally {
+    W.__DEMO_MODE = false;
+  }
+});
+
+test("the readers are told when what the count is made of moves, and not when something else does", () => {
+  reset();
+  const told = [];
+  const stop = hearNeedsYou(() => told.push(1));
+  surfaceMoved("today");
+  surfaceMoved("inbox");
+  surfaceMoved("broadcasts");
+  needsYouMoved();
+  assert.equal(
+    told.length,
+    4,
+    "Today's rows, the Inbox's threads (its parts), the campaigns' runs, and what only the Inbox's page knows",
+  );
+  needsYouActed([{ id: "q-1", conversationId: "c-1" }]);
+  assert.equal(told.length, 5, "a row Need you acted on");
+  needsYouActed([{ id: "q-1", conversationId: "c-1" }]);
+  assert.equal(told.length, 5, "told the same rows again, nothing moved");
+  surfaceMoved("people");
+  surfaceMoved("calendar");
+  assert.equal(told.length, 5, "People and the Calendar are not what it is made of");
+  needsYouActed([]);
+  assert.equal(told.length, 6, "and the list gone");
+  stop();
+  surfaceMoved("today");
+  assert.equal(told.length, 6, "and a reader that stopped is not told");
+});
+
+/* ----------------------------------------------- Today's head, drawn ----------------------------------------------- */
+
+/** What Today's head says leads its sentence, as the page tells it to the frame's head (zones/head.tsx): "3 need you.". */
+function HeadProbe() {
+  useZonesStanding();
+  return null;
+}
+const head = (vm) => {
+  setSurfaceValue("today", vm);
+  fresh();
+  try {
+    W.React.createElement(HeadProbe, {});
+    const lead = textOf(byTestId(standingSaid()?.sentence ?? null, "today-head-lead")).trim();
+    return /^(\d+) needs? you\.$/.exec(lead)?.[1] ?? lead;
+  } finally {
+    setSurfaceValue("today", undefined);
+  }
+};
+
+test("Today's head is the badge's number, and falls with it as Need you acts", () => {
+  reset();
+  const day = handoffDay();
+  assert.equal(head(day), "1", "Ana, who asked for a person");
+  // The Inbox's threads are its parts, not the count: the head says Need you's rows, as the sidebar does.
+  setSurfaceValue("inbox", inboxOf(viewModels()));
+  setSurfaceValue("broadcasts", { rows: [runRow("r1", "pending_approval")] });
+  setSurfaceValue("today", day);
+  assert.equal(needsYouNow(), 2, "Ana, and the run waiting for a word");
+  assert.equal(head(day), "2", "REGRESSION: the head counted its own rows, and said another number than the badge");
+  // Ana's row is worked: the list keeps it with its receipt, and the head and the badge leave it at once.
+  needsYouActed([day.queue.rows.find((r) => r.conversationId === "cv-a")]);
+  assert.equal(head(day), "1");
+  setSurfaceValue("today", day);
+  assert.equal(needsYouNow(), 1, "the badge says what the head says");
+  reset();
+});
+
+test("REGRESSION (S7-1): a search asking its question, or a window about to shut, alone, is one who needs you: never 'Nothing needs you'", () => {
+  reset();
+  // A search waiting on the owner's answer (GET lead-searches' shape, its latest round asking).
+  const asking = {
+    id: "s1",
+    name: "Dentists in Austin",
+    asked: PLAN.asked,
+    asked_on: "2026-09-05T15:00:00Z",
+    plan: PLAN,
+    plan_version: 1,
+    round: {
+      id: "rd1",
+      seq: 1,
+      purpose: "find",
+      state: "waiting_on_owner",
+      ending: null,
+      question: { sentence: "Most of the first 25 are chain clinics. Include them?", criterion_key: "chains" },
+      target: 20,
+      counted: 25,
+      qualified: 12,
+      review: 3,
+      excluded: 0,
+      emails_checked: 0,
+      with_phone: 9,
+      ending_pending: false,
+      waiting_since: "2026-09-18T19:00:00Z",
+      cost_usd: 1.2,
+      ended_at: null,
+      undo_op_id: null,
+      undo_version: null,
+      nearby: [],
+    },
+  };
+  const searchDay = toTodayVM(metrics(), [], [], [], DAY, [asking]);
+  setSurfaceValue("today", searchDay);
+  assert.equal(needsYouNow(DAY.getTime()), 1, "the search's question is a row of To decide, counted");
+  assert.equal(head(searchDay), "1", "and the head says it");
+  // A WhatsApp window that shuts in two hours: who wrote last waits on a reply, a row of Waiting on you.
+  const windowDay = toTodayVM(
+    metrics(),
+    [
+      thread("cv-win", "Priya Nair", [msg("m-win", "Can I move my appointment?", "2026-09-17T22:00:00Z")], {
+        last_wa_inbound_at: "2026-09-17T22:00:00Z",
+      }),
+    ],
+    [],
+    [],
+    DAY,
+  );
+  setSurfaceValue("today", windowDay);
+  assert.equal(needsYouNow(DAY.getTime()), 1, "the window about to shut is counted");
+  assert.equal(head(windowDay), "1", "and the head says it, never 'Nothing needs you'");
+  reset();
+});
+
+test("Today's head says the runs waiting for a word, and no more than they are", () => {
+  reset();
+  const day = toTodayVM(metrics(), [], [], [], DAY);
+  // Sent's runs as the surface publishes them (the count reads the seam: needs-you.ts waitingRunsNow), and on the window,
+  // where the queue's own rows read them.
+  const runs = {
+    rows: [
+      runRow("r1", "pending_approval"),
+      runRow("r2", "scheduled", { scheduled_for: new Date(nowMs + 3_600_000).toISOString() }),
+    ],
+  };
+  setSurfaceValue("broadcasts", runs);
+  W.__BROADCASTS = runs;
+  try {
+    assert.equal(head(day), "1", "one run waits for a word; the one about to go is the day's, with its Stop");
+  } finally {
+    setSurfaceValue("broadcasts", undefined);
+    delete W.__BROADCASTS;
+  }
+});

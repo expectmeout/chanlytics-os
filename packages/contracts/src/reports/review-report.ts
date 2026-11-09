@@ -16,21 +16,14 @@
  */
 import { sumOf } from "../shared/numbers";
 import { capitalize, plural } from "../shared/words";
-import {
-  checkedWords,
-  googleReviewsTable,
-  toGoogleReviewVM,
-  toGoogleVM,
-  type GoogleListingDto,
-  type GoogleReadDto,
-  type GoogleReviewVM,
-  type GoogleVM,
-} from "../google/google";
+import { checkedWords, type GoogleListingDto, type GoogleReadDto } from "../google/listing";
+import { googleReviewsTable, toGoogleReviewVM, toGoogleVM, type GoogleReviewVM, type GoogleVM } from "../google/google";
 import { reviewHeldWords } from "../google/review-reply";
 import { lensEmpty } from "./lenses";
-import { periodSince } from "./report-periods";
-import { compareWords, fmtSeconds, type ReportMetric, type ReportTileVM } from "./report-tiles";
-import { endedOn, rangeLabelOf, withinWords } from "./reports";
+import { periodSince } from "./periods";
+import { compareWords, fmtSeconds, type ReportMetric, type ReportTileVM } from "./tiles";
+import { endedOn } from "./dtos";
+import { rangeLabelOf, withinWords } from "./reports";
 import {
   REVIEW_REPLY_TIME_MIN,
   historyWords,
@@ -167,8 +160,8 @@ const figureOf = (
   id: string,
   metric: ReportMetric,
   label: string,
-  said: Pick<ReportTileVM, "value" | "meta"> & Partial<Pick<ReportTileVM, "spark" | "compare">>,
-): ReportTileVM => ({ id, metric, label, delta: null, spark: [], compare: null, ...said });
+  tile: Pick<ReportTileVM, "value" | "meta"> & Partial<Pick<ReportTileVM, "spark" | "compare">>,
+): ReportTileVM => ({ id, metric, label, delta: null, spark: [], compare: null, ...tile });
 
 /** Who answered, in the Answered figure's line: "3 by the receptionist, 2 by you". */
 function whoAnsweredWords(answered: number, receptionist: number): string {
@@ -187,11 +180,11 @@ function replyTimeMeta(p: Extract<ReviewsPeriod, { exact: true }>): string {
 }
 
 /** The five figures of the profile's period: the listing's rating and count, then what the reviews on record say. */
-function reviewsProfileTiles(google: GoogleVM, p: ReviewsPeriod): ReportTileVM[] {
+function reviewsProfileTiles(google: GoogleVM, reviewsPeriod: ReviewsPeriod): ReportTileVM[] {
   const own = google.tiles.filter((t) => t.metric === "rating" || t.metric === "reviews");
-  const label = `New in ${plural(p.days, "day")}`;
-  if (!p.exact) {
-    const meta = historyWords(p.history) ?? "";
+  const label = `New in ${plural(reviewsPeriod.days, "day")}`;
+  if (!reviewsPeriod.exact) {
+    const meta = historyWords(reviewsPeriod.history) ?? "";
     return [
       ...own,
       figureOf("written", "reviews_written", label, { value: "—", meta }),
@@ -199,22 +192,25 @@ function reviewsProfileTiles(google: GoogleVM, p: ReviewsPeriod): ReportTileVM[]
       figureOf("reply_time", "review_reply_time", "Time to reply", { value: "—", meta }),
     ];
   }
-  const counted = p.written > 0;
+  const counted = reviewsPeriod.written > 0;
   return [
     ...own,
     figureOf("written", "reviews_written", label, {
-      value: String(p.written),
-      meta: p.written ? "with words or without" : "none in this period",
-      spark: p.daily,
-      compare: p.prior === null ? null : compareWords(p.written, p.prior, rangeLabelOf(p.days), true),
+      value: String(reviewsPeriod.written),
+      meta: reviewsPeriod.written ? "with words or without" : "none in this period",
+      spark: reviewsPeriod.daily,
+      compare:
+        reviewsPeriod.prior === null
+          ? null
+          : compareWords(reviewsPeriod.written, reviewsPeriod.prior, rangeLabelOf(reviewsPeriod.days), true),
     }),
     figureOf("answered", "reviews_answered", "Answered", {
-      value: counted ? `${p.answered} of ${p.written}` : "—",
-      meta: counted ? whoAnsweredWords(p.answered, p.receptionist) : "nothing to answer",
+      value: counted ? `${reviewsPeriod.answered} of ${reviewsPeriod.written}` : "—",
+      meta: counted ? whoAnsweredWords(reviewsPeriod.answered, reviewsPeriod.receptionist) : "nothing to answer",
     }),
     figureOf("reply_time", "review_reply_time", "Time to reply", {
-      value: counted ? fmtSeconds(p.replySeconds) : "—",
-      meta: counted ? replyTimeMeta(p) : "nothing to answer",
+      value: counted ? fmtSeconds(reviewsPeriod.replySeconds) : "—",
+      meta: counted ? replyTimeMeta(reviewsPeriod) : "nothing to answer",
     }),
   ];
 }
@@ -276,10 +272,10 @@ function reviewsWaitingOf(
   nowMs: number,
 ): ReviewsReportVM["waiting"] {
   const rows = ledger.waiting.slice(0, REVIEWS_WAITING_SHOWN).map((r): ReviewWaitingVM => {
-    const why = reviewHeldWords(r.held);
+    const reason = reviewHeldWords(r.held);
     return {
       ...toGoogleReviewVM(r, linkedAt, tz, nowMs),
-      held: why ? `The receptionist wrote a reply and held it: ${why}.` : null,
+      held: reason ? `The receptionist wrote a reply and held it: ${reason}.` : null,
     };
   });
   return { total: ledger.waiting_total, rows };

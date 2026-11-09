@@ -9,9 +9,10 @@
 import { phoneTail, fallbackMessages, pauseHoursOf, pauseMsOf } from "@chanlytics/contracts";
 import type { BrainConfig, NotificationsConfig, SendPurpose } from "@chanlytics/contracts";
 // TYPES ONLY: the one inbound shape is the channels package's, and a value from there would be a provider in a verb.
-import type { InboundMessage } from "@chanlytics/channels";
-import type { IngestResult, Json } from "@chanlytics/db";
-import type { Delivered } from "../deliver";
+import type { InboundMessage } from "@chanlytics/channels/inbound";
+import type { IngestResult } from "@chanlytics/db/channels";
+import type { Json } from "@chanlytics/db/types";
+import type { Delivered } from "../deliver/deliver";
 import { replyPosture } from "./reply-posture";
 import {
   IngestFailed,
@@ -52,7 +53,7 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
   // it, which is the only way that stays true as this function changes. The wire too: the lines keep their wa_ names
   // (the names are the contract alerting greps for), so `channel` is what tells a text's or a DM's from WhatsApp's, and
   // `wamid` is the provider's id for the message on whichever wire it came.
-  const L = ports.log({
+  const log = ports.log({
     tenant_id: tenantId,
     channel,
     wamid: n.externalId,
@@ -101,7 +102,7 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
     db,
     t0,
     endsAtMs,
-    L,
+    L: log,
     rt,
     posture,
     brainCfg,

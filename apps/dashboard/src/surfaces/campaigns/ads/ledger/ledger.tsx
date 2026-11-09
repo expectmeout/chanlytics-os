@@ -10,15 +10,16 @@
  */
 import { useId } from "react";
 import { ADS_WORDS } from "@chanlytics/contracts";
-import { LEDGER } from "@chanlytics/contracts/ads-page";
-import type { AdRowVM, AdsGroupBy, CellVM, GroupByVM, GroupVM } from "@chanlytics/contracts/ads-page";
+import { LEDGER } from "../model/words-page";
+import type { AdRowVM, AdsGroupBy, GroupByVM, GroupVM } from "../model/page";
+import type { CellVM } from "../model/vm-base";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Panel } from "../../../kit/panel/panel";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { Tooltip } from "../../../kit/tooltip/tooltip";
 import { cx } from "../../../kit/variants";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { cmRowPress } from "../../parts/head";
 
 /** A ledger number: the value, and under it the short unit where the unit is not obvious. A dash says why on hover or focus. */

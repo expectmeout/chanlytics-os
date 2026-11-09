@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { read, workspace } from "@/server/route";
-import { startGoogleConnect } from "@/server/connections/google-actions";
+import { read, workspace } from "@/server/shared/route";
+import { startGoogleConnect } from "@/server/settings/google-actions";
 
 const Query = z.object({
   /** Back to the first run that asked (decision 0073, R17), not to Connections. */
@@ -12,7 +12,7 @@ const Query = z.object({
  * Google's consent screen. Owners only. The browser follows the redirect; the callback proves the state before trusting
  * anything that comes back with it, and returns to the first run's Your business where it asked (`back=start`).
  *
- * The handle is startGoogleConnect in src/server/connections/google-actions.ts: the route is its declaration (who may,
+ * The handle is startGoogleConnect in src/server/settings/google-actions.ts: the route is its declaration (who may,
  * how often), the verb is what it does.
  */
 export const GET = read({

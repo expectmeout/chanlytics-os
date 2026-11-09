@@ -14,14 +14,14 @@ import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { RecordField, RecordSwitch } from "../../kit/record/field";
-import type { LegacyFlash } from "../../legacy-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { PartnerLettersRow, PartnerSecondFactor } from "./account";
 import { PartnerInvitations } from "./invitations";
 import { partnerVerbs, type PartnerSurface } from "./surface";
 import { PartnerWorkspaces } from "./workspaces";
 
-type Flash = (f: LegacyFlash) => void;
+type Flash = (f: FrameFlash) => void;
 
 /** How long the link's button says it was copied. */
 const COPIED_MS = 1500;

@@ -18,30 +18,35 @@ import {
   LEAD_FITS,
   LEAD_OPERATION_KINDS,
   LEAD_REACH_FILTERS,
+  LEAD_STATUS_GROUPS,
   LEAD_STAGES,
   type LeadEmailState,
   type LeadFit,
   type LeadReachFilter,
+  type LeadStatusGroup,
 } from "./search/sets";
 import {
   LEAD_ERASE_WORDS,
+  LEAD_LEFT_OUT_WORD,
+  LEAD_NOT_A_FIT_TITLE,
+  LEAD_NOT_A_FIT_WORDS,
+  LEAD_SENT_QUESTION,
+} from "./words/refusals";
+import {
   LEAD_CALL_OUTCOME_TONES,
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_CALL_OUTCOMES,
-  LEAD_CALL_QUESTION,
   LEAD_CLOSED_WORDS,
-  LEAD_DRAFT_NOTE,
-  LEAD_LEFT_OUT_WORD,
-  LEAD_NOT_A_FIT_TITLE,
   LEAD_NOT_A_FIT_WHYS,
-  LEAD_NOT_A_FIT_WORDS,
+} from "./words/lists";
+import {
+  LEAD_CALL_QUESTION,
   LEAD_NOTE_MAX,
   LEAD_NOTE_PLACEHOLDER,
-  LEAD_SENT_QUESTION,
   LEAD_TALKING_NOTE,
   LEAD_UNCLAIMED_NOTE,
   leadNoteLeft,
-} from "./lead-words";
+} from "./words/notes";
 export {
   LEAD_CLASSES,
   LEAD_LISTS,
@@ -50,16 +55,21 @@ export {
   LEAD_CALL_OUTCOMES,
   LEAD_NOT_A_FIT_WHYS,
   LEAD_STAGE_WORDS,
+  LEAD_STATUS_GROUP_WORDS,
+  LEAD_HEADING_WORDS,
   LEAD_CLOSED_WORDS,
   LEAD_FIT_WORDS,
   LEAD_EMAIL_WORDS,
   LEAD_CALL_OUTCOME_TONES,
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_LIST_WORDS,
+} from "./words/lists";
+export {
   LEAD_SOURCE_WORD,
   LEAD_LOCKED_LINE,
-  LEAD_DRAFT_NOTE,
+  LEAD_ASKED_NOT_WRITTEN,
   LEAD_NO_ADDRESS,
+  LEAD_UNBACKED_NUMBER,
   LEAD_CONSENT_REFUSAL,
   LEAD_NOT_A_FIT_WORDS,
   LEAD_NOT_A_FIT_TITLE,
@@ -68,6 +78,7 @@ export {
   LEAD_REVIEW_WORD,
   LEAD_LEFT_OUT_WORD,
   LEAD_CLASS_WORDS,
+  LEAD_NO_SITE_WORD,
   LEAD_UNREACHABLE_WORD,
   LEAD_READ_SOURCES,
   LEAD_CHECK_UNSURE,
@@ -77,6 +88,8 @@ export {
   LEAD_CONTACT_STANDARD_WORDS,
   LEAD_NO_EMAIL_LINE,
   LEAD_SENT_QUESTION,
+} from "./words/refusals";
+export {
   LEAD_CALL_QUESTION,
   LEAD_NOTE_PLACEHOLDER,
   LEAD_NOTE_MAX,
@@ -96,17 +109,9 @@ export {
   leadEndingLine,
   leadAllowanceFact,
   outcomeMove,
-} from "./lead-words";
-export type {
-  LeadClass,
-  LeadStage,
-  LeadList,
-  LeadSort,
-  LeadCallOutcome,
-  LeadNotAFitWhy,
-  LeadEndingFacts,
-  LeadEndingLine,
-} from "./lead-words";
+} from "./words/notes";
+export type { LeadClass, LeadStage, LeadList, LeadSort, LeadCallOutcome, LeadNotAFitWhy } from "./words/lists";
+export type { LeadEndingFacts, LeadEndingLine } from "./words/notes";
 export {
   stageArgs,
   leadFiltersOf,
@@ -125,8 +130,8 @@ export {
   leadPlanFactLine,
   leadMonthPlanFacts,
   leadPlanAsk,
-} from "./lead-plan";
-export type { LeadPlanView, LeadPlanRefusalKind, LeadPlanned, PeoplePlanned, LeadChips } from "./lead-plan";
+} from "./plan";
+export type { LeadPlanView, LeadPlanRefusalKind, LeadPlanned, PeoplePlanned, LeadChips } from "./plan";
 export {
   leadTodayLine,
   leadHoursShort,
@@ -138,22 +143,16 @@ export {
   LEAD_SLOT_WORDS,
   leadSlots,
   leadReachOf,
+  leadStatusGroupsOf,
+  LEAD_REACH_NONE_WORDS,
   LEAD_REACH_WORDS,
   leadReachWord,
-  leadTintOf,
   LEAD_TILE_PX,
   leadTileSrc,
-} from "./lead-facts";
-export {
-  leadPeekMenu,
-  leadWeekSummary,
-  leadWeekBars,
-  toLeadPeekVM,
-  LEAD_REMOVE_KEEPS,
-  leadSearchWords,
-} from "./lead-peek";
-export type { LeadPeekReach, LeadPeekVM, LeadWeekRow } from "./lead-peek";
-export { LEAD_CHECK_KEYS } from "./lead-dtos";
+} from "./facts";
+export { leadPeekMenu, leadWeekSummary, leadWeekBars, toLeadPeekVM, LEAD_REMOVE_KEEPS, leadSearchWords } from "./peek";
+export type { LeadPeekReach, LeadPeekVM, LeadWeekRow } from "./peek";
+export { LEAD_CHECK_KEYS } from "./dtos";
 export type {
   LeadCheck,
   LeadCheckKey,
@@ -167,7 +166,7 @@ export type {
   LeadIdeaDto,
   LeadIdeaRole,
   LeadPlanFacts,
-} from "./lead-dtos";
+} from "./dtos";
 export {
   leadLowerFirst,
   LEAD_REVIEW_GROUP_WORDS,
@@ -183,8 +182,8 @@ export {
   leadMapAcross,
   leadAreaFrom,
   leadMapNote,
-} from "./lead-review";
-export type { LeadReviewGroupId, LeadReviewAct, LeadReviewGroup, LeadMapPin, LeadMapPlot } from "./lead-review";
+} from "./review";
+export type { LeadReviewGroupId, LeadReviewAct, LeadReviewGroup, LeadMapPin, LeadMapPlot } from "./review";
 export {
   leadBand,
   leadCriterionWords,
@@ -193,11 +192,12 @@ export {
   leadMarkSrc,
   toLeadRowVM,
   leadRowOf,
+  leadSourceWord,
   leadRail,
   leadSearchEmptyWords,
   leadsStanding,
-} from "./lead-row";
-export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRailRow, LeadRowVM } from "./lead-row";
+} from "./row";
+export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRailRow, LeadRowVM } from "./row";
 
 /**
  * One home per set. Release A declares all six in `search/sets.ts` and `schema-sets.ts:122` holds
@@ -206,8 +206,16 @@ export type { LeadSlotState, LeadSlot, LeadRowCard, LeadBand, LeadRailRow, LeadR
  * here first fails `schema-sets.ts:122` with `Type 'false' does not satisfy the constraint 'true'` until the
  * generated set carries the two new kinds. Nothing below re-declares a stored set.
  */
-export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES };
-export type { LeadEmailState, LeadFit, LeadReachFilter }; // A's, re-exported so a page reads one name
+export {
+  LEAD_CLOSED_REASONS,
+  LEAD_EMAIL_STATES,
+  LEAD_FITS,
+  LEAD_OPERATION_KINDS,
+  LEAD_REACH_FILTERS,
+  LEAD_STAGES,
+  LEAD_STATUS_GROUPS,
+};
+export type { LeadEmailState, LeadFit, LeadReachFilter, LeadStatusGroup }; // A's, re-exported so a page reads one name
 /**
  * The first day of Leads, before a workspace has kept one search or holds one lead (§8.9; redrawn 7 Oct 2026 as one
  * question and the door to Ask, canvas "Leads, the first day", option A). `ask` is what the door says, in the place a
@@ -245,12 +253,12 @@ const LEAD_FIRST_DAY = {
   lineDone: "Done",
   importIt: "Import a list",
 } as const;
-/** When the suggestions cannot be written at all: a note on the page, never a page that fails (suggestionsWritten). */
+/** When the suggestions cannot be written at all: a note on the page, never a page that fails (getSuggestionsWritten). */
 export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 
 /**
  * Every word the Leads scope's own markup says, spelled once here and seeded onto the window as `window.__LEAD_WORDS`
- * by `seed-globals.ts`, because the legacy pages import nothing. A words record is a global seeded once at boot, like
+ * by `seed-globals.ts`, because the shell's pages import nothing. A words record is a global seeded once at boot, like
  * `__FACT_WORDS`, not a courier's -- the courier carries acts. Task 19 adds the facts' own words (the stages, the
  * endings, the guardrail sentences) to THIS record; there is one `LEAD_WORDS` and nothing else holds a lead's words.
  * A sentence the server also says is not here: the routes' toasts are the routes' own.
@@ -287,12 +295,9 @@ export const LEAD_WORDS = {
   checked: "Checked",
   found: "Found",
   call: "Call",
-  copy: "Copy",
   copyAria: "Copy the email",
   /** The peek's reach rows act with quiet marks; these are their names, heard and shown on hover (data-tip). */
   copyPhoneAria: "Copy the number",
-  draftAria: "Draft an email",
-  draft: "Draft",
   noWebsite: "No website listed",
   instagram: "Instagram",
   talkingNote: LEAD_TALKING_NOTE,
@@ -314,19 +319,16 @@ export const LEAD_WORDS = {
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
   noteLeft: leadNoteLeft,
-  backTo: "Back to",
-  to: "To",
-  subject: "Subject",
+  /** Write to them (the lead sheet's write step): its rewrites, the line while it is written, and the law's foot. */
   draftRewrite: "Rewrite",
   tones: [
     { id: "shorter", label: "Shorter" },
     { id: "warmer", label: "Warmer" },
   ],
   draftWriting: "Writing it…",
-  draftNote: LEAD_DRAFT_NOTE,
-  draftOpen: "Open in your email",
-  draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
+  /** The browser kept the clipboard shut: nothing was copied, and the mail app still carries the email. */
+  copyRefused: "Couldn't copy it here. Open it in your mail app instead.",
   firstDay: LEAD_FIRST_DAY,
   about: "About",
   reachHeading: "Reach",
@@ -348,6 +350,7 @@ export const LEAD_WORDS = {
    * Searches here. The third is the sequences' own lists (00496), each named for its sequence: the leads added to it.
    */
   viewsHeading: "Views",
+  savedHeading: "Saved",
   searchesHeading: "Searches",
   sequencesHeading: "Sequences",
   // D5, on a phone: one lead at a time, and the question when you are back from the call.
@@ -365,7 +368,7 @@ export const LEAD_WORDS = {
 } as const;
 
 /**
- * How long a workspace's ideas stand before Claude is asked again (suggestionsWritten), when nothing else asks sooner: a
+ * How long a workspace's ideas stand before Claude is asked again (getSuggestionsWritten), when nothing else asks sooner: a
  * round that ends, or a business line saved (00398). A week while they were the line's alone.
  */
 export const LEAD_SUGGEST_DAYS = 30;

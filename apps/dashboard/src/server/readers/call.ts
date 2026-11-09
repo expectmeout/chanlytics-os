@@ -1,8 +1,9 @@
 import "server-only";
-import { AppError, addressOf, callerName, personName, type CallDto } from "@chanlytics/contracts";
-import { CALL_COLUMNS, toCallDto } from "../dto";
-import { requireUuid } from "../request-guards";
-import { stamp, type Reader, type RowRef } from "./index";
+import { AppError, addressOf, callerName, personName, type CallDto, DbFailure } from "@chanlytics/contracts";
+import { toCallDto } from "../conversations/dto";
+import { requireUuid } from "../shared/request-guards";
+import { readerStamp, type Reader, type RowRef } from "../shared/reader";
+import { findCallRow } from "@chanlytics/db/voice";
 
 /**
  * One phone call by id, as the Calls page maps a call (CALL_COLUMNS,
@@ -20,13 +21,8 @@ export const call: Reader<{ id: string }, { call: CallDto }> = {
   name: "call",
   async read(rc, { id }) {
     const callId = requireUuid(id, "call");
-    const { data, error } = await rc.ctx.supabase
-      .from("calls")
-      .select(CALL_COLUMNS)
-      .eq("tenant_id", rc.tenantId)
-      .eq("id", callId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+    const { data, error } = await findCallRow(rc.ctx.supabase, rc.tenantId, callId);
+    if (error) throw new DbFailure(error);
     if (!data) throw new AppError("not_found", "Call not found.", 404);
     const dto = toCallDto(data);
     const rows: RowRef[] = [
@@ -40,6 +36,6 @@ export const call: Reader<{ id: string }, { call: CallDto }> = {
         label: personName(dto.contact),
       });
     }
-    return { data: { call: dto }, rows, stamp: stamp() };
+    return { data: { call: dto }, rows, stamp: readerStamp() };
   },
 };

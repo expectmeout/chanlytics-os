@@ -3,8 +3,8 @@
  * Kept apart from person-draft.ts so the browser's bundle of contracts holds no zod for it.
  */
 import { z } from "zod";
-import { REPLY_MAX_ANY } from "../config/policy";
-import { CONSENT_CHANNELS } from "../consent/consent-channels";
+import { REPLY_MAX_ANY } from "../config/policy/reply-limits";
+import { CONSENT_CHANNELS } from "../consent/channels";
 import {
   DRAFT_ABOUT_MAX,
   DRAFT_ANSWER_MAX,
@@ -53,7 +53,6 @@ export const PersonDraftAnswerSchema = z.object({
   points: z.array(z.string().trim().max(300)).max(6),
   avoid: z.array(z.string().trim().max(300)).max(6),
   ask: z.string().trim().max(300),
-  pitch: z.string().trim().max(300).default(""),
 });
 export type PersonDraftAnswer = z.infer<typeof PersonDraftAnswerSchema>;
 

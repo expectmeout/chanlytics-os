@@ -6,7 +6,7 @@
 // mark and its colour on the product's paper. They text it as a customer would and read, under each answer, what a
 // live chat would do with it (Try it's `then`), or call it in the browser (call.tsx); they see what it knows and where
 // each fact came from, and say which is not right; and the foot, which stays, makes it theirs. Every word is
-// contracts' (previews/preview-words.ts); the page is drawn from its view model (previewPageOf), which the server
+// contracts' (previews/words.ts); the page is drawn from its view model (previewPageOf), which the server
 // builds from the row its token names.
 //
 // The page's own script says it was drawn (previewVerbs.opened), once a load, so a mail scanner fetching the link is

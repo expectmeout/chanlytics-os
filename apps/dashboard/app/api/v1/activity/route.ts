@@ -1,5 +1,5 @@
-import { read, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { activity } from "@/server/readers/activity";
 import { ActivityQuerySchema } from "@/server/metrics/activity";
 

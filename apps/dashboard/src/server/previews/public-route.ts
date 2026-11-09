@@ -7,12 +7,12 @@ import "server-only";
  * shared limiter (preview_ip; a call's own, preview_call_ip), a body read for what it is, the token as the only authority, and one envelope back.
  */
 import { NextResponse } from "next/server";
-import { AppError, err, ok } from "@chanlytics/contracts";
-import { isSameOrigin } from "../request-guards";
-import { takeRate, type RateBucket } from "../rate-limit";
-import { refusalHeaders } from "../with-route";
-import { hashKey, ipOf } from "../request-ip";
-import { log } from "../log";
+import { AppError, err, ok, recordOrEmpty } from "@chanlytics/contracts";
+import { isSameOrigin } from "../shared/request-guards";
+import { takeRate, type RateBucket } from "../shared/rate-limit";
+import { refusalHeaders } from "../shared/with-route";
+import { hashKey, ipOf } from "../shared/request-ip";
+import { log } from "../shared/log";
 
 const PRIVATE = { "cache-control": "private, no-store", "x-robots-tag": "noindex, nofollow" } as const;
 /** The most a body of these doors holds: a message, or a fact and what is right. */
@@ -23,11 +23,12 @@ type Ctx = { params: Promise<{ token: string }> };
 /** A body read as an object of fields, or an empty one: a field of the wrong kind is each door's to refuse. */
 async function fieldsOf(req: Request): Promise<Record<string, unknown>> {
   const text = await req.text().catch(() => "");
-  if (text.length > BODY_MAX_BYTES) throw new AppError("validation", "That is too long.", 413);
+  if (text.length > BODY_MAX_BYTES) throw new AppError("validation", "That is too long.");
   try {
     const parsed: unknown = JSON.parse(text || "{}");
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+    return parsed && typeof parsed === "object" ? recordOrEmpty(parsed) : {};
   } catch {
+    // Not JSON: nothing to read.
     return {};
   }
 }
@@ -47,15 +48,18 @@ export function previewRoute<T>(
       await takeRate(`ip:${hashKey(ipOf(req))}`, door.bucket, undefined, door.spends);
       const { token } = await ctx.params;
       return NextResponse.json(ok(await run(token, await fieldsOf(req))), { headers: PRIVATE });
-    } catch (e) {
+    } catch (error) {
       // A limit says when it lifts, as every route's does (with-route.ts): in the envelope and in Retry-After, so the
       // page waits out a pace of seconds rather than refusing a person who wrote twice in quick succession.
-      if (e instanceof AppError)
-        return NextResponse.json(err(e.code, e.message, e.code === "rate_limited" ? e.details : undefined), {
-          status: e.status,
-          headers: { ...PRIVATE, ...refusalHeaders(e) },
-        });
-      log.error("preview_route_failed", { error: e });
+      if (error instanceof AppError)
+        return NextResponse.json(
+          err(error.code, error.message, error.code === "rate_limited" ? error.details : undefined),
+          {
+            status: error.status,
+            headers: { ...PRIVATE, ...refusalHeaders(error) },
+          },
+        );
+      log.error("preview_route_failed", { error: error });
       return NextResponse.json(err("internal", "Something went wrong. Try again in a moment."), {
         status: 500,
         headers: PRIVATE,

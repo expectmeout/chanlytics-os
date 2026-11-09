@@ -1,0 +1,465 @@
+/**
+ * Shared verb machinery: every committing verb = decision row + subject
+ * mutation (+ events implied by triggers/handlers), all on the SESSION client
+ * so RLS is the enforcement (Blueprint §6). Side effects that need the
+ * service role — scheduling a job, calling the edge — go through the
+ * server-only service module at the call sites.
+ */
+import { asContactId, DbFailure } from "@chanlytics/contracts";
+import {
+  AppError,
+  asTenantId,
+  CAMPAIGN_NOT_FOUND,
+  REACH_OUT_REFUSALS,
+  REPLY_UNDO_REFUSALS,
+  isPersonsWords,
+  writtenChannelOf,
+  type WrittenChannel,
+  type DecisionVerb,
+  type DecisionSubject,
+  type TenantId,
+  pauseMsOf,
+  recordOrNull,
+} from "@chanlytics/contracts";
+import { listRow } from "@chanlytics/db/people";
+import { withdrawMemberDrafts, findOurLastWire } from "@chanlytics/db/conversations";
+import { findReachOutRoot, findReachOutSendRef, replyReadingRefOf, findSequenceRow } from "@chanlytics/db/campaigns";
+import type { Json } from "@chanlytics/db/types";
+import { findAppointmentWorkspace } from "@chanlytics/db/calendar";
+import type { RouteContext } from "./with-route";
+import { requireUuid } from "./request-guards";
+import { row } from "./route";
+import { log } from "@/server/shared/log";
+import {
+  findCallScope,
+  findErasableScope,
+  findMessageScope,
+  findPersonScope,
+  findPlaybookScope,
+  findReplyLimits,
+  findRunScope,
+  findTemplateScope,
+  findThreadScope,
+  listCustomerWrites,
+  recordDecisionRow,
+  resolveOpenHolds,
+} from "@chanlytics/db/workspace";
+import type { ContactId } from "@chanlytics/contracts";
+
+export interface VerbConversation {
+  id: string;
+  /** Checked here, where the row is read, and carried as what it is to the verbs (core's TenantId). */
+  tenant_id: TenantId;
+  state: string;
+  paused_until: string | null;
+  /** Carried for the thread's own page, which had to re-read the row for them. */
+  snooze_until: string | null;
+  set_aside_at: string | null;
+  set_aside_why: string | null;
+  assignee_user_id: string | null;
+  last_wa_inbound_at: string | null;
+  /** When they last wrote by Instagram DM (00486's accessor): that wire's 24-hour window reads it. */
+  last_ig_inbound_at: string | null;
+  last_message_at: string | null;
+  /**
+   * When something last came from their side, a message or a call: stamped by the two doors those come through
+   * (ingest_inbound, ingest_call) and by nothing else. Null is a thread nothing has come to: a campaign's recipient, a
+   * business a reach-out wrote to, a person a member wrote to first.
+   */
+  last_inbound_at: string | null;
+  contact_id: ContactId;
+  phone_e164: string | null;
+  /** Their Instagram-scoped id, where they wrote by DM (contact_identities, the newest): where a DM reply goes. */
+  instagram_id: string | null;
+  display_name: string | null;
+  wa_profile_name: string | null;
+  /** Where the name came from and whether a member settled it (0052): a stand-in is greeted "there" (firstNameOf). */
+  name_source: string | null;
+  name_settled_at: string | null;
+  /** Consent travels with every verb load so no send path has to remember to
+   *  ask for it separately. */
+  consent: string | null;
+  dnc: boolean;
+  /** The second answer: yes to OFFERS. A promotional template needs it. */
+  marketing_consent: string | null;
+  /** The address on the person's page, and whether it has stopped being sent to: what a reply by email is addressed from. */
+  email: string | null;
+  email_suppressed_at: string | null;
+}
+
+/** A person's newest Instagram-scoped id among their identities, where a merge left them more than one; null with none. */
+function newestInstagramId(
+  identities: ReadonlyArray<{ channel: string; external_id: string; created_at: string }>,
+): string | null {
+  const dms = identities
+    .filter((i) => i.channel === "instagram")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return dms[0]?.external_id ?? null;
+}
+
+export async function loadConversation(ctx: RouteContext, id: string): Promise<VerbConversation> {
+  // The chokepoint every conversation verb goes through, so the id is checked
+  // once here rather than remembered per route. A malformed id used to reach
+  // PostgREST, come back as 22P02, and surface as a generic 500 "Something
+  // went wrong" — a typo in a URL reading as a server fault.
+  const convId = requireUuid(id, "conversation");
+  const { data, error } = await findThreadScope(ctx.supabase, convId);
+  if (error) throw new DbFailure(error);
+  if (!data) throw new AppError("not_found", "Conversation not found.");
+  // tenant_id is a uuid column, so the check cannot refuse a row this read returns: it names what the id is.
+  return {
+    id: data.id,
+    tenant_id: asTenantId(data.tenant_id),
+    state: data.state,
+    paused_until: data.paused_until,
+    snooze_until: data.snooze_until,
+    set_aside_at: data.set_aside_at,
+    set_aside_why: data.set_aside_why,
+    assignee_user_id: data.assignee_user_id,
+    last_wa_inbound_at: data.last_wa_inbound_at,
+    last_ig_inbound_at: data.last_ig_inbound_at,
+    last_message_at: data.last_message_at,
+    last_inbound_at: data.last_inbound_at,
+    contact_id: data.contact_id,
+    phone_e164: data.contacts?.phone_e164 ?? null,
+    instagram_id: newestInstagramId(data.contacts?.contact_identities ?? []),
+    display_name: data.contacts?.display_name ?? null,
+    wa_profile_name: data.contacts?.wa_profile_name ?? null,
+    name_source: data.contacts?.name_source ?? null,
+    name_settled_at: data.contacts?.name_settled_at ?? null,
+    consent: data.contacts?.consent ?? null,
+    dnc: data.contacts?.dnc ?? false,
+    marketing_consent: data.contacts?.marketing_consent ?? null,
+    email: data.contacts?.email ?? null,
+    email_suppressed_at: data.contacts?.email_suppressed_at ?? null,
+  };
+}
+
+/**
+ * The conversation a verb acts on, as a route scope (see route.ts): loaded
+ * through loadConversation under RLS, so a thread the caller cannot see is a
+ * 404, and judged in its own workspace, which for a member of two is the one
+ * that matters. What `requireOperator(ctx, conv.tenant_id)` did by hand in
+ * every verb, declared once.
+ */
+export const conversationScope = row((ctx, params) => loadConversation(ctx, String(params.id ?? "")));
+
+interface VerbContact {
+  id: ContactId;
+  tenant_id: TenantId;
+  marketing_consent: string | null;
+}
+
+/**
+ * The contact a consent verb acts on. RLS scopes this read, so a contact the
+ * caller cannot see is a 404 rather than a leak, and an erased one is gone;
+ * the role is then decided against the contact's tenant, never one from the
+ * body. Both consent doors take their row from here.
+ */
+async function loadContact(ctx: RouteContext, id: string): Promise<VerbContact> {
+  const contactId = asContactId(requireUuid(id, "contact"));
+  const { data: contact, error } = await findPersonScope(ctx.supabase, contactId);
+  if (error) throw new DbFailure(error);
+  if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
+  return { id: contact.id, tenant_id: contact.tenant_id, marketing_consent: contact.marketing_consent ?? null };
+}
+
+/** The contact named by `:id`, as the row a consent route acts on. */
+export const contactScope = row((ctx, params) => loadContact(ctx, String(params.id ?? "")));
+
+/**
+ * A visit the record keeps (00345), as the row a member's word on it is said on: read under RLS, so one the caller
+ * cannot see is a 404, and judged in its own workspace.
+ */
+async function loadAppointment(ctx: RouteContext, id: string): Promise<{ id: string; tenant_id: TenantId }> {
+  const found = await findAppointmentWorkspace(ctx.supabase, requireUuid(id, "appointment"));
+  if (!found) throw new AppError("not_found", "Appointment not found.", 404);
+  return found;
+}
+
+/** The visit named by `:id`, as the row a route about what became of it acts on. */
+export const appointmentScope = row((ctx, params) => loadAppointment(ctx, String(params.id ?? "")));
+
+interface VerbMessage {
+  id: string;
+  tenant_id: TenantId;
+  conversation_id: string;
+  sender: string;
+  status: string;
+}
+
+/** The message a verb acts on (a held draft to rewrite), read under RLS: one the caller cannot see is a 404. */
+async function loadMessage(ctx: RouteContext, id: string): Promise<VerbMessage> {
+  const messageId = requireUuid(id, "message");
+  const { data, error } = await findMessageScope(ctx.supabase, messageId);
+  if (error) throw new DbFailure(error);
+  if (!data) throw new AppError("not_found", "Message not found.", 404);
+  return data;
+}
+export const messageScope = row((ctx, params) => loadMessage(ctx, String(params.id ?? "")));
+
+export interface VerbCall {
+  id: string;
+  tenant_id: TenantId;
+  retell_call_id: string;
+  status: string;
+  recording: unknown;
+}
+
+/** The call a verb acts on (a whisper into it, its recording), read under RLS: one the caller cannot see is a 404. */
+async function loadCall(ctx: RouteContext, id: string): Promise<VerbCall> {
+  const callId = requireUuid(id, "call");
+  const { data, error } = await findCallScope(ctx.supabase, callId);
+  if (error) throw new DbFailure(error);
+  if (!data) throw new AppError("not_found", "Call not found.", 404);
+  return data;
+}
+export const callScope = row((ctx, params) => loadCall(ctx, String(params.id ?? "")));
+
+/** How many of a thread's newest messages from the customer the reply's channel is looked for in. */
+const LAST_WROTE_LOOKBACK = 20;
+
+/**
+ * The channel a reply goes out on: where the customer last wrote. A
+ * conversation is one per person and its messages carry the channel. The reply
+ * route sends on it and the assistant's reply card shows its window, so both
+ * read it here. "Wrote" is contracts isTheirOwnWords': their own words, so not a call's note (an inbound row the
+ * system wrote, which read as WhatsApp here) and not an out-of-office or a list's mail from their address (which made
+ * email the place a reply went). The newest few written messages from their side are read and the first a person wrote
+ * is taken; a person who has written none is answered where the last thing from their side came from (a program at
+ * their address is still their address), as the thread's row and their page say (threadChannelOf, replyChannelOfThreads).
+ * A thread nothing has come to is answered where our own words last went.
+ */
+export async function replyChannelOf(
+  ctx: RouteContext,
+  conv: { id: string; tenant_id: TenantId },
+): Promise<WrittenChannel> {
+  const { data, error } = await listCustomerWrites(ctx.supabase, conv.tenant_id, conv.id, LAST_WROTE_LOOKBACK);
+  if (error) throw new DbFailure(error, "reading the last inbound");
+  const theirs = data ?? [];
+  const wrote = theirs.find((m) => isPersonsWords(m.meta)) ?? theirs[0];
+  if (wrote) return writtenChannelOf(wrote.channel);
+  // Nothing from their side: the wire our own written words last went by, so a conversation the business began is
+  // carried on where it began (contracts answerWireOf, which the Inbox's box asks); WhatsApp with none.
+  return writtenChannelOf(await findOurLastWire(ctx.supabase, conv.tenant_id, conv.id));
+}
+
+/**
+ * One row on the ledger: who did what to which subject, marked `via: "ask"`
+ * in the payload when a card was tapped, and linked through `undo_of` to the
+ * decision it reverses when the request said so. Takes the narrow context so
+ * the team service, which builds its own, can write through the same door.
+ */
+export async function recordDecision(
+  ctx: Pick<RouteContext, "supabase" | "userId" | "via" | "undoOf">,
+  tenantId: TenantId,
+  subjectType: DecisionSubject,
+  subjectId: string,
+  verb: DecisionVerb,
+  payload: Json = {},
+): Promise<string> {
+  const row = {
+    tenant_id: tenantId,
+    subject_type: subjectType,
+    subject_id: subjectId,
+    verb,
+    actor_type: "user" as const,
+    actor_user_id: ctx.userId,
+    payload:
+      ctx.via && payload && typeof payload === "object" && !Array.isArray(payload)
+        ? { ...(payload as Record<string, Json>), via: ctx.via }
+        : payload,
+  };
+  const insert = (undoOf: string | null) => recordDecisionRow(ctx.supabase, { ...row, undo_of: undoOf });
+  let attempt = await insert(ctx.undoOf ?? null);
+  if (attempt.error && ctx.undoOf && attempt.error.code === "23503") {
+    // The undo names a decision this database does not have: a card kept from
+    // a stale tab, or a header nobody should have sent. The verb has happened,
+    // so the row is kept without the link, and the log says which link was
+    // refused rather than the verb failing after the fact.
+    log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb, subject: subjectType });
+    attempt = await insert(null);
+  }
+  if (attempt.error || !attempt.data) throw new DbFailure(attempt.error ?? { message: "no row" }, "decision");
+  return attempt.data.id;
+}
+
+/** reply and hand-back auto-resolve; take-over claims but keeps open (§4). */
+export async function resolveOpenEscalation(
+  ctx: RouteContext,
+  conversationId: string,
+  decisionId: string | null,
+): Promise<void> {
+  // `.select()` matters: an UPDATE that RLS forbids does not raise — it matches
+  // zero rows and returns success. Without counting rows, a permission failure
+  // here would look identical to "there was nothing open to resolve", and the
+  // thread would sit in Needs You with the operator believing they cleared it.
+  const { data, error } = await resolveOpenHolds(ctx.supabase, conversationId, ctx.userId, decisionId);
+  if (error) log.error("resolve_escalation_failed", { conversation: conversationId, error: error.message });
+  else if (!data || data.length === 0) log.info("resolve_escalation_noop", { conversation: conversationId });
+}
+
+/**
+ * How long a human's touch keeps the receptionist off a thread.
+ *
+ * Settings promises "stays paused for N hours" from the reply policy's
+ * `pause_hours`, and the WhatsApp edge honoured it — but a take-over or a
+ * reply from the dashboard paused for a hard-coded day, so an owner who set
+ * two hours was told one number and given another. Every pause reads the row
+ * through contracts' pauseMsOf, the rule the edge and the pane read too.
+ */
+export async function pauseMsFor(ctx: RouteContext, tenantId: TenantId): Promise<number> {
+  const { data, error } = await findReplyLimits(ctx.supabase, tenantId);
+  // A pause that cannot be read is not the default one: a member's take-over would hold for the wrong time.
+  if (error) throw new DbFailure(error, "cannot read the workspace's reply pause");
+  return pauseMsOf(recordOrNull(data?.limits));
+}
+
+/**
+ * Take the bot's held reply off the table.
+ *
+ * Under a veto window the receptionist writes its answer as `queued` and a job
+ * fires it after the configured delay. The whole point is that a human can get
+ * there first — so every path where a human asserts control (replying, taking
+ * the thread over) has to cancel that draft, or the customer receives BOTH the
+ * override and the words it was meant to replace.
+ *
+ * Cancel by MESSAGE, never by conversation. Cancelling every scheduled
+ * outbound_send on the thread also withdrew the job behind a HUMAN reply still
+ * inside its 15-second grace window — while the row-level update only marked
+ * `sender = 'ai'` rows canceled. So an operator who sent two replies in quick
+ * succession, or replied and then pressed Take over, lost the first message:
+ * its job was gone, its row stayed `queued`, the Inbox said "Sending…" forever
+ * and the customer received nothing. Withdrawing the receptionist's draft must
+ * not touch a colleague's words.
+ *
+ * Row and job are one write since 00387 (member_withdraw_drafts over the one door, withdraw_queued): the row cannot be
+ * canceled with its job left to fire, nor the job withdrawn with its row left queued for ever. Only a draft no send job
+ * has claimed yet (sending_at, 00352): a claimed one is already on its way to the customer and stays queued only until
+ * the provider answers, and is left to say what became of it, not counted.
+ *
+ * Returns how many drafts were withdrawn, so a caller can tell the operator
+ * their reply replaced the bot's rather than merely followed it.
+ */
+export async function cancelPendingAiReply(
+  ctx: RouteContext,
+  conv: { id: string; tenant_id: TenantId },
+): Promise<number> {
+  try {
+    return await withdrawMemberDrafts(ctx.supabase, { tenantId: conv.tenant_id, conversationId: conv.id });
+  } catch (e) {
+    // Not fatal to the operator's own action — but it means a draft may still
+    // fire, so it must be visible rather than swallowed.
+    log.error("cancel_pending_ai_reply_failed", {
+      conversation: conv.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return 0;
+  }
+}
+
+interface VerbErasure {
+  id: ContactId;
+  tenant_id: TenantId;
+  phone_e164: string | null;
+  email: string | null;
+  erased_at: string | null;
+}
+
+/**
+ * The contact named by `:id` for an erasure, found whether or not they are
+ * already erased: an erasure re-drives a leg still outstanding on one that
+ * is, so it must find them. Every other contact verb wants a live person
+ * (contactScope). Read under RLS, so one the caller cannot see is a 404.
+ */
+async function loadErasable(ctx: RouteContext, id: string): Promise<VerbErasure> {
+  const contactId = asContactId(requireUuid(id, "contact"));
+  const { data, error } = await findErasableScope(ctx.supabase, contactId);
+  if (error) throw new DbFailure(error);
+  if (!data) throw new AppError("not_found", "Contact not found.");
+  return data;
+}
+export const erasureScope = row((ctx, params) => loadErasable(ctx, String(params.id ?? "")));
+
+interface VerbList {
+  id: string;
+  tenant_id: TenantId;
+  name: string;
+  /** A smart list's rule, or null for a list kept by hand. */
+  rule: unknown;
+  /** When it was archived (00169); null for a live list. */
+  archived_at: string | null;
+}
+
+/** The saved list named by `:id`, read under RLS: one the caller cannot see is a 404, and the role is judged in the list's own workspace. */
+async function loadList(ctx: RouteContext, id: string): Promise<VerbList> {
+  const listId = requireUuid(id, "list");
+  const list = await listRow(ctx.supabase, listId);
+  if (!list) throw new AppError("not_found", "List not found.", 404);
+  return list;
+}
+export const listScope = row((ctx, params) => loadList(ctx, String(params.id ?? "")));
+
+/** The broadcast a verb acts on (approved, canceled), read under RLS: one the caller cannot see is a 404. */
+async function loadBroadcast(ctx: RouteContext, id: string) {
+  const broadcastId = requireUuid(id, "broadcast");
+  const { data, error } = await findRunScope(ctx.supabase, broadcastId);
+  if (error) throw new DbFailure(error);
+  if (!data) throw new AppError("not_found", "Run not found.", 404);
+  return { ...data, tenant_id: asTenantId(data.tenant_id) };
+}
+export const broadcastScope = row((ctx, params) => loadBroadcast(ctx, String(params.id ?? "")));
+
+/** The sequence a verb or a read acts on (decision 0060), read under RLS: one the caller cannot see is a 404. */
+async function loadSequence(ctx: RouteContext, id: string) {
+  const found = await findSequenceRow(ctx.supabase, requireUuid(id, "sequence"));
+  if (!found) throw new AppError("not_found", "Sequence not found.", 404);
+  return { ...found, tenant_id: asTenantId(found.tenant_id) };
+}
+export const sequenceScope = row((ctx, params) => loadSequence(ctx, String(params.id ?? "")));
+
+/** The template a verb acts on (hidden, titled, deleted), read under RLS: one the caller cannot see is a 404. */
+async function loadTemplate(ctx: RouteContext, id: string) {
+  const templateId = requireUuid(id, "template");
+  const { data, error } = await findTemplateScope(ctx.supabase, templateId);
+  if (error) throw new DbFailure(error);
+  if (!data) throw new AppError("not_found", "Template not found.", 404);
+  return data;
+}
+export const templateScope = row((ctx, params) => loadTemplate(ctx, String(params.id ?? "")));
+
+/** The playbook a verb acts on (paused, rewritten, run, deleted), read under RLS: one the caller cannot see is a 404. */
+async function loadPlaybook(ctx: RouteContext, id: string) {
+  // A person reads "campaign", never "playbook" (decision 19): the 404s below are said in a toast.
+  const playbookId = requireUuid(id, "campaign");
+  // Its class and its message are what a change of its channels alone is judged by (campaigns/playbook-row.ts).
+  const { data, error } = await findPlaybookScope(ctx.supabase, playbookId);
+  if (error) throw new DbFailure(error);
+  if (!data) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
+  return data;
+}
+export const playbookScope = row((ctx, params) => loadPlaybook(ctx, String(params.id ?? "")));
+
+/** A reach-out, by its root (its first step), read under RLS: a step that is not a chain's first is not one. */
+async function loadReachOut(ctx: RouteContext, id: string) {
+  const data = await findReachOutRoot(ctx.supabase, requireUuid(id, "reach-out"));
+  if (!data) throw new AppError("not_found", REACH_OUT_REFUSALS.notFound, 404);
+  return data;
+}
+export const reachOutScope = row((ctx, params) => loadReachOut(ctx, String(params.id ?? "")));
+
+/** One email of a reach-out run, read under RLS (R18): the decide door acts where it lives. */
+async function loadReachOutSend(ctx: RouteContext, id: string) {
+  const data = await findReachOutSendRef(ctx.supabase, requireUuid(id, "email"));
+  if (!data) throw new AppError("not_found", REACH_OUT_REFUSALS.sendNotFound, 404);
+  return data;
+}
+export const reachOutSendScope = row((ctx, params) => loadReachOutSend(ctx, String(params.id ?? "")));
+
+/** A reading of a reach-out's reply, by its message, read under RLS: the undo acts where it lives. */
+async function loadReachOutReply(ctx: RouteContext, id: string) {
+  const data = await replyReadingRefOf(ctx.supabase, requireUuid(id, "reply"));
+  if (!data) throw new AppError("not_found", REPLY_UNDO_REFUSALS.not_found, 404);
+  return data;
+}
+export const reachOutReplyScope = row((ctx, params) => loadReachOutReply(ctx, String(params.id ?? "")));

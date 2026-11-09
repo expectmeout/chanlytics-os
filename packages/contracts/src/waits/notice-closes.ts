@@ -19,19 +19,20 @@
  *
  * Pure: the bridge feeds it what its surfaces hold, the tests feed it fixtures.
  */
-import { RUN_GOING_STATES } from "../broadcasts/broadcasts";
-import { NEW_REVIEW_NEWS, reviewNoticeIsAbout } from "../google/google";
+import { RUN_GOING_STATES } from "../campaigns/broadcasts/states";
+import { NEW_REVIEW_NEWS } from "../google/listing";
+import { reviewNoticeIsAbout } from "../google/google";
 import { REVIEW_REPLY_HELD_TITLE } from "../google/review-reply";
-import { parseLeadsRoute } from "../leads/lead-plan";
+import { parseLeadsRoute } from "../leads/plan";
+import { SERVER_KEY_PREFIX, serverNotificationRows } from "../today/notifications/feed";
 import {
-  SERVER_KEY_PREFIX,
-  serverNotificationRows,
   settledRow,
   type NotificationRow,
   type NotificationsDto,
   type ServerNotificationKind,
-} from "../today/notifications";
+} from "../today/notifications/feed-input";
 import { runWaitsOnYou, type RunDays, type WaitingRun } from "./waits";
+import { isOneOf, keysOf } from "../shared/unknown";
 
 /**
  * What one surface holds of the subjects a waiting row is about, and when it read them. A surface read BEFORE a notice was kept
@@ -157,11 +158,15 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "A form sent on the website is told once; the person is in People, and what they asked waits on their page.",
   },
+  files_waiting: {
+    ends: "news",
+    why: "Found photos are told once; they wait in Files' Inbox, which the page opens on while anything is there.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */
 export function kindsEndedBy(source: WaitSource): ServerNotificationKind[] {
-  return (Object.keys(NOTICE_ENDS) as ServerNotificationKind[]).filter((k) => NOTICE_ENDS[k].ends === source);
+  return keysOf(NOTICE_ENDS).filter((k) => NOTICE_ENDS[k].ends === source);
 }
 
 /** The slice of a bell row the rule reads. */
@@ -178,7 +183,7 @@ const RUN_GOES_TITLE = /^(?:Campaign|Playbook) “.*” sends /u;
 /** The check held some of a going reach-out run's emails for its owner's say (contracts heldNoticeWords). */
 const RUN_HELD_TITLE = /^The check held \d+ emails? in /u;
 
-const isGoing = (state: string): boolean => (RUN_GOING_STATES as readonly string[]).includes(state);
+const isGoing = (state: string): boolean => isOneOf(RUN_GOING_STATES, state);
 
 /**
  * A run's notice: one waiting for a word asks while an approval can still send it (the verb's own rule, by the days, where

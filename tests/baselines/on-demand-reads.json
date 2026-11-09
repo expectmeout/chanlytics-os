@@ -1,0 +1,384 @@
+{
+  "apps/dashboard/src/bridge/FrameHost.tsx GET workspaces": {
+    "kind": "boot",
+    "fresh": "Read once, before the shell starts, when the tab remembers no workspace.",
+    "why": "It picks the workspace the tab opens on; from then on the workspace surface reads the same list and hears it (memberships, tenants)."
+  },
+  "apps/dashboard/src/bridge/ask/commit.ts GET settings": {
+    "kind": "on-open",
+    "fresh": "Read as a settings card is pressed from the browser's own walk, the way down when the act door cannot reach a route.",
+    "why": "A settings card writes over the config it reads and sends its version with it, so it must read it at that moment: an old version is refused and says so."
+  },
+  "apps/dashboard/src/bridge/ask/notices.ts GET ask/notice": {
+    "kind": "on-open",
+    "fresh": "Read as Ask opens, at most every five minutes (READ_AGAIN_MS), and once more when the language it speaks changes.",
+    "why": "What Ask noticed moves over hours, and a line resting here is said by the browser's own record of it. A stale line costs one press that says the thing has moved, never a wrong send: the act door reads the card again."
+  },
+  "apps/dashboard/src/bridge/zone.ts GET workspaces": {
+    "kind": "boot",
+    "fresh": "Read only when the tab knows no zone yet; the workspace surface's read holds it after.",
+    "why": "A day is counted in the workspace's zone, and a page asked for it before the workspace surface landed must not guess it; the surface's own read, heard, is what holds it afterwards."
+  },
+  "apps/dashboard/src/surfaces/campaigns/ads/first-touch.ts GET reports/people": {
+    "kind": "on-open",
+    "fresh": "Read as the Ads page comes to what is true of a workspace today, nothing connected, and again each time a person comes back to it; nothing of it is kept once the page goes.",
+    "why": "The page says how new people first came over the last 30 days, which moves slowly, and its door goes to Reports › People, whose own surface hears the feed. Reports' surface follows the period Reports shows, which is not this page's."
+  },
+  "apps/dashboard/src/surfaces/campaigns/ads/new/kept-files.ts GET files": {
+    "kind": "on-open",
+    "fresh": "Read as New ad's photo section is drawn, a few at a time, and again each time a person comes back to that step; nothing of it is kept once the composer goes.",
+    "why": "It is what a person is choosing from while they choose. A picture kept meanwhile shows at the next draw, and the ad keeps what was picked. The Files page's own surface holds the shelf it was left on and opens on the Inbox, whose photos are not yet the business's to run."
+  },
+  "apps/dashboard/src/surfaces/files/verbs.ts GET files/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a post's sheet opens, for the photo it came from and what it was asked to be; nothing of it is kept once the sheet goes.",
+    "why": "What a post was made from is written once, as it is kept, and never changes. The photo's name it says is read again each time a sheet opens."
+  },
+  "apps/dashboard/src/surfaces/files/verbs.ts GET files/[id]/play": {
+    "kind": "on-open",
+    "fresh": "Read as a video's sheet opens to play it, for a token the edge signs for that one video; nothing of it is kept once the sheet goes.",
+    "why": "A token is good for an hour and only for the video it names, so it is asked for at the moment of playing and never held. Whether the video is ready, and its frame, come from the Files page's own surface, which hears the feed."
+  },
+  "apps/dashboard/src/bridge/activity.ts GET activity": {
+    "kind": "on-open",
+    "fresh": "Read as Settings > Activity opens and as a filter changes, a page at a time; while it is open, its first page is read again each minute and as the tab comes back, and what is newer is offered above the lines (settings/activity/newer.ts).",
+    "why": "The log is the events table, which the feed never tells (every write in the workspace makes one); a minute's age is what an owner reading a log looks for, and newer lines wait for a press rather than move the lines they are reading (the wiring's second audit, X2-3)."
+  },
+  "apps/dashboard/src/bridge/activity.ts GET contacts": {
+    "kind": "search",
+    "fresh": "Asked as the owner types a name, a number or an address to filter the log by.",
+    "why": "A search answers what was typed at that moment and is asked again with the next key; nothing of it is kept or drawn after the pick."
+  },
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET views": {
+    "kind": "on-open",
+    "fresh": "Read as Settings > Profile opens, for the row How Ask answers you, and as its row is reached for; the tab keeps the last answer to draw first, and the pane's own save reads it again.",
+    "why": "The note is the member's own, in their membership's views: no teammate's change and no record of the workspace moves it, only their own save here or a card of theirs in Ask, which the row shows the next time the pane opens."
+  },
+  "apps/dashboard/src/bridge/ask/api.ts GET ask/follow-ups": {
+    "kind": "follows",
+    "follows": "leads",
+    "fresh": "Read once the boot's reads are in, as Ask opens, after a follow-up card is committed or undone and after a question that comes back to one, each time Leads or Sequences publishes a read while one still waits (ask/follow-ups.ts), and as the tab comes back past a minute.",
+    "why": "A follow-up is the member's own note in their views, changed only by their own cards and questions; what makes one due is a search's round ending or stopping to ask (which Leads hears), replies on a sequence (which Sequences hears), or the day turning, which a tab coming back catches."
+  },
+  "apps/dashboard/src/bridge/ask/api.ts GET ask/threads": {
+    "kind": "on-open",
+    "fresh": "Read as Ask's list of threads opens.",
+    "why": "A member's threads with Ask are theirs alone, changed only by their own turns and deletes; no teammate's change and no record of the workspace moves them."
+  },
+  "apps/dashboard/src/bridge/ask/api.ts GET ask/threads/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a thread with Ask opens.",
+    "why": "A thread with Ask is the member's own, changed only by their own turns, each of which answers with what it added."
+  },
+  "apps/dashboard/src/bridge/ask/api.ts GET ask/openings": {
+    "kind": "on-open",
+    "fresh": "Read when Ask is asked for the open times of a day and a service.",
+    "why": "It answers the question asked, about the calendar as it is then, and is asked again with the next question."
+  },
+  "apps/dashboard/src/bridge/platform.ts GET platform/overview": {
+    "kind": "on-open",
+    "fresh": "Read as the back office opens, and kept for the tab (read-cache.ts).",
+    "why": "The back office is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries; it is read again as it opens."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/acts": {
+    "kind": "on-open",
+    "fresh": "Read as the Admin log opens, a page at a time, and again as whose log it is changes.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/find": {
+    "kind": "on-open",
+    "fresh": "Read as words are typed into Find, a pause after the last key.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/health": {
+    "kind": "on-open",
+    "fresh": "Read as Health opens and when its window changes, and again after Run again or Deliver again.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0068)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/home": {
+    "kind": "on-open",
+    "fresh": "Read as Home or Workspaces opens, and again after an act taken there.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/me": {
+    "kind": "on-open",
+    "fresh": "Read as the Console opens: who is looking, their role and their second factor.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/requests": {
+    "kind": "on-open",
+    "fresh": "Read as Requests opens, and again after a request is filed or a step marked.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/support": {
+    "kind": "on-open",
+    "fresh": "Read as Support opens, again as its view, kind, topic, workspace or words change, and after each of its presses.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/support/bugs": {
+    "kind": "on-open",
+    "fresh": "Read as Health opens, and again after a bug report is moved back to Support.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0067)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/tenants/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a workspace's Setup and lines tab opens in the Console, and again after a line's act; and as a row opens in Support, for its Setup's progress.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/console/verbs.ts GET platform/workspaces/[slug]": {
+    "kind": "on-open",
+    "fresh": "Read as a workspace opens in the Console, and again after an act taken on it.",
+    "why": "The Console is for the people who run Chanlytics and spans every workspace, which no workspace's topic carries (decision 0066)."
+  },
+  "apps/dashboard/src/surfaces/campaigns/broadcasts/detail-read.ts GET broadcasts/[id]": {
+    "kind": "follows",
+    "follows": "broadcasts",
+    "fresh": "Read as a run's sheet opens, or a sequence's batch where its record draws it (History's day, a lead step's next email, the step editor's people: sequences/use-record.ts useBatchRead), or begun before it opens (the Inbox's run row, a link to a run landing by what it is), painted from the last answer and read again behind; then each time Sent's runs are read (the record: the Sequences list), while the run is underway and for the reply window after it ended (contracts runStillMoving).",
+    "why": "What a run's report says moves with its sends, and with the replies, yeses and stops counted to it for 72 hours after it ends, each a record Sent's runs hear; a run that ended longer ago is history (the wiring's second audit, X2-2). Its delivery ticks are read with the next of those (R9)."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]": {
+    "kind": "follows",
+    "follows": "sequences",
+    "fresh": "Read as a sequence's record opens, painted from the last answer and read again behind; then each time the Sequences list is read, and after each press on it.",
+    "why": "A sequence's steps, its notice and its head move with the sequence, its steps and its batches, each a record the list hears."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]/history": {
+    "kind": "follows",
+    "follows": "sequences",
+    "fresh": "Read as a sequence's History tab opens, painted from the last answer and read again behind; then each time the Sequences list is read, and after each press on it.",
+    "why": "What a sequence sent is its batches, which the list hears; a page further back is history and read as it is asked for."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]/people": {
+    "kind": "follows",
+    "follows": "sequences",
+    "fresh": "Read as a sequence's People tab opens, painted from the last answer and read again behind; then each time the Sequences list is read, and after each press on it.",
+    "why": "Where people stand moves with each batch and its sends; the list hears the batches, and a press on the tab reads it again."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]/reach": {
+    "kind": "follows",
+    "follows": "sequences",
+    "fresh": "Read as a paused sequence's Turn on question opens, painted from the last answer and read again behind; then each time the Sequences list is read while the question stands.",
+    "why": "Who a run reaches is a count over everyone, which nothing heard in a moment moves enough to change a question asked and answered in seconds; Turn on itself is a write, which empties the tab's answers."
+  },
+  "apps/dashboard/src/surfaces/inbox/pages/inbox-from.tsx GET sequences/[id]/replies": {
+    "kind": "on-open",
+    "fresh": "Read as the Inbox opens on a sequence's replies (inbox/from:<id>, History's door), and again when the address names another sequence or period.",
+    "why": "It names which threads answered; the threads themselves are the Inbox surface's, heard as ever. A reply that comes in while it is open joins the filter when the door is pressed again, and the line says its count as read."
+  },
+  "apps/dashboard/src/surfaces/inbox/read-apart.ts GET conversations": {
+    "kind": "surface",
+    "fresh": "Read inside the Inbox's and Today's own reads: the threads of open holds past the newest hundred, by their ids.",
+    "why": "It is part of two registered surfaces' reads (inbox/surface.ts, today/surface.ts), so it is read whenever they are, on every notice they hear."
+  },
+  "apps/dashboard/src/surfaces/inbox/read-apart.ts GET conversations/[id]": {
+    "kind": "on-open",
+    "fresh": "Read once, by the thread's id, as a thread the Inbox's read holds only the newest of is opened (or is the one the Inbox's first draw opens on); kept for the tab, and every read of the Inbox after lays its newest over it. Read again once where more arrived between two reads than the Inbox's read carries.",
+    "why": "What the thread says after it was read is what the Inbox's own read carries, its newest LIST_MESSAGES_EACH, which hears every message, tick and failure: what is kept is the thread's earlier words, which do not change once written."
+  },
+  "apps/dashboard/src/surfaces/inbox/new-conversation/verbs.ts GET contacts": {
+    "kind": "search",
+    "fresh": "Asked as the owner types who to write to; with no words, the first page.",
+    "why": "A search answers what was typed at that moment and is asked again with the next key; the person picked is read on their own."
+  },
+  "apps/dashboard/src/surfaces/inbox/new-conversation/verbs.ts GET people/[id]/reach": {
+    "kind": "on-open",
+    "fresh": "Read as the new conversation's sheet opens on one person.",
+    "why": "How one person can be written to and called is asked for the message about to be sent, and the send door checks it again as it sends."
+  },
+  "apps/dashboard/src/surfaces/inbox/thread/call.tsx GET calls/[id]/recording": {
+    "kind": "link",
+    "fresh": "A link the player fetches as it plays, signed afresh after a long pause.",
+    "why": "Nothing is drawn from it but the recording itself, which is made when it is fetched."
+  },
+  "apps/dashboard/src/surfaces/inbox/thread/call.tsx GET calls/[id]/export": {
+    "kind": "link",
+    "fresh": "A link to a call's transcript file, made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/inbox/thread/header.tsx GET conversations/[id]/export": {
+    "kind": "link",
+    "fresh": "A link to a thread's transcript file, made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/kit/media/tl-media.tsx GET messages/[id]/media": {
+    "kind": "link",
+    "fresh": "A link the browser fetches for an attachment as it is drawn.",
+    "why": "A message's attachment never changes once kept; the message it belongs to is what the page hears."
+  },
+  "apps/dashboard/src/surfaces/leads/pile/back-today.tsx GET leads/back": {
+    "kind": "on-open",
+    "fresh": "Read as Leads' Back today opens, and again when a reach-out takes or gives back leads (the reach_out:leads event).",
+    "why": "Who comes back today moves with the owner's own acts on the pile, which read it again; a teammate's reaches it on its next open."
+  },
+  "apps/dashboard/src/surfaces/people/shell-verbs.ts GET contacts/export": {
+    "kind": "link",
+    "fresh": "A link to a list's file, made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/people/shell-verbs.ts GET export": {
+    "kind": "link",
+    "fresh": "A link to one person's own file (R14 X5), made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/connected-mailboxes.ts GET mailbox-connections/connect": {
+    "kind": "link",
+    "fresh": "The address the browser is sent to, to sign in with the mailbox's provider.",
+    "why": "A step away to the provider's own sign-in, not a read the page draws; the mailbox it connects is told by the feed (mailbox_connections)."
+  },
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET channels/instagram": {
+    "kind": "on-open",
+    "fresh": "Read each time Settings › Connections opens and as its row is reached for; the tab keeps the last answer to draw the row first; the edge's answer is kept five minutes (READY_TTL_MS).",
+    "why": "It says whether this deployment can connect an Instagram account and whether this member may: the app as configured on the edge, which changes with a deploy, not with a record; the account it connects is told by the feed (tenant_channels)."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/instagram.ts GET channels/instagram/connect": {
+    "kind": "link",
+    "fresh": "The address the browser is sent to, to sign in with Instagram.",
+    "why": "A step away to Instagram's own consent screen, not a read the page draws; the account it connects is told by the feed (tenant_channels)."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/record.ts GET business-record": {
+    "kind": "on-open",
+    "fresh": "Read as the business record's sheet opens.",
+    "why": "The record the carriers read is filled in on this sheet; Setup and Connections hear its saves on the feed (business_records), and the sheet reads it again as it opens."
+  },
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET channels/whatsapp/signup": {
+    "kind": "on-open",
+    "fresh": "Read as Settings › Connections opens and as its row is reached for (and as WhatsApp's connect sheet opens); the tab keeps the last answer to draw the row first.",
+    "why": "It says whether this deployment can connect a number and by whom: Meta's door as configured, which changes with a deploy, not with a record."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/whatsapp.ts GET lines/codes": {
+    "kind": "on-open",
+    "fresh": "Read each time the codes are shown: the edge reads them from the provider's own record on every call.",
+    "why": "A code sent to the line lately is the provider's, read fresh on every ask, and kept by nobody here."
+  },
+  "apps/dashboard/src/surfaces/settings/frame/workspace.tsx GET export": {
+    "kind": "link",
+    "fresh": "A link to the workspace's file, made when it is fetched.",
+    "why": "A file to keep, made when it is fetched: nothing on the page is drawn from it, so there is nothing to keep fresh."
+  },
+  "apps/dashboard/src/surfaces/settings/business/rehearse/verbs.ts GET receptionist/rehearsals/[id]": {
+    "kind": "on-open",
+    "fresh": "Read every two seconds while its call runs, and once more as it ends (decision 0069).",
+    "why": "A rehearsal is the owner's own call, three minutes at most, and only the Rehearse card that started it draws it: no other page reads one, so no feed has to tell anyone about it."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/leads/reads.ts GET leads/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a draft's step sheet previews a lead in it, one lead at a time as ‹ › reaches it, and kept for the tab.",
+    "why": "Preview shows a step as that lead gets it, filled from the lead's own record; a lead's name, city and listing change seldom, and the send itself fills each email from the record as it stands when it goes, never from this read."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/emails": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
+    "why": "The lead's own emails, for its History: read as its place is, on the lead sheet, and again after a press."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/sent/[send]": {
+    "kind": "on-open",
+    "fresh": "Read as a step that went is opened on the lead sheet; what went does not change.",
+    "why": "What one send of a lead's said as it went, read from the email itself, for the step it is."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/words": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
+    "why": "The lead's own words at each step that has some, for the email the sheet draws: read as its place is, and a save is said at once by the door's answer."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET leads/[id]/place": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens (on Leads, or over a record), and again after each of the sheet's own presses (its moved), kept for the tab while it is open.",
+    "why": "Where a lead stands moves by a press, which the sheet reads again after, or by the sequence's own run; the record's Leads tab, a heard surface, files the same rows from the same reader (00459 sequence_places), so the two windows never disagree for long."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences": {
+    "kind": "on-open",
+    "fresh": "Read as Leads opens on a search (the pick, Adds go to) and as a lead's picker opens, and again after a sequence is made or a lead added from the sheet or the bar.",
+    "why": "It names the sequences to leads Add can go to and the pick's state; a sequence made or started elsewhere shows in the picker the next time it opens, and the add door itself refuses one that ended, in words, so nothing is added on a stale read."
+  },
+  "apps/dashboard/src/surfaces/leads/sheet/over.tsx GET leads/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens over another page by its address (?lead=, a record's Leads row), once for that lead.",
+    "why": "The sheet over a record is a look at one lead from where its row was pressed; its place is the sheet's own read, read again after each press, and closing and opening the row reads the lead afresh."
+  },
+  "apps/dashboard/src/surfaces/leads/sheet/preview.tsx GET leads/[id]/preview": {
+    "kind": "on-open",
+    "fresh": "Read as a lead's sheet opens, painted first from this tab's last answer for that lead (read-cache.ts) and read again behind it, and again after Make their preview.",
+    "why": "A lead's preview moves by Make their preview, which reads it again after, or by the edge building it, sending it with an email or the business trying it: each is minutes apart and none is a fact the sender acts on in the second, and closing and opening the sheet reads it afresh (decision 0079)."
+  },
+  "apps/dashboard/src/surfaces/inbox/pages/calls-saying.ts GET conversations": {
+    "kind": "search",
+    "fresh": "Asked a beat after the last key in Conversations' box, beside the calls', for the threads whose messages of the last ninety days say the box's words; asked again for each new words, never kept.",
+    "why": "A thread comes with its newest messages alone (LIST_MESSAGES_EACH), so the box asks the server for the threads that say its words; the answer is a search's, as the box's other matches are, and is gone when the words change."
+  },
+  "apps/dashboard/src/surfaces/inbox/pages/calls-saying.ts GET calls": {
+    "kind": "search",
+    "fresh": "Asked a beat after the last key in Conversations' box, for the calls whose stored transcript says the box's words; asked again for each new words, never kept.",
+    "why": "A list's ended calls come without their turns (GET calls answers how many there were), so the box asks the server for the calls that say its words; the answer is a search's, as the box's other matches are, and is gone when the words change."
+  },
+  "apps/dashboard/src/surfaces/inbox/thread/call-turns.ts GET calls": {
+    "kind": "on-open",
+    "fresh": "Read once, by the call's id, as its card opens on a call a list gave without its turns; kept for the tab.",
+    "why": "An ended call's words do not change, and everything else about the call stays the Conversations surface's, which hears the calls table."
+  },
+  "apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts GET reach-outs/[id]": {
+    "kind": "follows",
+    "follows": "reach_outs",
+    "fresh": "Read as a chain's row opens on Campaigns, the last answer kept on screen while it is read again; then, while it is open, at most every 30 seconds as Leads or the reach-outs publish a read (row.tsx useReachOutReport over read-again.ts).",
+    "why": "A chain's report counts what its runs wrote and what came back, each a record the reach-outs surface hears (a run made, approved or sent, a reply read or undone, a chain paused); the window keeps a lead run's batches from reading it again on every one."
+  },
+  "apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts GET reach-outs/reach": {
+    "kind": "on-open",
+    "fresh": "Read as a sequence's runs sheet opens (sequences/leads/runs-sheet.tsx), painted first from this tab's last answer for that list (read-cache.ts).",
+    "why": "It says how many of the list's leads wait on an address to be confirmed, one line beside the sheet's choice; the sheet is open for the moment a choice takes, and its next opening reads it again."
+  },
+  "apps/dashboard/src/surfaces/campaigns/reach-out/sources.ts GET reach-outs/sources": {
+    "kind": "on-open",
+    "fresh": "Read as New opens (sequences/new/new-page.tsx), painted first from this tab's last answer for the workspace (read-cache.ts) and read again behind; on New's own address started from the document's head, its first draw waiting for it (searchesBeforeNew, asked by Sequences' first read); read ahead as a door to New is reached for (sequences/verbs.ts warmSequenceRoute).",
+    "why": "What a reach-out can start from is each search or list with someone to write to and no sequence yet, one of New's starts; New is open for the moment a pick takes, and a search that gains leads meanwhile is there the next time New opens."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/campaigns-one.tsx GET sequences": {
+    "kind": "on-open",
+    "fresh": "Read once the Campaigns lens's picker is reached for (a pointer over it, its focus, a press), and held while the page stays.",
+    "why": "It is the list of campaigns the picker offers; a sequence made while the page is open is offered after a reload, and the one the address names is listed whatever the list says."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/campaigns-one.tsx GET sequences/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as Reports › Campaigns opens on one campaign, and again as its days or its campaign change or Retry is pressed.",
+    "why": "Its name, its steps and its clock, which change rarely; the cards say what it sent, not what it is about to do."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/campaigns-one.tsx GET sequences/[id]/history": {
+    "kind": "on-open",
+    "fresh": "Read with the record, a page at a time back to the first day shown, and again as the days or the campaign change or Retry is pressed.",
+    "why": "A report of days that went: a send that lands while it is open is counted at the next read, as Reports' other lenses are read for the period picked."
+  },
+  "apps/dashboard/src/surfaces/today/need-you/drafts.ts GET conversations/drafts": {
+    "kind": "on-open",
+    "fresh": "Read as Today's Need you draws its rows, and again whenever the threads it draws or the newest message on one of them changes (useDraftsAhead's key, zones/need-you.tsx), so a draft for an older message is asked for again.",
+    "why": "A kept draft is words nothing sends: it is read for the rows on screen, and a Send goes through the reply's own door with whatever words the row holds by then; the feed moves the rows, and the rows ask again."
+  },
+  "apps/dashboard/src/surfaces/inbox/thread/kept-draft.ts GET conversations/drafts": {
+    "kind": "on-open",
+    "fresh": "Read as a thread opens, once for that thread (composer.tsx putKeptDraft), and put in its box only while the box is empty and the draft answers their newest message.",
+    "why": "A kept draft is words nothing sends: it fills an empty box once, and a Send goes through the reply's own door with whatever words the box holds by then; a newer message from them makes the draft no answer, and it is left out."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/left-senders.tsx GET mailbox-senders": {
+    "kind": "search",
+    "fresh": "Read on the owner's press (Show who), and again after each of its own presses (It's a person, Undo).",
+    "why": "A list to act on in the moment: the mailbox adds to it as mail arrives, which the next press reads; nothing else on the page is drawn from it, and it is never kept."
+  },
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET team/partner": {
+    "kind": "on-open",
+    "fresh": "Read as Settings › Team opens and as its row is reached for, and again after the owner asks a partner in or withdraws one; the tab keeps the last answer to draw the card first.",
+    "why": "The workspace's partner link, which only an owner's ask on this card or the partner's own answer changes: the card reads it again on its own write, and a partner's answer shows the next time the pane opens."
+  },
+  "apps/dashboard/src/bridge/hearing/live-feed.ts GET changes": {
+    "kind": "boot",
+    "fresh": "Read as the live feed is joined and joined again: the notices the topic told since the tab's load began, or since its feed went quiet.",
+    "why": "It is no surface's rows but the feed's own catch-up (decision 0019 step 4): each notice it brings is heard as a live one is, and the surfaces it names read themselves through the runner."
+  },
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET settings/reach-out": {
+    "kind": "on-open",
+    "fresh": "Read as Settings › How it reaches out opens and as its row is reached for, and again once the pasted email is read into the voice's lines; the tab keeps the last answer to draw the cards first.",
+    "why": "It holds what the config does not: the mailbox as Connections says it, the month's first emails, each claim's sends, the voice's lines, the newest sequence to leads and Autonomy's reply mode. Each moves on its own page (Connections, a send, New, Autonomy) or with this pane's paste, so the pane's next opening is when it is looked at again."
+  },
+  "apps/dashboard/src/surfaces/settings/outreach/told.tsx GET settings/reach-out/told": {
+    "kind": "on-open",
+    "fresh": "Read as What it's told opens on a writer's tab, once for each opening; closing the sheet lets it go, so the next opening reads it again.",
+    "why": "It is the prompt the writer would be given now, cut into its parts: a sheet looked at for a moment, which a save on this page changes, so each opening reads it afresh."
+  }
+}

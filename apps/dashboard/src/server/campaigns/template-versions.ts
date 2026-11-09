@@ -20,18 +20,19 @@ import {
 } from "@chanlytics/contracts";
 import {
   createMessageVersion,
-  isMissingDoor,
-  messageSlots,
-  ownVersionsFiled,
+  findMessageSlots,
+  listOwnVersionsFiled,
   removeTemplateVersion,
   saveTemplateVersion,
   type MessageVariable,
   type VersionRef,
-} from "@chanlytics/db";
-import type { Member } from "@/server/route";
-import { saveReachOutEmail } from "@/server/campaigns/reach-outs";
-import { serviceDb } from "@/server/service-db";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+} from "@chanlytics/db/campaigns";
+import { isMissingDoor } from "@chanlytics/db/shared";
+import type { Member } from "@/server/shared/route";
+import { saveReachOutEmail } from "@/server/campaigns/reach-outs/reach-outs";
+import { serviceDb } from "@/server/shared/service-db";
+import { dbRefusal, type RouteContext, isFaultCode } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A message's email and text versions (One message, every channel, step 1): written by a member through one door
@@ -87,13 +88,18 @@ interface VersionSaved {
  * (WhatsApp's first), else the starter's of that name; a message the workspace has no row of is not found, as the door
  * says it. Refusals are the person's words: the check's, or the door's.
  */
-async function writeVersion(db: Db, tenantId: string, v: VersionRequest, slots: number): Promise<VersionSaved> {
-  const check = checkedWords(v, slots);
+async function writeVersion(
+  db: Db,
+  tenantId: TenantId,
+  versionRequest: VersionRequest,
+  slots: number,
+): Promise<VersionSaved> {
+  const check = checkedWords(versionRequest, slots);
   const door = await saveTemplateVersion(db.supabase, {
     tenantId,
-    name: v.name,
-    language: v.language,
-    channel: v.channel,
+    name: versionRequest.name,
+    language: versionRequest.language,
+    channel: versionRequest.channel,
     subject: check.value.subject,
     body: check.value.body,
   });
@@ -129,19 +135,19 @@ function beginRefusal(e: { code: string | null; message: string }): AppError {
  */
 async function beginMessage(
   userId: string,
-  tenantId: string,
-  v: VersionRequest,
+  tenantId: TenantId,
+  versionRequest: VersionRequest,
   words: { value: VersionWords; warnings: string[] },
   message: { category: "marketing" | "utility"; variables: MessageVariable[]; title: string | null },
 ): Promise<VersionSaved> {
-  const never = channelNeverCarries(v.channel, purposeOfTemplate(message.category));
+  const never = channelNeverCarries(versionRequest.channel, purposeOfTemplate(message.category));
   if (never) throw new AppError("validation", never);
   const door = await createMessageVersion(serviceDb(), {
     tenantId,
     userId,
-    name: v.name,
-    language: v.language,
-    channel: v.channel,
+    name: versionRequest.name,
+    language: versionRequest.language,
+    channel: versionRequest.channel,
     subject: words.value.subject,
     body: words.value.body,
     ...message,
@@ -172,29 +178,33 @@ export function refuseWrittenUtility(category: "marketing" | "utility", words: s
  * says, and an offer or news, never about a visit or a proposal. Nobody reviews a message with no WhatsApp row, so only
  * a starter, which Chanlytics writes, may be about a visit. With neither, there is no message.
  */
-async function beginVersion(db: Acting, tenantId: string, v: VersionRequest): Promise<VersionSaved> {
-  const starter = starterByName(v.name);
+async function beginVersion(db: Acting, tenantId: TenantId, versionRequest: VersionRequest): Promise<VersionSaved> {
+  const starter = starterByName(versionRequest.name);
   if (starter) {
-    const own = starterWords(starter, v.channel, v.language);
+    const own = starterWords(starter, versionRequest.channel, versionRequest.language);
     if (!own) throw new AppError("not_found", "Message not found.", 404);
-    const variables = starterVariables(starter, v.language);
-    const words = checkedWords(v, variables.length);
-    const theirs = checkedWords({ ...v, subject: own.subject, body: own.body }, variables.length).value;
+    const variables = starterVariables(starter, versionRequest.language);
+    const words = checkedWords(versionRequest, variables.length);
+    const theirs = checkedWords({ ...versionRequest, subject: own.subject, body: own.body }, variables.length).value;
     if (words.value.subject !== theirs.subject || words.value.body !== theirs.body)
       throw new AppError("validation", MESSAGE_BEGIN_WORDS.starterNeedsItsOwnWords);
-    return beginMessage(db.userId, tenantId, v, words, { category: starter.category, variables, title: null });
+    return beginMessage(db.userId, tenantId, versionRequest, words, {
+      category: starter.category,
+      variables,
+      title: null,
+    });
   }
-  if (!v.message) throw new AppError("not_found", "Message not found.", 404);
-  if (!templateNameOk(v.name)) throw new AppError("validation", TEMPLATE_NAME_WORDS);
-  const { category, title } = v.message;
-  const variables = v.message.variables.map((x) => ({
+  if (!versionRequest.message) throw new AppError("not_found", "Message not found.", 404);
+  if (!templateNameOk(versionRequest.name)) throw new AppError("validation", TEMPLATE_NAME_WORDS);
+  const { category, title } = versionRequest.message;
+  const variables = versionRequest.message.variables.map((x) => ({
     position: x.position,
     label: x.label,
     example: x.example ?? null,
   }));
-  const words = checkedWords(v, variables.length);
+  const words = checkedWords(versionRequest, variables.length);
   refuseWrittenUtility(category, MESSAGE_BEGIN_WORDS.customIsAnOffer);
-  return beginMessage(db.userId, tenantId, v, words, { category, variables, title: title ?? null });
+  return beginMessage(db.userId, tenantId, versionRequest, words, { category, variables, title: title ?? null });
 }
 
 /**
@@ -202,7 +212,7 @@ async function beginVersion(db: Acting, tenantId: string, v: VersionRequest): Pr
  * say), or, with none, as its first (beginVersion). The one place that tells a message that exists from one that begins:
  * a member's save and the starter set both write through it.
  */
-function writeOrBegin(db: Acting, tenantId: string, v: VersionRequest, held: number | null): Promise<VersionSaved> {
+function writeOrBegin(db: Acting, tenantId: TenantId, v: VersionRequest, held: number | null): Promise<VersionSaved> {
   return held !== null ? writeVersion(db, tenantId, v, held) : beginVersion(db, tenantId, v);
 }
 
@@ -212,16 +222,20 @@ function writeOrBegin(db: Acting, tenantId: string, v: VersionRequest, held: num
  * beside its rows (`message`, if sent, is ignored: the message already says what it is); one it holds no row of
  * begins a message (beginVersion).
  */
-export async function saveVersion(ctx: RouteContext, member: Member, v: VersionRequest): Promise<VersionSaved> {
-  if (isReachOutRow({ name: v.name })) {
-    if (v.channel !== "email") throw new AppError("validation", "A sequence to leads sends email only.");
-    const saved = await saveReachOutEmail(ctx, member, v);
+export async function saveVersion(
+  ctx: RouteContext,
+  member: Member,
+  versionRequest: VersionRequest,
+): Promise<VersionSaved> {
+  if (isReachOutRow({ name: versionRequest.name })) {
+    if (versionRequest.channel !== "email") throw new AppError("validation", "A sequence to leads sends email only.");
+    const saved = await saveReachOutEmail(ctx, member, versionRequest);
     return { version: saved.template, warnings: [], rechecked: saved.rechecked };
   }
-  if (!TEMPLATE_LANGUAGES.some((l) => l.id === v.language))
+  if (!TEMPLATE_LANGUAGES.some((l) => l.id === versionRequest.language))
     throw new AppError("validation", "Pick a language from the list.");
-  const held = await messageSlots(ctx.supabase, member.tenantId, v.name, v.language);
-  return writeOrBegin(ctx, member.tenantId, v, held);
+  const held = await findMessageSlots(ctx.supabase, member.tenantId, versionRequest.name, versionRequest.language);
+  return writeOrBegin(ctx, member.tenantId, versionRequest, held);
 }
 
 /**
@@ -235,14 +249,14 @@ export async function saveVersion(ctx: RouteContext, member: Member, v: VersionR
  */
 export async function fileWrittenVersion(
   db: Acting,
-  tenantId: string,
-  v: VersionRequest,
+  tenantId: TenantId,
+  versionRequest: VersionRequest,
   held: number | null,
   message: { category: "marketing" | "utility"; variables: MessageVariable[] },
 ): Promise<VersionSaved> {
-  if (held !== null) return writeVersion(db, tenantId, v, held);
-  const words = checkedWords(v, message.variables.length);
-  return beginMessage(db.userId, tenantId, v, words, { ...message, title: null });
+  if (held !== null) return writeVersion(db, tenantId, versionRequest, held);
+  const words = checkedWords(versionRequest, message.variables.length);
+  return beginMessage(db.userId, tenantId, versionRequest, words, { ...message, title: null });
 }
 
 /** DELETE templates/versions/:id: an email or text version a member wrote, and nothing else (the door says which rows). */
@@ -265,8 +279,8 @@ export interface StarterVersionResult {
 }
 
 /** The keys of the email and text versions the workspace already holds of these messages: `channel|name|language`. */
-export async function startersFiled(db: Db, tenantId: string, names: string[]): Promise<Set<string>> {
-  const rows = await ownVersionsFiled(db.supabase, tenantId, names);
+export async function getStartersFiled(db: Db, tenantId: TenantId, names: string[]): Promise<Set<string>> {
+  const rows = await listOwnVersionsFiled(db.supabase, tenantId, names);
   return new Set(rows.map((r) => `${r.channel}|${r.name}|${r.language}`));
 }
 
@@ -291,39 +305,44 @@ function starterWords(s: StarterTemplate, channel: OwnVersionChannel, language: 
  */
 export async function fileStarterVersions(
   db: Acting,
-  tenantId: string,
-  s: StarterTemplate,
+  tenantId: TenantId,
+  starterTemplate: StarterTemplate,
   language: string,
   filed: Set<string>,
   channels: readonly OwnVersionChannel[] = OWN_VERSION_CHANNELS,
 ): Promise<StarterVersionResult[]> {
   const out: StarterVersionResult[] = [];
-  const slots = starterText(s, language).slots.length;
+  const slots = starterText(starterTemplate, language).slots.length;
   // Whether the message has a row yet, on any channel and in any language: read when there is a version to write, and
   // true from the first one written.
   let held: number | null | undefined;
   for (const channel of channels) {
-    const words = starterWords(s, channel, language);
+    const words = starterWords(starterTemplate, channel, language);
     if (!words) continue;
-    const key = `${channel}|${s.name}|${language}`;
+    const key = `${channel}|${starterTemplate.name}|${language}`;
     if (filed.has(key)) {
       out.push({ channel, status: "exists" });
       continue;
     }
     try {
-      held = held === undefined ? await messageSlots(db.supabase, tenantId, s.name, language) : held;
-      await writeOrBegin(db, tenantId, { name: s.name, language, channel, ...words }, held === null ? null : slots);
+      held = held === undefined ? await findMessageSlots(db.supabase, tenantId, starterTemplate.name, language) : held;
+      await writeOrBegin(
+        db,
+        tenantId,
+        { name: starterTemplate.name, language, channel, ...words },
+        held === null ? null : slots,
+      );
       held = slots;
       filed.add(key);
       out.push({ channel, status: "saved" });
-    } catch (e) {
+    } catch (error) {
       out.push({
         channel,
         status: "failed",
-        // The door's own words when it refused; a fault (which dbRefusal answers as "internal") is no one's to read.
+        // The door's own words when it refused; a fault (which dbRefusal answers as "unavailable") is no one's to read.
         detail:
-          e instanceof AppError && e.code !== "internal"
-            ? e.message
+          error instanceof AppError && !isFaultCode(error.code)
+            ? error.message
             : "The version could not be saved. Add the set again to retry.",
       });
     }

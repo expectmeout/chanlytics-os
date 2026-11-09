@@ -1,5 +1,5 @@
 /**
- * Ask's morning for this member (decision 0070; contracts ask-memory/morning.ts): what Ask would do first today, as Today
+ * Ask's morning for this member (decision 0070; contracts ask/memory/morning.ts): what Ask would do first today, as Today
  * draws it as rows of Need you (decision 0071), with what Ask noticed from the sequences and their batches (decision 0087).
  * Read where Today is drawn (ROUTE_DRAWS names it), again when what it holds has aged, and as those records move on Today.
  *
@@ -9,9 +9,9 @@
  * answer, and Need you reads again while it writes.
  */
 import type { AskLanguage, AskMorningDto } from "@chanlytics/contracts";
-import { api, read } from "@/legacy-bridge/api";
-import { readAged, type SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { declareReads } from "@/legacy-bridge/surface-registry";
+import { api, read } from "@/bridge/api";
+import { readAged, type SurfaceOverride } from "@/bridge/surface-data";
+import { declareReads } from "@/bridge/surface-registry";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 /** The member's morning, and when it was read. */

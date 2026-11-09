@@ -5,7 +5,8 @@
  * platform. A demo seam: the real pane draws no Ad accounts card, and the rows it will have come from a reader.
  */
 import type { AdAccountRead, AdPlatform } from "@chanlytics/contracts";
-import { EXAMPLE_READS } from "../../campaigns/ads/examples";
+import { exampleAt } from "../../campaigns/ads/examples";
+import { adsOwnHere } from "../../campaigns/ads/own";
 import { accountChecks, notConnected } from "../../campaigns/ads/sample";
 
 /** The zone an account in a currency keeps, where it is not the studio's: a pound account is kept in London. */
@@ -13,7 +14,7 @@ const ZONE_OF: Readonly<Record<string, string>> = { GBP: "Europe/London" };
 
 /** The owner's other Meta accounts, as the Ads page's "Choosing an ad account" example lists them. */
 const otherMetaAccounts = (): AdAccountRead["choices"] =>
-  EXAMPLE_READS.choose().accounts.find((a) => a.platform === "meta")?.choices ?? [];
+  exampleAt("choose", Date.now(), adsOwnHere()).accounts.find((a) => a.platform === "meta")?.choices ?? [];
 
 /**
  * A connected Meta account with nothing to change to is offered the owner's other accounts, itself first, so Change account

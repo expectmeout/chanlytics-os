@@ -219,6 +219,80 @@ COMMENT ON FUNCTION public.ai_usage_purge(p_keep interval) IS 'Drops ledger rows
 
 
 --
+-- Name: anthropic_profile_claim(text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ref   text := p_kind || ':' || p_subject;
+  v_at    timestamptz;
+  v_email text;
+  v_id    uuid;
+begin
+  if p_kind = 'person' then
+    select u.created_at, u.email into v_at, v_email from auth.users u where u.id = p_subject;
+    if not found then return null; end if;
+    insert into public.anthropic_profiles (kind, user_id, reference_id)
+    values ('person', p_subject, v_ref)
+    on conflict (user_id) where user_id is not null do nothing
+    returning id into v_id;
+  elsif p_kind = 'workspace' then
+    select t.created_at into v_at from public.tenants t where t.id = p_subject and t.left_empty_at is null;
+    if not found then return null; end if;
+    insert into public.anthropic_profiles (kind, tenant_id, reference_id)
+    values ('workspace', p_subject, v_ref)
+    on conflict (tenant_id) where tenant_id is not null do nothing
+    returning id into v_id;
+  else
+    raise exception 'anthropic_profile_claim: % is no kind', p_kind using errcode = '22023';
+  end if;
+  if v_id is null then return null; end if;
+  return jsonb_build_object('id', v_id, 'reference_id', v_ref, 'onboarded_at', v_at, 'email', v_email);
+end $$;
+
+
+--
+-- Name: FUNCTION anthropic_profile_claim(p_kind text, p_subject uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) IS 'The one way a profile begins (decision 0097): the row made, once a person or a workspace. Answers what the create needs to the call that made it, and null to any other, or for a subject that is gone.';
+
+
+--
+-- Name: anthropic_profiles_waiting(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.anthropic_profiles_waiting(p_limit integer) RETURNS TABLE(kind text, subject uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select w.kind, w.subject
+    from (
+      select 'person'::text as kind, m.user_id as subject
+        from (select distinct user_id from public.memberships) m
+       where not exists (select 1 from public.anthropic_profiles p where p.user_id = m.user_id)
+      union all
+      select 'workspace'::text, t.id
+        from public.tenants t
+       where t.left_empty_at is null
+         and t.status <> 'preview'
+         and not exists (select 1 from public.anthropic_profiles p where p.tenant_id = t.id)
+    ) w
+   limit greatest(coalesce(p_limit, 0), 0);
+$$;
+
+
+--
+-- Name: FUNCTION anthropic_profiles_waiting(p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) IS 'Who has no profile yet: a person with a seat, a live workspace but a preview (a preview is registered by its first call).';
+
+
+--
 -- Name: appointments_feed_sync(uuid, text, jsonb, timestamp with time zone, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1105,7 +1179,7 @@ CREATE FUNCTION public.automated_send(p_meta jsonb) RETURNS boolean
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'public'
     AS $$
-  -- A send written as 'human' that no person made; it lists every source packages/core/src/deliver.ts treats as automated.
+  -- A send written as 'human' that no person made; it lists every source packages/core/src/deliver/deliver.ts treats as automated.
   select coalesce(p_meta->>'source', '') in ('broadcast', 'reach_out')
 $$;
 
@@ -1496,6 +1570,29 @@ $$;
 --
 
 COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The workspaces with a calendar to read (a feed''s link, or a calendar read through a connected mailbox, 00478) never read or last read before p_before, never read first, then least recently read, each with its zone and since when its reads have failed (null while they work, 00435), with due_total the count of all that were due. The calendar sweep''s page (00245).';
+
+
+--
+-- Name: calendars_hand_out(timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select public.jobs_hand_out(
+    'calendar_read',
+    array(select d.tenant_id from public.calendars_due(p_before, 2147483647) d),
+    p_spread_seconds
+  );
+$$;
+
+
+--
+-- Name: FUNCTION calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) IS 'A calendar_read for each workspace whose calendar is due, judged by calendars_due (00569, decision 0115). Answers how many it wrote.';
 
 
 --
@@ -2872,7 +2969,7 @@ CREATE TABLE public.jobs (
 -- Name: COLUMN jobs.lease_until; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lease_until IS 'While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts.';
+COMMENT ON COLUMN public.jobs.lease_until IS 'While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/runner/ledger.ts.';
 
 
 --
@@ -3393,13 +3490,62 @@ end $$;
 
 
 --
+-- Name: conversation_draft_claim(uuid, uuid, text, uuid, integer, text, boolean, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text DEFAULT 'hold'::text, p_again boolean DEFAULT false, p_stale_before timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_took uuid;
+begin
+  if not exists (select 1 from public.conversations c where c.id = p_conversation_id and c.tenant_id = p_tenant_id) then
+    return false;
+  end if;
+  insert into public.conversation_drafts as d
+    (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at, state, source, rules, used, why_failed, tries)
+  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, '{}'::jsonb, null, now(),
+          'writing', p_source, p_rules, '{}'::text[], null, 1)
+  on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
+     set for_message_id = excluded.for_message_id,
+         words = '{}'::jsonb,
+         made_by = null,
+         made_at = now(),
+         state = 'writing',
+         source = excluded.source,
+         rules = excluded.rules,
+         used = '{}'::text[],
+         why_failed = null,
+         tries = case
+           when d.for_message_id is not distinct from excluded.for_message_id and d.rules is not distinct from excluded.rules
+             then d.tries + 1
+           else 1
+         end
+   where d.for_message_id is distinct from excluded.for_message_id
+      or d.rules is distinct from excluded.rules
+      or (p_again and d.state = 'failed')
+      or (d.state = 'writing' and p_stale_before is not null and d.made_at < p_stale_before)
+  returning d.id into v_took;
+  return v_took is not null;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone) IS 'A thread''s draft says it is being written, once a message, kind and edition (00538, decision 0093): true when this call took it. A row for this message and edition is left alone, unless it failed and this asks again, or its claim is older than p_stale_before.';
+
+
+--
 -- Name: conversation_draft_keep(uuid, uuid, text, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
+    AS $_$
 declare
   v_actor uuid := auth.uid();
   v_row   public.conversation_drafts%rowtype;
@@ -3429,13 +3575,29 @@ begin
   ) then
     raise exception 'conversation_draft_keep: the message is the thread''s own' using errcode = '22023';
   end if;
-  insert into public.conversation_drafts as d (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at)
-  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, v_actor, now())
+  -- A dashboard a deploy behind (00538): its words say where the draft stands.
+  insert into public.conversation_drafts as d
+    (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at, state, source, rules, why_failed)
+  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, v_actor, now(),
+          case
+            when p_kind = 'brief' and jsonb_typeof(p_words -> 'brief') = 'object' then 'ready'
+            when btrim(coalesce(p_words ->> 'text', '')) <> '' then 'ready'
+            when btrim(coalesce(p_words ->> 'pitch', '')) <> '' then 'pitch'
+            when jsonb_array_length(coalesce(nullif(p_words -> 'asks', 'null'::jsonb), '[]'::jsonb)) > 0 then 'asks'
+            else 'failed'
+          end,
+          'hold',
+          case when (p_words ->> 'rules') ~ '^[0-9]+$' then (p_words ->> 'rules')::integer end,
+          null)
   on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
      set for_message_id = excluded.for_message_id,
          words = excluded.words,
          made_by = excluded.made_by,
-         made_at = excluded.made_at
+         made_at = excluded.made_at,
+         state = excluded.state,
+         source = excluded.source,
+         rules = excluded.rules,
+         why_failed = null
   returning * into v_row;
   return jsonb_build_object(
     'conversation_id', v_row.conversation_id,
@@ -3444,7 +3606,7 @@ begin
     'words', v_row.words,
     'made_at', v_row.made_at
   );
-end $$;
+end $_$;
 
 
 --
@@ -3452,6 +3614,63 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) IS 'Keep Ask''s draft for a thread waiting on a person (decision 0071): a member who acts, the thread their workspace''s, the message it answers one of the thread''s own. One a thread and kind, the newest kept. Returns the draft, or {error: not_acting | not_found}.';
+
+
+--
+-- Name: conversation_draft_write(uuid, uuid, text, uuid, text, jsonb, text, integer, text[], text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[] DEFAULT '{}'::text[], p_why_failed text DEFAULT NULL::text, p_made_by uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.conversation_drafts%rowtype;
+begin
+  if p_words is null or jsonb_typeof(p_words) <> 'object' or octet_length(p_words::text) > 16000 then
+    raise exception 'conversation_draft_write: the words are one draft''s' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.conversations c where c.id = p_conversation_id and c.tenant_id = p_tenant_id) then
+    return null;
+  end if;
+  insert into public.conversation_drafts as d
+    (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at, state, source, rules, used, why_failed, tries)
+  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, p_made_by, now(),
+          p_state, p_source, p_rules, coalesce(p_used, '{}'::text[]), p_why_failed, 1)
+  on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
+     set words = excluded.words,
+         made_by = excluded.made_by,
+         made_at = excluded.made_at,
+         state = excluded.state,
+         source = excluded.source,
+         rules = excluded.rules,
+         used = excluded.used,
+         why_failed = excluded.why_failed
+   where d.for_message_id is not distinct from excluded.for_message_id
+  returning * into v_row;
+  if v_row.id is null then
+    return null;
+  end if;
+  return jsonb_build_object(
+    'conversation_id', v_row.conversation_id,
+    'kind', v_row.kind,
+    'for_message_id', v_row.for_message_id,
+    'words', v_row.words,
+    'made_at', v_row.made_at,
+    'state', v_row.state,
+    'source', v_row.source,
+    'rules', v_row.rules,
+    'used', to_jsonb(v_row.used),
+    'why_failed', v_row.why_failed
+  );
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid) IS 'A thread''s draft kept (00538, decision 0093), only over a row for the same message: a slow run answers null rather than write over the newer message''s claim.';
 
 
 --
@@ -3569,6 +3788,63 @@ COMMENT ON FUNCTION public.conversation_hand_back(p_tenant_id uuid, p_conversati
 
 
 --
+-- Name: conversation_not_a_customer(uuid, uuid, boolean, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean DEFAULT false, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor    uuid := auth.uid();
+  v_id       uuid;
+  v_sender   text;
+  v_decision jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- Undone, it is on the list again, as what it was. No row is a thread that moved while the person looked.
+  update public.conversations
+     set set_aside_at = case when p_undo then now() end
+   where id = p_conversation_id and tenant_id = p_tenant_id
+     and (case when p_undo then set_aside_at is null and set_aside_why is not null else set_aside_at is not null end)
+  returning id into v_id;
+  if v_id is null then
+    return null;
+  end if;
+  v_sender := public.conversation_sender_address(p_tenant_id, p_conversation_id);
+  if v_sender is not null and v_sender <> '' then
+    if p_undo then
+      delete from public.mailbox_senders
+       where tenant_id = p_tenant_id and sender = v_sender and verdict = 'automated';
+    else
+      insert into public.mailbox_senders (tenant_id, sender, verdict, set_by, set_at)
+      values (p_tenant_id, v_sender, 'automated', v_actor, now())
+      on conflict (tenant_id, sender)
+        do update set verdict = excluded.verdict, set_by = excluded.set_by, set_at = excluded.set_at;
+    end if;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.sender_sorted', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('kind', 'address', 'verdict', case when p_undo then null else 'automated' end, 'by', v_actor));
+  end if;
+  v_decision := public.team_decision(p_tenant_id, v_actor, 'conversation', p_conversation_id, 'not_a_customer',
+                                     jsonb_build_object('undone', p_undo), p_via, p_undo_of);
+  return jsonb_build_object('set_aside', p_undo) || v_decision;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid) IS 'A member says a thread set aside is not a customer''s (00539, decision 0093): off the list, still archived, its sender''s address automated, the decision, in one transaction; with p_undo, back on the list with the address unsaid. Null when no row moved. The domain stays the person page''s.';
+
+
+--
 -- Name: conversation_open(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3608,6 +3884,137 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) IS 'A member opens a person''s one thread, as themselves (an owner, an operator, or a partner whose session showed its second factor): the thread''s id, made when they had none and left untouched (no last_message_at: that is the message''s). Refuses a person who is not this workspace''s, or erased, being erased, or merged into another. Writes no message and no event: the reply route queues what follows.';
+
+
+--
+-- Name: conversation_reply_anyway(uuid, uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor    uuid := auth.uid();
+  v_id       uuid;
+  v_sender   text;
+  v_reason   text;
+  v_details  text;
+  v_decision jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- contracts' reopen move: open, with nothing else to clear, since setting aside cleared it.
+  update public.conversations
+     set state = 'open', set_aside_at = null, set_aside_why = null
+   where id = p_conversation_id and tenant_id = p_tenant_id and set_aside_at is not null
+  returning id into v_id;
+  if v_id is null then
+    return null;
+  end if;
+  -- Its sender is a person: this outranks what they were read to be, so they come in from here on (decision 0080's order).
+  v_sender := public.conversation_sender_address(p_tenant_id, p_conversation_id);
+  if v_sender is not null and v_sender <> '' then
+    insert into public.mailbox_senders (tenant_id, sender, verdict, set_by, set_at)
+    values (p_tenant_id, v_sender, 'person', v_actor, now())
+    on conflict (tenant_id, sender)
+      do update set verdict = excluded.verdict, set_by = excluded.set_by, set_at = excluded.set_at;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.sender_sorted', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('kind', 'address', 'verdict', 'person', 'by', v_actor));
+  end if;
+  -- The row that said it was no customer's goes, so the claim the hold's own event makes takes this message.
+  delete from public.conversation_drafts d
+   where d.tenant_id = p_tenant_id and d.conversation_id = p_conversation_id and d.state = 'pitch';
+  v_decision := public.team_decision(p_tenant_id, v_actor, 'conversation', p_conversation_id, 'reply_anyway',
+                                     '{}'::jsonb, p_via, p_undo_of);
+  -- The hold it left, open again: its reason and what it said, through the one door a thread is handed to a person by.
+  select e.reason, e.details into v_reason, v_details
+    from public.escalations e
+   where e.tenant_id = p_tenant_id and e.conversation_id = p_conversation_id
+   order by e.created_at desc
+   limit 1;
+  perform public.escalation_open(p_tenant_id, p_conversation_id, coalesce(v_reason, 'email_review'), v_details);
+  return jsonb_build_object('reopened', true) || v_decision;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) IS 'A member says a thread set aside is a customer''s after all (00539, decision 0093): open again, its sender a person, its hold re-opened with its first reason (so a draft is owed), the decision, in one transaction. Null when no row moved.';
+
+
+--
+-- Name: conversation_sender_address(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid) RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select lower(btrim(coalesce(
+    (select m.meta -> 'email' ->> 'from'
+       from public.messages m
+      where m.tenant_id = p_tenant_id and m.conversation_id = p_conversation_id and m.sender = 'customer'
+      order by m.created_at desc
+      limit 1),
+    (select k.email
+       from public.conversations c
+       join public.contacts k on k.id = c.contact_id and k.tenant_id = c.tenant_id
+      where c.tenant_id = p_tenant_id and c.id = p_conversation_id)
+  )));
+$$;
+
+
+--
+-- Name: FUNCTION conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid) IS 'The address a thread''s sender wrote from (00539): what a member''s word about the thread is said of. For the two doors below.';
+
+
+--
+-- Name: conversation_set_aside(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  if p_why is null or p_why not in ('pitch', 'notice') then
+    raise exception 'conversation_set_aside: a thread is set aside as a pitch or a notice' using errcode = '22023';
+  end if;
+  -- contracts' archive move, whole, and what it was set aside as. A thread someone already has is theirs, and is left alone.
+  update public.conversations
+     set state = 'archived', paused_until = null, snooze_until = null, assignee_user_id = null,
+         set_aside_at = now(), set_aside_why = p_why
+   where id = p_conversation_id and tenant_id = p_tenant_id and assignee_user_id is null
+  returning id into v_id;
+  if v_id is null then
+    return false;
+  end if;
+  -- The platform's own close, as a reading's is: no member is named as resolving it, and no decision is recorded.
+  update public.escalations
+     set state = 'resolved'
+   where conversation_id = p_conversation_id and tenant_id = p_tenant_id and state = 'open';
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) IS 'A thread set aside as not a customer''s, in one transaction (00539, decision 0093): archived, said so, its open hold resolved. False where someone has the thread. The service role''s.';
 
 
 --
@@ -4438,6 +4845,13 @@ begin
   delete from push_devices where user_id = v_user;
   delete from notification_marks where user_id = v_user;
   delete from notification_reads where user_id = v_user;
+  -- Each workspace they sat in hears of it (team_notice, 00437), in this transaction, so the news cannot be lost to a write
+  -- that fails after the seat has gone (00570).
+  insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+  select m.tenant_id, 'member.left', 'system', 'workspace', m.tenant_id,
+         jsonb_build_object('by', v_user, 'how', 'account_deleted')
+    from memberships m
+   where m.user_id = v_user;
   delete from memberships where user_id = v_user;
   delete from auth.users where id = v_user;
   return jsonb_build_object('deleted', true, 'workspaces_left_empty', v_orphaned, 'workspaces_emptied', to_jsonb(v_emptied));
@@ -4469,6 +4883,32 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.drop_google_credentials(p_tenant_id uuid) IS 'Service-role only: deletes a workspace''s Google token from Vault. Called on disconnect, after Google was asked to revoke it.';
+
+
+--
+-- Name: drop_line_credentials(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.drop_line_credentials(p_line_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_name text := 'line-creds-' || p_line_id::text;
+  v_id   uuid;
+begin
+  select id into v_id from vault.secrets where name = v_name;
+  if v_id is null then return false; end if;
+  delete from vault.secrets where id = v_id;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION drop_line_credentials(p_line_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.drop_line_credentials(p_line_id uuid) IS 'Service-role only: deletes a line''s provider secrets from Vault. Called when the line is given back, before its row goes.';
 
 
 --
@@ -4890,7 +5330,7 @@ begin
      messages and calls are gone, those subject_ids resolve to nothing and the
      only surviving link (subject_type='contact') resolves to a tombstone with
      no identifiers. Deleting them would destroy metering, not personal data.
-     tooling/scripts/tests/erasure.integration.test.mjs pins that. */
+     tests/erasure.integration.test.mjs pins that. */
 
   /* ---- The tombstone. */
   update contacts
@@ -5224,13 +5664,17 @@ begin
               jsonb_build_object('reason', p_reason));
       return 'opened';
     end if;
-    -- A customer writing while a person has the thread is the open hold's, whatever its reason (00454): nothing written.
+    -- A customer writing while a person has the thread is the open hold's, whatever its reason (00454): nothing written
+    -- but that they wrote (00538).
     if p_reason = 'wrote_while_held' then
       select e.id into v_id
         from public.escalations e
        where e.tenant_id = p_tenant_id and e.conversation_id = p_conversation_id and e.state = 'open'
          and e.reason is distinct from p_reason;
       if v_id is not null then
+        insert into public.events (tenant_id, kind, category, version, subject_type, subject_id, data)
+        values (p_tenant_id, 'escalation.refreshed', 'message', 1, 'conversation', p_conversation_id,
+                jsonb_build_object('reason', p_reason));
         return 'refreshed';
       end if;
     end if;
@@ -5248,6 +5692,9 @@ begin
      where e.tenant_id = p_tenant_id and e.conversation_id = p_conversation_id and e.state = 'open'
     returning e.id into v_id;
     if v_id is not null then
+      insert into public.events (tenant_id, kind, category, version, subject_type, subject_id, data)
+      values (p_tenant_id, 'escalation.refreshed', 'message', 1, 'conversation', p_conversation_id,
+              jsonb_build_object('reason', p_reason));
       return 'refreshed';
     end if;
   end loop;
@@ -5259,7 +5706,7 @@ end $$;
 -- Name: FUNCTION escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) IS 'The one door a thread is handed to a person by (00388): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed), in one transaction. A wrote_while_held asked of a thread already held never takes the open reason''s place: it writes nothing and answers refreshed (00454). An open one resolved in between leaves room, and a new one is opened. The service role''s.';
+COMMENT ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) IS 'The one door a thread is handed to a person by (00388): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed, with escalation.refreshed: they wrote again, 00538), in one transaction. A wrote_while_held asked of a thread already held never takes the open reason''s place: it answers refreshed (00454). An open one resolved in between leaves room, and a new one is opened. The service role''s.';
 
 
 --
@@ -5855,6 +6302,652 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer) IS 'A member answers a note suggested from an owner''s correction (decision 0063): kept, with the settings version the note was written in (the note itself is the settings write''s), or dismissed; settings.fact_kept or settings.fact_dismissed as theirs. A refusal is {error: answered} with its state. Returns the suggestion''s id and state.';
+
+
+--
+-- Name: file_change(uuid, uuid, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text DEFAULT NULL::text, p_shows text DEFAULT NULL::text, p_who_in_it text DEFAULT NULL::text, p_status text DEFAULT NULL::text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_row   public.files;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  select * into v_row from public.files f
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is null
+   for update;
+  if not found then
+    raise exception 'That file is gone.' using errcode = 'P0002';
+  end if;
+  if p_status is not null and p_status not in ('filed', 'set_aside') then
+    raise exception 'A file is filed or set aside.' using errcode = '22023';
+  end if;
+  -- not_asked is where a file starts, never something a person says.
+  if p_who_in_it is not null and p_who_in_it not in ('no_one', 'agreed') then
+    raise exception 'Say no one is in it, or that they agreed.' using errcode = '22023';
+  end if;
+  if p_name is not null and p_name <> v_row.name and public.file_free_name(p_tenant_id, p_name, p_id) <> p_name then
+    raise exception 'Another file has that name.' using errcode = '22023';
+  end if;
+  update public.files f
+     set name = coalesce(p_name, f.name),
+         owner_named = f.owner_named or p_name is not null,
+         shows = coalesce(p_shows, f.shows),
+         owner_shelved = f.owner_shelved or p_shows is not null,
+         who_in_it = coalesce(p_who_in_it, f.who_in_it),
+         status = coalesce(p_status, f.status),
+         updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id;
+  -- What was said, and by whom: "they agreed" is a word someone gave, on a day.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.changed', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'by', v_actor, 'said',
+                             jsonb_strip_nulls(jsonb_build_object('name', p_name, 'shows', p_shows,
+                                                                  'who_in_it', p_who_in_it, 'status', p_status))));
+end $$;
+
+
+--
+-- Name: FUNCTION file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) IS 'What a person says of a file (00551): its name, its shelf, who is in it, filed or set aside. A field left null stays, and the event keeps what was said.';
+
+
+--
+-- Name: file_found(uuid, uuid, text, text, text, text, text, bigint, text, integer, integer, text, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_twin    public.files;
+  v_name    text;
+  v_waiting integer;
+  v_due     timestamptz := now();
+begin
+  -- One at a time: photos come side by side, and can share a name or be one picture at two addresses.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Asked again after a lost answer: the same answer, never its own twin.
+  if exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_id) then
+    return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+  end if;
+  select * into v_twin from public.files f
+   where f.tenant_id = p_tenant_id and f.fingerprint = p_fingerprint and f.removed_at is null;
+  if found then
+    -- An upload is the owner's word for whatever it twins. Their profile's word files what only waited, and is the better
+    -- road for what a listing offered.
+    update public.files f
+       set status = case when p_source = 'upload' or (p_status = 'filed' and f.status = 'inbox') then 'filed' else f.status end,
+           source = case when p_source = 'google_profile' and f.source = 'google_listing' then p_source else f.source end,
+           source_ref = case when p_source = 'google_profile' and f.source = 'google_listing' then p_source_ref else f.source_ref end,
+           updated_at = now()
+     where f.id = v_twin.id and (f.status <> 'filed' or (p_source = 'google_profile' and f.source = 'google_listing'));
+    return jsonb_build_object('fate', 'here', 'file_id', v_twin.id);
+  end if;
+  -- What a person removed is not brought back by the next read of the same place. A person may add it again.
+  if p_source <> 'upload' and exists (
+    select 1 from public.files_let_go g where g.tenant_id = p_tenant_id and g.fingerprint = p_fingerprint
+  ) then
+    return jsonb_build_object('fate', 'here', 'file_id', null);
+  end if;
+  -- contracts FILES_MAX.
+  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+    return jsonb_build_object('fate', 'full', 'file_id', null);
+  end if;
+  -- An upload's look starts now, as someone is watching. An import's are paced, so 200 photos are not 200 due rows.
+  if p_source <> 'upload' then
+    select count(*) into v_waiting from public.files f
+     where f.tenant_id = p_tenant_id and f.look_status = 'waiting' and f.removed_at is null;
+    v_due := now() + v_waiting * interval '2 seconds';
+  end if;
+  v_name := public.file_free_name(p_tenant_id, p_name);
+  insert into public.files (id, tenant_id, status, source, source_ref, name, mime, bytes, fingerprint,
+                            width, height, shows, created_by)
+  values (p_id, p_tenant_id, p_status, p_source, p_source_ref, v_name, p_mime, p_bytes, p_fingerprint,
+          p_width, p_height, p_shows, p_actor);
+  -- As text: a job's once-only key is made of strings (job_dedupe_key_of).
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'file_look', v_due, jsonb_build_object('file_id', p_id, 'edition', p_edition::text));
+  -- A person's act is on the record. An import's is on its own line, not 200 of these.
+  if p_source = 'upload' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.added', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('file_id', p_id, 'source', p_source, 'by', p_actor));
+  end if;
+  return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid) IS 'The one door every road keeps a file by, after the server proved its bytes (00551). Answers {fate: kept, here or full, file_id}. No session reaches it: what the bytes are is never the browser''s word.';
+
+
+--
+-- Name: file_free_name(uuid, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_self uuid DEFAULT NULL::uuid) RETURNS text
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_base text := left(coalesce(nullif(p_base, ''), 'file'), 60);
+  v_name text := v_base;
+  v_n    integer := 1;
+begin
+  while exists (
+    select 1 from public.files f
+     where f.tenant_id = p_tenant_id and f.name = v_name and f.removed_at is null and f.id is distinct from p_self
+  ) loop
+    v_n := v_n + 1;
+    v_name := regexp_replace(left(v_base, 55), '-+$', '') || '-' || v_n;
+  end loop;
+  return v_name;
+end $_$;
+
+
+--
+-- Name: FUNCTION file_free_name(p_tenant_id uuid, p_base text, p_self uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_self uuid) IS 'The name itself where it is free in this workspace, else with -2, -3 (00551).';
+
+
+--
+-- Name: file_keep_many(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_kept  integer;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  update public.files f
+     set status = 'filed', updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = any (p_ids) and f.status = 'inbox' and f.removed_at is null;
+  get diagnostics v_kept = row_count;
+  if v_kept > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.kept', 'setup', 'workspace', p_tenant_id, jsonb_build_object('count', v_kept, 'by', v_actor));
+  end if;
+  return v_kept;
+end $$;
+
+
+--
+-- Name: FUNCTION file_keep_many(p_tenant_id uuid, p_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) IS 'The Inbox''s one press (00551): what waits, among these, is filed. Answers how many moved.';
+
+
+--
+-- Name: file_listing_aside(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_listing_aside(p_tenant_id uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_moved integer;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  update public.files f
+     set status = 'set_aside', updated_at = now()
+   where f.tenant_id = p_tenant_id and f.source = 'google_listing' and f.status = 'inbox' and f.removed_at is null
+     and not f.owner_named and not f.owner_shelved;
+  get diagnostics v_moved = row_count;
+  -- Nobody pressed this, so the record says where they went.
+  if v_moved > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.set_aside', 'setup', 'workspace', p_tenant_id, jsonb_build_object('count', v_moved));
+  end if;
+  return v_moved;
+end $$;
+
+
+--
+-- Name: FUNCTION file_listing_aside(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_listing_aside(p_tenant_id uuid) IS 'What a public listing offered and nobody kept goes aside (00551): that listing was not this business''s after all, or its own profile has come. What a person kept or touched stays, and a person can put any of it back.';
+
+
+--
+-- Name: file_look_keep(uuid, uuid, text, integer, jsonb, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  update public.files f
+     set look = case when p_status = 'done' then p_look else f.look end,
+         -- A try that came to nothing, on a file with a look, leaves that look standing. A failed one changes nothing but when
+         -- it was tried, so a raised edition still reads it. A refusal counts as read, or the sweep would ask every day.
+         look_status = case when p_status <> 'done' and f.look is not null then f.look_status else p_status end,
+         look_edition = case when p_status = 'failed' and f.look is not null then f.look_edition else p_edition end,
+         looked_at = now(),
+         -- A name is given once, by the first look that can: a later one must not rename what people and Ask call it.
+         name = case when p_name is not null and not f.owner_named and f.look is null
+                     then public.file_free_name(p_tenant_id, p_name, p_id) else f.name end,
+         shows = case when f.owner_shelved or p_status <> 'done' then f.shows else coalesce(p_shows, f.shows) end,
+         -- The model would not read it, for the first time: a person looks.
+         status = case when p_status = 'refused' and f.status = 'filed' and f.look is null then 'inbox' else f.status end,
+         updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is null;
+end $$;
+
+
+--
+-- Name: FUNCTION file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) IS 'What the look saw (00551), under the owner''s word: a name they gave and a shelf they chose stay, a first look alone names a file, and a failed try leaves a good look as it was.';
+
+
+--
+-- Name: file_made(uuid, uuid, text, bigint, text, integer, integer, jsonb, text, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_twin uuid;
+begin
+  -- One at a time, as every door that names or files takes it (00551).
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Asked again after a lost answer: the same answer, never its own twin.
+  if exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_id) then
+    return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+  end if;
+  -- The same picture pressed twice is one file.
+  select f.id into v_twin from public.files f
+   where f.tenant_id = p_tenant_id and f.fingerprint = p_fingerprint and f.removed_at is null;
+  if found then
+    return jsonb_build_object('fate', 'here', 'file_id', v_twin);
+  end if;
+  -- contracts FILES_MAX.
+  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+    return jsonb_build_object('fate', 'full', 'file_id', null);
+  end if;
+  insert into public.files (id, tenant_id, status, source, name, mime, bytes, fingerprint, width, height,
+                            look, look_status, shows, who_in_it, made, created_by)
+  values (p_id, p_tenant_id, 'filed', 'made', public.file_free_name(p_tenant_id, p_name), 'image/jpeg', p_bytes,
+          p_fingerprint, p_width, p_height, p_look, 'done', 'graphic', p_who_in_it, p_made, p_actor);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.added', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'source', 'made', 'by', p_actor));
+  return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid) IS 'What Ask made kept as a file, after the server stored its bytes (00553, decision 0099): kept, here or full. The service role''s.';
+
+
+--
+-- Name: file_media_failed(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_media_failed(p_media_ref text, p_error text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.files;
+begin
+  select * into v_row from public.files f where f.media_ref = p_media_ref;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(v_row.tenant_id::text || '|files', 42));
+  update public.files f
+     set media_status = 'failed',
+         media_error = left(coalesce(nullif(p_error, ''), 'ERR_UNKNOWN'), 80),
+         look_status = case when f.look_status = 'waiting' then 'failed' else f.look_status end,
+         looked_at = now(),
+         updated_at = now()
+   where f.id = v_row.id and f.removed_at is null and f.media_status in ('uploading', 'processing');
+  return jsonb_build_object('fate', case when found then 'failed' else 'repeated' end,
+                            'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_media_failed(p_media_ref text, p_error text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_media_failed(p_media_ref text, p_error text) IS 'The video platform could not read a video (00556): its tile says so, and its owner can delete it. Answers {fate: failed, repeated or unknown, tenant_id, file_id}. The service role''s.';
+
+
+--
+-- Name: file_media_processing(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.files f set media_status = 'processing', updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
+     and f.removed_at is null;
+end $$;
+
+
+--
+-- Name: FUNCTION file_media_processing(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) IS 'A member''s video''s bytes have all gone (00556), with the settings permission: the tile says it is being made ready. Only from uploading: the platform''s word may already have come.';
+
+
+--
+-- Name: file_media_ready(text, numeric, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.files;
+begin
+  select * into v_row from public.files f where f.media_ref = p_media_ref;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(v_row.tenant_id::text || '|files', 42));
+  select * into v_row from public.files f where f.id = v_row.id for update;
+  if v_row.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+  end if;
+  -- Delivered again: what was done is done.
+  if v_row.media_status in ('ready', 'failed') then
+    return jsonb_build_object('fate', 'repeated', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+  end if;
+  update public.files f
+     set media_status = 'ready',
+         seconds = coalesce(p_seconds, f.seconds),
+         width = coalesce(p_width, f.width),
+         height = coalesce(p_height, f.height),
+         ready_at = now(),
+         look_status = 'waiting',
+         looked_at = now(),
+         updated_at = now()
+   where f.id = v_row.id;
+  -- As text: a job's once-only key is made of strings (job_dedupe_key_of).
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (v_row.tenant_id, 'video_digest', now(),
+          jsonb_build_object('file_id', v_row.id, 'step', 'sheet', 'edition', '1'));
+  return jsonb_build_object('fate', 'ready', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) IS 'The video platform says a video is playable (00556): found by its id there, made a file whether or not the browser said done, and its digest''s first step put on the ledger. Answers {fate: ready, repeated, gone or unknown, tenant_id, file_id}. The service role''s.';
+
+
+--
+-- Name: file_purged(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_purged(p_tenant_id uuid, p_id uuid) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  delete from public.files f where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is not null;
+$$;
+
+
+--
+-- Name: FUNCTION file_purged(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_purged(p_tenant_id uuid, p_id uuid) IS 'A removed file''s bytes and Anthropic''s copy are gone (00551), so its row goes. Its fingerprint is already in files_let_go.';
+
+
+--
+-- Name: file_remove(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor       uuid := auth.uid();
+  v_fingerprint text;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.files f set removed_at = now(), updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is null
+  returning f.fingerprint into v_fingerprint;
+  if not found then
+    raise exception 'That file is gone.' using errcode = 'P0002';
+  end if;
+  -- At the press, not the purge: an import in between must not bring back what was just removed.
+  insert into public.files_let_go (tenant_id, fingerprint) values (p_tenant_id, v_fingerprint)
+  on conflict (tenant_id, fingerprint) do nothing;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'file_purge', now(), jsonb_build_object('file_id', p_id, 'why', 'remove'));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.removed', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'by', v_actor));
+end $$;
+
+
+--
+-- Name: FUNCTION file_remove(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) IS 'A person removed a file (00551): hidden at once and written to files_let_go, so an import does not bring it back; its bytes, Anthropic''s copy and its row go by the file_purge job.';
+
+
+--
+-- Name: file_sound_keep(uuid, uuid, text, jsonb, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_part not in ('words', 'note', 'none') then
+    raise exception 'A sound''s part is words, note or none.' using errcode = '22023';
+  end if;
+  update public.files f
+     -- No sound at all is the platform's word on the file, and nothing else is heard of it.
+     set sound = case
+                   when p_part = 'none' then jsonb_build_object('none', true)
+                   else ((coalesce(f.sound, '{}'::jsonb) - 'none')
+                         || jsonb_build_object(p_part, p_value))
+                        || jsonb_build_object('heard_by', coalesce(f.sound -> 'heard_by', '{}'::jsonb)
+                                                          || jsonb_build_object(p_part, p_by))
+                 end,
+         sound_said = coalesce(nullif(p_said, ''), f.sound_said),
+         updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.removed_at is null;
+end $$;
+
+
+--
+-- Name: FUNCTION file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text) IS 'One part of what was heard of a video (00556): its words, the note on how it sounds, or that it has no sound, with the model that heard it. The service role''s.';
+
+
+--
+-- Name: file_start(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- contracts FILES_MAX: the fair word before anything travels. file_found holds it for certain.
+  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+    raise exception 'This workspace holds as many files as it can. Remove some first.' using errcode = '22023';
+  end if;
+  -- Bytes that never become a file hold nothing but their folder: this empties it a day on, and leaves a file alone.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'file_purge', now() + interval '1 day', jsonb_build_object('file_id', p_id, 'why', 'start'));
+end $$;
+
+
+--
+-- Name: FUNCTION file_start(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member''s upload begins (00551): the settings permission, the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven.';
+
+
+--
+-- Name: file_upload_lapsed(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with lapsed as (
+    update public.files f set removed_at = now(), updated_at = now()
+     where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
+       and f.removed_at is null
+    returning f.id
+  )
+  select exists (select 1 from lapsed);
+$$;
+
+
+--
+-- Name: FUNCTION file_upload_lapsed(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) IS 'A video whose bytes never arrived, a day on (00556): removed, so the purge lets its reservation and its row go. Answers whether it was such a video. Its fingerprint is not let go: a person may add it again.';
+
+
+--
+-- Name: file_video_begin(uuid, uuid, text, text, text, bigint, text, numeric, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_twin   uuid;
+  v_status text;
+  v_held   text;
+  v_used   numeric;
+begin
+  -- One at a time, as every door that names or files takes it (00551).
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Asked again after a lost answer: the same answer, with the reservation the row holds, which may not be this one.
+  select f.media_ref into v_held from public.files f where f.tenant_id = p_tenant_id and f.id = p_id;
+  if found then
+    return jsonb_build_object('fate', 'kept', 'file_id', p_id, 'media_ref', v_held);
+  end if;
+  -- The same clip twice is one file: the one already here, which a person may still be waiting to see.
+  select f.id, f.media_status into v_twin, v_status from public.files f
+   where f.tenant_id = p_tenant_id and f.fingerprint = p_fingerprint and f.removed_at is null;
+  if found and v_status is distinct from 'uploading' then
+    return jsonb_build_object('fate', 'here', 'file_id', v_twin);
+  end if;
+  -- One whose bytes never all went, picked again where its upload could not go on: this one takes its place, and the purge
+  -- lets the other's reservation go.
+  if found then
+    update public.files f set removed_at = now(), updated_at = now() where f.id = v_twin;
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'file_purge', now(), jsonb_build_object('file_id', v_twin, 'why', 'remove'));
+  end if;
+  -- contracts FILES_MAX.
+  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+    return jsonb_build_object('fate', 'full', 'file_id', null);
+  end if;
+  -- contracts FILE_VIDEO_MINUTES_MAX: what is kept and what is on its way, together.
+  select coalesce(sum(f.seconds), 0) into v_used from public.files f
+   where f.tenant_id = p_tenant_id and f.kind = 'video' and f.removed_at is null and f.media_status <> 'failed';
+  if v_used + coalesce(p_seconds, 0) > 60 * 60 then
+    return jsonb_build_object('fate', 'minutes', 'file_id', null);
+  end if;
+  insert into public.files (id, tenant_id, status, source, name, mime, bytes, fingerprint, kind, media_ref, media_status,
+                            seconds, created_by)
+  values (p_id, p_tenant_id, 'filed', 'upload', public.file_free_name(p_tenant_id, p_name), p_mime, p_bytes,
+          p_fingerprint, 'video', p_media_ref, 'uploading', p_seconds, p_actor);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.added', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'source', 'upload', 'kind', 'video', 'by', p_actor));
+  return jsonb_build_object('fate', 'kept', 'file_id', p_id);
+end $$;
+
+
+--
+-- Name: FUNCTION file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) IS 'A member''s video on its way (00556), once the video platform holds its reservation: the row, uploading, with every fact the browser gave, so the platform''s word alone can finish it. Answers {fate: kept, here, full or minutes, file_id}. The service role''s.';
 
 
 --
@@ -7007,7 +8100,7 @@ begin
   v_contact_id := (v_person->>'contact_id')::uuid;
 
   -- A STOP or a START is written below, once the message is known to be new (00361), and so are the yeses a message
-  -- carries (00534). The person's row is locked here, where that write used to be, so the person, the thread and the
+  -- carries (00576). The person's row is locked here, where that write used to be, so the person, the thread and the
   -- message are still locked in that order. A START's channel is noted under note_yes_on_channel's own lock, taken
   -- here at its full strength so it is never raised later in the transaction.
   if p_opt_in then
@@ -7083,7 +8176,7 @@ begin
   -- already reflected in what the caller is told.
   select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;
 
-  -- The yeses this message carries, kept with it (00534): written here or not at all, and a repeat of the message,
+  -- The yeses this message carries, kept with it (00576): written here or not at all, and a repeat of the message,
   -- returned above, writes neither (its answer was written when it was kept).
   --
   -- A START is a yes on the channel it came on (contracts consent-channels.ts). The event above is written only when
@@ -7394,6 +8487,36 @@ COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired
 
 
 --
+-- Name: jobs_hand_out(text, uuid[], integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_handed integer;
+begin
+  -- The kind's own key (job_kinds, the workspace) holds one per workspace while one waits or runs.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select t.id, p_kind,
+         now() + make_interval(secs => abs(hashtext(t.id::text)::bigint) % greatest(p_spread_seconds, 1)),
+         '{}'::jsonb
+    from unnest(p_tenants) as t(id)
+  on conflict do nothing;
+  get diagnostics v_handed = row_count;
+  return v_handed;
+end $$;
+
+
+--
+-- Name: FUNCTION jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) IS 'One job of a kind per workspace named, each due within the spread by a hash of its workspace, unless one already waits or runs (00569, decision 0115). Answers how many it wrote. The service role''s: a sweep hands out what it found due.';
+
+
+--
 -- Name: jobs_ledger_now(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7515,7 +8638,10 @@ CREATE TABLE public.conversations (
     control_ref text,
     control_until timestamp with time zone,
     note_checked_at timestamp with time zone,
+    set_aside_at timestamp with time zone,
+    set_aside_why text,
     CONSTRAINT conversations_control_check CHECK ((((control_kind IS NULL) = (control_until IS NULL)) AND ((control_kind IS NULL) OR (control_kind = ANY (ARRAY['person'::text, 'call'::text]))) AND ((control_kind IS DISTINCT FROM 'person'::text) OR (control_by IS NOT NULL)) AND ((control_kind IS DISTINCT FROM 'call'::text) OR (control_ref IS NOT NULL)) AND ((control_kind IS NOT NULL) OR ((control_by IS NULL) AND (control_ref IS NULL))))),
+    CONSTRAINT conversations_set_aside_why_check CHECK (((set_aside_why IS NULL) OR (set_aside_why = ANY (ARRAY['pitch'::text, 'notice'::text])))),
     CONSTRAINT conversations_state_check CHECK ((state = ANY (ARRAY['open'::text, 'needs_human'::text, 'snoozed'::text, 'archived'::text])))
 );
 
@@ -7539,6 +8665,20 @@ COMMENT ON COLUMN public.conversations.control_until IS 'When the hold lapses on
 --
 
 COMMENT ON COLUMN public.conversations.note_checked_at IS 'When the note sweep last read this conversation (0007): it reads again only after newer customer messages have gone quiet.';
+
+
+--
+-- Name: COLUMN conversations.set_aside_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversations.set_aside_at IS 'When the thread was set aside as not a customer''s (00539, decision 0093), and still is: null once a member answered it.';
+
+
+--
+-- Name: COLUMN conversations.set_aside_why; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversations.set_aside_why IS 'What its sender was read as: pitch, or notice (a program''s mail). Kept past set_aside_at, for an Undo.';
 
 
 --
@@ -7879,6 +9019,8 @@ begin
    where sequence_sends.lead_id is not null and ( tenant_id = v_tenant and lead_id = p_lead_id
      and (opening is not null or angle is not null or hold_detail is not null or rewrite_asked is not null
           or website_says is not null));
+  -- The words a member typed for this lead at a step (00545): the lead's, and they go with its details.
+  delete from public.sequence_lead_words where tenant_id = v_tenant and lead_id = p_lead_id;
   -- A draft handed to its owner names them and their address (00429): one still waiting to be sent is skipped as its
   -- lead gone, and every draft of theirs is cleared. The email they sent is a message, and goes as messages go.
   update public.sequence_sends
@@ -7974,26 +9116,16 @@ begin
   v_stage  := case p_action when 'contacted' then 'nurture' else 'archived' end;
   v_reason := case p_action when 'not_a_fit' then 'not_a_fit' else null end;
 
-  -- The same rows the page would show: the selection, or the view with its
-  -- filters (lead_matches over the view's own q, excluded_by, fit and reach,
-  -- 00500) and no paging. lead_member_shown and lead_in_list hold the rest.
+  -- The same rows the page would show: the selection, or the view with its filters and no paging (lead_view_rows, the one
+  -- door, which holds what a view is and what its filters keep).
   if p_ids is not null then
     select coalesce(array_agg(l.id), '{}') into v_ids
       from public.leads l
      where l.tenant_id = p_tenant_id and l.id = any (p_ids)
        and l.erased_at is null and l.blanked_at is null;
   else
-    select coalesce(array_agg(distinct m.lead_id), '{}') into v_ids
-      from public.lead_search_members m
-      join public.leads l on l.id = m.lead_id
-     where m.tenant_id = p_tenant_id
-       and (p_view->>'search' is null or m.search_id = (p_view->>'search')::uuid)
-       and m.class = coalesce(p_view->>'class', 'qualified')
-       and public.lead_member_shown(m.class, m.counted)
-       and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_view->>'list', 'all'))
-       and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
-       and public.lead_matches(p_view, l.business_name, l.category, l.postal_code, l.city, l.region, m.excluded_by, m.fit,
-                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong);
+    select coalesce(array_agg(v.lead_id), '{}') into v_ids
+      from public.lead_view_rows(p_tenant_id, (p_view->>'search')::uuid, p_view->>'class', p_view->>'list', p_view, false, true) v;
   end if;
   if coalesce(array_length(v_ids, 1), 0) = 0 then
     return jsonb_build_object('done', 0, 'op_id', null, 'version', 1);
@@ -8041,7 +9173,7 @@ end $$;
 -- Name: FUNCTION lead_bulk(p_tenant_id uuid, p_action text, p_ids uuid[], p_view jsonb, p_search_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_bulk(p_tenant_id uuid, p_action text, p_ids uuid[], p_view jsonb, p_search_id uuid) IS 'Operator for contacted and not_a_fit; owner (permission find) for keep and exclude, which go through lead_member_move once per lead in review -- in the search named, else the lead''s newest -- and stop when the month''s leads run out ({error: month_leads_used} beside what was done). Marks many leads contacted, or not a fit: the ids the owner selected, or every lead the view matches (the rules leads_page reads with the view''s own filters, lead_matches, 00500, and no paging), never both. One lead_operations row (kind bulk) holds every id with what it was and the version this act leaves it at, so lead_undo restores the rows nobody touched since and says how many it kept. Returns {done, op_id, version}.';
+COMMENT ON FUNCTION public.lead_bulk(p_tenant_id uuid, p_action text, p_ids uuid[], p_view jsonb, p_search_id uuid) IS 'Operator for contacted and not_a_fit; owner (permission find) for keep and exclude, which go through lead_member_move once per lead in review -- in the search named, else the lead''s newest -- and stop when the month''s leads run out ({error: month_leads_used} beside what was done). Marks many leads contacted, or not a fit: the ids the owner selected, or every lead the view matches (lead_view_rows with the view''s own filters, 00554, and no paging), never both. One lead_operations row (kind bulk) holds every id with what it was and the version this act leaves it at, so lead_undo restores the rows nobody touched since and says how many it kept. Returns {done, op_id, version}.';
 
 
 --
@@ -8127,7 +9259,7 @@ CREATE FUNCTION public.lead_chain_of(p_tenant_id uuid, p_lead_id uuid) RETURNS u
     AS $$
   select coalesce(
     (select s.sequence_id as root_id from public.sequence_sends s
-      where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+      where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null
         and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back')))
       order by s.created_at desc
       limit 1),
@@ -9012,10 +10144,10 @@ CREATE FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_ter
     SET search_path TO 'public'
     AS $$
 declare
-  -- The card's prices a place (contracts LEAD_CARDS, local_businesses): discovery, contacts, the judge and the mailbox
-  -- check, the dearest standard's whole; a run's start; the estimate's room (LEAD_ESTIMATE_MARGIN); the actor's floor on
-  -- a run's cap (core MAPS_CAP_FLOOR_USD).
-  v_place  numeric := 0.003 + 0.002 + 0.0023 + 0.00089;
+  -- The card's prices a place (contracts LEAD_CARDS, local_businesses): discovery, contacts, the judge, the mailbox check
+  -- and reading its own site (00541), the dearest plan's whole; a run's start; the estimate's room (LEAD_ESTIMATE_MARGIN);
+  -- the actor's floor on a run's cap (core MAPS_CAP_FLOOR_USD).
+  v_place  numeric := 0.003 + 0.002 + 0.0023 + 0.00089 + 0.005;
   v_check  numeric := 0.00089;
   v_start  numeric := 0.00005;
   v_margin numeric := 1.3;
@@ -9051,7 +10183,7 @@ end $$;
 -- Name: FUNCTION lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430, 00474). search: ceil(((25 + least(1000, 2 x count)) x $0.00819 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
+COMMENT ON FUNCTION public.lead_estimate_ceiling(p_kind text, p_count integer, p_terms integer) IS 'The most a finder door takes as its estimate (00364, 00430, 00474, 00541). search: ceil(((25 + least(1000, 2 x count)) x $0.01319 + 2 x terms x $0.00005) x 1.3, to the cent) + 2 x terms x $0.50; list: ceil(rows x $0.00089 x 1.3, to the cent) + $0.50; people: ceil((least(1000, 2 x count) x $0.00519 + $0.01) x 1.3, to the cent) + 2 x $0.50. What the route computes (estimateForRound, leadImportEstimateUsd, peopleEstimateUsd) never passes it.';
 
 
 --
@@ -9166,43 +10298,6 @@ $$;
 --
 
 COMMENT ON FUNCTION public.lead_list_counts(p_tenant_id uuid) IS 'The six numbers under Leads in the rail: every lead the workspace owns (a qualified membership that counted, not blanked, not erased) and the five stage lists over them, counted once per lead however many searches found it. Never over an erased or blanked row. all is the total, not the sum: a lead closed stale or search_removed is in All and in no other list.';
-
-
---
--- Name: lead_matches(jsonb, text, text, text, text, text, text, text, text, text, text, smallint, boolean); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) RETURNS boolean
-    LANGUAGE sql STABLE PARALLEL SAFE
-    SET search_path TO 'public'
-    AS $$
-  with f as (
-    select lower(btrim(coalesce(p_filters->>'q', ''))) as q,
-           nullif(p_filters->>'excluded_by', '') as excluded_by,
-           nullif(p_filters->>'fit', '') as fit,
-           coalesce(jsonb_typeof(p_filters->'reach') = 'array' and p_filters->'reach' ? 'email', false) as email,
-           coalesce(jsonb_typeof(p_filters->'reach') = 'array' and p_filters->'reach' ? 'phone', false) as phone
-  )
-  select p_filters is null or (
-           (f.q = ''
-             or strpos(lower(coalesce(p_business, '')), f.q) > 0
-             or strpos(lower(coalesce(p_category, '')), f.q) > 0
-             or strpos(lower(concat_ws(' · ', nullif(p_postal, ''),
-                                       nullif(concat_ws(', ', nullif(p_city, ''), nullif(p_region, '')), ''))), f.q) > 0)
-           and (f.excluded_by is null or p_excluded_by is not distinct from f.excluded_by)
-           and (f.fit is null or p_fit is not distinct from f.fit)
-           and (not f.email or (nullif(p_email, '') is not null and p_email_state = 'ok'))
-           and (not f.phone or (nullif(p_phone, '') is not null and not coalesce(p_phone_wrong, false)
-                                and coalesce(p_phone_sources, 1) >= 2)))
-    from f
-$$;
-
-
---
--- Name: FUNCTION lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) IS 'Whether a lead''s membership meets the Leads page''s filters ({q, excluded_by, fit, reach: [email|phone]}; null asks nothing): the words, lower-cased and trimmed, in the business''s name, its kind or its area (postal · city, state, as contracts lead-row.ts writes it); the criterion that left it out; its fit; and each reach asked, checked as contracts leadSlots draws a checked slot (an address whose mailbox exists, email_state ok; a number not marked wrong on two sources). The one rule leads_page, lead_view_counts and lead_bulk ask (decision 0083, Phase B).';
 
 
 --
@@ -9665,6 +10760,12 @@ begin
          reason = case when state = 'drafted' then 'lead_gone' else reason end,
          draft = null
    where sequence_sends.lead_id is not null and ( tenant_id = p_tenant_id and draft is not null and lower(btrim(coalesce(draft->>'to', ''))) = v_e);
+  -- The words a member typed for a company that names this person may name them (00545).
+  delete from public.sequence_lead_words w
+   using public.leads l
+   where l.id = w.lead_id and w.tenant_id = p_tenant_id and l.tenant_id = p_tenant_id and l.kind = 'company'
+     and exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) p
+                  where lower(btrim(coalesce(p->>'email', ''))) = v_e);
   update public.leads l
      set facts = jsonb_set(jsonb_set(l.facts, '{people}', (
                    select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb)
@@ -9708,7 +10809,9 @@ CREATE FUNCTION public.lead_person_leg(p_lead_id uuid, p_email text, p_phone tex
     AS $$
 begin
   -- What a lead holds of one person (0052): their address, as its own or among its others, their number, and the note of
-  -- the call. The place, its name and the others' are kept; nothing is banned.
+  -- the call, and the words a member typed for this lead, which may name them (00545). The place, its name and the
+  -- others' are kept; nothing is banned.
+  delete from public.sequence_lead_words where lead_id = p_lead_id;
   update public.leads l
      set email = case when p_email is not null and lower(l.email) = lower(p_email) then null else l.email end,
          email_state = case when p_email is not null and lower(l.email) = lower(p_email) then 'none' else l.email_state end,
@@ -11718,6 +12821,40 @@ CREATE FUNCTION public.lead_site_key(p_host text) RETURNS text
 
 
 --
+-- Name: lead_site_reads_spent(uuid, integer, numeric, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid DEFAULT NULL::uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  r public.lead_rounds;
+begin
+  if coalesce(p_reads, 0) <= 0 or coalesce(p_usd, 0) <= 0 then return; end if;
+  if p_round_id is not null then
+    select * into r from public.lead_rounds where id = p_round_id and tenant_id = p_tenant_id for update;
+  end if;
+  if r.id is not null and r.state <> 'ended' then
+    perform public.lead_settle_usage(r.tenant_id, r.month, r.day, r.platform_day, p_usd, r.cost_reserved_usd - r.cost_usd);
+    update public.lead_rounds set site_reads = site_reads + p_reads, cost_usd = cost_usd + p_usd where id = r.id;
+    return;
+  end if;
+  -- No round, or one that ended (its trigger refuses a change): this month's budget and today's two days, reserved from
+  -- nothing, as a re-check after its round is settled (lead_collect_commit).
+  perform public.lead_settle_usage(p_tenant_id, public.lead_month(p_tenant_id, now()), public.lead_day(p_tenant_id, now()),
+    to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), p_usd, 0);
+end $$;
+
+
+--
+-- Name: FUNCTION lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid) IS 'What reading businesses'' own sites cost, spent when read (00541): p_reads credits at the card''s price p_usd, whatever each read answered. Against a round that still lives: its count, its cost, and the month''s and both days'' counters out of what it has reserved. With no round, or one ended: this month''s and today''s, reserved from nothing, as a re-check after its round is. The service role''s: the collect, the re-judge and the leads sweep''s second try at a mark.';
+
+
+--
 -- Name: lead_spend_refusal(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11785,6 +12922,52 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) IS 'Whether this month''s budget, the workspace''s day and the platform''s day each have room for p_usd (00506), in lead_reserve''s lock order and with its caps (lead_cap), reserving nothing: null when they do, else {error: budget_used | day_cap, sentence}. For a spend of cents that settles as it runs, a mailbox check asked again (lead_check_ask). Service role and definer doors only.';
+
+
+--
+-- Name: lead_status_groups(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) RETURNS TABLE(lead_id uuid, status_group text, status_rank smallint, status_at timestamp with time zone)
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    SET work_mem TO '64MB'
+    AS $$
+  with placed as materialized (
+    -- The place a lead's row says when one stands (sequence_places_of's rule), the latest of them.
+    select distinct on (r.lead_id) r.lead_id, r.sequence_id, r.grp, r.at
+      from public.sequence_places(p_tenant_id, null, p_lead_ids, true) r
+     order by r.lead_id, r.at desc nulls last
+  ),
+  -- On a list and no batch can take it: the row says Not planned. An address still being checked is no reason (contracts
+  -- placeNotPlannedOf): it joins the batch after that. Asking why costs about 0.4 ms a lead, so a read asks it of the hundred
+  -- longest on a list, which is where a lead no batch can take gathers. The rest stand as in a sequence, and a row on the
+  -- page still says its own why.
+  not_planned as materialized (
+    select w.lead_id
+      from (select array_agg(q.lead_id) as leads, array_agg(q.sequence_id) as sequences
+              from (select p.lead_id, p.sequence_id from placed p where p.grp = 'queued'
+                     order by p.at, p.lead_id limit 100) q
+            having count(*) > 0) x
+     cross join lateral public.sequence_queued_why_not(p_tenant_id, x.leads, x.sequences) w
+     where w.why is not null and w.why <> 'checking'
+  )
+  select p.lead_id,
+         case when p.grp in ('waiting', 'held', 'to_send', 'replied') or n.lead_id is not null then 'needs' else 'in' end,
+         -- Among what needs the member: who wrote back cools fastest, then an email theirs to send, an OK, a hold, a list.
+         (case p.grp when 'replied' then 0 when 'to_send' then 1 when 'waiting' then 2 when 'held' then 3
+                     else case when n.lead_id is not null then 4 else 0 end end)::smallint,
+         p.at
+    from placed p
+    left join not_planned n on n.lead_id = p.lead_id
+$$;
+
+
+--
+-- Name: FUNCTION lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) IS 'Where each lead stands in the queue Leads works from (00552, 00554): needs (its place waits on the member: an OK, a hold, an email theirs to send, a reply, or on a list no batch can take it), in (any other place that stands), with its rank among what needs the member and its place''s date. A lead it leaves out stands in neither: never in a sequence, or only done or left. A null list of leads reads every lead of the workspace. The place is the one the row says (sequence_places_of''s rule). Why a lead is not planned is asked of the hundred longest on a list. Under the caller''s row security; why is sequence_queued_why_not''s to say, so a partner with no second factor is never told it. The one rule lead_view_rows asks.';
 
 
 --
@@ -12348,26 +13531,31 @@ COMMENT ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) IS 'Undoes
 CREATE FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_list text DEFAULT 'all'::text, p_filters jsonb DEFAULT NULL::jsonb) RETURNS jsonb
     LANGUAGE sql STABLE
     SET search_path TO 'public'
+    SET work_mem TO '64MB'
     AS $$
-  with v as (
-    select m.lead_id, m.excluded_by,
-           public.lead_matches(p_filters, l.business_name, l.category, l.postal_code, l.city, l.region, m.excluded_by, m.fit,
-                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong) as hit
-      from public.lead_search_members m
-      join public.leads l on l.id = m.lead_id
-     where m.tenant_id = p_tenant_id
-       and (p_search_id is null or m.search_id = p_search_id)
-       and m.class = coalesce(p_class, 'qualified')
-       and public.lead_member_shown(m.class, m.counted)
-       and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_list, 'all'))
-       and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
+  with r as materialized (
+    select v.excluded_by, v.status_group, v.kept, v.hit, v.email_ok, v.phone_ok
+      from public.lead_view_rows(p_tenant_id, p_search_id, p_class, p_list, p_filters, true, false) v
   )
   select jsonb_build_object(
-           'view', (select count(distinct v.lead_id) from v),
-           'matching', (select count(distinct v.lead_id) from v where v.hit),
+           'view', a.view,
+           'matching', a.matching,
            'excluded_by', coalesce((select jsonb_object_agg(x.excluded_by, x.n)
-                                      from (select v.excluded_by, count(distinct v.lead_id) as n from v
-                                             where v.excluded_by is not null group by v.excluded_by) x), '{}'::jsonb))
+                                      from (select r.excluded_by, count(*) as n from r
+                                             where r.excluded_by is not null group by r.excluded_by) x), '{}'::jsonb),
+           'status_groups', jsonb_build_object('needs', a.needs, 'in', a.placed, 'none', a.none),
+           -- How many of the rows every filter keeps can be reached each way, by the rule the Reach filter asks.
+           'with_email', a.with_email,
+           'with_phone', a.with_phone)
+    from (select count(*) as view,
+                 count(*) filter (where r.hit) as matching,
+                 -- Every filter but the status filter: a heading's menu says each group's count while one of them is picked.
+                 count(*) filter (where r.kept and r.status_group = 'needs') as needs,
+                 count(*) filter (where r.kept and r.status_group = 'in') as placed,
+                 count(*) filter (where r.kept and r.status_group is null) as none,
+                 count(*) filter (where r.hit and r.email_ok) as with_email,
+                 count(*) filter (where r.hit and r.phone_ok) as with_phone
+            from r) a
 $$;
 
 
@@ -12375,7 +13563,121 @@ $$;
 -- Name: FUNCTION lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) IS 'What a view of Leads holds, under the caller''s row security, by the rules leads_page reads (lead_member_shown, lead_in_list, nothing blanked or erased), each lead once as the page draws it and lead_bulk acts on it: {view: its leads, matching: those meeting p_filters (lead_matches; "Select all N that match"), excluded_by: {criterion: n} over the view without the filters (the Excluded view''s chips)}. 00500, decision 0083 Phase B.';
+COMMENT ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) IS 'What a view of Leads holds (lead_view_rows, each lead once as the page draws it and lead_bulk acts on it): {view: its leads, matching: those meeting p_filters ("Select all N that match"), excluded_by: {criterion: n} over the view without the filters (the Excluded view''s chips), status_groups: {needs, in, none} under every filter but the status filter itself (a heading''s menu), with_email and with_phone: of those meeting p_filters, how many can be reached each way (the foot)}. 00500, decision 0083 Phase B; 00552; 00554.';
+
+
+--
+-- Name: lead_view_rows(uuid, uuid, text, text, jsonb, boolean, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_view_rows(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_list text DEFAULT 'all'::text, p_filters jsonb DEFAULT NULL::jsonb, p_status boolean DEFAULT false, p_hits boolean DEFAULT false) RETURNS TABLE(member_id uuid, lead_id uuid, search_id uuid, fit text, excluded_by text, distance_m integer, later_at timestamp with time zone, business_name text, category text, city text, region text, found_at timestamp with time zone, rating numeric, reviews integer, stage text, stage_at timestamp with time zone, contacted_at timestamp with time zone, email_ok boolean, phone_ok boolean, email_any boolean, phone_any boolean, status_group text, status_rank smallint, status_at timestamp with time zone, kept boolean, hit boolean)
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public'
+    SET work_mem TO '64MB'
+    AS $_$
+declare
+  v_class  text := coalesce(p_class, 'qualified');
+  v_list   text := coalesce(p_list, 'all');
+  v_groups text[] := case when jsonb_typeof(p_filters->'status_group') = 'array'
+                          then array(select jsonb_array_elements_text(p_filters->'status_group')) else '{}'::text[] end;
+  v_plain  text[] := '{}';
+  v_dial   text[] := '{}';
+  v_word   text;
+  v_digits text;
+begin
+  -- The box's words, the first six, each on its own. A word that is a number (three digits or more, its punctuation aside)
+  -- is also looked for in the phone; any other is found as it was typed, % and _ and \ among it.
+  foreach v_word in array (regexp_split_to_array(lower(btrim(coalesce(p_filters->>'q', ''))), '[\s,·]+'))[1:6] loop
+    continue when v_word = '';
+    v_digits := regexp_replace(v_word, '\D', '', 'g');
+    if v_word ~ '^[\d()+.\-]+$' and length(v_digits) >= 3 then
+      v_dial := v_dial || ('%' || v_digits || '%');
+    else
+      v_plain := v_plain || ('%' || replace(replace(replace(v_word, '\', '\\'), '%', '\%'), '_', '\_') || '%');
+    end if;
+  end loop;
+
+  -- One text, planned with the values this call hands it: what a call does not ask is gone from the plan, and a rule asked of
+  -- those values (lead_member_shown, lead_in_list) is asked once, never once a row.
+  return query execute $q$
+  with members as (
+    -- One row a lead: with no search named a lead two searches hold stands for the membership the filters keep, then its
+    -- strongest fit, then its newest.
+    select distinct on (m.lead_id) m.id, m.lead_id, m.search_id, m.fit, m.excluded_by, m.distance_m, m.later_at
+      from public.lead_search_members m
+     where m.tenant_id = $1
+       and ($2 is null or m.search_id = $2)
+       and m.class = $3
+       and case when m.counted then public.lead_member_shown($3, true) else public.lead_member_shown($3, false) end
+       and m.blanked_at is null
+     order by m.lead_id,
+              (m.excluded_by is not distinct from coalesce($9, m.excluded_by) and m.fit is not distinct from coalesce($10, m.fit)) desc,
+              case m.fit when 'strong' then 0 when 'look' then 1 when 'long' then 2 else 3 end,
+              m.created_at desc, m.id desc
+  ),
+  grouped as (
+    -- A search's own leads by their ids; every lead of the workspace for a read of them all. Not read unless asked.
+    select g.lead_id, g.status_group, g.status_rank, g.status_at
+      from public.lead_status_groups($1, case when $2 is null then null
+                                              else (select array_agg(x.lead_id) from public.lead_search_members x
+                                                     where x.search_id = $2 and x.tenant_id = $1) end) g
+     where $5
+  ),
+  shown as (
+    select m.id as member_id, m.lead_id, m.search_id, m.fit, m.excluded_by, m.distance_m, m.later_at,
+           l.business_name, l.category, l.city, l.region, l.found_at, l.rating, l.reviews, l.stage, l.stage_at, l.contacted_at,
+           r.email_ok, r.phone_ok, r.email_any, r.phone_any,
+           g.status_group, g.status_rank, g.status_at,
+           k.kept,
+           k.kept and (cardinality($13) = 0 or coalesce(g.status_group, 'none') = any ($13)) as hit
+      from members m
+      join public.leads l on l.id = m.lead_id and l.tenant_id = $1
+      left join grouped g on g.lead_id = m.lead_id
+      -- What a checked slot is (contracts leadSlots), and any way to reach them at all.
+      cross join lateral (
+        select nullif(l.email, '') is not null and l.email_state = 'ok' as email_ok,
+               nullif(l.phone_e164, '') is not null and not coalesce(l.phone_wrong, false)
+                 and coalesce(l.phone_sources, 1) >= 2 as phone_ok,
+               nullif(l.email, '') is not null and l.email_state not in ('none', 'invalid') as email_any,
+               nullif(l.phone_e164, '') is not null and not coalesce(l.phone_wrong, false) as phone_any
+      ) r
+      cross join lateral (
+        select lower(concat_ws(' ', l.business_name, l.category, l.neighborhood, l.postal_code, l.city, l.region, l.street,
+                               l.email, l.website_host)) as hay
+      ) h
+      -- Every filter but the status filter: a heading's menu counts each group while one of them is picked.
+      cross join lateral (
+        select ($9 is null or m.excluded_by = $9) is true
+               and ($10 is null or m.fit = $10) is true
+               and (not $11 or r.email_ok)
+               and (not $12 or r.phone_ok)
+               and (cardinality($7) = 0 or h.hay like all ($7))
+               and (cardinality($8) = 0 or (h.hay || ' ' || coalesce(ltrim(l.phone_e164, '+'), '')) like all ($8)) as kept
+      ) k
+     where l.blanked_at is null and l.erased_at is null
+       and (public.lead_in_list('', null, $4)
+            or (l.stage, coalesce(l.closed_reason, '')) in (
+                 select s.stage, coalesce(s.closed_reason, '')
+                   from (select distinct x.stage, x.closed_reason from public.leads x where x.tenant_id = $1) s
+                  where public.lead_in_list(s.stage, s.closed_reason, $4)))
+  )
+  select s.* from shown s where not $6 or s.hit
+  $q$ using p_tenant_id, p_search_id, v_class, v_list,
+            coalesce(p_status, false) or cardinality(v_groups) > 0, coalesce(p_hits, false),
+            v_plain, v_dial,
+            nullif(p_filters->>'excluded_by', ''), nullif(p_filters->>'fit', ''),
+            coalesce(jsonb_typeof(p_filters->'reach') = 'array' and p_filters->'reach' ? 'email', false),
+            coalesce(jsonb_typeof(p_filters->'reach') = 'array' and p_filters->'reach' ? 'phone', false),
+            v_groups;
+end
+$_$;
+
+
+--
+-- Name: FUNCTION lead_view_rows(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb, p_status boolean, p_hits boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_view_rows(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb, p_status boolean, p_hits boolean) IS 'Which leads a view of Leads holds, the one door leads_page, lead_view_counts and lead_bulk read it through (00554): one row a lead, under the caller''s row security, by lead_member_shown, lead_in_list and nothing blanked or erased, with what a sort, a filter or a count reads of it and no more. kept: it meets every filter but the status filter ({q, excluded_by, fit, reach}). hit: and the status filter ({status_group}). The words of q are each found on their own, in the name, kind, neighbourhood, area, street, email or website; a word that is a number is also looked for in the phone. Each lead''s place in the queue is read only where p_status or a status filter asks it. p_hits leaves out what the filters do not keep.';
 
 
 --
@@ -12552,96 +13854,129 @@ COMMENT ON FUNCTION public.leads_note_set_aside() IS 'Writes lead.set_aside { st
 -- Name: leads_page(uuid, uuid, text, text, text, integer, text, text, uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_sort text DEFAULT 'found'::text, p_after_key text DEFAULT NULL::text, p_limit integer DEFAULT 200, p_list text DEFAULT 'all'::text, p_dir text DEFAULT 'asc'::text, p_after_id uuid DEFAULT NULL::uuid, p_list_id uuid DEFAULT NULL::uuid, p_filters jsonb DEFAULT NULL::jsonb) RETURNS TABLE(member_id uuid, lead_id uuid, place_id text, search_id uuid, round_id uuid, class text, excluded_by text, fit text, reason text, distance_m integer, counted boolean, counted_month text, judgment jsonb, shares jsonb, business_name text, category text, street text, city text, region text, postal_code text, lat double precision, lng double precision, website_host text, instagram_url text, phone_e164 text, phone_sources smallint, phone_wrong boolean, email text, email_alternates jsonb, email_state text, email_checked_at timestamp with time zone, rating numeric, reviews integer, stage text, closed_reason text, last_outcome text, last_note text, contact_id uuid, contacted_at timestamp with time zone, converted_at timestamp with time zone, exported_at timestamp with time zone, found_at timestamp with time zone, places integer, version integer, page_key text, sort_key text, about text, hours jsonb, image_url text, price text, reviews_dist jsonb, facebook_url text, linkedin_url text, tiktok_url text, claimed boolean, maps_url text, rank integer, neighborhood text, mark_path text, later_at timestamp with time zone, chain_id uuid, kind text, facts jsonb)
-    LANGUAGE sql STABLE
+CREATE FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid DEFAULT NULL::uuid, p_class text DEFAULT 'qualified'::text, p_sort text DEFAULT 'found'::text, p_after_key text DEFAULT NULL::text, p_limit integer DEFAULT 200, p_list text DEFAULT 'all'::text, p_dir text DEFAULT 'asc'::text, p_after_id uuid DEFAULT NULL::uuid, p_list_id uuid DEFAULT NULL::uuid, p_filters jsonb DEFAULT NULL::jsonb) RETURNS TABLE(member_id uuid, lead_id uuid, place_id text, search_id uuid, round_id uuid, class text, excluded_by text, fit text, reason text, distance_m integer, counted boolean, counted_month text, judgment jsonb, shares jsonb, business_name text, category text, street text, city text, region text, postal_code text, lat double precision, lng double precision, website_host text, instagram_url text, phone_e164 text, phone_sources smallint, phone_wrong boolean, email text, email_alternates jsonb, email_state text, email_checked_at timestamp with time zone, rating numeric, reviews integer, stage text, closed_reason text, last_outcome text, last_note text, contact_id uuid, contacted_at timestamp with time zone, converted_at timestamp with time zone, exported_at timestamp with time zone, found_at timestamp with time zone, places integer, version integer, page_key text, sort_key text, about text, hours jsonb, image_url text, price text, reviews_dist jsonb, facebook_url text, linkedin_url text, tiktok_url text, claimed boolean, maps_url text, rank integer, neighborhood text, mark_path text, later_at timestamp with time zone, chain_id uuid, kind text, facts jsonb, status_group text)
+    LANGUAGE plpgsql STABLE
     SET search_path TO 'public'
-    AS $$
-  with args as (
-    select coalesce(p_dir, 'asc') = 'desc' as descending,
-           case when p_after_id is not null then p_after_key else split_part(coalesce(p_after_key, ''), '|', 1) end as after_k,
-           coalesce(p_after_id::text, nullif(split_part(coalesce(p_after_key, ''), '|', 2), '')) as after_id
-  ),
-  base as (
-    select m.id as member_id, m.lead_id, l.place_id, m.search_id, m.round_id, m.class, m.excluded_by, m.fit, m.reason, m.distance_m,
-           m.counted, m.counted_month, m.judgment, coalesce(m.judgment->'shares', '[]'::jsonb) as shares,
-           l.business_name, l.category, l.street, l.city, l.region, l.postal_code, l.lat, l.lng, l.website_host, l.instagram_url,
-           l.phone_e164, l.phone_sources, l.phone_wrong, l.email, l.email_alternates, l.email_state, l.email_checked_at, l.rating, l.reviews,
-           l.stage, l.closed_reason, l.last_outcome, l.last_note, l.contact_id, l.contacted_at, l.converted_at, l.exported_at, l.found_at,
-           (select count(*)::integer from public.lead_places p where p.lead_id = l.id) as places, l.version,
-           l.about, l.hours, l.image_url, l.price, l.reviews_dist, l.facebook_url, l.linkedin_url, l.tiktok_url, l.claimed, l.maps_url, l.rank, l.neighborhood, l.mark_path,
-           m.later_at,
-           -- The reach-out the lead goes with (lead_chain_of, the one rule).
-           public.lead_chain_of(l.tenant_id, l.id) as chain_id,
-           -- A place or a company, and a company's people (00430).
-           l.kind, l.facts,
-           case coalesce(p_sort, 'found')
-             when 'fit' then (case m.fit when 'strong' then '0' when 'look' then '1' when 'long' then '2' else '3' end)
-                             || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
-             when 'distance' then lpad(coalesce(m.distance_m, 999999999)::text, 9, '0')
-                             || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
-             -- The three column sorts B adds. A key is text and never holds
-             -- the "|" the packed key splits on.
-             when 'business' then left(replace(lower(coalesce(nullif(l.business_name, ''), 'zzzz')), '|', ' '), 60)
-                             || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
-             when 'rating' then lpad(coalesce((l.rating * 10)::integer, 0)::text, 3, '0')
-                             || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
-             when 'stage' then (case l.stage when 'ready' then '0' when 'nurture' then '1' when 'converted' then '2' else '3' end)
-                             || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
+    SET work_mem TO '64MB'
+    AS $_$
+declare
+  v_desc boolean := coalesce(p_dir, 'asc') = 'desc';
+  v_sort text := coalesce(p_sort, 'found');
+  v_after_key text := case when p_after_id is not null then p_after_key else split_part(coalesce(p_after_key, ''), '|', 1) end;
+  v_after_id uuid := coalesce(p_after_id, nullif(split_part(coalesce(p_after_key, ''), '|', 2), '')::uuid);
+begin
+  -- One text, planned with the values this call hands it: the sort's own key is all that is built, over the door's narrow
+  -- rows, and the whole row is read for the page alone. A name sorts as a reader's alphabet does; every other key is digits
+  -- and letters a byte's order says, which is the cheaper to compare by far.
+  return query execute format($q$
+  with keyed as (
+    select v.member_id, v.lead_id, v.status_group,
+           case $1
+             when 'fit' then
+               (case when (v.fit is null) = $8 then '1' else '0' end)
+               || (case v.fit when 'strong' then '0' when 'look' then '1' when 'long' then '2' else '3' end) || t.found
+             when 'distance' then
+               (case when (v.distance_m is null) = $8 then '1' else '0' end)
+               || lpad(coalesce(v.distance_m, 0)::text, 9, '0') || t.found
+             when 'business' then
+               (case when (coalesce(v.business_name, '') = '') = $8 then '1' else '0' end)
+               || left(replace(lower(coalesce(v.business_name, '')), '|', ' '), 60) || t.found
+             when 'rating' then
+               (case when (v.rating is null) = $8 then '1' else '0' end)
+               || lpad(coalesce(t.weighed, 0)::text, 3, '0') || t.found
+             when 'reviews' then
+               (case when (v.reviews is null) = $8 then '1' else '0' end)
+               || lpad(coalesce(v.reviews, 0)::text, 9, '0') || t.found
+             when 'contacted' then
+               (case when (v.contacted_at is null) = $8 then '1' else '0' end)
+               || lpad(coalesce(date_part('epoch', v.contacted_at)::bigint, 0)::text, 10, '0') || t.found
+             when 'category' then
+               (case when (coalesce(v.category, '') = '') = $8 then '1' else '0' end)
+               || left(replace(lower(coalesce(v.category, '')), '|', ' '), 40) || t.found
+             when 'city' then
+               (case when (coalesce(v.city, '') = '') = $8 then '1' else '0' end)
+               || left(replace(lower(coalesce(v.city, '')), '|', ' '), 40) || t.found
+             when 'region' then
+               (case when (coalesce(v.region, '') = '') = $8 then '1' else '0' end)
+               || left(replace(lower(coalesce(v.region, '')), '|', ' '), 40) || t.found
+             -- The queue: what needs you, by what it needs and how long; what is in a sequence, the next send soonest; then
+             -- the stages: who to start with, the longest since contact, the most recently moved.
+             when 'stage' then
+               (case
+                  when v.status_group = 'needs' then
+                    '0' || v.status_rank::text || lpad(coalesce(date_part('epoch', v.status_at)::bigint, 9999999999)::text, 10, '0')
+                  when v.status_group = 'in' then
+                    '1' || lpad(coalesce(date_part('epoch', v.status_at)::bigint, 9999999999)::text, 10, '0')
+                  when v.stage = 'ready' then
+                    '2' || (case v.fit when 'strong' then '0' when 'look' then '1' when 'long' then '2' else '3' end)
+                    || (case when v.email_ok and v.phone_ok then '0' when v.email_ok then '1' when v.phone_ok then '2'
+                             when v.email_any or v.phone_any then '3' else '4' end)
+                    || lpad((999 - coalesce(t.weighed, 0))::text, 3, '0')
+                  when v.stage = 'nurture' then
+                    '3' || lpad(coalesce(date_part('epoch', v.contacted_at)::bigint, 0)::text, 10, '0')
+                  when v.stage = 'converted' then
+                    '4' || lpad((9999999999 - date_part('epoch', coalesce(v.stage_at, v.found_at))::bigint)::text, 10, '0')
+                  else
+                    '5' || lpad((9999999999 - date_part('epoch', coalesce(v.stage_at, v.found_at))::bigint)::text, 10, '0')
+                end) || t.found
              -- The pile (00426): undecided first, then put off for later (the oldest first), then the decided: on the list
              -- it adds to, or with a reach-out already (lead_chain_of: one lead, one reach-out), or no longer Ready; within
              -- each, the strongest fit, then a checked address before a number alone, then the newest.
              when 'pile' then
-               (case when l.stage <> 'ready'
-                       or (p_list_id is not null and exists (select 1 from public.lead_search_members x
-                                                             where x.search_id = p_list_id and x.lead_id = l.id and x.blanked_at is null))
-                       or public.lead_chain_of(l.tenant_id, l.id) is not null
+               (case when v.stage <> 'ready'
+                       or ($13 is not null and exists (select 1 from public.lead_search_members x
+                                                        where x.search_id = $13 and x.lead_id = v.lead_id and x.blanked_at is null))
+                       or public.lead_chain_of($2, v.lead_id) is not null
                        then '2' || lpad('0', 10, '0')
-                     when m.later_at is not null then '1' || lpad(floor(extract(epoch from m.later_at))::bigint::text, 10, '0')
+                     when v.later_at is not null then '1' || lpad(date_part('epoch', v.later_at)::bigint::text, 10, '0')
                      else '0' || lpad('0', 10, '0') end)
-               || (case m.fit when 'strong' then '0' when 'look' then '1' when 'long' then '2' else '3' end)
-               || (case when l.email_state = 'ok' then '0' when l.phone_e164 is not null then '1' else '2' end)
-               || lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
-             else lpad((9999999999 - floor(extract(epoch from l.found_at)))::bigint::text, 10, '0')
+               || (case v.fit when 'strong' then '0' when 'look' then '1' when 'long' then '2' else '3' end)
+               || (case when v.email_ok then '0' when v.phone_any then '1' else '2' end)
+               || t.found
+             else t.found
            end as k
-      from public.lead_search_members m
-      join public.leads l on l.id = m.lead_id
-     where m.tenant_id = p_tenant_id
-       and (p_search_id is null or m.search_id = p_search_id)
-       and m.class = coalesce(p_class, 'qualified')
-       and public.lead_member_shown(m.class, m.counted)
-       and public.lead_in_list(l.stage, l.closed_reason, coalesce(p_list, 'all'))
-       and m.blanked_at is null and l.blanked_at is null and l.erased_at is null
-       -- The page's filters (lead_matches, the one rule).
-       and public.lead_matches(p_filters, l.business_name, l.category, l.postal_code, l.city, l.region, m.excluded_by, m.fit,
-                               l.email, l.email_state, l.phone_e164, l.phone_sources, l.phone_wrong)
+      from public.lead_view_rows($2, $3, $4, $5, $6, $7, true) v
+      cross join lateral (
+        select lpad((9999999999 - date_part('epoch', v.found_at)::bigint)::text, 10, '0') as found,
+               -- The rating, weighed by how many reviewed: 5.0 from one review is not 4.8 from nine hundred.
+               round(100 * (coalesce(v.reviews, 0) * v.rating + 40) / (coalesce(v.reviews, 0) + 10))::integer as weighed
+      ) t
+  ),
+  page as (
+    select k.member_id, k.lead_id, k.status_group, k.k
+      from keyed k
+     where $9 is null or (k.k collate %1$I, k.member_id) %3$s ($10, $11)
+     order by k.k collate %1$I %2$s, k.member_id %2$s
+     limit $12
   )
-  select b.member_id, b.lead_id, b.place_id, b.search_id, b.round_id, b.class, b.excluded_by, b.fit, b.reason, b.distance_m,
-         b.counted, b.counted_month, b.judgment, b.shares,
-         b.business_name, b.category, b.street, b.city, b.region, b.postal_code, b.lat, b.lng, b.website_host, b.instagram_url,
-         b.phone_e164, b.phone_sources, b.phone_wrong, b.email, b.email_alternates, b.email_state, b.email_checked_at, b.rating, b.reviews,
-         b.stage, b.closed_reason, b.last_outcome, b.last_note, b.contact_id, b.contacted_at, b.converted_at, b.exported_at, b.found_at,
-         b.places, b.version,
-         b.k as page_key,
-         b.k || '|' || b.member_id::text as sort_key,
-         b.about, b.hours, b.image_url, b.price, b.reviews_dist, b.facebook_url, b.linkedin_url, b.tiktok_url, b.claimed, b.maps_url, b.rank, b.neighborhood, b.mark_path,
-         b.later_at, b.chain_id, b.kind, b.facts
-    from base b, args a
-   where p_after_key is null
-      or (a.descending and (b.k, b.member_id::text) < (a.after_k, a.after_id))
-      or (not a.descending and (b.k, b.member_id::text) > (a.after_k, a.after_id))
-   -- One query, two directions: the pair that is not this call's is a constant
-   -- null for every row and sorts nothing.
-   order by (case when a.descending then b.k end) desc, (case when a.descending then b.member_id::text end) desc,
-            (case when not a.descending then b.k end) asc, (case when not a.descending then b.member_id::text end) asc
-   limit least(greatest(coalesce(p_limit, 200), 1), 500)
-$$;
+  select m.id, m.lead_id, l.place_id, m.search_id, m.round_id, m.class, m.excluded_by, m.fit, m.reason, m.distance_m,
+         m.counted, m.counted_month, m.judgment, coalesce(m.judgment->'shares', '[]'::jsonb),
+         l.business_name, l.category, l.street, l.city, l.region, l.postal_code, l.lat, l.lng, l.website_host, l.instagram_url,
+         l.phone_e164, l.phone_sources, l.phone_wrong, l.email, l.email_alternates, l.email_state, l.email_checked_at, l.rating, l.reviews,
+         l.stage, l.closed_reason, l.last_outcome, l.last_note, l.contact_id, l.contacted_at, l.converted_at, l.exported_at, l.found_at,
+         (select count(*)::integer from public.lead_places pl where pl.lead_id = l.id), l.version,
+         p.k, p.k || '|' || p.member_id::text,
+         l.about, l.hours, l.image_url, l.price, l.reviews_dist, l.facebook_url, l.linkedin_url, l.tiktok_url, l.claimed, l.maps_url, l.rank, l.neighborhood, l.mark_path,
+         m.later_at, public.lead_chain_of(l.tenant_id, l.id), l.kind, l.facts, p.status_group
+    from page p
+    join public.lead_search_members m on m.id = p.member_id
+    join public.leads l on l.id = p.lead_id
+   order by p.k collate %1$I %2$s, p.member_id %2$s
+  $q$,
+    case when v_sort in ('business', 'category', 'city', 'region') then 'default' else 'C' end,
+    case when v_desc then 'desc' else 'asc' end,
+    case when v_desc then '<' else '>' end)
+  using v_sort, p_tenant_id, p_search_id, p_class, p_list, p_filters, v_sort = 'stage', not v_desc,
+        p_after_key, v_after_key, v_after_id, least(greatest(coalesce(p_limit, 200), 1), 500), p_list_id;
+end
+$_$;
 
 
 --
 -- Name: FUNCTION leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb) IS 'A page of members of one class (qualified: the counted ones; review; excluded) joined to their leads, narrowed to one of the rail''s lists (lead_in_list) and to the page''s filters (p_filters, lead_matches: the words, the criterion, the fit, the reaches; 00500), keyset-paged on the sort key in either direction, under the caller''s row security. Seven sorts: found, fit, distance, business, rating, stage, and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), and what the lead is with a company''s people (kind, facts: 00430). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here. Which memberships show is lead_member_shown (00212).';
+COMMENT ON FUNCTION public.leads_page(p_tenant_id uuid, p_search_id uuid, p_class text, p_sort text, p_after_key text, p_limit integer, p_list text, p_dir text, p_after_id uuid, p_list_id uuid, p_filters jsonb) IS 'A page of a view of Leads (lead_view_rows: which leads it holds, under the caller''s row security, one row a lead), keyset-paged on the sort key in either direction, its whole row read for the page alone. An empty value sorts last whichever way. The sorts: found (newest first), fit, distance, business, rating (weighed by how many reviewed), reviews, contacted, category, city, region; stage, the queue (00552, 00554: what needs you, by what it needs and how long; what is in a sequence, the next send soonest; then who to start with, the longest since contact, the most recently moved); and pile (00426: undecided first, then put off for later, oldest first, then the decided: on the list p_list_id, with a reach-out already, or no longer Ready; within each, the strongest fit, a checked address before a number alone, the newest). Each row says when it was put off (later_at), the reach-out it goes with (chain_id, lead_chain_of), what the lead is with a company''s people (kind, facts: 00430), and, only where the sort or a filter asks, its status group (status_group, lead_status_groups; null being none). Hand the last row''s page_key and member_id back as p_after_key and p_after_id; A''s packed sort_key still works on its own, split here.';
 
 
 --
@@ -14126,7 +15461,7 @@ CREATE FUNCTION public.message_carries_link(p_body text, p_link text) RETURNS bo
     AS $$
   -- The words hold the link without its scheme, as stored (case kept). One rule in several spellings, named by file and
   -- function: layerTwo in packages/core/src/inbound/steps.ts (the receptionist's own check, with the scheme),
-  -- writtenOutDetail in packages/contracts/src/config/business-tab/fold-limits.ts (a written-out link), and the two
+  -- writtenOutDetail in apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts (a written-out link), and the two
   -- senders that strip the scheme before they fill the slot: sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts
   -- (the voice tool) and queueReply in packages/core/src/conversations/reply.ts (the Inbox's template).
   -- A link that is null, empty, or nothing but a scheme or spaces carries nothing, never everything.
@@ -14139,7 +15474,7 @@ $$;
 -- Name: FUNCTION message_carries_link(p_body text, p_link text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.message_carries_link(p_body text, p_link text) IS 'Whether these words carry this link (K7): they hold the link without its scheme (^https?://), as stored, in the same case, anywhere in the words. False for no words, and for a link that is null, empty, or nothing but a scheme or spaces. The twins of this rule, by file and function: layerTwo in packages/core/src/inbound/steps.ts, writtenOutDetail in packages/contracts/src/config/business-tab/fold-limits.ts, and the scheme-stripping senders sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts and queueReply in packages/core/src/conversations/reply.ts.';
+COMMENT ON FUNCTION public.message_carries_link(p_body text, p_link text) IS 'Whether these words carry this link (K7): they hold the link without its scheme (^https?://), as stored, in the same case, anywhere in the words. False for no words, and for a link that is null, empty, or nothing but a scheme or spaces. The twins of this rule, by file and function: layerTwo in packages/core/src/inbound/steps.ts, writtenOutDetail in apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts, and the scheme-stripping senders sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts and queueReply in packages/core/src/conversations/reply.ts.';
 
 
 --
@@ -15069,36 +16404,7 @@ end $$;
 -- Name: FUNCTION note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) IS 'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00535): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';
-
-
---
--- Name: note_sweep_backlog(text, integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) RETURNS integer
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_ticks integer;
-begin
-  update public.sweep_status
-     set backlog_ticks = case when p_remaining > 0 then backlog_ticks + 1 else 0 end
-   where sweep = p_sweep
-  returning backlog_ticks into v_ticks;
-  -- No row means the sweep is not registered with sweep_health, which is a
-  -- deployment mistake rather than a backlog. Say zero: never alert on the
-  -- absence of bookkeeping.
-  return coalesce(v_ticks, 0);
-end $$;
-
-
---
--- Name: FUNCTION note_sweep_backlog(p_sweep text, p_remaining integer); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) IS 'Records whether a sweep finished with work left, and returns how many ticks in a row that has now been true. Atomic, because an overlapping tick reading and writing this separately would undercount precisely when the backlog is real.';
+COMMENT ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) IS 'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00577): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';
 
 
 --
@@ -15148,7 +16454,7 @@ end $$;
 -- Name: FUNCTION note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'Called by ingest_inbound for a START, in the transaction that keeps the message (00534; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
+COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'Called by ingest_inbound for a START, in the transaction that keeps the message (00576; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
 
 
 --
@@ -17023,6 +18329,98 @@ COMMENT ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p
 
 
 --
+-- Name: people_erase_begin(uuid, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    SET statement_timeout TO '25s'
+    AS $_$
+declare
+  v_actor uuid := auth.uid();
+  v_at    timestamptz := now();
+  v_go    uuid[];
+  v_stays uuid[] := '{}';
+  v_said  integer;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule). An owner's, as erase_contact is.
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not exists (
+    select 1 from public.memberships m
+     where m.user_id = v_actor and m.tenant_id = p_tenant_id and m.role = 'owner'
+  ) then
+    raise exception 'Not yours to delete.' using errcode = '42501';
+  end if;
+
+  -- Who of those named may go, each once, in the order named. An erased person, a person merged away, another
+  -- workspace's and a stranger are simply not in the answer.
+  select coalesce(array_agg(c.id order by n.ord), '{}')
+    into v_go
+    from (select u.id, min(u.ord) as ord
+            from unnest(p_contact_ids) with ordinality as u(id, ord)
+           group by u.id) n
+    join public.contacts c on c.id = n.id
+   where c.tenant_id = p_tenant_id and c.erased_at is null and c.merged_into_contact_id is null;
+
+  -- Not a person: each address said automated first, in this same write, as mailbox_sender_sort says one (00483), the
+  -- address alone: a selection is many senders, and a domain is many people's. Someone with no address to say stays.
+  if coalesce(p_not_a_person, false) then
+    select coalesce(array_agg(g.id order by g.ord) filter (where a.ok), '{}'),
+           coalesce(array_agg(g.id order by g.ord) filter (where not a.ok), '{}')
+      into v_go, v_stays
+      from unnest(v_go) with ordinality as g(id, ord)
+      join public.contacts c on c.id = g.id
+     cross join lateral (
+       select coalesce(char_length(btrim(c.email)) between 3 and 254
+                       and btrim(c.email) !~ '[[:space:]<>]'
+                       and btrim(c.email) ~ '^[^@]+@[^@]+\.[^@]+$', false) as ok
+     ) a;
+    insert into public.mailbox_senders (tenant_id, sender, verdict, set_by, set_at)
+    select distinct p_tenant_id, lower(btrim(c.email)), 'automated', v_actor, v_at
+      from public.contacts c
+     where c.id = any (v_go)
+    on conflict (tenant_id, sender)
+      do update set verdict = excluded.verdict, set_by = excluded.set_by, set_at = excluded.set_at;
+    get diagnostics v_said = row_count;
+    -- One line for the press: Activity is not a list of everyone it named, and the line never holds an address.
+    if v_said > 0 then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'mailbox_connection.sender_sorted', 'setup', 'workspace', p_tenant_id,
+              jsonb_build_object('kind', 'address', 'verdict', 'automated', 'by', v_actor));
+    end if;
+  end if;
+
+  -- The block: from here the wire refuses them. The digests as beginErasure writes them, from the number still on the
+  -- row, and only for someone not blocked already, so a press pressed again moves nothing.
+  update public.contacts c
+     set erasing_since = v_at,
+         erased_phone_hash = coalesce(public.erasure_digest(p_tenant_id, c.phone_e164), c.erased_phone_hash),
+         erased_email_hash = coalesce(public.erasure_digest(p_tenant_id, c.email), c.erased_email_hash)
+   where c.id = any (v_go) and c.tenant_id = p_tenant_id and c.erased_at is null and c.erasing_since is null;
+
+  -- Their erasures on the ledger, on the word of who pressed, paced (the header). Someone whose finish already waits
+  -- keeps it (its key), so a press pressed again starts nothing beside the first; someone blocked with none gets one.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select p_tenant_id, 'erasure_finish', v_at + (g.ord - 1) * interval '300 milliseconds',
+         jsonb_build_object('contact_id', g.id, 'by', v_actor)
+    from unnest(v_go) with ordinality as g(id, ord)
+  on conflict do nothing;
+
+  return jsonb_build_object('going', to_jsonb(v_go), 'no_address', to_jsonb(v_stays));
+end $_$;
+
+
+--
+-- Name: FUNCTION people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) IS 'People''s Delete… for a selection of any size (00547, decision 0036): everyone named goes out of reach and onto the ledger in one transaction, an owner''s, on their own session. The erasing is erasure_finish''s, paced 300 ms apart. Answers who is going and who has no address to say, each in the order named; whoever else was named is neither.';
+
+
+--
 -- Name: people_list(uuid, uuid, text, integer, integer, timestamp with time zone, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -17321,6 +18719,9 @@ begin
            and c.tenant_id = p_tenant_id
            and c.erased_at is null
            and c.merged_into_contact_id is null
+           -- Someone being erased has left People (00547): a press of thousands is on the ledger for minutes, and a reload
+           -- must not bring them back. A day on it is an erasure that stopped, and they show again, to be pressed again.
+           and (c.erasing_since is null or c.erasing_since < now() - interval '1 day')
            -- The search: a name, their name on WhatsApp, their email address, or
            -- three digits of the number, the way the page's own box matches.
            -- Nothing else is indexed here; the page still narrows by state and
@@ -20904,7 +22305,9 @@ CREATE FUNCTION public.purge_events(p_keep interval DEFAULT '30 days'::interval)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare v_count integer;
+declare
+  v_count integer;
+  v_deliveries integer;
 begin
   delete from public.events
    where kind in (
@@ -20915,7 +22318,11 @@ begin
    )
      and created_at < now() - p_keep;
   get diagnostics v_count = row_count;
-  return v_count;
+  delete from public.event_deliveries
+   where state in ('done', 'failed')
+     and updated_at < now() - p_keep;
+  get diagnostics v_deliveries = row_count;
+  return v_count + v_deliveries;
 end $$;
 
 
@@ -20923,7 +22330,7 @@ end $$;
 -- Name: FUNCTION purge_events(p_keep interval); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.purge_events(p_keep interval) IS 'Drops the evidence kinds (webhook receipts and deliveries, the allowlist''s skips, unreachable and unroutable inbounds, the two model-usage rows, and person.resolved, a door''s own record of a match, 00342) older than p_keep (default 30 days; contracts RETENTION_DAYS.events_evidence). Every other event kind is the record and is never purged here.';
+COMMENT ON FUNCTION public.purge_events(p_keep interval) IS 'Drops the evidence kinds (webhook receipts and deliveries, the allowlist''s skips, unreachable and unroutable inbounds, the two model-usage rows, and person.resolved, a door''s own record of a match, 00342) older than p_keep (default 30 days; contracts RETENTION_DAYS.events_evidence), and the relay''s finished deliveries (event_deliveries done or failed, 00565) untouched for as long. Every other event kind is the record and is never purged here.';
 
 
 --
@@ -21693,9 +23100,13 @@ CREATE FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_
   )
   select l.id, lower(btrim(l.email)), l.business_name, l.city, l.region, l.hours
     from members m
-    join public.reach_out_why_not(p_tenant_id, array(select lead_id from members), p_include_unconfirmed) w
-      on w.lead_id = m.lead_id and w.why is null
     join public.leads l on l.id = m.lead_id and l.tenant_id = p_tenant_id
+   -- A hash of who has a reason, whatever is guessed of it (00572). reach_out_why_not answers once for each lead it is asked
+   -- of, so leaving those out leaves whoever it lets go, and none of its leads is null: members' lead_id is not null.
+   where m.lead_id not in (
+     select w.lead_id
+       from public.reach_out_why_not(p_tenant_id, array(select lead_id from members), p_include_unconfirmed) w
+      where w.why is not null)
    -- The finder's fit, strongest first, then the longest found.
    order by case m.fit when 'strong' then 0 when 'look' then 1 when 'long' then 2 else 3 end, l.found_at
    limit greatest(p_limit, 0)
@@ -22098,7 +23509,7 @@ begin
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at
         from public.sequence_sends s
         left join public.messages m on m.id = s.message_id
-       where s.lead_id is not null and ( s.tenant_id = p_tenant_id
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.sequence_id is not null
          and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error))))
     ),
     period as (
@@ -22608,7 +24019,7 @@ begin
     return null;
   end if;
   select s.sequence_id as root_id into v_root from public.sequence_sends s
-   where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+   where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null
      and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back', 'moved')))
    order by s.created_at desc
    limit 1;
@@ -22954,8 +24365,9 @@ CREATE FUNCTION public.reach_out_people_of(p_tenant_id uuid, p_root_id uuid) RET
   )
   select r.lead_id,
          case when r.done then 'done' when (r.line->>'sent')::int > 0 then 'writing' else 'waiting' end,
-         r.line, r.ord, coalesce((select a.pos from aud a where a.lead_id = r.lead_id), 0)
+         r.line, r.ord, coalesce(a.pos, 0)
     from rl r
+    left join aud a on a.lead_id = r.lead_id
   union all
   select a.lead_id, 'waiting',
          jsonb_build_object('lead_id', a.lead_id, 'business_name', a.business_name, 'sent', 0, 'added_at', null),
@@ -24068,7 +25480,7 @@ begin
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
         from public.sequence_sends s
         left join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
-       where s.lead_id is not null and ( s.tenant_id = p_tenant_id
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.sequence_id is not null
          and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error))))
     ),
     sent as (
@@ -24239,6 +25651,7 @@ COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_
 CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RETURNS TABLE(lead_id uuid, line jsonb, ord timestamp with time zone, done boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
+    SET work_mem TO '64MB'
     AS $$
   with sends as (
     -- left_at: when an email left (sent, or failed by a receipt after it left: email_left), else null.
@@ -24281,7 +25694,9 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
       join public.lead_searches q on q.id = r.lead_search_id and q.via in ('chosen', 'import') and q.removed_at is null
       join public.lead_search_members m on m.search_id = q.id and m.blanked_at is null and m.class = 'qualified' and m.counted
      where r.id = p_root_id and r.tenant_id = p_tenant_id
-       and not exists (select 1 from per p where p.lead_id = m.lead_id)
+       -- A hash of the walk, whatever is guessed of it (00572). Neither side is ever null: lead_id is not null on a member,
+       -- and sends leaves out a send with no lead.
+       and m.lead_id not in (select p.lead_id from per p)
   ),
   facts as (
     select x.*, l.business_name, l.stage, l.closed_reason, l.email_state, l.resume_at, l.booked_at, l.reach_out_stopped_at,
@@ -24772,6 +26187,12 @@ begin
       if public.reach_out_given_up(v_send.created_at) then
         raise exception 'This email waited two weeks for your answer and was given up.' using errcode = '22023';
       end if;
+      -- Words typed for this lead that hold no line have no opening to write: they are the member's (00545).
+      if exists (select 1 from public.sequence_lead_words w
+                  where w.step_id = v_send.step_id and w.lead_id = v_send.lead_id
+                    and w.body !~* '\{\{\s*opening\s*\}\}') then
+        raise exception 'You wrote this email. Use the sequence''s words first.' using errcode = '22023';
+      end if;
       -- The opening it replaces, as it stood, kept once: a second press while the first is written undoes to the first.
       v_was := case
         when v_send.opening is null and v_send.rewrite_asked ? 'was' then v_send.rewrite_asked->'was'
@@ -25117,7 +26538,7 @@ CREATE FUNCTION public.reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_
         then 'suppressed'
       -- Never twice by the workspace: a send of any reach-out, bar one in a run its owner skipped or one taken back.
       when exists (select 1 from public.sequence_sends ro
-                    where ro.lead_id is not null and ( ro.tenant_id = l.tenant_id and ro.lead_id = l.id
+                    where ro.lead_id is not null and ( ro.tenant_id = l.tenant_id and ro.lead_id = l.id and ro.sequence_id is not null
                       and not (ro.state = 'skipped' and ro.reason in ('run_canceled', 'owner_took_back', 'moved'))))
         then 'written'
       -- One business written to once: the finder saw it share a number, an own-domain address or a site with another.
@@ -25948,6 +27369,74 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.rename_mailbox(p_mailbox_id uuid, p_from_name text) IS 'An owner, or the partner who set the workspace up, changes the name customers see beside the workspace''s email address. The address itself is never changed.';
+
+
+--
+-- Name: reply_draft_uses(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reply_draft_uses(p_days integer) RETURNS TABLE(ours boolean, use text, n bigint)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select t.ours, m.meta -> 'draft' ->> 'use', count(*)
+    from public.messages m
+    join public.tenants t on t.id = m.tenant_id
+   where m.created_at >= now() - make_interval(days => greatest(p_days, 1))
+     and m.direction = 'outbound'
+     and m.meta -> 'draft' ->> 'use' is not null
+   group by t.ours, m.meta -> 'draft' ->> 'use';
+$$;
+
+
+--
+-- Name: FUNCTION reply_draft_uses(p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reply_draft_uses(p_days integer) IS 'How the replies members sent over a window used the thread''s draft (00539, decision 0093): as written, edited or not used, by whether the workspace is ours. Health''s number.';
+
+
+--
+-- Name: reply_drafts_due(integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reply_drafts_due(p_rules integer, p_limit integer DEFAULT 50) RETURNS TABLE(tenant_id uuid, conversation_id uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select e.tenant_id, e.conversation_id
+    from public.escalations e
+    left join public.conversation_drafts d
+      on d.tenant_id = e.tenant_id
+     and d.conversation_id = e.conversation_id
+     and d.kind = case when e.reason = 'callback' then 'brief' else 'reply' end
+   where e.state = 'open'
+     and e.reason not in ('opt_out', 'booking_request')
+     and (
+       d.id is null
+       or d.rules is distinct from p_rules
+       or d.for_message_id is distinct from (
+         select m.id
+           from public.messages m
+          where m.tenant_id = e.tenant_id and m.conversation_id = e.conversation_id and m.sender = 'customer'
+          order by m.created_at desc
+          limit 1
+       )
+       or (d.state = 'writing' and d.made_at < now() - interval '5 minutes')
+       or (d.state = 'failed' and d.why_failed = 'not_drafted' and d.tries < 3 and d.made_at < now() - interval '15 minutes')
+       or (d.state = 'failed' and d.why_failed in ('budget', 'may_not_spend', 'no_receptionist') and d.made_at < now() - interval '12 hours')
+     )
+   -- The newest first: a hold nothing can be drafted for (a window shut) is asked about every tick, and never starves one.
+   order by e.created_at desc
+   limit greatest(p_limit, 0);
+$$;
+
+
+--
+-- Name: FUNCTION reply_drafts_due(p_rules integer, p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.reply_drafts_due(p_rules integer, p_limit integer) IS 'The open holds whose draft is owed another look (00538): none kept, another edition, an older message, a claim that died, or a failure due another try. contracts replyDraftOwed still says whether each is owed.';
 
 
 --
@@ -27656,9 +29145,9 @@ end $$;
 CREATE TABLE public.sequence_sends (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
-    sequence_id uuid NOT NULL,
+    sequence_id uuid,
     step_id uuid,
-    batch_id uuid NOT NULL,
+    batch_id uuid,
     contact_id uuid,
     lead_id uuid,
     state text NOT NULL,
@@ -27698,6 +29187,7 @@ CREATE TABLE public.sequence_sends (
     CONSTRAINT sequence_sends_drafted_is_whole CHECK ((((state <> 'drafted'::text) OR ((drafted_at IS NOT NULL) AND (draft IS NOT NULL))) AND ((draft IS NULL) OR ((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 16000))))),
     CONSTRAINT sequence_sends_handed_is_dated CHECK (((state <> 'handed'::text) OR (sent_at IS NOT NULL))),
     CONSTRAINT sequence_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text])))),
+    CONSTRAINT sequence_sends_own_is_a_leads CHECK ((((sequence_id IS NOT NULL) AND (batch_id IS NOT NULL)) OR ((sequence_id IS NULL) AND (batch_id IS NULL) AND (step_id IS NULL) AND (lead_id IS NOT NULL)))),
     CONSTRAINT sequence_sends_planned_is_timed CHECK (((state <> 'planned'::text) OR (send_at IS NOT NULL))),
     CONSTRAINT sequence_sends_reason_check CHECK (((lead_id IS NULL) OR (reason IS NULL) OR (char_length(reason) <= 60))),
     CONSTRAINT sequence_sends_rewrite_asked_shape CHECK (((rewrite_asked IS NULL) OR ((jsonb_typeof(rewrite_asked) = 'object'::text) AND (((rewrite_asked -> 'change'::text) IS NULL) OR (jsonb_typeof((rewrite_asked -> 'change'::text)) = 'null'::text) OR ((char_length((rewrite_asked ->> 'change'::text)) >= 1) AND (char_length((rewrite_asked ->> 'change'::text)) <= 280))) AND (octet_length((rewrite_asked)::text) <= 4000)))),
@@ -27712,7 +29202,7 @@ CREATE TABLE public.sequence_sends (
 -- Name: TABLE sequence_sends; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequence_sends IS 'Decision 0060: one message of a sequence to one person. A customer''s (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead''s (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox''s day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team.';
+COMMENT ON TABLE public.sequence_sends IS 'Decision 0060: one message of a sequence to one person. A customer''s (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead''s (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox''s day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team. A lead''s own email (00540) has no sequence, batch or step: a member pressed Send, or said they sent it; it is born queued or sent, the mailbox''s day counts it and a reply finds it.';
 
 
 --
@@ -28226,6 +29716,35 @@ COMMENT ON FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids uu
 
 
 --
+-- Name: sequence_enrollments_on_erase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_enrollments_on_erase() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if NEW.erased_at is not null and OLD.erased_at is null then
+    perform public.sequence_enrollments_leave(
+      NEW.tenant_id,
+      array(select e.id from public.sequence_enrollments e
+             where e.tenant_id = NEW.tenant_id and e.state = 'in'
+               and case when TG_TABLE_NAME = 'leads' then e.lead_id = NEW.id
+                        else e.lead_id is null and e.contact_id = NEW.id end),
+      'erased', null);
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_enrollments_on_erase(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_enrollments_on_erase() IS 'When a person or a lead is erased, each place of theirs that still stands in a sequence leaves as erased (sequence_enrollments_leave), and a send of theirs not yet gone is skipped with it (00548). A person''s own places are a customer''s; a lead''s go when the lead is erased.';
+
+
+--
 -- Name: sequence_evidence(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -28457,6 +29976,85 @@ COMMENT ON FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uuid
 
 
 --
+-- Name: sequence_lead_words_set(uuid, uuid, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text DEFAULT NULL::text, p_body text DEFAULT NULL::text, p_checked_words text DEFAULT NULL::text, p_needs_line boolean DEFAULT false) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_step public.sequence_steps%rowtype;
+  v_send public.sequence_sends%rowtype;
+  v_was  public.sequence_lead_words%rowtype;
+begin
+  if v_user is null then raise exception 'Sign in required.' using errcode = '28000'; end if;
+  select * into v_step from public.sequence_steps where id = p_step_id;
+  if not found or not public.is_acting_member(v_step.tenant_id) then
+    raise exception 'That step has gone.' using errcode = 'P0002';
+  end if;
+  if v_step.kind <> 'reach_out' or v_step.hand is not null then
+    raise exception 'Only an email takes words.' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.leads l
+                  where l.id = p_lead_id and l.tenant_id = v_step.tenant_id
+                    and l.erased_at is null and l.blanked_at is null) then
+    raise exception 'Lead not found.' using errcode = 'P0002';
+  end if;
+  -- The lead's latest send at this step, held against a claim while its words change: a claim waits, or finds them.
+  select * into v_send from public.sequence_sends s
+   where s.tenant_id = v_step.tenant_id and s.lead_id = p_lead_id and s.step_id = p_step_id
+   order by s.created_at desc, s.id desc
+   limit 1
+   for update;
+  if v_send.state in ('claimed', 'queued', 'sent', 'handed') then
+    raise exception 'That email has gone.' using errcode = '22023';
+  end if;
+  if v_send.state = 'drafted' then
+    raise exception 'It''s yours to send now: change it in your mail app.' using errcode = '22023';
+  end if;
+  select * into v_was from public.sequence_lead_words w
+   where w.step_id = p_step_id and w.lead_id = p_lead_id
+   for update;
+  if p_body is null then
+    delete from public.sequence_lead_words w where w.step_id = p_step_id and w.lead_id = p_lead_id;
+  else
+    insert into public.sequence_lead_words as w (tenant_id, step_id, lead_id, subject, body, written_by)
+    values (v_step.tenant_id, p_step_id, p_lead_id, p_subject, p_body, v_user)
+    on conflict (step_id, lead_id) do update
+      set subject = excluded.subject, body = excluded.body, written_by = excluded.written_by, written_at = now();
+  end if;
+  if v_send.state in ('planned', 'held') then
+    if p_needs_line and v_send.opening is null and v_send.checked_at is not null then
+      -- Checked with no line, and these words name one: back to be checked, as words changed always are (R5).
+      perform public.reach_out_recheck(array[v_send.id], v_step.tenant_id);
+    else
+      -- A check under way read other words, and writes nothing now. One done stands: what it held about the business still
+      -- holds, and a held email stays held for its owner's answer. Its mark is of these words, so the sender sends them.
+      update public.sequence_sends s
+         set check_gen = s.check_gen + 1, check_started_at = null,
+             checked_words = case when s.checked_at is not null then p_checked_words else s.checked_words end
+       where s.id = v_send.id;
+    end if;
+  end if;
+  return jsonb_build_object(
+    'step_id', p_step_id,
+    'lead_id', p_lead_id,
+    'send_id', v_send.id,
+    'was', case when v_was.step_id is null then null
+                else jsonb_build_object('subject', v_was.subject, 'body', v_was.body) end);
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean) IS 'One lead''s own words at one step of a sequence (00545, decision 0096), typed on the lead''s sheet: a body saves them, none puts the step''s words back. Refused once that email has gone or is its owner''s to send. Moves no send''s state. Answers what stood before, for Undo.';
+
+
+--
 -- Name: sequence_leads_leave(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -28656,7 +30254,7 @@ begin
   end if;
   -- One business gets one sequence: a lead written to, or handed an email to send, stays where it is.
   if exists (select 1 from public.sequence_sends s
-              where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+              where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null
                 and s.state in ('claimed', 'queued', 'sent', 'handed', 'drafted')) then
     raise exception 'They were written to already: a business gets one sequence.' using errcode = '23505';
   end if;
@@ -29009,24 +30607,45 @@ $$;
 
 
 --
--- Name: sequence_places(uuid, uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+-- Name: sequence_places(uuid, uuid, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid DEFAULT NULL::uuid, p_lead_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(grp text, sequence_id uuid, contact_id uuid, lead_id uuid, enrollment_id uuid, send_id uuid, batch_id uuid, place integer, at timestamp with time zone, why text, hold_detail text, draft jsonb, reply jsonb)
-    LANGUAGE sql STABLE
+CREATE FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid DEFAULT NULL::uuid, p_lead_ids uuid[] DEFAULT NULL::uuid[], p_standing_leads boolean DEFAULT false) RETURNS TABLE(grp text, sequence_id uuid, contact_id uuid, lead_id uuid, enrollment_id uuid, send_id uuid, batch_id uuid, place integer, at timestamp with time zone, why text, hold_detail text, draft jsonb, reply jsonb)
+    LANGUAGE plpgsql STABLE
     SET search_path TO ''
-    AS $$
-  with latest as (
+    SET work_mem TO '64MB'
+    AS $_$
+begin
+  -- One text, planned with the values each call hands it, so a list of leads or a sequence is an index condition. A SQL
+  -- function is planned without them: "p_lead_ids is null or ..." read every send of the workspace, whatever it was asked.
+  -- Each person is one column, so a walk is read against another by who, with `not in`: Postgres answers that from a hash of
+  -- the other walk, whatever it guesses of how many there are (00568). As a `not exists` it is a join, and the guess chooses
+  -- the join: too low, and it reads every pair, in memory, touching no more blocks. Neither side of a `not in` here is ever
+  -- null: a step's and an enrollment's sequence and a member's lead are not null columns, a placed send has a batch and so a
+  -- sequence (sequence_sends_own_is_a_leads), and a person is someone (_someone).
+  return query execute $q$
+  -- Each one's newest send in each sequence, picked from the sends alone, its batch read after by its key: joined before the
+  -- pick, a read of a few leads could start from the workspace's batches and walk every send in each (00566). A send with
+  -- no batch is a lead's own, with no sequence (sequence_sends_own_is_a_leads), and stands nowhere here.
+  with newest as (
     select distinct on (s.sequence_id, coalesce(s.lead_id, s.contact_id))
-           s.sequence_id, s.id as send_id, s.batch_id, s.step_id, s.contact_id, s.lead_id, s.state, s.reason,
-           s.hold_detail, s.send_at, s.sent_at, s.drafted_at, s.created_at, s.draft, s.angle, b.state as batch_state,
-           b.scheduled_for
+           s.sequence_id, coalesce(s.lead_id, s.contact_id) as person, s.id as send_id, s.batch_id, s.step_id, s.contact_id,
+           s.lead_id, s.state, s.reason, s.hold_detail, s.send_at, s.sent_at, s.drafted_at, s.created_at
       from public.sequence_sends s
-      join public.sequence_batches b on b.id = s.batch_id
-     where s.tenant_id = p_tenant_id
-       and (p_sequence_id is null or s.sequence_id = p_sequence_id)
-       and (p_lead_ids is null or s.lead_id = any (p_lead_ids))
+     where s.tenant_id = $1
+       and ($2 is null or s.sequence_id = $2)
+       and ($3 is null or (s.lead_id is not null and s.lead_id = any ($3)))
+       -- What stands of a lead is an open send, the newest of its lead there: this walks the open ones, not every one sent.
+       and (not $4 or (s.lead_id is not null and s.state in ('held', 'drafted', 'queued', 'planned', 'claimed')
+                       and not exists (select 1 from public.sequence_sends n
+                                        where n.tenant_id = $1 and n.lead_id = s.lead_id and n.sequence_id = s.sequence_id
+                                          and (n.created_at, n.id) > (s.created_at, s.id))))
      order by s.sequence_id, coalesce(s.lead_id, s.contact_id), s.created_at desc, s.id desc
+  ),
+  latest as (
+    select n.*, b.state as batch_state, b.scheduled_for
+      from newest n
+      join public.sequence_batches b on b.id = n.batch_id
   ),
   placed as (
     select l.*, st.place,
@@ -29044,60 +30663,65 @@ CREATE FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid DEFA
   -- Each one's latest place in each sequence: someone who came back (started again, moved back) is where they are now.
   enrolled as (
     select distinct on (e.sequence_id, coalesce(e.lead_id, e.contact_id))
-           e.id as enrollment_id, e.sequence_id, e.contact_id, e.lead_id, e.state, e.place, e.why, e.next_at,
-           e.sent_at, coalesce(e.ended_at, e.moved_at) as at
+           e.id as enrollment_id, e.sequence_id, coalesce(e.lead_id, e.contact_id) as person, e.contact_id, e.lead_id, e.state,
+           e.place, e.why, e.next_at, e.sent_at, coalesce(e.ended_at, e.moved_at) as at
       from public.sequence_enrollments e
-     where e.tenant_id = p_tenant_id
-       and (p_sequence_id is null or e.sequence_id = p_sequence_id)
-       and (p_lead_ids is null or e.lead_id = any (p_lead_ids))
+     where e.tenant_id = $1
+       and ($2 is null or e.sequence_id = $2)
+       and ($3 is null or (e.lead_id is not null and e.lead_id = any ($3)))
+       and (not $4 or e.lead_id is not null)
      order by e.sequence_id, coalesce(e.lead_id, e.contact_id), e.entered_at desc, e.id desc
   ),
   between as (
     select e.* from enrolled e
      where e.state = 'in'
-       and not exists (select 1 from placed p where p.grp is not null and p.sequence_id = e.sequence_id
-                         and coalesce(p.lead_id, p.contact_id) = coalesce(e.lead_id, e.contact_id))
+       and (e.sequence_id, e.person) not in (select p.sequence_id, p.person from placed p where p.grp is not null)
   ),
   replied as (
     select distinct on (s.sequence_id, coalesce(r.lead_id, r.contact_id))
-           s.sequence_id, r.contact_id, r.lead_id, r.conversation_id, r.intent, r.summary, r.read_at, st.place
+           s.sequence_id, coalesce(r.lead_id, r.contact_id) as person, r.contact_id, r.lead_id, r.conversation_id, r.intent,
+           r.summary, r.read_at, st.place
       from public.sequence_replies r
-      join public.sequence_sends s on s.id = r.send_id and s.tenant_id = p_tenant_id
-                                  and (p_sequence_id is null or s.sequence_id = p_sequence_id)
+      join public.sequence_sends s on s.id = r.send_id and s.tenant_id = $1
+                                  and ($2 is null or s.sequence_id = $2)
       left join public.sequence_steps st on st.id = s.step_id
-     where r.tenant_id = p_tenant_id and r.undone_at is null and r.answered_message_id is null
+     where r.tenant_id = $1 and r.undone_at is null and r.answered_message_id is null
        and r.claim in ('person', 'owner') and r.intent in ('interested', 'question')
        and r.read_at > now() - interval '14 days'
-       and (p_lead_ids is null or r.lead_id = any (p_lead_ids))
+       and ($3 is null or (r.lead_id is not null and r.lead_id = any ($3)))
+       and (not $4 or r.lead_id is not null)
      order by s.sequence_id, coalesce(r.lead_id, r.contact_id), r.read_at desc
   ),
   listed as (
     select r.sequence_id, m.lead_id, m.created_at
       from public.sequence_steps r
       join public.lead_search_members m on m.search_id = r.lead_search_id and m.tenant_id = r.tenant_id
-     where r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first'
-       and (p_sequence_id is null or r.sequence_id = p_sequence_id)
-       and (p_lead_ids is null or m.lead_id = any (p_lead_ids))
+     where r.tenant_id = $1 and r.kind = 'reach_out' and r.trigger = 'lead_first'
+       and ($2 is null or r.sequence_id = $2)
+       and ($3 is null or m.lead_id = any ($3))
        and m.blanked_at is null and m.class = 'qualified' and m.counted
-       and not exists (select 1 from placed p where p.grp is not null and p.sequence_id = r.sequence_id
-                         and p.lead_id = m.lead_id)
+       and (r.sequence_id, m.lead_id) not in (select p.sequence_id, p.person from placed p where p.grp is not null)
        -- Never planned here, or moved out and back since (its place there left as moved, the list holding it again).
-       and not exists (select 1 from enrolled e where e.sequence_id = r.sequence_id and e.lead_id = m.lead_id
-                         and not (e.state = 'left' and e.why = 'moved'))
+       and (r.sequence_id, m.lead_id) not in (select e.sequence_id, e.person from enrolled e
+                                               where not (e.state = 'left' and e.why = 'moved'))
   ),
   rows_of as (
     select p.grp, p.sequence_id, p.contact_id, p.lead_id, null::uuid as enrollment_id, p.send_id, p.batch_id, p.place,
            p.at, p.reason as why, p.hold_detail,
-           case when p.grp = 'to_send' and jsonb_typeof(p.draft) = 'object'
-                     and jsonb_typeof(p.draft -> 'to') = 'string' and jsonb_typeof(p.draft -> 'subject') = 'string'
-                     and jsonb_typeof(p.draft -> 'text') = 'string'
-                then jsonb_build_object(
-                       'to', p.draft ->> 'to',
-                       'subject', p.draft ->> 'subject',
-                       'text', p.draft ->> 'text',
-                       'follow_up', coalesce(jsonb_typeof(p.draft -> 'parent_id') = 'string', false),
-                       'angle', p.angle,
-                       'drafted_at', coalesce(p.drafted_at, p.created_at))
+           -- An email theirs to send says its words: read for those alone, so the walk above carries no draft.
+           case when p.grp = 'to_send' and not $4 then (
+             select case when jsonb_typeof(d.draft) = 'object'
+                              and jsonb_typeof(d.draft -> 'to') = 'string' and jsonb_typeof(d.draft -> 'subject') = 'string'
+                              and jsonb_typeof(d.draft -> 'text') = 'string'
+                         then jsonb_build_object(
+                                'to', d.draft ->> 'to',
+                                'subject', d.draft ->> 'subject',
+                                'text', d.draft ->> 'text',
+                                'follow_up', coalesce(jsonb_typeof(d.draft -> 'parent_id') = 'string', false),
+                                'angle', d.angle,
+                                'drafted_at', coalesce(p.drafted_at, p.created_at))
+                    end
+               from public.sequence_sends d where d.id = p.send_id)
            end as draft,
            null::jsonb as reply
       from placed p where p.grp is not null
@@ -29108,30 +30732,39 @@ CREATE FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid DEFA
     union all
     select case when e.state = 'done' then 'done' else 'left' end, e.sequence_id, e.contact_id, e.lead_id,
            e.enrollment_id, null, null, e.place, e.at, e.why, null, null::jsonb, null::jsonb
-      from enrolled e where e.state in ('done', 'left')
-       and not exists (select 1 from listed l where l.sequence_id = e.sequence_id and l.lead_id = e.lead_id)
+      from enrolled e where e.state in ('done', 'left') and not $4
+       and (e.sequence_id, e.person) not in (select l.sequence_id, l.lead_id from listed l)
     union all
     select 'queued', l.sequence_id, null, l.lead_id, null, null, null, 1, l.created_at, null, null, null::jsonb,
            null::jsonb
       from listed l
     union all
-    select 'replied', rp.sequence_id, rp.contact_id, rp.lead_id,
-           (select e.enrollment_id from enrolled e
-             where e.state = 'in' and e.sequence_id = rp.sequence_id
-               and coalesce(e.lead_id, e.contact_id) = coalesce(rp.lead_id, rp.contact_id)
-             limit 1),
+    select 'replied', rp.sequence_id, rp.contact_id, rp.lead_id, e.enrollment_id,
            null, null, rp.place, rp.read_at, rp.intent, null, null::jsonb,
            jsonb_build_object('intent', rp.intent, 'summary', rp.summary, 'conversation_id', rp.conversation_id)
       from replied rp
+      -- Each is one row a person a sequence and already in that order: this walks the two side by side. What stands never asks.
+      left join enrolled e on not $4 and e.state = 'in' and e.sequence_id = rp.sequence_id and e.person = rp.person
   )
-  -- Who wrote back shows there alone, not again where their place stands.
+  -- Who wrote back shows there alone, not again where their place stands. This stays a `not exists`: a reply to a lead's own
+  -- send has no sequence, and one null in a `not in` would hide everyone it might be. Under the `or` it is no join to choose,
+  -- and Postgres takes its hash at any guess: it runs for two rows at the least, and a walk of them costs more than the hash.
   select r.grp, r.sequence_id, r.contact_id, r.lead_id, r.enrollment_id, r.send_id, r.batch_id, r.place, r.at, r.why,
          r.hold_detail, r.draft, r.reply
     from rows_of r
    where r.grp = 'replied'
       or not exists (select 1 from replied rp where rp.sequence_id = r.sequence_id
-                       and coalesce(rp.lead_id, rp.contact_id) = coalesce(r.lead_id, r.contact_id))
-$$;
+                       and rp.person = coalesce(r.lead_id, r.contact_id))
+  $q$ using p_tenant_id, p_sequence_id, p_lead_ids, coalesce(p_standing_leads, false);
+end
+$_$;
+
+
+--
+-- Name: FUNCTION sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean) IS 'Where each person or lead stands in each sequence, the one reader of a place (00459). Planned with the values each call hands it (00554), so p_lead_ids and p_sequence_id are index conditions; p_standing_leads asks only what stands of a workspace''s leads, and walks their open sends. An email theirs to send says its words, read for those rows alone. Each one''s newest send is picked from the sends before its batch is read (00566), so a read of a few leads never walks a batch. One walk is read against another by a hash of it (00568), so how long this takes does not rest on what the planner guesses.';
 
 
 --
@@ -29196,7 +30829,8 @@ CREATE FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid
     cross join lateral public.reach_out_why_not(p_tenant_id, array[x.lead_id], st.include_unconfirmed) as w(wl, why)
    where x.lead_id is not null
      and exists (select 1 from public.memberships m
-                  where m.user_id = (select auth.uid()) and m.tenant_id = p_tenant_id)
+                  where m.user_id = (select auth.uid()) and m.tenant_id = p_tenant_id
+                    and (m.role <> 'partner' or public.session_shows_second_factor()))
 $$;
 
 
@@ -29204,7 +30838,7 @@ $$;
 -- Name: FUNCTION sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) IS 'Why each lead on a sequence''s list would not be planned by its next batch (00533): reach_out_why_not at the list''s own setting (its first step''s include_unconfirmed), or null where it would be. For a member of the workspace alone, and a sequence of it; the places'' reads ask it so a lead no batch can take says why instead of "In its next batch".';
+COMMENT ON FUNCTION public.sequence_queued_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_sequence_ids uuid[]) IS 'Why each lead on a sequence''s list would not be planned by its next batch (00533): reach_out_why_not at the list''s own setting (its first step''s include_unconfirmed), or null where it would be. For a member of the workspace alone, a partner''s seat once its session has shown the code (00542), and a sequence of it; the places'' reads ask it so a lead no batch can take says why instead of "In its next batch".';
 
 
 --
@@ -29625,6 +31259,30 @@ end $$;
 
 
 --
+-- Name: sequence_sent_by_step(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) RETURNS TABLE(step_id uuid, sent bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$
+  select s.step_id, count(*)
+    from public.sequence_sends s
+   where s.tenant_id = p_tenant_id
+     and s.step_id = any (p_step_ids)
+     and s.state = 'sent'
+   group by s.step_id
+$$;
+
+
+--
+-- Name: FUNCTION sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) IS 'How many emails each step sent (decision 0113, 00567): one read of the sends, what How it reaches out counts beside a claim, under the row security of whoever asks. Sent alone: a planned, held or skipped send never reached anyone; a step that sent nothing is not in the answer.';
+
+
+--
 -- Name: sequence_stale_sends(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -29943,6 +31601,32 @@ end $$;
 
 
 --
+-- Name: sequence_steps_hand_out(text, text, timestamp with time zone, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select public.jobs_hand_out(
+    p_job_kind,
+    array(
+      select distinct (d.step ->> 'tenant_id')::uuid
+        from public.sequence_steps_due(p_kind, p_at, p_last_hour, 2147483647) d
+    ),
+    p_spread_seconds
+  );
+$$;
+
+
+--
+-- Name: FUNCTION sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) IS 'A job for each workspace with a step of that kind due, judged by sequence_steps_due (00569, decision 0115). Answers how many it wrote.';
+
+
+--
 -- Name: sequence_steps_of(uuid, uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -30122,21 +31806,24 @@ end $$;
 -- Name: sequence_unchecked(integer, integer, integer, uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid DEFAULT NULL::uuid, p_send_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(send jsonb, check_gen integer, template_id uuid, template_language text, signed_by text, included_for text[], business_name text, category text, city text, region text, rating numeric, reviews integer, website_host text, hours jsonb, about text, email text, why_it_fits text, what_you_asked text, site_listings integer, name_listings integer, email_domain_shared boolean, reviews_dist jsonb, claimed boolean)
+CREATE FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid DEFAULT NULL::uuid, p_send_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(send jsonb, check_gen integer, template_id uuid, template_language text, signed_by text, included_for text[], business_name text, category text, city text, region text, rating numeric, reviews integer, website_host text, hours jsonb, about text, email text, why_it_fits text, what_you_asked text, site_listings integer, name_listings integer, email_domain_shared boolean, reviews_dist jsonb, claimed boolean, due_soon boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 #variable_conflict use_column
 declare
   v_ids uuid[];
+  v_soon timestamptz := now() + make_interval(mins => greatest(coalesce(p_ahead_minutes, 0), 0));
 begin
   if coalesce(p_limit, 0) <= 0 or coalesce(p_per_workspace, 0) <= 0 then
     return;
   end if;
   with candidates as (
     select s.id,
+           -- Those due soon first (decision 0098): an email days off never keeps one due today waiting.
            row_number() over (partition by s.tenant_id
-                              order by coalesce(s.check_after, s.created_at), s.send_at, s.id) as turn,
+                              order by (b.state = 'pending_approval' or s.send_at <= v_soon) desc,
+                                       coalesce(s.check_after, s.created_at), s.send_at, s.id) as turn,
            coalesce(s.check_after, s.created_at) as waiting_since
       from public.sequence_sends s
       join public.sequence_batches b on b.id = s.batch_id
@@ -30146,9 +31833,6 @@ begin
        and b.state in ('pending_approval', 'scheduled', 'sending') and p.state = 'running' and r.state = 'running'
        and (s.check_after is null or s.check_after <= now())
        and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')
-       -- A send a person pressed is checked now, whatever its day (00505); the clock's own wait for its day otherwise.
-       and (p_send_ids is not null or b.state = 'pending_approval'
-            or s.send_at <= now() + make_interval(mins => greatest(coalesce(p_ahead_minutes, 0), 0)))
        and (p_tenant_id is null or s.tenant_id = p_tenant_id)
        and (p_send_ids is null or s.id = any (p_send_ids))
   ), picked as (
@@ -30178,8 +31862,10 @@ begin
                 order by x),
          rec.business_name, rec.category, rec.city, rec.region, rec.rating, rec.reviews, rec.website_host,
          rec.hours, rec.about, rec.email, rec.why_it_fits, rec.what_you_asked,
-         rec.site_listings, rec.name_listings, rec.email_domain_shared, rec.reviews_dist, rec.claimed
+         rec.site_listings, rec.name_listings, rec.email_domain_shared, rec.reviews_dist, rec.claimed,
+         (b.state = 'pending_approval' or s.send_at <= v_soon)
     from public.sequence_sends s
+    join public.sequence_batches b on b.id = s.batch_id
     join public.sequence_steps p on p.id = s.step_id
     join public.sequence_steps r on r.id = s.sequence_id
     cross join lateral public.reach_out_record(s.tenant_id, r.lead_search_id, s.lead_id) rec
@@ -30192,7 +31878,7 @@ end $$;
 -- Name: FUNCTION sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]) IS 'The sends to leads the check clock takes this tick, leased under their row locks, round-robin by workspace, each with its words'' step, the name its sequence signs with, the holds its owner included it past and its business''s record (00197 reach_out_unchecked over sequence_sends); with p_send_ids, those sends alone and whatever their day (00505: the check of a pressed rewrite). Service role only (0060).';
+COMMENT ON FUNCTION public.sequence_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid, p_send_ids uuid[]) IS 'The sends to leads the check clock takes this tick, leased under their row locks, round-robin by workspace, every planned send whatever its day (decision 0098): those waiting for their owner or due within p_ahead_minutes first, and saying so (due_soon), each with its words'' step, the name its sequence signs with, the holds its owner included it past and its business''s record (00197 reach_out_unchecked over sequence_sends); with p_send_ids, those sends alone (00505: the check of a pressed rewrite). Service role only (0060).';
 
 
 --
@@ -31666,21 +33352,6 @@ COMMENT ON FUNCTION public.sweep_mark_alerted(p_alerted text[], p_healthy text[]
 
 
 --
--- Name: sweep_recent_responses(integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.sweep_recent_responses(p_limit integer DEFAULT 10) RETURNS TABLE(request_id bigint, status_code integer, body text, created_at timestamp with time zone)
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public', 'net'
-    AS $$
-  select r.id, r.status_code, left(r.content, 500), r.created
-    from net._http_response r
-   order by r.created desc
-   limit greatest(1, least(p_limit, 100));
-$$;
-
-
---
 -- Name: sweep_schedules(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32612,6 +34283,34 @@ COMMENT ON FUNCTION public.trigger_deadman_sweep() IS 'Asks the edge to flag esc
 
 
 --
+-- Name: trigger_drafts_sweep(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trigger_drafts_sweep() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (
+       select 1 from public.escalations e
+        where e.state = 'open' and e.reason not in ('opt_out', 'booking_request')
+     ) then
+    return public.request_sweep('drafts', '/api/cron/drafts');
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('drafts', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION trigger_drafts_sweep(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trigger_drafts_sweep() IS 'The drafts sweep''s clock (decision 0093). Calls the edge (/api/cron/drafts) only while a hold is open; otherwise records that it looked.';
+
+
+--
 -- Name: trigger_google_sweep(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -32720,8 +34419,22 @@ begin
   -- whose lead_round_start job died before it wrote a run sits in 'queued'
   -- with no run at all, and nothing but the sweep can end it and give its
   -- allowance and budget back (lead_rounds_live serves this predicate).
+  -- And a lead just found with a site and no mark, whose round has ended by
+  -- the time the sweep's second try reaches it (leads_untouched_purge serves it).
   if exists (select 1 from public.lead_runs r where r.state in ('claimed', 'starting', 'running', 'unknown'))
-     or exists (select 1 from public.lead_rounds r where r.state <> 'ended') then
+     or exists (select 1 from public.lead_rounds r where r.state <> 'ended')
+     or exists (
+       select 1 from public.leads l
+        where l.found_at >= now() - interval '11 minutes'
+          and l.stage = 'ready'
+          and l.contact_id is null
+          and l.contacted_at is null
+          and l.exported_at is null
+          and l.erased_at is null
+          and l.blanked_at is null
+          and l.website_host is not null
+          and l.mark_path is null
+     ) then
     return public.request_sweep('leads', '/api/cron/leads');
   end if;
   insert into public.sweep_status (sweep, requested_at) values ('leads', now())
@@ -32734,7 +34447,7 @@ end $$;
 -- Name: FUNCTION trigger_leads_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_leads_sweep() IS 'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live or a round has not ended -- a round whose start job died sits queued with no run, and its reservation comes back only when something ends it; otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
+COMMENT ON FUNCTION public.trigger_leads_sweep() IS 'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live, a round has not ended -- a round whose start job died sits queued with no run, and its reservation comes back only when something ends it -- or a lead just found has a site and no mark, for the sweep''s second try; otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
 
 
 --
@@ -32912,8 +34625,7 @@ begin
         where s.lead_id is not null and ( s.state = 'planned' and s.checked_at is null
           and b.state in ('pending_approval', 'scheduled', 'sending') and p.state = 'running' and r.state = 'running'
           and (s.check_after is null or s.check_after <= now())
-          and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')
-          and (b.state = 'pending_approval' or s.send_at <= now() + interval '2 hours')))
+          and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')))
      or exists (select 1 from public.sequence_sends
                  where sequence_sends.lead_id is not null and ( state = 'held' and reason = 'check_unavailable' and hold_detail is null
                    and updated_at < now() - interval '1 hour')) then
@@ -32929,7 +34641,7 @@ end $$;
 -- Name: FUNCTION trigger_reach_out_check_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_reach_out_check_sweep() IS 'The reach-out check clock (Reach out, Part 4). Calls the edge only when a send waits to be checked within the horizon, or a check_unavailable hold is an hour old; otherwise records that it looked.';
+COMMENT ON FUNCTION public.trigger_reach_out_check_sweep() IS 'The reach-out check clock (Reach out, Part 4). Calls the edge only when a send waits to be checked, whatever its day (decision 0098), or a check_unavailable hold is an hour old; otherwise records that it looked.';
 
 
 --
@@ -33095,7 +34807,7 @@ end $$;
 -- Name: FUNCTION trigger_text_canary_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_text_canary_sweep() IS 'The daily text canary''s clock (00537): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
+COMMENT ON FUNCTION public.trigger_text_canary_sweep() IS 'The daily text canary''s clock (00579): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
 
 
 --
@@ -33123,7 +34835,7 @@ end $$;
 -- Name: FUNCTION trigger_texts_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_texts_sweep() IS 'The texts sweep''s clock (00536): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
+COMMENT ON FUNCTION public.trigger_texts_sweep() IS 'The texts sweep''s clock (00578): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
 
 
 --
@@ -33293,6 +35005,38 @@ COMMENT ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[
 
 
 --
+-- Name: words_seen(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_set uuid;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'not a member who may act here' using errcode = '42501';
+  end if;
+  update public.sequence_steps
+     set words_ok_at = now()
+   where id = p_step_id
+     and tenant_id = p_tenant_id
+     and words_ok_at is null
+  returning id into v_set;
+  return v_set is not null;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION words_seen(p_tenant_id uuid, p_step_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) IS 'A member pressed a card of Ask''s that showed this step''s words: they are taken as seen (0064, the answers canvas D3).';
+
+
+--
 -- Name: workspace_days(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -33327,6 +35071,27 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) IS 'A workspace''s rolled days between two dates, oldest first, for a member of that workspace (K10): the messages in and out by channel, the asks and how many were answered, how each customer message ended, what they asked about, and the model''s tokens by purpose. Never the operator''s columns (dollars, latency, provider failures). Checks membership itself (a partner''s seat only with its second factor shown); refuses a session with no user and a range over 800 days. A day rolled before 00316 reads null in the last three.';
+
+
+--
+-- Name: workspace_notices_on_erase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_notices_on_erase() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+begin
+  perform set_config('chanlytics.workspace_erasing', 'true', true);
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_notices_on_erase(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_notices_on_erase() IS 'Decision 0019 (00549): as a person''s row becomes a tombstone, says this transaction is an erasure (chanlytics.workspace_erasing, the transaction''s alone), and workspace_tell_at_commit says so on each notice it sends at the commit, so a tab can wait out a stream of erasures and nothing else.';
 
 
 --
@@ -33426,9 +35191,15 @@ begin
   if not found then
     return null;
   end if;
-  -- The clock now, at the commit: a read that began before it may not hold the change; one that began after it does.
+  -- The clock now, at the commit: a read that began before it may not hold the change; one that began after it does. And
+  -- whether this transaction erased someone (00549): unset, the setting reads null, and the notice says nothing.
   perform realtime.send(
-    kept.payload || jsonb_build_object('at', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+    kept.payload
+      || jsonb_build_object('at', to_char(clock_timestamp() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+      || case when current_setting('chanlytics.workspace_erasing', true) = 'true'
+              then jsonb_build_object('erasure', true)
+              else '{}'::jsonb
+         end,
     kept.event,
     kept.topic,
     true);
@@ -33440,7 +35211,7 @@ end $$;
 -- Name: FUNCTION workspace_tell_at_commit(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.workspace_tell_at_commit() IS 'Decision 0019 (00507): sends one notice a statement kept for its workspace, at the commit, with the commit''s clock as `at`, and deletes its row. A deferred constraint trigger on workspace_notices_pending.';
+COMMENT ON FUNCTION public.workspace_tell_at_commit() IS 'Decision 0019 (00507): sends one notice a statement kept for its workspace, at the commit, with the commit''s clock as `at`, and deletes its row, and says `erasure` where this transaction made a person a tombstone (00549). A deferred constraint trigger on workspace_notices_pending.';
 
 
 --
@@ -33606,9 +35377,9 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_model_check CHECK (((char_length(model) >= 1) AND (char_length(model) <= 80))),
     CONSTRAINT ai_usage_outcome_check CHECK ((outcome = ANY (ARRAY['answered'::text, 'fell_back'::text, 'refused'::text, 'rejected'::text, 'unreachable'::text, 'unreadable'::text]))),
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
-    CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text]))),
+    CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text, 'google'::text, 'elevenlabs'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'file_words'::text, 'file_hear'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -33619,7 +35390,7 @@ CREATE TABLE public.ai_usage (
 -- Name: TABLE ai_usage; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ai_usage IS 'One row per model call the platform made for a workspace (the model port, apps/edge/lib/model.ts): its purpose, the model asked and the one that answered, input, output, cache read and cache write tokens, list-price dollars, and what became of it. Kept 400 days (ai_usage_purge).';
+COMMENT ON TABLE public.ai_usage IS 'One row per model call the platform made for a workspace (the model port, apps/edge/lib/ai/model.ts): its purpose, the model asked and the one that answered, input, output, cache read and cache write tokens, list-price dollars, and what became of it. Kept 400 days (ai_usage_purge).';
 
 
 --
@@ -33676,6 +35447,69 @@ ALTER TABLE public.ai_usage ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     NO MAXVALUE
     CACHE 1
 );
+
+
+--
+-- Name: anthropic_profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.anthropic_profiles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    kind text NOT NULL,
+    user_id uuid,
+    tenant_id uuid,
+    reference_id text NOT NULL,
+    profile_id text,
+    claimed_at timestamp with time zone DEFAULT now() NOT NULL,
+    enforcement_status text DEFAULT 'unrestricted'::text NOT NULL,
+    enforcement_actions jsonb DEFAULT '[]'::jsonb NOT NULL,
+    enforcement_at timestamp with time zone,
+    CONSTRAINT anthropic_profiles_enforcement_status_check CHECK ((enforcement_status = ANY (ARRAY['unrestricted'::text, 'pending'::text, 'restricted'::text, 'banned'::text]))),
+    CONSTRAINT anthropic_profiles_kind_check CHECK ((kind = ANY (ARRAY['person'::text, 'workspace'::text]))),
+    CONSTRAINT anthropic_profiles_one_subject CHECK ((((kind = 'person'::text) AND (tenant_id IS NULL)) OR ((kind = 'workspace'::text) AND (user_id IS NULL))))
+);
+
+
+--
+-- Name: TABLE anthropic_profiles; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.anthropic_profiles IS 'Who Anthropic is told a model call is for (decision 0097): one row a signed-up person, one a workspace. A row whose subject went (both ids null) is the health sweep''s to delete at Anthropic, then here.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.reference_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.reference_id IS 'What the profile was created with as its reference_id (person:<id>, workspace:<id>): how a create whose answer was lost is found again.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.profile_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.profile_id IS 'Anthropic''s uprof_ id. Null while a create is in flight, or its answer was lost: the sweep adopts or lets go such a claim, and nothing creates a second.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.enforcement_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.enforcement_status IS 'What Anthropic last said (contracts enforcementStatusOf: a value it does not know reads restricted). Anything but unrestricted pauses the subject''s model calls.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.enforcement_actions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.enforcement_actions IS 'The open actions as Anthropic listed them: type, id, reason, action, opened_at, expires_at. No words of anyone''s.';
+
+
+--
+-- Name: COLUMN anthropic_profiles.enforcement_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.anthropic_profiles.enforcement_at IS 'When this platform last saw the status change.';
 
 
 --
@@ -33767,6 +35601,40 @@ COMMENT ON COLUMN public.appointments.expires_at IS 'When a request the receptio
 --
 
 COMMENT ON COLUMN public.appointments.conversation_id IS 'The thread a request the receptionist took came from (00443): where its hold is, and where the owner answers the customer.';
+
+
+--
+-- Name: ask_actions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ask_actions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    user_id uuid,
+    message_id uuid,
+    proposal_id text NOT NULL,
+    kind text NOT NULL,
+    by text NOT NULL,
+    origin_by text,
+    strangers boolean DEFAULT false NOT NULL,
+    reason text,
+    state text DEFAULT 'running'::text NOT NULL,
+    made_kind text,
+    made_id text,
+    code text,
+    at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    CONSTRAINT ask_actions_by_check CHECK ((by = ANY (ARRAY['press'::text, 'yes'::text, 'row'::text, 'lock_screen'::text, 'mail'::text]))),
+    CONSTRAINT ask_actions_origin_check CHECK (((origin_by IS NULL) OR (origin_by = ANY (ARRAY['asked'::text, 'rule'::text, 'follow_up'::text, 'idea'::text])))),
+    CONSTRAINT ask_actions_state_check CHECK ((state = ANY (ARRAY['running'::text, 'done'::text, 'failed'::text, 'undone'::text])))
+);
+
+
+--
+-- Name: TABLE ask_actions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ask_actions IS 'What Ask did and why it was allowed (the answers canvas, D16): closed sets and ids alone, the words stay on the turn.';
 
 
 --
@@ -33865,6 +35733,25 @@ CREATE TABLE public.ask_mornings (
 --
 
 COMMENT ON TABLE public.ask_mornings IS 'The day''s first turn, which Ask asks itself when a member who acts arrives (decision 0070): one a member a day, its thread the member''s own, its cards waiting on Today. Written through ask_morning_write; the member reads their own.';
+
+
+--
+-- Name: ask_notice_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ask_notice_days (
+    tenant_id uuid NOT NULL,
+    day date NOT NULL,
+    key text,
+    told_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE ask_notice_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ask_notice_days IS 'One morning per business (the answers canvas, D20): Ask looked, and told this key, if any. Written by the sweep.';
 
 
 --
@@ -34385,7 +36272,15 @@ CREATE TABLE public.conversation_drafts (
     words jsonb DEFAULT '{}'::jsonb NOT NULL,
     made_by uuid,
     made_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT conversation_drafts_kind_check CHECK ((kind = ANY (ARRAY['reply'::text, 'brief'::text])))
+    state text,
+    source text,
+    rules integer,
+    used text[] DEFAULT '{}'::text[] NOT NULL,
+    why_failed text,
+    tries smallint DEFAULT 0 NOT NULL,
+    CONSTRAINT conversation_drafts_kind_check CHECK ((kind = ANY (ARRAY['reply'::text, 'brief'::text]))),
+    CONSTRAINT conversation_drafts_source_check CHECK ((source = ANY (ARRAY['hold'::text, 'reach_out'::text, 'rewrite'::text]))),
+    CONSTRAINT conversation_drafts_state_check CHECK ((state = ANY (ARRAY['writing'::text, 'ready'::text, 'pitch'::text, 'asks'::text, 'failed'::text])))
 );
 
 
@@ -34394,6 +36289,48 @@ CREATE TABLE public.conversation_drafts (
 --
 
 COMMENT ON TABLE public.conversation_drafts IS 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_keep.';
+
+
+--
+-- Name: COLUMN conversation_drafts.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.state IS 'Where the draft stands (00538, decision 0093): writing, ready, pitch (not a customer''s, so no reply was written), asks, failed. Set writing by conversation_draft_claim, the rest by conversation_draft_write.';
+
+
+--
+-- Name: COLUMN conversation_drafts.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.source IS 'What asked for it: the thread''s hold, a reply to a sequence, a member''s change to it.';
+
+
+--
+-- Name: COLUMN conversation_drafts.rules; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.rules IS 'The edition of the rules it was written under (contracts REPLY_DRAFT_RULES): one from another edition is no draft, and the sweep writes it again.';
+
+
+--
+-- Name: COLUMN conversation_drafts.used; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.used IS 'What the drafter handed the model, as Why this? says it: said by code from its own prompt, never by the model.';
+
+
+--
+-- Name: COLUMN conversation_drafts.why_failed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.why_failed IS 'Why it was not written, where state is failed: a word of contracts ReplyDraftWhy.';
+
+
+--
+-- Name: COLUMN conversation_drafts.tries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.conversation_drafts.tries IS 'How many times it has been asked of this message and edition: the sweep stops at three.';
 
 
 --
@@ -34481,7 +36418,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text, 'appointment'::text, 'sequence'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text, 'not_a_customer'::text, 'reply_anyway'::text])))
 );
 
 
@@ -34622,9 +36559,7 @@ CREATE TABLE public.events (
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     version smallint DEFAULT 1 NOT NULL,
-    request_id text DEFAULT public.request_id_of_caller(),
-    aggregate_version integer,
-    causation_id uuid
+    request_id text DEFAULT public.request_id_of_caller()
 )
 PARTITION BY RANGE (created_at);
 
@@ -34644,20 +36579,6 @@ COMMENT ON COLUMN public.events.request_id IS 'The request this row was written 
 
 
 --
--- Name: COLUMN events.aggregate_version; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.events.aggregate_version IS 'The version of the record this event is about, as the door left it (decision 0032): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00334.';
-
-
---
--- Name: COLUMN events.causation_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.events.causation_id IS 'The event this one was written in answer to, where a reaction wrote it (decision 0032). Null for a fact that arrived from outside, and for every row written before 00334.';
-
-
---
 -- Name: events_default; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -34671,9 +36592,7 @@ CREATE TABLE public.events_default (
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     version smallint DEFAULT 1 NOT NULL,
-    request_id text DEFAULT public.request_id_of_caller(),
-    aggregate_version integer,
-    causation_id uuid
+    request_id text DEFAULT public.request_id_of_caller()
 );
 
 
@@ -34718,6 +36637,244 @@ CREATE TABLE public.fact_suggestions (
 --
 
 COMMENT ON TABLE public.fact_suggestions IS 'An owner''s correction, looked at once by the note sweep (decision 0063): a rewritten draft''s instruction or the owner''s own text after a hold. Most end as nothing; a lasting fact about the business waits on Today as a note to Keep or Dismiss.';
+
+
+--
+-- Name: files; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.files (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    status text NOT NULL,
+    source text NOT NULL,
+    source_ref text,
+    name text NOT NULL,
+    owner_named boolean DEFAULT false NOT NULL,
+    mime text NOT NULL,
+    bytes bigint NOT NULL,
+    width integer,
+    height integer,
+    fingerprint text NOT NULL,
+    claude_copy jsonb,
+    look jsonb,
+    look_status text DEFAULT 'waiting'::text NOT NULL,
+    look_edition integer,
+    looked_at timestamp with time zone DEFAULT now() NOT NULL,
+    shows text,
+    owner_shelved boolean DEFAULT false NOT NULL,
+    who_in_it text DEFAULT 'not_asked'::text NOT NULL,
+    created_by uuid,
+    removed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    made jsonb,
+    kind text DEFAULT 'image'::text NOT NULL,
+    media_ref text,
+    media_status text,
+    media_error text,
+    ready_at timestamp with time zone,
+    seconds numeric(8,2),
+    sound jsonb,
+    sound_said text,
+    CONSTRAINT files_kind_check CHECK ((kind = ANY (ARRAY['image'::text, 'video'::text]))),
+    CONSTRAINT files_look_status_check CHECK ((look_status = ANY (ARRAY['waiting'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
+    CONSTRAINT files_media_shape CHECK ((((kind = 'image'::text) AND (media_ref IS NULL) AND (media_status IS NULL)) OR ((kind = 'video'::text) AND (media_ref IS NOT NULL) AND (media_status IS NOT NULL)))),
+    CONSTRAINT files_media_status_check CHECK ((media_status = ANY (ARRAY['uploading'::text, 'processing'::text, 'ready'::text, 'failed'::text]))),
+    CONSTRAINT files_mime_check CHECK ((mime = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text, 'image/heic'::text, 'image/heif'::text, 'video/mp4'::text, 'video/quicktime'::text, 'video/webm'::text]))),
+    CONSTRAINT files_name_shape CHECK (((char_length(name) >= 1) AND (char_length(name) <= 60) AND (name = lower(name)) AND (name !~ '[[:space:][:cntrl:]/\\.<>"''&]'::text) AND (name !~ '^-|-$|--'::text))),
+    CONSTRAINT files_shows_check CHECK ((shows = ANY (ARRAY['storefront'::text, 'interior'::text, 'work'::text, 'team'::text, 'product'::text, 'menu'::text, 'logo'::text, 'graphic'::text, 'other'::text]))),
+    CONSTRAINT files_sound_said_shape CHECK (((sound_said IS NULL) OR ((char_length(sound_said) >= 1) AND (char_length(sound_said) <= 120)))),
+    CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text, 'made'::text]))),
+    CONSTRAINT files_status_check CHECK ((status = ANY (ARRAY['inbox'::text, 'filed'::text, 'set_aside'::text]))),
+    CONSTRAINT files_who_in_it_check CHECK ((who_in_it = ANY (ARRAY['not_asked'::text, 'no_one'::text, 'agreed'::text])))
+);
+
+
+--
+-- Name: TABLE files; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.files IS 'A business''s files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.';
+
+
+--
+-- Name: COLUMN files.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.status IS 'Where it stands: inbox (waits for a person''s word), filed (what Ask may use), set_aside.';
+
+
+--
+-- Name: COLUMN files.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.source IS 'Which road brought it: a member''s upload, the connected Google profile, the public Google listing, the business''s website, or made by Ask on a person''s press.';
+
+
+--
+-- Name: COLUMN files.source_ref; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.source_ref IS 'Where an import read it: the image''s address, or Google''s name for it, which can expire. Empty for an upload.';
+
+
+--
+-- Name: COLUMN files.name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.name IS 'What it goes by, to Ask and in the page''s words: lower case, hyphens, what it shows first. One per workspace among what is kept.';
+
+
+--
+-- Name: COLUMN files.owner_named; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.owner_named IS 'A person named it, so the look does not rename it.';
+
+
+--
+-- Name: COLUMN files.fingerprint; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.fingerprint IS 'sha256 of its first MiB and its size: the same file twice is one row, and a removed one is not imported again (files_let_go).';
+
+
+--
+-- Name: COLUMN files.claude_copy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.claude_copy IS 'The copy Anthropic holds for reading it: {id, expires_at, width, height}. Service role only, never shown to the model, a member or a tool.';
+
+
+--
+-- Name: COLUMN files.look; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.look IS 'What the look saw, in contracts FileLook. Written only by file_look_keep.';
+
+
+--
+-- Name: COLUMN files.look_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.look_status IS 'waiting, done, refused (the model would not read it, so a person sees it), or failed (no answer; the file stays usable, and the sweep tries again for a week).';
+
+
+--
+-- Name: COLUMN files.look_edition; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.look_edition IS 'The edition of the look''s rules it was read under (contracts FILE_LOOK_EDITION). A lower one is read again.';
+
+
+--
+-- Name: COLUMN files.looked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.looked_at IS 'When it was last looked at, or tried, or kept: what tells the sweep to leave it alone for a day.';
+
+
+--
+-- Name: COLUMN files.shows; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.shows IS 'Its shelf''s word: from the look, Google''s category, or a person. owner_shelved says a person chose it.';
+
+
+--
+-- Name: COLUMN files.who_in_it; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.who_in_it IS 'A person''s word alone: not_asked, no_one, or agreed. What the look counted is on look.people, and contracts whoStandsOf reads the two.';
+
+
+--
+-- Name: COLUMN files.removed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.removed_at IS 'A person removed it: hidden at once. file_purge lets its bytes go and takes the row.';
+
+
+--
+-- Name: COLUMN files.made; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.made IS 'How Ask made it (00553): {from, plan}. Empty on everything a person or an import brought. Read by the service role.';
+
+
+--
+-- Name: COLUMN files.kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.kind IS 'image or video (00556). A video is kept by the video platform; its folder holds only what is made of it.';
+
+
+--
+-- Name: COLUMN files.media_ref; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.media_ref IS 'A video''s id at the video platform (00556): what its webhook names it by. Service role only, never shown to a member or the model.';
+
+
+--
+-- Name: COLUMN files.media_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.media_status IS 'Where a video stands (00556): uploading (no page or Ask counts it yet), processing, ready, failed. Null for a picture.';
+
+
+--
+-- Name: COLUMN files.media_error; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.media_error IS 'Why the video platform could not prepare it, in its own code. Service role only.';
+
+
+--
+-- Name: COLUMN files.ready_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.ready_at IS 'When the video became playable.';
+
+
+--
+-- Name: COLUMN files.seconds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.seconds IS 'A video''s length in seconds: the browser''s word until the platform says its own.';
+
+
+--
+-- Name: COLUMN files.sound; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.sound IS 'What was heard of a video (contracts files/sound.ts FileSound): its words, the note on how it sounds, or that it has none, each part naming the model that heard it. Written only by file_sound_keep.';
+
+
+--
+-- Name: COLUMN files.sound_said; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.sound_said IS 'A video''s sound in a few words, for the list (contracts soundSaidOf). Written only by file_sound_keep.';
+
+
+--
+-- Name: files_let_go; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.files_let_go (
+    tenant_id uuid NOT NULL,
+    fingerprint text NOT NULL,
+    let_go_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE files_let_go; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.files_let_go IS 'What a person removed from a business''s files, by fingerprint alone, written at the press (00551, decision 0099): an import does not bring it back. A person may still add it again. Nothing else of the file stays.';
 
 
 --
@@ -34926,7 +37083,7 @@ CREATE TABLE public.imports (
     CONSTRAINT imports_parts_done_check CHECK ((parts_done >= 0)),
     CONSTRAINT imports_parts_total_check CHECK (((parts_total IS NULL) OR (parts_total >= 1))),
     CONSTRAINT imports_run_check CHECK (((run IS NULL) OR ((char_length(run) >= 1) AND (char_length(run) <= 40)))),
-    CONSTRAINT imports_source_check CHECK ((source = ANY (ARRAY['google_reviews'::text, 'calendar'::text, 'clients_file'::text, 'mailbox'::text, 'contacts'::text, 'whatsapp_contacts'::text, 'whatsapp_history'::text]))),
+    CONSTRAINT imports_source_check CHECK ((source = ANY (ARRAY['google_reviews'::text, 'calendar'::text, 'clients_file'::text, 'mailbox'::text, 'contacts'::text, 'whatsapp_contacts'::text, 'whatsapp_history'::text, 'google_photos'::text]))),
     CONSTRAINT imports_state_check CHECK ((state = ANY (ARRAY['queued'::text, 'running'::text, 'done'::text, 'failed'::text]))),
     CONSTRAINT imports_via_check CHECK (((via IS NULL) OR ((char_length(via) >= 1) AND (char_length(via) <= 40))))
 );
@@ -35258,6 +37415,7 @@ CREATE TABLE public.lead_rounds (
     nearby jsonb DEFAULT '[]'::jsonb NOT NULL,
     state_since timestamp with time zone DEFAULT now() NOT NULL,
     judge_usd numeric(10,4) DEFAULT 0 NOT NULL,
+    site_reads integer DEFAULT 0 NOT NULL,
     CONSTRAINT lead_rounds_allowance_reserved_check CHECK ((allowance_reserved >= 0)),
     CONSTRAINT lead_rounds_allowance_used_check CHECK ((allowance_used >= 0)),
     CONSTRAINT lead_rounds_answered_check CHECK ((answered = ANY (ARRAY['keep'::text, 'include'::text, 'stop'::text]))),
@@ -35317,6 +37475,13 @@ COMMENT ON COLUMN public.lead_rounds.state_since IS 'When the round last moved (
 --
 
 COMMENT ON COLUMN public.lead_rounds.judge_usd IS 'What judging the round cost (00506): the usage ledger''s lead_judge rows under the round (its judge, and the second model that screens or shadows it), settled by lead_round_end against the month''s budget and both days.';
+
+
+--
+-- Name: COLUMN lead_rounds.site_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lead_rounds.site_reads IS 'The businesses'' own sites this round read (00541), each one credit with the page''s reader: for the judge, where its plan asks what only a website shows, and for a mark. Its cost is in cost_usd.';
 
 
 --
@@ -36536,7 +38701,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -37680,6 +39845,30 @@ COMMENT ON COLUMN public.sequence_enrollments.next_at IS 'A customer''s sequence
 
 
 --
+-- Name: sequence_lead_words; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sequence_lead_words (
+    tenant_id uuid NOT NULL,
+    step_id uuid NOT NULL,
+    lead_id uuid NOT NULL,
+    subject text,
+    body text NOT NULL,
+    written_by uuid,
+    written_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT sequence_lead_words_body_check CHECK (((char_length(body) >= 1) AND (char_length(body) <= 1200))),
+    CONSTRAINT sequence_lead_words_subject_check CHECK (((subject IS NULL) OR ((char_length(subject) >= 1) AND (char_length(subject) <= 80))))
+);
+
+
+--
+-- Name: TABLE sequence_lead_words; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sequence_lead_words IS 'Decision 0096: one lead''s own words at one step of a sequence, typed on the lead''s sheet: what that lead gets there in place of the step''s words. Kept for the lead and the step, not for one send, so they stand through Take out and Put back and a run canceled, before the lead is added, and for a step not planned yet. Written as a step''s words are, its slots kept. lead_blank deletes them.';
+
+
+--
 -- Name: sequence_replies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -37907,7 +40096,6 @@ CREATE TABLE public.sweep_status (
     requested_at timestamp with time zone,
     note text,
     alerted_at timestamp with time zone,
-    backlog_ticks integer DEFAULT 0 NOT NULL,
     jobname text,
     max_silence interval,
     judged_by text DEFAULT 'request'::text NOT NULL,
@@ -37937,13 +40125,6 @@ COMMENT ON COLUMN public.sweep_status.note IS 'Set when the trigger could not se
 --
 
 COMMENT ON COLUMN public.sweep_status.alerted_at IS 'Suppression stamp, set only after an alert was actually DELIVERED, cleared on recovery.';
-
-
---
--- Name: COLUMN sweep_status.backlog_ticks; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sweep_status.backlog_ticks IS 'Consecutive ticks this sweep finished with work still queued. Reset to 0 the moment it drains. At 3 the sweep answers 503, which turns it red in sweep_health and mails the platform.';
 
 
 --
@@ -38330,6 +40511,30 @@ COMMENT ON COLUMN public.waitlist.invited_at IS 'When an invite was sent. Null m
 
 
 --
+-- Name: web_push_subscriptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.web_push_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    user_agent text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    failed_at timestamp with time zone,
+    CONSTRAINT web_push_subscriptions_endpoint_len CHECK ((length(endpoint) <= 1000))
+);
+
+
+--
+-- Name: TABLE web_push_subscriptions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.web_push_subscriptions IS 'A member''s browsers that said yes to being told (the answers canvas, D12), as push_devices is their phones.';
+
+
+--
 -- Name: workspace_notices_pending; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -38378,6 +40583,22 @@ ALTER TABLE ONLY public.ai_usage
 
 
 --
+-- Name: anthropic_profiles anthropic_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.anthropic_profiles
+    ADD CONSTRAINT anthropic_profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: anthropic_profiles anthropic_profiles_profile_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.anthropic_profiles
+    ADD CONSTRAINT anthropic_profiles_profile_id_key UNIQUE (profile_id);
+
+
+--
 -- Name: appointment_notices appointment_notices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -38399,6 +40620,22 @@ ALTER TABLE ONLY public.appointments
 
 ALTER TABLE ONLY public.appointments
     ADD CONSTRAINT appointments_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: ask_actions ask_actions_one_per_card; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_one_per_card UNIQUE (tenant_id, message_id, proposal_id);
+
+
+--
+-- Name: ask_actions ask_actions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_pkey PRIMARY KEY (id);
 
 
 --
@@ -38431,6 +40668,14 @@ ALTER TABLE ONLY public.ask_messages
 
 ALTER TABLE ONLY public.ask_mornings
     ADD CONSTRAINT ask_mornings_pkey PRIMARY KEY (tenant_id, user_id, day);
+
+
+--
+-- Name: ask_notice_days ask_notice_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_notice_days
+    ADD CONSTRAINT ask_notice_days_pkey PRIMARY KEY (tenant_id, day);
 
 
 --
@@ -38743,6 +40988,22 @@ ALTER TABLE ONLY public.fact_suggestions
 
 ALTER TABLE ONLY public.fact_suggestions
     ADD CONSTRAINT fact_suggestions_source_message_one UNIQUE (source_message_id);
+
+
+--
+-- Name: files_let_go files_let_go_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files_let_go
+    ADD CONSTRAINT files_let_go_pkey PRIMARY KEY (tenant_id, fingerprint);
+
+
+--
+-- Name: files files_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files
+    ADD CONSTRAINT files_pkey PRIMARY KEY (id);
 
 
 --
@@ -39466,6 +41727,14 @@ ALTER TABLE ONLY public.sequence_enrollments
 
 
 --
+-- Name: sequence_lead_words sequence_lead_words_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_lead_words
+    ADD CONSTRAINT sequence_lead_words_pkey PRIMARY KEY (step_id, lead_id);
+
+
+--
 -- Name: sequence_replies sequence_replies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -39666,6 +41935,22 @@ ALTER TABLE ONLY public.waitlist
 
 
 --
+-- Name: web_push_subscriptions web_push_subscriptions_one; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_one UNIQUE (user_id, endpoint);
+
+
+--
+-- Name: web_push_subscriptions web_push_subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: workspace_notices_pending workspace_notices_pending_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -39699,6 +41984,27 @@ CREATE INDEX ai_usage_shadow_at ON public.ai_usage USING btree (created_at) WHER
 --
 
 CREATE INDEX ai_usage_tenant_at ON public.ai_usage USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: ai_usage_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ai_usage_user ON public.ai_usage USING btree (user_id) WHERE (user_id IS NOT NULL);
+
+
+--
+-- Name: anthropic_profiles_person; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX anthropic_profiles_person ON public.anthropic_profiles USING btree (user_id) WHERE (user_id IS NOT NULL);
+
+
+--
+-- Name: anthropic_profiles_workspace; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX anthropic_profiles_workspace ON public.anthropic_profiles USING btree (tenant_id) WHERE (tenant_id IS NOT NULL);
 
 
 --
@@ -39751,6 +42057,20 @@ CREATE INDEX appointments_contact ON public.appointments USING btree (tenant_id,
 
 
 --
+-- Name: appointments_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_conversation ON public.appointments USING btree (tenant_id, conversation_id) WHERE (conversation_id IS NOT NULL);
+
+
+--
+-- Name: appointments_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_created_by ON public.appointments USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: appointments_lead; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -39779,6 +42099,20 @@ CREATE INDEX appointments_tenant_start ON public.appointments USING btree (tenan
 
 
 --
+-- Name: ask_actions_recent; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_actions_recent ON public.ask_actions USING btree (tenant_id, at DESC);
+
+
+--
+-- Name: ask_actions_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_actions_user ON public.ask_actions USING btree (user_id);
+
+
+--
 -- Name: ask_journal_days_words; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -39793,10 +42127,31 @@ CREATE INDEX ask_journal_days_written ON public.ask_journal_days USING btree (te
 
 
 --
+-- Name: ask_memory_lines_forgotten_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_memory_lines_forgotten_by ON public.ask_memory_lines USING btree (forgotten_by) WHERE (forgotten_by IS NOT NULL);
+
+
+--
+-- Name: ask_memory_lines_kept_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_memory_lines_kept_by ON public.ask_memory_lines USING btree (kept_by) WHERE (kept_by IS NOT NULL);
+
+
+--
 -- Name: ask_memory_lines_live; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX ask_memory_lines_live ON public.ask_memory_lines USING btree (tenant_id, made_at DESC) WHERE (forgotten_at IS NULL);
+
+
+--
+-- Name: ask_memory_lines_thread; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_memory_lines_thread ON public.ask_memory_lines USING btree (tenant_id, thread_id) WHERE (thread_id IS NOT NULL);
 
 
 --
@@ -39821,10 +42176,31 @@ CREATE INDEX ask_messages_thread ON public.ask_messages USING btree (thread_id, 
 
 
 --
+-- Name: ask_messages_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_messages_user ON public.ask_messages USING btree (user_id);
+
+
+--
 -- Name: ask_messages_words; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX ask_messages_words ON public.ask_messages USING gin (to_tsvector('simple'::regconfig, public.ask_message_words(content)));
+
+
+--
+-- Name: ask_mornings_thread; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_mornings_thread ON public.ask_mornings USING btree (tenant_id, thread_id) WHERE (thread_id IS NOT NULL);
+
+
+--
+-- Name: ask_mornings_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_mornings_user ON public.ask_mornings USING btree (user_id);
 
 
 --
@@ -39839,6 +42215,13 @@ CREATE INDEX ask_threads_user_recent ON public.ask_threads USING btree (user_id,
 --
 
 CREATE INDEX ask_voice_sessions_expiry_idx ON public.ask_voice_sessions USING btree (token_expires_at);
+
+
+--
+-- Name: ask_voice_sessions_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_voice_sessions_tenant ON public.ask_voice_sessions USING btree (tenant_id);
 
 
 --
@@ -39863,6 +42246,20 @@ CREATE INDEX billing_card_marks_fingerprint_idx ON public.billing_card_marks USI
 
 
 --
+-- Name: billing_events_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX billing_events_tenant ON public.billing_events USING btree (tenant_id);
+
+
+--
+-- Name: calls_channel; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX calls_channel ON public.calls USING btree (tenant_id, channel_id) WHERE (channel_id IS NOT NULL);
+
+
+--
 -- Name: calls_contact; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -39881,6 +42278,13 @@ CREATE INDEX calls_conversation ON public.calls USING btree (conversation_id, st
 --
 
 CREATE INDEX calls_live ON public.calls USING btree (tenant_id) WHERE (status = 'ongoing'::text);
+
+
+--
+-- Name: calls_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX calls_message ON public.calls USING btree (tenant_id, message_id) WHERE (message_id IS NOT NULL);
 
 
 --
@@ -39909,6 +42313,13 @@ CREATE INDEX calls_tenant_started ON public.calls USING btree (tenant_id, starte
 --
 
 CREATE INDEX calls_transcript_words ON public.calls USING gin (to_tsvector('simple'::regconfig, COALESCE(transcript, ''::text)));
+
+
+--
+-- Name: capability_activations_activated_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX capability_activations_activated_by ON public.capability_activations USING btree (activated_by) WHERE (activated_by IS NOT NULL);
 
 
 --
@@ -39975,6 +42386,13 @@ CREATE INDEX contacts_marketing_audience ON public.contacts USING btree (tenant_
 
 
 --
+-- Name: contacts_merged_into_contact; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX contacts_merged_into_contact ON public.contacts USING btree (tenant_id, merged_into_contact_id) WHERE (merged_into_contact_id IS NOT NULL);
+
+
+--
 -- Name: contacts_tenant_email_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40010,10 +42428,38 @@ CREATE UNIQUE INDEX contacts_tenant_phone_uq ON public.contacts USING btree (ten
 
 
 --
+-- Name: conversation_drafts_made_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX conversation_drafts_made_by ON public.conversation_drafts USING btree (made_by) WHERE (made_by IS NOT NULL);
+
+
+--
+-- Name: conversation_drafts_state; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX conversation_drafts_state ON public.conversation_drafts USING btree (tenant_id, state);
+
+
+--
+-- Name: conversations_assignee_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX conversations_assignee_user ON public.conversations USING btree (assignee_user_id) WHERE (assignee_user_id IS NOT NULL);
+
+
+--
 -- Name: conversations_contact; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX conversations_contact ON public.conversations USING btree (contact_id);
+
+
+--
+-- Name: conversations_control_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX conversations_control_by ON public.conversations USING btree (control_by) WHERE (control_by IS NOT NULL);
 
 
 --
@@ -40066,6 +42512,20 @@ CREATE INDEX deals_contact ON public.deals USING btree (tenant_id, contact_id, c
 
 
 --
+-- Name: deals_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX deals_created_by ON public.deals USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
+-- Name: deals_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX deals_lead ON public.deals USING btree (tenant_id, lead_id) WHERE (lead_id IS NOT NULL);
+
+
+--
 -- Name: deals_open_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40087,10 +42547,24 @@ CREATE INDEX deals_tenant_stage ON public.deals USING btree (tenant_id, stage);
 
 
 --
+-- Name: decisions_actor_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX decisions_actor_user ON public.decisions USING btree (actor_user_id) WHERE (actor_user_id IS NOT NULL);
+
+
+--
 -- Name: decisions_tenant_subject; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX decisions_tenant_subject ON public.decisions USING btree (tenant_id, subject_type, subject_id, created_at);
+
+
+--
+-- Name: decisions_undo_of; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX decisions_undo_of ON public.decisions USING btree (tenant_id, undo_of) WHERE (undo_of IS NOT NULL);
 
 
 --
@@ -40105,6 +42579,13 @@ CREATE INDEX escalations_conversation ON public.escalations USING btree (convers
 --
 
 CREATE UNIQUE INDEX escalations_one_open ON public.escalations USING btree (conversation_id) WHERE (state = 'open'::text);
+
+
+--
+-- Name: escalations_resolved_by_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX escalations_resolved_by_user ON public.escalations USING btree (resolved_by_user_id) WHERE (resolved_by_user_id IS NOT NULL);
 
 
 --
@@ -40133,6 +42614,13 @@ CREATE INDEX event_deliveries_tenant_created ON public.event_deliveries USING bt
 --
 
 CREATE INDEX event_outbox_created ON public.event_outbox USING btree (created_at);
+
+
+--
+-- Name: event_outbox_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX event_outbox_tenant ON public.event_outbox USING btree (tenant_id);
 
 
 --
@@ -40178,6 +42666,20 @@ CREATE INDEX events_default_tenant_id_subject_type_subject_id_created_at_idx ON 
 
 
 --
+-- Name: fact_suggestions_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fact_suggestions_conversation ON public.fact_suggestions USING btree (tenant_id, conversation_id) WHERE (conversation_id IS NOT NULL);
+
+
+--
+-- Name: fact_suggestions_decided_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fact_suggestions_decided_by ON public.fact_suggestions USING btree (decided_by) WHERE (decided_by IS NOT NULL);
+
+
+--
 -- Name: fact_suggestions_tenant_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40189,6 +42691,62 @@ CREATE INDEX fact_suggestions_tenant_created ON public.fact_suggestions USING bt
 --
 
 CREATE INDEX fact_suggestions_waiting ON public.fact_suggestions USING btree (tenant_id, created_at DESC) WHERE (state = 'suggested'::text);
+
+
+--
+-- Name: files_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_created_by ON public.files USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
+-- Name: files_look_again; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_look_again ON public.files USING btree (looked_at) WHERE ((removed_at IS NULL) AND (look_status <> 'refused'::text));
+
+
+--
+-- Name: files_media_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX files_media_ref ON public.files USING btree (media_ref) WHERE (media_ref IS NOT NULL);
+
+
+--
+-- Name: files_media_waiting; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_media_waiting ON public.files USING btree (updated_at) WHERE (media_status = ANY (ARRAY['uploading'::text, 'processing'::text]));
+
+
+--
+-- Name: files_newest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_newest ON public.files USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: files_one_copy; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX files_one_copy ON public.files USING btree (tenant_id, fingerprint) WHERE (removed_at IS NULL);
+
+
+--
+-- Name: files_one_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX files_one_name ON public.files USING btree (tenant_id, name) WHERE (removed_at IS NULL);
+
+
+--
+-- Name: files_removed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_removed ON public.files USING btree (removed_at) WHERE (removed_at IS NOT NULL);
 
 
 --
@@ -40224,6 +42782,13 @@ CREATE INDEX imports_connection ON public.imports USING btree (tenant_id, connec
 --
 
 CREATE UNIQUE INDEX imports_one_a_source ON public.imports USING btree (tenant_id, source, connection_id) NULLS NOT DISTINCT;
+
+
+--
+-- Name: invitations_invited_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX invitations_invited_by ON public.invitations USING btree (invited_by) WHERE (invited_by IS NOT NULL);
 
 
 --
@@ -40318,10 +42883,31 @@ CREATE INDEX jobs_tenant_kind_state ON public.jobs USING btree (tenant_id, kind,
 
 
 --
+-- Name: lead_judgments_round; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_judgments_round ON public.lead_judgments USING btree (tenant_id, round_id);
+
+
+--
+-- Name: lead_judgments_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_judgments_tenant ON public.lead_judgments USING btree (tenant_id);
+
+
+--
 -- Name: lead_operations_search; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX lead_operations_search ON public.lead_operations USING btree (search_id, at DESC);
+
+
+--
+-- Name: lead_operations_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_operations_tenant ON public.lead_operations USING btree (tenant_id);
 
 
 --
@@ -40402,6 +42988,13 @@ CREATE INDEX lead_runs_round ON public.lead_runs USING btree (round_id);
 
 
 --
+-- Name: lead_runs_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_runs_tenant ON public.lead_runs USING btree (tenant_id);
+
+
+--
 -- Name: lead_search_members_excluded_purge; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40427,6 +43020,20 @@ CREATE INDEX lead_search_members_page ON public.lead_search_members USING btree 
 --
 
 CREATE INDEX lead_search_members_round ON public.lead_search_members USING btree (round_id);
+
+
+--
+-- Name: lead_searches_adds_to; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_searches_adds_to ON public.lead_searches USING btree (tenant_id, adds_to) WHERE (adds_to IS NOT NULL);
+
+
+--
+-- Name: lead_searches_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lead_searches_created_by ON public.lead_searches USING btree (created_by) WHERE (created_by IS NOT NULL);
 
 
 --
@@ -40577,6 +43184,13 @@ CREATE INDEX mailbox_left_newest ON public.mailbox_left USING btree (tenant_id, 
 
 
 --
+-- Name: mailbox_senders_set_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mailbox_senders_set_by ON public.mailbox_senders USING btree (set_by) WHERE (set_by IS NOT NULL);
+
+
+--
 -- Name: mailboxes_local_part_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40602,6 +43216,13 @@ CREATE UNIQUE INDEX mailboxes_reply_token_uq ON public.mailboxes USING btree (re
 --
 
 CREATE UNIQUE INDEX mailboxes_tenant_uq ON public.mailboxes USING btree (tenant_id);
+
+
+--
+-- Name: memberships_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX memberships_tenant ON public.memberships USING btree (tenant_id);
 
 
 --
@@ -40682,6 +43303,13 @@ CREATE INDEX messages_reach_out_month ON public.messages USING btree (tenant_id,
 
 
 --
+-- Name: messages_sent_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX messages_sent_by ON public.messages USING btree (sent_by) WHERE (sent_by IS NOT NULL);
+
+
+--
 -- Name: messages_tenant_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40738,6 +43366,13 @@ CREATE INDEX notifications_recipient ON public.notifications USING btree (tenant
 
 
 --
+-- Name: notifications_recipient_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_recipient_user ON public.notifications USING btree (recipient_user_id) WHERE (recipient_user_id IS NOT NULL);
+
+
+--
 -- Name: notifications_source_event; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40787,6 +43422,20 @@ CREATE UNIQUE INDEX partner_earnings_share_idx ON public.partner_earnings USING 
 
 
 --
+-- Name: partner_earnings_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_earnings_tenant ON public.partner_earnings USING btree (tenant_id);
+
+
+--
+-- Name: partner_invitations_invited_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_invitations_invited_by ON public.partner_invitations USING btree (invited_by) WHERE (invited_by IS NOT NULL);
+
+
+--
 -- Name: partner_invitations_partner_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40801,10 +43450,24 @@ CREATE INDEX partner_payouts_partner_idx ON public.partner_payouts USING btree (
 
 
 --
+-- Name: partner_payouts_sent_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_payouts_sent_by ON public.partner_payouts USING btree (sent_by) WHERE (sent_by IS NOT NULL);
+
+
+--
 -- Name: partner_reversals_waiting_invoice_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX partner_reversals_waiting_invoice_idx ON public.partner_reversals_waiting USING btree (stripe_invoice_id, created_at);
+
+
+--
+-- Name: partner_tenants_handover_accepted_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_tenants_handover_accepted_by ON public.partner_tenants USING btree (handover_accepted_by) WHERE (handover_accepted_by IS NOT NULL);
 
 
 --
@@ -40815,10 +43478,38 @@ CREATE INDEX partner_tenants_handover_open_idx ON public.partner_tenants USING b
 
 
 --
+-- Name: partner_tenants_invited_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_tenants_invited_by ON public.partner_tenants USING btree (invited_by) WHERE (invited_by IS NOT NULL);
+
+
+--
 -- Name: partner_tenants_partner_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX partner_tenants_partner_idx ON public.partner_tenants USING btree (partner_id);
+
+
+--
+-- Name: partner_tenants_standing_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partner_tenants_standing_by ON public.partner_tenants USING btree (standing_by) WHERE (standing_by IS NOT NULL);
+
+
+--
+-- Name: partners_second_factor_reset_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partners_second_factor_reset_by ON public.partners USING btree (second_factor_reset_by) WHERE (second_factor_reset_by IS NOT NULL);
+
+
+--
+-- Name: partners_status_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX partners_status_by ON public.partners USING btree (status_by) WHERE (status_by IS NOT NULL);
 
 
 --
@@ -40850,6 +43541,13 @@ CREATE INDEX person_moments_order ON public.person_moments USING btree (tenant_i
 
 
 --
+-- Name: person_notes_author_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_author_user ON public.person_notes USING btree (author_user_id) WHERE (author_user_id IS NOT NULL);
+
+
+--
 -- Name: person_notes_contact; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40857,10 +43555,38 @@ CREATE INDEX person_notes_contact ON public.person_notes USING btree (tenant_id,
 
 
 --
+-- Name: person_notes_deal; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_deal ON public.person_notes USING btree (tenant_id, deal_id) WHERE (deal_id IS NOT NULL);
+
+
+--
+-- Name: person_notes_done_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_done_by ON public.person_notes USING btree (done_by) WHERE (done_by IS NOT NULL);
+
+
+--
 -- Name: person_notes_for; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX person_notes_for ON public.person_notes USING btree (tenant_id, for_user_id) WHERE (for_user_id IS NOT NULL);
+
+
+--
+-- Name: person_notes_for_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_for_user ON public.person_notes USING btree (for_user_id) WHERE (for_user_id IS NOT NULL);
+
+
+--
+-- Name: person_notes_kept_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_notes_kept_by ON public.person_notes USING btree (kept_by) WHERE (kept_by IS NOT NULL);
 
 
 --
@@ -40899,6 +43625,13 @@ CREATE INDEX platform_acts_tenant_at ON public.platform_acts USING btree (tenant
 
 
 --
+-- Name: platform_claims_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX platform_claims_user ON public.platform_claims USING btree (user_id);
+
+
+--
 -- Name: platform_metrics_day; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40913,10 +43646,24 @@ CREATE INDEX policies_person_reply_idx ON public.policies USING btree (tenant_id
 
 
 --
+-- Name: privacy_requests_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX privacy_requests_created_by ON public.privacy_requests USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: privacy_requests_open; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX privacy_requests_open ON public.privacy_requests USING btree (due_at) WHERE (closed_at IS NULL);
+
+
+--
+-- Name: privacy_requests_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX privacy_requests_tenant ON public.privacy_requests USING btree (tenant_id);
 
 
 --
@@ -40962,10 +43709,31 @@ CREATE INDEX rehearsals_call ON public.rehearsals USING btree (tenant_id, call_i
 
 
 --
+-- Name: rehearsals_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rehearsals_created_by ON public.rehearsals USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: rehearsals_tenant_kind_created; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX rehearsals_tenant_kind_created ON public.rehearsals USING btree (tenant_id, kind, created_at DESC);
+
+
+--
+-- Name: reply_turns_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX reply_turns_tenant ON public.reply_turns USING btree (tenant_id);
+
+
+--
+-- Name: segment_members_added_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX segment_members_added_by ON public.segment_members USING btree (added_by) WHERE (added_by IS NOT NULL);
 
 
 --
@@ -40983,6 +43751,13 @@ CREATE INDEX segment_members_tenant ON public.segment_members USING btree (tenan
 
 
 --
+-- Name: segments_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX segments_created_by ON public.segments USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: segments_live_name; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -40990,10 +43765,24 @@ CREATE UNIQUE INDEX segments_live_name ON public.segments USING btree (tenant_id
 
 
 --
+-- Name: sequence_batches_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_batches_created_by ON public.sequence_batches USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: sequence_batches_history; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX sequence_batches_history ON public.sequence_batches USING btree (sequence_id, created_at DESC);
+
+
+--
+-- Name: sequence_batches_offered_from; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_batches_offered_from ON public.sequence_batches USING btree (tenant_id, offered_from) WHERE (offered_from IS NOT NULL);
 
 
 --
@@ -41015,6 +43804,13 @@ CREATE INDEX sequence_batches_reach_out_state ON public.sequence_batches USING b
 --
 
 CREATE UNIQUE INDEX sequence_batches_step_run ON public.sequence_batches USING btree (step_id, run_for) WHERE (step_id IS NOT NULL);
+
+
+--
+-- Name: sequence_batches_template; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_batches_template ON public.sequence_batches USING btree (tenant_id, template_id) WHERE (template_id IS NOT NULL);
 
 
 --
@@ -41053,6 +43849,13 @@ CREATE INDEX sequence_enrollments_lead_latest ON public.sequence_enrollments USI
 
 
 --
+-- Name: sequence_enrollments_left_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_enrollments_left_by ON public.sequence_enrollments USING btree (left_by) WHERE (left_by IS NOT NULL);
+
+
+--
 -- Name: sequence_enrollments_of_sequence; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41081,6 +43884,13 @@ CREATE INDEX sequence_enrollments_person ON public.sequence_enrollments USING bt
 
 
 --
+-- Name: sequence_lead_words_lead; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_lead_words_lead ON public.sequence_lead_words USING btree (tenant_id, lead_id);
+
+
+--
 -- Name: sequence_replies_answer; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41092,6 +43902,13 @@ CREATE INDEX sequence_replies_answer ON public.sequence_replies USING btree (ten
 --
 
 CREATE INDEX sequence_replies_answer_lead ON public.sequence_replies USING btree (tenant_id, lead_contact_id) WHERE ((claim = 'auto_reply'::text) AND (intent = ANY (ARRAY['no'::text, 'wrong_person'::text])) AND (undone_at IS NULL));
+
+
+--
+-- Name: sequence_replies_answered_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_replies_answered_message ON public.sequence_replies USING btree (tenant_id, answered_message_id) WHERE (answered_message_id IS NOT NULL);
 
 
 --
@@ -41123,6 +43940,20 @@ CREATE INDEX sequence_replies_recent ON public.sequence_replies USING btree (ten
 
 
 --
+-- Name: sequence_replies_said_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_replies_said_by ON public.sequence_replies USING btree (said_by) WHERE (said_by IS NOT NULL);
+
+
+--
+-- Name: sequence_replies_send; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_replies_send ON public.sequence_replies USING btree (tenant_id, send_id) WHERE (send_id IS NOT NULL);
+
+
+--
 -- Name: sequence_replies_signer_offered; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41134,6 +43965,13 @@ CREATE INDEX sequence_replies_signer_offered ON public.sequence_replies USING bt
 --
 
 CREATE INDEX sequence_replies_thread ON public.sequence_replies USING btree (conversation_id, read_at DESC);
+
+
+--
+-- Name: sequence_replies_undone_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_replies_undone_by ON public.sequence_replies USING btree (undone_by) WHERE (undone_by IS NOT NULL);
 
 
 --
@@ -41172,10 +44010,17 @@ CREATE INDEX sequence_sends_held ON public.sequence_sends USING btree (created_a
 
 
 --
--- Name: sequence_sends_lead; Type: INDEX; Schema: public; Owner: -
+-- Name: sequence_sends_lead_newest; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX sequence_sends_lead ON public.sequence_sends USING btree (tenant_id, lead_id) WHERE (lead_id IS NOT NULL);
+CREATE INDEX sequence_sends_lead_newest ON public.sequence_sends USING btree (tenant_id, lead_id, created_at DESC, id DESC) INCLUDE (sequence_id) WHERE (lead_id IS NOT NULL);
+
+
+--
+-- Name: sequence_sends_lead_standing; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_sends_lead_standing ON public.sequence_sends USING btree (tenant_id, lead_id) WHERE ((lead_id IS NOT NULL) AND (state = ANY (ARRAY['held'::text, 'drafted'::text, 'queued'::text, 'planned'::text, 'claimed'::text])));
 
 
 --
@@ -41214,6 +44059,13 @@ CREATE INDEX sequence_sends_open ON public.sequence_sends USING btree (tenant_id
 
 
 --
+-- Name: sequence_sends_own_once; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX sequence_sends_own_once ON public.sequence_sends USING btree (tenant_id, lead_id) WHERE ((sequence_id IS NULL) AND (state = 'queued'::text));
+
+
+--
 -- Name: sequence_sends_person; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41225,6 +44077,13 @@ CREATE INDEX sequence_sends_person ON public.sequence_sends USING btree (tenant_
 --
 
 CREATE UNIQUE INDEX sequence_sends_person_once ON public.sequence_sends USING btree (batch_id, contact_id) WHERE (lead_id IS NULL);
+
+
+--
+-- Name: sequence_sends_said_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_sends_said_by ON public.sequence_sends USING btree (said_by) WHERE (said_by IS NOT NULL);
 
 
 --
@@ -41242,6 +44101,13 @@ CREATE INDEX sequence_sends_unchecked ON public.sequence_sends USING btree (tena
 
 
 --
+-- Name: sequence_steps_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_steps_created_by ON public.sequence_steps USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: sequence_steps_lead_search; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -41253,6 +44119,13 @@ CREATE INDEX sequence_steps_lead_search ON public.sequence_steps USING btree (le
 --
 
 CREATE INDEX sequence_steps_list ON public.sequence_steps USING btree (list_id) WHERE (list_id IS NOT NULL);
+
+
+--
+-- Name: sequence_steps_next_template; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_steps_next_template ON public.sequence_steps USING btree (tenant_id, next_template_id) WHERE (next_template_id IS NOT NULL);
 
 
 --
@@ -41291,10 +44164,24 @@ CREATE UNIQUE INDEX sequence_steps_place ON public.sequence_steps USING btree (s
 
 
 --
+-- Name: sequence_steps_template; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_steps_template ON public.sequence_steps USING btree (tenant_id, template_id) WHERE (template_id IS NOT NULL);
+
+
+--
 -- Name: sequence_steps_tenant_state; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX sequence_steps_tenant_state ON public.sequence_steps USING btree (tenant_id, state);
+
+
+--
+-- Name: sequences_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequences_created_by ON public.sequences USING btree (created_by) WHERE (created_by IS NOT NULL);
 
 
 --
@@ -41326,10 +44213,38 @@ CREATE INDEX support_reports_tenant_created ON public.support_reports USING btre
 
 
 --
+-- Name: support_reports_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX support_reports_user ON public.support_reports USING btree (user_id);
+
+
+--
+-- Name: templates_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX templates_created_by ON public.templates USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: tenant_config_calendar_due_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX tenant_config_calendar_due_idx ON public.tenant_config USING btree (calendar_checked_at NULLS FIRST) WHERE (config ? 'calendar'::text);
+
+
+--
+-- Name: tenant_config_updated_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tenant_config_updated_by ON public.tenant_config USING btree (updated_by) WHERE (updated_by IS NOT NULL);
+
+
+--
+-- Name: tenant_config_versions_changed_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tenant_config_versions_changed_by ON public.tenant_config_versions USING btree (changed_by) WHERE (changed_by IS NOT NULL);
 
 
 --
@@ -41344,6 +44259,13 @@ CREATE INDEX tenant_config_versions_replaced ON public.tenant_config_versions US
 --
 
 CREATE UNIQUE INDEX waitlist_email_idx ON public.waitlist USING btree (lower(email));
+
+
+--
+-- Name: waitlist_invited_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX waitlist_invited_by ON public.waitlist USING btree (invited_by) WHERE (invited_by IS NOT NULL);
 
 
 --
@@ -41568,6 +44490,20 @@ CREATE TRIGGER contacts_erase_clears_run_words AFTER UPDATE OF erased_at ON publ
 --
 
 CREATE TRIGGER contacts_erase_leaves_lists AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.segment_members_on_erase();
+
+
+--
+-- Name: contacts contacts_erase_leaves_sequences; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_leaves_sequences AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.sequence_enrollments_on_erase();
+
+
+--
+-- Name: contacts contacts_erase_marks_its_notices; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_marks_its_notices AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW WHEN (((old.erased_at IS NULL) AND (new.erased_at IS NOT NULL))) EXECUTE FUNCTION public.workspace_notices_on_erase();
 
 
 --
@@ -41841,6 +44777,13 @@ CREATE TRIGGER lead_runs_guard BEFORE UPDATE ON public.lead_runs FOR EACH ROW EX
 --
 
 CREATE TRIGGER lead_suppressions_erasure_digest_keyed BEFORE INSERT OR UPDATE OF hash ON public.lead_suppressions FOR EACH ROW WHEN ((new.hash !~~ 'h1:%'::text)) EXECUTE FUNCTION public.erasure_digest_keyed_on_write();
+
+
+--
+-- Name: leads leads_erase_leaves_sequences; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER leads_erase_leaves_sequences AFTER UPDATE OF erased_at ON public.leads FOR EACH ROW EXECUTE FUNCTION public.sequence_enrollments_on_erase();
 
 
 --
@@ -42390,6 +45333,13 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.capability_activatio
 
 
 --
+-- Name: conversation_drafts workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.conversation_drafts REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: conversations workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -42621,6 +45571,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.contacts REFERENCING
 
 
 --
+-- Name: conversation_drafts workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.conversation_drafts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: conversations workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -42639,6 +45596,13 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.deals REFERENCING NE
 --
 
 CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.escalations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: files workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.files REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -42880,6 +45844,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE OF display_name, wa_profile_na
 
 
 --
+-- Name: conversation_drafts workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.conversation_drafts REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: conversations workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -42898,6 +45869,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.deals REFERENCING NE
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.escalations REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: files workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, shows, who_in_it, look_status, look, removed_at, media_status, sound_said ON public.files FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.shows IS DISTINCT FROM new.shows) OR (old.who_in_it IS DISTINCT FROM new.who_in_it) OR (old.look_status IS DISTINCT FROM new.look_status) OR (old.look IS DISTINCT FROM new.look) OR (old.removed_at IS DISTINCT FROM new.removed_at) OR (old.media_status IS DISTINCT FROM new.media_status) OR (old.sound_said IS DISTINCT FROM new.sound_said))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -43113,6 +46091,22 @@ ALTER TABLE ONLY public.ai_usage
 
 
 --
+-- Name: anthropic_profiles anthropic_profiles_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.anthropic_profiles
+    ADD CONSTRAINT anthropic_profiles_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: anthropic_profiles anthropic_profiles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.anthropic_profiles
+    ADD CONSTRAINT anthropic_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: appointment_notices appointment_notices_appointment_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -43166,6 +46160,22 @@ ALTER TABLE ONLY public.appointments
 
 ALTER TABLE ONLY public.appointments
     ADD CONSTRAINT appointments_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_actions ask_actions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_actions ask_actions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 
 --
@@ -43254,6 +46264,14 @@ ALTER TABLE ONLY public.ask_mornings
 
 ALTER TABLE ONLY public.ask_mornings
     ADD CONSTRAINT ask_mornings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_notice_days ask_notice_days_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_notice_days
+    ADD CONSTRAINT ask_notice_days_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -43662,6 +46680,30 @@ ALTER TABLE ONLY public.fact_suggestions
 
 ALTER TABLE ONLY public.fact_suggestions
     ADD CONSTRAINT fact_suggestions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: files files_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files
+    ADD CONSTRAINT files_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: files_let_go files_let_go_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files_let_go
+    ADD CONSTRAINT files_let_go_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: files files_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files
+    ADD CONSTRAINT files_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -44641,6 +47683,30 @@ ALTER TABLE ONLY public.sequence_enrollments
 
 
 --
+-- Name: sequence_lead_words sequence_lead_words_lead_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_lead_words
+    ADD CONSTRAINT sequence_lead_words_lead_id_same_workspace FOREIGN KEY (tenant_id, lead_id) REFERENCES public.leads(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: sequence_lead_words sequence_lead_words_step_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_lead_words
+    ADD CONSTRAINT sequence_lead_words_step_id_same_workspace FOREIGN KEY (tenant_id, step_id) REFERENCES public.sequence_steps(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: sequence_lead_words sequence_lead_words_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_lead_words
+    ADD CONSTRAINT sequence_lead_words_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: sequence_replies sequence_replies_answered_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -44977,6 +48043,14 @@ ALTER TABLE ONLY public.waitlist
 
 
 --
+-- Name: web_push_subscriptions web_push_subscriptions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: ai_usage; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -44990,6 +48064,12 @@ CREATE POLICY ai_usage_member_select ON public.ai_usage FOR SELECT TO authentica
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid))))));
 
+
+--
+-- Name: anthropic_profiles; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.anthropic_profiles ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: appointment_notices; Type: ROW SECURITY; Schema: public; Owner: -
@@ -45019,6 +48099,35 @@ ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY appointments_member_select ON public.appointments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: ask_actions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ask_actions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ask_actions ask_actions_acting_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_actions_acting_insert ON public.ask_actions FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND public.is_acting_member(tenant_id)));
+
+
+--
+-- Name: ask_actions ask_actions_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_actions_member_select ON public.ask_actions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: ask_actions ask_actions_own_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_actions_own_update ON public.ask_actions FOR UPDATE TO authenticated USING (((user_id = ( SELECT auth.uid() AS uid)) AND public.is_acting_member(tenant_id))) WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND public.is_acting_member(tenant_id)));
 
 
 --
@@ -45100,6 +48209,21 @@ ALTER TABLE public.ask_mornings ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY ask_mornings_own_select ON public.ask_mornings FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: ask_notice_days; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ask_notice_days ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ask_notice_days ask_notice_days_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_notice_days_member_select ON public.ask_notice_days FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -45260,16 +48384,30 @@ ALTER TABLE public.capability_activations ENABLE ROW LEVEL SECURITY;
 -- Name: capability_activations capability_activations_member_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY capability_activations_member_read ON public.capability_activations FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+CREATE POLICY capability_activations_member_read ON public.capability_activations FOR SELECT TO authenticated USING (((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
-  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))) OR public.caller_has_permission(tenant_id, 'disconnect'::text)));
 
 
 --
--- Name: capability_activations capability_activations_owner_write; Type: POLICY; Schema: public; Owner: -
+-- Name: capability_activations capability_activations_owner_delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY capability_activations_owner_write ON public.capability_activations TO authenticated USING (public.caller_has_permission(tenant_id, 'disconnect'::text)) WITH CHECK (public.caller_has_permission(tenant_id, 'disconnect'::text));
+CREATE POLICY capability_activations_owner_delete ON public.capability_activations FOR DELETE TO authenticated USING (public.caller_has_permission(tenant_id, 'disconnect'::text));
+
+
+--
+-- Name: capability_activations capability_activations_owner_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY capability_activations_owner_insert ON public.capability_activations FOR INSERT TO authenticated WITH CHECK (public.caller_has_permission(tenant_id, 'disconnect'::text));
+
+
+--
+-- Name: capability_activations capability_activations_owner_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY capability_activations_owner_update ON public.capability_activations FOR UPDATE TO authenticated USING (public.caller_has_permission(tenant_id, 'disconnect'::text)) WITH CHECK (public.caller_has_permission(tenant_id, 'disconnect'::text));
 
 
 --
@@ -45510,6 +48648,27 @@ ALTER TABLE public.fact_suggestions ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY fact_suggestions_member_select ON public.fact_suggestions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: files; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.files ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: files_let_go; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.files_let_go ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: files files_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY files_member_select ON public.files FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -46084,19 +49243,12 @@ ALTER TABLE public.partner_reversals_waiting ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.partner_tenants ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: partner_tenants partner_tenants_owner_select; Type: POLICY; Schema: public; Owner: -
+-- Name: partner_tenants partner_tenants_owner_or_partner_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY partner_tenants_owner_select ON public.partner_tenants FOR SELECT TO authenticated USING (public.is_workspace_owner(tenant_id));
-
-
---
--- Name: partner_tenants partner_tenants_partner_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY partner_tenants_partner_select ON public.partner_tenants FOR SELECT TO authenticated USING ((partner_id IN ( SELECT p.id
+CREATE POLICY partner_tenants_owner_or_partner_select ON public.partner_tenants FOR SELECT TO authenticated USING ((public.is_workspace_owner(tenant_id) OR (partner_id IN ( SELECT p.id
    FROM public.partners p
-  WHERE (p.user_id = ( SELECT auth.uid() AS uid)))));
+  WHERE (p.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
@@ -46188,19 +49340,23 @@ ALTER TABLE public.platform_metrics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.policies ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: policies policies_acting_member_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY policies_acting_member_update ON public.policies FOR UPDATE TO authenticated USING ((public.is_acting_member(tenant_id) AND (subject_type IS NULL))) WITH CHECK ((public.is_acting_member(tenant_id) AND (subject_type IS NULL)));
-
-
---
 -- Name: policies policies_member_read; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY policies_member_read ON public.policies FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: policies policies_member_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY policies_member_update ON public.policies FOR UPDATE TO authenticated USING (((public.is_acting_member(tenant_id) AND (subject_type IS NULL)) OR (tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text)))))) WITH CHECK (((public.is_acting_member(tenant_id) AND (subject_type IS NULL)) OR (tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text))))));
 
 
 --
@@ -46221,17 +49377,6 @@ CREATE POLICY policies_owner_insert_person ON public.policies FOR INSERT TO auth
   WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text)))) AND (EXISTS ( SELECT 1
    FROM public.contacts p
   WHERE ((p.id = policies.subject_id) AND (p.tenant_id = policies.tenant_id))))));
-
-
---
--- Name: policies policies_owner_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY policies_owner_update ON public.policies FOR UPDATE TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
-   FROM public.memberships m
-  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text))))) WITH CHECK ((tenant_id IN ( SELECT m.tenant_id
-   FROM public.memberships m
-  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'owner'::text)))));
 
 
 --
@@ -46403,6 +49548,21 @@ ALTER TABLE public.sequence_enrollments ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY sequence_enrollments_member_select ON public.sequence_enrollments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: sequence_lead_words; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.sequence_lead_words ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: sequence_lead_words sequence_lead_words_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY sequence_lead_words_member_select ON public.sequence_lead_words FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -46636,6 +49796,19 @@ ALTER TABLE public.voice_agents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: web_push_subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.web_push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: web_push_subscriptions web_push_subscriptions_own; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY web_push_subscriptions_own ON public.web_push_subscriptions TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
 -- Name: workspace_notices_pending; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -46691,6 +49864,22 @@ GRANT ALL ON FUNCTION public.ai_usage_month(p_tenant_id uuid, p_month date) TO s
 
 REVOKE ALL ON FUNCTION public.ai_usage_purge(p_keep interval) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ai_usage_purge(p_keep interval) TO service_role;
+
+
+--
+-- Name: FUNCTION anthropic_profile_claim(p_kind text, p_subject uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION anthropic_profiles_waiting(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) TO service_role;
 
 
 --
@@ -46897,6 +50086,14 @@ GRANT ALL ON FUNCTION public.calendar_grant_note(p_tenant_id uuid, p_mailbox_id 
 
 REVOKE ALL ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) TO service_role;
 
 
 --
@@ -47210,12 +50407,28 @@ GRANT ALL ON FUNCTION public.contacts_before_erased() TO service_role;
 
 
 --
+-- Name: FUNCTION conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid) TO service_role;
 
 
 --
@@ -47236,12 +50449,46 @@ GRANT ALL ON FUNCTION public.conversation_hand_back(p_tenant_id uuid, p_conversa
 
 
 --
+-- Name: FUNCTION conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.conversation_not_a_customer(p_tenant_id uuid, p_conversation_id uuid, p_undo boolean, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION conversation_open(p_tenant_id uuid, p_contact_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.conversation_reply_anyway(p_tenant_id uuid, p_conversation_id uuid, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_sender_address(p_tenant_id uuid, p_conversation_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) TO service_role;
 
 
 --
@@ -47361,6 +50608,14 @@ GRANT ALL ON FUNCTION public.delete_my_account() TO service_role;
 
 REVOKE ALL ON FUNCTION public.drop_google_credentials(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.drop_google_credentials(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION drop_line_credentials(p_line_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.drop_line_credentials(p_line_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.drop_line_credentials(p_line_id uuid) TO service_role;
 
 
 --
@@ -47642,6 +50897,139 @@ GRANT ALL ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p
 
 
 --
+-- Name: FUNCTION file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) TO authenticated;
+GRANT ALL ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) TO service_role;
+
+
+--
+-- Name: FUNCTION file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_free_name(p_tenant_id uuid, p_base text, p_self uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_self uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_free_name(p_tenant_id uuid, p_base text, p_self uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_keep_many(p_tenant_id uuid, p_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.file_keep_many(p_tenant_id uuid, p_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION file_listing_aside(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_listing_aside(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_listing_aside(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_look_keep(p_tenant_id uuid, p_id uuid, p_status text, p_edition integer, p_look jsonb, p_name text, p_shows text) TO service_role;
+
+
+--
+-- Name: FUNCTION file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_made(p_tenant_id uuid, p_id uuid, p_name text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_look jsonb, p_who_in_it text, p_made jsonb, p_actor uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_media_failed(p_media_ref text, p_error text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_media_failed(p_media_ref text, p_error text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_media_failed(p_media_ref text, p_error text) TO service_role;
+
+
+--
+-- Name: FUNCTION file_media_processing(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) TO service_role;
+
+
+--
+-- Name: FUNCTION file_purged(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_purged(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_purged(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_remove(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text) TO service_role;
+
+
+--
+-- Name: FUNCTION file_start(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_upload_lapsed(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION finish_broadcast(p_tenant_id uuid, p_id uuid, p_event jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -47900,6 +51288,14 @@ GRANT ALL ON FUNCTION public.jobs_backlog(p_wait interval) TO service_role;
 REVOKE ALL ON FUNCTION public.jobs_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.jobs_guard() TO authenticated;
 GRANT ALL ON FUNCTION public.jobs_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) TO service_role;
 
 
 --
@@ -48211,15 +51607,6 @@ GRANT ALL ON FUNCTION public.lead_is_set_aside(p_stage text, p_closed_reason tex
 REVOKE ALL ON FUNCTION public.lead_list_counts(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_list_counts(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_list_counts(p_tenant_id uuid) TO service_role;
-
-
---
--- Name: FUNCTION lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) TO authenticated;
-GRANT ALL ON FUNCTION public.lead_matches(p_filters jsonb, p_business text, p_category text, p_postal text, p_city text, p_region text, p_excluded_by text, p_fit text, p_email text, p_email_state text, p_phone text, p_phone_sources smallint, p_phone_wrong boolean) TO service_role;
 
 
 --
@@ -48628,6 +52015,14 @@ GRANT ALL ON FUNCTION public.lead_site_key(p_host text) TO service_role;
 
 
 --
+-- Name: FUNCTION lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_site_reads_spent(p_tenant_id uuid, p_reads integer, p_usd numeric, p_round_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION lead_spend_refusal(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -48641,6 +52036,15 @@ GRANT ALL ON FUNCTION public.lead_spend_refusal(p_tenant_id uuid) TO service_rol
 
 REVOKE ALL ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_spend_room(p_tenant_id uuid, p_usd numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_status_groups(p_tenant_id uuid, p_lead_ids uuid[]) TO service_role;
 
 
 --
@@ -48691,6 +52095,15 @@ GRANT ALL ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) TO servi
 REVOKE ALL ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_view_rows(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb, p_status boolean, p_hits boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_view_rows(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb, p_status boolean, p_hits boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_view_rows(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb, p_status boolean, p_hits boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.lead_view_rows(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb, p_status boolean, p_hits boolean) TO service_role;
 
 
 --
@@ -49173,14 +52586,6 @@ GRANT ALL ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uu
 
 
 --
--- Name: FUNCTION note_sweep_backlog(p_sweep text, p_remaining integer); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) TO service_role;
-
-
---
 -- Name: FUNCTION note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -49484,6 +52889,15 @@ GRANT ALL ON FUNCTION public.partner_workspace_money() TO service_role;
 
 REVOKE ALL ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.pause_email_offers(p_tenant_id uuid, p_reason text, p_counts jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.people_erase_begin(p_tenant_id uuid, p_contact_ids uuid[], p_not_a_person boolean) TO service_role;
 
 
 --
@@ -50775,6 +54189,22 @@ GRANT ALL ON FUNCTION public.rename_mailbox(p_mailbox_id uuid, p_from_name text)
 
 
 --
+-- Name: FUNCTION reply_draft_uses(p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reply_draft_uses(p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reply_draft_uses(p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION reply_drafts_due(p_rules integer, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reply_drafts_due(p_rules integer, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reply_drafts_due(p_rules integer, p_limit integer) TO service_role;
+
+
+--
 -- Name: FUNCTION reply_was_typed(p_tenant_id uuid, p_conversation_id uuid, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -51097,6 +54527,14 @@ GRANT ALL ON FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids 
 
 
 --
+-- Name: FUNCTION sequence_enrollments_on_erase(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_enrollments_on_erase() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_enrollments_on_erase() TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_evidence(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -51136,6 +54574,15 @@ GRANT ALL ON FUNCTION public.sequence_held_stale(p_before timestamp with time zo
 REVOKE ALL ON FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uuid, p_before timestamp with time zone, p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uuid, p_before timestamp with time zone, p_limit integer) TO authenticated;
 GRANT ALL ON FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uuid, p_before timestamp with time zone, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_lead_words_set(p_step_id uuid, p_lead_id uuid, p_subject text, p_body text, p_checked_words text, p_needs_line boolean) TO service_role;
 
 
 --
@@ -51209,12 +54656,12 @@ GRANT ALL ON FUNCTION public.sequence_place(p_tenant_id uuid, p_lead_id uuid) TO
 
 
 --
--- Name: FUNCTION sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[]); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[]) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[]) TO authenticated;
-GRANT ALL ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[]) TO service_role;
+REVOKE ALL ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean) TO service_role;
 
 
 --
@@ -51293,6 +54740,15 @@ GRANT ALL ON FUNCTION public.sequence_sends_place() TO service_role;
 
 
 --
+-- Name: FUNCTION sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_sent_by_step(p_tenant_id uuid, p_step_ids uuid[]) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_stale_sends(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -51357,6 +54813,14 @@ GRANT ALL ON FUNCTION public.sequence_steps_first_gone() TO service_role;
 
 REVOKE ALL ON FUNCTION public.sequence_steps_gone_ends_the_wait() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_steps_gone_ends_the_wait() TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) TO service_role;
 
 
 --
@@ -51640,14 +55104,6 @@ GRANT ALL ON FUNCTION public.sweep_mark_alerted(p_alerted text[], p_healthy text
 
 
 --
--- Name: FUNCTION sweep_recent_responses(p_limit integer); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.sweep_recent_responses(p_limit integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.sweep_recent_responses(p_limit integer) TO service_role;
-
-
---
 -- Name: FUNCTION sweep_schedules(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -51878,6 +55334,14 @@ GRANT ALL ON FUNCTION public.trigger_deadman_sweep() TO service_role;
 
 
 --
+-- Name: FUNCTION trigger_drafts_sweep(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trigger_drafts_sweep() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trigger_drafts_sweep() TO service_role;
+
+
+--
 -- Name: FUNCTION trigger_google_sweep(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -52046,12 +55510,29 @@ GRANT ALL ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uui
 
 
 --
+-- Name: FUNCTION words_seen(p_tenant_id uuid, p_step_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION workspace_days(p_tenant_id uuid, p_from date, p_to date); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) TO authenticated;
 GRANT ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to date) TO service_role;
+
+
+--
+-- Name: FUNCTION workspace_notices_on_erase(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_notices_on_erase() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_notices_on_erase() TO service_role;
 
 
 --
@@ -52113,6 +55594,13 @@ GRANT ALL ON SEQUENCE public.ai_usage_id_seq TO service_role;
 
 
 --
+-- Name: TABLE anthropic_profiles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.anthropic_profiles TO service_role;
+
+
+--
 -- Name: TABLE appointment_notices; Type: ACL; Schema: public; Owner: -
 --
 
@@ -52126,6 +55614,112 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointment_notices TO service
 
 GRANT SELECT ON TABLE public.appointments TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointments TO service_role;
+
+
+--
+-- Name: TABLE ask_actions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.ask_actions TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_actions TO service_role;
+
+
+--
+-- Name: COLUMN ask_actions.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.message_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(message_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.proposal_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(proposal_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(kind) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(by) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.origin_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(origin_by) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.strangers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(strangers) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.reason; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(reason) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(state) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.made_kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(made_kind) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.made_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(made_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.code; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(code) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.finished_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(finished_at) ON TABLE public.ask_actions TO authenticated;
 
 
 --
@@ -52193,6 +55787,14 @@ GRANT INSERT(content),UPDATE(content) ON TABLE public.ask_messages TO authentica
 
 GRANT SELECT ON TABLE public.ask_mornings TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_mornings TO service_role;
+
+
+--
+-- Name: TABLE ask_notice_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.ask_notice_days TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_notice_days TO service_role;
 
 
 --
@@ -52644,6 +56246,181 @@ GRANT ALL ON TABLE public.events_default TO service_role;
 
 GRANT SELECT ON TABLE public.fact_suggestions TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.fact_suggestions TO service_role;
+
+
+--
+-- Name: TABLE files; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.files TO service_role;
+
+
+--
+-- Name: COLUMN files.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(id) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(tenant_id) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(status) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.source; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(source) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.source_ref; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(source_ref) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(name) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.mime; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(mime) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.bytes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(bytes) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.width; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(width) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.height; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(height) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.look; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(look) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.look_status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(look_status) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.shows; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(shows) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.who_in_it; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(who_in_it) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.removed_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(removed_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.created_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(created_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.updated_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(updated_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(kind) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.media_status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(media_status) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.ready_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(ready_at) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.seconds; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(seconds) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.sound; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(sound) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.sound_said; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(sound_said) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: TABLE files_let_go; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.files_let_go TO service_role;
 
 
 --
@@ -53604,6 +57381,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_enrollments TO servic
 
 
 --
+-- Name: TABLE sequence_lead_words; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.sequence_lead_words TO authenticated;
+GRANT ALL ON TABLE public.sequence_lead_words TO service_role;
+
+
+--
 -- Name: TABLE sequence_replies; Type: ACL; Schema: public; Owner: -
 --
 
@@ -53756,6 +57541,49 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.voice_agents TO service_role;
 --
 
 GRANT ALL ON TABLE public.waitlist TO service_role;
+
+
+--
+-- Name: TABLE web_push_subscriptions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE ON TABLE public.web_push_subscriptions TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.web_push_subscriptions TO service_role;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.endpoint; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(endpoint) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.p256dh; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(p256dh) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.auth; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(auth) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.user_agent; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_agent) ON TABLE public.web_push_subscriptions TO authenticated;
 
 
 --

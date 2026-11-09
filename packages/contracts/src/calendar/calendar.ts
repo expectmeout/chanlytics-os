@@ -15,18 +15,18 @@
  * closures ahead, the booking rules, the services and how long they take.
  * Pure; tests feed fixtures.
  *
- * This module builds the view model (toCalendarVM) in the shape calendar-vm.ts declares. The modules beside it
- * hold the rest: the route's DTO (calendar-dto.ts), day keys (day-keys.ts), the words (calendar-words.ts), and
- * the views and the window loaded around them (calendar-views.ts).
+ * This module builds the view model (toCalendarVM) in the shape calendar/vm.ts declares. The modules beside it
+ * hold the rest: the route's DTO (calendar/dto.ts), day keys (day-keys.ts), the words (calendar/words.ts), and
+ * the views and the window loaded around them (calendar/views.ts).
  */
 import { timezoneCity } from "../shared/time";
 import { replyReachOf } from "../people/person-reach";
 import { formatPhoneDisplay } from "../shared/phone";
 import { BOOKING_DEFAULTS, closedOn, dayIntervals, hasHours } from "./availability";
-import { clockInZone, dayInZone, dayPlusInZone } from "./zone-math";
+import { clockInZone, dayInZone, dayPlusInZone } from "../shared/zone/math";
 import { offerFor } from "./service-offer";
-import { visitTitleWithout } from "./visit/visit-service";
-import { DAY_SHORT, DOW, keyParts, monthLabelOf, shiftKey, zoneMidnight } from "./day-keys";
+import { visitTitleWithout } from "./visit/service";
+import { DAY_SHORT, DOW, keyParts, monthLabelOf, shiftKey, zoneMidnight } from "../shared/zone/day-keys";
 import { bookingToolName, NOTICE_HOLD_WORDS } from "./booking-notice";
 import {
   CALENDAR_OWED_WORD,
@@ -40,15 +40,15 @@ import {
   closureDatesLabel,
   closuresFrom,
   feedNotes,
-  hoursLines,
+  calendarHoursLines,
   longDate,
   readAgoLabel,
   ruleParts,
   rulesLine,
   shortDate,
-  spanLabel,
+  calendarSpanLabel,
   type CalendarFeedHealth,
-} from "./calendar-words";
+} from "./words/labels";
 import type {
   CalendarBandVM,
   CalendarBlockVM,
@@ -57,8 +57,8 @@ import type {
   CalendarServiceVM,
   CalendarVM,
   CalendarWindowVM,
-} from "./calendar-vm";
-import type { CalendarFeedDto, CalendarItemDto, CalendarWeekDto } from "./calendar-dto";
+} from "./vm";
+import type { CalendarFeedDto, CalendarItemDto, CalendarWeekDto } from "./dto";
 
 function hoursOf(tz: string, ms: number): number {
   const c = clockInZone(tz, ms);
@@ -93,7 +93,7 @@ function noticeFacts(item: CalendarItemDto): Pick<CalendarBlockVM, "tool" | "sta
 /**
  * What the block is for: the service a notice stated; else the title with the person's name taken out of it, so a row
  * that names them does not say them twice ("Gloss · Emily Chen" beside Emily Chen is "Gloss"), by the one rule every page
- * says a visit's title by (visit-service.ts visitTitleWithout). A salon writes the customer into the event's title, so
+ * says a visit's title by (visit/service.ts visitTitleWithout). A salon writes the customer into the event's title, so
  * the feed hands us both, and Today's card and the Calendar's agenda each drew the pair.
  */
 function serviceWordsOf(item: CalendarItemDto): string {
@@ -112,16 +112,16 @@ function feedLineOf(state: CalendarFeedDto["state"], feedDetail: string, notices
 }
 
 /** The bookings that arrived by email, as the board's card, Settings' row and Ask say them: one line, said once. */
-function noticesVM(n: CalendarFeedDto["notices"], now: Date): CalendarVM["feed"]["notices"] {
-  const tool = n?.tool ? bookingToolName(n.tool) : null;
-  const lastAgo = readAgoLabel(n?.last_at ?? null, now);
-  const held = n?.held ?? 0;
-  const line = n?.last_at
+function noticesVM(notices: CalendarFeedDto["notices"], now: Date): CalendarVM["feed"]["notices"] {
+  const tool = notices?.tool ? bookingToolName(notices.tool) : null;
+  const lastAgo = readAgoLabel(notices?.last_at ?? null, now);
+  const held = notices?.held ?? 0;
+  const line = notices?.last_at
     ? `Bookings arrive by email from ${tool ?? "your booking tool"} · last ${lastAgo ?? "just now"}${held ? ` · ${held} to look at` : ""}`
     : "";
   // Working once a notice has become a visit; waiting from the moment the owner named a tool; nothing before that.
-  const state = n?.last_at ? "working" : n?.tool ? "waiting" : "none";
-  const heldList = (n?.held_list ?? []).map((h) => ({
+  const state = notices?.last_at ? "working" : notices?.tool ? "waiting" : "none";
+  const heldList = (notices?.held_list ?? []).map((h) => ({
     id: h.id,
     noticeId: h.notice_id ?? null,
     tool: bookingToolName(h.tool),
@@ -132,13 +132,25 @@ function noticesVM(n: CalendarFeedDto["notices"], now: Date): CalendarVM["feed"]
   }));
   // Shown for as long as it is asked (setup/calendar-source.ts forwardStillAsked), and no longer.
   const forwarding =
-    n?.forwarding && forwardStillAsked(n.forwarding.at, now)
-      ? { account: n.forwarding.account, code: n.forwarding.code, link: n.forwarding.link }
+    notices?.forwarding && forwardStillAsked(notices.forwarding.at, now)
+      ? { account: notices.forwarding.account, code: notices.forwarding.code, link: notices.forwarding.link }
       : null;
-  const address = n?.address ?? null;
-  const row = state === "none" ? null : noticeRowOf(emailsFactsOf(n, !!forwarding), lastAgo);
-  const suggested = address ? null : (n?.suggested ?? null);
-  return { tool, address, suggested, lastAgo, count: n?.count ?? 0, held, line, state, heldList, forwarding, row };
+  const address = notices?.address ?? null;
+  const row = state === "none" ? null : noticeRowOf(emailsFactsOf(notices, !!forwarding), lastAgo);
+  const suggested = address ? null : (notices?.suggested ?? null);
+  return {
+    tool,
+    address,
+    suggested,
+    lastAgo,
+    count: notices?.count ?? 0,
+    held,
+    line,
+    state,
+    heldList,
+    forwarding,
+    row,
+  };
 }
 
 /** The notices as the one rule reads them (setup/calendar-source.ts): an address, a forward still shown, the latest, the held. */
@@ -154,18 +166,23 @@ const emailsFactsOf = (n: CalendarFeedDto["notices"], forwarding: boolean): Book
  * Gmail waits on, are the owner's to fix (warn); emails held for a look are too; otherwise the last email's age (ok),
  * or waiting for the first (plain).
  */
-function noticeRowOf(e: BookingEmailsFacts, lastAgo: string | null): NonNullable<CalendarVM["feed"]["notices"]["row"]> {
+function noticeRowOf(
+  bookingEmailsFacts: BookingEmailsFacts,
+  lastAgo: string | null,
+): NonNullable<CalendarVM["feed"]["notices"]["row"]> {
   // The owner's to do, in the word every page gives a step that waits on them (setup/calendar-source.ts CALENDAR_OWED_WORD).
   const needsYou = (words: string) => ({ tone: "warn" as const, label: CALENDAR_OWED_WORD, words });
   const last = `Last booking email ${lastAgo ?? "just now"}`;
   // The order is the one rule's (setup/calendar-source.ts bookingEmailsStep), which every page's status asks too.
-  const step = bookingEmailsStep(e);
+  const step = bookingEmailsStep(bookingEmailsFacts);
   if (step === "address") return needsYou("Needs a workspace email address");
   if (step === "forwarding") return needsYou("Confirm the forward in Gmail");
   // Emails held for a look are the owner's to see whether or not one has become a visit yet.
   if (step === "held")
     return needsYou(
-      e.lastAt ? `${last} · ${e.held} to look at` : `${e.held} booking ${e.held === 1 ? "email" : "emails"} to look at`,
+      bookingEmailsFacts.lastAt
+        ? `${last} · ${bookingEmailsFacts.held} to look at`
+        : `${bookingEmailsFacts.held} booking ${bookingEmailsFacts.held === 1 ? "email" : "emails"} to look at`,
     );
   if (step === "waiting") return { tone: "plain", label: "Waiting", words: "Waiting for the first booking email" };
   return { tone: "ok", label: "Working", words: last };
@@ -187,17 +204,17 @@ const sourceOfWeek = (dto: CalendarWeekDto, link: CalendarFeedHealth, forwarding
   });
 
 function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs: number, now: Date): CalendarBlockVM {
-  const s = Math.max(Date.parse(item.start), dayStartMs);
-  const e = Math.min(Date.parse(item.end), dayEndMs);
-  const t = s === dayStartMs ? 0 : hoursOf(tz, s);
-  const tEnd = e === dayEndMs ? 24 : hoursOf(tz, e);
+  const highest = Math.max(Date.parse(item.start), dayStartMs);
+  const lowest = Math.min(Date.parse(item.end), dayEndMs);
+  const lastHour = highest === dayStartMs ? 0 : hoursOf(tz, highest);
+  const tEnd = lowest === dayEndMs ? 24 : hoursOf(tz, lowest);
   return {
     id: item.id,
-    t,
-    dur: Math.max(15, Math.round((tEnd - t) * 60)),
+    t: lastHour,
+    dur: Math.max(15, Math.round((tEnd - lastHour) * 60)),
     title: item.title || "Busy",
     service: serviceWordsOf(item),
-    time: spanLabel(t, tEnd),
+    time: calendarSpanLabel(lastHour, tEnd),
     person: item.person
       ? {
           id: item.person.id,
@@ -257,20 +274,20 @@ function assignLanes(timed: CalendarBlockVM[]): void {
   const close = () => {
     for (const b of cluster) b.lanes = laneEnds.length;
   };
-  for (const b of timed) {
-    const end = b.t + b.dur / 60;
-    if (b.t >= clusterEnd - 1e-9 && cluster.length) {
+  for (const block of timed) {
+    const end = block.t + block.dur / 60;
+    if (block.t >= clusterEnd - 1e-9 && cluster.length) {
       close();
       cluster = [];
       laneEnds = [];
     }
-    let lane = laneEnds.findIndex((e) => e <= b.t + 1e-9);
+    let lane = laneEnds.findIndex((e) => e <= block.t + 1e-9);
     if (lane === -1) {
       lane = laneEnds.length;
       laneEnds.push(end);
     } else laneEnds[lane] = end;
-    b.lane = lane;
-    cluster.push(b);
+    block.lane = lane;
+    cluster.push(block);
     clusterEnd = Math.max(clusterEnd, end);
   }
   close();
@@ -308,7 +325,7 @@ function closedDayOf(
  * A day's bands over the grid's hours: the whole day where it is closed (a closure, or a weekday the hours leave out),
  * else the hours outside the business's own; none where no hours are set (CAL-2), which is no closed day.
  */
-function dayBandsOf(p: {
+function dayBandsOf(params: {
   closedDay: boolean;
   hoursSet: boolean;
   intervals: ReadonlyArray<readonly [string, string]>;
@@ -316,12 +333,12 @@ function dayBandsOf(p: {
   start: number;
   end: number;
 }): CalendarBandVM[] {
-  const { start, end } = p;
-  if (p.closedDay) return [{ from: start, to: end, label: p.note ? `Closed · ${p.note}` : "Closed" }];
-  if (!p.hoursSet) return [];
+  const { start, end } = params;
+  if (params.closedDay) return [{ from: start, to: end, label: params.note ? `Closed · ${params.note}` : "Closed" }];
+  if (!params.hoursSet) return [];
   const bands: CalendarBandVM[] = [];
   let cursor = start;
-  for (const [o, c] of p.intervals) {
+  for (const [o, c] of params.intervals) {
     const oh = Number(o.split(":")[0]) + Number(o.split(":")[1]) / 60;
     const ch = Number(c.split(":")[0]) + Number(c.split(":")[1]) / 60;
     if (oh > cursor) bands.push({ from: cursor, to: oh, label: null });
@@ -362,10 +379,10 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   end = Math.min(24, end + 1);
   // A block outside the business's hours widens the grid rather than falling
   // off it: an 8 PM appointment when the shop closes at 6 is still drawn.
-  for (const d of dto.days) {
-    const ds = zoneMidnight(tz, d.key);
-    const de = zoneMidnight(tz, shiftKey(d.key, 1));
-    for (const item of d.items) {
+  for (const day of dto.days) {
+    const ds = zoneMidnight(tz, day.key);
+    const de = zoneMidnight(tz, shiftKey(day.key, 1));
+    for (const item of day.items) {
       const s = Date.parse(item.start);
       const e = Date.parse(item.end);
       if (item.all_day || !(e > ds && s < de) || (s <= ds && e >= de)) continue;
@@ -375,19 +392,20 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     }
   }
 
-  const days: CalendarDayVM[] = dto.days.map((d) => {
-    const { y, m, d: dd } = keyParts(d.key);
-    const weekday = DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()].toLowerCase();
+  const days: CalendarDayVM[] = dto.days.map((day) => {
+    const { y, m, d: dd } = keyParts(day.key);
+    const weekday = (DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] ?? "").toLowerCase();
     const closure =
-      dto.closures.find((c) => c.date <= d.key && d.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
+      dto.closures.find((c) => c.date <= day.key && day.key <= (c.until && c.until >= c.date ? c.until : c.date)) ??
+      null;
     const intervals = dayIntervals(dto.hours?.[weekday]);
-    const closedDay = closedDayOf(dto.closures, d.key, hoursSet, intervals);
+    const closedDay = closedDayOf(dto.closures, day.key, hoursSet, intervals);
     const bands = dayBandsOf({ closedDay, hoursSet, intervals, note: closure?.note ?? null, start, end });
-    const zoneDayStart = zoneMidnight(tz, d.key);
-    const zoneDayEnd = zoneMidnight(tz, shiftKey(d.key, 1));
+    const zoneDayStart = zoneMidnight(tz, day.key);
+    const zoneDayEnd = zoneMidnight(tz, shiftKey(day.key, 1));
     const timed: CalendarBlockVM[] = [];
     const allDay: CalendarBlockVM[] = [];
-    for (const item of d.items) {
+    for (const item of day.items) {
       const s = Date.parse(item.start);
       const e = Date.parse(item.end);
       if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
@@ -398,25 +416,25 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     }
     timed.sort((a, b) => a.t - b.t || b.dur - a.dur);
     assignLanes(timed);
-    const windows: CalendarWindowVM[] = d.windows.map((w) => {
+    const windows: CalendarWindowVM[] = day.windows.map((w) => {
       const t = hoursOf(tz, Date.parse(w.start));
       const tEnd = hoursOf(tz, Date.parse(w.end));
-      return { t, dur: Math.round((tEnd - t) * 60), label: spanLabel(t, tEnd) };
+      return { t, dur: Math.round((tEnd - t) * 60), label: calendarSpanLabel(t, tEnd) };
     });
     return {
-      key: d.key,
-      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()],
-      date: shortDate(d.key),
-      long: longDate(d.key),
+      key: day.key,
+      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] ?? "",
+      date: shortDate(day.key),
+      long: longDate(day.key),
       dayNum: String(dd),
-      today: d.key === todayKey,
-      past: d.key < todayKey,
+      today: day.key === todayKey,
+      past: day.key < todayKey,
       closed: { yes: closedDay, note: closure?.note ?? null },
       bands,
       blocks: timed,
       allDay,
       windows,
-      beyondOffer: d.key > offerUntil,
+      beyondOffer: day.key > offerUntil,
     };
   });
 
@@ -486,7 +504,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil), slot: offerSlot },
     rules: rulesLine(dto.rules),
     ruleParts: ruleParts(dto.rules),
-    hoursLines: hoursLines(dto.hours),
+    hoursLines: calendarHoursLines(dto.hours),
     closuresAhead,
     // Past the six the bar names, counted: a seventh closure used to vanish without a word (C1).
     closuresMore: Math.max(0, ahead.length - closuresAhead.length),

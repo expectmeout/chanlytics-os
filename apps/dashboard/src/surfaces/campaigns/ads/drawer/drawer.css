@@ -396,6 +396,12 @@
   background: var(--bg-sunken);
   color: var(--ink-dim);
 }
+.ads-photo-pic {
+  flex-basis: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .ads-frame:is([data-kind="story"], [data-kind="reel"], [data-kind="video"]) > .ads-photo {
   position: absolute;
   inset: 0;

@@ -1,12 +1,13 @@
 /**
  * The lead finder's view of the world (PRD §12.5): what the runner needs,
  * named for what each means. The database half is one method per service
- * RPC of migration 00140 plus a few reads (apps/edge/lib/leads/lead-db.ts, service
+ * RPC of migration 00140 plus a few reads (apps/edge/lib/leads/db.ts, service
  * role); the provider and the judge are the channels package's clients, bound
  * by the edge where the keys are (apps/edge/lib/leads/lead-wires.ts). Every verb
  * here runs over fakes in a test: no network, no database.
  */
-import type { ApifyClient, LeadJudge } from "@chanlytics/channels";
+import type { ApifyClient, LeadJudge } from "@chanlytics/channels/leads";
+import type { SitePage } from "@chanlytics/channels/website";
 import type { MarkImage } from "./mark-image";
 import type {
   CompanyFitAnswer,
@@ -23,6 +24,7 @@ import type {
   LeadFacts,
   ContactId,
   TenantId,
+  JobPayload,
 } from "@chanlytics/contracts";
 
 /** The question after the probe, as lead_rounds.question keeps it (PRD §7.2, P4): contracts' LeadQuestion with when it was asked. */
@@ -309,6 +311,11 @@ export interface LeadDb {
   ): Promise<{ ok: boolean }>;
   roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
   /**
+   * What reading businesses' sites cost (lead_site_reads_spent): against the round while it lives, else the month and the
+   * day it was read in. `roundId` null is a read no round asked for (the leads sweep's second try at a mark).
+   */
+  siteReadsSpent(tenantId: TenantId, roundId: string | null, reads: number, usd: number): Promise<void>;
+  /**
    * A people run's page of companies (00430 lead_company_upsert), before its own commit moves the run: a lead each, or
    * the people a company already held gains. Idempotent, so a page read twice keeps each company once.
    */
@@ -374,17 +381,18 @@ export interface LeadPorts {
   /** A run row's webhook token, derived from its id by the edge: made once (its sha256 on the row), never rewritten, rebuilt by any later job of ours. */
   webhookToken(runRowId: string): Promise<string>;
   /** scheduleJobOnce for this workspace: a second row for the same key is an answer, not an error. */
-  schedule(
-    kind: "lead_round_start" | "lead_collect" | "lead_check",
-    payload: Record<string, unknown>,
+  schedule<K extends "lead_round_start" | "lead_collect" | "lead_check">(
+    kind: K,
+    payload: JobPayload<K>,
     runAfterSeconds: number,
   ): Promise<void>;
   /**
-   * One GET of a page as text, for the engine's own reading -- today the business's home page, for its mark (D6).
-   * Answers null rather than throwing on anything that is not a page we can read. Absent in a runtime that has no
-   * business fetching (a test world that models none): the collect then simply marks nothing.
+   * A business's home page by its website's host, as the platform's page reader draws it, for the engine's own reading:
+   * its mark (D6), and what the judge reads where a plan asks what only a website shows. A credit a read: site-reads.ts
+   * reads each host once. Answers null rather than throwing on anything that is not a page we can read. Absent in a
+   * runtime that has no business reading (a test world that models none): the collect then simply marks nothing.
    */
-  fetchText?(url: string, timeoutMs: number): Promise<string | null>;
+  readSite?(host: string, timeoutMs: number): Promise<SitePage | null>;
   /**
    * One GET of an image's bytes (00161): at most `maxBytes`, null on anything else -- a refusal, a timeout, a body
    * that runs longer. What the bytes are is the engine's to judge (mark-image.ts), never the server's word for them.

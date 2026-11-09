@@ -1,5 +1,5 @@
-import { read, write, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, write, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { autonomy } from "@/server/readers/autonomy";
 import { changePolicy, PolicyChange } from "@/server/campaigns/policy-write";
 

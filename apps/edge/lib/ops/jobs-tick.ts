@@ -7,7 +7,7 @@
  * pg_cron asks every ten seconds whether anything in the ledger is due and
  * calls this only when something is (trigger_jobs_tick, 00098). Auth and the
  * database are sweepDoor's; each job's own tenant credentials are bound here;
- * the loop is packages/jobs/src/tick.ts, which is tested by running it against fakes.
+ * the loop is packages/jobs/src/runner/tick.ts, which is tested by running it against fakes.
  *
  * Its ceiling is apps/edge/vercel.json's, and the ledger's timings hang off
  * it: jobs are claimed one at a time, in CLAIM_SLOTS slots side by side, for
@@ -16,28 +16,35 @@
  * last one to the ceiling). Each is measured from the moment the door was
  * reached (sweepDoor's `started`), as the ceiling is.
  */
-import { json, refuse } from "../http.js";
-import { errField } from "../log.js";
+import { heldTenantId } from "@chanlytics/contracts";
+import { json, refuse } from "../shared/http.js";
+import { errField } from "../shared/log.js";
 import { alertFor } from "./job-alert.js";
-import { whatsappWireForTenant } from "../tenant-runtime.js";
-import { instagramWireForTenant } from "../instagram/credentials.js";
-import { smsSenderForTenant, smsWire } from "../sms/sms.js";
-import { emailBoundFor, emailIntake } from "../email/email.js";
-import { mailboxIntake } from "../email/mailbox/mailbox-intake.js";
+import { findWhatsappWireForTenant } from "../shared/tenant-runtime.js";
+import { findInstagramWireForTenant } from "../instagram/credentials.js";
+import { findSmsSenderForTenant, smsWire } from "../lines/sms.js";
+import { findEmailBound, emailIntake } from "../email/email.js";
+import { mailboxIntake } from "../email/mailbox/intake.js";
 import { historyImports } from "../imports/history-import.js";
 import { websiteReader } from "../imports/website-read.js";
+import { fileJobs } from "../files/upkeep.js";
 import { previewBuilder } from "../previews/build.js";
-import { campaignsBinding } from "../email/campaigns-domain.js";
-import { pageOperator } from "./page-operator.js";
-import { provisionLineJob } from "../lines/line-provision-job.js";
+import { getCampaignsBinding } from "../email/campaigns-domain.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
+import { provisionLineJob } from "../lines/provision-job.js";
 import { eraseCallsAtProvider } from "../voice/erase-calls.js";
-import { env } from "../env.js";
-import { leadPipeline } from "../leads/lead-pipeline.js";
+import { env } from "../shared/env.js";
+import { leadPipeline } from "../leads/pipeline.js";
 import { expoPush } from "./push.js";
-import { replyReader } from "../reach-out/reply-read.js";
+import { webPush } from "./web-push.js";
+import { draftEdge } from "../drafts/writer.js";
+import { replyReader } from "../campaigns/reach-out/reply-read.js";
 import { bookingReader } from "../calendar/booking-read.js";
+import { calendarReader } from "../calendar/sweep.js";
+import { campaignRuns } from "../campaigns/reach-out/workspace-runs.js";
+import { googleReader } from "../google/sweep.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
-import { offerFreedTime } from "../calendar/freed-time-offer.js";
+import { offerFreedTime } from "../campaigns/freed-time-offer.js";
 import { answerInboundJob } from "../inbound/answer-job.js";
 import {
   runTick,
@@ -60,9 +67,12 @@ import {
   RELAY_LIMIT,
   type ClaimedJob,
   type TickCounts,
-} from "../packages/jobs.js";
-import { relayEvents, workspaceIsOurs } from "../packages/db.js";
+} from "@chanlytics/jobs";
+import { relayEvents } from "@chanlytics/db/events";
+import { isWorkspaceOurs } from "@chanlytics/db/console";
 import type { SweepTick } from "./sweep-door.js";
+import { recordOrEmpty } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** This many failures in one heartbeat are the platform's, not any owner's. */
 const MASS_FAILURE_PAGE = 10;
@@ -104,16 +114,16 @@ function replyLateBody(worstMs: number): string {
  */
 const pagerOf =
   (db: SweepTick["db"]) =>
-  async (key: string, subject: string, body: string, tenantId?: string | null): Promise<unknown> =>
-    tenantId && (await workspaceIsOurs(db, tenantId)) ? "ours" : pageOperator({ db }, key, subject, body);
+  async (key: string, subject: string, body: string, tenantId?: TenantId | null): Promise<unknown> =>
+    tenantId && (await isWorkspaceOurs(db, tenantId)) ? "ours" : pageOperator({ db }, key, subject, body);
 
 /**
  * Of these workspaces, the ones that are a customer's: not ours (tenants.ours, 00469). A workspace whose row cannot be read
  * is counted as a customer's, so a read that failed never keeps a page from the platform.
  */
-async function customersOf(db: SweepTick["db"], tenantIds: readonly string[]): Promise<Set<string>> {
-  const ours = await Promise.all(tenantIds.map((t) => workspaceIsOurs(db, t).then((o) => (o ? null : t))));
-  return new Set(ours.filter((t): t is string => t !== null));
+async function customersOf(db: SweepTick["db"], tenantIds: readonly TenantId[]): Promise<Set<string>> {
+  const ours = await Promise.all(tenantIds.map((t) => isWorkspaceOurs(db, t).then((o) => (o ? null : t))));
+  return new Set(ours.filter((t): t is TenantId => t !== null));
 }
 
 /**
@@ -124,6 +134,8 @@ async function customersOf(db: SweepTick["db"], tenantIds: readonly string[]): P
 const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   imports: historyImports(db),
   website: websiteReader(db),
+  // A business's files looked at, brought in and let go (decision 0099).
+  files: fileJobs(db),
   // A lead's own receptionist built (decision 0079), its website read the same way.
   previews: previewBuilder(db),
 });
@@ -131,17 +143,17 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
 /**
  * A job's wires but email's, bound where the credentials are: the TENANT's WhatsApp credentials, never the environment's
  * (a second business's reply must not leave from the first one's number), each send from the number its person last
- * wrote to where the workspace has two (whatsappWireForTenant); the texting line's sender when the workspace has one; and
+ * wrote to where the workspace has two (findWhatsappWireForTenant); the texting line's sender when the workspace has one; and
  * its Instagram account's, a member's reply and a held draft by DM leaving from the account the person last wrote to
  * (lib/instagram). Null on any is a refusal at the door, not a guess; a read that FAILED is neither (core
  * WireUnavailable): the reply waits for a heartbeat that can read the vault. Email's wire is bound to the workspace's own
  * addresses (its hosted mailbox, each mailbox it connected): it sends a frozen request only when it leaves as one.
  */
-async function phoneWires(db: SweepTick["db"], tenantId: string) {
-  const line = await smsSenderForTenant(db, tenantId);
+async function phoneWires(db: SweepTick["db"], tenantId: TenantId) {
+  const line = await findSmsSenderForTenant(db, tenantId);
   return {
-    whatsapp: await whatsappWireForTenant(db, tenantId),
-    instagram: await instagramWireForTenant(db, tenantId),
+    whatsapp: await findWhatsappWireForTenant(db, tenantId),
+    instagram: await findInstagramWireForTenant(db, tenantId),
     sms: smsWire(line),
   };
 }
@@ -155,7 +167,10 @@ async function pageWhatTheCustomersWaited(
   by: Pick<TickCounts, "replyLateBy" | "failedBy">,
   tally: Parameters<typeof massFailureBody>[0],
 ): Promise<void> {
-  const customers = await customersOf(db, [...new Set([...Object.keys(by.replyLateBy), ...Object.keys(by.failedBy)])]);
+  const customers = await customersOf(
+    db,
+    [...new Set([...Object.keys(by.replyLateBy), ...Object.keys(by.failedBy)])].map(heldTenantId),
+  );
   const replyLateMs = Math.max(
     0,
     ...Object.entries(by.replyLateBy).flatMap(([t, ms]) => (customers.has(t) ? [ms] : [])),
@@ -172,7 +187,7 @@ async function pageWhatTheCustomersWaited(
     );
   }
   // Many failures in one heartbeat are also the platform's condition: one page with the counts in words and where to
-  // look. Each failed job has already told whom its kind tells (packages/jobs/src/tick.ts); the page is in addition to
+  // look. Each failed job has already told whom its kind tells (packages/jobs/src/runner/tick.ts); the page is in addition to
   // those, not instead of them.
   if (failed >= MASS_FAILURE_PAGE)
     await pageOperator({ db }, "jobs_mass_failure", `${failed} jobs failed in one heartbeat`, massFailureBody(tally));
@@ -202,9 +217,9 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
           // kept five minutes) and bound, as the wire's route and the intake's lane; every other job never sees it. For a
           // domain the deployment names the answer is never "no lane": verified binds it, one the provider says is not
           // verified closes offers and the run stops, and one it could not be asked about makes a run of offers wait while
-          // the email wire stays bound for everything else (emailBoundFor says each).
-          const offers = job.kind === "broadcast_send" ? await campaignsBinding() : ({ state: "none" } as const);
-          const bound = wired ? await emailBoundFor(db, job.tenant_id, offers, L) : null;
+          // the email wire stays bound for everything else (findEmailBound says each).
+          const offers = job.kind === "broadcast_send" ? await getCampaignsBinding() : ({ state: "none" } as const);
+          const bound = wired ? await findEmailBound(db, job.tenant_id, offers, L) : null;
           // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
           const intake = bound ? emailIntake(db, bound.campaigns, bound.closed, bound.unread) : null;
           // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
@@ -221,7 +236,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
             id: job.id,
             tenant_id: job.tenant_id,
             kind: job.kind,
-            payload: (job.payload ?? {}) as Record<string, unknown>,
+            payload: recordOrEmpty(job.payload),
             attempts: job.attempts,
           };
           const ran = dispatchJob(
@@ -232,6 +247,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               page: pagerOf(db),
               // The phones, through Expo's push service: no per-tenant credential, one transport for all.
               push: expoPush(),
+              webPush: webPush(),
               provisionLine: (lineId, by, until) => provisionLineJob(db, job.tenant_id, lineId, by, undefined, until),
               ...providerErasure(),
               ...(intake ? { email: intake } : {}),
@@ -239,9 +255,15 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               ...(leads ? { leads } : {}),
               // The reading of a reach-out's reply (model, spend, notice): with no model key it says no_model and is read later.
               replies: replyReader(db),
+              // A thread's draft (decision 0093): the receptionist's brain in its draft voice, and the sender's reader.
+              drafts: draftEdge(db),
               // The reading of a booking tool's notice: the model, the spend and the person it is for.
               bookings: bookingReader(db),
-              calendar: { feedNames: feedNamesFor(db) }, // a reminder asks the owner's calendar beside the record
+              // A reminder asks the owner's calendar beside the record; a workspace's calendar_read reads it (0115).
+              calendar: { feedNames: feedNamesFor(db), read: calendarReader(db) },
+              // What a clock handed out (decision 0115): a workspace's campaigns, and its Google listings.
+              campaigns: campaignRuns(db),
+              google: googleReader(db),
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
               inbound: { answer: (claimed, deadline) => answerInboundJob(db, claimed, deadline) },
@@ -270,7 +292,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
         defer: (job, untilIso, reason) => deferJob(db, job, untilIso, reason),
         // Nothing ran, so the claim is given back: the next runner to claim it finds a first claim.
         deferUnknown: (job, untilIso, reason) => deferJob(db, job, untilIso, reason, true),
-        settle: (job, certain, why) => settleJob(db, job, certain, why),
+        settle: (job, certain, reason) => settleJob(db, job, certain, reason),
         alert: (job, news) => alertFor(db, job)(news),
         page: pagerOf(db),
         log: L,
@@ -300,6 +322,6 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
     // it. A ledger that cannot be claimed from is a database problem, and a 503
     // is what sweep_health() reads as one.
     L.error("jobs_tick_failed", { error: errField(e) });
-    return refuse(503, "query_failed", errField(e));
+    return refuse(503, "query_failed");
   }
 }

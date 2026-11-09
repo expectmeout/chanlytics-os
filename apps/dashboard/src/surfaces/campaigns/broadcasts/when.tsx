@@ -7,8 +7,9 @@
  * colours and let a person type any minute of any day. The send screen drew it after its "now or later"; New's When
  * sheet draws it under its own "Pick a day" (decision 0065 step 7, where that screen left).
  */
-import { DAY_MS, MIN_MS, SEND_WHEN_WORDS, sendsWaitWords } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { DAY_MS, MIN_MS, sendsWaitWords } from "@chanlytics/contracts";
+import { SEND_WHEN_WORDS } from "./send-when-words";
+import { pageClock } from "@/bridge/zone";
 import { DatePicker } from "../../kit/datepicker/datepicker";
 import { Icon } from "../../kit/icon/icon";
 import { Picker, Token } from "../../kit/picker/picker";

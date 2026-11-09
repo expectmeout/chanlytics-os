@@ -12,6 +12,7 @@ export {
   toolSchema,
 } from "./registry";
 export { aboveRoleWords, toApiTools } from "./offer";
-export { cardsOf, newToolContext } from "./context";
-export type { ProposalOutcome, ToolContext, ToolDef, ToolOutcome, ToolRun } from "./context";
+export { cardsOf } from "./context/context";
+export { newToolContext } from "./context/tool-reads";
+export type { ProposalOutcome, ToolContext, ToolDef, ToolOutcome, ToolRun } from "./context/tool-defs";
 export { THREAD_VERBS } from "./act/thread-verb";

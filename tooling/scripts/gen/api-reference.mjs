@@ -134,6 +134,112 @@ function routeFiles(root) {
     .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 }
 
+/**
+ * The edge's doors, as contracts declares them (decision 0109): each one's path and the fields its body takes, which the
+ * dashboard's `callEdge` sends and the door reads its body through. Who may knock on each is tests/edge/door-policy.json's.
+ */
+async function edgeDoorLines(root) {
+  const contracts = await import(pathToFileURL(path.join(root, "packages/contracts/src/index.ts")).href);
+  const doors = Object.entries(contracts)
+    .filter(
+      ([name, v]) =>
+        name.endsWith("_DOOR") && v && typeof v.aud === "string" && typeof v.body?.safeParse === "function",
+    )
+    .map(([, v]) => v)
+    .sort((a, b) => (a.aud < b.aud ? -1 : a.aud > b.aud ? 1 : 0));
+  const lines = [
+    "## The edge's doors",
+    "",
+    "Every door on the edge whose body contracts declares (`packages/contracts/src/<domain>/edge-doors.ts`, decision 0109):",
+    "the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same",
+    "schema. Who may knock on each is `tests/edge/door-policy.json`'s.",
+    "",
+    `${doors.length} doors.`,
+    "",
+  ];
+  for (const door of doors) {
+    const read = door.body.safeParse(null).success;
+    lines.push(`### \`${read ? "GET" : "POST"} ${door.aud}\``, "");
+    if (read) {
+      lines.push("Read with GET; takes no body.", "");
+      continue;
+    }
+    const rows = fieldRows(door.body);
+    if (saysItsOwnTables(rows)) lines.push(...rows, "");
+    else lines.push(...BODY_HEAD, ...rows, "");
+  }
+  return lines;
+}
+
+/** What each code tells a caller. A code added to ERROR_CODES with no line here stops the page from being written. */
+const CODE_MEANS = {
+  unauthorized: "Not signed in, or the session has ended.",
+  forbidden: "Signed in, and this role may not.",
+  not_found: "No such thing in this workspace.",
+  validation: "What was sent cannot be taken; the words say why.",
+  choose_workspace: "The account is in several workspaces and the request did not say which.",
+  mfa_required: "A partner's seat needs its second factor first.",
+  conflict: "It already exists, or what it depends on has moved.",
+  rate_limited: "Too many for now; `details.retry_after_s` says when it lifts.",
+  payment_required: "The workspace may not do this until it pays.",
+  window_closed: "The channel's reply window has closed.",
+  upstream_meta: "Meta refused or could not be reached.",
+  upstream_retell: "The voice provider refused or could not be reached.",
+  upstream_anthropic: "The model refused or could not be reached.",
+  upstream_email: "The email provider refused or failed.",
+  upstream_auth: "Sign-in could not be checked just now; the session stands.",
+  upstream_voice: "Ask's voice refused, could not be reached, or is not set up here.",
+  upstream_provider: "A provider, or the edge asked on our behalf, refused or never answered.",
+  unavailable: "It could not be done just now; trying again may do it.",
+  internal: "Something failed that nothing here expected; its text is only in the log.",
+};
+
+/**
+ * What a caller can be refused with (decision 0114): the codes, the status each answers by default, the database's codes
+ * a route answers by, and the edge's own. From the sets themselves, so a code cannot be added without it being said here.
+ */
+async function refusalLines(root) {
+  const contracts = await import(pathToFileURL(path.join(root, "packages/contracts/src/index.ts")).href);
+  const { DOOR_REFUSALS } = await import(
+    pathToFileURL(path.join(root, "apps/dashboard/src/server/shared/with-route.ts")).href
+  );
+  const rows = contracts.ERROR_CODES.map((code) => {
+    const means = CODE_MEANS[code];
+    if (!means) throw new Error(`api-reference: say what ${code} means in CODE_MEANS`);
+    return `| \`${code}\` | ${new contracts.AppError(code, "").status} | ${means} |`;
+  });
+  return [
+    "## What a refusal answers",
+    "",
+    "A route refuses with `{ ok: false, error: { code, message, details? } }`: a code from one closed set, a sentence a",
+    "person may read, and what the code's `ErrorDetailsByCode` says it carries. Every answer carries `x-request-id`, which",
+    "finds its lines in the log. A failure's own text is never in an answer.",
+    "",
+    "| Code | Status | What it says |",
+    "| --- | --- | --- |",
+    ...rows,
+    "",
+    "### What the database answers by",
+    "",
+    "A failed reply from the database keeps its code (`DbFailure`). These codes a door raises on purpose, so a route answers",
+    "them as refusals, in the door's own sentence; a sentence Postgres wrote, which names a constraint or a table, is",
+    "answered in plain words instead. Any other failure is `internal`.",
+    "",
+    "| Database code | Code | Status |",
+    "| --- | --- | --- |",
+    ...Object.entries(DOOR_REFUSALS).map(([db, door]) => `| \`${db}\` | \`${door.code}\` | ${door.status} |`),
+    "",
+    "### The edge's codes",
+    "",
+    "A door on the edge refuses with `{ ok: false, error, detail? }`: `error` is a code a caller compares, `detail` words a",
+    "person or support may read (`packages/contracts/src/shared/edge-errors.ts`). A door that crashes answers `door_failed`,",
+    "at 500, and logs `door_failed` with the stack and the request's name.",
+    "",
+    contracts.EDGE_ERROR_CODES.map((code) => `\`${code}\``).join(", "),
+    "",
+  ];
+}
+
 /** The page, from the routes as they are: imported, asked what each handler declared. */
 export async function generate(root) {
   // Modules that build a service client on first use read these; nothing here dials it.
@@ -180,19 +286,21 @@ export async function generate(root) {
     "",
     "Every member-facing route, by domain: who may call it, the rate bucket it counts against, whether it may spend",
     "the workspace's money, and the fields it takes. A workspace-scoped route names its workspace with `?workspace=`",
-    "(`apps/dashboard/src/server/route.ts`). What a route answers is its handler's return type, which the typed client",
+    "(`apps/dashboard/src/server/shared/route.ts`). What a route answers is its handler's return type, which the typed client",
     "reads (`apps/dashboard/src/client/api.ts`). Regenerate with `corepack pnpm gen:api-reference`; the suite fails a",
     "stale copy.",
     "",
     "A write in a workspace that carries an `Idempotency-Key` header (at most 120 characters, one per intent) is answered",
     "once per key for a day: the same request sent again is given the first answer and changes nothing, the same key on",
-    "another request (another method, path or body) is refused with 422, and one that arrives while the first still runs",
-    "with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.",
+    "another request (another method, path or body), or one that arrives while the first still runs, is refused with",
+    "409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.",
     "",
     `${count} handlers in ${byDomain.size} domains.`,
     "",
   ];
   for (const [domain, entries] of byDomain) out.push(`## ${domain}`, "", ...entries);
+  out.push(...(await edgeDoorLines(root)));
+  out.push(...(await refusalLines(root)));
   return `${out.join("\n").trimEnd()}\n`;
 }
 

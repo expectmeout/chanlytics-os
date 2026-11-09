@@ -1,8 +1,9 @@
 import "server-only";
 import { AppError, addressOf, personName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
-import { groupMessages, messageRowsOf, THREAD_MESSAGE_COLUMNS } from "../dto";
-import { loadConversation, type VerbConversation } from "../verbs";
-import { load, stamp, type Reader, type RowRef } from "./index";
+import { groupMessages, messageRowsOf } from "../conversations/dto";
+import { loadConversation, type VerbConversation } from "../shared/verbs";
+import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
+import { listThreadMessages } from "@chanlytics/db/conversations";
 
 /**
  * One thread's messages, as GET conversations/:id answers them: the hundred
@@ -19,16 +20,9 @@ export const messagesOf: Reader<{ id: string; before: string | null }, MessageDt
   name: "messagesOf",
   async read(rc, { id, before }) {
     const { supabase } = rc.ctx;
-    let q = supabase
-      .from("messages")
-      .select(THREAD_MESSAGE_COLUMNS)
-      .eq("conversation_id", id)
-      .order("created_at", { ascending: false })
-      .limit(100);
-    if (before) q = q.lt("created_at", before);
-    const { data: msgs, error: merr } = await q;
+    const { data: msgs, error: merr } = await listThreadMessages(supabase, id, before, 100);
     if (merr) throw new Error(merr.message);
-    return { data: groupMessages(messageRowsOf(msgs)).get(id) ?? [], rows: [], stamp: stamp() };
+    return { data: groupMessages(messageRowsOf(msgs)).get(id) ?? [], rows: [], stamp: readerStamp() };
   },
 };
 
@@ -43,6 +37,8 @@ export function conversationDtoOf(row: VerbConversation, userId: string): Omit<C
     state: row.state as ConversationDto["state"],
     paused_until: row.paused_until,
     snooze_until: row.snooze_until,
+    set_aside_at: row.set_aside_at,
+    set_aside_why: row.set_aside_why,
     assignee_user_id: row.assignee_user_id,
     assignee_is_me: row.assignee_user_id ? row.assignee_user_id === userId : undefined,
     last_wa_inbound_at: row.last_wa_inbound_at,
@@ -90,6 +86,6 @@ export const conversation: Reader<
         route: addressOf({ kind: "person", id: row.contact_id }),
         label,
       });
-    return { data: { conversation: conversationDtoOf(row, rc.userId), messages }, rows, stamp: stamp() };
+    return { data: { conversation: conversationDtoOf(row, rc.userId), messages }, rows, stamp: readerStamp() };
   },
 };

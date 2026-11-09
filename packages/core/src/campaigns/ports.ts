@@ -1,25 +1,28 @@
 /**
  * The campaigns' view of the world: what a run's assembly, a playbook's run
  * and a person's broadcast need, named for what each means. The adapters
- * that know the tables are apps/edge/lib/playbooks.ts (the run, hourly or at
+ * that know the tables are apps/edge/lib/campaigns/playbooks/playbooks.ts (the run, hourly or at
  * a person's request) and apps/dashboard/src/server/campaign-ports.ts (a
  * person's broadcast, approve, cancel, the playbook's check).
  */
 import type {
   Audience,
+  BroadcastState,
   ChannelsReady,
+  DealPaceVM,
   DecisionSubject,
   DecisionVerb,
+  ListRef,
+  Membership,
   NumberHealth,
   ParamSpec,
   PersonRowVM,
-  DealPaceVM,
-  ListRef,
-  Membership,
   PersonVisitsDto,
   TenantId,
+  ContactId,
 } from "@chanlytics/contracts";
-import type { Json, MessageVersionRow } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
+import type { MessageVersionRow } from "@chanlytics/db/campaigns";
 
 /* ---- The assembly: the rows, then the job ---- */
 
@@ -46,7 +49,7 @@ export interface NewBroadcast {
 }
 /** One person on the run, with the words their row keeps for the slots (a visit run's), or none. */
 export interface NewRecipient {
-  contact_id: string;
+  contact_id: ContactId;
   facts: Record<string, string> | null;
   /** The channel the run reaches them on, picked once at enrolment (contracts reachFor): `broadcast_recipients.channel`. */
   channel: string;
@@ -84,7 +87,7 @@ export interface AssemblePorts {
   ): Promise<AssembledRun>;
   /**
    * How many campaign emails or texts the workspace sent on this channel in the calendar month `at` falls in, in its zone,
-   * that left, may have left or wait to go (packages/db campaignMonthSent): what that month's allowance has spent (contracts
+   * that left, may have left or wait to go (packages/db recordCampaignMonthSent): what that month's allowance has spent (contracts
    * CAMPAIGN_MONTH_ALLOWANCE). `at` is the moment the run opens, which is when its people are counted against the month: a
    * broadcast made on the 28th for the 1st counts against the new month, not the one it was made in, and a playbook's run
    * against the month of the moment it goes. Required, so no caller counts the month it was made in by leaving it out.
@@ -95,12 +98,12 @@ export interface AssemblePorts {
    * People of a run just assembled, held at once: each still queued is skipped, with `reason`, as the send would have
    * held them (allowance.ts; the week's breath). A person the send already claimed or settled is left as it is. Answers
    * who it skipped (the rows it changed, never one it did not) and, where a step of the write failed, its words: the
-   * people not skipped stay queued, and the send's own check holds them all the same (overAllowance; LEFT_OUT_FACTS).
+   * people not skipped stay queued, and the send's own check holds them all the same (isOverAllowance; LEFT_OUT_FACTS).
    * May throw, and then none is counted as skipped.
    */
   holdRecipients(
     broadcastId: string,
-    contactIds: string[],
+    contactIds: ContactId[],
     reason: string,
   ): Promise<{ skipped: readonly string[]; error: string | null }>;
 }
@@ -109,7 +112,7 @@ export interface AssembleCommand {
   recipients: NewRecipient[];
   sendAt: Date | null;
   /**
-   * The people of `recipients` the month's allowance already holds (allowance.ts pastTheMonth), by contact: they are
+   * The people of `recipients` the month's allowance already holds (allowance.ts listPastTheMonth), by contact: they are
    * enrolled with everyone, and held the moment the run exists, so its report says so before anything is sent.
    */
   held: readonly string[];
@@ -139,7 +142,7 @@ export type Assembled =
 /** The playbook as its row reads. A run names only what it uses. */
 export interface PlaybookRow {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   trigger: string;
   template_id: string;
@@ -183,7 +186,7 @@ export interface PlaybookRow {
 /** One person a customer's call or note step hands over, as the door takes it (00465 sequence_hand_run). */
 export interface PeopleHandItem {
   send_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   words: string;
   source_id: string;
 }
@@ -191,13 +194,18 @@ export interface PeopleHandItem {
 /** Someone a customer's step after the first is due to (00441 sequence_follow_ups_due). */
 export interface FollowUpDue {
   enrollment_id: string;
-  contact_id: string;
+  contact_id: ContactId;
   /** When their step before it went. */
   sent_at: string | null;
 }
 
 /** The workspace as the run reads it once per tenant: the people, the number, the touches, the calendar. */
 export interface RunContext {
+  /**
+   * The book's room now, where a calendar can say it (contracts roomOf): a paced offer keeps to it, so it slows as slots fill
+   * (D39 of the answers canvas). Absent or null, every run keeps the cap it was given.
+   */
+  room?: { open: number; days: number } | null;
   tz: string;
   now: Date;
   people: PersonRowVM[];
@@ -262,6 +270,8 @@ export type RunOutcome =
         | "list_uncounted"
         /** A run for a day past the campaign's last (00416 `until`): it has ended, and sends nothing more. */
         | "ended"
+        /** A paced offer on a day the book has no open slot (D39 of the answers canvas): tomorrow it looks again. */
+        | "no_room"
         /** A step on a freed time run with none (decision 0082): it runs when an appointment frees one, never by the hour. */
         | "no_freed_time"
         /** A freed time handed to a step on another moment: only a freed time's step offers one. */
@@ -274,7 +284,7 @@ export type RunOutcome =
 export interface RunPlaybookPorts extends AssemblePorts {
   /**
    * The message of this name and language, as the rows the workspace holds of it now, whatever their channel (db
-   * messageVersionRowsOf): WhatsApp's as Meta has it, and the email's and the text's, written here and approved the
+   * listMessageVersionRows): WhatsApp's as Meta has it, and the email's and the text's, written here and approved the
    * moment they were saved. contracts campaignMessageOf picks the versions out of them: which of the playbook's ticks the
    * message can be said on, and its category, its purpose, which the run enrols by with its moment's class (contracts
    * enrolPurpose). None when it has no row (gone). Throws when it cannot be read: unreadable is not withdrawn, and a
@@ -333,7 +343,7 @@ export interface FreedTimeRun {
 
 export interface TemplateValuesPorts {
   /**
-   * The rows of the message this id names, whatever their channel (db messageVersionRowsOf, by id): the version the id
+   * The rows of the message this id names, whatever their channel (db listMessageVersionRows, by id): the version the id
    * belongs to and its siblings on the other channels, WhatsApp's as Meta has it, an email's and a text's as they were
    * written here. Any version's id names the message, and contracts campaignMessageOf picks its versions out of the rows.
    * `[]` when this workspace holds no such version. Throws when it cannot be read: unreadable is not absent.
@@ -352,7 +362,7 @@ export interface TemplateValuesPorts {
 export interface BroadcastRef {
   id: string;
   tenant_id: TenantId;
-  state: string;
+  state: BroadcastState;
   name: string;
   recipient_count: number | null;
   playbook_id: string | null;
@@ -387,7 +397,7 @@ export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts
   /**
    * Who a run of any kind reached from the week's breath before `now` on (contracts PLAYBOOK_BREATH_MS), or is about to
    * reach, and when: contact id -> the time of every touch of theirs, the read the composer
-   * counts who a send leaves out by (packages/db recentTouches), so the page, Ask's card and the people a send skips are
+   * counts who a send leaves out by (packages/db getRecentTouches), so the page, Ask's card and the people a send skips are
    * one number. A send leaves out those with one within a week of it, either side, for the time it goes (contracts
    * leftOutBy). Read once per send, at its press, and only when it breathes. Throws when it cannot be read: "nobody
    * heard" is the reading that messages people twice.
@@ -423,6 +433,6 @@ export interface CancelBroadcastPorts {
   /** The scheduled send withdrawn from the ledger; how many jobs. */
   withdraw(broadcastId: string): Promise<number>;
   /** → canceled, only from the state the row was read in. True iff a row changed. */
-  cancel(broadcastId: string, fromState: string): Promise<boolean>;
+  cancel(broadcastId: string, fromState: BroadcastState): Promise<boolean>;
   record(subject: DecisionSubject, id: string, verb: DecisionVerb, payload: Json): Promise<string>;
 }

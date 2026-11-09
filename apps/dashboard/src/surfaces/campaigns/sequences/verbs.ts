@@ -3,18 +3,18 @@
  * read through the typed client: a record opened again paints from the last answer this tab holds and is read again
  * behind (read-cache.ts, kept in the tab as a person's page is: through a write and a reload, painted and read again); a
  * refusal is never kept. A door to one reached for reads it ahead (warmSequenceRoute). Every press is a verb
- * (contracts PROPOSAL_SPECS, committed through the one walk, legacy-bridge/verbs): the sequence's own (`sequence_step`,
+ * (contracts PROPOSAL_SPECS, committed through the one walk, bridge/verbs): the sequence's own (`sequence_step`,
  * `sequence_step_remove`, `sequence_words`, `sequence_leave`), a sequence's state as a campaign's (`playbook_change`) and a
  * batch's approval as a run's (`run`), so the receipt and the undo are the ones Ask's card would say. `pressed` says what
  * landed, in a toast with its undo where the verb keeps one.
  */
 import { parseSequencesRoute, type VerbKind } from "@chanlytics/contracts";
 import type { ApiResult, Output } from "@/client/api";
-import { api } from "@/legacy-bridge/api";
-import { readCache } from "@/legacy-bridge/read-cache";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
-import { refusalToast } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { api } from "@/bridge/api";
+import { readCache } from "@/bridge/read-cache";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
+import { refusalToast } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { warmSources } from "../reach-out/sources";
 
 type RecordAnswer = ApiResult<Output<"GET sequences/[id]">>;
@@ -23,6 +23,8 @@ type HistoryAnswer = ApiResult<Output<"GET sequences/[id]/history">>;
 type ReachAnswer = ApiResult<Output<"GET sequences/[id]/reach">>;
 type ListAnswer = ApiResult<Output<"GET sequences">>;
 type PlaceAnswer = ApiResult<Output<"GET leads/[id]/place">>;
+type LeadEmailsAnswer = ApiResult<Output<"GET leads/[id]/emails">>;
+type LeadWordsAnswer = ApiResult<Output<"GET leads/[id]/words">>;
 
 // A record, its People and its History's first page are kept in the tab (read-cache.ts `tab`): in memory alone, any press in
 // the workspace let them all go, so every record opened after one read from nothing behind "Reading…" (the load review of
@@ -33,11 +35,15 @@ const histories = readCache<HistoryAnswer>("sequence_history", (r) => r.ok, { ta
 const reaches = readCache<ReachAnswer>("sequence_reach", (r) => r.ok);
 const sequenceLists = readCache<ListAnswer>("sequence_list", (r) => r.ok);
 const places = readCache<PlaceAnswer>("lead_place", (r) => r.ok, { tab: true });
+const leadEmails = readCache<LeadEmailsAnswer>("lead_emails", (r) => r.ok, { tab: true });
+const leadWords = readCache<LeadWordsAnswer>("lead_words", (r) => r.ok, { tab: true });
 
 const readRecord = (id: string) => api()("GET sequences/[id]", { params: { id } });
 const readPeople = (id: string) => api()("GET sequences/[id]/people", { params: { id } });
 const readHistory = (id: string) => api()("GET sequences/[id]/history", { params: { id } });
 const readPlace = (leadId: string) => api()("GET leads/[id]/place", { params: { id: leadId } });
+const readLeadEmails = (leadId: string) => api()("GET leads/[id]/emails", { params: { id: leadId } });
+const readLeadWords = (leadId: string) => api()("GET leads/[id]/words", { params: { id: leadId } });
 
 export const sequenceVerbs = {
   /** One sequence: its row, its steps, who approves its batches. */
@@ -61,13 +67,22 @@ export const sequenceVerbs = {
   /** Where one lead stands (00459 sequence_place): the lead sheet's Sequence section, as the record files them. */
   place: (leadId: string) => places.through(leadId, () => readPlace(leadId)),
   peekPlace: (leadId: string): PlaceAnswer | null => places.peek(leadId),
+  /** One lead's own emails (decision 0094): the rows of its History that no sequence wrote. */
+  leadEmails: (leadId: string) => leadEmails.through(leadId, () => readLeadEmails(leadId)),
+  peekLeadEmails: (leadId: string): LeadEmailsAnswer | null => leadEmails.peek(leadId),
+  /** One lead's own words at each step that has some (decision 0096). */
+  leadWords: (leadId: string) => leadWords.through(leadId, () => readLeadWords(leadId)),
+  peekLeadWords: (leadId: string): LeadWordsAnswer | null => leadWords.peek(leadId),
+  /** What one send of a lead's said as it went (decision 0096), read when its step is opened. */
+  leadSent: (leadId: string, sendId: string) =>
+    api()("GET leads/[id]/sent/[send]", { params: { id: leadId, send: sendId } }),
   /** An email the owner wrote, read by Ask into lines on how they write, kept in its memory (decision 0078). */
   learnVoice: (text: string) => commitVerb("sequence_voice", { text }),
 };
 
 /**
  * A door to a sequence somebody is reaching for (a row of the list under the pointer, a link to one from Leads or Today: the
- * frame's reach, LegacyApp): its record read now, and the tab its address opens on where that tab reads its own, so the
+ * frame's reach, FrameApp): its record read now, and the tab its address opens on where that tab reads its own, so the
  * press paints them as a person's page paints from People's rows. One the tab holds, read since the last write, reads
  * nothing (read-cache warm), and a read still on its way is shared with the page's (client/api.ts). A door to New (its
  * head's + New) reads the searches its starts are made of, so they draw with New (reach-out/sources.ts).
@@ -142,7 +157,7 @@ export function warmRecordsAhead(ids: readonly string[]): () => void {
 export async function pressed(
   kind: VerbKind,
   payload: Record<string, unknown>,
-  flash: (f: LegacyFlash) => void,
+  flash: (f: FrameFlash) => void,
   after: () => void,
 ): Promise<boolean> {
   const r = await commitVerb(kind, payload);

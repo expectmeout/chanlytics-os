@@ -5,17 +5,18 @@
  * otherwise answer with the first one's reply. A broadcast's email to one person is named the same way, by the person's
  * attempt (`broadcastEmailId`).
  */
-import { uuidV5 } from "../uuid-v5";
+import { makeUuidV5 } from "../shared/uuid-v5";
+import type { ContactId } from "@chanlytics/contracts";
 
-export const reachOutRunIdFor = (stepId: string, runFor: string): Promise<string> =>
-  uuidV5(`reach_out_run:${stepId}:${runFor}`);
+export const getReachOutRunId = (stepId: string, runFor: string): Promise<string> =>
+  makeUuidV5(`reach_out_run:${stepId}:${runFor}`);
 export const sendIdFor = (runId: string, leadId: string): Promise<string> =>
-  uuidV5(`reach_out_send:${runId}:${leadId}`);
+  makeUuidV5(`reach_out_send:${runId}:${leadId}`);
 export const sendMessageId = (sendId: string, attempt: number): Promise<string> =>
-  uuidV5(`reach_out_email:${sendId}:${attempt}`);
+  makeUuidV5(`reach_out_email:${sendId}:${attempt}`);
 /** The team's step a hand step makes for a lead (Part 5, G20): once per step and lead, whichever day's run reaches it. */
 export const handStepIdFor = (stepId: string, leadId: string): Promise<string> =>
-  uuidV5(`reach_out_hand:${stepId}:${leadId}`);
+  makeUuidV5(`reach_out_hand:${stepId}:${leadId}`);
 
 /**
  * The id of a broadcast's email to one person: the run, the person, and how many times they were claimed and given back
@@ -29,13 +30,15 @@ export const handStepIdFor = (stepId: string, leadId: string): Promise<string> =
  * A database that has not reached 00301 has no attempt to read (undefined). The id is then named as it was, by the waits
  * and stalls the run carried, for as long as that read lasts: code that ships before its migration keeps its runs going.
  */
-export const broadcastEmailId = (i: {
+export const broadcastEmailId = (input: {
   broadcastId: string;
-  contactId: string;
+  contactId: ContactId;
   attempt: number | undefined;
   waits: number;
   stalls: number;
 }): Promise<string> => {
-  const who = `broadcast_email:${i.broadcastId}:${i.contactId}`;
-  return uuidV5(i.attempt === undefined ? `${who}:${i.waits}:${i.stalls}` : `${who}:attempt:${i.attempt}`);
+  const text = `broadcast_email:${input.broadcastId}:${input.contactId}`;
+  return makeUuidV5(
+    input.attempt === undefined ? `${text}:${input.waits}:${input.stalls}` : `${text}:attempt:${input.attempt}`,
+  );
 };

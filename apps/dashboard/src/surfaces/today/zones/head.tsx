@@ -15,6 +15,7 @@
  */
 import { useState, type ReactNode } from "react";
 import {
+  NEED_YOU_WORDS,
   todaySince,
   todayWentLine,
   todayZoneDay,
@@ -27,12 +28,14 @@ import { Button } from "../../kit/button/button";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { Panel } from "../../kit/panel/panel";
-import { routeDoor } from "../../legacy-verbs";
+import { SAYS_WHEN } from "../../kit/says-when";
+import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { todayGreetingNow } from "../chrome";
 import { TODAY_HELPERS } from "../helpers";
 import { useHeadSay } from "../need-you/head-say";
+import { useRests } from "../need-you/rests";
 import { reviewsToAnswer } from "../need-you/reviews";
 import { useTodayOnPhone } from "../phone";
 import { bell, borrowed, useMoved, workspaceClock } from "../shell";
@@ -42,12 +45,20 @@ import { listenButton, useBriefWords, useSpeech } from "./listen";
 
 /**
  * The head's sentence as drawn: what leads in bold (kit.css `.pg-sentence b`), the rest after it, then why Listen could not
- * speak. Called, not drawn, so the head's tree has no part of its own for it.
+ * speak. On a phone how many need you is a door to who they are (`door`). Called, not
+ * drawn, so the head's tree has no part of its own for it.
  */
-function headSentence(line: TodayHeadLineVM, why: string | null): ReactNode {
+function headSentence(line: TodayHeadLineVM, why: string | null, door: string | null): ReactNode {
+  const lead = <b data-testid="today-head-lead">{line.lead}</b>;
   return (
     <>
-      <b data-testid="today-head-lead">{line.lead}</b>
+      {door ? (
+        <a className="tz-lead" {...routeDoor(door)}>
+          {lead}
+        </a>
+      ) : (
+        lead
+      )}
       {line.rest ? ` ${line.rest}` : null}
       {why ? (
         <span className="today-listen-why" role="status" data-testid="today-listen-why">
@@ -57,6 +68,10 @@ function headSentence(line: TodayHeadLineVM, why: string | null): ReactNode {
     </>
   );
 }
+
+/** On a phone, where no list head says it: how many were done today, after how many need you, where nothing else stands. */
+const withDoneToday = (line: TodayHeadLineVM, done: number): TodayHeadLineVM =>
+  line.rest || done <= 0 ? line : { ...line, rest: `${NEED_YOU_WORDS.doneToday(done)}.` };
 
 /** One of Since you looked's rows, opened: its glyph, what happened, the receipt under it, and when. */
 function sinceRow(r: TodaySinceVM["rows"][number]) {
@@ -69,7 +84,7 @@ function sinceRow(r: TodaySinceVM["rows"][number]) {
         <b>{r.title}</b>
         {r.sub ? <span>{r.sub}</span> : null}
       </span>
-      <time>{r.at}</time>
+      <time {...SAYS_WHEN}>{r.at}</time>
     </>
   );
   return r.to ? (
@@ -99,7 +114,7 @@ function SinceLine({ since }: { since: TodaySinceVM }) {
         onClick={() => setOpen(!open)}
         data-testid="today-since"
       >
-        <b>{since.when}</b>
+        <b {...SAYS_WHEN}>{since.when}</b>
         {since.bits.map((b) => (
           <em key={b}>{b}</em>
         ))}
@@ -120,6 +135,7 @@ function useSince(): TodaySinceVM | null {
   const vm = useSurface("today");
   // The reviews To do offers to answer: their news is To do's row, and Since you looked does not say it again.
   const google = useSurface("google");
+  const { rests } = useRests();
   const api = bell();
   if (!vm?.since) return null;
   const notes = api
@@ -137,7 +153,7 @@ function useSince(): TodaySinceVM | null {
     seenAt: vm.since.seen_at,
     answered: vm.since.answered,
     notes,
-    covered: reviewsToAnswer(google).map((r) => ({ id: r.id, reviewId: r.review_id })),
+    covered: reviewsToAnswer(google, rests).map((r) => ({ id: r.id, reviewId: r.review_id })),
     tz: workspaceClock()?.zone() ?? "UTC",
     nowMs: Date.now(),
   });
@@ -163,12 +179,15 @@ export function useZonesStanding(): void {
   const brief = words && words.sentences.length ? words.text : null;
   const speech = useSpeech(brief);
   const went = turned && vm ? todayWentLine(vm.figures) : null;
-  const line = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.quiet, went) : null;
-  const listen = speech.can && brief ? listenButton(speech, brief) : null;
+  const done = vm?.done_today ?? 0;
+  const plainLine = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, done > 0) : null;
+  const line = plainLine && phone && count > 0 ? withDoneToday(plainLine, done) : plainLine;
+  // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefPlaying).
+  const listen = speech.can && brief && words?.news && speech.state !== "speaking" ? listenButton(speech, brief) : null;
   useStanding({
     stacked: true,
     title: todayGreetingNow(),
-    sentence: line ? headSentence(line, speech.why) : undefined,
+    sentence: line ? headSentence(line, speech.why, phone && count > 0 ? "inbox" : null) : undefined,
     beside: listen ?? undefined,
     after: since ? <SinceLine since={since} /> : undefined,
     // On a phone the date says the hour beside Listen and the bell (the canvas: "Tue, Nov 3 · 8:05 AM").

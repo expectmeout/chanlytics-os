@@ -1,0 +1,193 @@
+/**
+ * The pile (the lead workbench, 00426): a search's ready leads, one at a time, each decided (added to a reach-out,
+ * worked, set aside) or put off for Later, which brings it back at the end. leads_page's `pile` sort orders it
+ * (undecided, then later, oldest first, then the decided; within each the strongest fit, a checked address before a
+ * number alone, the newest), lead_pile_counts counts it, and every sentence it says is here.
+ *
+ * Later is the pile's soft word: nothing is written to the lead and its stage does not move (Skip stays the run
+ * page's word, for a send). docs/glossary.md has its row.
+ */
+import { plural } from "../shared/words";
+import type { LeadClass, LeadStage } from "./words/lists";
+
+/** The pile's progress line's numbers (00426 lead_pile_counts): of a search's shown members, against the list it adds to. */
+export interface LeadPileCountsDto {
+  total: number;
+  /** On the list the pile adds to. */
+  added: number;
+  /** With a reach-out already (lead_chain_of: one lead, one reach-out); absent before it was counted. */
+  elsewhere?: number;
+  /** No longer Ready: worked, or set aside. */
+  closed: number;
+  /** Put off in this pass. */
+  later: number;
+  /** Not decided, not put off. */
+  left: number;
+}
+
+/** The pile's words. */
+export const LEAD_PILE_WORDS = {
+  start: "Go through them",
+  startTip: "One lead at a time: add it to a sequence, put it off, or say it isn't a fit.",
+  head: (search: string) => `Going through “${search}”`,
+  target: "Adds go to",
+  newList: "A new list",
+  later: "Later",
+  laterTip: "Put it off for now. Nothing is written to them, and it comes back at the end of the pile.",
+  laterDone: "Put off for later",
+  notFit: "Not a fit",
+  add: (target: string) => `Add to “${target}”`,
+  call: "Call",
+  hold: "Add to a new list",
+  held: (n: number) => `${plural(n, "lead", "leads")} for a new list`,
+  writeHeld: (n: number) => `Write to the ${n}`,
+  leave: "Done for now",
+  end: "That's the pile",
+  endSub: (later: number) =>
+    later > 0
+      ? `${plural(later, "lead", "leads")} put off for later. Go through them now?`
+      : "Every lead here is decided.",
+  laterAgain: "Go through the later ones",
+  undo: "Undo",
+  undoGone: "That was already undone",
+  /** A sequence's Add leads named where this pass's adds go: the door says so, and so does the page before a search. */
+  startFor: (target: string | null) => (target ? `Pick leads for “${target}”` : "Pick leads for its sequence"),
+  askSearch: (target: string | null) =>
+    `Open a search to pick its leads for ${target ? `“${target}”` : "the sequence you came from"}.`,
+  askLetGo: "Not now",
+  /** The end of the pile, with a sequence its adds went to: the way to it. */
+  openTarget: (target: string) => `Open “${target}”`,
+  /** The reason a Not a fit was last given, marked among the five. */
+  lastWhy: "Your last reason",
+  /** The pile's one line for a screen reader and the eye, after each press: what was done, and who is up. */
+  next: (name: string) => `Next: ${name}`,
+  lastOne: "That was the last one.",
+} as const;
+
+/** What one press did, in the pile's line (never a toast over the next card): the lead, and where it went. */
+export const LEAD_PILE_SAID: Record<LeadPileAct, (lead: string, target: string | null) => string> = {
+  add: (lead, target) => `Added ${lead} to “${target ?? ""}”`,
+  hold: (lead) => `${lead} held for a new list`,
+  later: (lead) => `${lead} put off for later`,
+  not_a_fit: (lead) => `${lead} marked not a fit`,
+  keep: (lead) => `Kept ${lead}`,
+  exclude: (lead) => `Left ${lead} out`,
+};
+
+/** The pile's progress line: "12 of 40 decided · 3 for later", and how far through it is, 0 to 1. */
+export interface LeadPileProgressVM {
+  text: string;
+  /** Decided of the whole, 0 to 1; 0 for an empty pile. */
+  share: number;
+  /** The pile is through: nothing left undecided (some may be put off). */
+  done: boolean;
+}
+
+/**
+ * The pile's line: how many of its leads are decided, and how many put off. The counts read with the leads arrive after a
+ * press; the page's own rows move on it (`now`: still open, and put off, in this pass), so where it has them the line
+ * counts from those and never trails the card by a press.
+ */
+export function leadPileProgressOf(
+  leadPileCounts: LeadPileCountsDto,
+  now?: { left: number; later: number },
+): LeadPileProgressVM {
+  const later = now ? now.later : leadPileCounts.later;
+  const left = now ? now.left : leadPileCounts.left;
+  const decided = now
+    ? Math.max(0, leadPileCounts.total - left - later)
+    : leadPileCounts.added + (leadPileCounts.elsewhere ?? 0) + leadPileCounts.closed;
+  const parts = [`${decided} of ${leadPileCounts.total} decided`];
+  if (later > 0) parts.push(`${later} for later`);
+  return {
+    text: parts.join(" · "),
+    share: leadPileCounts.total > 0 ? decided / leadPileCounts.total : 0,
+    done: left === 0,
+  };
+}
+
+/** What the pile reads of a row beyond its words (00426): the reach-out it goes with, and when it was put off. */
+export interface LeadPileFacts {
+  chainId: string | null;
+  laterAt: string | null;
+}
+
+/**
+ * Whether a row is still to decide in this pass of the pile, in the order the database sorted them (the one order):
+ * a Needs review pile's rows while they are in review; a Ready pile's while Ready and with no reach-out (lead_chain_of:
+ * one lead, one reach-out). The first pass takes the ones not put off; the second, the ones put off for later.
+ */
+export function leadPileOpen(
+  row: { cls: LeadClass; stage: LeadStage } & Partial<LeadPileFacts>,
+  pile: { cls: LeadClass; pass: "first" | "later" },
+): boolean {
+  const undecided = pile.cls === "review" ? row.cls === "review" : row.stage === "ready" && !row.chainId;
+  return undecided && (pile.pass === "first" ? !row.laterAt : !!row.laterAt);
+}
+
+/** The key that undoes the pile's last act, beside the rail's three (each slot's `key`): the listener's, and the hint's. */
+export const LEAD_PILE_UNDO_KEY = "z";
+
+/** What a press of the pile's rail does. */
+export type LeadPileAct = "not_a_fit" | "later" | "add" | "hold" | "keep" | "exclude";
+
+/** One of the rail's three places: its act, its words, its key, how it looks, and the right it asks for. */
+export interface LeadPileSlot {
+  /** A pile's act, or a call: the yes for a lead no email can go to, dialled from the owner's own phone. */
+  act: LeadPileAct | "call";
+  label: string;
+  key: "n" | "l" | "a";
+  look: "secondary" | "primary";
+  /** The right the act's door checks (ROLE_PERMS): Keep and Exclude count against the month, so they are find's. */
+  right: "approve" | "find";
+}
+
+/**
+ * The rail's three places, left to right: no, not now, yes. A Needs review pile leaves out, puts off or keeps; a
+ * Ready pile says Not a fit, puts off, or adds to its reach-out (to a new list when it has none yet: held, and written
+ * to together at the end). Where the add's door said no email can go to the lead and they have a number (`call`, the
+ * card's `instead`), the yes is a call: the same place and the same key.
+ */
+export function leadPileRailOf(params: { cls: LeadClass; target: string | null; call?: boolean }): LeadPileSlot[] {
+  const later: LeadPileSlot = {
+    act: "later",
+    label: LEAD_PILE_WORDS.later,
+    key: "l",
+    look: "secondary",
+    right: "approve",
+  };
+  if (params.cls === "review")
+    return [
+      { act: "exclude", label: "Leave out", key: "n", look: "secondary", right: "find" },
+      later,
+      { act: "keep", label: "Keep", key: "a", look: "primary", right: "find" },
+    ];
+  return [
+    { act: "not_a_fit", label: LEAD_PILE_WORDS.notFit, key: "n", look: "secondary", right: "approve" },
+    later,
+    params.call
+      ? { act: "call", label: LEAD_PILE_WORDS.call, key: "a", look: "primary", right: "approve" }
+      : params.target
+        ? { act: "add", label: LEAD_PILE_WORDS.add(params.target), key: "a", look: "primary", right: "approve" }
+        : { act: "hold", label: LEAD_PILE_WORDS.hold, key: "a", look: "primary", right: "approve" },
+  ];
+}
+
+/* ------------------------------------------------------------------------- Back today (decision 9 of the workbench) */
+
+/** A lead whose own day to hear back has come (00426 leads_back_today): written to by hand, never by a reach-out again. */
+export interface LeadBackDto {
+  lead_id: string;
+  business_name: string;
+  /** The day they asked for. */
+  resume_at: string;
+  contact_id: string | null;
+}
+
+/** Back today's words: the band over Leads' rows, and each lead's line in the words of what they asked. */
+export const LEAD_BACK_WORDS = {
+  head: "Back today",
+  tip: "They asked to hear from you on a day that has come. Nothing writes to them by itself: write to them yourself.",
+  line: (name: string, day: string) => `${name} asked to hear from you ${day}`,
+  more: (n: number) => `${n} more`,
+} as const;

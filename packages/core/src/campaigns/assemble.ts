@@ -1,5 +1,6 @@
+import { heldContactId } from "@chanlytics/contracts";
 import { RECIPIENT_REASON_HEARD } from "@chanlytics/contracts";
-import { errField, logger } from "@chanlytics/channels";
+import { errField, logger } from "@chanlytics/log";
 import { MONTH_ALLOWANCE_REASON } from "./allowance";
 import type { AssembleCommand, AssemblePorts, Assembled, AssembledRun } from "./ports";
 
@@ -20,18 +21,18 @@ const assembleLog = logger();
  * are written as skipped once the run exists, so its report says so before anything is sent: the breath's first, then
  * the month's, each in its own write. Neither is the only thing that holds them: the left out carry their row's mark,
  * written with the run (contracts LEFT_OUT_FACTS), and a person past the month's room is held by the send's own count
- * (overAllowance), so a skip the hold did not write -- it failed, failed part-way, or the send claimed the person first
+ * (isOverAllowance), so a skip the hold did not write -- it failed, failed part-way, or the send claimed the person first
  * -- is still a person never sent. It never fails the run, but it is never silent: logged (`campaign_hold_unwritten`,
  * with its reason) and answered (`leftOutUnwritten`, `unheld`), so a receipt never claims a skip that was not written.
  */
 export async function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): Promise<Assembled> {
-  let made: AssembledRun;
+  let created: AssembledRun;
   try {
-    made = await ports.assemble(cmd.broadcast, cmd.recipients, cmd.sendAt, cmd.decision);
+    created = await ports.assemble(cmd.broadcast, cmd.recipients, cmd.sendAt, cmd.decision);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-  const { id, decisionId } = made;
+  const { id, decisionId } = created;
   const leftOutUnwritten = await skipAt(ports, id, cmd.leftOut, RECIPIENT_REASON_HEARD);
   const unheld = await skipAt(ports, id, cmd.held, MONTH_ALLOWANCE_REASON);
   return { ok: true, id, decisionId, unheld, leftOutUnwritten };
@@ -52,7 +53,7 @@ async function skipAt(ports: AssemblePorts, id: string, people: readonly string[
   if (people.length === 0) return 0;
   let done: { skipped: readonly string[]; error: string | null };
   try {
-    done = await ports.holdRecipients(id, [...people], reason);
+    done = await ports.holdRecipients(id, people.map(heldContactId), reason);
   } catch (e) {
     done = { skipped: [], error: errField(e) };
   }

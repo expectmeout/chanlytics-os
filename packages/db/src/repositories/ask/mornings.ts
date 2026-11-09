@@ -5,7 +5,8 @@
  * in: the door checks the caller, RLS keeps the reads to their own rows.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
+import { recordOrEmpty, type TenantId, DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -28,33 +29,33 @@ interface AskMorningDoor {
 /** The morning's door (ask_morning_write), by act, for the member signed in. */
 export async function askMorningWrite(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   day: string,
-  a: AskMorningAct,
+  askMorningAct: AskMorningAct,
 ): Promise<AskMorningDoor> {
   const { data, error } = await db.rpc("ask_morning_write", {
     p_tenant_id: tenantId,
     p_day: day,
-    p_act: a.act,
-    ...(a.act === "thread" ? { p_thread_id: a.threadId } : {}),
-    ...(a.act === "answered" ? { p_cards: a.cards } : {}),
+    p_act: askMorningAct.act,
+    ...(askMorningAct.act === "thread" ? { p_thread_id: askMorningAct.threadId } : {}),
+    ...(askMorningAct.act === "answered" ? { p_cards: askMorningAct.cards } : {}),
   });
-  if (error) throw new Error(`ask_morning_write: ${error.message}`);
-  const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
-  if (typeof d.error === "string") return { refused: d.error };
+  if (error) throw new DbFailure(error, "ask_morning_write");
+  const item = recordOrEmpty(data);
+  if (typeof item.error === "string") return { refused: item.error };
   return {
-    ...(typeof d.claimed === "boolean" ? { claimed: d.claimed } : {}),
-    ...("thread_id" in d ? { thread_id: typeof d.thread_id === "string" ? d.thread_id : null } : {}),
-    ...("cards" in d ? { cards: typeof d.cards === "number" ? d.cards : null } : {}),
-    ...(typeof d.named === "boolean" ? { named: d.named } : {}),
-    ...(typeof d.recorded === "boolean" ? { recorded: d.recorded } : {}),
+    ...(typeof item.claimed === "boolean" ? { claimed: item.claimed } : {}),
+    ...("thread_id" in item ? { thread_id: typeof item.thread_id === "string" ? item.thread_id : null } : {}),
+    ...("cards" in item ? { cards: typeof item.cards === "number" ? item.cards : null } : {}),
+    ...(typeof item.named === "boolean" ? { named: item.named } : {}),
+    ...(typeof item.recorded === "boolean" ? { recorded: item.recorded } : {}),
   };
 }
 
 /** The member's morning of a day, as the row keeps it, or null where none was claimed. */
 export async function askMorningOf(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   day: string,
 ): Promise<{ thread_id: string | null; cards: number | null; made_at: string } | null> {
@@ -65,7 +66,7 @@ export async function askMorningOf(
     .eq("user_id", userId)
     .eq("day", day)
     .maybeSingle();
-  if (error) throw new Error(`ask_mornings: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_mornings");
   return data ? { thread_id: data.thread_id ?? null, cards: data.cards ?? null, made_at: data.made_at } : null;
 }
 
@@ -84,7 +85,7 @@ const MORNINGS_READ = 120;
  * lately, so a morning does not offer again what a teammate has or what was set aside. A morning's own rows are its
  * member's under RLS, so this takes the service client and the caller names the workspace. A read that fails throws.
  */
-export async function askMorningsSince(db: Db, tenantId: string, since: string): Promise<AskMorningSeen[]> {
+export async function askMorningsSince(db: Db, tenantId: TenantId, since: string): Promise<AskMorningSeen[]> {
   const { data: mornings, error } = await db
     .from("ask_mornings")
     .select("user_id, day, thread_id")
@@ -93,7 +94,7 @@ export async function askMorningsSince(db: Db, tenantId: string, since: string):
     .not("thread_id", "is", null)
     .order("day", { ascending: false })
     .limit(MORNINGS_READ);
-  if (error) throw new Error(`ask_mornings: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_mornings");
   const threads = (mornings ?? []).flatMap((m) => (m.thread_id ? [m.thread_id] : []));
   if (threads.length === 0) return [];
   const { data: answers, error: read } = await db
@@ -133,7 +134,7 @@ export async function askFirstAnswer(
     .order("id", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`ask_messages: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_messages");
   if (!data) return null;
   return {
     id: data.id,

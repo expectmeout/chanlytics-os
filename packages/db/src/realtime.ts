@@ -3,7 +3,7 @@
  * how. The database tells each workspace what changed (00265): a notice on the private topic `workspace:<id>:changes`
  * when a statement on a watched table changes its rows, once a transaction for each table and event, naming the table
  * and the event, the statuses a call's or a message update's statement left, and the clock when it was told (`at`,
- * 00408): its transaction's commit, since 00507, when the notice goes. It never carries a row; a surface that wants one reads it. Realtime admits a member to their workspaces'
+ * 00408): its transaction's commit, since 00507, when the notice goes, and whether that transaction erased someone (00549). It never carries a row; a surface that wants one reads it. Realtime admits a member to their workspaces'
  * topics (the one policy on realtime.messages) and lets nobody speak on them. The session token is pushed to Realtime
  * EXPLICITLY before the channel joins: relying on supabase-js's auth-listener propagation races the join, and a private
  * channel that joins as `anon` is refused.
@@ -13,11 +13,13 @@
  * runners in one tab share it, and the last to leave removes it.
  */
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./database.types";
+import type { Database } from "./types";
+import { recordOrEmpty, DbFailure } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 export interface SubscribeOptions {
   /** The workspace the tab shows: its topic is the one joined. A tab with none joins nothing. */
-  tenantId?: string;
+  tenantId?: TenantId;
   /** Observability: called with SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED. */
   onStatus?: (status: string) => void;
 }
@@ -68,6 +70,11 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
   { table: "segments", events: EVERY },
   { table: "segment_members", events: EVERY },
+  // a thread's draft claimed, written or let go, by the job, the sweep or a member's change: Today's rows, the Inbox's rows and
+  // its reply box repaint (00538, decision 0093)
+  { table: "conversation_drafts", events: EVERY },
+  // a file added, looked at, changed or removed: Settings › Files repaints (00551)
+  { table: "files", events: INSERTS_AND_UPDATES },
   // a reply to a sequence read, drafted or undone: the Inbox's strip and chip repaint (00222; sequence_replies since 00440)
   { table: "sequence_replies", events: EVERY },
   // a batch made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
@@ -124,6 +131,9 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
  * whatever a write named.
  */
 const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
+  // What a page of photos draws (00551): not the copy Anthropic holds, the bytes or when it was last tried, which an import
+  // writes 200 times over. A video's tile draws where it stands and what was heard of it (00556).
+  files: ["status", "name", "shows", "who_in_it", "look_status", "look", "removed_at", "media_status", "sound_said"],
   // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.
   notifications: ["closed_at"],
   // The identity, the answers, the merge and the erasure of a person, and where they work and where their name came from
@@ -236,11 +246,12 @@ export function watchedEvents(): Array<{ table: string; events: Event[] }> {
 }
 
 /**
- * What a surface hears of a change: the workspace, and a call's or a message update's status. Never the row. And, as the
- * fourth argument, the clock the database told it by (`at`, ISO 8601 in UTC): absent from a notice sent before 00408.
+ * What a surface hears of a change: the workspace, a call's or a message update's status, and whether its transaction erased
+ * someone (`erasure`, 00549). Never the row. And, as the fourth argument, the clock the database told it by (`at`, ISO 8601 in
+ * UTC): absent from a notice sent before 00408.
  */
 type OnChange = (
-  row: { tenant_id: string; status?: string },
+  row: { tenant_id: TenantId; status?: string; erasure?: true },
   table: string,
   event: string,
   at?: string,
@@ -277,12 +288,12 @@ export function subscribeWorkspaceChanges(
   let byTopic = hearings.get(client);
   if (!byTopic) hearings.set(client, (byTopic = new Map<string, Hearing>()));
   const heard = byTopic;
-  let h = heard.get(topic);
-  if (!h) {
-    h = { listeners: new Set(), channel: null, status: null, joining: null, leaving: Promise.resolve() };
-    heard.set(topic, h);
+  let result = heard.get(topic);
+  if (!result) {
+    result = { listeners: new Set(), channel: null, status: null, joining: null, leaving: Promise.resolve() };
+    heard.set(topic, result);
   }
-  const hearing = h;
+  const hearing = result;
   const listener: Listener = { onChange, onStatus: opts.onStatus };
   hearing.listeners.add(listener);
   const status = hearing.channel ? hearing.status : null;
@@ -303,6 +314,7 @@ export function subscribeWorkspaceChanges(
     const channel = hearing.channel;
     hearing.channel = null;
     hearing.status = null;
+    // Leaving a channel that is already gone needs nothing done.
     hearing.leaving = client.removeChannel(channel).then(
       () => undefined,
       () => undefined,
@@ -313,7 +325,7 @@ export function subscribeWorkspaceChanges(
 
 async function join(
   client: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   topic: string,
   hearing: Hearing,
   heard: Map<string, Hearing>,
@@ -354,18 +366,19 @@ function report(listener: Listener, topic: string, status: string): void {
  * told by (`at`) where it carries one. A call's notice, and a message update's, carries the statuses its statement
  * left, and each is a change of its own, so a rule that reads a status reads every one; they share the notice's clock.
  */
-function tell(hearing: Hearing, tenantId: string, message: { event?: string; payload?: unknown }): void {
-  const notice = (message.payload ?? {}) as { table?: unknown; statuses?: unknown; at?: unknown; threads?: unknown };
+function tell(hearing: Hearing, tenantId: TenantId, message: { event?: string; payload?: unknown }): void {
+  const notice = recordOrEmpty(message.payload);
   if (typeof notice.table !== "string") return;
   const table = notice.table;
   const event = message.event ?? "*";
   const at = typeof notice.at === "string" ? notice.at : undefined;
   const statuses = Array.isArray(notice.statuses) ? notice.statuses : [undefined];
   const threads = threadsOf(notice.threads);
+  const erasure = notice.erasure === true ? ({ erasure: true } as const) : {};
   for (const listener of [...hearing.listeners])
     for (const status of statuses)
       listener.onChange(
-        { tenant_id: tenantId, ...(typeof status === "string" ? { status } : {}) },
+        { tenant_id: tenantId, ...(typeof status === "string" ? { status } : {}), ...erasure },
         table,
         event,
         at,
@@ -397,16 +410,16 @@ export const CATCH_UP_MOST = 200;
  * The notices told on a workspace's topic since `since` (ISO 8601), read as the member (00508; decision 0019 step 4): what
  * a tab missed while it loaded or while its feed was down. `whole` is false where there were more than CATCH_UP_MOST.
  */
-export async function noticesSince(
+export async function getNoticesSince(
   client: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   since: string,
 ): Promise<{ notices: ToldNotice[]; whole: boolean }> {
   const { data, error } = await client.rpc("workspace_notices_since", { p_tenant_id: tenantId, p_since: since });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   const rows = data ?? [];
   const notices = rows.slice(0, CATCH_UP_MOST).flatMap((row): ToldNotice[] => {
-    const p = (row.payload ?? {}) as { table?: unknown; statuses?: unknown; at?: unknown; threads?: unknown };
+    const p = recordOrEmpty(row.payload);
     if (typeof p.table !== "string") return [];
     const statuses = Array.isArray(p.statuses) ? p.statuses.filter((s): s is string => typeof s === "string") : null;
     const at = typeof p.at === "string" ? p.at : null;

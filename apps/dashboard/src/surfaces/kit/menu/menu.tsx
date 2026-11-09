@@ -16,7 +16,7 @@
  * Under 900px it is the phone's action sheet: the same menu, from the bottom edge over the page (kit.css), on a layer
  * that a press outside closes it through, and a pull down from its top lets it go, following the finger, as the Sheet's
  * does (kit/motion/swipe.ts touchSwipe; Ruben, 8 October 2026: it drew the sheet's handle and did not answer a pull). The touch
- * stays the menu's own (legacy-verbs keepTouch): opened from inside a sheet or an open thread, its pull moved that too.
+ * stays the menu's own (frame-verbs keepTouch): opened from inside a sheet or an open thread, its pull moved that too.
  *
  * It draws what the gallery's Menu family draws (tooling/scripts/e2e-harness/kit-gallery.mjs), which
  * e2e/kit/kit-behaves.spec.ts holds to it in a browser. `className` is for the page's layout, and comes last; the
@@ -25,7 +25,7 @@
 import { Menu as BaseMenu } from "@base-ui/react/menu";
 import type { ReactElement, ReactNode, Ref } from "react";
 import { Fragment, useState } from "react";
-import { keepTouch, onAPhone, touchSwipe } from "../../legacy-verbs";
+import { keepTouch, onAPhone, touchSwipe } from "../../frame-verbs";
 import { CopiedWords, useCopied } from "../copy-button/copy-button";
 import { cx, variants } from "../variants";
 import { longWords } from "./long-words";
@@ -102,10 +102,11 @@ export type MenuOption = { value: string; label: string; hint?: ReactNode; sub?:
 
 /**
  * A set of switches the menu stays open over while each is flipped (a table's columns): each ticked while it is on. One
- * the page keeps on (`locked`, the word said in place of a flip: "Always") is drawn on, and refuses a press.
+ * the page keeps on (`locked`, the word said in place of a flip: "Always") is drawn on, and refuses a press. A switch may
+ * say a word at its end, as an option's `hint` does (how many it holds).
  */
 export type MenuToggles = {
-  items: readonly { value: string; label: string; on: boolean; locked?: string }[];
+  items: readonly { value: string; label: string; on: boolean; locked?: string; hint?: string }[];
   onToggle: (value: string) => void;
   /** The tick (the Icon's `check`, at 13px): drawn on every switch, and seen beside each one that is on (kit.css). */
   tick: ReactElement;
@@ -146,6 +147,11 @@ export type MenuProps = {
   label?: string;
   /** Its name drawn at its top, and on a phone its Close: the sheet's head. */
   head?: MenuHead;
+  /**
+   * The control is not a button of the kit's but a part of the page that opens it (a thread's who on a phone, whose
+   * sheet heads with their page): Base UI gives it a button's role, its keys and its focus.
+   */
+  nativeTrigger?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
 };
@@ -284,7 +290,7 @@ function Toggles({ toggles }: { toggles: MenuToggles }) {
       closeOnClick={false}
       onCheckedChange={() => toggles.onToggle(t.value)}
     >
-      {itemContent({ label: t.label, glyph: toggles.tick, meta: t.locked })}
+      {itemContent({ label: t.label, glyph: toggles.tick, meta: t.locked, hint: t.hint })}
     </BaseMenu.CheckboxItem>
   ));
   return toggles.chips ? <div className="more-chips">{items}</div> : <>{items}</>;
@@ -377,12 +383,12 @@ function MenuPopup({
 }
 
 /** A menu, opened by the page's control and drawn on the document's body. */
-export function Menu({ trigger, ...popup }: MenuProps) {
+export function Menu({ trigger, nativeTrigger = true, ...popup }: MenuProps) {
   // Open is Base UI's to decide; it is held here only so a phone's pull can close the menu.
   const [open, setOpen] = useState(false);
   return (
     <BaseMenu.Root open={open} onOpenChange={(next) => setOpen(next)}>
-      <BaseMenu.Trigger render={trigger} />
+      <BaseMenu.Trigger nativeButton={nativeTrigger} render={trigger} />
       <MenuPopup {...popup} onClose={() => setOpen(false)} />
     </BaseMenu.Root>
   );

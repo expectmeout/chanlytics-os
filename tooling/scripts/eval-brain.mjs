@@ -18,7 +18,7 @@
  * Exit 0 = every case passed. 1 = failures listed. 2 = could not run.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { signEdgeToken } from "@chanlytics/channels";
+import { signEdgeToken } from "@chanlytics/channels/tokens";
 import { judgeCase, validateCases, formatReport } from "./eval-judge.mjs";
 
 const BASE = process.env.BASE_URL || "https://chanlytics-messaging.vercel.app";

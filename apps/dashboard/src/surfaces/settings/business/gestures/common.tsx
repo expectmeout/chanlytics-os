@@ -15,7 +15,7 @@
 // fold are drawn on every render (closed, the kit hides them whole), and what comes and goes inside them (a row at
 // rest, a Confirm, a note) holds no hook. That shape was the tests' old stub React's rule -- every hook on a page as a
 // cell in one order -- and is no longer anyone's: the stub keeps each component's hooks where it sits, as React does
-// (tooling/scripts/tests/_hook-frames.mjs). It stands because it works, not because it must.
+// (tests/_hook-frames.mjs). It stands because it works, not because it must.
 //
 // The JSX had BtRow, BtFold and useBtEditor each as one function. Here each is a hook that holds what is stateful and
 // a few plain functions that work out one thing from it (what the row will say, the dispute, the foot's asks, one
@@ -24,13 +24,13 @@
 import { useRef, useState } from "react";
 import { Confirm } from "../../../kit/confirm/confirm";
 import type { useRecordFold } from "../../../kit/record/hooks";
-import type { GateProps, LegacyFlash } from "../../../legacy-verbs";
-import { businessTabSave } from ".././saver";
-import type { BusinessTabSave } from ".././saver";
-import { pageConsole } from ".././shell";
+import type { GateProps, FrameFlash } from "../../../frame-verbs";
+import { businessTabSave } from "../saver";
+import type { BusinessTabSave } from "../saver";
+import { pageConsole } from "../shell";
 
 /** A toast, as the tab's cards hand it down (usePPToast's). */
-export type Flash = (flash: LegacyFlash) => void;
+export type Flash = (flash: FrameFlash) => void;
 /** The tab's one saver (save.tsx). */
 export type BtSaver = BusinessTabSave["saver"];
 /** The config a save would go on (the saver's base), or null when nothing is read to save onto. */
@@ -39,7 +39,7 @@ export type BtBase = ReturnType<BtSaver["base"]>;
 export type BtChannel = "whatsapp" | "voice" | null;
 /** What stopped a save, by field key. */
 export type BtProblems = Record<string, string>;
-/** A role gate's props (legacy-verbs gate), or none. */
+/** A role gate's props (frame-verbs gate), or none. */
 export type BtGate = GateProps | null;
 /** What a save says once the server has taken it. */
 export type BtWillSay = ReturnType<BusinessTabSave["willSay"]>;

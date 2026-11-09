@@ -10,11 +10,15 @@
  * to keep as a note, a tone to merge. Its answer is checked in code (`checkFixRoute`) before the owner sees it, and the
  * owner sees the field before Keep (`fixLine`): "Add to Services: Balayage · $180 · about 3 h".
  */
+import { defang } from "../ai/fence";
 import { DAYS, DAY_NAMES, PROFILE_LIMITS } from "../config/workspace-config/config-rules";
-import type { AskSettingsChange, GuardrailRule } from "../ask/ask-settings-change";
-import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/ask-settings-change";
-import { noteNamesContact, noteNamesMoney, noteOverlap } from "../notes/note-suggest";
+import type { AskSettingsChange, GuardrailRule } from "../ask/settings-change";
+import type { AskReachOutChange } from "../config/workspace-config/reach-out-change";
+import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/settings-change";
+import { noteNamesContact, noteNamesMoney, noteOverlap } from "../notes/suggest";
 import type { FixKind } from "./review";
+import { DAY_KEY } from "../shared/zone/day-keys";
+import { isOneOf } from "../shared/unknown";
 
 type Day = (typeof DAYS)[number];
 
@@ -75,14 +79,14 @@ const pad = (n: number) => String(n).padStart(2, "0");
  * at 6 to 11 is the morning, 12 is noon, 1 to 5 the afternoon; a closing at 1 to 11 is the afternoon or evening).
  */
 function hhmmSaid(
-  h: string | undefined,
-  m: string | undefined,
+  hourText: string | undefined,
+  message: string | undefined,
   ap: string | undefined,
   as: "open" | "close",
 ): string | null {
-  if (h === undefined) return null;
-  let hour = Number(h);
-  const min = m ? Number(m) : 0;
+  if (hourText === undefined) return null;
+  let hour = Number(hourText);
+  const min = message ? Number(message) : 0;
   if (!Number.isInteger(hour) || hour > 23 || min > 59) return null;
   const mer = ap?.replace(/\./g, "");
   if (mer === "pm" && hour < 12) hour += 12;
@@ -95,9 +99,10 @@ function hhmmSaid(
 
 /** The opening and closing the words say: both ("9 to 5"), the close alone ("till 7"), the open alone ("from 10"). */
 export function timesIn(words: string): { open: string | null; close: string | null; closed: boolean } {
-  const w = foldedLine(words);
-  if (/\b(closed|shut|not open|off)\b/.test(w) && !/\d/.test(w)) return { open: null, close: null, closed: true };
-  const range = new RegExp(`${HOUR_RE}\\s*(?:-|–|to|till|until|through)\\s*${HOUR_RE}`).exec(w);
+  const result = foldedLine(words);
+  if (/\b(closed|shut|not open|off)\b/.test(result) && !/\d/.test(result))
+    return { open: null, close: null, closed: true };
+  const range = new RegExp(`${HOUR_RE}\\s*(?:-|–|to|till|until|through)\\s*${HOUR_RE}`).exec(result);
   if (range) {
     return {
       open: hhmmSaid(range[1], range[2], range[3] ?? range[6], "open"),
@@ -105,8 +110,8 @@ export function timesIn(words: string): { open: string | null; close: string | n
       closed: false,
     };
   }
-  const close = new RegExp(`\\b(?:till|until|to|close[sd]? at)\\s*${HOUR_RE}`).exec(w);
-  const open = new RegExp(`\\b(?:from|open(?:s|ing)? at)\\s*${HOUR_RE}`).exec(w);
+  const close = new RegExp(`\\b(?:till|until|to|close[sd]? at)\\s*${HOUR_RE}`).exec(result);
+  const open = new RegExp(`\\b(?:from|open(?:s|ing)? at)\\s*${HOUR_RE}`).exec(result);
   return {
     open: open ? hhmmSaid(open[1], open[2], open[3], "open") : null,
     close: close ? hhmmSaid(close[1], close[2], close[3], "close") : null,
@@ -133,22 +138,22 @@ function nextDate(today: string, month: number, day: number): string | null {
 
 /** The dates the words name: an ISO date, "24 December", "December 24th", or "the 24th" (this month, or the next). */
 export function datesIn(words: string, today: string): string[] {
-  const w = foldedLine(words);
+  const result = foldedLine(words);
   const out: string[] = [];
-  for (const m of w.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)) out.push(`${m[1]}-${m[2]}-${m[3]}`);
+  for (const m of result.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)) out.push(`${m[1]}-${m[2]}-${m[3]}`);
   const dayFirst = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?(?: of)? ${MONTH_RE}\\b`, "g");
   const monthFirst = new RegExp(`\\b${MONTH_RE} (\\d{1,2})(?:st|nd|rd|th)?\\b`, "g");
-  for (const m of w.matchAll(dayFirst)) {
+  for (const m of result.matchAll(dayFirst)) {
     const d = nextDate(today, MONTHS.indexOf((m[2] ?? "").slice(0, 3)), Number(m[1]));
     if (d) out.push(d);
   }
-  for (const m of w.matchAll(monthFirst)) {
+  for (const m of result.matchAll(monthFirst)) {
     const d = nextDate(today, MONTHS.indexOf((m[1] ?? "").slice(0, 3)), Number(m[2]));
     if (d) out.push(d);
   }
   if (!out.length) {
     const mm = Number(today.slice(5, 7));
-    for (const m of w.matchAll(/\bthe (\d{1,2})(?:st|nd|rd|th)\b/g)) {
+    for (const m of result.matchAll(/\bthe (\d{1,2})(?:st|nd|rd|th)\b/g)) {
       const d = nextDate(today, mm - 1, Number(m[1])) ?? nextDate(today, mm % 12, Number(m[1]));
       if (d) out.push(d);
     }
@@ -171,17 +176,17 @@ const NUMBER_WORDS: Record<string, number> = { an: 1, a: 1, one: 1, two: 2, thre
 
 /** How long the words say it takes, in minutes: "90 minutes", "three hours", "an hour and a half", "half an hour". */
 export function minutesIn(words: string): number | null {
-  const w = foldedLine(words);
-  if (/\bhalf an hour\b/.test(w)) return 30;
-  const hours = /\b(\d+(?:\.\d+)?|an|a|one|two|three|four|five|six)\s*(?:hours?|hrs?|h)\b(\s*and a half)?/.exec(w);
+  const result = foldedLine(words);
+  if (/\bhalf an hour\b/.test(result)) return 30;
+  const hours = /\b(\d+(?:\.\d+)?|an|a|one|two|three|four|five|six)\s*(?:hours?|hrs?|h)\b(\s*and a half)?/.exec(result);
   if (hours) {
     const n = Number(hours[1]) || NUMBER_WORDS[hours[1] ?? ""] || 0;
     const total = Math.round((n + (hours[2] ? 0.5 : 0)) * 60);
     return total > 0 && total <= PROFILE_LIMITS.serviceMinutes ? total : null;
   }
-  const mins = /\b(\d{1,4})\s*(?:minutes?|mins?)\b/.exec(w);
-  const n = mins ? Number(mins[1]) : 0;
-  return n > 0 && n <= PROFILE_LIMITS.serviceMinutes ? n : null;
+  const mins = /\b(\d{1,4})\s*(?:minutes?|mins?)\b/.exec(result);
+  const count = mins ? Number(mins[1]) : 0;
+  return count > 0 && count <= PROFILE_LIMITS.serviceMinutes ? count : null;
 }
 
 /** A link the words carry, with its scheme or without ("vagaro.com/lunastudio"); never an email address's domain. */
@@ -246,11 +251,11 @@ function hoursChange(ask: FixAsk): AskSettingsChange | null {
   const days = daysIn(ask.words);
   const [day] = days;
   if (days.length !== 1 || !day) return null;
-  const t = timesIn(ask.words);
-  if (t.closed) return { op: "set_hours", day, open: null, close: null };
+  const times = timesIn(ask.words);
+  if (times.closed) return { op: "set_hours", day, open: null, close: null };
   const was = ask.hours[day];
-  const open = t.open ?? was?.open ?? null;
-  const close = t.close ?? was?.close ?? null;
+  const open = times.open ?? was?.open ?? null;
+  const close = times.close ?? was?.close ?? null;
   if (!open || !close || open >= close) return null;
   return { op: "set_hours", day, open, close };
 }
@@ -272,11 +277,11 @@ function serviceChange(ask: FixAsk): AskSettingsChange | null {
 
 /** What must reach a person, in the owner's words: "Put refunds through to me" keeps "Refunds". */
 function escalateReasonOf(words: string): string {
-  const said = squashedSpaces(words)
+  const sentence = squashedSpaces(words)
     .replace(/^(please\s+)?(put|send|pass|transfer|hand)\s+/i, "")
     .replace(/\s+(through\s+)?(to|over to)\s+(me|us|a person|someone|the owner)\.?$/i, "")
     .replace(/\.$/, "");
-  const reason = said ? said.charAt(0).toUpperCase() + said.slice(1) : squashedSpaces(words);
+  const reason = sentence ? sentence.charAt(0).toUpperCase() + sentence.slice(1) : squashedSpaces(words);
   return reason.slice(0, PROFILE_LIMITS.reason);
 }
 
@@ -352,15 +357,22 @@ export function fixRouteSystemPrompt(): string {
   ].join("\n");
 }
 
-/** The correction and what the settings hold, as quoted JSON inside tags. */
-export function fixRouteUserContent(ask: FixAsk, o: { customer: string; answer: string; tone: string | null }): string {
-  const max = 1200;
+/**
+ * The correction and what the settings hold, as quoted JSON inside tags they cannot close. What a reader cannot see goes
+ * before the cut, so a run of it uses up none of the bound. JSON leaves brackets and format characters as they are, so
+ * the settings are held whole, after it.
+ */
+export function fixRouteUserContent(
+  ask: FixAsk,
+  options: { customer: string; answer: string; tone: string | null },
+): string {
+  const part = (s: string) => JSON.stringify(squashedSpaces(defang(s)).slice(0, 1200));
   return [
     `<kind>${ask.kind}</kind>`,
-    `<owner>\n${JSON.stringify(squashedSpaces(ask.words).slice(0, max))}\n</owner>`,
-    `<customer>\n${JSON.stringify(squashedSpaces(o.customer).slice(0, max))}\n</customer>`,
-    `<answer>\n${JSON.stringify(squashedSpaces(o.answer).slice(0, max))}\n</answer>`,
-    `<settings>\n${JSON.stringify({ today: ask.today, services: ask.services.map((s) => s.name), languages: ask.languages, tone: o.tone ?? "" })}\n</settings>`,
+    `<owner>\n${part(ask.words)}\n</owner>`,
+    `<customer>\n${part(options.customer)}\n</customer>`,
+    `<answer>\n${part(options.answer)}\n</answer>`,
+    `<settings>\n${defang(JSON.stringify({ today: ask.today, services: ask.services.map((s) => s.name), languages: ask.languages, tone: options.tone ?? "" }))}\n</settings>`,
   ].join("\n");
 }
 
@@ -386,18 +398,19 @@ export const FIX_ROUTE_SCHEMA = {
 } as const;
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const field = (v: unknown, max: number) => (typeof v === "string" ? squashedSpaces(v).slice(0, max) : "");
+/** A value the model answered, read as its fence would show it: no figure, number or link hides behind what cannot be seen. */
+const field = (v: unknown, max: number) => (typeof v === "string" ? squashedSpaces(defang(v)).slice(0, max) : "");
 
 /**
  * The model's answer, checked in code: the op is one the settings take, every value is in its field's shape and bounds,
  * a price is one the owner said, a service set is one listed, and a note names no money, link or number (a price is a
- * service's to hold) and says what the owner said. Null when it does not pass, with why.
+ * service's to hold) and says what the owner said. The owner's words and the services are read as the fence showed them.
+ * Null when it does not pass, with why.
  */
 export function checkFixRoute(answer: unknown, ask: FixAsk): FixRouted {
   const a = (answer ?? {}) as Record<string, unknown>;
   const check = typeof a.op === "string" ? FIX_CHECKS.get(a.op) : undefined;
-  return check ? check(a, ask, squashedSpaces(ask.words)) : NO_FIX;
+  return check ? check(a, ask, squashedSpaces(defang(ask.words))) : NO_FIX;
 }
 
 /** The answer that changes nothing. */
@@ -410,7 +423,7 @@ function checkHours(a: Record<string, unknown>): FixRouted {
   const day = field(a.day, 3) as Day;
   const open = field(a.open, 5);
   const close = field(a.close, 5);
-  if (!(DAYS as readonly string[]).includes(day)) return NO_FIX;
+  if (!isOneOf(DAYS, day)) return NO_FIX;
   if (!open && !close) return { ok: true, change: { op: "set_hours", day, open: null, close: null } };
   if (!TIME.test(open) || !TIME.test(close) || open >= close) return NO_FIX;
   return { ok: true, change: { op: "set_hours", day, open, close } };
@@ -419,21 +432,21 @@ function checkHours(a: Record<string, unknown>): FixRouted {
 function checkClosure(a: Record<string, unknown>, ask: FixAsk): FixRouted {
   const date = field(a.date, 10);
   const until = field(a.until, 10);
-  if (!DATE.test(date) || date < ask.today || (until && (!DATE.test(until) || until < date))) return NO_FIX;
+  if (!DAY_KEY.test(date) || date < ask.today || (until && (!DAY_KEY.test(until) || until < date))) return NO_FIX;
   return { ok: true, change: { op: "add_closure", date, ...(until && until !== date ? { until } : {}) } };
 }
 
-function checkService(a: Record<string, unknown>, ask: FixAsk, words: string): FixRouted {
-  const L = PROFILE_LIMITS;
-  const name = field(a.name, L.serviceName);
-  const price = field(a.price, L.servicePrice);
-  const minutes = typeof a.minutes === "number" && Number.isInteger(a.minutes) ? a.minutes : 0;
+function checkService(record: Record<string, unknown>, ask: FixAsk, words: string): FixRouted {
+  const log = PROFILE_LIMITS;
+  const name = field(record.name, log.serviceName);
+  const price = field(record.price, log.servicePrice);
+  const minutes = typeof record.minutes === "number" && Number.isInteger(record.minutes) ? record.minutes : 0;
   if (!name) return NO_FIX;
   // A price is the owner's: its figure must be in their words.
   const figure = /\d+(?:[.,]\d{2})?/.exec(price)?.[0];
   if (price && (!figure || !words.includes(figure))) return NO_FIX;
-  if (minutes < 0 || minutes > L.serviceMinutes) return NO_FIX;
-  const listed = ask.services.find((s) => foldedLine(s.name) === foldedLine(name));
+  if (minutes < 0 || minutes > log.serviceMinutes) return NO_FIX;
+  const listed = ask.services.find((s) => foldedLine(defang(s.name)) === foldedLine(name));
   const op = listed ? "set_service" : "add_service";
   if (!price && !minutes && op === "set_service") return NO_FIX;
   return {
@@ -459,11 +472,11 @@ function checkNote(a: Record<string, unknown>, _ask: FixAsk, words: string): Fix
 }
 
 function checkLanguages(a: Record<string, unknown>): FixRouted {
-  const L = PROFILE_LIMITS;
+  const log = PROFILE_LIMITS;
   const list = Array.isArray(a.languages)
-    ? a.languages.map((l) => field(l, L.languageMax)).filter((l) => l.length >= L.languageMin)
+    ? a.languages.map((l) => field(l, log.languageMax)).filter((l) => l.length >= log.languageMin)
     : [];
-  if (!list.length || list.length > L.languages) return NO_FIX;
+  if (!list.length || list.length > log.languages) return NO_FIX;
   return { ok: true, change: { op: "set_languages", languages: [...new Set(list)] } };
 }
 
@@ -511,8 +524,12 @@ function clockOf(hhmm: string): string {
   return `${h12}${m ? `:${pad(m)}` : ""} ${ap}`;
 }
 
-/** The block of the instructions each change writes (prompt-blocks.ts rows): It now reads draws that block. */
-export const FIX_BLOCK_OF: Record<AskSettingsChange["op"], string> = {
+/**
+ * The block of the instructions each change writes (prompt-blocks.ts rows): It now reads draws that block. How it reaches
+ * out's rows (decision 0113) write none, so none is named: a read of one finds no block.
+ */
+export const FIX_BLOCK_OF: Record<Exclude<AskSettingsChange["op"], AskReachOutChange["op"]>, string> &
+  Partial<Record<AskReachOutChange["op"], string>> = {
   set_hours: "hours",
   add_closure: "closures",
   add_service: "services",

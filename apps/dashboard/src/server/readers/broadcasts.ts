@@ -8,20 +8,20 @@ import {
   type MonthSent,
   type OpenToCustomers,
 } from "@chanlytics/contracts";
-import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts";
-import { channelsReadyOrNull } from "../campaigns/channels-ready";
-import { monthSentNext, monthSentOrNull } from "../campaigns/month-sent";
+import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts/broadcasts";
+import { findChannelsReadyOrNull } from "../campaigns/channels-ready";
+import { readMonthSentNext, readMonthSentOrNull } from "../campaigns/month-sent";
 import {
-  recentTouches,
-  runsGoingBetween,
-  waitingRunsOf,
-  workspaceOpenToCustomers,
+  getRecentTouches,
+  listRunsGoingBetween,
+  listWaitingRuns,
   type GoingRunRow,
   type WaitingRunRow,
-} from "@chanlytics/db";
-import { load, stamp, type Reader, type RowRef } from "./index";
+} from "@chanlytics/db/campaigns";
+import { isWorkspaceOpenToCustomers } from "@chanlytics/db/workspace";
+import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
 import * as readers from "./facts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /** A broadcast as a citation names it: a Broadcasts row, opened where its address spells it, a run. */
 const runRef = (b: Pick<BroadcastDto, "id" | "name">): RowRef => ({
@@ -33,7 +33,7 @@ const runRef = (b: Pick<BroadcastDto, "id" | "name">): RowRef => ({
 
 /**
  * GET broadcasts, as the route answers it: the recent fifty with what their messages earned, and whether older ones exist
- * beyond them, and after them every older run still waiting for a word (campaigns/broadcasts.ts listBroadcasts): what the
+ * beyond them, and after them every older run still waiting for a word (campaigns/broadcasts/broadcasts.ts listBroadcasts): what the
  * badge, the Inbox's run rows, Today's queue and a run's sheet are drawn from, read before the
  * Inbox's first draw. Who a run reached this week is not here: it is every touch of the week, which the composer alone
  * reads (broadcastTouches, GET broadcasts/touches; the Inbox's run review, 18 Oct 2026). And whether the workspace can send on each channel now (`ready`, channels-ready.ts), which
@@ -61,14 +61,14 @@ export const broadcasts: Reader<
   async read(rc) {
     const [list, ready, month_sent, month_sent_next, open_to_customers] = await Promise.all([
       listBroadcasts(rc.ctx, rc.tenantId),
-      channelsReadyOrNull(rc.ctx, rc.tenantId, { withPause: true }),
-      monthSentOrNull(rc.tenantId, rc.now),
+      findChannelsReadyOrNull(rc.ctx, rc.tenantId, { withPause: true }),
+      readMonthSentOrNull(rc.tenantId, rc.now),
       // The workspace's clock says where the month ends; a zone that could not be read leaves the composer on this month.
       load(rc, readers.facts, undefined).then(
-        (r) => monthSentNext(rc.tenantId, rc.now, r.data.timezone),
+        (r) => readMonthSentNext(rc.tenantId, rc.now, r.data.timezone),
         () => null,
       ),
-      workspaceOpenToCustomers(rc.ctx.supabase, rc.tenantId).then(
+      isWorkspaceOpenToCustomers(rc.ctx.supabase, rc.tenantId).then(
         (s) => s.open,
         (e: unknown) => {
           log.error("broadcast_open_to_customers_failed", {
@@ -82,7 +82,7 @@ export const broadcasts: Reader<
     return {
       data: { ...list, ready, month_sent, month_sent_next, open_to_customers },
       rows: list.broadcasts.map(runRef),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -97,32 +97,32 @@ export const broadcasts: Reader<
 export const broadcastTouches: Reader<undefined, { touched_at: Record<string, string[]> | null }> = {
   name: "broadcastTouches",
   async read(rc) {
-    const touched_at = await recentTouches(rc.ctx.supabase, rc.tenantId, rc.now).catch((e: unknown) => {
+    const touched_at = await getRecentTouches(rc.ctx.supabase, rc.tenantId, rc.now).catch((e: unknown) => {
       log.error("broadcast_touches_failed", {
         tenant_id: rc.tenantId,
         error: e instanceof Error ? e.message : String(e),
       });
       return null;
     });
-    return { data: { touched_at }, rows: [], stamp: stamp() };
+    return { data: { touched_at }, rows: [], stamp: readerStamp() };
   },
 };
 
 /**
  * GET broadcasts/:id, as the route answers it: one broadcast of the workspace read and every person on it, in the
- * words of what happened to them and what came back from each (server/campaigns/broadcasts.ts getBroadcast); one not here is its
+ * words of what happened to them and what came back from each (server/campaigns/broadcasts/broadcasts.ts getBroadcast); one not here is its
  * 404. The route checks the id is one. The broadcast is the row a citation names.
  */
 export const broadcast: Reader<{ id: string }, BroadcastDetailDto> = {
   name: "broadcast",
   async read(rc, { id }) {
     const data = await getBroadcast(rc.ctx, rc.tenantId, id);
-    return { data, rows: [runRef(data.broadcast)], stamp: stamp() };
+    return { data, rows: [runRef(data.broadcast)], stamp: readerStamp() };
   },
 };
 
 /**
- * The runs set to go on their own in the next day, soonest first (packages/db runsGoingBetween): what Ask's Today says goes
+ * The runs set to go on their own in the next day, soonest first (packages/db listRunsGoingBetween): what Ask's Today says goes
  * today unless stopped (contracts goingTodayOf keeps those on the business's day), as Today's Going today draws them. Each
  * run is a row a citation names.
  */
@@ -130,20 +130,20 @@ export const goingRuns: Reader<undefined, { runs: GoingRunRow[] }> = {
   name: "going_runs",
   async read(rc) {
     const now = new Date();
-    const runs = await runsGoingBetween(rc.ctx.supabase, rc.tenantId, now, new Date(now.getTime() + DAY_MS));
-    return { data: { runs }, rows: runs.map(runRef), stamp: stamp() };
+    const runs = await listRunsGoingBetween(rc.ctx.supabase, rc.tenantId, now, new Date(now.getTime() + DAY_MS));
+    return { data: { runs }, rows: runs.map(runRef), stamp: readerStamp() };
   },
 };
 
 /**
- * The runs waiting for a word, newest first (packages/db waitingRunsOf: for approval, or holding emails for your say): what the server's Today counts as waiting on
+ * The runs waiting for a word, newest first (packages/db listWaitingRuns: for approval, or holding emails for your say): what the server's Today counts as waiting on
  * you, by the verb's own day rule (contracts runsThatWait), so Ask's Today says the head the page says and names the
  * runs. Each run is a row a citation names.
  */
 export const waitingRuns: Reader<undefined, { runs: WaitingRunRow[] }> = {
   name: "waiting_runs",
   async read(rc) {
-    const runs = await waitingRunsOf(rc.ctx.supabase, rc.tenantId);
-    return { data: { runs }, rows: runs.map(runRef), stamp: stamp() };
+    const runs = await listWaitingRuns(rc.ctx.supabase, rc.tenantId);
+    return { data: { runs }, rows: runs.map(runRef), stamp: readerStamp() };
   },
 };

@@ -17,10 +17,11 @@ import { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, withAlertAddress } from "./al
 import { BrainConfigSchema } from "./brain-config-schema";
 import type { Closure, Hours } from "./business-profile";
 import { ASK_GOAL_MAX, MAX_CLOSURES, dayProblems, isRealDate } from "./config-rules";
+import { ReachOutConfigSchema, reachOutProblems } from "./reach-out-schema";
 
 export const NotificationsConfigSchema = z
   .object({
-    escalation_emails: z.array(z.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
+    escalation_emails: z.array(z.email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
     from: z.string().max(200).optional(),
     /**
      * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
@@ -114,6 +115,8 @@ export const FeaturesConfigSchema = z
     vision: z.boolean().optional(),
     /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
     ads_preview: z.boolean().optional(),
+    /** A business's videos taken in this workspace (decision 0099, stage B; contracts files/video.ts videoPreviewOf). */
+    video_preview: z.boolean().optional(),
     /**
      * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
      * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.
@@ -127,11 +130,29 @@ export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
  * Ask's own section (the operator, 15 Oct 2026, D13): the owner's goal in one line ("twenty new salon clients a month"),
  * which Ask reads on every turn and weighs every signal and plan against. The receptionist never reads it.
  */
-const AskConfigSchema = z.object({ goal: z.string().max(ASK_GOAL_MAX).optional() }).strip();
+const AskConfigSchema = z
+  .object({
+    goal: z.string().max(ASK_GOAL_MAX).optional(),
+    // The switch (D10 of the answers canvas): Ask may act on its own, following the Autonomy rows. Off by default.
+    alone: z.boolean().optional(),
+    // Stop everything (D22): what it paused, so a resume puts back that and nothing a member paused by hand.
+    stopped: z
+      .object({
+        at: z.string(),
+        playbooks: z.array(z.string()).max(2000),
+        reply: z.string().nullable(),
+      })
+      .optional(),
+  })
+  .strip();
+
+/** What Stop everything keeps while it is on. */
+export type AskStopped = NonNullable<z.infer<typeof AskConfigSchema>["stopped"]>;
 
 export const TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
   ask: AskConfigSchema.optional(),
+  reach_out: ReachOutConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
   calendar_grant: CalendarGrantConfigSchema.optional(),
@@ -163,7 +184,7 @@ export type TenantConfig = z.infer<typeof TenantConfigSchema>;
 function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
   for (const p of dayProblems(h, day)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["brain", "profile", "hours", day, ...p.path],
       message: p.message,
     });
@@ -178,20 +199,20 @@ function checkDay(h: Hours, day: string, ctx: z.RefinementCtx): void {
 function checkCalendarDay(day: string, path: (string | number)[], ctx: z.RefinementCtx): void {
   if (!isRealDate(day)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path,
       message: `${day} is not a date on the calendar.`,
     });
   }
 }
 
-function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
-  const at = (...rest: (string | number)[]) => ["brain", "profile", "closures", n, ...rest];
-  checkCalendarDay(c.date, at("date"), ctx);
-  if (c.until) checkCalendarDay(c.until, at("until"), ctx);
-  if (c.until && c.until < c.date) {
+function checkClosure(closure: Closure, count: number, ctx: z.RefinementCtx): void {
+  const at = (...rest: (string | number)[]) => ["brain", "profile", "closures", count, ...rest];
+  checkCalendarDay(closure.date, at("date"), ctx);
+  if (closure.until) checkCalendarDay(closure.until, at("until"), ctx);
+  if (closure.until && closure.until < closure.date) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: at("until"),
       message: "A closure cannot end before it starts.",
     });
@@ -203,7 +224,7 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["calendar", "ical_url"],
       message: feedProblemWords("address") ?? "Not an address the receptionist may read.",
     });
@@ -216,19 +237,23 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
       message: "Not a booking tool this product knows.",
     });
   }
-  const p = cfg.brain?.profile;
-  if (!p) return;
-  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
-  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
+  // How it reaches out's: held here alone, never on the read, whichever door the save came by.
+  for (const p of reachOutProblems(cfg.reach_out ?? {})) {
+    ctx.addIssue({ code: "custom", path: ["reach_out", ...p.path], message: p.message });
+  }
+  const profile = cfg.brain?.profile;
+  if (!profile) return;
+  for (const [day, h] of Object.entries(profile.hours ?? {})) if (h) checkDay(h, day, ctx);
+  if ((profile.closures?.length ?? 0) > MAX_CLOSURES) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["brain", "profile", "closures"],
       message: `At most ${MAX_CLOSURES} closures.`,
     });
   }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+  (profile.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
   // A note's last day, judged as a closure's is.
-  (p.notes ?? []).forEach((note, n) => {
+  (profile.notes ?? []).forEach((note, n) => {
     if (note.until) checkCalendarDay(note.until, ["brain", "profile", "notes", n, "until"], ctx);
   });
 });
@@ -288,7 +313,7 @@ export type ReceptionistState = "none" | "set" | "broken";
  * receptionist's route alike: a config the parser refuses is its own state, since only Chanlytics repairs one, and a
  * parsed config holds a receptionist when it holds a brain. No config at all reads as none.
  */
-export function receptionistOf(parsed: TenantConfigParse | null): ReceptionistState {
+export function configReceptionistOf(parsed: TenantConfigParse | null): ReceptionistState {
   if (parsed && !parsed.ok) return "broken";
   return parsed?.config.brain ? "set" : "none";
 }
@@ -301,7 +326,7 @@ export function parseTenantConfig(raw: unknown): TenantConfig | null {
 
 /**
  * A new workspace's first alert address: its creator's. Without one, the edge's
- * chooseAddressing (lib/ops/notify.ts) sends every "a customer needs you" to the
+ * chooseAddressing (lib/shared/alerts/notify.ts) sends every "a customer needs you" to the
  * platform, redacted, and the owner is never told.
  *
  * Returns the config to save, or null when there is nothing to do: a config that

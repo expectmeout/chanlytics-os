@@ -6,29 +6,36 @@
  * Cross-workspace: the platform's diagnostic, opened by the platform key only, reports on every workspace.
  */
 import { createHash } from "node:crypto";
-import { json } from "../http.js";
-import { pg } from "../pg.js";
-import { migrationsLine } from "./migration-head.js";
-import { brainSummary } from "../receptionist/budget.js";
-import { securitySwitchesHere } from "../security-switches.js";
-import type { SweepHealthRow } from "./sweep-health.js";
-import { pageStates, untoldPages, type PageRow } from "./page-operator.js";
+import { json } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { getMigrationsLine } from "./migration-head.js";
+import { getBrainSummary } from "../ai/budget.js";
+import { securitySwitchesHere } from "../shared/security-switches.js";
+import { pageStates, untoldPages } from "../shared/alerts/page-operator.js";
+import { breakerStates, fetchFromProvider } from "@chanlytics/channels/shared";
 import {
-  breakerStates,
   getAgent,
   getRetellLlm,
-  providerFetch,
   voiceShellDrift,
   agentSettingsDrift,
   type RetellAgentConfig,
   type RetellLlmConfig,
-} from "../packages/channels.js";
-import { metaAppId } from "../whatsapp/meta-graph.js";
-import { DAY_MS } from "../packages/contracts.js";
-import { voiceDoorKnocks } from "../packages/db.js";
-import { signatureOnly } from "../voice/voice-door-auth.js";
-import { env } from "../env.js";
-import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../dashboard-origin.js";
+} from "@chanlytics/channels/voice";
+import { metaAppId, GRAPH_VERSION } from "../whatsapp/meta-graph.js";
+import { DAY_MS } from "@chanlytics/contracts";
+import { listVoiceDoorKnocks } from "@chanlytics/db/voice";
+import { signatureOnly } from "../shared/door-auth.js";
+import { env } from "../shared/env.js";
+import { edgeFnUrl, unsubscribeOrigin, unsubscribeOriginRejected } from "../shared/dashboard-origin.js";
+import {
+  listOperatorPages,
+  listWebhookAuths,
+  listWebhookDeliveries,
+  readJobsBacklog,
+  readNumberDrift,
+  readSweepHealth,
+} from "@chanlytics/db/ops";
+import { listVoiceRoutingRows } from "@chanlytics/db/lines";
 
 const META_APP_ID = metaAppId();
 
@@ -136,12 +143,13 @@ async function sweepHealth(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { sweeps: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    const { data, error } = await db.rpc("sweep_health");
+    const { data, error } = await readSweepHealth(db);
     if (error) return { sweeps: { error: error.message.slice(0, 200) } };
-    const rows = (data ?? []) as unknown as SweepHealthRow[];
+    const rows = data ?? [];
     const sweeps = { ok: rows.every((r) => r.healthy), detail: rows };
     // Due work nobody has claimed: the honest measure of whether the heartbeat drains.
-    const { data: backlog } = await db.rpc("jobs_backlog");
+    const { data: backlog, error: backlogErr } = await readJobsBacklog(db);
+    if (backlogErr) return { sweeps, jobs_backlog: null, jobs_backlog_error: backlogErr.message.slice(0, 200) };
     return { sweeps, jobs_backlog: typeof backlog === "number" ? backlog : null };
   } catch (e) {
     return { sweeps: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
@@ -159,12 +167,9 @@ async function pagerMemory(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { pages: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    const { data, error } = await db
-      .from("operator_pages")
-      .select("key, first_at, last_at, count, alerted_at")
-      .order("last_at", { ascending: false });
+    const { data, error } = await listOperatorPages(db);
     if (error) return { pages: { error: error.message.slice(0, 200) } };
-    const rows = (data ?? []) as PageRow[];
+    const rows = data ?? [];
     return { pages: { ok: untoldPages(rows).length === 0, untold: untoldPages(rows), conditions: pageStates(rows) } };
   } catch (e) {
     return { pages: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
@@ -184,9 +189,9 @@ async function numberDrift(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { numbers: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    const { data, error } = await db.rpc("number_drift");
+    const { data, error } = await readNumberDrift(db);
     if (error) return { numbers: { error: error.message.slice(0, 200) } };
-    const rows = (data ?? []) as unknown as { kind: string; tenant_id: string; detail: string }[];
+    const rows = data ?? [];
     return { numbers: { ok: rows.length === 0, drift: rows } };
   } catch (e) {
     return { numbers: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
@@ -200,24 +205,29 @@ async function numberDrift(): Promise<Section> {
 async function waTokenPermanence(): Promise<Section> {
   if (!env.WHATSAPP_ACCESS_TOKEN || !env.META_APP_SECRET) return { waTokenCheck: null };
   try {
-    const q = new URLSearchParams({
+    const query = new URLSearchParams({
       input_token: env.WHATSAPP_ACCESS_TOKEN,
       access_token: `${META_APP_ID}|${env.META_APP_SECRET}`,
     });
-    const r = await providerFetch("meta", `https://graph.facebook.com/v25.0/debug_token?${q}`, {
-      timeoutMs: DIAG_READ_TIMEOUT_MS,
-      idempotent: true,
-      tries: 2,
-    });
+    const response = await fetchFromProvider(
+      "meta",
+      `https://graph.facebook.com/${GRAPH_VERSION}/debug_token?${query}`,
+      {
+        timeoutMs: DIAG_READ_TIMEOUT_MS,
+        idempotent: true,
+        tries: 2,
+      },
+    );
     // No answer at all is said as a failed check, as the bare fetch's throw was.
-    if (r.status === 0) throw new Error(r.error ?? "no answer");
-    const d = ((r.json ?? {}) as { data?: { is_valid?: boolean; expires_at?: number; type?: string } }).data || {};
+    if (response.status === 0) throw new Error(response.error ?? "no answer");
+    const json =
+      ((response.json ?? {}) as { data?: { is_valid?: boolean; expires_at?: number; type?: string } }).data || {};
     return {
       waTokenCheck: {
-        valid: !!d.is_valid,
-        expiresAt: d.expires_at,
-        type: d.type,
-        permanent: !!d.is_valid && d.expires_at === 0,
+        valid: !!json.is_valid,
+        expiresAt: json.expires_at,
+        type: json.type,
+        permanent: !!json.is_valid && json.expires_at === 0,
       },
     };
   } catch (e) {
@@ -235,9 +245,7 @@ async function voiceAgentSettings(): Promise<Section> {
   if (!env.RETELL_API_KEY) return { voiceAgents: null };
   try {
     const db = pg();
-    const { data: rows } = db
-      ? await db.from("tenant_channels").select("external_id, status").eq("kind", "voice")
-      : { data: null };
+    const { data: rows } = db ? await listVoiceRoutingRows(db) : { data: null };
     const agents: unknown[] = [];
     for (const r of rows ?? []) {
       const a = await getAgent({ apiKey: env.RETELL_API_KEY }, r.external_id);
@@ -256,32 +264,32 @@ async function voiceAgentSettings(): Promise<Section> {
 
 /** One voice line as the report shows it: its agent's settings with the drift on both, or the agent named unreadable. */
 function voiceAgentEntry(
-  r: { external_id: string; status: string },
-  a: RetellAgentConfig | null,
+  row: { external_id: string; status: string },
+  retellAgentConfig: RetellAgentConfig | null,
   llm: RetellLlmConfig | null,
 ): Section {
-  return a
+  return retellAgentConfig
     ? {
-        ...a,
-        channel_status: r.status,
-        live_transcript: (a.webhook_events ?? []).includes("transcript_updated"),
+        ...retellAgentConfig,
+        channel_status: row.status,
+        live_transcript: (retellAgentConfig.webhook_events ?? []).includes("transcript_updated"),
         // Which text model the line runs — provisioning parity, in one word.
         model: llm?.model ?? null,
         shell: llm
           ? voiceShellDrift(llm, edgeFnUrl(), signatureOnly())
-          : { error: a.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
+          : { error: retellAgentConfig.llm_id ? "llm_unreadable" : "not_a_retell_llm" },
         // The agent-level settings the pipeline needs: the live
         // transcript event, a webhook budget the recording copy fits
         // in, signed recording links.
-        agent: agentSettingsDrift(a),
+        agent: agentSettingsDrift(retellAgentConfig),
       }
-    : { agent_id: r.external_id, channel_status: r.status, error: "unreadable" };
+    : { agent_id: row.external_id, channel_status: row.status, error: "unreadable" };
 }
 
-/** Each voice door's knocks of the last seven days (webhook.auth rows, packages/db voiceDoorKnocks), or why not. */
+/** Each voice door's knocks of the last seven days (webhook.auth rows, packages/db listVoiceDoorKnocks), or why not. */
 async function doorEvidence(db: NonNullable<ReturnType<typeof pg>>): Promise<Section> {
   try {
-    return await voiceDoorKnocks(db, new Date(Date.now() - 7 * DAY_MS).toISOString());
+    return await listVoiceDoorKnocks(db, new Date(Date.now() - 7 * DAY_MS).toISOString());
   } catch (e) {
     return { error: String(e instanceof Error ? e.message : e).slice(0, 200) };
   }
@@ -299,29 +307,16 @@ async function retellAuthEvidence(db: ReturnType<typeof pg>, retellKey: string):
     // Each voice door's knocks of the last seven days, signed or not (decision 0092): the evidence RETELL_DOORS_SIGNED
     // is set on, kept as rows since the log keeps a day. The call webhook's rows name no door: "webhook".
     doors: db ? await doorEvidence(db) : null,
-    recent: db
-      ? ((
-          await db
-            .from("events")
-            .select("created_at, data")
-            .eq("kind", "webhook.auth")
-            .order("created_at", { ascending: false })
-            .limit(5)
-        ).data ?? [])
-      : [],
+    recent: db ? rowsOrError(await listWebhookAuths(db, 5)) : [],
     // What the last deliveries DID — per event: status carried and
     // normalised, turns brought, whether the ingest declined them.
-    deliveries: db
-      ? ((
-          await db
-            .from("events")
-            .select("created_at, subject_id, data")
-            .eq("kind", "webhook.delivery")
-            .order("created_at", { ascending: false })
-            .limit(20)
-        ).data ?? [])
-      : [],
+    deliveries: db ? rowsOrError(await listWebhookDeliveries(db, 20)) : [],
   };
+}
+
+/** A diagnostic's rows, or the database's words when it could not read them: none read is not none there. */
+function rowsOrError<T>(read: { data: T[] | null; error: { message: string } | null }): T[] | { error: string } {
+  return read.error ? { error: read.error.message.slice(0, 200) } : (read.data ?? []);
 }
 
 /**
@@ -349,7 +344,7 @@ function whatsappGates(): Section {
 async function receptionistDay(): Promise<Section> {
   try {
     const db = pg();
-    return { brain: db ? await brainSummary(db) : null };
+    return { brain: db ? await getBrainSummary(db) : null };
   } catch (e) {
     return { brain: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
   }
@@ -366,13 +361,13 @@ async function migrationHead(): Promise<Section> {
   try {
     const db = pg();
     if (!db) return { migrations: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
-    return { migrations: await migrationsLine(db) };
+    return { migrations: await getMigrationsLine(db) };
   } catch (e) {
     return { migrations: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
   }
 }
 
-export async function diagnosticReport(): Promise<Response> {
+export async function readDiagnosticReport(): Promise<Response> {
   const out: Report = {};
   for (const part of REPORT) Object.assign(out, await part());
   return json(200, out);

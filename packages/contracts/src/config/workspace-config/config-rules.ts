@@ -9,6 +9,7 @@
  * that says a limit or judges a day loads none of it.
  */
 import type { Hours } from "./business-profile";
+import { E164 } from "../../shared/phone";
 
 /* ------------------------------------------------------------------ the week */
 
@@ -42,11 +43,11 @@ export const MAX_CLOSURES = 60;
  * day check (config-schema.ts checkDay) and anything that builds a day from elsewhere (google.ts hoursFromGoogle) ask
  * this, so a day is judged by one set of rules wherever it comes from. Empty when the day is one the record holds.
  */
-export function dayProblems(h: Hours, day: string): Array<{ path: Array<string | number>; message: string }> {
+export function dayProblems(hours: Hours, day: string): Array<{ path: Array<string | number>; message: string }> {
   const name = DAY_NAME[day] ?? day;
   const out: Array<{ path: Array<string | number>; message: string }> = [];
-  const open = h.open ?? undefined;
-  const close = h.close ?? undefined;
+  const open = hours.open ?? undefined;
+  const close = hours.close ?? undefined;
   if (!!open !== !!close) {
     out.push({
       path: [open ? "close" : "open"],
@@ -56,7 +57,7 @@ export function dayProblems(h: Hours, day: string): Array<{ path: Array<string |
   if (open && close && close <= open) {
     out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
   }
-  const iv = h.intervals ?? [];
+  const iv = hours.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
     out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
   }
@@ -71,7 +72,7 @@ export function dayProblems(h: Hours, day: string): Array<{ path: Array<string |
   // told their day is wrong merely because they typed the afternoon first.
   const sorted = [...iv].sort((a, b) => (a.open < b.open ? -1 : a.open > b.open ? 1 : 0));
   for (let n = 1; n < sorted.length; n++) {
-    if (sorted[n].open < sorted[n - 1].close) {
+    if ((sorted[n]?.open ?? "") < (sorted[n - 1]?.close ?? "")) {
       out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
     }
   }
@@ -80,11 +81,8 @@ export function dayProblems(h: Hours, day: string): Array<{ path: Array<string |
 
 /* ------------------------------------------------------------- the numbers */
 
-/** E.164: a plus, then 7–15 digits, no leading zero. */
-export const E164 = /^\+[1-9]\d{6,14}$/;
-
 /** Whether a value is a number written in E.164, by that pattern. */
-export const isE164 = (s: unknown): s is string => typeof s === "string" && E164.test(s);
+export const isE164 = (text: unknown): text is string => typeof text === "string" && E164.test(text);
 
 /**
  * The most either set of the receptionist's instructions holds: the prompt a
@@ -101,6 +99,34 @@ export const BOOKING_LINK_MAX = 500;
 
 /** The owner's goal in their own words, at most this long: what Ask weighs every plan against (the operator, 15 Oct 2026). */
 export const ASK_GOAL_MAX = 200;
+
+/**
+ * The most each row of How it reaches out holds (decision 0113): the page's refusals say them, and each is here for what
+ * it protects, never to make an owner shorten their own words.
+ *   offer, whoFor, fixes, tone   told to the writers as data and never printed, so only a guard against a whole website
+ *                                pasted in, which every prompt would then carry
+ *   claim                        printed word for word in an email held to Ask's own word count, so it stays a sentence
+ *   claims                       how many a sheet stays readable with: one goes in an email
+ *   signedBy                     the one a sequence's own sign-off is held to too (SIGNED_BY_MAX, sequence_steps_root_settings)
+ *   signature, signatureLines    under every email: its lines are what a reader sees of it, its length a guard
+ *   phone                        what phoneAsWritten leaves room for: the shape is the rule
+ */
+export const REACH_OUT_LIMITS = {
+  offer: 2000,
+  whoFor: 2000,
+  fixes: 2000,
+  claim: 200,
+  claims: 10,
+  tone: 2000,
+  signedBy: 60,
+  signature: 300,
+  signatureLines: 3,
+  phone: 40,
+} as const;
+
+/** What an answer to a lead who wrote back offers (decision 0113): your booking link, a call with you, or the answer alone. */
+export const REPLY_OFFERS = ["booking_link", "call", "answer"] as const;
+export type ReplyOffer = (typeof REPLY_OFFERS)[number];
 
 /** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` (business-tab/fold-limits.ts) says what each one refuses in. */
 export type ProfileLimitKey =
@@ -216,9 +242,9 @@ export type StoredGuardrails = { [K in GuardrailKey]?: boolean | undefined };
  */
 export type GuardrailsInForce = Record<GuardrailKey, boolean>;
 
-export function guardrailsInForce(g: StoredGuardrails | null | undefined): GuardrailsInForce {
+export function guardrailsInForce(storedGuardrails: StoredGuardrails | null | undefined): GuardrailsInForce {
   return {
-    never_quote_prices: g?.never_quote_prices !== false,
+    never_quote_prices: storedGuardrails?.never_quote_prices !== false,
     // Always (the Settings wiring review, 18 Oct 2026): nothing in the product books, so no choice of the owner's lets the
     // receptionist confirm one; what happens instead is the booking choice on Hours & booking. A stored false is read as
     // on, and the key stays in the schema so an older tab's rules save is not refused by name.
@@ -226,6 +252,6 @@ export function guardrailsInForce(g: StoredGuardrails | null | undefined): Guard
     // Always: the receptionist says it is an automated assistant whatever a row stores (decision 0051). The key stays
     // in the schema so an open tab's rules save, which writes all four, is never refused by name.
     disclose_ai: true,
-    no_health_advice: g?.no_health_advice === true,
+    no_health_advice: storedGuardrails?.no_health_advice === true,
   };
 }

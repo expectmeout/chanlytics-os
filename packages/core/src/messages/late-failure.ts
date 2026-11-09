@@ -1,6 +1,6 @@
 import { isAutomatedSend, sendFailureWords } from "@chanlytics/contracts";
 import { raiseSendFailed } from "./send";
-import { toldFromItsEvent } from "../subscribers";
+import { toldFromItsEvent } from "../events/subscribers";
 
 /** What a late failure needs to know of the message the provider's id names. */
 export interface LateFailureFacts {
@@ -54,7 +54,7 @@ export type LateFailureOutcome = "raised" | "not_ours" | "not_a_reply" | "alread
  * WhatsApp's status webhook and Twilio's status callback both say `failed` (or `undelivered`) about a message they
  * accepted a moment before, and until this the row learned it and nobody else did: the thread read as answered, the
  * bell stayed quiet, and the customer waited on a reply that never arrived. An email receipt flags its thread
- * already (edge email-receipts.ts); this is the same rule for the other two wires, said once, in the same words the
+ * already (edge email/receipts.ts); this is the same rule for the other two wires, said once, in the same words the
  * send says it (raiseSendFailed).
  *
  * Whose failure it is, by the one predicate every reader of a campaign asks (contracts isAutomatedSend): a reply the
@@ -67,23 +67,28 @@ export type LateFailureOutcome = "raised" | "not_ours" | "not_a_reply" | "alread
  * as it was and the receipt comes again.
  */
 export async function raiseLateFailure(ports: LateFailurePorts, cmd: LateFailureCommand): Promise<LateFailureOutcome> {
-  const m = await ports.message(cmd.externalId);
-  if (!m) return "not_ours";
-  if (m.direction !== "outbound" || (m.sender !== "ai" && m.sender !== "human") || isAutomatedSend(m.meta))
+  const message = await ports.message(cmd.externalId);
+  if (!message) return "not_ours";
+  if (
+    message.direction !== "outbound" ||
+    (message.sender !== "ai" && message.sender !== "human") ||
+    isAutomatedSend(message.meta)
+  )
     return "not_a_reply";
-  if (m.status === "failed" || m.status === "canceled") return "already_over";
+  if (message.status === "failed" || message.status === "canceled") return "already_over";
 
-  const why = sendFailureWords(cmd.error, cmd.channel) ?? "The provider reported it as not delivered.";
-  const who = m.sender === "ai" ? "The receptionist's reply" : "A reply from your team";
+  const reason = sendFailureWords(cmd.error, cmd.channel) ?? "The provider reported it as not delivered.";
+  const person = message.sender === "ai" ? "The receptionist's reply" : "A reply from your team";
   // The hold is the one thing that must not be lost: written, its event tells the owner, once, after the commit and out
   // of the provider's request (decision 0043); a flag that could not be written throws, and the receipt's redelivery
   // says it again.
   const flagged = await raiseSendFailed(ports, {
-    conversationId: m.conversationId,
-    details: `${who} was accepted for sending but did not reach them. ${why}`,
+    conversationId: message.conversationId,
+    details: `${person} was accepted for sending but did not reach them. ${reason}`,
   });
-  if (!toldFromItsEvent(flagged)) throw new Error(`send failed: its thread ${m.conversationId} could not be flagged`);
-  await ports.noteFailed(m.messageId, {
+  if (!toldFromItsEvent(flagged))
+    throw new Error(`send failed: its thread ${message.conversationId} could not be flagged`);
+  await ports.noteFailed(message.messageId, {
     reason: "receipt",
     outcome: "refused",
     body: JSON.stringify(cmd.error).slice(0, 500),

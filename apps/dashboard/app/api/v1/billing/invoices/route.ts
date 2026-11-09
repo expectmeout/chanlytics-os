@@ -1,6 +1,6 @@
-import { read, workspace } from "@/server/route";
-import { AppError, type BillingInvoiceDto } from "@chanlytics/contracts";
-import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
+import { read, workspace } from "@/server/shared/route";
+import { AppError } from "@chanlytics/contracts";
+import { BILLING_SAID, callEdgeBilling } from "@/server/workspace/billing";
 
 /** GET /api/v1/billing/invoices — the last twelve invoices as Stripe lists them, each with its own page. Owners only, counted as a read: pressing it never locks Checkout for the hour. */
 export const GET = read({
@@ -8,16 +8,16 @@ export const GET = read({
   role: "owner",
   rate: "billing_read",
   handle: async ({ ctx, member }) => {
-    const a = await edgeBilling({ op: "invoices", tenant_id: member.tenantId, user_id: ctx.userId }, 20_000);
-    const b = a.body ?? {};
-    if (a.status !== 200 || b.ok !== true || !Array.isArray(b.invoices)) {
-      const reason = typeof b.error === "string" ? b.error : "failed";
+    const answer = await callEdgeBilling({ op: "invoices", tenant_id: member.tenantId, user_id: ctx.userId }, 20_000);
+    const body = answer.body ?? {};
+    if (answer.status !== 200 || body.ok !== true || !Array.isArray(body.invoices)) {
+      const reason = typeof body.error === "string" ? body.error : "failed";
       throw new AppError(
-        a.status === 503 ? "upstream_auth" : "internal",
+        answer.status === 503 ? "upstream_auth" : "upstream_provider",
         BILLING_SAID[reason] ?? `The invoices could not be read (${reason}).`,
-        a.status === 503 ? 503 : 502,
+        answer.status === 503 ? 503 : 502,
       );
     }
-    return { invoices: b.invoices as BillingInvoiceDto[] };
+    return { invoices: body.invoices };
   },
 });

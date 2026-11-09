@@ -8,11 +8,11 @@
  * shares are counts over counts; nothing is scored or estimated. A read is a share of WhatsApp's own sends alone:
  * a text or an email keeps no read receipt. Colors are the page's.
  */
-import { REPORT_CHANNELS, dayPointOf, type ReportChannelKey } from "./reports";
-import { REPORT_MIN_N, shareSaid } from "./report-tiles";
-import { templateTitle } from "../templates/template-titles";
+import { REPORT_CHANNELS, dayPointOf, type ReportChannelKey } from "./dtos";
+import { REPORT_MIN_N, shareSaid } from "./tiles";
+import { templateTitle } from "../campaigns/templates/titles";
 import { pct, sumOf } from "../shared/numbers";
-import { usableZone } from "../calendar/zone-math";
+import { usableZone } from "../shared/zone/math";
 import { dateFormat } from "../shared/time";
 
 export interface CampaignDayDto {
@@ -151,7 +151,7 @@ export interface CampaignReportVM {
   channelTable: { columns: string[]; rows: (string | number | null)[][] };
   /**
    * The one sentence under each campaign card: how many runs sent it (null with none), and what a read is, where more than
-   * one channel sent (null otherwise). The funnel's sentence and the figures are the Campaigns lens's own (campaigns/campaign-lens.ts).
+   * one channel sent (null otherwise). The funnel's sentence and the figures are the Campaigns lens's own (campaigns/lens.ts).
    */
   lines: { sent: string | null; channels: string | null };
 }
@@ -174,23 +174,23 @@ export const campaignPriorHadAny = (before: CampaignReportVM["before"]): boolean
 
 /** Each channel that sent in the period, its figures over its own sends; a read is WhatsApp's alone (0030). */
 function campaignChannelsOf(rows: readonly CampaignChannelDto[] | undefined): CampaignChannelVM[] {
-  return (rows ?? []).flatMap((r): CampaignChannelVM[] => {
-    const known = CAMPAIGN_CHANNELS.find((c) => c.key === r.channel);
-    if (!known || !(r.sent > 0)) return [];
+  return (rows ?? []).flatMap((item): CampaignChannelVM[] => {
+    const known = CAMPAIGN_CHANNELS.find((c) => c.key === item.channel);
+    if (!known || !(item.sent > 0)) return [];
     const whatsapp = known.key === "whatsapp";
-    const deliveredPct = pct(r.delivered, r.sent);
+    const deliveredPct = pct(item.delivered, item.sent);
     return [
       {
         channel: known.key,
         label: known.label,
-        sent: r.sent,
-        delivered: r.delivered,
+        sent: item.sent,
+        delivered: item.delivered,
         deliveredPct,
-        read: whatsapp ? r.read : null,
-        readPct: whatsapp ? pct(r.read, r.sent) : null,
-        replied: r.replied,
-        repliedPct: pct(r.replied, r.sent),
-        display: `${r.sent} · ${shareSaid(deliveredPct, r.delivered, r.sent) ?? "—"} delivered`,
+        read: whatsapp ? item.read : null,
+        readPct: whatsapp ? pct(item.read, item.sent) : null,
+        replied: item.replied,
+        repliedPct: pct(item.replied, item.sent),
+        display: `${item.sent} · ${shareSaid(deliveredPct, item.delivered, item.sent) ?? "—"} delivered`,
       },
     ];
   });
@@ -262,22 +262,22 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const readOf = dto.by_channel ? (whatsapp?.sent ?? 0) : tot.sent;
   const rawSources = dto.sources ?? [];
   const sends = sumOf(rawSources.map((s) => s.runs));
-  const sources: CampaignSourceVM[] = rawSources.map((s) => ({
-    id: s.id,
-    kind: s.kind,
-    kindLabel: s.kind === "playbook" ? "Campaign" : "Sent once",
-    name: s.name,
-    templateName: s.template_name,
-    template: s.template_name ? templateTitle(s.template_name) : "",
-    runs: s.runs,
-    sent: s.sent,
-    delivered: s.delivered,
-    read: s.read,
-    replied: s.replied,
-    deliveredPct: pct(s.delivered, s.sent),
-    repliedPct: pct(s.replied, s.sent),
-    ...sourceWords(s),
-    lastLabel: s.last_at ? sentOn(s.last_at, dto.timezone) : "",
+  const sources: CampaignSourceVM[] = rawSources.map((rawSource) => ({
+    id: rawSource.id,
+    kind: rawSource.kind,
+    kindLabel: rawSource.kind === "playbook" ? "Campaign" : "Sent once",
+    name: rawSource.name,
+    templateName: rawSource.template_name,
+    template: rawSource.template_name ? templateTitle(rawSource.template_name) : "",
+    runs: rawSource.runs,
+    sent: rawSource.sent,
+    delivered: rawSource.delivered,
+    read: rawSource.read,
+    replied: rawSource.replied,
+    deliveredPct: pct(rawSource.delivered, rawSource.sent),
+    repliedPct: pct(rawSource.replied, rawSource.sent),
+    ...sourceWords(rawSource),
+    lastLabel: rawSource.last_at ? sentOn(rawSource.last_at, dto.timezone) : "",
   }));
 
   return {

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { write } from "@/server/route";
-import { reachOutSendScope } from "@/server/verbs";
-import { undoOpening } from "@/server/sequences/opening";
+import { write } from "@/server/shared/route";
+import { reachOutSendScope } from "@/server/shared/verbs";
+import { undoOpening } from "@/server/campaigns/sequences/opening";
 
 /**
  * POST /api/v1/reach-out-sends/:id/undo-rewrite — Undo of Rewrite the opening (00505 reach_out_send_rewrite_undo): the

@@ -1,7 +1,7 @@
 /**
  * Everyone's appointments, for the People list, the pools and the report: one parsed feed indexed once for everyone
- * (peopleVisits), the rows with their visits attached (withVisits; the board's, boardVisits), and the report's one
- * conversion line (bookingReport). One person's are person-visits.ts's.
+ * (peopleVisits), the rows with their visits attached (withVisits; the board's, getBoardVisits), and the report's one
+ * conversion line (readBookingReport). One person's are person-visits.ts's.
  */
 import "server-only";
 import {
@@ -23,12 +23,13 @@ import {
   type PoolCalendar,
   type PoolRecord,
 } from "@chanlytics/contracts";
-import { peopleWithEarlierVisits, recordOver } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
-import { lazily, type Lazy } from "@/server/lazy";
-import { calendarOf } from "./calendar-settings";
-import { parsedFeedFor, type ParsedRead } from "./parsed-feed";
-import { log } from "@/server/log";
+import { findPeopleWithEarlierVisits, recordOver } from "@chanlytics/db/calendar";
+import type { RouteContext } from "@/server/shared/with-route";
+import { loadLazily, type Lazy } from "@/server/shared/lazy";
+import { findCalendar } from "./settings";
+import { getParsedFeed, type ParsedRead } from "./parsed-feed";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /* ---- Everyone's appointments, for the list and the report ---- */
 
@@ -43,7 +44,7 @@ export interface PeopleVisits {
 }
 
 /**
- * The workspace's zone and its raw settings, handed to the calendar's lookup (calendarOf) by a caller that holds them
+ * The workspace's zone and its raw settings, handed to the calendar's lookup (findCalendar) by a caller that holds them
  * this turn, or how to read them from the turn (readers/facts.ts zoneAndSettings): asked for just where the lookup
  * would read them itself, so neither is read twice or any sooner, and a read of them that fails costs the visits, as
  * the lookup's own failure does.
@@ -51,12 +52,12 @@ export interface PeopleVisits {
 export type ZoneAndSettings = Lazy<{ timezone: string; config: unknown }>;
 
 /**
- * The calendar everyone's visits are read from, before anyone's rows: its lookup (calendarOf) and its parsed feed, null
+ * The calendar everyone's visits are read from, before anyone's rows: its lookup (findCalendar) and its parsed feed, null
  * where the workspace names no calendar. Read apart from the rows, so a caller that reads everyone too asks for both
  * at once (campaigns/playbook-pools.ts poolReads): the feed never waited on who is in People.
  */
 export interface CalendarRead {
-  lookup: Awaited<ReturnType<typeof calendarOf>>;
+  lookup: Awaited<ReturnType<typeof findCalendar>>;
   feed: ParsedRead | null;
   /** The record over the feed's season, joined to it (decision 0002's readers); null without it: the feed alone. */
   record: PoolRecord | null;
@@ -68,9 +69,9 @@ export interface CalendarRead {
  * could not be read, logged: the reader says the calendar is unavailable, as for a feed it could not read, since a visit
  * the record cancelled or a member said missed could not be told from one that stands.
  */
-export async function poolRecordOf(
+export async function findPoolRecord(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
 ): Promise<PoolRecord | null> {
   const season = seasonHorizon(now);
@@ -89,19 +90,19 @@ export async function poolRecordOf(
 }
 
 /** The lookup, then the feed it names. `known` and `stale` as peopleVisits takes them. */
-export async function calendarRead(
+export async function getCalendar(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
   known?: ZoneAndSettings,
   opts: { stale?: boolean } = {},
 ): Promise<CalendarRead> {
-  const lookup = await calendarOf(ctx, tenantId, known === undefined ? undefined : await lazily(known));
+  const lookup = await findCalendar(ctx, tenantId, known === undefined ? undefined : await loadLazily(known));
   if (!lookup.url) return { lookup, feed: null, record: null };
   // The record beside the feed, not after it: the two are independent.
-  const recordRead = poolRecordOf(ctx, tenantId, now);
+  const recordRead = findPoolRecord(ctx, tenantId, now);
   try {
-    const feed = await parsedFeedFor(tenantId, lookup.url, lookup.timezone, now, { stale: opts.stale === true });
+    const feed = await getParsedFeed(tenantId, lookup.url, lookup.timezone, now, { stale: opts.stale === true });
     return { lookup, feed, record: await recordRead };
   } catch (e) {
     log.error("calendar_parse_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
@@ -127,7 +128,7 @@ export function visitsIn({ lookup, feed, record }: CalendarRead, rows: PersonRow
       services,
       rules,
     };
-  // A record that could not be read (poolRecordOf, logged) is the calendar unavailable, as a feed is.
+  // A record that could not be read (findPoolRecord, logged) is the calendar unavailable, as a feed is.
   if (!feed.parsed || !record)
     return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink, services, rules };
   // Everyone's visits, each marked a consultation or not, by the pool's one rule (contracts peopleVisitsOf): what the
@@ -154,13 +155,13 @@ export function visitsIn({ lookup, feed, record }: CalendarRead, rows: PersonRow
  */
 async function peopleVisits(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   now = new Date(),
   known?: ZoneAndSettings,
   opts: { stale?: boolean } = {},
 ): Promise<PeopleVisits> {
-  return visitsIn(await calendarRead(ctx, tenantId, now, known, opts), rows, now);
+  return visitsIn(await getCalendar(ctx, tenantId, now, known, opts), rows, now);
 }
 
 /**
@@ -170,7 +171,7 @@ async function peopleVisits(
  */
 export async function withVisits(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   now = new Date(),
   known?: ZoneAndSettings,
@@ -207,16 +208,16 @@ export async function withVisits(
 }
 
 /**
- * The board's People rows with their visits (calendar-week.ts), attached as the list attaches them (peopleVisitsOf,
+ * The board's People rows with their visits (calendar/week/week.ts), attached as the list attaches them (peopleVisitsOf,
  * withVisitsOf), and who of them comes in today or tomorrow for the first visit the record holds of theirs: none over in
- * the season, and none before it (packages/db peopleWithEarlierVisits). What Today's day says under who is coming ("Last
+ * the season, and none before it (packages/db findPeopleWithEarlierVisits). What Today's day says under who is coming ("Last
  * here Aug 12", "First visit"; calendar-person-facts.ts). A record that could not be read leaves the rows as they were and
  * nobody first, as visitsIn says the calendar unavailable for it; so does an earlier read that failed or filled its page,
  * for the firsts alone: the day then says nothing rather than a fact it cannot stand behind.
  */
-export async function boardVisits(
+export async function getBoardVisits(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   items: ParsedFeed["items"],
   cal: PoolCalendar,
@@ -232,7 +233,7 @@ export async function boardVisits(
     const next = v?.next ? Date.parse(v.next.start) : Number.NaN;
     return v !== null && !v.last && !v.missed && next < until;
   });
-  const earlier = await peopleWithEarlierVisits(
+  const earlier = await findPeopleWithEarlierVisits(
     ctx.supabase,
     tenantId,
     fresh.map((r) => ({ id: r.id, phone: r.phone_e164 ?? null, email: r.email ?? null })),
@@ -259,11 +260,11 @@ function bookedSince(visits: PersonVisitsDto | undefined, askedMs: number): bool
  * many have an appointment on the calendar — upcoming, or held since they
  * reached out. The one conversion line Reports carries. `known`: the zone and
  * the raw settings a caller read this turn, so the calendar's lookup reads
- * neither again (calendarOf).
+ * neither again (findCalendar).
  */
-export async function bookingReport(
+export async function readBookingReport(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   days: number,
   now = new Date(),
@@ -272,20 +273,23 @@ export async function bookingReport(
   const pv = await peopleVisits(ctx, tenantId, rows, now, known);
   const nowMs = now.getTime();
   const since = nowMs - days * DAY_MS;
-  let asked = 0;
+  let count = 0;
   let booked = 0;
-  for (const r of rows) {
+  for (const row of rows) {
     // Their message, or the call they placed — never a call the owner made.
-    const cands = [r.last_inbound_at, r.last_inbound_call_at ?? null]
+    const cands = [row.last_inbound_at, row.last_inbound_call_at ?? null]
       .map((x) => (x ? Date.parse(x) : NaN))
       .filter((x) => Number.isFinite(x));
     if (!cands.length) continue;
     const askedMs = Math.max(...cands);
     if (askedMs < since) continue;
-    asked += 1;
-    if (bookedSince(pv.visits.get(r.id), askedMs)) booked += 1;
+    count += 1;
+    if (bookedSince(pv.visits.get(row.id), askedMs)) booked += 1;
   }
-  return { calendar: pv.calendar.state, days, asked, booked };
+  const report: BookingReportDto = { calendar: pv.calendar.state, days, asked: count, booked };
+  if (pv.calendar.state !== "ok") return report;
+  // Anyone at all on the calendar: where nobody is, a line of "none of them booked" says less about them than about it.
+  return { ...report, people_on_calendar: [...pv.visits.values()].filter((v) => v.next || v.last || v.missed).length };
 }
 
 /**
@@ -293,11 +297,11 @@ export async function bookingReport(
  * (bookedSince), the link's moment standing where their message does. `rows` is People as read, or the part of it the
  * links name: a person it no longer holds (erased, merged) has no visit to find and is not counted. `booked` is 0 where
  * the calendar cannot say (`calendar` "none" or "unavailable"), which the caller words as no number, never as zero.
- * `known` as bookingReport takes it.
+ * `known` as readBookingReport takes it.
  */
-export async function linksBooked(
+export async function listLinksBooked(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   rows: PersonRowDto[],
   links: { c: string; at: string }[],
   now = new Date(),

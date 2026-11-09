@@ -12,20 +12,21 @@ import {
   dealPaceOf,
   isAppointmentWord,
   MIN_MS,
+  SECOND_MS,
   type AppointmentWord,
   type DealPaceVM,
   type PersonRowVM,
   type PeopleAggregates,
-  type AttentionRowVM,
   type ListRule,
 } from "@chanlytics/contracts";
-import { resnapshotHere } from "@/legacy-bridge/surface-cache";
-import { read } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
+import type { AttentionRowVM } from "./person/model/attention";
+import { resnapshotHere } from "@/bridge/surface-cache";
+import { read } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
 import { codeOnce } from "@/lib/code-once";
-import { declareReads } from "@/legacy-bridge/surface-registry";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { DEAR_READ_LONGEST_WAIT_MS, isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
+import { declareReads } from "@/bridge/surface-registry";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { DEAR_READ_LONGEST_WAIT_MS, ERASURES_LONGEST_WAIT_MS, isLiveCallTurn } from "@/bridge/surface-realtime";
 import { holderName } from "../holder-names";
 import { carriesMark } from "../seen-carry";
 import type { PeopleLoaded } from "./surface-map";
@@ -144,7 +145,7 @@ export const warmPeopleMap = (): void => peopleMap.warm();
 
 /** The member looking, as the workspace surface named them at boot; null before it lands. */
 export function viewerId(): string | null {
-  return (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
+  return (window as Window & { __ME?: { id?: string | null } }).__ME?.id ?? null;
 }
 
 /**
@@ -179,6 +180,62 @@ function peopleValidUntil(): number | null {
     if (Number.isFinite(end) && end < first) first = end;
   }
   return Number.isFinite(first) ? Math.max(first, peopleLoaded.readAt + PEOPLE_STANDS_MS) : null;
+}
+
+/** Who this tab handed the ledger to erase (peopleGoing): a read already under way when the door answered may name them. */
+const goingHere = new Set<string>();
+
+/** The people, without who this tab handed the ledger. */
+const staying = <T extends { id: string }>(people: T[]): T[] =>
+  goingHere.size ? people.filter((p) => !goingHere.has(p.id)) : people;
+
+/** The page's count, less those of its rows who are going: such a read counted them too. */
+const pageLess = (page: PeopleSurface["page"], going: number): PeopleSurface["page"] =>
+  page && going ? { ...page, total: page.total - going } : page;
+
+/**
+ * How long after People's last read a press is said done: past the half minute a stream of erasures is waited out
+ * (surface-realtime.ts ERASURES_LONGEST_WAIT_MS), so a long press is said at its end, and not each time a read comes late.
+ */
+const GONE_QUIET_MS = ERASURES_LONGEST_WAIT_MS + 5 * SECOND_MS;
+
+/** What to do once the reads behind a press have stopped (peopleGoing's `gone`), and the wait for it. */
+const awaited: { gone: (() => void) | null; timer: ReturnType<typeof setTimeout> | null } = { gone: null, timer: null };
+
+/**
+ * A read of everyone behind a press. Each erasure's notice has People read again, so once those reads have stopped the
+ * ledger has done, and what an erasure moves beside People (their threads, the counts made of their messages, which the
+ * feed is not told of) is read again (`gone`). One reading for a press, however long it takes: erased one after another
+ * over a minute, each erasure's notice had the app read its screens again, some eighty requests a person (5 Nov 2026).
+ */
+function heardGone(): void {
+  if (!awaited.gone) return;
+  if (awaited.timer) clearTimeout(awaited.timer);
+  awaited.timer = setTimeout(() => {
+    const gone = awaited.gone;
+    awaited.timer = null;
+    awaited.gone = null;
+    gone?.();
+  }, GONE_QUIET_MS);
+}
+
+/**
+ * Whoever a press of Delete… handed the ledger leaves the rows and the count as the door answers, as placeDeal lays on
+ * a move: the erasing takes seconds or minutes behind it, and the server's list leaves them out from the press on
+ * (00547), so a reload or another tab does not bring them back. `gone` is asked once the reads behind the press have
+ * stopped (heardGone).
+ */
+export function peopleGoing(ids: readonly string[], gone: () => void): void {
+  if (!ids.length) return;
+  for (const id of ids) goingHere.add(id);
+  awaited.gone = gone;
+  heardGone();
+  if (!peopleLoaded) return;
+  const rows = staying(peopleLoaded.people);
+  peopleLoaded.page = pageLess(peopleLoaded.page, peopleLoaded.people.length - rows.length);
+  peopleLoaded.people = rows;
+  publishPeople();
+  window.dispatchEvent(new CustomEvent("surface:clients"));
 }
 
 /** The views this tab has saved (the latest by page), how many saves it has made, and how many still wait on their reply. */
@@ -227,7 +284,7 @@ export async function peopleMore(): Promise<void> {
     query: nextPageQuery(peopleLoaded.people.length, peopleLoaded.page),
   });
   const seen = new Set(peopleLoaded.people.map((p) => p.id));
-  peopleLoaded.people = [...peopleLoaded.people, ...next.people.filter((p) => !seen.has(p.id))];
+  peopleLoaded.people = [...peopleLoaded.people, ...staying(next.people).filter((p) => !seen.has(p.id))];
   peopleLoaded.page = next.page;
   publishPeople();
   window.dispatchEvent(new CustomEvent("surface:clients"));
@@ -235,7 +292,7 @@ export async function peopleMore(): Promise<void> {
 
 /**
  * A person's current deal, laid on their People row as the door answers (0008): the deal door answers the deal their
- * row shows after the write (server/people/deals.ts currentDealOf, people_list's own rule), so the Pipeline moves the row as
+ * row shows after the write (server/people/deals.ts findCurrentDeal, people_list's own rule), so the Pipeline moves the row as
  * the sheet closes, instead of once all of People has been read again; the re-read the refresh map asks for behind
  * it says the rest. It was the deal the door recorded, which is not the row's when the move was on someone's older
  * deal: their row jumped to it until the re-read. True when a row took it.
@@ -306,7 +363,7 @@ export async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; mo
   const [r, tz, m] = await Promise.all([read("GET contacts", { query: { q } }), workspaceZone(), peopleMap()]);
   const now = new Date();
   return {
-    rows: r.people.map((p) =>
+    rows: staying(r.people).map((p) =>
       // What the workspace can send on is the first page's (readers/people.ts): a search's rows are judged against it too.
       m.personRowOf(p, {
         tz,
@@ -479,10 +536,12 @@ export const peopleOverride: SurfaceOverride = {
     if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
     // Every page, so a list, a count and a search cover everyone, and a refresh keeps them.
     const everyone = await everyPerson(data);
+    heardGone();
+    const rows = staying(everyone.people);
     peopleLoaded = {
       tz,
-      people: everyone.people,
-      page: everyone.page,
+      people: rows,
+      page: pageLess(everyone.page, everyone.people.length - rows.length),
       saved: savedData instanceof Error ? null : savedData.lists,
       calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,

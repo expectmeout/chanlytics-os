@@ -3,21 +3,17 @@
  * handle and its pull to close; on a desk a peek at the board's right edge in the grammar of People's, the Pipeline's and
  * Leads' peeks (`aside.pk`), over the right columns and never narrowing the week, which stays live: another block pressed
  * opens in its place, ‹ › and J and K walk the day's visits, Escape closes it. Both draw the same parts (visit.tsx) from
- * the same view model (contracts visitSheetOf). It replaced Ask's legacy modal and the demo Store's foot (panel.tsx).
+ * the same view model (contracts visitSheetOf). It replaced Ask's old modal and the demo Store's foot (panel.tsx).
  *
  * The open visit is the address's (use-calendar.ts useVisitAddress): closing goes back, so a phone's Back closes the sheet.
  */
 import { useSyncExternalStore } from "react";
-import {
-  CALENDAR_VISIT_SHEET_WORDS as W,
-  visitSheetOf,
-  type CalendarBlockVM,
-  type CalendarMomentDto,
-} from "@chanlytics/contracts";
+import type { CalendarBlockVM, CalendarMomentDto } from "@chanlytics/contracts";
+import { CALENDAR_VISIT_SHEET_WORDS as W, visitSheetOf } from "./sheet-view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
-import { onAPhone } from "../../legacy-verbs";
+import { onAPhone } from "../../frame-verbs";
 import type { CalendarFrame } from "../types";
 import { calendar } from "../verbs";
 import { crDur, crNotesWorth, crWhen } from "../words";

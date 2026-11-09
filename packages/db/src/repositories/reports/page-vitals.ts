@@ -4,11 +4,11 @@
  * cost the most). All are the service role's alone: a row names a page and a number, no person and no workspace.
  *
  * Thin: each answers what the call answered, its rows or its error, and the dashboard's reader
- * (`apps/dashboard/src/server/platform/vitals.ts`) says what an error means. A report that could not be kept is a number
+ * (`apps/dashboard/src/server/console/vitals.ts`) says what an error means. A report that could not be kept is a number
  * lost, never an error for a page that is closing; a read that fails leaves the back office's other cards standing.
  */
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 type Fns = Database["public"]["Functions"];
@@ -40,7 +40,7 @@ export async function notePageVitals(
 }
 
 /** The 75th percentile of the browser's five over page loads, over every page and over each. */
-export async function pageVitalsP75(
+export async function readPageVitalsP75(
   db: Db,
   window: PageVitalsWindow,
 ): Promise<PageVitalsAnswer<Fns["page_vitals_p75"]["Returns"]>> {
@@ -49,7 +49,7 @@ export async function pageVitalsP75(
 }
 
 /** Where the pages' time goes: the 75th percentile by page, part, how it was reached, device and held rows. */
-export async function pageSpeed(
+export async function readPageSpeed(
   db: Db,
   window: PageVitalsWindow,
 ): Promise<PageVitalsAnswer<Fns["page_speed"]["Returns"]>> {
@@ -58,7 +58,7 @@ export async function pageSpeed(
 }
 
 /** The elements whose interactions, paints and shifts cost the most, by page. */
-export async function pageSpots(
+export async function readPageSpots(
   db: Db,
   window: PageVitalsWindow,
 ): Promise<PageVitalsAnswer<Fns["page_spots"]["Returns"]>> {

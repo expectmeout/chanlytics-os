@@ -20,15 +20,15 @@ export const OAUTH_FAILED = "/login?error=oauth";
 const HERE = "https://this.invalid";
 
 export function safeNext(next: string | null | undefined): string {
-  const n = (next ?? "").trim();
+  const text = (next ?? "").trim();
   // eslint-disable-next-line no-control-regex -- the control characters are the point
-  if (!n.startsWith("/") || n.startsWith("//") || /[\u0000-\u001f\u007f\\]/.test(n)) return "/";
+  if (!text.startsWith("/") || text.startsWith("//") || /[\u0000-\u001f\u007f\\]/.test(text)) return "/";
   try {
-    if (new URL(n, HERE).origin !== HERE) return "/";
+    if (new URL(text, HERE).origin !== HERE) return "/";
   } catch {
     return "/";
   }
-  return n;
+  return text;
 }
 
 /**
@@ -59,25 +59,25 @@ interface CallbackPlan {
   refused: CallbackRefusal | null;
 }
 
-export function callbackPlan(q: {
+export function callbackPlan(input: {
   code: string | null;
   next: string | null;
   error: string | null;
   errorCode?: string | null;
   errorDescription?: string | null;
 }): CallbackPlan {
-  if (q.error)
+  if (input.error)
     return {
       exchange: null,
       to: OAUTH_FAILED,
       refused: {
-        error: lineOrNull(q.error) ?? "unknown",
-        code: lineOrNull(q.errorCode),
-        description: lineOrNull(q.errorDescription),
+        error: lineOrNull(input.error) ?? "unknown",
+        code: lineOrNull(input.errorCode),
+        description: lineOrNull(input.errorDescription),
       },
     };
-  if (!q.code) return { exchange: null, to: "/login", refused: null };
-  return { exchange: q.code, to: safeNext(q.next), refused: null };
+  if (!input.code) return { exchange: null, to: "/login", refused: null };
+  return { exchange: input.code, to: safeNext(input.next), refused: null };
 }
 
 /**

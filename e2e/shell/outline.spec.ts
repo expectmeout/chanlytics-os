@@ -21,7 +21,8 @@ const PARTS = [
   ".sidebar-label",
   ".nav-item",
   ".nav-item svg",
-  ".nav-item > span",
+  // The row's words, not its count: a count is the frame's alone, read after the code, and the document has none to draw.
+  ".nav-item > span:not(.nav-badge, .nav-dot)",
   ".sidebar-foot",
   ".user-chip",
   ".avatar",
@@ -88,13 +89,14 @@ async function outlineAndFrame(page: Page, address: string): Promise<{ outline: 
 }
 
 function expectSame({ outline, frame }: { outline: Parts; frame: Parts }) {
-  const drawn = PARTS.filter((p) => frame[p].length > 0);
+  const drawn = PARTS.filter((p) => (frame[p] ?? []).length > 0);
   expect(drawn.length, "the frame draws the chrome the outline is held to").toBeGreaterThan(4);
   for (const part of PARTS) {
-    expect(outline[part].length, `how many ${part} the outline draws, against the frame's`).toBe(frame[part].length);
-    frame[part].forEach((want, i) => {
-      const got = outline[part][i];
-      const off = Math.max(...want.map((v, k) => Math.abs(v - got[k])));
+    const [drawnThere, drawnHere] = [outline[part] ?? [], frame[part] ?? []];
+    expect(drawnThere.length, `how many ${part} the outline draws, against the frame's`).toBe(drawnHere.length);
+    drawnHere.forEach((want, i) => {
+      const got = drawnThere[i] ?? [];
+      const off = Math.max(...want.map((v, k) => Math.abs(v - (got[k] ?? 0))));
       expect(off, `${part} #${i + 1}: outline ${got.join(",")}, frame ${want.join(",")}`).toBeLessThanOrEqual(PX);
     });
   }

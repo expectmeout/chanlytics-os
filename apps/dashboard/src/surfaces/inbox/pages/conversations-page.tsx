@@ -52,11 +52,12 @@ import {
 import { warmDemo } from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
 import { ThreadCall } from "../thread/call";
+import { useCallLinesFirst } from "../thread/call-turns";
 import { ixGoing, ixSwipeBack } from "../thread/thread";
 import { IxWho } from "../thread/who";
 import { businessTrailFor } from "../../people/business-trail";
 import { ThreadPane } from "../thread/thread-pane";
-import type { ConversationRow, ConversationsSurface } from "../types";
+import type { ConversationLine, ConversationsSurface } from "../types";
 import { Button } from "../../kit/button/button";
 
 /** The business a named person works at, dim after their name on a row (0052), giving way before the name does. */
@@ -69,7 +70,7 @@ function cvTrail(personId: string | null | undefined) {
   ) : null;
 }
 
-// The box's words, kept per tab in the tab's storage (the loading standard's F, legacy-bridge/tab-memory.ts): a
+// The box's words, kept per tab in the tab's storage (the loading standard's F, bridge/tab-memory.ts): a
 // search typed on Phone is there again after a trip to People or a refresh; none on the standalone harness.
 const cvPlace = (channel: string): Record<string, unknown> => {
   const memory = tabMemory();
@@ -86,7 +87,7 @@ const cvKeepPlace = (channel: string, patch: Record<string, unknown>): void => {
 };
 
 // Session-decision overlay — approval convos reflect IX_STORE state
-const cvDecision = (c: ConversationRow | null | undefined) => {
+const cvDecision = (c: ConversationLine | null | undefined) => {
   if (!c || !c.threadId) return null;
   const rec = IX_STORE.get(c.threadId);
   return rec && rec.kind === "decided" ? rec : null;
@@ -103,14 +104,14 @@ const cvDecision = (c: ConversationRow | null | undefined) => {
 // the call that came after it. And a person new to the reader reads heavier, as the Inbox's row does (cvUnread): every
 // row drew at one weight, read or not (Ruben, 7 Oct 2026).
 /** Whether a person's row is new to the reader now: the last read's word, over what this tab did since (surfaces/seen.ts). */
-const cvUnread = (c: ConversationRow): boolean => unreadHere(cvWhoseRow(c), cvSeenOf(c));
+const cvUnread = (c: ConversationLine): boolean => unreadHere(cvWhoseRow(c), cvSeenOf(c));
 
 /**
  * What the list hands a row beside the row itself. The rows are a listbox, as the Inbox's are (list-rows.tsx): one
  * tab stop, Enter opens, Space picks. `pick` is null for a row nothing a pick does applies to, which wears no box.
  */
 interface CvRowProps {
-  c: ConversationRow;
+  c: ConversationLine;
   active: boolean;
   onSelect: (id: string) => void;
   /** Whether it is picked, and the press that picks it or lets it go. */
@@ -148,7 +149,7 @@ const CvRow = ({ c, active, onSelect, pick, tabStop, onKey, index, measure, coun
       <span className="cv-row-lead">
         <Face person={{ name: c.who, initials: c.initials.slice(0, 2) }} className="cv-row-pic" />
         <span className="cv-row-wire" role="img" aria-label={inboxData().CHANNEL_LABELS[c.channel] || c.channel}>
-          <Icon name={CV_ICON[c.channel]} size={9} />
+          <Icon name={CV_ICON[c.channel] ?? "chat"} size={9} />
         </span>
       </span>
       <span className="cv-row-body">
@@ -162,6 +163,7 @@ const CvRow = ({ c, active, onSelect, pick, tabStop, onKey, index, measure, coun
             decidedAction={dec ? dec.action : null}
             channel={lead.channel}
             answeredBy={lead.answeredBy}
+            move={lead.move ?? null}
           />
           {/* They asked to stop: said beside the name, as the Inbox's row says it (D1-stop-unseen). */}
           {cvStopped(c) && <StoppedMark testid="cv-row-stopped" />}
@@ -187,7 +189,7 @@ const CvRow = ({ c, active, onSelect, pick, tabStop, onKey, index, measure, coun
 const cvClock = (sec: number) => mmss(sec * 1000);
 
 /** The call's header: back, who it was with (a door to their page), and the one act. */
-function callHead(c: ConversationRow, onBack: (() => void) | null) {
+function callHead(c: ConversationLine, onBack: (() => void) | null) {
   const clientId = c.clientId;
   return (
     <header className="ix-th-head capsule">
@@ -281,7 +283,7 @@ function callLive(secs: number | null) {
   );
 }
 
-const CallPane = ({ c, onBack = null }: { c: ConversationRow; onBack?: (() => void) | null }) => {
+const CallPane = ({ c, onBack = null }: { c: ConversationLine; onBack?: (() => void) | null }) => {
   const live = !!c.live;
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
@@ -291,11 +293,19 @@ const CallPane = ({ c, onBack = null }: { c: ConversationRow; onBack?: (() => vo
   }, [live, c.id]);
   const started = c.ts ?? 0;
   const secs = live && started > 0 ? Math.max(0, Math.floor((Date.now() - started) / 1000)) : null;
+  // Its lines are read before it is drawn, as a thread that opens with a call waits for them (call-turns.ts): drawn
+  // without them, the card grew by its lines a beat later and stood 260px further up the screen.
+  const owed = !live && c.callId && !c.transcript?.length && (c.turnsToRead ?? 0) > 0 ? [c.callId] : [];
+  const waiting = useCallLinesFirst(owed, c.id);
   return (
     <div className="ix-thread-pane cv-call-pane" data-testid="cv-call-pane" {...ixSwipeBack(onBack)}>
       {callHead(c, onBack)}
       <div className="ix-th-scroll">
-        <div className="ix-timeline">{live ? callLive(secs) : <ThreadCall call={c} at={c.at} open />}</div>
+        {waiting ? (
+          <div className="ix-timeline" aria-busy="true" data-testid="ix-timeline-reading" />
+        ) : (
+          <div className="ix-timeline">{live ? callLive(secs) : <ThreadCall call={c} at={c.at} open />}</div>
+        )}
       </div>
     </div>
   );
@@ -305,7 +315,7 @@ const CallPane = ({ c, onBack = null }: { c: ConversationRow; onBack?: (() => vo
 // the Inbox read holds the call's note, or holds only its newest and is read whole as it opens (read-apart.ts); else the
 // call alone (CallPane). The mockup's seeded threads act only inside
 // the Inbox page's demo state, so a seeded chat says where it acts, and a seeded call is drawn alone.
-const cvThreadHolds = (c: ConversationRow): boolean => {
+const cvThreadHolds = (c: ConversationLine): boolean => {
   const t = (inboxData().THREADS || []).find((x) => x.id === c.threadId);
   if (!t) return false;
   return (
@@ -313,7 +323,7 @@ const cvThreadHolds = (c: ConversationRow): boolean => {
     (t.timeline || []).some((e) => ("messageId" in e ? e.messageId : undefined) === c.messageId)
   );
 };
-const cvOpens = (c: ConversationRow): "thread" | "call" | "inbox" => {
+const cvOpens = (c: ConversationLine): "thread" | "call" | "inbox" => {
   if (c.callId || c.channel === "phone") {
     return !demoSession() && !c.live && c.threadId && c.messageId && cvThreadHolds(c) ? "thread" : "call";
   }
@@ -355,7 +365,7 @@ const useCvAddress = (
 /** The list: the search, the tabs with their counts, and the rows (or what there is instead). */
 function listPane(p: {
   data: ConversationsSurface;
-  rows: ConversationRow[];
+  rows: ConversationLine[];
   query: string;
   setQuery: (v: string) => void;
   /** The search is the bar's line (a desk's): the list's head draws no box of its own. */
@@ -363,7 +373,7 @@ function listPane(p: {
   channel: string;
   counts: Record<string, number>;
   /** The person's row open, which the part open is one of. */
-  selectedRow: ConversationRow | undefined;
+  selectedRow: ConversationLine | undefined;
   openRow: (id: string) => void;
   /** The rows drawn (cv-shown.ts), and the list's ref, which the swap motion shares (kit/motion). */
   shown: ShownRows;
@@ -489,7 +499,7 @@ function listPane(p: {
 }
 
 /** The row open: its thread, the call alone, or where it is answered. */
-function openedRow(p: { selected: ConversationRow; closeRow: () => void; flash: (flash: Flash) => void }) {
+function openedRow(p: { selected: ConversationLine; closeRow: () => void; flash: (flash: Flash) => void }) {
   const { selected, closeRow, flash } = p;
   const opens = cvOpens(selected);
   if (opens === "thread") {
@@ -540,7 +550,7 @@ function readingPane(p: {
   data: ConversationsSurface;
   requestedMissing: boolean;
   opening: boolean;
-  selected: ConversationRow | undefined;
+  selected: ConversationLine | undefined;
   closeRow: () => void;
   query: string;
   flash: (flash: Flash) => void;
@@ -676,7 +686,7 @@ export const ConversationsPage = ({
     };
   }, []);
 
-  const matchesChannel = (c: ConversationRow) => inChannel(c, channel);
+  const matchesChannel = (c: ConversationLine) => inChannel(c, channel);
 
   // The tab's rows the box's words leave, one per person (calls-saying.ts useCvVisible).
   const visible = useCvVisible(CONVERSATIONS, channel, query);

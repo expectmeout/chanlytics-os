@@ -1,5 +1,6 @@
-import type { NotificationsDto, ServerNotificationKind } from "./notifications";
+import type { NotificationsDto, ServerNotificationKind } from "./notifications/feed-input";
 import { MIN_MS } from "../shared/time";
+import { isOneOf } from "../shared/unknown";
 
 /** Where a phone can be one of ours. Held to push_devices.platform (schema-sets.ts). */
 export const PUSH_PLATFORMS = ["ios", "android"] as const;
@@ -22,19 +23,20 @@ const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]+\]$/;
 
 /** What PUT /api/v1/me/devices accepts, or why not, in one sentence. */
 export function parseDevice(body: unknown): { ok: true; device: PushDevice } | { ok: false; reason: string } {
-  const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-  const token = typeof b.token === "string" ? b.token.trim() : "";
+  const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const token = typeof record.token === "string" ? record.token.trim() : "";
   if (!token) return { ok: false, reason: "A device needs its push token." };
   if (token.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
-  const platform = (PUSH_PLATFORMS as readonly string[]).includes(String(b.platform))
-    ? (b.platform as PushPlatform)
-    : null;
+  const platform = isOneOf(PUSH_PLATFORMS, record.platform) ? record.platform : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
   if (!EXPO_PUSH_TOKEN.test(token)) return { ok: false, reason: "That is not a push token the service hands out." };
   const version =
-    typeof b.app_version === "string" && b.app_version.trim() ? b.app_version.trim().slice(0, VERSION_MAX) : null;
+    typeof record.app_version === "string" && record.app_version.trim()
+      ? record.app_version.trim().slice(0, VERSION_MAX)
+      : null;
   // The Live Activity's push-to-start token (00191), when the phone has one: iOS 17.2 and later, never Android.
-  const activity = typeof b.activity_token === "string" && b.activity_token.trim() ? b.activity_token.trim() : null;
+  const activity =
+    typeof record.activity_token === "string" && record.activity_token.trim() ? record.activity_token.trim() : null;
   if (activity && activity.length > TOKEN_MAX)
     return { ok: false, reason: "That activity token is longer than any we know." };
   return { ok: true, device: { token, platform, app_version: version, activity_token: activity } };
@@ -69,9 +71,11 @@ export const PUSH_KINDS = [
   "reply_held",
   // Someone used a form on the website (00488): a person who asked, best answered while they wait.
   "website_form",
+  // What Ask noticed this morning (D12, D20 of the answers canvas): one line a day at most, and each member may turn it off.
+  "ask_cards",
 ] as const satisfies readonly ServerNotificationKind[];
 export type PushKind = (typeof PUSH_KINDS)[number];
-export const isPushKind = (kind: string): kind is PushKind => (PUSH_KINDS as readonly string[]).includes(kind);
+export const isPushKind = (kind: string): kind is PushKind => isOneOf(PUSH_KINDS, kind);
 
 /**
  * The kinds a member turned off for their phones, from what their membership holds (memberships.push_off, 00372): the
@@ -232,18 +236,18 @@ export function firstLine(body: string, max = 160): string {
 
 /** The bell's own words, once per device. */
 export function pushFor(
-  n: { id: string; tenant_id: string; title: string; body: string; route: string | null },
+  input: { id: string; tenant_id: string; title: string; body: string; route: string | null },
   targets: readonly PushTarget[],
 ): PushMessage[] {
-  const body = firstLine(n.body);
+  const body = firstLine(input.body);
   return targets.map((t) => ({
     to: t.token,
     // "Harbor · Dana needs a person": a person in several businesses was told who, never which business (R11 S8-7).
-    title: t.business ? `${t.business} · ${n.title}` : n.title,
+    title: t.business ? `${t.business} · ${input.title}` : input.title,
     body,
     sound: "default",
     ...(t.badge === null ? {} : { badge: t.badge }),
-    data: { route: n.route, notification_id: n.id, tenant_id: n.tenant_id },
+    data: { route: input.route, notification_id: input.id, tenant_id: input.tenant_id },
   }));
 }
 

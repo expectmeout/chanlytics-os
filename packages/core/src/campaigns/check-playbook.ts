@@ -33,6 +33,7 @@ import {
   triggerWords,
   UUID,
   winBackWords,
+  isOneOf,
   type AppointmentWord,
   type CampaignMessage,
   type ConsentChannel,
@@ -45,7 +46,7 @@ import {
   type PlaybookTrigger,
 } from "@chanlytics/contracts";
 import { parseChannels } from "./message-channels";
-import { readCampaignMessage, templateValues } from "./template-values";
+import { readCampaignMessage, getTemplateValues } from "./template-values";
 import type { TemplateValuesPorts } from "./ports";
 
 /** Everything a playbook names, checked. */
@@ -73,10 +74,10 @@ export interface PlaybookInput {
  * One whole number of a playbook, by its field's bounds (contracts PLAYBOOK_LIMITS): `fallback` when none is sent, and a
  * refusal in the save's own sentence otherwise. A new playbook's check, a change's and Ask's starter card read it.
  */
-export function playbookNumber(field: keyof typeof PLAYBOOK_LIMITS, v: unknown, fallback: number): number {
+export function playbookNumber(field: keyof typeof PLAYBOOK_LIMITS, value: unknown, fallback: number): number {
   const { min, max, what } = PLAYBOOK_LIMITS[field];
-  if (v === undefined || v === null || v === "") return fallback;
-  const n = typeof v === "number" ? v : Number(v);
+  if (value === undefined || value === null || value === "") return fallback;
+  const n = typeof value === "number" ? value : Number(value);
   if (!Number.isInteger(n) || n < min || n > max)
     throw new AppError("validation", `${what} must be a whole number from ${min} to ${max}.`);
   return n;
@@ -116,8 +117,8 @@ async function refuseMoment(
   if (momentOffered(trig, { calendarOn })) return;
   const word = await ports.appointmentWord();
   if (!isWinBack(trig.id)) throw new AppError("validation", appointmentWords(word).needsCalendar);
-  const w = winBackWords(word);
-  throw new AppError("validation", trig.id === "lapsed" ? w.lapsed : w.quiet_30);
+  const result = winBackWords(word);
+  throw new AppError("validation", trig.id === "lapsed" ? result.lapsed : result.quiet_30);
 }
 
 /** The name a campaign given none takes: its list's, an appointment moment's in the workspace's word, else its moment's. */
@@ -206,12 +207,12 @@ function refuseMessageNoTickHolds(message: CampaignMessage, channels: readonly C
  * save that names none keeps.
  */
 function channelsItMayGoBy(
-  asked: unknown,
+  value: unknown,
   kept: readonly string[] | null,
   cls: string | null,
   message: CampaignMessage,
 ): ConsentChannel[] {
-  const channels = parseChannels(asked, kept);
+  const channels = parseChannels(value, kept);
   const purpose = enrolPurpose(cls, message);
   const never = channels.map((c) => channelNeverCarries(c, purpose)).find((words) => words !== null);
   if (never) throw new AppError("validation", never);
@@ -229,11 +230,11 @@ function channelsItMayGoBy(
 export async function checkPlaybookChannels(
   ports: Pick<TemplateValuesPorts, "message">,
   row: { trigger: string; policy_class: string | null; template_id: string | null; channels: string[] | null },
-  asked: unknown,
+  value: unknown,
 ): Promise<ConsentChannel[]> {
   const message = await readCampaignMessage(ports, row.template_id ?? "");
   const cls = row.policy_class ?? triggerOf(row.trigger)?.cls ?? null;
-  return channelsItMayGoBy(Array.isArray(asked) ? asked : [], row.channels, cls, message);
+  return channelsItMayGoBy(Array.isArray(value) ? value : [], row.channels, cls, message);
 }
 
 /**
@@ -276,9 +277,9 @@ const oneSpaced = (v: unknown): string => (typeof v === "string" ? v.trim().repl
 /**
  * A new playbook's name as it is kept from what was asked (checkPlaybook): oneSpaced, cut at PLAYBOOK_NAME_MAX. Whatever
  * compares an asked name with a kept one reads it by this (the twin rule, at a card and at its Approve:
- * campaigns/playbook-row.ts twinRefusal), so a name asked with two spaces is the one kept with one.
+ * campaigns/playbook-row.ts findTwinRefusal), so a name asked with two spaces is the one kept with one.
  */
-export const playbookNameAsked = (v: unknown): string => oneSpaced(v).slice(0, PLAYBOOK_NAME_MAX);
+export const playbookNameAsked = (value: unknown): string => oneSpaced(value).slice(0, PLAYBOOK_NAME_MAX);
 
 /** A name as a change keeps it: oneSpaced, never empty and never past the bound (D25). */
 function patchName(v: unknown): string {
@@ -295,19 +296,19 @@ const patchNumber = (k: keyof typeof PLAYBOOK_LIMITS, v: unknown, was: number): 
 
 /**
  * Its words a change names (00416 `params`): as many values as its message takes, each judged as a new campaign's are
- * (templateValues: typed text, or a value the run fills that this moment and this workspace can fill), and a follow-up's
+ * (getTemplateValues: typed text, or a value the run fills that this moment and this workspace can fill), and a follow-up's
  * link kept. The specs a run fills, as the route stores them; undefined where the change names none.
  */
 async function patchParams(
   ports: TemplateValuesPorts,
   row: PlaybookPatchRow,
-  v: unknown,
+  value: unknown,
 ): Promise<ParamSpec[] | undefined> {
-  if (v === undefined) return undefined;
+  if (value === undefined) return undefined;
   const trig = triggerOf(row.trigger);
-  const { specs } = await templateValues(ports, {
+  const { specs } = await getTemplateValues(ports, {
     templateId: row.template_id ?? "",
-    params: v,
+    params: value,
     visits: trig?.kind === "visit",
     proposal: trig?.kind === "deal",
     freed: trig?.kind === "freed",
@@ -332,19 +333,19 @@ interface PatchWhen {
  * undo the day it held, past or not; null clears it, or names none. The one judgement checkPlaybookPatch, POST playbooks
  * (the dashboard's startNewPlaybook) and Ask's new campaign card ask; the zone is read only where a day is to be judged.
  */
-export async function untilOf(
+export async function findUntil(
   ports: Pick<CheckPlaybookPatchPorts, "timezone">,
-  v: unknown,
+  value: unknown,
   when: PatchWhen,
 ): Promise<string | null | undefined> {
-  if (v === undefined || v === null) return v;
-  if (!isDayKey(v)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.untilDay);
-  if (when.undo) return v;
+  if (value === undefined || value === null) return value;
+  if (!isDayKey(value)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.untilDay);
+  if (when.undo) return value;
   const tz = await ports.timezone();
   const today = localDate(tz, when.now);
-  if (v < today)
+  if (value < today)
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, when.now)));
-  return v;
+  return value;
 }
 
 /**
@@ -403,26 +404,26 @@ function holdsAlready(k: PlaybookPatchKey, to: unknown, held: unknown): boolean 
 export async function checkPlaybookPatch(
   ports: CheckPlaybookPatchPorts,
   row: PlaybookPatchRow,
-  asked: Record<string, unknown>,
+  record: Record<string, unknown>,
   when: PatchWhen,
 ): Promise<{ set: PlaybookPatch; was: PlaybookPatch }> {
-  const keys = Object.keys(asked).filter((k) => asked[k] !== undefined);
-  if (keys.length === 0 || keys.some((k) => !(PLAYBOOK_PATCH_KEYS as readonly string[]).includes(k)))
+  const keys = Object.keys(record).filter((k) => record[k] !== undefined);
+  if (keys.length === 0 || keys.some((k) => !isOneOf(PLAYBOOK_PATCH_KEYS, k)))
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.nothing);
   if (triggerOf(row.trigger)?.kind === "reach_out" && keys.some((k) => !reachOutTakes(row.trigger, k)))
     throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
-  if (asked.state !== undefined && !isPlaybookState(asked.state))
+  if (record.state !== undefined && !isPlaybookState(record.state))
     throw new AppError("validation", PLAYBOOK_PATCH_WORDS.state);
   const next: PlaybookPatch = {
-    state: isPlaybookState(asked.state) ? asked.state : undefined,
-    name: asked.name === undefined ? undefined : patchName(asked.name),
-    run_hour: patchNumber("run_hour", asked.run_hour, row.run_hour),
-    cap_per_run: patchNumber("cap_per_run", asked.cap_per_run, row.cap_per_run),
-    gap_days: patchNumber("gap_days", asked.gap_days, row.gap_days),
-    cadence_days: patchNumber("cadence_days", asked.cadence_days, row.cadence_days),
-    params: await patchParams(ports, row, asked.params),
-    until: await untilOf(ports, asked.until, when),
-    mode: patchMode(row, asked.mode),
+    state: isPlaybookState(record.state) ? record.state : undefined,
+    name: record.name === undefined ? undefined : patchName(record.name),
+    run_hour: patchNumber("run_hour", record.run_hour, row.run_hour),
+    cap_per_run: patchNumber("cap_per_run", record.cap_per_run, row.cap_per_run),
+    gap_days: patchNumber("gap_days", record.gap_days, row.gap_days),
+    cadence_days: patchNumber("cadence_days", record.cadence_days, row.cadence_days),
+    params: await patchParams(ports, row, record.params),
+    until: await findUntil(ports, record.until, when),
+    mode: patchMode(row, record.mode),
   };
   const held = patchHeldOf(row);
   const set: PlaybookPatch = {};
@@ -473,9 +474,7 @@ export async function checkPlaybookMoment(
   const { listName, listKey, listId } = await listOf(ports, trig, body);
   // A playbook on a list sends an offer or a win-back, under that class's autonomy row; every other moment its own.
   const cls =
-    trig.kind === "saved" && (LIST_PLAYBOOK_CLASSES as readonly string[]).includes(String(body?.policy_class))
-      ? (body!.policy_class as PlaybookPolicyClass)
-      : trig.cls;
+    trig.kind === "saved" && isOneOf(LIST_PLAYBOOK_CLASSES, body?.policy_class) ? body.policy_class : trig.cls;
   return { trig, cls, listName, listKey, listId };
 }
 
@@ -493,7 +492,7 @@ export async function checkPlaybook(
   const name = playbookNameAsked(body?.name);
   const { trig, cls, listName, listKey, listId } = await checkPlaybookMoment(ports, body, existing);
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  const { message, specs } = await templateValues(ports, {
+  const { message, specs } = await getTemplateValues(ports, {
     templateId,
     params: body?.params,
     visits: trig.kind === "visit",

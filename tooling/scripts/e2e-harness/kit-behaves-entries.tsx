@@ -5,12 +5,13 @@
  * the component, closed, and the control that opens it, with a caption that says what it holds now. Its id is the
  * static gallery's entry of the kit's Base UI families (kit-gallery.mjs) that the component draws in the state a
  * person brings it to; e2e/kit/kit-behaves.spec.ts holds the two together in a browser, and
- * tooling/scripts/tests/styles/kit-behaves.test.mjs those it can draw on a server, in the node suite. What an entry
+ * tests/styles/kit-behaves.test.mjs those it can draw on a server, in the node suite. What an entry
  * says is made up, as every fixture's is.
  *
  * The dashboard's `tsc --noEmit` compiles this file (apps/dashboard/tsconfig.json includes the page that imports it),
- * so a props change to a component that an entry no longer meets fails `corepack pnpm -r typecheck`, where no CI job
- * runs the browser spec. Nothing lints it. The spec and the node test run it.
+ * so a props change to a component that an entry no longer meets fails `corepack pnpm -r typecheck` on its pull request,
+ * where no job runs the browser spec; nightly-kit.yml runs it each night. Nothing lints it. The spec and the node test
+ * run it.
  */
 import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -18,6 +19,7 @@ import {
   Button,
   Combobox,
   DatePicker,
+  Face,
   Field,
   Figure as KitFigure,
   Menu,
@@ -199,6 +201,53 @@ function MenuKit() {
             items: [
               { label: "Open their page", glyph: glyph("user", 13), href: "#kit-person" },
               { label: "Delete person…", glyph: glyph("x", 13), tone: "danger", onSelect: () => setSaid("Delete") },
+            ],
+          },
+        ]}
+      />
+    </Figure>
+  );
+}
+
+/** The menu as a thread's sheet: who it is about at its head, an act on its square, times with one thing said of them. */
+function MenuKitWho() {
+  const [said, setSaid] = useState("nothing yet");
+  return (
+    <Figure id="menu-kit-who" about={`the kit's Menu, a thread's sheet; last chosen: ${said}`}>
+      <Menu
+        trigger={
+          <Button variant="quiet" size="sm" iconOnly aria-label="More" data-testid="menu-who-open">
+            {glyph("more", 14)}
+          </Button>
+        }
+        groups={[
+          {
+            items: [
+              {
+                label: "Sam Ortega",
+                meta: "sam@example.com",
+                glyph: <Face person={{ name: "Sam Ortega", initials: "SO" }} size="xl" />,
+                hint: glyph("chevron", 13),
+                onSelect: () => setSaid("Sam Ortega"),
+              },
+            ],
+          },
+          {
+            items: [
+              {
+                label: "See what it knows",
+                glyph: glyph("user", 16),
+                square: true,
+                hint: glyph("chevron", 13),
+                onSelect: () => setSaid("See what it knows"),
+              },
+            ],
+          },
+          {
+            caption: "They hear nothing while it is snoozed.",
+            items: [
+              { label: "In an hour", glyph: glyph("calendar", 13), onSelect: () => setSaid("In an hour") },
+              { label: "Tomorrow", glyph: glyph("calendar", 13), onSelect: () => setSaid("Tomorrow") },
             ],
           },
         ]}
@@ -1040,7 +1089,7 @@ function SubTabsKitChips() {
         value={on}
         onSelect={setOn}
         tabs={[
-          { id: "all", label: "All" },
+          { id: "all", label: "All", count: 5 },
           { id: "reply", label: "Reply", count: 3 },
           { id: "call", label: "Call", count: 1 },
           { id: "approve", label: "Approve", count: 1 },
@@ -1126,6 +1175,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "sheet-kit-mark", Draw: SheetKitMark, closed: false },
   { id: "sheet-kit-opens", Draw: SheetKitOpens, closed: false },
   { id: "menu-kit", Draw: MenuKit, closed: false },
+  { id: "menu-kit-who", Draw: MenuKitWho, closed: false },
   { id: "menu-kit-caption", Draw: MenuKitCaption, closed: false },
   { id: "menu-kit-set", Draw: MenuKitSet, closed: false },
   { id: "menu-kit-lines", Draw: MenuKitLines, closed: false },

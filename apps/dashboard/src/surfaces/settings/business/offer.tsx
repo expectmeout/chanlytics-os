@@ -24,14 +24,14 @@
 
 import { APPOINTMENT_WORDS, type AppointmentWord } from "@chanlytics/contracts";
 import type { ComponentProps } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { Panel } from "../../kit/panel/panel";
 import { RecordBox, RecordField, RecordSwitch, RecordTip } from "../../kit/record/field";
 import { RecordRow, RecordChips } from "../../kit/record/row";
 import { recFolds } from "../../kit/record/registry";
 import { FieldError } from "../../kit/field-error/field-error";
-import { gate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { BtFold, BtSheet } from "./gestures/fold";
 import type { Brain, Saver } from "./save";
 import { businessTabSave } from "./saver";
@@ -56,7 +56,7 @@ type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
  * through and the role may change the business. Once taken, People, Today, the Calendar and Campaigns are read again
  * (refresh-map.ts), so every page says it without a reload.
  */
-const BtWordRow = ({ canEdit, flash }: { canEdit: boolean; flash: (flash: LegacyFlash) => void }) => {
+const BtWordRow = ({ canEdit, flash }: { canEdit: boolean; flash: (flash: FrameFlash) => void }) => {
   const vm = BUSINESS_TAB.appointmentWordVM(visitWordHere());
   const door = businessTabSave.word;
   const words = Object.fromEntries(vm.choices.map((c) => [c.value, { label: c.label, says: c.hint }])) as Record<
@@ -67,7 +67,7 @@ const BtWordRow = ({ canEdit, flash }: { canEdit: boolean; flash: (flash: Legacy
   const pick = (word: AppointmentWord) =>
     new Promise<void>((resolve) => {
       if (door.pending() || !workspaceApi()) return resolve();
-      const said = (f: LegacyFlash) => {
+      const said = (f: FrameFlash) => {
         flash(f);
         resolve();
       };
@@ -333,7 +333,7 @@ export const BtBookingRuleRows = ({
 }: {
   brain: Brain;
   canEdit: boolean;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   saver: Saver | null;
 }) => {
   const profile = brain.profile || {};
@@ -384,7 +384,7 @@ export const BtOfferCard = ({
 }: {
   brain: Brain;
   canEdit: boolean;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   saver: Saver | null;
 }) => {
   return (

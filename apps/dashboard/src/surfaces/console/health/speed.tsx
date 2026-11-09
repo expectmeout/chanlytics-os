@@ -6,7 +6,7 @@
  * pageVitalsWords, pageSpeedWords, platformDaysWords).
  */
 import type { Tone } from "@chanlytics/contracts";
-import type { PlatformApi } from "@/legacy-bridge/platform";
+import type { PlatformApi } from "@/bridge/platform";
 import { ScreenSection } from "../parts";
 import type { ConsoleHealth } from "../verbs";
 
@@ -89,6 +89,14 @@ function SpeedCards({ P, speed }: { P: PlatformApi; speed: ConsoleHealth["speed"
           sentence={where.partsSentence}
           lines={where.parts}
           testid="platform-speed-parts"
+        />
+      )}
+      {where.firstRows.length > 0 && (
+        <SpeedCard
+          title="A phone's first paint"
+          sentence={where.firstRowsSentence}
+          lines={where.firstRows}
+          testid="platform-speed-first-rows"
         />
       )}
       {spots.length > 0 && (

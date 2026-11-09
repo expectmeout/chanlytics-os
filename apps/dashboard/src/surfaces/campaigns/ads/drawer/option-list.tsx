@@ -9,14 +9,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { MINOR_PER_UNIT, addDays } from "@chanlytics/contracts";
-import { CHIPS, DRAWER, LIST, minorOfUnits, moneyOf } from "@chanlytics/contracts/ads-page";
-import type { EditVM } from "@chanlytics/contracts/ads-page";
+import { CHIPS, DRAWER, LIST } from "../model/drawer/words";
+import { minorOfUnits, moneyOf } from "../model/money";
+import type { EditVM } from "../model/drawer/edit-lists";
 import { Button } from "../../../kit/button/button";
 import { DatePicker } from "../../../kit/datepicker/datepicker";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { focusAsDrawn } from "../../../legacy-verbs";
+import { focusAsDrawn } from "../../../frame-verbs";
 import type { ListSpec, Row } from "./chip-lists";
 import { AdsNotes } from "./notes";
 

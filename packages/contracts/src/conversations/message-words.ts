@@ -7,6 +7,7 @@ import type { MessageDto } from "./thread-dto";
 import { MEDIA_LABEL, mediaKind } from "./message-media";
 import { emailFromNameOf, emailPartsOf, emailSubjectOf } from "./message-email";
 import { isChatMessage, writtenChannelOf } from "./thread-channel";
+import { recordOrNull } from "../shared/unknown";
 
 /** What an email's `delivered` receipt says: their mail server took it, which is as far as an email can be followed. */
 const EMAIL_DELIVERED = "Reached their mail server";
@@ -111,9 +112,6 @@ const SETTLED_FAILURES: Readonly<Record<string, string>> = {
   orphaned: "It was never sent: no job was left to send it.",
 };
 
-const record = (v: unknown): Record<string, unknown> | null =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
-
 /** A table's words for a key it holds itself: `constructor` and `toString` belong to every object, and are no word of any table. */
 function tableWord<K extends string | number>(table: Readonly<Record<K, string>>, key: K): string | undefined {
   return Object.hasOwn(table, key) ? table[key] : undefined;
@@ -134,7 +132,7 @@ function codeOf(v: unknown): number | null {
  * reports/campaigns/provider-code.db.test.mjs holds the two to the same answer for every shape of error.
  */
 export function providerCodeOf(error: Record<string, unknown>): number | null {
-  const listed = Array.isArray(error.errors) ? record(error.errors[0]) : null;
+  const listed = Array.isArray(error.errors) ? recordOrNull(error.errors[0]) : null;
   const direct = codeOf(listed?.code) ?? codeOf(error.code);
   if (direct !== null) return direct;
   const body = error.body;
@@ -144,7 +142,7 @@ export function providerCodeOf(error: Record<string, unknown>): number | null {
     const twilio = /^Twilio (\d{5})$/.exec(body.trim());
     return twilio ? Number(twilio[1]) : null;
   }
-  return codeOf(record(record(body)?.error)?.code);
+  return codeOf(recordOrNull(recordOrNull(body)?.error)?.code);
 }
 
 /**
@@ -155,22 +153,22 @@ export function providerCodeOf(error: Record<string, unknown>): number | null {
  * deliver it (error 131000)."). Null when the row says nothing it can be read by, which is the honest answer.
  */
 export function sendFailureWords(error: unknown, channel: string | null | undefined): string | null {
-  const e = record(error);
-  if (!e) return null;
+  const result = recordOrNull(error);
+  if (!result) return null;
   const wire = writtenChannelOf(channel);
   if (wire === "email") {
-    const provider = typeof e.provider === "string" ? e.provider : "";
-    return tableWord(EMAIL_FAILURES, provider) ?? settledWords(e);
+    const provider = typeof result.provider === "string" ? result.provider : "";
+    return tableWord(EMAIL_FAILURES, provider) ?? settledWords(result);
   }
-  const code = providerCodeOf(e);
+  const code = providerCodeOf(result);
   const sms = wire === "sms";
   if (code !== null) {
     const meaning = tableWord(sms ? SMS_FAILURES : WHATSAPP_FAILURES, code);
     if (meaning) return `${meaning} (${sms ? "Twilio" : "WhatsApp"} error ${code}).`;
     return sms ? `Twilio didn't deliver it (error ${code}).` : `WhatsApp didn't deliver it (error ${code}).`;
   }
-  const carrier = typeof e.carrier === "string" ? tableWord(SMS_STATUS_WORDS, e.carrier) : undefined;
-  return carrier ?? settledWords(e);
+  const carrier = typeof result.carrier === "string" ? tableWord(SMS_STATUS_WORDS, result.carrier) : undefined;
+  return carrier ?? settledWords(result);
 }
 
 /** The ledger's word for a send the provider never answered (`outcome: "unknown"` on the row): it may have gone. */
@@ -210,17 +208,17 @@ function messageFailedWhy(m: Pick<MessageDto, "status" | "error" | "channel">): 
  * and whether it reached them. The words themselves live here (messageStatusLabel, sendFailureWords), so the Inbox's thread
  * and Conversations cannot describe the same message differently -- which is exactly what they were doing.
  */
-export function sentFactsOf(m: Pick<MessageDto, "status" | "error" | "channel">): {
+export function sentFactsOf(message: Pick<MessageDto, "status" | "error" | "channel">): {
   statusLabel?: string;
   failedWhy?: string;
   reachedCustomer: boolean;
 } {
-  const statusLabel = messageStatusLabel(m.status, m.channel);
-  const failedWhy = messageFailedWhy(m);
+  const statusLabel = messageStatusLabel(message.status, message.channel);
+  const failedWhy = messageFailedWhy(message);
   return {
     ...(statusLabel ? { statusLabel } : {}),
     ...(failedWhy ? { failedWhy } : {}),
-    reachedCustomer: reachedCustomer(m.status),
+    reachedCustomer: reachedCustomer(message.status),
   };
 }
 
@@ -264,8 +262,8 @@ const CALL_NOTE_PREFIX =
  * held draft looks exactly like a message the customer has already read, so an
  * operator would either ignore it or apologise for something that never went out.
  */
-export function isHeldDraft(m: MessageDto): boolean {
-  return m.status === "queued" && m.sender === "ai";
+export function isHeldDraft(message: Pick<MessageDto, "status" | "sender">): boolean {
+  return message.status === "queued" && message.sender === "ai";
 }
 
 /**
@@ -279,36 +277,39 @@ export function heldDraftOf(messages: readonly MessageDto[]): MessageDto | null 
 }
 
 /** When a held draft is due to send, in epoch ms. */
-export function draftSendsAtMs(m: MessageDto): number {
-  const delay = typeof m.meta?.delay_ms === "number" ? m.meta.delay_ms : 0;
-  return new Date(m.created_at).getTime() + delay;
+export function draftSendsAtMs(message: MessageDto): number {
+  const delay = typeof message.meta?.delay_ms === "number" ? message.meta.delay_ms : 0;
+  return new Date(message.created_at).getTime() + delay;
 }
 
 /* What a message says, wherever it is shown: an email's own words, without the chain it quoted back or the signature
    under them (emailPartsOf). One function, because each place that said it its own way drifted: the bubble split
    the chain, while the Conversations row previewed it and the status band's "They wrote" printed it whole. */
-export function messageWords(m: MessageDto): string {
-  return m.channel === "email" ? emailPartsOf(messageText(m), emailFromNameOf(m)).said : messageText(m);
+export function messageWords(message: MessageDto): string {
+  return message.channel === "email"
+    ? emailPartsOf(messageText(message), emailFromNameOf(message)).said
+    : messageText(message);
 }
 
-export function messageText(m: MessageDto): string {
-  if (m.type === "call_summary" && m.body) {
+export function messageText(message: MessageDto): string {
+  if (message.type === "call_summary" && message.body) {
     // the body already names itself ("Inbound call · 3 min — …"); the legacy
     // Blob-era prefix is stripped for rows written before Slice 3
-    return m.body.replace(CALL_NOTE_PREFIX, "").trim();
+    return message.body.replace(CALL_NOTE_PREFIX, "").trim();
   }
-  if (m.body) return m.body;
-  if (m.type === "media") {
+  if (message.body) return message.body;
+  if (message.type === "media") {
     // "Photo: the caption" over "[image attachment]": the thread draws the
     // attachment itself now, and this line is what sits above it.
-    const label = MEDIA_LABEL[mediaKind(m.media?.mime_type, (m.meta && (m.meta.raw_type as string)) || null)];
-    const caption = m.media?.caption?.trim();
+    const label =
+      MEDIA_LABEL[mediaKind(message.media?.mime_type, (message.meta && (message.meta.raw_type as string)) || null)];
+    const caption = message.media?.caption?.trim();
     return caption ? `${label}: ${caption}` : label;
   }
   // An email kept without its words still has its subject, which says more than "[text]" did in the row's preview.
-  const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+  const subject = message.channel === "email" ? emailSubjectOf(message) : null;
   if (subject) return subject;
-  return `[${m.type}]`;
+  return `[${message.type}]`;
 }
 
 // Words cut after a whole word: shared, since the wait rules quote a reply with it and must not reach the thread's

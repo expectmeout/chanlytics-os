@@ -1,7 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { setMemberView, type Json } from "@chanlytics/db";
+import { setMemberView } from "@chanlytics/db/notices";
+import type { Json } from "@chanlytics/db/types";
 import {
   ASK_FOLLOW_UPS_MAX,
   ASK_VIEW_PAGE,
@@ -10,25 +11,19 @@ import {
   FOLLOW_UP_WAKES,
   followUpsOf,
   type AskFollowUp,
-} from "@chanlytics/contracts";
-import { load, type ReaderContext } from "../../../readers";
-import { memberViews } from "../../../readers/notifications";
-import {
-  actAction,
-  defineActions,
-  propose,
-  refuse,
-  stepNamed,
-  str,
+  DAY_KEY,
   UUID,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../context";
+} from "@chanlytics/contracts";
+import { load, type ReaderContext } from "../../../shared/reader";
+import { memberViews } from "../../../readers/notifications";
+import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
+import { stepNamed, str } from "../context/tool-reads";
 
 /**
  * Ask's follow-ups (the operator, 15 Oct 2026, D3): Ask keeps a note to come back to something when it happens -- a lead
  * search finishing or stopping to ask, replies on a sequence or a cold email, or a day -- and clears it once it came back.
- * Kept in the member's own views (contracts ask-proposals/follow-ups.ts), so the card writes the whole list the view will hold and
+ * Kept in the member's own views (contracts ask/proposals/follow-ups.ts), so the card writes the whole list the view will hold and
  * its undo the list it held. It changes nothing of the business; the `signals` read says a due one first.
  */
 
@@ -65,50 +60,50 @@ export async function clearFollowUp(rc: ReaderContext, id: string): Promise<AskF
 }
 
 async function proposeKeep(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { said: string; prompt: string; wake: AskFollowUp["wake"]; subject?: string; on?: string },
 ): Promise<ProposalOutcome> {
-  const said = input.said.trim().slice(0, FOLLOW_UP_SAID_MAX);
+  const sentence = input.said.trim().slice(0, FOLLOW_UP_SAID_MAX);
   const prompt = input.prompt.trim().slice(0, FOLLOW_UP_PROMPT_MAX);
-  if (!said || !prompt)
+  if (!sentence || !prompt)
     return refuse("said (the line they read) and prompt (what you will ask yourself) are both needed");
   let subject: string | null = null;
   let on: string | null = null;
   if (input.wake === "date") {
-    on = /^\d{4}-\d{2}-\d{2}$/.test(input.on ?? "") ? (input.on as string) : null;
+    on = DAY_KEY.test(input.on ?? "") ? (input.on as string) : null;
     if (!on) return refuse("on is the day, YYYY-MM-DD by the business's calendar");
   } else {
     subject = str(input.subject, 40);
     // An earlier plan step's token (a search it starts) stands in for its id, filled at the commit.
-    if (!UUID.test(subject) && stepNamed(t, subject) === null)
+    if (!UUID.test(subject) && stepNamed(toolContext, subject) === null)
       return refuse(
         "subject is the search's, the sequence's or the cold email's id a read returned, or a plan step's token",
       );
   }
-  const held = await heldNow(t);
+  const held = await heldNow(toolContext);
   if (held.length >= ASK_FOLLOW_UPS_MAX)
     return refuse(
       `they hold ${ASK_FOLLOW_UPS_MAX} follow-ups already (${held.map((f) => f.said).join("; ")}): clear one first with action clear`,
     );
-  const made: AskFollowUp = {
+  const created: AskFollowUp = {
     id: randomUUID().slice(0, 8),
-    said,
+    said: sentence,
     prompt,
     wake: input.wake,
     subject,
     on,
-    made_at: t.now.toISOString(),
+    made_at: toolContext.now.toISOString(),
   };
   return propose({
     kind: "follow_up",
     title: "I'll come back to it",
-    summary: said,
-    payload: { follow_ups: [...held, made], previous: held, said },
+    summary: sentence,
+    payload: { follow_ups: [...held, created], previous: held, said: sentence },
   });
 }
 
-async function proposeClear(t: ToolContext, input: { ids: string[] }): Promise<ProposalOutcome> {
-  const held = await heldNow(t);
+async function proposeClear(toolContext: ToolContext, input: { ids: string[] }): Promise<ProposalOutcome> {
+  const held = await heldNow(toolContext);
   const gone = new Set(input.ids.map((x) => str(x, 40)));
   const left = held.filter((f) => !gone.has(f.id));
   if (left.length === held.length) return refuse("none of those is a follow-up they hold (signals lists them)");
@@ -135,7 +130,7 @@ export const propose_follow_up = defineActions({
         prompt: z
           .string()
           .describe(`What you will ask yourself when it is due, at most ${FOLLOW_UP_PROMPT_MAX} characters.`),
-        wake: z.enum(FOLLOW_UP_WAKES).describe("search_done, replies, or date."),
+        wake: z.enum(FOLLOW_UP_WAKES),
         subject: z.string().optional().describe("The search's, sequence's or cold email's id, or a plan step's token."),
         on: z.string().optional().describe("For date, the day, YYYY-MM-DD."),
       }),

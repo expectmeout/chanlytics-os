@@ -5,7 +5,7 @@
  * glass, and these stand in a sentence or in a line of their own, each with no ground of a button's.
  *
  * Each draws what the gallery's Line family draws, entry for entry (tooling/scripts/e2e-harness/kit-gallery.mjs;
- * tooling/scripts/tests/styles/kit-components.test.mjs holds the two together). `className` is for the page's layout, and
+ * tests/styles/kit-components.test.mjs holds the two together). `className` is for the page's layout, and
  * comes last; the ref reaches the element.
  */
 import type { ComponentPropsWithRef } from "react";
@@ -23,6 +23,7 @@ const pressClasses = variants({
       chip: "line-chip",
       next: "line-chip line-next",
       clear: "line-clear",
+      attach: "line-attach",
       remove: "line-remove",
       fold: "line-fold",
       letgo: "line-letgo",
@@ -39,7 +40,7 @@ const pressClasses = variants({
 /**
  * Its kinds. `send`, the ink circle at a field's end, faint until there are words; `talk`, the same circle as the mic; `act`,
  * a quiet glyph under an answer; `chip`, a question offered; `next`, one that follows an answer, a tile before its words;
- * `clear`, the × in what a field is scoped to; `remove`, a row's ×; `fold`, a card's whole head; `letgo`, the pill a held mic
+ * `clear`, the × in what a field is scoped to; `attach`, the + at a field's start; `remove`, a row's ×; `fold`, a card's whole head; `letgo`, the pill a held mic
  * is lifted from; `latest`, the pill back to the newest question; `row`, a line of an answer that opens what it names;
  * `figure`, a number that says where it comes from; `door`, the glyph that goes there; `open`, the underlined word after a
  * source; `words`, a row named in the answer's own words.
@@ -51,6 +52,7 @@ type LinePressKind =
   | "chip"
   | "next"
   | "clear"
+  | "attach"
   | "remove"
   | "fold"
   | "letgo"
@@ -71,6 +73,11 @@ export function LinePress({ kind, selected, on, className, children, ...element 
       {children}
     </Press>
   );
+}
+
+/** What a press of `attach` opens: the device's own picker, drawn by the device and never by the page. */
+export function LineFiles(props: Omit<ComponentPropsWithRef<"input">, "type" | "hidden" | "className">) {
+  return <input {...props} type="file" hidden />;
 }
 
 /** The field: one line that grows with its words, and takes the accent in its placeholder while a mic listens. */

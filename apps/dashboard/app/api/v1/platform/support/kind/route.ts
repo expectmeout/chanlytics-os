@@ -1,6 +1,6 @@
-import { write, platform } from "@/server/route";
+import { write, platform } from "@/server/shared/route";
 import { SupportKindSchema } from "@chanlytics/contracts";
-import { supportMove } from "@/server/platform/support";
+import { moveSupport } from "@/server/console/support";
 
 /**
  * POST /api/v1/platform/support/kind — {id, kind}: a report moved between Support and Health, as what the member
@@ -13,5 +13,5 @@ export const POST = write({
   rate: "platform_support",
   act: "report_moved",
   input: SupportKindSchema,
-  handle: async ({ office, input }) => supportMove(office, input.id, input.kind),
+  handle: async ({ office, input }) => moveSupport(office, input.id, input.kind),
 });

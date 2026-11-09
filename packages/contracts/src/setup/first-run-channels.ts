@@ -10,11 +10,12 @@ import { bookingToolName, type BookingTool } from "../calendar/booking-notice";
 import { bookingToolOfLink } from "../google/booking-page";
 import { googleAudienceWords } from "../google/audience";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
-import type { MailboxProvider } from "../email/mailbox-connections";
+import type { MailboxProvider } from "../email/mailbox-connections/states";
 import { CARRIER_WORDS, type Carrier } from "../voice/forwarding";
 import { importLinesOf, type ImportRowDto } from "../imports/ledger";
-import type { FirstRunPhoneVM } from "./first-run-phone";
-import type { SetupDto, SetupVM, WhatsappChoice } from "./setup";
+import type { FirstRunPhoneVM } from "./first-run-phone/vm";
+import type { SetupDto } from "./lines";
+import type { SetupVM, WhatsappChoice } from "./setup";
 
 /** What a number's line is, by the carrier's own records (decision 0073, R11: Twilio Lookup's line type intelligence). */
 export interface LineLookupDto {
@@ -39,13 +40,13 @@ const CARRIER_NAMES: ReadonlyArray<[RegExp, Carrier]> = [
  */
 export function lineLookupOf(raw: { type: string | null; carrier: string | null } | null): LineLookupDto | null {
   if (!raw) return null;
-  const t = (raw.type ?? "").toLowerCase();
+  const result = (raw.type ?? "").toLowerCase();
   const type: LineLookupDto["type"] =
-    t === "mobile"
+    result === "mobile"
       ? "mobile"
-      : t === "landline"
+      : result === "landline"
         ? "landline"
-        : t === "fixedvoip" || t === "nonfixedvoip"
+        : result === "fixedvoip" || result === "nonfixedvoip"
           ? "voip"
           : "unknown";
   const name = raw.carrier?.trim() || null;
@@ -238,16 +239,19 @@ export interface FirstRunChannelsVM {
 }
 
 /** WhatsApp's tile: connected, or the question and the three ways it can answer. */
-function whatsappOf(i: ChannelsInput): FirstRunChannelsVM["whatsapp"] {
-  const W = FIRST_RUN_CHANNELS_WORDS.whatsapp;
-  const wa = i.dto.channels.whatsapp;
-  const kept = i.phone.way !== "new" ? i.phone.number : null;
+function whatsappOf(channelsInput: ChannelsInput): FirstRunChannelsVM["whatsapp"] {
+  const whatsapp = FIRST_RUN_CHANNELS_WORDS.whatsapp;
+  const wa = channelsInput.dto.channels.whatsapp;
+  const kept = channelsInput.phone.way !== "new" ? channelsInput.phone.number : null;
   const keptShown = formatPhoneDisplay(kept);
-  const own = i.phone.way === "new" && i.phone.number ? formatPhoneDisplay(i.phone.number) : null;
+  const own =
+    channelsInput.phone.way === "new" && channelsInput.phone.number
+      ? formatPhoneDisplay(channelsInput.phone.number)
+      : null;
   if (wa.present)
     return {
-      title: W.title,
-      connected: W.connected(formatPhoneDisplay(wa.number)),
+      title: whatsapp.title,
+      connected: whatsapp.connected(formatPhoneDisplay(wa.number)),
       question: null,
       options: [],
       value: null,
@@ -255,17 +259,28 @@ function whatsappOf(i: ChannelsInput): FirstRunChannelsVM["whatsapp"] {
     };
   const options: FirstRunChannelsVM["whatsapp"]["options"] = [];
   // On the number customers call, when there is one kept and the business says it is on WhatsApp Business.
-  if (keptShown && i.onWhatsapp !== false)
-    options.push({ key: "same", label: W.same(keptShown), says: i.coexistence ? W.sameSays : W.sameMoves });
-  options.push({ key: "own", label: W.own(own), says: W.ownSays });
-  options.push({ key: "later", label: W.later, says: W.laterSays });
+  if (keptShown && channelsInput.onWhatsapp !== false)
+    options.push({
+      key: "same",
+      label: whatsapp.same(keptShown),
+      says: channelsInput.coexistence ? whatsapp.sameSays : whatsapp.sameMoves,
+    });
+  options.push({ key: "own", label: whatsapp.own(own), says: whatsapp.ownSays });
+  options.push({ key: "later", label: whatsapp.later, says: whatsapp.laterSays });
   return {
-    title: W.title,
+    title: whatsapp.title,
     connected: null,
-    question: keptShown ? { label: W.question(keptShown), yes: W.yes, notYet: W.notYet, value: i.onWhatsapp } : null,
+    question: keptShown
+      ? {
+          label: whatsapp.question(keptShown),
+          yes: whatsapp.yes,
+          notYet: whatsapp.notYet,
+          value: channelsInput.onWhatsapp,
+        }
+      : null,
     options,
-    value: options.some((o) => o.key === i.whatsapp) ? i.whatsapp : null,
-    after: i.whatsapp && i.whatsapp !== "later" ? W.approveAtGoLive : null,
+    value: options.some((o) => o.key === channelsInput.whatsapp) ? channelsInput.whatsapp : null,
+    after: channelsInput.whatsapp && channelsInput.whatsapp !== "later" ? whatsapp.approveAtGoLive : null,
   };
 }
 
@@ -279,102 +294,114 @@ const siteHostOf = (raw: string | null): string | null => {
 };
 
 /** The bookings tile: the tool found, its calendar link and its clients' file; or, with none, how people book. */
-function bookingsOf(i: ChannelsInput): FirstRunChannelsVM["bookings"] {
-  const W = FIRST_RUN_CHANNELS_WORDS.bookings;
-  const cal = i.dto.calendar;
-  const tool = (cal.tool as BookingTool | null | undefined) ?? bookingToolOfLink(i.bookingLink);
+function bookingsOf(channelsInput: ChannelsInput): FirstRunChannelsVM["bookings"] {
+  const bookings = FIRST_RUN_CHANNELS_WORDS.bookings;
+  const cal = channelsInput.dto.calendar;
+  const tool = (cal.tool as BookingTool | null | undefined) ?? bookingToolOfLink(channelsInput.bookingLink);
   const toolName = bookingToolName(tool);
-  const calRow = (i.dto.imports ?? []).find((r) => r.source === "calendar") ?? null;
-  const clientsRow = (i.dto.imports ?? []).find((r) => r.source === "clients_file") ?? null;
+  const calRow = (channelsInput.dto.imports ?? []).find((r) => r.source === "calendar") ?? null;
+  const clientsRow = (channelsInput.dto.imports ?? []).find((r) => r.source === "clients_file") ?? null;
   const link =
     cal.state === "ok"
-      ? W.linkRead(calRow?.counts.past ?? null, calRow?.counts.coming ?? null)
+      ? bookings.linkRead(calRow?.counts.past ?? null, calRow?.counts.coming ?? null)
       : cal.state === "unavailable"
-        ? W.linkBroken
+        ? bookings.linkBroken
         : null;
   return {
-    title: W.title(toolName),
+    title: bookings.title(toolName),
     tool,
     toolName,
-    found: toolName ? W.found(toolName, siteHostOf(i.website)) : null,
-    says: toolName ? W.linkSays : W.byHandSays,
+    found: toolName ? bookings.found(toolName, siteHostOf(channelsInput.website)) : null,
+    says: toolName ? bookings.linkSays : bookings.byHandSays,
     link,
     how: toolName
       ? null
       : {
-          label: W.how,
+          label: bookings.how,
           options: [
-            { key: "hand", label: W.byHand },
-            { key: "site", label: W.bySite },
-            { key: "message", label: W.byMessage },
+            { key: "hand", label: bookings.byHand },
+            { key: "site", label: bookings.bySite },
+            { key: "message", label: bookings.byMessage },
           ],
-          says: W.byHandSays,
+          says: bookings.byHandSays,
         },
     clients: {
-      label: W.clients,
+      label: bookings.clients,
       done:
         clientsRow && clientsRow.state === "done" && clientsRow.counts.people !== undefined
-          ? W.clientsDone(clientsRow.counts.people, toolName)
+          ? bookings.clientsDone(clientsRow.counts.people, toolName)
           : null,
     },
-    change: W.change,
+    change: bookings.change,
   };
 }
 
 /** The clients' file sheet's head and steps: the tool's own where we know them, the general ones otherwise. */
 function clientsOf(tool: BookingTool | null, toolName: string | null): FirstRunChannelsVM["clients"] {
-  const W = FIRST_RUN_CHANNELS_WORDS.clients;
+  const clients = FIRST_RUN_CHANNELS_WORDS.clients;
   const known = tool ? (CLIENT_EXPORTS[tool] ?? null) : null;
   return {
-    heading: W.heading(toolName),
-    steps: known ? [...known.steps] : W.steps(toolName),
+    heading: clients.heading(toolName),
+    steps: known ? [...known.steps] : clients.steps(toolName),
     file: known?.file ?? null,
-    noYes: W.noYes,
+    noYes: clients.noYes,
   };
 }
 
 /** The email tile: the mailbox connected, the providers this deployment connects, or not yet. */
-function emailOf(i: ChannelsInput): FirstRunChannelsVM["email"] {
-  const W = FIRST_RUN_CHANNELS_WORDS.email;
-  const sending = i.dto.email?.sending ?? null;
+function emailOf(channelsInput: ChannelsInput): FirstRunChannelsVM["email"] {
+  const email = FIRST_RUN_CHANNELS_WORDS.email;
+  const sending = channelsInput.dto.email?.sending ?? null;
   const on = sending?.mailboxes[0] ?? null;
-  const providers = (sending?.providers ?? []).map((p) => ({ key: p, label: p === "google" ? W.google : W.microsoft }));
+  const providers = (sending?.providers ?? []).map((p) => ({
+    key: p,
+    label: p === "google" ? email.google : email.microsoft,
+  }));
   // Google's consent screen, said before its Connect: the app is the Business Profile app (decision 0073, R18).
   const warning = sending?.providers.includes("google") ? googleAudienceWords(sending.google_audience) : null;
   return {
-    title: W.title,
+    title: email.title,
     state: on ? "connected" : providers.length ? "connect" : "soon",
-    says: on ? W.connected(on.address) : providers.length ? `${W.says}${warning ? ` ${warning}` : ""}` : W.soonSays,
+    says: on
+      ? email.connected(on.address)
+      : providers.length
+        ? `${email.says}${warning ? ` ${warning}` : ""}`
+        : email.soonSays,
     providers: on ? [] : providers,
-    note: W.notAnswered,
+    note: email.notAnswered,
   };
 }
 
 /** Your dashboard, filling in: People, Inbox, Calendar and Reviews as what came in counts them. */
-function fillingOf(i: ChannelsInput, rows: readonly ImportRowDto[]): FirstRunChannelsVM["filling"] {
-  const W = FIRST_RUN_CHANNELS_WORDS.filling;
+function fillingOf(channelsInput: ChannelsInput, rows: readonly ImportRowDto[]): FirstRunChannelsVM["filling"] {
+  const filling = FIRST_RUN_CHANNELS_WORDS.filling;
   const by = (s: ImportRowDto["source"]) => rows.find((r) => r.source === s) ?? null;
   const cal = by("calendar");
   const reviews = by("google_reviews");
   const mail = by("mailbox");
   const chats = by("whatsapp_history");
   const messages = (mail?.counts.messages ?? 0) + (chats?.counts.messages ?? 0);
-  const lines = importLinesOf(rows, i.tz, { whatsappWaiting: i.whatsapp === "same" });
+  const lines = importLinesOf(rows, channelsInput.tz, { whatsappWaiting: channelsInput.whatsapp === "same" });
   return {
-    title: W.title,
+    title: filling.title,
     rows: [
-      { key: "people", label: W.people, sub: W.peopleSub, value: i.people ? i.people.toLocaleString() : "—" },
-      { key: "inbox", label: W.inbox, sub: W.inboxSub, value: messages ? messages.toLocaleString() : "—" },
+      {
+        key: "people",
+        label: filling.people,
+        sub: filling.peopleSub,
+        value: channelsInput.people ? channelsInput.people.toLocaleString() : "—",
+      },
+      { key: "inbox", label: filling.inbox, sub: filling.inboxSub, value: messages ? messages.toLocaleString() : "—" },
       {
         key: "calendar",
-        label: W.calendar,
-        sub: cal?.counts.past !== undefined ? `${W.calendarSub} · ${cal.counts.past} back` : W.calendarSub,
+        label: filling.calendar,
+        sub: cal?.counts.past !== undefined ? `${filling.calendarSub} · ${cal.counts.past} back` : filling.calendarSub,
         value: cal?.counts.coming !== undefined ? String(cal.counts.coming) : "—",
       },
       {
         key: "reviews",
-        label: W.reviews,
-        sub: W.reviewsSub,
+        label: filling.reviews,
+        sub: filling.reviewsSub,
         value: reviews?.counts.reviews !== undefined ? reviews.counts.reviews.toLocaleString() : "—",
       },
     ],
@@ -383,17 +410,17 @@ function fillingOf(i: ChannelsInput, rows: readonly ImportRowDto[]): FirstRunCha
 }
 
 /** Where it answers, as the page draws it. */
-export function firstRunChannelsOf(i: ChannelsInput): FirstRunChannelsVM {
-  const rows = i.dto.imports ?? [];
-  const bookings = bookingsOf(i);
-  const email = emailOf(i);
-  const whatsapp = whatsappOf(i);
+export function firstRunChannelsOf(channelsInput: ChannelsInput): FirstRunChannelsVM {
+  const rows = channelsInput.dto.imports ?? [];
+  const bookings = bookingsOf(channelsInput);
+  const email = emailOf(channelsInput);
+  const whatsapp = whatsappOf(channelsInput);
   // What is on: calls (a choice the page can keep, or a line already on its way; none where no number can be had here),
   // WhatsApp chosen or connected, bookings read, the mailbox connected.
   const on = [
-    i.phone.stage === "choose" ? !i.phone.held : i.vm.lineUnderway,
+    channelsInput.phone.stage === "choose" ? !channelsInput.phone.held : channelsInput.vm.lineUnderway,
     !!whatsapp.connected || (!!whatsapp.value && whatsapp.value !== "later"),
-    !!bookings.link && i.dto.calendar.state === "ok",
+    !!bookings.link && channelsInput.dto.calendar.state === "ok",
     email.state === "connected",
   ].filter(Boolean).length;
   return {
@@ -401,7 +428,7 @@ export function firstRunChannelsOf(i: ChannelsInput): FirstRunChannelsVM {
     bookings,
     clients: clientsOf(bookings.tool, bookings.toolName),
     email,
-    filling: fillingOf(i, rows),
+    filling: fillingOf(channelsInput, rows),
     foot: FIRST_RUN_CHANNELS_WORDS.on(on),
   };
 }

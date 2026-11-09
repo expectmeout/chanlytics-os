@@ -6,6 +6,8 @@ export const ROUTES = {
   "DELETE ask/threads/[id]": { method: "DELETE", path: "/api/v1/ask/threads/[id]" },
   "DELETE capabilities/[kind]": { method: "DELETE", path: "/api/v1/capabilities/[kind]" },
   "DELETE contacts/[id]": { method: "DELETE", path: "/api/v1/contacts/[id]" },
+  "DELETE files/[id]": { method: "DELETE", path: "/api/v1/files/[id]" },
+  "DELETE files/[id]/google": { method: "DELETE", path: "/api/v1/files/[id]/google" },
   "DELETE google/connection": { method: "DELETE", path: "/api/v1/google/connection" },
   "DELETE google/link": { method: "DELETE", path: "/api/v1/google/link" },
   "DELETE lead-searches/[id]": { method: "DELETE", path: "/api/v1/lead-searches/[id]" },
@@ -13,6 +15,7 @@ export const ROUTES = {
   "DELETE mailbox-connections/[id]": { method: "DELETE", path: "/api/v1/mailbox-connections/[id]" },
   "DELETE me": { method: "DELETE", path: "/api/v1/me" },
   "DELETE me/devices": { method: "DELETE", path: "/api/v1/me/devices" },
+  "DELETE me/web-push": { method: "DELETE", path: "/api/v1/me/web-push" },
   "DELETE people/[id]/business": { method: "DELETE", path: "/api/v1/people/[id]/business" },
   "DELETE playbooks/[id]": { method: "DELETE", path: "/api/v1/playbooks/[id]" },
   "DELETE reach-outs/[id]": { method: "DELETE", path: "/api/v1/reach-outs/[id]" },
@@ -29,6 +32,7 @@ export const ROUTES = {
   "GET ask/follow-ups": { method: "GET", path: "/api/v1/ask/follow-ups" },
   "GET ask/memory": { method: "GET", path: "/api/v1/ask/memory" },
   "GET ask/morning": { method: "GET", path: "/api/v1/ask/morning" },
+  "GET ask/notice": { method: "GET", path: "/api/v1/ask/notice" },
   "GET ask/openings": { method: "GET", path: "/api/v1/ask/openings" },
   "GET ask/threads": { method: "GET", path: "/api/v1/ask/threads" },
   "GET ask/threads/[id]": { method: "GET", path: "/api/v1/ask/threads/[id]" },
@@ -59,6 +63,10 @@ export const ROUTES = {
   "GET conversations/drafts": { method: "GET", path: "/api/v1/conversations/drafts" },
   "GET escalations": { method: "GET", path: "/api/v1/escalations" },
   "GET export": { method: "GET", path: "/api/v1/export" },
+  "GET files": { method: "GET", path: "/api/v1/files" },
+  "GET files/[id]": { method: "GET", path: "/api/v1/files/[id]" },
+  "GET files/[id]/play": { method: "GET", path: "/api/v1/files/[id]/play" },
+  "GET files/[id]/view": { method: "GET", path: "/api/v1/files/[id]/view" },
   "GET google": { method: "GET", path: "/api/v1/google" },
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
@@ -68,8 +76,11 @@ export const ROUTES = {
   "GET lead-suggestions": { method: "GET", path: "/api/v1/lead-suggestions" },
   "GET leads": { method: "GET", path: "/api/v1/leads" },
   "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
+  "GET leads/[id]/emails": { method: "GET", path: "/api/v1/leads/[id]/emails" },
   "GET leads/[id]/place": { method: "GET", path: "/api/v1/leads/[id]/place" },
   "GET leads/[id]/preview": { method: "GET", path: "/api/v1/leads/[id]/preview" },
+  "GET leads/[id]/sent/[send]": { method: "GET", path: "/api/v1/leads/[id]/sent/[send]" },
+  "GET leads/[id]/words": { method: "GET", path: "/api/v1/leads/[id]/words" },
   "GET leads/back": { method: "GET", path: "/api/v1/leads/back" },
   "GET lines/codes": { method: "GET", path: "/api/v1/lines/codes" },
   "GET mailbox-connections/callback": { method: "GET", path: "/api/v1/mailbox-connections/callback" },
@@ -122,6 +133,8 @@ export const ROUTES = {
   "GET sequences/[id]/reach": { method: "GET", path: "/api/v1/sequences/[id]/reach" },
   "GET sequences/[id]/replies": { method: "GET", path: "/api/v1/sequences/[id]/replies" },
   "GET settings": { method: "GET", path: "/api/v1/settings" },
+  "GET settings/reach-out": { method: "GET", path: "/api/v1/settings/reach-out" },
+  "GET settings/reach-out/told": { method: "GET", path: "/api/v1/settings/reach-out/told" },
   "GET setup": { method: "GET", path: "/api/v1/setup" },
   "GET team": { method: "GET", path: "/api/v1/team" },
   "GET team/partner": { method: "GET", path: "/api/v1/team/partner" },
@@ -130,18 +143,23 @@ export const ROUTES = {
   "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH ask/memory/[id]": { method: "PATCH", path: "/api/v1/ask/memory/[id]" },
+  "PATCH files/[id]": { method: "PATCH", path: "/api/v1/files/[id]" },
   "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
   "PATCH mailbox-connections/[id]": { method: "PATCH", path: "/api/v1/mailbox-connections/[id]" },
   "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
+  "POST ask/act": { method: "POST", path: "/api/v1/ask/act" },
+  "POST ask/act/undo": { method: "POST", path: "/api/v1/ask/act/undo" },
+  "POST ask/alone": { method: "POST", path: "/api/v1/ask/alone" },
   "POST ask/idea": { method: "POST", path: "/api/v1/ask/idea" },
   "POST ask/memory": { method: "POST", path: "/api/v1/ask/memory" },
   "POST ask/messages/[id]/proposals/[pid]": { method: "POST", path: "/api/v1/ask/messages/[id]/proposals/[pid]" },
   "POST ask/morning": { method: "POST", path: "/api/v1/ask/morning" },
   "POST ask/quick": { method: "POST", path: "/api/v1/ask/quick" },
   "POST ask/speech": { method: "POST", path: "/api/v1/ask/speech" },
+  "POST ask/stop": { method: "POST", path: "/api/v1/ask/stop" },
   "POST ask/voice": { method: "POST", path: "/api/v1/ask/voice" },
   "POST ask/voice/end": { method: "POST", path: "/api/v1/ask/voice/end" },
   "POST ask/voice/page": { method: "POST", path: "/api/v1/ask/voice/page" },
@@ -187,12 +205,20 @@ export const ROUTES = {
   "POST conversations/[id]/booking-request": { method: "POST", path: "/api/v1/conversations/[id]/booking-request" },
   "POST conversations/[id]/draft": { method: "POST", path: "/api/v1/conversations/[id]/draft" },
   "POST conversations/[id]/hand-back": { method: "POST", path: "/api/v1/conversations/[id]/hand-back" },
+  "POST conversations/[id]/not-a-customer": { method: "POST", path: "/api/v1/conversations/[id]/not-a-customer" },
   "POST conversations/[id]/reply": { method: "POST", path: "/api/v1/conversations/[id]/reply" },
+  "POST conversations/[id]/reply-anyway": { method: "POST", path: "/api/v1/conversations/[id]/reply-anyway" },
   "POST conversations/[id]/snooze": { method: "POST", path: "/api/v1/conversations/[id]/snooze" },
   "POST conversations/[id]/take-over": { method: "POST", path: "/api/v1/conversations/[id]/take-over" },
   "POST conversations/[id]/wake": { method: "POST", path: "/api/v1/conversations/[id]/wake" },
   "POST escalations/[id]/resolve": { method: "POST", path: "/api/v1/escalations/[id]/resolve" },
   "POST fact-suggestions/[id]": { method: "POST", path: "/api/v1/fact-suggestions/[id]" },
+  "POST files/[id]/done": { method: "POST", path: "/api/v1/files/[id]/done" },
+  "POST files/[id]/google": { method: "POST", path: "/api/v1/files/[id]/google" },
+  "POST files/keep": { method: "POST", path: "/api/v1/files/keep" },
+  "POST files/post": { method: "POST", path: "/api/v1/files/post" },
+  "POST files/post/preview": { method: "POST", path: "/api/v1/files/post/preview" },
+  "POST files/start": { method: "POST", path: "/api/v1/files/start" },
   "POST google/link": { method: "POST", path: "/api/v1/google/link" },
   "POST google/locations": { method: "POST", path: "/api/v1/google/locations" },
   "POST google/refresh": { method: "POST", path: "/api/v1/google/refresh" },
@@ -221,6 +247,7 @@ export const ROUTES = {
   "POST leads/[id]/later": { method: "POST", path: "/api/v1/leads/[id]/later" },
   "POST leads/[id]/preview": { method: "POST", path: "/api/v1/leads/[id]/preview" },
   "POST leads/[id]/put-back": { method: "POST", path: "/api/v1/leads/[id]/put-back" },
+  "POST leads/[id]/send": { method: "POST", path: "/api/v1/leads/[id]/send" },
   "POST leads/[id]/stage": { method: "POST", path: "/api/v1/leads/[id]/stage" },
   "POST leads/bulk": { method: "POST", path: "/api/v1/leads/bulk" },
   "POST leads/check-again": { method: "POST", path: "/api/v1/leads/check-again" },
@@ -239,6 +266,7 @@ export const ROUTES = {
   "POST mailbox-senders": { method: "POST", path: "/api/v1/mailbox-senders" },
   "POST mailboxes": { method: "POST", path: "/api/v1/mailboxes" },
   "POST me/invitations/accept": { method: "POST", path: "/api/v1/me/invitations/accept" },
+  "POST me/web-push": { method: "POST", path: "/api/v1/me/web-push" },
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
   "POST messages/[id]/send-now": { method: "POST", path: "/api/v1/messages/[id]/send-now" },
   "POST messages/[id]/steer": { method: "POST", path: "/api/v1/messages/[id]/steer" },
@@ -302,6 +330,7 @@ export const ROUTES = {
   "POST sequences/[id]/return": { method: "POST", path: "/api/v1/sequences/[id]/return" },
   "POST sequences/[id]/rewrite": { method: "POST", path: "/api/v1/sequences/[id]/rewrite" },
   "POST sequences/[id]/steps": { method: "POST", path: "/api/v1/sequences/[id]/steps" },
+  "POST sequences/[id]/steps/[step]/lead-words": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/lead-words" },
   "POST sequences/[id]/steps/[step]/test": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/test" },
   "POST sequences/[id]/steps/[step]/words": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/words" },
   "POST sequences/draft": { method: "POST", path: "/api/v1/sequences/draft" },
@@ -361,6 +390,8 @@ export type Routes = {
   "DELETE ask/threads/[id]": typeof import("../../app/api/v1/ask/threads/[id]/route").DELETE;
   "DELETE capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").DELETE;
   "DELETE contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").DELETE;
+  "DELETE files/[id]": typeof import("../../app/api/v1/files/[id]/route").DELETE;
+  "DELETE files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").DELETE;
   "DELETE google/connection": typeof import("../../app/api/v1/google/connection/route").DELETE;
   "DELETE google/link": typeof import("../../app/api/v1/google/link/route").DELETE;
   "DELETE lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").DELETE;
@@ -368,6 +399,7 @@ export type Routes = {
   "DELETE mailbox-connections/[id]": typeof import("../../app/api/v1/mailbox-connections/[id]/route").DELETE;
   "DELETE me": typeof import("../../app/api/v1/me/route").DELETE;
   "DELETE me/devices": typeof import("../../app/api/v1/me/devices/route").DELETE;
+  "DELETE me/web-push": typeof import("../../app/api/v1/me/web-push/route").DELETE;
   "DELETE people/[id]/business": typeof import("../../app/api/v1/people/[id]/business/route").DELETE;
   "DELETE playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").DELETE;
   "DELETE reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").DELETE;
@@ -384,6 +416,7 @@ export type Routes = {
   "GET ask/follow-ups": typeof import("../../app/api/v1/ask/follow-ups/route").GET;
   "GET ask/memory": typeof import("../../app/api/v1/ask/memory/route").GET;
   "GET ask/morning": typeof import("../../app/api/v1/ask/morning/route").GET;
+  "GET ask/notice": typeof import("../../app/api/v1/ask/notice/route").GET;
   "GET ask/openings": typeof import("../../app/api/v1/ask/openings/route").GET;
   "GET ask/threads": typeof import("../../app/api/v1/ask/threads/route").GET;
   "GET ask/threads/[id]": typeof import("../../app/api/v1/ask/threads/[id]/route").GET;
@@ -414,6 +447,10 @@ export type Routes = {
   "GET conversations/drafts": typeof import("../../app/api/v1/conversations/drafts/route").GET;
   "GET escalations": typeof import("../../app/api/v1/escalations/route").GET;
   "GET export": typeof import("../../app/api/v1/export/route").GET;
+  "GET files": typeof import("../../app/api/v1/files/route").GET;
+  "GET files/[id]": typeof import("../../app/api/v1/files/[id]/route").GET;
+  "GET files/[id]/play": typeof import("../../app/api/v1/files/[id]/play/route").GET;
+  "GET files/[id]/view": typeof import("../../app/api/v1/files/[id]/view/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
@@ -423,8 +460,11 @@ export type Routes = {
   "GET lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").GET;
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
   "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
+  "GET leads/[id]/emails": typeof import("../../app/api/v1/leads/[id]/emails/route").GET;
   "GET leads/[id]/place": typeof import("../../app/api/v1/leads/[id]/place/route").GET;
   "GET leads/[id]/preview": typeof import("../../app/api/v1/leads/[id]/preview/route").GET;
+  "GET leads/[id]/sent/[send]": typeof import("../../app/api/v1/leads/[id]/sent/[send]/route").GET;
+  "GET leads/[id]/words": typeof import("../../app/api/v1/leads/[id]/words/route").GET;
   "GET leads/back": typeof import("../../app/api/v1/leads/back/route").GET;
   "GET lines/codes": typeof import("../../app/api/v1/lines/codes/route").GET;
   "GET mailbox-connections/callback": typeof import("../../app/api/v1/mailbox-connections/callback/route").GET;
@@ -477,6 +517,8 @@ export type Routes = {
   "GET sequences/[id]/reach": typeof import("../../app/api/v1/sequences/[id]/reach/route").GET;
   "GET sequences/[id]/replies": typeof import("../../app/api/v1/sequences/[id]/replies/route").GET;
   "GET settings": typeof import("../../app/api/v1/settings/route").GET;
+  "GET settings/reach-out": typeof import("../../app/api/v1/settings/reach-out/route").GET;
+  "GET settings/reach-out/told": typeof import("../../app/api/v1/settings/reach-out/told/route").GET;
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
   "GET team": typeof import("../../app/api/v1/team/route").GET;
   "GET team/partner": typeof import("../../app/api/v1/team/partner/route").GET;
@@ -485,18 +527,23 @@ export type Routes = {
   "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH ask/memory/[id]": typeof import("../../app/api/v1/ask/memory/[id]/route").PATCH;
+  "PATCH files/[id]": typeof import("../../app/api/v1/files/[id]/route").PATCH;
   "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;
   "PATCH mailbox-connections/[id]": typeof import("../../app/api/v1/mailbox-connections/[id]/route").PATCH;
   "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
+  "POST ask/act": typeof import("../../app/api/v1/ask/act/route").POST;
+  "POST ask/act/undo": typeof import("../../app/api/v1/ask/act/undo/route").POST;
+  "POST ask/alone": typeof import("../../app/api/v1/ask/alone/route").POST;
   "POST ask/idea": typeof import("../../app/api/v1/ask/idea/route").POST;
   "POST ask/memory": typeof import("../../app/api/v1/ask/memory/route").POST;
   "POST ask/messages/[id]/proposals/[pid]": typeof import("../../app/api/v1/ask/messages/[id]/proposals/[pid]/route").POST;
   "POST ask/morning": typeof import("../../app/api/v1/ask/morning/route").POST;
   "POST ask/quick": typeof import("../../app/api/v1/ask/quick/route").POST;
   "POST ask/speech": typeof import("../../app/api/v1/ask/speech/route").POST;
+  "POST ask/stop": typeof import("../../app/api/v1/ask/stop/route").POST;
   "POST ask/voice": typeof import("../../app/api/v1/ask/voice/route").POST;
   "POST ask/voice/end": typeof import("../../app/api/v1/ask/voice/end/route").POST;
   "POST ask/voice/page": typeof import("../../app/api/v1/ask/voice/page/route").POST;
@@ -542,12 +589,20 @@ export type Routes = {
   "POST conversations/[id]/booking-request": typeof import("../../app/api/v1/conversations/[id]/booking-request/route").POST;
   "POST conversations/[id]/draft": typeof import("../../app/api/v1/conversations/[id]/draft/route").POST;
   "POST conversations/[id]/hand-back": typeof import("../../app/api/v1/conversations/[id]/hand-back/route").POST;
+  "POST conversations/[id]/not-a-customer": typeof import("../../app/api/v1/conversations/[id]/not-a-customer/route").POST;
   "POST conversations/[id]/reply": typeof import("../../app/api/v1/conversations/[id]/reply/route").POST;
+  "POST conversations/[id]/reply-anyway": typeof import("../../app/api/v1/conversations/[id]/reply-anyway/route").POST;
   "POST conversations/[id]/snooze": typeof import("../../app/api/v1/conversations/[id]/snooze/route").POST;
   "POST conversations/[id]/take-over": typeof import("../../app/api/v1/conversations/[id]/take-over/route").POST;
   "POST conversations/[id]/wake": typeof import("../../app/api/v1/conversations/[id]/wake/route").POST;
   "POST escalations/[id]/resolve": typeof import("../../app/api/v1/escalations/[id]/resolve/route").POST;
   "POST fact-suggestions/[id]": typeof import("../../app/api/v1/fact-suggestions/[id]/route").POST;
+  "POST files/[id]/done": typeof import("../../app/api/v1/files/[id]/done/route").POST;
+  "POST files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").POST;
+  "POST files/keep": typeof import("../../app/api/v1/files/keep/route").POST;
+  "POST files/post": typeof import("../../app/api/v1/files/post/route").POST;
+  "POST files/post/preview": typeof import("../../app/api/v1/files/post/preview/route").POST;
+  "POST files/start": typeof import("../../app/api/v1/files/start/route").POST;
   "POST google/link": typeof import("../../app/api/v1/google/link/route").POST;
   "POST google/locations": typeof import("../../app/api/v1/google/locations/route").POST;
   "POST google/refresh": typeof import("../../app/api/v1/google/refresh/route").POST;
@@ -576,6 +631,7 @@ export type Routes = {
   "POST leads/[id]/later": typeof import("../../app/api/v1/leads/[id]/later/route").POST;
   "POST leads/[id]/preview": typeof import("../../app/api/v1/leads/[id]/preview/route").POST;
   "POST leads/[id]/put-back": typeof import("../../app/api/v1/leads/[id]/put-back/route").POST;
+  "POST leads/[id]/send": typeof import("../../app/api/v1/leads/[id]/send/route").POST;
   "POST leads/[id]/stage": typeof import("../../app/api/v1/leads/[id]/stage/route").POST;
   "POST leads/bulk": typeof import("../../app/api/v1/leads/bulk/route").POST;
   "POST leads/check-again": typeof import("../../app/api/v1/leads/check-again/route").POST;
@@ -594,6 +650,7 @@ export type Routes = {
   "POST mailbox-senders": typeof import("../../app/api/v1/mailbox-senders/route").POST;
   "POST mailboxes": typeof import("../../app/api/v1/mailboxes/route").POST;
   "POST me/invitations/accept": typeof import("../../app/api/v1/me/invitations/accept/route").POST;
+  "POST me/web-push": typeof import("../../app/api/v1/me/web-push/route").POST;
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;
   "POST messages/[id]/send-now": typeof import("../../app/api/v1/messages/[id]/send-now/route").POST;
   "POST messages/[id]/steer": typeof import("../../app/api/v1/messages/[id]/steer/route").POST;
@@ -657,6 +714,7 @@ export type Routes = {
   "POST sequences/[id]/return": typeof import("../../app/api/v1/sequences/[id]/return/route").POST;
   "POST sequences/[id]/rewrite": typeof import("../../app/api/v1/sequences/[id]/rewrite/route").POST;
   "POST sequences/[id]/steps": typeof import("../../app/api/v1/sequences/[id]/steps/route").POST;
+  "POST sequences/[id]/steps/[step]/lead-words": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/lead-words/route").POST;
   "POST sequences/[id]/steps/[step]/test": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/test/route").POST;
   "POST sequences/[id]/steps/[step]/words": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/words/route").POST;
   "POST sequences/draft": typeof import("../../app/api/v1/sequences/draft/route").POST;

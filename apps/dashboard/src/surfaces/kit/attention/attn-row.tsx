@@ -15,9 +15,10 @@
  */
 import { stateOf } from "@chanlytics/contracts";
 import type { KeyboardEvent, MouseEventHandler, ReactNode } from "react";
-import { showTip } from "../../legacy-verbs";
+import { showTip } from "../../frame-verbs";
 import { Face, type FacePerson } from "../face/face";
 import { Icon } from "../icon/icon";
+import { SAYS_WHEN } from "../says-when";
 
 /** One verb of the row: its words, what it does, and the honesty gate's props (`window.gate(...)`), spread after its handlers. */
 interface AttnAct {
@@ -134,7 +135,7 @@ function noteMark(note: string) {
 function attnStatus(status: readonly ReactNode[], note: string) {
   if (!status.length) return null;
   return (
-    <div className="cl-attn-status">
+    <div className="cl-attn-status" {...SAYS_WHEN}>
       {status.map((seg, i) => (
         <span key={i} className={i === 0 ? "lead" : ""}>
           {i > 0 && <span className="sep"> · </span>}
@@ -174,7 +175,7 @@ function attnName(
       {mark}
       {meta ? <span className="cl-attn-meta">{meta}</span> : null}
       {wait ? (
-        <span className="cl-attn-wait" data-long={wait.long || undefined}>
+        <span className="cl-attn-wait" data-long={wait.long || undefined} {...SAYS_WHEN}>
           {wait.words}
         </span>
       ) : null}
@@ -184,10 +185,12 @@ function attnName(
 
 /**
  * The row's one sentence: their words in quotes, after what they are about in bold where it says (an email's subject), and
- * the wire's glyph before them where the row names it.
+ * the wire's glyph before them where the row names it. Their words are theirs, whatever they say; a sentence of ours may say how
+ * long a run has waited, with no element of its own to mark, so it says so whole.
  */
 function attnSentence(sentence: string, quoted: boolean, lead: string, via: { glyph: string; words: string } | null) {
   const said = quoted ? `“${sentence}”` : sentence;
+  const when = quoted ? undefined : SAYS_WHEN;
   const wire = via ? (
     <span className="cl-attn-via">
       <Icon name={via.glyph} size={12} />
@@ -196,13 +199,13 @@ function attnSentence(sentence: string, quoted: boolean, lead: string, via: { gl
   ) : null;
   if (!lead)
     return (
-      <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>
+      <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`} {...when}>
         {wire}
         {said}
       </div>
     );
   return (
-    <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`}>
+    <div className={`cl-attn-sentence ${quoted ? "quoted" : ""}`} {...when}>
       {wire}
       <b>{lead}</b>
       {" — "}

@@ -6,7 +6,7 @@
  * nothing waits for approval or spends. The run, its handed sends and the steps are written whole by the door.
  */
 import { handStepWords } from "@chanlytics/contracts";
-import { handStepIdFor, reachOutRunIdFor, sendIdFor } from "./reach-out-ids";
+import { handStepIdFor, getReachOutRunId, sendIdFor } from "./reach-out-ids";
 import { followerRefusalOf } from "./reach-out-ports";
 import type { HandStep, HandStepPorts, ReachOutFollower, ReachOutRunOutcome } from "./reach-out-ports";
 
@@ -22,15 +22,15 @@ export async function runHandStep(
   const followers = await ports.followers(step);
   // A lead the step refuses for good is passed over, its place ended with why (00455); someone away waits for the day.
   const passed = followers.flatMap((f) => {
-    const why = followerRefusalOf(f, { bounced: false });
-    return why && why !== "outreach_away" ? [{ lead_id: f.lead_id, why }] : [];
+    const reason = followerRefusalOf(f, { bounced: false });
+    return reason && reason !== "outreach_away" ? [{ lead_id: f.lead_id, why: reason }] : [];
   });
   if (passed.length > 0) await ports.passOver(step.root_id, passed);
   const leads = followers.filter((f) => !doorRefuses(f)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
 
   const names = await ports.businessNames(leads.map((l) => l.lead_id));
-  const runId = await reachOutRunIdFor(step.id, cmd.runFor);
+  const runId = await getReachOutRunId(step.id, cmd.runFor);
   const items = await Promise.all(
     leads.map(async (l) => ({
       send_id: await sendIdFor(runId, l.lead_id),
@@ -40,6 +40,8 @@ export async function runHandStep(
       source_id: await handStepIdFor(step.id, l.lead_id),
     })),
   );
-  const r = await ports.handRun({ stepId: step.id, runId, day: cmd.runFor, items });
-  return r.made > 0 ? { outcome: "sent", planned: r.made } : { outcome: "empty", reason: "already_ran", planned: 0 };
+  const handRun = await ports.handRun({ stepId: step.id, runId, day: cmd.runFor, items });
+  return handRun.made > 0
+    ? { outcome: "sent", planned: handRun.made }
+    : { outcome: "empty", reason: "already_ran", planned: 0 };
 }

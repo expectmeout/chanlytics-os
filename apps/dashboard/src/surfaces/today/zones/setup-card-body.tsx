@@ -6,17 +6,16 @@
  * The rows are Setup's own (surfaces/setup/rows: `SetupCardRow`, `SetupRows`), imported; each row's Skip is this
  * card's (SkipMenu), so the first run's own page never loads the kit's Menu.
  */
-import { useLayoutEffect, useState, type ReactNode } from "react";
+import { useLayoutEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { restEndsDay, type SetupPutOffWhy } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "@/surfaces/setup/first-run/model/first-run-helpers";
 import {
-  FIRST_RUN_HELPERS,
   SETUP_CARD_WORDS,
-  restEndsDay,
   type SetupCardPutOff,
   type SetupCardVM,
   type SetupCardWho,
-  type SetupPutOffWhy,
-} from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+} from "@/surfaces/setup/first-run/model/card";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
@@ -26,6 +25,7 @@ import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
 import { appNavigate, refusalFlash, useToast, type Flash } from "../shell";
 import { useWaitsOnToday } from "../../needs-you";
+import { useTodayOnPhone } from "../phone";
 import { holdsCoral, useQueueHoldsCoral } from "../queue-coral";
 
 /**
@@ -117,13 +117,15 @@ function useFold(): [boolean, () => void] {
  * A row's Skip (the refined canvas, 31 Oct 2026): a menu that says both choices before either is pressed: for a week,
  * back on its day; or "I don't need this", with where it is set up from then; and what waiting costs, where it costs
  * (the kept number's forwarding). It was one press that put a row off for a week and the next time for good, and said
- * which only in the toast after.
+ * which only in the toast after. On a phone it is the caret of the row's one pill, its word left to its name (the phone
+ * pass, 3 Nov 2026), in the act's coral where the act leads (`lead`).
  */
 function SkipMenu(p: {
   name: string;
   put: SetupCardPutOff;
   word: string;
   day: string;
+  lead: boolean;
   testid: string;
   onPut: (why: SetupPutOffWhy, said: string) => void;
 }) {
@@ -133,8 +135,14 @@ function SkipMenu(p: {
       align="end"
       label={W.menu(p.name)}
       trigger={
-        <Button variant="quiet" size="sm" data-testid={p.testid}>
-          {p.word}
+        <Button
+          variant="quiet"
+          size="sm"
+          aria-label={W.menu(p.name)}
+          data-lead={p.lead || undefined}
+          data-testid={p.testid}
+        >
+          <span className="setup-card-long">{p.word}</span>
           <Icon name="chevron-down" size={12} />
         </Button>
       }
@@ -167,6 +175,7 @@ function remindRow(
         tone=""
         stateWords={remind.stateWords}
         name={remind.name}
+        nameShort={remind.nameShort}
         note={remind.back ? { long: skip.back, short: skip.backShort } : null}
         sentence={remind.words}
         cta={{ label: remind.label, onClick: () => nav(remind.to) }}
@@ -203,6 +212,46 @@ function optionalRows(
   );
 }
 
+/**
+ * Whether folding hides anything. Folded, the card keeps saying what is next, its one row (8 Nov 2026: "1 step left" named
+ * no step, and folded away "Calls aren't answered yet" under a head that said nothing needs you): what folds is everything
+ * after it, and where nothing is, there is no chevron to press.
+ */
+const foldsAnything = (card: SetupCardVM): boolean =>
+  (card.start
+    ? card.kept.length + card.done.length
+    : card.rows.length + (card.remind ? 1 : 0) - 1 + card.done.length + (card.hide ? 1 : 0)) > 0;
+
+/** What Hide says: the day it comes back, and what waiting costs where the kept number is among the rows. */
+const hiddenSaid = (day: string, cost: string | null): string =>
+  cost ? `${SETUP_CARD_WORDS.hidden(day)} ${cost}` : SETUP_CARD_WORDS.hidden(day);
+
+/**
+ * A press anywhere on the head's line folds the card; one on its own buttons is theirs, the chevron folding it itself. (8 Nov
+ * 2026: the chevron's press stretched over the line with CSS reached a mouse, and a finger's click fell through to the words.)
+ */
+const foldFromHead = (toggle: () => void) => (e: MouseEvent) => {
+  if (e.target instanceof Element && !e.target.closest("button")) toggle();
+};
+
+/** The chevron that folds the card and opens it, the press a key reaches. Called, not drawn. */
+function foldChevron(short: boolean, toggle: () => void) {
+  return (
+    <Button
+      variant="quiet"
+      size="sm"
+      iconOnly
+      aria-label={short ? SETUP_CARD_WORDS.open : SETUP_CARD_WORDS.fold}
+      aria-expanded={!short}
+      onClick={toggle}
+      data-folded={short || undefined}
+      data-testid="today-setup-fold"
+    >
+      <Icon name="chevron-down" size={14} />
+    </Button>
+  );
+}
+
 // What is left to set up, as one card above the queue in its column (the first run's Today card, canvas R10 and P9):
 // while a step is open, the one row that opens the first run; after, Setup's own optional rows in the order they help
 // most, each with its act and its Skip, and the reminder's row last. Two presses that do two things (the refined canvas,
@@ -211,7 +260,8 @@ function optionalRows(
 // on its day, or for good, with where it is set up from then (contracts setupPutOffNext, `week` and `answer`). Each put-
 // off is said in the card's toast with its Undo, which puts the rows back as they stood. Gone once nothing is left. Every
 // word is contracts' (first-run-card.ts setupCardOf); the rows are Setup's own, drawn as the card's compact rows. A phone
-// draws the same rows and acts as a desk, each row without its sentence (mobile.css).
+// draws the same rows and acts, each row one line (the phone pass, 3 Nov 2026): its short name and one pill, the act and
+// Skip's caret (mobile.css), with no sentence; the head its title on one line, and Hide for a week the card's last row.
 export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
@@ -221,10 +271,14 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   const queued = useQueueHoldsCoral();
   const waiting = needs || queued;
   const [folded, toggle] = useFold();
+  // On a phone the head is the card's title on one line with its chevron, and Hide for a week the open card's last row
+  // (the phone pass, 3 Nov 2026: beside Hide the title broke onto two lines).
+  const phone = useTodayOnPhone();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
   // Its first act is the page's coral while nothing before it in the walk holds it and it draws one: told, so Ask found
-  // goes quiet beside it (queue-coral.ts). A folded card draws none and hands it on; so does a card gone for the week.
-  const holds = !!card && !waiting && !folded && (!!card.start || card.rows.length > 0);
+  // goes quiet beside it (queue-coral.ts). A folded card still draws its next step, so it holds it too; a card gone for the
+  // week hands it on.
+  const holds = !!card && !waiting && (!!card.start || card.rows.length > 0);
   useLayoutEffect(() => {
     holdsCoral("setup", holds);
   }, [holds]);
@@ -249,11 +303,9 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
   const hide = card.hide;
   const hideAll = () =>
     hide &&
-    putAway(
-      [...card.rows.map((r) => r.id), ...(remind ? [remind.id] : [])],
-      "week",
-      hide.cost ? `${SETUP_CARD_WORDS.hidden(day)} ${hide.cost}` : SETUP_CARD_WORDS.hidden(day),
-    );
+    putAway([...card.rows.map((r) => r.id), ...(remind ? [remind.id] : [])], "week", hiddenSaid(day, hide.cost));
+  // The row whose act is the page's coral (optionalRows' `primary`): its Skip's caret wears the coral with it on a phone.
+  const leadId = waiting ? null : (card.rows[0]?.id ?? null);
   // A row's Skip, by its id: a menu of a week or for good, its words the row's own (SetupCardRowVM.put).
   const skipMenu = (id: string, name: string, put: SetupCardPutOff | null) =>
     put && card.skip ? (
@@ -262,6 +314,7 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
         put={put}
         word={card.skip.put}
         day={day}
+        lead={id === leadId}
         testid={`setup-later-${id}`}
         onPut={(why, said) => void putAway([id], why, said)}
       />
@@ -270,49 +323,48 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
     const row = card.rows.find((r) => r.id === id);
     return row ? skipMenu(id, row.title, row.put) : null;
   };
+  const hideButton = hide ? (
+    <Button variant="quiet" size="sm" onClick={() => void hideAll()} data-testid="today-setup-hide">
+      {hide.put}
+    </Button>
+  ) : null;
+  const foldable = foldsAnything(card);
+  const short = folded && foldable;
+  const shownCard = short ? { ...card, rows: card.rows.slice(0, 1) } : card;
+  const remindDrawn =
+    remind && card.skip && (!short || card.rows.length === 0)
+      ? remindRow(remind, card.skip, nav, skipMenu(remind.id, remind.name, remind.put))
+      : null;
   return (
     <section className="tq today-setup" data-testid="today-setup">
-      <div className="setup-card-head">
-        <span className="setup-card-title">
+      {/* The head's whole line folds it, as Your history's does; the chevron is the press a key and a reader reach. */}
+      <div
+        className="setup-card-head tz-head"
+        role="presentation"
+        onClick={foldable ? foldFromHead(toggle) : undefined}
+        data-foldable={foldable || undefined}
+      >
+        <span className="setup-card-title tz-name">
           {card.title}
-          <span className="setup-card-left" data-testid="today-setup-left">
+          <span className="setup-card-left tz-fact" data-testid="today-setup-left">
             {card.left}
           </span>
         </span>
-        {!folded && hide ? (
-          <Button variant="quiet" size="sm" onClick={() => void hideAll()} data-testid="today-setup-hide">
-            {hide.put}
-          </Button>
-        ) : null}
-        <Button
-          variant="quiet"
-          size="sm"
-          iconOnly
-          aria-label={folded ? SETUP_CARD_WORDS.open : SETUP_CARD_WORDS.fold}
-          aria-expanded={!folded}
-          onClick={toggle}
-          data-folded={folded || undefined}
-          data-testid="today-setup-fold"
-        >
-          <Icon name="chevron-down" size={14} />
-        </Button>
+        {!short && !phone ? hideButton : null}
+        {foldable ? foldChevron(short, toggle) : null}
       </div>
-      {folded ? null : (
-        <>
-          {card.start ? startRow(card.start, card.left, nav, waiting) : null}
-          {card.start
-            ? ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
-            : optionalRows(S, card, flash, {
-                tail:
-                  remind && card.skip
-                    ? remindRow(remind, card.skip, nav, skipMenu(remind.id, remind.name, remind.put))
-                    : null,
-                quiet: waiting,
-                skip: skipRow,
-              })}
-          {ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
-        </>
-      )}
+      {card.start ? startRow(card.start, card.left, nav, waiting) : null}
+      {card.start
+        ? short
+          ? null
+          : ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
+        : optionalRows(S, shownCard, flash, {
+            tail: remindDrawn,
+            quiet: waiting,
+            skip: skipRow,
+          })}
+      {short ? null : ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
+      {!short && phone ? hideButton : null}
       {toastNode}
     </section>
   );

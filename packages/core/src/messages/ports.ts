@@ -1,20 +1,23 @@
 /**
  * The send path's view of the world: what the job verbs need, named for
  * what each means. The adapter that knows the tables and the runtime's
- * services is packages/jobs/src/handlers.ts.
+ * services is packages/jobs/src/handlers/handlers.ts.
  */
 import type {
   AppointmentState,
   FeedNames,
   FreedTimeCalendar,
-  FreedTimeRow,
+  FreedTimeLine,
   JobNews,
   SendPurpose,
+  TenantId,
+  ContactId,
 } from "@chanlytics/contracts";
-import type { EmailRequest } from "@chanlytics/channels";
-import type { Json, MessageVersionRow } from "@chanlytics/db";
+import type { EmailRequest } from "@chanlytics/channels/email";
+import type { Json } from "@chanlytics/db/types";
+import type { MessageVersionRow } from "@chanlytics/db/campaigns";
 import type { CancelBroadcastPorts } from "../campaigns/ports";
-import type { Channel, Delivered, Delivery } from "../deliver";
+import type { Channel, Delivered, Delivery } from "../deliver/deliver";
 
 /** The door, handed in: a verb never builds it, so a test can answer whatever the case needs. */
 export type Door = (d: Delivery) => Promise<Delivered>;
@@ -83,7 +86,7 @@ export interface SendQueuedPorts {
 
 /** The command sendQueued takes: here rather than in send.ts, so the port above can name its payload without a cycle. */
 export interface SendQueuedCommand {
-  tenantId: string;
+  tenantId: TenantId;
   /**
    * `to_phone` on a phone's wire, `to_email` on email's, `to_instagram` (the person's Instagram-scoped id) on a DM's:
    * an address never travels in a field read as a number.
@@ -130,7 +133,7 @@ export interface ProvisionLinePorts {
     deadline?: number,
   ): Promise<{ ok: boolean; step?: string; error?: string; more?: boolean }>;
   /** One more job of this kind, for the steps a run left at its deadline. */
-  next?(payload: Record<string, unknown>): Promise<void>;
+  next?(payload: { line_id: string; by: "owner" | "support" | "sweep" }): Promise<void>;
   /** Epoch ms: the run starts no provider call after it. */
   deadline?: number;
 }
@@ -151,7 +154,7 @@ export interface BroadcastRow {
   offered_from?: string | null;
 }
 export interface RecipientRow {
-  contact_id: string;
+  contact_id: ContactId;
   facts: unknown;
   /** The channel the run picked for them at enrolment (contracts reachFor); null or absent on a run made before: WhatsApp. */
   channel?: string | null;
@@ -162,7 +165,7 @@ export interface RecipientRow {
   attempt?: number;
 }
 export interface ContactRow {
-  id: string;
+  id: ContactId;
   phone_e164: string | null;
   /** Their email address as stored, which the door compares a frozen request's To with; null or absent with none. */
   email?: string | null;
@@ -196,9 +199,9 @@ export interface BroadcastBatchPorts {
   startSending(id: string): Promise<boolean>;
   /**
    * The appointment a freed time's batch offers the time of, and what stands on the record over the days ahead (db
-   * freedTimeFactsOf), or null when the record no longer holds it (decision 0082): read before the batch's first send.
+   * findFreedTimeFacts), or null when the record no longer holds it (decision 0082): read before the batch's first send.
    */
-  freedTimeFacts(appointmentId: string): Promise<{ row: FreedTimeRow; calendar: FreedTimeCalendar } | null>;
+  freedTimeFacts(appointmentId: string): Promise<{ row: FreedTimeLine; calendar: FreedTimeCalendar } | null>;
   /** The batch moved to canceled as the system, only from the state it was read in (db cancelBroadcastFrom). */
   cancelFrom: CancelBroadcastPorts["cancel"];
   /** The system's decision on the ledger (db recordSystemDecision): its id. */
@@ -231,7 +234,7 @@ export interface BroadcastBatchPorts {
   /** Up to `limit` people still queued; throws when it cannot be read. */
   batch(id: string, limit: number): Promise<RecipientRow[]>;
   /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */
-  contacts(contactIds: string[]): Promise<Map<string, ContactRow>>;
+  contacts(contactIds: ContactId[]): Promise<Map<string, ContactRow>>;
   /**
    * The appointments a visit run's recipients were drawn for, by the key the calendar keeps each under (decision 0002,
    * contracts appointmentKeyOf), one read for the batch; a key with no row is absent. Absent where the runtime keeps no
@@ -249,7 +252,7 @@ export interface BroadcastBatchPorts {
   /** The thread this send belongs to, never created here. */
   target(phoneE164: string): Promise<{ conversationId: string } | null>;
   /** The same thread by the person, for an email, which reaches them by an address rather than a number; null for one that is gone. */
-  targetOfContact(contactId: string): Promise<{ conversationId: string } | null>;
+  targetOfContact(contactId: ContactId): Promise<{ conversationId: string } | null>;
   /**
    * The request one person's email leaves as, frozen (channels buildEmailRequest) from the hosted mailbox: From the
    * workspace's address, Reply-To its reply route, To `to`, the subject and body, and `footer` after them, under
@@ -271,7 +274,7 @@ export interface BroadcastBatchPorts {
    * sealed for them: `/u/<token>` on the deployment's unsubscribe origin (channels unsubscribeUrl). Null where this runtime
    * cannot seal one (no secret, no campaigns domain): the person is held, an offer never goes without its way out.
    */
-  unsubscribeUrl(i: { messageId: string; contactId: string }): Promise<string | null>;
+  unsubscribeUrl(i: { messageId: string; contactId: ContactId }): Promise<string | null>;
   /**
    * An email written as the queued row its request was frozen for, before it is sent (deliver assertFrozenFor), and only
    * once its person is claimed, so a claim that is lost or fails leaves no row behind: "written" when this call made it,
@@ -282,7 +285,7 @@ export interface BroadcastBatchPorts {
   queueEmail(row: {
     id: string;
     conversationId: string;
-    contactId: string;
+    contactId: ContactId;
     body: string;
     /** The frozen request: the row keeps it as meta.email (subject, To and the request itself), as every email's row does. */
     request: EmailRequest;
@@ -297,7 +300,7 @@ export interface BroadcastBatchPorts {
    */
   withdrawEmail(messageId: string): Promise<void>;
   /**
-   * How many emails or texts this workspace's campaigns sent this calendar month (packages/db campaignMonthSent): what
+   * How many emails or texts this workspace's campaigns sent this calendar month (packages/db recordCampaignMonthSent): what
    * contracts CAMPAIGN_MONTH_ALLOWANCE is held against. Throws when it cannot be read.
    */
   monthSent(channel: "sms" | "email"): Promise<number>;
@@ -311,7 +314,7 @@ export interface BroadcastBatchPorts {
    * not check" read as "never sent" is exactly the second send this exists
    * to stop.
    */
-  alreadySent(id: string, contactIds: string[]): Promise<Map<string, { id: string; sentAt: string | null }>>;
+  alreadySent(id: string, contactIds: ContactId[]): Promise<Map<string, { id: string; sentAt: string | null }>>;
   /**
    * Whether any person on the run, whatever their state, goes another way than `than` (a recipient row's channel): the
    * run's own question when one channel is held for everyone on it. WhatsApp's template not being approved holds the run's
@@ -325,7 +328,7 @@ export interface BroadcastBatchPorts {
    * took the person, true, or false when they were no longer queued (another run took them first), and then nobody is
    * claimed twice, so nobody is sent twice. Every other write answers true.
    */
-  mark(id: string, contactId: string, patch: RecipientMark): Promise<boolean>;
+  mark(id: string, contactId: ContactId, patch: RecipientMark): Promise<boolean>;
   deliver: Door;
   /**
    * Why the run's wire cannot be bound right now -- the workspace's credentials could not be read (deliver
@@ -392,7 +395,7 @@ export interface BatchCarry {
   stalls?: number;
 }
 export interface BroadcastBatchCommand extends BatchCarry {
-  tenantId: string;
+  tenantId: TenantId;
   broadcastId: string;
   deadline: number;
   /**

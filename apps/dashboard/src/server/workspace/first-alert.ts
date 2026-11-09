@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { putTenantConfig, type Database } from "@chanlytics/db";
+import { putTenantConfig } from "@chanlytics/db/workspace";
+import type { Database } from "@chanlytics/db/types";
 import { withFirstAlertAddress, withOwnerAlertAddress, type TenantConfig } from "@chanlytics/contracts";
-import { log } from "@/server/log";
-import { configRowOf } from "@/server/workspace/config-row";
+import { log } from "@/server/shared/log";
+import { findConfigRow } from "@/server/workspace/config-row";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Give a workspace just made its creator's address as its first alert address
@@ -15,7 +17,7 @@ import { configRowOf } from "@/server/workspace/config-row";
  */
 export async function giveFirstAlertAddress(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   email: string | null | undefined,
   by: string | null,
 ): Promise<boolean> {
@@ -30,7 +32,7 @@ export async function giveFirstAlertAddress(
  */
 export async function giveOwnerAlertAddress(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   email: string | null | undefined,
   by: string | null,
 ): Promise<boolean> {
@@ -40,12 +42,12 @@ export async function giveOwnerAlertAddress(
 /** The row read, the next config made from it, and the versioned write: false when there was nothing to save. */
 async function saveAlerts(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   by: string | null,
   nextOf: (config: unknown) => TenantConfig | null,
 ): Promise<boolean> {
   try {
-    const row = await configRowOf(db, tenantId);
+    const row = await findConfigRow(db, tenantId);
     const next = row ? nextOf(row.config) : null;
     if (!row || !next) return false;
     const put = await putTenantConfig(db, tenantId, next, row.version, by);

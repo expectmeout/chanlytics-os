@@ -19,20 +19,13 @@ import {
   cleanListName,
   cleanListRule,
 } from "../../../../people/lists";
-import { load } from "../../../../readers";
+import { load } from "../../../../shared/reader";
 import { audiencePool } from "../../../../readers/audience-pool";
 import { lists as listsReader } from "../../../../readers/lists";
-import {
-  actAction,
-  defineActions,
-  propose,
-  refuse,
-  str,
-  type ProposalOutcome,
-  type ToolContext,
-  nullsLeftOut,
-} from "../../context";
-import { selected } from "./people";
+import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
+import { propose, refuse } from "../../context/context";
+import { str, nullsLeftOut } from "../../context/tool-reads";
+import { readSelected } from "./people";
 
 /** What they asked that the vocabulary cannot say, kept as the drafter keeps it: a few words, trimmed. */
 const LEFT_OUT = ListDraftAnswerSchema.shape.cannot;
@@ -71,11 +64,11 @@ function ruleOf(all: unknown[]): { rule: NonNullable<ReturnType<typeof asListRul
  * People counts it. The card keeps what it was, for its undo.
  */
 async function proposeListChange(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { list_id: string; name?: string; all?: unknown[]; cannot?: string },
 ): Promise<ProposalOutcome> {
   const id = str(input.list_id, 40);
-  const kept = (await load(t.rc, listsReader, undefined)).data.lists;
+  const kept = (await load(toolContext.rc, listsReader, undefined)).data.lists;
   const list = kept.find((l) => l.id === id && !l.archived_at);
   if (!list) return refuse("list_id must be one of the workspace's own lists (people with action lists)");
   let name: string | undefined;
@@ -100,7 +93,7 @@ async function proposeListChange(
   if (!name && !rule) return refuse("change takes a new name, new conditions (all), or both");
   let holds = "";
   if (rule) {
-    const pool = (await load(t.rc, audiencePool, undefined)).data;
+    const pool = (await load(toolContext.rc, audiencePool, undefined)).data;
     const on = listMembers({ ids: [], rule }, pool.rows, pool.listCtx);
     holds =
       on.state === "ok"
@@ -123,9 +116,9 @@ async function proposeListChange(
 }
 
 /** A list of the workspace's own taken down (DELETE segments/:id): deleted, or archived where something depends on it. */
-async function proposeListDelete(t: ToolContext, input: { list_id: string }): Promise<ProposalOutcome> {
+async function proposeListDelete(toolContext: ToolContext, input: { list_id: string }): Promise<ProposalOutcome> {
   const id = str(input.list_id, 40);
-  const kept = (await load(t.rc, listsReader, undefined)).data.lists;
+  const kept = (await load(toolContext.rc, listsReader, undefined)).data.lists;
   const list = kept.find((l) => l.id === id && !l.archived_at);
   if (!list) return refuse("list_id must be one of the workspace's own lists (people with action lists)");
   return propose({
@@ -141,30 +134,30 @@ async function proposeListDelete(t: ToolContext, input: { list_id: string }): Pr
  * A new list kept by hand, as People's New list makes one: its name, and the people a read returned put on it once it is
  * made (contracts listSpec's `then`), each named on the card; none, a list they fill from People later.
  */
-async function proposeHandList(t: ToolContext, name: string, asked: string[]): Promise<ProposalOutcome> {
-  if (asked.length > LIST_BATCH_MAX)
+async function proposeHandList(toolContext: ToolContext, name: string, texts: string[]): Promise<ProposalOutcome> {
+  if (texts.length > LIST_BATCH_MAX)
     return refuse(`a new list kept by hand starts with at most ${LIST_BATCH_MAX}; put the rest on it after`);
-  const who = asked.length ? await selected(t, { ids: asked }) : { ids: [] as string[] };
-  if ("refusal" in who) return refuse(who.refusal);
-  const pool = who.ids.length ? (await load(t.rc, audiencePool, undefined)).data : null;
+  const person = texts.length ? await readSelected(toolContext, { ids: texts }) : { ids: [] };
+  if ("refusal" in person) return refuse(person.refusal);
+  const pool = person.ids.length ? (await load(toolContext.rc, audiencePool, undefined)).data : null;
   const byId = new Map((pool?.rows ?? []).map((r) => [r.id, r.name]));
-  const names = who.ids.map((id) => byId.get(id) ?? "").filter(Boolean);
+  const names = person.ids.map((id) => byId.get(id) ?? "").filter(Boolean);
   // A few people by name, as a card names whom it acts on; more, how many.
-  const named = names.length === who.ids.length && names.length <= 3;
+  const named = names.length === person.ids.length && names.length <= 3;
   return propose({
     kind: "list",
     title: `List: ${name}`,
-    summary: !who.ids.length
+    summary: !person.ids.length
       ? "Kept by hand, with nobody on it yet: people are put on it from their page or People"
       : named
         ? `Kept by hand: ${names.join(", ")}`
-        : `Kept by hand, starting with ${plural(who.ids.length, "person", "people")}`,
-    payload: { name, kept: "hand", ids: who.ids, names, count: who.ids.length },
+        : `Kept by hand, starting with ${plural(person.ids.length, "person", "people")}`,
+    payload: { name, kept: "hand", ids: person.ids, names, count: person.ids.length },
   });
 }
 
 async function proposeList(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { name: string; all?: unknown[]; ids?: string[]; cannot: string },
 ): Promise<ProposalOutcome> {
   const named = guard(() => cleanListName(input.name));
@@ -184,33 +177,33 @@ async function proposeList(
   // its field reads): the drafter's structured output holds it to the schema, and Ask's tools are not strict, so a key a
   // field does not take ("service": "balayage") or a fact beside an any group would be dropped into a broader list.
   // A draft never reads another list: the vocabulary's own rule, which its schema says by leaving the field out.
-  const r = all.length ? ruleOf(all) : null;
-  if (r && "refusal" in r) return refuse(r.refusal);
+  const item = all.length ? ruleOf(all) : null;
+  if (item && "refusal" in item) return refuse(item.refusal);
   // The workspace's own lists, as People's rail reads them (readers/lists.ts), once a turn: a name a live one has is the
   // route's refusal (00169: an archived list's name is free), and a rule is checked against them as the route checks it.
-  const kept = (await load(t.rc, listsReader, undefined)).data.lists;
+  const kept = (await load(toolContext.rc, listsReader, undefined)).data.lists;
   if (kept.some((l) => !l.archived_at && l.name.toLowerCase() === name.toLowerCase()))
     return refuse(`${LIST_NAME_TAKEN} Read people with action lists: it may say this already, or take another name`);
   // No rule: kept by hand, as People's New list makes one, with the people they named.
-  if (!r) return proposeHandList(t, name, ids);
-  const rule = r.rule;
+  if (!item) return proposeHandList(toolContext, name, ids);
+  const rule = item.rule;
   const checked = guard(() => cleanListRule(rule, kept));
   if ("refused" in checked) return refuse(checked.refused);
   // Who is on it today, counted as people.lists counts the workspace's own lists: over the audience pool (everyone, for
   // the member asking, as a send counts them), or why it cannot be counted here, in the rail's words.
-  const pool = (await load(t.rc, audiencePool, undefined)).data;
+  const pool = (await load(toolContext.rc, audiencePool, undefined)).data;
   const on = listMembers({ ids: [], rule }, pool.rows, pool.listCtx);
   const holds =
     on.state === "ok"
       ? `${plural(on.ids.size, "person", "people")} on it today, and it keeps itself current`
       : listUnknownWords(on.reason, pool.calendar.state);
   // The rail's words why it cannot be counted end a sentence of their own; the count's does not.
-  const said = cannot ? `${/[.!?]$/.test(holds) ? holds : `${holds}.`} Left out: ${cannot}` : holds;
+  const sentence = cannot ? `${/[.!?]$/.test(holds) ? holds : `${holds}.`} Left out: ${cannot}` : holds;
   return propose({
     kind: "list",
     title: `List: ${name}`,
     // The rule as People's chips, who it holds, and what it left out, as the People page's draft says each.
-    summary: `${listRuleParts(rule).join(" · ")} — ${said}`,
+    summary: `${listRuleParts(rule).join(" · ")} — ${sentence}`,
     payload: { name, rule, cannot, ...(on.state === "ok" ? { count: on.ids.size } : {}) },
   });
 }
@@ -234,7 +227,7 @@ export const propose_list = defineActions({
   description: [
     [
       "Propose a list on People, as a card the person asking approves, by action: a new list, one that keeps itself current by its rule or one kept by hand with the people they name, one of the workspace's own renamed or its rule changed, or one taken down. Nothing is made until they approve.",
-      "A list is an audience a sequence or a send can go to, and a line on People's rail; who is on it is counted over everyone in People, as a send counts it, and the card says how many are on it today.",
+      "A list is an audience a sequence or a send can go to, and a line on People's rail; who is on it is counted over everyone in People, as a send counts, and the card says how many are on it today.",
       "A rule is written in the list vocabulary:",
     ].join(" "),
     ...LIST_RULE_LINES,
@@ -262,19 +255,6 @@ export const propose_list = defineActions({
       examples: [
         { name: "Lapsed regulars", all: [{ field: "last_visit", op: "more_than", days: 60 }], cannot: "regulars" },
         {
-          name: "Texters who said yes",
-          all: [
-            {
-              any: [
-                { field: "channel", op: "is", channel: "sms" },
-                { field: "channel", op: "is", channel: "whatsapp" },
-              ],
-            },
-            { field: "said_yes", op: "is", to: "offers", yes: true },
-          ],
-          cannot: "",
-        },
-        {
           name: "Family",
           ids: ["a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"],
           cannot: "",
@@ -282,16 +262,22 @@ export const propose_list = defineActions({
       ],
       label: "Preparing a list",
       words:
-        "Action make takes name and either all (its rule) and cannot, for a new list that keeps itself current, or ids, for a new list kept by hand that starts with the people a read returned ([] for an empty one they fill on People), as People's New list makes one. Call it when they want a group of people kept together, to look at or to send to later: by a rule where what they describe is one, by hand where they name the people.",
+        "Action make takes name and either all (its rule) and cannot, for a new list that keeps itself current, or ids, for a new list kept by hand that starts with the people a read returned ([] for an empty one they fill on People). Call it when they want a group of people kept together, to look at or to send to later: by a rule where what they describe is one, by hand where they name the people.",
       build: proposeList,
     }),
     change: actAction({
       kind: "list_change",
       input: z.object({
         list_id: LIST_ID,
-        name: z.string().optional().describe("Its new name."),
+        name: z
+          .string()
+          .optional()
+          .describe(`What People calls the list, at most ${LIST_NAME_MAX} characters, one no list of theirs has.`),
         all: ALL.optional(),
-        cannot: z.string().optional().describe("What the new rule cannot say, in a few words."),
+        cannot: z
+          .string()
+          .optional()
+          .describe("What they asked that the rule cannot say, in a few words; empty when nothing was left out."),
       }),
       examples: [{ list_id: "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b", name: "Regulars (90 days)" }],
       label: "Preparing the list change",

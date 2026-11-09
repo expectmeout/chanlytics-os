@@ -10,19 +10,21 @@
 import { z } from "zod";
 import {
   AppError,
+  isOneOf,
   POLICY_CLASSES,
   POLICY_MODES,
   REPLY_DELAY_MIN_MS,
   REPLY_DELAY_MAX_MS,
   policyModeRefusal,
-  type PolicyClass,
-  type PolicyMode,
+  causedBy,
 } from "@chanlytics/contracts";
-import { listPolicies, recordEvent, setPolicyMode } from "@chanlytics/db";
-import { log } from "@/server/log";
-import { serviceDb } from "@/server/service-db";
-import type { RouteContext } from "@/server/with-route";
-import type { Member } from "@/server/route";
+import { listPolicies, setPolicyMode } from "@chanlytics/db/workspace";
+import { recordEvent } from "@chanlytics/db/events";
+import { log } from "@/server/shared/log";
+import { serviceDb } from "@/server/shared/service-db";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { Member } from "@/server/shared/route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The change, in the ledger every other consequential act lands in: the class, the mode, which limits moved -- never
@@ -32,7 +34,7 @@ import type { Member } from "@/server/route";
  */
 async function recordPolicyChanged(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   cls: string,
   mode: string,
   fields: string[],
@@ -60,7 +62,7 @@ const DIAL_WORDS = {
 /**
  * The dials' camelCase names, still read for one release from 28 September 2026, when this body became snake_case
  * (the wire is snake_case: docs/naming.md, decision 0022). A tab opened before that deploy sends them, and so does
- * Ask's autonomy card (`minConfidence`, contracts' ask-proposals/workspace.ts, Ask Rewired's to move). A body that
+ * Ask's autonomy card (`minConfidence`, contracts' ask/proposals/workspace.ts, Ask Rewired's to move). A body that
  * says both is read by its snake_case name. This map goes, and the old names with it, in the release after the card
  * sends `min_confidence`.
  */
@@ -135,7 +137,7 @@ function wholeDial(cls: string, value: number | undefined, dial: (typeof WHOLE_D
 
 export async function changePolicy(ctx: RouteContext, input: z.infer<typeof PolicyChange>, member: Member) {
   const cls = input.class;
-  if (!(POLICY_CLASSES as readonly string[]).includes(cls)) throw new AppError("validation", "Unknown policy class.");
+  if (!isOneOf(POLICY_CLASSES, cls)) throw new AppError("validation", "Unknown policy class.");
   // A delay edit carries no mode: the row keeps the one it has. Requiring the
   // client to resend it meant a stale page changing the hold window could
   // silently flip Replies to whatever mode that page had loaded. Every dial
@@ -154,12 +156,12 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     if (!current) throw new AppError("not_found", "Policy row not found.", 404);
     mode = current.mode;
   }
-  if (!(POLICY_MODES as readonly string[]).includes(mode)) throw new AppError("validation", "Unknown mode.");
+  if (!isOneOf(POLICY_MODES, mode)) throw new AppError("validation", "Unknown mode.");
   // A switch nothing enforces is a switch that lies: each class offers only the modes the runtime honours for it, by
   // the rule the Autonomy pane draws its dots by (contracts policyModeOffered, over POLICY_CLASS_MODES). Veto is
   // offered wherever something waits to be stopped: a reply in the hold window, a playbook run thirty minutes out, a
   // reach-out's later run (Reach out, Part 3).
-  const refusal = policyModeRefusal(cls as PolicyClass, mode as PolicyMode);
+  const refusal = policyModeRefusal(cls, mode);
   if (refusal) throw new AppError("validation", refusal);
 
   // The wait, in ms. Clamped at the boundary as well as in the reader: a value
@@ -210,7 +212,7 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     if (e instanceof AppError) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     if (/money decisions are owner-only/.test(msg)) {
-      throw new AppError("forbidden", "Money stays owner-only by charter — that row is locked.", 403);
+      throw causedBy(new AppError("forbidden", "Money stays owner-only by charter — that row is locked.", 403), e);
     }
     throw e;
   }

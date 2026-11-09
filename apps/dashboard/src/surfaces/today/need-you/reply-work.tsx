@@ -12,7 +12,7 @@ import {
   notNowChoices,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/legacy-bridge/verbs/commit";
+import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { carryNotAPerson, carryReply } from "../../inbox/carried-reply";
 import { Button } from "../../kit";
 import { appNavigate, gate, mayAtLeast } from "../shell";
@@ -32,7 +32,13 @@ function clockAt(tz: string, atMs: number): string {
 /** What a row's draft is asked for: its thread's reply to their newest message; none where the words are already written. */
 export function replyWant(row: TodayQueueRowVM): DraftWant | null {
   if (!row.conversationId || !row.writes || row.prepared) return null;
-  return { conversationId: row.conversationId, kind: "reply", forMessageId: row.writes.for_message_id };
+  return {
+    conversationId: row.conversationId,
+    kind: "reply",
+    forMessageId: row.writes.for_message_id,
+    expected: row.writes.window_open !== false,
+    askedAtMs: row.writes.for_message_at_ms ?? null,
+  };
 }
 
 /** A thread snoozed from its row, and the record its Wake sends. */
@@ -94,17 +100,23 @@ function notAPersonOf(row: TodayQueueRowVM, wire: string): (() => void) | null {
  * Mark done on one row (2 Nov 2026: a row was let go only by Mark all done, once a week old): the hold resolved and the
  * thread the receptionist's again (core handBack, as Mark all done and a call back's Reached do), so it answers them if
  * they write; Undo takes the thread over again (the verb's own inverse). A hold's row alone, a handoff or a reach-out's
- * reply read: a closing window and a reply counting down hold nothing to give back.
+ * reply read, a call back (8 Nov 2026: its note says to mark one done, and nothing there did): a closing window and a reply
+ * counting down hold nothing to give back.
  */
-function useMarkDone(p: WorkProps) {
-  const { row, flash, keep, unkeep } = p;
+export function useMarkDone(work: WorkProps) {
+  const { row, flash, keep, unkeep } = work;
   const [done, setDone] = useRowState<Record<string, unknown> | null>(row.id, "markedDone", null);
-  const may = p.may && !!row.conversationId && (row.kind === "handoff" || row.kind === "reply");
+  const may =
+    work.may && !!row.conversationId && (row.kind === "handoff" || row.kind === "reply" || row.kind === "callback");
   const mark = async () => {
     if (!row.conversationId) return;
     // Kept before the door is asked: its refresh drops the hold from the read, and the row must stay to say so.
     keep(row);
-    const r = await commitVerb("thread_verb", { verb: "hand_back", conversation_id: row.conversationId, who: row.who });
+    const r = await commitVerb("thread_verb", {
+      verb: row.closes ?? "hand_back",
+      conversation_id: row.conversationId,
+      who: row.who,
+    });
     if (!r.ok) {
       unkeep(row);
       return flash({ tone: "danger", msg: <>{r.message}</> });
@@ -134,8 +146,8 @@ function sendLabel(closed: boolean, refused: Refused | null, send: string): stri
 }
 
 /** The row's words as they stand: the member's own once changed, else the receptionist's or Ask's draft. */
-function useWords(row: TodayQueueRowVM, mine: string | null, may: boolean) {
-  const draft = useDraft(replyWant(row), may);
+function useWords(row: TodayQueueRowVM, mine: string | null) {
+  const draft = useDraft(replyWant(row));
   const written = row.prepared ?? (draft?.state === "ready" ? draft.draft.words.text : "");
   return { draft, written, words: mine ?? written };
 }
@@ -157,7 +169,7 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
   const [refused, setRefused] = useRowState<Refused | null>(row.id, "refused", null);
   // Sent from this row as it is drawn now (not a send still counting from before a move back to Today): Undo takes the keys.
   const [sentHere, setSentHere] = useState(false);
-  const { draft, written, words } = useWords(row, mine, may);
+  const { draft, written, words } = useWords(row, mine);
   const { s: send, seconds, share } = useSend(row.id);
   const notNow = useNotNow(p, setSnoozed);
   const marked = useMarkDone(p);

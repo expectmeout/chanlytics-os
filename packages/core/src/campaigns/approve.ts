@@ -1,4 +1,4 @@
-import { errField, logger } from "@chanlytics/channels";
+import { errField, logger } from "@chanlytics/log";
 import {
   AppError,
   CAMPAIGNS_PAUSED_WORDS,
@@ -6,8 +6,9 @@ import {
   nextOpenMoment,
   runApprovalRefusal,
   runDaysAt,
+  causedBy,
 } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 import type { ApproveRunPorts, BroadcastRef } from "./ports";
 
 /** An approval's own lines, by name: what a job ledger said when it refused the send is the log's, never the answer's. */
@@ -41,15 +42,15 @@ export async function approveRun(
   ports: ApproveRunPorts,
   cmd: { row: BroadcastRef; now: Date },
 ): Promise<ApproveReceipt> {
-  const b = cmd.row;
-  if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
+  const row = cmd.row;
+  if (row.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
   // A paused workspace sends nothing (the wire holds every person of a run, each for good): refused before anything
   // moves, in the words Run now answers in. A read that fails throws: "could not check" is not "may".
   if (await ports.paused()) throw new AppError("payment_required", CAMPAIGNS_PAUSED_WORDS, 402);
   // A reach-out's run (Part 3) is its planned sends, each at its own time in its lead's hours: the reach-out clock
   // claims them, and plans again any that went stale while the run waited. Approved on a later day it still goes, and
   // it is released with no broadcast job, which would find no recipients and end the run as sent.
-  if (isReachOutRun(b.audience)) return approveReachOut(ports, b, cmd.now);
+  if (isReachOutRun(row.audience)) return approveReachOut(ports, row, cmd.now);
   // Approved at night, it goes at nine: the same hours a run keeps on its own.
   // Read BEFORE the row moves: a clock that cannot be read leaves the run
   // waiting, as it was, rather than scheduled with no job to send it.
@@ -58,26 +59,26 @@ export async function approveRun(
   // A playbook's run is a day's run: approved on a later day it is refused, and so is a visit's run that would go out on
   // a later day than it was made for (approved after the last sending hour it waits for nine, with the day before's
   // words): contracts runApprovalRefusal, the words Ask's run card refuses in and the sheet says instead of a button.
-  const late = runApprovalRefusal(b, runDaysAt(tz, cmd.now));
+  const late = runApprovalRefusal(row, runDaysAt(tz, cmd.now));
   if (late) throw new AppError("conflict", late, 409);
   const at = open.at;
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;
-  const decision_id = await approvedWhole(ports, b, at, {
+  const decision_id = await approvedWhole(ports, row, at, {
     job: true,
     decision: {
-      name: b.name,
-      playbook_id: b.playbook_id,
-      recipients: b.recipient_count,
+      name: row.name,
+      playbook_id: row.playbook_id,
+      recipients: row.recipient_count,
       approved: true,
       scheduled_for: scheduledFor,
       ...(movedFrom ? { moved_from: movedFrom } : {}),
     },
   });
   return {
-    id: b.id,
+    id: row.id,
     state: "scheduled",
-    recipient_count: b.recipient_count,
+    recipient_count: row.recipient_count,
     scheduled_for: scheduledFor,
     moved_from: movedFrom,
     decision_id,
@@ -91,16 +92,16 @@ export async function approveRun(
  */
 async function approvedWhole(
   ports: ApproveRunPorts,
-  b: BroadcastRef,
+  broadcastRef: BroadcastRef,
   at: Date,
-  o: { job: boolean; decision: Json },
+  options: { job: boolean; decision: Json },
 ): Promise<string> {
   let id: string | null;
   try {
-    id = await ports.approve(b.id, at, o);
+    id = await ports.approve(broadcastRef.id, at, options);
   } catch (e) {
-    approveLog.error("campaign_step_failed", { step: "approve", broadcast_id: b.id, error: errField(e) });
-    throw new AppError("upstream_meta", NOT_APPROVED_WORDS, 502);
+    approveLog.error("campaign_step_failed", { step: "approve", broadcast_id: broadcastRef.id, error: errField(e) });
+    throw causedBy(new AppError("upstream_meta", NOT_APPROVED_WORDS, 502), e);
   }
   if (!id) throw new AppError("conflict", MOVED_WORDS, 409);
   return id;
@@ -111,26 +112,26 @@ async function approvedWhole(
  * claims each when it is due (planning again one that went stale while the run waited), so the run says when its first
  * email goes, or now when that time has passed.
  */
-async function approveReachOut(ports: ApproveRunPorts, b: BroadcastRef, now: Date): Promise<ApproveReceipt> {
-  const first = b.scheduled_for ? Date.parse(b.scheduled_for) : NaN;
+async function approveReachOut(ports: ApproveRunPorts, broadcastRef: BroadcastRef, now: Date): Promise<ApproveReceipt> {
+  const first = broadcastRef.scheduled_for ? Date.parse(broadcastRef.scheduled_for) : NaN;
   const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
   const scheduledFor = at.toISOString();
   // No job: its sends keep their own times, and the reach-out clock claims each.
-  const decision_id = await approvedWhole(ports, b, at, {
+  const decision_id = await approvedWhole(ports, broadcastRef, at, {
     job: false,
     decision: {
-      name: b.name,
-      playbook_id: b.playbook_id,
-      recipients: b.recipient_count,
+      name: broadcastRef.name,
+      playbook_id: broadcastRef.playbook_id,
+      recipients: broadcastRef.recipient_count,
       approved: true,
       reach_out: true,
       scheduled_for: scheduledFor,
     },
   });
   return {
-    id: b.id,
+    id: broadcastRef.id,
     state: "scheduled",
-    recipient_count: b.recipient_count,
+    recipient_count: broadcastRef.recipient_count,
     scheduled_for: scheduledFor,
     moved_from: null,
     decision_id,

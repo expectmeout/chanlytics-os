@@ -1,5 +1,5 @@
 /**
- * A partner's invitation, as the route reads it, apart from partner-invite.ts's words. zod is not built into the
+ * A partner's invitation, as the route reads it, apart from partners/invite.ts's words. zod is not built into the
  * browser's contracts (decision 0024, the browser's entry): a page that says these words loads none of it.
  */
 import { z } from "zod";

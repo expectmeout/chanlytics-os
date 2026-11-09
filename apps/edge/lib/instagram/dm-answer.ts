@@ -15,17 +15,19 @@
  * A DM the person unsends before its job runs loses its words in the job too (00486 message_unsent).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inboundFromInstagram, type IgMessaging } from "../packages/channels.js";
-import { resolveChannelDetailed, type Database, type Json, type RoutedChannel } from "../packages/db.js";
-import { markSpoke, type ClaimedJob } from "../packages/jobs.js";
-import { logger } from "../log.js";
+import { inboundFromInstagram, type IgMessaging } from "@chanlytics/channels/instagram";
+import { resolveChannelDetailed, type RoutedChannel } from "@chanlytics/db/channels";
+import type { Database } from "@chanlytics/db/types";
+import { markSpoke, type ClaimedJob } from "@chanlytics/jobs";
+import { logger } from "../shared/log.js";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 import { answerArrival, recordThenSchedule } from "../inbound/arrival.js";
-import { instagramCarrier, instagramCredentials } from "./credentials.js";
+import { instagramCarrier, getInstagramCredentials } from "./credentials.js";
 
 type Db = SupabaseClient<Database>;
 
 /** A value as the ledger keeps it: what JSON carries of it, which is all a job's payload holds. */
-const asKept = (value: unknown): Json => JSON.parse(JSON.stringify(value)) as Json;
+const asKept = jsonCopyOf;
 
 /** The routed account as its Vault read takes it: its row's id, and its reference there. */
 const accountRow = (routed: RoutedChannel) => ({ id: routed.channelId, credentials_ref: routed.credentialsRef });
@@ -67,7 +69,7 @@ export async function answerDm(db: Db, job: ClaimedJob, deadline?: number): Prom
   if (!routed) throw new Error("inbound_answer: the account's Instagram channel could not be read, or is not active");
   if (routed.tenantId !== job.tenant_id)
     throw new Error("inbound_answer: the account written to is another workspace's now");
-  const read = await instagramCredentials(db, accountRow(routed));
+  const read = await getInstagramCredentials(db, accountRow(routed));
   if (read.outcome === "unavailable")
     throw new Error(`inbound_answer: the account's token could not be read: ${read.error}`);
   logger({ tenant_id: job.tenant_id }).info("ig_answer_taken_up", { id: message.externalId });

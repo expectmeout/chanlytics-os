@@ -7,10 +7,10 @@
  */
 import { replyWhy } from "../brain";
 import { reasonLabelOf } from "../../conversations/escalations";
-import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS, type PolicyMode } from "../workspace-config/policy-classes";
-import { delayWords } from "../../playbooks/playbook-triggers";
+import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS } from "../workspace-config/policy-classes";
+import { delayWords } from "../../campaigns/playbooks/triggers/notices";
 import { MIN_MS, SECOND_MS } from "../../shared/time";
-import type { SpendWords } from "../../workspace/billing";
+import type { SpendWords } from "../../workspace/billing/dtos";
 
 /** The longest message a try may be: the eval door's own bound. */
 export const TRY_IT_MAX_CHARS = 500;
@@ -99,7 +99,7 @@ function yoursBecause(then: TryItThen): string {
 /** The sentence under the answer: what happens next, by the reply row's mode, the hold, and a hand-off. */
 function thenWords(then: TryItThen, confidence: number | null): TryItVM["then"] {
   if (then.mode === "never" || then.mode === "ask") {
-    const head = POLICY_MODE_WORDS[then.mode as PolicyMode].head;
+    const head = POLICY_MODE_WORDS[then.mode].head;
     return {
       words: `Replies are set to ${head}, so it would not answer this: it ${then.mode === "ask" ? "waits for you" : "stays out"}.`,
       tone: "yours",
@@ -118,25 +118,26 @@ function thenWords(then: TryItThen, confidence: number | null): TryItVM["then"] 
 
 /** What Try it draws for one answer (the eval door's), every word of it from here. */
 export function tryItVM(answer: TryItAnswer): TryItVM {
-  const why = replyWhy(answer.meta);
-  const said = answer.then?.text ?? answer.text;
+  const reason = replyWhy(answer.meta);
+  const sentence = answer.then?.text ?? answer.text;
   const rows: TryItVM["rows"] = [];
-  if (why) {
-    rows.push({ key: "readAs", label: TRY_IT_WORDS.rows.readAs, value: why.intentLabel });
-    if (why.confidence !== null) rows.push({ key: "sure", label: TRY_IT_WORDS.rows.sure, value: `${why.confidence}%` });
+  if (reason) {
+    rows.push({ key: "readAs", label: TRY_IT_WORDS.rows.readAs, value: reason.intentLabel });
+    if (reason.confidence !== null)
+      rows.push({ key: "sure", label: TRY_IT_WORDS.rows.sure, value: `${reason.confidence}%` });
     rows.push({
       key: "leaned",
       label: TRY_IT_WORDS.rows.leaned,
-      value: why.facts.length ? why.facts.join(", ") : TRY_IT_WORDS.noFacts,
+      value: reason.facts.length ? reason.facts.join(", ") : TRY_IT_WORDS.noFacts,
     });
-    if (why.reason) rows.push({ key: "reason", label: TRY_IT_WORDS.rows.reason, value: why.reason });
+    if (reason.reason) rows.push({ key: "reason", label: TRY_IT_WORDS.rows.reason, value: reason.reason });
   }
   const then = answer.then
-    ? thenWords(answer.then, why?.confidence ?? null)
+    ? thenWords(answer.then, reason?.confidence ?? null)
     : { words: TRY_IT_WORDS.failed, tone: "yours" as const };
   // A picked time is a request a person confirms (decision 0061): the hand-off says so, whatever the mode.
   const booked = answer.booking?.slot
     ? { words: `${then.words} It would ask your team to confirm the time it offered.`, tone: "yours" as const }
     : then;
-  return { said, wrote: said === answer.text ? null : answer.text, rows, then: booked };
+  return { said: sentence, wrote: sentence === answer.text ? null : answer.text, rows, then: booked };
 }

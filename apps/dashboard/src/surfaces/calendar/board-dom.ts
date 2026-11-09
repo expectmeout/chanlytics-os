@@ -3,7 +3,7 @@
  * where the board opens, and whether a field has the keys. The date picker is the kit's (kit/datepicker), not the
  * browser's.
  */
-import { documentScroller, isDocumentScroller, scrollerOf, viewTop } from "../kit/motion/page-scroll";
+import { documentScroller, isDocumentScroller, scrollerOf, viewTop, windowTo } from "../kit/motion/page-scroll";
 
 /** A phone opens on the agenda: a week grid is four times a phone's width. */
 export const crPhone = (): boolean => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
@@ -51,7 +51,7 @@ export function standAfter(p: {
   if (crPhone() && (change === "view" || (change === "days" && !board))) {
     const foot = viewTop(documentScroller());
     const top = body.getBoundingClientRect().top;
-    if (top < foot) window.scrollBy(0, top - foot);
+    if (top < foot) windowTo(window.scrollY + top - foot);
   }
   if (!board || p.opened || nowAt === null) return p.opened;
   const scroller = body.querySelector<HTMLElement>(".cal-scroll");
@@ -83,5 +83,5 @@ function boardToNow(el: HTMLElement, nowAt: number): void {
   if (top + heads + nowAt * hour + CR_NOW_CLEAR <= window.innerHeight - bar) return;
   const corner = grid.querySelector<HTMLElement>(".cal-corner");
   const stuck = corner ? parseFloat(getComputedStyle(corner).top) || 0 : 0;
-  window.scrollTo(0, Math.max(0, top + (nowAt - 1) * hour - stuck));
+  windowTo(top + (nowAt - 1) * hour - stuck);
 }

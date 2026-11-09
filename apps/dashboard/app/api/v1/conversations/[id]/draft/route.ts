@@ -1,20 +1,18 @@
 import { ReplyDraftAskSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { conversationScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { conversationScope } from "@/server/shared/verbs";
 import { draftForThread } from "@/server/conversations/drafts";
 
-/** A model call that reads the person first: the platform's ceiling, as the person draft's own route. */
+/** A model call at the edge, with the member waiting: the platform's ceiling, as the door's own. */
 export const maxDuration = 60;
 
 /**
  * POST /api/v1/conversations/:id/draft — { kind: "reply" | "brief", instruction?: string }
  *
- * Ask's draft for a thread waiting on a person (decision 0071): a reply to what they wrote last, or the brief for a call
- * back, written once by the person draft (a model call, in Ask's one daily budget and the person draft's own bucket) and
- * kept on the thread until they write again (00475), so the next read, any tab's or any teammate's, is the same words.
- * Nothing is sent: the reply goes through POST conversations/:id/reply on a press. An operator or above, as a reply is.
- * With `instruction` (280 characters at most) the draft is written again as the member asks, from the kept one (Change
- * it with Ask on Ask's own draft), and kept in its place.
+ * A member's Try again on a thread's draft, or with `instruction` (280 characters at most) their change to the kept one
+ * (decision 0093). A first draft is written when the thread's hold owes it, with nobody asking; this is the member waiting,
+ * through the edge's door, in the same words every page hears. Nothing is sent: the reply goes through POST
+ * conversations/:id/reply on a press. An operator or above, as a reply is.
  */
 export const POST = write({
   scope: conversationScope,

@@ -3,15 +3,16 @@
  * first run's Bringing it in, Today's Brought in and Connections offer it.
  *
  * The door is the knock (authorizeAdmin: a token the dashboard minted for this door, the member and the workspace) and
- * the body (readBody); importAgain in lib/imports/import-again.ts is everything after.
+ * the body (readBody); importAgain in lib/imports/again.ts is everything after.
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
-import { importAgain } from "../../../lib/imports/import-again.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
+import { importAgain } from "../../../lib/imports/again.js";
+import { IMPORT_AGAIN_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/imports/again");
   if (!auth.ok) return auth.response;
-  return importAgain(auth, await readBody(request));
+  return importAgain(auth, await readBody(request, IMPORT_AGAIN_DOOR));
 });

@@ -1,8 +1,8 @@
-import { write } from "@/server/route";
-import { readerContext } from "@/server/readers";
-import { sequenceScope } from "@/server/verbs";
-import { REWRITE_BODY } from "@/server/sequences/bodies";
-import { rewriteLeadEmail } from "@/server/sequences/rewrite";
+import { write } from "@/server/shared/route";
+import { readerContext } from "@/server/shared/reader";
+import { sequenceScope } from "@/server/shared/verbs";
+import { REWRITE_BODY } from "@/server/campaigns/sequences/bodies";
+import { rewriteLeadEmail } from "@/server/drafts/sequence-rewrite";
 
 /**
  * POST /api/v1/sequences/:id/rewrite — { subject, body, change } → { subject, body, cannot }: an email of a sequence to

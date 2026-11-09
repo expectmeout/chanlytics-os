@@ -20,20 +20,14 @@ import {
   sequenceActsOf,
   toApprovalVM,
   type ReachOutRunDto,
-} from "@chanlytics/contracts";
-import { load } from "../../../readers";
-import { sequenceOverview } from "@chanlytics/db";
-import { broadcast as broadcastReader } from "../../../readers/broadcasts";
-import {
   UUID,
-  actAction,
-  propose,
-  refuse,
-  str,
-  unlessNotFound,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../context";
+} from "@chanlytics/contracts";
+import { load } from "../../../shared/reader";
+import { listSequenceOverview } from "@chanlytics/db/campaigns";
+import { broadcast as broadcastReader } from "../../../readers/broadcasts";
+import { str, readUnlessNotFound } from "../context/tool-reads";
+import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
 
 /** Where a waiting run's id is read, said as the model calls it. */
 const RUN_FROM = "sequences with action moments (a playbook's waiting) or action sent (waiting_on_you)";
@@ -58,12 +52,15 @@ const ON_TODAY =
  * others), else refused in the judge's words. Null where it is no one-off.
  */
 async function proposeOneOffCancel(
-  t: ToolContext,
+  toolContext: ToolContext,
   run: { id: string; recipient_count: number },
 ): Promise<ProposalOutcome | null> {
-  const [row] = await sequenceOverview(t.ctx.supabase, t.tenantId, run.id);
+  const [row] = await listSequenceOverview(toolContext.ctx.supabase, toolContext.tenantId, run.id);
   if (!row || row.starts !== "date") return null;
-  const offer = sequenceActsOf({ sequence: row }, { tz: t.timezone, nowMs: t.now.getTime() }).cancel_send;
+  const offer = sequenceActsOf(
+    { sequence: row },
+    { tz: toolContext.timezone, nowMs: toolContext.now.getTime() },
+  ).cancel_send;
   if (!offer.ok) return refuse(`${row.name}: ${SEQUENCE_ACT_WHY[offer.because]}`);
   return propose({
     kind: "run",
@@ -83,46 +80,46 @@ async function proposeOneOffCancel(
 function proposeLeadsBatch(
   input: { verb: (typeof RUN_VERBS)[number] },
   run: { id: string; name: string; state: keyof typeof BROADCAST_STATE_LABELS; recipient_count: number },
-  r: ReachOutRunDto | null,
+  reachOutRun: ReachOutRunDto | null,
 ): ProposalOutcome {
   if (run.state !== "pending_approval")
     return refuse(`that batch is not waiting for an OK: it is ${BROADCAST_STATE_LABELS[run.state]}`);
   // The emails it holds, as its leads' read says them; the batch's own count where that read has none.
-  const emails = r?.planned.length ?? run.recipient_count;
+  const emails = reachOutRun?.planned.length ?? run.recipient_count;
   const approve = input.verb === "approve";
-  if (approve && r && batchOkSendsNothing(emails, r.held.length))
+  if (approve && reachOutRun && batchOkSendsNothing(emails, reachOutRun.held.length))
     return refuse(
-      `an OK sends none of ${r.chain_name || run.name}: ${heldByCheckWords(r.held.length)}, and each is decided on its own, with action decide by its send_id (${HELD_FROM})`,
+      `an OK sends none of ${reachOutRun.chain_name || run.name}: ${heldByCheckWords(reachOutRun.held.length)}, and each is decided on its own, with action decide by its send_id (${HELD_FROM})`,
     );
-  const said = [
+  const phrases = [
     plural(emails, "email", "emails"),
-    ...(r && r.checking > 0 ? [`${r.checking} still being checked`] : []),
-    ...(r && r.held.length > 0
-      ? [`${plural(r.held.length, "email", "emails")} the check held stay held until you decide them`]
+    ...(reachOutRun && reachOutRun.checking > 0 ? [`${reachOutRun.checking} still being checked`] : []),
+    ...(reachOutRun && reachOutRun.held.length > 0
+      ? [`${plural(reachOutRun.held.length, "email", "emails")} the check held stay held until you decide them`]
       : []),
     approve ? "each goes at its own time" : "none of them goes, and the sequence keeps running",
   ];
   return propose({
     kind: "run",
-    title: `${approve ? "Approve" : "Skip"} the batch: ${r?.chain_name || run.name}`,
-    summary: said.join(" · "),
-    payload: { broadcast_id: run.id, verb: input.verb, name: r?.chain_name || run.name, people: emails },
+    title: `${approve ? "Approve" : "Skip"} the batch: ${reachOutRun?.chain_name || run.name}`,
+    summary: phrases.join(" · "),
+    payload: { broadcast_id: run.id, verb: input.verb, name: reachOutRun?.chain_name || run.name, people: emails },
   });
 }
 
 async function proposeRun(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { broadcast_id: string; verb: (typeof RUN_VERBS)[number] },
 ): Promise<ProposalOutcome> {
   const id = str(input.broadcast_id, 40);
   if (!UUID.test(id)) return refuse(`broadcast_id must be a waiting run's id, as ${RUN_FROM} gives it`);
   // The run as its sheet reads it (readers/broadcasts.ts broadcast, GET broadcasts/[id]'s own read), once a turn.
-  const read = await unlessNotFound(load(t.rc, broadcastReader, { id }));
+  const read = await readUnlessNotFound(load(toolContext.rc, broadcastReader, { id }));
   if (!read) return refuse("no such run in this workspace");
   // The run is a row the answer may cite, opened where its sheet is.
-  noteRows(t.read, read.rows);
+  noteRows(toolContext.read, read.rows);
   const run = read.data.broadcast;
-  if (run.state === "pending_approval" && isAskMorningQuestion(t.question)) return refuse(ON_TODAY);
+  if (run.state === "pending_approval" && isAskMorningQuestion(toolContext.question)) return refuse(ON_TODAY);
   // A batch to leads is cold email, each email checked before it goes: approved or skipped as its sequence's page does it
   // (decision 0060: Ask runs every sequence; the record's notice presses the same route), the card saying what the check
   // has done so far, as People lays it out.
@@ -130,14 +127,17 @@ async function proposeRun(
   if (!run.playbook_id) {
     // A one-off (a sequence on a date: its batch is its sequence, 0060) is cancelled as its page's Cancel this send
     // cancels it, where the judge offers that (decision 0072): a skip is its cancel.
-    const once = input.verb === "skip" ? await proposeOneOffCancel(t, run) : null;
+    const once = input.verb === "skip" ? await proposeOneOffCancel(toolContext, run) : null;
     return once ?? refuse(NOT_A_RUN);
   }
   if (run.state !== "pending_approval")
     return refuse(`that run is not waiting for approval: it is ${BROADCAST_STATE_LABELS[run.state]}`);
   // When an approval now sends it by the business's clock (approveRun's next open moment).
-  const open = nextOpenMoment(t.timezone, t.now);
-  const days = { today: localDate(t.timezone, t.now), sendsOn: localDate(t.timezone, open.at) };
+  const open = nextOpenMoment(toolContext.timezone, toolContext.now);
+  const days = {
+    today: localDate(toolContext.timezone, toolContext.now),
+    sendsOn: localDate(toolContext.timezone, open.at),
+  };
   // A day's run approved on a later day, or a visit's run that would go out on one: the route's refusal, in its words
   // (contracts runApprovalRefusal), before a card; a skip still ends it.
   const late = input.verb === "approve" ? runApprovalRefusal(run, days) : null;
@@ -152,7 +152,7 @@ async function proposeRun(
     // refused when the card is confirmed, by approveRun, in the words every campaign says it.
     paused: null,
     today: days.today,
-    open: { time: clockTime(open.at.getTime(), t.timezone), moved: open.moved, on: days.sendsOn },
+    open: { time: clockTime(open.at.getTime(), toolContext.timezone), moved: open.moved, on: days.sendsOn },
     day: fmtDay,
   });
   const approve = input.verb === "approve";
@@ -160,7 +160,13 @@ async function proposeRun(
     kind: "run",
     title: `${approve ? "Approve" : "Skip"} the run: ${run.name}`,
     summary: `${plural(vm.will, "person", "people")} · ${approve ? vm.goes : vm.skip}`,
-    payload: { broadcast_id: run.id, verb: input.verb, name: run.name, people: vm.will, timezone: t.timezone },
+    payload: {
+      broadcast_id: run.id,
+      verb: input.verb,
+      name: run.name,
+      people: vm.will,
+      timezone: toolContext.timezone,
+    },
   });
 }
 
@@ -170,6 +176,6 @@ export const runAction = actAction({
   input: z.object({ broadcast_id: z.string(), verb: z.enum(RUN_VERBS) }),
   examples: [{ broadcast_id: "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b", verb: "approve" }],
   label: "Preparing a run's approval",
-  words: `Action batch takes broadcast_id, a playbook's run that waits for a person, as ${RUN_FROM} gives it, and verb: approve, which sends it now (asked outside the hours a message may go out in, ${SENDING_HOURS_WORDS.between} by the business's clock, it goes at ${SENDING_HOURS_WORDS.first}), or skip, which ends this run unsent and leaves the playbook running. Always give verb, from their words: it has no default, and the card says it back. A run made for a day that has passed can only be skipped, and a batch to leads (cold email) is approved or skipped the same way, its card saying what the check held. A one-off waiting for its day is cancelled with verb skip, by its batch's id (its sequence's own): nobody gets it; one already going is not cancelled.`,
+  words: `Action batch takes broadcast_id, a playbook's run that waits for a person, as ${RUN_FROM} gives it, and verb: approve sends it now (asked outside the sending hours, ${SENDING_HOURS_WORDS.between} by the business's clock, it goes at ${SENDING_HOURS_WORDS.first}); skip ends this run unsent and leaves the playbook running. Always give verb, from their words: it has no default, and the card says it back. A run made for a day that has passed can only be skipped; a batch to leads (cold email) is approved or skipped the same way, its card saying what the check held; a one-off waiting for its day is cancelled with verb skip, by its batch's id (its sequence's own): nobody gets it, and one already going is not cancelled.`,
   build: proposeRun,
 });

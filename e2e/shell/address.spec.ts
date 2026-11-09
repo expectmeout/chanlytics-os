@@ -9,7 +9,7 @@ import { expectLit, placeRow } from "./places";
  * A route is the path after the workspace's slug, `/w/acme/inbox`, and the frame that draws every page stays mounted
  * as the route moves. `/w/acme#/inbox` -- what an email's link, the phone app and every bookmark say -- keeps working
  * for ever: the frame moves it to its path before it draws. The mapping itself, every route of it, is run in
- * tooling/scripts/tests/shell/address/address.test.mjs; this is the browser's half: a hash address lands on its path, a
+ * tests/shell/address/address.test.mjs; this is the browser's half: a hash address lands on its path, a
  * reload of a path boots the frame, and a move inside the app is a path pushed, with Back and Forward walking it and
  * no page load between. Read-only: nothing here writes.
  */

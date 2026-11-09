@@ -7,8 +7,8 @@ import {
   whyNotAPhone,
   whyNotAnEmail,
 } from "@chanlytics/contracts";
-import { read, write, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, write, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { people } from "@/server/readers/people";
 import { addPerson, peopleCursorParam } from "@/server/people/people";
 

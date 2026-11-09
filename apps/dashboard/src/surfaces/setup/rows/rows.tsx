@@ -14,7 +14,7 @@
 import { useState, type ReactNode } from "react";
 import { stateOf, type SetupRowVM, type SetupVerb } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
-import { refusalToast, useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { setupVerbs, type SetupSurface } from "../surface";
 import { pressVerb, type RowActs } from "./acts";
 import { SetupCardRow, type SetupCardAct } from "./card-row";
@@ -30,8 +30,8 @@ interface SetupLaterWords {
   backShort?: string;
 }
 
-/** A row as drawn: Setup's. */
-type DrawnRow = SetupRowVM;
+/** A row as drawn: Setup's, and on Today's card its name and act's word for a phone (contracts SetupCardRowVM.short). */
+type DrawnRow = SetupRowVM & { short?: { name: string; verb: string | null } };
 
 interface SetupRowsProps {
   S: SetupSurface;
@@ -40,7 +40,7 @@ interface SetupRowsProps {
   look?: "row" | "card";
   primary?: string | null;
   left?: ReactNode;
-  flash?: ((f: LegacyFlash) => void) | null;
+  flash?: ((f: FrameFlash) => void) | null;
   /** A row of the caller's after Setup's, in the same list: Today's door to the reminder. */
   tail?: ReactNode;
   /**
@@ -68,6 +68,7 @@ function rowActs(
   const cta = r.verb
     ? {
         label: r.verb.label,
+        ...(r.short?.verb ? { short: r.short.verb } : {}),
         kind: primary === r.id ? "primary" : "ghost",
         onClick: () => act(r.verb),
         gate: setupGate(r.verb),
@@ -106,7 +107,7 @@ export const SetupRows = ({
   skip = null,
   testid = "setup-rows",
 }: SetupRowsProps) => {
-  const [toastNode, own] = useLegacyToast();
+  const [toastNode, own] = useFrameToast();
   const flash = lent || own;
   const [chooser, setChooser] = useState(false);
   const [forwarding, setForwarding] = useState(false);
@@ -152,6 +153,7 @@ export const SetupRows = ({
                   tone={primary === r.id ? "warn" : setupTone(r.state)}
                   stateWords={r.stateWords}
                   name={r.title}
+                  nameShort={r.short && r.short.name !== r.title ? r.short.name : null}
                   note={r.back && later.back ? { long: later.back, short: later.backShort ?? later.back } : null}
                   sentence={r.sentence}
                   left={i === 0 ? left : null}

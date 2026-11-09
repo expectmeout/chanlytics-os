@@ -17,25 +17,28 @@ pnpm-lock.yaml
 packages/db/src/database.types.ts
 *.generated.ts
 docs/data-model.md
+docs/sql-map.md
+docs/capacity.md
 *.generated.json
-tooling/scripts/tests/route-policy.json
-tooling/scripts/tests/edge/door-policy.json
-tooling/scripts/tests/source-scan-baseline.json
-tooling/scripts/tests/baselines/
+tests/route-policy.json
+tests/edge/door-policy.json
+tests/source-scan-baseline.json
+tests/baselines/
 docs/api.md
 docs/inbound-gates.md
 
-# The ported shell keeps its own conventions (apps/dashboard/src/legacy/CLAUDE.md):
+# The ported shell keeps its own conventions (apps/dashboard/mockup/CLAUDE.md):
 # script-mode files with /* global */ headers, edited by several people at once.
 # It joins the formatter surface by surface as each one moves to a real route.
-apps/dashboard/src/legacy/
+apps/dashboard/mockup/
+apps/dashboard/src/styles/
 
 # Served as they are: the public pages Meta reviewed, the service worker, the icons
 apps/edge/public/
 apps/dashboard/public/
 
 # Copied as a program printed them: a fixture of real output is its bytes
-tooling/scripts/tests/fixtures/supabase-migration-list-*
+tests/fixtures/supabase-migration-list-*
 
 # Not JavaScript's to format
 supabase/

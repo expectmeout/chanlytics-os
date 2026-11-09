@@ -74,7 +74,7 @@ const wordsFilterOf = <R extends TableRow>(matcher: (q: string) => ((row: R) => 
     (row: Row<AppFeatures, R>, _id: string, match: unknown) =>
       typeof match === "function" ? (match as (row: R) => boolean)(row.original) : true,
     { resolveFilterValue: (q: string) => matcher(q) },
-  ) as unknown as FilterFn<AppFeatures, R>;
+  ) as FilterFn<AppFeatures, R>;
 
 /** A table drawn from the state it is plugged into. */
 export type DataTableModel<R extends TableRow> = Table<AppFeatures, R>;

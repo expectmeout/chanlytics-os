@@ -3,17 +3,18 @@
  * doors are named.
  *
  *   - The sender's members read their workspace's rows under their own session (RLS), as the lead sheet and Today do
- *     (`leadPreviewOf`, `previewsTriedSince`).
- *   - The page knows only its link's token, so the dashboard reads by it on the service role (`leadPreviewByToken`); the
- *     edge reads a preview by its own workspace (`leadPreviewOfWorkspace`) and the sweep the ones past their end
- *     (`previewsPastTheirEnd`), both every workspace's on purpose.
+ *     (`findLeadPreview`, `listPreviewsTriedSince`).
+ *   - The page knows only its link's token, so the dashboard reads by it on the service role (`findLeadPreviewByToken`); the
+ *     edge reads a preview by its own workspace (`findLeadPreviewOfWorkspace`) and the sweep the ones past their end
+ *     (`listPreviewsPastTheirEnd`), both every workspace's on purpose.
  *   - Every write is a door: made, built, sent, opened, said, called, not right and ended on the service role; claimed
  *     on the claimer's own session (`claimPreview`). A door's refusal comes back as its reason, never as a throw.
  */
-import type { PreviewTriedDto } from "@chanlytics/contracts";
+import type { PreviewTriedDto, TenantId } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
-import { platformWide, tenantDb } from "../../tenant-db";
+import type { Database, Json } from "../../types";
+import { platformWide, tenantDb } from "../../shared/tenant-db";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -48,7 +49,7 @@ export type PreviewDoor<T> = { ok: true; value: T } | { ok: false; reason: Previ
 function previewDoorOf<T>(r: { data: unknown; error: { code?: string; message: string } | null }): PreviewDoor<T> {
   if (!r.error) return { ok: true, value: r.data as T };
   const reason = previewRefusalOf(r.error);
-  if (reason === "refused" && r.error.code !== "22023") throw new Error(r.error.message);
+  if (reason === "refused" && r.error.code !== "22023") throw new DbFailure(r.error);
   return { ok: false, reason, message: r.error.message };
 }
 
@@ -64,42 +65,47 @@ export interface PreviewMade {
 /** A lead's preview made, or the one that stands (the service role's). */
 export async function makeLeadPreview(
   db: Db,
-  p: { tenantId: string; leadId: string; name: string; timezone: string | null; by: string | null },
+  params: { tenantId: TenantId; leadId: string; name: string; timezone: string | null; by: string | null },
 ): Promise<PreviewDoor<PreviewMade>> {
   return previewDoorOf<PreviewMade>(
     await db.rpc("preview_make", {
-      p_tenant_id: p.tenantId,
-      p_lead_id: p.leadId,
-      p_name: p.name,
-      p_timezone: p.timezone ?? "",
-      ...(p.by ? { p_by: p.by } : {}),
+      p_tenant_id: params.tenantId,
+      p_lead_id: params.leadId,
+      p_name: params.name,
+      p_timezone: params.timezone ?? "",
+      ...(params.by ? { p_by: params.by } : {}),
     }),
   );
 }
 
 /** A build answered: ready, or failed and why. True when the preview moved. */
-export async function previewBuilt(db: Db, id: string, ok: boolean, why: string | null = null): Promise<boolean> {
-  const { data, error } = await db.rpc("preview_built", { p_id: id, p_ok: ok, ...(why ? { p_why: why } : {}) });
-  if (error) throw new Error(error.message);
+export async function recordPreviewBuilt(
+  db: Db,
+  id: string,
+  ok: boolean,
+  reason: string | null = null,
+): Promise<boolean> {
+  const { data, error } = await db.rpc("preview_built", { p_id: id, p_ok: ok, ...(reason ? { p_why: reason } : {}) });
+  if (error) throw new DbFailure(error);
   return data === true;
 }
 
 /** The first email that carried it went: its thirty days start. True the first time. */
-export async function previewSent(db: Db, id: string): Promise<boolean> {
+export async function recordPreviewSent(db: Db, id: string): Promise<boolean> {
   const { data, error } = await db.rpc("preview_sent", { p_id: id });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data === true;
 }
 
 /** The page drew in a browser: the count, or null for a preview not open to try. */
-export async function previewOpened(db: Db, id: string): Promise<number | null> {
+export async function recordPreviewOpened(db: Db, id: string): Promise<number | null> {
   const { data, error } = await db.rpc("preview_opened", { p_id: id });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return typeof data === "number" ? data : null;
 }
 
 /** A message and its answer kept: the count so far, or the limit, or a preview that has ended. */
-export async function previewSaid(
+export async function recordPreviewSaid(
   db: Db,
   id: string,
   text: string,
@@ -111,24 +117,24 @@ export async function previewSaid(
 }
 
 /** A call on a preview's workspace ended: its seconds counted. True when it was a preview open to try. */
-export async function previewCalled(db: Db, previewTenantId: string, seconds: number): Promise<boolean> {
+export async function recordPreviewCalled(db: Db, previewTenantId: TenantId, seconds: number): Promise<boolean> {
   const { data, error } = await db.rpc("preview_called", {
     p_preview_tenant_id: previewTenantId,
     p_seconds: Math.max(0, Math.round(seconds)),
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data === true;
 }
 
 /** What the business said is not right, kept for the sender: the count, or the limit. */
-export async function previewNotRight(
+export async function recordPreviewNotRight(
   db: Db,
   id: string,
   fact: string,
-  said: string | null,
+  sentence: string | null,
 ): Promise<PreviewDoor<number>> {
   return previewDoorOf<number>(
-    await db.rpc("preview_not_right", { p_id: id, p_fact: fact, ...(said ? { p_said: said } : {}) }),
+    await db.rpc("preview_not_right", { p_id: id, p_fact: fact, ...(sentence ? { p_said: sentence } : {}) }),
   );
 }
 
@@ -154,25 +160,25 @@ export async function claimPreview(session: Db, token: string): Promise<PreviewD
 /** A preview past its end, ended: its words cleared, its workspace erased. True when it ended now. */
 export async function endPreview(db: Db, id: string): Promise<boolean> {
   const { data, error } = await db.rpc("preview_end", { p_id: id });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data === true;
 }
 
 /** A lead's preview in its workspace, or null where none was made. */
-export async function leadPreviewOf(db: Db, tenantId: string, leadId: string): Promise<LeadPreviewRow | null> {
+export async function findLeadPreview(db: Db, tenantId: TenantId, leadId: string): Promise<LeadPreviewRow | null> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("lead_previews")
     .select("*")
     .eq("lead_id", leadId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
 /** A preview in its sender's workspace by its id, or null. */
-export async function leadPreviewById(db: Db, tenantId: string, id: string): Promise<LeadPreviewRow | null> {
+export async function findLeadPreviewById(db: Db, tenantId: TenantId, id: string): Promise<LeadPreviewRow | null> {
   const { data, error } = await tenantDb(db, tenantId).from("lead_previews").select("*").eq("id", id).maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -197,7 +203,7 @@ export interface LeadForPreview {
 }
 
 /** The lead a preview is built from, or null where it is gone. */
-export async function leadForPreview(db: Db, tenantId: string, leadId: string): Promise<LeadForPreview | null> {
+export async function findLeadForPreview(db: Db, tenantId: TenantId, leadId: string): Promise<LeadForPreview | null> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("leads")
     .select(
@@ -205,51 +211,51 @@ export async function leadForPreview(db: Db, tenantId: string, leadId: string): 
     )
     .eq("id", leadId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
 /** A preview by its link's token (the service role's: the page knows nothing else), or null for none. */
-export async function leadPreviewByToken(db: Db, token: string): Promise<LeadPreviewRow | null> {
+export async function findLeadPreviewByToken(db: Db, token: string): Promise<LeadPreviewRow | null> {
   if (!/^[A-Za-z0-9_-]{22}$/.test(token)) return null;
   const { data, error } = await platformWide(db).from("lead_previews").select("*").eq("token", token).maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
 /** The preview a workspace is (the service role's: the edge knows the workspace), or null for one that is none. */
-export async function leadPreviewOfWorkspace(db: Db, previewTenantId: string): Promise<LeadPreviewRow | null> {
+export async function findLeadPreviewOfWorkspace(db: Db, previewTenantId: TenantId): Promise<LeadPreviewRow | null> {
   const { data, error } = await platformWide(db)
     .from("lead_previews")
     .select("*")
     .eq("preview_tenant_id", previewTenantId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
 /** The previews a workspace's leads tried since a moment, the newest first (Today's rows, under the member's session). */
-export async function previewsTriedSince(db: Db, tenantId: string, since: string): Promise<PreviewTriedDto[]> {
+export async function listPreviewsTriedSince(db: Db, tenantId: TenantId, since: string): Promise<PreviewTriedDto[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("lead_previews")
     .select("id, lead_id, state, tried_at, asked_count, call_count, call_seconds, not_right, lead:leads(business_name)")
     .gte("tried_at", since)
     .order("tried_at", { ascending: false })
     .limit(20);
-  if (error) throw new Error(error.message);
-  return (data ?? []).flatMap((r) =>
-    r.tried_at
+  if (error) throw new DbFailure(error);
+  return (data ?? []).flatMap((item) =>
+    item.tried_at
       ? [
           {
-            id: r.id,
-            lead_id: r.lead_id,
-            state: r.state,
-            tried_at: r.tried_at,
-            asked_count: r.asked_count,
-            call_count: r.call_count,
-            call_seconds: r.call_seconds,
-            not_right: r.not_right,
-            business: r.lead?.business_name ?? null,
+            id: item.id,
+            lead_id: item.lead_id,
+            state: item.state,
+            tried_at: item.tried_at,
+            asked_count: item.asked_count,
+            call_count: item.call_count,
+            call_seconds: item.call_seconds,
+            not_right: item.not_right,
+            business: item.lead?.business_name ?? null,
           },
         ]
       : [],
@@ -257,7 +263,7 @@ export async function previewsTriedSince(db: Db, tenantId: string, since: string
 }
 
 /** The previews past their end and not yet ended, oldest first (the sweep's, every workspace's). */
-export async function previewsPastTheirEnd(
+export async function listPreviewsPastTheirEnd(
   db: Db,
   now: Date,
   limit: number,
@@ -269,13 +275,13 @@ export async function previewsPastTheirEnd(
     .lt("ends_at", now.toISOString())
     .order("ends_at", { ascending: true })
     .limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? [];
 }
 
 /** Whether a workspace makes previews: one marked ours (00469, decision 0079). Its own row, under its member's session. */
-export async function makesPreviews(db: Db, tenantId: string): Promise<boolean> {
+export async function doesMakePreviews(db: Db, tenantId: TenantId): Promise<boolean> {
   const { data, error } = await db.from("tenants").select("ours").eq("id", tenantId).maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data?.ours === true;
 }

@@ -1,6 +1,6 @@
 /**
  * Lines on the edge: the provider this deployment may use, and the ports
- * the saga (packages/channels lines-saga.ts) runs over — the row store,
+ * the saga (packages/channels lines/saga.ts) runs over — the row store,
  * the vault, the receptionist, Retell's import, the routing row. The saga
  * itself is pure and tested with the dry provider; this file is the only
  * place a real SID, token or key is handled.
@@ -8,27 +8,42 @@
  * Cross-workspace: a routing key is unique platform-wide; its row is read unfiltered to refuse another's claim.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tenantDb, type Database, type Json } from "../packages/db.js";
+import type { Database, Json } from "@chanlytics/db/types";
 import {
   chooseLineProvider,
   twilioProvider,
   dryProvider,
-  importPhoneNumber,
-  voiceEndpoints,
   smsInboundUrl,
-  withKey,
   type LinePorts,
   type LineRow,
   type LineProvider,
   type LineProviderName,
   type ProviderAccount,
+} from "@chanlytics/channels/lines";
+import {
+  importPhoneNumber,
+  voiceEndpoints,
+  withKey,
   type RetellConfig,
   type ProvisionSecrets,
-} from "../packages/channels.js";
-import { ensureVoiceAgent } from "../voice/voice-agent.js";
-import { lineDtoOf, type LineDto } from "../packages/contracts.js";
-import { env } from "../env.js";
-import { edgeFnUrl } from "../dashboard-origin.js";
+} from "@chanlytics/channels/voice";
+import { ensureVoiceAgent } from "./voice-agent.js";
+import { lineDtoOf, type LineDto, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
+import { env } from "../shared/env.js";
+import { edgeFnUrl } from "../shared/dashboard-origin.js";
+import {
+  findOtherLineOnRow,
+  findRoutingRowByKey,
+  getLineCredentials,
+  insertRoutingRow,
+  patchRoutingRow,
+  putLineCredentials,
+  saveLineRow,
+  takeRoutingRow,
+} from "@chanlytics/db/lines";
+import { findChannelConfig } from "@chanlytics/db/channels";
+import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 export interface LineProviderChoice {
   name: LineProviderName;
@@ -52,25 +67,25 @@ type Row = Database["public"]["Tables"]["lines"]["Row"];
 const facts = (j: Json): Record<string, unknown> => (j && typeof j === "object" && !Array.isArray(j) ? j : {});
 
 /** The row as the saga reads it. */
-export function rowToLine(r: Row): LineRow {
+export function rowToLine(row: Row): LineRow {
   return {
-    id: r.id,
-    tenant_id: r.tenant_id,
-    e164: r.e164,
-    provider: r.provider,
-    area_code: r.area_code,
-    subaccount_sid: r.subaccount_sid,
-    number_sid: r.number_sid,
-    trunk_sid: r.trunk_sid,
-    credential_list_sid: r.credential_list_sid,
-    termination_uri: r.termination_uri,
-    messaging_service_sid: r.messaging_service_sid,
-    retell_agent_id: r.retell_agent_id,
-    voice_state: r.voice_state as LineRow["voice_state"],
-    step: r.step as LineRow["step"],
-    last_error: r.last_error,
-    state_since: r.state_since,
-    facts: facts(r.facts),
+    id: row.id,
+    tenant_id: row.tenant_id,
+    e164: row.e164,
+    provider: row.provider,
+    area_code: row.area_code,
+    subaccount_sid: row.subaccount_sid,
+    number_sid: row.number_sid,
+    trunk_sid: row.trunk_sid,
+    credential_list_sid: row.credential_list_sid,
+    termination_uri: row.termination_uri,
+    messaging_service_sid: row.messaging_service_sid,
+    retell_agent_id: row.retell_agent_id,
+    voice_state: row.voice_state as LineRow["voice_state"],
+    step: row.step as LineRow["step"],
+    last_error: row.last_error,
+    state_since: row.state_since,
+    facts: facts(row.facts),
   };
 }
 
@@ -83,15 +98,15 @@ function isRegistered(r: Pick<Row, "brand_sid" | "campaign_sid">): boolean {
  * What the page may see of a line: never a SID that opens a door. The one builder the dashboard's read of the lines
  * uses too (contracts lineDtoOf), with `registered`, which only this side may say: it holds the brand and the campaign.
  */
-export function lineForClient(r: Row): LineDto {
-  return lineDtoOf(r, isRegistered(r));
+export function lineForClient(row: Row): LineDto {
+  return lineDtoOf(row, isRegistered(row));
 }
 
 export function linePorts(
   db: SupabaseClient<Database>,
   cfg: RetellConfig,
   secrets: ProvisionSecrets,
-  tenant: { id: string; name: string },
+  tenant: { id: TenantId; name: string },
   line: LineRow,
   choice: LineProviderChoice,
 ): LinePorts {
@@ -107,17 +122,17 @@ export function linePorts(
       async save(patch) {
         const row: Partial<Row> = {};
         for (const [k, v] of Object.entries(patch)) (row as Record<string, unknown>)[k] = v;
-        const { error } = await tenantDb(db, line.tenant_id).from("lines").update(row).eq("id", line.id);
-        if (error) throw new Error(`saving the line: ${error.message}`);
+        const { error } = await saveLineRow(db, line, row);
+        if (error) throw new DbFailure(error, "saving the line");
       },
       async getSecrets() {
-        const { data, error } = await db.rpc("get_line_credentials", { p_line_id: line.id });
-        if (error) throw new Error(`reading the line's credentials: ${error.message}`);
+        const { data, error } = await getLineCredentials(db, line.id);
+        if (error) throw new DbFailure(error, "reading the line's credentials");
         return data && typeof data === "object" && !Array.isArray(data) ? data : {};
       },
       async putSecrets(s) {
-        const { error } = await db.rpc("put_line_credentials", { p_line_id: line.id, p_secret: s as unknown as Json });
-        if (error) throw new Error(`keeping the line's credentials: ${error.message}`);
+        const { error } = await putLineCredentials(db, line.id, asJson(s));
+        if (error) throw new DbFailure(error, "keeping the line's credentials");
       },
     },
     agent: { ensure: () => ensureVoiceAgent(db, cfg, secrets, tenant) },
@@ -188,7 +203,7 @@ type ChannelInsert = Database["public"]["Tables"]["tenant_channels"]["Insert"];
  */
 async function ensureRoutingRow(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   kind: "voice" | "sms",
   externalId: string,
   row: ChannelInsert,
@@ -198,13 +213,8 @@ async function ensureRoutingRow(
   // refused. Filtering it out instead would fall through to the insert and
   // fail on the constraint, which says "duplicate key" to an owner who has
   // just been told their number is being set up.
-  const have = await db
-    .from("tenant_channels")
-    .select("id, tenant_id, status")
-    .eq("kind", kind)
-    .eq("external_id", externalId)
-    .maybeSingle();
-  if (have.error) throw new Error(`reading the ${kind} row: ${have.error.message}`);
+  const have = await findRoutingRowByKey(db, kind, externalId);
+  if (have.error) throw new DbFailure(have.error, `reading the ${kind} row`);
   if (have.data) {
     const mine = have.data.tenant_id === tenantId;
     // A row somebody else is still USING is a live claim on this key, and the
@@ -224,17 +234,14 @@ async function ensureRoutingRow(
     // called; a Retell agent id is minted per workspace and never recycled, so
     // the row changing hands here is in practice always an sms one.
     if (!mine || have.data.status !== "active") {
-      const take = await db
-        .from("tenant_channels")
-        .update({ tenant_id: tenantId, status: "active", number_e164: row.number_e164, config: row.config })
-        .eq("id", have.data.id)
-        // Pinned to the row as it was READ, so a claim laid between the two
-        // statements wins and this fails rather than overwriting it.
-        .eq("tenant_id", have.data.tenant_id)
-        .eq("status", have.data.status)
-        .select("id")
-        .maybeSingle();
-      if (take.error) throw new Error(`taking the ${kind} row: ${take.error.message}`);
+      // Pinned to the row as it was READ, so a claim laid between the two statements wins and this fails rather than
+      // overwriting it.
+      const take = await takeRoutingRow(
+        db,
+        { id: have.data.id, tenantId: have.data.tenant_id, status: have.data.status },
+        { tenant_id: tenantId, status: "active", number_e164: row.number_e164, config: row.config },
+      );
+      if (take.error) throw new DbFailure(take.error, `taking the ${kind} row`);
       if (!take.data)
         throw new Error(
           `the ${kind} routing row for ${externalId} was claimed by another workspace while this line was being set up`,
@@ -242,8 +249,8 @@ async function ensureRoutingRow(
     }
     return { channelId: have.data.id, created: false };
   }
-  const ins = await db.from("tenant_channels").insert(row).select("id").single();
-  if (ins.error) throw new Error(`writing the ${kind} row: ${ins.error.message}`);
+  const ins = await insertRoutingRow(db, row);
+  if (ins.error) throw new DbFailure(ins.error, `writing the ${kind} row`);
   return { channelId: ins.data.id, created: true };
 }
 
@@ -276,7 +283,7 @@ async function ensureRoutingRow(
  */
 export async function releaseRoutingRows(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   line: { id: string; facts: Record<string, unknown> },
 ): Promise<
   { ok: true; released: Record<string, string> } | { ok: false; released: Record<string, string>; error: string }
@@ -293,16 +300,9 @@ export async function releaseRoutingRows(
     // Ordered, because with three lines on one agent row `limit(1)` unordered
     // picks whichever the planner happened to return -- and what is picked
     // becomes the number this workspace publishes. The oldest, which is the
-    // same line `ensureVoiceAgent`, `line_forwarding_set` and `businessPageFor`
+    // same line `ensureVoiceAgent`, `line_forwarding_set` and `findBusinessPage`
     // all settle on when a workspace has more than one.
-    const shared = await db
-      .from("lines")
-      .select("id, e164")
-      .eq("tenant_id", tenantId)
-      .neq("id", line.id)
-      .filter(`facts->>${key}`, "eq", id)
-      .order("created_at")
-      .limit(1);
+    const shared = await findOtherLineOnRow(db, { tenantId, lineId: line.id, fact: key, channelId: id });
     if (shared.error) return stop(`reading the workspace's other lines: ${shared.error.message}`);
     const holder = shared.data?.[0];
     if (holder) {
@@ -311,16 +311,11 @@ export async function releaseRoutingRows(
       // the receptionist's own facts publish as the workspace's number, so a
       // kept row still carrying the RELEASED number advertises a number that
       // has gone back to the carrier.
-      const row = await db
-        .from("tenant_channels")
-        .select("config")
-        .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
+      const row = await findChannelConfig(db, tenantId, id);
       if (row.error) return stop(`reading the routing row: ${row.error.message}`);
       const cfg =
         row.data?.config && typeof row.data.config === "object" && !Array.isArray(row.data.config)
-          ? (row.data.config as Record<string, unknown>)
+          ? recordOrEmpty(row.data.config)
           : {};
       // `lines.e164` is nullable -- a line killed before its purchase answered
       // has none -- and writing that null would erase the number the row
@@ -331,12 +326,12 @@ export async function releaseRoutingRows(
         config: { ...cfg, line_id: holder.id },
       };
       if (holder.e164) patch.number_e164 = holder.e164;
-      const moved = await db.from("tenant_channels").update(patch).eq("id", id).eq("tenant_id", tenantId);
+      const moved = await patchRoutingRow(db, tenantId, id, patch);
       if (moved.error) return stop(`repointing the routing row: ${moved.error.message}`);
       released[key === "channel_id" ? "channel_kept" : "sms_channel_kept"] = id;
       continue;
     }
-    const off = await db.from("tenant_channels").update({ status: "disabled" }).eq("id", id).eq("tenant_id", tenantId);
+    const off = await patchRoutingRow(db, tenantId, id, { status: "disabled" });
     if (off.error) return stop(`switching the routing row off: ${off.error.message}`);
     released[key === "channel_id" ? "channel_disabled" : "sms_channel_disabled"] = id;
   }
@@ -344,4 +339,4 @@ export async function releaseRoutingRows(
 }
 
 /** The step, in the owner's words — one list, shared with the page (contracts/setup.ts). */
-export { LINE_STEP_WORDS } from "../packages/contracts.js";
+export { LINE_STEP_WORDS } from "@chanlytics/contracts";

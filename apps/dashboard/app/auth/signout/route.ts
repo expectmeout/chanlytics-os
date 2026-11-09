@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 // One implementation, shared with withRoute — every mutating /api/v1 route
 // now makes the same check this route has made since the auth hardening pass.
-import { isSameOrigin } from "@/server/request-guards";
+import { isSameOrigin } from "@/server/shared/request-guards";
 import { forgetPhonesOnSignOut } from "@/server/auth/sign-out";
 
 /**

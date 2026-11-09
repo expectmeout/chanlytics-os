@@ -6,13 +6,14 @@
  * The door is the knock (authorizeAdmin) and the body (readBody); checkNumberStanding in lib/whatsapp/number-standing.ts is
  * everything after: the workspace's number and its own credentials, the one reading, the keeping and the telling.
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { checkNumberStanding } from "../../../lib/whatsapp/number-standing.js";
+import { WHATSAPP_STANDING_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/whatsapp/standing");
   if (!auth.ok) return auth.response;
-  return checkNumberStanding(auth, await readBody(request));
+  return checkNumberStanding(auth, await readBody(request, WHATSAPP_STANDING_DOOR));
 });

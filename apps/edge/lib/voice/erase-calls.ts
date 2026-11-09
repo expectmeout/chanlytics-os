@@ -12,16 +12,22 @@
  * the member, since the provider key lives here alone: eraseCallsDoor), and the erasure_finish job on this edge, which is
  * handed eraseCallsAtProvider as its port (jobs-tick.ts).
  */
-import { deleteCall } from "../packages/channels.js";
-import { isWorkspaceCall } from "../packages/db.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
+import { deleteCall } from "@chanlytics/channels/voice";
+import { runEachAtOnce } from "@chanlytics/core";
+import { isWorkspaceCall } from "@chanlytics/db/voice";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { logKeptGoing } from "@chanlytics/log";
 
 /** The most calls one erasure asks the provider about: a person with more has the rest left to the provider's week. */
 const MAX_CALLS = 200;
+/** How many of a person's calls are asked about at the provider side by side (eraseCallsAtProvider). */
+const CALLS_AT_ONCE = 5;
+/** How many of a person's calls are proved the workspace's side by side: a read each. */
+const PROOFS_AT_ONCE = 10;
 
 /** What the provider said of a person's calls: how many were asked about, deleted (or gone already), and refused. */
 interface CallsErased {
@@ -30,23 +36,32 @@ interface CallsErased {
   refused: number;
 }
 
-/** Each call deleted at the provider, one after another; none of it throws. */
+/**
+ * Each call deleted at the provider, a few at a time; none of it throws. One after another, a person with 44 calls took
+ * 37 s (0.84 s a call, 5 Nov 2026). Five at a time is about 6 a second, inside the provider's 100 in 10 s.
+ */
 export async function eraseCallsAtProvider(
   apiKey: string,
   callIds: readonly string[],
   del: typeof deleteCall = deleteCall,
 ): Promise<CallsErased> {
   const out: CallsErased = { asked: 0, deleted: 0, refused: 0 };
-  for (const id of callIds.slice(0, MAX_CALLS)) {
-    out.asked += 1;
-    try {
-      const r = await del({ apiKey }, id);
-      if (r.ok) out.deleted += 1;
-      else out.refused += 1;
-    } catch {
-      out.refused += 1;
-    }
-  }
+  await runEachAtOnce(
+    callIds.slice(0, MAX_CALLS),
+    CALLS_AT_ONCE,
+    () => true,
+    async (id) => {
+      out.asked += 1;
+      try {
+        const r = await del({ apiKey }, id);
+        if (r.ok) out.deleted += 1;
+        else out.refused += 1;
+      } catch (e) {
+        logKeptGoing("erasing a call at the provider", e);
+        out.refused += 1;
+      }
+    },
+  );
   return out;
 }
 
@@ -74,10 +89,15 @@ export async function eraseCallsDoor(
     : [];
   const mine: string[] = [];
   let notMine = 0;
-  for (const id of ids) {
-    if (await isWorkspaceCall(db, tenantId, id)) mine.push(id);
-    else notMine += 1;
-  }
+  await runEachAtOnce(
+    ids,
+    PROOFS_AT_ONCE,
+    () => true,
+    async (id) => {
+      if (await isWorkspaceCall(db, tenantId, id)) mine.push(id);
+      else notMine += 1;
+    },
+  );
   const erased = await eraseCallsAtProvider(apiKey, mine);
   logger({ tenant_id: tenantId }).info("erase_provider_calls", { ...erased, not_mine: notMine });
   return json(200, { ok: true, ...erased, refused: erased.refused + notMine });

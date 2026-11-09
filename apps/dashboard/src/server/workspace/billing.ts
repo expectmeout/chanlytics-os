@@ -5,22 +5,26 @@
  * the edge; nothing here knows it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { callSecondsSince, type Database } from "@chanlytics/db";
-import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
-import { deployment } from "../env";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer } from "../edge";
-import { log } from "@/server/log";
+import { callSecondsSince } from "@chanlytics/db/voice";
+import { findWorkspaceModelStanding } from "@chanlytics/db/ai";
+import type { Database } from "@chanlytics/db/types";
+import {
+  billingAccountDto,
+  type BillingAccountDto,
+  type BillingPriceDto,
+  type ModelStanding,
+  DbFailure,
+} from "@chanlytics/contracts";
+import { deployment } from "../shared/env";
+import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
+import { log } from "@/server/shared/log";
+import { serviceDbIfConfigured } from "@/server/shared/service-db";
+import { findPlanForPage } from "@chanlytics/db/billing";
+import type { TenantId } from "@chanlytics/contracts";
 
-export const BILLING_COLUMNS =
-  "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
-
-export async function billingFor(db: SupabaseClient<Database>, tenantId: string): Promise<BillingAccountDto | null> {
-  const { data, error } = await db
-    .from("billing_accounts")
-    .select(BILLING_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+export async function findBilling(db: SupabaseClient<Database>, tenantId: TenantId): Promise<BillingAccountDto | null> {
+  const { data, error } = await findPlanForPage(db, tenantId);
+  if (error) throw new DbFailure(error);
   return data ? billingAccountDto(data) : null;
 }
 
@@ -29,13 +33,28 @@ export async function billingFor(db: SupabaseClient<Database>, tenantId: string)
  * 0092): what Settings › Billing says the voice provider was paid for. Null when the read failed: the page says nothing
  * then, rather than a zero it does not know.
  */
-export async function callMinutesThisMonth(db: SupabaseClient<Database>, tenantId: string): Promise<number | null> {
+export async function callMinutesThisMonth(db: SupabaseClient<Database>, tenantId: TenantId): Promise<number | null> {
   const now = new Date();
   const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
   try {
     return Math.ceil((await callSecondsSince(db, tenantId, since)) / 60);
   } catch (e) {
     log.warn("billing_minutes_unread", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+
+/**
+ * What Anthropic has said of this workspace's profile (decision 0097): the service role's table, read for the shell's line.
+ * Null when it could not be read: the line is said on the row's word alone. Never throws.
+ */
+export async function findModelStanding(tenantId: TenantId): Promise<ModelStanding | null> {
+  const db = serviceDbIfConfigured();
+  if (!db) return null;
+  try {
+    return await findWorkspaceModelStanding(db, tenantId);
+  } catch (e) {
+    log.warn("billing_model_paused_unread", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }
@@ -48,7 +67,7 @@ export async function endEmptiedWorkspaces(ids: unknown): Promise<void> {
   const list = Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
   await Promise.all(
     list.map(async (tenantId) => {
-      const r = await edgeBilling({ op: "end", tenant_id: tenantId });
+      const r = await callEdgeBilling({ op: "end", tenant_id: tenantId });
       if (r.status !== 200)
         log.error("account_delete_plan_not_ended", { tenant_id: tenantId, status: r.status, answer: r.body });
     }),
@@ -56,7 +75,10 @@ export async function endEmptiedWorkspaces(ids: unknown): Promise<void> {
 }
 
 /** One call to the edge's billing endpoint. Never throws: a failure is a status the caller reads. */
-export async function edgeBilling(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
+export async function callEdgeBilling(
+  body: EdgeBody<"/api/admin/billing">,
+  timeoutMs = 20_000,
+): Promise<EdgeAnswer<EdgeRead<"/api/admin/billing">>> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every other provider door keeps (connections/whatsapp.ts): a
   // preview with the edge secret set must not open a real Checkout.
@@ -85,18 +107,18 @@ let billingReadyCache: { at: number; value: BillingReadiness } | null = null;
  * not between two page loads. An unreachable edge reads as not ready, so
  * nothing draws a verb that cannot work.
  */
-export async function billingReadiness(now = Date.now()): Promise<BillingReadiness> {
+export async function getBillingReadiness(now = Date.now()): Promise<BillingReadiness> {
   if (billingReadyCache && now - billingReadyCache.at < READY_TTL_MS) return billingReadyCache.value;
-  const a = await edgeBilling({ op: "status" }, 6_000);
-  const b = a.body ?? {};
-  const price = b.price && typeof b.price === "object" ? (b.price as BillingPriceDto) : null;
+  const answer = await callEdgeBilling({ op: "status" }, 6_000);
+  const body = answer.body ?? {};
+  const price = body.price ?? null;
   const value: BillingReadiness =
-    a.status === 200 && b.ok === true
+    answer.status === 200 && body.ok === true
       ? {
-          ready: b.ready === true,
-          livemode: typeof b.livemode === "boolean" ? b.livemode : null,
+          ready: body.ready === true,
+          livemode: typeof body.livemode === "boolean" ? body.livemode : null,
           price,
-          trial_days: typeof b.trial_days === "number" ? b.trial_days : 14,
+          trial_days: typeof body.trial_days === "number" ? body.trial_days : 14,
         }
       : NOT_READY;
   billingReadyCache = { at: now, value };

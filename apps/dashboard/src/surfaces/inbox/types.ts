@@ -16,10 +16,11 @@ import type {
   SeenReading,
   Standing,
   TemplateHolds,
+  ThreadMove,
 } from "@chanlytics/contracts";
 
 /** The states a seeded thread is in; a real thread is only ever escalated, snoozed or done. */
-export type ThreadState = "needs" | "watching" | "drafts" | "escalated" | "snoozed" | "done";
+export type ThreadState = "needs" | "watching" | "drafts" | "escalated" | "snoozed" | "done" | "aside";
 
 /** The agent that answers: by name and glyph, and for a seeded thread what it may do and how it speaks. */
 interface ThreadAgent {
@@ -246,6 +247,7 @@ export interface SeededThread extends ThreadBase {
   archived?: undefined;
   lastWord?: undefined;
   unanswered?: undefined;
+  move?: undefined;
   needsYou?: undefined;
   heldDraft?: undefined;
   hasChat?: undefined;
@@ -269,6 +271,8 @@ export interface InboxBucket {
   icon: string;
   accent?: boolean;
   count?: number;
+  /** Drawn only where it holds a thread: Set aside is no list to keep an eye on. */
+  onlyWithRows?: boolean;
 }
 
 /** A saved view, a real predicate over the threads. */
@@ -281,8 +285,8 @@ export interface InboxView {
 
 /**
  * A value as JSON carries it, as the database's jsonb columns say (packages/db Json): a template's `variables`, read where it
- * is used (contracts template-slots.ts). Said, not `unknown`, so the Inbox's snapshot has a fingerprint and is drawn across
- * a deploy that left its type alone (legacy-bridge/surface-cache.ts, SURFACE_SHAPES).
+ * is used (contracts templates/slots.ts). Said, not `unknown`, so the Inbox's snapshot has a fingerprint and is drawn across
+ * a deploy that left its type alone (bridge/surface-cache.ts, SURFACE_SHAPES).
  */
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue | undefined };
 
@@ -358,7 +362,7 @@ export interface CallLine {
 }
 
 /** A row of Conversations: a real chat or call (contracts' view models), or the mockup's. */
-export interface ConversationRow {
+export interface ConversationLine {
   id: string;
   who: string;
   initials: string;
@@ -396,6 +400,8 @@ export interface ConversationRow {
   messageId?: string;
   whoShort?: string;
   answeredBy?: string | null;
+  /** Who owes the next move, on a chat (contracts thread-move.ts); a call has its own story. */
+  move?: ThreadMove;
   hasChat?: boolean;
   durationSec?: number | null;
   recordingState?: CallVM["recordingState"];
@@ -406,7 +412,7 @@ export interface ConversationRow {
   /** What the call's analysis left: the to-do the receptionist noted, what the caller gave (contracts callNotesOf). */
   notes?: CallNotes;
   /** On a person's one row (cv-rules.ts cvOnePerPerson): every row it stands for, newest first, itself the first. */
-  parts?: ConversationRow[];
+  parts?: ConversationLine[];
 }
 
 /**
@@ -437,7 +443,7 @@ export interface ConversationTab {
 
 /** What the Conversations surface publishes: the seam's value for `conversations` (`CONVERSATIONS_DATA` to the pages that have not moved). */
 export interface ConversationsSurface {
-  CONVERSATIONS: ConversationRow[];
+  CONVERSATIONS: ConversationLine[];
   CV_CHANNELS: ConversationTab[];
   /** False when the calls read failed: the page says so instead of listing no calls. */
   CALLS_READ?: boolean;

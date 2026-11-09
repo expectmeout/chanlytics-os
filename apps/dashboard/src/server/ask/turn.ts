@@ -5,6 +5,7 @@ import {
   MIN_MS,
   answerText,
   detectLanguage,
+  fileSaidOf,
   nextNotAsked,
   policyClassOffered,
   replacedOutcome,
@@ -19,17 +20,25 @@ import {
   type AskScope,
   type PageContext,
 } from "@chanlytics/contracts";
-import type { RouteContext } from "../with-route";
-import type { Member } from "../route";
-import { log } from "@/server/log";
-import { load, readerContext, type ReaderContext } from "../readers";
+import { filesLineOf } from "@/server/files/line";
+import type { RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
+import { log } from "@/server/shared/log";
+import { load, readerContext, type ReaderContext } from "../shared/reader";
 import * as readers from "../readers/facts";
+import { filesTallied } from "../readers/files";
 import { memberViews } from "../readers/notifications";
-import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
-import { storedRaw, threadForTurn, toldWithArrived } from "./memory";
-import { askTurnText, workspaceFacts, type SearchAnswering, type WorkspaceFacts } from "./prompt";
+import { getAttached, noWordsIn, type AttachedFile } from "../files/attached";
+import { runAskTurn } from "./loop/loop";
+import type { TurnEvent, TurnInput, TurnResult } from "./loop/turn-head";
+import { storedRaw, findThreadForTurn, toldWithArrived } from "./memory";
+import { askTurnText, type SearchAnswering } from "./prompt/prompt";
+import { workspaceFacts, type WorkspaceFacts } from "./prompt/stable-system";
 import { appendMessage, setProposalOutcome, touchThread } from "./store";
 import { keepRememberCards } from "./companion/remembered";
+import { runAlone } from "./act/world";
+import { logAndGoOn } from "@chanlytics/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * One turn of the assistant, kept in one place for its two doors: POST /api/v1/ask (the typed Line) and the voice
@@ -50,6 +59,10 @@ interface AskTurnAsk {
   context: PageContext | null;
   openedMs: number | null;
   answering: SearchAnswering | null;
+  /** A question that comes from a follow-up of the member's that came due (D33 of the answers canvas). */
+  following?: boolean;
+  /** The request, whose session a press from the server goes under (D10, D18). Absent, nothing runs from here. */
+  request?: Request;
   /** The person is listening, not reading (the spoken register, spec §3.4). */
   spoken?: boolean;
   /** The column the Line draws the answer in, as the tab measured it (contracts AskColumn); none from an older tab. */
@@ -61,6 +74,8 @@ interface AskTurnAsk {
   language?: AskLanguage;
   /** What the mornings offered lately (decision 0087, contracts latelySaid): a morning's alone, said in the turn's words. */
   lately?: string;
+  /** The ids of the files the question came with: the Line's. One that is not there for the person is left out. */
+  files?: readonly string[];
 }
 
 /** A line the turn's door sends: the thread first, then the turn's own events. */
@@ -77,12 +92,13 @@ interface AskTurnDone {
 interface PreparedTurn {
   ctx: RouteContext;
   member: Member;
-  tenantId: string;
+  tenantId: TenantId;
   ask: AskTurnAsk;
   thread: { id: string; title: string; scope: AskScope | null };
   scope: AskScope | null;
+  attached: AttachedFile[];
   earlier: Pick<TurnInput, "history" | "sinceLastMs" | "chain" | "told" | "cited" | "waiting">;
-  /** The thread's turns' cards before this one (memory.ts threadForTurn): what a new search card sets aside. */
+  /** The thread's turns' cards before this one (memory.ts findThreadForTurn): what a new search card sets aside. */
   cards: Array<Pick<AskMessageVM, "id" | "proposals">>;
   /** The thread's questions and the next questions it offered, this question among them (nextNotAsked). */
   offered: string[];
@@ -97,8 +113,8 @@ interface PreparedTurn {
  * The workspace's facts as a turn's stable block says them, and its zone: read once here for a turn and for its warm
  * (warm.ts), so the two write the same block. Kept across turns by the reader's own cache (five minutes).
  */
-export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFacts; timezone: string }> {
-  const [{ name, timezone }, cfg, policies] = await Promise.all([
+export async function getTurnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFacts; timezone: string }> {
+  const [{ name, timezone }, cfg, policies, library] = await Promise.all([
     load(rc, readers.facts, undefined).then((r) => r.data),
     load(rc, readers.config, undefined).then((r) => r.data),
     // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
@@ -106,11 +122,17 @@ export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFa
       (r) => r.data,
       () => [],
     ),
+    // What the business's files are, in a line. A read that fails says nothing, and the files read still answers.
+    load(rc, filesTallied, undefined).then(
+      (r) => r.data.files,
+      () => null,
+    ),
   ]);
   // The rows the pane draws (contracts policyClassOffered).
   const offered = policies.filter((p) => policyClassOffered(p.class));
   // At the turn's clock (rc.now), so the notes Ask is told are the ones the receptionist is told today.
-  return { facts: workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered), timezone };
+  const facts = workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered);
+  return { facts: { ...facts, filesLine: library ? filesLineOf(library, timezone) : null }, timezone };
 }
 
 /** How long a question waits for the thread's last question to be answered, and how often it looks again. */
@@ -129,14 +151,31 @@ const BUSY_WORDS = {
   es: "Ask todavía está respondiendo tu última pregunta aquí. Pregunta de nuevo en un momento.",
 };
 
+/** The files a question names that are there for the person, in the order they were attached. */
+async function filesAsked(ctx: RouteContext, tenantId: TenantId, ids: readonly string[]): Promise<AttachedFile[]> {
+  if (ids.length === 0) return [];
+  const found = await getAttached(ctx, tenantId, ids);
+  return ids.flatMap((id) => found.get(id) ?? []);
+}
+
 export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: AskTurnAsk): Promise<PreparedTurn> {
   const { text, threadId, answering } = ask;
   const tenantId = member.tenantId;
 
+  // What it came with, as those files are now, before anything is kept: a question of no words needs one that is there.
+  const attached = await filesAsked(ctx, tenantId, ask.files ?? []);
+  if (!text && attached.length === 0) throw new AppError("validation", "Ask something.");
+
   // The thread, before anything else: a question that could not be saved is
-  // not answered, so a person never sees an answer they cannot find again.
-  const asked = { tenantId, threadId, text, scope: ask.scope, answering };
-  let kept = await threadForTurn(ctx, asked);
+  // not answered, so a person never sees an answer they cannot find again. One of no words is titled by what it came with.
+  const fields = {
+    tenantId,
+    threadId,
+    text: text || fileSaidOf(attached[0]?.name ?? ""),
+    scope: ask.scope,
+    answering,
+  };
+  let kept = await findThreadForTurn(ctx, fields);
   // A question asked while the thread's last one is still being answered (another tab, or a question sent the moment
   // after a Stop, before the stopped turn is saved) waits for that answer, so the thread is stored question, answer,
   // question, answer, and this turn's history holds it. Still unanswered, it is refused in our words and nothing is
@@ -145,16 +184,20 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
     if (waited >= TURN_WAIT_MS)
       throw new AppError("conflict", BUSY_WORDS[detectLanguage(text) === "es" ? "es" : "en"], 409);
     await new Promise((resolve) => setTimeout(resolve, TURN_WAIT_STEP_MS));
-    kept = await threadForTurn(ctx, asked);
+    kept = await findThreadForTurn(ctx, fields);
   }
   // The thread's earlier turns: their lines, what they told and cited, the time since, and the chain while warm.
   const { thread, scope, offered, cards, ...earlier } = kept;
-  await appendMessage(ctx, thread.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
+  await appendMessage(ctx, thread.id, tenantId, "user", {
+    text,
+    ...(attached.length ? { files: attached.map((f) => f.id) } : {}),
+    ...(answering ? { answering } : {}),
+  });
 
   // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
   // the same person does not read them again. The GET routes keep nothing.
   const rc = readerContext(ctx, member, undefined, { keep: true });
-  const { facts, timezone } = await turnFacts(rc);
+  const { facts, timezone } = await getTurnFacts(rc);
   const language = ask.language ?? detectLanguage(text);
   const personLabel = ctx.email ? `${ctx.email} (${member.role})` : member.role;
   return {
@@ -164,9 +207,10 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
     ask,
     thread,
     scope,
+    attached,
     earlier,
     cards,
-    offered: [...offered, text],
+    offered: text ? [...offered, text] : offered,
     rc,
     facts,
     timezone,
@@ -182,10 +226,10 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
  */
 function stoppedTurn(
   result: TurnResult,
-  said: { headline: string; detail: string } | null,
+  spoken: { headline: string; detail: string } | null,
   language: AskLanguage,
 ): TurnResult {
-  const answer = stoppedAnswer(said, language);
+  const answer = stoppedAnswer(spoken, language);
   return {
     ...result,
     answer,
@@ -203,11 +247,11 @@ function stoppedTurn(
 async function setAsideReplaced(
   ctx: RouteContext,
   cards: Array<Pick<AskMessageVM, "id" | "proposals">>,
-  made: AskProposal[],
-  tenantId: string,
+  created: AskProposal[],
+  tenantId: TenantId,
 ): Promise<void> {
   const at = Date.now();
-  for (const r of searchCardsReplaced(cards, made)) {
+  for (const r of searchCardsReplaced(cards, created)) {
     try {
       await setProposalOutcome(ctx, r.messageId, r.proposalId, replacedOutcome(at));
     } catch (e) {
@@ -216,8 +260,29 @@ async function setAsideReplaced(
   }
 }
 
+/** The answer as its row keeps it: what the Line draws again and the history reads, and the turn as the model was sent it. */
+function answerRowOf(result: TurnResult, v1: ReturnType<typeof v1FromAnswer>, proposals: AskProposal[]) {
+  return {
+    v: 2,
+    answer: result.answer,
+    ...v1,
+    proposals,
+    language: result.answer.language,
+    ungrounded: result.ungrounded,
+    tools: result.tools,
+    ...(result.opened.length ? { opened: result.opened } : {}),
+    latency_ms: result.latencyMs,
+    failed: result.failed,
+    ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),
+    model: result.model,
+    rounds: result.rounds,
+    shape: result.shape,
+    raw: storedRaw(toldWithArrived(result.raw, proposals)),
+  };
+}
+
 export async function finishAskTurn(
-  p: PreparedTurn,
+  preparedTurn: PreparedTurn,
   emit: (ev: AskTurnLine) => void,
   stop?: AbortSignal,
 ): Promise<AskTurnDone> {
@@ -236,12 +301,14 @@ export async function finishAskTurn(
     timezone,
     language,
     personLabel,
-  } = p;
-  const { text, surface, context, openedMs, answering } = ask;
+  } = preparedTurn;
+  const { text, surface, context, openedMs, answering, following } = ask;
+  // Cards of earlier turns this one pressed on a yes (D18 of the answers canvas).
+  const pressed: NonNullable<AskMessageVM["pressed"]> extends ReadonlyArray<infer R> ? R[] : never = [];
   emit({ t: "thread", id: turn.id, title: turn.title });
   const t0 = Date.now();
   // The Say as the person last read it: an empty one took the answer back (loop.ts unsay).
-  let said: { headline: string; detail: string } | null = null;
+  let spoken: { headline: string; detail: string } | null = null;
   // How they like answers, their own note (the answer canvas, D): a read that fails costs the note, never the turn.
   const style = await load(rc, memberViews, undefined)
     .then((r) => answerStyleOf(r.data))
@@ -257,7 +324,12 @@ export async function finishAskTurn(
     scope,
     surface,
     ...earlier,
-    text: askTurnText(text, answering),
+    text: askTurnText(text, answering) || noWordsIn(language),
+    ...(following ? { following } : {}),
+    ...(ask.request
+      ? { request: ask.request, member, waitingOn: waitingOnThread(cards), onPressed: (r) => pressed.push(r) }
+      : {}),
+    attached: preparedTurn.attached,
     openedMs,
     context,
     spoken: ask.spoken ?? false,
@@ -266,7 +338,7 @@ export async function finishAskTurn(
     lately: ask.lately ?? "",
     emit: (ev) => {
       if (ev.t === "say")
-        said = ev.headline || ev.detail ? { headline: ev.headline ?? "", detail: ev.detail ?? "" } : null;
+        spoken = ev.headline || ev.detail ? { headline: ev.headline ?? "", detail: ev.detail ?? "" } : null;
       emit(ev);
     },
     // One clock for the turn: the tools' today is the readers' today.
@@ -275,7 +347,7 @@ export async function finishAskTurn(
     signal: stop,
   });
   // Stopped, even past its last round: what the person saw is what the thread keeps.
-  const ended = stop?.aborted ? stoppedTurn(ran, said, language) : ran;
+  const ended = stop?.aborted ? stoppedTurn(ran, spoken, language) : ran;
   // A next question the thread already asked or offered goes (the answer canvas, item 15): the chips offer what is new.
   const next = nextNotAsked(ended.answer.do.next, offered);
   const result = { ...ended, answer: { ...ended.answer, do: { ...ended.answer.do, next } } };
@@ -297,27 +369,9 @@ export async function finishAskTurn(
         : p,
     ),
   );
-  const content = {
-    v: 2,
-    answer: result.answer,
-    ...v1,
-    proposals,
-    language: result.answer.language,
-    ungrounded: result.ungrounded,
-    tools: result.tools,
-    latency_ms: result.latencyMs,
-    failed: result.failed,
-    ...(result.failure ? { failure: result.failure.slice(0, 200) } : {}),
-    model: result.model,
-    rounds: result.rounds,
-    shape: result.shape,
-  };
   let saved: { id: string; created_at: string } | null = null;
   try {
-    saved = await appendMessage(ctx, turn.id, tenantId, "assistant", {
-      ...content,
-      raw: storedRaw(toldWithArrived(result.raw, proposals)),
-    });
+    saved = await appendMessage(ctx, turn.id, tenantId, "assistant", answerRowOf(result, v1, proposals));
     // A thread keeps its first question as its title; an answer moves it up the list, and it keeps the scope
     // this turn ran with (the Phase 5 plan, D9), so the next question sent with none is asked about the same.
     await touchThread(ctx, turn.id, scope);
@@ -327,6 +381,13 @@ export async function finishAskTurn(
   // A new search card sets aside the one still waiting above it (a change said to Ask): one search card in a thread
   // can be pressed, the newest. The Line sets the same cards aside as the answer lands (contracts withAnswerLanded).
   if (saved) await setAsideReplaced(ctx, cards, proposals, tenantId);
+  // What the rows let run with no press (D10 of the answers canvas): off until an owner turns it on.
+  const acted =
+    saved && ask.request
+      ? await runAlone(ctx, ask.request, member, saved.id, proposals, new Date()).catch(
+          logAndGoOn("run alone", proposals),
+        )
+      : proposals;
   const message: AskMessageVM = {
     id: saved?.id ?? `unsaved-${Date.now()}`,
     role: "assistant",
@@ -336,7 +397,8 @@ export async function finishAskTurn(
     citations: v1.citations,
     followups: v1.followups,
     navigate: v1.navigate,
-    proposals,
+    proposals: acted,
+    ...(pressed.length ? { pressed } : {}),
     language: result.answer.language,
     ungrounded: result.ungrounded,
     tools: result.tools,
@@ -365,6 +427,20 @@ export async function finishAskTurn(
   });
   emit({ t: "final", message });
   return { thread: { id: turn.id, title: turn.title }, result, message };
+}
+
+/** The cards waiting on this thread, by id, each with the turn it is on and the cards of that turn: what a yes may press. */
+function waitingOnThread(cards: ReadonlyArray<Pick<AskMessageVM, "id" | "proposals">>) {
+  return new Map(
+    cards.flatMap((m) =>
+      (m.proposals ?? [])
+        .filter((p) => !p.outcome)
+        .map((p): [string, { card: AskProposal; messageId: string; cards: readonly AskProposal[] }] => [
+          p.id,
+          { card: p, messageId: m.id, cards: m.proposals ?? [] },
+        ]),
+    ),
+  );
 }
 
 /** Both halves in a row, for a door with no stream to open between them (the voice door). */

@@ -1,0 +1,202 @@
+/**
+ * The veto window: the receptionist drafts, the business gets a moment to
+ * redirect it, then it sends.
+ *
+ * A text channel is not a phone call. Nobody expects a WhatsApp answer in under
+ * a second, so a short wait costs the customer nothing — and it turns the only
+ * two settings a business had, "let the bot speak" or "turn the bot off", into
+ * a third: let it draft, and change what it says before anyone reads it.
+ * Correcting a message that has already landed is not a feature.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { readCode } from "../_source.mjs";
+import {
+  noTemplateWords,
+  replyDelayMs,
+  REPLY_DELAY_DEFAULT_MS,
+  REPLY_DELAY_MIN_MS,
+  REPLY_DELAY_MAX_MS,
+} from "@chanlytics/contracts";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(here, "../..");
+const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
+
+/* ------------------------------- the rule -------------------------------- */
+
+test("'auto' answers immediately — that is what it means", () => {
+  assert.equal(replyDelayMs("auto", { reply_delay_ms: 30_000 }), 0);
+});
+
+test("only 'veto' holds a reply", () => {
+  // ask/never don't reach a send at all; a delay on them would be meaningless.
+  for (const mode of ["ask", "never", "", null, undefined, "nonsense"]) {
+    assert.equal(replyDelayMs(mode, { reply_delay_ms: 30_000 }), 0, String(mode));
+  }
+});
+
+test("'veto' with no configured delay still holds, at the default", () => {
+  // Choosing veto IS the intent. Falling through to 0 would silently make it
+  // behave exactly like auto, which is the one outcome nobody asked for.
+  assert.equal(replyDelayMs("veto", {}), REPLY_DELAY_DEFAULT_MS);
+  assert.equal(replyDelayMs("veto", null), REPLY_DELAY_DEFAULT_MS);
+  assert.equal(replyDelayMs("veto", { reply_delay_ms: undefined }), REPLY_DELAY_DEFAULT_MS);
+});
+
+test("a configured delay is honoured", () => {
+  assert.equal(replyDelayMs("veto", { reply_delay_ms: 15_000 }), 15_000);
+  assert.equal(replyDelayMs("veto", { reply_delay_ms: 60_000 }), 60_000);
+});
+
+test("a typo cannot strand a customer", () => {
+  // `limits` is tenant-editable JSON. One extra zero should cost seconds, never
+  // leave someone waiting hours for an answer the bot already wrote.
+  assert.equal(replyDelayMs("veto", { reply_delay_ms: 300_000_000 }), REPLY_DELAY_MAX_MS);
+  assert.equal(replyDelayMs("veto", { reply_delay_ms: 1 }), REPLY_DELAY_MIN_MS);
+  assert.equal(replyDelayMs("veto", { reply_delay_ms: -5000 }), REPLY_DELAY_MIN_MS);
+});
+
+test("garbage in the config falls back rather than producing NaN", () => {
+  for (const bad of ["30s", null, NaN, Infinity, {}, []]) {
+    const d = replyDelayMs("veto", { reply_delay_ms: bad });
+    assert.ok(Number.isFinite(d) && d >= REPLY_DELAY_MIN_MS, `bad input ${String(bad)} -> ${d}`);
+  }
+});
+
+/* ---------------------- the wiring the rule depends on -------------------- */
+
+// The mode in force (reply-gates.ts) and the hold window (dispatch.ts).
+const edge = ["reply-gates", "dispatch"].map((m) => read(`packages/core/src/inbound/${m}.ts`)).join("\n");
+const sink = read("apps/edge/lib/inbound/persist.ts");
+const reply = read("packages/core/src/conversations/reply.ts");
+const takeOver = read("apps/dashboard/src/server/conversations/ports.ts");
+
+test("'veto' reaches the brain instead of being held as a policy block", () => {
+  // Before this, veto fell into the "hold everything for a human" branch — safe,
+  // but it meant selecting veto silently disabled the receptionist.
+  assert.match(
+    edge,
+    /const held = unattendedHold\(\{[^}]*\bmode: replyMode,\s*\}\);/,
+    "the gate asks the one rule, with the mode in force",
+  );
+});
+
+test("a queued draft falls back to sending when it cannot be scheduled", () => {
+  // An un-vetoed reply is a worse outcome than a vetoed one. No reply at all is
+  // worse than both — so a missing token or a dead queue must not mean silence.
+  assert.match(edge, /queueReply\(/);
+  // Spans lines since the confidence dial: the same expression, more arguments.
+  assert.match(edge, /delayMs > 0\s*\?\s*await ports\.persist\.queueReply\([\s\S]*?\)\s*:\s*false/);
+});
+
+test("EVERY path where a human takes control withdraws the draft", () => {
+  // Otherwise the customer receives both the override and the words it was
+  // meant to replace.
+  for (const [name, src, withdraw] of [
+    ["reply", reply, /ports\.withdrawDrafts\(/],
+    ["the adapter", takeOver, /withdrawDrafts: \(tenantId, id\) =>\s*cancelPendingAiReply\(/],
+  ]) {
+    assert.match(src, withdraw, `${name} must withdraw a held draft`);
+  }
+});
+
+// How a held draft is withdrawn (the row and the job that would send it, in one transaction; by message, never by
+// conversation; the receptionist's drafts alone, and only one no run has claimed) is one door's since 00387, and
+// conversations/state/a-queued-message-is-withdrawn-by-one-door.db.test.mjs runs it on a real database. These held the
+// four writers it replaced by their text.
+
+test("a veto draft and its job are written in one statement, so neither is ever left without the other", () => {
+  // The row used to be written before the job. A scheduling failure left it `queued` while the caller sent the same
+  // words immediately, and a run killed between the two left a reply nothing would send, found only by the deadman ten
+  // minutes later. queue_send (00527) writes both or neither (jobs/a-send-is-queued-with-its-job.db.test.mjs runs it);
+  // the writer is lib/draft-queue.ts, one for the handler and the steer.
+  const queue = readCode("apps/edge/lib/ai/draft-queue.ts");
+  const fn = queue.slice(queue.indexOf("export async function queueDraft"));
+  const body = fn.slice(0, fn.indexOf("\n}\n", 1) + 3);
+  assert.ok(body.includes("queueSend("), "the draft and its job through the one statement");
+  assert.ok(!body.includes("recordOutbound(") && !body.includes("scheduleJob("), "never the row, then the job");
+});
+
+test("a delayed bot reply is not recorded as a human's", () => {
+  // The queue used to carry only human replies. Stamping every send 'human'
+  // would make the metrics report the bot's words as a person's.
+  const handlers = read("packages/core/src/messages/send.ts");
+  assert.match(
+    handlers,
+    /sender: \(msg\.sender \?\? "human"\)/,
+    "the door is handed the row's sender, never a constant",
+  );
+});
+
+test("a configured veto window that did not happen is RECORDED, not just logged", () => {
+  // The fallback is deliberate — an un-vetoed reply beats no reply — but the
+  // workspace asked to see its receptionist's words before the customer did,
+  // and instead the customer got them first. A log line nobody reads is how a
+  // setting quietly becomes a lie.
+  assert.match(edge, /if \(delayMs > 0 && !queued\) \{[\s\S]{0,400}?sink\.vetoFallback\(/);
+  assert.match(sink, /policy\.veto_window_skipped/);
+});
+
+test("the event names the usual cause rather than making someone guess", () => {
+  assert.match(sink, /scheduling_failed/);
+});
+
+/* ---- the closed-window send uses the workspace's OWN approved template ---- */
+{
+  // The seam and each surface's module beside it (bridge/surfaces/, and the surfaces that have left the shell),
+  // read as one text.
+  const seam = [
+    "apps/dashboard/src/bridge/surface-data.ts",
+    "apps/dashboard/src/surfaces/reports/surface.ts",
+    "apps/dashboard/src/surfaces/inbox/surface.ts",
+    ...fs
+      .readdirSync(path.join(ROOT, "apps/dashboard/src/bridge/surfaces"))
+      .map((f) => `apps/dashboard/src/bridge/surfaces/${f}`),
+  ]
+    .map((p) => read(p))
+    .join("\n");
+  // readCode, not read: the forbidden-name assertion below is otherwise
+  // satisfied by the COMMENT explaining why that name is forbidden, so the
+  // only way to make the guard pass would be to delete the rationale. Same
+  // trap auth-gate.test.mjs documents.
+  const verbs2 = readCode("apps/dashboard/src/surfaces/inbox/verbs.ts");
+  // The template reply box, where the composer offers what may go outside the window (template-box.tsx).
+  const thread = read("apps/dashboard/src/surfaces/inbox/thread/template-box.tsx");
+
+  test("the approved templates are actually fetched", () => {
+    // /api/v1/templates existed, was tenant-scoped and approved-only, and had
+    // no caller anywhere. The composer named a template by a literal instead.
+    // Since decision 0047 (the wiring plan's task 3.3) the settings read is the one read of them, and the Inbox's are
+    // the WhatsApp rows of it that may go (offered-templates.ts offeredWhatsApp).
+    assert.ok(seam.includes('read("GET templates"'), "the workspace's templates are fetched");
+    assert.match(
+      seam,
+      /templates: shareUnchanged\(prev\.templates, offeredWhatsApp\(settings\)\),\s*templatesHeld: shareUnchanged\(prev\.templatesHeld, heldBackOf\(settings\)\)/,
+      "and published with the Inbox's rows (and the count of what the picker left out)",
+    );
+  });
+
+  test("no hardcoded template name survives in the courier", () => {
+    // booking_link_v1/en_US is right for exactly one workspace and a
+    // guaranteed server rejection for every other — including every newly
+    // created one, which has no template row at all.
+    assert.ok(!/booking_link_v1/.test(verbs2), "the fallback template name must be gone");
+    assert.ok(!/FALLBACK_TEMPLATE/.test(verbs2));
+  });
+
+  test("with no approved template the composer says so instead of offering a send", () => {
+    // The composer says it in contracts' words (noTemplateWords), the plain sentence where nothing is counted.
+    assert.match(thread, /noTemplateWords\(/);
+    assert.match(noTemplateWords(null), /^No approved template yet/);
+    // And the courier refuses rather than posting a request the server must
+    // reject with a message the operator cannot act on.
+    assert.match(verbs2, /has no approved template yet/);
+  });
+
+  // That a template read that fails degrades rather than blanking the Inbox is run, not read off the source:
+  // inbox/inbox-counts.test.mjs, "the Inbox reads its approved templates once in a few minutes…".
+}

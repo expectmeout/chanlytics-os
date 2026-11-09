@@ -32,6 +32,8 @@ export {
 } from "./clock";
 export { EDGE_ERROR_CODES } from "./edge-errors";
 export type { EdgeAnswerBody, EdgeAnswerCode, EdgeCallCode, EdgeErrorCode, EdgeRefusal } from "./edge-errors";
+export { answerFields, DOOR_ID, edgeDoor, NO_BODY, PLAIN_ANSWER, shaped, unheldByDoor } from "./edge/door";
+export type { DoorAnswer, DoorBody, DoorPath, DoorRead, EdgeDoor } from "./edge/door";
 export { addressInMessage, normalizeEmail, whyNotAnEmail } from "./email-address";
 export {
   ACTOR_TYPES,
@@ -91,25 +93,40 @@ export type {
   WabaEventKind,
 } from "./enums";
 export { err, ok, SERVED_AT_HEADER } from "./envelope";
-export type { Envelope, Err, Ok } from "./envelope";
-export { AppError, bodyRefusal, ERROR_CODES } from "./errors";
-export type { ErrorCode } from "./errors";
+export type { Envelope, Err, Ok, PageInfo } from "./envelope";
+export { AppError, bodyRefusal, causedBy, DbFailure, ERROR_CODES } from "./errors";
+export type { DbReplyFailure, ErrorCode, ErrorDetails, ErrorDetailsByCode } from "./errors";
 export { escapeHtml, linkifyEscaped } from "./html";
-export { asContactId, asTenantId, isUuid, UUID } from "./identity";
+export {
+  asContactId,
+  asTenantId,
+  heldContactId,
+  heldTenantId,
+  isContactId,
+  isTenantId,
+  isUuid,
+  SLUG,
+  UUID,
+} from "./identity";
 export type { ContactId, TenantId } from "./identity";
-export { linkHost, normalizeLink, publicObjectSrc, whyNotALink } from "./link";
+export { linkHost, normalizeLink, publicObjectSrc, webAddressesIn, whyNotALink } from "./link";
 export { sumOf } from "./numbers";
 export {
   areaCodeOf,
+  E164,
   formatPhoneDisplay,
+  formatPhoneLocal,
   FORWARD_IS_HANDOFF,
   HANDOFF_FORWARDS_BACK,
   handoffE164,
   normalizePhone,
+  phoneAsWritten,
   phoneDialable,
   phoneTail,
   samePhone,
   shortCode,
+  tollFreeNumber,
+  US_AREA_CODE,
   whyNotAHandoff,
   whyNotAPhone,
   whyNotForward,
@@ -118,6 +135,7 @@ export type { Exactly, Holds, SchemaAgreement, SchemaSet, SchemaSetKey, Within }
 export {
   agoShort,
   agoWords,
+  dateFormat,
   DAY_MS,
   HOUR_MS,
   jittered,
@@ -126,9 +144,51 @@ export {
   spanLabel,
   spanUnits,
   timezoneCity,
+  VIEW_CHANGE_MS,
   waitedLabel,
   WEEK_MS,
 } from "./time";
+export { isoMs, numberFormat } from "./time";
 export type { SpanUnits } from "./time";
 export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./unknown";
-export { plural } from "./words";
+export {
+  entryOf,
+  type GlobalSlot,
+  globalSlot,
+  isCount,
+  isList,
+  isObjectRecord,
+  isOneOf,
+  keysOf,
+  listOrEmpty,
+  recordOrEmpty,
+  textOrEmpty,
+  valueAt,
+} from "./unknown";
+export { ANSWER_JSON_ONLY, CONTROL_CHARS, NUMBERED_SLOT, plural, TRY_AGAIN_IN_A_MINUTE, VOICE_IS_OFF } from "./words";
+export { capitalize, joinWords, possessive } from "./words";
+export {
+  DAY_KEY,
+  dayKeyNamed,
+  dayWordIn,
+  isDayKey,
+  mondayOf,
+  monthLabelOf,
+  monthSpan,
+  onOrAfter,
+  shiftKey,
+  shiftMonth,
+  weekdayNamed,
+  zoneMidnight,
+} from "./zone/day-keys";
+export type { DayWord, WeekdayKey } from "./zone/day-keys";
+export {
+  clockInZone,
+  dayInZone,
+  dayPlusInZone,
+  localToUtcMs,
+  usableZone,
+  WEEKDAY_KEYS,
+  zoneOffsetMs,
+  zoneParts,
+} from "./zone/math";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { callbackPlan, landingAfter, OAUTH_FAILED } from "@/server/auth/oauth-callback";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 
 /**
  * GET /auth/callback -- where a provider sends the browser back.

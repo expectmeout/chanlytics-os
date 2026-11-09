@@ -27,9 +27,19 @@ export type {
   ReplyThread,
   SendPayload,
 } from "./reply";
+export { askReplyDraft, rewriteReplyDraft, writeReplyDraft } from "./reply-draft";
+export type {
+  AskReplyDraftOutcome,
+  BriefWritten,
+  ReplyDraftAsk,
+  ReplyDraftPorts,
+  ReplyWritten,
+  RewriteOutcome,
+} from "./reply-draft";
 export { resolveEscalation } from "./resolve";
 export type { ResolveResult } from "./resolve";
 export { releaseHeldReply } from "./send-now";
+export { markNotACustomer, replyAnyway } from "./set-aside";
 export { MAX_SNOOZE_MS, NEEDS_UNTIL, snooze } from "./snooze";
 export type { SnoozePorts, SnoozeResult } from "./snooze";
 export { PERSON_CONTROL_MAX_S, takeOver } from "./take-over";

@@ -19,6 +19,8 @@
 
 /* ------------------------------------------------------------ the plan -- */
 
+import { CONTROL_CHARS } from "../../shared/words";
+
 export type LeadContactStandard = "phone" | "email";
 /** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
 export type LeadCriterionStandard = "likely" | "seen";
@@ -27,6 +29,11 @@ export interface LeadCriterion {
   text: string;
   standard: LeadCriterionStandard;
   required: boolean;
+  /**
+   * What only the business's own website can show (what it offers, sells or how it books; a listing cannot): the search
+   * then reads each place's home page before the judge asks (planReadsSites). Absent on a plan made before it was asked.
+   */
+  on_site?: boolean;
 }
 /** A "Leaving out" chip. The judge answers it as a required criterion: `fail` means the place is what is left out. */
 export interface LeadExclusion {
@@ -126,10 +133,18 @@ export const US_STATES: Record<string, string> = {
 };
 export const US_CODES = new Set(Object.values(US_STATES));
 
+/** Whether a search reads each place's own website before its judge asks: a criterion only a website can show. */
+export const planReadsSites = (plan: Pick<LeadSearchPlan, "criteria">): boolean =>
+  plan.criteria.some((c) => c.on_site === true);
+
+/** Whether a place with nothing to read cannot be what a search asks: such a criterion, required. */
+export const planNeedsASite = (plan: Pick<LeadSearchPlan, "criteria">): boolean =>
+  plan.criteria.some((c) => c.on_site === true && c.required);
+
 export const KEY = /^[a-z][a-z0-9_]{0,39}$/;
 // Control/format characters (bidi overrides, tag characters) and newlines are stripped from every
 // plan-authored text field before it can reach the judge's rubric (26; security review, item 9).
-export const stripUnsafe = (s: string) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+export const stripUnsafe = (text: string) => text.replace(CONTROL_CHARS, " ").replace(/\s+/g, " ");
 
 /** JSON.stringify with every object's keys sorted first, so the same value written in another key order compares equal. Array element order still matters. */
 function stableStringify(v: unknown): string {

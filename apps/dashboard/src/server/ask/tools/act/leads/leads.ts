@@ -9,29 +9,21 @@ import {
   OWNER_SAID_INTENTS,
   leadNamedPeople,
   plural,
-  proposalBelowNeeds,
   type LeadRowDto,
+  DAY_KEY,
+  UUID,
+  proposalBelowNeeds,
 } from "@chanlytics/contracts";
-import { load } from "../../../../readers";
+import { load } from "../../../../shared/reader";
 import { lead as leadReader } from "../../../../readers/leads";
 import { search as searchReader } from "../../../../readers/searches";
-import {
-  UUID,
-  actAction,
-  approvalWords,
-  defineActions,
-  offeredTo,
-  propose,
-  refuse,
-  str,
-  unlessNotFound,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../../context";
+import { str, readUnlessNotFound } from "../../context/tool-reads";
+import { actAction, defineActions, offeredTo, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
+import { approvalWords, propose, refuse } from "../../context/context";
 
 /**
  * Leads, worked by card (the operator, 15 Oct 2026): every act the Leads page's workbench and its bulk bar press, and
- * what a business wrote back to an email its owner sent -- each through the page's own door (contracts lead-work.ts),
+ * what a business wrote back to an email its owner sent -- each through the page's own door (contracts leads/work.ts),
  * so a card and a press make the same call, say the door's own sentence and offer its undo. Nothing is sent to a lead
  * here: a cold email sequence is propose_sequence's, and finding leads propose_lead_search's.
  */
@@ -41,14 +33,16 @@ const LEADS_PART = 500;
 
 /** One lead a read returned, as its row says it, in the search it was worked in where one is named; or the refusal. */
 async function leadOnCard(
-  t: ToolContext,
+  toolContext: ToolContext,
   leadId: string,
   searchId?: string,
 ): Promise<{ row: LeadRowDto } | { refusal: string }> {
   const id = str(leadId, 40);
   if (!UUID.test(id)) return { refusal: "lead_id must be an id leads returned" };
   const search = str(searchId, 40);
-  const read = await unlessNotFound(load(t.rc, leadReader, { id, ...(UUID.test(search) ? { search } : {}) }));
+  const read = await readUnlessNotFound(
+    load(toolContext.rc, leadReader, { id, ...(UUID.test(search) ? { search } : {}) }),
+  );
   if (!read) return { refusal: "no such lead in this workspace" };
   return { row: read.data.row };
 }
@@ -81,14 +75,14 @@ const STAGE_SAID: Record<StageAsked["move"], string> = {
   call: "a call's outcome",
 };
 
-function stageInputOf(a: StageAsked): unknown {
-  switch (a.move) {
+function stageInputOf(stageAsked: StageAsked): unknown {
+  switch (stageAsked.move) {
     case "ready":
     case "nurture":
     case "converted":
-      return { kind: "stage", stage: a.move };
+      return { kind: "stage", stage: stageAsked.move };
     case "not_a_fit":
-      return { kind: "not_a_fit", why: a.why ?? "other" };
+      return { kind: "not_a_fit", why: stageAsked.why ?? "other" };
     case "said_no":
       return { kind: "said_no" };
     case "emailed":
@@ -96,55 +90,55 @@ function stageInputOf(a: StageAsked): unknown {
     case "call":
       return {
         kind: "outcome",
-        outcome: a.outcome,
-        ...(a.note?.trim() ? { note: a.note.trim() } : {}),
-        ...(a.spoke_with?.trim() ? { spoke_with: a.spoke_with.trim() } : {}),
+        outcome: stageAsked.outcome,
+        ...(stageAsked.note?.trim() ? { note: stageAsked.note.trim() } : {}),
+        ...(stageAsked.spoke_with?.trim() ? { spoke_with: stageAsked.spoke_with.trim() } : {}),
       };
   }
 }
 
-async function proposeStage(t: ToolContext, a: StageAsked): Promise<ProposalOutcome> {
-  const input = LeadStageInputSchema.safeParse(stageInputOf(a));
+async function proposeStage(toolContext: ToolContext, stageAsked: StageAsked): Promise<ProposalOutcome> {
+  const input = LeadStageInputSchema.safeParse(stageInputOf(stageAsked));
   if (!input.success)
     return refuse(
-      a.move === "call"
+      stageAsked.move === "call"
         ? `outcome is required for a call: ${LEAD_CALL_OUTCOMES.join(", ")}`
         : (input.error.issues[0]?.message ?? "that move cannot be made"),
     );
-  const lead = await leadOnCard(t, a.lead_id, a.search_id);
+  const lead = await leadOnCard(toolContext, stageAsked.lead_id, stageAsked.search_id);
   if ("refusal" in lead) return refuse(lead.refusal);
-  const r = lead.row;
+  const row = lead.row;
   return propose({
     kind: "lead_stage",
-    title: `${r.business_name}: ${STAGE_SAID[a.move]}`,
+    title: `${row.business_name}: ${STAGE_SAID[stageAsked.move]}`,
     summary:
-      a.move === "call"
-        ? `Call outcome: ${(a.outcome ?? "").replace(/_/g, " ")}${a.note?.trim() ? ` · “${a.note.trim()}”` : ""}`
-        : `${r.business_name} moves ${STAGE_SAID[a.move]}${a.move === "converted" ? ": a person is made in People for it" : ""}`,
-    payload: { lead_id: r.id, search_id: r.search_id, who: r.business_name, input: input.data },
+      stageAsked.move === "call"
+        ? `Call outcome: ${(stageAsked.outcome ?? "").replace(/_/g, " ")}${stageAsked.note?.trim() ? ` · “${stageAsked.note.trim()}”` : ""}`
+        : `${row.business_name} moves ${STAGE_SAID[stageAsked.move]}${stageAsked.move === "converted" ? ": a person is made in People for it" : ""}`,
+    payload: { lead_id: row.id, search_id: row.search_id, who: row.business_name, input: input.data },
   });
 }
 
 async function proposeMark(
-  t: ToolContext,
-  a: { search_id: string; lead_ids: string[]; mark: "keep" | "exclude" | "put_back" },
+  toolContext: ToolContext,
+  args: { search_id: string; lead_ids: string[]; mark: "keep" | "exclude" | "put_back" },
 ): Promise<ProposalOutcome> {
-  if (!offeredTo(markAction, t.role)) return refuse(proposalBelowNeeds("lead_mark"));
-  const searchId = str(a.search_id, 40);
+  if (!offeredTo(markAction, toolContext.role)) return refuse(proposalBelowNeeds("lead_mark"));
+  const searchId = str(args.search_id, 40);
   if (!UUID.test(searchId)) return refuse("search_id must be a search leads with action searches returned");
-  const search = await unlessNotFound(load(t.rc, searchReader, { id: searchId }));
+  const search = await readUnlessNotFound(load(toolContext.rc, searchReader, { id: searchId }));
   if (!search) return refuse("no such search in this workspace");
-  const ids = leadIdsOf(a.lead_ids, LEADS_PART);
+  const ids = leadIdsOf(args.lead_ids, LEADS_PART);
   if ("refusal" in ids) return refuse(ids.refusal);
   const [only, ...more] = ids.ids;
-  const one = only && more.length === 0 ? await leadOnCard(t, only, searchId) : null;
-  const who = one && "row" in one ? one.row.business_name : null;
-  const said = { keep: "kept", exclude: "set aside", put_back: "put back" }[a.mark];
+  const one = only && more.length === 0 ? await leadOnCard(toolContext, only, searchId) : null;
+  const personName = one && "row" in one ? one.row.business_name : null;
+  const sentence = { keep: "kept", exclude: "set aside", put_back: "put back" }[args.mark];
   return propose({
     kind: "lead_mark",
-    title: `${who ?? plural(ids.ids.length, "lead", "leads")} ${said}`,
-    summary: `${who ?? plural(ids.ids.length, "lead", "leads")} in “${search.data.search.name}”: ${said}`,
-    payload: { search_id: searchId, lead_ids: ids.ids, mark: a.mark, ...(who ? { who } : {}) },
+    title: `${personName ?? plural(ids.ids.length, "lead", "leads")} ${sentence}`,
+    summary: `${personName ?? plural(ids.ids.length, "lead", "leads")} in “${search.data.search.name}”: ${sentence}`,
+    payload: { search_id: searchId, lead_ids: ids.ids, mark: args.mark, ...(personName ? { who: personName } : {}) },
   });
 }
 
@@ -160,45 +154,46 @@ async function proposeLater(t: ToolContext, a: { lead_id: string; search_id: str
 }
 
 function proposeBulk(
-  t: ToolContext,
-  a: {
+  toolContext: ToolContext,
+  args: {
     become: "contacted" | "not_a_fit" | "keep" | "exclude";
     lead_ids?: string[];
     search_id?: string;
     view?: unknown;
   },
 ): ProposalOutcome {
-  if (a.view !== undefined && a.lead_ids?.length) return refuse("name the leads by lead_ids or by a view, never both");
-  if (a.view !== undefined) {
-    if (a.become !== "contacted" && a.become !== "not_a_fit")
+  if (args.view !== undefined && args.lead_ids?.length)
+    return refuse("name the leads by lead_ids or by a view, never both");
+  if (args.view !== undefined) {
+    if (args.become !== "contacted" && args.become !== "not_a_fit")
       return refuse("a view's leads are marked contacted or not_a_fit");
-    const view = LeadsViewSchema.safeParse(a.view);
+    const view = LeadsViewSchema.safeParse(args.view);
     if (!view.success) return refuse(`view: ${view.error.issues[0]?.message ?? "not a view of Leads"}`);
     return propose({
       kind: "leads_bulk",
-      title: `Every lead the view matches: ${a.become === "contacted" ? "contacted" : "not a fit"}`,
+      title: `Every lead the view matches: ${args.become === "contacted" ? "contacted" : "not a fit"}`,
       summary: "Every lead the view of Leads matches, not only the ones on screen; the door counts them.",
-      payload: { body: { by: "view", action: a.become, view: view.data } },
+      payload: { body: { by: "view", action: args.become, view: view.data } },
     });
   }
-  const ids = leadIdsOf(a.lead_ids, LEADS_PART);
+  const ids = leadIdsOf(args.lead_ids, LEADS_PART);
   if ("refusal" in ids) return refuse(ids.refusal);
-  const searchId = str(a.search_id, 40);
-  if ((a.become === "keep" || a.become === "exclude") && !UUID.test(searchId))
+  const searchId = str(args.search_id, 40);
+  if ((args.become === "keep" || args.become === "exclude") && !UUID.test(searchId))
     return refuse("keep and exclude name the search the leads were found in (search_id)");
   return propose({
     kind: "leads_bulk",
-    title: `${plural(ids.ids.length, "lead", "leads")}: ${a.become.replace(/_/g, " ")}`,
-    summary: `${plural(ids.ids.length, "lead", "leads")} marked ${a.become.replace(/_/g, " ")}`,
+    title: `${plural(ids.ids.length, "lead", "leads")}: ${args.become.replace(/_/g, " ")}`,
+    summary: `${plural(ids.ids.length, "lead", "leads")} marked ${args.become.replace(/_/g, " ")}`,
     payload: {
-      body: { by: "ids", action: a.become, ids: ids.ids, ...(UUID.test(searchId) ? { search_id: searchId } : {}) },
+      body: { by: "ids", action: args.become, ids: ids.ids, ...(UUID.test(searchId) ? { search_id: searchId } : {}) },
     },
   });
 }
 
-function proposeCheck(t: ToolContext, a: { lead_ids: string[] }): ProposalOutcome {
-  if (!offeredTo(checkAction, t.role)) return refuse(proposalBelowNeeds("leads_check"));
-  const ids = leadIdsOf(a.lead_ids, LEADS_PART);
+function proposeCheck(toolContext: ToolContext, args: { lead_ids: string[] }): ProposalOutcome {
+  if (!offeredTo(checkAction, toolContext.role)) return refuse(proposalBelowNeeds("leads_check"));
+  const ids = leadIdsOf(args.lead_ids, LEADS_PART);
   if ("refusal" in ids) return refuse(ids.refusal);
   return propose({
     kind: "leads_check",
@@ -208,15 +203,18 @@ function proposeCheck(t: ToolContext, a: { lead_ids: string[] }): ProposalOutcom
   });
 }
 
-async function proposeAddressee(t: ToolContext, a: { lead_id: string; person: string }): Promise<ProposalOutcome> {
-  if (!offeredTo(addresseeAction, t.role)) return refuse(proposalBelowNeeds("lead_addressee"));
-  const lead = await leadOnCard(t, a.lead_id);
+async function proposeAddressee(
+  toolContext: ToolContext,
+  args: { lead_id: string; person: string },
+): Promise<ProposalOutcome> {
+  if (!offeredTo(addresseeAction, toolContext.role)) return refuse(proposalBelowNeeds("lead_addressee"));
+  const lead = await leadOnCard(toolContext, args.lead_id);
   if ("refusal" in lead) return refuse(lead.refusal);
   const named = leadNamedPeople(lead.row.facts);
   if (!named.length) return refuse(`${lead.row.business_name} names nobody: its email goes to the business`);
-  const asked = str(a.person, 120).toLowerCase();
+  const text = str(args.person, 120).toLowerCase();
   const person =
-    named.find((p) => p.name.toLowerCase() === asked) ?? named.find((p) => p.name.toLowerCase().includes(asked));
+    named.find((p) => p.name.toLowerCase() === text) ?? named.find((p) => p.name.toLowerCase().includes(text));
   if (!person)
     return refuse(`${lead.row.business_name} names ${named.map((p) => p.name).join(", ")}: choose one of them`);
   if (person.addressee) return refuse(`${person.name} is already who its email goes to`);
@@ -228,10 +226,10 @@ async function proposeAddressee(t: ToolContext, a: { lead_id: string; person: st
   });
 }
 
-function proposeLeadList(t: ToolContext, a: { name: string; lead_ids: string[] }): ProposalOutcome {
-  const name = str(a.name, 120);
+function proposeLeadList(toolContext: ToolContext, args: { name: string; lead_ids: string[] }): ProposalOutcome {
+  const name = str(args.name, 120);
   if (!name) return refuse("name is what Leads calls the list");
-  const ids = leadIdsOf(a.lead_ids, LEAD_LIST_MAX);
+  const ids = leadIdsOf(args.lead_ids, LEAD_LIST_MAX);
   if ("refusal" in ids) return refuse(ids.refusal);
   return propose({
     kind: "lead_list",
@@ -250,23 +248,23 @@ const SAID_WORDS: Record<(typeof OWNER_SAID_INTENTS)[number], string> = {
 };
 
 async function proposeSaid(
-  t: ToolContext,
-  a: { lead_id: string; intent: (typeof OWNER_SAID_INTENTS)[number]; day?: string; refer_to?: string },
+  toolContext: ToolContext,
+  args: { lead_id: string; intent: (typeof OWNER_SAID_INTENTS)[number]; day?: string; refer_to?: string },
 ): Promise<ProposalOutcome> {
-  if (a.day && !/^\d{4}-\d{2}-\d{2}$/.test(a.day)) return refuse("day is YYYY-MM-DD");
-  const lead = await leadOnCard(t, a.lead_id);
+  if (args.day && !DAY_KEY.test(args.day)) return refuse("day is YYYY-MM-DD");
+  const lead = await leadOnCard(toolContext, args.lead_id);
   if ("refusal" in lead) return refuse(lead.refusal);
   return propose({
     kind: "reach_out_said",
     title: `${lead.row.business_name} wrote back`,
-    summary: `${lead.row.business_name}: ${SAID_WORDS[a.intent]}${a.day ? ` (${a.day})` : ""}${a.refer_to ? ` · write to ${a.refer_to} instead` : ""}`,
+    summary: `${lead.row.business_name}: ${SAID_WORDS[args.intent]}${args.day ? ` (${args.day})` : ""}${args.refer_to ? ` · write to ${args.refer_to} instead` : ""}`,
     payload: {
       lead_id: lead.row.id,
       who: lead.row.business_name,
-      intent: a.intent,
-      said: SAID_WORDS[a.intent],
-      ...(a.day ? { day: a.day } : {}),
-      ...(a.refer_to?.trim() ? { refer_to: a.refer_to.trim().slice(0, 120) } : {}),
+      intent: args.intent,
+      said: SAID_WORDS[args.intent],
+      ...(args.day ? { day: args.day } : {}),
+      ...(args.refer_to?.trim() ? { refer_to: args.refer_to.trim().slice(0, 120) } : {}),
     },
   });
 }
@@ -305,9 +303,7 @@ const addresseeAction = actAction({
   kind: "lead_addressee",
   input: z.object({
     lead_id: LEAD_ID,
-    person: z
-      .string()
-      .describe("The name of one of the people the company's source named (leads with action lead says them)."),
+    person: z.string().describe("One of the people the company's source named (leads with action lead says them)."),
   }),
   examples: [{ lead_id: "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b", person: "Dana Reyes" }],
   label: "Preparing who to write to",
@@ -328,7 +324,7 @@ export const propose_leads = defineActions({
         search_id: SEARCH_ID.optional(),
         move: z
           .enum(["ready", "nurture", "converted", "not_a_fit", "said_no", "emailed", "call"])
-          .describe("Where it goes: a stage, out (not_a_fit, said_no), emailed by hand, or a call's outcome."),
+          .describe("Where it goes."),
         why: z.enum(LEAD_NOT_A_FIT_WHYS).optional().describe("Why not a fit."),
         outcome: z.enum(LEAD_CALL_OUTCOMES).optional().describe("A call's outcome, for move call."),
         note: z.string().optional().describe("A few words about the call."),
@@ -386,9 +382,7 @@ export const propose_leads = defineActions({
       kind: "reach_out_said",
       input: z.object({
         lead_id: LEAD_ID,
-        intent: z
-          .enum(OWNER_SAID_INTENTS)
-          .describe("What they wrote back: interested, question, not_now, no or wrong_person."),
+        intent: z.enum(OWNER_SAID_INTENTS).describe("What they wrote back."),
         day: z.string().optional().describe("For not_now, the day they named, YYYY-MM-DD."),
         refer_to: z.string().optional().describe("For wrong_person, who to write to instead."),
       }),

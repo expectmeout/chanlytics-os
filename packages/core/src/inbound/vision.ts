@@ -20,7 +20,7 @@ export const VISION_MIMES = new Set(["image/jpeg", "image/png", "image/gif", "im
 
 export function isVisionMime(mime: string | null | undefined): mime is string {
   if (!mime) return false;
-  return VISION_MIMES.has(mime.toLowerCase().split(";")[0].trim());
+  return VISION_MIMES.has((mime.toLowerCase().split(";")[0] ?? "").trim());
 }
 
 /**
@@ -34,10 +34,12 @@ export function photoUserText(
   /** "none" while "Never quote a price" is on; "written" when the business lets it say the prices it wrote (0051). */
   prices: "none" | "written",
 ): string {
-  const said = (caption ?? "").trim();
+  const sentence = (caption ?? "").trim();
   const price = prices === "written" ? "no price the business has not written" : "no price";
   return [
-    said ? `The customer sent this photo with the message: "${said}"` : "The customer sent this photo, with no words.",
+    sentence
+      ? `The customer sent this photo with the message: "${sentence}"`
+      : "The customer sent this photo, with no words.",
     `Answer as the receptionist would to a customer who has just shown you a picture: say what you notice that matters for this business — what it shows, its style, colour, size or condition, or the product — and what the next step is. Every rule you were given still holds: ${price}, no promised result, no health or skin advice, and never a confirmed appointment. If the picture is not something the business can help with, say so kindly.`,
   ].join("\n\n");
 }

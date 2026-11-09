@@ -26,13 +26,13 @@ carrying any price while "Never quote a price" is on, and with it off any price
 the owner did not write (`priceAllowance`, decision 0051), and hands the thread
 to a person, whatever the prompt said.
 Every model call, whichever the purpose, goes through one port and one registry
-(`packages/contracts/src/ai/models.ts`) and is kept, in dollars, in `ai_usage`.
+(`packages/contracts/src/ai/models/routes.ts`) and is kept, in dollars, in `ai_usage`.
 
 **This is live.** Real businesses are in production with real customers on real
 numbers. Treat every change to `apps/edge` and `packages/channels` as something
 a member of the public will experience. The first workspace was a hair salon,
 and the code still uses it as its worked example in comments; the product is
-not for salons, and `tooling/scripts/tests/repo/trade-neutral.test.mjs` fails a
+not for salons, and `tests/repo/trade-neutral.test.mjs` fails a
 build that puts one trade's words in front of a customer of another.
 
 **Read next.** `CLAUDE.md` for the rules and the canonical example of each
@@ -55,7 +55,7 @@ sheet by sheet, `docs/decisions/` for what is decided and not yet built,
 | `supabase/migrations` | The schema. Postgres, RLS on every table, `events` partitioned monthly, pg_cron as the clock, Vault for credentials.                                                                                                                                                                                            | Supabase project                      |
 
 Counts change weekly, so this file carries none but history's, each with its
-date (`tooling/scripts/tests/docs/counts-are-dated.test.mjs` holds that).
+date (`tests/docs/counts-are-dated.test.mjs` holds that).
 `find apps/edge/api -name '*.ts' | wc -l` and `ls supabase/migrations | wc -l`
 answer the two most-asked; `docs/debt.md` has the rest, regenerated.
 
@@ -104,24 +104,23 @@ it, and Vercel's build command is not in the repository.
 folder under `src/surfaces/` beside the kit and the frame, drawn on an App Router page under
 `app/(os)/w/[workspace]/` that reads no request, so each is one prerender for every person and workspace; its address
 is a path after the workspace's slug (`/w/acme/inbox`). The frame (the route table, the sidebar, the top bar) is TSX in
-`src/surfaces/frame/`, mounted once by the workspace's layout through `src/legacy-bridge/LegacyHost.tsx`, so it stays
-up across a move. Every page reads its data through one seam, in `src/legacy-bridge/`: `surface-data.ts` (an override
+`src/surfaces/frame/`, mounted once by the workspace's layout through `src/bridge/FrameHost.tsx`, so it stays
+up across a move. Every page reads its data through one seam, in `src/bridge/`: `surface-data.ts` (an override
 reads `/api/v1`, maps the rows through a contracts view model and publishes what the page draws),
 `surface-registry.ts` (the table that says which routes are real and which are demo, drawing the "Not in this release"
 card outside a declared demo session) and `surface-runner.ts` (when each surface is read). The mockup was a
-single-page shell of hand-written JSX, imported in a fixed order by `src/legacy-bridge/manifest.ts` and talking through
+single-page shell of hand-written JSX, imported in a fixed order by `src/bridge/manifest.ts` and talking through
 `window` globals; its surfaces were made real one at a time by _branching inside the existing components_, never by
-redesigning them, and then each left for TSX in the order decision 0015 gives, the frame after them. `src/legacy`
-keeps what has not left: Ask's five pages and its face, the stylesheets, the standalone mockup (`Chanlytics.html`) and
-its stand-ins for what the bridge publishes. Nothing new goes in that tree, and the `legacy-files`, `window-globals`
-and `window-publishers` measures count what remains and may only fall (`docs/debt.md`). The unbuilt surfaces (agent
+redesigning them, and then each left for TSX in the order decision 0015 gives, the frame after them. The
+stylesheets are in `src/styles`, and the standalone mockup (`Chanlytics.html`) and its stand-ins for what the bridge
+publishes are in `apps/dashboard/mockup`. The `window-globals` and `window-publishers` measures count what remains and may only fall (`docs/debt.md`). The unbuilt surfaces (agent
 fleet, store, studio, tasks, content) are parked by decision: each address draws that card, in a demo session too; the
 shared report viewer opens only in a demo session, and the retired deal board's address lands on People. The mockup's
 own prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
-**The shell never runs on the server.** `src/legacy-bridge/seed-globals.ts` and the shell's files read `window` at
-module scope and would throw during prerender, so `LegacyHost` imports the shell as `#frame-shell`
-(`apps/dashboard/package.json` "imports"): a browser's build resolves it to `LegacyApp`, the server's to
+**The shell never runs on the server.** `src/bridge/seed-globals.ts` and the shell's files read `window` at
+module scope and would throw during prerender, so `FrameHost` imports the shell as `#frame-shell`
+(`apps/dashboard/package.json` "imports"): a browser's build resolves it to `FrameApp`, the server's to
 `src/frame-shell.ts`, an empty component, and `dynamic(ssr: false)` keeps the server from drawing even that. Until the
 frame is placed, a visitor sees the outline (`src/surfaces/frame/outline.tsx`): the frame's own chrome, in its own
 classes.
@@ -187,8 +186,8 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
   packages that hold rules; server code never imports the shell or the bridge;
   the edge never imports the dashboard. `eslint.config.mjs` enforces the three
   boundaries; a type-only import crosses freely.
-- **The edge reads its environment once**, through `apps/edge/lib/env.ts`,
-  trimmed, blank as unset. It logs once, through `apps/edge/lib/log.ts`: one
+- **The edge reads its environment once**, through `apps/edge/lib/shared/env.ts`,
+  trimmed, blank as unset. It logs once, through `apps/edge/lib/shared/log.ts`: one
   JSON object per line with a level, an event and the bound context. A
   `process.env` read or a `console` call anywhere else on the edge is a lint
   error.
@@ -199,7 +198,7 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
 corepack pnpm test                    # unit + integration
 ```
 
-The suite lives under `tooling/scripts/tests/<domain>/`, each file placed by
+The suite lives under `tests/<domain>/`, each file placed by
 what it proves, on the names `apps/dashboard/src/server`, `packages/contracts`
 and `apps/edge/lib` use, plus `repo/` for the repository-wide invariants and
 ratchets, `routes/` for the app plane's floor, `shell/` for the shell and its
@@ -240,7 +239,7 @@ the nightly reported success four mornings running in September 2026 while
 executing 24 of its 128 specs (#249, 8 Sep). So a run that is MEANT to be signed in says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and `e2e/coverage.spec.ts` then fails instead
 of skipping. The node suite carries the same guard in
-`tooling/scripts/tests/e2e/coverage-guard.test.mjs` for its integration suites,
+`tests/e2e/coverage-guard.test.mjs` for its integration suites,
 which skip as a block without credentials.
 The nightly sets the flag; `ci.yml`, which holds no live service secrets by
 policy, does not.

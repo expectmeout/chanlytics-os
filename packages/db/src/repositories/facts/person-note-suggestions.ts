@@ -4,7 +4,14 @@
  * person_note_suggest, which refuses rather than raises: once per source (`source_id`), at most three waiting per person.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database } from "../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "../../shared/read-json";
+import { DbFailure } from "@chanlytics/contracts";
+
+/** What person_note_suggest answers: the door's refusal, or the note it kept. */
+const NoteSuggested = z.object({ error: z.string(), note: z.object({ id: z.string() }).partial() }).partial();
 
 type Db = SupabaseClient<Database>;
 
@@ -17,18 +24,24 @@ type SuggestedNoteSource = "call" | "thread" | "website";
  */
 export async function suggestPersonNote(
   db: Db,
-  p: { tenantId: string; contactId: string; body: string; source: SuggestedNoteSource; sourceId: string | null },
+  params: {
+    tenantId: TenantId;
+    contactId: ContactId;
+    body: string;
+    source: SuggestedNoteSource;
+    sourceId: string | null;
+  },
 ): Promise<{ noteId: string } | { refused: string }> {
   const { data, error } = await db.rpc("person_note_suggest", {
-    p_tenant_id: p.tenantId,
-    p_contact_id: p.contactId,
-    p_body: p.body,
-    p_source: p.source,
-    ...(p.sourceId ? { p_source_id: p.sourceId } : {}),
+    p_tenant_id: params.tenantId,
+    p_contact_id: params.contactId,
+    p_body: params.body,
+    p_source: params.source,
+    ...(params.sourceId ? { p_source_id: params.sourceId } : {}),
   });
-  if (error) throw new Error(`person_note_suggest: ${error.message}`);
-  const o = (data ?? {}) as { error?: unknown; note?: { id?: unknown } };
-  if (typeof o.error === "string") return { refused: o.error };
-  if (typeof o.note?.id !== "string") throw new Error("person_note_suggest answered without a note");
-  return { noteId: o.note.id };
+  if (error) throw new DbFailure(error, "person_note_suggest");
+  const value = readAnswer("person_note_suggest", NoteSuggested, data ?? {});
+  if (typeof value.error === "string") return { refused: value.error };
+  if (typeof value.note?.id !== "string") throw new Error("person_note_suggest answered without a note");
+  return { noteId: value.note.id };
 }

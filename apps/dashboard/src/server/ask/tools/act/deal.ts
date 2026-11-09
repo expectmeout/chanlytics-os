@@ -1,3 +1,4 @@
+import { asContactId, DbFailure } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -20,9 +21,13 @@ import {
   pickCurrentDeal,
   stepDayOf,
   whyNotALink,
-  type DealStage,
+  UUID,
+  isOneOf,
 } from "@chanlytics/contracts";
-import { UUID, defineAct, noteRow, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import { noteRow, str } from "../context/tool-reads";
+import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
+import { findPersonCard, listDealsOfPerson } from "@chanlytics/db/ask";
 
 /**
  * Why a move found no row of theirs to move, and what to name instead. With several open (0029: one per service) it
@@ -42,7 +47,7 @@ function whichRowWords(open: number, rows: readonly { service: string | null }[]
  * answer with, never proposed for the route to refuse.
  */
 function dealBody(
-  said: {
+  change: {
     stage: string;
     service: string | null;
     amount: number | null;
@@ -54,7 +59,7 @@ function dealBody(
   },
   row: { id: string; version: number } | null,
 ): { body: Record<string, unknown>; wrong: string | null } {
-  const { stage, service, amount, per, note, url, day, reason } = said;
+  const { stage, service, amount, per, note, url, day, reason } = change;
   const body = {
     stage,
     ...(service ? { service } : {}),
@@ -88,11 +93,11 @@ interface DealInput {
  * What the card says, checked before anything is read: the person's id and the stage, the proposal's link, the reason
  * for a pass and the next step with its day; or the words it is refused in.
  */
-function checkedDeal(t: ToolContext, input: DealInput) {
+function checkedDeal(toolContext: ToolContext, input: DealInput) {
   const id = str(input.contact_id, 40);
   const stage = str(input.stage, 10);
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
-  if (!(DEAL_STAGES as readonly string[]).includes(stage)) return refuse("stage must be proposed, won, lost or ended");
+  if (!isOneOf(DEAL_STAGES, stage)) return refuse("stage must be proposed, won, lost or ended");
   // The proposal's link, judged by the one normalizer the route uses, and a reason only for a pass (0008). The rest of
   // what the door takes (a real day, the sets) is its own schema's, read once the card's body is built (below).
   const typedLink = str(input.proposal_url, 600);
@@ -108,7 +113,7 @@ function checkedDeal(t: ToolContext, input: DealInput) {
   const stepDue = str(input.next_step_due, 10);
   if (stepWords && !stepDue) return refuse("next_step needs next_step_due, the day it is due, like 2026-09-30");
   if (stepDue && !stepWords) return refuse("next_step_due goes only with next_step");
-  const stepDay = stepDue ? stepDayOf(stepDue, t.timezone, t.now.getTime()) : null;
+  const stepDay = stepDue ? stepDayOf(stepDue, toolContext.timezone, toolContext.now.getTime()) : null;
   if (stepDue && !stepDay) return refuse("next_step_due must be a day, like 2026-09-30");
   if (stepDay && stepDay.due === "past") return refuse("next_step_due must be today or later");
   return { id, stage, url, day, reason, stepWords, stepDay };
@@ -143,51 +148,44 @@ function dealRowOf<Row extends { stage: string; service: string | null; created_
   return { sameRow, service: sameRow ? sameRow.service : (named ?? current?.service ?? null) };
 }
 
-async function proposeDeal(t: ToolContext, input: DealInput): Promise<ProposalOutcome> {
-  const checked = checkedDeal(t, input);
+async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<ProposalOutcome> {
+  const checked = checkedDeal(toolContext, input);
   if ("result" in checked) return checked;
-  const { id, stage, url, day, reason, stepWords, stepDay } = checked;
-  const { data: c, error } = await t.ctx.supabase
-    .from("contacts")
-    .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
-    .eq("tenant_id", t.tenantId)
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const { id: asked, stage, url, day, reason, stepWords, stepDay } = checked;
+  const id = asContactId(asked);
+  const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
+  if (error) throw new DbFailure(error);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
   // Every deal of theirs: the current one may be the oldest, since a running engagement outlives newer proposals
   // (pickCurrentDeal). A read that fails is a card that cannot be checked, never a move proposed against no row.
-  const { data: rows, error: dErr } = await t.ctx.supabase
-    .from("deals")
-    .select("id, stage, service, version, created_at")
-    .eq("tenant_id", t.tenantId)
-    .eq("contact_id", id)
-    .order("created_at", { ascending: false });
+  const { data: rows, error: dErr } = await listDealsOfPerson(toolContext.ctx.supabase, toolContext.tenantId, id);
   if (dErr) throw new Error(dErr.message);
-  const who = personName(c);
+  const contactName = personName(c);
   const named = str(input.service, 80) || null;
   const amount =
     typeof input.amount_cents === "number" && input.amount_cents >= 0 ? Math.round(input.amount_cents) : null;
-  const per = (DEAL_PERS as readonly string[]).includes(str(input.per, 10)) ? str(input.per, 10) : null;
+  const per = isOneOf(DEAL_PERS, str(input.per, 10)) ? str(input.per, 10) : null;
   const note = str(input.note, 200);
   const moved = dealRowOf(stage, named, rows ?? []);
   if ("result" in moved) return moved;
   const { sameRow, service } = moved;
-  noteRow(t, "person", id, who, `clients/${id}`);
-  const words = DEAL_STAGE_WORDS[stage as DealStage];
+  noteRow(toolContext, "person", id, contactName, `clients/${id}`);
+  const words = DEAL_STAGE_WORDS[stage];
   // A proposal's value is said as a client's is (0008), and the card says where the link lives and why they passed.
   const money = amount !== null ? amountWords(amount, per) : null;
-  const why = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
+  const lostReason = reason && isDealLostReason(reason) ? DEAL_LOST_REASON_WORDS[reason] : null;
   // The step as the card says it: "Next step: send the quote, due Fri" (its words clipped; the note keeps them whole).
   const next = stepDay ? `${NOTE_WORDS.next}: ${clipAtWord(stepWords, 80)}, due ${stepDay.near}` : null;
-  const said = { stage, service: sameRow ? null : service, amount, per, note, url, day, reason };
-  const { body, wrong } = dealBody(said, sameRow);
+  const change = { stage, service: sameRow ? null : service, amount, per, note, url, day, reason };
+  const { body, wrong } = dealBody(change, sameRow);
   if (wrong) return refuse(wrong);
   return propose({
     kind: "deal",
-    title: `${who} · ${words}`,
-    summary: [words, service, money, url ? linkHost(url) : null, why, next].filter((x): x is string => !!x).join(" · "),
-    payload: { contact_id: id, ...body, who },
+    title: `${contactName} · ${words}`,
+    summary: [words, service, money, url ? linkHost(url) : null, lostReason, next]
+      .filter((x): x is string => !!x)
+      .join(" · "),
+    payload: { contact_id: id, ...body, who: contactName },
     ...(stepDay ? { step: { body: stepWords, due_on: stepDay.day } } : {}),
   });
 }

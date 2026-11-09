@@ -7,12 +7,13 @@ export {
   bookingToolOfLink,
   onDomain,
 } from "./booking-page";
+export { GOOGLE_DOOR } from "./edge-doors";
+export { gainedOver, reviewIsNew, reviewNoticeIsAbout, reviewSnippet, toGoogleReviewVM, toGoogleVM } from "./google";
+export type { GoogleGainedPointVM, GoogleReviewVM, GoogleVM } from "./google";
 export {
-  bookingPageKept,
   bookingPageOffered,
   checkedWords,
   connectionWords,
-  gainedOver,
   GOOGLE_SHOWN_REVIEWS,
   hoursFromGoogle,
   listingFactsOf,
@@ -22,21 +23,15 @@ export {
   ratingWords,
   REVIEW_NEWS_MAX_AGE_MS,
   REVIEW_NEWS_MS,
-  reviewIsNew,
-  reviewNoticeIsAbout,
-  reviewSnippet,
   reviewsWords,
   starsOf,
-  toGoogleReviewVM,
-  toGoogleVM,
-} from "./google";
+} from "./listing";
 export type {
   GoogleAudience,
   GoogleCandidateDto,
   GoogleConnectionDto,
   GoogleDayDto,
   GoogleDto,
-  GoogleGainedPointVM,
   GoogleListingDto,
   GoogleListingFacts,
   GoogleLocationDto,
@@ -44,10 +39,8 @@ export type {
   GooglePoint,
   GoogleReadDto,
   GoogleReviewDto,
-  GoogleReviewVM,
-  GoogleVM,
   SetupGoogleFacts,
-} from "./google";
+} from "./listing";
 export {
   autoReplyBell,
   autoReplyCandidates,

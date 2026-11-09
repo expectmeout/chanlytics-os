@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { TEAM_ROLES } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
+import { write, workspace } from "@/server/shared/route";
 import { setMemberRole, removeMember } from "@/server/workspace/team";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 
 const Body = z.object({
-  role: z.enum(TEAM_ROLES as unknown as [string, ...string[]], { message: "Unknown role." }),
+  role: z.enum(TEAM_ROLES, { message: "Unknown role." }),
 });
 
 /**
@@ -20,12 +20,7 @@ export const PATCH = write({
   rate: "team",
   input: Body,
   handle: async ({ ctx, member, input }) =>
-    await setMemberRole(
-      ctx,
-      member.tenantId,
-      requireUuid(ctx.params.id, "member"),
-      input.role as (typeof TEAM_ROLES)[number],
-    ),
+    await setMemberRole(ctx, member.tenantId, requireUuid(ctx.params.id, "member"), input.role),
 });
 
 /** DELETE /api/v1/team/:id — remove a member (or revoke an open invite). Owner-only. */

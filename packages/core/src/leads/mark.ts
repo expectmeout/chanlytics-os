@@ -25,7 +25,7 @@
  * hero photograph as often as not, and a photograph is what we already have.
  */
 
-import { attrsOf, decodeEntities } from "../html";
+import { attrsOf, decodeEntities } from "../website/html";
 
 /**
  * Past this the head is not a head, and a page that never closes one is a page we stop reading.
@@ -70,11 +70,12 @@ const PLATFORM_DEFAULTS = new Set([
 ]);
 
 /** True when the address is the platform's stock mark rather than this company's. */
-function isPlatformDefault(url: string): boolean {
-  const bare = url
-    .slice(url.indexOf("//") + 2)
-    .split(/[?#]/)[0]
-    .toLowerCase();
+export function isPlatformDefault(url: string): boolean {
+  const bare =
+    url
+      .slice(url.indexOf("//") + 2)
+      .split(/[?#]/)[0]
+      ?.toLowerCase() ?? "";
   return PLATFORM_DEFAULTS.has(bare) || /(^|\/)default-favicon\.[a-z0-9]+$/.test(bare);
 }
 
@@ -116,7 +117,7 @@ function absolute(href: string, origin: string): string | null {
 /** Higher is better; 0 is "not a mark". The tier decides first, the size only breaks a tie inside it. */
 function scoreOf(rel: string, type: string, href: string, side: number): number {
   const rels = rel.toLowerCase().split(/\s+/);
-  const ext = (href.split("?")[0].match(/\.([a-z0-9]+)$/i)?.[1] ?? "").toLowerCase();
+  const ext = ((href.split("?")[0] ?? "").match(/\.([a-z0-9]+)$/i)?.[1] ?? "").toLowerCase();
   if (rels.includes("mask-icon")) return 0; // a monochrome silhouette, never the mark
   const svg = type.toLowerCase().includes("svg") || ext === "svg";
   let tier = 0;
@@ -137,9 +138,9 @@ export function leadMarksFrom(html: string, origin: string): string[] {
   const head = headOf(html);
   const out: string[] = [];
   // A logo the site says is its logo comes first: schema.org "logo", as a string or as an image object.
-  const said = head.match(/"logo"\s*:\s*"([^"]+)"/i) ?? head.match(/"logo"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i);
-  if (said) {
-    const url = absolute(said[1].replace(/\\\//g, "/"), origin);
+  const match = head.match(/"logo"\s*:\s*"([^"]+)"/i) ?? head.match(/"logo"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i);
+  if (match) {
+    const url = absolute((match[1] ?? "").replace(/\\\//g, "/"), origin);
     if (url) out.push(url);
   }
   const linked: { url: string; score: number; at: number }[] = [];

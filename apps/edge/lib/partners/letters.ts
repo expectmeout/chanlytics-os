@@ -10,11 +10,12 @@
  * Best effort: it never throws. A partner's address is never logged.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { PartnerLetterNewsSchema, partnerLetter } from "../packages/contracts.js";
-import { dashboardOrigin } from "../dashboard-origin.js";
-import { platformFrom, post, NOTIFY_TIMEOUT_MS } from "../ops/notify.js";
-import { logger, errField } from "../log.js";
+import type { Database } from "@chanlytics/db/types";
+import { PartnerLetterNewsSchema, partnerLetter } from "@chanlytics/contracts";
+import { dashboardOrigin } from "../shared/dashboard-origin.js";
+import { platformFrom, post, NOTIFY_TIMEOUT_MS } from "../shared/alerts/notify.js";
+import { logger, errField } from "../shared/log.js";
+import { listPartnerLettersDue, markPartnerLetterWritten } from "@chanlytics/db/partners";
 
 type Db = SupabaseClient<Database>;
 
@@ -37,15 +38,15 @@ interface LetterPorts {
 }
 
 export async function sendPartnerLetters(db: Db, now: Date, ports: LetterPorts = {}): Promise<LettersOutcome> {
-  const L = logger({ sweep: "partners" });
+  const log = logger({ sweep: "partners" });
   const out: LettersOutcome = { due: 0, sent: 0, failed: 0, deferred: 0 };
   const clock = ports.nowMs ?? Date.now;
   const started = clock();
   try {
-    const { data, error } = await db.rpc("partner_letters_due", { p_now: now.toISOString() });
+    const { data, error } = await listPartnerLettersDue(db, now.toISOString());
     if (error) {
       // An older database has no letters yet: nothing to write, said once per tick.
-      L.warn("partner_letters_unread", { error: error.message });
+      log.warn("partner_letters_unread", { error: error.message });
       return out;
     }
     const due = data ?? [];
@@ -53,13 +54,13 @@ export async function sendPartnerLetters(db: Db, now: Date, ports: LetterPorts =
     if (!due.length) return out;
     const from = ports.from === undefined ? platformFrom() : ports.from;
     if (!from) {
-      L.error("partner_letters_no_sender", { due: due.length });
+      log.error("partner_letters_no_sender", { due: due.length });
       out.deferred = due.length;
       return out;
     }
     const send = ports.send ?? post;
     const origin = ports.origin ?? dashboardOrigin();
-    for (const d of due) {
+    for (const item of due) {
       // One more send must fit: a letter cut off by the invocation's end would be sent again tomorrow anyway, but
       // its mark would not move, and the clock's own answer would be lost with it.
       if (clock() - started > LETTERS_BUDGET_MS - NOTIFY_TIMEOUT_MS) {
@@ -67,26 +68,30 @@ export async function sendPartnerLetters(db: Db, now: Date, ports: LetterPorts =
         continue;
       }
       // The function's answer, parsed: a shape it does not answer is said and skipped, never written from.
-      const news = PartnerLetterNewsSchema.safeParse(d.news);
+      const news = PartnerLetterNewsSchema.safeParse(item.news);
       if (!news.success) {
         out.failed += 1;
-        L.error("partner_letter_unreadable", { partner_id: d.partner_id, error: news.error.message.slice(0, 200) });
+        log.error("partner_letter_unreadable", {
+          partner_id: item.partner_id,
+          error: news.error.message.slice(0, 200),
+        });
         continue;
       }
-      const letter = partnerLetter(news.data, { origin, since: d.since, nowMs: now.getTime() });
-      const went = await send(from, [d.email], letter.subject, letter.body);
-      if (!went) {
+      const letter = partnerLetter(news.data, { origin, since: item.since, nowMs: now.getTime() });
+      const sent = await send(from, [item.email], letter.subject, letter.body);
+      if (!sent) {
         out.failed += 1;
-        L.error("partner_letter_failed", { partner_id: d.partner_id });
+        log.error("partner_letter_failed", { partner_id: item.partner_id });
         continue;
       }
-      const marked = await db.rpc("partner_letter_written", { p_partner: d.partner_id, p_through: d.through });
-      if (marked.error) L.error("partner_letter_unmarked", { partner_id: d.partner_id, error: marked.error.message });
+      const marked = await markPartnerLetterWritten(db, item.partner_id, item.through);
+      if (marked.error)
+        log.error("partner_letter_unmarked", { partner_id: item.partner_id, error: marked.error.message });
       out.sent += 1;
-      L.info("partner_letter_sent", { partner_id: d.partner_id });
+      log.info("partner_letter_sent", { partner_id: item.partner_id });
     }
   } catch (e) {
-    L.error("partner_letters_failed", { error: errField(e) });
+    log.error("partner_letters_failed", { error: errField(e) });
   }
   return out;
 }

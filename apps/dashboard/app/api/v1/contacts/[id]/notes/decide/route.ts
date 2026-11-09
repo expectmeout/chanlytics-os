@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { NOTE_MAX } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
-import { noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
+import { decideNote, noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
 
 const Body = z
   .object({
-    note_id: z.string().uuid(),
+    note_id: z.uuid(),
     keep: z.boolean(),
     /** Kept in the member's own words, when they changed the receptionist's. */
     body: z.string().trim().min(1).max(NOTE_MAX).optional(),
@@ -27,7 +27,7 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, row: contact, input }) => {
     await noteOn(ctx, contact.id, input.note_id);
-    const { data, error } = await ctx.supabase.rpc("person_note_decide", {
+    const { data, error } = await decideNote(ctx, {
       p_note_id: input.note_id,
       p_keep: input.keep,
       ...(input.body ? { p_body: input.body } : {}),

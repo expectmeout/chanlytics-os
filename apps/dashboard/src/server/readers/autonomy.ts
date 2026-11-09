@@ -1,3 +1,4 @@
+import { heldContactId } from "@chanlytics/contracts";
 import "server-only";
 import {
   DAY_MS,
@@ -10,18 +11,14 @@ import {
   type OwnModesDto,
   type SequenceEvidenceDto,
 } from "@chanlytics/contracts";
-import {
-  factSuggestionsWaiting,
-  heldDraftsByIntent,
-  namesOfPeople,
-  peopleOnTheirOwnMode,
-  replyTokensSince,
-  sequenceEvidence,
-  type PolicyRecord,
-} from "@chanlytics/db";
-import { log } from "@/server/log";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
+import { listFactSuggestionsWaiting, listHeldDraftsByIntent } from "@chanlytics/db/facts";
+import { listNamesOfPeople } from "@chanlytics/db/people";
+import { listPeopleOnTheirOwnMode, replyTokensSince, type PolicyRecord } from "@chanlytics/db/workspace";
+import { listSequenceEvidence } from "@chanlytics/db/campaigns";
+import { log } from "@/server/shared/log";
+import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as facts from "./facts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** GET policies' answer: the matrix, the member's role, and what the owner's corrections show. */
 interface AutonomyMatrix {
@@ -53,10 +50,10 @@ const REPLY_TOKENS_DAYS = 7;
  * the newest changes named as People names them (contracts personName). Replies said what the receptionist does for
  * everyone, and nothing said that some people were set apart from it.
  */
-async function ownModes(db: ReaderContext["ctx"]["supabase"], tenantId: string): Promise<OwnModesDto> {
-  const rows = await peopleOnTheirOwnMode(db, tenantId);
-  const newest = rows.slice(0, OWN_MODE_NAMED).map((r) => r.id);
-  const people = newest.length ? await namesOfPeople(db, tenantId, newest) : [];
+async function ownModes(db: ReaderContext["ctx"]["supabase"], tenantId: TenantId): Promise<OwnModesDto> {
+  const rows = await listPeopleOnTheirOwnMode(db, tenantId);
+  const newest = rows.slice(0, OWN_MODE_NAMED).map((r) => heldContactId(r.id));
+  const people = newest.length ? await listNamesOfPeople(db, tenantId, newest) : [];
   return ownModesOf(rows, new Map(people.map((p) => [p.id, personName(p)])));
 }
 
@@ -76,11 +73,11 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
     const db = rc.ctx.supabase;
     const [p, held, suggestions, own, replyTokens, evidence] = await Promise.all([
       load(rc, facts.policies, undefined),
-      heldDraftsByIntent(db, rc.tenantId, HELD_DRAFTS_DAYS).catch((error: unknown) => {
+      listHeldDraftsByIntent(db, rc.tenantId, HELD_DRAFTS_DAYS).catch((error: unknown) => {
         log.error("autonomy_held_drafts_failed", { tenant_id: rc.tenantId, error });
         return null;
       }),
-      factSuggestionsWaiting(db, rc.tenantId).catch((error: unknown) => {
+      listFactSuggestionsWaiting(db, rc.tenantId).catch((error: unknown) => {
         log.error("autonomy_suggestions_failed", { tenant_id: rc.tenantId, error });
         return null;
       }),
@@ -97,7 +94,7 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
         log.error("autonomy_reply_tokens_failed", { tenant_id: rc.tenantId, error });
         return null;
       }),
-      sequenceEvidence(db, rc.tenantId).catch((error: unknown) => {
+      listSequenceEvidence(db, rc.tenantId).catch((error: unknown) => {
         log.error("autonomy_evidence_failed", { tenant_id: rc.tenantId, error });
         return null;
       }),
@@ -113,7 +110,7 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
         evidence,
       },
       rows: [],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

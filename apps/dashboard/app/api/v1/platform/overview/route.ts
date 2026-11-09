@@ -1,7 +1,12 @@
-import { read, platform } from "@/server/route";
-import { platformHealth, platformOverview, platformPartners, platformWaitlist } from "@/server/platform/platform";
-import { platformSpeed, platformVitals } from "@/server/platform/vitals";
-import { platformDays } from "@/server/platform/day-counts";
+import { read, platform } from "@/server/shared/route";
+import {
+  getPlatformHealth,
+  listPlatformOverview,
+  findPlatformPartners,
+  getPlatformWaitlist,
+} from "@/server/console/platform";
+import { findPlatformSpeed, listPlatformVitals } from "@/server/console/vitals";
+import { listPlatformDays } from "@/server/console/day-counts";
 
 /**
  * GET /api/v1/platform/overview — every workspace, for the back office.
@@ -11,7 +16,7 @@ import { platformDays } from "@/server/platform/day-counts";
  * workspace's own pages already show its owner; the cross-tenant part is that
  * they are in one place.
  *
- * No workspace scope, and so no `memberContext`: the question is not "which of
+ * No workspace scope, and so no `getMemberContext`: the question is not "which of
  * my workspaces" but "all of them". Declared on the platform scope, whose
  * door is `backOffice()`: authorization is `is_platform_admin()` in the
  * database, and the handle the reads below take exists only on the far side
@@ -44,13 +49,13 @@ export const GET = read({
   scope: platform,
   handle: async ({ office }) => {
     const [tenants, health, queue, partners, vitals, speed, days] = await Promise.all([
-      platformOverview(office),
-      platformHealth(office),
-      platformWaitlist(office),
-      platformPartners(office),
-      platformVitals(office),
-      platformSpeed(office),
-      platformDays(office),
+      listPlatformOverview(office),
+      getPlatformHealth(office),
+      getPlatformWaitlist(office),
+      findPlatformPartners(office),
+      listPlatformVitals(office),
+      findPlatformSpeed(office),
+      listPlatformDays(office),
     ]);
     return { tenants, health, queue, partners, vitals, speed, days };
   },

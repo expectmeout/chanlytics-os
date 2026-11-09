@@ -9,7 +9,7 @@ first real subscriber in 0031's order (its review of 9 October). Written against
 ## Context
 
 A thread is handed to a person by one door since 00388: `escalation_open`, through `upsertEscalation`
-(`packages/jobs/src/escalate.ts`), writes the hold and `escalation.opened` in one transaction, or replaces an open hold's
+(`packages/jobs/src/runner/escalate.ts`), writes the hold and `escalation.opened` in one transaction, or replaces an open hold's
 reason (`escalations_note_change` writes `escalation.changed`), or moves its words (`refreshed`, no event). Twenty-five
 places decide a hold. How the owner hears of one is still decided at each of them:
 

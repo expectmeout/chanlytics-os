@@ -14,49 +14,48 @@ import {
   notesInForce,
   parseTenantConfigResult,
   planOf,
+  whoCanHearWords,
+  type AskPlanHead,
   type AskProposal,
   type PlanIntent,
   type PlanStep,
   type PlanWorld,
 } from "@chanlytics/contracts";
-import { reviewLinkOf } from "@chanlytics/db";
-import { load } from "../../../readers";
+import { reviewLinkOf } from "@chanlytics/db/campaigns";
+import { load } from "../../../shared/reader";
 import { channelsReady, config, facts as factsReader } from "../../../readers/facts";
 import { playbooks } from "../../../readers/playbooks";
 import {
   NO_ACTION,
   actAction,
   defineActions,
-  holdsSaid,
   offeredTo,
-  proposeMany,
-  refuse,
-  unread,
   type ActDef,
   type ActTool,
   type ProposalOutcome,
   type ToolContext,
-  nullsLeftOut,
-} from "../context";
+} from "../context/tool-defs";
+import { holdsSaid, proposeMany, refuse } from "../context/context";
+import { unread, nullsLeftOut } from "../context/tool-reads";
 import { getRoom } from "../read/calendar";
 import { propose_call } from "./call";
 import { propose_deal } from "./deal";
 import { propose_follow_up } from "./follow-up";
-import { propose_lead_search } from "./leads/lead-search";
+import { propose_lead_search } from "./leads/search";
 import { propose_leads } from "./leads/leads";
 import { propose_list } from "./people/list";
 import { propose_people } from "./people/people";
 import { propose_person } from "./person";
 import { propose_reply } from "./reply";
 import { propose_review } from "./review";
-import { propose_sequence } from "./sequence";
+import { propose_sequence } from "./sequence/sequence";
 import { propose_thread_verb } from "./thread-verb";
-import { readJourney, readMessages } from "../read/campaigns";
-import { listLists } from "../read/people";
+import { readJourney, readMessages } from "../read/campaigns/campaigns";
+import { listLists } from "../read/people/people";
 import { propose_settings, settingsAct } from "./settings";
 import { broadcastAction } from "./broadcast";
 import { messageAction } from "./message";
-import { playbookAction } from "./playbook";
+import { playbookAction } from "./playbook/playbook";
 import { playbookChangeAction } from "./playbook-change";
 
 /** Who an offer goes to where the owner names no list: People's own list of who can receive offers. */
@@ -86,16 +85,16 @@ interface PlanAsked {
 }
 
 /** The intent as planOf takes it, or why not: an offer with nothing of it named. */
-function intentOf(asked: PlanAsked): PlanIntent | { refusal: string } {
-  if (asked.intent === "cover_journey")
+function intentOf(planAsked: PlanAsked): PlanIntent | { refusal: string } {
+  if (planAsked.intent === "cover_journey")
     return {
       intent: "cover_journey",
-      ...(asked.stages ? { stages: asked.stages } : {}),
-      ...(asked.books?.trim() ? { books: asked.books } : {}),
-      ...(asked.proposals === true ? { proposals: true } : {}),
+      ...(planAsked.stages ? { stages: planAsked.stages } : {}),
+      ...(planAsked.books?.trim() ? { books: planAsked.books } : {}),
+      ...(planAsked.proposals === true ? { proposals: true } : {}),
     };
-  if (!asked.offer) return { refusal: PLAN_WORDS.noOffer };
-  return { intent: "offer", offer: asked.offer, ...(asked.say ? { say: asked.say } : {}) };
+  if (!planAsked.offer) return { refusal: PLAN_WORDS.noOffer };
+  return { intent: "offer", offer: planAsked.offer, ...(planAsked.say ? { say: planAsked.say } : {}) };
 }
 
 /** A read the world is made of, or null where it failed, said in the log as every tool's failed read is (context.ts unread). */
@@ -103,38 +102,38 @@ const orNull = <T>(t: ToolContext, read: string, p: Promise<T>): Promise<T | nul
   p.catch(unread(t, "propose_plan.offer", read));
 
 /** Everything a plan reads, each null where its read failed. */
-async function worldReads(t: ToolContext) {
+async function worldReads(toolContext: ToolContext) {
   const [library, lists, journey, pb, room, ready, settings, facts, reviewLink] = await Promise.all([
-    orNull(t, "messages", readMessages(t)),
-    orNull(t, "lists", listLists(t)),
-    orNull(t, "journey", readJourney(t)),
+    orNull(toolContext, "messages", readMessages(toolContext)),
+    orNull(toolContext, "lists", listLists(toolContext)),
+    orNull(toolContext, "journey", readJourney(toolContext)),
     // The campaigns, and with them how the business works and who each moment reaches today (GET playbooks' answer).
     orNull(
-      t,
+      toolContext,
       "playbooks",
-      load(t.rc, playbooks, undefined).then((r) => r.data),
+      load(toolContext.rc, playbooks, undefined).then((r) => r.data),
     ),
-    orNull(t, "room", getRoom(t)),
-    // Null where the channels could not be read (campaigns/channels-ready.ts channelsReadyOrNull): never "WhatsApp alone".
+    orNull(toolContext, "room", getRoom(toolContext)),
+    // Null where the channels could not be read (campaigns/channels-ready.ts findChannelsReadyOrNull): never "WhatsApp alone".
     orNull(
-      t,
+      toolContext,
       "channels",
-      load(t.rc, channelsReady, undefined).then((r) => r.data),
+      load(toolContext.rc, channelsReady, undefined).then((r) => r.data),
     ),
     // The row, or none: a workspace with no row has no notes; a read that failed is null.
     orNull(
-      t,
+      toolContext,
       "settings",
-      load(t.rc, config, undefined).then((r) => ({ row: r.data })),
+      load(toolContext.rc, config, undefined).then((r) => ({ row: r.data })),
     ),
     orNull(
-      t,
+      toolContext,
       "facts",
-      load(t.rc, factsReader, undefined).then((r) => r.data),
+      load(toolContext.rc, factsReader, undefined).then((r) => r.data),
     ),
     // The link the review ask's slot fills from (db reviewLinkOf, the send's own reading): a read that failed is none, as
     // the starter set counts it (campaigns/starter-templates.ts startersHere), so no review ask is proposed on a guess.
-    orNull(t, "review link", reviewLinkOf(t.ctx.supabase, t.tenantId)),
+    orNull(toolContext, "review link", reviewLinkOf(toolContext.ctx.supabase, toolContext.tenantId)),
   ]);
   return { library, lists, journey, pb, room, ready, settings, facts, reviewLink };
 }
@@ -183,59 +182,59 @@ function customersLanguage(r: Awaited<ReturnType<typeof worldReads>>, t: ToolCon
  * journey unread is planOf's own refusal (journeyUnread).
  */
 async function planWorld(
-  t: ToolContext,
+  toolContext: ToolContext,
   intent: PlanIntent["intent"],
   language: PlanWorld["language"] | null,
 ): Promise<PlanWorld | { refusal: string }> {
-  const r = await worldReads(t);
+  const result = await worldReads(toolContext);
   const offer = intent === "offer";
-  const notes = notesOf(r, t.rc.now);
-  if (!r.ready) return { refusal: PLAN_WORDS.channelsUnread };
+  const notes = notesOf(result, toolContext.rc.now);
+  if (!result.ready) return { refusal: PLAN_WORDS.channelsUnread };
   // The campaigns before the Library: the Library's read names the campaigns that send each message, so it fails with them.
-  if (!r.pb) return { refusal: offer ? PLAN_WORDS.playbooksUnread : PLAN_WORDS.journeyUnread };
-  if (!r.library) return { refusal: PLAN_WORDS.libraryUnread };
-  if (offer && !r.lists) return { refusal: PLAN_WORDS.listsUnread };
+  if (!result.pb) return { refusal: offer ? PLAN_WORDS.playbooksUnread : PLAN_WORDS.journeyUnread };
+  if (!result.library) return { refusal: PLAN_WORDS.libraryUnread };
+  if (offer && !result.lists) return { refusal: PLAN_WORDS.listsUnread };
   if (offer && !notes) return { refusal: PLAN_WORDS.notesUnread };
   // An offer is the business's news (decision D1): whether each channel may carry one now, by the rule a send's ticks
   // are, and why not where it may not (WhatsApp's pause on offers to US numbers is not a missing number).
-  const offers = channelChoices(r.ready, "marketing", "ours");
+  const offers = channelChoices(result.ready, "marketing", "ours");
   const offerOn = (c: "whatsapp" | "email") => {
     const o = offers.find((x) => x.channel === c);
     return { ok: o?.ok === true, why: o?.why ?? null };
   };
   // The stages this workspace can run are the guide's (contracts journeyGuide: an appointment's only with a calendar, a
   // proposal's only where a deal was recorded); the rail draws the others too, as needing what they lack.
-  const runs = new Set(r.journey?.guide.map((g) => g.stage));
-  const room = r.room && !("none" in r.room) && r.room.open + r.room.taken > 0 ? r.room : null;
+  const runs = new Set(result.journey?.guide.map((g) => g.stage));
+  const room = result.room && !("none" in result.room) && result.room.open + result.room.taken > 0 ? result.room : null;
   return {
-    now: t.now,
-    tz: t.timezone,
-    language: language ?? customersLanguage(r, t),
+    now: toolContext.now,
+    tz: toolContext.timezone,
+    language: language ?? customersLanguage(result, toolContext),
     // A plan's words (a setup's, an offer's) are said in the question's language; anything but Spanish in English.
-    says: t.language === "es" ? "es" : "en",
+    says: toolContext.language === "es" ? "es" : "en",
     // How the business works, as Campaigns says it (contracts lifecycle-inputs businessShapeOf): a calendar connected,
     // readable now or not, is the feed; else its booking tool's emails, else none.
     shape: {
-      calendar: r.pb.calendar !== "none" ? "feed" : r.pb.bookings_by_email ? "email" : "none",
-      hasDeals: r.pb.has_deals,
-      word: r.pb.appointment_word,
+      calendar: result.pb.calendar !== "none" ? "feed" : result.pb.bookings_by_email ? "email" : "none",
+      hasDeals: result.pb.has_deals,
+      word: result.pb.appointment_word,
     },
     // Who a run on each moment would pick now, the Playbooks page's own count; a moment not counted is null.
-    reach: Object.fromEntries(Object.entries(r.pb.pools).map(([k, v]) => [k, v ? v.candidates : null])),
+    reach: Object.fromEntries(Object.entries(result.pb.pools).map(([k, v]) => [k, v ? v.candidates : null])),
     channels: { whatsapp: offerOn("whatsapp"), email: offerOn("email") },
     // A message about their own appointment (the review ask) goes on WhatsApp where it sends, whatever offers may.
-    whatsappSends: r.ready.whatsapp.ready,
-    reviewLink: r.reviewLink !== null,
-    messages: r.library.messages,
+    whatsappSends: result.ready.whatsapp.ready,
+    reviewLink: result.reviewLink !== null,
+    messages: result.library.messages,
     lists: [
-      ...(r.lists?.lists ?? []).map((l) => ({ token: l.list, name: l.label, count: l.count })),
-      ...(r.lists?.own ?? []).map((l) => ({
+      ...(result.lists?.lists ?? []).map((l) => ({ token: l.list, name: l.label, count: l.count })),
+      ...(result.lists?.own ?? []).map((l) => ({
         token: l.list,
         name: l.name,
         count: "count" in l ? (l.count ?? null) : null,
       })),
     ],
-    playbooks: r.pb.playbooks.map((p) => ({
+    playbooks: result.pb.playbooks.map((p) => ({
       id: p.id,
       name: p.name,
       trigger: p.trigger,
@@ -247,12 +246,12 @@ async function planWorld(
     notes: notes ?? [],
     room: room ? { open: room.open, days: room.days } : null,
     journey:
-      r.journey?.stages
+      result.journey?.stages
         .filter((s) => runs.has(s.id))
         .map((s) => ({ id: s.id, covered: s.covered, moment: s.moment })) ?? null,
     offersList: OFFERS_LIST,
     // Whether this member may approve the receptionist's note, by the predicate the registry offers propose_settings by.
-    canNote: offeredTo(settingsAct, t.role),
+    canNote: offeredTo(settingsAct, toolContext.role),
   };
 }
 
@@ -266,9 +265,9 @@ async function stepCard(t: ToolContext, step: PlanStep): Promise<AskProposal | {
   const parsed = def.input.safeParse(step.input);
   if (!parsed.success)
     return { refusal: parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ") };
-  const made = await def.build({ ...t, step: step.n }, parsed.data);
-  if (made.proposal) return made.proposal;
-  return { refusal: made.refusal ?? made.result };
+  const created = await def.build({ ...t, step: step.n }, parsed.data);
+  if (created.proposal) return created.proposal;
+  return { refusal: created.refusal ?? created.result };
 }
 
 /**
@@ -281,21 +280,42 @@ async function stepCard(t: ToolContext, step: PlanStep): Promise<AskProposal | {
  * proposed then. The cards come back together (proposeMany), with the plan's steps for the model and its words, which
  * the round that made it answers with (loop.ts).
  */
-async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOutcome> {
-  const intent = intentOf(asked);
+async function proposePlan(toolContext: ToolContext, planAsked: PlanAsked): Promise<ProposalOutcome> {
+  const intent = intentOf(planAsked);
   if ("refusal" in intent) return refuse(intent.refusal);
-  const world = await planWorld(t, intent.intent, asked.language ?? null);
+  const world = await planWorld(toolContext, intent.intent, planAsked.language ?? null);
   if ("refusal" in world) return refuse(world.refusal);
   const planned = planOf(intent, world);
   if ("refused" in planned) return refuse(planned.refused);
-  const made = await Promise.all(planned.steps.map((s) => stepCard(t, s)));
+  const created = await Promise.all(planned.steps.map((s) => stepCard(toolContext, s)));
   const id = planned.steps.some((s) => s.silent) ? `plan-${randomUUID()}` : null;
   const of = planned.steps.length;
   const cards: AskProposal[] = [];
   for (const [i, s] of planned.steps.entries()) {
-    const card = made[i];
+    const card = created[i];
     if (!card || "refusal" in card) return refuse(`Step ${s.n} (${s.kind}): ${card?.refusal ?? "it made no card"}`);
-    cards.push(id ? { ...card, plan: { id, step: s.n, of, silent: s.silent, after: s.after } } : card);
+    cards.push(
+      id
+        ? {
+            ...card,
+            plan: { id, step: s.n, of, silent: s.silent, after: s.after, ...(s.does ? { does: s.does } : {}) },
+          }
+        : card,
+    );
+  }
+  // The plan's one card (D2 of the answers canvas) says the whole on its first step: what it is, how, and its message.
+  const leading = cards.at(0);
+  if (id && planned.head && leading?.plan) {
+    const send = cards.find((c) => c.kind === "broadcast");
+    const count = typeof send?.payload.count === "number" ? send.payload.count : 0;
+    const leftOut = typeof send?.payload.left_out === "number" ? send.payload.left_out : 0;
+    const hear = whoCanHearWords({ can: count, of: count + leftOut, leftOut, paused: null }, world.says);
+    leading.plan = {
+      ...leading.plan,
+      head: { ...planned.head, says: messageSaidOf(cards), ...(hear ? { hear } : {}) },
+    };
+    // The card shows the words whole, so its press is their OK (D3): the send's door takes it from here.
+    for (const c of cards) if (c.kind === "playbook") c.payload = { ...c.payload, words_shown: true };
   }
   // Each step as the model is told it: its card's title, and what holds that card (holdsSaid), which the answer leaves out.
   const steps = planned.steps.map((s, i) => ({
@@ -305,10 +325,25 @@ async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOu
     silent: s.silent,
     ...holdsSaid(cards[i]),
   }));
-  return proposeMany(cards, id ? { plan: id, steps } : { steps }, planned.words, planned.lead ?? null);
+  return proposeMany(cards, id ? { plan: id, steps } : { steps }, planned.words, planned.lead ?? null, {
+    ...(planned.why ? { why: planned.why } : {}),
+    ...(planned.figures?.length ? { figures: planned.figures } : {}),
+  });
 }
 
-/** An offer or a whole setup, made into its cards from one call: propose_plan's action offer. */
+/**
+ * The message a plan's one card draws, as the person reached reads it: each version the plan writes (its message step's
+ * rows), else the words its send quotes of the one it reuses (the send's sheet, whose Message row is that quote).
+ */
+function messageSaidOf(cards: readonly AskProposal[]): AskPlanHead["says"] {
+  const written = cards.find((c) => c.kind === "message")?.payload.said;
+  if (Array.isArray(written)) return written as AskPlanHead["says"];
+  const send = cards.find((c) => c.kind === "broadcast" || c.kind === "playbook");
+  const quoted = send?.sheet?.rows.find((r) => r.label === "Message")?.value;
+  return quoted ? [{ channel: "message", label: "", words: quoted }] : [];
+}
+
+/** An offer or a whole setup, as one card from one call: propose_plan's action offer. */
 const planAction = actAction({
   // The action makes cards of several kinds; this is what the role it is offered to is judged by (an operator's).
   kind: "playbook",
@@ -335,12 +370,11 @@ const planAction = actAction({
       intent: "offer",
       offer: { words: "10% off every service all November", from: "2026-11-01", until: "2026-11-30" },
     },
-    { intent: "cover_journey" },
     { intent: "cover_journey", books: "discovery call", proposals: true },
   ],
   label: "Making a plan",
   words:
-    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words, its days named as a customer reads them on its first day: “all November”, never “next month”; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing of the offer where they gave one, its days named as words names them, never the ask (“I want to offer”); or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where they said some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, as the rule for a message's language says; left out, the business's). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, and each send on its own after them; answer from the plan's words once they come back, and never say any of it is done.",
+    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words, its days named as a customer reads them on its first day: “all November”, never “next month”; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing of the offer where they gave one, its days named as words names them, never the ask (“I want to offer”); or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, as the rule for a message's language says; left out, the business's). It comes back as one card with one press, the send included, with the plan's reason (why) and its steps: answer from them once they come back.",
   build: proposePlan,
 });
 
@@ -385,20 +419,24 @@ interface PlanStepAsked {
 }
 
 /** One step's card, built by the named action's own handler with the step's input, parsed by its own zod first. */
-async function genericStep(t: ToolContext, n: number, step: PlanStepAsked): Promise<AskProposal | { refusal: string }> {
+async function genericStep(
+  toolContext: ToolContext,
+  count: number,
+  step: PlanStepAsked,
+): Promise<AskProposal | { refusal: string }> {
   const tool = STEP_TOOLS.get(step.tool);
   if (!tool) return { refusal: `${step.tool} is not a tool a plan's step takes` };
   const hasActions = !Object.prototype.hasOwnProperty.call(tool.actions, NO_ACTION);
   const key = hasActions ? (step.action ?? "") : NO_ACTION;
   const def = Object.prototype.hasOwnProperty.call(tool.actions, key) ? tool.actions[key] : null;
   if (!def) return { refusal: `${step.tool} takes action ${Object.keys(tool.actions).join(", ")}` };
-  if (!offeredTo(def, t.role)) return { refusal: `${step.tool}.${key} is not this member's to approve` };
+  if (!offeredTo(def, toolContext.role)) return { refusal: `${step.tool}.${key} is not this member's to approve` };
   const parsed = def.input.safeParse(nullsLeftOut(step.input ?? {}));
   if (!parsed.success)
     return { refusal: parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ") };
-  const made = await def.build({ ...t, step: n }, parsed.data);
-  if (made.proposal) return made.proposal;
-  return { refusal: made.refusal ?? made.result };
+  const created = await def.build({ ...toolContext, step: count }, parsed.data);
+  if (created.proposal) return created.proposal;
+  return { refusal: created.refusal ?? created.result };
 }
 
 /**
@@ -411,34 +449,52 @@ async function genericStep(t: ToolContext, n: number, step: PlanStepAsked): Prom
  * refuses is the plan's refusal, naming the step; nothing is proposed then.
  */
 async function proposeSteps(
-  t: ToolContext,
-  asked: { words?: string; steps: PlanStepAsked[] },
+  toolContext: ToolContext,
+  input: { words?: string; steps: PlanStepAsked[] },
 ): Promise<ProposalOutcome> {
-  if (asked.steps.length < 2) return refuse("a plan is two steps or more; one card is its own tool's call");
-  if (asked.steps.length > PLAN_STEPS_MAX) return refuse(`a plan takes at most ${PLAN_STEPS_MAX} steps: split it`);
+  if (input.steps.length < 2) return refuse("a plan is two steps or more; one card is its own tool's call");
+  if (input.steps.length > PLAN_STEPS_MAX) return refuse(`a plan takes at most ${PLAN_STEPS_MAX} steps: split it`);
   const cards: AskProposal[] = [];
-  for (const [i, step] of asked.steps.entries()) {
+  for (const [i, step] of input.steps.entries()) {
     const n = i + 1;
-    const card = await genericStep(t, n, step);
+    const card = await genericStep(toolContext, n, step);
     if ("refusal" in card)
       return refuse(`Step ${n} (${step.tool}${step.action ? `.${step.action}` : ""}): ${card.refusal}`);
     cards.push(card);
   }
   const id = `plan-${randomUUID()}`;
   const of = cards.length;
+  const said = input.words?.trim() || "";
   // Each step's place in the plan, in order: silent where it changes only what the workspace keeps and names no send's
   // result; else its own press, after every silent step before it and each step it names.
   const silentAt: boolean[] = [];
-  const stamped = cards.map((c, i) => {
-    const n = i + 1;
-    const named = [...stepsNamedIn(c.payload)].filter((k) => k >= 1 && k < n);
+  const stamped = cards.map((card, cardIndex) => {
+    const next = cardIndex + 1;
+    const named = [...stepsNamedIn(card.payload)].filter((k) => k >= 1 && k < next);
     // A step that names a send's result cannot go with the silent press: it waits for that send, on its own.
-    const silent = !ASK_SENDS.has(c.kind) && named.every((k) => silentAt[k - 1]);
+    const silent = !ASK_SENDS.has(card.kind) && named.every((k) => silentAt[k - 1]);
     silentAt.push(silent);
     const waits = silent
       ? []
-      : [...new Set([...silentAt.slice(0, i).flatMap((s, k) => (s ? [k + 1] : [])), ...named])].sort((a, b) => a - b);
-    return { ...c, plan: { id, step: n, of, silent, after: waits } };
+      : [...new Set([...silentAt.slice(0, cardIndex).flatMap((s, k) => (s ? [k + 1] : [])), ...named])].sort(
+          (a, b) => a - b,
+        );
+    // What the one card says of the plan (D2): its own sentence where it gave one, its first card's title where it did not.
+    const head =
+      cardIndex === 0
+        ? {
+            head: {
+              title: firstSentenceOf(said) || card.title,
+              sub: "",
+              press: "plan" as const,
+              says: messageSaidOf(cards),
+            },
+          }
+        : {};
+    return {
+      ...card,
+      plan: { id, step: next, of, silent, after: waits, does: card.line || card.title, ...head },
+    };
   });
   const steps = stamped.map((c) => ({
     n: c.plan.step,
@@ -447,11 +503,12 @@ async function proposeSteps(
     silent: c.plan.silent,
     ...holdsSaid(c),
   }));
-  const words =
-    asked.words?.trim() ||
-    `${of} steps: ${stamped.filter((c) => c.plan.silent).length} that change only what you keep, approved together, then each send on its own.`;
+  const words = said || `${of} steps, on one card with one press.`;
   return proposeMany(stamped, { plan: id, steps }, words, null);
 }
+
+/** A plan's own sentence as its card's title: up to its first stop. */
+const firstSentenceOf = (words: string): string => words.split(/(?<=[.!?…])\s/)[0]?.replace(/[.!…]+$/, "") ?? "";
 
 const stepsAction = actAction({
   // The action makes cards of several kinds; this is what the role it is offered to is judged by (an operator's).
@@ -477,7 +534,7 @@ const stepsAction = actAction({
   }),
   examples: [
     {
-      words: "Keep the 120 best leads as a list, write to them in three emails, and I'll tell you who answers.",
+      words: "Keep the 120 best leads as a list and write to them.",
       steps: [
         {
           tool: "propose_leads",
@@ -493,21 +550,11 @@ const stepsAction = actAction({
             steps: [{ subject: "A quick idea for {business_name}", body: "Hi {first_name}, ..." }],
           },
         },
-        {
-          tool: "propose_follow_up",
-          action: "keep",
-          input: {
-            said: "When they answer, I'll draft the replies",
-            prompt: "Businesses near you has replies: read them and propose answers.",
-            wake: "replies",
-            subject: "@step:2",
-          },
-        },
       ],
     },
   ],
   label: "Making a plan",
-  words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a sequence, a search). The steps that change only what the workspace keeps are approved together; each that sends, spends or posts is its own press after them. Call it when one ask takes several cards that build on each other (organize people into lists, a cold email to a list of leads with a follow-up, a sequence and its first steps); for an offer or a whole setup of the journey, action offer.`,
+  words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a sequence, a search). They show as one card: its press does what keeps records and the first that sends, spends or posts; each later send is the next press. Call it when one ask takes several cards that build on each other (lists, then a cold email to a list of leads with a follow-up, a sequence and its first steps); for an offer or a whole setup of the journey, action offer.`,
   build: proposeSteps,
 });
 

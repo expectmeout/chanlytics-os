@@ -15,7 +15,7 @@
  * the next fetch says so.
  */
 import { injectedTurn } from "./whisper";
-import { CALL_HEARTBEAT_MS, isLiveCall } from "../config/policy";
+import { CALL_HEARTBEAT_MS, isLiveCall } from "../config/policy/reply-limits";
 import { formatPhoneDisplay } from "../shared/phone";
 import { callLength, mmss } from "../shared/clock";
 import { callerName } from "../people/person-name";
@@ -56,14 +56,16 @@ const callerMarks = (contact: Parameters<typeof isOptedOutContact>[0]): Pick<Liv
 /**
  * Whether a call is one the bell still raises a "missed call" row for: a dial that never connected, no longer on the
  * line, with a start, inside MISSED_CALL_NEWS_MS of `now`. One rule, and two readers: the feed asks it of every call
- * it is handed (today/notifications.ts), and Live carries every call that passes it (LiveVM.missedCalls), so what the
+ * it is handed (today/notifications/feed.ts), and Live carries every call that passes it (LiveVM.missedCalls), so what the
  * bell can see is not the page's newest RECENT_MAX.
  */
 export function missedCallIsNews<C extends Pick<LiveCallVM, "missed" | "live" | "startedAtMs">>(
-  c: C,
+  item: C,
   now: number,
-): c is C & { startedAtMs: number } {
-  return c.missed && !c.live && typeof c.startedAtMs === "number" && now - c.startedAtMs <= MISSED_CALL_NEWS_MS;
+): item is C & { startedAtMs: number } {
+  return (
+    item.missed && !item.live && typeof item.startedAtMs === "number" && now - item.startedAtMs <= MISSED_CALL_NEWS_MS
+  );
 }
 
 export interface LiveTurnVM {
@@ -177,12 +179,12 @@ export function fmtClock(seconds: number): string {
  * rule, here.
  */
 export function liveStillUp(
-  c: Pick<LiveCallVM, "live" | "heartbeatAtMs" | "startedAtMs">,
+  liveCall: Pick<LiveCallVM, "live" | "heartbeatAtMs" | "startedAtMs">,
   heartbeatMs: number,
   nowMs: number,
 ): boolean {
-  if (!c.live) return false;
-  return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
+  if (!liveCall.live) return false;
+  return nowMs - (liveCall.heartbeatAtMs ?? liveCall.startedAtMs ?? 0) < heartbeatMs;
 }
 
 /**
@@ -256,15 +258,16 @@ export function liveBar(vm: LiveVM | null | undefined, nowMs: number): LiveBarVM
   if (up.length === 0) return null;
   const checking = up.some((c) => c.checking);
   if (up.length === 1) {
-    const c = up[0];
+    const item = up[0];
+    if (!item) return null;
     return {
-      callId: c.callId,
+      callId: item.callId,
       count: 1,
-      calls: [{ who: c.who, sinceMs: barSince(c, nowMs) }],
-      lead: c.who,
+      calls: [{ who: item.who, sinceMs: barSince(item, nowMs) }],
+      lead: item.who,
       more: "On the line",
       act: BAR_ACT,
-      label: `${c.who} is on the line. ${BAR_ACT}`,
+      label: `${item.who} is on the line. ${BAR_ACT}`,
       checking,
     };
   }
@@ -291,8 +294,8 @@ function turnsOf(dto: CallDto): LiveTurnVM[] {
       if (turn.role === "injected") {
         // The owner's words, not the frame around them -- or the platform's,
         // said as the platform's; injected turns carry no word timing.
-        const said = injectedTurn(turn.content);
-        return { speaker: said.speaker, text: said.text, t: "—" };
+        const injected = injectedTurn(turn.content);
+        return { speaker: injected.speaker, text: injected.text, t: "—" };
       }
       return {
         speaker: turn.role === "agent" ? "agent" : "client",
@@ -328,23 +331,25 @@ function checkingOf(
 }
 
 /** Where the call's summary stands: a call that never connected has none to wait for; one in its grace after ending waits. */
-function summaryStateOf(c: {
+function summaryStateOf(context: {
   missed: boolean;
   summary: string | null;
   live: boolean;
   endedMs: number | null;
   nowMs: number;
 }): LiveCallVM["summaryState"] {
-  if (c.missed) return "missed";
-  if (c.summary) return "ready";
-  return c.live || (c.endedMs !== null && c.nowMs - c.endedMs < ANALYSIS_GRACE_MS) ? "pending" : "none";
+  if (context.missed) return "missed";
+  if (context.summary) return "ready";
+  return context.live || (context.endedMs !== null && context.nowMs - context.endedMs < ANALYSIS_GRACE_MS)
+    ? "pending"
+    : "none";
 }
 
 /** The call's turns, and the last thing the caller said: the last of their turns, else what a list's call carries in their place. */
 function turnsAndLastOf(dto: CallDto): Pick<LiveCallVM, "transcript" | "saidLast"> {
   const transcript = turnsOf(dto);
-  const said = [...transcript].reverse().find((t) => t.speaker === "client" && t.text);
-  return { transcript, saidLast: said ? said.text : (dto.said_last ?? null) };
+  const lastClientTurn = [...transcript].reverse().find((t) => t.speaker === "client" && t.text);
+  return { transcript, saidLast: lastClientTurn ? lastClientTurn.text : (dto.said_last ?? null) };
 }
 
 export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCallVM {
@@ -352,7 +357,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
   const withheld = !dto.from_e164 && !dto.from_raw;
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = callerName(dto);
+  const personName = callerName(dto);
   const whoShort = name ? shortName(name) : "the caller";
 
   const live = isLiveCall(dto, now);
@@ -371,9 +376,9 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     callId: dto.id,
     cvId: `cv-${dto.id}`,
     clientId: dto.contact_id,
-    who,
+    who: personName,
     whoShort,
-    initials: withheld ? "–" : initialsOf(who),
+    initials: withheld ? "–" : initialsOf(personName),
     ...callerMarks(dto.contact),
     // The CUSTOMER's number: on a call the receptionist placed, that is the one it dialled. The bell's missed-call
     // row named the business's own line under an outbound dial that never connected (the 2 Oct 2026 audit).

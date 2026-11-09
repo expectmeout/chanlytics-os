@@ -29,20 +29,22 @@ import {
   type RunMessage,
   type RunSplit,
 } from "@chanlytics/contracts";
-import { savedListsFor, templatesFor } from "@chanlytics/db";
-import type { RouteContext } from "@/server/with-route";
+import { listSavedLists } from "@chanlytics/db/people";
+import { listTemplates } from "@chanlytics/db/campaigns";
+import type { RouteContext } from "@/server/shared/with-route";
 import {
-  calendarRead,
+  getCalendar,
   visitsIn,
   type CalendarRead,
   type PeopleVisits,
   type ZoneAndSettings,
 } from "@/server/calendar/people-visits";
 import { otherChannelSets } from "@/lib/campaign-channels";
-import { noFollowUps, poolTouches, proposalFollowUps, type FollowUpsRead } from "@/server/campaigns/playbooks";
-import { everyone } from "@/server/people/people";
-import { lazily, settled, type Lazy, type Settled } from "@/server/lazy";
-import { log } from "@/server/log";
+import { noFollowUps, poolTouches, getProposalFollowUps, type FollowUpsRead } from "@/server/campaigns/playbooks";
+import { listEveryone } from "@/server/people/people";
+import { loadLazily, readSettled, type Lazy, type Settled } from "@/server/shared/lazy";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The Playbooks page's pools: the number on each moment's chip, counted on the server over everyone with their visits
@@ -96,7 +98,7 @@ interface PoolCounts {
 /**
  * One moment's count for the channels a playbook on it ticks (reach-for.ts): the figures above are for WhatsApp alone,
  * as every playbook went before, and `by` holds the same count for each other set the workspace could tick for this kind
- * of message (campaign-channels.ts otherChannelSets), so a composer that ticks and unticks reads the one in front of it.
+ * of message (campaigns/channels.ts otherChannelSets), so a composer that ticks and unticks reads the one in front of it.
  */
 interface TriggerPool extends PoolCounts {
   by?: Array<PoolCounts & { channels: ConsentChannel[] }>;
@@ -106,7 +108,7 @@ interface TriggerPool extends PoolCounts {
 type StrictCandidate = Pick<PlaybookDto, "id" | "trigger" | "template_name" | "template_language">;
 
 /** Every row of the workspace's messages, as the categories are read from them. */
-type TemplateRows = Awaited<ReturnType<typeof templatesFor>>;
+type TemplateRows = Awaited<ReturnType<typeof listTemplates>>;
 
 /** The playbooks on a moment whose class is not marketing: the only ones a message can make stricter. */
 const mayBeStricter = <P extends StrictCandidate>(playbooks: readonly P[]): P[] =>
@@ -126,7 +128,7 @@ const mayBeStricter = <P extends StrictCandidate>(playbooks: readonly P[]): P[] 
  * (null), never counted by a yes its run does not use.
  */
 function strictMessagePools(
-  tenantId: string,
+  tenantId: TenantId,
   playbooks: readonly StrictCandidate[],
   templates: Settled<TemplateRows | null>,
   count: (trigger: PlaybookTrigger, message: RunMessage) => TriggerPool,
@@ -162,7 +164,7 @@ interface PoolReads {
   followUps: Promise<Settled<FollowUpsRead>>;
   /** Null where no playbook's message can be stricter than its moment: not read. */
   templates: Promise<Settled<TemplateRows | null>>;
-  lists: Promise<Settled<Awaited<ReturnType<typeof savedListsFor>>>>;
+  lists: Promise<Settled<Awaited<ReturnType<typeof listSavedLists>>>>;
 }
 
 /**
@@ -176,7 +178,7 @@ interface PoolReads {
  */
 export function poolReads(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   now: Date,
   from: {
     people?: Lazy<PersonRowDto[]>;
@@ -187,19 +189,23 @@ export function poolReads(
 ): PoolReads {
   // Each inside an async function, so one that throws as it is asked is a failed read like any other.
   return {
-    people: settled((async () => (from.people === undefined ? everyone(ctx, tenantId) : lazily(from.people)))()),
-    calendar: settled(calendarRead(ctx, tenantId, now, from.known)),
-    followUps: settled((async () => ((await from.hasDeals) ? proposalFollowUps(ctx, tenantId, now) : noFollowUps()))()),
-    templates: settled(
-      (async () => (mayBeStricter(await from.playbooks).length ? templatesFor(ctx.supabase, tenantId, null) : null))(),
+    people: readSettled(
+      (async () => (from.people === undefined ? listEveryone(ctx, tenantId) : loadLazily(from.people)))(),
     ),
-    lists: settled(savedListsFor(ctx.supabase, tenantId)),
+    calendar: readSettled(getCalendar(ctx, tenantId, now, from.known)),
+    followUps: readSettled(
+      (async () => ((await from.hasDeals) ? getProposalFollowUps(ctx, tenantId, now) : noFollowUps()))(),
+    ),
+    templates: readSettled(
+      (async () => (mayBeStricter(await from.playbooks).length ? listTemplates(ctx.supabase, tenantId, null) : null))(),
+    ),
+    lists: readSettled(listSavedLists(ctx.supabase, tenantId)),
   };
 }
 
 /** Everyone's visits off the calendar's read, or null where it failed or could not be indexed: said once, in the log. */
 function visitsOrNull(
-  tenantId: string,
+  tenantId: TenantId,
   read: Settled<CalendarRead>,
   rows: PersonRowDto[],
   now: Date,
@@ -214,13 +220,13 @@ function visitsOrNull(
 }
 
 /** Who had a proposal's follow-up, or null where that could not be read: said once, in the log. */
-function followUpsOrNull(tenantId: string, read: Settled<FollowUpsRead>): FollowUpsRead | null {
+function followUpsOrNull(tenantId: TenantId, read: Settled<FollowUpsRead>): FollowUpsRead | null {
   if (read.ok) return read.value;
   log.error("playbook_pools_follow_ups_failed", { tenant_id: tenantId, error: read.error });
   return null;
 }
 
-type SavedLists = Awaited<ReturnType<typeof savedListsFor>>;
+type SavedLists = Awaited<ReturnType<typeof listSavedLists>>;
 
 /** A list of the workspace's own, as the Playbooks page is told of it. */
 type OwnList = { id: string; name: string; smart: boolean; archived: boolean; viewer?: boolean };
@@ -231,7 +237,7 @@ type OwnList = { id: string; name: string; smart: boolean; archived: boolean; vi
  * is said there too, and the page takes the lists with what was counted before it, as it always did.
  */
 function ownListPools(
-  tenantId: string,
+  tenantId: TenantId,
   read: Settled<SavedLists>,
   countOf: (def: NonNullable<ReturnType<typeof resolveList>>, kept: SavedLists) => TriggerPool | null,
 ): { lists: OwnList[] | null; pools: Record<string, TriggerPool | null> } {
@@ -307,7 +313,7 @@ function splitCaps(playbooks: readonly Pick<PlaybookDto, "cap_per_run">[]): numb
 /**
  * How one moment is counted (the runner's own predicate, over everyone): with no message in view, its class's yes alone,
  * or a playbook's own message where that is stricter, for WhatsApp alone as every playbook went, and for each other set of
- * channels a playbook of this kind of message may tick (campaign-channels.ts otherChannelSets), each counted once. One
+ * channels a playbook of this kind of message may tick (campaigns/channels.ts otherChannelSets), each counted once. One
  * run's split at each cap is read off the same draw (contracts runReadingOf), never counted again.
  */
 function poolCounter({ vms, breath, nowMs, pace, ready, caps }: PoolCounting) {
@@ -361,7 +367,7 @@ function poolCounter({ vms, breath, nowMs, pace, ready, caps }: PoolCounting) {
  */
 export async function triggerPools(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   touched: Record<string, readonly string[]>,
   tz: string,
   now: Date,
@@ -419,7 +425,7 @@ export async function triggerPools(
     withVisitsOf(rows, pv?.visits ?? new Map(), pv?.calendar ?? { state: "none", timezone: tz, source: "calendar" }),
     { tz, now, viewer: null, ready: from.ready ?? null },
   );
-  // Who already had their proposal's follow-up, from any playbook (proposalFollowUps): no run reaches them again for
+  // Who already had their proposal's follow-up, from any playbook (getProposalFollowUps): no run reaches them again for
   // that proposal (0006), so the moment's count leaves them out as its run does. Read only where a deal was recorded;
   // unreadable, the moment is not counted.
   const followUps = followUpsOrNull(tenantId, await reads.followUps);
@@ -436,19 +442,19 @@ export async function triggerPools(
     ready: readyOrWhatsApp(from.ready),
     caps: splitCaps(from.playbooks ?? []),
   });
-  for (const t of MOMENT_TRIGGERS) {
+  for (const momentTrigger of MOMENT_TRIGGERS) {
     // A moment the calendar names (a visit, or the Lapsed list) is not counted when the calendar could not be read;
     // one of the workspace's lists is counted per list, below.
-    if (t.kind === "saved" || ((t.kind === "visit" || t.id === "lapsed") && !pv)) {
-      pools[t.id] = null;
+    if (momentTrigger.kind === "saved" || ((momentTrigger.kind === "visit" || momentTrigger.id === "lapsed") && !pv)) {
+      pools[momentTrigger.id] = null;
       continue;
     }
     // A proposal's moment is not counted where who already had a follow-up could not be read.
-    if (t.kind === "deal" && !followUps) {
-      pools[t.id] = null;
+    if (momentTrigger.kind === "deal" && !followUps) {
+      pools[momentTrigger.id] = null;
       continue;
     }
-    pools[t.id] = count(t.id, null, null);
+    pools[momentTrigger.id] = count(momentTrigger.id, null, null);
   }
   Object.assign(
     pools,

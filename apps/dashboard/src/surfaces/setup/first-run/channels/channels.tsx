@@ -8,7 +8,6 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  FIRST_RUN_HELPERS,
   KEEP_ROW,
   feedUrlOk,
   type FirstRunChannelsVM,
@@ -18,8 +17,9 @@ import {
   type SetupPhoneWant,
   type WhatsappChoice,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 import { RecordField, RecordToggleGroup } from "../../../kit/record/field";
-import { canDo, gate, refusalToast, type LegacyFlash } from "../../../legacy-verbs";
+import { canDo, gate, refusalToast, type FrameFlash } from "../../../frame-verbs";
 import { connectedMailboxes } from "../../../settings/connections/connected-mailboxes";
 import { HistoryChoice } from "../../../settings/connections/history-choice";
 import { businessTabSave } from "../../shell";
@@ -47,7 +47,7 @@ function wantOf(ph: FirstRunPhoneVM, c: KeptPhoneChoice | null): SetupPhoneWant 
 }
 
 /** WhatsApp's tile: connected, or "is it on WhatsApp Business?" and the three ways it can answer, each kept as picked. */
-function WhatsappTile({ wa, flash }: { wa: FirstRunChannelsVM["whatsapp"]; flash: (f: LegacyFlash) => void }) {
+function WhatsappTile({ wa, flash }: { wa: FirstRunChannelsVM["whatsapp"]; flash: (f: FrameFlash) => void }) {
   const [onIt, setOnIt] = useState<boolean | null>(wa.question?.value ?? null);
   const pick = async (choice: WhatsappChoice) => {
     const r = await setupVerbs.choose({ whatsapp: choice });
@@ -106,7 +106,7 @@ function WhatsappTile({ wa, flash }: { wa: FirstRunChannelsVM["whatsapp"]; flash
 }
 
 /** A calendar link pasted, checked by the one rule a feed is read by, and kept through the tab's one saver. */
-function LinkBox({ flash, done }: { flash: (f: LegacyFlash) => void; done: () => void }) {
+function LinkBox({ flash, done }: { flash: (f: FrameFlash) => void; done: () => void }) {
   const [url, setUrl] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const keep = () => {
@@ -144,7 +144,7 @@ function LinkBox({ flash, done }: { flash: (f: LegacyFlash) => void; done: () =>
 }
 
 /** By hand or by message, as the booking tool's section keeps it: the receptionist takes the details. */
-function bookByHand(flash: (f: LegacyFlash) => void): void {
+function bookByHand(flash: (f: FrameFlash) => void): void {
   businessTabSave.saver.save({
     row: "bookings",
     patch: (c) => ({ ...c, bookings: { ...(c.bookings ?? {}), by_hand: true } }),
@@ -160,7 +160,7 @@ function BookingsTile({
   openClients,
 }: {
   b: FirstRunChannelsVM["bookings"];
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   openClients: () => void;
 }) {
   const [pasting, setPasting] = useState(false);
@@ -225,7 +225,7 @@ function BookingsTile({
  * The mailbox tile: connected, a press per provider this deployment connects with what connecting brings under it and
  * Change (decision 0086), or coming soon.
  */
-function EmailTile({ e, flash }: { e: FirstRunChannelsVM["email"]; flash: (f: LegacyFlash) => void }) {
+function EmailTile({ e, flash }: { e: FirstRunChannelsVM["email"]; flash: (f: FrameFlash) => void }) {
   const [history, setHistory] = useState<MailboxHistory>("six_months");
   const connect = async (p: "google" | "microsoft") => {
     const r = await connectedMailboxes.connect(p, null, "start", history);
@@ -333,7 +333,7 @@ export function FrChannels(o: {
   tool: string | null;
   /** What is coming in, a line per source (imports.ts), for "Bringing it in". */
   lines: ImportLineVM[];
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
   back: string | null;
   /** The workspace chose Not by phone (decision 0091): the calls tile says so, and the step goes on with no number. */

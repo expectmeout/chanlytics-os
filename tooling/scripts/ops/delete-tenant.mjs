@@ -15,6 +15,8 @@
  *   - `billing_events` is ON DELETE SET NULL on purpose: Stripe's dedup ledger
  *     has to outlive the workspace or a redelivered event would be processed
  *     twice. Those rows are backed up and reported, never deleted.
+ *   - `anthropic_profiles` is ON DELETE SET NULL too (00544, decision 0097): a row with no workspace is the health sweep's
+ *     to delete at Anthropic, and then here, so nothing is left there for a workspace that has gone.
  *
  * And the cascade is blind outside Postgres. A workspace that owns a phone line
  * owns a Twilio subaccount, a number still being billed, a trunk, a messaging
@@ -51,6 +53,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+/** One copy's delete at Anthropic: a small call, with room for a slow answer. */
+const ANTHROPIC_CALL_MS = 10_000;
+/** One video's delete at Stream: the same. */
+const STREAM_CALL_MS = 10_000;
+
 /**
  * Every table carrying a tenant_id, derived from the migrations. Pinned here
  * BY VALUE so the backup cannot silently miss a table: a companion test reads
@@ -62,13 +69,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  */
 const TABLES = [
   "ai_usage",
+  "anthropic_profiles",
   "appointment_notices",
   "appointments",
+  // What Ask did (00574): closed sets and ids alone.
+  "ask_actions",
   // What Ask remembers, its journal and each member's mornings (00470, decision 0070).
   "ask_journal_days",
   "ask_memory_lines",
   "ask_messages",
   "ask_mornings",
+  "ask_notice_days",
   "ask_threads",
   "ask_voice_sessions",
   "billing_accounts",
@@ -90,6 +101,10 @@ const TABLES = [
   "decisions",
   "escalations",
   "events",
+  // A business's files (00551): the rows here, and their bytes in the files bucket below.
+  "files",
+  "files_let_go",
+  "sequence_lead_words",
   // The notes an owner's corrections suggest keeping (00448, decision 0063).
   "fact_suggestions",
   "google_connections",
@@ -375,10 +390,41 @@ async function main() {
     console.error(`REFUSING: could not list media/${tenantId}: ${media.error}`);
     process.exit(1);
   }
+  // Its files (00551): the same, a folder per file. Anthropic's copies of them are deleted below where this run holds the
+  // key, and otherwise named as stranded: they would last until their expiry, up to 90 days.
+  const kept = await filesUnder(db.storage.from("files"), tenantId);
+  if (kept.error) {
+    console.error(`REFUSING: could not list files/${tenantId}: ${kept.error}`);
+    process.exit(1);
+  }
+  if (kept.files.length)
+    console.log(
+      `  ${"kept files".padEnd(22)} ${String(kept.files.length).padStart(6)}   ${megabytes(kept.files.reduce((n, f) => n + f.bytes, 0))}, removed from files after the rows`,
+    );
   const mediaBytes = media.files.reduce((n, f) => n + f.bytes, 0);
   if (media.files.length)
     console.log(
       `  ${"media files".padEnd(22)} ${String(media.files.length).padStart(6)}   ${megabytes(mediaBytes)}, removed from media after the rows`,
+    );
+
+  const copies = (byTable.get("files") ?? []).map((f) => f.claude_copy?.id).filter((id) => typeof id === "string");
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (copies.length && !anthropicKey)
+    orphans.push(
+      `${copies.length} copies of its pictures at Anthropic, which last up to 90 days. Set ANTHROPIC_API_KEY for this run to delete them, or delete them there by the ids in the backup.`,
+    );
+  // Its videos (00556) are kept by Cloudflare Stream, by the ids on their rows: deleted there after the rows, which frees the
+  // account's minutes at once. Without Stream's account and token for this run they stay there, billed, until deleted by hand.
+  const videos = (byTable.get("files") ?? []).map((f) => f.media_ref).filter((id) => typeof id === "string" && id);
+  const streamAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const streamToken = process.env.CLOUDFLARE_STREAM_API_TOKEN;
+  if (videos.length)
+    console.log(
+      `  ${"videos at Stream".padEnd(22)} ${String(videos.length).padStart(6)}   deleted there after the rows`,
+    );
+  if (videos.length && !(streamAccount && streamToken))
+    orphans.push(
+      `${videos.length} videos at Cloudflare Stream, billed by the minute until deleted. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN for this run to delete them, or delete them there by the ids in the backup (files.media_ref).`,
     );
 
   if (orphans.length) {
@@ -430,6 +476,57 @@ async function main() {
         ? `the logo files could not be removed (${lErr.message}); remove them from workspace-logos by hand: ${logos.join(", ")}`
         : `removed ${logos.length} logo file${logos.length === 1 ? "" : "s"} from workspace-logos`,
     );
+  }
+
+  if (kept.files.length) {
+    const { removed, failed, error } = await removeAll(
+      db.storage.from("files"),
+      kept.files.map((f) => f.path),
+    );
+    console.log(`removed ${removed.length} of ${kept.files.length} files from files`);
+    if (failed.length) {
+      console.error(
+        `${failed.length} files could not be removed (${error}); remove what is left under files/${tenantId} by hand`,
+      );
+      process.exitCode = 1;
+    }
+  }
+
+  if (copies.length && anthropicKey) {
+    let stayed = 0;
+    for (const id of copies) {
+      const res = await fetch(`https://api.anthropic.com/v1/files/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
+        signal: AbortSignal.timeout(ANTHROPIC_CALL_MS),
+      }).catch(() => null);
+      if (!res?.ok && res?.status !== 404) stayed++;
+    }
+    console.log(`deleted ${copies.length - stayed} of ${copies.length} copies at Anthropic`);
+    if (stayed) {
+      console.error(`${stayed} copies stayed at Anthropic: delete them there by the ids in the backup.`);
+      process.exitCode = 1;
+    }
+  }
+
+  if (videos.length && streamAccount && streamToken) {
+    let stayed = 0;
+    for (const id of videos) {
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(streamAccount)}/stream/${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          headers: { authorization: `Bearer ${streamToken}` },
+          signal: AbortSignal.timeout(STREAM_CALL_MS),
+        },
+      ).catch(() => null);
+      if (!res?.ok && res?.status !== 404) stayed++;
+    }
+    console.log(`deleted ${videos.length - stayed} of ${videos.length} videos at Stream`);
+    if (stayed) {
+      console.error(`${stayed} videos stayed at Stream: delete them there by the ids in the backup (files.media_ref).`);
+      process.exitCode = 1;
+    }
   }
 
   if (media.files.length) {

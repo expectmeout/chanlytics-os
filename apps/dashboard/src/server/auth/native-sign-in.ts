@@ -1,4 +1,5 @@
 import { safeNext } from "./oauth-callback";
+import { recordOrEmpty, isOneOf } from "@chanlytics/contracts";
 
 /**
  * The native app's sign-in, decided without a network: what to sign in and where to land. Pure, so the route stays
@@ -25,7 +26,7 @@ interface NativePlan {
   refused: string | null;
 }
 
-const refusedPlan = (why: string): NativePlan => ({ signIn: null, to: NATIVE_FAILED, refused: why });
+const refusedPlan = (reason: string): NativePlan => ({ signIn: null, to: NATIVE_FAILED, refused: reason });
 
 /**
  * Whether the request says it came from another site. The door signs a person in from a form body with no session
@@ -44,24 +45,25 @@ export function fromAnotherSite(headers: { get(name: string): string | null }): 
   try {
     return new URL(origin).host !== host;
   } catch {
+    // Not an address.
     return true;
   }
 }
 
 export function nativeSignInPlan(body: unknown): NativePlan {
   if (!body || typeof body !== "object") return refusedPlan("no body");
-  const b = body as Record<string, unknown>;
-  const provider = (NATIVE_PROVIDERS as readonly string[]).includes(String(b.provider))
-    ? (b.provider as NativeProvider)
+  const bodyFields = recordOrEmpty(body);
+  const provider = isOneOf(NATIVE_PROVIDERS, String(bodyFields.provider))
+    ? (bodyFields.provider as NativeProvider)
     : null;
   if (!provider) return refusedPlan("unknown provider");
-  const token = typeof b.token === "string" ? b.token.trim() : "";
+  const token = typeof bodyFields.token === "string" ? bodyFields.token.trim() : "";
   if (!token) return refusedPlan("no token");
   if (token.length > TOKEN_MAX) return refusedPlan("token too long");
-  const nonce = typeof b.nonce === "string" && b.nonce.trim() ? b.nonce.trim() : undefined;
+  const nonce = typeof bodyFields.nonce === "string" && bodyFields.nonce.trim() ? bodyFields.nonce.trim() : undefined;
   return {
     signIn: { provider, token, nonce },
-    to: safeNext(typeof b.next === "string" ? b.next : null),
+    to: safeNext(typeof bodyFields.next === "string" ? bodyFields.next : null),
     refused: null,
   };
 }

@@ -66,7 +66,7 @@ export const NEW_MESSAGE_WORDS = {
   titleNeedsWords: "A title needs letters or digits in it.",
   nameTaken: "There is a message by that name already. Give this one another title.",
   valuesNeedWords: "Give each value a name and an example.",
-  valueTooLong: (what: "name" | "example", max: number): string => `A value's ${what} is at most ${max} characters.`,
+  valueTooLong: (kind: "name" | "example", max: number): string => `A value's ${kind} is at most ${max} characters.`,
 } as const;
 
 /**
@@ -82,8 +82,8 @@ export const LIBRARY_STARTER_WORDS = {
       : `In ${languages} — email and text versions are written at once; WhatsApp versions are added when a number is connected.`,
   /** The toast's clauses: what was written, what could not be, and what waits. */
   versionsWritten: (n: number): string => `${n} email and text version${n === 1 ? "" : "s"} written`,
-  versionsFailed: (n: number, why: string | null): string =>
-    `${n} email and text version${n === 1 ? "" : "s"} could not be written${why ? `: ${why}` : ""}`,
+  versionsFailed: (n: number, reason: string | null): string =>
+    `${n} email and text version${n === 1 ? "" : "s"} could not be written${reason ? `: ${reason}` : ""}`,
   waitsForNumber: "WhatsApp versions wait for a number",
   /** The route's refusal when the channels it is asked for are none it knows. */
   pickAChannel: "Pick at least one channel: WhatsApp, email or text.",
@@ -152,7 +152,7 @@ export function runStoppedWords(was: string | null | undefined): string {
 
 /**
  * What approving a waiting run says after its name: how many it reaches, by the server's count, and when it really goes
- * (playbook-triggers.ts whenItGoes). One sentence for Sent's toast, Today's, a campaign's drawer and Ask's card (the
+ * (playbooks/triggers/notices.ts whenItGoes). One sentence for Sent's toast, Today's, a campaign's drawer and Ask's card (the
  * wiring's second audit, S9-9): Today's said "approved: 7 people" where every other said "approved — 7 people".
  */
 export function runApprovedTail(people: number, when: string): string {
@@ -179,7 +179,7 @@ export const RUN_WAITING_SHORT = "Waits for you";
  * dock and Today's row alike; when it goes is said beside it, never in it. Here, a leaf, so a view model that says it carries
  * no page's words with it.
  */
-export const runApproveWords = (n: number): string => (n > 1 ? `Approve all ${n}` : "Approve");
+export const runApproveWords = (count: number): string => (count > 1 ? `Approve all ${count}` : "Approve");
 
 /**
  * The way back a toast offers once a run is set to go, said once: "Cancel it" while it waits for its moment, "Stop it" once
@@ -212,13 +212,13 @@ export const RUN_UNNAMED_WORDS = "Run";
  * band says, and what Ask's Right now says in its run clause, so a run waiting is said in one set of words. A run waits
  * for your approval, or for your say on the emails its check holds (waits.ts runWaitsOnYou): one word covers both.
  */
-export function runsWaitingSentence(n: number): string {
-  return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;
+export function runsWaitingSentence(count: number): string {
+  return count === 1 ? "A campaign run is waiting for your say." : `${count} campaign runs are waiting for your say.`;
 }
 
 /** A reach-out's going run whose emails the check holds for the owner's say: "2 emails wait for your say". */
-export function heldEmailsWords(n: number): string {
-  return `${n} ${n === 1 ? "email waits" : "emails wait"} for your say`;
+export function heldEmailsWords(count: number): string {
+  return `${count} ${count === 1 ? "email waits" : "emails wait"} for your say`;
 }
 
 /**

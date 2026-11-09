@@ -4,12 +4,15 @@
  * head ("Bringing it in · 2 of 3", "All in", "1 stopped") and a fact or three under it: the people and the reviews, how
  * far back email reached, the calendar. A press opens it in place, the facts folding into the sources one by one (the
  * first run's own lines, setup/first-run/channels/brought.tsx), each with how far it has come and Try again where one
- * stopped (Ruben, 27 Oct 2026: the sheet was a near-empty pane and too wordy). Drawn while anything is coming in, a source
- * stopped, or for the day it finished (contracts broughtInShown): a week of All in was a card with nothing to press.
+ * stopped (Ruben, 27 Oct 2026: the sheet was a near-empty pane and too wordy). Once all is in it is one line, the people
+ * beside its state, and the rest opens (8 Nov 2026: "No past appointments" under "All in" was a second line of nothing to
+ * do). Drawn while anything is coming in, a source stopped, or for the day it finished (contracts broughtInShown): a week
+ * of All in was a card with nothing to press.
  */
 import { useId, useState } from "react";
-import { FIRST_RUN_HELPERS, broughtInCardOf, broughtInShown, type BroughtInFactVM } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { broughtInCardOf, broughtInShown, type BroughtInFactVM } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "@/surfaces/setup/first-run/model/first-run-helpers";
+import { pageClock } from "@/bridge/zone";
 import { Icon } from "../../kit/icon/icon";
 import { ImportFoot, ImportLines } from "../../setup/first-run/channels/brought";
 import { useSurface } from "../../use-surface";
@@ -31,17 +34,24 @@ export const TodayBroughtIn = () => {
   if (!card) return null;
   const { lines, running } = FIRST_RUN_HELPERS.imports(S.dto.imports, tz);
   const { tone, words } = card.state;
+  const [first] = card.facts;
+  const oneLine = tone === "ok";
   return (
-    <section className={`tq today-brought${open ? " open" : ""}`} data-testid="today-brought-in">
+    <section
+      className={`tq today-brought${open ? " open" : ""}`}
+      data-one-line={oneLine || undefined}
+      data-testid="today-brought-in"
+    >
       <button
         type="button"
-        className="today-brought-head"
+        className="today-brought-head tz-head"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls={sources}
         data-testid="today-brought-open"
       >
-        <span className="setup-card-title">{card.title}</span>
+        <span className="setup-card-title tz-name">{card.title}</span>
+        {oneLine && first ? <span className="today-brought-first tz-fact">{first.text}</span> : null}
         <span className="today-brought-state" data-tone={tone} data-testid="today-brought-state">
           {tone === "live" ? (
             <span className="fr-pulse" aria-hidden="true" />
@@ -52,18 +62,20 @@ export const TodayBroughtIn = () => {
         </span>
         <Icon name="chevron-down" size={14} className="today-brought-chevron" />
       </button>
-      <div className="today-brought-fold today-brought-closed" aria-hidden={open} inert={open}>
-        <div>
-          <p className="today-brought-facts" data-testid="today-brought-facts">
-            {card.facts.map((f) => (
-              <span key={f.key}>
-                <Icon name={FACT_GLYPH[f.key]} size={14} />
-                {f.text}
-              </span>
-            ))}
-          </p>
+      {oneLine ? null : (
+        <div className="today-brought-fold today-brought-closed" aria-hidden={open} inert={open}>
+          <div>
+            <p className="today-brought-facts" data-testid="today-brought-facts">
+              {card.facts.map((f) => (
+                <span key={f.key}>
+                  <Icon name={FACT_GLYPH[f.key]} size={14} />
+                  {f.text}
+                </span>
+              ))}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
       <div className="today-brought-fold today-brought-sources" id={sources} aria-hidden={!open} inert={!open}>
         <div>
           <ImportLines lines={lines} flash={flash} doors />

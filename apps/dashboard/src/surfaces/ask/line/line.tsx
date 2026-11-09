@@ -13,11 +13,12 @@
  * through askCalls(). No key symbol is drawn (D17): the shortcuts sheet lists the keys (contracts SHORTCUTS), opened by ? or
  * the account menu.
  */
-import { MASCOT } from "@/legacy-bridge/mascot";
+import { MASCOT } from "@/bridge/mascot";
 import { useAskGrow, useAskLatest, useAskWarm } from "../hooks";
 import { askCalls } from "../shell";
 import { askText } from "../words";
 import { arActs } from "./acts";
+import { arAttach, useArDrop } from "./attached";
 import { arBody, arFoot, arHero, arLineEnd, arLineView } from "./draw";
 import {
   useArClose,
@@ -42,14 +43,18 @@ import { arActivate, arHeroState, arOnKey, arUnder } from "./under";
 // made before the hooks that call them (a heard question, a kept or seeded thread, Esc), closed or open.
 export const AskReal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const A = askCalls();
-  // Ask's face: the one mood every face follows (legacy-bridge/mascot mood.ts), standing in the line.
+  // Ask's face: the one mood every face follows (bridge/mascot mood.ts), standing in the line.
   const ln = { open, onClose, A, M: MASCOT, ...useArLine(A) } as Line;
   ln.t = askText(ln.lang);
   const route = arRoute();
   ln.route = route;
   // With the param: Leads is People's `leads` param, and the Line on it is the finder (spec F2, F3).
   ln.surface = A ? A.surfaceFor(route.page, route.param) : "other";
+  Object.assign(ln, arAttach(ln));
   Object.assign(ln, arActs(ln));
+  const { dropping, ...dropProps } = useArDrop(ln.attach);
+  ln.dropping = dropping;
+  ln.dropProps = dropProps;
   ln.submit = arSubmitter(ln);
   Object.assign(ln, useArVoice(ln));
   useAskWarm(ln); // and a question on its way warms the model's cache (../hooks.ts)

@@ -41,6 +41,18 @@
           "api/admin/calendar/feed.ts": {
             "maxDuration": 30
           },
+          "api/admin/files/copies.ts": {
+            "maxDuration": 30
+          },
+          "api/admin/files/video-start.ts": {
+            "maxDuration": 15
+          },
+          "api/admin/files/play.ts": {
+            "maxDuration": 10
+          },
+          "api/admin/files/listen.ts": {
+            "maxDuration": 60
+          },
           "api/admin/rehearsal/call.ts": {
             "maxDuration": 60
           },
@@ -96,6 +108,9 @@
             "maxDuration": 60
           },
           "api/cron/deadman.ts": {
+            "maxDuration": 60
+          },
+          "api/cron/drafts.ts": {
             "maxDuration": 60
           },
           "api/cron/mailboxes.ts": {
@@ -245,6 +260,9 @@
           "api/admin/steer.ts": {
             "maxDuration": 60
           },
+          "api/admin/draft.ts": {
+            "maxDuration": 60
+          },
           "api/admin/playbooks-run.ts": {
             "maxDuration": 60
           },
@@ -262,6 +280,9 @@
           },
           "api/elevenlabs-webhook.ts": {
             "maxDuration": 60
+          },
+          "api/stream-webhook.ts": {
+            "maxDuration": 15
           },
           "api/admin/eval.ts": {
             "maxDuration": 180

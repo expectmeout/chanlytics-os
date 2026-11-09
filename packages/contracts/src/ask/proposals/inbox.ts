@@ -1,0 +1,186 @@
+/**
+ * The Inbox's cards and the call's: a reply, a rewrite of a held reply, a verb on a thread, a whisper on a live call.
+ */
+import { ASK_THREAD_VERBS, type AskProposal, type AskThreadVerb } from "../thread-words";
+import type { ApiRouteKey } from "../../route-keys.generated";
+import { BOOKING_REQUEST_WORDS } from "../../calendar/visit/booking-request";
+import {
+  PROPOSAL_WORDS,
+  asText,
+  decisionOf,
+  idIn,
+  ownEntry,
+  rec,
+  refuseWith,
+  type ProposalCall,
+  type ProposalSpec,
+} from "./spec";
+import { isOneOf } from "../../shared/unknown";
+
+/** The thread verbs with an Inbox route of their own; `resolve` closes the escalation instead. */
+export const ASK_THREAD_ROUTES = {
+  take_over: "POST conversations/[id]/take-over",
+  hand_back: "POST conversations/[id]/hand-back",
+  snooze: "POST conversations/[id]/snooze",
+  wake: "POST conversations/[id]/wake",
+  archive: "POST conversations/[id]/archive",
+} as const satisfies Record<Exclude<AskThreadVerb, "resolve">, ApiRouteKey>;
+type RoutedVerb = keyof typeof ASK_THREAD_ROUTES;
+const isRoutedVerb = (v: string): v is RoutedVerb => Object.prototype.hasOwnProperty.call(ASK_THREAD_ROUTES, v);
+
+/**
+ * The verb each one's undo sends, where it has one. A wake has none (D8): its inverse is a snooze, which needs an
+ * `until` the wake never had, and core's snooze refuses one without (NEEDS_UNTIL), so that undo always failed.
+ */
+const INVERSE: Partial<Record<AskThreadVerb, RoutedVerb>> = {
+  take_over: "hand_back",
+  hand_back: "take_over",
+  snooze: "wake",
+};
+const UNDO_LABEL: Partial<Record<AskThreadVerb, string>> = {
+  take_over: "Hand back",
+  hand_back: "Take over again",
+  snooze: "Wake",
+};
+const RECEIPT: Partial<Record<AskThreadVerb, string>> = {
+  hand_back: "The receptionist has it again",
+  snooze: "Snoozed",
+  wake: "Back in the Inbox",
+  archive: "Archived",
+  resolve: "Resolved",
+};
+
+/** A thread verb by name; the snooze carries its `until`. */
+const threadCall = (verb: RoutedVerb, conversationId: unknown, until: unknown): ProposalCall =>
+  verb === "snooze"
+    ? { route: ASK_THREAD_ROUTES.snooze, params: { id: asText(conversationId) }, body: { until: asText(until) } }
+    : { route: ASK_THREAD_ROUTES[verb], params: { id: asText(conversationId) } };
+
+/** The thread a card names, in the Inbox. */
+const cardThreadRoute = ({ payload }: Pick<AskProposal, "payload">): string | null => {
+  const id = idIn(payload, "conversation_id");
+  return id ? `inbox/th-${id}` : null;
+};
+
+export const replySpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST conversations/[id]/reply",
+    params: { id: asText(p.payload.conversation_id) },
+    // An email's address, where the door asked for a yes to it (Refusal.confirmEmailTo): Today's row sends again naming it.
+    body: { text: asText(p.payload.text), ...(p.payload.email_to ? { email_to: asText(p.payload.email_to) } : {}) },
+    idempotencyKey: p.id,
+  }),
+  receipt: (p) => `Going to ${asText(p.payload.who)}`,
+  undo: {
+    label: () => "Goes in 15 seconds. Undo stops it.",
+    window: "cancelable",
+    record: (_p, data) => ({
+      message_id: rec(data).message_id,
+      cancelable_until: rec(data).cancelable_until,
+      decision_id: decisionOf(data),
+    }),
+    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
+    receipt: () => "Not sent.",
+  },
+  open: () => null,
+};
+
+export const steerSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST messages/[id]/steer",
+    params: { id: asText(p.payload.message_id) },
+    body: { text: asText(p.payload.instruction) },
+  }),
+  receipt: () => "Rewritten. The new words wait their turn.",
+  open: () => null,
+};
+
+export const threadVerbSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => {
+    const verb = asText(p.payload.verb);
+    if (!isOneOf(ASK_THREAD_VERBS, verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    // Every proposable verb but resolve has its route: ASK_THREAD_ROUTES satisfies the whole list.
+    return verb === "resolve"
+      ? { route: "POST escalations/[id]/resolve", params: { id: asText(p.payload.escalation_id) } }
+      : threadCall(verb, p.payload.conversation_id, p.payload.until);
+  },
+  receipt: (p) => {
+    const verb = asText(p.payload.verb);
+    return verb === "take_over" ? `You have ${asText(p.payload.who)}'s thread` : (ownEntry(RECEIPT, verb) ?? "Done");
+  },
+  undo: {
+    label: ({ payload }) => ownEntry(UNDO_LABEL, asText(payload.verb)) ?? null,
+    window: "ten_minutes",
+    record: (item, data) => {
+      const inverse = ownEntry(INVERSE, asText(item.payload.verb));
+      return inverse
+        ? {
+            verb: inverse,
+            conversation_id: item.payload.conversation_id,
+            until: item.payload.until ?? null,
+            decision_id: decisionOf(data),
+          }
+        : null;
+    },
+    call: (u) => {
+      const verb = asText(u.verb);
+      return isRoutedVerb(verb) ? threadCall(verb, u.conversation_id, u.until) : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: () => "Undone",
+  },
+  open: cardThreadRoute,
+};
+
+/**
+ * A booking the receptionist asked for, answered (decision 0061): Booked it or Can't, from Today's row, the Inbox's thread
+ * or the Calendar's visit. Booked it's answer carries the reply it drafts; nothing is sent by the answer itself. No undo:
+ * a booking confirmed, or a time let go, is answered again in the thread.
+ */
+export const bookingRequestSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST conversations/[id]/booking-request",
+    params: { id: asText(p.payload.conversation_id) },
+    body: { booked: p.payload.booked === true },
+  }),
+  receipt: (p) =>
+    p.payload.booked === true
+      ? BOOKING_REQUEST_WORDS.said.booked(asText(p.payload.who))
+      : BOOKING_REQUEST_WORDS.said.cant(asText(p.payload.who)),
+  open: cardThreadRoute,
+};
+
+export const whisperSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST calls/[id]/whisper",
+    params: { id: asText(p.payload.call_id) },
+    body: { text: asText(p.payload.text), trigger: false },
+  }),
+  receipt: () => "Whispered. It uses it when it fits.",
+  open: () => null,
+};
+
+/**
+ * A call in progress passed to the business's own line (POST calls/:id/hand-over): the receptionist tells the caller
+ * someone is picking up and transfers them, and the owner's phone rings. The door refuses a call that has ended, or a
+ * workspace with no line to ring, in its own words. Nothing undoes it: the caller is on the owner's phone by then.
+ */
+export const callHandOverSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) =>
+    idIn(p.payload, "call_id")
+      ? { route: "POST calls/[id]/hand-over", params: { id: asText(p.payload.call_id) } }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove),
+  receipt: () => "Your phone rings now.",
+  open: () => "live",
+};

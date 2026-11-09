@@ -23,15 +23,16 @@ import {
   toChannelVM,
 } from "@chanlytics/contracts";
 import { ActivityQuerySchema } from "../../../metrics/activity";
-import { load } from "../../../readers";
+import { load } from "../../../shared/reader";
 import { activity as activityReader } from "../../../readers/activity";
 import { channels as channelsReader } from "../../../readers/channels";
 import { connections as connectionsReader } from "../../../readers/connections";
 import * as readers from "../../../readers/facts";
 import { notifications as notificationsReader } from "../../../readers/notifications";
-import { workspaceFacts } from "../../prompt";
-import { WHOSE, defineActions, readAction, unread, type ToolContext } from "../context";
-import { noticeWaitsOf } from "./notice-waits";
+import { workspaceFacts } from "../../prompt/stable-system";
+import { WHOSE, unread } from "../context/tool-reads";
+import { defineActions, readAction, type ToolContext } from "../context/tool-defs";
+import { getNoticeWaits } from "./notice-waits";
 
 /**
  * How it answers as it stands, beyond the languages and photos said beside it: what a card of propose_settings' answers
@@ -51,25 +52,47 @@ function howItAnswersOf(cfg: ReturnType<typeof parseTenantConfig>) {
   };
 }
 
-async function getSettings(t: ToolContext): Promise<unknown> {
+/**
+ * How it reaches out as it stands (decision 0113): what a card of propose_settings' reach_out changes, read first so a
+ * claim added never repeats one there and one taken away is named as it is written. Null where a row is not set: each
+ * writer then reads what it read before (the goal or what the business does, the receptionist's tone).
+ */
+function howItReachesOutOf(cfg: ReturnType<typeof parseTenantConfig>) {
+  const section = cfg?.reach_out;
+  return {
+    offer: section?.offer ?? null,
+    who_for: section?.who_for ?? null,
+    fixes: section?.fixes ?? null,
+    claims: section?.proof ?? [],
+    tone: section?.tone ?? null,
+    signed_by: section?.signed_by ?? null,
+    signature: section?.signature ?? null,
+    reply_offer: section?.reply_offer ?? "booking_link",
+  };
+}
+
+async function getSettings(toolContext: ToolContext): Promise<unknown> {
   // The facts the receptionist runs on, composed from the turn's reads -- never the settings page's own read
   // (readers/settings.ts), whose prompt preview fetches the calendar feed and reads the Autonomy rows again, which a
   // question about the hours must not pay for.
   const [{ name, timezone }, cfgRow, all, chans] = await Promise.all([
-    load(t.rc, readers.facts, undefined).then((r) => r.data),
-    load(t.rc, readers.config, undefined).then((r) => r.data),
-    load(t.rc, readers.policies, undefined).then(
+    load(toolContext.rc, readers.facts, undefined).then((r) => r.data),
+    load(toolContext.rc, readers.config, undefined).then((r) => r.data),
+    load(toolContext.rc, readers.policies, undefined).then(
       (r) => r.data,
       () => [],
     ),
     // The channels as their page reads them (readers/channels.ts), once a turn: sequences.lists reads the same
     // rows. A read that fails is said as its own state, never as no channels, and the rest of the settings still answer.
-    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "workspace.settings", "channels")),
+    load(toolContext.rc, channelsReader, undefined).then(
+      (r) => r.data.channels,
+      unread(toolContext, "workspace.settings", "channels"),
+    ),
   ]);
   // The Autonomy rows offered here, as the pane draws them (contracts policyClassOffered).
   const policies = all.filter((p) => policyClassOffered(p.class));
   const cfg = parseTenantConfig(cfgRow?.config ?? null);
-  const facts = workspaceFacts(name, timezone, cfgRow?.config ?? null, t.rc.now, policies);
+  const facts = workspaceFacts(name, timezone, cfgRow?.config ?? null, toolContext.rc.now, policies);
   return {
     business: facts.businessName,
     timezone,
@@ -84,10 +107,13 @@ async function getSettings(t: ToolContext): Promise<unknown> {
     calendar_connected: facts.hasCalendar,
     vision: facts.visionOn,
     answers: howItAnswersOf(cfg),
+    reach_out: howItReachesOutOf(cfg),
     notifications: cfg?.notifications
       ? {
           escalation_emails:
-            t.role === "owner" ? cfg.notifications.escalation_emails : cfg.notifications.escalation_emails.length,
+            toolContext.role === "owner"
+              ? cfg.notifications.escalation_emails
+              : cfg.notifications.escalation_emails.length,
         }
       : null,
     policies: policies.map((p) => ({ class: p.class, mode: p.mode, limits: p.limits })),
@@ -96,7 +122,7 @@ async function getSettings(t: ToolContext): Promise<unknown> {
     channels: chans
       ? chans.map((c) => ({
           kind: c.kind,
-          status: toChannelVM(c, t.now, t.timezone).healthLabel,
+          status: toChannelVM(c, toolContext.now, toolContext.timezone).healthLabel,
           number: c.number_e164,
         }))
       : null,
@@ -115,21 +141,21 @@ const CONNECTION_ROWS = ["line", "keep", "whatsapp", "email", "calendar", "googl
  * charter, §7): Setup's billing row is not one of these, the plan's price is never passed in, and a row that waits on
  * Billing says only its state.
  */
-async function getConnections(t: ToolContext): Promise<unknown> {
-  const read = await load(t.rc, connectionsReader, undefined);
+async function getConnections(toolContext: ToolContext): Promise<unknown> {
+  const read = await load(toolContext.rc, connectionsReader, undefined);
   const setup = read.data.setup;
   const vm = setupSteps(
     {
       ...setup,
       ...(setup.billing ? { billing: { ...setup.billing, price: null } } : {}),
-      tz: t.timezone,
+      tz: toolContext.timezone,
       later: [],
       rests: {},
     },
-    t.now.getTime(),
+    toolContext.now.getTime(),
   );
   // Each mailbox it writes from is a row an answer may cite, opened on Connections: the reader's RowRefs.
-  noteRows(t.read, read.rows);
+  noteRows(toolContext.read, read.rows);
   return {
     route: "start",
     answering: vm.readiness.sentence,
@@ -143,16 +169,16 @@ async function getConnections(t: ToolContext): Promise<unknown> {
           ...(billing ? {} : { says: r.sentence, ...(r.details.length ? { details: r.details } : {}) }),
         };
       }),
-    mailboxes: (setup.email?.sending?.mailboxes ?? []).map((m) => {
-      const w = mailboxWords(m, t.now.getTime(), t.timezone);
+    mailboxes: (setup.email?.sending?.mailboxes ?? []).map((match) => {
+      const result = mailboxWords(match, toolContext.now.getTime(), toolContext.timezone);
       return {
-        mailbox_id: m.id,
+        mailbox_id: match.id,
         route: "admin/integrations",
-        address: m.address,
-        state: w.pill,
-        says: w.day,
-        ...(w.ramp ? { ramp: w.ramp } : {}),
-        ...(w.fix ? { fix: w.fix } : {}),
+        address: match.address,
+        state: result.pill,
+        says: result.day,
+        ...(result.ramp ? { ramp: result.ramp } : {}),
+        ...(result.fix ? { fix: result.fix } : {}),
       };
     }),
   };
@@ -169,18 +195,18 @@ async function getConnections(t: ToolContext): Promise<unknown> {
  * unread, above the bell's number (the wiring's second audit, R13 X5-1). What still waits is read where the server reads it
  * (notice-waits.ts).
  */
-async function getNotifications(t: ToolContext): Promise<unknown> {
+async function getNotifications(toolContext: ToolContext): Promise<unknown> {
   const [dto, zone] = await Promise.all([
-    load(t.rc, notificationsReader, undefined).then((r) => r.data),
-    load(t.rc, readers.facts, undefined).then(
+    load(toolContext.rc, notificationsReader, undefined).then((r) => r.data),
+    load(toolContext.rc, readers.facts, undefined).then(
       (r) => r.data.timezone,
       () => null,
     ),
   ]);
   const kept = dto.notifications.filter((n) => n.kind !== "billing");
-  const waits = await noticeWaitsOf(t.rc.ctx.supabase, t.rc.tenantId, kept, t.now, zone);
+  const waits = await getNoticeWaits(toolContext.rc.ctx.supabase, toolContext.rc.tenantId, kept, toolContext.now, zone);
   const rows = closeSettledNotices(serverNotificationRows({ ...dto, notifications: kept }), waits);
-  const nowMs = t.now.getTime();
+  const nowMs = toolContext.now.getTime();
   return {
     unread: unreadCount(rows),
     notifications: rows.map((r) => ({
@@ -209,42 +235,42 @@ const ACTIVITY_CAP = 30;
  * them is left out again.
  */
 async function readActivity(
-  t: ToolContext,
+  toolContext: ToolContext,
   input: { person?: string; kind?: string; day?: string; cursor?: string },
 ): Promise<unknown> {
-  if (!roleAtLeast(t.role, "owner")) return { error: `workspace: action activity is ${WHOSE.owner}` };
-  const q = ActivityQuerySchema.safeParse(input);
-  if (!q.success)
-    return { error: `workspace: ${q.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}` };
-  const page = (await load(t.rc, activityReader, q.data)).data;
+  if (!roleAtLeast(toolContext.role, "owner")) return { error: `workspace: action activity is ${WHOSE.owner}` };
+  const parsed = ActivityQuerySchema.safeParse(input);
+  if (!parsed.success)
+    return { error: `workspace: ${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}` };
+  const page = (await load(toolContext.rc, activityReader, parsed.data)).data;
   // A kind has one category (its emitter's): named, and its rows are money, the kind is money's.
-  if (q.data.kind && page.rows.some(isActivityMoney))
+  if (parsed.data.kind && page.rows.some(isActivityMoney))
     return { error: "that kind is about money, which stays out of Ask: its page has it" };
   const rows = page.rows.filter((r) => !isActivityMoney(r));
-  const dayOf = (at: string): string => zoneDayKey(Date.parse(at), t.timezone);
-  const folds = !q.data.kind;
+  const dayOf = (at: string): string => zoneDayKey(Date.parse(at), toolContext.timezone);
+  const folds = !parsed.data.kind;
   const read = rows.slice(0, activityRowsForLines(rows, dayOf, ACTIVITY_CAP, folds));
   const last = read[read.length - 1];
-  const nowMs = t.now.getTime();
+  const nowMs = toolContext.now.getTime();
   return {
     route: "admin/activity",
     activity: activityLines(read, dayOf, folds).map((line) => {
-      const r = line.row;
-      const who = r.actor_user_id
-        ? (page.actors[r.actor_user_id] ?? memberWords({ email: null }).name)
-        : r.actor_type === "ai"
+      const row = line.row;
+      const personName = row.actor_user_id
+        ? (page.actors[row.actor_user_id] ?? memberWords({ email: null }).name)
+        : row.actor_type === "ai"
           ? "Receptionist"
-          : r.source === "event"
+          : row.source === "event"
             ? ""
             : "System";
-      const key = r.subject_type && r.subject_id ? `${r.subject_type}:${r.subject_id}` : "";
+      const key = row.subject_type && row.subject_id ? `${row.subject_type}:${row.subject_id}` : "";
       const about = key ? page.subjects[key] : undefined;
-      const said = line.title ?? (about ? `${r.text} · ${about}` : r.text);
+      const sentence = line.title ?? (about ? `${row.text} · ${about}` : row.text);
       return {
-        when: clockStamp(Date.parse(r.at), t.timezone, nowMs),
-        what: who ? `${who} · ${said}` : said,
+        when: clockStamp(Date.parse(row.at), toolContext.timezone, nowMs),
+        what: personName ? `${personName} · ${sentence}` : sentence,
         // A fold stands for several rows, and opens none of them.
-        ...(line.count > 1 ? { times: line.count, open: null } : { open: page.doors[key] ?? activityDoor(r) }),
+        ...(line.count > 1 ? { times: line.count, open: null } : { open: page.doors[key] ?? activityDoor(row) }),
       };
     }),
     // The reader's own cursor shape, "<created_at>|<row id>": after the last row said while this page holds more;

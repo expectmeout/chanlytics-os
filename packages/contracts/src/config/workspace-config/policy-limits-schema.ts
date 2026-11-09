@@ -4,7 +4,7 @@
  * these words loads none of it.
  */
 import { z } from "zod";
-import { PAUSE_HOURS_MAX, PAUSE_HOURS_MIN, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS } from "../policy";
+import { PAUSE_HOURS_MAX, PAUSE_HOURS_MIN, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS } from "../policy/reply-limits";
 
 export const PolicyLimitsSchema = z
   .object({

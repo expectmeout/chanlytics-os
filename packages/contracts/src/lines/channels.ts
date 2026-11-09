@@ -1,4 +1,4 @@
-import { usableZone } from "../calendar/zone-math";
+import { usableZone } from "../shared/zone/math";
 import { agoWords, dateFormat, DAY_MS } from "../shared/time";
 /**
  * Channels — the numbers a business is reachable on, as facts.
@@ -54,7 +54,7 @@ export interface ChannelDto {
  * back onto Setup.
  *
  * `facts.ts` already resolved this correctly for the receptionist's own facts, and
- * `ensureVoiceAgent`, `line_forwarding_set` and `businessPageFor` all filter and
+ * `ensureVoiceAgent`, `line_forwarding_set` and `findBusinessPage` all filter and
  * order too. This is that same rule where the two page-facing readers can share it.
  *
  * ACTIVE FIRST, then the oldest of them — deterministic, and the oldest active row
@@ -78,7 +78,7 @@ export function channelFor<T extends ChannelPickable>(rows: readonly T[], kind: 
   if (mine.length === 0) return null;
   const on = mine.filter(channelIsOn);
   const pool = on.length > 0 ? on : mine;
-  return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? pool[0];
+  return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? null;
 }
 
 export type ChannelHealth = "receiving" | "quiet" | "off" | "unused";
@@ -133,17 +133,18 @@ function ago(ms: number, nowMs: number, tz: string): string {
  * (people.ts) label what a MESSAGE arrived on; the Connections titles name the
  * product ("WhatsApp Business"). This one names the wire.
  */
-export const CHANNEL_KIND_WORDS: Record<string, string> = {
+export const CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
   sms: "Texting",
   email: "Email",
   instagram: "Instagram",
 };
+const wordOfKind: Record<string, string | undefined> = CHANNEL_KIND_WORDS;
 
 /** The word for a wire; an unknown kind is capitalised rather than shouted as a column value. */
 export function channelKindWords(kind: string): string {
-  return CHANNEL_KIND_WORDS[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1);
+  return wordOfKind[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1);
 }
 
 /**

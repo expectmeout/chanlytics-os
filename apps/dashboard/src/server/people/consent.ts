@@ -12,6 +12,7 @@
  * And the one answer a member may not record but may ask for: a website sign-up's yes to offers by email, which only the
  * person's press on its confirmation link gives (00489), asked for here (askToConfirmSignup).
  */
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import {
   AppError,
   CONSENT_RESET_SOURCE,
@@ -22,12 +23,14 @@ import {
   signupAskLine,
   type AskedPurpose,
   type SignupAskRefusal,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
-import { recordConsent } from "@chanlytics/db";
-import { callEdge, edgeConfigured } from "@/server/edge";
-import { log } from "@/server/log";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
-import type { contactScope } from "@/server/verbs";
+import { listPeopleStanding, recordConsent } from "@chanlytics/db/people";
+import { callEdge, edgeConfigured } from "@/server/shared/edge";
+import { log } from "@/server/shared/log";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import type { contactScope } from "@/server/shared/verbs";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** The person a contactScope route acts on, as the scope read them. */
 type ContactRow = Awaited<ReturnType<typeof contactScope.load>>;
@@ -58,23 +61,23 @@ function consentSourceOf(
   purpose: AskedPurpose,
   named: { messageId: string | null } | "many",
 ): string {
-  const s = input.consent === "unknown" ? CONSENT_RESET_SOURCE : input.source;
-  if (typeof s !== "string" || (input.consent !== "unknown" && !CONSENT_SOURCES.some((k) => k.id === s))) {
+  const text = input.consent === "unknown" ? CONSENT_RESET_SOURCE : input.source;
+  if (typeof text !== "string" || (input.consent !== "unknown" && !CONSENT_SOURCES.some((k) => k.id === text))) {
     throw new AppError(
       "validation",
       "Say how they told you: in person, on the phone, on a form, or in their own message.",
     );
   }
-  if (named === "many" && s === "customer_message") throw new AppError("validation", OWN_MESSAGE_REFUSALS.batch);
+  if (named === "many" && text === "customer_message") throw new AppError("validation", OWN_MESSAGE_REFUSALS.batch);
   if (purpose === "marketing" && input.consent === "opted_in") {
-    const refusal = offersYesRefusal(s);
+    const refusal = offersYesRefusal(text);
     if (refusal) throw new AppError("validation", refusal);
   }
   if (named !== "many") {
-    const ownMessage = ownMessageRefusal(s, named.messageId);
+    const ownMessage = ownMessageRefusal(text, named.messageId);
     if (ownMessage) throw new AppError("validation", ownMessage);
   }
-  return s;
+  return text;
 }
 
 /** The note, trimmed to what the door takes, or nothing. */
@@ -84,7 +87,7 @@ function noteOf(note: unknown): string | null {
 
 /** What the door answered, read as a record: its own fields with the decision's id beside them. */
 const whatTheDoorAnswered = (data: unknown): Record<string, unknown> =>
-  data !== null && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
+  data !== null && typeof data === "object" && !Array.isArray(data) ? recordOrEmpty(data) : {};
 const textOrNull = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
 /** One person's answer through the door, judged first; the door's refusal is the route's, in the door's words. */
@@ -103,8 +106,8 @@ async function recordOne(ctx: RouteContext, contact: ContactRow, purpose: AskedP
     undoOf: ctx.undoOf ?? null,
   });
   if (error) throw dbRefusal(error);
-  const r = whatTheDoorAnswered(data);
-  return { r, source, decisionId: textOrNull(r.decision_id) };
+  const result = whatTheDoorAnswered(data);
+  return { r: result, source, decisionId: textOrNull(result.decision_id) };
 }
 
 /**
@@ -157,22 +160,22 @@ export async function recordOffersConsent(ctx: RouteContext, contact: ContactRow
  */
 export async function recordConsentMany(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   purpose: AskedPurpose,
   input: { ids: string[] } & ConsentInput,
 ): Promise<ManyOutcome> {
   const source = consentSourceOf(input, purpose, "many");
   const note = noteOf(input.note);
   const ids = [...new Set(input.ids)];
-  const { data, error } = await ctx.supabase.from("contacts").select("id, tenant_id, erased_at").in("id", ids);
-  if (error) throw new Error(error.message);
+  const { data, error } = await listPeopleStanding(ctx.supabase, ids.map(heldContactId));
+  if (error) throw new DbFailure(error);
   const ours = (data ?? []).filter((c) => c.tenant_id === tenantId && !c.erased_at);
   const skipped = ids.filter((id) => !ours.some((c) => c.id === id));
   const failed: ManyOutcome["failed"] = [];
   let done = 0;
-  for (const c of ours) {
+  for (const our of ours) {
     const door = await recordConsent(ctx.supabase, {
-      contactId: c.id,
+      contactId: our.id,
       purpose,
       consent: input.consent,
       source,
@@ -182,7 +185,7 @@ export async function recordConsentMany(
       via: ctx.via ?? null,
       undoOf: null,
     });
-    if (door.error) failed.push({ id: c.id, message: dbRefusal(door.error).message });
+    if (door.error) failed.push({ id: our.id, message: dbRefusal(door.error).message });
     else done += 1;
   }
   return { done, failed, skipped };
@@ -208,22 +211,22 @@ interface SignupAskAnswer {
 const NOBODY_TO_ASK = "There is nobody to ask: they are no longer in this workspace.";
 
 export async function askToConfirmSignup(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
-  contactId: string,
+  contactId: ContactId,
 ): Promise<SignupAskAnswer> {
-  if (!edgeConfigured()) throw new AppError("conflict", "Asking them to confirm is not available right now.", 503);
-  const a = await callEdge(
+  if (!edgeConfigured()) throw new AppError("unavailable", "Asking them to confirm is not available right now.");
+  const answer = await callEdge(
     "/api/admin/email/signup-confirm",
     { tenant_id: tenantId, user_id: userId, contact_id: contactId },
     { workspace: tenantId, user: userId, timeoutMs: ASK_TIMEOUT_MS },
   );
-  const b = a.body as { ok?: unknown; asked?: unknown; why?: unknown } | null;
-  if (a.status === 200 && b?.ok === true) {
-    const asked = b.asked === true;
-    const why = typeof b.why === "string" ? (b.why as SignupAskRefusal) : null;
-    return { asked, said: signupAskLine(asked ? "asked" : why) ?? NOBODY_TO_ASK };
+  const body = answer.body;
+  if (answer.status === 200 && body?.ok === true) {
+    const request = body.asked === true;
+    const reason = typeof body.why === "string" ? (body.why as SignupAskRefusal) : null;
+    return { asked: request, said: signupAskLine(request ? "asked" : reason) ?? NOBODY_TO_ASK };
   }
-  log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: a.status, reason: b?.why ?? null });
-  throw new AppError("conflict", "The email asking them to confirm could not be sent. Try again in a minute.", 502);
+  log.warn("signup_confirm_ask_failed", { tenant_id: tenantId, status: answer.status, reason: body?.why ?? null });
+  throw new AppError("upstream_email", "The email asking them to confirm could not be sent. Try again in a minute.");
 }

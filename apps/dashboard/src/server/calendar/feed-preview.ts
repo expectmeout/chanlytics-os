@@ -11,8 +11,9 @@ import {
   fetchPublic,
   parseIcs,
   previewHorizon,
+  causedBy,
 } from "@chanlytics/contracts";
-import { publicFetcher } from "@chanlytics/channels";
+import { publicFetcher } from "@chanlytics/channels/shared";
 
 /** The address rule is contracts' (feed-url.ts); re-exported so the settings routes' test reaches it at the door that uses it. */
 export { feedUrlOk };
@@ -53,14 +54,17 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
     text = await res.text();
   } catch (e) {
     if (e instanceof AppError) throw e;
-    throw new AppError("upstream_meta", feedProblemWords("unreachable") ?? "The calendar could not be reached.", 502);
+    throw causedBy(
+      new AppError("upstream_meta", feedProblemWords("unreachable") ?? "The calendar could not be reached.", 502),
+      e,
+    );
   }
   if (text.length > FEED_MAX_BYTES)
     throw new AppError("validation", feedProblemWords("too_large") ?? "That feed is too large to read.");
   if (!/BEGIN:VCALENDAR/i.test(text))
     throw new AppError("validation", feedProblemWords("not_ical") ?? "That address is not an iCal feed.");
   const parsed = parseIcs(text, tz, { horizon: previewHorizon(now) });
-  const f = new Intl.DateTimeFormat("en-US", {
+  const item = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     weekday: "short",
     month: "short",
@@ -73,7 +77,7 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
     .sort((a, b) => a.start - b.start)
     .slice(0, 3)
     .map((it) => ({
-      start: f.format(new Date(it.start)),
+      start: item.format(new Date(it.start)),
       end: new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(
         new Date(it.end),
       ),

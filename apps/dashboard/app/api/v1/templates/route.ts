@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { read, write, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, write, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { templates } from "@/server/readers/templates";
 import { submitTemplate } from "@/server/campaigns/template-submit";
 

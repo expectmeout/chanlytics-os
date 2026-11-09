@@ -7,8 +7,8 @@
  * (settings/autonomy/verbs.ts). None of them throws: each answers its data or the refusal's words.
  */
 import type { FixChange, RehearsalAllowance, RehearsalDto, ReviewDto, TryItVM } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import type { CallStarted } from "@/legacy-bridge/rehearse/call";
+import { api } from "@/bridge/api";
+import type { CallStarted } from "@/bridge/rehearse/call";
 
 /** One turn of what was tried before, as the route takes it. */
 export interface TryTurn {

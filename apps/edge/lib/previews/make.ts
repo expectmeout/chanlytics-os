@@ -6,39 +6,42 @@
  * makePreviewFor is the member's press, behind its admin door.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isUuid, leadAsListing, previewZoneOf } from "../packages/contracts.js";
-import { leadForPreview, makeLeadPreview, type Database, type PreviewDoor, type PreviewMade } from "../packages/db.js";
-import { scheduleJobOnce } from "../packages/jobs.js";
-import { env } from "../env.js";
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
+import { isUuid } from "@chanlytics/contracts";
+import { leadAsListing, previewZoneOf } from "./lead-as-listing";
+import { findLeadForPreview, makeLeadPreview, type PreviewDoor, type PreviewMade } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
+import { scheduleJobOnce } from "@chanlytics/jobs";
+import { env } from "../shared/env.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** The lead's preview, made where there is none and its build scheduled while it is building; or why not. */
 export async function askPreview(
   db: Db,
-  p: { tenantId: string; leadId: string; by: string | null },
+  params: { tenantId: TenantId; leadId: string; by: string | null },
 ): Promise<PreviewDoor<PreviewMade>> {
   if (env.LEAD_PREVIEWS !== "on") return { ok: false, reason: "refused", message: "Previews are switched off." };
-  const lead = await leadForPreview(db, p.tenantId, p.leadId);
+  const lead = await findLeadForPreview(db, params.tenantId, params.leadId);
   if (!lead) return { ok: false, reason: "not_found", message: "Lead not found." };
-  const made = await makeLeadPreview(db, {
-    tenantId: p.tenantId,
-    leadId: p.leadId,
+  const created = await makeLeadPreview(db, {
+    tenantId: params.tenantId,
+    leadId: params.leadId,
     name: leadAsListing(lead).name ?? lead.business_name,
     timezone: previewZoneOf(lead),
-    by: p.by,
+    by: params.by,
   });
-  if (made.ok && made.value.state === "building")
+  if (created.ok && created.value.state === "building")
     await scheduleJobOnce(db, {
-      tenantId: p.tenantId,
+      tenantId: params.tenantId,
       kind: "preview_build",
       dueAt: new Date(),
-      payload: { preview_id: made.value.id },
+      payload: { preview_id: created.value.id },
     });
-  return made;
+  return created;
 }
 
 /**
@@ -53,9 +56,10 @@ export async function makePreviewFor(auth: Admitted, body: Partial<{ tenant_id: 
   if (!ws.ok) return ws.response;
   const leadId = typeof body.lead_id === "string" ? body.lead_id.trim() : "";
   if (!ws.tenantId || !isUuid(leadId)) return refuse(400, "bad_request", "tenant_id and lead_id are required");
-  const made = await askPreview(db, { tenantId: ws.tenantId, leadId, by: auth.user });
-  if (made.ok) return json(200, { ok: true, id: made.value.id, state: made.value.state, token: made.value.token });
-  if (made.reason === "not_found") return refuse(404, "not_found", made.message);
-  if (made.reason === "not_ours") return refuse(403, "platform_only", made.message);
-  return refuse(409, "preview_failed", made.message);
+  const created = await askPreview(db, { tenantId: ws.tenantId, leadId, by: auth.user });
+  if (created.ok)
+    return json(200, { ok: true, id: created.value.id, state: created.value.state, token: created.value.token });
+  if (created.reason === "not_found") return refuse(404, "not_found", created.message);
+  if (created.reason === "not_ours") return refuse(403, "platform_only", created.message);
+  return refuse(409, "preview_failed", created.message);
 }

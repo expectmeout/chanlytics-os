@@ -6,9 +6,11 @@
  * reads; this browser is the bell's own switch. The topics, their groups and every sentence are contracts'
  * (notification-kinds.ts: ALERT_TOPICS, alertGrid, ALERT_PANE_WORDS); the acts are acts.tsx's.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ALERT_PANE_WORDS as W, alertGrid, bellLineFor, type EmailHeld } from "@chanlytics/contracts/alert-pane";
-import { canDo, gate, meNow, type LegacyFlash } from "../../legacy-verbs";
+import { webPushCan, webPushOn, webPushTurnOff, webPushTurnOn } from "@/bridge/ask/web-push";
+import { Button } from "../../kit/button/button";
+import { canDo, gate, meNow, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { businessActs, phoneAct, sectionSaver, teammatesOf, type Config } from "./acts";
 import { addressesOf, ChannelsCard } from "./channels";
@@ -18,7 +20,44 @@ import { alertVerbs } from "./verbs";
 const BROKEN =
   "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change";
 
-export const PaneNotificationsReal = ({ flash }: { flash: (f: LegacyFlash) => void }) => {
+/**
+ * This browser told, or not (D12 of the answers canvas): a press asks the browser's own question, and nothing is drawn where
+ * the deployment holds no keys. On an iPhone it says what it takes first.
+ */
+function ThisBrowser({ flash }: { flash: (f: FrameFlash) => void }) {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void webPushOn(window).then(setOn, () => setOn(false));
+  }, []);
+  const can = typeof window === "undefined" ? { can: false, reason: "no_key" as const } : webPushCan(window);
+  if (can.reason === "no_key" || can.reason === "no_support") return null;
+  if (can.reason === "home_screen")
+    return <p className="ntf-bell-line">To be told on this iPhone, add Chanlytics to your Home Screen first.</p>;
+  const press = async () => {
+    setBusy(true);
+    const r = on ? await webPushTurnOff(window) : await webPushTurnOn(window);
+    setBusy(false);
+    if (r.ok) setOn(!on);
+    else flash({ tone: "warn", msg: <>{r.message}</> });
+  };
+  return (
+    <p className="ntf-bell-line" data-testid="ntf-this-browser">
+      {on ? "This browser is told." : "This browser is not told."}{" "}
+      <Button
+        variant="quiet"
+        size="sm"
+        onClick={press}
+        aria-disabled={busy || undefined}
+        data-testid="ntf-this-browser-press"
+      >
+        {on ? "Stop" : "Tell me here"}
+      </Button>
+    </p>
+  );
+}
+
+export const PaneNotificationsReal = ({ flash }: { flash: (f: FrameFlash) => void }) => {
   const read = useSurface("settings");
   const alerts = useSurface("alerts");
   const [busy, setBusy] = useState<string | null>(null);
@@ -87,6 +126,7 @@ export const PaneNotificationsReal = ({ flash }: { flash: (f: LegacyFlash) => vo
         </div>
         <AlertGrid groups={groups} put={put} busy={busy} />
         <p className="ntf-bell-line">{bellLineFor(phones.length > 0)}</p>
+        <ThisBrowser flash={flash} />
       </section>
       <p className="ntf-foot">
         {W.never}

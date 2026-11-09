@@ -1,0 +1,1166 @@
+{
+  "owed": 57,
+  "groups": [
+    {
+      "kind": "seat",
+      "why": "The caller's own seat. The SQL doors these pages read through check it before they answer (tenant_config_read, contact_seen, lead_month_used, the reach-outs' readers), and GET views keeps the member's saved views on it. None of these draws the roster from it: People and the composers' audiences do, and are owed (below). The feed tells a seat's role changing only (00408).",
+      "reads": {
+        "broadcasts": [
+          "memberships"
+        ],
+        "calendar": [
+          "memberships"
+        ],
+        "conversations": [
+          "memberships"
+        ],
+        "inbox": [
+          "memberships"
+        ],
+        "leads": [
+          "memberships"
+        ],
+        "playbooks": [
+          "memberships"
+        ],
+        "reach_out_replies": [
+          "memberships"
+        ],
+        "reach_outs": [
+          "memberships"
+        ],
+        "reports": [
+          "memberships"
+        ],
+        "reports_campaigns": [
+          "memberships"
+        ],
+        "reports_headline": [
+          "memberships"
+        ],
+        "reports_people": [
+          "memberships"
+        ],
+        "reports_receptionist": [
+          "memberships"
+        ],
+        "today": [
+          "memberships"
+        ],
+        "today_pins": [
+          "memberships"
+        ]
+      }
+    },
+    {
+      "kind": "seat",
+      "why": "A member's own alert settings, kept on their seat and saved by them (PUT me/alerts, published from the answer): nobody else's change reaches them. The pane is read where it is drawn and again once it has aged.",
+      "reads": {
+        "alerts": [
+          "memberships"
+        ]
+      }
+    },
+    {
+      "kind": "seat",
+      "why": "Who is signed in: the account's own name, read with the workspace list (GET workspaces). Profiles belong to a sign-in, not to a workspace, so the feed does not tell of them; a member renaming themselves (PUT me) re-reads the shell and Settings in their own tab.",
+      "reads": {
+        "workspace": [
+          "profiles"
+        ]
+      },
+      "rereadAfter": {
+        "workspace": [
+          "PUT me"
+        ]
+      }
+    },
+    {
+      "kind": "seat",
+      "why": "A member's own marks of what they have seen and flagged unread in the threads. They are private to a member, so no notice carries them; the tab draws its own mark at once (surfaces/seen.ts) and another tab of the same member reads the marks on its next read.",
+      "reads": {
+        "audiences": [
+          "contact_marks",
+          "contact_reads"
+        ],
+        "conversations": [
+          "contact_marks",
+          "contact_reads"
+        ],
+        "inbox": [
+          "contact_marks",
+          "contact_reads"
+        ],
+        "people": [
+          "contact_marks",
+          "contact_reads"
+        ],
+        "today": [
+          "contact_marks",
+          "contact_reads"
+        ]
+      }
+    },
+    {
+      "kind": "seat",
+      "why": "A member's own marks and reads of the bell. They are private to a member, so no notice carries them; the bell is read again after its own marks (PUT notifications, refresh-map.ts) and on an arrival. Today reads when this member last looked at the bell (GET today's since, Since you looked) and is read again after the same marks.",
+      "reads": {
+        "notifications": [
+          "notification_marks",
+          "notification_reads"
+        ],
+        "today": [
+          "notification_reads"
+        ]
+      },
+      "rereadAfter": {
+        "notifications": [
+          "PUT notifications"
+        ],
+        "today": [
+          "PUT notifications"
+        ]
+      }
+    },
+    {
+      "kind": "account",
+      "why": "The workspace's own row: its status (every door that must not act on a paused workspace reads it: workspacePaused, mayWorkspaceSpend, metrics_summary), its zone (a day is counted in it: the series functions) and its word for a booking (getAppointmentWord). The feed tells its status, name, zone, word and logo (00431, 00458), and none of these surfaces hears the row: a zone or a way of buying saved re-reads each of them in the writer's tab where it is drawn, and forgets or leaves it for its page elsewhere (PATCH workspaces, rereadAfter; the Reviews lens is forgotten), and a teammate's change reaches another tab on its next read.",
+      "reads": {
+        "broadcasts": [
+          "tenants"
+        ],
+        "audiences": [
+          "tenants"
+        ],
+        "people": [
+          "tenants"
+        ],
+        "playbooks": [
+          "tenants"
+        ],
+        "reports": [
+          "tenants"
+        ],
+        "reports_campaigns": [
+          "tenants"
+        ],
+        "reports_headline": [
+          "tenants"
+        ],
+        "reports_people": [
+          "tenants"
+        ],
+        "reports_receptionist": [
+          "tenants"
+        ],
+        "reports_reviews": [
+          "tenants"
+        ],
+        "settings": [
+          "tenants"
+        ],
+        "today": [
+          "tenants"
+        ]
+      },
+      "rereadAfter": {
+        "broadcasts": [
+          "PATCH workspaces"
+        ],
+        "audiences": [
+          "PATCH workspaces"
+        ],
+        "people": [
+          "PATCH workspaces"
+        ],
+        "playbooks": [
+          "PATCH workspaces"
+        ],
+        "reports": [
+          "PATCH workspaces"
+        ],
+        "reports_campaigns": [
+          "PATCH workspaces"
+        ],
+        "reports_headline": [
+          "PATCH workspaces"
+        ],
+        "reports_people": [
+          "PATCH workspaces"
+        ],
+        "reports_receptionist": [
+          "PATCH workspaces"
+        ],
+        "settings": [
+          "PATCH workspaces"
+        ],
+        "today": [
+          "PATCH workspaces"
+        ]
+      }
+    },
+    {
+      "kind": "account",
+      "why": "The workspace's own row, read for its zone and its status: Leads' and the reach-outs' dates and a search's place, and a person's page's days. No write re-reads these three for a zone or a way of buying saved, and none hears the feed's notice of the row (00431): each reads it on its next read, and a zone changed while one is open keeps its old days until then (the wiring's second audit, W-visit-deal-4, found no visible effect on them).",
+      "reads": {
+        "reach_outs": [
+          "tenants"
+        ],
+        "person": [
+          "tenants"
+        ]
+      }
+    },
+    {
+      "kind": "account",
+      "of": "other workspaces",
+      "why": "The partner's account and what it holds of the workspaces they brought: the money, the invitations and, for each workspace, its calls, messages, lines, channels, plan and standing (partner_overview). Those are rows of other workspaces than the one on screen, which the feed (one topic for each workspace) cannot tell of; the pane is read when it opens and after the partner's own acts (surfaces/settings/partner/surface.ts, own-change).",
+      "reads": {
+        "partner": [
+          "billing_accounts",
+          "calls",
+          "lines",
+          "memberships",
+          "messages",
+          "partner_earnings",
+          "partner_invitations",
+          "partner_tenants",
+          "partners",
+          "tenant_channels",
+          "tenants"
+        ]
+      }
+    },
+    {
+      "kind": "account",
+      "why": "The partner account and the handovers offered to it, read with the workspace list (GET workspaces): rows of the account, which spans workspaces and which no workspace's topic carries. Read at boot, and again after an invitation is accepted (refresh-map.ts, POST partner/invitations/[id]/accept).",
+      "reads": {
+        "workspace": [
+          "partner_tenants",
+          "partners"
+        ]
+      },
+      "rereadAfter": {
+        "workspace": [
+          "POST partner/invitations/[id]/accept"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The notes an owner's corrections suggest (decision 0063), which Settings › Autonomy lists. The note sweep writes them at most every thirty minutes, the feed does not tell of fact_suggestions, and each is told on the bell instead (a note_to_keep line, which opens the pane). A Keep or a Dismiss reads Settings again behind its verb.",
+      "reads": {
+        "settings": [
+          "fact_suggestions"
+        ]
+      },
+      "rereadAfter": {
+        "settings": [
+          "POST fact-suggestions/[id]"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "Teammates' names from the roster (team_roster): the Team pane's rows (Settings), and who wrote a note and who a step is for (People and the composers' audiences, through GET contacts: server/people/person-notes.ts teamNames). Whoever holds a thread is named from Settings' team read (surfaces/holder-names.ts). Profiles belong to a sign-in, not to one workspace, so the feed does not tell of them. A member renaming themselves re-reads Settings in their own tab (and the shell); People and the audiences read the new name on their next read.",
+      "reads": {
+        "audiences": [
+          "profiles"
+        ],
+        "people": [
+          "profiles"
+        ],
+        "settings": [
+          "profiles"
+        ],
+        "person": [
+          "profiles"
+        ]
+      },
+      "rereadAfter": {
+        "settings": [
+          "PUT me"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "A run's per-person rows, who was sent what and the receipts. A statement for each message would be a notice for each receipt, so the feed tells the run (broadcasts) and a message's ticks, never these rows (realtime.ts: a run's people are read when its page opens). The pages that count them read them again when a run or a message they hear moves (heardWith).",
+      "reads": {
+        "broadcasts": [
+          "sequence_sends"
+        ],
+        "audiences": [
+          "sequence_sends"
+        ],
+        "calendar_runs": [
+          "sequence_sends"
+        ],
+        "people": [
+          "sequence_sends"
+        ],
+        "person": [
+          "sequence_enrollments",
+          "sequence_sends"
+        ],
+        "playbooks": [
+          "sequence_sends"
+        ],
+        "reports_campaigns": [
+          "sequence_sends"
+        ],
+        "sequences": [
+          "sequence_enrollments",
+          "sequence_sends"
+        ],
+        "ask_morning": [
+          "sequence_sends"
+        ],
+        "today": [
+          "sequence_sends"
+        ]
+      },
+      "heardWith": {
+        "broadcasts": [
+          "sequence_batches",
+          "messages"
+        ],
+        "audiences": [
+          "sequence_batches",
+          "messages"
+        ],
+        "people": [
+          "messages"
+        ],
+        "playbooks": [
+          "sequence_batches",
+          "messages"
+        ],
+        "reports_campaigns": [
+          "sequence_batches",
+          "messages"
+        ],
+        "person": [
+          "sequence_batches"
+        ],
+        "calendar_runs": [
+          "sequence_batches"
+        ],
+        "sequences": [
+          "sequence_batches"
+        ],
+        "ask_morning": [
+          "sequence_batches"
+        ],
+        "today": [
+          "sequence_batches"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "A lead’s place in its sequence (00459 sequence_places_of, the one reader): Leads’ rows say where each stands, and the lead sheet reads one lead’s place as it opens. The feed tells no enrollment. Leads reads its rows again with the sequences, batches and replies it hears, and the sheet reads its place again after each of its own presses; a step that runs, sends or passes them over makes a batch.",
+      "reads": {
+        "leads": [
+          "sequence_enrollments"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "sequence_batches"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not, reach_out_why_not's one predicate): it asks whether People holds the lead's address or number (a customer is never written to), and Leads draws that only as the why of a lead its batch cannot take. It rides with the places' read, which Leads makes again with the sequences and batches it hears.",
+      "reads": {
+        "leads": [
+          "contacts"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "sequence_batches"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not): the never-again list (lead_suppressions), which the feed does not tell. Leads reads it again with the places, as it hears a sequence's batches; a person's page with their lead, which it hears.",
+      "reads": {
+        "leads": [
+          "lead_suppressions"
+        ],
+        "person": [
+          "lead_suppressions"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "sequence_batches"
+        ],
+        "person": [
+          "leads"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "W-campaign-run-template-reachout-2",
+      "why": "The Library's sent counts join a run's per-person rows (broadcast_recipients), which the feed never tells. Settings hears no run and no message, so a count moves only on the settings read's next read: owed with the Library's hearing of the campaign and send kinds on its page (lane R5).",
+      "reads": {
+        "settings": [
+          "sequence_sends"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "A mailbox's sent today and its recent mail's health on Setup's email step (mailbox_capacity and mailbox_connection_counts over sequence_sends, 00466). A statement for each send would be a notice for each email, so the feed tells none: the numbers ride with their mailbox's row, which Setup hears, and are read again as the mailbox changes or the page is reached for.",
+      "reads": {
+        "setup": [
+          "sequence_sends"
+        ]
+      },
+      "heardWith": {
+        "setup": [
+          "mailbox_connections"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The senders a connected mailbox left in its mailbox today, on Connections' Left in your mailbox (getMailboxLeftSince over mailbox_left, less a sender mailbox_senders says is a person, 00483). The feed tells neither table: the sync that notes a sender left ends by stamping its mailbox's row (synced_at), which Setup hears, so the count is read again with each sync, every five minutes.",
+      "reads": {
+        "setup": [
+          "mailbox_left",
+          "mailbox_senders"
+        ]
+      },
+      "heardWith": {
+        "setup": [
+          "mailbox_connections"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The place a lead was found at (leads_page joins lead_places) and the ideas for a new search (lead_suggestions: written when a read asks the model for them, kept until a round ends or the line is saved). Neither is told by the feed: a round commits the lead, which Leads hears (heardWith), and saving the business line (PUT lead-suggestions) re-reads Leads.",
+      "reads": {
+        "leads": [
+          "lead_places",
+          "lead_suggestions"
+        ]
+      },
+      "rereadAfter": {
+        "leads": [
+          "PUT lead-suggestions"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "leads"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "Which cards find leads now (lead_cards_live over lead_platform, 00430): the platform's one switch row, for every workspace, switched by hand once a card's calibration run has proved it, which no workspace's topic carries. It is read with the searches each time Leads and Today read them (GET lead-searches), so a card switched on is offered at the next read, and nothing a member does changes it.",
+      "reads": {
+        "leads": [
+          "lead_platform"
+        ],
+        "today": [
+          "lead_platform"
+        ]
+      },
+      "heardWith": {
+        "leads": [
+          "leads"
+        ],
+        "today": [
+          "lead_rounds"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "What Anthropic has said of this workspace (decision 0097, findWorkspaceModelStanding over anthropic_profiles), read with the billing row for the shell's line. The health sweep writes it at most twice an hour and the feed does not tell it: it is the service role's table, and no member's press moves it. The line says so at the next read of Billing.",
+      "reads": {
+        "billing": [
+          "anthropic_profiles"
+        ]
+      },
+      "heardWith": {
+        "billing": [
+          "billing_accounts"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The previews a lead tried (listPreviewsTriedSince over lead_previews, decision 0079), Today's tried row, in a workspace of ours alone. The feed does not tell lead_previews: what moves it is the business texting or calling its preview, in the preview's own workspace, which this workspace's topic cannot carry. Today reads it with its other reads each time it hears its own records (heardWith), and a lead who tried theirs stays named three days, so the row is a read behind at most.",
+      "reads": {
+        "today": [
+          "lead_previews"
+        ]
+      },
+      "heardWith": {
+        "today": [
+          "conversations",
+          "calls"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "W-campaign-run-template-reachout-8",
+      "why": "A chain's suppressions and its sends' rows (reach_out_reach, reach_out_chain_report): the feed tells neither. The chains read again when a reply they count (reach_out_replies) or their playbook moves (heardWith); a send leaving is not told, so an open pane's counts wait for its next read (W-campaign-run-template-reachout-8, lane R5).",
+      "reads": {
+        "reach_outs": [
+          "lead_suppressions",
+          "sequence_sends"
+        ]
+      },
+      "heardWith": {
+        "reach_outs": [
+          "sequence_replies",
+          "sequence_steps"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "rereadAfter": {
+        "reach_outs": [
+          "POST sequences/[id]/steps/[step]/lead-words"
+        ]
+      },
+      "why": "Whether a chain's waiting and held rows go with a lead's own words (getOwnWordsAtSteps, decision 0096): the feed does not tell the table. The door that writes them re-reads the chains (the refresh map); a teammate's save shows on the pane's next read, and the send itself reads the words as it goes.",
+      "reads": {
+        "reach_outs": [
+          "sequence_lead_words"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "S1-1",
+      "why": "The email a reply answered, from the sends' rows (findAnsweredReachOutEmail over reach_out_sends), which the feed never tells. The strip reads again when the reply itself moves (heardWith).",
+      "reads": {
+        "reach_out_replies": [
+          "sequence_sends"
+        ]
+      },
+      "heardWith": {
+        "reach_out_replies": [
+          "sequence_replies"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "W-campaign-run-template-reachout-8",
+      "why": "Which reach-out a lead is with reads its first sends (00426 lead_chain_of over reach_out_sends), which the feed never tells. A reach-out made from a list, added to or taken back re-reads Leads in the writer's tab (rereadAfter); a send leaving is read on the next read.",
+      "reads": {
+        "leads": [
+          "sequence_sends"
+        ]
+      },
+      "rereadAfter": {
+        "leads": [
+          "POST reach-outs",
+          "POST reach-outs/[id]/leads",
+          "POST lead-operations/[id]/undo"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "S3-6",
+      "why": "Setup's team step names the seats and the invitations from the roster (setup.ts getTeamRoster). Profiles belong to a sign-in, not to one workspace, so the feed does not tell of them, and nothing reads Setup again for a rename: owed with Setup's team step (S3-6).",
+      "reads": {
+        "setup": [
+          "profiles"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "R6",
+      "why": "What the first run chose for the workspace (setup_choices, decision 0091: the number and how calls reach it, where WhatsApp answers, the steps done), read into Setup's DTO (setupChoicesOf). The feed does not tell it: the member who chose has the door's answer (PUT setup/choices publishes Setup from it), and another member's tab reads the choice on its next Setup read. Owed with the silent records joining the feed (lane R6).",
+      "reads": {
+        "setup": [
+          "setup_choices"
+        ]
+      }
+    },
+    {
+      "kind": "account",
+      "why": "The month's allowance of leads the page counts against is the plan's (00512 lead_allowance: a free trial's 50 until it pays, then the month's), read inside the leads' month (getLeadAllowance). The plan moves a few times in a workspace's life, at the end of its trial or a change of plan; the page reads it again when it is reached for, and a search's own reserve reads it at the door (lead_reserve).",
+      "reads": {
+        "leads": [
+          "billing_accounts"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "field": "q",
+      "why": "The Inbox reads GET conversations for its threads. The same route answers Conversations' search box (`q`, through search_messages, which looks in calls' transcripts as well as in messages) and keeps only the threads a message says the words in: the Inbox never sends the words, and the box's answer is a search's, asked again for each new words and never kept.",
+      "reads": {
+        "inbox": [
+          "calls"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "field": "last_inbound_at",
+      "why": "The channel health the composers' Send by row says, from GET channels, which also reads the line's latest call for when the line last heard a customer (last_inbound_at). The composers draw the number, its quality and its standing, never that time, so a call ending changes nothing they say.",
+      "reads": {
+        "audiences": [
+          "calls"
+        ],
+        "playbooks": [
+          "calls"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "field": "counts",
+      "why": "Today reads GET lead-searches for a search waiting on its owner (the round says so: a stop to ask, its answer). The same read answers the Leads rail's six numbers (counts, lead_list_counts over the leads and the people searches kept), which Today never draws.",
+      "reads": {
+        "today": [
+          "lead_search_members",
+          "leads"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "A caller's name, embedded in the call row (CALL_COLUMNS): it rides with every notice of the call, which Live hears (heardWith). A rename during a call shows with the call's next turn.",
+      "reads": {
+        "live": [
+          "contacts"
+        ]
+      },
+      "heardWith": {
+        "live": [
+          "calls"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "finding": "S3-7",
+      "field": null,
+      "why": "The reach-outs pane reads whether the workspace may spend (mayWorkspaceSpend: its plan and standing) with the chains, for a sentence no page says any more (the wiring's second audit S3-7). Nothing drawn depends on it; the read is owed its removal (lane R11).",
+      "reads": {
+        "reach_outs": [
+          "billing_accounts"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "A person's visits, deals and steps (person-notes, getEarlierVisitRows), and the signer a reach-out reply of theirs offers, are People's kinds heard on every page: People's read of a visit, a deal, a step or a reply reloads the open person's page (person-real.tsx hears surface:clients), so the person surface does not read them a second time.",
+      "reads": {
+        "person": [
+          "appointments",
+          "deals",
+          "person_notes",
+          "sequence_replies"
+        ]
+      },
+      "heardBy": {
+        "person": [
+          "people"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "A person's messages and threads: the Inbox hears every one, and the open page reads its person again when the Inbox holds something of theirs newer than it, or a thread of theirs that stands otherwise (their-thread.ts), never through a flat table list that would read them for every message in the workspace.",
+      "reads": {
+        "person": [
+          "conversations",
+          "messages"
+        ]
+      },
+      "heardBy": {
+        "person": [
+          "inbox"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The business a person works at, and its reach-out story: the place the lead was found at (lead_places) and the sends the lead was written (reach_out_sends, reach_out_lead_timeline), which the feed never tells. The person is read again when their business moves (heardWith), and when a reply to it is read: People hears the reply on every page, and its read reloads the open person's page (person-real.tsx hears surface:clients).",
+      "reads": {
+        "person": [
+          "lead_places"
+        ]
+      },
+      "heardWith": {
+        "person": [
+          "leads"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "finding": "R6",
+      "why": "A doubt the door raised about this person (person_doubts: the same person twice, 0034), which the feed does not tell: the page shows it as it opens or on its next read. Owed with the silent records joining the feed (lane R6).",
+      "reads": {
+        "person": [
+          "person_doubts"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "R5",
+      "why": "Read inside people_list(), the book's list function, which joins each person's last call, deal, next step, open hold and thread to the row, and since 0052 the business they work at (leads) and the signer a reply of theirs offers (reach_out_replies). The page reads the book for who is in it and what each said; the trace cannot tell which of those columns it draws, and the kinds it declares are the ones it hears. Owed: say which columns it draws and hear them, or read a narrower function.",
+      "reads": {
+        "reports": [
+          "leads",
+          "person_notes",
+          "sequence_replies"
+        ],
+        "reports_headline": [
+          "conversations",
+          "deals",
+          "escalations",
+          "leads",
+          "person_notes",
+          "sequence_replies"
+        ],
+        "reports_receptionist": [
+          "conversations",
+          "deals",
+          "leads",
+          "person_notes",
+          "sequence_replies"
+        ],
+        "reports_people": [
+          "conversations",
+          "deals",
+          "escalations",
+          "leads",
+          "sequence_replies"
+        ],
+        "audiences": [
+          "leads",
+          "person_notes",
+          "sequence_replies"
+        ],
+        "playbooks": [
+          "leads",
+          "person_notes",
+          "sequence_replies"
+        ],
+        "calendar": [
+          "calls",
+          "conversations",
+          "deals",
+          "escalations",
+          "messages",
+          "person_notes",
+          "sequence_replies"
+        ],
+        "setup": [
+          "escalations",
+          "leads",
+          "person_notes",
+          "sequence_replies"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "When each wire last heard from a thread's person (conversation_channel_state, decision 0001 step 4), read inside people_list() for the reply window's clock (last_inbound_on_whatsapp, 00485). The feed does not tell the row: ingest_inbound writes it only beside the thread's own row, and merge_people moves it only with that row, so the pages that draw it read it again when they hear the thread (heardWith).",
+      "reads": {
+        "audiences": [
+          "conversation_channel_state"
+        ],
+        "people": [
+          "conversation_channel_state"
+        ],
+        "playbooks": [
+          "conversation_channel_state"
+        ],
+        "reports": [
+          "conversation_channel_state"
+        ],
+        "setup": [
+          "conversation_channel_state"
+        ],
+        "today_pins": [
+          "conversation_channel_state"
+        ]
+      },
+      "heardWith": {
+        "audiences": [
+          "conversations"
+        ],
+        "people": [
+          "conversations"
+        ],
+        "playbooks": [
+          "conversations"
+        ],
+        "reports": [
+          "conversations"
+        ],
+        "setup": [
+          "conversations"
+        ],
+        "today_pins": [
+          "conversations"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "The same clock read inside people_list() (conversation_channel_state, decision 0001 step 4), on pages that hear neither it nor the thread it is written with: owed with the rest of the book's joins (R5).",
+      "reads": {
+        "calendar": [
+          "conversation_channel_state"
+        ],
+        "person": [
+          "conversation_channel_state"
+        ],
+        "reports_headline": [
+          "conversation_channel_state"
+        ],
+        "reports_people": [
+          "conversation_channel_state"
+        ],
+        "reports_receptionist": [
+          "conversation_channel_state"
+        ]
+      },
+      "finding": "R5"
+    },
+    {
+      "kind": "owed",
+      "finding": "W-person-list-lead-6",
+      "why": "The Calendar matches a visit to a person by name, number and, since 0052, the business they work at (leads) from the book (people_list). It hears a person changed (the wiring's second audit, R5c); a lead's business renamed, or a person linked to one, is matched on the next read. Owed: a lead's name told apart from a lead run's every batch (leads is told on each check of a run).",
+      "reads": {
+        "calendar": [
+          "leads"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "W-campaign-run-template-reachout-2",
+      "why": "A run's follow-up facts name the playbook that sends it (followUpFacts): a playbook renamed or retimed by a teammate is told to the Campaigns pages, and read here on the next read. The Library's counts hear the playbooks on its page (Settings, R5c). Owed where a figure of the page names one.",
+      "reads": {
+        "reach_out_replies": [
+          "sequence_steps"
+        ],
+        "reports_campaigns": [
+          "sequence_steps"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "W-campaign-run-template-reachout-2",
+      "why": "The Library's count of each message's sends (templateSendsRead): the database's count (template_sends, 00374), and on a database before it the runs' recipients and the templates the Inbox sent on their own message rows. The Library hears the runs (R5c), not a message: a template the Inbox sent into a closed window moves the count on the Library's next read. Owed: the Library hears a templated send, not every message.",
+      "reads": {
+        "settings": [
+          "messages"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "field": "effective_reply_mode",
+      "why": "The Autonomy rules' reply class, read by everyone() (server/people/people.ts replyPolicies) to put each person's reply mode on their row of the book. These pages read the book to count people (who wrote, who booked, who can be reached) and never draw a person's mode, so a rule saved moves none of their figures. The pages that draw a rule hear it: Google's surface and the Reviews lens (the review reply's choice) and the reach-outs (a chain's mode), R5c.",
+      "reads": {
+        "calendar": [
+          "policies"
+        ],
+        "reports": [
+          "policies"
+        ],
+        "reports_headline": [
+          "policies"
+        ],
+        "reports_people": [
+          "policies"
+        ],
+        "reports_receptionist": [
+          "policies"
+        ],
+        "today_pins": [
+          "policies"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The business a person works at (leads) and the signer a reply of theirs offers (reach_out_replies), which people_list() joins to each row of the book. Today's pinned lists count people, and no list counts either column: they ride with the person's own row, which the pins hear (a person linked to a business or unlinked is an update of the person, 00413).",
+      "reads": {
+        "today_pins": [
+          "leads",
+          "sequence_replies"
+        ]
+      },
+      "heardWith": {
+        "today_pins": [
+          "contacts"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "W-campaign-run-template-reachout-8",
+      "why": "A chain's counts and its leads' timeline (reach_out_reach, reach_out_chain_report, reach_out_lead_timeline): sent, wrote back, the leads and the mailbox each lead heard from (decision 0056). The chains' read hears a reply and the playbook, never a message or a lead (a chain is not a thread), so an open pane's counts and history wait for its next read (W-campaign-run-template-reachout-8).",
+      "reads": {
+        "reach_outs": [
+          "contacts",
+          "lead_search_members",
+          "lead_searches",
+          "leads",
+          "mailbox_connections",
+          "messages"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "W-person-list-lead-8",
+      "why": "The reach-outs' part of the Campaigns lens and home counts what a chain sent and who wrote back, said no or booked (reach_out_chain_totals, reach_out_report): a lead's call, the leads and their searches, and the mailboxes they left from (connected, or the hosted address: decision 0056). The replies it counts are heard (reach_out_replies); a lead's stage written re-reads the lens in the writer's tab (rereadAfter). Owed: hear the lead and mailbox tables they count.",
+      "reads": {
+        "reports_campaigns": [
+          "calls",
+          "lead_searches",
+          "leads"
+        ]
+      },
+      "rereadAfter": {
+        "reports_campaigns": [
+          "POST leads/[id]/stage",
+          "POST leads/bulk"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "S1-1",
+      "why": "The reply strip names the reply's lead, the person it came from and the connected mailbox it came to (decision 0056) (repliesFor, reach_out_reply_undoable). It hears the replies themselves (reach_out_replies); a lead, a person or a message changing underneath is read on the next read (S1-1: a reply's 'Use this name' can be missing on the thread).",
+      "reads": {
+        "reach_out_replies": [
+          "contacts",
+          "leads",
+          "messages"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "R5",
+      "why": "GET contacts counts each message's versions to say whom it reaches, and by which channel (templates.ts listMessageVersionRows). The templates a composer offers are the settings read's (surfaces/offered-templates.ts), which Settings hears on the feed (00408); Sent's pool counts follow on its next read.",
+      "reads": {
+        "audiences": [
+          "templates"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "R5",
+      "why": "The searches a person's business was found by, named on the business card (searchNamesOf, lead_member_of). The person surface omits them: a lead run writes its members on every batch, and hearing them would read the person every few seconds while a search runs. A search renamed reaches the page on its next read. Owed: a search's name told apart from its members.",
+      "reads": {
+        "person": [
+          "lead_search_members",
+          "lead_searches"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The Calendar's campaign marks say how many a run that went sent (run_counts, over its messages). The count rides with the run's own row, which moves as the run starts and finishes and which the marks hear on the Calendar (heardWith); a count moving while a run sends shows on the board's next read, so a message on the Calendar never re-reads them. What Ask noticed reads the same counts for a batch that went and hears the same row: a reply moves no finding until its next read.",
+      "reads": {
+        "calendar_runs": [
+          "messages"
+        ],
+        "ask_morning": [
+          "messages"
+        ]
+      },
+      "heardWith": {
+        "calendar_runs": [
+          "sequence_batches"
+        ],
+        "ask_morning": [
+          "sequence_batches"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "A freed time's run says how many of the people it offered the time to took it (run_counts' took, freed_time_taken over their appointments since the batch, decision 0082). The count rides with the run's own row and is said on the run's next read: hearing every appointment would read Sent and the Calendar's marks for each booking, for a figure that moves once a run at most.",
+      "reads": {
+        "broadcasts": [
+          "appointments"
+        ],
+        "calendar_runs": [
+          "appointments"
+        ],
+        "ask_morning": [
+          "appointments"
+        ]
+      },
+      "heardWith": {
+        "broadcasts": [
+          "sequence_batches"
+        ],
+        "calendar_runs": [
+          "sequence_batches"
+        ],
+        "ask_morning": [
+          "sequence_batches"
+        ]
+      }
+    },
+    {
+      "kind": "owed",
+      "finding": "R9",
+      "why": "When a customer last came in on each channel (GET channels' last_inbound_at, over the calls and the messages), which Connections words as Receiving or Quiet with its age. Hearing them would read the channels for every message and call; the first of each is heard through Setup's read (X3-3, Connections takes the later of the two), and the later times are read with the channels' next read. Owed: an age bound on the read (lane R9's rolling heal).",
+      "reads": {
+        "channels": [
+          "calls",
+          "messages"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
+      "why": "Which sequence took in the lead a visit's person was found as (listVisitOrigins over sequence_enrollments, 00426), for the visit sheet's origin row. The feed tells no enrollment. The row rides with its visit: read again with the visits both surfaces hear (appointments) and with the board's five-minute read. Setup reads the calendar feed-only, which reads no visit and so none of this.",
+      "reads": {
+        "calendar": [
+          "sequence_enrollments"
+        ],
+        "setup": [
+          "sequence_enrollments"
+        ]
+      },
+      "heardWith": {
+        "calendar": [
+          "appointments"
+        ],
+        "setup": [
+          "appointments"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The name of that sequence, on the visit sheet's origin row (listVisitOrigins over sequences): drawn only as it rides with its visit, which both surfaces hear (appointments); a sequence renamed shows on the board's next read. Setup reads the calendar feed-only, which reads no visit and so never this.",
+      "reads": {
+        "calendar": [
+          "sequences"
+        ]
+      },
+      "heardWith": {
+        "calendar": [
+          "appointments"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The names on Autonomy's line of the people set differently (the Settings wiring review, item 10, 18 Oct 2026: readers/autonomy.ts ownModes, listNamesOfPeople over the newest of listPeopleOnTheirOwnMode). A name rides with its person's own mode row, which Settings hears (policies): the line is read again whenever anyone's mode changes, and a person renamed in between shows the new name on Settings' next read.",
+      "reads": {
+        "settings": [
+          "contacts"
+        ]
+      },
+      "heardWith": {
+        "settings": [
+          "policies"
+        ]
+      }
+    },
+    {
+      "kind": "seat",
+      "why": "A member's own morning with Ask (decision 0070): the day they claimed (ask_mornings) and the newest answer of its thread (ask_messages), both theirs alone by RLS, and the rests they set on what Ask noticed, kept on their seat (decision 0087). Ask for you reads them as Today comes on screen, again every few seconds while Ask writes, and again once what it holds has aged; nothing anyone else does changes them.",
+      "reads": {
+        "ask_morning": [
+          "ask_messages",
+          "ask_mornings",
+          "memberships"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The words a reply from a kept draft would be signed with (00487): which mailbox a thread's reply leaves from (the message the customer wrote to) and that mailbox's signature. The surface holds them for the rows and draws nothing of them; a new message makes the row ask for a new draft, which carries the signature as it stands, and a signature changed in Settings is read with the next draft or once the drafts have aged.",
+      "reads": {
+        "reply_drafts": [
+          "mailbox_connections",
+          "messages"
+        ]
+      },
+      "field": "signed"
+    },
+    {
+      "kind": "unfed",
+      "why": "What Ask remembers and its journal (decision 0070), which Settings › Memory lists. The feed does not tell of ask_memory_lines or ask_journal_days: a line is kept as a turn is saved, a day by the note sweep each night, and Ask reads both fresh with every question. The pane's own Add, Change and Forget read it again behind their verbs; a line kept elsewhere is read as the pane comes on screen once what it holds has aged.",
+      "reads": {
+        "ask_memory": [
+          "ask_journal_days",
+          "ask_memory_lines"
+        ]
+      },
+      "rereadAfter": {
+        "ask_memory": [
+          "DELETE ask/memory/[id]",
+          "PATCH ask/memory/[id]",
+          "POST ask/memory"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "A booking request's time, laid on its hold by GET escalations (readers/escalations.ts withRequests; the thread canvas's request card, 1 Nov 2026). The row moves only with its hold: Booked it and Can't answer the row and resolve or change the hold in one transaction (00443 booking_request_answer), and a new request opens its hold with it (booking_request_open), so the escalation these pages hear carries the read. Its expiry is the clock's, said by the card from the row as read.",
+      "reads": {
+        "conversations": [
+          "appointments"
+        ],
+        "inbox": [
+          "appointments"
+        ]
+      },
+      "heardWith": {
+        "conversations": [
+          "escalations"
+        ],
+        "inbox": [
+          "escalations"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The threads set aside as not a customer's (00539), for Today's one line. A thread is set aside only with its draft row written, which the feed tells of, so a message on a thread need not read the drafts again.",
+      "reads": {
+        "reply_drafts": [
+          "conversations"
+        ]
+      },
+      "heardWith": {
+        "reply_drafts": [
+          "conversation_drafts"
+        ]
+      }
+    }
+  ]
+}

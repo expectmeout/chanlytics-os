@@ -1,7 +1,7 @@
-import { read, write, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, write, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { settings } from "@/server/readers/settings";
-import { saveSettings } from "@/server/workspace/settings-save";
+import { saveSettings } from "@/server/settings/save";
 
 /** GET /api/v1/settings — the tenant's config, with the version the client
  *  must echo back on write. Members read; RLS scopes. The body is its reader's (readers/settings.ts). */
@@ -19,7 +19,7 @@ export const GET = read({
  * field their own way (the last two path segments), so the form can point at
  * a day.
  *
- * The handle is saveSettings in src/server/workspace/settings-save.ts: the route is its declaration (who may, how
+ * The handle is saveSettings in src/server/settings/save.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 export const PUT = write({

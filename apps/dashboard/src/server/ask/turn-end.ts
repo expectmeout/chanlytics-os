@@ -9,7 +9,6 @@ import "server-only";
 import {
   answerForCards,
   answerText,
-  cacheHitOf,
   claimsWrite,
   isAskMorningQuestion,
   messageLanguagesNext,
@@ -19,16 +18,18 @@ import {
   type AskModelProfile,
   type AskProposal,
   type AskReadSet,
-  type AskTurnShape,
   type ModelSpeed,
+  type PlanFigure,
   type PlanLead,
 } from "@chanlytics/contracts";
+import { cacheHitOf, type AskTurnShape } from "./shape";
 import { calledName, cardsOf, type ProposalOutcome, type ToolRun } from "./tools";
 import type { BuiltContext, SearchResultBlock } from "./context";
 import { argsOf, type RoundBlock, type RoundResult } from "./round";
 import { chainEnd, rawTurn, type LastRound, type TurnEnd } from "./memory";
-import type { TurnInput, TurnResult } from "./loop";
-import { log } from "@/server/log";
+import type { TurnInput, TurnResult } from "./loop/turn-head";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Where the time went and what the model was fed (AskTurnShape), as a turn measures it from `t0`, its start: the first
@@ -36,29 +37,44 @@ import { log } from "@/server/log";
  * tokens by cache or not, and the rounds that stopped at the cap. Only the loop sees all of it; finishTurn reads it.
  */
 export function turnMeter(t0: number) {
+  const nothingYet: {
+    firstByteMs: number | null;
+    firstTextMs: number | null;
+    firstSayMs: number | null;
+    roundsMs: number[];
+    toolsMs: Array<{ name: string; ms: number }>;
+    messageIds: Array<string | null>;
+    answeredBy: string | null;
+    cacheMiss: Array<string | null>;
+    hopMs: number | null;
+    speeds: Array<ModelSpeed | null>;
+    draft: AskTurnShape["draft"];
+  } = {
+    firstByteMs: null,
+    firstTextMs: null,
+    firstSayMs: null,
+    roundsMs: [],
+    toolsMs: [],
+    messageIds: [],
+    /** The model that answered the last round that said so: a fallback's when the edge asked one. */
+    answeredBy: null,
+    cacheMiss: [],
+    hopMs: null,
+    /** The speed each round that came back went at, as the edge said it (null where it said none). */
+    speeds: [],
+    /** A draft, asked harder than the turn's own effort, and what found it (effort.ts); null while none was. */
+    draft: null,
+  };
   const meter = {
-    firstByteMs: null as number | null,
-    firstTextMs: null as number | null,
-    firstSayMs: null as number | null,
-    roundsMs: [] as number[],
-    toolsMs: [] as Array<{ name: string; ms: number }>,
+    ...nothingYet,
     tokens: { input: 0, cache_read: 0, cache_creation: 0, output: 0 },
     capHits: 0,
-    messageIds: [] as Array<string | null>,
-    /** The model that answered the last round that said so: a fallback's when the edge asked one. */
-    answeredBy: null as string | null,
-    cacheMiss: [] as Array<string | null>,
-    hopMs: null as number | null,
-    /** The speed each round that came back went at, as the edge said it (null where it said none). */
-    speeds: [] as Array<ModelSpeed | null>,
-    /** A draft, asked harder than the turn's own effort, and what found it (effort.ts); null while there is none. */
-    draft: null as AskTurnShape["draft"],
     /**
      * A round that stopped at its ceiling: counted and said, since whatever it wrote may be half-written, and a tool
      * call or an answer that is half-written does not parse at all (caught where it is used: argsOf, normalizeAnswer).
      * A turn that keeps hitting the cap is a budget that is too small, not a model that keeps changing its mind.
      */
-    capped(stopReason: string | null, round: number, blocks: RoundBlock[], tenantId: string): void {
+    capped(stopReason: string | null, round: number, blocks: RoundBlock[], tenantId: TenantId): void {
       if (stopReason !== "max_tokens") return;
       meter.capHits++;
       log.error("ask_round_hit_cap", {
@@ -68,24 +84,24 @@ export function turnMeter(t0: number) {
       });
     },
     /** A round that came back, begun at `roundAt`: its time, and its stream's first byte and text from the turn's start. */
-    round(r: RoundResult, roundAt: number): void {
-      meter.roundsMs.push(r.timing?.totalMs ?? Date.now() - roundAt);
-      if (meter.messageIds.length === 0) meter.hopMs = r.timing?.hopMs ?? null;
-      meter.messageIds.push(r.usage?.messageId ?? null);
-      meter.answeredBy = r.usage?.model ?? meter.answeredBy;
-      meter.cacheMiss.push(r.usage?.cacheMiss ?? null);
-      meter.speeds.push(r.timing?.speed ?? null);
-      if (r.timing) {
-        if (meter.firstByteMs === null && r.timing.firstEventMs !== null)
-          meter.firstByteMs = roundAt - t0 + r.timing.firstEventMs;
-        if (meter.firstTextMs === null && r.timing.firstTextMs !== null)
-          meter.firstTextMs = roundAt - t0 + r.timing.firstTextMs;
+    round(round: RoundResult, roundAt: number): void {
+      meter.roundsMs.push(round.timing?.totalMs ?? Date.now() - roundAt);
+      if (meter.messageIds.length === 0) meter.hopMs = round.timing?.hopMs ?? null;
+      meter.messageIds.push(round.usage?.messageId ?? null);
+      meter.answeredBy = round.usage?.model ?? meter.answeredBy;
+      meter.cacheMiss.push(round.usage?.cacheMiss ?? null);
+      meter.speeds.push(round.timing?.speed ?? null);
+      if (round.timing) {
+        if (meter.firstByteMs === null && round.timing.firstEventMs !== null)
+          meter.firstByteMs = roundAt - t0 + round.timing.firstEventMs;
+        if (meter.firstTextMs === null && round.timing.firstTextMs !== null)
+          meter.firstTextMs = roundAt - t0 + round.timing.firstTextMs;
       }
-      if (r.usage) {
-        meter.tokens.input += r.usage.inputTokens;
-        meter.tokens.cache_read += r.usage.cacheReadTokens;
-        meter.tokens.cache_creation += r.usage.cacheCreationTokens;
-        meter.tokens.output += r.usage.outputTokens ?? 0;
+      if (round.usage) {
+        meter.tokens.input += round.usage.inputTokens;
+        meter.tokens.cache_read += round.usage.cacheReadTokens;
+        meter.tokens.cache_creation += round.usage.cacheCreationTokens;
+        meter.tokens.output += round.usage.outputTokens ?? 0;
       }
     },
     /** The API's id for the last round that came back; null before one did, or when its stream never said it. */
@@ -114,8 +130,8 @@ export function turnMeter(t0: number) {
  * when fast mode's limit slowed some. Standard where no round said one: an edge older than fast mode, which never sends
  * it, or a turn no round of which came back.
  */
-function speedOfTurn(said: ReadonlyArray<ModelSpeed | null>): AskTurnShape["speed"] {
-  const [first, ...rest] = said.filter((s): s is ModelSpeed => s !== null);
+function speedOfTurn(speeds: ReadonlyArray<ModelSpeed | null>): AskTurnShape["speed"] {
+  const [first, ...rest] = speeds.filter((s): s is ModelSpeed => s !== null);
   if (first === undefined) return "standard";
   return rest.every((s) => s === first) ? first : "mixed";
 }
@@ -136,6 +152,7 @@ interface TurnSoFar {
   /** How the answer that ended the turn was written: the answer tool's input, as text, or null where none was. */
   answerIn: "tool" | "text" | null;
   toolsUsed: string[];
+  opened: string[];
   proposals: AskProposal[];
   /** Where the question sits in every request of the turn: a later round only appends. */
   questionAt: number;
@@ -149,9 +166,10 @@ interface TurnSoFar {
  * The turn as it returns: its end, with where the time went and what the model was fed (AskTurnShape), logged, and the
  * turn as the model was sent it (RawTurn), which no log line carries.
  */
-export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
-  const { lastRound, ...end } = r;
-  const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan, format, toolsUsed } = soFar;
+export function finishTurn(turnEnd: TurnEnd, soFar: TurnSoFar): TurnResult {
+  const { lastRound, ...end } = turnEnd;
+  const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan, format, toolsUsed, opened } =
+    soFar;
   const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits } = soFar.meter;
   const { messageIds, cacheMiss, hopMs, speeds } = soFar.meter;
   const { proposals, live } = soFar;
@@ -179,7 +197,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     context_ms: contextMs,
     context_dropped: dataDropped && (pageBlocks.length > 0 || crossBlocks.length > 0),
     cross_page: plan.map((p) => calledName(p.name, p.input)),
-    rounds: r.rounds,
+    rounds: turnEnd.rounds,
     rounds_ms: roundsMs,
     tools_ms: toolsMs,
     first_byte_ms: firstByteMs,
@@ -194,17 +212,18 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     cap_hits: capHits,
     format,
     answer_tool: model.answerTool,
-    answer_in: r.failed ? null : soFar.answerIn,
-    failed: r.failed,
+    answer_in: turnEnd.failed ? null : soFar.answerIn,
+    failed: turnEnd.failed,
   };
-  log.info("ask_turn_shape", { tenant_id: input.tenantId, ...shape, tools: toolsUsed, form: r.answer.form });
+  log.info("ask_turn_shape", { tenant_id: input.tenantId, ...shape, tools: toolsUsed, form: turnEnd.answer.form });
   return {
     ungrounded: false,
     tools: toolsUsed,
+    opened,
     proposals,
     latencyMs: Date.now() - t0,
     ...end,
-    text: answerText(r.answer),
+    text: answerText(turnEnd.answer),
     model: model.id,
     shape,
     raw:
@@ -253,15 +272,15 @@ export function turnUnmade() {
      * they like answers is never the whole answer (the answer canvas, D, 16 Oct 2026: "Every time, two lines at most.
      * Who needs me today?" ended on the note's card, 3 times of 3, the question unanswered): it goes back too.
      */
-    alone(r: {
+    alone(row: {
       acts: number;
       calls: number;
       refused: boolean;
       made: readonly AskProposal[];
     }): "answer" | "owed" | null {
-      if (r.acts !== r.calls || r.refused || r.made.length === 0) return null;
-      styleAlone = r.made.every((p) => p.kind === "answer_style");
-      keptOne = r.made.some((p) => p.kind === "memory");
+      if (row.acts !== row.calls || row.refused || row.made.length === 0) return null;
+      styleAlone = row.made.every((p) => p.kind === "answer_style");
+      keptOne = row.made.some((p) => p.kind === "memory");
       return refused.size > 0 || noted.length > 0 || styleAlone || keptOne ? "owed" : "answer";
     },
     /** What the round after cards alone is told: each part no card carries, and that the answer says it. */
@@ -281,15 +300,19 @@ const sameChange = (a: AskProposal, b: AskProposal): boolean =>
   a.kind === b.kind && a.title === b.title && JSON.stringify(a.payload) === JSON.stringify(b.payload);
 
 /**
- * A call whose every card the thread already holds, waiting for the person's press (memory.ts threadForTurn), or this
+ * A call whose every card the thread already holds, waiting for the person's press (memory.ts findThreadForTurn), or this
  * turn already made (a plan's answer round asked as every round is, which may call a tool): nothing is made again, and
  * the model is told which are above, to name them (the evals, 16 Oct 2026: "set up my campaigns" asked
  * twice in one thread proposed its Win-back card a second time, 6 times in 8, on the rules before and after their
  * sections). A call with any card that is new keeps all of them: a plan's steps name each other, so none is taken out.
  */
-export function notAgain(o: ProposalOutcome, waiting: readonly AskProposal[] | undefined): ProposalOutcome {
-  const cards = cardsOf(o);
-  if (o.isError || !cards.length || !cards.every((c) => waiting?.some((w) => sameChange(c, w)))) return o;
+export function notAgain(
+  proposalOutcome: ProposalOutcome,
+  waiting: readonly AskProposal[] | undefined,
+): ProposalOutcome {
+  const cards = cardsOf(proposalOutcome);
+  if (proposalOutcome.isError || !cards.length || !cards.every((c) => waiting?.some((w) => sameChange(c, w))))
+    return proposalOutcome;
   const titles = cards.map((c) => `“${c.title}”`).join(", ");
   return {
     proposal: null,
@@ -307,42 +330,66 @@ export function notAgain(o: ProposalOutcome, waiting: readonly AskProposal[] | u
 function withoutClaimedWrite(
   answer: AskAnswer,
   input: Pick<TurnInput, "language" | "tenantId">,
-  made: readonly AskProposal[],
+  created: readonly AskProposal[],
 ): AskAnswer {
-  if (made.length === 0 || !claimsWrite(answer.say.headline)) return answer;
-  log.warn("ask_answer_claimed_write", { cards: made.length, tenant_id: input.tenantId });
-  return { ...answer, say: { ...answer.say, headline: answerForCards(made, input.language, null, null).say.headline } };
+  if (created.length === 0 || !claimsWrite(answer.say.headline)) return answer;
+  log.warn("ask_answer_claimed_write", { cards: created.length, tenant_id: input.tenantId });
+  return {
+    ...answer,
+    say: { ...answer.say, headline: answerForCards(created, input.language, null, null).say.headline },
+  };
 }
 
-/** A plan's words as its call said them (ProposalOutcome), and what a setup's answer leads with (PlanLead). */
-export type PlanSaid = { words: string; lead?: PlanLead };
+/**
+ * A plan's words as its call said them (ProposalOutcome), what a setup's answer leads with (PlanLead), and an offer's one
+ * sentence and the numbers it rests on (D1 of the answers canvas).
+ */
+export type PlanSaid = { words: string; lead?: PlanLead; why?: string; figures?: PlanFigure[] };
 
-/** A round of cards alone, every one made, that made a plan: its words, its answer; a lone plan's lead leads it. */
-export const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, said: PlanSaid[]): PlanSaid | null =>
-  acts.length === calls.length && !refused && said.length > 0
-    ? { words: said.map((s) => s.words).join(" "), lead: said.length === 1 ? said.at(0)?.lead : undefined }
-    : null;
+/** A round of cards alone, every one made, that made a plan: its words, its answer; a lone plan's lead, sentence and chips lead it. */
+export const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, plans: PlanSaid[]): PlanSaid | null => {
+  if (acts.length !== calls.length || refused || plans.length === 0) return null;
+  const only = plans.length === 1 ? plans.at(0) : undefined;
+  return { words: plans.map((s) => s.words).join(" "), lead: only?.lead, why: only?.why, figures: only?.figures };
+};
 
-/** The answer of cards alone: a plan's words and lead where it made one; messages alone ask for other languages. */
+/**
+ * The chips of a plan's answer, from the plan and never from the model: each number with where it opens. A list opens where
+ * People draws it, by its token; a page at its route; a chip with no source ("3 a day") opens nothing.
+ */
+const planFigures = (figures: readonly PlanFigure[] | undefined): AskAnswer["show"]["figures"] =>
+  (figures ?? []).map((f) => ({
+    value: f.value,
+    label: f.label,
+    note: "",
+    source: f.source
+      ? { ...f.source, to: f.source.kind === "list" ? `clients/${f.source.id}` : f.source.id, door: true }
+      : null,
+  }));
+
+/** The answer of cards alone: a plan's sentence or words and lead where it made one; messages alone ask for other languages. */
 export function cardsAnswer(cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid | null) {
-  const answer = answerForCards(cards, input.language, plan?.words ?? null, plan?.lead ?? null);
+  const answer = answerForCards(cards, input.language, plan?.words ?? null, plan?.lead ?? null, plan?.why ?? null);
+  const figures = planFigures(plan?.figures);
   const next = messageLanguagesNext(cards, input.facts.languages, input.language);
-  return next.length ? { ...answer, do: { ...answer.do, next } } : answer;
+  const shown = figures.length ? { ...answer, show: { ...answer.show, figures } } : answer;
+  return next.length ? { ...shown, do: { ...shown.do, next } } : shown;
 }
 
 /**
  * An answer beside a round's acts, which stands where every card was made (an act only checks), or "" where it is set
  * aside, its Say taken back: beside a card refused or cut off it claims a card that is not there, so the model answers
  * again knowing why (logged); beside a plan's cards it was written before the plan's words came back (roundPlan); beside
- * a card that leaves out a part asked because it already holds (ProposalOutcome.noted), before it knew that.
+ * a card that leaves out a part asked because it already holds (ProposalOutcome.noted), before it knew that; beside a
+ * post drawn for it to look at (ProposalOutcome.pictures), before it has.
  */
 export function besideActs(
   written: string,
-  r: { refused: boolean; leftOut: boolean; planned: PlanSaid | null; unsay(): void; log(): void },
+  row: { refused: boolean; leftOut: boolean; looking?: boolean; planned: PlanSaid | null; unsay(): void; log(): void },
 ) {
-  if (!written || (!r.refused && !r.leftOut && r.planned === null)) return written;
-  if (r.refused) r.log();
-  r.unsay();
+  if (!written || (!row.refused && !row.leftOut && !row.looking && row.planned === null)) return written;
+  if (row.refused) row.log();
+  row.unsay();
   return "";
 }
 
@@ -356,11 +403,20 @@ export function besideActs(
 function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid) {
   const lead = plan.lead;
   const own = answer.do.open;
-  const asked = messageLanguagesNext(cards, input.facts.languages, input.language);
-  const next = asked.length ? asked : answer.do.next.length ? answer.do.next : (lead?.next ?? []);
-  if (!lead) return { ...answer, do: { open: own, next } };
+  const languagesNext = messageLanguagesNext(cards, input.facts.languages, input.language);
+  const next = languagesNext.length ? languagesNext : answer.do.next.length ? answer.do.next : (lead?.next ?? []);
+  // An offer's answer is its one sentence and its chips, whatever the round wrote beside them: the card says the rest.
+  const figures = planFigures(plan.figures);
+  const said: AskAnswer = plan.why
+    ? {
+        ...answer,
+        say: { ...answer.say, detail: "" },
+        show: { ...answer.show, figures: figures.length ? figures : answer.show.figures },
+      }
+    : answer;
+  if (!lead) return { ...said, do: { open: own, next } };
   const label = own?.to === lead.open.to ? own.label : lead.open.label;
-  return { ...answer, do: { open: { to: lead.open.to, label, now: false }, next } };
+  return { ...said, do: { open: { to: lead.open.to, label, now: false }, next } };
 }
 
 /**
@@ -368,7 +424,10 @@ function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: 
  * model's, in the person's language. The room a turn keeps for it: with less, the plan's own words answer.
  */
 export const PLAN_ANSWER_WORDS =
-  "The plan above is proposed as its cards, and no other card or read is needed now. Now write the answer, in the person's language, from its result alone: the headline says what the plan does, and the detail says first what no card carries (what must be connected or turned on first, a campaign paused, the room, the day a reminder goes) before anything the cards already show; where something must come first, the first question next asks how to do it. Never say any of it is done, sent or set up.";
+  "The plan above is proposed as one card, and no other card or read is needed now. Write one sentence from its result, in the person's language: the reason it has this shape (its `why`, said your way). say.detail stays empty, and show.figures is filled for you. What it pauses and what must come first are on the card, so leave them out. Never say any of it is done, sent or set up.";
+/** The same round after a setup of the journey, whose cards are each their own press and whose waits no card carries. */
+export const SETUP_ANSWER_WORDS =
+  "The plan above is proposed as its cards, and no other card or read is needed now. Now write the answer, in the person's language, from its result alone: one sentence on what it does, and in say.detail only what no card carries (what must be connected or turned on first). Where something must come first, the first question next asks how to do it. Never say any of it is done, sent or set up.";
 const PLAN_ANSWER_ROOM_MS = 12_000;
 
 /** A plan made, its answer owed by the round after it (PLAN_ANSWER_WORDS): its cards, its words, the round that made it. */
@@ -431,7 +490,7 @@ export function writtenAnswer(
     if (from.format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
     return { ok: true, answer: withoutClaimedWrite(proseAnswer(written, input.language), input, from.proposals) };
   }
-  const shaped = normalizeAnswer(written, from.read, input.language);
+  const shaped = normalizeAnswer(written, from.read, input.language, { cards: from.proposals.length });
   // What followed a whole answer (contracts firstJsonValue): set aside, and said, so what writes it can be found.
   if (shaped.ok && shaped.ignored)
     log.warn("ask_answer_tail", {
@@ -458,5 +517,14 @@ export function writtenAnswer(
   }
   if (shaped.dropped) log.warn("ask_sources_dropped", { dropped: shaped.dropped, tenant_id: input.tenantId });
   const answer = withoutClaimedWrite(shaped.answer, input, from.proposals);
+  // An answer past what a phone holds, with nothing asked of that length: counted, so the rule's effect can be read (D5).
+  if (answer.say.detail.length + answer.say.headline.length > LONG_ANSWER_CHARS)
+    log.info("ask_answer_long", {
+      chars: answer.say.detail.length + answer.say.headline.length,
+      tenant_id: input.tenantId,
+    });
   return { ok: true, answer: from.owed ? withPlanFacts(answer, from.owed.cards, input, from.owed.plan) : answer };
 }
+
+/** What six lines of a phone hold, twice over: an answer past it is long, whatever was asked. */
+const LONG_ANSWER_CHARS = 1056;

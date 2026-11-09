@@ -39,11 +39,15 @@ const CONTENT_TYPE: Record<MarkKind, string> = {
   ico: "image/x-icon",
 };
 
-const u16be = (b: Uint8Array, i: number) => (b[i] << 8) | b[i + 1];
-const u16le = (b: Uint8Array, i: number) => b[i] | (b[i + 1] << 8);
-const u24le = (b: Uint8Array, i: number) => b[i] | (b[i + 1] << 8) | (b[i + 2] << 16);
-const u32be = (b: Uint8Array, i: number) => ((b[i] << 24) >>> 0) + ((b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]);
-const u32le = (b: Uint8Array, i: number) => ((b[i + 3] << 24) >>> 0) + ((b[i + 2] << 16) | (b[i + 1] << 8) | b[i]);
+/** A byte, or 0 past the end: what the shifts below read of a missing byte, said. */
+const byteAt = (b: Uint8Array, i: number): number => b[i] ?? 0;
+const u16be = (b: Uint8Array, i: number) => (byteAt(b, i) << 8) | byteAt(b, i + 1);
+const u16le = (b: Uint8Array, i: number) => byteAt(b, i) | (byteAt(b, i + 1) << 8);
+const u24le = (b: Uint8Array, i: number) => byteAt(b, i) | (byteAt(b, i + 1) << 8) | (byteAt(b, i + 2) << 16);
+const u32be = (b: Uint8Array, i: number) =>
+  ((byteAt(b, i) << 24) >>> 0) + ((byteAt(b, i + 1) << 16) | (byteAt(b, i + 2) << 8) | byteAt(b, i + 3));
+const u32le = (b: Uint8Array, i: number) =>
+  ((byteAt(b, i + 3) << 24) >>> 0) + ((byteAt(b, i + 2) << 16) | (byteAt(b, i + 1) << 8) | byteAt(b, i));
 const ascii = (b: Uint8Array, i: number, n: number) => String.fromCharCode(...b.subarray(i, i + n));
 
 function png(b: Uint8Array): [number, number] | null {
@@ -57,61 +61,61 @@ function gif(b: Uint8Array): [number, number] | null {
   return [u16le(b, 6), u16le(b, 8)];
 }
 
-function webp(b: Uint8Array): [number, number] | null {
-  if (b.length < 30 || ascii(b, 0, 4) !== "RIFF" || ascii(b, 8, 4) !== "WEBP") return null;
-  const chunk = ascii(b, 12, 4);
+function webp(bytes: Uint8Array): [number, number] | null {
+  if (bytes.length < 30 || ascii(bytes, 0, 4) !== "RIFF" || ascii(bytes, 8, 4) !== "WEBP") return null;
+  const chunk = ascii(bytes, 12, 4);
   // Lossy: a key frame's start code, then fourteen bits of each side.
   if (chunk === "VP8 ") {
-    if (b[23] !== 0x9d || b[24] !== 0x01 || b[25] !== 0x2a) return null;
-    return [u16le(b, 26) & 0x3fff, u16le(b, 28) & 0x3fff];
+    if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) return null;
+    return [u16le(bytes, 26) & 0x3fff, u16le(bytes, 28) & 0x3fff];
   }
   // Lossless: a signature byte, then each side less one in fourteen bits.
   if (chunk === "VP8L") {
-    if (b[20] !== 0x2f) return null;
-    const bits = u32le(b, 21);
+    if (bytes[20] !== 0x2f) return null;
+    const bits = u32le(bytes, 21);
     return [(bits & 0x3fff) + 1, ((bits >>> 14) & 0x3fff) + 1];
   }
   // Extended: the canvas, each side less one in twenty-four bits.
-  if (chunk === "VP8X") return [u24le(b, 24) + 1, u24le(b, 27) + 1];
+  if (chunk === "VP8X") return [u24le(bytes, 24) + 1, u24le(bytes, 27) + 1];
   return null;
 }
 
 /** A JPEG says its size in its frame header, after however many segments come first; walk them to it. */
-function jpg(b: Uint8Array): [number, number] | null {
-  if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return null;
-  let i = 2;
-  while (i + 3 < b.length) {
-    if (b[i] !== 0xff) return null;
-    const marker = b[i + 1];
+function jpg(bytes: Uint8Array): [number, number] | null {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  let index = 2;
+  while (index + 3 < bytes.length) {
+    if (bytes[index] !== 0xff) return null;
+    const marker = bytes[index + 1] ?? 0;
     if (marker === 0xff) {
-      i += 1; // a fill byte
+      index += 1; // a fill byte
       continue;
     }
     // Markers that stand alone, with no length after them.
     if ((marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
-      i += 2;
+      index += 2;
       continue;
     }
     if (marker === 0xd9 || marker === 0xda) return null; // the image ended, or its data began, before any frame
-    const len = u16be(b, i + 2);
+    const len = u16be(bytes, index + 2);
     if (len < 2) return null;
     const frame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
-    if (frame) return i + 8 < b.length ? [u16be(b, i + 7), u16be(b, i + 5)] : null;
-    i += 2 + len;
+    if (frame) return index + 8 < bytes.length ? [u16be(bytes, index + 7), u16be(bytes, index + 5)] : null;
+    index += 2 + len;
   }
   return null;
 }
 
 /** An icon file is a directory of images; the biggest one is what a browser draws when it is asked to draw big. */
-function ico(b: Uint8Array): [number, number] | null {
-  if (b.length < 22 || b[0] !== 0 || b[1] !== 0 || b[2] !== 1 || b[3] !== 0) return null;
-  const count = u16le(b, 4);
-  if (count < 1 || count > 64 || 6 + count * 16 > b.length) return null;
+function ico(bytes: Uint8Array): [number, number] | null {
+  if (bytes.length < 22 || bytes[0] !== 0 || bytes[1] !== 0 || bytes[2] !== 1 || bytes[3] !== 0) return null;
+  const count = u16le(bytes, 4);
+  if (count < 1 || count > 64 || 6 + count * 16 > bytes.length) return null;
   let best: [number, number] | null = null;
   for (let n = 0; n < count; n += 1) {
     const at = 6 + n * 16;
-    const w = b[at] || 256;
-    const h = b[at + 1] || 256;
+    const w = bytes[at] || 256;
+    const h = bytes[at + 1] || 256;
     if (!best || Math.min(w, h) > Math.min(...best)) best = [w, h];
   }
   return best;

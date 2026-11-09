@@ -38,31 +38,52 @@ export {
 } from "./campaign-rooms";
 export type { RunStopWords } from "./campaign-rooms";
 export {
-  APP_KEYS_RESIZE_CLASS,
   BAR_LINE_WORDS,
-  DEFAULT_LOOK_PREF,
+  isTypingTarget,
+  notFoundPageMetadata,
+  pageTitle,
+  shellStatusLine,
+  shortcutGroups,
+  SHORTCUTS,
+  TOAST_ICONS,
+  TOAST_MAX_MS,
+  TOAST_MIN_MS,
+  TOAST_MS,
+  TOAST_TONES,
+  TOAST_UNDO_MS,
+  toastShape,
+} from "./chrome/frame";
+export type {
+  Crumb,
+  PublicPageMetadata,
+  ShellStatus,
+  ShellStatusLine,
+  Shortcut,
+  ToastShape,
+  ToastTone,
+} from "./chrome/frame";
+export {
+  APP_KEYS_RESIZE_CLASS,
   DEFAULT_SIDEBAR_PREF,
-  DEFAULT_THEME_PREF,
-  DEVICE_PREFS_STORAGE,
   IN_APP_CLASS,
   IN_APP_UA_RE,
   inAppBootScript,
   inAppFrom,
-  isLookPref,
   isSidebarPref,
+  outlineBootScript,
+} from "./chrome/in-app";
+export type { InApp, InAppPlatform, SidebarPref } from "./chrome/in-app";
+export {
+  DEFAULT_LOOK_PREF,
+  DEFAULT_THEME_PREF,
+  DEVICE_PREFS_STORAGE,
+  isLookPref,
   isThemePref,
-  isTypingTarget,
   LOOK_OFFERED,
   LOOK_OPTIONS,
   lookPrefOf,
   nextThemePref,
-  notFoundPageMetadata,
-  outlineBootScript,
-  pageTitle,
   resolveTheme,
-  shellStatusLine,
-  shortcutGroups,
-  SHORTCUTS,
   THEME_COLOR_META,
   THEME_COLORS,
   THEME_INK,
@@ -71,33 +92,38 @@ export {
   themeButtonWords,
   themeColorOf,
   themePrefOf,
-  TOAST_ICONS,
-  TOAST_MAX_MS,
-  TOAST_MIN_MS,
-  TOAST_MS,
-  TOAST_TONES,
-  TOAST_UNDO_MS,
-  toastShape,
-} from "./chrome";
-export type {
-  Crumb,
-  InApp,
-  InAppPlatform,
-  LookPref,
-  PublicPageMetadata,
-  ShellStatus,
-  ShellStatusLine,
-  Shortcut,
-  SidebarPref,
-  Theme,
-  ThemePref,
-  ToastShape,
-  ToastTone,
-} from "./chrome";
+} from "./chrome/theme";
+export type { LookPref, Theme, ThemePref } from "./chrome/theme";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf, errorIdOf } from "./client-error";
 export type { ClientErrorBoundary } from "./client-error";
 export { ClientErrorInput } from "./client-error-schema";
 export type { ClientErrorInputDto } from "./client-error-schema";
+export {
+  dropFirstRows,
+  FIRST_ROWS_AT_ATTR,
+  FIRST_ROWS_ATTR,
+  FIRST_ROWS_END_ATTR,
+  FIRST_ROWS_ENDS,
+  FIRST_ROWS_ID,
+  FIRST_ROWS_MISS_ATTR,
+  FIRST_ROWS_MISSES,
+  FIRST_ROWS_MOST_CHARS,
+  FIRST_ROWS_OLDEST_MS,
+  FIRST_ROWS_PAGES,
+  FIRST_ROWS_PART,
+  FIRST_ROWS_SHEETS_ATTR,
+  FIRST_ROWS_SLOT,
+  FIRST_ROWS_TEST,
+  FIRST_ROWS_WHEN_ATTR,
+  FIRST_ROWS_WIDEST_PX,
+  firstRowsEndPart,
+  firstRowsMissPart,
+  firstRowsOfPath,
+  firstRowsScript,
+  firstRowsSlot,
+  firstRowsStand,
+} from "./first-rows";
+export type { FirstRowsEnd, FirstRowsMiss, KeptFirstRows } from "./first-rows";
 export {
   cleanDisplayName,
   DISPLAY_NAME_MAX,
@@ -152,8 +178,6 @@ export {
   PREFETCH_SLOT,
   routePrefetchScript,
 } from "./route-prefetch";
-export { SEE_PARAM, SEE_WORDS, seeHomeOf, seeRefOf, seeRefOfRoute, seeValueOf } from "./see-over";
-export type { SeeRef } from "./see-over";
 export { leadMapLegend, leadPinTone, stateLabel, stateOf, stateTone, stateWordList, TONES } from "./tone";
 export type { LeadPinnable, StateKind, Tone } from "./tone";
 export {

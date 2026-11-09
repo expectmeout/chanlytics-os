@@ -20,18 +20,19 @@ const HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 
 export function normalizeLink(raw: string | null | undefined): string | null {
   if (raw == null) return null;
-  const s = String(raw).trim();
-  if (!s || /\s/.test(s)) return null;
-  const withScheme = SCHEME.test(s) ? s : `https://${s}`;
+  const text = String(raw).trim();
+  if (!text || /\s/.test(text)) return null;
+  const withScheme = SCHEME.test(text) ? text : `https://${text}`;
   if (withScheme.length > MAX_LINK) return null;
-  let u: URL;
+  let url: URL;
   try {
-    u = new URL(withScheme);
+    url = new URL(withScheme);
   } catch {
+    // Not an address.
     return null;
   }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  if (!HOST.test(u.hostname)) return null;
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (!HOST.test(url.hostname)) return null;
   return withScheme;
 }
 
@@ -73,8 +74,33 @@ export function publicObjectSrc(supabaseUrl: string | null | undefined, bucket: 
   try {
     origin = new URL(supabaseUrl).origin;
   } catch {
+    // Not an address.
     return null;
   }
   if (!/^https:\/\//.test(origin) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return null;
   return `${origin}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+const ADDRESS = /[^\s@<>]+@[^\s@<>]+/g;
+
+const SCHEME_OR_WWW = /\bhttps?:\/\/[^\s<>]+|\bwww\.[^\s<>]+/gi;
+
+// A bare name.tld as an address is written: "example.com", "harbor.example/book", and "RJCapital.io" with capitals
+// before its dot, which a mail app links all the same (30 Oct 2026). "St.Louis", "Dr.Smith" and a rating's "4.9" are
+// not: a capital after the last dot, or no letters.
+const BARE_HOST = /\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[a-z]{2,24}\b(?:\/[^\s<>]*)?/g;
+
+/**
+ * The web addresses a reader sees in words: each with a scheme or a www., and each bare name.tld. An email address is
+ * not one. A cold email's words ask it with their slots taken out (reach-out/words/limits.ts linksIn), and a signature
+ * as it stands.
+ */
+export function webAddressesIn(text: string): string[] {
+  const out: string[] = [];
+  const rest = text.replace(ADDRESS, " ").replace(SCHEME_OR_WWW, (m) => {
+    out.push(m);
+    return " ";
+  });
+  for (const m of rest.matchAll(BARE_HOST)) out.push(m[0]);
+  return out;
 }

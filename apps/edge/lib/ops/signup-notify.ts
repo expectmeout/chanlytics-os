@@ -14,13 +14,15 @@
  * slug and id, the owner's address or the one it waits for, and the partner's
  * code; no customer content exists yet. Signed admin token only.
  */
-import { json, refuse } from "../http.js";
-import { workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { notify } from "./notify.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
-import { getHandoverInvite } from "../packages/db.js";
+import { json, refuse } from "../shared/http.js";
+import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { notify } from "../shared/alerts/notify.js";
+import { env } from "../shared/env.js";
+import { logger, refuseFailure } from "../shared/log.js";
+import { getHandoverInvite } from "@chanlytics/db/partners";
+import { isTenantId } from "@chanlytics/contracts";
+import { findNewWorkspace } from "@chanlytics/db/workspace";
 
 interface Body {
   tenant_id?: string;
@@ -28,7 +30,7 @@ interface Body {
 }
 
 export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise<Response> {
-  const L = logger();
+  const log = logger();
   if (!env.LEAD_TO || !env.LEAD_FROM) return refuse(503, "no_platform_mailbox");
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -37,14 +39,9 @@ export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().slice(0, 254) : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId) || !email)
-    return refuse(400, "bad_request", "tenant_id and email are required");
-  const tenant = await db
-    .from("tenants")
-    .select("id, name, slug, timezone, created_at")
-    .eq("id", tenantId)
-    .maybeSingle();
-  if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
+  if (!isTenantId(tenantId) || !email) return refuse(400, "bad_request", "tenant_id and email are required");
+  const tenant = await findNewWorkspace(db, tenantId);
+  if (tenant.error) return refuseFailure(503, "read_failed", tenant.error);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
   // A partner's workspace waits for the address it was handed to, who has not taken it and may never: nobody signed
   // up, and whoever reads this must not take that address for an owner's. Its handover is open until it is accepted.
@@ -52,9 +49,9 @@ export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise
   try {
     waiting = await getHandoverInvite(db, tenantId);
   } catch (e) {
-    return refuse(503, "read_failed", errField(e));
+    return refuseFailure(503, "read_failed", e);
   }
-  const who = waiting
+  const person = waiting
     ? `was set up by partner ${waiting.partnerCode}, for its owner to accept.\n` +
       `Waiting for: ${waiting.email}, until ${waiting.expiresAt}\n`
     : `signed up.\nOwner: ${email}\n`;
@@ -68,13 +65,13 @@ export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise
       kind: "alert",
       subject: `New workspace: ${tenant.data.name}`,
       body:
-        `${tenant.data.name} (${tenant.data.slug}) ${who}` +
+        `${tenant.data.name} (${tenant.data.slug}) ${person}` +
         `Time zone: ${tenant.data.timezone}\n` +
         `Workspace id: ${tenant.data.id}\n` +
         `Created: ${tenant.data.created_at}\n\n` +
         next,
     },
   );
-  L.info("signup_told", { tenant_id: tenantId, sent });
+  log.info("signup_told", { tenant_id: tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, tenant: tenant.data.slug });
 }

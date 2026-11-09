@@ -6,8 +6,9 @@
  * acts are plain functions over the draw's state; and what it hands LeadsScope comes from the five builders (props.tsx).
  */
 import { useEffect } from "react";
-import { BAR_LINE_WORDS, leadBand, leadRail, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
-import { navigate } from "../../legacy-verbs";
+import { BAR_LINE_WORDS, leadBand, leadRail, leadsRoute, leadsStanding, type LeadRowVM } from "@chanlytics/contracts";
+import { leadRowActOf } from "../row-status";
+import { navigate } from "../../frame-verbs";
 import { useRecordsAhead } from "../../campaigns/sequences/use-record";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { TABLE_BODIES } from "../../kit/table/data-table";
@@ -16,7 +17,7 @@ import { usePlControls } from "../../people/hooks/use-controls";
 import type { ColCtx } from "../../people/types";
 import { usePeople } from "../../people/hooks/use-people";
 import { usePlPlace } from "../../people/hooks/use-place";
-import { LEAD_COLUMNS } from "../cells/columns";
+import { LEAD_COLUMNS, LEAD_VIEW_EXTRA, leadViewNow, mayRowAct } from "../cells/columns";
 import type { LeadCellCtx } from "../cells/types";
 import { leadPeekEscape } from "../peek/seams";
 import { useLeadLists } from "../reach-out/lists";
@@ -25,9 +26,13 @@ import { usePageSearch } from "../../kit/head/page-search";
 import type { ScopeView } from "../../people/scope-view";
 import { useLeadPileView } from "../pile/page-pile";
 import { useBulkAdd } from "../scope/bulk-add";
+import { leadQueueGroupOf } from "../scope/head-menus";
+import { useLeadNamedViews } from "../scope/rail-views";
+import { addLeadToPick } from "../scope/row-add";
+import { leadDtoFor } from "../surface";
 import { useLeadPile } from "../pile/use-pile";
 import { reachLead } from "../sheet/reach";
-import { useLeadAim } from "../sheet/use-aim";
+import { useLeadAim, type LeadAim } from "../sheet/use-aim";
 import { leadActs, type LeadActs } from "./acts";
 import { useLeadPeek, useLeadPeekAddress, type LeadsNav } from "./peek-hooks";
 import {
@@ -52,6 +57,9 @@ interface LeadsRealProps {
   scopeView?: ScopeView;
 }
 
+/** Best fit stands with its column off, as it did as the first order: Sort by fit asks for it, and a view saved in it keeps it. */
+const BEST_FIT_STANDS: readonly string[] = ["fit"];
+
 const NO_PROFILE = (): void => undefined;
 
 /** A cell's doors, to this draw's acts: Keep, Exclude and Put back show on the row at once, so a cell never waits on one. */
@@ -59,10 +67,11 @@ const cellDoors = (
   acts: LeadActs,
   open: (id: string | null) => void,
   expand: (id: string | null) => void,
-  openPerson: (id: string) => void,
+  to: { person: (id: string) => void; add: (id: string) => void },
 ) => ({
+  onAdd: to.add,
   onOpen: open,
-  onOpenPerson: openPerson,
+  onOpenPerson: to.person,
   onExpand: expand,
   onCall: acts.callLead,
   onCopy: acts.copyLead,
@@ -72,6 +81,43 @@ const cellDoors = (
   onExclude: (id: string) => void acts.excludeLead(id),
   onPutBack: (id: string) => void acts.putBackLead(id),
 });
+
+/**
+ * A row's own Add: to the search's pick (scope/row-add.ts), or the lead's sheet where none is chosen, whose dock holds
+ * the picker.
+ */
+const addOneTo =
+  (aim: Pick<LeadAim, "target">, flash: Parameters<typeof addLeadToPick>[0]["flash"], open: (id: string) => void) =>
+  (id: string): void => {
+    if (aim.target) void addLeadToPick({ id, to: aim.target, flash });
+    else open(id);
+  };
+
+/**
+ * A, on the keyboard's cursor: what that row offers (contracts leadRowActOf), through the doors its own press takes.
+ * A row that offers nothing takes no key.
+ */
+const rowActOn =
+  (p: {
+    rows: readonly LeadRowVM[];
+    aim: Pick<LeadAim, "target">;
+    acts: LeadActs;
+    add: (id: string) => void;
+    open: (id: string) => void;
+  }) =>
+  (id: string): void => {
+    const l = p.rows.find((r) => r.id === id);
+    if (!l) return;
+    const place = l.cls === "excluded" ? null : (leadDtoFor(id)?.place ?? null);
+    const act = leadRowActOf(l, place, p.aim.target ? { name: p.aim.target.name } : null);
+    // A member who may not press the row's button has no key for it either (the button says why; the key is not theirs).
+    if (!act || !mayRowAct(act.kind, p.acts.canFind)) return;
+    if (act.kind === "keep") void p.acts.keepLead(id);
+    else if (act.kind === "put_back") void p.acts.putBackLead(id);
+    else if (act.kind === "add") p.add(id);
+    else if (act.kind === "call") p.acts.callLead(id);
+    else p.open(id);
+  };
 
 /**
  * The view the page shows: the surfaces it reads, the address's view, People's controls, the page's own state, the rows
@@ -94,8 +140,11 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     cols: LEAD_COLUMNS,
     colCtx: { hasCenter },
     people,
-    sortFirst: { by: "fit", dir: "asc" },
+    sortFirst: { by: "stage", dir: "asc" },
+    sortStands: BEST_FIT_STANDS,
     railRow: leadList,
+    extraDefaults: LEAD_VIEW_EXTRA,
+    viewNow: leadViewNow,
   });
   const { plFlash, sortBy, sortDir } = controls;
   const st = useLeadsState();
@@ -207,6 +256,24 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   };
 }
 
+/** The rail's Saved section, over the page as it stands (scope/rail-views.tsx). */
+const useLeadsNamed = ({ people, leads, nav, leadView, controls, st, narrow }: ReturnType<typeof useLeadsView>) =>
+  useLeadNamedViews({
+    views: people.views,
+    table: controls.table,
+    route: leadsRoute({
+      searchId: leadView.searchId,
+      list: leadView.list,
+      cls: leadView.cls,
+      chips: leadChipsOf(narrow),
+    }),
+    searchIds: leads.searches.map((s) => s.id),
+    nav,
+    phone: controls.phone,
+    onPicked: () => st.setListsOpen(false),
+    flash: controls.plFlash,
+  });
+
 /**
  * Everything the page hands LeadsScope this draw: its acts over the view, the keyboard's doors, the rail and the standing
  * line, the open search's reach-out and the lists of one's own, the cells' context, and the strip's steps.
@@ -216,7 +283,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   const { deckMove, pile, aim } = v;
   const { canExport, plFlash, setSel, setAllMatching, pickSort, columns } = controls;
   const { peekId, setPeekId, finder, closeFinder, peekMode, setPeekMode, armed, setArmed } = st;
-  const { values, lightboxId, setLightboxId } = st;
+  const { lightboxId, setLightboxId } = st;
   const acts = leadActs({ leads, leadView, plFlash, setSel, setAllMatching, ...st });
   const { canFind, callLead } = acts;
   // A list of your own (Reach out Part 7): the rail's Import leads, the bar's Write to them, and the sheets they open; and
@@ -237,6 +304,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
       setLightbox: setLightboxId,
     });
   const openSearch = acts.searchById(leadView.searchId);
+  const addOne = addOneTo(aim, plFlash, setPeekId);
   // The pile (00426): what the lead sheet draws of it while it is on, the door into it, and the keys it takes.
   const piled = useLeadPileView({
     pile,
@@ -261,6 +329,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     canFind,
     find: finderActs.openFind,
     call: callLead,
+    act: rowActOn({ rows: rows.leadShown, aim, acts, add: addOne, open: setPeekId }),
     pile: piled.keys,
   });
   // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
@@ -270,9 +339,10 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   // and the name's tag does not say it again.
   const cellCtxLeads = useLeadCells({
     leadShown: rows.leadShown,
-    doors: cellDoors(acts, setPeekId, setLightboxId, onOpenProfile),
+    doors: cellDoors(acts, setPeekId, setLightboxId, { person: onOpenProfile, add: addOne }),
     values: {
-      values,
+      pickName: aim.target ? aim.target.name : null,
+      grouped: !!leadQueueGroupOf(leads, { phone: controls.phone }),
       mixedFits: !!(band && band.mixed),
       hasCenter,
       canFind,
@@ -305,10 +375,12 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     ...st,
     openFindPeople: lists.openFindPeople,
   });
+  const named = useLeadsNamed(v);
   return {
     ...controls,
     ...st,
     ...narrow,
+    named,
     model,
     ...acts,
     ...finderActs,

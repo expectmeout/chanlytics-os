@@ -11,7 +11,7 @@
 import { REACH_OUT_SHEET_WORDS, type HeldAnswer, type HeldChoice, type MarkedOpening } from "@chanlytics/contracts";
 import { Fragment, type ReactNode } from "react";
 import { Button } from "../../kit/button/button";
-import { Face, faceTileOf } from "../../kit/face/face";
+import { Face } from "../../kit/face/face";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { leadOverDoor } from "../../leads/sheet/lead-over";
@@ -91,7 +91,7 @@ function heldWhyParts(why: string) {
 function HeldCardRow({ h, may, busy, said = null, onAnswer, ids, asking = null }: HeldRowProps) {
   return (
     <div className="ro-hrow" data-testid={ids.row}>
-      <Face person={{ name: h.name }} tile={faceTileOf(h.name)} />
+      <Face person={{ name: h.name }} tile />
       <div className="ro-hrow-main">
         <div className="ro-hrow-who">
           {h.leadId ? (

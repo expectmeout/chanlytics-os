@@ -1,5 +1,5 @@
-import { read, workspace } from "@/server/route";
-import { teamRoster } from "@/server/workspace/team";
+import { read, workspace } from "@/server/shared/route";
+import { getTeamRoster } from "@/server/workspace/team";
 
 /**
  * GET /api/v1/team — roster + open invites (E1). Membership rows are
@@ -10,7 +10,7 @@ import { teamRoster } from "@/server/workspace/team";
 export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) =>
-    // The role is not passed down: teamRoster echoed it back untouched and nothing
+    // The role is not passed down: getTeamRoster echoed it back untouched and nothing
     // in the app ever read it. The page learns who it is from /api/v1/workspaces.
-    await teamRoster(ctx.supabase, member.tenantId),
+    await getTeamRoster(ctx.supabase, member.tenantId),
 });

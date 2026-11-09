@@ -1,11 +1,11 @@
 /**
  * The dashboard's public environment: the `NEXT_PUBLIC_*` values Next compiles into every bundle at build, and the
- * build's own `NODE_ENV`. The one module besides `src/server/env.ts` that may read `process.env` in the dashboard
+ * build's own `NODE_ENV`. The one module besides `src/server/shared/env.ts` that may read `process.env` in the dashboard
  * (eslint.config.mjs), and the only one browser code may import.
  *
  * Each value is read by its literal name, because that is the only form Next replaces with the value at build: a
  * read through a variable or a spread would reach the browser as undefined. Blank is unset and whitespace is
- * trimmed, as everywhere else. What these values must be is the server's to say (`src/server/env.ts` checks them at
+ * trimmed, as everywhere else. What these values must be is the server's to say (`src/server/shared/env.ts` checks them at
  * boot, from here); the browser only reads them.
  */
 
@@ -22,6 +22,10 @@ export const publicEnv = {
   /** The anon key: safe in a bundle because every row it reads is behind RLS. */
   get NEXT_PUBLIC_SUPABASE_ANON_KEY(): string | undefined {
     return blankAsUnset(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  },
+  /** The public half of the keys browsers are told with (D12 of the answers canvas). Unset, the choice is not offered. */
+  get NEXT_PUBLIC_VAPID_PUBLIC_KEY(): string | undefined {
+    return blankAsUnset(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
   },
   /** Where the lead map's basemap bundle lives: an origin or a same-origin path. Unset, the map stays a plot. */
   get NEXT_PUBLIC_LEAD_MAP_BASE(): string | undefined {

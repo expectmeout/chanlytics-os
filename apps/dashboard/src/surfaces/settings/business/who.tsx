@@ -10,19 +10,13 @@
 //
 // It holds no hook of its own (the rows hold theirs).
 
-import {
-  ASK_GOAL_WORDS,
-  RENAME_WORDS,
-  applySettingsChange,
-  askGoalRefusal,
-  askGoalSaved,
-  samePhone,
-} from "@chanlytics/contracts";
+import { RENAME_WORDS, applySettingsChange, samePhone } from "@chanlytics/contracts";
+import { ASK_GOAL_WORDS, askGoalRefusal, askGoalSaved } from "./model/goal";
 import type { Fact, FactConflict, FactSource, ResolvedFacts } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import { gate, navigate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
+import { gate, navigate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { RecordField, RecordToggleGroup } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
 import { BT_SAVED } from "./gestures/common";
@@ -246,9 +240,9 @@ const btWordsSaved = (id: "name" | "address" | "website" | "booking_link") => (d
  * sign-up page and the sign say now, and where the carriers hold the name the campaign was filed under, says that with the
  * way to ask for it to change. An answer that renamed nothing says what every row says.
  */
-const btNameSaved = (flash: (f: LegacyFlash) => void) => (d: string) => ({
+const btNameSaved = (flash: (f: FrameFlash) => void) => (d: string) => ({
   ...btWordsSaved("name")(d),
-  said: (answer: unknown): LegacyFlash => {
+  said: (answer: unknown): FrameFlash => {
     const r = (answer as { renamed?: { to?: unknown; carriers_hold?: unknown; refused?: unknown } } | null)?.renamed;
     if (!r) return { msg: BT_SAVED };
     if (r.refused) return { tone: "warn", msg: RENAME_WORDS.kept };
@@ -266,7 +260,7 @@ const btNameSaved = (flash: (f: LegacyFlash) => void) => (d: string) => ({
  * Ask a person at Chanlytics to change the name the carriers hold (setup_request 'name'), through Setup's verb as the
  * Workspace pane asks for a repair, and say what was asked.
  */
-const btAskNameChange = async (flash: (f: LegacyFlash) => void) => {
+const btAskNameChange = async (flash: (f: FrameFlash) => void) => {
   const r = await setupVerbs.request("name");
   if (!r.ok) return flash({ tone: "danger", msg: r.message || "That didn't go through." });
   flash({ msg: r.already ? RENAME_WORDS.already : RENAME_WORDS.requested });
@@ -277,7 +271,7 @@ interface RowShared {
   brain: Brain;
   base?: Config | null;
   canEdit: boolean;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   saver: Saver | null;
 }
 

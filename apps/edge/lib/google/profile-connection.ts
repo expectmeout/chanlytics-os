@@ -9,10 +9,11 @@
  * accounts that cannot be read, no location, none on Maps. A connect is also a RE-connect, so a vault write that fails
  * puts the previous row back rather than deleting a working connection, and gives the new grant back only when it is
  * another Google account's. Only one location on Maps is bound at once; several wait for the owner's choice
- * (`locationsFor` reads them again). A connect and a disconnect each write their event (google.connected,
+ * (`getLocations` reads them again). A connect and a disconnect each write their event (google.connected,
  * google.disconnected).
  */
-import { emitEvent, linkedPlaceOf } from "../packages/db.js";
+import { emitEvent } from "@chanlytics/db/events";
+import { findLinkedPlace } from "@chanlytics/db/imports";
 import {
   tokenExchangeRequest,
   revokeRequest,
@@ -23,16 +24,33 @@ import {
   type GbpLocation,
   type PlacesHttp,
   type TokenGrant,
-} from "../packages/channels.js";
-import type { EdgeRefusal } from "../packages/contracts.js";
-import { profileClient } from "./google-config.js";
-import { http } from "./places.js";
-import { connectionOf, type ConnectionRow, type Db } from "./google-rows.js";
-import { grantFrom, readCredentials, storeCredentials, tokenFor } from "./profile-credentials.js";
+} from "@chanlytics/channels/google";
+import type { EdgeRefusal, TenantId } from "@chanlytics/contracts";
+import { profileClient } from "../shared/google/config.js";
+import { http } from "../shared/google/places.js";
+import { connectionOf, type ConnectionRow, type Db } from "../shared/google/rows.js";
+import { grantFrom, readCredentials, storeCredentials, tokenFor } from "../shared/google/credentials.js";
 import type { CheckResult } from "./listing-check.js";
 import { syncProfile } from "./profile-sync.js";
 import { syncMended } from "./sync-notice.js";
 import { readProfileDetails } from "./profile-details.js";
+import { startHistory } from "../imports/history-import.js";
+import { errField, logger, logFailure } from "../shared/log.js";
+import {
+  deleteGoogleConnection,
+  deleteGoogleListingDays,
+  deleteGoogleReviews,
+  dropGoogleCredentials,
+  findGoogleConnection,
+  findGoogleListingPlace,
+  patchGoogleConnection,
+  patchGoogleConnectionBack,
+  rereadGoogleConnection,
+  saveGoogleConnection,
+  saveGoogleListing,
+} from "@chanlytics/db/google";
+import { DbFailure } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 
@@ -76,7 +94,7 @@ async function allLocations(token: string, net: PlacesHttp = http): Promise<Loca
  */
 export async function connectProfile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   userId: string | null,
   code: string,
   tz: string,
@@ -92,11 +110,11 @@ export async function connectProfile(
     return { ok: false, error: "exchange_failed", detail: e instanceof Error ? e.message : String(e) };
   }
   if (!grantHasScope(grant, BUSINESS_SCOPE)) {
-    await net(revokeRequest(grant.access_token)).catch(() => null);
+    await net(revokeRequest(grant.access_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "scope_missing" };
   }
   if (!grant.refresh_token) {
-    await net(revokeRequest(grant.access_token)).catch(() => null);
+    await net(revokeRequest(grant.access_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "no_refresh_token" };
   }
   const claims = idTokenClaims(grant.id_token);
@@ -104,17 +122,17 @@ export async function connectProfile(
   try {
     locations = await allLocations(grant.access_token, net);
   } catch (e) {
-    await net(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "accounts_unreadable", detail: e instanceof Error ? e.message : String(e) };
   }
   const onMaps = locations.filter((l) => !!l.place_id);
   if (!locations.length) {
-    await net(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "no_locations" };
   }
   const first = onMaps[0];
   if (!first) {
-    await net(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
     return { ok: false, error: "not_on_maps" };
   }
   const row = {
@@ -135,10 +153,11 @@ export async function connectProfile(
   // it. A connect is also a RE-connect, and the row below carries
   // `location_name: null` -- so the failure path is not "remove what we just
   // made", it is "put back what was working".
-  const prior = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
-  if (prior.error) return { ok: false, error: "connection_write_failed", detail: prior.error.message };
-  const saved = await db.from("google_connections").upsert(row, { onConflict: "tenant_id" }).select("*").single();
-  if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
+  const prior = await findGoogleConnection(db, tenantId);
+  if (prior.error) return { ok: false, error: "connection_write_failed", detail: logFailure("write", prior.error) };
+  const saved = await saveGoogleConnection(db, tenantId, row);
+  if (saved.error || !saved.data)
+    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error) };
   try {
     await storeCredentials(db, tenantId, {
       refresh_token: grant.refresh_token,
@@ -146,16 +165,19 @@ export async function connectProfile(
       expires_at: now.getTime() + grant.expires_in * 1000,
       scope: grant.scope,
     });
-  } catch (e) {
+  } catch (error) {
     // Without the token the row is a lie. Deleting it unconditionally was the
     // lie's cure and somebody else's outage: a workspace whose profile was
     // connected and syncing lost the connection entirely because a RE-connect
     // could not reach the vault. The vault write is the thing that failed, so
     // the stored credentials are still the previous ones -- restoring the
     // previous row leaves the pair consistent and the profile working.
-    const restored = !!prior.data;
-    if (restored) await db.from("google_connections").update(prior.data!).eq("tenant_id", tenantId);
-    else await db.from("google_connections").delete().eq("tenant_id", tenantId);
+    const kept = prior.data;
+    const restored = !!kept;
+    // The vault's failure is what the owner is told; a restore that fails too is said beside it.
+    const put = kept ? await patchGoogleConnection(db, tenantId, kept) : await deleteGoogleConnection(db, tenantId);
+    if (put.error)
+      logger({ tenant_id: tenantId }).error("google_connection_restore_failed", { restored, error: put.error.message });
     // Giving the grant back is right when we are leaving nothing behind. It is
     // wrong when we just restored a connection for the SAME Google account:
     // Google revokes the grant for a client/user pair, not one token of it, so
@@ -169,7 +191,7 @@ export async function connectProfile(
     // connection.
     const otherAccount = claims.sub != null && prior.data?.google_sub !== claims.sub;
     if (!restored || otherAccount) await net(revokeRequest(grant.refresh_token)).catch(() => null);
-    return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: "credentials_failed", detail: logFailure("write", error) };
   }
   await emitEvent(db, tenantId, "google.connected", "listing", null, {
     email: claims.email,
@@ -177,10 +199,10 @@ export async function connectProfile(
     locations: locations.length,
     on_maps: onMaps.length,
     by: userId,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event google.connected"));
   // One location on Maps is the one; among several, the one the owner already said was theirs (the first run's "That's
   // us", decision 0073 R17) is bound at once, and only otherwise does the owner choose.
-  const linked = onMaps.length > 1 ? await linkedPlaceOf(db, tenantId).catch(() => null) : null;
+  const linked = onMaps.length > 1 ? await findLinkedPlace(db, tenantId).catch(() => null) : null;
   const pick = onMaps.length === 1 ? onMaps[0] : (onMaps.find((l) => !!linked && l.place_id === linked) ?? null);
   if (pick) {
     const bound = await bindLocation(db, saved.data, pick, userId, tz, now, net);
@@ -191,14 +213,14 @@ export async function connectProfile(
 }
 
 /** The locations a pending (or connected) profile may choose among, read again: Google's refusal is in `detail`. */
-export async function locationsFor(
+export async function getLocations(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<{ ok: true; locations: LocationChoice[] } | EdgeRefusal> {
-  const t = await tokenFor(db, tenantId);
-  if (!t.ok) return t;
+  const token = await tokenFor(db, tenantId);
+  if (!token.ok) return token;
   try {
-    return { ok: true, locations: (await allLocations(t.token)).filter((l) => !!l.place_id) };
+    return { ok: true, locations: (await allLocations(token.token)).filter((l) => !!l.place_id) };
   } catch (e) {
     return {
       ok: false,
@@ -223,13 +245,18 @@ export async function bindLocation(
   net: PlacesHttp = http,
 ): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | EdgeRefusal> {
   if (!loc.place_id) return { ok: false, error: "not_on_maps" };
-  const existing = await db.from("google_listings").select("place_id").eq("tenant_id", conn.tenant_id).maybeSingle();
-  if (existing.error) return { ok: false, error: "listing_read_failed", detail: existing.error.message };
+  const existing = await findGoogleListingPlace(db, conn.tenant_id);
+  if (existing.error) return { ok: false, error: "listing_read_failed", detail: logFailure("read", existing.error) };
   if (existing.data && existing.data.place_id !== loc.place_id) {
-    await db.from("google_reviews").delete().eq("tenant_id", conn.tenant_id);
-    await db.from("google_listing_days").delete().eq("tenant_id", conn.tenant_id);
+    // Another place's reviews and days, left under this one, would be said as its own.
+    const reviewsGone = await deleteGoogleReviews(db, conn.tenant_id);
+    if (reviewsGone.error) return { ok: false, error: "write_failed", detail: logFailure("write", reviewsGone.error) };
+    const daysGone = await deleteGoogleListingDays(db, conn.tenant_id);
+    if (daysGone.error) return { ok: false, error: "write_failed", detail: logFailure("write", daysGone.error) };
   }
-  const listing = await db.from("google_listings").upsert(
+  const listing = await saveGoogleListing(
+    db,
+    conn.tenant_id,
     existing.data && existing.data.place_id === loc.place_id
       ? {
           tenant_id: conn.tenant_id,
@@ -257,49 +284,57 @@ export async function bindLocation(
           checked_at: null,
           check_error: null,
         },
-    { onConflict: "tenant_id" },
   );
-  if (listing.error) return { ok: false, error: "listing_write_failed", detail: listing.error.message };
-  const saved = await db
-    .from("google_connections")
-    .update({
-      account_name: loc.account_name,
-      account_title: loc.account_title,
-      location_name: loc.name,
-      location_title: loc.title,
-      last_synced_at: null,
-      sync_error: null,
-    })
-    .eq("tenant_id", conn.tenant_id)
-    .select("*")
-    .single();
-  if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
+  if (listing.error) return { ok: false, error: "listing_write_failed", detail: logFailure("write", listing.error) };
+  const saved = await patchGoogleConnectionBack(db, conn.tenant_id, {
+    account_name: loc.account_name,
+    account_title: loc.account_title,
+    location_name: loc.name,
+    location_title: loc.title,
+    last_synced_at: null,
+    sync_error: null,
+  });
+  if (saved.error || !saved.data)
+    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error) };
   const read = await syncProfile(db, saved.data, tz, now, net);
   // Its hours, services and prices, days closed and words, for Check (decision 0073, R17); its website read after.
   await readProfileDetails(db, saved.data, now, net);
-  const after = await db.from("google_connections").select("*").eq("tenant_id", conn.tenant_id).single();
-  return { ok: true, connection: after.data ?? saved.data, read };
+  // Its photos, into Files (decision 0099). Nothing here undoes a connect that stands: Connections offers Try again.
+  await startHistory(db, {
+    tenantId: conn.tenant_id,
+    source: "google_photos",
+    connectionId: null,
+    via: "google",
+    again: false,
+  }).catch((e: unknown) =>
+    logger({ tenant_id: conn.tenant_id }).warn("file_fetch_failed", { source: "google_profile", error: errField(e) }),
+  );
+  // The row as it stands after the read; a read of it that fails answers with the row just saved.
+  const after = await rereadGoogleConnection(db, conn.tenant_id);
+  return { ok: true, connection: after.error ? saved.data : (after.data ?? saved.data), read };
 }
 
 /** The grant given back to Google, the token gone from Vault, the row gone, the profile's reviews gone. The listing stays. */
 export async function disconnectProfile(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   by: string | null = null,
 ): Promise<{ ok: true; removed: boolean; revoked: boolean }> {
   const conn = await connectionOf(db, tenantId);
   if (!conn) return { ok: true, removed: false, revoked: false };
   let revoked = false;
-  const creds = await readCredentials(db, tenantId).catch(() => null);
+  const creds = await readCredentials(db, tenantId).catch(logAndGoOn("readCredentials", null));
   if (creds) {
-    const r = await http(revokeRequest(creds.refresh_token)).catch(() => null);
+    const r = await http(revokeRequest(creds.refresh_token)).catch(logAndGoOn("giving a Google grant back", null));
     revoked = !!r && r.status === 200;
   }
-  await db.rpc("drop_google_credentials", { p_tenant_id: tenantId });
-  const gone = await db.from("google_reviews").delete().eq("tenant_id", tenantId).eq("origin", "profile");
-  if (gone.error) throw new Error(gone.error.message);
-  const del = await db.from("google_connections").delete().eq("tenant_id", tenantId);
-  if (del.error) throw new Error(del.error.message);
+  // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
+  const dropped = await dropGoogleCredentials(db, tenantId);
+  if (dropped.error) throw new DbFailure(dropped.error);
+  const gone = await deleteGoogleReviews(db, tenantId, { origin: "profile" });
+  if (gone.error) throw new DbFailure(gone.error);
+  const del = await deleteGoogleConnection(db, tenantId);
+  if (del.error) throw new DbFailure(del.error);
   // A notice that it had stopped syncing is about nothing now.
   await syncMended(db, tenantId, "google_connection.removed");
   await emitEvent(db, tenantId, "google.disconnected", "listing", null, {

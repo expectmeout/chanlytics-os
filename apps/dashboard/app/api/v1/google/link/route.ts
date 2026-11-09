@@ -1,7 +1,8 @@
-import { write, workspace } from "@/server/route";
+import { z } from "zod";
+import { write, workspace } from "@/server/shared/route";
 import { AppError } from "@chanlytics/contracts";
-import { edgeGoogle, readOutcome } from "@/server/connections/google";
-import { edgeRefusalWords } from "@/server/edge";
+import { callEdgeGoogle, readOutcome } from "@/server/connections/google";
+import { edgeRefusalWords } from "@/server/shared/edge";
 
 /**
  * POST /api/v1/google/link — {place_id}: this is the business on Google.
@@ -12,7 +13,7 @@ import { edgeRefusalWords } from "@/server/edge";
  */
 const PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 
-const SAID: Record<string, string> = {
+const REASON_WORDS: Record<string, string> = {
   no_places_key: "Finding listings is not available here yet.",
   unreadable: "Google could not read that listing. Pick it again from a fresh search.",
 };
@@ -21,24 +22,24 @@ export const POST = write({
   scope: workspace,
   role: "partner",
   rate: "google_link",
-  handle: async ({ ctx, req, member }) => {
-    const body = (await req.json().catch(() => ({}))) as { place_id?: unknown };
-    const placeId = typeof body.place_id === "string" ? body.place_id.trim() : "";
+  input: z.object({ place_id: z.string().nullish() }),
+  handle: async ({ ctx, input, member }) => {
+    const placeId = (input.place_id ?? "").trim();
     if (!PLACE_ID.test(placeId)) throw new AppError("validation", "Pick a listing from the search first.", 400);
-    const a = await edgeGoogle(
+    const answer = await callEdgeGoogle(
       { op: "link", tenant_id: member.tenantId, user_id: ctx.userId, place_id: placeId },
       25_000,
     );
-    const b = a.body ?? {};
-    if (a.status !== 200 || b.ok !== true) {
-      const reason = typeof b.error === "string" ? b.error : "failed";
+    const result = answer.body ?? {};
+    if (answer.status !== 200 || result.ok !== true) {
+      const reason = typeof result.error === "string" ? result.error : "failed";
       throw new AppError(
-        reason === "no_places_key" ? "conflict" : "internal",
-        SAID[reason] ?? `The listing could not be linked (${edgeRefusalWords(b) ?? reason}).`,
+        reason === "no_places_key" ? "conflict" : "upstream_provider",
+        REASON_WORDS[reason] ?? `The listing could not be linked (${edgeRefusalWords(result) ?? reason}).`,
         reason === "no_places_key" ? 409 : 502,
       );
     }
-    return { listing: b.listing ?? null, read: readOutcome(b.read) };
+    return { listing: result.listing ?? null, read: readOutcome(result.read) };
   },
 });
 
@@ -47,16 +48,15 @@ export const DELETE = write({
   role: "partner",
   rate: "google_link",
   handle: async ({ ctx, member }) => {
-    const a = await edgeGoogle({ op: "unlink", tenant_id: member.tenantId, user_id: ctx.userId }, 15_000);
-    const b = a.body ?? {};
-    if (a.status !== 200 || b.ok !== true)
+    const answer = await callEdgeGoogle({ op: "unlink", tenant_id: member.tenantId, user_id: ctx.userId }, 15_000);
+    const body = answer.body ?? {};
+    if (answer.status !== 200 || body.ok !== true)
       throw new AppError(
-        "internal",
-        (typeof b.error === "string" ? SAID[b.error] : null) ??
-          edgeRefusalWords(b) ??
+        "upstream_provider",
+        (typeof body.error === "string" ? REASON_WORDS[body.error] : null) ??
+          edgeRefusalWords(body) ??
           "The listing could not be removed. Try again.",
-        502,
       );
-    return { removed: b.removed === true };
+    return { removed: body.removed === true };
   },
 });

@@ -5,22 +5,21 @@
  * credential live on the edge; nothing here knows a SID.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@chanlytics/db";
-import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto } from "@chanlytics/contracts";
-import { callEdge, edgeConfigured, type EdgeAnswer } from "../edge";
-import { deployment } from "../env";
+import type { Database } from "@chanlytics/db/types";
+import { MIN_MS, lineDtoOf, type LineCodeDto, type LineDto, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
+import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
+import { deployment } from "../shared/env";
+import { listLinesForPage } from "@chanlytics/db/lines";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
-const LINE_COLUMNS =
-  "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, reg_sole_prop, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
-
 /**
  * The workspace's lines, as the page is told of them (contracts lineDtoOf, the edge's verb answers' own builder).
  * `registered` is not said here: it is derived from the brand and campaign SIDs, and no provider id crosses this boundary.
  */
-export async function linesFor(db: SupabaseClient<Database>, tenantId: string): Promise<LineDto[]> {
-  const { data, error } = await db.from("lines").select(LINE_COLUMNS).eq("tenant_id", tenantId).order("created_at");
-  if (error) throw new Error(error.message);
+export async function listLines(db: SupabaseClient<Database>, tenantId: TenantId): Promise<LineDto[]> {
+  const { data, error } = await listLinesForPage(db, tenantId);
+  if (error) throw new DbFailure(error);
   return (data ?? []).map((r) => lineDtoOf(r));
 }
 
@@ -28,7 +27,10 @@ export async function linesFor(db: SupabaseClient<Database>, tenantId: string): 
 export const EDGE_LINES_TIMEOUT_MS = MIN_MS;
 
 /** One call to the edge's lines endpoint. Never throws: a failure is a status the caller reads. */
-export async function edgeLines(body: Record<string, unknown>, timeoutMs = EDGE_LINES_TIMEOUT_MS): Promise<EdgeAnswer> {
+export async function callEdgeLines(
+  body: EdgeBody<"/api/admin/lines">,
+  timeoutMs = EDGE_LINES_TIMEOUT_MS,
+): Promise<EdgeAnswer<EdgeRead<"/api/admin/lines">>> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every other provider door keeps (billing.ts, google.ts,
   // whatsapp.ts). This one did not, and EDGE_URL defaults to the production
@@ -70,18 +72,15 @@ const STATUS_NOT_READY_TTL_MS = 30_000;
  * not between two page loads. Unreachable edge → not ready, so the page keeps
  * "we set it up with you" rather than a verb that cannot work.
  */
-export async function linesStatus(now = Date.now()): Promise<LinesStatus> {
+export async function getLinesStatus(now = Date.now()): Promise<LinesStatus> {
   if (statusCache && now - statusCache.at < (statusCache.value.ready ? STATUS_TTL_MS : STATUS_NOT_READY_TTL_MS))
     return statusCache.value;
-  const a = await edgeLines({ op: "status" }, 4_000);
-  const b = a.body ?? {};
-  const costs =
-    b.costs && typeof b.costs === "object"
-      ? { ...DEFAULT_COSTS, ...(b.costs as Partial<typeof DEFAULT_COSTS>) }
-      : DEFAULT_COSTS;
+  const answer = await callEdgeLines({ op: "status" }, 4_000);
+  const body = answer.body ?? {};
+  const costs = body.costs ? { ...DEFAULT_COSTS, ...body.costs } : DEFAULT_COSTS;
   const value: LinesStatus =
-    a.status === 200 && b.ok === true
-      ? { ready: b.ready === true, provider: typeof b.provider === "string" ? b.provider : null, costs }
+    answer.status === 200 && body.ok === true
+      ? { ready: body.ready === true, provider: typeof body.provider === "string" ? body.provider : null, costs }
       : { ready: false, provider: null, costs };
   statusCache = { at: now, value };
   return value;
@@ -93,7 +92,7 @@ const LINE_CODES_TIMEOUT_MS = 12_000;
 /** A code as the edge answered it, in the shape the page holds, or nothing: what is not a code is dropped and never mended. */
 function lineCodeOf(c: unknown): LineCodeDto | null {
   if (c === null || typeof c !== "object") return null;
-  const { code, from, at } = c as Record<string, unknown>;
+  const { code, from, at } = recordOrEmpty(c);
   return typeof code === "string" && typeof at === "string"
     ? { code, from: typeof from === "string" ? from : null, at }
     : null;
@@ -104,18 +103,18 @@ function lineCodeOf(c: unknown): LineCodeDto | null {
  * and never kept here. A deployment that reaches no providers (a preview) has none to read, which is no failure; a read that
  * failed is said (`ok: false`), for the route to refuse in words, never an empty list that reads as nobody writing.
  */
-export async function lineCodesFor(
-  tenantId: string,
+export async function getLineCodes(
+  tenantId: TenantId,
   userId: string,
 ): Promise<{ ok: true; codes: LineCodeDto[] } | { ok: false }> {
   if (!edgeConfigured() || !deployment.providersLive) return { ok: true, codes: [] };
-  const a = await callEdge("/api/admin/lines/codes", null, {
+  const answer = await callEdge("/api/admin/lines/codes", null, {
     workspace: tenantId,
     user: userId,
     method: "GET",
     timeoutMs: LINE_CODES_TIMEOUT_MS,
   });
-  const raw = a.body?.codes;
-  if (a.status !== 200 || a.body?.ok !== true || !Array.isArray(raw)) return { ok: false };
+  const raw = answer.body?.codes;
+  if (answer.status !== 200 || answer.body?.ok !== true || !Array.isArray(raw)) return { ok: false };
   return { ok: true, codes: raw.map(lineCodeOf).filter((c): c is LineCodeDto => c !== null) };
 }

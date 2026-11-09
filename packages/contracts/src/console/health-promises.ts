@@ -7,6 +7,7 @@
 import { PLATFORM_NUMBERS, pastTarget, type PlatformDayRowDto } from "../workspace/platform-days";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
 import { PLATFORM_WHERE, inScope, type HealthScope } from "./health-scope";
+import { keysOf } from "../shared/unknown";
 
 type PromiseName = {
   [K in keyof typeof PLATFORM_NUMBERS]: (typeof PLATFORM_NUMBERS)[K] extends { promise: true } ? K : never;
@@ -43,7 +44,7 @@ const PROMISE_WORDS: Record<PromiseName, { title: string; small: string; short: 
   },
 };
 
-const PROMISES = Object.keys(PROMISE_WORDS) as PromiseName[];
+const PROMISES = keysOf(PROMISE_WORDS);
 
 /** A second, for the figures a cell says in seconds. */
 const MS_PER_SECOND = 1_000;
@@ -116,7 +117,10 @@ export function promiseDaysOf(
   for (const r of inView) byDay.set(r.day, [...(byDay.get(r.day) ?? []), r]);
   const out = PROMISES.map((name): PromiseRowVM => {
     const target = PLATFORM_NUMBERS[name];
-    let worst: { v: number; most: number; key: string | null; name: string; day: string } | null = null;
+    // Kept on an object the day loop writes: a `let` set to null reads as null after the loop, which never runs in its flow.
+    const seen: { worst: { v: number; most: number; key: string | null; name: string; day: string } | null } = {
+      worst: null,
+    };
     const missedBy = new Set<string>();
     let lastMissMs: number | null = null;
     const cells = span.map((day): PromiseCellVM => {
@@ -127,7 +131,8 @@ export function promiseDaysOf(
         for (const b of pastTarget(r, { all: true }).filter((x) => x.number === name)) {
           missedBy.add(r.name);
           if (!dayWorst || b.value > dayWorst.v) dayWorst = { v: b.value, most: b.most, key: b.key };
-          if (!worst || b.value > worst.v) worst = { v: b.value, most: b.most, key: b.key, name: r.name, day };
+          if (!seen.worst || b.value > seen.worst.v)
+            seen.worst = { v: b.value, most: b.most, key: b.key, name: r.name, day };
         }
       if (!dayWorst) return { day, state: "kept", words: null };
       lastMissMs = Date.parse(`${day}T23:59:59Z`);
@@ -139,7 +144,7 @@ export function promiseDaysOf(
     });
     const missedDays = cells.filter((c) => c.state === "missed").length;
     const judged = cells.some((c) => c.state !== "none");
-    const w = worst as { v: number; most: number; key: string | null; name: string; day: string } | null;
+    const item = seen.worst;
     return {
       key: name,
       ...PROMISE_WORDS[name],
@@ -147,9 +152,13 @@ export function promiseDaysOf(
       state: missedDays ? "missed" : judged ? "kept" : "unjudged",
       missedDays,
       cells,
-      last: w ? `${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)}` : judged ? "kept" : "not judged",
-      worst: w
-        ? `${w.name}: ${w.key ? `${w.key} ` : ""}${promiseFigureWords(name, w.v)} on ${w.day}, target ${promiseFigureWords(name, w.most)}`
+      last: item
+        ? `${item.key ? `${item.key} ` : ""}${promiseFigureWords(name, item.v)}`
+        : judged
+          ? "kept"
+          : "not judged",
+      worst: item
+        ? `${item.name}: ${item.key ? `${item.key} ` : ""}${promiseFigureWords(name, item.v)} on ${item.day}, target ${promiseFigureWords(name, item.most)}`
         : null,
       lastMissMs,
       where: [...missedBy].join(", ") || PLATFORM_WHERE,

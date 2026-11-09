@@ -11,9 +11,10 @@
  * when the positions still match; a sync never makes a template less
  * legible than it was.
  */
-import type { SchemaSet, TemplateStatus } from "../packages/contracts.js";
+import type { SchemaSet, TemplateStatus, TenantId } from "@chanlytics/contracts";
 import { GRAPH_TIMEOUT_MS, GRAPH_VERSION } from "./meta-graph.js";
-import { answerObject, providerFetch } from "../packages/channels.js";
+import { answerObject, fetchFromProvider } from "@chanlytics/channels/shared";
+import { NUMBERED_SLOT } from "@chanlytics/contracts";
 
 export interface MetaTemplateComponent {
   type: string;
@@ -57,7 +58,7 @@ export async function listTemplates(
   let url: string | null =
     `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?fields=${FIELDS}&limit=${META_TEMPLATES_PAGE}`;
   for (let page = 0; url && page < MAX_PAGES; page++) {
-    const res = await providerFetch("meta", url, {
+    const res = await fetchFromProvider("meta", url, {
       headers: { authorization: `Bearer ${token}` },
       timeoutMs: GRAPH_TIMEOUT_MS,
       idempotent: true,
@@ -78,8 +79,8 @@ export async function listTemplates(
 }
 
 /** Meta's status words into the table's. Anything still in flight is pending. */
-export function mapStatus(s: string | null | undefined): TemplateStatus {
-  switch (String(s ?? "").toUpperCase()) {
+export function mapStatus(text: string | null | undefined): TemplateStatus {
+  switch (String(text ?? "").toUpperCase()) {
     case "APPROVED":
       return "approved";
     case "REJECTED":
@@ -95,8 +96,8 @@ export function mapStatus(s: string | null | undefined): TemplateStatus {
   }
 }
 
-export function mapCategory(c: string | null | undefined): TemplateCategory | null {
-  switch (String(c ?? "").toUpperCase()) {
+export function mapCategory(code: string | null | undefined): TemplateCategory | null {
+  switch (String(code ?? "").toUpperCase()) {
     case "MARKETING":
       return "marketing";
     case "UTILITY":
@@ -121,30 +122,30 @@ function qualityIn<W extends string>(words: readonly W[], q: unknown): W | null 
 }
 
 /** A template's quality in Meta's own words (the Templates page's pill is keyed by them); any other value is no quality. */
-export function mapQuality(q: unknown): TemplateQuality | null {
-  return qualityIn(TEMPLATE_QUALITIES, q);
+export function mapQuality(query: unknown): TemplateQuality | null {
+  return qualityIn(TEMPLATE_QUALITIES, query);
 }
 
 /** A number's quality in Meta's own words (the channel-quality sweep keeps it); any other value is no quality. */
-export function mapNumberQuality(q: unknown): NumberQuality | null {
-  return qualityIn(NUMBER_QUALITIES, q);
+export function mapNumberQuality(query: unknown): NumberQuality | null {
+  return qualityIn(NUMBER_QUALITIES, query);
 }
 
 function bodyComponent(t: MetaTemplate): MetaTemplateComponent | undefined {
   return (t.components ?? []).find((c) => String(c.type).toUpperCase() === "BODY");
 }
 
-export function bodyOf(t: MetaTemplate): string | null {
-  const text = bodyComponent(t)?.text;
+export function bodyOf(metaTemplate: MetaTemplate): string | null {
+  const text = bodyComponent(metaTemplate)?.text;
   return typeof text === "string" && text.trim() ? text : null;
 }
 
 /** The variables the body names, in order, with Meta's examples and any label a person gave them. */
-export function variablesOf(t: MetaTemplate, keepLabels: TemplateVariable[] = []): TemplateVariable[] {
-  const body = bodyOf(t) ?? "";
+export function variablesOf(metaTemplate: MetaTemplate, keepLabels: TemplateVariable[] = []): TemplateVariable[] {
+  const body = bodyOf(metaTemplate) ?? "";
   const positions = new Set<number>();
-  for (const m of body.matchAll(/\{\{(\d+)\}\}/g)) positions.add(Number(m[1]));
-  const examples = bodyComponent(t)?.example?.body_text?.[0] ?? [];
+  for (const m of body.matchAll(NUMBERED_SLOT)) positions.add(Number(m[1]));
+  const examples = bodyComponent(metaTemplate)?.example?.body_text?.[0] ?? [];
   return [...positions]
     .sort((a, b) => a - b)
     .map((n) => {
@@ -172,7 +173,7 @@ export function labelsOf(variables: unknown): TemplateVariable[] {
 }
 
 interface TemplateRow {
-  tenant_id: string;
+  tenant_id: TenantId;
   channel: "whatsapp";
   name: string;
   language: string;
@@ -188,26 +189,29 @@ interface TemplateRow {
 }
 
 export function templateRow(
-  t: MetaTemplate,
-  tenantId: string,
+  metaTemplate: MetaTemplate,
+  tenantId: TenantId,
   keepLabels: TemplateVariable[] = [],
   now = new Date(),
 ): TemplateRow {
-  const status = mapStatus(t.status);
-  const reason = typeof t.rejected_reason === "string" && t.rejected_reason !== "NONE" ? t.rejected_reason : null;
+  const status = mapStatus(metaTemplate.status);
+  const reason =
+    typeof metaTemplate.rejected_reason === "string" && metaTemplate.rejected_reason !== "NONE"
+      ? metaTemplate.rejected_reason
+      : null;
   return {
     tenant_id: tenantId,
     channel: "whatsapp",
-    name: t.name,
-    language: t.language,
+    name: metaTemplate.name,
+    language: metaTemplate.language,
     meta_status: status,
-    category: mapCategory(t.category),
-    meta_id: t.id,
-    components: t.components ?? null,
-    quality: mapQuality(t.quality_score?.score),
+    category: mapCategory(metaTemplate.category),
+    meta_id: metaTemplate.id,
+    components: metaTemplate.components ?? null,
+    quality: mapQuality(metaTemplate.quality_score?.score),
     rejected_reason: status === "rejected" ? reason : null,
-    body_preview: bodyOf(t),
-    variables: variablesOf(t, keepLabels),
+    body_preview: bodyOf(metaTemplate),
+    variables: variablesOf(metaTemplate, keepLabels),
     synced_at: now.toISOString(),
   };
 }
@@ -218,21 +222,21 @@ export function templateRow(
 export async function createTemplate(
   token: string,
   wabaId: string,
-  t: { name: string; language: string; category: string; components: MetaTemplateComponent[] },
+  target: { name: string; language: string; category: string; components: MetaTemplateComponent[] },
 ): Promise<
   { ok: true; data: { id: string; status: string; category?: string } } | { ok: false; error: string; status: number }
 > {
-  const res = await providerFetch(
+  const res = await fetchFromProvider(
     "meta",
     `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates`,
     {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({
-        name: t.name,
-        language: t.language,
-        category: t.category,
-        components: t.components,
+        name: target.name,
+        language: target.language,
+        category: target.category,
+        components: target.components,
         allow_category_change: true,
       }),
       timeoutMs: CREATE_TIMEOUT_MS,
@@ -271,7 +275,7 @@ export async function deleteTemplate(
   hsmId: string,
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const qs = new URLSearchParams({ name, hsm_id: hsmId });
-  const res = await providerFetch(
+  const res = await fetchFromProvider(
     "meta",
     `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?${qs.toString()}`,
     { method: "DELETE", headers: { authorization: `Bearer ${token}` }, timeoutMs: GRAPH_TIMEOUT_MS },

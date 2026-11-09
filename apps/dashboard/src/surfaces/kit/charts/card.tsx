@@ -7,7 +7,7 @@
 import { useState } from "react";
 import type { MouseEvent, ReactNode, Ref } from "react";
 import { csvCell } from "@chanlytics/contracts";
-import { holdStill } from "../../legacy-verbs";
+import { holdStill } from "../../frame-verbs";
 import { downloadCsv } from "../download";
 import { Icon } from "../icon/icon";
 import { ckVars } from "./geometry";

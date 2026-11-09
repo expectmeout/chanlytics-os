@@ -12,17 +12,21 @@ import {
   REGISTRATION_PATHS,
   type BusinessRecordDto,
   type RegistrationPath,
+  isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
-import { businessOnRecordOf, workspacePublicSlug } from "@chanlytics/db";
-import { edgeLines } from "@/server/connections/lines";
-import { edgeRefusalWords } from "@/server/edge";
-import type { Member } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
+import { findBusinessOnRecord, listLineNumbersOf } from "@chanlytics/db/lines";
+import { findWorkspacePublicSlug } from "@chanlytics/db/workspace";
+import { callEdgeLines } from "@/server/connections/lines";
+import { edgeRefusalWords } from "@/server/shared/edge";
+import type { Member } from "@/server/shared/route";
+import type { RouteContext } from "@/server/shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 export async function readBusinessRecord(ctx: RouteContext, member: Member) {
   const [data, slug] = await Promise.all([
-    businessOnRecordOf(ctx.supabase, member.tenantId),
-    workspacePublicSlug(ctx.supabase, member.tenantId),
+    findBusinessOnRecord(ctx.supabase, member.tenantId),
+    findWorkspacePublicSlug(ctx.supabase, member.tenantId),
   ]);
   // Where the business's own page is, while the workspace has public pages (not a fixture, not ended): the form links to
   // it once the record publishes it (contracts publishesBusinessPage; the wiring's second audit, X4-4).
@@ -56,24 +60,25 @@ export async function readBusinessRecord(ctx: RouteContext, member: Member) {
  * just told them everything was in order. Members may read `lines`
  * (lines_member_select, 00066), so the session client can answer it.
  */
-async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<string[]> {
-  const { data, error } = await ctx.supabase.from("lines").select("e164").eq("tenant_id", tenantId);
-  if (error) throw new Error(`reading this workspace's numbers: ${error.message}`);
+async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<string[]> {
+  const { data, error } = await listLineNumbersOf(ctx.supabase, tenantId);
+  if (error) throw new DbFailure(error, "reading this workspace's numbers");
   return (data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
 }
 
 export async function saveBusinessRecord(ctx: RouteContext, req: Request, member: Member) {
+  // A body that is not JSON is none: what reads it next refuses.
   const body = (await req.json().catch(() => ({}))) as { record?: Partial<BusinessRecordDto>; path?: string };
   const record = body.record && typeof body.record === "object" ? body.record : {};
   // WHICH registration this is for, said by the page rather than guessed from a
   // blank box. An empty tax id means both "there is none" and "not typed yet",
   // and one of those answers files the sole-proprietor brand — one number,
   // about a message a second, and no way to withdraw it.
-  const asked = typeof body.path === "string" ? body.path : "";
-  if (asked && !(REGISTRATION_PATHS as readonly string[]).includes(asked)) {
+  const request = typeof body.path === "string" ? body.path : "";
+  if (request && !isOneOf(REGISTRATION_PATHS, request)) {
     throw new AppError("validation", "That is not a registration we file.", 400);
   }
-  const path = (asked || registrationPathOf(record) || "standard") as RegistrationPath;
+  const path = (request || registrationPathOf(record) || "standard") as RegistrationPath;
 
   // Checked here, in the owner's words, before anything leaves for a
   // provider: a refusal from the carriers arrives days later and says
@@ -87,14 +92,19 @@ export async function saveBusinessRecord(ctx: RouteContext, req: Request, member
     throw new AppError("validation", first ?? "Something is missing.", 400, { fields: problems });
   }
 
-  const a = await edgeLines({ op: "record", tenant_id: member.tenantId, user_id: ctx.userId, record, path }, 20_000);
-  const b = a.body ?? {};
+  const answer = await callEdgeLines(
+    { op: "record", tenant_id: member.tenantId, user_id: ctx.userId, record, path },
+    20_000,
+  );
+  const result = answer.body ?? {};
   // The first problem the edge found on the row it would write, in the owner's words (`detail`).
-  if (a.status === 400) throw new AppError("validation", edgeRefusalWords(b) ?? "That could not be saved.", 400);
-  if (a.status === 503 && typeof b.error === "string" && b.error === "preview")
+  if (answer.status === 400)
+    throw new AppError("validation", edgeRefusalWords(result) ?? "That could not be saved.", 400);
+  if (answer.status === 503 && typeof result.error === "string" && result.error === "preview")
     throw new AppError("conflict", "Saving the business on record only works on the production dashboard.", 409);
-  if (a.status !== 200) throw new AppError("internal", "The record could not be saved. Try again in a moment.", 502);
+  if (answer.status !== 200)
+    throw new AppError("upstream_provider", "The record could not be saved. Try again in a moment.");
   // What the save moved and what the carriers hold of it, from the edge's answer: null from an edge deployed before it
   // said (the wiring's second audit, X4-3).
-  return { record: b.record ?? null, saved: recordSavedOf(b.record) };
+  return { record: result.record ?? null, saved: recordSavedOf(result.record) };
 }

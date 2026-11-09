@@ -1,6 +1,14 @@
 import "server-only";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
-import { dealOnFile, readAllRows, recordDeal, yesesSince, type DealMove } from "@chanlytics/db";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import {
+  type DealMove,
+  getDealOnFile,
+  listDealRowsOf,
+  listYesesSince,
+  pageDealReport,
+  recordDeal,
+} from "@chanlytics/db/deals";
+import { readAllRows, readAnswer } from "@chanlytics/db/shared";
 import {
   AppError,
   DAY_MS,
@@ -22,27 +30,38 @@ import {
   type DealReportDto,
   type PersonCameFrom,
   type PersonRowDto,
+  recordOrNull,
+  keysOf,
+  shaped,
 } from "@chanlytics/contracts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
+import { findAppointmentWord } from "@chanlytics/db/workspace";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { z } from "zod";
+import { logKeptGoing } from "@chanlytics/log";
+
+/** What record_deal answers: its refusal, or the deal, where it stood before, and the decision it wrote. */
+const DealAnswer = z
+  .object({ error: z.string(), deal: shaped<DealDto>(), from: z.string().nullable(), decision_id: z.string() })
+  .partial();
 
 /**
  * What this workspace calls an appointment (tenants.appointment_word, 00458), by contracts' one derivation
  * (appointmentWordOf): the word it picked, else "appointment", which a row that cannot be read says too (a database
  * 00458 has not reached among them): a word never costs the page. The one read every server page and Ask share.
  */
-export async function appointmentWordRead(
+export async function getAppointmentWord(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<AppointmentWord> {
-  const read = (columns: string) => ctx.supabase.from("tenants").select(columns).eq("id", tenantId).maybeSingle();
-  const r = await read("appointment_word");
-  const word = r.error ? null : (r.data as { appointment_word?: unknown } | null)?.appointment_word;
+  const r = await findAppointmentWord(ctx.supabase, tenantId);
+  const word = r.error ? null : recordOrNull(r.data)?.appointment_word;
   return appointmentWordOf(typeof word === "string" ? word : null);
 }
 
-/** Whether a deal was ever recorded here (packages/db dealOnFile), under the member's own RLS. */
-export const hasDealsRead = (ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<boolean> =>
-  dealOnFile(ctx.supabase, tenantId);
+/** Whether a deal was ever recorded here (packages/db getDealOnFile), under the member's own RLS. */
+export const hasDealsRead = (ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<boolean> =>
+  getDealOnFile(ctx.supabase, tenantId);
 
 /**
  * The workspace's pace (0008, amended): its yeses decided in the last year, under the member's own RLS, and their
@@ -50,14 +69,14 @@ export const hasDealsRead = (ctx: Pick<RouteContext, "supabase">, tenantId: stri
  * not be read, which is said in the log: no pace is a week's wait, which costs the pace, never the page. The two
  * People routes share it.
  */
-export async function dealPaceRead(
+export async function findDealPace(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   now = new Date(),
 ): Promise<DealPaceDto | null> {
-  // The one typed read of them, which the edge's playbook sweep reads too (packages/db yesesSince).
+  // The one typed read of them, which the edge's playbook sweep reads too (packages/db listYesesSince).
   try {
-    const rows = await yesesSince(ctx.supabase, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS));
+    const rows = await listYesesSince(ctx.supabase, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS));
     return dealPaceFrom(rows, now.getTime());
   } catch (e) {
     log.error("deal_pace_read_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
@@ -65,9 +84,8 @@ export async function dealPaceRead(
   }
 }
 
-/** The columns a deal is read with (contracts DealDto): a person's read of their deals, and the deal door's answer. */
-export const DEAL_DTO_COLUMNS =
-  "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at, proposal_url, valid_until, lost_reason";
+/** The columns a deal is read with (contracts DealDto) are packages/db's, where its reads are; the person reader reads them here. */
+export { DEAL_DTO_COLUMNS } from "@chanlytics/db/deals";
 
 /**
  * The deal a person's People row shows now, by people_list's own rule (contracts pickCurrentDeal: an open one first,
@@ -75,20 +93,17 @@ export const DEAL_DTO_COLUMNS =
  * person with two open deals keeps showing the one their row shows. Null where it could not be read: the People
  * re-read behind the write says it then, and a write that landed never answers a failure for it.
  */
-export async function currentDealOf(
+export async function findCurrentDeal(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
 ): Promise<DealDto | null> {
   try {
-    const r = await ctx.supabase
-      .from("deals")
-      .select(DEAL_DTO_COLUMNS)
-      .eq("tenant_id", tenantId)
-      .eq("contact_id", contactId);
+    const r = await listDealRowsOf(ctx.supabase, tenantId, contactId);
     if (r.error || !r.data) return null;
-    return pickCurrentDeal(r.data as unknown as DealDto[]);
-  } catch {
+    return pickCurrentDeal(r.data);
+  } catch (e) {
+    logKeptGoing("person's current deal", e);
     return null;
   }
 }
@@ -117,7 +132,7 @@ function countByKey<K extends string>(keys: readonly (K | null)[], order: readon
     .sort((a, b) => b.count - a.count || order.indexOf(a.key) - order.indexOf(b.key));
 }
 
-const CAME_FROM_ORDER = Object.keys(PERSON_CAME_FROM_WORDS) as PersonCameFrom[];
+const CAME_FROM_ORDER = keysOf(PERSON_CAME_FROM_WORDS);
 
 /**
  * Reports' Deals numbers (0004, 0008), from one read of the workspace's deals under the member's own RLS. One cohort
@@ -129,9 +144,9 @@ const CAME_FROM_ORDER = Object.keys(PERSON_CAME_FROM_WORDS) as PersonCameFrom[];
  * cannot be read (an older database): the section is not drawn and the report stands. Takes only the client it reads
  * with, as the calendar's readers do.
  */
-export async function dealReport(
+export async function readDealReport(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   days: number,
   people: readonly Pick<PersonRowDto, "id" | "came_from">[],
   now = new Date(),
@@ -141,14 +156,9 @@ export async function dealReport(
 ): Promise<DealReportDto | null> {
   // Every page of them (readAllRows), by id: PostgREST answers a thousand rows whatever a select asks for, so past a
   // thousand deals every figure here counted an arbitrary thousand.
-  const data = await readAllRows("deals", (from, to) =>
-    ctx.supabase
-      .from("deals")
-      .select("stage, proposed_at, decided_at, amount_cents, per, currency, lost_reason, contact_id")
-      .eq("tenant_id", tenantId)
-      .order("id")
-      .range(from, to),
-  ).catch(() => null);
+  const data = await readAllRows("deals", (from, to) => pageDealReport(ctx.supabase, tenantId, from, to)).catch(
+    () => null,
+  );
   if (!data) return null;
   if (!data.length) return none();
   const since = span?.since ?? now.getTime() - days * DAY_MS;
@@ -207,7 +217,7 @@ export async function dealReport(
  */
 export async function recordDealMove(
   ctx: Pick<RouteContext, "supabase" | "via" | "undoOf">,
-  contactId: string,
+  contactId: ContactId,
   stage: string,
   move: DealMove,
 ): Promise<{ deal: DealDto; from: string | null; decision_id: string }> {
@@ -219,15 +229,15 @@ export async function recordDealMove(
     undoOf: ctx.undoOf ?? null,
   });
   if (error) throw dbRefusal(error);
-  const r = (data ?? {}) as { error?: string; deal?: DealDto; from?: string | null; decision_id?: string };
-  if (r.error || !r.deal) {
+  const item = readAnswer("record_deal", DealAnswer, data ?? {});
+  if (item.error || !item.deal) {
     // A key the sentences lack, or no deal and no error: an answer this verb does not know. Logged raw before the
     // generic sentence, so a new refusal is found in the log rather than by its blandness.
-    if (!(r.error && DEAL_REFUSALS[r.error])) {
-      log.error("deal_door_unknown_answer", { contact: contactId, error: r.error ?? null, deal: !!r.deal });
+    if (!(item.error && DEAL_REFUSALS[item.error])) {
+      log.error("deal_door_unknown_answer", { contact: contactId, error: item.error ?? null, deal: !!item.deal });
     }
-    throw new AppError("validation", DEAL_REFUSALS[r.error ?? ""] ?? "Could not record this.");
+    throw new AppError("validation", DEAL_REFUSALS[item.error ?? ""] ?? "Could not record this.");
   }
-  if (typeof r.decision_id !== "string") throw new Error("record_deal: the door answered without its decision");
-  return { deal: r.deal, from: r.from ?? null, decision_id: r.decision_id };
+  if (typeof item.decision_id !== "string") throw new Error("record_deal: the door answered without its decision");
+  return { deal: item.deal, from: item.from ?? null, decision_id: item.decision_id };
 }

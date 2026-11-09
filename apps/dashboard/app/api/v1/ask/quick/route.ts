@@ -1,6 +1,6 @@
 import { AppError, ASK_MAX_CHARS, askIntent, quickAnswerOf } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { keepQuickTurn } from "@/server/ask/store";
 
 /**
@@ -22,6 +22,7 @@ export const POST = write({
   role: "viewer",
   rate: "ask",
   handle: async ({ ctx, req, member }) => {
+    // A body that is not JSON is none: what reads it next refuses.
     const body = (await req.json().catch(() => null)) as {
       text?: unknown;
       answer?: unknown;

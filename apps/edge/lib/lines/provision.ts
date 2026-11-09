@@ -14,20 +14,22 @@
  * handing a line to a person after its automatic tries run out — so that too is told
  * in the same words.
  */
-import { notify, recordNotification } from "../ops/notify.js";
-import { emitEvent, recordActivation } from "../packages/db.js";
+import type { TenantId } from "@chanlytics/contracts";
+import { notify, recordNotification } from "../shared/alerts/notify.js";
+import { emitEvent, recordActivation } from "@chanlytics/db/events";
 import {
   FIRST_RUN_ROUTE,
   formatPhoneDisplay,
   lineCredentialFailure,
   LINE_CREDENTIALS_SENTENCE,
-} from "../packages/contracts.js";
-import { runLineSaga, type LineRow } from "../packages/channels.js";
+} from "@chanlytics/contracts";
+import { runLineSaga, type LineRow } from "@chanlytics/channels/lines";
 import { linePorts, LINE_STEP_WORDS, type LineProviderChoice } from "./lines.js";
-import type { ResumedBy } from "./line-resume.js";
+import type { ResumedBy } from "./resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { logger } from "../log.js";
+import type { Database } from "@chanlytics/db/types";
+import { logger } from "../shared/log.js";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * A line stopped: tell the workspace's bell, the platform's mailbox and the ledger.
@@ -39,7 +41,7 @@ import { logger } from "../log.js";
 export async function reportLineFailed(
   db: SupabaseClient<Database>,
   providerName: string,
-  tenant: { id: string; name: string },
+  tenant: { id: TenantId; name: string },
   line: { id: string; e164: string | null },
   step: string,
   error: string,
@@ -71,7 +73,7 @@ export async function reportLineFailed(
     error: error.slice(0, 300),
     provider: providerName,
     by,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event line.failed"));
 }
 
 export async function provisionLine(
@@ -79,7 +81,7 @@ export async function provisionLine(
   choice: LineProviderChoice,
   cfg: { apiKey: string },
   secrets: { fnSecret: string | null },
-  tenant: { id: string; name: string },
+  tenant: { id: TenantId; name: string },
   line: LineRow,
   /**
    * Who started this run, for the platform email: a person pressed something, or
@@ -120,7 +122,7 @@ export async function provisionLine(
       provider: choice.name,
       agent_id: result.line.retell_agent_id,
       by,
-    }).catch(() => {});
+    }).catch(logAndGoOn("event line.answering"));
     // The workspace's first line that answers: the funnel's first milestone (a WhatsApp connection is the other door).
     await recordActivation(db, tenant.id, "line_live", "phone").catch(() => false);
   } else {

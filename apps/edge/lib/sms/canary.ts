@@ -4,7 +4,7 @@
  * reply left. Nothing else shows that a real Twilio text gets a real answer while real traffic is near zero: the suite
  * fakes the wires, and the nightly cannot send one.
  *
- * pg_cron asks for it at 14:00 and 14:15 UTC ('text-canary', 00537). Each tick reads the line's own record from Twilio for the
+ * pg_cron asks for it at 14:00 and 14:15 UTC ('text-canary', 00579). Each tick reads the line's own record from Twilio for the
  * canary's words in the last CHECK_WITHIN_MS: none, and it sends one (CANARY_SMS_SERVICE, a Messaging Service of the
  * master account holding the canary's number, to CANARY_SMS_TO, the platform workspace's line); one younger than
  * CHECK_AFTER_MS, and it waits; an older one, and it asks the database what became of it, and pages the platform when
@@ -15,15 +15,15 @@
  * Messaging Service must answer nothing itself and post nothing to our door (no inbound request URL), or the
  * receptionist's reply to the canary's number would come back to a door that knows no line for it.
  */
-import { MIN_MS } from "../packages/contracts.js";
-import { answerOfMessage } from "../packages/db.js";
-import { env } from "../env.js";
-import { json } from "../http.js";
-import { errField } from "../log.js";
+import { MIN_MS } from "@chanlytics/contracts";
+import { answerOfMessage } from "@chanlytics/db/channels";
+import { env } from "../shared/env.js";
+import { json } from "../shared/http.js";
+import { errField } from "../shared/log.js";
 import { lineProviderFromEnv, type LineProviderChoice } from "../lines/lines.js";
-import { pageOperator } from "../ops/page-operator.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
 import type { SweepTick } from "../ops/sweep-door.js";
-import { lineAccount, lineByNumber } from "./sms.js";
+import { findLineAccount, findLineByNumber } from "../lines/sms.js";
 
 /** The canary's words: a customer's ordinary question, which the receptionist answers. Found in the record by them. */
 const CANARY_WORDS = "Hi! Are you open today? (a daily check from Chanlytics)";
@@ -58,8 +58,8 @@ export async function sweepCanary(tick: SweepTick, world: CanaryWorld = realWorl
   };
   if (!world.service || !world.to) return off("not_set");
   if (!world.provider) return off("no_line_provider");
-  const line = await lineByNumber(db, world.to);
-  const account = line ? await lineAccount(db, line) : null;
+  const line = await findLineByNumber(db, world.to);
+  const account = line ? await findLineAccount(db, line) : null;
   if (!line || !account) return off("no_line");
 
   const now = world.now();

@@ -19,10 +19,12 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapCategory, mapQuality, mapStatus } from "./meta-templates.js";
-import type { Database, Json } from "../packages/db.js";
-import { emitEvent, keepChannelStanding, setTemplateQuality } from "../packages/db.js";
-import { mendWarnings, notify, type NotifyTarget } from "../ops/notify.js";
-import { templatesSynced } from "./template-admin.js";
+import type { Database, Json } from "@chanlytics/db/types";
+import { emitEvent } from "@chanlytics/db/events";
+import { keepChannelStanding } from "@chanlytics/db/jobs";
+import { patchWhatsAppTemplate, patchWhatsAppTemplateBack, setTemplateQuality } from "@chanlytics/db/campaigns";
+import { mendWarnings, notify, type NotifyTarget } from "../shared/alerts/notify.js";
+import { syncTemplates } from "./template-admin.js";
 import {
   addressOf,
   nameDecisionWords,
@@ -36,15 +38,23 @@ import {
   type ServerNotificationKind,
   type WabaEventKind,
   MESSAGES_ROUTE,
-} from "../packages/contracts.js";
-import { logger, errField, type Logger } from "../log.js";
+  textOrEmpty,
+  DbFailure,
+} from "@chanlytics/contracts";
+import { logger, errField, type Logger } from "../shared/log.js";
+import { findChannelConfig, listNumbersOfWaba, patchChannelRow } from "@chanlytics/db/channels";
+import { findConfigRow } from "@chanlytics/db/workspace";
+import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
-export async function notificationsFor(
+export async function findNotifications(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<NotificationsConfig | null> {
-  const { data } = await db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await findConfigRow(db, tenantId);
+  // Unread is not "tell nobody": an account's news would be dropped. Thrown, the delivery is tried again.
+  if (error) throw new DbFailure(error, "cannot read the workspace's notifications");
   return parseTenantConfig(data?.config ?? null)?.notifications ?? null;
 }
 
@@ -57,7 +67,7 @@ interface WabaChange {
 }
 
 interface Routed {
-  tenantId: string;
+  tenantId: TenantId;
   channelId: string;
   number: string | null;
   /** The channel's config as read, where the standing a name decision corrects is held. */
@@ -71,13 +81,8 @@ interface Routed {
  * number not on file, is the account's oldest active number, the one every reader that knows no number picks.
  */
 async function routeByWaba(db: SupabaseClient<Database>, wabaId: string, named: unknown): Promise<Routed | null> {
-  const { data, error } = await db
-    .from("tenant_channels")
-    .select("id, tenant_id, number_e164, config")
-    .eq("kind", "whatsapp")
-    .eq("waba_id", wabaId)
-    .eq("status", "active")
-    .order("created_at", { ascending: true });
+  // Meta names its account, not the workspace: the number is found across workspaces by that id, by design.
+  const { data, error } = await listNumbersOfWaba(db, wabaId);
   if (error) {
     logger().error("waba_route_failed", { waba_id: wabaId, error: error.message });
     return null;
@@ -175,12 +180,12 @@ const statusWord = (status: keyof typeof TEMPLATE_STATUS_WORDS): string => TEMPL
  * A template moved to another category. Moved to marketing is a restriction, not a failure: it can still be sent, but only to a
  * recorded yes. It reads with the ones it cannot.
  */
-function categoryWords(v: Record<string, unknown>): WabaWords {
-  const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
-  const to = typeof v.new_category === "string" ? v.new_category.toLowerCase() : "another category";
+function categoryWords(record: Record<string, unknown>): WabaWords {
+  const name = typeof record.message_template_name === "string" ? record.message_template_name : "a template";
+  const to = typeof record.new_category === "string" ? record.new_category.toLowerCase() : "another category";
   return {
     ...(to === "marketing" ? BLOCKED : READY),
-    ...aboutTemplate(v),
+    ...aboutTemplate(record),
     subject: `Template “${name}” is now ${to}`,
     body: `Meta moved the template “${name}” to ${to}.${to === "marketing" ? " Sends that use it now need the customer's recorded yes." : ""}`,
     alert: to === "marketing",
@@ -188,16 +193,16 @@ function categoryWords(v: Record<string, unknown>): WabaWords {
 }
 
 /** A template's status at Meta moved: refused, paused or disabled, or approved; null for a status nobody is told of. */
-function templateStatusWords(v: Record<string, unknown>): WabaWords | null {
-  const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
-  const door = aboutTemplate(v);
-  const event = String(v.event ?? "");
+function templateStatusWords(record: Record<string, unknown>): WabaWords | null {
+  const name = typeof record.message_template_name === "string" ? record.message_template_name : "a template";
+  const door = aboutTemplate(record);
+  const event = textOrEmpty(record.event);
   if (event === "REJECTED")
     return {
       ...BLOCKED,
       ...door,
       subject: `Template “${name}” ${statusWord("rejected")}`,
-      body: `WhatsApp ${statusWord("rejected")} the template “${name}”${typeof v.reason === "string" && v.reason !== "NONE" ? ` (${v.reason.toLowerCase().replace(/_/g, " ")})` : ""}. It cannot be sent until it is revised and approved.`,
+      body: `WhatsApp ${statusWord("rejected")} the template “${name}”${typeof record.reason === "string" && record.reason !== "NONE" ? ` (${record.reason.toLowerCase().replace(/_/g, " ")})` : ""}. It cannot be sent until it is revised and approved.`,
       alert: true,
     };
   if (event === "PAUSED" || event === "DISABLED")
@@ -225,13 +230,13 @@ function nameNotice(v: Record<string, unknown>): WabaWords | null {
   return words ? { ...NUM, ...words } : null;
 }
 
-export function describeWabaChange(c: WabaChange, number: string | null): WabaWords | null {
-  const v = c.value;
+export function describeWabaChange(wabaChange: WabaChange, number: string | null): WabaWords | null {
+  const value = wabaChange.value;
   const line = number ? `Your WhatsApp number ${number}` : "Your WhatsApp number";
-  switch (c.field) {
+  switch (wabaChange.field) {
     case "phone_number_quality_update": {
-      const event = String(v.event ?? "");
-      const limit = typeof v.current_limit === "string" ? v.current_limit : null;
+      const event = textOrEmpty(value.event);
+      const limit = typeof value.current_limit === "string" ? value.current_limit : null;
       if (event === "FLAGGED")
         return {
           ...NUM,
@@ -263,7 +268,7 @@ export function describeWabaChange(c: WabaChange, number: string | null): WabaWo
       return null;
     }
     case "account_update": {
-      const event = String(v.event ?? "");
+      const event = textOrEmpty(value.event);
       if (event === "DISABLED_UPDATE" || event === "ACCOUNT_RESTRICTION" || event === "ACCOUNT_VIOLATION")
         return {
           ...NUM,
@@ -281,13 +286,13 @@ export function describeWabaChange(c: WabaChange, number: string | null): WabaWo
       return null;
     }
     case "message_template_status_update":
-      return templateStatusWords(v);
+      return templateStatusWords(value);
     case "template_category_update":
-      return categoryWords(v);
+      return categoryWords(value);
     case "phone_number_name_update":
-      return nameNotice(v);
+      return nameNotice(value);
     case "account_review_update": {
-      const decision = String(v.decision ?? "");
+      const decision = textOrEmpty(value.decision);
       if (decision === "REJECTED")
         return {
           ...NUM,
@@ -317,9 +322,9 @@ export function describeWabaChange(c: WabaChange, number: string | null): WabaWo
  */
 async function applyTemplateQuality(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   value: Record<string, unknown>,
-  L: Logger,
+  log: Logger,
 ): Promise<void> {
   const quality = mapQuality(value.new_quality_score);
   const name = typeof value.message_template_name === "string" ? value.message_template_name : null;
@@ -328,7 +333,7 @@ async function applyTemplateQuality(
   try {
     await setTemplateQuality(db, { tenantId, name, language, quality });
   } catch (e) {
-    L.error("template_quality_write_failed", { error: errField(e) });
+    log.error("template_quality_write_failed", { error: errField(e) });
   }
 }
 
@@ -342,7 +347,7 @@ async function keepNameDecision(
   db: SupabaseClient<Database>,
   routed: Routed,
   value: Record<string, unknown>,
-  L: Logger,
+  log: Logger,
 ): Promise<void> {
   const cfg = routed.config;
   const kept = standingFromConfig(typeof cfg === "object" && cfg !== null && !Array.isArray(cfg) ? cfg.standing : null);
@@ -351,8 +356,38 @@ async function keepNameDecision(
   try {
     await keepChannelStanding(db, routed.tenantId, routed.channelId, next);
   } catch (e) {
-    L.error("wa_standing_keep_failed", { error: errField(e) });
+    log.error("wa_standing_keep_failed", { error: errField(e) });
   }
+}
+
+/**
+ * The newest rating on the channel's row, beside what else its config holds. The write replaces the whole config, so a read
+ * that failed writes nothing: over an empty one it would take the number's standing with it. Best effort: a failure is a line
+ * and costs the row its new rating, never the webhook its answer.
+ */
+async function keepRating(
+  db: SupabaseClient<Database>,
+  routed: Routed,
+  value: Record<string, unknown>,
+  log: Logger,
+): Promise<void> {
+  const failed = (step: "read" | "write", error: string) =>
+    log.error("channel_quality_row_failed", { channel_id: routed.channelId, step, error });
+  const read = await findChannelConfig(db, routed.tenantId, routed.channelId);
+  if (read.error) return failed("read", read.error.message);
+  const cfg = (read.data?.config && typeof read.data.config === "object" ? read.data.config : {}) as Record<
+    string,
+    unknown
+  >;
+  const kept = await patchChannelRow(db, routed.tenantId, routed.channelId, {
+    config: jsonCopyOf({
+      ...cfg,
+      messaging_limit: value.current_limit,
+      quality_event: value.event ?? null,
+      quality_at: new Date().toISOString(),
+    }),
+  });
+  if (kept.error) failed("write", kept.error.message);
 }
 
 /**
@@ -376,72 +411,52 @@ const TEMPLATE_ROW_WAIT_MS = 2_000;
  */
 async function keepTemplateStatus(
   db: SupabaseClient<Database>,
-  p: { tenantId: string; waba: string; name: string; language: string; event: string; reason: string | null },
-  L: Logger,
+  params: { tenantId: TenantId; waba: string; name: string; language: string; event: string; reason: string | null },
+  log: Logger,
 ): Promise<void> {
   const write = () =>
-    db
-      .from("templates")
-      .update({ meta_status: mapStatus(p.event), rejected_reason: p.reason })
-      .eq("tenant_id", p.tenantId)
-      .eq("channel", "whatsapp")
-      .eq("name", p.name)
-      .eq("language", p.language)
-      .select("id");
+    patchWhatsAppTemplateBack(
+      db,
+      params.tenantId,
+      { name: params.name, language: params.language },
+      { meta_status: mapStatus(params.event), rejected_reason: params.reason },
+    );
   let kept = await write();
   if (kept.error || !kept.data?.length) {
     await new Promise((r) => setTimeout(r, TEMPLATE_ROW_WAIT_MS));
     kept = await write();
   }
-  if (kept.error) L.error("template_status_write_failed", { error: kept.error.message });
+  if (kept.error) log.error("template_status_write_failed", { error: kept.error.message });
   if (kept.data?.length) return;
-  const synced = await templatesSynced(db, p.tenantId, p.waba).catch((e: unknown) => ({
+  const synced = await syncTemplates(db, params.tenantId, params.waba).catch((e: unknown) => ({
     ok: false as const,
     code: "write_failed" as const,
     detail: e instanceof Error ? e.message : String(e),
   }));
-  if (!synced.ok) L.error("template_status_sync_failed", { code: synced.code, error: synced.detail ?? null });
+  if (!synced.ok) log.error("template_status_sync_failed", { code: synced.code, error: synced.detail ?? null });
 }
 
 export async function handleWabaChange(
   db: SupabaseClient<Database>,
   entryId: string,
   change: WabaChange,
-  loadNotifications: (tenantId: string) => Promise<NotificationsConfig | null>,
+  loadNotifications: (tenantId: TenantId) => Promise<NotificationsConfig | null>,
 ): Promise<"unrouted" | "unclaimed" | "kept" | "alerted"> {
   const about = accountOf(entryId, change.value);
   if (!about) return "unrouted";
   const routed = await routeByWaba(db, about.waba, change.value.display_phone_number);
   if (!routed) return unheld(about, entryId, change);
-  const L = logger({ tenant_id: routed.tenantId });
+  const log = logger({ tenant_id: routed.tenantId });
   const described = describeWabaChange(change, routed.number);
   await emitEvent(db, routed.tenantId, `channel.${change.field}` as WabaEventKind, "channel", routed.channelId, {
     waba_id: about.waba,
     ...change.value,
   }).catch((e: unknown) => {
-    L.error("waba_event_write_failed", { error: errField(e) });
+    log.error("waba_event_write_failed", { error: errField(e) });
   });
   // The channel row remembers the newest rating, so Settings can show it.
   if (change.field === "phone_number_quality_update" && typeof change.value.current_limit === "string") {
-    const { data: row } = await db
-      .from("tenant_channels")
-      .select("config")
-      .eq("id", routed.channelId)
-      .eq("tenant_id", routed.tenantId)
-      .maybeSingle();
-    const cfg = (row?.config && typeof row.config === "object" ? row.config : {}) as Record<string, unknown>;
-    await db
-      .from("tenant_channels")
-      .update({
-        config: {
-          ...cfg,
-          messaging_limit: change.value.current_limit,
-          quality_event: change.value.event ?? null,
-          quality_at: new Date().toISOString(),
-        } as unknown as Json,
-      })
-      .eq("id", routed.channelId)
-      .eq("tenant_id", routed.tenantId);
+    await keepRating(db, routed, change.value, log);
   }
   // The templates table follows Meta's word: a status or category change
   // lands on the row the sync keeps, by name and language. Only the events
@@ -453,7 +468,7 @@ export async function handleWabaChange(
       typeof change.value.message_template_language === "string" ? change.value.message_template_language : null;
     if (name && language) {
       if (change.field === "message_template_status_update") {
-        const event = String(change.value.event ?? "");
+        const event = textOrEmpty(change.value.event);
         if (TEMPLATE_STATUS_EVENTS.has(event)) {
           const reason =
             event === "REJECTED" && typeof change.value.reason === "string" && change.value.reason !== "NONE"
@@ -462,26 +477,23 @@ export async function handleWabaChange(
           await keepTemplateStatus(
             db,
             { tenantId: routed.tenantId, waba: about.waba, name, language, event, reason },
-            L,
+            log,
           );
         }
       } else {
-        const { error } = await db
-          .from("templates")
-          .update({
-            category: mapCategory(typeof change.value.new_category === "string" ? change.value.new_category : null),
-          })
-          .eq("tenant_id", routed.tenantId)
-          .eq("channel", "whatsapp")
-          .eq("name", name)
-          .eq("language", language);
-        if (error) L.error("template_category_write_failed", { error: error.message });
+        const { error } = await patchWhatsAppTemplate(
+          db,
+          routed.tenantId,
+          { name, language },
+          { category: mapCategory(typeof change.value.new_category === "string" ? change.value.new_category : null) },
+        );
+        if (error) log.error("template_category_write_failed", { error: error.message });
       }
     }
   }
   if (change.field === "message_template_quality_update")
-    await applyTemplateQuality(db, routed.tenantId, change.value, L);
-  if (change.field === "phone_number_name_update") await keepNameDecision(db, routed, change.value, L);
+    await applyTemplateQuality(db, routed.tenantId, change.value, log);
+  if (change.field === "phone_number_name_update") await keepNameDecision(db, routed, change.value, log);
   if (!described) return "kept";
   return tellWabaChange(db, routed, change.field, described, loadNotifications);
 }
@@ -496,11 +508,13 @@ async function tellWabaChange(
   db: SupabaseClient<Database>,
   routed: Routed,
   field: string,
-  said: WabaWords,
-  loadNotifications: (tenantId: string) => Promise<NotificationsConfig | null>,
+  wabaWords: WabaWords,
+  loadNotifications: (tenantId: TenantId) => Promise<NotificationsConfig | null>,
 ): Promise<"kept" | "alerted"> {
   const described =
-    field === "phone_number_quality_update" ? { ...said, about: { type: "channel", id: routed.channelId } } : said;
+    field === "phone_number_quality_update"
+      ? { ...wabaWords, about: { type: "channel", id: routed.channelId } }
+      : wabaWords;
   if (!described.alert) {
     // Never throws: a close that fails is logged and the warning stays until it is read.
     await mendWarnings(db, {

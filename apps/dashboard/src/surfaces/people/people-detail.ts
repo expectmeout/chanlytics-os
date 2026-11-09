@@ -14,19 +14,19 @@ import {
   type AskedPurpose,
   MIN_MS,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { commitVerb, type VerbResult } from "@/legacy-bridge/verbs/commit";
+import { api } from "@/bridge/api";
+import { commitVerb, type VerbResult } from "@/bridge/verbs/commit";
 import { ApiError, type ApiResult } from "@/client/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
+import { workspaceZone } from "@/bridge/zone";
 import { codeOnce } from "@/lib/code-once";
-import { readCache, staleReadCaches } from "@/legacy-bridge/read-cache";
+import { readCache, staleReadCaches } from "@/bridge/read-cache";
 import { holderName } from "../holder-names";
-import { keepSavedView, peopleLoaded } from "./surface";
-import { declareReads, personRouteId } from "@/legacy-bridge/surface-registry";
-import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
-import { bootWaitsFor } from "@/legacy-bridge/surface-runner";
-import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
-import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
+import { keepSavedView, peopleGoing, peopleLoaded } from "./surface";
+import { declareReads, personRouteId } from "@/bridge/surface-registry";
+import { isLiveCallTurn } from "@/bridge/surface-realtime";
+import { bootWaitsFor } from "@/bridge/surface-runner";
+import type { SurfaceOverride } from "@/bridge/surface-data";
+import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
 
 /**
  * The profile courier: `personDetail(id)`.
@@ -65,7 +65,7 @@ export function personDetail(id: string): Promise<PersonVM | null> {
       personShape(),
     ]);
     // For the member looking (__ME): a teammate's thread is theirs, not waiting on you.
-    const me = (window as unknown as { __ME?: { id?: string | null } }).__ME?.id ?? null;
+    const me = (window as Window & { __ME?: { id?: string | null } }).__ME?.id ?? null;
     // More's sends are judged against the lines People read (null until it has: the sheet judges them again).
     if (r.ok)
       return shape.toPersonVM(r.data.person, tz, new Date(), me, {
@@ -154,7 +154,7 @@ function personOnScreen(win: Window = window): string | null {
 
 /**
  * A tab opened on a person's page reads them before anything else: called once, at module scope, before React and
- * the surfaces' boot (LegacyApp.tsx). The page's own read, a moment later, shares this one (client/api.ts). Measured
+ * the surfaces' boot (FrameApp.tsx). The page's own read, a moment later, shares this one (client/api.ts). Measured
  * on production (23 Sep 2026): on a reload their read went out beside eight of the boot's and took 1.4 s, against
  * 0.3-0.7 s alone. Off a workspace page nothing is read: a read that names no workspace is refused.
  */
@@ -225,7 +225,7 @@ type DeleteResult = ApiResult<unknown>;
 
 /**
  * A verb's answer as this courier's callers read it: the door's answer, or its refusal. Each writer below commits through
- * its verb's spec (legacy-bridge/verbs, contracts PROPOSAL_SPECS), the walk Ask's cards take too, so the same act makes the
+ * its verb's spec (bridge/verbs, contracts PROPOSAL_SPECS), the walk Ask's cards take too, so the same act makes the
  * same call whichever hand pressed it (the sheets as verbs, 14 Oct 2026).
  */
 function verbAnswer<O>(r: VerbResult): ApiResult<O> {
@@ -283,30 +283,41 @@ export async function notAPerson(id: string, scope: "address" | "domain"): Promi
   return r;
 }
 
-/** What a press of Delete… answered: who went, who did not and why, who was not this workspace's, who is left. */
+/** What a press of Delete… answered: who is going, who is not and why, and who was not there to go. */
 export interface DeletedMany {
   ok: boolean;
-  erased: string[];
+  going: string[];
   failed: { id: string; message: string }[];
   skipped: string[];
-  left: string[];
   message?: string;
 }
 
 /**
- * Many people deleted at one press (People's Delete…), fifty at most, each as deletePerson deletes one; with
- * `notAPersonToo`, each one's address said automated first, as notAPerson says it. Owner-only on the server, on a fresh
- * session, and never undone. A refused press deleted nobody, and every one asked is left.
+ * Many people deleted at one press (People's Delete…), however many: the server hands them to the ledger and answers,
+ * and they leave People here as it does (peopleGoing), the erasing behind it; with `notAPersonToo`, each one's address
+ * said automated first, as notAPerson says it. Owner-only on the server, on a fresh session, and never undone. The
+ * threads are read again behind the press, for it has taken them out of those lists too (server people/going.ts), and
+ * the sheet does not wait on that. Pressing again after a refused press is safe: whoever is going has their one erasure.
  */
 export async function deletePeopleMany(ids: string[], notAPersonToo: boolean): Promise<DeletedMany> {
-  const take = [...new Set(ids)].slice(0, 50);
-  const r = await api()("POST contacts/erase", { body: { ids: take, not_a_person: notAPersonToo } });
-  if (!r.ok) return { ok: false, erased: [], failed: [], skipped: [], left: take, message: r.message };
-  for (const id of r.data.erased) {
+  const take = [...new Set(ids)];
+  const r = await api()("POST contacts/erase", { body: { ids: take, not_a_person: notAPersonToo }, refresh: "behind" });
+  if (!r.ok) return { ok: false, going: [], failed: [], skipped: [], message: r.message };
+  for (const id of r.data.going) {
     people().forget(id);
     deletedHere.add(id);
   }
+  peopleGoing(r.data.going, erasedBehind);
   return { ok: true, ...r.data };
+}
+
+/**
+ * What a person erased moves beside People, read again as Delete person's own answer reads it (refresh-map.ts `erased`):
+ * asked once the ledger has erased those a press handed it (surface.ts peopleGoing), since that press erases nobody.
+ */
+function erasedBehind(): void {
+  staleReadCaches();
+  void import("@/bridge/refresh-map").then((m) => m.refreshAfter("DELETE contacts/[id]")).catch(() => {});
 }
 
 /** The people this tab deleted (deletePerson, notAPerson, deletePeopleMany). */
@@ -557,7 +568,7 @@ export async function recordDeal(
   opts: { refresh?: false | "behind" } = {},
 ): Promise<ApiResult<{ deal: DealDto; from: string | null; decision_id: string; current: DealDto | null }>> {
   // The row moves as the door answers (0008): the door answers the deal the person's People row shows now (`current`,
-  // people_list's rule), which the verb walk lays on the row at once (legacy-bridge/verbs/effects.ts), and People and
+  // people_list's rule), which the verb walk lays on the row at once (bridge/verbs/effects.ts), and People and
   // Reports are read again behind it, so the sheet closes when the server takes the move rather than once every person
   // has been read again. One intent, however often Save is pressed (decision 0035).
   return verbAnswer(
@@ -609,7 +620,7 @@ export async function passDeals(
   // As the client's own refresh after a write does: the tab's copies of what changed are read again, then the surfaces.
   if (items.length) {
     staleReadCaches();
-    await import("@/legacy-bridge/refresh-map").then((m) => m.refreshAfter("POST contacts/[id]/deal"));
+    await import("@/bridge/refresh-map").then((m) => m.refreshAfter("POST contacts/[id]/deal"));
   }
   return { passed, changed, failed };
 }

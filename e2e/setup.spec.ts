@@ -85,6 +85,18 @@ test.describe("Setup on a real workspace, a step at a time", () => {
   test("Later is this person's: a row put off stays put off after a reload, and comes back when taken back", async ({
     page,
   }) => {
+    // Whether Google can be read is the edge's to say, and a copy's stand-in refuses (decision 0106), so a copy draws no
+    // Google row: the one optional row of a step this workspace reaches. It is drawn here as a listing Google has stopped
+    // answering for, which is all that is. Putting it off and taking it back are the real writes, to this member's view.
+    if (process.env.EDGE_URL)
+      await page.route("**/api/v1/setup?*", async (route) => {
+        const response = await route.fetch();
+        const body = (await response.json()) as { data: { setup: { google: { listing: object | null } } } };
+        const { setup } = body.data;
+        const listing = { ...setup.google.listing, check_error: "Google did not answer" };
+        setup.google = { ...setup.google, ready: true, places: true, listing } as typeof setup.google;
+        await route.fulfill({ response, json: body });
+      });
     await page.goto("/#/start");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("first-run")).toBeVisible();
@@ -167,13 +179,13 @@ test.describe("Setup on a real workspace, a step at a time", () => {
     await line.getByTestId("ask-input").press("Enter");
     if (!turn) {
       await expect.poll(() => asked.length, { message: "the question is asked, once" }).toBe(1);
-      expect(asked[0].text).toBe(SETUP_LEFT);
-      expect(asked[0].surface, "on the first run's own surface").toBe("start");
-      expect(asked[0].context?.surface, "with the page it is asked on").toBe("start");
-      expect(asked[0].context?.route).toMatch(/^start/);
+      expect(asked[0]?.text).toBe(SETUP_LEFT);
+      expect(asked[0]?.surface, "on the first run's own surface").toBe("start");
+      expect(asked[0]?.context?.surface, "with the page it is asked on").toBe("start");
+      expect(asked[0]?.context?.route).toMatch(/^start/);
       return;
     }
-    const first = JSON.parse((await (await turn).text()).split("\n")[0]) as { t: string; id: string };
+    const first = JSON.parse((await (await turn).text()).split("\n")[0] ?? "") as { t: string; id: string };
     expect(first.t, "the stream opens with its conversation").toBe("thread");
     try {
       const say = line.getByTestId("ask-say");

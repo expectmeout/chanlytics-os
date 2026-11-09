@@ -1,5 +1,5 @@
 import { LeadStageInputSchema } from "@chanlytics/contracts";
-import { write } from "@/server/route";
+import { write } from "@/server/shared/route";
 import { leadScope, setStage } from "@/server/leads/leads";
 
 /**

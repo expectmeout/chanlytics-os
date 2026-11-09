@@ -15,12 +15,12 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Sheet } from "../../kit/sheet/sheet";
-import { navigate, refreshSurface, useLegacyToast } from "../../legacy-verbs";
+import { navigate, refreshSurface, useFrameToast } from "../../frame-verbs";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import type { BroadcastsSurface } from "../../campaigns/broadcasts/surface";
 
-type Flash = ReturnType<typeof useLegacyToast>[1];
+type Flash = ReturnType<typeof useFrameToast>[1];
 
 /** Its body while the workspace is paused, with a number: the sheet stays where every door lands, and says why. */
 function Paused() {
@@ -149,7 +149,7 @@ function yesSheetBodyOf(bc: BroadcastsSurface | undefined | null, flash: Flash):
 
 export function GetYesSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const bc = useSurface("broadcasts");
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
   // Sent's read, which People's page does not make: asked for as the sheet opens.
   useEffect(() => {
     if (open && surfaceValue("broadcasts") === undefined) void refreshSurface("broadcasts");

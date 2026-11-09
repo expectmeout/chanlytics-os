@@ -11,10 +11,12 @@
  * One model call reads the whole conversation (purpose receptionist_review, Sonnet: D3), every part of it as data. Its
  * answer is checked here, as the learning loop checks its model's (notes/fact-suggest.ts): what it quotes of the
  * receptionist must be the receptionist's words in that answer, and what it quotes of the instructions must be in them,
- * or the verdict is dropped. Nothing it says is taken on its word.
+ * each as its fence showed it, or the verdict is dropped. Nothing it says is taken on its word.
  */
+import { defang } from "../ai/fence";
 import type { Tone } from "../shell/tone";
 import type { RehearsalTurn } from "./rehearsal";
+import { isOneOf } from "../shared/unknown";
 
 export const REVIEW_VERDICTS = ["right", "rule", "guessed", "didnt_know", "off"] as const;
 export type ReviewVerdict = (typeof REVIEW_VERDICTS)[number];
@@ -81,8 +83,11 @@ export function exchangesOf(turns: readonly RehearsalTurn[]): ReviewExchange[] {
   return out.slice(0, REVIEW_LIMITS.exchangesMax);
 }
 
-/** A part as the model reads it: inside its tag as JSON, never as instructions, and cut short. */
-const asData = (s: string, max: number) => s.replace(/\s+/g, " ").trim().slice(0, max);
+/**
+ * A part as the model reads it: inside its tag as JSON, never as instructions, unable to close the tag, and cut short,
+ * after what a reader cannot see is out, so a run of that uses up none of the bound.
+ */
+const asData = (s: string, max: number) => defang(s).replace(/\s+/g, " ").trim().slice(0, max);
 
 /** What the model is told. Every part of the conversation and the instructions is data inside tags. */
 export function reviewSystemPrompt(): string {
@@ -111,7 +116,7 @@ export function reviewUserContent(instructions: string, exchanges: readonly Revi
     receptionist: asData(e.receptionist, REVIEW_LIMITS.turnMaxChars),
   }));
   return [
-    `<instructions>\n${JSON.stringify(instructions.slice(0, REVIEW_LIMITS.instructionsMaxChars))}\n</instructions>`,
+    `<instructions>\n${JSON.stringify(defang(instructions).slice(0, REVIEW_LIMITS.instructionsMaxChars))}\n</instructions>`,
     `<conversation>\n${JSON.stringify(conv)}\n</conversation>`,
   ].join("\n");
 }
@@ -168,15 +173,18 @@ export type ReviewDto = {
   judged_against: "then" | "now";
 };
 
-/** Text compared as words: case, spacing and the curly quotes a transcript uses set aside. */
+/**
+ * Text compared as words: as its fence shows it, since a quote is of what the model was shown, with case, spacing and
+ * the curly quotes a transcript uses set aside.
+ */
 const comparable = (s: string) =>
-  s.toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
+  defang(s).toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
 
-const textUpTo = (v: unknown, max: number) =>
-  typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "";
+/** What the model answered, read as a part is: a quote of nothing but what a reader cannot see has no length to pass on. */
+const textUpTo = (v: unknown, max: number) => (typeof v === "string" ? asData(v, max) : "");
 
-const isVerdict = (v: unknown): v is ReviewVerdict => (REVIEW_VERDICTS as readonly unknown[]).includes(v);
-const isFix = (v: unknown): v is FixKind => (FIX_KINDS as readonly unknown[]).includes(v);
+const isVerdict = (v: unknown): v is ReviewVerdict => isOneOf(REVIEW_VERDICTS, v);
+const isFix = (v: unknown): v is FixKind => isOneOf(FIX_KINDS, v);
 
 /**
  * The model's answer, checked in code. A verdict is kept only when what it quotes of the receptionist is in that
@@ -192,42 +200,42 @@ export function checkReview(
   const list = (answer as { exchanges?: unknown } | null)?.exchanges;
   const given = Array.isArray(list) ? list : [];
   const byN = new Map(exchanges.map((e) => [e.n, e]));
-  const said = new Set<number>();
-  const told = comparable(instructions);
+  const seenIndexes = new Set<number>();
+  const notice = comparable(instructions);
   const items: ReviewItem[] = [];
   let dropped = 0;
   for (const raw of given) {
-    const r = (raw ?? {}) as Record<string, unknown>;
-    const n = typeof r.n === "number" ? r.n : NaN;
-    const e = byN.get(n);
-    if (!e || said.has(n) || !isVerdict(r.verdict)) {
+    const item = (raw ?? {}) as Record<string, unknown>;
+    const count = typeof item.n === "number" ? item.n : NaN;
+    const found = byN.get(count);
+    if (!found || seenIndexes.has(count) || !isVerdict(item.verdict)) {
       dropped++;
       continue;
     }
-    const quote = textUpTo(r.said, REVIEW_LIMITS.turnMaxChars);
-    const from = textUpTo(r.from, REVIEW_LIMITS.turnMaxChars);
-    const stands = r.verdict === "right" || r.verdict === "rule";
+    const quote = textUpTo(item.said, REVIEW_LIMITS.turnMaxChars);
+    const from = textUpTo(item.from, REVIEW_LIMITS.turnMaxChars);
+    const stands = item.verdict === "right" || item.verdict === "rule";
     const quoteOk =
-      quote.length >= REVIEW_LIMITS.quoteMinChars && comparable(e.receptionist).includes(comparable(quote));
-    const fromOk = !stands || (from.length >= REVIEW_LIMITS.quoteMinChars && told.includes(comparable(from)));
-    const why = textUpTo(r.why, REVIEW_LIMITS.whyMax);
-    if (!quoteOk || !fromOk || !why) {
+      quote.length >= REVIEW_LIMITS.quoteMinChars && comparable(found.receptionist).includes(comparable(quote));
+    const fromOk = !stands || (from.length >= REVIEW_LIMITS.quoteMinChars && notice.includes(comparable(from)));
+    const reason = textUpTo(item.why, REVIEW_LIMITS.whyMax);
+    if (!quoteOk || !fromOk || !reason) {
       dropped++;
       continue;
     }
-    said.add(n);
-    const hint = textUpTo(r.hint, REVIEW_LIMITS.hintMax);
+    seenIndexes.add(count);
+    const hint = textUpTo(item.hint, REVIEW_LIMITS.hintMax);
     items.push({
-      n,
-      verdict: r.verdict,
-      customer: e.customer,
-      receptionist: e.receptionist,
+      n: count,
+      verdict: item.verdict,
+      customer: found.customer,
+      receptionist: found.receptionist,
       from: stands ? from : null,
       block: stands ? blockOf(from) : null,
       said: quote,
-      why,
-      fix: r.verdict === "right" ? "none" : isFix(r.fix) ? r.fix : "none",
-      hint: r.verdict === "right" || r.verdict === "rule" || !hint ? null : hint,
+      why: reason,
+      fix: item.verdict === "right" ? "none" : isFix(item.fix) ? item.fix : "none",
+      hint: item.verdict === "right" || item.verdict === "rule" || !hint ? null : hint,
     });
   }
   return { items: items.sort((a, b) => a.n - b.n), dropped };
@@ -282,9 +290,9 @@ export const VERDICT_TONE = {
 
 /** The line at the top: what needs you, then what was right. */
 export function reviewHeadline(items: readonly ReviewItem[]): string {
-  const count = (v: ReviewVerdict) => items.filter((i) => i.verdict === v).length;
+  const countOf = (v: ReviewVerdict) => items.filter((i) => i.verdict === v).length;
   const parts = (["guessed", "didnt_know", "off", "rule", "right"] as const)
-    .map((v) => [v, count(v)] as const)
+    .map((v) => [v, countOf(v)] as const)
     .filter(([, n]) => n > 0)
     .map(([v, n]) => `${n} ${REVIEW_WORDS.verdicts[v].toLowerCase()}`);
   return parts.length ? parts.join(" · ") : REVIEW_WORDS.none;

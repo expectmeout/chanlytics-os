@@ -1,6 +1,6 @@
 /**
  * What a route takes and answers, proved where the compiler reads it. A handler made by `read` or `write`
- * (server/route.ts) carries its schema's input and its handle's output as a phantom `Shape`; the generated registry
+ * (server/shared/route.ts) carries its schema's input and its handle's output as a phantom `Shape`; the generated registry
  * (routes.generated.ts) keys each handler; and the typed client (api.ts) reads both from the key. So a call through
  * the client (`api`, and `api.raw`) stops compiling when it leaves out the options a route needs, when its path lacks
  * its parameters or its write the body the schema declares, when the body falls short of the schema or carries a
@@ -16,7 +16,7 @@
  */
 import type { Exactly, Holds, Ok, Within } from "@chanlytics/contracts";
 import type { SnoozeResult } from "@chanlytics/core";
-import type { InputOf, OutputOf, Shape } from "../server/route";
+import type { InputOf, OutputOf, Shape } from "../server/shared/route";
 import type { Api, ApiRefusal, ApiResult, Input, Output, Params } from "./api";
 import type { Routes } from "./routes.generated";
 

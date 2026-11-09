@@ -11,7 +11,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { peopleRoute, personTabRoute } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
+import { usePeekFocus } from "../../kit/table/peek-focus";
 import { personDeletedHere, warmPerson } from "../people-detail";
 import { walkIn } from "../walk";
 import { usePeekRead } from "./use-peek-read";
@@ -121,9 +122,8 @@ export function usePeoplePeek(f: PeekFacts) {
   useEffect(() => {
     if (peekId && cursor && cursor !== peekId) setPeekId(cursor);
   }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps -- the cursor moving is the only reason
-  useEffect(() => {
-    personPeekFocus(peekId, cursor);
-  }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps -- focus moves as the peek opens or closes
+  // Focus moves as the peek opens or closes, and never as the list is shown again after a swipe (kit/table/peek-focus.ts).
+  usePeekFocus(peekId, (to) => personPeekFocus(to, cursor));
   // A phone has no room beside its rows: a peek closes, and one the address brought opens the person's page in its place.
   useEffect(() => {
     if (!phone) return;

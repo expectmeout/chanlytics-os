@@ -15,17 +15,16 @@
 import { useEffect, useRef, useState } from "react";
 import {
   leadCardBulkOf,
-  leadPileEndOf,
   leadPileOpen,
   leadPileProgressOf,
-  type LeadPileAdded,
   type LeadCardBulkVM,
   type LeadClass,
   type LeadRowVM,
   type LeadSearchDto,
 } from "@chanlytics/contracts";
+import { leadPileEndOf, type LeadPileAdded } from "../sheet/model/view";
 import { pileAsk, type PileAsk } from "../../campaigns/reach-out/surface";
-import { canDo } from "../../legacy-verbs";
+import { canDo } from "../../frame-verbs";
 import type { SheetPileView } from "../sheet/sheet";
 import { pressSheetKey, type SheetKey } from "../sheet/keys";
 import type { LeadAim } from "../sheet/use-aim";

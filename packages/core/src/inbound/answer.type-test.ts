@@ -10,14 +10,15 @@
  * `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
  * package's `tsc --noEmit` fails. Nothing imports this file, so no build reaches it.
  */
-import type { Holds, Within } from "@chanlytics/contracts";
-import type { InboundMessage, NormalizedInbound } from "@chanlytics/channels";
-import type { RoutedChannel } from "@chanlytics/db";
+import type { Holds, Within, TenantId } from "@chanlytics/contracts";
+import type { InboundMessage } from "@chanlytics/channels/inbound";
+import type { NormalizedInbound } from "@chanlytics/channels/whatsapp";
+import type { RoutedChannel } from "@chanlytics/db/channels";
 import type { InboundCarrier, InboundInput } from "./answer";
 
-type At = { tenantId: string; routed: RoutedChannel; isEnvDefault: false };
+type At = { tenantId: TenantId; routed: RoutedChannel; isEnvDefault: false };
 /** A message no line routed: no workspace to keep it for. */
-type Unrouted = { tenantId: string; routed: null; isEnvDefault: false };
+type Unrouted = { tenantId: TenantId; routed: null; isEnvDefault: false };
 type OnWhatsapp = InboundMessage & { channel: "whatsapp" };
 type OnText = InboundMessage & { channel: "sms" };
 type OnInstagram = InboundMessage & { channel: "instagram" };

@@ -29,9 +29,9 @@
 import { formatPhoneDisplay } from "../shared/phone";
 import { industryWords } from "./a2p-enums";
 import { ABOUT_MIN, type BusinessRecordDto } from "./business-record";
-import { notFoundPageMetadata, type PublicPageMetadata } from "../shell/chrome";
-import { takesSignUps, type OpenToCustomers } from "../workspace/billing";
-import { notTakingSignUps } from "../consent/consent-page";
+import { notFoundPageMetadata, type PublicPageMetadata } from "../shell/chrome/frame";
+import { takesSignUps, type OpenToCustomers } from "../workspace/billing/dtos";
+import { notTakingSignUps } from "../consent/public-page";
 
 /**
  * The clauses every carrier review looks for, word for word.
@@ -150,9 +150,16 @@ function identifiesABusiness(f: { legalName: string; street: string; city: strin
 
 /** The same rule over the record's own columns: whether a saved record publishes the page (the form's note and link). */
 export function publishesBusinessPage(
-  r: Pick<BusinessRecordDto, "legal_name" | "street" | "city"> | null | undefined,
+  business: Pick<BusinessRecordDto, "legal_name" | "street" | "city"> | null | undefined,
 ): boolean {
-  return !!r && identifiesABusiness({ legalName: r.legal_name ?? "", street: r.street ?? "", city: r.city ?? "" });
+  return (
+    !!business &&
+    identifiesABusiness({
+      legalName: business.legal_name ?? "",
+      street: business.street ?? "",
+      city: business.city ?? "",
+    })
+  );
 }
 
 function addressLine(f: BusinessPageFacts): string {
@@ -163,31 +170,39 @@ function addressLine(f: BusinessPageFacts): string {
   return parts.join(", ");
 }
 
-export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
-  const legal = f.legalName.trim();
-  const trade = (f.tradeName ?? "").trim();
+export function businessPageVM(businessPageFacts: BusinessPageFacts): BusinessPageVM {
+  const legal = businessPageFacts.legalName.trim();
+  const trade = (businessPageFacts.tradeName ?? "").trim();
   const known = trade || legal;
   // A page with no legal name and no address identifies nobody, which is exactly
   // what 30919 refused. Better to say there is nothing here than to publish a
   // page a reviewer will read as evasive.
-  const empty = !identifiesABusiness(f);
+  const empty = !identifiesABusiness(businessPageFacts);
   // Paused: the page still says who the business is, for the carriers' re-vet, and no longer that it answers anyone.
-  const taking = takesSignUps(f.open);
+  const taking = takesSignUps(businessPageFacts.open);
 
   const identity: BusinessPageVM["identity"] = [];
   if (legal)
     identity.push({ label: "Legal name", value: trade && trade !== legal ? `${legal}, trading as ${trade}` : legal });
   // The vertical the brand was registered under, so the page and the filing say one industry.
-  const industry = (f.industry ?? "").trim();
+  const industry = (businessPageFacts.industry ?? "").trim();
   if (industry) identity.push({ label: "Industry", value: industryWords(industry) });
-  const where = addressLine(f);
+  const where = addressLine(businessPageFacts);
   if (where) identity.push({ label: "Address", value: where });
-  const phone = formatPhoneDisplay(f.publicPhoneE164);
-  if (phone) identity.push({ label: "Phone", value: phone, href: `tel:${f.publicPhoneE164}` });
-  if (f.contactEmail.trim())
-    identity.push({ label: "Email", value: f.contactEmail.trim(), href: `mailto:${f.contactEmail.trim()}` });
-  if (f.websiteUrl && f.websiteUrl.trim())
-    identity.push({ label: "Website", value: f.websiteUrl.trim(), href: f.websiteUrl.trim() });
+  const phone = formatPhoneDisplay(businessPageFacts.publicPhoneE164);
+  if (phone) identity.push({ label: "Phone", value: phone, href: `tel:${businessPageFacts.publicPhoneE164}` });
+  if (businessPageFacts.contactEmail.trim())
+    identity.push({
+      label: "Email",
+      value: businessPageFacts.contactEmail.trim(),
+      href: `mailto:${businessPageFacts.contactEmail.trim()}`,
+    });
+  if (businessPageFacts.websiteUrl && businessPageFacts.websiteUrl.trim())
+    identity.push({
+      label: "Website",
+      value: businessPageFacts.websiteUrl.trim(),
+      href: businessPageFacts.websiteUrl.trim(),
+    });
 
   return {
     title: known || "This business",
@@ -201,8 +216,8 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
       ? "To say yes, or to see exactly what you would be agreeing to, open"
       : "To see exactly what you would be agreeing to, open",
     identity,
-    about: (f.about ?? "").trim() || null,
-    services: f.services.slice(0, 40).map((s) => ({
+    about: (businessPageFacts.about ?? "").trim() || null,
+    services: businessPageFacts.services.slice(0, 40).map((s) => ({
       name: s.name,
       detail:
         [
@@ -214,10 +229,11 @@ export function businessPageVM(f: BusinessPageFacts): BusinessPageVM {
     })),
     smsLead: smsConsentSentence(known || "This business"),
     smsClauses: SMS_CLAUSES,
-    optInUrl: f.optInUrl,
+    optInUrl: businessPageFacts.optInUrl,
     yourData: dataSentences(known || "This business"),
-    termsUrl: f.termsUrl,
-    websiteUrl: f.websiteUrl && f.websiteUrl.trim() ? f.websiteUrl.trim() : null,
+    termsUrl: businessPageFacts.termsUrl,
+    websiteUrl:
+      businessPageFacts.websiteUrl && businessPageFacts.websiteUrl.trim() ? businessPageFacts.websiteUrl.trim() : null,
     empty,
   };
 }
@@ -250,18 +266,18 @@ export interface TextingTermsVM {
   closedLine: string | null;
 }
 
-export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
-  const legal = f.legalName.trim();
-  const trade = (f.tradeName ?? "").trim();
+export function textingTermsVM(businessPageFacts: BusinessPageFacts): TextingTermsVM {
+  const legal = businessPageFacts.legalName.trim();
+  const trade = (businessPageFacts.tradeName ?? "").trim();
   const known = trade || legal || "This business";
-  const empty = !identifiesABusiness(f);
-  const phone = formatPhoneDisplay(f.publicPhoneE164);
-  const email = f.contactEmail.trim();
+  const empty = !identifiesABusiness(businessPageFacts);
+  const phone = formatPhoneDisplay(businessPageFacts.publicPhoneE164);
+  const email = businessPageFacts.contactEmail.trim();
   const support = [phone ? `call ${phone}` : null, email ? `email ${email}` : null].filter(Boolean).join(" or ");
   const entity = trade && trade !== legal ? `${legal}, trading as ${trade}` : legal;
   return {
     title: `Text messaging terms: ${known}`,
-    lead: `These terms cover the text messages ${known} sends. ${known} is ${entity}${addressLine(f) ? `, ${addressLine(f)}` : ""}.`,
+    lead: `These terms cover the text messages ${known} sends. ${known} is ${entity}${addressLine(businessPageFacts) ? `, ${addressLine(businessPageFacts)}` : ""}.`,
     items: [
       {
         label: "The program",
@@ -276,10 +292,10 @@ export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
       { label: "Help", text: `Reply HELP for help${support ? `, or ${support}` : ""}.` },
       { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more.` },
       { label: "Carriers", text: "Wireless carriers are not liable for delayed or undelivered messages." },
-      { label: "Your information", text: SMS_CLAUSES[3] },
+      { label: "Your information", text: SMS_CLAUSES[3] ?? "" },
     ],
-    privacyUrl: f.privacyUrl,
-    closedLine: !empty && !takesSignUps(f.open) ? notTakingSignUps(known) : null,
+    privacyUrl: businessPageFacts.privacyUrl,
+    closedLine: !empty && !takesSignUps(businessPageFacts.open) ? notTakingSignUps(known) : null,
     empty,
   };
 }
@@ -289,8 +305,8 @@ export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
  * is no record or it does not name a legal business with an address. An unknown slug left the tab on the app's own
  * title, and an unfinished record named Not found for the business and marked it indexable (the wiring audit's N21).
  */
-export function businessPageMetadata(f: BusinessPageFacts | null): PublicPageMetadata {
-  const vm = f ? businessPageVM(f) : null;
+export function businessPageMetadata(businessPageFacts: BusinessPageFacts | null): PublicPageMetadata {
+  const vm = businessPageFacts ? businessPageVM(businessPageFacts) : null;
   if (!vm || vm.empty) return notFoundPageMetadata();
   return {
     title: vm.title,
@@ -300,9 +316,9 @@ export function businessPageMetadata(f: BusinessPageFacts | null): PublicPageMet
 }
 
 /** The program's terms, by the same rule: named for the business customers know, or Not found and unindexed. */
-export function textingTermsMetadata(f: BusinessPageFacts | null): PublicPageMetadata {
-  if (!f || textingTermsVM(f).empty) return notFoundPageMetadata();
-  const name = businessPageVM(f).title;
+export function textingTermsMetadata(businessPageFacts: BusinessPageFacts | null): PublicPageMetadata {
+  if (!businessPageFacts || textingTermsVM(businessPageFacts).empty) return notFoundPageMetadata();
+  const name = businessPageVM(businessPageFacts).title;
   return {
     title: `Text messaging terms: ${name}`,
     description: `The terms of the text messages ${name} sends.`,
@@ -366,7 +382,7 @@ const loose = (s: string) =>
     .replace(/\b(llc|inc|ltd|corp|co|the)\b/g, "")
     .replace(/[^a-z0-9]/g, "");
 
-export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
+export function registrationPreflight(preflightFacts: PreflightFacts): PreflightProblem[] {
   const out: PreflightProblem[] = [];
 
   // THE ONE THAT BIT US. The campaign states `tenants.name`; the brand
@@ -375,24 +391,24 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
   // from a Stripe test — while the brand said RJ Capital LLC. A reviewer reads
   // that as two businesses, and the opt-in message that carried it can never be
   // edited afterwards.
-  const said = loose(f.workspaceName);
-  const legal = loose(f.legalName);
-  const trade = loose(f.tradeName ?? "");
-  if (said && legal && said !== legal && (!trade || said !== trade)) {
+  const sentence = loose(preflightFacts.workspaceName);
+  const legal = loose(preflightFacts.legalName);
+  const trade = loose(preflightFacts.tradeName ?? "");
+  if (sentence && legal && sentence !== legal && (!trade || sentence !== trade)) {
     out.push({
       id: "name_mismatch",
-      what: `The carriers will be told this business is called “${f.workspaceName}”, but the business on record is “${f.tradeName?.trim() || f.legalName}”.`,
+      what: `The carriers will be told this business is called “${preflightFacts.workspaceName}”, but the business on record is “${preflightFacts.tradeName?.trim() || preflightFacts.legalName}”.`,
       fix: "Save the business's name under Settings › Details as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign.",
     });
   }
 
   // And the name the receptionist answers in (X4-5): the filing states the workspace's name, and a customer who signs up
   // under it and is answered under another reads two businesses. An owner's save of the name renames both.
-  const answers = loose(f.receptionistName ?? "");
-  if (said && answers && said !== answers) {
+  const answers = loose(preflightFacts.receptionistName ?? "");
+  if (sentence && answers && sentence !== answers) {
     out.push({
       id: "names_differ",
-      what: `Your receptionist introduces the business as “${(f.receptionistName ?? "").trim()}”, but your sign-up page and this filing call it “${f.workspaceName}”.`,
+      what: `Your receptionist introduces the business as “${(preflightFacts.receptionistName ?? "").trim()}”, but your sign-up page and this filing call it “${preflightFacts.workspaceName}”.`,
       fix: "Save the name customers know you by under Settings › Details: an owner's save renames your sign-up page and your sign too, so customers read one name.",
     });
   }
@@ -400,7 +416,7 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
   // The page we file as their website and privacy policy renders from these. No
   // legal name or no address and it answers 404, so the filing would name a URL
   // that does not exist — which is 30919, arriving a week later.
-  if (!identifiesABusiness(f)) {
+  if (!identifiesABusiness(preflightFacts)) {
     out.push({
       id: "no_identity",
       what: "The page the carriers will open to check who you are cannot be published: it needs your legal name and your address.",
@@ -412,7 +428,7 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
   // reviewer reads "appointments" and "replies" and cannot tell what the business sells or to whom, which
   // is what the ninth refusal of the live campaign said (30919, 22 Sep 2026: "verify the operational
   // business model ... describe the products, services, and industry clearly").
-  if ((f.about ?? "").trim().length < ABOUT_MIN) {
+  if ((preflightFacts.about ?? "").trim().length < ABOUT_MIN) {
     out.push({
       id: "no_about",
       what: "The carriers can't tell what this business does: your page and your registration have no description of it.",
@@ -424,7 +440,7 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
   // this business. Without a number the opt-in page says the business is not set
   // up to take sign-ups — so the flow would describe something that does not
   // happen, which is a statement to a regulator that is not true.
-  if (!f.hasOptInNumber) {
+  if (!preflightFacts.hasOptInNumber) {
     out.push({
       id: "no_opt_in_number",
       what: "There is no number for customers to text to say yes, so the sign-up page has nothing to offer them.",
@@ -434,7 +450,7 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
 
   // A website that is not a website is worse than none: with none we publish a
   // page for them, with a broken one we file it.
-  const site = (f.websiteUrl ?? "").trim();
+  const site = (preflightFacts.websiteUrl ?? "").trim();
   if (site && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(site)) {
     out.push({
       id: "website_unusable",

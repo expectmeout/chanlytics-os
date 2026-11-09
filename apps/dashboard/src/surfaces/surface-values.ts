@@ -1,7 +1,7 @@
 /**
  * What a surface that has left the shell reads from the seam, typed (decision 0015, step 3).
  *
- * A legacy page reads its rows off `window` (`window.__PEOPLE`), which is the only place a script the frame loads can
+ * A shell page reads its rows off `window` (`window.__PEOPLE`), which is the only place a script the frame loads can
  * find them. A TSX surface imports: it asks for its surface by key (`useSurface("reports")`, src/surfaces/use-surface.ts)
  * and is handed the value the override published, of the type the key says. This is the store behind that: one value
  * for each key, written by the override that owns the surface (`setSurfaceValue`), and the surface cache's (it keeps
@@ -18,17 +18,18 @@
 import type { ReportsSurface } from "./reports/surface";
 import type { AskMorningSurface } from "./today/ask-morning-surface";
 import type { AskMemorySurface } from "./settings/memory/surface";
+import type { FilesSurface } from "./files/surface";
 import type { ReviewsSurface } from "./reports/reviews-surface";
 import type { ReceptionistSurface } from "./reports/receptionist-surface";
 import type { PeopleSurface as ReportsPeopleSurface } from "./reports/people-surface";
 import type { CampaignsSurface } from "./reports/campaigns-surface";
-import type { GoogleSurface } from "../legacy-bridge/google";
+import type { GoogleSurface } from "../bridge/google";
 import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
 import type { AudiencesSurface } from "./campaigns/broadcasts/audiences-surface";
 import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
 import type { ReachOutsSurface } from "./campaigns/reach-out/override";
 import type { SequencesSurface } from "./campaigns/sequences/surface";
-import type { SettingsSurface } from "../legacy-bridge/surfaces/settings";
+import type { SettingsSurface } from "../bridge/surfaces/settings";
 import type { ChannelsSurface } from "./channels/surface";
 import type { ConversationsSurface, InboxSurface } from "./inbox/types";
 import type { ReportHeadlineVM, TodayVM } from "@chanlytics/contracts";
@@ -85,6 +86,8 @@ export interface SurfaceValues {
   reply_drafts: ReplyDraftsSurface;
   /** What Ask remembers, read where Settings › Memory is drawn (settings/memory/surface.ts; decision 0070); null when it failed. */
   ask_memory: AskMemorySurface | null;
+  /** What the workspace keeps, read where Settings › Files is drawn (files/surface.ts); null when the read failed. */
+  files: FilesSurface | null;
   leads: LeadsSurface;
   /** Undefined until read; null when the read failed, so a page shows a retry rather than "Reading…" for ever. */
   setup: SetupSurface | null;
@@ -258,6 +261,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   ask_morning: true,
   reply_drafts: true,
   ask_memory: true,
+  files: true,
   leads: true,
   setup: true,
   billing: true,

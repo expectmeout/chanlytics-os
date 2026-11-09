@@ -9,10 +9,10 @@
  */
 import "server-only";
 import { AppError, LOGO_WORDS, logoLookupAnswerOf, type LogoLookupAnswer } from "@chanlytics/contracts";
-import { callEdge, edgeAnswered } from "@/server/edge";
-import { log } from "@/server/log";
-import type { Member } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
+import { callEdge, edgeAnswered } from "@/server/shared/edge";
+import { log } from "@/server/shared/log";
+import type { Member } from "@/server/shared/route";
+import type { RouteContext } from "@/server/shared/with-route";
 
 /** The edge's door for the look. */
 const LOOKUP_DOOR = "/api/admin/imports/logo-lookup";
@@ -21,15 +21,15 @@ const LOOKUP_MS = 28_000;
 
 /** POST workspaces/logo/lookup. */
 export async function lookupLogo(ctx: RouteContext, member: Member): Promise<LogoLookupAnswer> {
-  const a = await callEdge(
+  const result = await callEdge(
     LOOKUP_DOOR,
     { tenant_id: member.tenantId },
     { workspace: member.tenantId, user: ctx.userId, timeoutMs: LOOKUP_MS },
   );
-  const answer = edgeAnswered(a) ? logoLookupAnswerOf(a.body) : null;
+  const answer = edgeAnswered(result) ? logoLookupAnswerOf(result.body) : null;
   if (!answer) {
-    log.warn("workspace_logo_lookup", { tenant_id: member.tenantId, outcome: "failed", status: a.status });
-    throw new AppError("internal", LOGO_WORDS.lookFailed, 502);
+    log.warn("workspace_logo_lookup", { tenant_id: member.tenantId, outcome: "failed", status: result.status });
+    throw new AppError("upstream_provider", LOGO_WORDS.lookFailed);
   }
   log.info("workspace_logo_lookup", { tenant_id: member.tenantId, outcome: answer.outcome });
   return answer;

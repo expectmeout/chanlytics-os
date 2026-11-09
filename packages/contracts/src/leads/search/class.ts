@@ -4,7 +4,7 @@
  * and the rule that turns the judge's answers (lead-judge.ts) into Qualified, Needs review or Excluded.
  */
 import { phoneDialable } from "../../shared/phone";
-import type { JudgePlaceAnswer, PlaceFacts } from "../lead-judge";
+import type { JudgePlaceAnswer, PlaceFacts } from "../judge";
 import type { LeadEmailState, LeadFit, LeadMemberClass } from "./sets";
 import type { LeadSearchPlan } from "./plan";
 
@@ -31,6 +31,8 @@ export const leadKindWord = (name: string): string => `Not one of the ${name}`;
  * left out under this key, and the chip says why (leads.ts leadExclusionWord).
  */
 export const LEAD_UNREACHABLE_KEY = "unreachable";
+/** Left out by code, the judge not asked: a plan that must see a website, and a listing with nothing to read. */
+export const LEAD_NO_SITE_KEY = "no_site";
 
 /**
  * A lead's phone, as the count reads it (decision 0010): `ok` when it dials (contracts phoneDialable), `invalid` when a
@@ -61,7 +63,8 @@ export interface LeadClassification {
  * exclusion: every exclusion is required) gates the class: a required fail
  * excludes, with that key as the reason; a required criterion answered
  * `unknown`, or a required seen criterion only read (no fact cited beyond the
- * name or category, which are descriptions, not evidence), sends the place to
+ * name or category, which are descriptions, not evidence; for what only a website
+ * can show, on_site, whatever its standard, no citing of the site), sends the place to
  * review. An optional criterion never excludes and never sends a place to
  * review by itself — it only softens the fit band. A place with no location
  * or one outside the area, or one with no verified way to reach it, also sends it to review. Everything else
@@ -86,6 +89,7 @@ export function classify(
   if (facts.phone_matches_site === null && facts.emails.length === 0)
     return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons: string[] = [];
+  const onSite = new Set(plan.criteria.filter((c) => c.on_site).map((c) => c.key));
   const rubric = [
     { key: LEAD_KIND_KEY, standard: "likely" as const, required: true },
     ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely" as const, required: true })),
@@ -94,28 +98,30 @@ export function classify(
   let excludedBy: string | null = null;
   let softFail = false;
   let unknown = false;
-  for (const r of rubric) {
-    const a = answer.criteria.find((x) => x.key === r.key);
-    const verdict = a?.answer ?? "unknown";
-    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
+  for (const item of rubric) {
+    const found = answer.criteria.find((x) => x.key === item.key);
+    const verdict = found?.answer ?? "unknown";
+    const readOnly = onSite.has(item.key)
+      ? !found?.facts.includes("site")
+      : item.standard === "seen" && found?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
     if (verdict === "fail") {
-      if (r.required) {
-        excludedBy = excludedBy ?? r.key;
-        reasons.push(`fail:${r.key}`);
+      if (item.required) {
+        excludedBy = excludedBy ?? item.key;
+        reasons.push(`fail:${item.key}`);
       } else {
         softFail = true;
       }
     } else if (verdict === "unknown") {
-      if (r.required) {
+      if (item.required) {
         unknown = true;
-        reasons.push(`unknown:${r.key}`);
+        reasons.push(`unknown:${item.key}`);
       } else {
         softFail = true;
       }
-    } else if (r.standard === "seen" && readOnly) {
-      if (r.required) {
+    } else if (readOnly) {
+      if (item.required) {
         unknown = true;
-        reasons.push(`inferred:${r.key}`);
+        reasons.push(`inferred:${item.key}`);
       } else {
         softFail = true;
       }

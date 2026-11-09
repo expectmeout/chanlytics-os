@@ -1,6 +1,6 @@
 import { LeadsQuerySchema } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { leads } from "@/server/readers/leads";
 
 /**

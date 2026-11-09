@@ -1,6 +1,6 @@
 /**
  * What the person doors take: one schema per door, the route's input, the shape the verb layer sends (the sheets and
- * Ask's cards through one commit, legacy-bridge/verbs), and what an act tool checks a card's body against before it
+ * Ask's cards through one commit, bridge/verbs), and what an act tool checks a card's body against before it
  * proposes it. They stood in each route file and again in the act tools' own checks, so a rule changed in one place
  * left the other answering in older words (the sheets as verbs, 14 Oct 2026). Moved whole: each answers what its
  * route answered.
@@ -46,11 +46,21 @@ export const ReceptionistModeBody = z.object({ mode: MODE });
 export const ReceptionistManyBody = z.object({ ids: SOME_PEOPLE, mode: MODE });
 
 /**
- * Many people deleted at one press (POST contacts/erase), each as Delete person deletes one; with `not_a_person`, each
- * one's address said automated first, so their mail stays in the mailbox from now on.
+ * What one request can carry of a press's people, under the host's 4.5 MB, and twice what People holds (fifty pages of a
+ * thousand). It is not a limit on anyone: a press takes everyone selected (decision 0036, 5 Nov 2026).
+ */
+const ONE_REQUEST_CARRIES = 100_000;
+
+/**
+ * Many people deleted at one press (POST contacts/erase), however many, handed to the ledger in one write, which erases
+ * them as Delete person erases one; with `not_a_person`, each one's address said automated first, so their mail stays in
+ * the mailbox from now on.
  */
 export const EraseManyBody = z.object({
-  ids: SOME_PEOPLE,
+  ids: z
+    .array(z.uuid())
+    .min(1, "Pick at least one person.")
+    .max(ONE_REQUEST_CARRIES, "Too many people for one request."),
   not_a_person: z.boolean({ message: "Not a person is a yes or a no." }).optional(),
 });
 

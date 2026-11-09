@@ -4,13 +4,14 @@
  * The door is the knock (authorizeAdmin: a token the dashboard minted for this door, the member and the workspace) and
  * the body (readBody); reviewConversation in lib/receptionist/review.ts is everything after.
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
 import { reviewConversation } from "../../../lib/receptionist/review.js";
+import { REHEARSAL_REVIEW_DOOR } from "@chanlytics/contracts";
 
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/rehearsal/review");
   if (!auth.ok) return auth.response;
-  return reviewConversation(auth, await readBody(request));
+  return reviewConversation(auth, await readBody(request, REHEARSAL_REVIEW_DOOR));
 });

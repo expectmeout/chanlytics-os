@@ -10,6 +10,7 @@
  * consult-first appointment and its list) and "booking" (the act and the link, `bookings.tool`). "Class" is not in the set.
  */
 import { capitalize, plural } from "../shared/words";
+import { isOneOf } from "../shared/unknown";
 
 /** The words a workspace may call an appointment, in the order a picker offers them. */
 export const APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"] as const;
@@ -18,7 +19,7 @@ export type AppointmentWord = (typeof APPOINTMENT_WORDS)[number];
 
 /** Whether a value is one of the five: a stored word read back is checked, never trusted. */
 export function isAppointmentWord(value: unknown): value is AppointmentWord {
-  return typeof value === "string" && (APPOINTMENT_WORDS as readonly string[]).includes(value);
+  return typeof value === "string" && isOneOf(APPOINTMENT_WORDS, value);
 }
 
 /**
@@ -56,8 +57,8 @@ export function appointmentWordVM(word: AppointmentWord): AppointmentWordVM {
     act: "Change",
     name: `Change ${APPOINTMENT_WORD_QUESTION.toLowerCase()}`,
     choices: APPOINTMENT_WORDS.map((w) => {
-      const W = appointmentWords(w);
-      return { value: w, label: W.Title, hint: `${W.next} · ${W.before.name}` };
+      const words = appointmentWords(w);
+      return { value: w, label: words.Title, hint: `${words.next} · ${words.before.name}` };
     }),
     word,
   };
@@ -137,7 +138,7 @@ export interface AppointmentPhrases {
 }
 
 export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
-  const f = FORMS[word];
+  const seen = FORMS[word];
   const Title = capitalize(word);
   const many = `${word}s`;
   const people = (n: number) => plural(n, "person", "people");
@@ -145,26 +146,26 @@ export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
     word,
     one: word,
     many,
-    a: f.a,
+    a: seen.a,
     Title,
     Many: capitalize(many),
     next: `Next ${word}`,
     last: `Last ${word}`,
     today: (n) => `${n} ${n === 1 ? word : many} today`,
-    before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${f.a} on the calendar` },
-    after: { caps: `After the ${word}`, hint: `The day after ${f.a}, when nothing is booked next` },
+    before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${seen.a} on the calendar` },
+    after: { caps: `After the ${word}`, hint: `The day after ${seen.a}, when nothing is booked next` },
     lapsedHint: `No ${word} in 45 days, and nothing booked`,
-    tomorrowWho: `everyone with ${f.a} tomorrow`,
-    yesterdayWho: `everyone who ${f.had} yesterday`,
-    withTomorrow: `with ${f.a} tomorrow`,
-    whoYesterday: `who ${f.had} yesterday`,
-    noneTomorrow: `Nobody ${f.has} tomorrow`,
-    noneYesterday: `Nobody ${f.had} yesterday`,
-    eachTomorrow: `each has ${f.a} tomorrow on the calendar`,
-    eachYesterday: `each ${f.had} yesterday and has nothing booked next`,
-    offTomorrow: (n) => `Off · ${people(n)} ${n === 1 ? f.has : f.have} tomorrow`,
-    offYesterday: (n) => `Off · ${people(n)} ${f.had} yesterday`,
-    startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
+    tomorrowWho: `everyone with ${seen.a} tomorrow`,
+    yesterdayWho: `everyone who ${seen.had} yesterday`,
+    withTomorrow: `with ${seen.a} tomorrow`,
+    whoYesterday: `who ${seen.had} yesterday`,
+    noneTomorrow: `Nobody ${seen.has} tomorrow`,
+    noneYesterday: `Nobody ${seen.had} yesterday`,
+    eachTomorrow: `each has ${seen.a} tomorrow on the calendar`,
+    eachYesterday: `each ${seen.had} yesterday and has nothing booked next`,
+    offTomorrow: (n) => `Off · ${people(n)} ${n === 1 ? seen.has : seen.have} tomorrow`,
+    offYesterday: (n) => `Off · ${people(n)} ${seen.had} yesterday`,
+    startsWith: `${seen.a} tomorrow, ${seen.a} yesterday`,
     byMany: `by ${many}`,
     needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings › Hours & booking.`,
     cancelAsk: `Cancel this ${word}?`,

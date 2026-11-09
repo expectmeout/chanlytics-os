@@ -1,10 +1,11 @@
 /**
- * The Ads lens (MOCKUP; a demo session's until the wiring lane reads a workspace's ad accounts, decision 0049): what the ads
- * cost, who they brought and who booked, over the days Reports shows, narrowed to all ads, a platform or one ad. The sentence at
- * its head is the frame's (head.ts), the fold's own; everything below is the same fold the Results sheet draws (contracts
- * `adsResultsOf`), so a number here is the number the Ads page and the sheet say for the same days.
+ * The Ads lens (MOCKUP; a demo session's or a workspace's preview, until the wiring lane reads a workspace's ad accounts, decision
+ * 0049): what the ads cost, who they brought and who booked, over the days Reports shows, narrowed to all ads, a platform or one ad.
+ * The sentence at its head is the frame's (head.ts), the fold's own; everything below is the same fold the Results sheet draws
+ * (contracts `adsResultsOf`), so a number here is the number the Ads page and the sheet say for the same days.
  *
- * Top to bottom: which ads (the scope, written to the address), the four figures, by day (what was spent above, the people below
+ * Top to bottom: in a preview, the note that says so (preview-note.tsx); which ads (the scope, written to the address), the four
+ * figures, by day (what was spent above, the people below
  * with the part that booked filled), from got in touch to booked beside what came of the bookings, by platform beside by what the
  * ad asks (a table: the units differ, a chat, a call and a form are counted their own ways), by ad, and what each platform says,
  * never added together. Days with nothing spent or counted are the lens's own empty card, with the door to Ads. It is loaded on
@@ -14,8 +15,8 @@
 import "../../campaigns/ads/results/results.css";
 import { ADS_ROUTE, ADS_WORDS } from "@chanlytics/contracts";
 import type { AdsScope } from "@chanlytics/contracts";
-import { RESULTS } from "@chanlytics/contracts/ads-page";
-import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
+import { RESULTS } from "@/surfaces/campaigns/ads/results/words";
+import type { AdsResultsVM } from "@/surfaces/campaigns/ads/results/view";
 import {
   CameBackCard,
   DaysCard,
@@ -23,6 +24,7 @@ import {
   RowsCard,
   ScopePicker,
 } from "../../campaigns/ads/results/results-parts";
+import { PreviewNote } from "../../campaigns/ads/preview-note";
 import { EmptyState } from "../../kit/empty/empty";
 import { RptSection } from "../blocks";
 import { AdsTableCard, FunnelCard, TheirsCards } from "./ads-cards";
@@ -83,6 +85,7 @@ export function AdsLens({ fold, onScope }: AdsLensProps) {
   return (
     <>
       <RptSection title={ADS_WORDS.adsTab} bare testid="ads-lens">
+        <PreviewNote />
         <div className="rpt-ads-scope">
           <ScopePicker vm={fold} variant="lens" onScope={onScope} />
           <span className="rpt-ads-pane" data-testid="ads-res-pane">

@@ -1,0 +1,164 @@
+/**
+ * Who a person is, in words: the name they gave, never one invented from an
+ * email. A profile row per account, written only by its owner; the roster
+ * carries the name beside the email; the sidebar and the team card read the
+ * same words.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  identityWords,
+  memberWords,
+  personInitials,
+  cleanDisplayName,
+  ROLE_WORDS,
+  DISPLAY_NAME_MAX,
+} from "@chanlytics/contracts";
+import { readCode, readRaw } from "../_source.mjs";
+
+test("the words for the signed-in person: a given name or 'Your account', initials from the name or the email, the role in a word", () => {
+  assert.deepEqual(identityWords(null), { name: "Your account", email: "", initials: "?", role: "", named: false });
+  assert.deepEqual(identityWords({ email: "billing@rjcapital.io", role: "owner" }), {
+    name: "Your account",
+    email: "billing@rjcapital.io",
+    initials: "B",
+    role: "Owner",
+    named: false,
+  });
+  assert.deepEqual(
+    identityWords({ email: "billing@rjcapital.io", display_name: "  Ruben Jimenez ", role: "operator" }),
+    { name: "Ruben Jimenez", email: "billing@rjcapital.io", initials: "RJ", role: "Operator", named: true },
+  );
+  assert.equal(
+    identityWords({ email: "x@y.z", display_name: "Ana", role: "viewer" }).initials,
+    "AN",
+    "one word: two letters, as contacts read",
+  );
+  assert.equal(
+    identityWords({ email: null, display_name: "", role: "cfo" }).role,
+    "",
+    "an unknown role is no word, not a made-up one",
+  );
+  assert.equal(
+    identityWords({ email: "hi@chanlytics.agency", role: null }).name,
+    "Your account",
+    "never a name invented from an email",
+  );
+  assert.equal(personInitials(null, null), "?");
+  assert.equal(personInitials("  ", "ops@x.io"), "O");
+  assert.equal(personInitials("Marisa De La Rosa", null), "MD", "the contacts' rule: the first two words");
+  assert.deepEqual(ROLE_WORDS, { owner: "Owner", operator: "Operator", partner: "Partner", viewer: "Viewer" });
+});
+
+test("a member on the roster: the name with the email under it, or the email alone", () => {
+  assert.deepEqual(memberWords({ email: "ana@salon.example", display_name: "Ana" }), {
+    name: "Ana",
+    sub: "ana@salon.example",
+  });
+  assert.deepEqual(memberWords({ email: "ana@salon.example", display_name: "" }), {
+    name: "ana@salon.example",
+    sub: null,
+  });
+  assert.deepEqual(memberWords({ email: "ana@salon.example" }), { name: "ana@salon.example", sub: null });
+  assert.deepEqual(memberWords({ email: null }), { name: "Someone", sub: null });
+});
+
+test("a name before it is sent: trimmed, inner spaces folded, at most 80 characters, empty allowed", () => {
+  assert.deepEqual(cleanDisplayName("  Ruben   Jimenez "), { ok: true, name: "Ruben Jimenez" });
+  assert.deepEqual(cleanDisplayName(""), { ok: true, name: "" });
+  assert.equal(cleanDisplayName(42).ok, false);
+  assert.equal(cleanDisplayName("x".repeat(81)).ok, false);
+  assert.equal(cleanDisplayName("x".repeat(80)).ok, true);
+  assert.equal(DISPLAY_NAME_MAX, 80);
+});
+
+test("the wiring: one profile row per account, written by its owner only, read by the workspaces they share; the roster carries it; the route, the bridge, the chrome, the card", () => {
+  const mig = readRaw("supabase/migrations/00068_profiles.sql");
+  for (const pin of [
+    "create table public.profiles (",
+    "user_id      uuid primary key references auth.users (id) on delete cascade,",
+    "check (char_length(display_name) <= 80)",
+    "create policy profiles_member_select on public.profiles",
+    "grant select on public.profiles to authenticated;",
+    "create or replace function public.profile_set(p_display_name text)",
+    "on conflict (user_id) do update set display_name = excluded.display_name;",
+    "revoke all on function public.profile_set(text) from public, anon;",
+    "grant execute on function public.profile_set(text) to authenticated;",
+    "drop function if exists public.team_roster(uuid);",
+    "returns table (membership_id uuid, member_user_id uuid, email text, role text, joined_at timestamptz, display_name text)",
+    "left join public.profiles p on p.user_id = m.user_id",
+    "raise exception 'Not a member of this workspace.' using errcode = '42501';",
+  ])
+    assert.ok(mig.includes(pin), pin);
+  assert.ok(
+    !mig.includes("grant insert") && !mig.includes("grant update"),
+    "no direct writes: profile_set is the door",
+  );
+
+  const route = readCode("apps/dashboard/app/api/v1/me/route.ts");
+  assert.ok(
+    // The door is packages/db's (decision 0111): the route names the name through its server module.
+    route.includes('rate: "profile_set",') &&
+      route.includes("setOwnName(ctx, { p_display_name: cleaned.name })") &&
+      readCode("packages/db/src/repositories/auth/account.ts").includes('db.rpc("profile_set", args)'),
+  );
+  assert.ok(route.includes("cleanDisplayName(input.display_name"), "the contracts' rule, before the database's");
+  assert.ok(!route.includes("getMemberContext("), "your name needs no workspace");
+  assert.ok(readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes("profile_set: {"));
+
+  // With the read it names, packages/db's (decision 0111).
+  const ws = readCode(
+    "apps/dashboard/app/api/v1/workspaces/route.ts",
+    "apps/dashboard/src/server/workspace/list.ts",
+    "packages/db/src/repositories/auth/account.ts",
+  );
+  assert.ok(
+    /from\("profiles"\)\s*\.select\("display_name"\)\s*\.eq\("user_id", userId\)\s*\.maybeSingle\(\)/.test(ws),
+    "the identity the seam fetches at boot carries the name",
+  );
+  assert.ok(
+    (ws.match(/display_name: displayName/g) ?? []).length === 2,
+    "on both answers: nowhere yet, and a workspace",
+  );
+
+  const service = readCode("apps/dashboard/src/server/workspace/team.ts");
+  assert.ok(
+    service.includes("displayName: m.display_name,") && service.includes("displayName: string;"),
+    "the roster carries the name",
+  );
+
+  const bridge = readCode("apps/dashboard/src/bridge/identity.ts");
+  assert.match(
+    bridge,
+    /win\.__identity = \{\s*words: identityWords,\s*member: memberWords,\s*initials: personInitials,\s*workspace: workspaceInitials,?\s*\};/,
+  );
+  // A new name reaches the chrome and the roster through the workspace and settings reads the write re-reads (refresh-map.ts "PUT me"),
+  // and the bridge patches nothing ahead of them: shell/hearing/channels-billing-and-rules-are-heard.test.mjs runs it.
+  assert.ok(!bridge.includes("me:changed"), "the bridge no longer announces a name of its own");
+  assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installIdentity();"));
+  assert.ok(readCode("apps/dashboard/src/bridge/surface-data.ts").includes("display_name?: string | null"));
+
+  const sidebar = ["sidebar", "sidebar-who"]
+    .map((f) => readCode(`apps/dashboard/src/surfaces/frame/sidebar/${f}.tsx`))
+    .join("\n");
+  assert.ok(sidebar.includes("window.__identity.words(me)"), "the chip reads the same words");
+  assert.ok(
+    sidebar.includes('window.addEventListener("surface:workspace", bump);'),
+    "the chip redraws as who is looking is read",
+  );
+  assert.ok(!sidebar.includes('split("@")[0]'), "never the email's local part as a name");
+
+  // A person names themselves on Profile: drawn in settings-owner-panes.test.mjs ("your name is a row on Profile"). The
+  // Team card is TSX (surfaces/settings/team, decision 0015 step 11), and reads the same words as the chip.
+  // Its roster is read in people.ts (the redesign of 9 Oct 2026) and drawn by the card's modules.
+  const team = readCode(
+    "apps/dashboard/src/surfaces/settings/team/people.ts",
+    "apps/dashboard/src/surfaces/settings/team/team.tsx",
+    "apps/dashboard/src/surfaces/settings/team/rows.tsx",
+  );
+  assert.ok(
+    team.includes("memberWords({ email: m.email, display_name: m.displayName })"),
+    "the roster reads the same words",
+  );
+  assert.ok(!team.includes('split("@")[0]'), "never the local part dressed as a name");
+});

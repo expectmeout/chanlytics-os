@@ -1,12 +1,13 @@
 import "server-only";
 import type { ZodType } from "zod";
 import { AppError, ASK_TURN_BUDGET_MS, MODEL_ROUTES, craftSystem, type AskSkill } from "@chanlytics/contracts";
-import { askForJson } from "../../model-json";
+import { askForJson } from "../../shared/model-json";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A skill's craft call (contracts ask-skills): the job done by a call made only for it, with the skill's own words as its
  * system prompt, at the skill's effort, under the skill's gateway purpose, in the skill's JSON, through the one structured
- * answer every draft asks for (server/model-json.ts). What it answers is the skill's to check; a call that does not answer
+ * answer every draft asks for (server/shared/model-json.ts). What it answers is the skill's to check; a call that does not answer
  * is said as why, never thrown, so the card it serves keeps what it had.
  */
 
@@ -25,8 +26,8 @@ const CRAFT_MAX_MS = MODEL_ROUTES.template_draft.timeoutMs;
  * (ToolContext.endsAt: a typed turn's budget or a spoken one's), less what a last round needs. A tool run outside a turn
  * has none, and is given a typed turn's from its clock.
  */
-export const turnDeadline = (t: { now: Date; endsAt?: number | undefined }): number =>
-  (t.endsAt ?? t.now.getTime() + ASK_TURN_BUDGET_MS) - TURN_RESERVE_MS;
+export const turnDeadline = (target: { now: Date; endsAt?: number | undefined }): number =>
+  (target.endsAt ?? target.now.getTime() + ASK_TURN_BUDGET_MS) - TURN_RESERVE_MS;
 
 /** Why a craft call's words were not used: each a reason the card keeps its first draft. */
 export type CraftKept = "late" | "budget" | "paused" | "unavailable" | "refused" | "unreadable" | "unread" | "checks";
@@ -43,7 +44,7 @@ function keptFor(e: AppError): CraftKept {
 }
 
 interface CraftCall<T> {
-  tenantId: string;
+  tenantId: TenantId;
   userId: string;
   /** The job, as the skill's brief says it. */
   question: string;

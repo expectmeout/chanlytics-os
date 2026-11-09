@@ -1,6 +1,6 @@
 import "server-only";
 import { fenced, promptSafeName, type AskSurface, type PageContext } from "@chanlytics/contracts";
-import { stableJson, type ReaderContext, type RowRef } from "../readers";
+import { stableJson, type ReaderContext, type RowRef } from "../shared/reader";
 import type { WorkspaceShape } from "../readers/shape";
 import {
   CONTEXT_CAPS,
@@ -11,10 +11,10 @@ import {
   type Provided,
   type Provider,
 } from "./context/rows";
-import { conversations, inbox, live, today } from "./context/day";
-import { calendar, leads, people, pipeline } from "./context/people";
-import { campaigns, other, reports, settings, start } from "./context/pages";
-import { log } from "@/server/log";
+import { readConversations, readInbox, readLive, readToday } from "./context/day";
+import { readCalendar, readLeads, readPeople, readPipeline } from "./context/people";
+import { readCampaigns, readOther, readReports, readSettingsContext, start } from "./context/pages";
+import { log } from "@/server/shared/log";
 
 /**
  * The page a question is asked on, as the model will read it (the spec, 5.2; the Phase 2 plan, PR 2.2): one
@@ -60,19 +60,19 @@ export interface BuiltContext {
 }
 
 const PROVIDERS: Record<AskSurface, Provider> = {
-  today,
-  inbox,
-  conversations,
-  live,
-  people,
-  pipeline,
-  calendar,
-  leads,
-  reports,
-  campaigns,
-  settings,
+  today: readToday,
+  inbox: readInbox,
+  conversations: readConversations,
+  live: readLive,
+  people: readPeople,
+  pipeline: readPipeline,
+  calendar: readCalendar,
+  leads: readLeads,
+  reports: readReports,
+  campaigns: readCampaigns,
+  settings: readSettingsContext,
   start,
-  other,
+  other: readOther,
 };
 
 /** How long a build is kept, and how many at most (D7). */
@@ -113,11 +113,11 @@ function pageRef(ctx: PageContext, label: string): RowRef {
 }
 
 /** The provider's rows and aggregate, cut to the caps (D11) in the page's order, the cut said. */
-function assemble(ctx: PageContext, got: Provided): Built {
+function assemble(ctx: PageContext, result: Provided): Built {
   const title = PAGE_TITLES[ctx.surface] ?? PAGE_TITLES.other;
   const seen = new Set<string>();
-  const rows = got.rows.filter((r) => !seen.has(r.source) && !!seen.add(r.source));
-  const base = clip(oneLine(got.aggregate), CONTEXT_CAPS.aggregate - CUT_ROOM);
+  const rows = result.rows.filter((r) => !seen.has(r.source) && !!seen.add(r.source));
+  const base = clip(oneLine(result.aggregate), CONTEXT_CAPS.aggregate - CUT_ROOM);
   let used = size(block(`page://${ctx.surface}`, title, base)) + CUT_ROOM;
   const taken: Array<{ b: SearchResultBlock; r: ContextRow }> = [];
   for (const r of rows.slice(0, CONTEXT_CAPS.rows)) {
@@ -143,7 +143,7 @@ function assemble(ctx: PageContext, got: Provided): Built {
 
 /** One build: the surface's provider, its failure caught and said in the aggregate, then the caps. */
 async function build(rc: ReaderContext, ctx: PageContext): Promise<Built> {
-  const provider = PROVIDERS[ctx.surface] ?? other;
+  const provider = PROVIDERS[ctx.surface] ?? readOther;
   try {
     return assemble(ctx, await provider(rc, ctx));
   } catch (e) {
@@ -172,7 +172,8 @@ export async function buildContext(rc: ReaderContext, context: PageContext): Pro
   // Deleted first, so a new write goes to the back; past the cap, the oldest write goes.
   kept.delete(key);
   kept.set(key, { at: Date.now(), built });
-  if (kept.size > CONTEXT_CACHE_CAP) kept.delete(kept.keys().next().value as string);
+  const oldest = kept.keys().next();
+  if (kept.size > CONTEXT_CACHE_CAP && !oldest.done) kept.delete(oldest.value);
   // A build a read failed in is not a page: the next warm or question reads again.
   void built.then(
     (r) => {

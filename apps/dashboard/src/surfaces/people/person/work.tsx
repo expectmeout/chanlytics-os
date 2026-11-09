@@ -7,15 +7,10 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import {
-  NEW_SINCE_WORDS,
-  PERSON_FIGURES_LABEL,
-  PERSON_TABS_LABEL,
-  PERSON_WASH_WORDS,
-  personTabRoute,
-} from "@chanlytics/contracts";
+import { PERSON_FIGURES_LABEL, PERSON_TABS_LABEL, PERSON_WASH_WORDS, personTabRoute } from "@chanlytics/contracts";
+import { NEW_SINCE_WORDS } from "./model/new-since";
 import type { PersonFigureVM, PersonVM } from "@chanlytics/contracts";
-import { hrefOfRoute } from "@/legacy-bridge/workspace";
+import { hrefOfRoute } from "@/bridge/workspace";
 import { Figure } from "../../kit/figure/figure";
 import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";

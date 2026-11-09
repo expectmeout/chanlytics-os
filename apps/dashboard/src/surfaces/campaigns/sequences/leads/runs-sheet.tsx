@@ -32,7 +32,7 @@ import { LinkButton } from "../../../kit/link-button/link-button";
 import { Picker } from "../../../kit/picker/picker";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
-import { focusAsDrawn, gate, navigate, routeDoor, type LegacyFlash } from "../../../legacy-verbs";
+import { focusAsDrawn, gate, navigate, routeDoor, type FrameFlash } from "../../../frame-verbs";
 import { pressed } from "../verbs";
 import { cmChevron } from "../../parts/picks";
 import { reachOuts } from "../../reach-out/surface";
@@ -317,7 +317,7 @@ interface RunsSheetProps {
   open: boolean;
   rec: SequenceRecordDto;
   lc: LeadChain;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   moved: () => void;
   onClose: () => void;
 }

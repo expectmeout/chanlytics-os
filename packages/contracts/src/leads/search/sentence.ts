@@ -7,7 +7,8 @@ import { type LeadArea, type LeadSearchPlan, US_STATES } from "./plan";
 
 const isLowerLetter = (ch: string) => ch !== undefined && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
 /** Lowercases the first letter only when the second is itself lowercase, so an acronym ("CVS") keeps its own case. */
-export const lowerFirst = (s: string) => (s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+export const lowerFirst = (text: string) =>
+  text && isLowerLetter(text[1] ?? "") ? text.charAt(0).toLowerCase() + text.slice(1) : text;
 const list = (xs: string[]) =>
   xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 
@@ -42,15 +43,19 @@ const NAMES_A_PLACE = /^\s+(?:in|near|around|within|across|throughout)\s+(?:[A-Z
  * since those are the words the source is actually searched with.
  */
 export function planWho(plan: LeadSearchPlan): string {
-  const a = plan.area;
-  const known = new Set(bits(`${a.label} ${a.query} ${a.zip ?? ""} ${a.state} ${US_NAMES[a.state] ?? ""}`));
+  const area = plan.area;
+  const known = new Set(
+    bits(`${area.label} ${area.query} ${area.zip ?? ""} ${area.state} ${US_NAMES[area.state] ?? ""}`),
+  );
   const whole = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
   let cut = whole ? "" : plan.name.trim();
-  const m = PLACE_CLAUSE.exec(cut);
-  if (m && (bits(m[0]).some((w) => known.has(w)) || NAMES_A_PLACE.test(m[0]))) cut = cut.slice(0, m.index).trim();
-  const said = new Set(plan.criteria.flatMap((c) => bits(c.text)));
-  const q = QUALITY_CLAUSE.exec(cut);
-  if (q && bits(q[0]).filter((w) => said.has(w)).length >= 2) cut = cut.slice(0, q.index).trim();
+  const match = PLACE_CLAUSE.exec(cut);
+  if (match && (bits(match[0]).some((w) => known.has(w)) || NAMES_A_PLACE.test(match[0])))
+    cut = cut.slice(0, match.index).trim();
+  const criteriaWords = new Set(plan.criteria.flatMap((c) => bits(c.text)));
+  const result = QUALITY_CLAUSE.exec(cut);
+  if (result && bits(result[0]).filter((w) => criteriaWords.has(w)).length >= 2)
+    cut = cut.slice(0, result.index).trim();
   return lowerFirst(cut) || list(plan.terms.map(lowerFirst));
 }
 
@@ -107,12 +112,16 @@ export function planWords(plan: LeadSearchPlan): LeadPlanWord[] {
   ];
   // The criteria are a list after the place, each its own clause, so a sentence of three reads as three (Ruben, 10 Oct
   // 2026: joined by spaces they ran together, "in Austin, TX independent, not a chain has a website").
-  plan.criteria.forEach((c, i) => {
-    out.push({ text: i === 0 ? ": " : "; ", pick: null });
+  plan.criteria.forEach((item, index) => {
+    out.push({ text: index === 0 ? ": " : "; ", pick: null });
     out.push({
-      text: c.standard === "seen" ? `${lowerFirst(c.text)} (confirmed)` : lowerFirst(c.text),
+      text: item.on_site
+        ? `${lowerFirst(item.text)} (on its website)`
+        : item.standard === "seen"
+          ? `${lowerFirst(item.text)} (confirmed)`
+          : lowerFirst(item.text),
       pick: "criterion",
-      key: c.key,
+      key: item.key,
     });
   });
   out.push({ text: plan.criteria.length ? "; " : ", ", pick: null });

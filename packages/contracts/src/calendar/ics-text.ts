@@ -3,13 +3,13 @@
  * and a value read as text, an instant, a wall-clock time or a duration. feed.ts reads the events out of them.
  */
 import { zoneOfTzid } from "./ics-zones";
-import { localToUtcMs, zoneParts } from "./zone-math";
+import { localToUtcMs, zoneParts } from "../shared/zone/math";
 
 /* ------------------------------------------------------------ the feed */
 
 /** iCal TEXT escapes: \, \; \n and \\. */
-export function unescapeText(v: string): string {
-  return v.replace(/\\([\\;,nN])/g, (_, c: string) => (c === "n" || c === "N" ? "\n" : c)).trim();
+export function unescapeText(value: string): string {
+  return value.replace(/\\([\\;,nN])/g, (_, c: string) => (c === "n" || c === "N" ? "\n" : c)).trim();
 }
 
 /** RFC 5545 folds long lines; a continuation starts with a space or tab. */
@@ -29,11 +29,11 @@ export function unfold(text: string): string[] {
  */
 export function splitLine(line: string): { name: string; params: Record<string, string>; value: string } | null {
   let colon = -1;
-  let q = false;
+  let quoted = false;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === '"') q = !q;
-    else if (ch === ":" && !q) {
+    if (ch === '"') quoted = !quoted;
+    else if (ch === ":" && !quoted) {
       colon = i;
       break;
     }
@@ -43,13 +43,13 @@ export function splitLine(line: string): { name: string; params: Record<string, 
   const value = line.slice(colon + 1);
   const parts: string[] = [];
   let cur = "";
-  q = false;
+  quoted = false;
   for (const ch of head) {
     if (ch === '"') {
-      q = !q;
+      quoted = !quoted;
       continue;
     }
-    if (ch === ";" && !q) {
+    if (ch === ";" && !quoted) {
       parts.push(cur);
       cur = "";
       continue;
@@ -57,7 +57,7 @@ export function splitLine(line: string): { name: string; params: Record<string, 
     cur += ch;
   }
   parts.push(cur);
-  const [name, ...rest] = parts;
+  const [name = "", ...rest] = parts;
   const params: Record<string, string> = {};
   for (const p of rest) {
     const eq = p.indexOf("=");
@@ -74,16 +74,16 @@ export function splitLine(line: string): { name: string; params: Record<string, 
  *  - "20260909" (VALUE=DATE) → midnight in `fallbackTz`; `endOfDay` for DTEND
  */
 export function toMs(value: string, params: Record<string, string>, fallbackTz: string): number | null {
-  const v = value.trim();
-  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
+  const text = value.trim();
+  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(text);
   if (date || params.VALUE === "DATE") {
-    const m = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
+    const m = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(text);
     if (!m) return null;
     return localToUtcMs(fallbackTz, Number(m[1]), Number(m[2]), Number(m[3]), 0, 0);
   }
-  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
-  if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z] = m;
+  const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(text);
+  if (!match) return null;
+  const [, y, mo, d, hh, mm, ss, z] = match;
   if (z) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = zoneOfTzid(params.TZID, fallbackTz);
   return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1000;
@@ -96,37 +96,46 @@ export function localPartsOf(
   params: Record<string, string>,
   fallbackTz: string,
 ): { tz: string; y: number; m: number; d: number; hh: number; mm: number; allDay: boolean } | null {
-  const v = value.trim();
-  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(v);
+  const text = value.trim();
+  const date = /^(\d{4})(\d{2})(\d{2})$/.exec(text);
   if (date || params.VALUE === "DATE") {
-    const m = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(v);
+    const m = date ?? /^(\d{4})(\d{2})(\d{2})/.exec(text);
     if (!m) return null;
     return { tz: fallbackTz, y: Number(m[1]), m: Number(m[2]), d: Number(m[3]), hh: 0, mm: 0, allDay: true };
   }
-  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
-  if (!m) return null;
-  if (m[7]) {
-    const p = zoneParts(
+  const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(text);
+  if (!match) return null;
+  if (match[7]) {
+    const result = zoneParts(
       fallbackTz,
-      new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] ?? 0))),
+      new Date(
+        Date.UTC(
+          Number(match[1]),
+          Number(match[2]) - 1,
+          Number(match[3]),
+          Number(match[4]),
+          Number(match[5]),
+          Number(match[6] ?? 0),
+        ),
+      ),
     );
-    return { tz: fallbackTz, y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm, allDay: false };
+    return { tz: fallbackTz, y: result.y, m: result.m, d: result.d, hh: result.hh, mm: result.mm, allDay: false };
   }
   return {
     // A zone the clock reads: the series is stepped with it, and a name it did not know threw there (ics-zones.ts).
     tz: zoneOfTzid(params.TZID, fallbackTz),
-    y: Number(m[1]),
-    m: Number(m[2]),
-    d: Number(m[3]),
-    hh: Number(m[4]),
-    mm: Number(m[5]),
+    y: Number(match[1]),
+    m: Number(match[2]),
+    d: Number(match[3]),
+    hh: Number(match[4]),
+    mm: Number(match[5]),
     allDay: false,
   };
 }
 
 /** "PT1H30M" / "P1D" → milliseconds. */
-export function durationMs(v: string): number | null {
-  const m = /^([+-])?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(v.trim());
+export function durationMs(value: string): number | null {
+  const m = /^([+-])?P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(value.trim());
   if (!m) return null;
   const sign = m[1] === "-" ? -1 : 1;
   return (

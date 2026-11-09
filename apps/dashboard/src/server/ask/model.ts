@@ -1,10 +1,10 @@
 import "server-only";
-import { MODEL_EFFORTS, MODEL_SPEEDS, askModelProfile, type AskModelProfile } from "@chanlytics/contracts";
-import { log } from "@/server/log";
-import { env } from "../env";
+import { MODEL_EFFORTS, MODEL_SPEEDS, askModelProfile, type AskModelProfile, isOneOf } from "@chanlytics/contracts";
+import { log } from "@/server/shared/log";
+import { env } from "../shared/env";
 
 /**
- * The profile this deployment runs Ask on (contracts ask-model.ts): ASK_MODEL in the environment, any Claude model's
+ * The profile this deployment runs Ask on (contracts ask/model.ts): ASK_MODEL in the environment, any Claude model's
  * id, at ASK_EFFORT, in fast mode unless ASK_SPEED says standard, a draft asked at ASK_DRAFT_EFFORT unless it says off,
  * its answer through the answer tool unless ASK_ANSWER_TOOL says off; the default for each when it is unset. Read on every
  * turn (five string compares) so a test can set them; a deployment sets them once. A value that reads as no model, no
@@ -24,12 +24,12 @@ export function askModel(): AskModelProfile {
   const unread =
     (name !== null && profile.id !== name) ||
     (effort !== null && profile.effort !== effort) ||
-    (speed !== null && !(MODEL_SPEEDS as readonly string[]).includes(speed)) ||
-    (draft !== null && draft !== "off" && !(MODEL_EFFORTS as readonly string[]).includes(draft)) ||
+    (speed !== null && !isOneOf(MODEL_SPEEDS, speed)) ||
+    (draft !== null && draft !== "off" && !isOneOf(MODEL_EFFORTS, draft)) ||
     (answer !== null && answer !== "on" && answer !== "off");
-  const said = `${name}|${effort}|${speed}|${draft}|${answer}`;
-  if (unread && warnedFor !== said) {
-    warnedFor = said;
+  const sentence = `${name}|${effort}|${speed}|${draft}|${answer}`;
+  if (unread && warnedFor !== sentence) {
+    warnedFor = sentence;
     log.warn("ask_model_unknown", {
       name,
       effort,

@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from "react";
 import { MIN_MS, type ActivityPageDto } from "@chanlytics/contracts";
-import { activity, type ActivityFilters } from "@/legacy-bridge/activity";
+import { activity, type ActivityFilters } from "@/bridge/activity";
 
 /** How often an open log reads its first page again: the age an owner reading a log looks for. */
 const AGAIN_MS = MIN_MS;

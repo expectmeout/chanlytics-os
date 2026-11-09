@@ -37,36 +37,46 @@ import type {
   TENANT_STATUSES,
 } from "./enums";
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
-import type { MODEL_PORTS, MODEL_PURPOSES } from "../ai/models";
+import type { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS } from "../ai/anthropic-enforcement";
+import type { AI_USAGE_PORTS, AI_USAGE_PURPOSES } from "../ai/hearing";
+import type { FILE_KINDS, FILE_MEDIA_STATUSES } from "../files/kinds";
+import type {
+  FILE_LOOK_STATUSES,
+  FILE_MIMES,
+  FILE_SHOWS,
+  FILE_SOURCES,
+  FILE_STATUSES,
+  FILE_WHO_IN_IT,
+} from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
-import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing";
+import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing/dtos";
 import type {
   PARTNER_EARNING_KINDS,
   PARTNER_EARNING_STATES,
   PARTNER_REVERSAL_KINDS,
   PARTNER_STANDINGS,
   PARTNER_STATUSES,
-} from "../workspace/partner";
-import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../broadcasts/broadcasts";
-import type { REPLY_INTENTS, REPLY_UNREADS } from "../reach-out/reach-out-replies";
-import type { SEQUENCE_MODES, SEQUENCE_STARTS, SEQUENCE_STATES } from "../sequences/sequence";
+} from "../workspace/partner/dtos";
+import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../campaigns/broadcasts/states";
+import type { REPLY_INTENTS, REPLY_UNREADS } from "../campaigns/reach-out/replies/intents";
+import type { SEQUENCE_MODES, SEQUENCE_STARTS, SEQUENCE_STATES } from "../campaigns/sequences/sequence";
 import type { CALL_OUTCOMES } from "../voice/call-words";
 import type { PREVIEW_STATES } from "../previews/lead-preview";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
-import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
+import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/words";
 import type { APPOINTMENT_WORDS } from "../journey/appointment-word";
 import type { DOUBT_SEEN, DOUBT_SETTLED_AS } from "../people/person-doubts";
-import type { NAME_SOURCES } from "../person-page/words";
+import type { NAME_SOURCES } from "../people/person-page/words";
 import type { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES } from "../calendar/feed-appointments";
-import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications";
-import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../playbooks/playbooks";
-import type { TEMPLATE_CATEGORIES } from "../templates/templates";
+import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications/feed-input";
+import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../campaigns/playbooks/playbooks";
+import type { TEMPLATE_CATEGORIES } from "../campaigns/templates/templates";
 import type { PUSH_PLATFORMS } from "../today/push";
 import type { PAGE_DEVICES, PAGE_METRICS } from "../shell/vitals-pages";
-import type { VOICE_END_REASONS } from "../ask/ask";
-import type { MAILBOX_CONNECTION_STATES, MAILBOX_PROVIDERS } from "../email/mailbox-connections";
+import type { VOICE_END_REASONS } from "../ask/limits";
+import type { MAILBOX_CONNECTION_STATES, MAILBOX_PROVIDERS } from "../email/mailbox-connections/states";
 import type { MAILBOX_HOLDS } from "../email/mailbox-standing";
 import type {
   LEAD_CLOSED_REASONS,
@@ -87,8 +97,9 @@ import type {
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
 } from "../leads/search/sets";
-import type { LEAD_KINDS, LEAD_SOURCES } from "../leads/lead-kind";
-import type { ACT_OUTCOMES, ACT_TARGETS, REASON_KINDS, STAFF_ROLES } from "../console/console";
+import type { LEAD_KINDS, LEAD_SOURCES } from "../leads/kind";
+import type { ACT_OUTCOMES, ACT_TARGETS } from "../console/acts";
+import type { REASON_KINDS, STAFF_ROLES } from "../console/staff";
 import type { REQUEST_KINDS } from "../console/requests";
 import type { REPORT_KINDS } from "../shell/report-problem";
 
@@ -129,10 +140,25 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PARTNER_EARNING_STATES>, SchemaSet<"partner_earnings.state">>>,
   Holds<Exactly<Of<typeof PARTNER_REVERSAL_KINDS>, SchemaSet<"partner_reversals_waiting.kind">>>,
 
-  // The model ledger (00273, 00275): why the key was spent, what came of the call, and the port it left by.
-  Holds<Exactly<Of<typeof MODEL_PURPOSES>, SchemaSet<"ai_usage.purpose">>>,
+  // The model ledger (00273, 00275): why the key was spent, what came of the call, and the port it left by; the hearing
+  // models' purposes and ports beside Anthropic's (00556, ai/hearing.ts).
+  Holds<Exactly<Of<typeof AI_USAGE_PURPOSES>, SchemaSet<"ai_usage.purpose">>>,
   Holds<Exactly<Of<typeof MODEL_CALL_OUTCOMES>, SchemaSet<"ai_usage.outcome">>>,
-  Holds<Exactly<Of<typeof MODEL_PORTS>, SchemaSet<"ai_usage.port">>>,
+  Holds<Exactly<Of<typeof AI_USAGE_PORTS>, SchemaSet<"ai_usage.port">>>,
+
+  // Whom Anthropic is told a call is for (00544, decision 0097).
+  Holds<Exactly<Of<typeof ANTHROPIC_PROFILE_KINDS>, SchemaSet<"anthropic_profiles.kind">>>,
+  Holds<Exactly<Of<typeof ANTHROPIC_ENFORCEMENT_STATUSES>, SchemaSet<"anthropic_profiles.enforcement_status">>>,
+
+  // A business's files (00551, decision 0099), and its videos (00556).
+  Holds<Exactly<Of<typeof FILE_KINDS>, SchemaSet<"files.kind">>>,
+  Holds<Exactly<Of<typeof FILE_MEDIA_STATUSES>, SchemaSet<"files.media_status">>>,
+  Holds<Exactly<Of<typeof FILE_LOOK_STATUSES>, SchemaSet<"files.look_status">>>,
+  Holds<Exactly<Of<typeof FILE_MIMES>, SchemaSet<"files.mime">>>,
+  Holds<Exactly<Of<typeof FILE_SHOWS>, SchemaSet<"files.shows">>>,
+  Holds<Exactly<Of<typeof FILE_SOURCES>, SchemaSet<"files.source">>>,
+  Holds<Exactly<Of<typeof FILE_STATUSES>, SchemaSet<"files.status">>>,
+  Holds<Exactly<Of<typeof FILE_WHO_IN_IT>, SchemaSet<"files.who_in_it">>>,
 
   // What a connected mailbox read a sender to be (00495, decision 0080).
   Holds<Exactly<Of<typeof SENDER_KINDS>, SchemaSet<"mailbox_sender_reads.kind">>>,

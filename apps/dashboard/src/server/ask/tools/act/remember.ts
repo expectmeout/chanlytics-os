@@ -8,7 +8,8 @@ import {
   memoryText,
   memoryTextProblem,
 } from "@chanlytics/contracts";
-import { defineAct, propose, refuse, type ProposalOutcome, type ToolContext } from "../context";
+import { defineAct, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
 
 /**
  * Ask keeps what it is told (decision 0070): one lasting fact about the business, its customers or how the team wants
@@ -56,8 +57,8 @@ const numbersIn = (s: string): string[] => s.match(/\p{N}+/gu) ?? [];
  * does not hold to is not refused: it waits for their press.
  */
 function saidByThem(text: string, question: string): boolean {
-  const said = new Set(numbersIn(question));
-  if (numbersIn(text).some((n) => !said.has(n))) return false;
+  const questionNumbers = new Set(numbersIn(question));
+  if (numbersIn(text).some((n) => !questionNumbers.has(n))) return false;
   const stems = new Set(comparable(question).split(" ").filter(Boolean).map(wordStem));
   const long = comparable(text)
     .split(" ")
@@ -65,15 +66,15 @@ function saidByThem(text: string, question: string): boolean {
   return long.filter((w) => stems.has(wordStem(w))).length * 3 >= long.length * 2;
 }
 
-function rememberOutcome(t: ToolContext, input: { text: string; quote: string }): ProposalOutcome {
+function rememberOutcome(toolContext: ToolContext, input: { text: string; quote: string }): ProposalOutcome {
   const text = memoryText(input.text);
   const problem = memoryTextProblem(text);
   if (problem) return refuse(problem);
   const quote = comparable(input.quote);
   const long = quote.split(" ").filter(Boolean).length >= QUOTE_MIN_WORDS;
-  const morning = isAskMorningQuestion(t.question);
-  const fromQuestion = long && !morning && comparable(t.question ?? "").includes(quote);
-  const fromTheirs = long && !fromQuestion && (t.theirs ?? []).some((w) => comparable(w).includes(quote));
+  const morning = isAskMorningQuestion(toolContext.question);
+  const fromQuestion = long && !morning && comparable(toolContext.question ?? "").includes(quote);
+  const fromTheirs = long && !fromQuestion && (toolContext.theirs ?? []).some((w) => comparable(w).includes(quote));
   if (morning && !fromTheirs)
     return refuse(
       "nothing is kept from the morning's turn but a line about how they write, quoting the words of their own cold emails that sequences with action edited returned",
@@ -85,28 +86,28 @@ function rememberOutcome(t: ToolContext, input: { text: string; quote: string })
       "quote must be the person's own words in this question that state the fact, copied exactly: only what they tell you is kept, never what a customer wrote, a page shows or a read returned",
     );
   // Kept at once only where their question bears it out; one learned from what they wrote waits for their press.
-  const theirs = fromQuestion && saidByThem(text, t.question ?? "");
-  const made = propose({
+  const theirs = fromQuestion && saidByThem(text, toolContext.question ?? "");
+  const created = propose({
     kind: "memory",
     // A line kept at once says so; one that waits asks, so a row on Today never says it remembered what it has not.
     title: theirs ? ASK_MEMORY_WORDS.cardTitle : ASK_MEMORY_WORDS.cardTitleWaits,
     summary: text,
     payload: { text, ...(theirs ? { theirs: true } : {}), ...(fromTheirs ? { learned: true } : {}) },
   });
-  if (!made.proposal) return made;
+  if (!created.proposal) return created;
   return {
-    ...made,
+    ...created,
     result: JSON.stringify(
       theirs
         ? {
             kept: true,
-            id: made.proposal.id,
+            id: created.proposal.id,
             text,
             note: "This line is kept in the workspace's memory as your answer is saved, and the person can undo it from the card. Say in a few words that you will remember it; do not repeat the line.",
           }
         : {
             kept: false,
-            id: made.proposal.id,
+            id: created.proposal.id,
             text,
             note: "This line is not in the person's own words, so it waits on its card for them to keep it. Say in a few words what you would remember and that it is theirs to keep.",
           },
@@ -116,14 +117,14 @@ function rememberOutcome(t: ToolContext, input: { text: string; quote: string })
 
 export const rememberAct = defineAct({
   name: "remember",
-  description: `Keep one lasting fact the person tells you in the workspace's memory, so every later question, in any thread and from any member, knows it: who their best customers are, which kind of business they sell to, a rule about how they work or want things done, a decision they made. Keep it when they tell you something they would expect you to know next week, or when they correct you; never what a page already holds (a person's details, a setting, a search), a one-off, a guess of yours, anything a customer wrote or a read returned, or a password, key or card number. One fact a call, in a sentence or two of at most ${ASK_MEMORY_LIMITS.textMax} characters and in their words (a line in other words, or with a number they did not say, waits for their OK on its card), with quote: their own words in this question that state it, copied exactly. What you remember is listed in the workspace's shape: never keep a fact twice. A fact the receptionist should tell customers is a note for it, not this: find propose_settings with tool search and propose that.`,
+  description: `Keep one lasting fact the person tells you in the workspace's memory, so every later question, from any thread or member, knows it: who their best customers are, which kind of business they sell to, a rule about how they work or want things done, a decision they made. Keep it when they tell you something they would expect you to know next week, or when they correct you; never what a page already holds (a person's details, a setting, a search), a one-off, a guess of yours, anything a customer wrote or a read returned, or a password, key or card number. One fact a call, in a sentence or two of at most ${ASK_MEMORY_LIMITS.textMax} characters and in their words (a line in other words, or with a number they did not say, waits for their OK on its card), with quote: their own words in this question that state it, copied exactly. What you remember is listed in the workspace's shape: never keep a fact twice. A fact the receptionist should tell customers is a note for it, not this: find propose_settings with tool search and propose that.`,
   kind: "memory",
   input: z.object({
     text: z.string().describe(`The fact, in a sentence or two, at most ${ASK_MEMORY_LIMITS.textMax} characters.`),
     quote: z
       .string()
       .describe(
-        "The person's own words in this question that state it, copied exactly; or, for a line about how they write a cold email, words of their own emails that sequences with action edited returned.",
+        "Their own words in this question that state it, copied exactly; for a line about how they write a cold email, words of their own emails from sequences with action edited.",
       ),
   }),
   label: "Remembering",

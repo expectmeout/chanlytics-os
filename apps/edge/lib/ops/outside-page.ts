@@ -4,8 +4,8 @@
  * The door is api/admin/page.ts: it checks who may knock (authorizeAdmin, the platform's key only); everything after is
  * here, handed the knock and the request, whose body it reads once the knock is known to be the key's.
  *
- * The edge pages the platform for what it sees itself (lib/ops/page-operator.ts). Two conditions are seen only by
- * GitHub's workflows: the nightly red twice running, and production's migrations disagreeing with main's for a day
+ * The edge pages the platform for what it sees itself (lib/shared/alerts/page-operator.ts). Two conditions are seen only by
+ * GitHub's workflows: the nightly's check of production red, and production's migrations disagreeing with main's for a day
  * (docs/runbook.md). Both reached nobody outside GitHub, so both come here and page the way the edge's own do: one
  * page per condition per six hours, to the platform's addresses, remembered in operator_pages and shown on /api/diag.
  *
@@ -13,15 +13,15 @@
  * token, which names a workspace, is refused. The conditions are a closed set, so a workflow cannot page anything
  * else; the words are the workflow's, cut to what a page carries.
  */
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { pageOperator } from "./page-operator.js";
-import { logger } from "../log.js";
-import type { Admitted } from "../admin-auth.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
+import { logger } from "../shared/log.js";
+import type { Admitted } from "../shared/admin-auth.js";
 
 /** What a workflow may page for, and the subject its page carries. */
 const OUTSIDE_CONDITIONS = {
-  nightly_red: "The nightly has been red two runs in a row",
+  production_check_red: "The check of production is red",
   migration_ledger: "Production's migrations disagree with main's",
 } as const;
 
@@ -33,7 +33,7 @@ const DETAIL_MAX = 4000;
 const isCondition = (v: unknown): v is OutsideCondition =>
   typeof v === "string" && Object.prototype.hasOwnProperty.call(OUTSIDE_CONDITIONS, v);
 
-export async function pageFromOutside(auth: Admitted, request: Request): Promise<Response> {
+export async function readPageFromOutside(auth: Admitted, request: Request): Promise<Response> {
   if (auth.via !== "key") return refuse(403, "platform_only", "the platform's key pages; a workspace's token does not");
 
   let body: { condition?: unknown; detail?: unknown } = {};

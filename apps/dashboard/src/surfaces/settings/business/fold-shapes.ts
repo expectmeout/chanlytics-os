@@ -3,13 +3,26 @@
 // and the small readers of a box. Split from folds.ts, which has the three helpers of each fold; see it for how a fold
 // uses them. Pure, and no JSX.
 
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import type { BookingRuleKey, ProfileLimitKey, ProfileRefusalKey } from "@chanlytics/contracts";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
+import type { BookingRuleKey, ProfileLimitKey } from "@chanlytics/contracts";
+import type { ProfileRefusalKey } from "./model/fold-limits";
 import { BOOKS_BY_HAND, booksWithOf, isBookingTool } from "@chanlytics/contracts";
 import { trimmed, type Config, type StoredNote } from "./save";
 
-/** The folds, each named by its id. */
+/**
+ * The folds, each named by its id. The first nine are How it reaches out's (decision 0113), each one key of the config's
+ * reach_out section: their tables are outreach/fold-tables.ts's, which holds its keys to these names.
+ */
 export type FoldName =
+  | "offer"
+  | "who_for"
+  | "fixes"
+  | "proof"
+  | "cold_tone"
+  | "signed_by"
+  | "signature"
+  | "sign_phone"
+  | "reply_offer"
   | "tone"
   | "phone_greeting"
   | "hours"
@@ -78,6 +91,17 @@ export interface ReceptionistDraft {
 
 /** What each fold opens with, by its id. */
 export interface DraftOf {
+  offer: string;
+  who_for: string;
+  fixes: string;
+  /** The claims, one a row; a row left empty is dropped on save. */
+  proof: string[];
+  cold_tone: string;
+  signed_by: string;
+  signature: string;
+  sign_phone: string;
+  /** A ReplyOffer, "" for the booking link, as before the page. */
+  reply_offer: string;
   tone: string;
   phone_greeting: string;
   hours: Record<string, DayDraft>;
@@ -195,6 +219,15 @@ export const BT_DAY_NAMES: Record<string, string> = {
  * under the rules, the messages and the features.
  */
 export const BT_PATHS_OF: Record<FoldName, string[]> = {
+  offer: ["reach_out.offer"],
+  who_for: ["reach_out.who_for"],
+  fixes: ["reach_out.fixes"],
+  proof: ["reach_out.proof"],
+  cold_tone: ["reach_out.tone"],
+  signed_by: ["reach_out.signed_by"],
+  signature: ["reach_out.signature"],
+  sign_phone: ["reach_out.phone"],
+  reply_offer: ["reach_out.reply_offer"],
   tone: ["brain.profile.tone"],
   phone_greeting: ["brain.profile.phone_greeting"],
   hours: ["brain.profile.hours"],

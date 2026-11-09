@@ -3,7 +3,7 @@
  * Leads' *Import leads* (a file of the owner's own businesses, read here, every address checked first by the finder's own
  * check, as a search of its own) and the bulk bar's *Write to them* (the chosen leads as a search of their own, with the
  * reach-out sheet opened on it). A reach-out writes to a search, so both are one. Every reading of a file and every word is
- * contracts' (lead-import.ts), through Campaigns' reach-out reads (`reachOuts.lists`); the page mounts it with one hook,
+ * contracts' (leads/import.ts), through Campaigns' reach-out reads (`reachOuts.lists`); the page mounts it with one hook,
  * useLeadLists, whose answer is the rail's doors, the bar's act and the sheets they open. Beside Import leads the rail
  * offers Find people (the people card, 00430: finder/people-sheet.tsx), the other door that brings leads in.
  */
@@ -15,7 +15,7 @@ import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordSheet } from "../../kit/record/sheet";
-import { gate, navigate } from "../../legacy-verbs";
+import { gate, navigate } from "../../frame-verbs";
 import { useFindPeople } from "../finder/people-sheet";
 import { ImportSource, ImportTaste } from "../../people/import/frame";
 import type { PeopleFlash } from "../../people/types";

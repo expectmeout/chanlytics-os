@@ -5,10 +5,10 @@
  * replayProviderEvent in lib/intake/replay.ts is everything after, handed the doors a delivery may come
  * back to, by the path it came to: the same handlers Vercel routes those paths to.
  */
-import { readBody } from "../../../lib/admin-door.js";
-import { authorizeAdmin } from "../../../lib/admin-auth.js";
-import { adminDoor } from "../../../lib/log.js";
-import { pg } from "../../../lib/pg.js";
+import { readBody } from "../../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../../lib/shared/log.js";
+import { pg } from "../../../lib/shared/pg.js";
 import { replayProviderEvent } from "../../../lib/intake/replay.js";
 import { POST as inboundSms } from "../../inbound-sms.js";
 import { POST as smsStatus } from "../../sms-status.js";
@@ -17,6 +17,7 @@ import { POST as retellWebhook } from "../../retell-webhook.js";
 import { POST as retellInbound } from "../../retell-inbound.js";
 import { POST as resendWebhook } from "../../resend-webhook.js";
 import { POST as stripeWebhook } from "../../stripe-webhook.js";
+import { INTAKE_REPLAY_DOOR } from "@chanlytics/contracts";
 
 const DOORS = {
   "/api/inbound-sms": inboundSms,
@@ -31,5 +32,5 @@ const DOORS = {
 export const POST = adminDoor(async function POST(request: Request): Promise<Response> {
   const auth = await authorizeAdmin(request, "/api/admin/intake/replay");
   if (!auth.ok) return auth.response;
-  return replayProviderEvent(pg(), await readBody(request), DOORS);
+  return replayProviderEvent(pg(), await readBody(request, INTAKE_REPLAY_DOOR), DOORS);
 });

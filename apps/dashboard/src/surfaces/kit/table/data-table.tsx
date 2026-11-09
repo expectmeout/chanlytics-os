@@ -9,8 +9,9 @@
  * them. The rows rise in as the table arrives (kit/motion/use-rows-arrive.ts) and swap as the view under it changes (the
  * page's swap motion, over `TABLE_BODIES`); `busy` dims the rows, never the heads.
  */
-import { useCallback, useLayoutEffect, useRef } from "react";
-import type { ChangeEvent, ReactElement, RefObject, UIEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ChangeEvent, MouseEvent, ReactElement, ReactNode, RefObject, UIEvent } from "react";
+import { isDocumentScroller, movingScrollerOf } from "../motion/page-scroll";
 import { useRowsArrive } from "../motion/use-rows-arrive";
 import { RowGap } from "../rows/row-gap";
 import { useShownRows, type ShownRows } from "../rows/shown-rows";
@@ -28,8 +29,10 @@ import {
   type TableRow,
 } from "./columns";
 import { fitWidthOf } from "./edge";
-import { sectionBodies, type TableSection } from "./groups";
-import { tableHead, type HeadActs, type TableNouns } from "./head";
+import { groupHeadRow, sectionBodies, tableItems, type TableGroup, type TableItem, type TableSection } from "./groups";
+import { tableHead, type HeadActs, type HeadingMenu, type TableNouns } from "./head";
+import { cutWords } from "./lines";
+import { nearEndAsker } from "./near-end";
 import { TableRowMemo, emptyRow, type TableEmpty } from "./rows";
 import type { TableState } from "./state";
 import type { DataTableModel } from "./use-data-table";
@@ -87,6 +90,15 @@ export interface DataTableProps<R extends TableRow, X> {
   selectMode?: boolean;
   /** The rows in groups (the Pipeline's stages), each drawn whole. */
   sections?: readonly TableSection<R>[] | null;
+  /**
+   * Which group a row of a long list stands in, for a head before each run (groups.tsx tableItems), kept drawn among the
+   * windowed rows; a desk's alone: a phone's cards say it themselves. None draws no heads.
+   */
+  groupOf?: ((row: R) => TableGroup | null) | null;
+  /** The menus a desk's headings wear, by column: a filter of the page's, and Hide column (head.tsx). */
+  menus?: Readonly<Record<string, HeadingMenu>> | null;
+  /** What the foot says after its count, and what it holds at its end (a filter that is on, and the way out). */
+  foot?: { words?: readonly string[]; end?: ReactNode } | null;
   /** The table's element, for the page's swap motion. */
   swapRef?: RefObject<HTMLTableElement | null> | null;
   /**
@@ -96,6 +108,8 @@ export interface DataTableProps<R extends TableRow, X> {
   classNames?: { wrap?: string; scroll?: string; table?: string };
   /** How the groups' heads are drawn: as the Pipeline's stages (a name in the semibold, its meta giving way), or plainly. */
   groups?: "stages" | null;
+  /** The page's next page, where it has one: asked for as the scroll nears the rows' end (near-end.ts). */
+  onNearEnd?: (() => void) | undefined;
 }
 
 /** Classes joined, the empty ones left out. */
@@ -202,7 +216,7 @@ function useTableElements(
     },
     [state.dom],
   );
-  // The first rows rise in as the table arrives, as the Inbox's do; one element for that and the page's swap.
+  // At a desk the first rows fade in as the table arrives, as the Inbox's do; one element for that and the page's swap.
   const arrive = useRowsArrive<HTMLTableElement>();
   const tableRef = useCallback(
     (node: HTMLTableElement | null) => {
@@ -214,6 +228,29 @@ function useTableElements(
   );
   useDeskWidths({ state, el, ...sizing });
   return { scrollRef, tableRef };
+}
+
+/**
+ * Asks for the next page as what scrolls the list nears its end (near-end.ts), and once as the rows change, since a view
+ * shorter than its box has no scroll to wait for. What scrolls it is found as the rows are (rows/shown-rows.ts): the table's
+ * box on a desk, the window on a phone, whose box stands as tall as what it holds.
+ */
+function useNearEnd<R extends TableRow>(state: TableState, rows: readonly R[], ask: (() => void) | undefined) {
+  const [asker] = useState(nearEndAsker);
+  const latest = useRef(ask);
+  latest.current = ask;
+  const can = !!ask;
+  const at = `${rows[0]?.id ?? ""}|${rows.length}`;
+  useEffect(() => {
+    const box = state.dom.scroll;
+    if (!box || !can) return undefined;
+    const moving = movingScrollerOf(box, { self: true });
+    const heard: EventTarget = isDocumentScroller(moving) ? window : moving;
+    const look = () => asker(moving, at, latest.current);
+    look();
+    heard.addEventListener("scroll", look, { passive: true });
+    return () => heard.removeEventListener("scroll", look);
+  }, [asker, at, can, state.dom]);
 }
 
 /** A row of the table's model, or none where it holds no row by that id. */
@@ -238,16 +275,47 @@ function useRowToggle<R extends TableRow>(table: DataTableModel<R>, state: Table
   );
 }
 
-/** The box says it has scrolled sideways on itself, as it scrolls, and whether more lies past its right edge. */
+/**
+ * The box says it has scrolled sideways on itself, as it scrolls, whether more lies past its right edge, and whether
+ * rows have passed under its heads (`data-under`): a head is clear on the pane until then, and paints the pane's solid
+ * from then on, so the rows under it never show through as a smear.
+ */
 const onTableScroll = (e: UIEvent<HTMLDivElement>) => {
   e.currentTarget.toggleAttribute("data-scrolled", e.currentTarget.scrollLeft > 0);
+  e.currentTarget.toggleAttribute("data-under", e.currentTarget.scrollTop > 0);
   markMore(e.currentTarget);
 };
 
-/** The row the window keeps drawn whatever is scrolled to: the cursor's, else the first. */
-const keptRows = <R extends TableRow>(rows: readonly R[], cursor: string | null): number[] => {
+/** What in a line says more of it already: a control with its own description, a tip or a title. */
+const SAYS_MORE = "[aria-describedby], [data-tip], [title]";
+
+/**
+ * A line its column cut says its whole words as its tip, and one shown whole says none: asked as a pointer reaches the
+ * line, in the capture phase, so the app's one tooltip (frame/tip.ts, which hears the same mouseover at the document as
+ * it bubbles) finds the words already there. A line holding a control that says more of itself is left to that control.
+ */
+const onLineReached = (e: MouseEvent<HTMLDivElement>) => {
+  const at = e.target as Element | null;
+  const line = at && at.closest ? at.closest<HTMLElement>(".dtable-line-top, .dtable-line-sub") : null;
+  if (!line || line.querySelector(SAYS_MORE)) return;
+  const words = cutWords(line);
+  if (words) line.setAttribute("data-tip", words);
+  else line.removeAttribute("data-tip");
+};
+
+/** What the window keeps drawn whatever is scrolled to: the cursor's row, else the first, and every group's head. */
+const keptItems = <R extends TableRow>(
+  rows: readonly R[],
+  items: readonly TableItem[],
+  cursor: string | null,
+): number[] => {
   const at = cursor === null ? -1 : rows.findIndex((r) => r.id === cursor);
-  return [at >= 0 ? at : 0];
+  const row = at >= 0 ? at : 0;
+  const kept: number[] = [];
+  items.forEach((x, i) => {
+    if (x.kind === "head" || x.rowIndex === row) kept.push(i);
+  });
+  return kept.length ? kept : [0];
 };
 
 /** What the table takes from its props for a draw: the shape it takes and what each row is drawn with. */
@@ -258,6 +326,8 @@ interface TableShape<R extends TableRow, X> {
   selectable: boolean;
   columns: readonly AnyDataColumn[];
   sections: readonly TableSection<R>[] | null;
+  /** The rows, with a head before each run of a group where the table names groups: what the window counts. */
+  items: readonly TableItem[];
   words: TableNouns;
   sel: ReadonlySet<string>;
   /** How many cells a row is across: the columns, or the card, and the box. */
@@ -279,6 +349,7 @@ function tableShape<R extends TableRow, X>(p: DataTableProps<R, X>): TableShape<
     selectable,
     columns,
     sections: p.sections ?? null,
+    items: tableItems(p.rows, desk ? p.groupOf : null),
     words: NOUNS[p.noun ?? "person"] ?? PERSON_NOUN,
     sel: selectable ? p.state.selected : NO_SEL,
     span: (desk ? columns.length : 1) + (selectable ? 1 : 0),
@@ -299,7 +370,7 @@ function rowDrawer<R extends TableRow, X>(
 ) {
   const onCursor = p.onCursor ?? NOOP;
   const rowClass = s.desk ? (p.rowClass ?? null) : null;
-  return (r: R, i: number, rowIndex?: number): ReactElement => (
+  return (r: R, i: number, rowIndex?: number, first = i === 0): ReactElement => (
     <TableRowMemo
       key={r.id}
       row={r}
@@ -314,7 +385,7 @@ function rowDrawer<R extends TableRow, X>(
       selected={s.sel.has(r.id)}
       selecting={parts.selecting}
       focused={s.cursor === r.id}
-      tabStop={s.cursor === r.id || (!s.cursor && i === 0)}
+      tabStop={s.cursor === r.id || (!s.cursor && first)}
       onToggle={parts.toggle}
       onCursor={onCursor}
       onOpen={p.onOpen}
@@ -325,15 +396,16 @@ function rowDrawer<R extends TableRow, X>(
 }
 
 /**
- * What the table says on its element: its name, how many rows it has where it draws only some of them (the heads are
- * row 1), and the marks its rules read (a desk's fixed layout and density, its groups and their kind).
+ * What the table says on its element: its name, how many rows it has where it draws only some of them (the heading is
+ * row 1, and a group's head a row among them), and the marks its rules read (a desk's fixed layout and density, its groups
+ * and their kind).
  */
 const tableMarks = <R extends TableRow, X>(p: DataTableProps<R, X>, s: TableShape<R, X>, indexed: boolean) => ({
   "aria-label": s.words.list,
-  "aria-rowcount": indexed ? p.rows.length + 1 : undefined,
+  "aria-rowcount": indexed ? s.items.length + 1 : undefined,
   "data-fixed": s.desk ? "true" : undefined,
   "data-density": s.desk ? p.state.density : undefined,
-  "data-grouped": s.sections ? "true" : undefined,
+  "data-grouped": s.sections || s.items.length > p.rows.length ? "true" : undefined,
   "data-groups": p.groups ?? undefined,
 });
 
@@ -367,14 +439,18 @@ const headOf = <R extends TableRow, X>(
     acts: s.desk ? headActs(p.state, s.columns, p.rows) : null,
     pinEnd: s.pinEnd,
     indexed,
+    menus: s.desk ? p.menus : null,
   });
 
-/** One body of rows: those the window draws, a gap row for the room of those it does not, and the empty row for none. */
+/**
+ * One body of rows: those the window draws, a group's head among them, a gap row for the room of those it does not, and
+ * the empty row for none.
+ */
 function oneBody<R extends TableRow, X>(
   p: DataTableProps<R, X>,
   s: TableShape<R, X>,
   shown: ShownRows,
-  rowOf: (r: R, i: number, rowIndex?: number) => ReactElement,
+  rowOf: (r: R, i: number, rowIndex?: number, first?: boolean) => ReactElement,
 ) {
   return (
     <tbody data-dims ref={shown.listRef}>
@@ -383,8 +459,18 @@ function oneBody<R extends TableRow, X>(
       {shown.parts.map((part) => {
         if (part.kind === "gap")
           return <RowGap key={part.key} height={part.height} span={s.span} className="dtable-gap" />;
-        const r = p.rows[part.index];
-        return r ? rowOf(r, part.index, part.index + 2) : null;
+        const item = s.items[part.index];
+        if (!item) return null;
+        if (item.kind === "head")
+          return groupHeadRow({
+            item,
+            span: s.span,
+            index: part.index,
+            rowIndex: part.index + 2,
+            measure: shown.measure,
+          });
+        const r = p.rows[item.rowIndex];
+        return r ? rowOf(r, part.index, part.index + 2, item.rowIndex === 0) : null;
       })}
       {p.rows.length === 0 &&
         emptyRow({
@@ -398,24 +484,35 @@ function oneBody<R extends TableRow, X>(
   );
 }
 
-/** What the foot says: how many, or how many of how many the view or a narrowing shows. */
+/**
+ * What the foot says: how many, or how many of how many where the view or a narrowing leaves some out. A narrowing that
+ * keeps every row says the count alone: Leads said "Showing 27 of 27" (5 Nov 2026).
+ */
 const footWords = <R extends TableRow, X>(p: DataTableProps<R, X>, words: TableNouns): string =>
-  p.filtered ? `Showing ${p.rows.length} of ${p.total}` : `${p.total} ${p.total === 1 ? words.one : words.many}`;
+  p.filtered && p.rows.length < p.total
+    ? `Showing ${p.rows.length} of ${p.total}`
+    : `${p.total} ${p.total === 1 ? words.one : words.many}`;
 
 /** The table, for any rows. */
 export function DataTable<R extends TableRow, X>(p: DataTableProps<R, X>) {
   const { table, state, rows } = p;
   const s = tableShape(p);
   const { scrollRef, tableRef } = useTableElements(state, p.swapRef ?? null, s);
+  useNearEnd(state, rows, p.onNearEnd);
   if (s.desk) leaveMeasure(state, s.columns, rows);
   const toggle = useRowToggle(table, state);
   const picked = rows.filter((r) => s.sel.has(r.id)).length;
   const selecting = !!p.selectMode || picked > 0;
   const shown = useShownRows({
-    count: s.sections ? 0 : rows.length,
+    name: s.words.list,
+    count: s.sections ? 0 : s.items.length,
     estimate: rowHeightOf(s.desk, state.density === "compact"),
-    keyOf: (i) => rows[i]?.id ?? String(i),
-    keep: keptRows(rows, s.cursor),
+    keyOf: (i) => {
+      const item = s.items[i];
+      if (item?.kind === "head") return `head-${item.key}`;
+      return (item && rows[item.rowIndex]?.id) ?? String(i);
+    },
+    keep: keptItems(rows, s.items, s.cursor),
   });
   const rowOf = rowDrawer(p, s, { measure: shown.measure, toggle, selecting });
   // One body drawn in part says how many rows it has and where each drawn one stands, so a screen reader counts the list
@@ -431,6 +528,7 @@ export function DataTable<R extends TableRow, X>(p: DataTableProps<R, X>) {
         ref={scrollRef}
         className={joined("dtable-scroll", p.classNames?.scroll)}
         onScroll={onTableScroll}
+        onMouseOverCapture={s.desk ? onLineReached : undefined}
         aria-busy={p.busy ? "true" : undefined}
         data-testid="people-table-scroll"
       >
@@ -442,7 +540,8 @@ export function DataTable<R extends TableRow, X>(p: DataTableProps<R, X>) {
         </table>
       </div>
       <div className="dtable-foot">
-        <span>{footWords(p, s.words)}</span>
+        <span>{[footWords(p, s.words), ...(p.foot?.words ?? [])].join(" · ")}</span>
+        {p.foot?.end ?? null}
       </div>
     </div>
   );

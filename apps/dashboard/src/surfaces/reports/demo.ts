@@ -6,7 +6,7 @@
  */
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
-import { demoSession } from "../legacy-verbs";
+import { demoSession } from "../frame-verbs";
 
 /** The sample's code, fetched once; a fetch that failed is asked for again by the next draw. */
 export const reportsDemo = codeOnce(() =>

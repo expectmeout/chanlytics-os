@@ -24,7 +24,7 @@ import {
   MEMBER_REPLY_STALE_MS,
   SEND_GRACE_MS,
 } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 import type { Thread, ThreadPorts } from "./ports";
 import { PERSON_CONTROL_MAX_S } from "./take-over";
 
@@ -276,6 +276,8 @@ export interface ReplyPorts extends Pick<
   hash(s: string): string;
 }
 export interface ReplyCommand {
+  /** What these words did with the thread's draft (contracts draftUseOf), kept on the row: Health's number (decision 0093). */
+  draftUse?: Json;
   conv: ReplyThread;
   userId: string;
   body: ReplyBody;
@@ -346,20 +348,18 @@ async function shapeEmailReply(
     body: text,
   });
   if (!frozen) throw new AppError("conflict", NO_MAILBOX_REFUSAL);
-  return {
-    id,
-    meta: {
-      email: {
-        subject: frozen.subject,
-        to: [to],
-        parent_id: parent.messageId,
-        in_reply_to: parent.rfcMessageId,
-        request: frozen.request,
-        ...(frozen.own ? { own_request: frozen.own } : {}),
-        ...(frozen.signature ? { signature: frozen.signature } : {}),
-      },
-    } as Json,
+  const meta: Json = {
+    email: {
+      subject: frozen.subject,
+      to: [to],
+      parent_id: parent.messageId,
+      in_reply_to: parent.rfcMessageId,
+      request: frozen.request,
+      ...(frozen.own ? { own_request: frozen.own } : {}),
+      ...(frozen.signature ? { signature: frozen.signature } : {}),
+    },
   };
+  return { id, meta };
 }
 
 /** What a workspace with no mailbox is told, by a reply and by a first email alike. */
@@ -389,7 +389,8 @@ async function shapeFirstEmail(
   const frozen = await ports.email.first({ tenantId: conv.tenant_id, messageId: id, to, subject: named, body: text });
   if (!frozen) throw new AppError("conflict", NO_MAILBOX_REFUSAL);
   const email = { subject: frozen.subject, to: [to], request: frozen.request };
-  return { id, meta: { email: frozen.signature ? { ...email, signature: frozen.signature } : email } as Json };
+  const meta: Json = { email: frozen.signature ? { ...email, signature: frozen.signature } : email };
+  return { id, meta };
 }
 
 /**
@@ -668,6 +669,8 @@ async function queueReply(
     template_vars: template?.vars ?? null,
     content_hash: ports.hash(messageBody),
     ...(email ?? {}),
+    // What the words did with the thread's draft, as the route read it: never read by the send.
+    ...(cmd.draftUse ? { meta: { ...(email?.meta as Record<string, Json> | undefined), draft: cmd.draftUse } } : {}),
   });
   const dueAt = new Date(now + SEND_GRACE_MS);
   const receipt: ReplyReceipt = {

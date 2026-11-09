@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { SCHEMA_SETS } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
-import { requireUuid, requireUuidList } from "@/server/request-guards";
-import { load, readerContext } from "@/server/readers";
+import { read, workspace } from "@/server/shared/route";
+import { requireUuid, requireUuidList } from "@/server/shared/request-guards";
+import { load, readerContext } from "@/server/shared/reader";
 import { calls } from "@/server/readers/calls";
 
 /** The longest a search may be. */

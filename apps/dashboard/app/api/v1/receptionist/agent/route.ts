@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
-import { makeAgent } from "@/server/receptionist/rehearsal";
+import { write, workspace } from "@/server/shared/route";
+import { makeAgent } from "@/server/settings/rehearsal";
 
 /**
  * POST /api/v1/receptionist/agent — the first run's Your receptionist, going on to rehearse (decision 0073, R1): the

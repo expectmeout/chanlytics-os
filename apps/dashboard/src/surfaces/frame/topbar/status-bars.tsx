@@ -4,16 +4,19 @@
  * frame-globals.ts) until the frame itself is TypeScript (step 7e). And yesterday's visits nobody has marked, in the
  * call's place while no call is up (`UnmarkedVisitsBar`), and what is next on the day while neither is (`NextVisitBar`).
  */
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import {
   MIN_MS,
+  TODAY_PHONE_WORDS,
   VISIT_ASK_WORDS,
+  mmss,
   todayDayNext,
   todayVisitsAsked,
   todayVisitsSub,
   type CalendarLike,
 } from "@chanlytics/contracts";
-import { routeDoor } from "../../legacy-verbs";
+import { askCalls, routeDoor } from "../../frame-verbs";
+import { hearAskHeld } from "../../frame-doors";
 import { surfaceValue } from "../../surface-values";
 import { visitWordHere } from "../../workspace-word";
 import { frameChrome, frameGlyph, frameSurfaceHook } from "../frame-window";
@@ -98,6 +101,75 @@ export function LiveCallBar() {
   );
 }
 
+/** Hear Ask's voice move, from the moment the bridge has one: the frame is drawn before it is. */
+function watchBrief(on: () => void): () => void {
+  let off = askCalls()?.watchSpeech?.(on);
+  const stop = hearAskHeld(() => {
+    off?.();
+    off = askCalls()?.watchSpeech?.(on);
+    on();
+  });
+  return () => {
+    off?.();
+    stop();
+  };
+}
+
+/** Where your brief stands: being fetched, being read, or neither (anything else Ask reads aloud has its own Stop). */
+function briefNow(): "idle" | "loading" | "speaking" {
+  const ask = askCalls();
+  if (!ask?.speakingFor || ask.speakingFor() !== "brief") return "idle";
+  return ask.state();
+}
+const NOT_BRIEFING = () => "idle" as const;
+
+/**
+ * Your brief while it plays (8 Nov 2026): a capsule in the header's row, where a call stands, on every page, so what Listen
+ * started can always be stopped. It was Listen's own button, which stayed on Today: leaving the page, or a call taking the
+ * row, left a voice playing with no Stop on the screen. The whole of it is the Stop, and it says how long it has played. A
+ * call going on outranks it (the live bar has the place: components.css) and ends it: two things never talk at once, and
+ * the call is the one that cannot wait.
+ */
+export function BriefPlaying() {
+  const Glyph = frameGlyph();
+  const [, tick] = useReducer((n: number) => n + 1, 0);
+  useLiveRead();
+  const state = useSyncExternalStore(watchBrief, briefNow, NOT_BRIEFING);
+  const chrome = frameChrome();
+  const callUp = !!(chrome && chrome.liveBar && chrome.liveBar(window.__LIVE, Date.now()));
+  const going = state !== "idle";
+  useEffect(() => {
+    if (callUp && going) askCalls()?.stopSpeaking?.();
+  }, [callUp, going]);
+  const speaking = state === "speaking";
+  const startedAt = useRef(0);
+  useEffect(() => {
+    if (!speaking) return undefined;
+    startedAt.current = Date.now();
+    tick();
+    const t = window.setInterval(tick, CLOCK_SECOND_MS);
+    return () => window.clearInterval(t);
+  }, [speaking]);
+  if (!speaking || callUp) return null;
+  const words = TODAY_PHONE_WORDS.listen;
+  return (
+    <button
+      type="button"
+      className="brief-bar"
+      onClick={() => askCalls()?.stopSpeaking?.()}
+      aria-label={words.stop}
+      data-testid="brief-bar"
+    >
+      <span className="live-bar-wave" aria-hidden="true">
+        {LIVE_WAVE}
+      </span>
+      <span className="brief-bar-text">{words.brief}</span>
+      <span className="brief-bar-clock tabular">{mmss(Math.max(0, Date.now() - startedAt.current))}</span>
+      <Glyph name="stop" size={11} />
+    </button>
+  );
+}
+
 /** The Calendar's hook, where the frame has one: drawn again when its weeks are read again, or the day turns. */
 const useCalendarRead = () => {
   const useSurface = frameSurfaceHook() ?? useNoSurface;
@@ -174,7 +246,7 @@ export function NextVisitBar({ page }: { page: string }) {
 
 // The shell's one line, under the top bar: this device offline, the receptionist paused, a newer build, surfaces that
 // stopped refreshing, the live feed not coming through -- one at a time, with the one press that helps. Which one, its
-// words and its press are contracts' (chrome.ts shellStatusLine); the status is the bridge's (legacy-bridge/shell.ts). The
+// words and its press are contracts' (chrome.ts shellStatusLine); the status is the bridge's (bridge/shell.ts). The
 // live region stays mounted while all is well, so the next change is announced.
 const SHELL_STATUS_ICON: Record<string, string> = {
   offline: "alert",
@@ -200,10 +272,16 @@ const statusLineNow = () => {
   // The pause rides with the billing surface: the webhook writes the row, the surface repaints, the line says so.
   const B = window.__BILLING_ACCOUNT;
   const paused = !!(B && window.__billing && window.__billing.vm(B.dto).paused);
+  const modelStanding = B?.dto.model_standing ?? null;
   const previewing = (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
   const chrome = frameChrome();
   return chrome
-    ? chrome.statusLine({ ...(window.__SHELL_STATUS || { stale: false, degraded: [] }), paused, previewing })
+    ? chrome.statusLine({
+        ...(window.__SHELL_STATUS || { stale: false, degraded: [] }),
+        paused,
+        modelStanding,
+        previewing,
+      })
     : null;
 };
 

@@ -29,7 +29,7 @@ import { Notice } from "../kit/notice/notice";
 import { StatePill } from "../kit/pill/state-pill";
 import { Select } from "../kit/select/select";
 import { Sheet } from "../kit/sheet/sheet";
-import { navigate, openBookingTool } from "../legacy-verbs";
+import { navigate, openBookingTool } from "../frame-verbs";
 import { HeldBookingEmails } from "../settings/business/held-emails";
 import type { CalendarShow } from "./use-calendar";
 import { CR_CONNECT, CR_FEED_WORDS } from "./words";
@@ -82,7 +82,7 @@ function showLegend(vm: CalendarVM, serviceName: string): string {
 
 /**
  * Whether the board has open times to draw: only from a calendar link that reads (contracts calendarSourceOf `times`; the
- * server reads no window without one, calendar-week.ts). With none, Open times flipped and nothing on the board moved
+ * server reads no window without one, calendar/week/week.ts). With none, Open times flipped and nothing on the board moved
  * (Ruben, 21 Oct 2026), so neither it nor the service it filters by is offered.
  */
 const opensTimes = (p: BarProps): boolean => p.vm.source.times;

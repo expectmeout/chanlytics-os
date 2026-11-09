@@ -1,8 +1,8 @@
-import { write, account } from "@/server/route";
+import { write, account } from "@/server/shared/route";
 import { ClientErrorInput } from "@chanlytics/contracts";
-import { log } from "@/server/log";
-import { memberContext } from "@/server/with-route";
-import { keepClientErrorRow } from "@/server/platform/health";
+import { log } from "@/server/shared/log";
+import { getMemberContext } from "@/server/shared/with-route";
+import { keepClientErrorRow } from "@/server/console/health";
 
 /**
  * POST /api/v1/client-errors — {boundary, page, name, message, stack, digest}: an error a page hit in this member's
@@ -25,7 +25,7 @@ export const POST = write({
   input: ClientErrorInput,
   handle: async ({ ctx, input }) => {
     // The workspace's own resolver, which says it for the lines after it; a name that is not theirs is no name.
-    if (input.workspace) await memberContext(ctx, input.workspace).catch(() => null);
+    if (input.workspace) await getMemberContext(ctx, input.workspace).catch(() => null);
     log.warn("client_error", {
       user: ctx.userId,
       boundary: input.boundary,

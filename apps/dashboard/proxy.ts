@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { isRetryableAuthError } from "@/server/auth-errors";
+import { isRetryableAuthError } from "@/server/shared/auth/errors";
 import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
 import { linkHostAnswers, linkHostOf } from "@/link-host";
-import { publicPageNamesNothing } from "@/server/public/public-page-gate";
-import { writeAuthCookies } from "@/server/auth-cookies";
-import { env, isProduction, servedOverHttps } from "@/server/env";
+import { getPublicPageNamesNothing } from "@/server/public/page-gate";
+import { writeAuthCookies } from "@/server/auth/cookies";
+import { env, isProduction, servedOverHttps } from "@/server/shared/env";
 import { publicEnv } from "@/lib/public-env";
 import { sessionCookieOptions } from "@/lib/supabase/cookie-options";
 import { returnFragmentOf } from "@/auth/sign-in-return";
@@ -45,6 +45,8 @@ const PUBLIC_PATHS = new Set([
   // here; the door itself checks the agent's secret and the session's id before it reads a byte, and runs the turn
   // as the member under RLS with the token the session row keeps. Three exact paths, since the vendor appends
   // /chat/completions to the address it is given.
+  // The platform's clock, with its own secret (app/api/ask/morning-sweep/route.ts).
+  "/api/ask/morning-sweep",
   "/api/ask/voice/llm",
   "/api/ask/voice/llm/chat/completions",
   "/api/ask/voice/llm/v1/chat/completions",
@@ -160,9 +162,9 @@ export async function proxy(request: NextRequest) {
     return r;
   };
   // A public page's address that names no page is the not-found page with a 404, decided here because the page's own
-  // notFound() runs after its shell has gone out with a 200 (src/server/public/public-page-gate.ts). `/_none` is a
+  // notFound() runs after its shell has gone out with a 200 (src/server/public/page-gate.ts). `/_none` is a
   // private folder's name, so no route can ever answer it. Before the session is read: nothing here needs one.
-  if (await publicPageNamesNothing(request.nextUrl.pathname)) {
+  if (await getPublicPageNamesNothing(request.nextUrl.pathname)) {
     const none = NextResponse.rewrite(new URL("/_none", request.url));
     none.headers.set(CSP_HEADER, csp);
     return none;
@@ -181,7 +183,7 @@ export async function proxy(request: NextRequest) {
         // A refreshed token rides out on THIS response, so the headers that
         // keep it out of every cache in front of us ride with it. Dropping
         // them lets a shared cache hand one operator's Set-Cookie to the
-        // next person who asks for the URL -- see src/server/auth-cookies.ts.
+        // next person who asks for the URL -- see src/server/auth/cookies.ts.
         writeAuthCookies(response, cookiesToSet, headers);
       },
     },

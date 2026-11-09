@@ -32,12 +32,12 @@ import {
   isBookingTool,
 } from "@chanlytics/contracts";
 import type { CalendarVM } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
+import { api } from "@/bridge/api";
+import { BUSINESS_TAB } from "@/bridge/business-tab";
+import type { WorkspaceSettings } from "@/bridge/surfaces/settings";
 import { RecordCombobox } from "../../kit/record/combobox";
-import { gate, navigate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate, navigate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { BtFold } from "./gestures/fold";
 import type { CalendarDraft } from "./fold-shapes";
 import { HeldBookingEmails } from "./held-emails";
@@ -405,7 +405,7 @@ export const BtBookingTool = ({
     bookings?: { tool?: string | null; by_hand?: boolean | null } | null;
   } | null;
   canEdit: boolean;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   saver: BusinessTabSave["saver"];
   bare?: boolean;
 }) => {

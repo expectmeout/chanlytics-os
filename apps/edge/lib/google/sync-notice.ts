@@ -10,12 +10,13 @@
  * under the last sync that worked (notify's onceKey), so the hourly tries find it told, and a breakage after the next
  * good sync is a new one. Best effort: Connections and Setup already say it from the row.
  */
-import { GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS, type EdgeRefusal } from "../packages/contracts.js";
-import { PlacesError } from "../packages/channels.js";
-import { mendWarnings, notifyOnce } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
-import { errField, type Logger } from "../log.js";
-import type { ConnectionRow, Db } from "./google-rows.js";
+import { GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS, type EdgeRefusal } from "@chanlytics/contracts";
+import { PlacesError } from "@chanlytics/channels/google";
+import { mendWarnings, notifyOnce } from "../shared/alerts/notify.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import { errField, type Logger } from "../shared/log.js";
+import type { ConnectionRow, Db } from "../shared/google/rows.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** Whose a failed sync's cause is: the owner's to mend, a passing one of Google's, or the platform's. */
 export type SyncCause = "lasting" | "passing" | "ours";
@@ -24,15 +25,15 @@ export type SyncCause = "lasting" | "passing" | "ours";
 const LASTING_STATUSES: ReadonlySet<number> = new Set([401, 403, 404]);
 
 /** The cause of a token tokenFor could not give: no credentials, or a refresh Google refused for good, is the owner's. */
-export function causeOfToken(r: EdgeRefusal): SyncCause {
-  if (r.error === "no_oauth_client") return "ours";
-  if (r.error === "no_credentials") return "lasting";
-  return r.error === "no_token" && /^invalid_grant\b/u.test(r.detail ?? "") ? "lasting" : "passing";
+export function causeOfToken(edgeRefusal: EdgeRefusal): SyncCause {
+  if (edgeRefusal.error === "no_oauth_client") return "ours";
+  if (edgeRefusal.error === "no_credentials") return "lasting";
+  return edgeRefusal.error === "no_token" && /^invalid_grant\b/u.test(edgeRefusal.detail ?? "") ? "lasting" : "passing";
 }
 
 /** The cause of a read of the reviews that failed: a refusal Google will repeat is the owner's, the rest pass. */
-export function causeOfRead(e: unknown): SyncCause {
-  return e instanceof PlacesError && LASTING_STATUSES.has(e.status) ? "lasting" : "passing";
+export function causeOfRead(error: unknown): SyncCause {
+  return error instanceof PlacesError && LASTING_STATUSES.has(error.status) ? "lasting" : "passing";
 }
 
 /** Where the notice opens: Connections, where the profile is reconnected. */
@@ -42,13 +43,13 @@ const CONNECTIONS_ROUTE = "admin/integrations";
 export async function tellSyncStopped(
   db: Db,
   conn: ConnectionRow,
-  f: { cause: SyncCause; now: Date; L: Logger },
+  fields: { cause: SyncCause; now: Date; L: Logger },
 ): Promise<void> {
-  if (f.cause === "ours") return;
+  if (fields.cause === "ours") return;
   // The last sync that worked, or the connect when none has: the breakage is counted from it, and kept under it.
   const lastGood = conn.last_synced_at ?? conn.connected_at;
-  const nowMs = f.now.getTime();
-  if (f.cause === "passing" && nowMs - Date.parse(lastGood) < GOOGLE_SYNC_TOLD_AFTER_MS) return;
+  const nowMs = fields.now.getTime();
+  if (fields.cause === "passing" && nowMs - Date.parse(lastGood) < GOOGLE_SYNC_TOLD_AFTER_MS) return;
   try {
     const addressing = await loadTenantNotifications(db, conn.tenant_id);
     // Who to tell could not be read: not "nobody". The next hour's failure asks again.
@@ -61,7 +62,7 @@ export async function tellSyncStopped(
         about: { type: "google_connection", id: conn.tenant_id },
         subject: GOOGLE_SYNC_NOTICE_WORDS.title,
         body: GOOGLE_SYNC_NOTICE_WORDS.body({
-          lasting: f.cause === "lasting",
+          lasting: fields.cause === "lasting",
           lastSyncedMs: conn.last_synced_at ? Date.parse(conn.last_synced_at) : null,
           nowMs,
         }),
@@ -71,7 +72,7 @@ export async function tellSyncStopped(
       { db },
     );
   } catch (e) {
-    f.L.error("google_sync_notice_failed", { error: errField(e) });
+    fields.L.error("google_sync_notice_failed", { error: errField(e) });
   }
 }
 
@@ -82,7 +83,7 @@ export async function tellSyncStopped(
  */
 export async function syncMended(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   change: "google_connection.synced" | "google_connection.removed",
 ): Promise<void> {
   await mendWarnings(db, { tenantId, by: { change }, subject: null, keptId: null });

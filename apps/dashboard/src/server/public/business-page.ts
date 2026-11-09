@@ -4,7 +4,7 @@ import "server-only";
  * The public facts of one workspace's own page, read by slug.
  *
  * No session — a carrier reviewer opens this from a campaign registration, and a
- * customer from a link — so it reads with the service role (public-facts.ts) and
+ * customer from a link — so it reads with the service role (public/facts.ts) and
  * returns EXACTLY what the page shows. Nothing else crosses this boundary and
  * nothing here writes.
  *
@@ -19,32 +19,32 @@ import "server-only";
  * Cross-workspace: a public page resolves one workspace by slug, then reads only its public facts.
  */
 import { parseTenantConfig, type BusinessPageFacts } from "@chanlytics/contracts";
-import type { PublicWorkspaceRead } from "@chanlytics/db";
-import { activeNumberOf, publicFactsFor } from "./public-facts";
+import type { PublicWorkspaceRead } from "@chanlytics/db/workspace";
+import { activeNumberOf, publicFactsFor } from "./facts";
 
 /** The page's facts, from the one load; null without a business on record, which identifies nobody. */
-function businessFactsOf(w: PublicWorkspaceRead): BusinessPageFacts | null {
-  const r = w.record;
-  if (!r) return null;
-  const profile = parseTenantConfig(w.config)?.brain?.profile ?? null;
+function businessFactsOf(workspaceRead: PublicWorkspaceRead): BusinessPageFacts | null {
+  const record = workspaceRead.record;
+  if (!record) return null;
+  const profile = parseTenantConfig(workspaceRead.config)?.brain?.profile ?? null;
   return {
-    legalName: r.legal_name,
-    tradeName: r.trade_name,
-    street: r.street,
-    streetSecondary: r.street_secondary,
-    city: r.city,
-    region: r.region,
-    postalCode: r.postal_code,
-    country: r.country,
-    contactEmail: r.contact_email,
+    legalName: record.legal_name,
+    tradeName: record.trade_name,
+    street: record.street,
+    streetSecondary: record.street_secondary,
+    city: record.city,
+    region: record.region,
+    postalCode: record.postal_code,
+    country: record.country,
+    contactEmail: record.contact_email,
     // The number customers already reach them on. Voice first — it is the one on their door and their listing — then
     // WhatsApp.
-    publicPhoneE164: activeNumberOf(w, "voice") ?? activeNumberOf(w, "whatsapp"),
-    websiteUrl: r.website_url || null,
-    about: r.about,
-    industry: r.industry,
+    publicPhoneE164: activeNumberOf(workspaceRead, "voice") ?? activeNumberOf(workspaceRead, "whatsapp"),
+    websiteUrl: record.website_url || null,
+    about: record.about,
+    industry: record.industry,
     // A sole proprietor's street is often their home: the page says where by city (00439 sole_proprietor_of, X4-5).
-    soleProprietor: w.soleProprietor,
+    soleProprietor: workspaceRead.soleProprietor,
     services: (profile?.services ?? []).map((s) => ({
       name: s.name,
       durationMin: s.duration_min ?? null,
@@ -53,14 +53,14 @@ function businessFactsOf(w: PublicWorkspaceRead): BusinessPageFacts | null {
     // Relative: the opt-in page is on this same site, and a hardcoded origin is how a page ends up linking to the wrong
     // deployment. The ABSOLUTE form the carriers are given is built by the edge from dashboardOrigin(). This page and its
     // terms are what the campaign files as the business's privacy policy and terms: relative, for the same reason.
-    optInUrl: `/yes/${w.slug}`,
-    privacyUrl: `/b/${w.slug}`,
-    termsUrl: `/b/${w.slug}/terms`,
-    open: w.open,
+    optInUrl: `/yes/${workspaceRead.slug}`,
+    privacyUrl: `/b/${workspaceRead.slug}`,
+    termsUrl: `/b/${workspaceRead.slug}/terms`,
+    open: workspaceRead.open,
   };
 }
 
-export async function businessPageFor(slug: string): Promise<BusinessPageFacts | null> {
+export async function findBusinessPage(slug: string): Promise<BusinessPageFacts | null> {
   const w = await publicFactsFor(slug);
   return w ? businessFactsOf(w) : null;
 }

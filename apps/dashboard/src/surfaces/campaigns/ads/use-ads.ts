@@ -8,8 +8,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ADS_ROUTE } from "@chanlytics/contracts";
 import type { AdsAddress } from "@chanlytics/contracts";
-import type { AdsGroupBy } from "@chanlytics/contracts/ads-page";
-import { navigate, replaceRoute } from "../../legacy-verbs";
+import type { AdsGroupBy } from "./model/page";
+import { navigate, replaceRoute } from "../../frame-verbs";
 
 /** Opening and closing what the address names: an ad's drawer, the composer or the Results sheet. */
 export function useAdsNav(address: AdsAddress) {

@@ -1,10 +1,11 @@
 import "server-only";
 import { AppError, parseMemberAlerts, type PushKind } from "@chanlytics/contracts";
-import { setMemberPushOff } from "@chanlytics/db";
-import { deployment } from "../env";
-import { callEdge, edgeConfigured } from "../edge";
-import { log } from "../log";
-import { dbRefusal, type RouteContext } from "../with-route";
+import { setMemberPushOff } from "@chanlytics/db/notices";
+import { deployment } from "../shared/env";
+import { callEdge, edgeConfigured } from "../shared/edge";
+import { log } from "../shared/log";
+import { dbRefusal, type RouteContext } from "../shared/with-route";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A test waits this long for the edge to say it was sent: one mail through the provider, whose own bound is ten seconds. */
 const TEST_TIMEOUT_MS = 12_000;
@@ -15,7 +16,7 @@ const TEST_TIMEOUT_MS = 12_000;
  */
 export async function saveMemberPushOff(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   body: unknown,
 ): Promise<{ push_off: PushKind[] }> {
   const parsed = parseMemberAlerts(body);
@@ -23,7 +24,7 @@ export async function saveMemberPushOff(
   try {
     await setMemberPushOff(ctx.supabase, { tenantId, kinds: parsed.pushOff });
   } catch (e) {
-    throw dbRefusal(e as { code?: string | null; message: string });
+    throw dbRefusal(e);
   }
   return { push_off: parsed.pushOff };
 }
@@ -40,17 +41,17 @@ interface AlertTestAnswer {
  * Only where providers are live: a preview or a laptop sends nobody mail, and says so. The edge refusing, or not
  * answering, is "not sent", never a guess that it went.
  */
-export async function sendAlertTest(tenantId: string, userId: string): Promise<AlertTestAnswer> {
+export async function sendAlertTest(tenantId: TenantId, userId: string): Promise<AlertTestAnswer> {
   if (!deployment.providersLive || !edgeConfigured()) return { sent: false, to: 0, why: "not_live" };
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/email/alert-test",
     { tenant_id: tenantId },
     { workspace: tenantId, user: userId, timeoutMs: TEST_TIMEOUT_MS },
   );
-  const body = (r.body ?? {}) as { sent?: unknown; to?: unknown; why?: unknown };
+  const body = answer.body ?? {};
   const to = typeof body.to === "number" ? body.to : 0;
-  if (r.status === 200 && body.sent === true) return { sent: true, to, why: null };
-  if (r.status === 200 && body.why === "no_address") return { sent: false, to: 0, why: "no_address" };
-  log.error("alert_test_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
+  if (answer.status === 200 && body.sent === true) return { sent: true, to, why: null };
+  if (answer.status === 200 && body.why === "no_address") return { sent: false, to: 0, why: "no_address" };
+  log.error("alert_test_failed", { tenant_id: tenantId, status: answer.status, error: answer.body?.error });
   return { sent: false, to, why: "not_sent" };
 }

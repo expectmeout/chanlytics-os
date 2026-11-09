@@ -10,7 +10,8 @@
  * approved). A draft is a read and refreshes nothing. Owner or operator on
  * the server; a viewer's click returns the server's refusal.
  */
-import { api } from "@/legacy-bridge/api";
+import type { Workspace } from "@/bridge/surface-data";
+import { api } from "@/bridge/api";
 import {
   LANGUAGE_GROUP_WORDS,
   PARAM_SOURCE_HINTS,
@@ -31,21 +32,18 @@ import {
   starterByName,
   starterForTrigger,
   startersForTrigger,
-  starterPreview,
-  starterPreviewValues,
   starterText,
   startersOffered,
   sendableTemplates,
   slotChoices,
   templateFooter,
-  templatePreview,
-  templatePreviewValues,
   templateSlots,
   templateTitle,
   templateUntranslatable,
   type OwnVersionChannel,
   type StarterTemplate,
 } from "@chanlytics/contracts";
+import { starterPreview, starterPreviewValues, templatePreview, templatePreviewValues } from "./preview";
 import { surfaceValue } from "../../surface-values";
 
 /**
@@ -203,7 +201,7 @@ declare global {
     /** Settings' every template, which a template's title is looked up in by its name (settings.ts publishes it). */
     __TEMPLATES_ALL?: Array<{ name: string; title?: string | null }> | null;
     /** The workspaces, each with its zone and word (identity.ts keeps them). */
-    __WORKSPACES?: Array<{ id: string; appointment_word?: string | null }>;
+    __WORKSPACES?: Workspace[];
     __ACTIVE_WORKSPACE?: string;
   }
 }

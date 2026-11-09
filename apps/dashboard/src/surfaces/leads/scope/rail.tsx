@@ -10,9 +10,10 @@ import type { LeadRailRow, leadRail } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { editorBox, focusAsDrawn, gate } from "../../legacy-verbs";
+import { editorBox, focusAsDrawn, gate } from "../../frame-verbs";
 import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
 import { RailEmpty, RailRow, RailSection, railQuiet } from "../../people/rail/rail-kit";
+import { LeadsRailViews, type LeadNamed } from "./rail-views";
 
 export type LeadRail = ReturnType<typeof leadRail>;
 type RailSearch = LeadRailRow;
@@ -160,6 +161,8 @@ interface RailRowsProps {
   /** Find people at companies (00430), beside Import leads: null while the people card finds nothing. */
   findPeopleDoor?: ReactNode;
   compact?: boolean;
+  /** The Saved section's views (rail-views.tsx), between Views and Searches. */
+  named?: LeadNamed | null;
 }
 
 /** A search being renamed: its name in a field, and Save. */
@@ -283,6 +286,7 @@ export const LeadsRailRows = (p: RailRowsProps) => {
           ))}
         <RailEmpty labels={quiet.map((l) => l.label)} testid="leads-lists-empty" />
       </RailSection>
+      {p.named ? <LeadsRailViews named={p.named} compact={compact} /> : null}
       <RailSection label={W.searchesHeading} testid="leads-searches">
         {rail.searches.map((s) => railSearchRow(s, p))}
         {rail.searches.length === 0 && (

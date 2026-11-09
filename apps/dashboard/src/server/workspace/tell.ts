@@ -1,7 +1,8 @@
 import "server-only";
-import { deployment } from "../env";
-import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
-import { log } from "@/server/log";
+import { deployment } from "../shared/env";
+import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** A note to the platform mailbox gives up after this; a failure is logged, not surfaced. */
 const TELL_TIMEOUT_MS = 8000;
@@ -13,20 +14,25 @@ const TELL_TIMEOUT_MS = 8000;
  * Production only, never throws: a failure here is logged, not surfaced.
  */
 export async function tellPlatformOfSetupRequest(
-  tenantId: string,
-  what: string,
+  tenantId: TenantId,
+  text: string,
   by: string | null,
   userId: string,
 ): Promise<boolean> {
   if (!deployment.providersLive || !edgeConfigured()) return false;
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/setup-request",
-    { tenant_id: tenantId, what, by },
+    { tenant_id: tenantId, what: text, by },
     { workspace: tenantId, user: userId, timeoutMs: TELL_TIMEOUT_MS },
   );
-  if (!edgeAnswered(r))
-    log.error("setup_request_tell_failed", { tenant_id: tenantId, what, status: r.status, error: r.body?.error });
-  return edgeAnswered(r);
+  if (!edgeAnswered(answer))
+    log.error("setup_request_tell_failed", {
+      tenant_id: tenantId,
+      what: text,
+      status: answer.status,
+      error: answer.body?.error,
+    });
+  return edgeAnswered(answer);
 }
 
 /**
@@ -34,14 +40,14 @@ export async function tellPlatformOfSetupRequest(
  * composes and sends it to the workspace's alert addresses. Called once, on the first activation of calls. Production
  * only, never throws: the activation is already on record, and a failure here is logged, not surfaced.
  */
-export async function tellOwnerLive(tenantId: string, userId: string): Promise<boolean> {
+export async function tellOwnerLive(tenantId: TenantId, userId: string): Promise<boolean> {
   if (!deployment.providersLive || !edgeConfigured()) return false;
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/you-are-live",
     { tenant_id: tenantId },
     { workspace: tenantId, user: userId, timeoutMs: TELL_TIMEOUT_MS },
   );
-  if (!edgeAnswered(r))
-    log.error("you_are_live_tell_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
-  return edgeAnswered(r);
+  if (!edgeAnswered(answer))
+    log.error("you_are_live_tell_failed", { tenant_id: tenantId, status: answer.status, error: answer.body?.error });
+  return edgeAnswered(answer);
 }

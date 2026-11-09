@@ -8,7 +8,7 @@
  */
 import { Component } from "react";
 import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
-import { AskLine } from "@/legacy-bridge/ask/line";
+import { AskLine } from "@/bridge/ask/line";
 import { AskDisc, AskFace } from "../kit/face/ask-face";
 import { REPORT_WORDS } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
@@ -19,14 +19,14 @@ import { headSlotDrawn } from "../kit/head/frame-head";
 import type { viewDeck } from "../kit/motion/view-deck";
 import type { SurfaceViews } from "../routes";
 import { frameGlyph, fromGlobal, fromWindow } from "./frame-window";
-import { LiveCallBar, NextVisitBar, ShellStatusBar, UnmarkedVisitsBar } from "./topbar/status-bars";
+import { BriefPlaying, LiveCallBar, NextVisitBar, ShellStatusBar, UnmarkedVisitsBar } from "./topbar/status-bars";
 import { PhoneTabs } from "./phone-tabs";
 import { ReportHost } from "./report-problem";
 import { ShortcutsSheet } from "./shortcuts";
 import { focusPage } from "./shell-hooks";
 import { NAV_ROUTE, shellAddress } from "./shell-routes";
 import { Sidebar } from "./sidebar/sidebar";
-import { SurfaceTabs, stripSwipe } from "./surface-tabs";
+import { SurfaceTabs, stripSwipe, stripViewRef } from "./surface-tabs";
 import { Topbar } from "./topbar/topbar";
 
 // ---- Error state --------------------------------------------------------
@@ -102,7 +102,7 @@ const sideWarm = (e: PointerEvent<HTMLDivElement>) => {
 };
 
 // Shared read-only viewer: chrome-less, rendered AFTER all hooks so the hook order stays identical on every route.
-// Demo-gated like everything else. The report it shows is the frame's `sharedPage`, drawn by the bridge (LegacyApp).
+// Demo-gated like everything else. The report it shows is the frame's `sharedPage`, drawn by the bridge (FrameApp).
 export const sharedViewer = ({
   theme,
   look,
@@ -295,7 +295,7 @@ const frameTop = (s: ChromeAt, glass: boolean) => {
     <div className="frame-top" data-chrome="">
       {glass && <span className="pg-dateline-slot" id="pg-dateline" />}
       <Bar
-        crumbs={(glass ? [] : s.crumbs) as never[]}
+        crumbs={(glass ? [] : s.crumbs) as Parameters<typeof Topbar>[0]["crumbs"]}
         theme={s.theme}
         themePref={s.themePref}
         onTheme={s.onTheme}
@@ -307,6 +307,8 @@ const frameTop = (s: ChromeAt, glass: boolean) => {
       {/* A call happening right now outranks a newer build or a stale surface: it stops being true by itself. */}
       <Live />
       <Status />
+      {/* Your brief while it plays, in the call's place while no call is up (the call outranks it, and ends it). */}
+      <BriefPlaying />
       {/* Yesterday's visits to mark, in the call's place while no call is up (the call outranks it: components.css). */}
       <UnmarkedVisitsBar page={s.page} />
       {/* What is next on the day, beside the bell, while neither is up (both outrank it: components.css). */}
@@ -335,7 +337,7 @@ const routeMain = (s: ChromeAt, glass: boolean) => {
     <main
       id="main"
       key={s.viewKey}
-      ref={deck ? deck.view("frame") : undefined}
+      ref={stripViewRef(deck ? deck.view("frame") : null)}
       className={`main-scroll route-view ${s.pane ? "pane" : ""} ${s.routeStay ? "route-stay" : ""}`}
       data-strip={s.routeStrip || undefined}
       data-slide={s.routeSlide || undefined}

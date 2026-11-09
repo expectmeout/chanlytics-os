@@ -1,6 +1,6 @@
 import { LeadChooseSchema } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { chooseLeads } from "@/server/leads/lead-lists";
+import { write, workspace } from "@/server/shared/route";
+import { chooseLeads } from "@/server/leads/lists";
 
 /**
  * POST /api/v1/lead-searches/chosen: *Write to them* on Leads' bulk bar (Reach out, Part 7, 00242 lead_search_choose).

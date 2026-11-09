@@ -25,8 +25,10 @@
  * Cross-workspace: the health sweep reads every workspace's unreceipted WhatsApp sends and only reports them.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { HOUR_MS } from "../packages/contracts.js";
+import type { Database } from "@chanlytics/db/types";
+import { HOUR_MS } from "@chanlytics/contracts";
+import { findReceiptSince, listSendsWithoutReceipt } from "@chanlytics/db/channels";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** How long a receipt may take before its absence is a condition. */
 const NO_RECEIPT_AFTER_MS = 6 * HOUR_MS;
@@ -36,7 +38,7 @@ const WATCHED_FOR_MS = 24 * HOUR_MS;
 const READ_LIMIT = 1000;
 
 interface SilentWorkspace {
-  tenantId: string;
+  tenantId: TenantId;
   /** Messages Meta accepted that have had no receipt for six hours. */
   count: number;
   /** When the first and the latest of them went out. */
@@ -51,57 +53,33 @@ interface ReceiptsWatch {
   error: string | null;
 }
 
-export async function whatsappWithoutReceipts(db: SupabaseClient<Database>, nowMs: number): Promise<ReceiptsWatch> {
+export async function listWhatsappWithoutReceipts(db: SupabaseClient<Database>, nowMs: number): Promise<ReceiptsWatch> {
   try {
     const quietSince = new Date(nowMs - NO_RECEIPT_AFTER_MS).toISOString();
     const watchedSince = new Date(nowMs - NO_RECEIPT_AFTER_MS - WATCHED_FOR_MS).toISOString();
-    const accepted = () =>
-      db
-        .from("messages")
-        .select("tenant_id, created_at, status_updated_at")
-        .eq("channel", "whatsapp")
-        .eq("direction", "outbound")
-        .eq("status", "sent")
-        .not("external_id", "is", null);
-    const [direct, queued] = await Promise.all([
-      accepted()
-        .is("status_updated_at", null)
-        .lt("created_at", quietSince)
-        .gte("created_at", watchedSince)
-        .limit(READ_LIMIT),
-      accepted().lt("status_updated_at", quietSince).gte("status_updated_at", watchedSince).limit(READ_LIMIT),
-    ]);
+    const [direct, queued] = await listSendsWithoutReceipt(db, quietSince, watchedSince, READ_LIMIT);
     const unread = direct.error ?? queued.error;
     if (unread) return { silent: [], error: unread.message };
 
     const byTenant = new Map<string, SilentWorkspace>();
     for (const row of [...(direct.data ?? []), ...(queued.data ?? [])]) {
       const sentAt = row.status_updated_at ?? row.created_at;
-      const w = byTenant.get(row.tenant_id);
-      if (!w) {
+      const found = byTenant.get(row.tenant_id);
+      if (!found) {
         byTenant.set(row.tenant_id, { tenantId: row.tenant_id, count: 1, firstSentAt: sentAt, lastSentAt: sentAt });
         continue;
       }
-      w.count += 1;
-      if (Date.parse(sentAt) < Date.parse(w.firstSentAt)) w.firstSentAt = sentAt;
-      if (Date.parse(sentAt) > Date.parse(w.lastSentAt)) w.lastSentAt = sentAt;
+      found.count += 1;
+      if (Date.parse(sentAt) < Date.parse(found.firstSentAt)) found.firstSentAt = sentAt;
+      if (Date.parse(sentAt) > Date.parse(found.lastSentAt)) found.lastSentAt = sentAt;
     }
 
     const silent: SilentWorkspace[] = [];
     let error: string | null = null;
-    for (const w of byTenant.values()) {
-      const { data: heard, error: heardErr } = await db
-        .from("messages")
-        .select("id")
-        .eq("tenant_id", w.tenantId)
-        .eq("channel", "whatsapp")
-        .eq("direction", "outbound")
-        .in("status", ["delivered", "read", "failed"])
-        .not("external_id", "is", null)
-        .gt("status_updated_at", w.lastSentAt)
-        .limit(1);
+    for (const value of byTenant.values()) {
+      const { data: heard, error: heardErr } = await findReceiptSince(db, value.tenantId, value.lastSentAt);
       if (heardErr) error = heardErr.message;
-      if (heardErr || !heard?.length) silent.push(w);
+      if (heardErr || !heard?.length) silent.push(value);
     }
     silent.sort((a, b) => Date.parse(a.firstSentAt) - Date.parse(b.firstSentAt));
     return { silent, error };

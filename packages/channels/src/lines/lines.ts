@@ -9,7 +9,7 @@
  * pure helpers the saga and the endpoint share.
  */
 import { randomInt } from "node:crypto";
-import type { SendOutcome } from "../provider-fetch";
+import type { SendOutcome } from "../shared/provider-fetch";
 
 export type LineProviderName = "twilio" | "dry";
 
@@ -60,6 +60,8 @@ export interface LineProvider {
     o: { friendlyName: string; domainName: string },
   ): Promise<{ sid: string; domainName: string }>;
   deleteTrunk(acct: ProviderAccount, trunkSid: string): Promise<void>;
+  /** A line's campaign off its Messaging Service: its monthly fee runs until it is deleted. Gone already is done. */
+  deleteCampaign(acct: ProviderAccount, serviceSid: string, campaignSid: string): Promise<void>;
   createCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{ sid: string }>;
   addCredential(acct: ProviderAccount, listSid: string, username: string, password: string): Promise<{ sid: string }>;
   attachCredentialList(acct: ProviderAccount, trunkSid: string, listSid: string): Promise<void>;
@@ -72,11 +74,23 @@ export interface LineProvider {
   /*
    * LOOK BEFORE CREATING AGAIN. Each create's receipt is written after the provider answers, so a run killed in that
    * window left the thing made and the row silent. The saga marks a create as asked before it asks, and a later run
-   * that finds the mark looks with these before asking again (lines-saga.ts `once`). Each is one read in the line's own
+   * that finds the mark looks with these before asking again (lines/saga.ts `once`). Each is one read in the line's own
    * subaccount (the subaccount's, as the master, by a name that carries the line), and a read that FAILS throws: "not
    * found" sends the saga on to create a second one.
    */
   findSubaccount(master: ProviderAccount, friendlyName: string): Promise<ProviderAccount | null>;
+  /**
+   * One subaccount as its parent reads it, by SID: how a token lost from the vault comes back. Null when it is closed
+   * or gone, which leaves nothing there to give back (Twilio releases its numbers when it closes, and deletes it 30 days
+   * on). A read that FAILS throws, and so does an open one answered with no token: a release takes null as leave to
+   * forget the row, and that number may still be billed.
+   */
+  readSubaccount(master: ProviderAccount, sid: string): Promise<ProviderAccount | null>;
+  /**
+   * A subaccount closed by its parent, the last of a line given back: Twilio cannot reopen it, releases anything left on
+   * it, and it can bill nothing more. Gone or closed already is done; anything else throws.
+   */
+  closeSubaccount(master: ProviderAccount, sid: string): Promise<void>;
   findTrunk(acct: ProviderAccount, domainName: string): Promise<{ sid: string; domainName: string } | null>;
   findCredentialList(acct: ProviderAccount, friendlyName: string): Promise<{ sid: string } | null>;
   findCredential(acct: ProviderAccount, listSid: string, username: string): Promise<{ sid: string } | null>;
@@ -126,6 +140,17 @@ export interface SmsSendResult {
 }
 
 /** Where Twilio sends a line's calls: Retell's SIP front door (Retell's Twilio guide). */
+/**
+ * A column an earlier step of a saga wrote, read by a later one: each step runs only once the one before it has written
+ * what it needs (saga.ts, a2p-saga.ts), so a column that is not there is a saga run out of order, said by its name
+ * before any provider is asked, never handed on empty.
+ */
+export function columnWritten<T, K extends keyof T>(row: T, column: K): NonNullable<T[K]> {
+  const value = row[column];
+  if (value === null || value === undefined) throw new Error(`line saga: ${String(column)} is not written yet`);
+  return value;
+}
+
 export const RETELL_ORIGINATION = "sip:sip.retellai.com";
 
 /** What the page states as fact before billing exists (plan §8). */
@@ -207,9 +232,9 @@ export function sipPassword(random?: () => number): string {
 }
 
 /** Twilio's rule, checked before a password is sent. */
-export function isValidSipPassword(p: string): boolean {
-  return p.length >= 12 && /\d/.test(p) && /[a-z]/.test(p) && /[A-Z]/.test(p);
+export function isValidSipPassword(phone: string): boolean {
+  return phone.length >= 12 && /\d/.test(phone) && /[a-z]/.test(phone) && /[A-Z]/.test(phone);
 }
 
-export const isAreaCode = (n: unknown): n is number =>
-  typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;
+export const isAreaCode = (count: unknown): count is number =>
+  typeof count === "number" && Number.isInteger(count) && count >= 200 && count <= 999;

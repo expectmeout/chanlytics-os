@@ -54,6 +54,7 @@ import {
   type SecondKey,
   type Unread,
 } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The reply and the reach-out it answers, as the job reads them (packages/db reachOutReplyOf). */
 export interface ReplyFacts {
@@ -127,19 +128,19 @@ export interface ReplyNotice {
 
 export interface ReplyReadPorts {
   /** Whose reply this is, and the reply: null when it answers no reach-out. Throws when it cannot be read. */
-  reply(tenantId: string, messageId: string): Promise<ReplyFacts | null>;
+  reply(tenantId: TenantId, messageId: string): Promise<ReplyFacts | null>;
   /** The reading kept for this message, if any. Throws when it cannot be read. */
-  reading(tenantId: string, messageId: string): Promise<KeptReading | null>;
+  reading(tenantId: TenantId, messageId: string): Promise<KeptReading | null>;
   /**
    * Whether one read may be spent now, taken when it may: null when it was taken, else why not (no model, a workspace
    * that may not spend, the day's reads spent). Throws when it cannot be asked.
    */
-  mayRead(tenantId: string, at: number): Promise<Exclude<Unread, "model_failed"> | null>;
+  mayRead(tenantId: TenantId, at: number): Promise<Exclude<Unread, "model_failed"> | null>;
   /** The model's answer to the reader's question, and its second key's read (ReplyAsked). Throws on a failed call. */
   ask(system: string, user: string): Promise<ReplyAsked>;
   /** The reading and its plan, applied once (reach_out_reply_apply). True when this call applied it. */
   apply(
-    tenantId: string,
+    tenantId: TenantId,
     messageId: string,
     p: { reading: ReplyReading; unread: Unread | null; plan: ReadingPlan; reread: number },
   ): Promise<boolean>;
@@ -147,21 +148,29 @@ export interface ReplyReadPorts {
    * The notice's first phase: this run's claim (its moment, as the row keeps it), or null when a live claim holds it or
    * it was told. A claim older than `staleBefore` is claimed again.
    */
-  claimTell(tenantId: string, messageId: string, staleBefore: number): Promise<string | null>;
+  claimTell(tenantId: TenantId, messageId: string, staleBefore: number): Promise<string | null>;
   /** Tell the workspace: true only when the owner was told. */
-  tell(tenantId: string, notice: ReplyNotice): Promise<boolean>;
+  tell(tenantId: TenantId, notice: ReplyNotice): Promise<boolean>;
   /** The notice's second phase: marked told, only while this run's claim still holds it. */
-  told(tenantId: string, messageId: string, claim: string): Promise<void>;
+  told(tenantId: TenantId, messageId: string, claim: string): Promise<void>;
   /**
    * The receptionist's draft of an answer to their reply, over the thread and the lead note: the text, or which gate
    * stopped it (contracts draftRefusal) or that it was not drafted. Throws when it failed; no call runs past `deadline`.
    */
   draft(
-    tenantId: string,
-    ask: { conversationId: string; text: string; note: string; deadline: number },
-  ): Promise<{ text: string } | { why: DraftWhy }>;
+    tenantId: TenantId,
+    ask: { conversationId: string; text: string; note: string; deadline: number; kind: "answer" | "thanks" },
+  ): Promise<{ text: string; used?: readonly string[] } | { why: DraftWhy }>;
+  /**
+   * The draft kept where every page reads a thread's draft (decision 0093, conversation_drafts). Absent, the reading alone
+   * holds it. A failure costs the page its draft, never the reading.
+   */
+  keepDraft?(
+    tenantId: TenantId,
+    d: { conversationId: string; messageId: string; text: string; subject: string | null; used: readonly string[] },
+  ): Promise<unknown>;
   /** The draft's mark (reach_out_reply_draft): only from none or waiting, so a second stage never writes over the first. */
-  markDraft(tenantId: string, messageId: string, mark: DraftMark): Promise<boolean>;
+  markDraft(tenantId: TenantId, messageId: string, mark: DraftMark): Promise<boolean>;
   /** This message's next read, or its draft, at most once per stage. */
   scheduleOnce(at: number, payload: { message_id: string; stage: string }): Promise<"scheduled" | "already_scheduled">;
   /**
@@ -169,9 +178,9 @@ export interface ReplyReadPorts {
    * no decision is recorded. True iff a row changed; false when none was open for that reason (a person resolved it
    * first, or it was replaced by another). A write that fails throws.
    */
-  resolveEscalation(tenantId: string, conversationId: string, reason: typeof INTAKE_FLAG): Promise<boolean>;
+  resolveEscalation(tenantId: TenantId, conversationId: string, reason: typeof INTAKE_FLAG): Promise<boolean>;
   /** The thread archived (contracts' archive move, whole), unless it is archived already. True iff a row changed. A write that fails throws. */
-  archiveConversation(tenantId: string, conversationId: string): Promise<boolean>;
+  archiveConversation(tenantId: TenantId, conversationId: string): Promise<boolean>;
   now(): number;
 }
 
@@ -179,7 +188,7 @@ export interface ReplyReadPorts {
 const INTAKE_FLAG = "email_review" as const;
 
 export interface ReadReplyCommand {
-  tenantId: string;
+  tenantId: TenantId;
   messageId: string;
   /** The job's stage: absent or "read" for the first read, "reread-<n>" for the n-th re-read. */
   stage?: unknown;
@@ -226,9 +235,9 @@ async function readNow(
       receivedDay: zoneDayKey(facts.receivedAt, facts.tz),
       answered: facts.answered,
     });
-    const asked = await ports.ask(replySystemPrompt(), user);
-    second = asked.second;
-    reading = parseReplyReading(asked.answer);
+    const request = await ports.ask(replySystemPrompt(), user);
+    second = request.second;
+    reading = parseReplyReading(request.answer);
     // Who signed it, kept only when it passes the person page's gate (0052): word for word in their own lines, one
     // person's own name, never ours, the business's, the workspace's or a member's, and never from a no.
     if (reading)
@@ -260,13 +269,14 @@ async function draftNow(
   facts: ReplyFacts,
   kind: "answer" | "thanks",
 ): Promise<void> {
-  let out: { text: string } | { why: DraftWhy };
+  let out: { text: string; used?: readonly string[] } | { why: DraftWhy };
   try {
     out = await ports.draft(cmd.tenantId, {
       conversationId: facts.conversationId,
       text: replyTextOf(facts.text),
-      note: leadReplyNote({ business: facts.business, answered: facts.answered, signedBy: facts.signedBy, kind }),
+      note: leadReplyNote({ business: facts.business, answered: facts.answered, kind }),
       deadline: cmd.deadline,
+      kind,
     });
   } catch {
     // A brain that failed or ran out of time drafts nothing: the reading and its notice stand without it.
@@ -278,6 +288,19 @@ async function draftNow(
     cmd.messageId,
     text ? { state: "written", draft: text } : { state: "not_written", why: "why" in out ? out.why : "not_drafted" },
   );
+  // The thread's one draft (decision 0093): what every page reads and a member changes. A row that could not be kept costs
+  // the page its draft, never the reading or its notice, which carries the words.
+  if (text && ports.keepDraft) {
+    await ports
+      .keepDraft(cmd.tenantId, {
+        conversationId: facts.conversationId,
+        messageId: cmd.messageId,
+        text,
+        subject: facts.subject,
+        used: "used" in out ? (out.used ?? []) : [],
+      })
+      .catch(() => undefined);
+  }
 }
 
 /**
@@ -316,7 +339,7 @@ async function draftStage(
  */
 async function closeWhatTheIntakeOpened(
   ports: Pick<ReplyReadPorts, "resolveEscalation" | "archiveConversation">,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   read: { intent: ReplyIntent; claim: ReplyClaim; second: SecondKey },
 ): Promise<void> {
@@ -343,7 +366,7 @@ async function draftLater(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise
 
 export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome> {
   if (cmd.stage === DRAFT_STAGE) return draftLater(ports, cmd);
-  const n = rereadOf(cmd.stage);
+  const reread = rereadOf(cmd.stage);
   const { tenantId, messageId } = cmd;
   const facts = await ports.reply(tenantId, messageId);
   if (!facts) return "not_a_reply";
@@ -352,7 +375,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
   let applied = false;
   let second: SecondKey = SECOND_KEY_OFF;
 
-  if (isDue(kept, n)) {
+  if (isDue(kept, reread)) {
     const read = await readNow(ports, cmd, facts);
     const { reading, unread, now } = read;
     second = read.second;
@@ -365,7 +388,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
       leadWebsite: facts.leadWebsite,
       leadWebsiteRoot: facts.leadWebsiteRoot ?? null,
       replyFrom: facts.from,
-      reread: n > 0,
+      reread: reread > 0,
       readAt: now,
     });
     // Automatic naming (0052): only while it is on, and only when two independent signals agree.
@@ -374,17 +397,22 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
       ...planned,
       adoptSigner: AUTOMATIC_NAMING && !!signer && signerAgrees(signer, { address: facts.from, name: facts.fromName }),
     };
-    applied = await ports.apply(tenantId, messageId, { reading: reading ?? UNREAD_READING, unread, plan, reread: n });
+    applied = await ports.apply(tenantId, messageId, {
+      reading: reading ?? UNREAD_READING,
+      unread,
+      plan,
+      reread: reread,
+    });
     kept = await ports.reading(tenantId, messageId);
     if (!kept) throw new Error("reply_read: the reading was applied and is not there");
   }
   // Only this stage's own reading is carried on from: a later re-read, or an undo, has the row now.
-  if (!kept || kept.undone || kept.rereads !== n) return "already_read";
+  if (!kept || kept.undone || kept.rereads !== reread) return "already_read";
 
   // Still unread: read again later, once per stage, while there are tries and days left (G4).
   if (kept.unread) {
-    const at = rereadAt(kept.unread, n, facts.receivedAt, ports.now());
-    if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${n + 1}` });
+    const at = rereadAt(kept.unread, reread, facts.receivedAt, ports.now());
+    if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${reread + 1}` });
   }
 
   // The applying run's alone, and before the notice, so the thread the notice brings the owner to is closed already.
@@ -415,16 +443,16 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
     draft,
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
-    reread: n > 0,
+    reread: reread > 0,
     signer: kept.signerOffered,
   });
-  const told = await ports.tell(tenantId, {
+  const notice = await ports.tell(tenantId, {
     conversationId: facts.conversationId,
     subject: words.subject,
     body: words.body,
     redacted: words.redacted,
   });
-  if (!told) throw new Error("reply_read: the notice did not reach its owner");
+  if (!notice) throw new Error("reply_read: the notice did not reach its owner");
   await ports.told(tenantId, messageId, claim);
   return "told";
 }

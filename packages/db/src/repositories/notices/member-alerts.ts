@@ -6,13 +6,19 @@
  * throws, except where a database before a migration is said to read as before.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
-import { memberEmailOf } from "./notifications";
+import type { Database, Json } from "../../types";
+import { findMemberEmail } from "./notifications/feed";
 
+import { recordOrNull, type SchemaSet, DbFailure } from "@chanlytics/contracts";
+import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** The activity tokens of the phones whose people hold one of `roles` in the workspace (00191), each once. */
-export async function activityTokensOf(db: Db, tenantId: string, roles: readonly string[]): Promise<string[]> {
+export async function listActivityTokens(
+  db: Db,
+  tenantId: TenantId,
+  roles: readonly SchemaSet<"memberships.role">[],
+): Promise<string[]> {
   const { data: members, error: me } = await db
     .from("memberships")
     .select("user_id, push_off")
@@ -41,9 +47,9 @@ export async function forgetEveryPhone(db: Db): Promise<number | null> {
   const { data, error } = await db.rpc("push_devices_forget_all");
   if (error) {
     if (error.code === "PGRST202") return null;
-    throw new Error(`cannot forget the phones: ${error.message}`);
+    throw new DbFailure(error, "cannot forget the phones");
   }
-  const forgotten = (data as { forgotten?: unknown } | null)?.forgotten;
+  const forgotten = recordOrNull(data)?.forgotten;
   return typeof forgotten === "number" ? forgotten : 0;
 }
 
@@ -54,11 +60,11 @@ export async function forgetActivityTokens(db: Db, tokens: readonly string[]): P
     .from("push_devices")
     .update({ activity_token: null })
     .in("activity_token", [...tokens]);
-  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot forget the gone activity tokens");
 }
 
 /** What a member chose for their phones in one workspace, and their phones, as Settings › Notifications reads them. */
-export interface MemberAlertsRow {
+export interface MemberAlerts {
   /** The kinds their phones are not told (memberships.push_off, 00372), as stored; contracts reads them leniently. */
   pushOff: string[];
   phones: { platform: string; app_version: string | null; last_seen_at: string | null }[];
@@ -74,18 +80,23 @@ const UNDEFINED_COLUMN = "42703";
  * their own phones are what its row policies let them read (memberships_self_select, push_devices_own_select). A read
  * that fails throws, except the one a database without 00372 answers, which reads as no choice yet.
  */
-export async function memberAlertsOf(db: Db, p: { tenantId: string; userId: string }): Promise<MemberAlertsRow> {
+export async function getMemberAlerts(db: Db, params: { tenantId: TenantId; userId: string }): Promise<MemberAlerts> {
   const [mine, phones] = await Promise.all([
-    db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
+    db
+      .from("memberships")
+      .select("push_off")
+      .eq("tenant_id", params.tenantId)
+      .eq("user_id", params.userId)
+      .maybeSingle(),
     db
       .from("push_devices")
       .select("platform, app_version, last_seen_at")
-      .eq("user_id", p.userId)
+      .eq("user_id", params.userId)
       .order("last_seen_at", { ascending: false, nullsFirst: false }),
   ]);
-  if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
+  if (phones.error) throw new DbFailure(phones.error, "cannot read your phones");
   if (mine.error && mine.error.code !== UNDEFINED_COLUMN)
-    throw new Error(`cannot read your alert choices: ${mine.error.message}`);
+    throw new DbFailure(mine.error, "cannot read your alert choices");
   return {
     pushOff: mine.error ? [] : (mine.data?.push_off ?? []),
     phones: (phones.data ?? []).map((d) => ({
@@ -98,9 +109,15 @@ export async function memberAlertsOf(db: Db, p: { tenantId: string; userId: stri
 }
 
 /** Save the kinds the caller's phones are not told in one workspace (member_push_off_set): the list as kept. Throws its refusal. */
-export async function setMemberPushOff(db: Db, p: { tenantId: string; kinds: readonly string[] }): Promise<string[]> {
-  const { data, error } = await db.rpc("member_push_off_set", { p_tenant_id: p.tenantId, p_kinds: [...p.kinds] });
-  if (error) throw error;
+export async function setMemberPushOff(
+  db: Db,
+  params: { tenantId: TenantId; kinds: readonly string[] },
+): Promise<string[]> {
+  const { data, error } = await db.rpc("member_push_off_set", {
+    p_tenant_id: params.tenantId,
+    p_kinds: [...params.kinds],
+  });
+  if (error) throw new DbFailure(error);
   return data ?? [];
 }
 
@@ -109,23 +126,22 @@ export async function setMemberPushOff(db: Db, p: { tenantId: string; kinds: rea
  * (a note's one reader), less each who turned the kind off for their phones (memberships.push_off, 00372). On a
  * database without 00372 the column is not there, and every one of them is told, as before. A failed read throws.
  */
-export async function membersPushedFor(
+export async function listMembersPushed(
   db: Db,
-  p: { tenantId: string; userIds: readonly string[] | null; kind: string },
+  params: { tenantId: TenantId; userIds: readonly string[] | null; kind: string },
 ): Promise<string[]> {
-  if (p.userIds && !p.userIds.length) return [];
-  const ids = p.userIds ? [...p.userIds] : null;
+  if (params.userIds && !params.userIds.length) return [];
+  const ids = params.userIds ? [...params.userIds] : null;
   const chosen = ids
-    ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids)
-    : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
+    ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", params.tenantId).in("user_id", ids)
+    : await db.from("memberships").select("user_id, push_off").eq("tenant_id", params.tenantId);
   if (!chosen.error)
-    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
-  if (chosen.error.code !== UNDEFINED_COLUMN)
-    throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
+    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(params.kind)).map((m) => m.user_id);
+  if (chosen.error.code !== UNDEFINED_COLUMN) throw new DbFailure(chosen.error, "cannot read who is in the workspace");
   // Before 00372: everyone named, or everyone in the workspace, as before there was a choice.
   if (ids) return ids;
-  const all = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
-  if (all.error) throw new Error(`cannot read who is in the workspace: ${all.error.message}`);
+  const all = await db.from("memberships").select("user_id").eq("tenant_id", params.tenantId);
+  if (all.error) throw new DbFailure(all.error, "cannot read who is in the workspace");
   return (all.data ?? []).map((m) => m.user_id);
 }
 
@@ -136,18 +152,18 @@ export async function membersPushedFor(
  */
 export async function pushNamesFor(
   db: Db,
-  p: { tenantId: string; userIds: readonly string[] },
+  params: { tenantId: TenantId; userIds: readonly string[] },
 ): Promise<{ inMany: ReadonlySet<string>; business: string | null }> {
-  if (!p.userIds.length) return { inMany: new Set(), business: null };
+  if (!params.userIds.length) return { inMany: new Set(), business: null };
   const [members, tenant] = await Promise.all([
     db
       .from("memberships")
       .select("user_id, tenant_id")
-      .in("user_id", [...p.userIds]),
-    db.from("tenants").select("name").eq("id", p.tenantId).maybeSingle(),
+      .in("user_id", [...params.userIds]),
+    db.from("tenants").select("name").eq("id", params.tenantId).maybeSingle(),
   ]);
-  if (members.error) throw new Error(`cannot read whose workspaces these are: ${members.error.message}`);
-  if (tenant.error) throw new Error(`cannot read the workspace's name: ${tenant.error.message}`);
+  if (members.error) throw new DbFailure(members.error, "cannot read whose workspaces these are");
+  if (tenant.error) throw new DbFailure(tenant.error, "cannot read the workspace's name");
   const workspaces = new Map<string, Set<string>>();
   for (const m of members.data ?? []) {
     const own = workspaces.get(m.user_id) ?? new Set<string>();
@@ -165,14 +181,17 @@ export async function pushNamesFor(
  * which memberships_self_select lets them read. Empty for a member who has changed nothing yet; a failed read throws.
  * GET views answers it, and Ask reads its follow-ups from the `ask` page in it (contracts ask/follow-ups.ts).
  */
-export async function memberViewsOf(db: Db, p: { tenantId: string; userId: string }): Promise<Record<string, unknown>> {
+export async function getMemberViews(
+  db: Db,
+  params: { tenantId: TenantId; userId: string },
+): Promise<Record<string, unknown>> {
   const { data, error } = await db
     .from("memberships")
     .select("views")
-    .eq("tenant_id", p.tenantId)
-    .eq("user_id", p.userId)
+    .eq("tenant_id", params.tenantId)
+    .eq("user_id", params.userId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const views = data?.views;
   return views && typeof views === "object" && !Array.isArray(views) ? views : {};
 }
@@ -182,23 +201,31 @@ export async function memberViewsOf(db: Db, p: { tenantId: string; userId: strin
  * function judges the caller's own membership and the view's size. Ask clears a follow-up its home came back to through
  * it, by the door its follow-up card writes by (PUT views/:page). A write that fails throws.
  */
-export async function setMemberView(db: Db, p: { tenantId: string; page: string; view: Json }): Promise<void> {
-  const { error } = await db.rpc("member_view_set", { p_tenant_id: p.tenantId, p_page: p.page, p_view: p.view });
-  if (error) throw new Error(error.message);
+export async function setMemberView(db: Db, params: { tenantId: TenantId; page: string; view: Json }): Promise<void> {
+  const { error } = await keepMemberView(db, {
+    p_tenant_id: params.tenantId,
+    p_page: params.page,
+    p_view: params.view,
+  });
+  if (error) throw new DbFailure(error);
 }
+
+/** The same write, its answer as the door gave it (every page's views), for the route that says its refusals itself. */
+export const keepMemberView = async (db: Db, args: Database["public"]["Functions"]["member_view_set"]["Args"]) =>
+  db.rpc("member_view_set", args);
 
 /**
  * A member's own sign-in address, where they belong to this workspace (Send me a test: a step's message mailed to the
  * member who pressed it, and to no one else). On the service role, which reads every membership and the identity store;
  * null for someone not in the workspace, or an account with no address. A failed read throws.
  */
-export async function ownAddressIn(db: Db, p: { tenantId: string; userId: string }): Promise<string | null> {
+export async function findOwnAddressIn(db: Db, params: { tenantId: TenantId; userId: string }): Promise<string | null> {
   const { data, error } = await db
     .from("memberships")
     .select("user_id")
-    .eq("tenant_id", p.tenantId)
-    .eq("user_id", p.userId)
+    .eq("tenant_id", params.tenantId)
+    .eq("user_id", params.userId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read who is in the workspace: ${error.message}`);
-  return data ? memberEmailOf(db, p.userId) : null;
+  if (error) throw new DbFailure(error, "cannot read who is in the workspace");
+  return data ? findMemberEmail(db, params.userId) : null;
 }

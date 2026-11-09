@@ -15,8 +15,14 @@
  */
 import { useEffect, useRef } from "react";
 import type { AdPlatform, AdsAddress, AdsConfig, AdsRead } from "@chanlytics/contracts";
-import { BUDGET_RULES, CHIPS, DOOR, NEW_AD, moneyOf, newAdModel } from "@chanlytics/contracts/ads-page";
-import type { AdDraft, ChipId, DoorVM, NewAdVM } from "@chanlytics/contracts/ads-page";
+import { BUDGET_RULES } from "../model/rules";
+import { CHIPS } from "../model/drawer/words";
+import { DOOR } from "../model/words";
+import { NEW_AD } from "../model/words-new";
+import { moneyOf } from "../model/money";
+import { newAdModel } from "../model/new-ad";
+import type { AdDraft, NewAdVM } from "../model/new-ad";
+import type { ChipId, DoorVM } from "../model/vm-base";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
@@ -25,6 +31,7 @@ import { useUnsavedWork } from "../../../kit/record/work";
 import { useKept } from "../../home/pane-sheet";
 import { PaneSheet } from "../../home/pane-sheet";
 import { CmPane, useCmPhone } from "../../parts/split";
+import { PreviewNote } from "../preview-note";
 import type { Flash } from "./new-bits";
 import { NewFoot } from "./new-foot";
 import { NewLead } from "./new-sentence";
@@ -217,6 +224,7 @@ function NewAdSheet({ opening, open, read, config, onClose, onTurnOn, flash }: S
         }
       >
         <div className="ads-new cm-sentence" data-step={step} data-testid="ads-new-body">
+          <PreviewNote />
           <NewLead
             // The draft opens filled in (Services, the newest post, the area, the smallest amount), so the sentence is read
             // whole from the first step: each chip is a door to the step that holds it, never a blank to fill.

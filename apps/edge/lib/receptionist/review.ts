@@ -19,28 +19,29 @@
  * (contracts routeFix), else by the smallest model, its answer checked in code (checkFixRoute). Nothing is written: the
  * change is the dashboard's to keep, through the settings write.
  */
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { workspaceFor, personFor, type Admitted } from "../admin-auth.js";
-import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
-import { askJson, ModelUnavailable, promptHashOf } from "../model.js";
-import { env } from "../env.js";
-import { logger, errField } from "../log.js";
-import { getCall, type RetellCall } from "../packages/channels.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { workspaceFor, personFor, type Admitted } from "../shared/admin-auth.js";
+import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
+import { askJson, ModelUnavailable, promptHashOf } from "../ai/model.js";
+import { env } from "../shared/env.js";
+import { logger, errField } from "../shared/log.js";
+import { getCall, type RetellCall } from "@chanlytics/channels/voice";
+import { callForReview } from "@chanlytics/db/voice";
 import {
-  callForReview,
   callReviewOf,
-  configAtVersion,
+  findConfigAtVersion,
   endRehearsal,
   keepCallReview,
   keepRehearsalReview,
   keepTypedRehearsal,
-  rehearsalById,
+  findRehearsalById,
   type RehearsalRow,
-} from "../packages/db.js";
+} from "@chanlytics/db/facts";
 import {
   checkFixRoute,
   checkReview,
+  defang,
   exchangesOf,
   fixField,
   fixLine,
@@ -63,8 +64,12 @@ import {
   type FixKind,
   type ReviewDto,
   type RehearsalTurn,
-} from "../packages/contracts.js";
+  ANSWER_JSON_ONLY,
+  isTenantId,
+} from "@chanlytics/contracts";
 import { rehearsalRouting } from "../voice/rehearsal-call.js";
+import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -88,8 +93,8 @@ function typedTurnsOf(raw: unknown): RehearsalTurn[] | null {
   return out;
 }
 
-/** Where in the instructions a quote of them is: the block's own name (prompt-blocks.ts), or null. */
-function blockFinder(instructions: string, channel: "whatsapp" | "voice", brain: TenantRuntime["brain"]) {
+/** Where in the instructions a quote of them is, read as the model was shown them: the block's own name (prompt-blocks.ts), or null. */
+export function blockFinder(instructions: string, channel: "whatsapp" | "voice", brain: TenantRuntime["brain"]) {
   let blocks: ReturnType<typeof promptBlocks> = [];
   try {
     blocks = promptBlocks(
@@ -98,15 +103,16 @@ function blockFinder(instructions: string, channel: "whatsapp" | "voice", brain:
       brain ? { system_prompt: brain.system_prompt, profile: brain.profile } : null,
     );
   } catch {
+    // Blocks that cannot be read: a quote is found in none of them, and says so.
     blocks = [];
   }
-  const w = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const w = (s: string) => defang(s).toLowerCase().replace(/\s+/g, " ").trim();
   return (quote: string) => blocks.find((b) => w(b.text).includes(w(quote)))?.label ?? null;
 }
 
 /** The judgement: one model call over the exchanges, its answer checked. Null when the workspace may not pay for it. */
-async function judge(o: {
-  tenantId: string;
+async function judge(options: {
+  tenantId: TenantId;
   userId: string | null;
   subjectId: string;
   turns: readonly RehearsalTurn[];
@@ -116,49 +122,65 @@ async function judge(o: {
   version: number | null;
   judgedAgainst: "then" | "now";
 }): Promise<ReviewDto | null | "empty"> {
-  const exchanges = exchangesOf(o.turns);
+  const exchanges = exchangesOf(options.turns);
   if (!exchanges.length) return "empty";
   const system = reviewSystemPrompt();
   const answered = await askJson({
     purpose: "receptionist_review",
     system,
-    user: reviewUserContent(o.instructions, exchanges),
+    user: reviewUserContent(options.instructions, exchanges),
     schema: REVIEW_SCHEMA,
     maxTokens: modelRoute("receptionist_review").maxTokens,
-    plainJsonHint: "Answer with only a JSON object in the shape asked.",
-    for: { tenantId: o.tenantId, subjectId: o.subjectId, userId: o.userId, promptHash: promptHashOf(system) },
+    plainJsonHint: ANSWER_JSON_ONLY,
+    for: {
+      tenantId: options.tenantId,
+      subjectId: options.subjectId,
+      userId: options.userId,
+      promptHash: promptHashOf(system),
+    },
   });
   if (!answered) return null;
   const checked = checkReview(
     answered.answer,
     exchanges,
-    o.instructions,
-    blockFinder(o.instructions, o.channel, o.brain),
+    options.instructions,
+    blockFinder(options.instructions, options.channel, options.brain),
   );
-  return { items: checked.items, dropped: checked.dropped, version: o.version, judged_against: o.judgedAgainst };
+  return {
+    items: checked.items,
+    dropped: checked.dropped,
+    version: options.version,
+    judged_against: options.judgedAgainst,
+  };
 }
 
 /** A spoken rehearsal whose end has not reached the webhook: the provider's word for it, written as the webhook would. */
-async function endedFromProvider(db: Db, r: RehearsalRow): Promise<RehearsalRow> {
-  if (r.ended_at || !r.retell_call_id || !env.RETELL_API_KEY) return r;
-  const read = await getCall({ apiKey: env.RETELL_API_KEY }, r.retell_call_id).catch(() => null);
-  if (read?.kind !== "found") return r;
-  const c: RetellCall = read.call;
-  if (c.call_status !== "ended" && c.call_status !== "error") return r;
-  const turns = turnsOfTranscript(c.transcript_with_tool_calls ?? c.transcript_object ?? []);
-  await endRehearsal(db, r.tenant_id, r.retell_call_id, {
+async function endedFromProvider(db: Db, rehearsal: RehearsalRow): Promise<RehearsalRow> {
+  if (rehearsal.ended_at || !rehearsal.retell_call_id || !env.RETELL_API_KEY) return rehearsal;
+  const read = await getCall({ apiKey: env.RETELL_API_KEY }, rehearsal.retell_call_id).catch(
+    logAndGoOn("getCall", null),
+  );
+  if (read?.kind !== "found") return rehearsal;
+  const retellCall: RetellCall = read.call;
+  if (retellCall.call_status !== "ended" && retellCall.call_status !== "error") return rehearsal;
+  const turns = turnsOfTranscript(retellCall.transcript_with_tool_calls ?? retellCall.transcript_object ?? []);
+  await endRehearsal(db, rehearsal.tenant_id, rehearsal.retell_call_id, {
     turns,
-    startedAt: typeof c.start_timestamp === "number" ? new Date(c.start_timestamp).toISOString() : null,
-    endedAt: typeof c.end_timestamp === "number" ? new Date(c.end_timestamp).toISOString() : new Date().toISOString(),
-    seconds: Math.max(0, c.duration_ms ?? 0) / 1000,
-    reason: c.disconnection_reason ?? null,
+    startedAt:
+      typeof retellCall.start_timestamp === "number" ? new Date(retellCall.start_timestamp).toISOString() : null,
+    endedAt:
+      typeof retellCall.end_timestamp === "number"
+        ? new Date(retellCall.end_timestamp).toISOString()
+        : new Date().toISOString(),
+    seconds: Math.max(0, retellCall.duration_ms ?? 0) / 1000,
+    reason: retellCall.disconnection_reason ?? null,
   });
-  return (await rehearsalById(db, r.tenant_id, r.id)) ?? r;
+  return (await findRehearsalById(db, rehearsal.tenant_id, rehearsal.id)) ?? rehearsal;
 }
 
 /** The instructions a real call is judged against: the settings at its version where they are kept, else as they stand. */
 async function callInstructions(db: Db, rt: TenantRuntime, version: number | null, at: Date) {
-  const kept = version !== null ? await configAtVersion(db, rt.tenantId, version) : null;
+  const kept = version !== null ? await findConfigAtVersion(db, rt.tenantId, version) : null;
   const then = kept ? (parseTenantConfig(kept)?.brain ?? null) : null;
   const brain = then ?? rt.brain;
   if (!brain) return null;
@@ -180,15 +202,15 @@ export async function reviewConversation(
     rehearsal_id: string;
     call_id: string;
     turns: unknown;
-    config_version: number;
+    config_version: number | null;
   }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const userId = personFor(auth, body.user_id);
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -197,20 +219,20 @@ export async function reviewConversation(
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
 
   try {
-    const w: ReviewWorld = { db, tenantId, userId, rt, brain: rt.brain };
+    const reviewWorld: ReviewWorld = { db, tenantId, userId, rt, brain: rt.brain };
     const judged =
       typeof body.rehearsal_id === "string" && UUID.test(body.rehearsal_id)
-        ? await judgeRehearsal(w, body.rehearsal_id)
+        ? await judgeRehearsal(reviewWorld, body.rehearsal_id)
         : typeof body.call_id === "string" && UUID.test(body.call_id)
-          ? await judgeCall(w, body.call_id)
-          : await judgeTyped(w, body.turns, body.config_version);
+          ? await judgeCall(reviewWorld, body.call_id)
+          : await judgeTyped(reviewWorld, body.turns, body.config_version);
     if (judged instanceof Response) return judged;
     const { id, review } = judged;
     if (review === "empty")
       return refuse(422, "rehearsal_empty", "nothing to judge: a question and an answer are needed");
     if (!review) return refuse(402, "payment_required", "the workspace may not use the model now");
     await keepRehearsalReview(db, tenantId, id, review);
-    L.info("rehearsal_reviewed", {
+    log.info("rehearsal_reviewed", {
       tenant_id: tenantId,
       rehearsal_id: id,
       items: review.items.length,
@@ -219,7 +241,7 @@ export async function reviewConversation(
     });
     return reviewed(id, review);
   } catch (e) {
-    L.error("rehearsal_review_failed", { tenant_id: tenantId, error: errField(e) });
+    log.error("rehearsal_review_failed", { tenant_id: tenantId, error: errField(e) });
     if (e instanceof ModelUnavailable) return refuse(503, "model_unavailable");
     return refuse(503, "review_write_failed");
   }
@@ -228,7 +250,7 @@ export async function reviewConversation(
 /** What a review is asked inside: the database, the workspace, who asked, its runtime, and the brain it read. */
 interface ReviewWorld {
   db: Db;
-  tenantId: string;
+  tenantId: TenantId;
   userId: string | null;
   rt: TenantRuntime;
   brain: NonNullable<TenantRuntime["brain"]>;
@@ -238,84 +260,84 @@ interface ReviewWorld {
 type Judged = { id: string; review: ReviewDto | null | "empty" } | Response;
 
 /** A spoken rehearsal, or a typed one already kept: its own words and what it heard. */
-async function judgeRehearsal(w: ReviewWorld, rehearsalId: string): Promise<Judged> {
-  const found = await rehearsalById(w.db, w.tenantId, rehearsalId);
+async function judgeRehearsal(reviewWorld: ReviewWorld, rehearsalId: string): Promise<Judged> {
+  const found = await findRehearsalById(reviewWorld.db, reviewWorld.tenantId, rehearsalId);
   if (!found) return refuse(404, "not_found");
   if (found.review) return reviewed(found.id, found.review);
-  const r = found.kind === "call" ? await endedFromProvider(w.db, found) : found;
+  const item = found.kind === "call" ? await endedFromProvider(reviewWorld.db, found) : found;
   const review = await judge({
-    tenantId: w.tenantId,
-    userId: w.userId,
-    subjectId: r.id,
-    turns: r.transcript,
-    instructions: r.instructions ?? "",
-    channel: r.kind === "typed" ? "whatsapp" : "voice",
-    brain: w.brain,
-    version: r.config_version,
+    tenantId: reviewWorld.tenantId,
+    userId: reviewWorld.userId,
+    subjectId: item.id,
+    turns: item.transcript,
+    instructions: item.instructions ?? "",
+    channel: item.kind === "typed" ? "whatsapp" : "voice",
+    brain: reviewWorld.brain,
+    version: item.config_version,
     judgedAgainst: "then",
   });
-  return { id: r.id, review };
+  return { id: item.id, review };
 }
 
 /** A real call: kept as reviewed once, then its review read back. */
-async function judgeCall(w: ReviewWorld, callId: string): Promise<Judged> {
-  const before = await callReviewOf(w.db, w.tenantId, callId);
+async function judgeCall(reviewWorld: ReviewWorld, callId: string): Promise<Judged> {
+  const before = await callReviewOf(reviewWorld.db, reviewWorld.tenantId, callId);
   if (before?.review) return reviewed(before.id, before.review);
-  const call = await callForReview(w.db, w.tenantId, callId);
+  const call = await callForReview(reviewWorld.db, reviewWorld.tenantId, callId);
   if (!call) return refuse(404, "not_found");
   const turns = turnsOfTranscript(call.transcript_object ?? []);
-  const told = await callInstructions(w.db, w.rt, call.config_version, new Date(call.created_at));
-  if (!told) return refuse(409, "no_persona");
+  const notice = await callInstructions(reviewWorld.db, reviewWorld.rt, call.config_version, new Date(call.created_at));
+  if (!notice) return refuse(409, "no_persona");
   const id =
     before?.id ??
-    (await keepCallReview(w.db, {
-      tenantId: w.tenantId,
+    (await keepCallReview(reviewWorld.db, {
+      tenantId: reviewWorld.tenantId,
       callId: call.id,
       agentId: call.agent_id,
       configVersion: call.config_version,
-      instructions: told.instructions,
+      instructions: notice.instructions,
       turns,
-      createdBy: w.userId,
+      createdBy: reviewWorld.userId,
     }));
   const review = await judge({
-    tenantId: w.tenantId,
-    userId: w.userId,
+    tenantId: reviewWorld.tenantId,
+    userId: reviewWorld.userId,
     subjectId: id,
     turns,
-    instructions: told.instructions,
+    instructions: notice.instructions,
     channel: "voice",
-    brain: told.brain,
+    brain: notice.brain,
     version: call.config_version,
-    judgedAgainst: told.judgedAgainst,
+    judgedAgainst: notice.judgedAgainst,
   });
   return { id, review };
 }
 
 /** A typed rehearsal: the turns tried, against the instructions composed now for a chat. */
-async function judgeTyped(w: ReviewWorld, rawTurns: unknown, configVersion: unknown): Promise<Judged> {
+async function judgeTyped(reviewWorld: ReviewWorld, rawTurns: unknown, configVersion: unknown): Promise<Judged> {
   const turns = typedTurnsOf(rawTurns);
   if (!turns) return refuse(400, "bad_request", "turns: up to sixteen of { role, content }");
-  const { rt } = w;
-  const instructions = resolveSystemPrompt(w.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known);
-  const asked = typeof configVersion === "number" ? configVersion : null;
+  const { rt } = reviewWorld;
+  const instructions = resolveSystemPrompt(reviewWorld.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known);
+  const request = typeof configVersion === "number" ? configVersion : null;
   const version = rt.configVersion ?? null;
-  const id = await keepTypedRehearsal(w.db, {
-    tenantId: w.tenantId,
+  const id = await keepTypedRehearsal(reviewWorld.db, {
+    tenantId: reviewWorld.tenantId,
     turns,
-    configVersion: asked ?? version,
+    configVersion: request ?? version,
     instructions,
-    createdBy: w.userId,
+    createdBy: reviewWorld.userId,
   });
   const review = await judge({
-    tenantId: w.tenantId,
-    userId: w.userId,
+    tenantId: reviewWorld.tenantId,
+    userId: reviewWorld.userId,
     subjectId: id,
     turns,
     instructions,
     channel: "whatsapp",
-    brain: w.brain,
-    version: asked ?? version,
-    judgedAgainst: asked === null || asked === version ? "then" : "now",
+    brain: reviewWorld.brain,
+    version: request ?? version,
+    judgedAgainst: request === null || request === version ? "then" : "now",
   });
   return { id, review };
 }
@@ -324,14 +346,14 @@ const isFixKind = (v: unknown): v is FixKind => (FIX_KINDS as readonly unknown[]
 
 /** The settings a correction is routed against: today, the services, the hours, the languages. */
 function fixAskOf(rt: TenantRuntime, kind: FixKind, words: string, rule: string | null): FixAsk {
-  const p = rt.brain?.profile;
+  const profile = rt.brain?.profile;
   return {
     kind,
     words,
     today: localDate(rt.timezone ?? "UTC", new Date()),
-    services: (p?.services ?? []).map((s) => ({ name: s.name })),
-    hours: p?.hours ?? {},
-    languages: p?.languages ?? [],
+    services: (profile?.services ?? []).map((s) => ({ name: s.name })),
+    hours: profile?.hours ?? {},
+    languages: profile?.languages ?? [],
     rule,
   };
 }
@@ -348,11 +370,11 @@ export async function routeCorrection(
     rule: string;
   }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   if (!isFixKind(body.kind)) return refuse(400, "bad_request", "kind: one of the review's fix kinds");
   const words = typeof body.words === "string" ? body.words.trim().slice(0, TURN_MAX_CHARS) : "";
   const db = pg();
@@ -379,17 +401,22 @@ export async function routeCorrection(
         }),
         schema: FIX_ROUTE_SCHEMA,
         maxTokens: modelRoute("fix_route").maxTokens,
-        plainJsonHint: "Answer with only a JSON object in the shape asked.",
+        plainJsonHint: ANSWER_JSON_ONLY,
         for: { tenantId, userId: personFor(auth, body.user_id), promptHash: promptHashOf(system) },
       });
       if (!answered) return refuse(402, "payment_required", "the workspace may not use the model now");
       routed = checkFixRoute(answered.answer, ask);
     } catch (e) {
-      L.error("rehearsal_fix_failed", { tenant_id: tenantId, error: errField(e) });
+      log.error("rehearsal_fix_failed", { tenant_id: tenantId, error: errField(e) });
       return refuse(503, e instanceof ModelUnavailable ? "model_unavailable" : "model_failed");
     }
   }
-  L.info("rehearsal_fix_routed", { tenant_id: tenantId, kind: ask.kind, by, op: routed.ok ? routed.change.op : null });
+  log.info("rehearsal_fix_routed", {
+    tenant_id: tenantId,
+    kind: ask.kind,
+    by,
+    op: routed.ok ? routed.change.op : null,
+  });
   if (!routed.ok) return json(200, { ok: true, change: null });
   return json(200, { ok: true, change: routed.change, field: fixField(routed.change), line: fixLine(routed.change) });
 }

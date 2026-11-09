@@ -18,10 +18,18 @@
  * it: an undo puts back what was there at the write, never what a card read when it was proposed.
  */
 import { z } from "zod";
-import { AppError, normalizeEmail, normalizeLink, whyNotALink, whyNotAnEmail } from "@chanlytics/contracts";
-import { personRow } from "@chanlytics/db";
-import type { contactScope } from "@/server/verbs";
-import { dbRefusal, type RouteContext } from "@/server/with-route";
+import {
+  AppError,
+  normalizeEmail,
+  normalizeLink,
+  whyNotALink,
+  whyNotAnEmail,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
+import { findPersonRow, setPersonEmail, setPersonName, setPersonNotes, setPersonProposal } from "@chanlytics/db/people";
+import type { contactScope } from "@/server/shared/verbs";
+import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import type { ContactId } from "@chanlytics/contracts";
 
 /** Any field alone; an empty string clears it. */
 export const PersonDetailsChange = z
@@ -40,7 +48,7 @@ export const PersonDetailsChange = z
 type ContactRow = Awaited<ReturnType<typeof contactScope.load>>;
 
 interface PersonDetailsAnswer {
-  contact_id: string;
+  contact_id: ContactId;
   name?: string | null;
   notes?: string | null;
   email?: string | null;
@@ -64,12 +72,10 @@ function linkToStore(typed: string): string | null {
 }
 
 /** What a door stored, by the field it answers with. 23505 is its own word for "another person here already has that address" (dbRefusal: a conflict). */
-function whatTheDoorStored<F extends string>(
-  answer: { data: unknown; error: Parameters<typeof dbRefusal>[0] | null },
-  field: F,
-): string | null {
+function whatTheDoorStored<F extends string>(answer: { data: unknown; error: unknown }, field: F): string | null {
   if (answer.error) throw dbRefusal(answer.error);
-  return ((answer.data ?? {}) as Partial<Record<F, string | null>>)[field] ?? null;
+  const stored = recordOrEmpty(answer.data)[field];
+  return typeof stored === "string" ? stored : null;
 }
 
 export async function setPersonDetails(
@@ -85,7 +91,7 @@ export async function setPersonDetails(
   const out: PersonDetailsAnswer = { contact_id: id };
   if (name !== undefined || email !== undefined) {
     // As the People list reads them, once, before the first door runs.
-    const stood = await personRow(ctx.supabase, contact.tenant_id, id);
+    const stood = await findPersonRow(ctx.supabase, contact.tenant_id, id);
     if (stood)
       out.was = {
         ...(name !== undefined ? { name: stood.display_name ?? "" } : {}),
@@ -95,19 +101,10 @@ export async function setPersonDetails(
   // The session's doors, called on the client itself: a bound copy of its rpc made the compiler weigh every function's
   // overload at once, which 00497's doors took past its depth (TS2589).
   const db = ctx.supabase;
-  if (email !== undefined)
-    out.email = whatTheDoorStored(
-      await db.rpc("set_person_email", { p_contact_id: id, p_email: email ?? "" }),
-      "email",
-    );
-  if (name !== undefined)
-    out.name = whatTheDoorStored(await db.rpc("set_person_name", { p_contact_id: id, p_name: name }), "name");
-  if (notes !== undefined)
-    out.notes = whatTheDoorStored(await db.rpc("set_person_notes", { p_contact_id: id, p_notes: notes }), "notes");
+  if (email !== undefined) out.email = whatTheDoorStored(await setPersonEmail(db, id, email ?? ""), "email");
+  if (name !== undefined) out.name = whatTheDoorStored(await setPersonName(db, id, name), "name");
+  if (notes !== undefined) out.notes = whatTheDoorStored(await setPersonNotes(db, id, notes), "notes");
   if (proposal !== undefined)
-    out.proposal_url = whatTheDoorStored(
-      await db.rpc("set_person_proposal", { p_contact_id: id, p_url: proposal ?? "" }),
-      "proposal_url",
-    );
+    out.proposal_url = whatTheDoorStored(await setPersonProposal(db, id, proposal ?? ""), "proposal_url");
   return out;
 }

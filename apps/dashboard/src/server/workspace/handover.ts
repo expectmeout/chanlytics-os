@@ -1,11 +1,14 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inviteUserByEmail, type Database } from "@chanlytics/db";
-import { AppError } from "@chanlytics/contracts";
-import { deployment } from "../env";
-import { callEdge, edgeAnswered, edgeConfigured } from "../edge";
-import { serviceDb } from "../service-db";
-import { log } from "@/server/log";
+import { inviteUserByEmail } from "@chanlytics/db/auth";
+import type { Database } from "@chanlytics/db/types";
+import { AppError, DbFailure } from "@chanlytics/contracts";
+import { deployment } from "../shared/env";
+import { callEdge, edgeAnswered, edgeConfigured } from "../shared/edge";
+import { serviceDb } from "../shared/service-db";
+import { log } from "@/server/shared/log";
+import { lookupUserForInvite } from "@chanlytics/db/workspace";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A partner hands a workspace to its owner (decision 0016): the half of it the database cannot do, which is telling
@@ -27,9 +30,9 @@ const REFUSALS: Record<string, (message: string) => AppError> = {
 };
 
 /** A handover function's refusal, in its own words; anything else is a failure, not an answer. */
-export function handoverRefusal(r: { code: string; message: string }): Error {
-  const make = REFUSALS[r.code];
-  return make ? make(r.message) : new Error(r.message);
+export function handoverRefusal(row: { code: string; message: string }): Error {
+  const make = REFUSALS[row.code];
+  return make ? make(row.message) : new Error(row.message);
 }
 
 /** How the invitation is sent: injected by a test, the platform's own otherwise. */
@@ -46,18 +49,15 @@ interface HandoverMailPorts {
  * account is its owner's to know. Never throws: the handover is on record, and a send that failed can be sent again.
  */
 export async function sendHandoverInvite(
-  tenantId: string,
+  tenantId: TenantId,
   email: string,
   userId: string,
   ports: HandoverMailPorts = {},
 ): Promise<boolean> {
   const svc = ports.svc ?? serviceDb();
   try {
-    const { data: existing, error } = await svc.rpc("lookup_user_for_invite", {
-      p_tenant_id: tenantId,
-      p_email: email,
-    });
-    if (error) throw new Error(error.message);
+    const { data: existing, error } = await lookupUserForInvite(svc, tenantId, email);
+    if (error) throw new DbFailure(error);
     if (!existing) {
       const { error: mailErr } = await inviteUserByEmail(svc, email);
       if (!mailErr) return true;
@@ -65,14 +65,14 @@ export async function sendHandoverInvite(
       if (!/already (been )?registered|already exists/i.test(mailErr.message)) throw new Error(mailErr.message);
     }
     if (!(ports.live ?? deployment.providersLive) || !edgeConfigured()) return false;
-    const r = await callEdge(
+    const answer = await callEdge(
       "/api/admin/handover-invite",
       { tenant_id: tenantId },
       { workspace: tenantId, user: userId, timeoutMs: HANDOVER_MAIL_TIMEOUT_MS, fetch: ports.fetch },
     );
-    if (!edgeAnswered(r))
-      log.error("handover_invite_failed", { tenant_id: tenantId, status: r.status, error: r.body?.error });
-    return edgeAnswered(r);
+    if (!edgeAnswered(answer))
+      log.error("handover_invite_failed", { tenant_id: tenantId, status: answer.status, error: answer.body?.error });
+    return edgeAnswered(answer);
   } catch (e) {
     log.error("handover_invite_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return false;

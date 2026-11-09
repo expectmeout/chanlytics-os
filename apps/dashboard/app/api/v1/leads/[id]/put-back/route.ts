@@ -1,9 +1,11 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
-import { answerOf, refusalOf, saidLeadPutBack } from "@/server/leads/leads";
+import { write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
+import { answerOf, refusalOf, recordLeadPutBack } from "@/server/leads/leads";
+import { putLeadBack } from "@/server/leads/search-acts";
+import { DbFailure } from "@chanlytics/contracts";
 
-const Body = z.object({ search_id: z.string().uuid() });
+const Body = z.object({ search_id: z.uuid() });
 
 /**
  * POST /api/v1/leads/:id/put-back: the owner's override of an exclusion,
@@ -17,15 +19,15 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, member, input }) => {
     const leadId = requireUuid(ctx.params.id, "lead");
-    const { data, error } = await ctx.supabase.rpc("lead_member_put_back", {
+    const { data, error } = await putLeadBack(ctx, {
       p_search_id: input.search_id,
       p_lead_id: leadId,
     });
-    if (error) throw new Error(`lead_member_put_back: ${error.message}`);
-    const a = answerOf(data);
-    const refused = refusalOf(a);
+    if (error) throw new DbFailure(error, "lead_member_put_back");
+    const answer = answerOf(data);
+    const refused = refusalOf(answer);
     if (refused) throw refused;
-    await saidLeadPutBack({ tenantId: member.tenantId, leadId, searchId: input.search_id, by: ctx.userId });
-    return { lead_id: leadId, op_id: a.op_id, version: a.version };
+    await recordLeadPutBack({ tenantId: member.tenantId, leadId, searchId: input.search_id, by: ctx.userId });
+    return { lead_id: leadId, op_id: answer.op_id, version: answer.version };
   },
 });

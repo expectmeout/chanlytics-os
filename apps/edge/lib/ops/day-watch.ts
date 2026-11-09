@@ -13,10 +13,13 @@
  * so it is only sent while the day is fresh (before PAGE_UNTIL_HOUR UTC): one page per silent day.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DAY_MS, pastTarget, pastTargetPage } from "../packages/contracts.js";
-import { platformDay, type Database } from "../packages/db.js";
-import { pageOperator, type PagePorts } from "./page-operator.js";
-import { logger } from "../log.js";
+import { DAY_MS, pastTarget, pastTargetPage } from "@chanlytics/contracts";
+import { listPlatformDay } from "@chanlytics/db/console";
+import type { Database } from "@chanlytics/db/types";
+import { pageOperator, type PagePorts } from "../shared/alerts/page-operator.js";
+import { logger } from "../shared/log.js";
+import { readAnswerSilence } from "@chanlytics/db/ops";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The page goes out only in the first hours after the rollup: once per day, not once per suppression window. */
 const ANSWER_SILENCE_PAGE_UNTIL_HOUR = 6;
@@ -26,7 +29,7 @@ const ANSWER_SILENCE_PAGE_KEY = "answer_rate_zero";
 const PAST_TARGET_PAGE_KEY = "numbers_past_target";
 
 interface SilentWorkspace {
-  tenant_id: string;
+  tenant_id: TenantId;
   name: string;
   asks: number;
 }
@@ -69,7 +72,7 @@ export async function watchAnswerSilence(
 ): Promise<number> {
   if (!answerSilenceDue(nowMs)) return 0;
   const day = rolledDay(nowMs);
-  const silence = await db.rpc("platform_answer_silence", { p_day: day });
+  const silence = await readAnswerSilence(db, day);
   if (silence.error) {
     if (silence.error.code !== "PGRST202")
       logger({ sweep: "health" }).error("answer_silence_unreadable", { error: silence.error.message });
@@ -96,7 +99,7 @@ export async function watchTargets(
   const day = rolledDay(nowMs);
   let rows;
   try {
-    rows = await platformDay(db, day);
+    rows = await listPlatformDay(db, day);
   } catch (e) {
     logger({ sweep: "health" }).error("targets_unreadable", { error: e instanceof Error ? e.message : String(e) });
     return 0;

@@ -4,9 +4,9 @@
  * Campaigns wiring review's lane 6). The sheets Campaigns opens over Sequences say theirs here too (sheets.tsx).
  */
 import { createContext, useContext } from "react";
-import type { useLegacyToast } from "../../legacy-verbs";
+import type { useFrameToast } from "../../frame-verbs";
 
-type Flash = ReturnType<typeof useLegacyToast>[1];
+type Flash = ReturnType<typeof useFrameToast>[1];
 
 const CampaignsToastContext = createContext<Flash | null>(null);
 

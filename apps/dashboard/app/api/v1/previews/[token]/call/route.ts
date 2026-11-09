@@ -1,10 +1,10 @@
-import { previewCall } from "@/server/previews/preview-doors";
+import { previewCall } from "@/server/previews/doors";
 import { previewRoute } from "@/server/previews/public-route";
 
 /**
  * POST /api/v1/previews/<token>/call — a call in the browser to a lead's own receptionist (decision 0079): made at the
  * provider by the edge's rehearsal door, counted against the preview's six minutes, three at most a call; `{ rehearsal_id,
- * call, max_ms, left_ms }` back, which the browser joins (legacy-bridge/rehearse/call.ts). Public: the token is the
+ * call, max_ms, left_ms }` back, which the browser joins (bridge/rehearse/call.ts). Public: the token is the
  * authority, and a call is its own bucket per network (server/previews/public-route.ts).
  */
 const door = previewRoute({ bucket: "preview_call_ip", spends: true }, (token) => previewCall(token));

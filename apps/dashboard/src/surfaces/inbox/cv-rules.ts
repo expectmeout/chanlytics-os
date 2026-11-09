@@ -4,7 +4,7 @@
  * so do the frame's crumbs and Ask, by import. No React, so it stays light for whoever imports it. And the one row a person has in the list.
  */
 import type { SeenReading } from "@chanlytics/contracts";
-import type { ConversationRow, Picked } from "./types";
+import type { ConversationLine, Picked } from "./types";
 
 // Keyed on what the view model says (writtenChannelOf): "email", not "mail".
 // The map carried "mail" while nothing ever sent it, so the day a real email
@@ -19,7 +19,7 @@ export const CV_ICON: Record<string, string> = {
 
 // ONE rule for "is this row in that tab", read by the filter AND the counts, so
 // a tab can never show a number it does not then list. `chats` is the mockup's
-// grouped tab; a real workspace gets one tab per wire (legacy-bridge
+// grouped tab; a real workspace gets one tab per wire (bridge
 // surface-data.ts). "mail" is the seed's spelling of what the view model calls
 // "email" — the filter carried only the seed's, so the Email tab was empty on
 // the mockup and matched nothing at all on a real workspace.
@@ -71,10 +71,10 @@ export const cvAddress = (channel: string | null | undefined, id: string | null 
  * reader as its thread is (contracts isUnseen): the reader's mark is on the person, whichever row of theirs is drawn.
  */
 export function cvCallsStandAsTheirThread(
-  calls: ReadonlyArray<ConversationRow>,
-  threads: ReadonlyArray<ConversationRow>,
-): ConversationRow[] {
-  const byThread = new Map<string, ConversationRow>();
+  calls: ReadonlyArray<ConversationLine>,
+  threads: ReadonlyArray<ConversationLine>,
+): ConversationLine[] {
+  const byThread = new Map<string, ConversationLine>();
   for (const t of threads) if (t.threadId) byThread.set(t.threadId, t);
   return calls.map((c) => {
     const t = c.threadId ? byThread.get(c.threadId) : undefined;
@@ -92,7 +92,7 @@ export function cvCallsStandAsTheirThread(
 
 // Whose a row is: the person, else their thread, else the row alone (a caller who withheld their number is nobody's).
 // A person's row keeps this name from one read to the next, where its id is its newest part's: a pick is held by it.
-export const cvWhose = (c: ConversationRow): string =>
+export const cvWhose = (c: ConversationLine): string =>
   c.clientId ? `p:${c.clientId}` : c.threadId ? `t:${c.threadId}` : `r:${c.id}`;
 
 /**
@@ -102,8 +102,8 @@ export const cvWhose = (c: ConversationRow): string =>
  * words, its wire and where it opens, with every row it stands for under `parts`. Run on the rows a tab and a
  * search kept, so the Calls tab leads with a person's last call and a search with what matched.
  */
-export function cvOnePerPerson(rows: ReadonlyArray<ConversationRow>): ConversationRow[] {
-  const byWho = new Map<string, ConversationRow[]>();
+export function cvOnePerPerson(rows: ReadonlyArray<ConversationLine>): ConversationLine[] {
+  const byWho = new Map<string, ConversationLine[]>();
   for (const c of rows) {
     const k = cvWhose(c);
     const mine = byWho.get(k);
@@ -111,27 +111,27 @@ export function cvOnePerPerson(rows: ReadonlyArray<ConversationRow>): Conversati
     else byWho.set(k, [c]);
   }
   return [...byWho.values()].map((parts) => {
-    const [newest] = parts as [ConversationRow, ...ConversationRow[]];
+    const [newest] = parts as [ConversationLine, ...ConversationLine[]];
     return parts.length === 1 ? newest : { ...newest, parts };
   });
 }
 
 /** What a person's row stands for: itself alone, or its parts. */
-const cvPartsOf = (c: ConversationRow): ConversationRow[] => c.parts ?? [c];
+const cvPartsOf = (c: ConversationLine): ConversationLine[] => c.parts ?? [c];
 
 /**
- * The part whose standing the row's pill says: a call going on now, else a thread somebody has or needs to (the
- * Inbox's word, which a call after it does not take back: "Hung up early" over a thread that needs you hid the
- * ask), else the newest.
+ * The part whose standing the row's pill says: a call going on now, else a thread somebody has or needs to, or that is
+ * yours to do by the rule (the Inbox's word, which a call after it does not take back: "Hung up early" over a thread that
+ * needs you hid the ask, and "Handled" over a message nobody answered), else the newest.
  */
-export const cvLeadOf = (c: ConversationRow): ConversationRow =>
-  c.live ? c : (cvPartsOf(c).find((p) => p.standing && p.standing !== "quiet") ?? c);
+export const cvLeadOf = (c: ConversationLine): ConversationLine =>
+  c.live ? c : (cvPartsOf(c).find((p) => (p.standing && p.standing !== "quiet") || p.move?.list === "escalated") ?? c);
 
 /**
  * Whose a row is, for the reader's marks (surfaces/seen.ts): the person, and the conversation their thread is. A
  * caller who withheld their number is nobody, and their row is never called new.
  */
-export const cvWhoseRow = (c: ConversationRow): { personId: string | null; conversationId: string | null } => ({
+export const cvWhoseRow = (c: ConversationLine): { personId: string | null; conversationId: string | null } => ({
   personId: c.clientId,
   conversationId: c.threadId && c.threadId.startsWith("th-") ? c.threadId.slice(3) : null,
 });
@@ -140,13 +140,13 @@ export const cvWhoseRow = (c: ConversationRow): { personId: string | null; conve
  * Whether the person a row stands for asked to stop (contracts isOptedOutContact, as each row's view model carries it):
  * the mark beside the name says it. It is the person's, so any row it stands for may say so, a call's as well as the thread's.
  */
-export const cvStopped = (c: ConversationRow): boolean => cvPartsOf(c).some((p) => !!p.stopped);
+export const cvStopped = (c: ConversationLine): boolean => cvPartsOf(c).some((p) => !!p.stopped);
 
 /**
  * What the last read said of a person's row (contracts SeenReading): new to the reader when any row it stands for is, when
  * they were last heard from, and the stamp of the reader's mark, each the latest among the rows it stands for.
  */
-export const cvSeenOf = (c: ConversationRow): SeenReading => ({
+export const cvSeenOf = (c: ConversationLine): SeenReading => ({
   unseen: cvPartsOf(c).some((p) => !!p.unseen),
   heardAtMs: Math.max(0, ...cvPartsOf(c).map((p) => p.heardAtMs ?? 0)),
   markAtMs: Math.max(0, ...cvPartsOf(c).map((p) => p.markAtMs ?? 0)),
@@ -159,7 +159,7 @@ export const cvSeenOf = (c: ConversationRow): SeenReading => ({
  * to the reader now and whether its thread is archived, which the row itself does not hold.
  */
 export function cvPicked(
-  c: ConversationRow,
+  c: ConversationLine,
   said: { unread: boolean; archived: (conversationId: string) => boolean },
 ): Picked | null {
   const conversationId =
@@ -181,9 +181,9 @@ export function cvPicked(
 
 /** The row of `rows` that holds `id`, and the part it names: a link to one call opens its person's row at that call. */
 export function cvFind(
-  rows: ReadonlyArray<ConversationRow>,
+  rows: ReadonlyArray<ConversationLine>,
   id: string | null | undefined,
-): { row: ConversationRow; part: ConversationRow } | null {
+): { row: ConversationLine; part: ConversationLine } | null {
   if (!id) return null;
   for (const row of rows) {
     const part = cvPartsOf(row).find((p) => p.id === id);
@@ -196,7 +196,7 @@ export function cvFind(
  * How many calls a person's row holds, said where the row does not already: "5 calls", or a thread's "1 call". Counted
  * from what the page read, the workspace's newest hundred calls (readers/calls.ts); the thread holds every one.
  */
-export function cvCallsWords(c: ConversationRow): string | null {
+export function cvCallsWords(c: ConversationLine): string | null {
   const calls = cvPartsOf(c).filter((p) => p.callId || p.channel === "phone").length;
   if (calls >= 2) return `${calls} calls`;
   return calls === 1 && c.parts && !(c.callId || c.channel === "phone") ? "1 call" : null;

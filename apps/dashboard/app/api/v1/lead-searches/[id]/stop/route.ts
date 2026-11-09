@@ -1,6 +1,8 @@
-import { write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, refusalOf, searchRow } from "@/server/leads/leads";
+import { stopRound } from "@/server/leads/search-acts";
+import { DbFailure } from "@chanlytics/contracts";
 
 /**
  * POST /api/v1/lead-searches/:id/stop: an operator may stop a search. The
@@ -14,8 +16,8 @@ export const POST = write({
   rate: "lead_answer",
   handle: async ({ ctx, member }) => {
     const search = await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search"));
-    const { data, error } = await ctx.supabase.rpc("lead_round_stop", { p_search_id: search.id });
-    if (error) throw new Error(`lead_round_stop: ${error.message}`);
+    const { data, error } = await stopRound(ctx, { p_search_id: search.id });
+    if (error) throw new DbFailure(error, "lead_round_stop");
     const refused = refusalOf(answerOf(data));
     if (refused) throw refused;
     return { search_id: search.id, stopping: true };

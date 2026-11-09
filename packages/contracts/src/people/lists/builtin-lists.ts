@@ -1,13 +1,13 @@
 /**
  * The lists the product ships (decision 0009), each a rule in the language an owner writes theirs in, with their groups
- * and words: what a page names a list by, and judges a person against (list-match.ts), with no schema behind it.
+ * and words: what a page names a list by, and judges a person against (lists/match.ts), with no schema behind it.
  */
-import { DEAL_STAGE_WORDS } from "../../deals/deal-words";
+import { DEAL_STAGE_WORDS } from "../../deals/words";
 import { STOP_WORDS } from "../../consent/consent";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../../conversations/standing";
-import type { PersonRowVM } from "../person-row";
-import { listRuleMatches, ruleNeeds } from "./list-match";
-import type { ListRule } from "./list-rules";
+import type { PersonRowVM } from "../person-row/row-facts";
+import { listRuleMatches, ruleNeeds } from "./match";
+import type { ListRule } from "./rules";
 
 export type PeopleListGroup = "attention" | "journey" | "reach";
 
@@ -218,15 +218,15 @@ export const PEOPLE_LISTS: readonly {
   needsViewer?: boolean;
   onProfile?: false;
   test: (vm: PersonRowVM) => boolean;
-}[] = BUILTIN_LISTS.map((l) => {
-  const needs = ruleNeeds(l.rule);
+}[] = BUILTIN_LISTS.map((builtinList) => {
+  const needs = ruleNeeds(builtinList.rule);
   return {
-    ...l,
+    ...builtinList,
     ...(needs.includes("calendar") ? { needsCalendar: true } : {}),
     ...(needs.includes("consult") ? { needsConsultFirst: true } : {}),
     ...(needs.includes("deals") ? { needsDeals: true } : {}),
     ...(needs.includes("viewer") ? { needsViewer: true } : {}),
-    test: (vm: PersonRowVM) => listRuleMatches(l.rule, vm),
+    test: (vm: PersonRowVM) => listRuleMatches(builtinList.rule, vm),
   };
 });
 

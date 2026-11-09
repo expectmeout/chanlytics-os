@@ -16,13 +16,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { repoFiles } from "../tests/_ast.mjs";
+import { repoFiles } from "../../../tests/_ast.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 export const OUT = "docs/tree.md";
 
 /** Where a directory's size is measured: everything hand-written, the tests included (_measures.mjs TREES). */
-const TREES = () => repoFiles(["apps", "packages", "tooling/scripts", "e2e"]);
+const TREES = () => repoFiles(["apps", "packages", "tooling/scripts", "tests", "e2e"]);
 
 /**
  * The code trees the page draws, in its order, where PACKAGES stands for every package's src. Each is drawn with the
@@ -36,11 +36,12 @@ const DRAWN = [
   "apps/dashboard/app",
   "apps/dashboard/src",
   "apps/dashboard/src/server",
-  "apps/dashboard/src/legacy-bridge",
-  "apps/dashboard/src/legacy",
+  "apps/dashboard/src/bridge",
+  "apps/dashboard/mockup",
   "apps/mobile/src",
   PACKAGES,
   "tooling/scripts",
+  "tests",
   "e2e",
 ];
 const MIGRATIONS = "supabase/migrations";

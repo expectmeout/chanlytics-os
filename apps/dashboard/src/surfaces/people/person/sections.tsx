@@ -18,7 +18,7 @@ import type { MenuItem } from "../../kit";
 import { Wash } from "../../kit/motion/wash";
 import { Press } from "../../kit/press";
 import { RecordDisclosure } from "../../kit/record/disclosure";
-import { routeDoor } from "../../legacy-verbs";
+import { routeDoor } from "../../frame-verbs";
 import { doubtRows, writeOn } from "./hero";
 import { FactNotices } from "./notices/fact-notices";
 import { PersonEmail } from "./name";

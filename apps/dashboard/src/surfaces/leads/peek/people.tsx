@@ -17,7 +17,7 @@ import {
 } from "@chanlytics/contracts";
 import type { LeadCompanyPersonVM, LeadCompanyVM, PersonRowVM } from "@chanlytics/contracts";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { canDo, mayAtLeast, refusalToast } from "../../legacy-verbs";
+import { canDo, mayAtLeast, refusalToast } from "../../frame-verbs";
 import { chooseAddressee } from "../surface";
 import { surfaceValue } from "../../surface-values";
 import { NameOffer } from "../../people/person/name-offer";

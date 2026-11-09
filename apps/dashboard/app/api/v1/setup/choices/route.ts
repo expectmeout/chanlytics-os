@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { WORKSPACE_MARKS } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { saveSetupChoices } from "@/server/workspace/setup";
+import { write, workspace } from "@/server/shared/route";
+import { saveSetupChoices } from "@/server/setup/setup";
 
 const Body = z
   .object({

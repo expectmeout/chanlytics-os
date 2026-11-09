@@ -8,7 +8,8 @@
  * call, and every word the Rehearse surface says outside the review (review.ts) and the fix (fix-router.ts).
  */
 import { DAY_MS, MIN_MS } from "../shared/time";
-import type { SpendWords } from "../workspace/billing";
+import type { SpendWords } from "../workspace/billing/dtos";
+import { isOneOf } from "../shared/unknown";
 
 export const REHEARSAL_KINDS = ["call", "typed", "call_review"] as const;
 export type RehearsalKind = (typeof REHEARSAL_KINDS)[number];
@@ -57,34 +58,34 @@ export interface RehearsalAllowance {
  * `spentMs` is the window's spoken rehearsals, each counted by the provider's seconds, and a running one by its whole
  * length (REHEARSAL_LIMITS.callMs), so a call cannot run past what is left.
  */
-export function rehearsalAllowance(f: {
+export function rehearsalAllowance(fields: {
   hasPlan: boolean;
   /** A lead's own receptionist nobody has made theirs: its six minutes, whatever else is true. */
   preview: boolean;
   spentMs: number;
   running: boolean;
 }): RehearsalAllowance {
-  const window: RehearsalWindow = f.preview ? "preview" : f.hasPlan ? "thirty_days" : "before_plan";
+  const window: RehearsalWindow = fields.preview ? "preview" : fields.hasPlan ? "thirty_days" : "before_plan";
   const ofMs = {
     preview: REHEARSAL_LIMITS.previewMs,
     thirty_days: REHEARSAL_LIMITS.withPlanMs,
     before_plan: REHEARSAL_LIMITS.beforePlanMs,
   }[window];
-  const leftMs = Math.max(0, ofMs - Math.max(0, f.spentMs));
+  const leftMs = Math.max(0, ofMs - Math.max(0, fields.spentMs));
   // A call is let start with at least a minute left: the provider's floor for a call's length.
   const used = leftMs < MIN_MS;
   return {
     window,
     of_ms: ofMs,
     left_ms: leftMs,
-    can_call: !used && !f.running,
-    why: f.running ? "running" : used ? "used" : null,
+    can_call: !used && !fields.running,
+    why: fields.running ? "running" : used ? "used" : null,
   };
 }
 
 /** How long the next call may last: three minutes, or what is left when that is less (a minute at the least). */
-export function rehearsalCallMs(a: RehearsalAllowance): number {
-  return Math.max(MIN_MS, Math.min(REHEARSAL_LIMITS.callMs, a.left_ms));
+export function rehearsalCallMs(rehearsalAllowance: RehearsalAllowance): number {
+  return Math.max(MIN_MS, Math.min(REHEARSAL_LIMITS.callMs, rehearsalAllowance.left_ms));
 }
 
 /**
@@ -106,13 +107,13 @@ export const REHEARSAL_SHOWN_TOOLS = ["send_booking_link"] as const;
 export function turnsOfTranscript(raw: unknown): RehearsalTurn[] {
   if (!Array.isArray(raw)) return [];
   const out: RehearsalTurn[] = [];
-  for (const t of raw) {
-    if (!t || typeof t !== "object") continue;
-    const role = (t as { role?: unknown }).role;
-    const content = (t as { content?: unknown }).content;
-    const name = (t as { name?: unknown }).name;
-    if (role === "tool_call_invocation" && (REHEARSAL_SHOWN_TOOLS as readonly unknown[]).includes(name)) {
-      out.push({ role: "tool", content: name as string });
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const role = (item as { role?: unknown }).role;
+    const content = (item as { content?: unknown }).content;
+    const name = (item as { name?: unknown }).name;
+    if (role === "tool_call_invocation" && isOneOf(REHEARSAL_SHOWN_TOOLS, name)) {
+      out.push({ role: "tool", content: name });
       continue;
     }
     if ((role !== "agent" && role !== "user") || typeof content !== "string" || !content.trim()) continue;

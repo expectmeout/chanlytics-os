@@ -1,0 +1,397 @@
+/** People: people. */
+
+import "server-only";
+import { z } from "zod";
+import {
+  ASK_CAPS,
+  BUILTIN_LISTS,
+  LIST_CONDITIONS_JSON_SCHEMA,
+  cameFromOf,
+  PEOPLE_LISTS,
+  asListRule,
+  listMembers,
+  listNamer,
+  listRuleParts,
+  listToken,
+  listUnknownWords,
+  noteRows,
+  ruleNeeds,
+  savedListLookup,
+  toPersonVM,
+  unmetNeed,
+  callEndedWords,
+  toInboxThreadVM,
+  pipelineWorth,
+  UUID,
+} from "@chanlytics/contracts";
+import { load } from "../../../../shared/reader";
+import { audiencePool } from "../../../../readers/audience-pool";
+import { lists as listsReader } from "../../../../readers/lists";
+import { dealBoard } from "../../../../readers/people";
+import { lead as leadReader } from "../../../../readers/leads";
+import { person } from "../../../../readers/person";
+import { threadState } from "../../../thread-state";
+import { unread, noteRow, str, readUnlessNotFound } from "../../context/tool-reads";
+import { defineActions, readAction, type ToolContext } from "../../context/tool-defs";
+import { searchPeople, visitRow } from "./rule-members";
+import type { ContactId } from "@chanlytics/contracts";
+
+async function getPerson(toolContext: ToolContext, input: { contact_id: ContactId }): Promise<unknown> {
+  const id = str(input.contact_id);
+  if (!UUID.test(id)) return { error: "contact_id must be an id a tool returned" };
+  // The person as their page reads them (readers/person.ts): the profile's one round of reads, once a turn, the
+  // workspace's config shared with the rest of it; a person this workspace does not hold is the reader's
+  // 404. Then the page's own view model, for the member asking, as the profile builds it
+  // (surfaces/people/people-detail.ts): the facts, the timeline and the notes are the page's (ledger #3).
+  const result = await readUnlessNotFound(load(toolContext.rc, person, { id }));
+  if (!result) return { error: "no such person in this workspace" };
+  const detail = result.data.person;
+  const vm = toPersonVM(detail, toolContext.timezone, toolContext.now, toolContext.ctx.userId ?? null);
+  // The person, their threads and calls as the reader gave them, and each thread again where Conversations opens it.
+  noteRows(toolContext.read, result.rows);
+  for (const c of detail.conversations) noteRow(toolContext, "conversation", c.id, vm.name, `conversations/${c.id}`);
+  return {
+    contact_id: id,
+    route: `clients/${id}`,
+    name: vm.name,
+    // Where they stand, as their People row and people.search say it: the row's rule (contracts personStateFor, for
+    // the member asking) under the page's own view model. Without it an answer read the stored thread states below,
+    // and a thread the member holds, still needs_human in storage, read "Needs you".
+    state: vm.stateLabel,
+    state_detail: vm.stateDetail || null,
+    since: vm.since,
+    right_now: { title: vm.rightNow.title, detail: vm.rightNow.detail },
+    // The deal's fact says its value at every stage (0008), and where its proposal lives: the host, never the address.
+    facts: vm.facts.map((f) => {
+      const meta =
+        f.label === "Deal" && vm.deal?.proposal
+          ? [f.meta, `proposal at ${vm.deal.proposal.host}`].filter(Boolean).join(" · ")
+          : f.meta;
+      return `${f.label}: ${f.value}${meta ? ` (${meta})` : ""}`;
+    }),
+    about: vm.about.map((a) => `${a.k}: ${a.v}`),
+    receptionist_mode: vm.receptionistMode,
+    last_exchange: vm.lastExchange,
+    open_conversation_id: vm.openThread ? vm.openThread.replace(/^th-/, "") : null,
+    conversations: detail.conversations
+      .slice(0, 5)
+      // Each thread's state as the Inbox says it (thread-state.ts over the thread's own view model), and each call's end as
+      // Conversations and the History say it (contracts callEndedWords): "needs_human" for a thread a teammate holds and
+      // "not_connected" for a call that did not connect were the stored words (R13 X5-7).
+      .map((c) => ({
+        conversation_id: c.id,
+        route: `inbox/th-${c.id}`,
+        state: threadState(toInboxThreadVM(c, null, toolContext.timezone, toolContext.now)),
+        last_at: c.last_message_at,
+      })),
+    // Their next and last visits as rows an answer may cite (kind visit); null where the record keeps none. The visits' words
+    // are in the facts and the timeline.
+    next_visit_id: visitRow(toolContext, detail.visits?.next, detail.visits?.timezone ?? toolContext.timezone, vm.name),
+    last_visit_id: visitRow(toolContext, detail.visits?.last, detail.visits?.timezone ?? toolContext.timezone, vm.name),
+    calls: detail.calls.slice(0, 5).map((c) => ({
+      call_id: c.id,
+      route: `conversations/cv-${c.id}`,
+      at: c.started_at,
+      status: callEndedWords(c, toolContext.now),
+    })),
+    timeline: vm.timeline
+      .slice(0, 20)
+      // A message that never reached them says so (`not_sent`), so Ask does not tell it as something they heard.
+      .map((i) => ({
+        day: i.day,
+        time: i.time,
+        kind: i.kind,
+        who: i.who,
+        text: i.text.slice(0, 240),
+        ...(i.unsent && i.sub ? { not_sent: i.sub } : {}),
+      })),
+    // A suggestion is the receptionist's, not yet kept by anyone: said as such, never as a fact the team wrote.
+    notes: vm.noteList.slice(0, 20).map((n) => ({
+      who: n.who,
+      when: n.whenFull,
+      for: n.forWho,
+      team_only: n.teamOnly,
+      suggested_by_the_receptionist: n.suggested,
+      text: n.body,
+    })),
+  };
+}
+
+/** How many of a group's lead-found people a winners read opens, to say what kind of business they were. */
+const WINNERS_LEADS_CAP = 25;
+
+/** How many values of a trait a winners read says, the most common first. */
+const TRAIT_TOP = 5;
+
+/** A trait's values over a set of people, the most common first, each with its count and its share of them. */
+function traitOf<R>(rows: readonly R[], valueOf: (r: R) => string[] | string | null) {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const v = valueOf(r);
+    for (const x of Array.isArray(v) ? v : v ? [v] : []) counts.set(x, (counts.get(x) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, TRAIT_TOP)
+    .map(([value, n]) => ({ value, n, share: rows.length ? `${Math.round((100 * n) / rows.length)}%` : null }));
+}
+
+/**
+ * Who wins for this business, and what they share (the operator, 15 Oct 2026, D8): the people who paid (a deal of
+ * theirs won), who booked (a visit on record, where a calendar is connected) and who said yes to offers, each group
+ * counted over everyone in People as a send counts them; then what the winners share against everyone -- how they first
+ * came, the channels they use -- and, for those a lead search found, what kind of business they were and where (the
+ * lead's own category and city, read for at most WINNERS_LEADS_CAP of them). Counts and shares only, computed here: the
+ * model says them, and plans a search for more like them from them.
+ */
+async function readWinners(toolContext: ToolContext): Promise<unknown> {
+  const [pool, kept] = await Promise.all([
+    load(toolContext.rc, audiencePool, undefined).then((r) => r.data),
+    load(toolContext.rc, listsReader, undefined).then((r) => r.data.lists),
+  ]);
+  const lookup = savedListLookup(kept);
+  const cal = pool.calendar.state;
+  // Each group by the lists' own vocabulary, so a winner here is who the matching list on People holds.
+  const groupOf = (all: unknown[]) => {
+    const rule = asListRule({ all });
+    if (!rule) return null;
+    const on = listMembers({ ids: [], rule }, pool.rows, pool.listCtx, lookup);
+    return on.state === "ok" ? on.ids : null;
+  };
+  const paid = groupOf([{ field: "deal_stage", op: "is", value: "won" }]);
+  const booked = cal === "ok" ? groupOf([{ field: "booked", op: "is", yes: true }]) : null;
+  const yes = groupOf([{ field: "said_yes", op: "is", to: "offers", yes: true }]);
+  // The winners, in the order D8 weighs them: who paid, else who booked, else who said yes.
+  const winnerIds = new Set<string>([...(paid ?? []), ...(booked ?? []), ...(yes ?? [])]);
+  const everyone = pool.people;
+  const winners = everyone.filter((r) => winnerIds.has(r.id));
+  const cameFrom = (r: (typeof everyone)[number]) => cameFromOf(r)?.label ?? null;
+  const channels = (r: (typeof everyone)[number]) => r.channels ?? [];
+  // The businesses a lead search found among them: what kind, and where, as the lead's own row says it.
+  const fromLeads = winners.filter((r) => typeof r.lead_id === "string" && r.lead_id).slice(0, WINNERS_LEADS_CAP);
+  const leads = (
+    await Promise.all(
+      fromLeads.map((r) =>
+        readUnlessNotFound(load(toolContext.rc, leadReader, { id: String(r.lead_id) }))
+          .then((x) => x?.data.row ?? null)
+          .catch(unread(toolContext, "people.winners", "lead")),
+      ),
+    )
+  ).filter((x): x is NonNullable<typeof x> => x !== null);
+  return {
+    route: "clients",
+    everyone: everyone.length,
+    groups: {
+      paid: paid ? paid.size : null,
+      booked: booked ? booked.size : null,
+      ...(cal === "ok" ? {} : { booked_not_counted: "no calendar is connected" }),
+      said_yes_to_offers: yes ? yes.size : null,
+    },
+    winners: winners.length,
+    share: {
+      came_from: { winners: traitOf(winners, cameFrom), everyone: traitOf(everyone, cameFrom) },
+      channels: { winners: traitOf(winners, channels), everyone: traitOf(everyone, channels) },
+    },
+    from_lead_searches: {
+      winners_found_by_a_search: winners.filter((r) => !!r.lead_id).length,
+      read: leads.length,
+      kind: traitOf(leads, (l) => l.category),
+      city: traitOf(leads, (l) => (l.city ? `${l.city}${l.state ? `, ${l.state}` : ""}` : null)),
+      with_a_website: leads.filter((l) => !!l.website).length,
+      rating_median: (() => {
+        const r = leads
+          .map((l) => l.rating)
+          .filter((x): x is number => typeof x === "number")
+          .sort((a, b) => a - b);
+        return r.length ? r[Math.floor(r.length / 2)] : null;
+      })(),
+    },
+    note: "Counts over everyone in People. A share is of that group. What the winners share against everyone is what a search for more like them should ask for (propose_lead_search), and what a list of people like them should hold (propose_list).",
+  };
+}
+
+/** The Pipeline's people one read says: the groups' counts are whole. */
+const PIPELINE_CAP = 30;
+
+/**
+ * Every list People's rail shows, as the page builds it (bridge/surface-data.ts publishPeople, over contracts'
+ * one table of lists): People's own that this workspace can count, each with what it holds and how many; the ones it
+ * cannot, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words
+ * and its count or why it cannot be counted. Counted over the audience pool (readers/audience-pool.ts: everyone, for
+ * the member asking, as a send counts them), where the page counts the people it has loaded; the lists are People's
+ * rail's read (readers/lists.ts), once a turn. Ask's plan reads the lists through it too (act/plan.ts).
+ */
+export async function listLists(toolContext: ToolContext) {
+  const [pool, saved] = await Promise.all([
+    load(toolContext.rc, audiencePool, undefined).then((r) => r.data),
+    load(toolContext.rc, listsReader, undefined),
+  ]);
+  const cal = pool.calendar.state;
+  const kept = saved.data.lists;
+  const lookup = savedListLookup(kept);
+  // A rule that reads another list names it as the rail does (contracts listNamer).
+  const listName = listNamer(kept);
+  // People's lists as the rail offers them: the outcome lists only when there is a calendar to read, the consultations
+  // only with a consult-first service, the deal lists only where a deal was ever recorded.
+  const offered = PEOPLE_LISTS.filter(
+    (l) =>
+      (!l.needsCalendar || cal === "ok") &&
+      (!l.needsConsultFirst || pool.consult_first) &&
+      (!l.needsDeals || pool.has_deals),
+  );
+  for (const l of offered)
+    noteRow(toolContext, "list", l.id, l.label, `clients/${listToken({ kind: "builtin", id: l.id })}`);
+  const live = kept.filter((l) => !l.archived_at);
+  // The workspace's own lists are the lists reader's rows, opened on People at each.
+  const liveIds = new Set(live.map((l) => l.id));
+  noteRows(
+    toolContext.read,
+    saved.rows.filter((r) => liveIds.has(r.id)),
+  );
+  return {
+    route: "clients",
+    lists: offered.map((l) => ({
+      list: listToken({ kind: "builtin", id: l.id }),
+      label: l.label,
+      holds: l.tip,
+      count: pool.rows.filter(l.test).length,
+    })),
+    cannot_count: PEOPLE_LISTS.flatMap((l) => {
+      const need = unmetNeed(ruleNeeds(l.rule), pool.listCtx);
+      return need ? [{ label: l.label, why: listUnknownWords(need, cal) }] : [];
+    }),
+    own: live.map((line) => {
+      const members = listMembers(line, pool.rows, pool.listCtx, lookup);
+      const rule = line.rule == null ? null : asListRule(line.rule);
+      return {
+        list: listToken({ kind: "saved", id: line.id }),
+        name: line.name,
+        kept: line.rule == null ? "by hand" : "by its rule",
+        rule: rule ? listRuleParts(rule, listName).join(" · ") : null,
+        ...(members.state === "ok"
+          ? { count: members.ids.size }
+          : { cannot_count: listUnknownWords(members.reason, cal) }),
+      };
+    }),
+    archived: kept.filter((l) => !!l.archived_at).map((l) => l.name),
+  };
+}
+
+/**
+ * Where deals stand, as the Pipeline builds its board (readers/people.ts dealBoard, which Ask's Pipeline context reads
+ * too): the line over the table, the workspace's pace, and each group with its count, what it comes to and its people,
+ * each with the deal's service, value, how long it has stood there, the chip the page draws and their next step. What
+ * the proposals out and the clients come to is Ask's alone (pipelineWorth: the page says counts only, 21 Oct 2026), the
+ * whole group's, so an answer quotes it rather than adding values up. Every workspace has the Pipeline (0008, amended
+ * 18 Oct 2026).
+ */
+async function readPipeline(toolContext: ToolContext): Promise<unknown> {
+  const read = await load(toolContext.rc, dealBoard, undefined);
+  const board = read.data.board;
+  const worth = pipelineWorth(board);
+  let room = PIPELINE_CAP;
+  const groups = board.groups.map((group) => {
+    const rows = group.rows.slice(0, Math.max(0, room));
+    room -= rows.length;
+    return {
+      group: group.label,
+      count: group.count,
+      comes_to: group.key === "proposals" ? worth.proposals : group.key === "clients" ? worth.clients : group.meta,
+      // Each row as the person it is and the deal it stands for (0029: a further deal of theirs is a row of its own).
+      people: rows.map((row) => ({
+        contact_id: row.person.id,
+        deal_id: row.deal?.id ?? null,
+        route: `clients/${row.person.id}`,
+        name: row.name,
+        service: row.service,
+        value: row.value,
+        in_stage: row.inStage || null,
+        chip: row.chip?.words ?? null,
+        next_step: row.next ? `${row.next.words} · ${row.next.when}` : null,
+      })),
+    };
+  });
+  // The people it says, and their deals, are rows an answer may cite, each opened on the person's page.
+  const listed = new Set(groups.flatMap((g) => g.people.flatMap((p) => [p.contact_id, p.deal_id ?? ""])));
+  noteRows(
+    toolContext.read,
+    read.rows.filter((r) => listed.has(r.id)),
+  );
+  return {
+    route: "clients/pipeline",
+    summary: board.summary.join(" · "),
+    pace: board.pace?.words ?? null,
+    groups,
+  };
+}
+
+/**
+ * People (D11): finding them (search, once search_people) and one person's profile (get, once get_person); since Phase
+ * 4, People's lists (lists) and the Pipeline (pipeline), each as its page builds it.
+ */
+export const peopleTool = defineActions({
+  name: "people",
+  // The lists are named from the one table of them (contracts lists.ts), never typed beside it.
+  description:
+    "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals.",
+  actions: {
+    search: readAction({
+      input: z.object({
+        query: z
+          .string()
+          .optional()
+          .describe("A name, a WhatsApp name, an address or three or more digits of a number."),
+        list: z.string().optional().describe("One list: its token (seg:<id>, list:<id>) or a People list's bare id."),
+        all: z
+          .array(z.unknown())
+          .meta(LIST_CONDITIONS_JSON_SCHEMA)
+          .optional()
+          .describe("Conditions in the lists' vocabulary, as propose_list takes them: who they hold today."),
+      }),
+      examples: [
+        { query: "Rosa" },
+        { list: "quiet" },
+        {
+          all: [
+            { field: "said_yes", op: "is", to: "offers", yes: true },
+            { field: "last_visit", op: "more_than", days: 90 },
+          ],
+        },
+      ],
+      label: "Looking through People",
+      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page does; each row says their state in the pages' words, last contact and message, conversation id, channels, consent, receptionist mode, calls, next and last appointment where the calendar is connected, and next step where they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, by the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone or to see who is on a list; it returns at most ${ASK_CAPS.people} people, matches counted before the cap, and a list that cannot be counted here says why. A condition over more than N days holds only for someone with that date on record (never heard from is not quiet): not_on_record counts who meets the rest with no such date, by its chip, said apart, never as nobody or as not in People.`,
+      run: searchPeople,
+    }),
+    get: readAction({
+      input: z.object({ contact_id: z.string() }),
+      examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" }],
+      label: "Reading the profile",
+      words:
+        "Action get takes contact_id (the id a row here, inbox with action thread, calls with action get or calendar with action week returned) and reads one person's profile as their page does: right now, the facts on file, what is known about them, their receptionist mode, last exchange, open conversation, conversations and calls with ids, next and last appointments' ids, timeline, and the team's notes (one the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page holds only their row; it returns the five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
+      run: getPerson,
+    }),
+    lists: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the lists",
+      words:
+        "Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it, the ones it cannot count here with why, the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it for which lists there are and how many are on each; action search with a list's token says who. It counts over everyone in People, as a send does.",
+      run: listLists,
+    }),
+    winners: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading who wins",
+      words:
+        "Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a booking on record) and said yes to offers, what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them.",
+      run: readWinners,
+    }),
+    pipeline: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the Pipeline",
+      words: `Action pipeline takes nothing more and reads the Pipeline as its page builds it: the line over the table (proposals out, the ones waiting longer than usual, the lapsed, the clients), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to (the proposals out's and the clients' whole sums, which the page does not show: quote them, never add values up) and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand; action get has one person's deal in full. It returns at most ${PIPELINE_CAP} people across the groups, the counts whole; a workspace that never recorded a deal has every group empty.`,
+      run: readPipeline,
+    }),
+  },
+});

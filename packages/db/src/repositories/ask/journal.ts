@@ -4,15 +4,17 @@
  * reads them), and the door the entry goes through (ask_journal_write's keep). Service role throughout: the sweep reads every
  * workspace's day and writes none of its rows.
  */
+import { heldTenantId, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, recordOrNull } from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** One day handed over: its workspace, the day by its clock, the day's span as instants, and how the workspace speaks. */
 export interface AskJournalDueRow {
-  tenant_id: string;
+  tenant_id: TenantId;
   day: string;
   day_from: string;
   day_to: string;
@@ -23,19 +25,19 @@ export interface AskJournalDueRow {
 /** The sweep's batch (ask_journal_write, due): at most `limit` days due, each stamped looking as it is handed over. */
 export async function askJournalDue(db: Db, limit: number): Promise<AskJournalDueRow[]> {
   const { data, error } = await db.rpc("ask_journal_write", { p_act: "due", p_limit: limit });
-  if (error) throw new Error(`ask_journal_write due: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_journal_write due");
   const days = (data && typeof data === "object" && !Array.isArray(data) ? data.days : null) ?? [];
   if (!Array.isArray(days)) return [];
-  return days.flatMap((d) => {
-    const r = (d && typeof d === "object" && !Array.isArray(d) ? d : {}) as Record<string, Json | undefined>;
+  return days.flatMap((day) => {
+    const item = recordOrEmpty(day);
     const text = (k: string): string => {
-      const v = r[k];
+      const v = item[k];
       return typeof v === "string" ? v : "";
     };
     return text("tenant_id") && text("day")
       ? [
           {
-            tenant_id: text("tenant_id"),
+            tenant_id: heldTenantId(text("tenant_id")),
             day: text("day"),
             day_from: text("day_from"),
             day_to: text("day_to"),
@@ -77,29 +79,29 @@ export interface JournalEventRow {
  */
 export async function askJournalDayRows(
   db: Db,
-  p: { tenantId: string; from: string; to: string; limit: number },
+  params: { tenantId: TenantId; from: string; to: string; limit: number },
 ): Promise<{ decisions: JournalDecisionRow[]; events: JournalEventRow[] }> {
   let events = db
     .from("events")
     .select("id, kind, category, subject_type, subject_id, data, created_at")
-    .eq("tenant_id", p.tenantId)
-    .gte("created_at", p.from)
-    .lt("created_at", p.to);
+    .eq("tenant_id", params.tenantId)
+    .gte("created_at", params.from)
+    .lt("created_at", params.to);
   for (const prefix of ACTIVITY_NOISE_PREFIXES) events = events.not("kind", "like", `${prefix}%`);
   for (const kind of ACTIVITY_NOISE_KINDS) events = events.neq("kind", kind);
   const [d, e] = await Promise.all([
     db
       .from("decisions")
       .select("id, verb, subject_type, subject_id, actor_type, actor_user_id, payload, created_at")
-      .eq("tenant_id", p.tenantId)
-      .gte("created_at", p.from)
-      .lt("created_at", p.to)
+      .eq("tenant_id", params.tenantId)
+      .gte("created_at", params.from)
+      .lt("created_at", params.to)
       .order("created_at", { ascending: false })
-      .limit(p.limit),
-    events.order("created_at", { ascending: false }).limit(p.limit),
+      .limit(params.limit),
+    events.order("created_at", { ascending: false }).limit(params.limit),
   ]);
-  if (d.error) throw new Error(`decisions: ${d.error.message}`);
-  if (e.error) throw new Error(`events: ${e.error.message}`);
+  if (d.error) throw new DbFailure(d.error, "decisions");
+  if (e.error) throw new DbFailure(e.error, "events");
   return { decisions: d.data ?? [], events: e.data ?? [] };
 }
 
@@ -108,13 +110,13 @@ export async function askJournalDayRows(
  * a member who gave none is absent, and the line says "A teammate". Never their sign-in address: the journal is the
  * business's diary, not its directory.
  */
-export async function journalMemberNames(db: Db, userIds: readonly string[]): Promise<Record<string, string>> {
+export async function getJournalMemberNames(db: Db, userIds: readonly string[]): Promise<Record<string, string>> {
   if (!userIds.length) return {};
   const { data, error } = await db
     .from("profiles")
     .select("user_id, display_name")
     .in("user_id", [...userIds]);
-  if (error) throw new Error(`profiles: ${error.message}`);
+  if (error) throw new DbFailure(error, "profiles");
   const out: Record<string, string> = {};
   for (const r of data ?? []) if (r.display_name?.trim()) out[r.user_id] = r.display_name.trim();
   return out;
@@ -126,16 +128,16 @@ export async function journalMemberNames(db: Db, userIds: readonly string[]): Pr
  */
 export async function keepAskJournal(
   db: Db,
-  p: { tenantId: string; day: string; text: string | null; rowsRead: number; failed?: boolean },
+  params: { tenantId: TenantId; day: string; text: string | null; rowsRead: number; failed?: boolean },
 ): Promise<{ refused: string | null }> {
   const { data, error } = await db.rpc("ask_journal_write", {
     p_act: "keep",
-    p_tenant_id: p.tenantId,
-    p_day: p.day,
-    p_text: p.failed ? "" : (p.text ?? ""),
-    p_rows_read: p.failed ? -1 : p.rowsRead,
+    p_tenant_id: params.tenantId,
+    p_day: params.day,
+    p_text: params.failed ? "" : (params.text ?? ""),
+    p_rows_read: params.failed ? -1 : params.rowsRead,
   });
-  if (error) throw new Error(`ask_journal_write keep: ${error.message}`);
-  const refused = (data as { error?: unknown } | null)?.error;
+  if (error) throw new DbFailure(error, "ask_journal_write keep");
+  const refused = recordOrNull(data)?.error;
   return { refused: typeof refused === "string" ? refused : null };
 }

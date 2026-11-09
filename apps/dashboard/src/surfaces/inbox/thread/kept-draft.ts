@@ -1,27 +1,16 @@
 /**
- * Need you's drafted reply in the thread's own box (the live walk's INBOX-2, 27 Oct 2026). The strip over an emailed
- * thread's composer says a reply is drafted "to change or send from here", and the box was empty: the draft lived on
- * Today alone. Ask's draft for the thread (decision 0071, 00475), kept as Need you drew its row, is read as Today reads
- * it (GET conversations/drafts) and put in an empty box once, where it answers their newest message. Nothing is drafted
- * here and nothing is sent by it: the box's own Send sends what the box holds, every word open to change first.
- *
- * The workspace's newest kept drafts come with the Inbox's first reads (the reply_drafts surface, which its first draw waits
- * for), so the box draws with the words in its first frame: it was read by the thread once the box had drawn, and the
- * words came a beat later. A thread whose draft is not among them is read by itself, as before.
+ * A thread's draft as the Inbox reads it (decision 0093): the one row every page reads (today/need-you/drafts.ts), for the
+ * thread's newest message. Nothing is drafted here and nothing is sent by it: it enters the box only on a press of Use draft
+ * (composer.tsx), and the box's own Send sends what the box holds.
  *
  * The same read says what an email from the box is signed with for the member reading (decision 0081, `signed`), drafted
  * or not, which the box says under the words before Send: the newest kept drafts' threads with the first reads, any other
  * thread by itself.
  */
-import {
-  THREAD_CHANNEL_WORDS,
-  draftHasWords,
-  draftIsCurrent,
-  draftPitchOf,
-  type ReplyDraftDto,
-} from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
+import { THREAD_CHANNEL_WORDS, type ReplyDraftView } from "@chanlytics/contracts";
+import { api } from "@/bridge/api";
 import { surfaceValue } from "../../surface-values";
+import { draftViewNow, type DraftWant } from "../../today/need-you/drafts";
 import type { Thread } from "../types";
 
 /**
@@ -34,40 +23,29 @@ function newestTheirs(thread: Pick<Thread, "timeline">): string | null {
   return last && last.type === "msg" && last.from === "client" ? (last.messageId ?? null) : null;
 }
 
-/** A kept reply's words, where it answers their newest message and has words to put in the box. */
-function keptWords(kept: ReplyDraftDto | undefined, forId: string): string | null {
-  return kept && draftIsCurrent(kept, forId) && draftHasWords(kept) ? kept.words.text : null;
+/** The draft a real thread's box reads: a reply to their newest message; none on a thread nobody needs to answer. */
+export function draftWantOfThread(thread: Thread): DraftWant | null {
+  if (!thread.real || !thread.conversationId) return null;
+  const forMessageId = newestTheirs(thread);
+  if (!forMessageId) return null;
+  return {
+    conversationId: thread.conversationId,
+    kind: "reply",
+    forMessageId,
+    // Owed where the hold asks for a reply and one can go (contracts replyDraftOwed, as the thread says it).
+    expected:
+      thread.state === "escalated" && thread.holdAct === "reply" && thread.windowOpen !== false && !thread.optedOut,
+    askedAtMs: thread.lastAtMs ?? null,
+  };
 }
 
-/**
- * The words of the reply Ask kept for a real thread's newest message from them, as the workspace's newest kept drafts
- * say it: null where there is none to put in the box (a thread of the mockup's, no message of theirs, none kept among
- * drafts that are all the workspace keeps), undefined where they cannot say (not read yet, or the thread's is older than
- * the newest they hold), and the thread's own read must (keptReplyOf).
- */
-export function keptReplyNow(thread: Thread): string | null | undefined {
-  if (!thread.real) return null;
-  const forId = newestTheirs(thread);
-  if (!forId) return null;
-  const held = surfaceValue("reply_drafts");
-  const kept = held?.drafts.find((d) => d.conversation_id === thread.conversationId && d.kind === "reply");
-  if (kept) return keptWords(kept, forId);
-  return held?.complete ? null : undefined;
-}
+const NO_DRAFT: ReplyDraftView = { state: "none" };
 
-/**
- * What the kept reply says of their newest message, where it found it was not a customer's (a sales pitch, a vendor, a
- * newsletter) and wrote no words: its one sentence, or null. Read from the newest kept drafts the Inbox opens with.
- */
-export function keptPitchNow(thread: Thread): string | null {
-  if (!thread.real) return null;
-  const forId = newestTheirs(thread);
-  if (!forId) return null;
-  const kept = surfaceValue("reply_drafts")?.drafts.find(
-    (d) => d.conversation_id === thread.conversationId && d.kind === "reply",
-  );
-  return kept && draftIsCurrent(kept, forId) ? draftPitchOf(kept) : null;
-}
+/** What a real thread's draft is now: read by its row, its dock and its box. */
+export const threadDraftNow = (thread: Thread): ReplyDraftView => {
+  const want = draftWantOfThread(thread);
+  return want ? draftViewNow(want) : NO_DRAFT;
+};
 
 /** Whether the box's reply goes by email: only an email is signed. */
 const byEmail = (thread: Thread): boolean => !!thread.real && thread.replyVia === THREAD_CHANNEL_WORDS.email;
@@ -85,27 +63,6 @@ function signedIn(read: NonNullable<Awaited<ReturnType<typeof threadDraftsOf>>>,
   // An answer from before the read said it (a server a deploy behind this page) says nothing of it.
   const signed: Readonly<Record<string, string>> | undefined = read.signed;
   return byEmail(thread) ? (signed?.[thread.conversationId ?? ""] ?? null) : null;
-}
-
-/**
- * What the box takes from Ask's kept drafts for a real thread: the words of the reply kept for their newest message (the
- * newest kept drafts' answer where they have one, else the thread's own read; null where there is none to put in the box,
- * or the read was refused), and, where the thread's own read was asked, what an email from it is signed with, so the box
- * asks the read once for both.
- */
-export async function keptReplyOf(thread: Thread): Promise<{ words: string | null; signed?: string | null }> {
-  const now = keptReplyNow(thread);
-  if (now !== undefined) return { words: now };
-  const forId = newestTheirs(thread);
-  if (!forId) return { words: null };
-  const read = await threadDraftsOf(thread);
-  return {
-    words: keptWords(
-      read?.drafts.find((d) => d.kind === "reply"),
-      forId,
-    ),
-    ...(read ? { signed: signedIn(read, thread) } : {}),
-  };
 }
 
 /**

@@ -52,7 +52,7 @@ interface OutboundFacts {
    * asking to be texted, and the reason that send does not need a prior opt-in.
    */
   proactive: boolean;
-  /** The channel the message would go out on: a yes covers the channels it was given for (consent-channels.ts). */
+  /** The channel the message would go out on: a yes covers the channels it was given for (consent/channels.ts). */
   channel: string;
   /**
    * What the message is about (contracts MessageAbout, decision D1): the receptionist's are theirs (the call they are
@@ -108,12 +108,16 @@ interface OutboundDecision {
   refusal: OutboundRefusal | null;
 }
 
-export function outboundGate(f: OutboundFacts): OutboundDecision {
+export function outboundGate(outboundFacts: OutboundFacts): OutboundDecision {
   // 1. Consent outranks everything, including a caller asking on the phone.
   //    Someone who said stop said stop, whatever channel they said it on — and
   //    for a promotional message, a yes to conversation is not a yes to offers.
   //    One predicate, asked with this message's own purpose.
-  const may = mayMessageFor(f.contact, f.purpose, { proactive: f.proactive, channel: f.channel, about: f.about });
+  const may = mayMessageFor(outboundFacts.contact, outboundFacts.purpose, {
+    proactive: outboundFacts.proactive,
+    channel: outboundFacts.channel,
+    about: outboundFacts.about,
+  });
   if (!may.ok) return { allowed: false, refusal: may.reason };
 
   // 2. Then what every sender that speaks without a person asks, in the one order the text receptionist asks it too
@@ -126,13 +130,13 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
   //    means a person approves everything, and a send asked for out loud on a call is no less automatic; 'veto' is
   //    NOT off, since a booking link the caller just asked for has nothing to redirect.
   const hold = unattendedHold({
-    pausedUntilMs: f.pausedUntilMs,
-    nowMs: f.nowMs,
-    sentToday: f.sentToday,
-    dailyCap: f.dailyCap,
-    workspacePaused: f.paused === true,
-    bookingHeld: f.bookingHeld,
-    mode: f.replyMode,
+    pausedUntilMs: outboundFacts.pausedUntilMs,
+    nowMs: outboundFacts.nowMs,
+    sentToday: outboundFacts.sentToday,
+    dailyCap: outboundFacts.dailyCap,
+    workspacePaused: outboundFacts.paused === true,
+    bookingHeld: outboundFacts.bookingHeld,
+    mode: outboundFacts.replyMode,
   });
   if (hold) return { allowed: false, refusal: hold };
 
@@ -167,16 +171,16 @@ export function refusalScript(
   phoneDisplay: string | null | undefined,
   channel: "whatsapp" | "sms",
 ): string {
-  const m = SENT_AS[channel === "sms" ? "sms" : "whatsapp"];
+  const match = SENT_AS[channel === "sms" ? "sms" : "whatsapp"];
   switch (refusal) {
     case "opted_out":
-      return `That number has asked us to stop sending messages, so I cannot send them ${m.one}. Offer to book them on the call instead.`;
+      return `That number has asked us to stop sending messages, so I cannot send them ${match.one}. Offer to book them on the call instead.`;
     // Reachable only when a caller asks us to text a THIRD party — the person on
     // the line is answering us, so their own send is never proactive. Spoken to
     // the caller, so it says what to do and never that we hold a record on
     // somebody else.
     case "not_opted_in":
-      return `I can only send ${m.many} to the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.`;
+      return `I can only send ${match.many} to the number the caller is phoning from. Offer to send it to their own mobile, or to book them on the call.`;
     // Email's own no: reachable only where the gate is asked about an email (the phone agent's link goes by WhatsApp or text).
     case "unsubscribed":
       return "They unsubscribed from this business's email, so I cannot email them. Offer to book them on the call instead.";
@@ -188,16 +192,16 @@ export function refusalScript(
     case "sms_carries_no_promotions":
       return "I cannot send that as a text: this business sends offers on WhatsApp only, never by text message. Offer to book them on the call instead.";
     case "paused":
-      return `${m.Many} are paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.`;
+      return `${match.Many} are paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.`;
     case "human_has_it":
-      return `Someone from the team is already messaging that number, so I will not send ${m.one} over them. Tell the caller a person is on it and will follow up there.`;
+      return `Someone from the team is already messaging that number, so I will not send ${match.one} over them. Tell the caller a person is on it and will follow up there.`;
     case "policy_hold":
       // The published number is optional now (it defaults to the line), so a
       // workspace can genuinely have none. Reading "reach the team on
       // undefined" to a caller is worse than not offering a number at all.
       return phoneDisplay
-        ? `I cannot send ${m.many} automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.`
-        : `I cannot send ${m.many} automatically for this business right now. Tell the caller they can book online, and take their name.`;
+        ? `I cannot send ${match.many} automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.`
+        : `I cannot send ${match.many} automatically for this business right now. Tell the caller they can book online, and take their name.`;
     // The same sentence the prompt already gives a workspace on this setting
     // (contracts policyRules, voice): a person confirms, so take their name.
     case "booking_needs_a_person":
@@ -205,6 +209,6 @@ export function refusalScript(
     // The day's cap counts the booking link however it went (a call's sends share one source), so a text's points the
     // caller at their messages, where an earlier one may have come by WhatsApp or by text.
     case "daily_cap":
-      return `I have already sent that number several ${m.many} today, so I will not send another. Tell the caller to check ${m.earlier} for the earlier message.`;
+      return `I have already sent that number several ${match.many} today, so I will not send another. Tell the caller to check ${match.earlier} for the earlier message.`;
   }
 }

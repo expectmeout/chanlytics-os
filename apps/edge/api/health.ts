@@ -10,10 +10,11 @@
  * catches the sweep itself not running. Cached ten seconds per instance,
  * so a noisy pinger cannot become a load on the database.
  */
-import { pg } from "../lib/pg.js";
-import { platformHealthOf } from "../lib/packages/contracts.js";
-import type { SweepHealthRow } from "../lib/ops/sweep-health.js";
-import { door } from "../lib/log.js";
+import { pg } from "../lib/shared/pg.js";
+import { platformHealthOf } from "@chanlytics/contracts";
+import { door } from "../lib/shared/log.js";
+import { readPlatformHealth, type HealthDb } from "../lib/ops/platform-health.js";
+import { logKeptGoing } from "@chanlytics/log";
 
 const CACHE_MS = 10_000;
 let cached: { at: number; status: number; body: string } | null = null;
@@ -28,22 +29,17 @@ export interface HealthAnswer {
   reason?: "health_unreadable" | "no_database" | "error";
 }
 
-/** The rpc surface the judgement needs, so a test can hand it a fake. */
-export interface HealthDb {
-  rpc: (name: "sweep_health" | "jobs_backlog") => PromiseLike<{ data: unknown; error: { message: string } | null }>;
-}
-
 /** The judgement, apart from the transport. */
 export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ status: number; body: HealthAnswer }> {
   const checked_at = now.toISOString();
-  const [health, backlog] = await Promise.all([db.rpc("sweep_health"), db.rpc("jobs_backlog")]);
+  const [health, backlog] = await readPlatformHealth(db);
   if (health.error) {
     return {
       status: 503,
       body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "health_unreadable" },
     };
   }
-  const rows = (Array.isArray(health.data) ? health.data : []) as SweepHealthRow[];
+  const rows = Array.isArray(health.data) ? health.data : [];
   const jobs_backlog = backlog.error ? null : typeof backlog.data === "number" ? backlog.data : null;
   // ONE JUDGEMENT, shared with the back office, so an outside monitor and the
   // person reading the page cannot reach different conclusions from the same
@@ -94,7 +90,8 @@ export const GET = door(async function GET(): Promise<Response> {
   let judged: { status: number; body: HealthAnswer };
   try {
     judged = await judgeHealth(db);
-  } catch {
+  } catch (e) {
+    logKeptGoing("health's judgement", e);
     judged = { status: 503, body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "error" } };
   }
   return remember(judged.status, judged.body);

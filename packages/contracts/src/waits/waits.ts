@@ -1,8 +1,9 @@
 /**
  * What waits on a person, counted once (decision 0048, point 1).
  *
- * Three things wait on the owner. A hold is a thread that needs a person and nobody has taken: not snoozed, not a
- * teammate's, and never a customer's STOP, which is news and no wait (escalations.ts waitsOnAPerson). A held send is the
+ * Three things wait on the owner. A hold is a thread the rule puts in Needs you (thread-move.ts): someone
+ * asked for a person and nobody has them, nobody answered what they wrote, or a reply of ours never reached them; not
+ * snoozed, not a teammate's, and never a customer's STOP, which is news and no wait (escalations.ts waitsOnAPerson). A held send is the
  * receptionist's reply counting down to go in the owner's name, which can still be stopped (standing.ts replyWaitsOnYou).
  * A run is a campaign waiting for a word before anything sends, while a word can still send it: a playbook's run whose
  * day has passed can only be skipped (runApprovalRefusal, which the verb refuses by), and the hourly sweep skips it
@@ -23,12 +24,13 @@
  * Pure: a page hands in the threads and the runs it holds, the business's days and the clock.
  */
 import { replyWaitsOnYou } from "../conversations/standing";
-import { runApprovalRefusal } from "../playbooks/playbook-approval";
-import { RUN_GOING_STATES } from "../broadcasts/broadcasts";
+import { runApprovalRefusal } from "../campaigns/playbooks/approval";
+import { RUN_GOING_STATES } from "../campaigns/broadcasts/states";
+import { isOneOf } from "../shared/unknown";
 
 /** One thread as the count reads it, however the page holds the thread: a view model, or a conversation off the wire. */
 export interface WaitingThread {
-  /** It needs a person and nobody has it (standing "needs_you", threadStanding). */
+  /** It is yours to do (thread-move.ts moveWaits). */
   needsYou: boolean;
   /** The reply counting down to send, when the thread has one: when it goes, and whether this tab has just held it. */
   send?: { endsAtMs: number; held?: boolean } | null;
@@ -81,7 +83,7 @@ export function runWaitsOnYou(run: WaitingRun, days: RunDays): boolean {
 
 /** How many emails a going run's check holds for your say: none for a run that is not going, or where Sent did not say. */
 export function runHeldEmails(run: Pick<WaitingRun, "state" | "held">): number {
-  const going = (RUN_GOING_STATES as readonly string[]).includes(run.state);
+  const going = isOneOf(RUN_GOING_STATES, run.state);
   return going && typeof run.held === "number" && run.held > 0 ? run.held : 0;
 }
 
@@ -95,7 +97,7 @@ export function batchHeldEmails(run: Pick<WaitingRun, "state" | "held">): number
 
 /** How many of a going run's emails wait for its owner to send them from their inbox (00429): none for a run not going. */
 export function runDraftedEmails(run: Pick<WaitingRun, "state" | "drafted">): number {
-  const going = (RUN_GOING_STATES as readonly string[]).includes(run.state);
+  const going = isOneOf(RUN_GOING_STATES, run.state);
   return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
 }
 
@@ -129,9 +131,12 @@ const runAsked = (run: WaitingRun) => ({
  * How a thread waits on the owner now, or not at all: a hold nobody has taken, else a reply that can still be stopped. A
  * reply this tab has held is stopped, so it does not wait; a reply past its deadline is going out in the owner's name.
  */
-export function threadWait(t: WaitingThread, nowMs: number): "hold" | "send" | null {
-  if (t.needsYou) return "hold";
-  return t.send && replyWaitsOnYou({ endsAtMs: t.send.endsAtMs, held: t.send.held }, nowMs) ? "send" : null;
+export function threadWait(waitingThread: WaitingThread, nowMs: number): "hold" | "send" | null {
+  if (waitingThread.needsYou) return "hold";
+  return waitingThread.send &&
+    replyWaitsOnYou({ endsAtMs: waitingThread.send.endsAtMs, held: waitingThread.send.held }, nowMs)
+    ? "send"
+    : null;
 }
 
 /**

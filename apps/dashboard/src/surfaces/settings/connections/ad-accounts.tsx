@@ -1,12 +1,13 @@
 /**
- * Settings › Connections, "Ad accounts" (MOCKUP, drawn in a demo session only; decisions 7, 8 and 9 of 11 Oct 2026): a row for
- * Facebook and Instagram, Google and TikTok, drawn as the pane's other rows are (a face with no brand colour, the kit's state
- * pill, the acts in the group's column and, on a phone, behind the row), with what the account is, what is ready on it, and
- * the presses: Connect (which connects nothing here and says so), Change account, Disconnect, and the owner's setting that
+ * Settings › Connections, "Ad accounts" (MOCKUP, drawn in a demo session or a workspace's preview; decisions 7, 8 and 9 of 11 Oct
+ * 2026): a row for Facebook and Instagram, Google and TikTok, drawn as the pane's other rows are (a face with no brand colour, the
+ * kit's state pill, the acts in the group's column and, on a phone, behind the row), with what the account is, what is ready on it,
+ * and the presses: Connect (which connects nothing here and says so), Change account, Disconnect, and the owner's setting that
  * pauses ads when the way in closes.
  *
- * The accounts are the Ads page's fixtures (useAdsStore: the example chosen there is the one drawn here, `running` at first),
- * and a press changes a copy held by this card (ad-accounts-mock.ts), never the fixtures and never anything outside the tab.
+ * The accounts are the Ads page's fixtures (useAdsStore: the example chosen there is the one drawn here; in a preview nothing
+ * connected at first, which is what is true), and a press changes a copy held by this card (ad-accounts-mock.ts), never the fixtures
+ * and never anything outside the tab.
  * Disconnect while an ad runs is refused, with a door to Ads (decision 8); with none running it asks first. The words are
  * contracts' (words-connect.ts) and so is the fold that makes the rows (connectModel). Every press is the owner's (the pane's
  * owner gate, `team`): anyone else sees the rows and is told what the press would have done.
@@ -15,8 +16,11 @@ import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 import { ADS_ROUTE } from "@chanlytics/contracts";
 import type { AdAccountRead, AdPlatform } from "@chanlytics/contracts";
-import { CONNECT, connectModel } from "@chanlytics/contracts/ads-page";
-import type { ConnectRowVM } from "@chanlytics/contracts/ads-page";
+import { CONNECT, connectModel } from "./model/ads-words";
+import { EXAMPLE } from "@/surfaces/campaigns/ads/model/words";
+import type { ConnectRowVM } from "./model/ads-words";
+import { PreviewNote } from "../../campaigns/ads/preview-note";
+import { adsInPreview } from "../../campaigns/ads/shown";
 import { useAdsStore } from "../../campaigns/ads/store";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -27,7 +31,7 @@ import { MoreMenu } from "../../kit/more-menu/more-menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
-import { gate, routeDoor, type LegacyFlash } from "../../legacy-verbs";
+import { gate, routeDoor, type FrameFlash } from "../../frame-verbs";
 import { disconnected, usingAccount, withChoices } from "./ad-accounts-mock";
 
 /** What a row is asked or told under it: Disconnect's question, its refusal, or the accounts to change to. */
@@ -287,8 +291,8 @@ function pauseRow(on: boolean, set: (on: boolean) => void) {
   );
 }
 
-export function AdAccounts({ flash }: { flash: (f: LegacyFlash) => void }) {
-  const { read } = useAdsStore();
+export function AdAccounts({ flash }: { flash: (f: FrameFlash) => void }) {
+  const { read, example } = useAdsStore();
   const [mine, setMine] = useState<Partial<Record<AdPlatform, AdAccountRead>>>({});
   const [ask, setAsk] = useState<Ask>(null);
   const [picks, setPicks] = useState<Partial<Record<AdPlatform, string>>>({});
@@ -334,8 +338,10 @@ export function AdAccounts({ flash }: { flash: (f: LegacyFlash) => void }) {
         <h2 className="rec-card-title" id="connections-ads-title">
           {CONNECT.title}
         </h2>
-        <span className="rec-card-sub">{CONNECT.sub}</span>
+        {/* A card's second line is not drawn on a phone, where sample accounts would say Connected with nothing to say otherwise. */}
+        {adsInPreview() ? null : <span className="rec-card-sub">{CONNECT.sub}</span>}
       </div>
+      <PreviewNote said={example === "v0" ? EXAMPLE.preview.connectLater : undefined} className="set-ads-note" />
       {rows.map((r) => platformRow(r, ask, picks[r.id], acts))}
       {pauseRow(pauses, setPause)}
     </section>

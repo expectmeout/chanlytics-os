@@ -6,7 +6,7 @@
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { keepTouch, leaving, onAPhone, touchSwipe } from "../../legacy-verbs";
+import { keepTouch, leaving, onAPhone, touchSwipe } from "../../frame-verbs";
 
 interface LightboxProps {
   vm: LeadPeekVM;
@@ -41,10 +41,10 @@ function lightboxHead({ vm, onClose }: LightboxProps) {
   );
 }
 
-/** The photo itself, on the kind's tint: a photo that fails to load adds `no-img` to the frame, and the initials show. */
+/** The photo itself: a photo that fails to load adds `no-img` to the frame, and the initials show. */
 function lightboxPhoto(vm: LeadPeekVM) {
   return (
-    <div className={`ld-lb-photo tint-${vm.tile.tint}`} data-testid="lightbox-photo">
+    <div className="ld-lb-photo" data-testid="lightbox-photo">
       <span className="ld-lb-initials" aria-hidden="true">
         {vm.tile.initials}
       </span>

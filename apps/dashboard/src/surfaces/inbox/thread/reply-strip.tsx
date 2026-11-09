@@ -4,7 +4,7 @@
  * reply was read as, their words, what the reading did, and its doors -- "Use the draft" puts the receptionist's draft
  * in the reply box again, and "Undo" takes back a reply read as no, for seven days, asking nothing: its toast says what
  * came back. Under it, the composer's line says where an answer goes out from (the reach-out's own address, or the
- * mailbox and why). Every sentence is contracts' (reach-out-reply-words.ts, through the bridge's `replies`), and the
+ * mailbox and why). Every sentence is contracts' (reach-out/reply-words.ts, through the bridge's `replies`), and the
  * undo goes through the bridge, which reads the surfaces again behind it. Who may press is the role store's answer
  * (`gate("approve")`).
  */

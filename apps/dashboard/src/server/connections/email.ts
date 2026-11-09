@@ -21,7 +21,7 @@ import {
   mailboxSignatureOf,
   type EmailIdentity,
   type EmailRequest,
-} from "@chanlytics/channels";
+} from "@chanlytics/channels/email";
 import {
   AppError,
   emailDomainOf,
@@ -35,19 +35,23 @@ import {
   type ReplyFrom,
 } from "@chanlytics/contracts";
 import {
-  answeredReachOutEmail,
-  lastInboundEmail,
-  mailboxConnectionsOf,
-  mailboxOfTenant,
-  type Database,
-  type Json,
+  addMailbox,
+  findAnsweredReachOutEmail,
+  findLastInboundEmail,
+  findMailboxOfTenant,
+  listMailboxConnectionsOf,
   type MailboxConnectionRow,
   type MailboxRow,
-} from "@chanlytics/db";
+  setMailboxName,
+} from "@chanlytics/db/email";
+import type { Database, Json } from "@chanlytics/db/types";
 import type { EmailReplyPorts } from "@chanlytics/core";
-import { dbRefusal, type RouteContext } from "../with-route";
-import { mailboxConnectionsWithDaysFor, mailboxesLeftTodayFor, mailboxesReadiness } from "./mailbox-connections";
-import { env } from "../env";
+import { dbRefusal, type RouteContext } from "../shared/with-route";
+import { listMailboxConnectionsWithDays, findMailboxesLeftToday, getMailboxesReadiness } from "./mailbox-connections";
+import { env } from "../shared/env";
+import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
 export function emailDomain(): string | null {
@@ -60,12 +64,12 @@ export function emailDomain(): string | null {
  * the email it answers was written to (decision 0073, R13: the business's email is its mailbox), when that one sends
  * now; else the hosted mailbox, and why. The freeze and the readings' read both ask this, so the composer never names an
  * address the dashboard will not freeze. `references` are the reply's References; the latest reach-out email on the
- * thread answers when none of them names one (db answeredReachOutEmail).
+ * thread answers when none of them names one (db findAnsweredReachOutEmail).
  */
 export async function replyIdentityOf(
   supabase: SupabaseClient<Database>,
-  p: {
-    tenantId: string;
+  params: {
+    tenantId: TenantId;
     conversationId: string;
     references: string[];
     /** The workspace's connected mailboxes, when the caller already read them for many threads. */
@@ -74,13 +78,13 @@ export async function replyIdentityOf(
     addressedTo?: readonly string[];
   },
 ): Promise<{ from: "own"; address: string; mailbox: MailboxConnectionDto } | Extract<ReplyFrom, { from: "mailbox" }>> {
-  const answered = await answeredReachOutEmail(supabase, p);
+  const answered = await findAnsweredReachOutEmail(supabase, params);
   const fromReachOut = addressOf(answered?.from ?? "")?.address.toLowerCase() ?? null;
   const boxes = async () =>
-    p.mailboxes ?? (await mailboxConnectionsOf(supabase, p.tenantId)).map((r) => mailboxDtoOf(r));
+    params.mailboxes ?? (await listMailboxConnectionsOf(supabase, params.tenantId)).map((r) => mailboxDtoOf(r));
   if (!answered || !fromReachOut) {
     // Not a reach-out's answer: an email that came to a connected mailbox is answered from it, while it sends (R13).
-    const to = new Set((p.addressedTo ?? []).map((a) => a.toLowerCase()));
+    const to = new Set((params.addressedTo ?? []).map((a) => a.toLowerCase()));
     if (!to.size) return { from: "mailbox", because: null };
     const box = (await boxes()).find((m) => to.has(m.address.toLowerCase()));
     if (!box) return { from: "mailbox", because: null };
@@ -95,9 +99,9 @@ export async function replyIdentityOf(
 }
 
 /** The workspace's mailbox address on this deployment, as the composer names it; null with no mailbox or no email. */
-export async function mailboxAddressOf(ctx: RouteContext, tenantId: string): Promise<string | null> {
+export async function findMailboxAddress(ctx: RouteContext, tenantId: TenantId): Promise<string | null> {
   const domain = emailDomain();
-  const mailbox = domain ? await mailboxOfTenant(ctx.supabase, tenantId) : null;
+  const mailbox = domain ? await findMailboxOfTenant(ctx.supabase, tenantId) : null;
   return mailbox && domain ? hostedAddress(mailbox.local_part, domain) : null;
 }
 
@@ -106,34 +110,34 @@ type ReplyIdentity = Awaited<ReturnType<typeof replyIdentityOf>>;
 /** Where an answer on each thread goes out from, as the freeze will decide it: once per thread, the mailboxes read once. */
 export async function replyIdentitiesOf(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   conversations: readonly string[],
 ): Promise<Map<string, Awaited<ReturnType<typeof replyIdentityOf>>>> {
   if (conversations.length === 0) return new Map();
-  return identitiesOver(ctx, tenantId, conversations, await mailboxConnectionsOf(ctx.supabase, tenantId));
+  return identitiesOver(ctx, tenantId, conversations, await listMailboxConnectionsOf(ctx.supabase, tenantId));
 }
 
 /** The same, over the workspace's mailboxes as already read. */
 async function identitiesOver(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   conversations: readonly string[],
   rows: readonly MailboxConnectionRow[],
 ): Promise<Map<string, ReplyIdentity>> {
   const mailboxes = rows.map((r) => mailboxDtoOf(r));
   const each = await Promise.all(
     conversations.map(async (id) => {
-      const parent = await lastInboundEmail(ctx.supabase, tenantId, id);
+      const parent = await findLastInboundEmail(ctx.supabase, tenantId, id);
       const references = parent ? [...parent.references, ...(parent.rfcMessageId ? [parent.rfcMessageId] : [])] : [];
       // Who it was written to, as the freeze reads it (addressedTo): an email to a connected mailbox is answered from it.
-      const who = await replyIdentityOf(ctx.supabase, {
+      const replyIdentity = await replyIdentityOf(ctx.supabase, {
         tenantId,
         conversationId: id,
         references,
         addressedTo: parent?.to ?? [],
         mailboxes,
       });
-      return [id, who] as const;
+      return [id, replyIdentity] as const;
     }),
   );
   return new Map(each);
@@ -147,15 +151,15 @@ async function identitiesOver(
  * connected none sends what they typed. `who` is null for a first email, which answers no thread.
  */
 function signingMailboxOf(
-  who: ReplyIdentity | null,
+  replyIdentity: ReplyIdentity | null,
   rows: readonly MailboxConnectionRow[],
   userId: string,
 ): MailboxConnectionRow | null {
   const thread =
-    who?.from === "own"
-      ? rows.find((r) => r.id === who.mailbox.id)
-      : who?.because === "own_not_sending"
-        ? rows.find((r) => r.address.toLowerCase() === who.own.toLowerCase())
+    replyIdentity?.from === "own"
+      ? rows.find((r) => r.id === replyIdentity.mailbox.id)
+      : replyIdentity?.because === "own_not_sending"
+        ? rows.find((r) => r.address.toLowerCase() === replyIdentity.own.toLowerCase())
         : undefined;
   return thread ?? rows.find((r) => r.connected_by === userId) ?? null;
 }
@@ -167,16 +171,16 @@ const signatureBy = (box: MailboxConnectionRow | null) => (box ? mailboxSignatur
  * What a person's email on each thread would be signed with, as its freeze will sign it, for the member reading
  * (decision 0081): the mailboxes read once. What only says it, so a read that fails says none.
  */
-export async function signedByThreadOf(
+export async function getSignedByThread(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   conversations: readonly string[],
 ): Promise<Map<string, string>> {
   const signed = new Map<string, string>();
   if (conversations.length === 0) return signed;
-  const read = await mailboxConnectionsOf(ctx.supabase, tenantId)
+  const read = await listMailboxConnectionsOf(ctx.supabase, tenantId)
     .then(async (rows) => ({ rows, who: await identitiesOver(ctx, tenantId, conversations, rows) }))
-    .catch(() => null);
+    .catch(logAndGoOn("who wrote from which mailbox", null));
   for (const [id, w] of read?.who ?? []) {
     const words = signatureBy(signingMailboxOf(w, read?.rows ?? [], ctx.userId))?.text;
     if (words) signed.set(id, words);
@@ -185,18 +189,18 @@ export async function signedByThreadOf(
 }
 
 /** What the member reading's first email to a person is signed with (decision 0081); null with none, or a read that fails. */
-export async function signedFirstOf(ctx: RouteContext, tenantId: string): Promise<string | null> {
-  const rows = await mailboxConnectionsOf(ctx.supabase, tenantId).catch(() => []);
+export async function findSignedFirst(ctx: RouteContext, tenantId: TenantId): Promise<string | null> {
+  const rows = await listMailboxConnectionsOf(ctx.supabase, tenantId).catch(() => []);
   return signatureBy(signingMailboxOf(null, rows, ctx.userId))?.text ?? null;
 }
 
 /** What the composer is told of where an answer goes out from: the address, never the mailbox's row. */
-export function replyFromOf(r: Awaited<ReturnType<typeof replyIdentityOf>>): ReplyFrom {
-  return r.from === "own" ? { from: "own", address: r.address } : r;
+export function replyFromOf(item: Awaited<ReturnType<typeof replyIdentityOf>>): ReplyFrom {
+  return item.from === "own" ? { from: "own", address: item.address } : item;
 }
 
 /** A request rides in the row's Json as it is (channels email.ts): one shape, written as JSON. */
-const requestJson = (r: EmailRequest): Json => r as unknown as Json;
+export const requestJson = (emailRequest: EmailRequest): Json => asJson(emailRequest);
 
 /**
  * A person's own reply, as the request it leaves as. A reply from a mailbox the
@@ -216,40 +220,43 @@ const requestJson = (r: EmailRequest): Json => r as unknown as Json;
  */
 export async function freezeReply(
   ctx: RouteContext,
-  i: Parameters<EmailReplyPorts["freeze"]>[0],
+  emailReplyPorts: Parameters<EmailReplyPorts["freeze"]>[0],
 ): Promise<{ request: Json; subject: string; own: Json | null; signature: string | null } | null> {
   const domain = emailDomain();
   const [mailbox, rows] = await Promise.all([
-    domain ? mailboxOfTenant(ctx.supabase, i.tenantId) : null,
-    mailboxConnectionsOf(ctx.supabase, i.tenantId),
+    domain ? findMailboxOfTenant(ctx.supabase, emailReplyPorts.tenantId) : null,
+    listMailboxConnectionsOf(ctx.supabase, emailReplyPorts.tenantId),
   ]);
-  const who = await replyIdentityOf(ctx.supabase, {
-    tenantId: i.tenantId,
-    conversationId: i.conversationId,
-    references: [...i.parent.references, ...(i.parent.rfcMessageId ? [i.parent.rfcMessageId] : [])],
-    addressedTo: i.parent.to ?? [],
+  const person = await replyIdentityOf(ctx.supabase, {
+    tenantId: emailReplyPorts.tenantId,
+    conversationId: emailReplyPorts.conversationId,
+    references: [
+      ...emailReplyPorts.parent.references,
+      ...(emailReplyPorts.parent.rfcMessageId ? [emailReplyPorts.parent.rfcMessageId] : []),
+    ],
+    addressedTo: emailReplyPorts.parent.to ?? [],
     mailboxes: rows.map((r) => mailboxDtoOf(r)),
   });
   // The signer's row: what it signs with, Gmail's markup included, is on the row, not the page's copy of it.
-  const signed = signatureBy(signingMailboxOf(who, rows, ctx.userId));
+  const signed = signatureBy(signingMailboxOf(person, rows, ctx.userId));
   const frozen = (identity: EmailIdentity) =>
     buildEmailRequest({
       identity,
-      to: i.to,
+      to: emailReplyPorts.to,
       parent: {
-        messageId: i.parent.messageId,
-        rfcMessageId: i.parent.rfcMessageId,
-        references: i.parent.references,
-        subject: i.parent.subject,
+        messageId: emailReplyPorts.parent.messageId,
+        rfcMessageId: emailReplyPorts.parent.rfcMessageId,
+        references: emailReplyPorts.parent.references,
+        subject: emailReplyPorts.parent.subject,
       },
-      body: i.body,
+      body: emailReplyPorts.body,
       signature: signed?.text ?? null,
       signatureHtml: signed?.html ?? null,
       actor: "human",
-      messageId: i.messageId,
-      tenantId: i.tenantId,
+      messageId: emailReplyPorts.messageId,
+      tenantId: emailReplyPorts.tenantId,
     });
-  const own = who.from === "own" ? frozen(connectedIdentity(who.mailbox)) : null;
+  const own = person.from === "own" ? frozen(connectedIdentity(person.mailbox)) : null;
   const request = mailbox && domain ? frozen(hostedIdentity(mailbox, domain)) : own;
   if (!request) return null;
   return {
@@ -267,27 +274,27 @@ export async function freezeReply(
  */
 export async function freezeFirst(
   ctx: RouteContext,
-  i: Parameters<EmailReplyPorts["first"]>[0],
+  emailReplyPorts: Parameters<EmailReplyPorts["first"]>[0],
 ): Promise<{ request: Json; subject: string; signature: string | null } | null> {
   const domain = emailDomain();
   if (!domain) return null;
   const [mailbox, rows] = await Promise.all([
-    mailboxOfTenant(ctx.supabase, i.tenantId),
-    mailboxConnectionsOf(ctx.supabase, i.tenantId),
+    findMailboxOfTenant(ctx.supabase, emailReplyPorts.tenantId),
+    listMailboxConnectionsOf(ctx.supabase, emailReplyPorts.tenantId),
   ]);
   if (!mailbox) return null;
   const signed = signatureBy(signingMailboxOf(null, rows, ctx.userId));
   const request = buildEmailRequest({
     identity: hostedIdentity(mailbox, domain),
-    to: i.to,
+    to: emailReplyPorts.to,
     parent: null,
-    subject: i.subject,
-    body: i.body,
+    subject: emailReplyPorts.subject,
+    body: emailReplyPorts.body,
     signature: signed?.text ?? null,
     signatureHtml: signed?.html ?? null,
     actor: "human",
-    messageId: i.messageId,
-    tenantId: i.tenantId,
+    messageId: emailReplyPorts.messageId,
+    tenantId: emailReplyPorts.tenantId,
   });
   return { request: requestJson(request), subject: request.subject, signature: signed?.text ?? null };
 }
@@ -315,15 +322,15 @@ function mailboxDto(
 /**
  * The workspace's email line and nothing of how it sends: whether this deployment has email, and the mailbox the owner
  * made. What Today counts as a wire (contracts emailWires), which is all its read asks of email. It took the whole of
- * emailSetupFor, so every read of Today from a workspace with a mailbox also read what it sends reach-outs from and
+ * getEmailSetup, so every read of Today from a workspace with a mailbox also read what it sends reach-outs from and
  * asked the edge what it offers, an answer kept for five minutes by each instance and waited on for up to four seconds
  * by the first read after that (9 Oct 2026). One read, of one row: `mailbox`, where the caller reads the row for more
- * than this (workspace/setup.ts), is how to ask for it, so it is asked once.
+ * than this (setup/setup.ts), is how to ask for it, so it is asked once.
  */
-export async function emailLineFor(
+export async function getEmailLine(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
-  mailbox: () => Promise<MailboxRow | null> = () => mailboxOfTenant(supabase, tenantId),
+  tenantId: TenantId,
+  mailbox: () => Promise<MailboxRow | null> = () => findMailboxOfTenant(supabase, tenantId),
 ): Promise<EmailSetupDto> {
   const domain = emailDomain();
   if (!domain) return { ready: false, domain: null, mailbox: null, sending: null };
@@ -336,20 +343,20 @@ export async function emailLineFor(
  * (a member on the session client, the back office on the service client): it
  * calls nothing that asks who is signed in.
  */
-export async function emailSetupFor(
+export async function getEmailSetup(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   mailbox?: () => Promise<MailboxRow | null>,
 ): Promise<EmailSetupDto> {
   // The mailboxes a reach-out writes from (decision 0056) are the business's own, through Google or Microsoft, so they
   // are read whatever the hosted mailbox. A read that fails draws no block rather than failing Setup.
   // What the mailboxes left is read only where there is a mailbox to have left it.
   const [line, read, ready] = await Promise.all([
-    emailLineFor(supabase, tenantId, mailbox),
-    mailboxConnectionsWithDaysFor(supabase, tenantId)
-      .then(async (ms) => ({ ms, left: ms.length ? await mailboxesLeftTodayFor(supabase, tenantId) : null }))
+    getEmailLine(supabase, tenantId, mailbox),
+    listMailboxConnectionsWithDays(supabase, tenantId)
+      .then(async (ms) => ({ ms, left: ms.length ? await findMailboxesLeftToday(supabase, tenantId) : null }))
       .catch(() => null),
-    mailboxesReadiness().catch(() => ({ providers: [], audience: null })),
+    getMailboxesReadiness().catch(() => ({ providers: [], audience: null })),
   ]);
   const mailboxes = read?.ms ?? null;
   const leftToday = read?.left ?? null;
@@ -364,20 +371,20 @@ export async function emailSetupFor(
 /** An owner gives the workspace its address (00129). Judged here first, so the refusal says which kind of not-an-address it was. */
 export async function createMailbox(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   input: { localPart: string; fromName: string },
 ): Promise<MailboxDto> {
   const domain = emailDomain();
   if (!domain) throw new AppError("conflict", "Email is not available here yet.");
   const problem = whyNotALocalPart(input.localPart) ?? whyNotAFromName(input.fromName);
   if (problem) throw new AppError("validation", problem);
-  const { error } = await ctx.supabase.rpc("create_mailbox", {
+  const { error } = await addMailbox(ctx.supabase, {
     p_tenant_id: tenantId,
     p_local_part: normalizeLocalPart(input.localPart),
     p_from_name: input.fromName.trim(),
   });
   if (error) throw dbRefusal(error);
-  const row = await mailboxOfTenant(ctx.supabase, tenantId);
+  const row = await findMailboxOfTenant(ctx.supabase, tenantId);
   if (!row) throw new Error("create_mailbox answered and the mailbox cannot be read back");
   return mailboxDto(row, domain);
 }
@@ -385,7 +392,7 @@ export async function createMailbox(
 /** An owner changes the name customers see. The mailbox must be this workspace's: another's is not found, whatever the door would say. */
 export async function renameMailbox(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   mailboxId: string,
   fromName: string,
 ): Promise<MailboxDto> {
@@ -393,9 +400,9 @@ export async function renameMailbox(
   if (!domain) throw new AppError("conflict", "Email is not available here yet.");
   const problem = whyNotAFromName(fromName);
   if (problem) throw new AppError("validation", problem);
-  const mine = await mailboxOfTenant(ctx.supabase, tenantId);
+  const mine = await findMailboxOfTenant(ctx.supabase, tenantId);
   if (!mine || mine.id !== mailboxId) throw new AppError("not_found", "That email address is not this workspace's.");
-  const { error } = await ctx.supabase.rpc("rename_mailbox", { p_mailbox_id: mailboxId, p_from_name: fromName.trim() });
+  const { error } = await setMailboxName(ctx.supabase, mailboxId, fromName.trim());
   if (error) throw dbRefusal(error);
   return mailboxDto({ ...mine, from_name: fromName.trim() }, domain);
 }

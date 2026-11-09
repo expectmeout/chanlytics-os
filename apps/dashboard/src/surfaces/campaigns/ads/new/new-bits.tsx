@@ -6,17 +6,18 @@
 import { useId } from "react";
 import type { ReactNode } from "react";
 import type { AdsConfig, AdsRead } from "@chanlytics/contracts";
-import type { AdDraft, DoorVM, NewAdVM } from "@chanlytics/contracts/ads-page";
+import type { AdDraft, NewAdVM } from "../model/new-ad";
+import type { DoorVM } from "../model/vm-base";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Switch } from "../../../kit/switch/switch";
 import { cx } from "../../../kit/variants";
-import { routeDoor } from "../../../legacy-verbs";
-import type { useLegacyToast } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
+import type { useFrameToast } from "../../../frame-verbs";
 import type { NewExtras, NewState, Step } from "./new-state";
 
 /** The toast the shell raises: the Ads page's own, handed to New ad. */
-export type Flash = ReturnType<typeof useLegacyToast>[1];
+export type Flash = ReturnType<typeof useFrameToast>[1];
 
 /** What every step takes: the model, what is chosen, and the ways to change it. */
 export interface StepProps {

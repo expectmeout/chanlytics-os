@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { apiGet } from "../workspace";
-import { expectFocusInside, expectNoSidewaysScroll, sheetFloat } from "../signals";
+import { expectFocusInside, expectNoSidewaysScroll, sheetFloat, sheetFoot } from "../signals";
 
 /**
  * The business's record on a real workspace, and the things only a browser can show about it: Settings › Details, Hours &
@@ -118,7 +118,7 @@ async function rowsScroll(body: Locator): Promise<boolean> {
       return still;
     })
     .toBe(true);
-  const [scroll, client] = was.split(" ").map(Number);
+  const [scroll = 0, client = 0] = was.split(" ").map(Number);
   return scroll > client;
 }
 
@@ -1263,8 +1263,9 @@ test.describe("Settings › Business on a real workspace", () => {
                       : id.startsWith("rec-can-door-")
                         ? "missing"
                         : // A question asked as a row: its answer is the row's value, a menu of the answers
-                          // (business/choices/rows.tsx ChoiceRow, #1700: bookings, prices, the word for a booking).
-                          id.endsWith("-menu") && el.closest(".rec-row")
+                          // (business/choices/rows.tsx ChoiceRow, #1700: bookings, prices, the word for a booking), or
+                          // a switch where the answer is on or off (business/can.tsx, whether it reads a picture).
+                          (id.endsWith("-menu") || el.getAttribute("role") === "switch") && el.closest(".rec-row")
                           ? "a row's answer"
                           : null;
           out.push({ id, why });
@@ -1369,7 +1370,8 @@ test.describe("Settings › Business on a real workspace", () => {
       const rise = await boxOf(sheet, "the sheet");
       // It floats just clear of the screen's sides and foot, as every phone sheet does (#1789).
       const float = await sheetFloat(page);
-      expect(Math.round(rise.y + rise.h), "the sheet does not stand just clear of the bottom").toBe(844 - float);
+      const foot = await sheetFoot(page);
+      expect(Math.round(rise.y + rise.h), "the sheet does not stand just clear of the bottom").toBe(844 - foot);
       expect(Math.round(rise.w), "the sheet is not the screen's width less its float").toBe(390 - 2 * float);
 
       // Quiet, and made for a finger: nothing scrolls sideways, nothing loud is painted, every control is 44px.
@@ -1440,7 +1442,7 @@ test.describe("Settings › Business on a real workspace", () => {
       expect(took, "one save, sent once").toHaveLength(1);
       const expected = JSON.parse(JSON.stringify(read));
       expected.brain.profile = { ...(expected.brain.profile ?? {}), tone: words };
-      expect(took[0].config, "the save sent more than the voice").toEqual(expected);
+      expect(took[0]?.config, "the save sent more than the voice").toEqual(expected);
       expect(await scrolled(), "the page behind the sheet scrolled").toBe(top);
 
       // A fold with the widest fields, as a sheet: quiet and made for a finger too. The hours are Hours & booking's.

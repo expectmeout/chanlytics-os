@@ -1,11 +1,11 @@
 /**
  * What a workspace's campaign tells the carriers' reviewers: the description, the
  * message flow, the samples and the opt-in words, composed from the business's own
- * facts. Pure. `registerLine` (a2p-register.ts) files it; for a refile, line-ops.ts
+ * facts. Pure. `registerLine` (a2p-register.ts) files it; for a refile, lines/ops/filing.ts
  * composes it again and `resubmitRejectedCampaign` (a2p-refile.ts) sends the fields
  * Twilio lets it edit.
  */
-import { CONVERSATIONAL_ASK_TITLE, optInConfirmation, verbalOptInScript } from "../packages/contracts.js";
+import { CONVERSATIONAL_ASK_TITLE, optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
 
 /**
  * What the workspace tells a reviewer about the messages it will send.
@@ -80,21 +80,21 @@ type CampaignBusiness = {
   lineNumber?: string | null;
 };
 
-export function campaignFactsFor(o: CampaignBusiness) {
-  const sender = campaignSender(o);
-  const pages = campaignPages(o);
+export function campaignFactsFor(campaignBusiness: CampaignBusiness) {
+  const sender = campaignSender(campaignBusiness);
+  const pages = campaignPages(campaignBusiness);
   // The two sets of words the flow quotes, from contracts, where the wire and
   // the profile read them: what START is answered with, and what staff ask.
   const confirmation = optInConfirmation(sender.name, "conversational");
   const script = verbalOptInScript(sender.name);
-  const messageFlow = campaignMessageFlow(o, sender.name, pages, { confirmation, script });
+  const messageFlow = campaignMessageFlow(campaignBusiness, sender.name, pages, { confirmation, script });
   return {
     // What the campaign IS: campaignDescription, below.
     description: campaignDescription(sender),
     // Every way in, within Twilio's bound: campaignMessageFlow, below.
     messageFlow,
     // What a reviewer reads as the messages: campaignSamples, below.
-    samples: campaignSamples(o),
+    samples: campaignSamples(campaignBusiness),
 
     // NOT correctable after the first filing: Twilio's campaign UPDATE accepts
     // description, message flow, samples, the four booleans and the two URLs,
@@ -125,30 +125,31 @@ export function campaignFactsFor(o: CampaignBusiness) {
  * Who sends: the registered name doing business as the trade name (once, and not when they are the same business said
  * twice), the trade name's possessive, and what the business does as one finished sentence or more.
  */
-function campaignSender(o: CampaignBusiness) {
-  const name = o.businessName.trim();
-  const legal = (o.legalName ?? "").trim();
-  const who = legal && legal.toLowerCase() !== name.toLowerCase() ? `${legal}, doing business as ${name},` : name;
+function campaignSender(campaignBusiness: CampaignBusiness) {
+  const name = campaignBusiness.businessName.trim();
+  const legal = (campaignBusiness.legalName ?? "").trim();
+  const personName =
+    legal && legal.toLowerCase() !== name.toLowerCase() ? `${legal}, doing business as ${name},` : name;
   // Chanlytics', not Chanlytics's: the form the approved filing wrote.
   const owns = /s$/i.test(name) ? `${name}'` : `${name}'s`;
-  const about = (o.about ?? "").trim().split(/\s+/).join(" ");
+  const about = (campaignBusiness.about ?? "").trim().split(/\s+/).join(" ");
   const aboutSentence = about ? (/[.!?]$/.test(about) ? about : `${about}.`) : "";
-  return { name, who, owns, aboutSentence };
+  return { name, who: personName, owns, aboutSentence };
 }
 
 /** The pages a reviewer opens: the paper form, the privacy policy and the terms. */
-function campaignPages(o: CampaignBusiness) {
+function campaignPages(campaignBusiness: CampaignBusiness) {
   // The paper version of the opt-in page. Named in the flow because a reviewer can
   // only accept a form they can see.
-  const formUrl = `${o.optInUrl}/form`;
+  const formUrl = `${campaignBusiness.optInUrl}/form`;
   // Their own pages when we host them, ours-for-them otherwise. Chanlytics'
   // platform policy is the last resort and the wrong answer for a customer: it
   // identifies US, and 30919 asks who is sending. The terms follow the same rule
   // -- Chanlytics' /terms is a software agreement for workspace owners, not a
   // messaging program's terms, and a reviewer opening it finds the wrong
   // company and none of the eight things the guide lists.
-  const privacyPolicyUrl = o.hostedUrl || o.privacyUrl;
-  const termsUrl = o.hostedUrl ? `${o.hostedUrl}/terms` : o.termsUrl;
+  const privacyPolicyUrl = campaignBusiness.hostedUrl || campaignBusiness.privacyUrl;
+  const termsUrl = campaignBusiness.hostedUrl ? `${campaignBusiness.hostedUrl}/terms` : campaignBusiness.termsUrl;
   return { formUrl, privacyPolicyUrl, termsUrl };
 }
 
@@ -258,7 +259,7 @@ function campaignDescription(sender: ReturnType<typeof campaignSender>): string 
 // it is, a conversation answered, not an opt-in (mayMessageFor: a proactive
 // send needs a recorded yes). Composed below, because it has to fit.
 function campaignMessageFlow(
-  o: CampaignBusiness,
+  campaignBusiness: CampaignBusiness,
   name: string,
   pages: ReturnType<typeof campaignPages>,
   quotes: { confirmation: string; script: string },
@@ -277,7 +278,7 @@ function campaignMessageFlow(
   const flowEnding = (autoReply: string, purchase: boolean) =>
     [
       `${name} collects opt-in directly from the customer, for one program: replies to what they write, and confirmations and reminders about their own appointments. No promotional messages are sent under this campaign.`,
-      `(1) KEYWORD START on the sign-up page (${o.optInUrl}), public: under "${CONVERSATIONAL_ASK_TITLE}" it states that they will receive appointment reminders and confirmations from ${name} and a reply when they write, that message frequency varies, that message and data rates may apply, and to reply HELP for help and STOP to stop; ${purchase ? "at its foot, that consent is not a condition of purchase; " : ""}privacy policy and terms are linked on the page. It shows the number; the customer opts in by texting START to it from their own phone and ${autoReply}`,
+      `(1) KEYWORD START on the sign-up page (${campaignBusiness.optInUrl}), public: under "${CONVERSATIONAL_ASK_TITLE}" it states that they will receive appointment reminders and confirmations from ${name} and a reply when they write, that message frequency varies, that message and data rates may apply, and to reply HELP for help and STOP to stop; ${purchase ? "at its foot, that consent is not a condition of purchase; " : ""}privacy policy and terms are linked on the page. It shows the number; the customer opts in by texting START to it from their own phone and ${autoReply}`,
       `(2) PAPER FORM (${formUrl}), public: the same statement above an unticked box, signed and dated at the business; staff record it on the profile as "Sign-up form" with the date and keep the sheet.`,
       `(3) IN PERSON OR ON THE PHONE: staff ask "${script}" and record a yes on the profile as "In person" or "On the phone" with the date and who heard it; a spoken yes is never used for promotions.`,
       `A first text from a customer is answered in that conversation only and is not an opt-in; appointment messages go only to customers opted in by (1), (2) or (3). STOP at any time ends all messages. Privacy policy: ${privacyPolicyUrl}. Terms: ${termsUrl}.`,
@@ -300,17 +301,17 @@ function campaignMessageFlow(
 // HasEmbeddedPhone have always been sent as "true" while neither sample
 // contained a link or a number, which is exactly the declaration/sample
 // mismatch reviewers reject -- and a plausible half of 30886.
-function campaignSamples(o: CampaignBusiness): string[] {
-  const name = o.businessName.trim();
+function campaignSamples(campaignBusiness: CampaignBusiness): string[] {
+  const name = campaignBusiness.businessName.trim();
   return [
     `Hi, thanks for writing to ${name}. How can we help today? Reply STOP to opt out.`,
     // Brackets mark what varies, as the reviewers' guide asks; the link is the
     // business's own page, which is what a message from them would carry.
     `Reminder from ${name}: your appointment is on [Date] at [Time]. Reply STOP to opt out.`,
     `${name}: your appointment is confirmed for [Date] at [Time]. Reply here to change it, HELP for help, STOP to opt out.`,
-    `${name}: who we are and what we do: ${o.hostedUrl ?? o.optInUrl}. Reply STOP to opt out, HELP for help.`,
-    o.lineNumber
-      ? `${name}: we tried to reach you about your appointment. Call us back on ${o.lineNumber} or reply here. Reply STOP to opt out.`
+    `${name}: who we are and what we do: ${campaignBusiness.hostedUrl ?? campaignBusiness.optInUrl}. Reply STOP to opt out, HELP for help.`,
+    campaignBusiness.lineNumber
+      ? `${name}: we tried to reach you about your appointment. Call us back on ${campaignBusiness.lineNumber} or reply here. Reply STOP to opt out.`
       : `${name}: we tried to reach you about your appointment. Reply here and we will pick it up. Reply STOP to opt out.`,
     // No promotional sample: this campaign sends none, and a sample of one
     // would be the exact mismatch the reviewers refuse.

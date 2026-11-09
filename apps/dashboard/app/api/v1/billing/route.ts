@@ -1,6 +1,6 @@
 import type { BillingDto } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
-import { billingFor, billingReadiness, callMinutesThisMonth } from "@/server/workspace/billing";
+import { read, workspace } from "@/server/shared/route";
+import { findBilling, getBillingReadiness, callMinutesThisMonth, findModelStanding } from "@/server/workspace/billing";
 
 /**
  * GET /api/v1/billing — the workspace's billing row as a member may read it
@@ -11,10 +11,11 @@ import { billingFor, billingReadiness, callMinutesThisMonth } from "@/server/wor
 export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => {
-    const [account, ready, minutes] = await Promise.all([
-      billingFor(ctx.supabase, member.tenantId),
-      billingReadiness(),
+    const [account, ready, minutes, modelStanding] = await Promise.all([
+      findBilling(ctx.supabase, member.tenantId),
+      getBillingReadiness(),
       callMinutesThisMonth(ctx.supabase, member.tenantId),
+      findModelStanding(member.tenantId),
     ]);
     const billing: BillingDto = {
       ready: ready.ready,
@@ -23,6 +24,7 @@ export const GET = read({
       price: ready.price,
       trial_days: ready.trial_days,
       call_minutes_month: minutes,
+      model_standing: modelStanding,
     };
     return { billing };
   },

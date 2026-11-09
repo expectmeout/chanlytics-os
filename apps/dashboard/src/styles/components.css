@@ -1,0 +1,3358 @@
+/* ============================================================
+   CHANLYTICS — THE FRAME, AND THE PAGE SECTIONS THAT STILL SHARE IT
+   The kit's primitives are the kit's (src/surfaces/kit/kit.css, step 2.1 of
+   docs/plans/2026-09-28-the-interface-kit-and-its-looks.md). What is here is the frame, the shell's own chrome (the app
+   shell, the sidebar, the top bar, the shell's lines, the bell, how things come and go), and the page sections that
+   still share it, among them Campaigns, Agent Studio, the thread's attachments, the message preview, the day agenda,
+   the KPI and stat strips, the quiet link button (.cl-bucket-link), .card, .glyph, .tbl, .section-head, .agent-rail,
+   .soon, .dec, .rp-share-link, "why it said that" and .ix-steer. Each leaves with its surface in Phase 4. A kit class
+   is named here only at a width the kit does not take yet (the tab strip's 720px, the record kit's 760px), or beside a
+   page's class in a rule the two share (the press, the role gate, how things come and go, reduced motion).
+   ============================================================ */
+
+/* ---------- App shell ---------- */
+/* As tall as the phone SHOWS, not as tall as it could show. On iOS Safari (and Chrome on Android) 100vh is the
+   largest viewport, the one with the browser's toolbar tucked away; with the toolbar showing the visible page is
+   about 50px shorter. This shell is one box that never scrolls, its tab bar is fixed to the visible bottom, and the
+   room every page keeps under the bar (.main-scroll's padding, mobile.css) was the part pushed below the visible
+   edge: on a phone the thread's reply box, Today's last card, every page's foot ended behind the tab bar. dvh is
+   the visible height; 100vh stays in front of it for a browser without dvh. */
+.app {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  background: var(--bg);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.main-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* The page region and its heading take focus when a move to another page puts it there (surfaces/frame/shell-hooks.ts focusPage): a place
+   to read from, not a control, so no ring drawn round the whole page. */
+.main-scroll:focus, .main-scroll :is(h1, h2, [role="heading"])[tabindex="-1"]:focus { outline: none; }
+/* A desk's page that has scrolled under the top bar or its strip fades out there, as a phone's does under its top
+   (mobile.css .frame-top[data-under]): it was cut at a hard edge, a card's title halved under Reports' strip and
+   Today's bar. Only while scrolled (frame-top.ts watchPageEdges): a mask makes the box a backdrop root. */
+@media (width > 900px) {
+  :is(.main-scroll, .rpt, .set-pane, .cl-profile)[data-scrolled] {
+    mask-image: linear-gradient(to bottom, transparent, #000 18px);
+  }
+}
+/* The first stop for Tab, a way past the sidebar and the bars to the page: drawn only while it has focus. */
+.skip-link { position: absolute; left: 12px; top: 12px; z-index: 500; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--ink); font-size: var(--text-sm); box-shadow: var(--shadow-md); }
+.skip-link:not(:focus) { width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; box-shadow: none; }
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  background: var(--bg-sunken);
+  display: flex;
+  flex-direction: column;
+  transition: width var(--duration-base) var(--ease-out);
+  overflow: hidden;
+}
+.sidebar.collapsed { width: 56px; }
+
+/* Team switcher */
+.sb-team {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+}
+.sb-team-mark {
+  position: relative;
+  overflow: hidden;
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  background: var(--ink);
+  color: var(--bg);
+  display: grid; place-items: center;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.sb-team-body { min-width: 0; flex: 1; line-height: 1.2; }
+.sb-team-name { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Scrollable nav region — lets long nav not fight with the agents block */
+.sb-nav-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.sb-nav-scroll::-webkit-scrollbar { width: 6px; }
+.sb-nav-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+.sb-nav-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* Hint text inline with nav label — replaces icon-clutter for things like "Today / Live brief" */
+.nav-hint {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* A nav row's count is the one tally (.tally): amber when it counts people who need you. The row's icon keeps its
+   own ink; the count already says it. */
+.nav-badge { margin-left: auto; }
+.nav-item.urgent.active { background: var(--bg-raised); }
+
+/* Sub nav rows are hover-only chrome */
+.nav-item.nav-sub {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.nav-item.nav-sub.active { color: var(--ink); }
+
+/* Active Agents block — bounded height, internal scroll, persistent foot */
+.sb-agents {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;            /* lets the inner scroll area shrink properly */
+  max-height: 42vh;          /* cap so user chip + nav stay visible */
+  border-top: 1px solid var(--line);
+  padding: 8px 8px 6px;
+  flex-shrink: 0;
+}
+.sb-agents-head {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px 4px;
+}
+.sb-agents-count {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.sb-agents-sep { color: var(--ink-faint); margin: 0 1px; }
+.sb-agents-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  flex: 1 1 auto;
+  /* fade edges so cut-off content reads as "more below" */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.sb-agents-scroll::-webkit-scrollbar { width: 6px; }
+.sb-agents-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 3px;
+}
+.sb-agents-scroll::-webkit-scrollbar-track { background: transparent; }
+.sb-agents-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-top: 4px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px dashed var(--line);
+  transition: all 140ms;
+  flex-shrink: 0;
+}
+@media (hover: hover) {
+  .sb-agents-foot:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+}
+.sb-agents-foot .icon { color: inherit; }
+.sb-agents-foot-meta {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+@media (hover: hover) { .sb-agents-foot:hover .sb-agents-foot-meta { color: var(--accent); } }
+.sb-agent {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+@media (hover: hover) { .sb-agent:hover { background: var(--bg-hover); } }
+.sb-agent-body { min-width: 0; line-height: 1.2; }
+.sb-agent-name {
+  font-size: 12px;
+  color: var(--ink);
+  font-weight: 500;
+  display: flex; align-items: center; gap: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sb-agent-task {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--ink-muted);
+  margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 14px;
+  font-size: var(--text-md);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.sidebar-brand-mark {
+  width: 22px; height: 22px;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--bg);
+  display: grid; place-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  flex-shrink: 0;
+}
+
+.sidebar-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding: 10px 10px 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  color: var(--ink-muted);
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+  position: relative;
+  white-space: nowrap;
+  /* A place is a link (sidebar.tsx): it keeps the row's ink, never a link's underline. */
+  text-decoration: none;
+}
+@media (hover: hover) { .nav-item:hover { color: var(--ink); } }
+.nav-item.active {
+  background: var(--bg-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+.nav-item .icon {
+  width: 16px; height: 16px;
+  flex-shrink: 0;
+  color: var(--ink-dim);
+}
+.nav-item.active .icon { color: var(--ink); }
+
+.sidebar-foot {
+  margin-top: auto;
+  padding: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+@media (hover: hover) { .user-chip:hover { background: var(--bg-hover); } }
+.user-chip .avatar {
+  width: 26px; height: 26px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, oklch(0.62 0.19 25), oklch(0.55 0.16 35));
+  color: white;
+  display: grid; place-items: center;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.user-chip .who { line-height: 1.2; min-width: 0; flex: 1; }
+.user-chip .who .name {
+  font-size: var(--text-sm); color: var(--ink); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.user-chip .who .email {
+  font-size: var(--text-xs); color: var(--ink-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ---------- Top bar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.crumbs {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--ink-muted);
+  min-width: 0;
+}
+.crumbs .crumb-active { color: var(--ink); font-weight: 500; }
+.crumbs .crumb-sep { color: var(--ink-faint); }
+
+.topbar-spacer { flex: 1; }
+
+/* ---------- The shell's one line (frame/topbar/status-bars.tsx ShellStatusBar) ----------
+   Under the top bar and above the page, on every screen size: one thing at a
+   time, toned by what it costs -- danger when customers are affected, warn
+   when this screen is behind, plain when nothing is lost. */
+.shell-status-slot { flex-shrink: 0; }
+.shell-status {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 38px; padding: 7px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raised); color: var(--ink);
+  font-size: var(--text-sm); line-height: 1.35;
+}
+.shell-status > .icon { flex: none; color: var(--ink); }
+.shell-status-words { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
+.shell-status-text { font-weight: 500; }
+.shell-status-detail { color: var(--ink-muted); }
+.shell-status-cta { flex: none; }
+/* Busy says so, unless the button is disabled: then the kit's .btn:disabled (kit.css, which loads first) keeps its
+   pointer, as it did when it came later in this sheet. :where() holds the weight where it was. */
+.shell-status-cta[aria-busy="true"]:where(:not(:disabled)) { cursor: progress; }
+.shell-status.tone-warn { background: var(--warn-soft); }
+.shell-status.tone-warn > .icon { color: var(--warn); }
+.shell-status.tone-danger { background: var(--danger-soft); }
+.shell-status.tone-danger > .icon { color: var(--danger); }
+
+/* ---------- The live-call bar ----------
+   Someone is on the phone RIGHT NOW: the one state in this product that stops
+   being true by itself, so it sits above the status line and leaves with the
+   call. The accent is its own — tokens.css reserves it for live agent state,
+   and this is what that means. The whole bar is the door to Live; the two
+   controls a call has (hand over, end) ask before they act and stay there. */
+.live-bar {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  
+  border-bottom: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
+  color: var(--ink);
+  font-family: inherit; font-size: var(--text-sm); line-height: 1.35; text-align: left; cursor: pointer;
+}
+.live-bar:focus-visible { outline: none; }
+.live-bar-text { font-weight: 500; }
+.live-bar-clock { color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.live-bar-checking { color: var(--ink-muted); }
+
+/* ---------- Ask Chanlytics — unified topbar affordance ---------- */
+.tb-ask {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  max-width: 32vw;
+}
+@media (hover: hover) {
+  .tb-ask:hover {
+    background: var(--bg-raised);
+    border-color: var(--line-strong);
+    color: var(--ink);
+  }
+}
+.tb-ask .icon { color: var(--accent); flex-shrink: 0; }
+/* The three as the button's icon (surfaces/kit/face/ask-face.tsx): a canvas that holds everything they do (fitSide), so the
+   squares are about 6px and the stair about 18 by 13. Ink at rest; coral only while Ask works. */
+.tb-ask .tb-ask-face { display: block; flex: none; width: 30px; height: 24px; margin-left: -5px; margin-right: -3px; }
+.tb-ask .tb-ask-label {
+  flex: 1;
+  text-align: left;
+  font-weight: 400;
+  color: var(--ink-dim);
+}
+@media (hover: hover) { .tb-ask:hover .tb-ask-label { color: var(--ink-muted); } }
+.tb-ask .kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+}
+
+/* ---------- Card ---------- */
+.card {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* Agent avatars: square, mono glyph, accent border when active */
+.agent-avatar {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  background: var(--bg-sunken);
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
+  display: inline-grid; place-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  flex-shrink: 0;
+  position: relative;
+}
+.agent-avatar.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---------- Channel glyphs ---------- */
+.glyph {
+  width: 14px; height: 14px;
+  display: inline-grid; place-items: center;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+
+/* ---------- KPI strip ---------- */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.kpi {
+  padding: 16px 20px;
+  border-right: 1px solid var(--line);
+  position: relative;
+}
+.kpi:last-child { border-right: none; }
+.kpi-label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.kpi-value {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.kpi-meta {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-meta .delta-up { color: var(--ok); }
+.kpi-meta .delta-down { color: var(--danger); }
+.kpi-spark {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  width: 60px;
+  height: 22px;
+  opacity: 0.7;
+}
+
+/* ---------- Table ---------- */
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.tbl th {
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.tbl td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  vertical-align: middle;
+}
+@media (hover: hover) { .tbl tbody tr:hover { background: var(--bg-hover); } }
+.tbl tbody tr:last-child td { border-bottom: none; }
+/* Digits in a column line up, always.
+   This was `.tbl .num` -- opt-in, and forty-one money cells in Reports had not
+   opted in, so figures a reader is there to COMPARE sat on proportional digits
+   and the column edges wandered. Setting it on the cell costs prose nothing:
+   the property only touches numerals. Same lesson as the focus ring; a
+   presentation rule that each call site has to remember is a rule half the
+   call sites will not. */
+.tbl th, .tbl td, .cl-table th, .cl-table td { font-variant-numeric: tabular-nums; }
+.tbl .muted { color: var(--ink-muted); }
+.tbl .dim { color: var(--ink-dim); }
+
+/* ---------- Section heading ---------- */
+.section-head {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 0 0 14px;
+}
+.section-title {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.section-sub {
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+/* ---------- Agent activity rail ---------- */
+.agent-rail {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.agent-rail-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+.agent-rail-item:last-child { border-right: none; }
+.agent-rail-item .body { min-width: 0; flex: 1; }
+.agent-rail-item .name {
+  font-size: var(--text-sm); color: var(--ink); font-weight: 500;
+  display: flex; align-items: center; gap: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.agent-rail-item .what {
+  font-size: 11.5px; color: var(--ink-dim); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.agent-rail-item .when {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   LAUNCH SHELL — app root, route transitions, unified stat strip,
+   bell badge, in-design landings, decision feedback
+   ============================================================ */
+
+/* ---------- App root (live product frame) ---------- */
+/* dvh, for the reason .app gives: 100vh runs under a phone browser's toolbar, and the tab bar with it.
+   The room at its top is the phone's own bar (the clock, the battery) where an app on an iPhone's home screen is drawn
+   under it: one added while the layout asked for that (layout.tsx said black-translucent until 7 Oct 2026, and iOS keeps
+   what it read when the app was added). The date, the bell and the page's name stood under that bar (Ruben, 7 Oct
+   2026). The inset is the bar's height there and nothing in a browser's tab or an app added since, which start under
+   the bar, so they are drawn as they were. The page's paint still reaches the
+   screen's top (tokens.css, --surface-page-top). What is fixed to the window keeps the room itself: the drawer
+   (mobile.css), a tablet's notes (below), the Inbox's sending strip (inbox.css), a lead's panel and its photos
+   (leads.css). The inset is added to what a box keeps, never written over it: a tab reads it as 0. */
+.app-root {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--bg);
+  color: var(--ink);
+  overflow: hidden;
+}
+.app-root .main { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.app-root .main-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.app-root .main-scroll.pane { overflow: hidden; display: flex; }
+/* What stands over the page (surfaces/frame/shell-chrome.tsx): no box of its own, so the top bar, the bars under it and a pane's head are
+   the column's own rows, as they always were. A phone gives it a box, the one that stays as the window scrolls
+   (mobile.css, "The window scrolls"). */
+.frame-top { display: contents; }
+
+/* ---------- Route transition ---------- */
+.route-view { animation: route-in 240ms var(--ease-out); }
+/* A view that follows another of the same page (People to Leads and back) draws at once: the fade is for arriving
+   somewhere else, and it made every switch between the two scopes read as a wait (surfaces/frame/shell-hooks.ts routeStay). */
+.route-view.route-stay { animation: none; }
+@keyframes route-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* A page landing where its own reading view stood (shell-hooks.ts `landed`): its words fade in, and the head the view holds
+   (Today's, in the page's own scroll: shell-chrome.tsx glassHead "inside") stays as it stood. The whole view faded, so the
+   greeting went out and came in again as Today was read (Ruben, 31 Oct 2026). */
+.route-view[data-landed] { animation: none; }
+.route-view[data-landed] > :not(.pg-slot) { animation: route-in 240ms var(--ease-out); }
+/* Its leaving, the way it came (a still copy plays it: kit/motion/leaving.ts leaveOverlay). A copy that kept route-in as its own
+   animation came in again from nothing as the popover went, so the bell's closed twice (Ruben, 9 Oct 2026). */
+@keyframes route-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-view,
+  .route-view[data-landed] > * { animation: none; }
+}
+/* A view from the tab beside arrives from that side by the deck (surfaces/kit/motion/view-deck.ts), on the timeline of
+   the page it replaced, at every width: it says its side (surfaces/frame/shell-chrome.tsx `data-slide`; a page's own views say theirs the
+   same way) and plays no entrance of its own. A phone had a slide here and a desk the fade above, each begun as the
+   view mounted, whatever the page before it was doing: the page leaving was cut wherever the next one's render fell,
+   and this one began 40px to its side at full opacity (measured frame by frame, 8 Oct 2026). */
+.route-view[data-slide] { animation: none; }
+/* The view React took away, put back as a still copy until it has left (view-deck.ts): over where it stood and out of
+   the layout, taking no press, and playing nothing of its own a second time (its entrance, a row's rise). */
+.view-leaving {
+  position: absolute;
+  pointer-events: none;
+}
+.view-leaving,
+.view-leaving * {
+  animation: none !important;
+}
+/* People's page is one column to 900px (its rows are a phone's there, PL_PHONE_QUERY), so its views travel their own
+   width to there too, and a finger walks its strip (the view says its strip, data-strip; the rest is the tokens'). */
+@media (max-width: 900px) {
+  /* Its scopes keep their arrival's last frame on its layer until the page is touched (kit/motion/view-deck.ts
+     restsOnLayer): an iPhone drew Leads and the Pipeline a pixel up as it handed the layer back (Ruben, 7 Nov 2026). */
+  .route-view[data-strip="people"] { --view-travel: 100%; --view-rest: layer; }
+  /* A touch under a strip keeps the axis it began on. The reader (kit/motion/swipe.ts touchSwipe) picks one at 8px: mostly down,
+     a scroll and the page stands; else the page walks. The browser was told nothing of that choice, so its own scroll
+     ran on under a page already moving sideways, and a thumb could carry Reports in circles (Ruben's recording, 9 Oct
+     2026). touch-action is read on what scrolls, so each strip page's phone scroller says it: Reports' body, the
+     Inbox's threads, Conversations' rows, People's main, Settings' pane, a person's page (its tabs, and People behind the
+     first), a Campaigns pane open (a sequence's tabs, and its list behind the first; one each, found on the app at 375px; tests/styles/swipe-axis.test.mjs holds the list). A touch
+     that began across never scrolls it, as a phone's own pagers hold their axis; one that began down scrolls as before,
+     and the reader moves nothing. */
+  .rpt-body, .ix-threads, .cv-rows, .cl-main-scroll, .set-pane, .cl-profile, .cm-pane-body { touch-action: pan-y; }
+}
+
+/* ---------- Unified stat strip (dashboard anchors · clients head · profile money) ---------- */
+.stat-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.stat-cell {
+  padding: 11px 16px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.stat-cell:last-child { border-right: none; }
+.stat-cell[data-tip] { cursor: help; }
+.stat-cell[data-tip] .stat-cell-label { text-decoration: underline dotted var(--line-strong); text-underline-offset: 3px; }
+.stat-cell-label {
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.stat-cell-value {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+.stat-cell-meta {
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.stat-cell-meta.pos { color: var(--ok); }
+.stat-cell-meta.neg { color: var(--accent); }
+.stat-cell .kpi-spark { position: static; width: 100%; height: 20px; opacity: 0.7; margin-top: 2px; }
+
+/* Contexts */
+.cl-head-stats.stat-strip .stat-cell { min-width: 110px; }
+
+/* ---------- Bell badge ---------- */
+.tb-bell { position: relative; }
+/* Unread is not urgent: the quiet tally on the icon (.tally .tally-icon). The Inbox's count is the amber one. */
+.tb-bell-badge { position: absolute; top: -4px; right: -6px; }
+
+/* ---------- In-design landing ---------- */
+.soon {
+  flex: 1;
+  min-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 48px 24px;
+}
+.soon-glyph {
+  width: 52px; height: 52px;
+  border-radius: 14px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-muted);
+  margin-bottom: 4px;
+}
+.soon-title {
+  font-size: var(--text-xl);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.soon-blurb {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  max-width: 340px;
+  line-height: 1.55;
+}
+.soon-chip {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+}
+.soon-actions { display: flex; gap: 6px; margin-top: 10px; }
+
+/* ---------- Decision feedback (Agent Command) ---------- */
+.dec.is-decided { opacity: 0.75; }
+.dec.is-decided .dec-spine::before { background: var(--ok); }
+.dec-decided-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  animation: route-in 200ms var(--ease-out);
+}
+.dec-decided-chip.approved { color: var(--ok); background: var(--ok-soft); }
+.dec-decided-chip.declined { color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); }
+.dec-undo {
+  margin-left: 4px;
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+@media (hover: hover) { .dec-undo:hover { color: var(--ink); } }
+
+/* ============================================================
+   MICRO-MOTION — calm, fast, consistent.
+   One arrival grammar (arrive-in + stagger: a fade where it stands),
+   one draw grammar for charts, breathing only where something is
+   genuinely live.
+   ============================================================ */
+
+@keyframes draw-line { to { stroke-dashoffset: 0; } }
+@keyframes poly-fade { from { opacity: 0; } }
+@keyframes grow-x { from { transform: scaleX(0.4); opacity: 0.4; } }
+
+/* --- Arrival stagger for cards (replays on remount/tab switch), a fade where each stands: rising 4px as well, a page on a
+   phone read as shifting as it drew (Ruben, 23 Oct 2026). The Inbox's and Conversations' rows arrive by the kit instead
+   (kit/motion/use-rows-arrive.ts), on their list's first draw alone: here every row arrived as it was drawn, so a row the
+   window drew as the list was scrolled (kit/rows/shown-rows.ts) came in from nothing, see-through for a beat (Ruben,
+   21 Oct 2026). --- */
+.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt {
+  animation: arrive-in 0.26s var(--ease-out) backwards;
+}
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(2) { animation-delay: 0.03s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(3) { animation-delay: 0.06s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(4) { animation-delay: 0.09s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(5) { animation-delay: 0.12s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(6) { animation-delay: 0.15s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(7) { animation-delay: 0.18s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(8) { animation-delay: 0.21s; }
+:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(n+9) { animation-delay: 0.24s; }
+
+/* --- Pane entrances --- */
+.ix-thread-pane { animation: route-in 0.24s var(--ease-out); }
+.lm-banner, .ix-exp-panel { animation: route-in 0.2s var(--ease-out); }
+
+/* --- Press feedback everywhere --- */
+.btn:active,
+.cl-tab:active,
+.fleet-filter-chip:active,
+.cl-triage-tab:active { transform: translateY(0.5px) scale(0.985); }
+
+/* --- Charts draw themselves --- */
+.kpi-spark polyline, .rail-chart polyline {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: draw-line 0.8s var(--ease-out) 0.1s forwards;
+}
+.rp-chart polyline {
+  stroke-dasharray: 1600;
+  stroke-dashoffset: 1600;
+  animation: draw-line 1.1s var(--ease-out) 0.1s forwards;
+}
+.rp-chart polygon, .rail-chart polygon { animation: poly-fade 0.9s var(--ease-out) 0.2s backwards; }
+.rp-revbar, .rp-mix-fill, .conf-meter-fill { transition: width 0.5s var(--ease-out); }
+
+/* --- Breathing, only where something is live --- */
+.cal-nowdot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  opacity: 0.3;
+  animation: pulse-ring 2s var(--ease-out) infinite;
+}
+.lm-listening { animation: pulse-soft 1.8s var(--ease-in-out) infinite; }
+@keyframes pulse-soft {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(from var(--accent) l c h / 0.25); }
+  50%      { box-shadow: 0 0 0 4px oklch(from var(--accent) l c h / 0.08); }
+}
+
+/* --- Section + row entrances for ledger pages (Outbound, Tasks, Reports, Fleet detail) --- */
+.rp-body > section, .rp-body > .rp-row { animation: rise-in 0.3s var(--ease-out) backwards; }
+.rp-body > :nth-child(2) { animation-delay: 0.05s; }
+.rp-body > :nth-child(3) { animation-delay: 0.1s; }
+.rp-body > :nth-child(4) { animation-delay: 0.15s; }
+.rp-body > :nth-child(5) { animation-delay: 0.2s; }
+.tbl tbody tr { transition: background var(--duration-fast) var(--ease-out); animation: tbl-fade 0.3s var(--ease-out) backwards; }
+.tbl tbody tr:nth-child(2) { animation-delay: 0.03s; }
+.tbl tbody tr:nth-child(3) { animation-delay: 0.06s; }
+.tbl tbody tr:nth-child(4) { animation-delay: 0.09s; }
+.tbl tbody tr:nth-child(5) { animation-delay: 0.12s; }
+.tbl tbody tr:nth-child(6) { animation-delay: 0.15s; }
+.tbl tbody tr:nth-child(n+7) { animation-delay: 0.18s; }
+@keyframes tbl-fade { from { opacity: 0; } }
+/* Bars grow in (and regrow when a range tab remounts them) */
+.rp-revbar, .rp-mix-fill { transform-origin: left center; animation: grow-x 0.5s var(--ease-out) backwards; }
+/* "Needs you" grammar: accent left edge, same as Today rows / Inbox / Outbound cards */
+.tbl tr.tk-pending td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+/* Chart endpoint: today's value, alive */
+.rp-chart-dot { animation: poly-fade 0.4s var(--ease-out) 0.9s backwards; }
+
+/* --- Reduced motion: everything settles instantly --- */
+@media (prefers-reduced-motion: reduce) {
+  .dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt,
+  .rp-body > section, .rp-body > .rp-row, .fl-detail, .tbl tbody tr,
+  .rp-revbar, .rp-mix-fill, .rp-chart-dot,
+  .ix-thread-pane, .lm-banner, .ix-exp-panel, .cl-triage-tab.active::after,
+  .kpi-spark polyline, .rail-chart polyline, .rp-chart polyline,
+  .rp-chart polygon, .rail-chart polygon, .cal-nowdot::after, .lm-listening,
+  .rec-row[data-settled="true"] .rec-row-val {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .rp-revbar, .rp-mix-fill, .conf-meter-fill,
+  .rec-says-line[data-changed="true"], .rec-inline-body, .rec-fold-hint, .rec-fold,
+  .rec-sheet.rec-fold-sheet[data-leaving="true"], .rec-sheet-backdrop[data-leaving="true"] { transition: none !important; }
+}
+
+/* ============================================================
+   NUANCE PASS — focus rings, disabled states, crumb links
+   ============================================================ */
+
+/* Every focusable thing gets the ring, by default.
+   This was an allowlist of thirteen class names, and an allowlist of focus
+   rings decays by construction: it named 29 selectors across the styles and
+   missed 39 more that are real controls -- calendar appointments, segment
+   rows, policy dots, decision buttons, every chip and inline link -- so a
+   keyboard user tabbing through them saw nothing move.
+   :where() carries zero specificity, so every rule below (and every component
+   that wants a different ring) still wins without !important. */
+:where(button, a[href], summary, [role="button"], [role="switch"], [role="tab"],
+       [role="option"], [tabindex="0"]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* Kept because these are not <button>s or are nested inside one, and because
+   naming them here documents that their ring is deliberate. */
+.cl-attn-row:focus-visible, .cl-attn-body[role="button"]:focus-visible, .cv-row:focus-visible, .st-card:focus-visible,
+.pp-card:focus-visible, .fl-agent:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.crumb-link {
+  background: none; border: none; padding: 0;
+  font-size: 13px; color: var(--ink-muted); cursor: pointer;
+  letter-spacing: -0.005em;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) { .crumb-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; } }
+
+.brief-forecast-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button.brief-inbox-link { cursor: pointer; transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out); }
+@media (hover: hover) { button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0.4); background: var(--accent-soft); } }
+
+/* Empty & error states */
+.soon.err .soon-glyph { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+
+/* Tasks ledger detail */
+.tk-detail-row td { background: var(--bg-sunken); }
+.tk-detail { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px 6px; animation: route-in 0.2s var(--ease-out); }
+.tk-detail-result { font-size: var(--text-sm); color: var(--ink); line-height: 1.5; }
+.tk-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-width: 640px;
+}
+.tk-error strong { font-weight: 600; }
+.tk-error em { font-style: normal; color: var(--ink-muted); }
+.tk-learning {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background 120ms;
+}
+@media (hover: hover) { .tk-learning:hover { background: oklch(from var(--accent) l c h / 0.2); } }
+
+/* ---------- Notifications popover (typed, actionable) ---------- */
+/* Presence, the bell and the theme: one group, one gap, never wrapped —
+   as a block it shrank to its narrowest word and stacked its buttons. */
+.tbn-wrap { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.tbn-backdrop { position: fixed; inset: 0; z-index: 240; }
+.tbn-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  /* Its ground is the kit's pop panel (frame/topbar/notif-popover.tsx: panel panel-pop panel-flush), the glass every menu and list wears. */
+  z-index: 250;
+  overflow: hidden;
+  animation: route-in 180ms var(--ease-out);
+  /* What it plays as it goes (below): the entrance's mirror, and on a phone the sheet going down as it came up. */
+  --tbn-out: route-out;
+  --tbn-out-ms: var(--duration-fast);
+}
+/* At every width it leaves by one rule, its own mirror: a copy that kept its entrance as its animation came in again
+   from nothing as the popover went. Its wash is clear off a phone and plays nothing; a phone's is the veil, below. */
+.tbn-pop[data-leaving="true"] { animation: var(--tbn-out) var(--tbn-out-ms) var(--ease-in) forwards; }
+.tbn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.tbn-title { font-size: var(--text-base); font-weight: 600; color: var(--ink); }
+.tbn-readall { background: none; border: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); cursor: pointer; padding: 2px 4px; border-radius: var(--radius-xs); }
+@media (hover: hover) { .tbn-readall:hover { color: var(--ink); background: var(--bg-hover); } }
+/* The list scrolls down and nowhere else: a × reaching 3px past the edge made it 378px wide in 375, and a phone let a
+   thumb drag the whole list sideways (25 Sep). */
+.tbn-list { overflow-x: hidden; overflow-y: auto; touch-action: pan-y; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.tbn-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px; color: var(--ink-dim); font-size: 12px; }
+.tbn-empty .icon { color: var(--ok); }
+/* A note is one press: its mark, two lines and a time, at the list row's own numbers (tokens.css, "one row for every
+   list"). The press does what the note says; the words say where. Each used to carry a 44px row of boxed buttons
+   saying it again, which was half of every note's height (48 notes, 6,677px on a phone, 25 Sep). */
+/* On the glass a note has no ground of its own, the popover's on a desk and the sheet's on a phone; a note a thumb is
+   carrying takes the sheet's solid, so it slides over the ground under it and never shows it through (below). */
+.tbn-item { position: relative; border-bottom: 1px solid var(--line); }
+.tbn-slot:last-child > .tbn-slot-in > .tbn-item, .tbn-group:last-child > .tbn-item:last-child { border-bottom: none; }
+.tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, transparent); }
+/* A dismissed note folds shut so the notes under it glide up, then it goes: the slot is given its own height and then
+   none (frame/topbar/notif-popover.tsx NotifPopover fold, measured there, since a grid track animated from 1fr to 0fr holds at its
+   content's height until the last frame). The note and the grounds a thumb slides it over sit inside. */
+.tbn-slot { overflow: hidden; transition: height 200ms var(--ease-in); }
+.tbn-slot-in { position: relative; }
+.tbn-ground { display: none; }
+.tbn-open {
+  appearance: none;
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
+  width: 100%;
+  padding: 10px 14px 10px 18px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* Only where a pointer hovers: iOS keeps :hover on whatever lands under the finger after a tap, and the note that
+   moved up under a dismissed one wore the hover, a red × and no time (25 Sep). */
+@media (hover: hover) { .tbn-open:hover { background: var(--bg-hover); } }
+.tbn-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tbn-dot { position: absolute; left: 7px; top: 18px; width: 5px; height: 5px; border-radius: var(--radius-full); background: var(--accent); }
+/* The note's kind, as the one mark (.mark): neutral. A warning's or a failure's title carries its tone. */
+.tbn-icon { margin-top: 1px; }
+.tbn-item[data-tone="warn"] .tbn-item-title { color: var(--warn-ink); }
+.tbn-item[data-tone="danger"] .tbn-item-title { color: var(--danger-ink); }
+.tbn-body { display: flex; flex-direction: column; gap: var(--row-line-gap); min-width: 0; }
+.tbn-line1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.tbn-item-title, .tbn-msg { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.tbn-item-title { flex: 1; min-width: 0; font-size: var(--text-base); font-weight: 500; line-height: var(--row-name-line); color: var(--ink); }
+.tbn-item.unread .tbn-item-title { font-weight: 600; }
+.tbn-time { font-size: var(--row-facts); color: var(--ink-faint); flex-shrink: 0; }
+.tbn-msg { font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted); }
+/* Notes of one kind said once ("9 calls"): the newest is the line under it, and a press opens them under it, each a
+   note of its own without its mark, its words where the group's words start. */
+.tbn-item-group .tbn-open { grid-template-columns: 24px minmax(0, 1fr) 12px; }
+.tbn-chev { align-self: center; display: inline-flex; color: var(--ink-faint); transition: rotate var(--duration-fast) var(--ease-out); }
+.tbn-group.open .tbn-chev { rotate: 180deg; }
+@media (prefers-reduced-motion: reduce) { .tbn-chev { transition: none; } }
+.tbn-item.in-group .tbn-open { grid-template-columns: minmax(0, 1fr); padding-left: 52px; }
+.tbn-item.in-group .tbn-dot { left: 41px; }
+/* On a phone a note is two single lines, as a row in the Inbox is; what it cuts, the press opens. */
+@media (max-width: 720px) {
+  .tbn-item-title, .tbn-msg { -webkit-line-clamp: 1; }
+  .tbn-open { padding: var(--row-pad-y) var(--row-pad-x) var(--row-pad-y) 20px; }
+  .tbn-dot { left: 8px; top: 20px; }
+  .tbn-item.in-group .tbn-open { padding-left: 54px; }
+  .tbn-item.in-group .tbn-dot { left: 42px; }
+  /* What a thumb slides a note over: Mark read to the right of an unread one, Dismiss to the left of any (kit/motion/swipe.ts
+     touchSwipe onBack, onAway). Only the way the note is going shows, and only while it moves (frame/topbar/notif-popover.tsx tbnMoving,
+     `data-moving`), fading as it settles back: at rest the notes stand on the sheet's glass, with no ground under them.
+     Both stood under every note, so a slide to the right showed the red of Dismiss. A dismissed note stays slid aside
+     over its ground while its slot folds. */
+  .tbn-ground { display: flex; align-items: center; position: absolute; inset: 0; padding: 0 16px; font-size: var(--text-sm); font-weight: 500; opacity: 0; transition: opacity var(--duration-base) var(--ease-out); }
+  .tbn-ground-read { justify-content: flex-start; background: var(--info-soft); color: var(--info-ink); }
+  .tbn-ground-dismiss { justify-content: flex-end; background: var(--danger-soft); color: var(--danger-ink); }
+  :is(.tbn-slot-in[data-moving="read"] > .tbn-ground-read, .tbn-slot-in[data-moving="dismiss"] > .tbn-ground-dismiss, .tbn-slot[data-going="true"] .tbn-ground-dismiss) { opacity: 1; transition: none; }
+  :is(.tbn-slot-in[data-moving], .tbn-slot[data-going="true"]) .tbn-item { background: var(--surface-pop-fill); }
+  :is(.tbn-slot-in[data-moving], .tbn-slot[data-going="true"]) .tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, var(--surface-pop-fill)); }
+  .tbn-slot[data-going="true"] .tbn-item { translate: -100% 0; }
+  /* A line the phone can do nothing about ("Alerts are blocked in your browser settings") is not drawn there; the
+     switch itself is, where the browser can alert. */
+  .tbn-foot:has(> .tbn-foot-note) { display: none; }
+}
+@media (max-width: 900px) { .tbn-pop { position: fixed; top: calc(52px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; width: auto; } }
+/* On a phone the notes are a sheet from the bottom, as every other sheet there is: edge to edge, a handle, the page
+   standing over the page with no wash, pulled down to close (frame/topbar/notif-popover.tsx NotifPopover, kit/motion/swipe.ts touchSwipe), rising and leaving
+   as People's sheets do. It was a 568px popover hung from the top bar, as far from the thumb as the screen allows. */
+.tbn-handle { display: none; }
+@media (max-width: 720px) {
+  /* Behind the notes the page wears the phone's one veil, the drawer's (tokens.css --surface-veil; Ruben, 7 Oct 2026:
+     every card that rises on a phone, alike). It wore the ink's wash, which lightened a dark page, and then none (Ruben,
+     2 Oct: no fade, no lightening). A tap on it closes the sheet. */
+  .tbn-backdrop { bottom: var(--foot-clear, 0px); background: var(--surface-veil); mask-image: var(--foot-fade, none); }
+  /* The glass of every sheet and menu (kit.css, "What pops over the page"; the popover's own panel-pop), at the corners
+     of every phone sheet: it stood on the solid with a hairline over it, beside the account's menu in glass. It floats
+     clear of the sides and the foot, and is cut at its rest's line as it rises, drops and is pulled, as every phone
+     sheet is (tokens.css --sheet-float and --sheet-foot, kit.css --sheet-down). */
+  .tbn-pop {
+    top: auto; right: var(--sheet-float, 0px); bottom: var(--sheet-foot, 0px); left: var(--sheet-float, 0px); max-width: none; max-height: 82vh; max-height: 82dvh;
+    border-radius: var(--radius-sheet);
+    padding-bottom: max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-foot, 0px)); overscroll-behavior-y: none;
+    clip-path: inset(-100vmax -100vmax var(--sheet-down) -100vmax);
+    animation: sheet-in 260ms var(--ease-out);
+    --tbn-out: sheet-out;
+    --tbn-out-ms: 180ms;
+  }
+  .tbn-handle { display: block; flex: none; width: 36px; height: 4px; margin: 8px auto 2px; border-radius: var(--radius-full); background: var(--line-strong); }
+  .tbn-head { padding: 6px 16px 10px; }
+  .tbn-title { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+  /* The sheet moves under a pull at the top, not its list, and the list has no rubber band at either end (#1063). */
+  .tbn-list { overscroll-behavior: none; }
+  .tbn-backdrop[data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
+}
+/* A day's head stands over the notes scrolling under it on the pop's solid, at every width. A blur of its own inside the
+   popover's glass read nothing (a backdrop-filter nested in another's), so on a desk the first note's words stood
+   crisp under "New" as the list scrolled. */
+.tbn-sec { position: sticky; top: 0; z-index: 2; padding: 8px 18px 6px; font-size: var(--text-sm); font-weight: 500; color: var(--ink-dim); background: var(--surface-pop-fill); border-bottom: 1px solid var(--line); }
+.tbn-title { flex: 1; }
+.tb-bell.ping .icon { animation: bell-swing 0.9s var(--ease-out); transform-origin: 50% 2px; }
+@keyframes bell-swing { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(13deg); } 45% { transform: rotate(-10deg); } 70% { transform: rotate(6deg); } 85% { transform: rotate(-3deg); } }
+.tb-bell.ping .tb-bell-badge { animation: badge-pop 0.5s var(--ease-out); }
+@keyframes badge-pop { 0% { transform: scale(0.4); } 70% { transform: scale(1.3); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .tb-bell.ping .icon, .tb-bell.ping .tb-bell-badge { animation: none; } }
+
+/* ---------- Agent Studio ---------- */
+.studio { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.sd-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr);
+  gap: 16px;
+  padding: 16px 28px 40px;
+  align-items: start;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.sd-form { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sd-preview { position: sticky; top: 0; min-width: 0; }
+.sd-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  padding: 8px 11px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+  margin-bottom: 8px;
+  transition: border-color 120ms, background 120ms;
+}
+.sd-input:focus { border-color: var(--ink-faint); background: var(--bg); }
+.sd-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.sd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 120ms;
+}
+@media (hover: hover) { .sd-chip:hover { border-color: var(--ink-faint); color: var(--ink); } }
+.sd-chip.on { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+.sd-chip.on .icon { color: var(--bg); }
+.sd-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.sd-memnote {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+}
+.sd-prev-head { display: flex; align-items: center; gap: 12px; }
+.sd-sample { margin: 6px 0 12px; }
+.sd-sample .st-modal-label { margin-bottom: 6px; }
+.sd-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+@media (max-width: 900px) { .sd-body { grid-template-columns: 1fr; padding: 16px; } .sd-preview { position: static; } }
+
+/* ---------- Shareable views ---------- */
+.rp-share-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.rp-share-link .icon { color: var(--ink-faint); }
+.rp-share-url { flex: 1; min-width: 0; font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shared-root { height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); overflow: hidden; }
+.shared-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-sunken);
+  flex-shrink: 0;
+}
+.shared-banner-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+.shared-banner-meta { font-size: var(--text-xs); color: var(--ink-dim); }
+.shared-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+@media (max-width: 900px) { .shared-banner { flex-wrap: wrap; row-gap: 6px; padding: 10px 14px; } }
+
+/* ---------- Campaigns: Content + Broadcasts ---------- */
+.ct-page { padding: 24px var(--gutter-page) 80px; max-width: var(--measure-page); display: flex; flex-direction: column; gap: 20px; width: 100%; }
+.ct-h2 { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; color: var(--ink); margin: 0; }
+.ct-sub { font-size: var(--text-sm); color: var(--ink-muted); margin: 4px 0 0; max-width: 560px; line-height: 1.5; }
+.ct-section { display: flex; flex-direction: column; gap: 10px; }
+.ct-sec-head { display: flex; align-items: baseline; gap: 10px; }
+.ct-sec-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+.ct-sec-meta { font-size: var(--text-xs); color: var(--ink-dim); }
+.ct-drafts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ct-card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; gap: 10px; transition: opacity 160ms; }
+.ct-card.skipped { opacity: 0.55; }
+.ct-card-top { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
+.ct-visual { height: 110px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); }
+.ct-visual.peach { background: var(--accent-soft); }
+.ct-visual.sage { background: var(--ok-soft); }
+.ct-visual-glyph { font-size: var(--text-2xl); font-weight: 600; color: var(--ink-muted); letter-spacing: 0.04em; }
+.ct-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+.ct-cap { font-size: 12px; color: var(--ink-muted); line-height: 1.5; margin: 0; }
+.ct-by { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--ink-dim); }
+.ct-by .icon { color: var(--accent); }
+.ct-actions { display: flex; gap: 6px; align-items: center; margin-top: 2px; }
+.ct-done-note { font-size: var(--text-xs); color: var(--ink-dim); font-style: italic; }
+.ct-week-wrap { overflow-x: auto; scrollbar-width: thin; }
+.ct-week { display: grid; grid-template-columns: repeat(7, minmax(128px, 1fr)); gap: 8px; }
+.ct-day { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; }
+.ct-day.today { border-color: var(--accent); }
+.ct-day-head { display: flex; align-items: baseline; gap: 5px; }
+.ct-day-dow { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+.ct-day-num { font-size: 12px; font-weight: 500; color: var(--ink); }
+.ct-day-today { margin-left: auto; font-size: 9px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent); }
+.ct-mini { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; display: flex; flex-direction: column; gap: 3px; }
+.ct-mini.sched { border-color: var(--accent); }
+.ct-mini.held { border-style: dashed; }
+.ct-mini-top { display: flex; align-items: center; gap: 5px; }
+.ct-mini-dot { width: 6px; height: 6px; border-radius: 2px; background: var(--ink-muted); flex-shrink: 0; }
+.ct-mini-dot.story { border-radius: var(--radius-full); background: var(--info); }
+.ct-mini-dot.collab { background: var(--warn); }
+.ct-mini-time { font-size: 9.5px; color: var(--ink-dim); }
+.ct-mini-title { font-size: var(--text-xs); color: var(--ink); line-height: 1.35; }
+.ct-mini-stats { font-size: 9.5px; color: var(--ink-dim); }
+.ct-mini-stats.sched { color: var(--accent); font-weight: 500; }
+.ct-mini-stats.held { color: var(--warn); }
+.ct-ghost { border: 1px dashed var(--line); border-radius: 5px; padding: 8px; font-size: 10.5px; color: var(--ink-faint); background: transparent; transition: all 120ms; cursor: pointer; }
+@media (hover: hover) { .ct-ghost:hover { color: var(--ink-muted); border-color: var(--ink-faint); } }
+.ct-week-foot { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-dim); line-height: 1.5; }
+.ct-week-foot .icon { color: var(--ink-faint); flex-shrink: 0; }
+
+.bc-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+@media (max-width: 900px) {
+  .ct-drafts { grid-template-columns: 1fr; }
+  .ct-week { width: max-content; }
+}
+
+/* Collab mini is clickable — follows the partnership decision */
+.ct-mini-link { text-align: left; width: 100%; cursor: pointer; transition: border-color 120ms; }
+@media (hover: hover) { .ct-mini-link:hover { border-color: var(--accent); } }
+
+/* Sidebar agent strip: paused overlay */
+.sb-agent-paused .sb-agent-name { color: var(--ink-muted); }
+.sb-agent-paused .sb-agent-task { font-style: italic; }
+
+/* Notification per-item dismiss */
+.tbn-item { position: relative; }
+.tbn-x {
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  right: 8px;
+  width: 22px; height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.85);
+  transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out), background 120ms, color 120ms;
+}
+.tbn-item:hover .tbn-x, .tbn-x:focus-visible { opacity: 1; pointer-events: auto; transform: none; }
+/* A touch screen has no hover to show it, so there the × is always in the row (it waited for the pointer, and a phone
+   could only Mark all read, 25 Sep). It keeps its size; its press area is a thumb wide, and the time moves over for it. */
+@media (hover: none) {
+  .tbn-x { opacity: 1; pointer-events: auto; transform: none; }
+  /* Its own 22px (the touch floor stretched it to 22 by 44); the press area is the thumb's 44 square, but no wider
+     than the note: 8px of it past the × on the note's side, 14 before it, so the list is never wider than itself. */
+  html.frame-on .tbn-x { min-height: 22px; }
+  .tbn-x::after { content: ""; position: absolute; inset: -11px -8px -11px -14px; }
+  .tbn-item:not(.tbn-item-group) .tbn-line1 { padding-right: 24px; }
+}
+/* Only where a pointer hovers (iOS keeps :hover on what lands under the finger, see .tbn-open). The × takes the time's
+   place on hover; a group has no ×, so it keeps its time. */
+@media (hover: hover) {
+  .tbn-x:hover { color: var(--danger); background: var(--danger-soft); }
+  .tbn-item:not(.tbn-item-group):hover .tbn-time { opacity: 0; }
+}
+.tbn-x:active { transform: scale(0.9); }
+.tbn-time { transition: opacity 120ms var(--ease-out); }
+
+/* Non-interactive info elements with tips read as "explainable", not clickable */
+.cl-temp-pill, .fcard-trust-line, .st-cap, .lm-callid { cursor: help; }
+
+/* Parent nav row hints at the active child route */
+.nav-item.parent-active > span:first-of-type,
+.nav-item.parent-active .icon { color: var(--ink); }
+.nav-item.parent-active { background: var(--bg-hover); }
+
+/* Role-gated controls (window.gate). They stay focusable and say why on hover,
+   focus and press, so they look unavailable without taking the hover and press
+   states of a control that works. */
+.btn[data-gated], [data-gated]{opacity:.55;cursor:not-allowed}
+.cl-attn-cta[data-gated]:hover { filter: none; }
+
+/* Topbar presence toggle */
+.tb-presence{font-size:11.5px;gap:6px}
+.tb-pres-dot{width:7px;height:7px;border-radius:var(--radius-full);background:var(--ok);display:inline-block}
+.tb-pres-dot.off{background:var(--ink-faint)}
+
+.tb-pres-dot.away{background:var(--warn)}
+
+/* Confidence as language, not dots */
+.conf-word { font-size: 9.5px; font-weight: 600; letter-spacing: 0.02em; padding: 2px 8px; border-radius: var(--radius-full); white-space: nowrap; flex-shrink: 0; }
+.conf-word.conf-high { color: var(--ok); background: var(--ok-soft); }
+.conf-word.conf-med { color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); }
+.conf-word.conf-low { color: var(--warn); background: color-mix(in oklab, var(--warn) 12%, transparent); }
+/* On a phone every strip's sides are the rows' 16px gutter, and it sits flush under the bar: a tab is a thumb tall on a
+   touch screen already (frame.css), so the strip adds nothing over it. The strip is the kit's (kit.css), and this
+   rule of it stays here: the kit's one breakpoint is 900px, and 720px is the phone's own until the frame moves. */
+
+/* ---------- Attachments in a thread ---------- */
+.tl-media { display: block; margin-top: 6px; max-width: 280px; }
+/* A photo sits with the bubble it came in, so it is cut to the same 14px. */
+.tl-media img { display: block; max-width: 100%; max-height: 280px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg-sunken); }
+.tl-media-audio { width: 280px; max-width: 100%; }
+.tl-media-video { max-width: 100%; border-radius: 10px; }
+.tl-media-file { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--accent); text-decoration: none; }
+@media (hover: hover) { .tl-media-file:hover { text-decoration: underline; } }
+.tl-media-missing { font-size: 11.5px; color: var(--ink-dim); }
+
+/* ---------- Why the receptionist said it ---------- */
+/* Why it said that. It was a span whose reason lived in a title attribute — which a touch screen
+   has no way to open — riding a meta line it helped wrap into columns. A button now, with two
+   labels: a phone says "Why", a desktop has room for the summary itself. */
+.tl-msg-why {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: 2px;
+  font: inherit;
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+@media (hover: hover) { .tl-msg-why:hover { color: var(--ink); } }
+/* A thumb's reach without a thumb's height. frame.css gives every button on a touch screen a
+   44px minimum, and this one lives in a 10px line: the line under every reply that remembered
+   why swelled from 16px to 44px. The box keeps the word's size; an ::after takes the reach —
+   37x44 on production — and no room. (frame.css already exempts inline text-buttons from this
+   rule for the same reason; this is one.) */
+html.frame-on .tl-msg-why { position: relative; min-height: 0; }
+.tl-msg-why::after { content: ""; position: absolute; inset: -14px -8px; }
+.tl-msg-why:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.tl-msg-why-short { display: none; }
+.tl-msg-why-panel {
+  margin-top: 4px;
+  max-width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--ink-dim);
+  text-align: left;
+}
+.tl-msg-why-sum { color: var(--ink); font-weight: 500; }
+.tl-msg-why-facts { margin-top: 3px; color: var(--ink-faint); }
+.ix-veto-why { font-size: var(--text-xs); color: var(--ink-muted); margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42%; }
+
+/* ---------- The text whisper: rewrite a held draft ---------- */
+.ix-steer { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); color: var(--ink-dim); }
+.ix-steer-input { flex: 1; min-width: 0; font: inherit; font-size: var(--text-sm); padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--ink); }
+.ix-steer-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-field); }
+
+/* ---------- The bell's foot: device alerts ---------- */
+.tbn-foot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }
+.tbn-foot-note { display: block; }
+/* This device's alerts: its words, and the kit's switch beside them, the one Settings > Notifications' This device card
+   draws, which says on or off itself. It was a 9px ring that read as a choice not taken. */
+.tbn-alert { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; color: var(--ink-muted); }
+
+/* ---- Templates hidden from the composers: still listed, under the rest ---- */
+.set-int-row.is-hidden { opacity: 0.55; }
+.set-int-row.is-hidden:hover { opacity: 0.85; }
+
+/* ---------- Sidebar v3: the rail, the menus, the shell's status, the sheet ---------- */
+/* The workspace block and the account chip are buttons now (menus open from them). */
+.sb-team, .user-chip { width: 100%; text-align: left; font: inherit; color: inherit; }
+.sb-team:focus-visible, .user-chip:focus-visible, .sb-collapse:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.sidebar.collapsed .sidebar-label,
+.sidebar.collapsed .nav-hint,
+.sidebar.collapsed .sb-team-body,
+.sidebar.collapsed .sb-team > .icon,
+.sidebar.collapsed .user-chip .who,
+.sidebar.collapsed .sb-chev,
+.sidebar.collapsed .sb-collapse-label { display: none; }
+/* Both buttons open a menu and say so with the same chevrons, in the dim ink: the workspace row's and the account chip's. */
+.sb-chev { flex-shrink: 0; color: var(--ink-dim); }
+.sidebar.collapsed .nav-item { justify-content: center; padding: 9px 0; }
+/* The rail draws no labels, so its groups keep no room over and under them: with 4px each, three pairs of icons stood 11px
+   apart and the rest 3 (Ruben, 7 Oct 2026). */
+.sidebar.collapsed .sidebar-section { padding: 0 6px; }
+.sidebar.collapsed .sb-team { justify-content: center; padding: 14px 0 10px; }
+.sidebar.collapsed .sidebar-foot { padding: 8px 6px; }
+.sidebar.collapsed .user-chip { justify-content: center; padding: 8px 0; }
+.sidebar.collapsed .sb-collapse { justify-content: center; padding: 8px 0; }
+.nav-dot { position: absolute; top: 7px; right: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-dim); }
+.nav-dot.urgent { background: var(--warn); }
+
+.sb-collapse {
+  align-items: center; gap: 8px; width: 100%;
+  padding: 6px 10px; margin-bottom: 4px;
+  border-radius: var(--radius-sm); color: var(--ink-dim); font-size: 11.5px;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) { .sb-collapse:hover { background: var(--bg-hover); color: var(--ink); } }
+.sb-collapse .kbd { margin-left: auto; }
+
+/* Menus are drawn on the page, anchored to their trigger, so the rail can open them too. */
+.sb-menu { position: fixed; top: auto; right: auto; max-width: 300px; max-height: min(520px, 84vh); }
+/* On a phone the sidebar is a drawer, and its two menus are the phone's action sheet, as every menu of the kit's is there
+   (kit.css, the Menu under 900px; named by where it is placed, frame/sidebar/sidebar-menus.tsx `data-sb-place`): from the screen's foot, edge to edge, a handle, each item a thumb tall. Opened over
+   its row, the account's covered the drawer's places, the workspace's hung off a row a thumb had just left, and one
+   placed from a row still sliding in stood off the screen (Ruben, 7 Oct 2026). */
+@media (max-width: 900px) {
+  /* Behind it the phone's one veil, as behind every menu and sheet a phone raises (the kit's Menu, the drawer). */
+  [data-sb-wash="foot"] {
+    background: var(--surface-veil);
+  }
+  /* Floating clear of the sides and the foot, and cut at its rest's line as it rises, as the kit's menu is (tokens.css
+     --sheet-float and --sheet-foot, kit.css --sheet-down). */
+  [data-sb-place="foot"] {
+    inset: auto var(--sheet-float) var(--sheet-foot);
+    width: auto;
+    max-width: none;
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 6px 10px calc(14px + max(0px, env(safe-area-inset-bottom) - var(--sheet-foot)));
+    border-radius: var(--radius-sheet);
+    border-bottom: 0;
+    clip-path: inset(-100vmax -100vmax var(--sheet-down) -100vmax);
+    animation: more-sheet-in 220ms var(--ease-out);
+  }
+  [data-sb-place="foot"]::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 4px auto 12px;
+    border-radius: var(--radius-full);
+    background: var(--line-strong);
+  }
+  [data-sb-place="foot"][role="menu"] > button {
+    min-height: 52px;
+    padding: 0 12px;
+    gap: 14px;
+    font-size: var(--text-md);
+  }
+}
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  [data-sb-place="foot"] {
+    animation: none;
+  }
+}
+.sb-menu-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+/* The face at the menu's head is the sidebar's: 32px, the inset, the initials in ink (Ruben, 11 Oct 2026). */
+.sb-menu-head .avatar {
+  width: 32px; height: 32px; border-radius: var(--radius-full); flex-shrink: 0;
+  border: 1px solid var(--surface-inset-edge); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth);
+  color: var(--ink); display: grid; place-items: center; font-size: var(--text-xs); font-weight: var(--weight-semibold);
+}
+.sb-menu-head .who { min-width: 0; flex: 1; line-height: 1.25; }
+.sb-menu-head .name { font-size: var(--text-sm); font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-menu-head .email { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-role { flex: none; }
+/* A workspace in the menu wears the sidebar's circle: the face's inset, its logo over its initials, the initials in the
+   accent as the row's are, so a workspace never reads as a member's face (Ruben, 11 Oct 2026). */
+.sb-ws-mark {
+  position: relative; overflow: hidden;
+  width: 22px; height: 22px; border-radius: var(--radius-full); flex-shrink: 0;
+  border: 1px solid var(--surface-inset-edge); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth);
+  color: var(--accent); display: grid; place-items: center;
+  font-size: 9px; font-weight: var(--weight-semibold);
+}
+.sb-ws.active .more-item-label { color: var(--ink); font-weight: 500; }
+.sb-ws-role { margin-left: 6px; font-size: 10.5px; color: var(--ink-dim); font-weight: 400; }
+.sb-theme-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 2px 6px 6px; }
+.sb-theme-opt {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 6px 4px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  color: var(--ink-muted); font-size: 11.5px;
+}
+@media (hover: hover) { .sb-theme-opt:hover { color: var(--ink); background: var(--bg-hover); } }
+.sb-theme-opt.active { color: var(--ink); border-color: var(--ink-muted); background: var(--bg-hover); }
+
+/* The wash every sheet and dialog stands over: the scrim on a desk, the veil on a phone (tokens.css, --surface-wash),
+   which in an iPhone's browser stops short of the foot (tokens.css --foot-clear). */
+.sb-sheet-backdrop { position: fixed; inset: 0 0 var(--foot-clear, 0px); z-index: 400; background: var(--surface-wash); mask-image: var(--foot-fade, none); }
+.sb-sheet {
+  /* Centred in what the phone shows over its keyboard (--kb, kit/motion/keyboard.ts watchKeyboard). */
+  position: fixed; z-index: 401; left: 50%; top: calc(50% - var(--kb, 0px) / 2); transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 32px)); max-height: calc(80vh - var(--kb, 0px)); max-height: calc(80dvh - var(--kb, 0px)); overflow: auto;
+  /* The glass every sheet and menu wears (kit.css, "What pops over the page"): the pop's glass ground under the control
+     layer's sheen and blur, its specular edge and depth in place of a hairline. */
+  border: 0; border-radius: var(--surface-pop-radius); background-color: var(--surface-pop-glass);
+  background-image: var(--surface-control-sheen); backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-control-depth); padding: 14px 18px 18px;
+}
+.sb-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.sb-sheet-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+.sb-sheet-group { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); padding: 12px 0 4px; }
+.sb-sheet-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: var(--text-sm); color: var(--ink); border-top: 1px solid var(--line); }
+.sb-sheet-keys { display: inline-flex; align-items: center; gap: 4px; }
+.sb-sheet-sep { font-size: var(--text-xs); color: var(--ink-dim); padding: 0 2px; }
+
+/* ---- The quiet link button ----
+   Words that act, with no ground. Drawn by Confirm, EmptyState and FailedRead and by pages across the shell; its name
+   is People's, where it began, and the kit renames it once pages draw from the kit. Its danger form is red at rest
+   and ink when hovered, so the hover comes after it. */
+.cl-bucket-link {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cl-bucket-link.danger { color: var(--danger); }
+@media (hover: hover) { .cl-bucket-link:hover { color: var(--ink); } }
+.int-soon-list { font-style: normal; line-height: 1.6; }
+.int-soon-list b { color: var(--ink); font-weight: 500; }
+
+
+/* A view on its way -- the loading standard's one rule, for any page whose view is being read: what is on screen stays
+   (never a blank, never a skeleton over rows already there), and what the view marks data-dims fades a little and
+   takes no presses until the view lands. The view itself wears data-loading, and aria-busy for a screen reader. The
+   fade waits 150ms, so a view painted from what the tab already holds never dims at all; the rows that land come
+   back at once (the delay is the dimmed state's own transition, so it applies on the way in only). */
+[data-dims] { transition: opacity 120ms ease; }
+[data-loading] [data-dims] { opacity: 0.45; pointer-events: none; transition-delay: 150ms; }
+@media (prefers-reduced-motion: reduce) { [data-dims] { transition: none; } }
+
+/* A route whose surface has not landed: the pane the page will fill stays empty (surfaces/frame/shell-chrome.tsx, the route view) and
+   says so after a beat -- one muted line at the page's gutter, so a surface that lands fast is never said. Never a
+   skeleton: the one that stood here matched no page and moved every page when it left. The animation IS the delay
+   (fill-mode both holds the words at the from-frame until 600ms), so it is never set to none, under reduced motion
+   included: a fade of opacity alone is not motion. */
+.route-reading { padding: 14px var(--gutter-page); font-size: 11.5px; color: var(--ink-dim); animation: route-reading-in 200ms var(--ease-out) 600ms both; }
+@keyframes route-reading-in { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 900px) { .route-reading { padding: 12px 16px; } }
+
+/* ====================================================================
+   ONE APPOINTMENT ON A LIST — components/day-agenda.jsx
+   ==================================================================== */
+/* Today's day and the Calendar's agenda (calendar.css .cal-agenda-*) each drew this row, in their own grid and
+   their own sizes: 56px of time against 120px, 12.5px names against 12.5px titles in the other order, a rail on
+   one and none on the other. The numbers below are Today's, which is the one the two shared; Today's day pane is
+   gone (canvas E3 folds the day into the strip) and the Calendar's agenda is the one page that draws it now. A page
+   keeps its own day heading, its own press, and its own words above and below the list. */
+.ag-items {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+/* The rail behind the dots: the time column (56px) plus its gap (8px) plus the rail's own 12px, less the 2px
+   line's half — so it runs through the middle of every dot. */
+.ag-items::before {
+  content: "";
+  position: absolute;
+  left: 69px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--line);
+}
+.ag-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px 12px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: start;
+  width: 100%;
+  padding: 7px 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .ag-item:hover .ag-item-name {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+.ag-item-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  text-align: right;
+  padding-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.ag-item-rail {
+  position: relative;
+  width: 12px;
+  height: 17px;
+}
+.ag-item-rail::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  box-shadow: 0 0 0 2px var(--bg-raised);
+}
+.ag-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* Long words wrap inside their own column; past two lines it is cut rather than pushing the row taller. */
+.ag-item-name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* A visit said off (cancelled): struck, in the dim ink, as the calendar's board strikes its block. */
+.ag-item[data-struck] .ag-item-name {
+  color: var(--ink-dim);
+  text-decoration: line-through;
+}
+.ag-item-sub {
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Their thread needs someone: amber, as "needs you" is on every badge; never the coral accent, never the red of a failure. */
+.ag-item-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  color: var(--warn-ink);
+}
+.ag-item-flag::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+/* What kind of visit it is, as the one mark (.mark). */
+.ag-item-glyph { margin-top: 1px; }
+/* Against the clock, on today's list only. */
+.ag-item.past {
+  opacity: 0.55;
+}
+.ag-item.now .ag-item-time {
+  color: var(--accent);
+}
+.ag-item.now .ag-item-rail::after {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.ag-item.next .ag-item-rail::after {
+  background: var(--ink-muted);
+}
+/* What the receptionist would offer, under the rows. */
+.ag-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+}
+.ag-open-label {
+  margin-right: 2px;
+  color: var(--ink-dim);
+}
+/* The times it would offer, said after the page's label as one line ("Open 3 – 5 PM · 9:30 – 10:30 AM"): numbers as
+   words, not a row of outlined badges in a private green. */
+.ag-window {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ag-window + .ag-window::before { content: "·"; margin-right: 6px; color: var(--ink-faint); }
+.ag-none {
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+}
+
+/* ====================================================================
+   HOW THINGS COME AND GO — one motion for every overlay
+   A dialog, a sheet or a palette appeared and went in a single frame: a hard cut on the calm page around it. Each
+   now comes in the way it sits -- a centred dialog rises a few pixels as it fades up, a side sheet slides in from its
+   edge, a sheet from the bottom of a phone rises from there -- and the wash behind it fades. It leaves the same way,
+   faster and speeding up as it goes (--ease-in), by a still copy of itself React no longer holds (kit/motion/leaving.ts
+   leaving, [data-leaving]). A thumb that pulls one away moves it with the finger first (kit/motion/swipe.ts touchSwipe).
+   Only `translate`, `scale` and `opacity` move, never `transform` itself, so a sheet centred by its own transform, or
+   dragged by the finger's, keeps it. Menus, toasts, the lead's peek, the fold's sheet and a route already move; this
+   is the rest, on the same tokens. Nothing here moves under reduced motion.
+   ==================================================================== */
+@keyframes pop-in { from { opacity: 0; scale: 0.97; } }
+
+/* Coming in. Ask's palette and the Calendar's dialog (.ask-overlay, .ask-modal) have their own fade and slide
+   (dashboard-a-v2.css, and Ask's in ask.css); here they gain their leaving.
+   A rule that tells the kit's sheets apart keeps its specificity at one class (:where), so the reduced-motion block at
+   the end, later and equal, wins: written as :not(), it outranked that block and the sheet slid in under reduced motion
+   (the Business journey caught it, 24 Sep). */
+.sb-sheet-backdrop, .rec-sheet-backdrop:where(:not([data-fold])), .ld-lightbox-backdrop, .nav-backdrop {
+  animation: wash-in var(--duration-base) var(--ease-out);
+}
+.sb-sheet, .ld-lightbox { animation: modal-in 240ms var(--ease-out); }
+.cl-health-pop { transform-origin: top left; animation: pop-in var(--duration-base) var(--ease-out); }
+/* What answers a press in place: a figure's receipt, and Confirm's panel (the line's own is the kit's, kit.css). */
+.confirm-block, .tc-receipt { animation: nudge-in var(--duration-base) var(--ease-out); }
+
+/* Going out: a still copy, played once and removed (kit/motion/leaving.ts leaveOverlay). Nothing in it takes a press. */
+[data-leaving="true"] { pointer-events: none; }
+.ask-overlay[data-leaving="true"], .sb-sheet-backdrop[data-leaving="true"],
+.rec-sheet-backdrop[data-leaving="true"]:not([data-fold]), .ld-lightbox-backdrop[data-leaving="true"] {
+  animation: wash-out 160ms var(--ease-in) forwards;
+}
+.ask-overlay[data-leaving="true"] .ask-modal, .sb-sheet[data-leaving="true"], .ld-lightbox[data-leaving="true"] {
+  animation: modal-out 160ms var(--ease-in) forwards;
+}
+
+/* A fold drawn as a sheet beside a desktop page (record-fold.jsx `frame`, Settings › Business) is a side sheet, and
+   comes and goes as one: its own transitions are the phone's (record.css), where it rises from the bottom.
+   This and the 760px block below are the record kit's, and stay here: the kit's one breakpoint is 900px (kit.css), and
+   the record kit turns at 760px until People's step of Phase 4 takes it to 900px. */
+@media (min-width: 761px) {
+  .rec-sheet:where(.rec-fold-sheet) { animation: side-in 260ms var(--ease-out); }
+  .rec-sheet-backdrop:where([data-fold]) { animation: wash-in var(--duration-base) var(--ease-out); }
+  .rec-sheet.rec-fold-sheet[data-leaving="true"] { animation: side-out 180ms var(--ease-in) forwards; }
+  .rec-sheet-backdrop[data-fold][data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
+}
+
+/* On a phone a sheet sits on the bottom edge, so it rises from there and drops back to it. A tall one (the kit's
+   sheet) travels its whole height; a short one (People's and Leads' sheets) the last 28px, as the template list and
+   the thread's Actions already do. Ask on a phone is no sheet but the whole screen (ask.css, the takeover): it fades
+   in, and leaves as a dialog does, by the kit's modal-out over its wash's wash-out, above. */
+@media (max-width: 900px) {
+  .sb-sheet.pl-plan { animation: sheet-in 260ms var(--ease-out); }
+  .sb-sheet.pl-plan[data-leaving="true"] {
+    animation: sheet-out 180ms var(--ease-in) forwards;
+  }
+}
+@media (max-width: 760px) {
+  .rec-sheet:where(:not(.rec-fold-sheet)) { animation: sheet-rise 300ms var(--ease-out); }
+  .rec-sheet:not(.rec-fold-sheet)[data-leaving="true"] { animation: sheet-drop 220ms var(--ease-in) forwards; }
+}
+@media (max-width: 720px) {
+  /* A sheet pulled by the finger moves, not its list: a list at its top does not stretch under the pull. The record
+     kit's sheet body is not named: its own overscroll-behavior (kit.css) came later and held, and still does. */
+  .sb-sheet, .pk-body, .ask-line-body { overscroll-behavior-y: none; }
+}
+
+/* An open thread going back to its list on a phone, under the thumb (thread.tsx ixGoing, data-going), or pushed in over
+   it: the list is drawn under the thread as it moves, so what is behind it is what it goes back to. The thread has no
+   ground of its own on a phone (inbox.css: the page's light shows through it), and wears none while it moves either:
+   the sheet of ground it slides over (.carry-ground, below) is the window's own picture, so the list under it never
+   shows through (both sets of words at once, Ruben, 17 Oct 2026), and the thread's ground is the window's to the pixel
+   as it lands. It moves over the frame's chrome, which is drawn again under it with the list (the top, 200, and the
+   Inbox's sending strip, 201; mobile.css, data-carrying), over the sheet (201), and under the drawer (210). */
+@media (max-width: 720px) {
+  .inbox[data-takeover][data-going] > .ix-list,
+  .conversations[data-takeover][data-going] > .cv-list { display: flex; grid-area: 1 / 1; }
+  .inbox[data-takeover][data-going] > .ix-thread-pane,
+  .conversations[data-takeover][data-going] > .ix-thread-pane {
+    grid-area: 1 / 1;
+    z-index: 202;
+  }
+}
+
+/* A list held under what it opened (kit motion/held-list.ts), or the still picture that stands in for one its page keeps
+   out of the document: where it stood on the screen, out of sight, taking no room and no touch, so the row's page has the
+   window. A thumb carrying that page away shows it under it (`data-held="shown"`), at the rows it was left on; the page
+   it goes back to paints over it (and over the frame's chrome while it moves: the thread above, a person's page in
+   clients.css). Whatever
+   a page's own rules say of its list's place (a desk's pane is relative), a held one stands out of the page. */
+[data-held] {
+  position: fixed !important;
+  z-index: 0;
+  box-sizing: border-box;
+  margin: 0;
+  visibility: hidden !important;
+  pointer-events: none;
+}
+[data-held="shown"] {
+  visibility: visible !important;
+}
+/* A picture of a list (a still copy: inert) is the list as it stood, drawn whole the frame it is shown: none of its rows
+   plays an entrance. A copy is a new element, so a row with an entrance of its own (rise-in, above) rose in again from
+   nothing: the picture a list lands under (kit motion/held-list.ts coverLanding) came in blank, its rows off. */
+[data-held][inert] * {
+  animation: none !important;
+}
+/* The sheet of ground a carried page slides over (kit motion/held-list.ts groundOver): the window's own picture, fixed to
+   the window and painted by the one rule every painter of the ground shares (mobile.css), moved with the page as a thumb
+   carries it or as it is pushed in (kit/motion/swipe.ts `along`). It stands over the frame's chrome drawn again under
+   the page (200), under the page (202) and under what the page drew in the frame's top (its still copies, 204), so the
+   page, which wears no ground of its own, slides over the light it lands on, to the pixel. It was a band as tall as the
+   frame's top, and the page laid the rest of its ground itself, offset by a measure of where it stood that was read a
+   microtask too soon (Ruben, 22 Oct 2026). Its shadow is the page's, on the leading edge alone (the clip reaches left
+   for it). It stops --foot-clear short of the window's foot, off the point Safari reads a box fixed there to paint a
+   band under its bar from (tokens.css). */
+.carry-ground {
+  position: fixed;
+  inset: 0;
+  z-index: 201;
+  pointer-events: none;
+  box-shadow: var(--shadow-lg);
+  clip-path: inset(0 0 var(--foot-clear, 0px) -64px);
+}
+
+/* A message that arrives while its thread is open rises into place; the ones it opened with are simply there. */
+.tl-arrived { animation: nudge-in 260ms var(--ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-overlay, .ask-modal, .sb-sheet, .sb-sheet-backdrop, .rec-sheet, .rec-sheet-backdrop, .ld-lightbox,
+  .ld-lightbox-backdrop, .nav-backdrop, .cl-health-pop, .confirm, .confirm-block, .tc-receipt, .tl-arrived,
+  .tbn-pop, .tbn-backdrop, [data-leaving="true"] { animation: none; }
+  .tbn-slot { transition: none; }
+  .stabs-tab { transition: none; }
+  .stabs-tab:active { transform: none; }
+}
+
+/* ============================================================
+   THE FRAME IN GLASS (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, step 5.3)
+   The shell's own chrome in the Glass look, after every desk board's frame in the canvases (Appendix C; liquid.py
+   sidebar, toolbar, live_pill, bell): the page lit, the sidebar floating, the top bar its capsules with the live call
+   as an island, and the strip of views set into the page. Each rule names the look inside :where(), so it weighs what
+   the rule it restyles weighs and comes after it, and reads the look's roles (tokens.css, GLASS); none matches in
+   Classic. The phone's drawer, its tab bar and Ask's glass circle beside it are mobile.css's.
+   ============================================================ */
+
+/* The page is lit: the three pools over the ground, which the frame's glass takes its colour from. */
+.app-root {
+  background-image: var(--surface-page-light);
+  background-repeat: no-repeat;
+}
+/* On a phone its top is plain paper under the phone's bar, the light coming in under it (tokens.css,
+   --surface-page-top). */
+@media (max-width: 900px) {
+  .app-root {
+    background-image: var(--surface-page-top), var(--surface-page-light);
+  }
+}
+
+/* The sidebar floats: the control layer's glass clear of the window's edges, at its own corner, with its sheen, its
+   rim and its depth, as tall as what it holds and never past the window (liquid.py sidebar). It does not blur: nothing
+   passes behind it but the page's light, which a blur does not change, and a blur would make it the containing block
+   of its own menus, which are fixed and placed against the window. A phone's drawer, which the page passes behind,
+   blurs from a layer of its own (mobile.css). */
+.sidebar {
+  position: relative;
+  align-self: start;
+  width: 232px;
+  max-height: calc(100% - 28px);
+  margin: 14px 0 14px 14px;
+  border-right: 0;
+  border-radius: var(--surface-control-radius);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
+}
+.sidebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+/* The sidebar's inside is the canvases' (E3): 14px over and under, 12px at the sides, the places in one run three
+   pixels apart with no group between them, the rail's own columns left to the collapsed rail. */
+.sidebar:not(.collapsed) {
+  padding: 14px 12px;
+}
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
+}
+.sidebar-section:first-child {
+  padding-top: 0;
+}
+/* A place in it: a 38px row rounded as the sidebar's inset, its glyph 18px and 12px from its name, the one you are on
+   the lozenge in ink and semibold, a hover an inset's fill. The glyph is the row's first child where the row has one
+   (the kit-primitives ratchet counts its class), and the doubled class outweighs the rail's own glyph rule. */
+.nav-item {
+  min-height: 38px;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-right: 12px;
+  gap: 12px;
+  border-radius: var(--radius-xl);
+  font-weight: var(--weight-medium);
+}
+.nav-item.nav-item > :first-child:not(span) {
+  width: 18px;
+  height: 18px;
+}
+@media (hover: hover) {
+  .nav-item:hover {
+    background: var(--surface-inset-fill);
+  }
+}
+.nav-item.active,
+.nav-item.urgent.active {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+  font-weight: var(--weight-semibold);
+}
+/* A place is a link Tab reaches (sidebar.tsx): its ring over the lit row's depth, which took the house's (the :where()
+   rule is zero specificity). */
+.nav-item:focus-visible,
+.nav-item.urgent.active:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* On the light side the picked place's glyph is the tab's coral, as the phone's tab bar lights its picked place (kit.css
+   .tab-bar-glyph); the dark side keeps its white lozenge alone. */
+:where([data-theme="light"]) .nav-item.active > :first-child:not(span) {
+  color: var(--tab-ink);
+}
+/* A place's count is the neutral count, filled, as the canvases' sidebar draws it: never a warning's colour. */
+.nav-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--count-fill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  color: var(--count-ink);
+}
+/* The canvases' sidebar says a place's name and its count, nothing beside them: the hint ("Live brief") is Classic's. */
+.nav-hint {
+  display: none;
+}
+/* The workspace's mark and the member's face are insets of the sidebar's glass, in ink. */
+.sb-team-mark,
+.user-chip .avatar {
+  border: 1px solid var(--surface-inset-edge);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  color: var(--ink);
+}
+/* The workspace row: the three in a circle like the member's face (frame/sidebar/sidebar.tsx draws them in Glass), the name semibold
+   and under it only how many workspaces there are to switch between, where there is more than one (Ruben, 11 Oct 2026:
+   "1 of 1 line on" said again what Today says), no rule under the row; and the member's row under the rail's one hairline, a 32px face, the name semibold and the role under it, no
+   chip of its own. Each reached by its place, since the ratchet counts the mark's, the chip's and the face's names.
+   The row is as wide as the nav rows and lit as the chip is (below), its room under it a margin so the fill stays even. */
+.sidebar:not(.collapsed) .sb-team {
+  gap: 11px;
+  margin-bottom: 12px;
+  padding: 4px 8px;
+  border-bottom: 0;
+  border-radius: var(--radius-xl);
+}
+/* The workspace's circle is the member's face's, at its size and in its inset: its logo over its initials (00407), the
+   initials in the accent and the face's type, so the business's circle and a member's own face never read alike. */
+.sb-team > :first-child {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  color: var(--accent);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.sb-team-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.sb-team-plan {
+  margin-top: 1px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.sidebar:not(.collapsed) .sidebar-foot {
+  margin-top: 8px;
+  padding: 10px 8px 2px;
+  border-top: 1px solid var(--line);
+}
+/* The chip's fill reaches the foot's 8px past the face and the name, the nav rows' width, so they stand where they did. */
+.sidebar:not(.collapsed) .sb-account {
+  gap: 10px;
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-xl);
+}
+/* The two buttons that open a menu light as a nav row does: an inset's fill under a pointer, the ink lozenge while
+   their menu is open. */
+:is(.sb-team, .sb-account) {
+  background: transparent;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  :is(.sb-team, .sb-account):hover {
+    background: var(--surface-inset-fill);
+  }
+}
+:is(.sb-team, .sb-account)[aria-expanded="true"] {
+  background: var(--selected-fill);
+  box-shadow: var(--selected-depth);
+}
+.sb-account > :first-child {
+  width: 32px;
+  height: 32px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.sidebar-foot .who .name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+.sidebar-foot .who .email {
+  font-size: var(--text-xs);
+}
+
+/* The top bar is its capsules (liquid.py toolbar): the bar no ground and no rule of its own, the crumbs where they
+   were, and each control a capsule of the control layer's glass with its rim: Ask's wide one with its key, the bell
+   and the theme round. The page's own act beside them is the kit's button. The capsules blur what is behind them on
+   a desk; under 900px, where the bell stands alone over the page's still light, a blur changes nothing a person can
+   see, and a phone spends one only where the page moves behind the glass (the tab bar, Ask's circle, the drawer). */
+/* The canvases open every page 28px from the top, level with the sidebar's first row (its 14px margin and 14px of
+   padding): the row of controls is 40px tall there, and the page's name stands 8px under it (E3, I1; Ruben, 1 Oct
+   2026: the greeting sat 14px under the bar and 28px over the strip, where E3 has 8 and 14). The bar keeps no room
+   under its controls; the head's slot sets the eight. */
+.topbar {
+  height: 68px;
+  padding: 28px var(--gutter-page) 0;
+  border-bottom-color: transparent;
+  background: transparent;
+}
+.tb-ask,
+.topbar :is(.tb-bell, .tb-theme) {
+  position: relative;
+  height: 40px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--surface-control-fill);
+  box-shadow: var(--surface-control-depth);
+}
+@media (min-width: 901px) {
+  .tb-ask,
+  .topbar :is(.tb-bell, .tb-theme) {
+    backdrop-filter: var(--surface-control-blur);
+  }
+}
+/* Ask's capsule at the canvases' 280 by 40, its words a size up and regular, ten pixels from the three; the bell the
+   same 40 round. */
+.tb-ask {
+  width: 280px;
+  gap: 10px;
+  padding: 0 12px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+}
+@media (hover: hover) {
+  .tb-ask:hover {
+    background-color: var(--surface-control-fill);
+  }
+}
+/* The line in the bar's middle on a desk (topbar.tsx TbLine; the page heads canvas, H2, 31 Oct 2026): Ask's capsule held
+   to the middle of the bar whatever stands beside it, so it never moves from page to page, the canvas's 560 wide or a
+   share of a narrow bar. On a narrow desk the middle comes too close to the date's place at the bar's left (the longest
+   day and hour, "WEDNESDAY, SEPTEMBER 30 · 12:42 PM", is about 260px in the mono), so there the line begins clear of it,
+   `--line-from`, and ends clear of the bell. Where it is the page's search its words are typed in it, the placeholder in
+   the dim ink the capsule's words wore, and Ask's own button comes in at its right as there are words to ask about. A
+   tablet's and a phone's are below and in mobile.css. */
+@media (min-width: 901px) {
+  .topbar {
+    position: relative;
+  }
+  .topbar > .tb-ask {
+    --line-half: min(280px, 22%);
+    --line-from: max(50% - var(--line-half), var(--gutter-page) + 272px);
+    position: absolute;
+    top: 28px;
+    left: var(--line-from);
+    width: min(2 * var(--line-half), 100% - var(--line-from) - var(--gutter-page) - 52px);
+    max-width: none;
+  }
+}
+.tb-line {
+  padding-right: 4px;
+  cursor: text;
+}
+.tb-line-words {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-overflow: ellipsis;
+}
+.tb-line-words::placeholder {
+  color: var(--ink-dim);
+  opacity: 1;
+}
+/* A box typed in wears the box's focus, the accent's hairline and its wash (the capsule has no border of its own), from a
+   pointer as from a key: never the keyboard's ring. */
+.tb-line:focus-within {
+  box-shadow: var(--focus-field-edged), var(--surface-control-depth);
+}
+.topbar :is(.tb-bell, .tb-theme) {
+  width: 40px;
+  color: var(--ink-muted);
+}
+/* The bell held open wears what a pointer on it does: the wash over the page keeps the pointer off it, so it read idle. */
+@media (hover: hover) {
+  .topbar :is(.tb-bell, .tb-theme):is(:hover, [aria-expanded="true"]) {
+    background-color: var(--surface-control-fill);
+    color: var(--ink);
+  }
+}
+/* A key's focus draws the house's ring over the capsule's own depth, which would otherwise outrank the ring's rule
+   (NUANCE PASS, above). */
+.tb-ask:focus-visible,
+.topbar :is(.tb-bell, .tb-theme):focus-visible {
+  box-shadow: var(--focus-ring), var(--surface-control-depth);
+}
+/* Under a finger the house's floor makes every button 44px tall (frame.css): the round two take 44px across too, so
+   they stay circles and never turn into ovals. */
+@media (pointer: coarse) {
+  .topbar :is(.tb-bell, .tb-theme) {
+    width: 44px;
+    height: 44px;
+  }
+}
+.tb-ask::after,
+.topbar :is(.tb-bell, .tb-theme)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--surface-control-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+/* The canvases' top bar is Ask and the bell: the theme is chosen in the account menu, under the member's name. */
+.topbar .tb-theme {
+  display: none;
+}
+/* Unread on the bell is the canvases' dot, coral, at the icon's shoulder; the count stays in the label a reader hears.
+   The tally is the bell's one span (its glyph is an svg), reached so, since the kit-primitives ratchet counts its name. */
+.topbar .tb-bell > span {
+  top: 9px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: none;
+  color: transparent;
+  overflow: hidden;
+}
+
+/* The live call is the island (liquid.py live_pill): always dark, as the hardware it borrows from, so it sets its own
+   inks and its own coral, which its dot, its clocks and its bars read. It lives in the header's row, never on the page
+   (Ruben, 20 Oct 2026): on a desk wider than 1280px in the row's middle, clear of the date and the capsules; narrower,
+   and on a phone, in the date's place at the row's left, the date standing down while a call is up (from 901 to about
+   1250px the row had no room between the date and Ask's capsule for it in the middle). Where the date's place holds a way
+   back (a person's ‹ People, a pane's ‹ Settings), or a phone's thread or call has taken the screen with its own head,
+   the island stands under the top bar instead, as it did everywhere before: the way back is never covered. One call says
+   its caller and clock, two their first names and clocks, three or more the count alone (contracts liveBar). Still the
+   one door to Live, and a focus draws its ring over its depth.
+   Yesterday's visits nobody has marked stand in the same place while no call is up (frame/topbar/status-bars.tsx
+   UnmarkedVisitsBar; Ruben, 20 Oct 2026: off the Calendar's page, into the header, as the call is), and the call outranks
+   them. Your brief while it plays stands there too (frame/topbar/status-bars.tsx BriefPlaying, 8 Nov 2026), over the visits to
+   mark and under a call. Where the place is, below, is said once for all of them. */
+:is(.live-bar, .unmarked-bar, .brief-bar) {
+  position: absolute;
+  top: 30px;
+  left: var(--gutter-page);
+  z-index: 2;
+  align-self: center;
+  gap: 8px;
+  width: auto;
+  max-width: calc(100% - 2 * var(--gutter-page) - 340px);
+  min-height: var(--control-h-lg);
+  margin: 0;
+  padding: 0 4px 0 13px;
+  border: 0;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+.live-bar {
+  --ink: var(--surface-island-ink);
+  --ink-muted: oklch(from var(--surface-island-ink) l c h / 0.6);
+  --accent: var(--surface-island-accent);
+  --accent-ink: var(--surface-island-accent);
+  background: var(--surface-island-fill);
+  box-shadow: var(--surface-island-depth);
+}
+@media (hover: hover) {
+  .live-bar:hover {
+    background: var(--surface-island-fill);
+  }
+}
+.live-bar:focus-visible {
+  box-shadow: var(--focus-ring), var(--surface-island-depth);
+}
+/* The dot with its ring, the caller's name (or the count) in the semibold, what follows it in the muted ink, each clock
+   in the coral, the bars that move while a call lasts, and Open Live as a capsule inside the island. */
+.live-bar-dot {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+}
+.live-bar-dot::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--radius-circle);
+  background: color-mix(in oklab, var(--accent) 24%, transparent);
+}
+.live-bar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: var(--weight-semibold);
+}
+.live-bar-more,
+.live-bar-calls {
+  flex: none;
+  color: var(--ink-muted);
+}
+/* A count reads as one phrase, "12 calls on your line": its second half is the count's, not a muted aside. */
+.live-bar:not([data-count="1"]) .live-bar-more {
+  margin-left: -4px;
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+}
+.live-bar-clock {
+  font-family: var(--font-mono);
+}
+.live-bar-wave {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  height: 12px;
+}
+.live-bar-wave > i {
+  display: block;
+  width: 2px;
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+  transform: scaleY(0.55);
+}
+.live-bar-act {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: var(--control-h-sm);
+  padding: 0 9px 0 12px;
+  border-radius: var(--radius-full);
+  background: oklch(from var(--surface-island-ink) l c h / 0.1);
+  font-weight: var(--weight-medium);
+}
+@media (hover: hover) {
+  .live-bar:hover .live-bar-act {
+    background: oklch(from var(--surface-island-ink) l c h / 0.16);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .live-bar-dot::before { animation: live-ring 1.8s var(--ease-out) infinite; }
+  .live-bar-wave > i { animation: live-wave 0.9s var(--ease-in-out) infinite; }
+  .live-bar-wave > i:nth-child(3n + 2) { animation-duration: 1.12s; }
+  .live-bar-wave > i:nth-child(3n) { animation-duration: 1.34s; }
+  .live-bar-wave > i:nth-child(2) { animation-delay: 0.13s; }
+  .live-bar-wave > i:nth-child(3) { animation-delay: 0.26s; }
+  .live-bar-wave > i:nth-child(4) { animation-delay: 0.39s; }
+  .live-bar-wave > i:nth-child(5) { animation-delay: 0.52s; }
+  .live-bar-wave > i:nth-child(6) { animation-delay: 0.65s; }
+}
+@keyframes live-ring {
+  from { transform: scale(0.7); opacity: 0.6; }
+  to { transform: scale(1.6); opacity: 0; }
+}
+@keyframes live-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+/* Yesterday's visits to mark: a capsule of the control layer's glass, never the dark island, which is a call's alone; the
+   ring the Calendar marks a visit nobody has marked with, the count in the semibold, and "Did they come?" as a capsule
+   inside it, a desk's words (a phone keeps the arrow). The one door to the first of them, its focus ring over its depth. */
+.unmarked-bar {
+  display: flex;
+  align-items: center;
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.unmarked-bar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--surface-control-depth);
+}
+.unmarked-bar-ring {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--ink-muted);
+  border-radius: var(--radius-full);
+}
+.unmarked-bar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: var(--weight-semibold);
+}
+.unmarked-bar-act {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: var(--control-h-sm);
+  padding: 0 9px 0 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  color: var(--ink-muted);
+  font-weight: var(--weight-medium);
+}
+@media (hover: hover) {
+  .unmarked-bar:hover .unmarked-bar-act {
+    background: var(--selected-fill);
+    color: var(--ink);
+  }
+}
+/* Your brief while it plays: the same glass, its bars in the muted ink where a call's are the coral, and the whole of it the
+   Stop. A thumb's 44 round its 32, drawn nothing larger, as the bell's is. */
+.brief-bar {
+  --accent: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.brief-bar::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+.brief-bar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--surface-control-depth);
+}
+.brief-bar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: var(--weight-semibold);
+}
+.brief-bar-clock {
+  flex: none;
+  font-family: var(--font-mono);
+  color: var(--ink-muted);
+}
+/* A call going on outranks them: the call has the place while it lasts, and they come back as it ends. The brief outranks
+   the visits to mark, for as long as it plays. */
+.frame-top:has(> :is(.live-bar, .brief-bar)) > .unmarked-bar {
+  display: none;
+}
+/* In the date's place, the date stands down while the call, the brief or the visits to mark are up. */
+.main:has(> .frame-top > :is(.live-bar, .unmarked-bar, .brief-bar)) > .frame-top > .pg-dateline-slot:not(:has(> :is(.pg-back, .pg-back-after))) {
+  visibility: hidden;
+}
+/* What is next on the day (status-bars.tsx NextVisitBar; the page heads canvas, H2, 31 Oct 2026): the least of the three,
+   in the same glass as the visits to mark, its eyebrow in the mono face, the start in the semibold and who it is with in
+   the muted ink. A desk's alone, wider than 1280px (below), and only while neither of the other two is up. */
+.next-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 13px;
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-control-depth);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.next-bar:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--surface-control-depth);
+}
+.next-bar-phase {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.next-bar-start {
+  flex: none;
+  font-weight: var(--weight-semibold);
+}
+.next-bar-who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-muted);
+}
+@media (hover: hover) {
+  .next-bar:hover .next-bar-who {
+    color: var(--ink);
+  }
+}
+/* Wider than 1280px the three stand at the bar's right, beside the bell, in the row of its controls, as wide as the room
+   the line in the bar's middle leaves them (the page heads canvas, H2: the middle is the line to search or ask, which the
+   call stood over). The date keeps its place, and so does a way back. Each says the least that tells it, as a phone's
+   does (below): the name or the count and the clock, the count of the visits to mark, the arrow; the rest is its label. */
+/* 901 to 1280px the call and the visits to mark stand in the date's place, as wide as the room the line leaves them
+   (the line's own `--line-from`, read against the bar the way the line reads it). */
+@media (min-width: 901px) and (max-width: 1280px) {
+  :is(.live-bar, .unmarked-bar, .brief-bar) {
+    max-width: calc(
+      max(50% - min(280px, 22%), var(--gutter-page) + 272px) - var(--gutter-page) - 12px
+    );
+  }
+}
+@media (min-width: 1281px) {
+  :is(.live-bar, .unmarked-bar, .brief-bar, .next-bar) {
+    --line-half: min(280px, 22%);
+    position: absolute;
+    top: 30px;
+    right: calc(var(--gutter-page) + 52px);
+    left: auto;
+    z-index: 2;
+    min-height: var(--control-h-lg);
+    max-width: calc(
+      100% - var(--gutter-page) - 64px - max(50% - var(--line-half), var(--gutter-page) + 272px) - 2 * var(--line-half)
+    );
+    border-radius: var(--radius-full);
+    white-space: nowrap;
+  }
+  .next-bar {
+    display: flex;
+  }
+  .frame-top:has(> :is(.live-bar, .unmarked-bar, .brief-bar)) > .next-bar {
+    display: none;
+  }
+  .main:has(> .frame-top > :is(.live-bar, .unmarked-bar, .brief-bar)) > .frame-top > .pg-dateline-slot {
+    visibility: visible;
+  }
+  .frame-top > .brief-bar {
+    gap: 8px;
+    padding: 0 12px 0 13px;
+  }
+  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking),
+  .frame-top > .unmarked-bar .unmarked-bar-act-words {
+    display: none;
+  }
+  .frame-top > .live-bar .live-bar-act,
+  .frame-top > .unmarked-bar .unmarked-bar-act {
+    height: auto;
+    padding: 0 6px 0 0;
+    background: none;
+    color: var(--ink-muted);
+  }
+}
+/* Where the date's place holds a way back, 1280px and under: under the top bar, in the middle of the page's width, as it
+   stood before. The visits to mark stand down there instead: they wait for a page with room for them, and never push one
+   down. Wider, the three stand beside the bell, clear of it. */
+@media (max-width: 1280px) {
+  .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .live-bar,
+  .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .brief-bar {
+    position: static;
+    max-width: calc(100% - 32px);
+    margin: 2px 0 6px;
+    translate: none;
+  }
+  .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .unmarked-bar {
+    display: none;
+  }
+}
+/* A phone (and a tablet, which wears the phone's head): the date's place is on the bell's line, 10px down, and the island
+   is the bell's height there. It says the least that tells the call: the name or the count, the clock (or each of two),
+   the bars and the arrow; "On the line", "on your line" and Open Live's words are a desk's. A thread or a call that has
+   taken the screen has its own head and stands the header row down, so there the island stands over it, in the flow, as
+   before. Named under .frame-top, for its weight over mobile.css's older padding. The visits to mark the same, their count
+   and the arrow; under a thread's own head they stand down. */
+@media (max-width: 900px) {
+  .frame-top > :is(.live-bar, .unmarked-bar, .brief-bar) {
+    top: 10px;
+    min-height: 32px;
+    gap: 7px;
+    padding: 0 10px 0 12px;
+    max-width: calc(100% - 2 * var(--gutter-page) - 44px);
+  }
+  .frame-top > .live-bar :is(.live-bar-more, .live-bar-act-words, .live-bar-checking),
+  .frame-top > .unmarked-bar .unmarked-bar-act-words {
+    display: none;
+  }
+  .frame-top > .live-bar .live-bar-act,
+  .frame-top > .unmarked-bar .unmarked-bar-act {
+    height: auto;
+    padding: 0;
+    background: none;
+    color: var(--ink-muted);
+  }
+  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .frame-top > .live-bar,
+  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .frame-top > .brief-bar {
+    position: static;
+    max-width: calc(100% - 2 * var(--gutter-page));
+    margin: 2px var(--gutter-page) 6px;
+  }
+  :root:not([data-carrying]) .app-root:has(:is(.inbox, .conversations, .cm-split)[data-takeover]) .frame-top > .unmarked-bar {
+    display: none;
+  }
+  /* Under a way back it stands at the page's gutter, as the way back does: a phone's top is a block, not the desk's column. */
+  .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .live-bar,
+  .main:has(> .frame-top > .pg-dateline-slot > :is(.pg-back, .pg-back-after)) > .frame-top > .brief-bar {
+    max-width: calc(100% - 2 * var(--gutter-page));
+    margin: 2px var(--gutter-page) 6px;
+  }
+}
+@media (min-width: 721px) and (max-width: 900px) {
+  .frame-top > :is(.live-bar, .unmarked-bar, .brief-bar) {
+    left: calc(var(--gutter-page) + 40px);
+    max-width: calc(100% - 2 * var(--gutter-page) - 124px);
+  }
+}
+
+/* The Inbox's sending strip (inbox.css, fixed under the top bar), on a desk: at the right end of the strip of views'
+   row, which the capsule of views leaves free (it is as wide as its tabs), so it covers neither the views nor the
+   island. Centred on the window, it covered the views from 901 to 1280px (the Live tab at 1280), as Classic's still
+   does. While a call stands under the top bar (1280px and under) the row moves down by the island, and the strip goes
+   under the island with it; a phone's is mobile.css's. Under :root, for its weight: inbox.css comes after this sheet. */
+@media (min-width: 901px) {
+  :root .ix-sending-strip {
+    left: auto;
+    right: 24px;
+    transform: none;
+  }
+}
+/* The Inbox's head holds an act now (New conversation, the kit's large button, at the right end of that row), so the
+   strip stands at its left, the act's width and a gap away, and covers neither. The width is the act's own (its mark,
+   its two words and its padding: 173px in the running app, 7 Oct 2026), and changes with its words. With the sidebar
+   open under 1010px the row has no room for the views, the strip and the act, and the strip stands over the views' last
+   tab for the seconds it is drawn, as it did from 901 to 1280px when it was centred. */
+@media (min-width: 901px) {
+  :root .main:has(> .frame-top > .pg-slot > .pg-act-slot > #pg-act:not(:empty)) .ix-sending-strip {
+    right: calc(var(--gutter-page) + 173px + var(--space-2));
+  }
+}
+
+/* The head's places (the interface kit's step 5.4; kit/head/frame-head.tsx draws into them): the date and time in the
+   top bar's row where Classic's crumbs stand, the page's name with its sentence under the bar, and the row of views with
+   the page's act at its right, as the canvases open every page. The frame leaves the places in Glass alone
+   (surfaces/frame/shell-chrome.tsx), so Classic's tree is as it was. The head, the row and the panes keep to one gutter (--gutter-page). */
+.topbar .crumbs {
+  display: none;
+}
+/* The date and time's place: laid over the top bar's left, at the page's gutter, so the bar's own markup is as it was
+   (the bar's height is its Glass one, above); the live island and the capsules keep the bar's right. */
+.pg-dateline-slot {
+  position: absolute;
+  top: 28px;
+  left: var(--gutter-page);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  min-width: 0;
+  pointer-events: none;
+}
+.pg-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--space-4);
+  row-gap: 0;
+  align-items: end;
+  padding: 8px var(--gutter-page) 14px;
+}
+/* The fourteen between the name and the row of views is drawn only where there is a row of views (the slot's second
+   child is the strip, not the act's place): Today has none, and the gap stood between its sentence and the strip. */
+.pg-slot:has(> :nth-child(2):not(.pg-act-slot)) {
+  row-gap: 14px;
+}
+.pg-head-slot {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+/* On a desk the frame names only the page whose name is a sentence of its own (Today's greeting, the stacked head):
+   the Inbox's "Inbox · 4 need you" said again what the sidebar's row and the strip's count say (Ruben, 1 Oct 2026),
+   so every other page's name is kept for a reader and the frame's focus alone, and the row of views stands fourteen
+   under the bar, where the name would have. The head is the kit's and keeps its one class when not stacked. */
+@media (width > 900px) {
+  .pg-head-slot > header[class="pg-head"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .pg-slot:has(> .pg-head-slot > header[class="pg-head"]) {
+    padding-top: 14px;
+  }
+  /* A page whose views are in the slot and that names an act (People's three scopes, the Pipeline's New proposal, canvas
+     D1-list): the act stands at the strip's right on the strip's row, a 36px capsule, where it stood on a row of its own
+     over the hidden name. Leads names two (an open search's Reach out, then Find leads), and both are the strip's height. */
+  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-act-slot > span > button,
+  .main:has(> .main-scroll > .clients):not(:has(> .main-scroll > .cl-profile)) .pg-act-slot > span > a {
+    height: var(--control-h-lg);
+    padding: 0 16px;
+    font-size: var(--text-base);
+  }
+  /* A list's tools before its act (People, Leads and the Pipeline: Columns, Export, Leads' Filter, Map and Values, the
+     Pipeline's list or board; the page heads canvas, H1, 31 Oct 2026): words at the strip's height in the muted ink, as
+     they stood in the list's controls row, which the bar's line left with nothing else to hold. Reached by their place:
+     each is the kit's quiet button, alone or in its menu's wrap. */
+  .pg-tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: var(--space-2);
+  }
+  .pg-tools > button,
+  .pg-tools > :not(.pipe-views) > button {
+    height: var(--control-h-lg);
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius-full);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--ink-muted);
+  }
+}
+.pg-slot > .stabs {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
+}
+/* Where a desk's act can be wide (Reports' period, People's Add a person as it opens into its two fields), the row of views
+   wraps: the act goes under the views, still at the right, where the row cannot hold both, rather than over them (a small
+   window with the sidebar open). The name's place keeps a line of its own, so the views stand where they stand on every page,
+   fourteen under it. */
+@media (width > 900px) {
+  .main:has(> .main-scroll > :is(.rpt, .clients)):not(:has(> .main-scroll > .cl-profile)) .pg-slot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px var(--space-4);
+  }
+  .main:has(> .main-scroll > :is(.rpt, .clients)):not(:has(> .main-scroll > .cl-profile)) .pg-head-slot {
+    flex: 1 0 100%;
+  }
+  .main:has(> .main-scroll > :is(.rpt, .clients)):not(:has(> .main-scroll > .cl-profile)) .pg-act-slot {
+    margin-left: auto;
+  }
+}
+/* The page's act, at the right of the row of views, or of the name where the page has no views: the page's own
+   (pg-act, said through the head) or the frame's, never both. */
+.pg-act-slot {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+#pg-act {
+  display: contents;
+}
+/* What the page stands under its views, in the frame's top with them (kit/head/standing.ts `under`: the Calendar's range
+   and steps on a phone): a row of its own the slot's width, under the views and the act; nothing where nothing is said. */
+.pg-under-slot {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.pg-under-slot:empty {
+  display: none;
+}
+/* Reports' head is the container its period measures itself against (reports.css): the capsule says its word where the
+   head has the room and is the glyph's circle where it has not, by the head's own width, as the Calendar's bar does it
+   (calendar.css `cal-bar`). `--rpt-when-w` is the capsule's one width, which the place for it keeps before it is drawn. */
+.pg-slot[data-strip="reports"] {
+  container: rpt-head / inline-size;
+  --rpt-when-w: 6.5rem;
+}
+/* An act's words (kit/head/act-words.tsx): the mark and the first word kept together, 6px apart as a button's mark and
+   words are, and the rest after them, its own space kept (it leads the rest, and a flex item drops a leading space). On a
+   phone's row of views the rest gives way where the row is short (below). */
+.pg-act-fit {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.pg-act-keep {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.pg-act-rest {
+  flex: none;
+  white-space: pre;
+}
+/* A rule with a :has() over the element it styles names that element by its tag or class, never by its place alone
+   (tests/styles/has-subjects.test.mjs). The act is a button or a link. The Calendar's act is its bar
+   (calendar.css), never an act of the frame's: a demo's Book keeps its place beside it. */
+.pg-slot:not([data-strip="calendar"]) > .pg-act-slot:has(> #pg-act:not(:empty)) > button:not(#pg-act),
+.pg-slot:not([data-strip="calendar"]) > .pg-act-slot:has(> #pg-act:not(:empty)) > a:not(#pg-act) {
+  display: none;
+}
+/* The way back above the name (a person's People): the quiet link, in the muted ink. It takes a press wherever it stands:
+   in the date's place it stood in a slot that lets presses through to the bar, and on a desk a person's ‹ People was the
+   bar's, so it did nothing (5 Oct 2026). */
+.pg-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+  cursor: pointer;
+  pointer-events: auto;
+}
+@media (hover: hover) {
+  .pg-back:hover {
+    color: var(--ink);
+  }
+}
+.pg-back-glyph {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+/* A phone: the head alone over the page (the canvases' phone boards), the row of views under it as the phone's strip.
+   The head's own rule for a phone (its sentence is a desk's; its date says no hour) is the kit's (kit.css, the head
+   family). The boards stack the date and the name 2px apart with the bell beside them, so the bar is as tall as the
+   date's line alone and the bell stands down over the name's row, 20px from the top (the boards' 40px bell is
+   centred on the two lines; the house's bell is 44 under a finger); the name keeps clear of it. A bar that stands
+   under the top bar (a call, the shell's status) begins under the bell instead. The bell's wrap is what moves (the
+   bell stands relative inside it, where its sheet is anchored). */
+@media (max-width: 900px) {
+  .frame-top > .topbar {
+    align-items: flex-start;
+    height: 44px;
+    padding: 18px var(--gutter-page) 0;
+  }
+  .pg-dateline-slot {
+    top: 10px;
+    height: 32px;
+  }
+  /* The page's quiet act in the date's row, beside the bell (frame-head.tsx PageDateline; the Today canvas, 1 Nov 2026:
+     Listen): the date's place reaches across to the bell, the date at its left and the act at its right, and takes
+     presses there as the way back does. */
+  .pg-dateline-slot:has(> .pg-date-act) {
+    right: calc(var(--gutter-page) + 40px);
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .pg-date-act {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    pointer-events: auto;
+  }
+  .frame-top > .topbar .tbn-wrap {
+    position: absolute;
+    top: 10px;
+    right: var(--gutter-page);
+  }
+  /* The bell on a phone is a 32px circle on the date's line (centre to centre, 26px from the top), inside the 44px bar
+     with 2px under it, not the 44px one that hung below the bar over the first pane; the 44px a thumb needs stays as an
+     invisible margin round it. Unread is a 6px dot at the shoulder. The name is drawn 7px up into the bar (a margin on the
+     head's slot, below): only the line box's empty top is under the scroller's edge, so it stands about ten pixels under
+     the date's letters, as the phone boards set it (date box 18px from the top, name box 2px under it). */
+  .frame-top > .topbar .tbn-wrap .tb-bell {
+    width: 32px;
+    min-width: 0;
+    height: 32px;
+    min-height: 0;
+  }
+  .frame-top > .topbar .tbn-wrap .tb-bell::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+  .frame-top > .topbar .tbn-wrap .tb-bell > span {
+    top: 6px;
+    right: 7px;
+    width: 6px;
+    height: 6px;
+  }
+  .frame-top > .topbar + :is(.live-bar, .shell-status-slot:has(> *)) {
+    margin-top: 0;
+  }
+  .pg-slot {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: -7px;
+    padding: 0 var(--gutter-page) 16px;
+  }
+  /* A head in the page's own scroll starts under the top band, which is opaque: pulled up as a pane's is, it lost the tops
+     of its letters. A pane's head stands inside the band, which grows to hold it. */
+  .main-scroll > .pg-slot {
+    margin-top: 0;
+  }
+  .pg-head-slot {
+    padding-right: 56px;
+  }
+  /* The way back in the date's place (a person's ‹ People, a room's ‹ Campaigns, a pane's ‹ Settings) is a capsule of the
+     control layer's glass on a phone (P-phone-person), as tall as the bell beside it and on the bell's line: the date's
+     own place holds it, 10px from the top. It was written 36px and drawn 44, twelve taller than the bell, because a
+     touch screen's floor for a button (frame.css) outranks a height. So it names its own floor, and the 44px a thumb
+     needs stays as a margin no one sees, as the bell's does (Ruben, 7 Oct 2026). */
+  .pg-dateline-slot .pg-back {
+    position: relative;
+    height: var(--control-h-md);
+    min-height: var(--control-h-md);
+    margin: 0;
+    padding: 0 12px 0 9px;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    background-image: var(--surface-control-sheen);
+    box-shadow: var(--surface-control-depth);
+    font-size: var(--text-base);
+    color: var(--ink);
+  }
+  .pg-dateline-slot .pg-back::after {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
+  /* What stands with the way back (frame-head.tsx `after`: a person's ‹ ›, canvas A) takes the bell's place at the bar's
+     right, on the bell's line, and the bell stands down while it is there: a page that draws one has taken the screen
+     over, as a person's does (its tab bar and Ask's circle stand down too). The name the bar says once the head has gone
+     keeps the middle between the two (--bartitle-right, kit.css's .pg-bartitle). */
+  .pg-dateline-slot:has(> .pg-back-after) {
+    right: var(--gutter-page);
+    justify-content: space-between;
+  }
+  .main:has(> .frame-top > .pg-dateline-slot > .pg-back-after) {
+    --bartitle-right: 72px;
+  }
+  .main:has(> .frame-top > .pg-dateline-slot > .pg-back-after) .frame-top > .topbar .tbn-wrap {
+    display: none;
+  }
+  .pg-act-slot {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-start;
+  }
+  /* Where a page names an act and draws no strip of views (Campaigns' Library and New message, Sent's and Today's New), the
+     act stands at the right of the name's row, under the bell, rather than on a row of its own under the name at the left
+     (Ruben, 7 Oct 2026). Its controls are the control layer's 36px, each 44px to a finger by a margin no one sees, as the
+     bell's is. The name's row stands 13px lower, so the act clears the bell (32px on the date's line, its foot 42px from
+     the top) by 8; so does a row under a way back in the date's place (its capsule is the bell's height, on the bell's
+     line), the same on Campaigns, Sent and the Library. A person's page draws its own head, so its slot holds no name and stays where it is. */
+  .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)),
+  .main:has(> .frame-top > .pg-dateline-slot > .pg-back) .pg-slot:has(> .pg-head-slot > header) {
+    padding-top: 13px;
+  }
+  .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-2);
+  }
+  .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)) > .pg-head-slot {
+    align-self: center;
+    padding-right: 0;
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot:has(:is(button, a)) {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    justify-content: flex-end;
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > button,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > button,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > a {
+    position: relative;
+    height: var(--control-h-lg);
+    min-height: var(--control-h-lg);
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > button,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > button {
+    padding: 0 14px 0 12px;
+  }
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > button::after,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > button::after,
+  .pg-slot:not(:has(> nav)) > .pg-act-slot > span > a::after {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
+  }
+  /* Where a phone draws a strip of views and the page's act (Campaigns' New; canvas C-phone-list), the act stands
+     beside the strip at its right as a circle of the primary fill, the strip's 36px and 44 to a finger by a margin no
+     one sees, its mark alone, the words kept for a screen reader. Named with the strip's element, since its class is the
+     kit's. The two stand 8px apart, as the Calendar's views and its options button do (Ruben, 7 Oct 2026). */
+  .pg-slot:has(> nav) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-2);
+  }
+  .pg-slot:has(> nav) > .pg-head-slot {
+    grid-column: 1 / -1;
+  }
+  .pg-slot:has(> nav) > .pg-act-slot {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    justify-content: flex-end;
+  }
+  /* A coral act beside the strip is as tall as the view picked in it and on its line, with the strip's 4px over and under
+     it: at the strip's 36 the coral read bigger than the tabs beside it (Ruben, 6 Nov 2026). It is 44 to a finger by a
+     margin no one sees. The empty capsules beside a strip, the Calendar's Settings and Reports' period, keep the strip's 36. */
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button:first-child:not(:has(> .pg-act-fit)),
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > a:first-child:not(:has(> .pg-act-fit)) {
+    position: relative;
+    width: var(--control-h-sm);
+    height: var(--control-h-sm);
+    min-height: var(--control-h-sm);
+    padding: 0;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--radius-circle);
+    background: var(--primary-fill);
+    box-shadow: var(--primary-depth);
+    color: var(--primary-ink);
+  }
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button:first-child:not(:has(> .pg-act-fit))::after,
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > a:first-child:not(:has(> .pg-act-fit))::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+  }
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > :first-child:not(:has(> .pg-act-fit)) > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* An act that says its words through the kit's part for them (kit/head/act-words.tsx: the Inbox's New conversation)
+     is no bare circle: it keeps its mark and its first word, "+ New", in the capsule People's scopes draw theirs in on a
+     phone, 28px and 44 to a finger by a margin no one sees (Ruben, 8 Oct 2026: a plus alone said nothing). The rest of
+     its name is kept for a screen reader, as the circle keeps the whole of one. */
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit) {
+    position: relative;
+    height: var(--control-h-sm);
+    min-height: var(--control-h-sm);
+    padding: 0 14px 0 12px;
+    font-size: var(--text-base);
+  }
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit)::after {
+    content: "";
+    position: absolute;
+    inset: -9px 0; /* From inside the button's 1px border: 44 in all. */
+  }
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button:first-child > .pg-act-fit > .pg-act-rest {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* Beside the act the strip has 36px less: its tabs give up 4px of padding each side, and the three still fit a phone. */
+  .pg-slot:has(> nav) > nav > a {
+    padding-inline: 10px;
+  }
+  /* Beside a capsule that says a word the strip has 76px less, not 44: its tabs give up 2px more each side, so the
+     Inbox's three still stand on one line on a phone 360 wide ("Needs you" wrapped onto two). */
+  .pg-slot:has(> nav):not([data-strip="people"], [data-strip="campaigns"]):has(> .pg-act-slot .pg-act-fit) > nav > a {
+    padding-inline: 8px;
+  }
+  /* And a phone's strip says the views' names alone: the counts beside them pushed "Templates 7" past the strip's end,
+     and the list under it says them again. */
+  .pg-slot:has(> nav) > nav > * > span {
+    display: none;
+  }
+  /* On a phone the strip and the act stand at the boards' 12px from the screen's edges (every phone board draws its
+     row of views at 12 under a head at 16), 4 in from the slot's gutter, the edge of the capsules and panes under them
+     (the Inbox's and People's search, Today's panes). Every page's, at one place: Reports' row stood at the gutter for
+     a few hours, over panes that stood there (7 Oct 2026), and so did the Calendar's views, so the row moved 4px and the
+     page was 8px narrower between the Inbox and either of them (Ruben, 7 Oct 2026). Their panes stand at 12 now
+     (reports.css, calendar.css), under a row that stands where every row does. */
+  .pg-slot > :nth-child(2):not(.pg-act-slot) {
+    margin-left: -4px;
+  }
+  .pg-slot:has(> nav) > .pg-act-slot {
+    margin-right: -4px;
+  }
+  /* The period's place is kept from the first paint. The period is the page's act (period-picker.tsx, said through the
+     head into #pg-act), and the page draws only once its read lands, a second or two after the strip: with the act's
+     place empty the column was 0 wide, the strip spanned the screen, and shrank 52px as the period came (Ruben, 7 Oct
+     2026). The place keeps the period's width and nothing is drawn in it. It held a circle of the period's glass, a
+     pseudo-element taken away by `:has(> #pg-act:empty)`, which an iPhone's Safari did not ask again as the period was
+     drawn into the span: the empty circle stood beside the period for good (Ruben, 7 Oct 2026). The period is a capsule
+     with its word now (reports.css), one width whichever word it says, which is what the place keeps; on a row too short
+     for the word it is the circle's 36 and the place keeps that. */
+  .pg-slot[data-strip="reports"] > .pg-act-slot {
+    min-width: var(--rpt-when-w);
+    min-height: var(--control-h-lg);
+  }
+  @container rpt-head (max-width: 319px) {
+    .pg-slot[data-strip="reports"] > .pg-act-slot {
+      min-width: var(--control-h-lg);
+    }
+  }
+  /* People's scopes (People, Leads, the Pipeline) keep their act on a phone with its words, on the strip's row at its
+     right, as a desk draws it (Ruben, 7 Oct 2026); and so do Campaigns' Sequences and Messages, whose two tabs leave the
+     row room for "New sequence" (Ruben, 20 Oct 2026: the + should say New, or New something where the space allows). It was hidden, each scope's act left to its own bar or menu, and a
+     phone showed no way to add a person; then it stood beside the name, which stood People's strip 16px under where
+     the Inbox's stands. Here the strip keeps the width of its tabs and the act takes what is left of the row. Where that
+     is less than its words (three scopes beside "New proposal" on a phone 360 wide), the capsule says the first of them
+     beside its mark, "New", "Add", "Find": the rest wraps onto a second line, which the words' box, one line tall, does
+     not show (kit/head/act-words.tsx). Nothing is measured, and no width is named. The slot says whose strip it holds
+     (surfaces/frame/shell-chrome.tsx `data-strip`), so these stand after the rules for every other strip and outweigh them by that name. */
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  /* The strip stands 4px out of its column (above), so its measure is the column's and those 4: held to the column
+     alone it scrolled its last 4px away. */
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > nav {
+    max-width: calc(100% + 4px);
+  }
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot {
+    min-width: 0;
+  }
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button,
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > a {
+    position: relative;
+    flex: 0 1 auto;
+    min-width: 0;
+    height: var(--control-h-sm);
+    min-height: var(--control-h-sm);
+    padding: 0 14px 0 12px;
+    font-size: var(--text-base);
+  }
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > button::after,
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) > .pg-act-slot > span > a::after {
+    content: "";
+    position: absolute;
+    inset: -9px 0; /* From inside the button's 1px border: 44 in all. */
+  }
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) .pg-act-fit {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    height: calc(var(--control-h-sm) - 2px);
+    overflow: hidden;
+  }
+  .pg-slot:is([data-strip="people"], [data-strip="campaigns"]) :is(.pg-act-keep, .pg-act-rest) {
+    height: calc(var(--control-h-sm) - 2px);
+    display: inline-flex;
+    align-items: center;
+  }
+  /* The Inbox's row of views (Needs you, Conversations, Live) stands on a phone as on a desk (Ruben, 2 Oct 2026: the
+     canvas's swipe between them was not found); the buckets' capsule is the list's own, under it. */
+}
+/* A tablet (721 to 900px) wears the phone's head but has no tab bar, so the top bar keeps its menu and Ask (mobile.css):
+   both stood in the bar's flow while the date and the bell were laid over it, the menu under the date and Ask over the
+   bell (6 Oct 2026). Here the four share the bell's line: the menu (the bar's first button) at the gutter with the date
+   after it, and Ask in the row with the bell, which comes back into the bar's flow, each 32px as the bell is. */
+@media (min-width: 721px) and (max-width: 900px) {
+  .frame-top > .topbar {
+    padding-top: 10px;
+  }
+  .frame-top > .topbar .tbn-wrap {
+    position: relative;
+    top: auto;
+    right: auto;
+  }
+  .frame-top > .topbar > button:first-child,
+  .frame-top > .topbar .tb-ask {
+    width: 32px;
+    min-width: 0;
+    height: 32px;
+    min-height: 0;
+    padding: 0;
+    justify-content: center;
+  }
+  .frame-top > .topbar > button:first-child {
+    position: absolute;
+    top: 10px;
+    left: var(--gutter-page);
+  }
+  .pg-dateline-slot {
+    left: calc(var(--gutter-page) + 40px);
+  }
+}
+
+/* An app on a phone's home screen stands under the phone's own bar (the clock, the battery), which keeps its own room
+   over the date and the bell: the 10px the head keeps over them stood under that room as a second one. So the frame's
+   column starts 10px higher there, the head with it (the date, the bell, the way back, an open thread's own head), and
+   the page under it is that much taller (Ruben, 7 Oct 2026: 6px first, then all of it). The column's first 10px hold
+   nothing: the date, the bell and the way back all stand 10px down it, so the bell and the way back now begin at the
+   screen's own edge under the phone's bar, and nothing can go higher. A browser's tab is not an installed app and is
+   drawn as it was. */
+@media (max-width: 720px) and (display-mode: standalone) {
+  .app-root .main {
+    margin-top: -10px;
+  }
+}
+
+/* The pools of light move as the canvases' do (their glow drifts over twenty seconds), on a desk, each on a layer of its
+   own moved by a transform, which the compositor runs (surfaces/frame/shell-chrome.tsx draws the three in .pg-light, the app root's first
+   child). They moved as the pools' centres before, six properties every element inherits, so every element of the page
+   was styled again on every frame for as long as it was open: on a phone the main thread 37% to 79% busy and iPhones
+   reloading the page, on a desk at 4x CPU 3.6 to 4.1 s of long tasks in every 5 s (5 Oct 2026). On a desk the ground is
+   the document's (html's --surface-page-fill): the body and the app's root let it through, and the layers stand between,
+   each 10% past every edge of the window so a moving pool never shows its layer's side, the pool drawn where the
+   tokens put it (--pool-*-x and -y, measured from the window as the root measured them). A phone keeps the root's own
+   paint (the page's top over the pools) and no layers, and its pools stand still; so does every pool where less motion
+   is asked (styles/page-light/drift.test.mjs). */
+.pg-light {
+  display: none;
+}
+@media (min-width: 901px) {
+  html:has(.app-root) body,
+  .app-root {
+    background: transparent;
+  }
+  .pg-light {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .pg-light > span {
+    position: absolute;
+    inset: -10%;
+  }
+  .pg-light > :nth-child(1) {
+    background: radial-gradient(
+      calc(39% / 1.2) calc(40% / 1.2) at calc((var(--pool-a-x) + 10%) / 1.2) calc((var(--pool-a-y) + 10%) / 1.2),
+      var(--pool-a-tint),
+      transparent
+    );
+  }
+  .pg-light > :nth-child(2) {
+    background: radial-gradient(
+      calc(43% / 1.2) calc(36% / 1.2) at calc((var(--pool-b-x) + 10%) / 1.2) calc((var(--pool-b-y) + 10%) / 1.2),
+      var(--pool-b-tint),
+      transparent
+    );
+  }
+  .pg-light > :nth-child(3) {
+    background: radial-gradient(
+      calc(37% / 1.2) calc(33% / 1.2) at calc((var(--pool-c-x) + 10%) / 1.2) calc((var(--pool-c-y) + 10%) / 1.2),
+      var(--pool-c-tint),
+      transparent
+    );
+  }
+}
+@media (min-width: 901px) and (prefers-reduced-motion: no-preference) {
+  .pg-light > span {
+    will-change: transform;
+  }
+  .pg-light > :nth-child(1) {
+    animation: pg-pool-a 20s ease-in-out infinite alternate;
+  }
+  .pg-light > :nth-child(2) {
+    animation: pg-pool-b 20s ease-in-out infinite alternate;
+  }
+  .pg-light > :nth-child(3) {
+    animation: pg-pool-c 20s ease-in-out infinite alternate;
+  }
+}
+/* The canvases' drift, as each layer moved by a share of the window (a layer is 1.2 windows wide and tall, and a
+   translate's percentage is of the layer): a from 23% 6% to 29% 12%, b from 89% 40% to 84% 46%, c from 39% 91% to
+   45% 86%. */
+@keyframes pg-pool-a {
+  to {
+    transform: translate(calc(6% / 1.2), calc(6% / 1.2));
+  }
+}
+@keyframes pg-pool-b {
+  to {
+    transform: translate(calc(-5% / 1.2), calc(6% / 1.2));
+  }
+}
+@keyframes pg-pool-c {
+  to {
+    transform: translate(calc(6% / 1.2), calc(-5% / 1.2));
+  }
+}
+
+/* The sidebar's places at the page's reading size, in their groups, each group under its name (Workspace, Intelligence) in
+   the small capitals; no Collapse: the sidebar is as tall as its places. The canvases (E3) drew one list with no names, and
+   with the names hidden the groups stood 0 apart while the places in one stood 3: Inbox and People, and Campaigns and
+   Reports, touched (Ruben, 7 Oct 2026, who chose the names shown). The rail draws no names (above), and its groups keep
+   the places' own 3px. */
+.sidebar-label { font-size: var(--text-2xs); letter-spacing: 0.06em; padding: 14px 12px 6px; }
+.sidebar-section + .sidebar-section { margin-top: 3px; }
+.sb-collapse { display: none; }
+.nav-item { padding: 0 12px; font-size: var(--text-base); }
+
+/* The key hint on the Ask capsule (Glass alone, frame/topbar/topbar.tsx): a small inset at the capsule's right, in the mono. */
+.tb-ask-kbd {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+
+/* A visit said where it is seen (surfaces/visit-line.tsx, decision 0047): the presses in a row, the question before them, the word
+   once the door has written, and the door's refusal under them. Layout and the quiet ink alone; the presses are the kit's. */
+.visit-acts { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.visit-ask { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.visit-ask-question, .visit-said { font-size: var(--text-xs); color: var(--ink-muted); }
+.visit-refused { flex-basis: 100%; color: var(--ink-muted); font-size: var(--text-xs); }

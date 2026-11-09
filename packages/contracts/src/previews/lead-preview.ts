@@ -10,16 +10,16 @@
  *
  * And its page (L2): which page a preview is now (previewStateOf), its chat (previewTurnsOf), three questions to start
  * from (previewStartersOf), what it knows and where each fact was read (previewKnowsOf), and all of it (previewPageOf).
- * The page's words are preview-words.ts's, apart, so the page that draws them carries none of this.
+ * The page's words are previews/words.ts's, apart, so the page that draws them carries none of this.
  */
 import { dayIntervals } from "../calendar/availability";
-import { hoursLines } from "../calendar/calendar-words";
+import { calendarHoursLines } from "../calendar/words/labels";
 import type { BusinessProfile } from "../config/workspace-config/business-profile";
 import { DAY_NAMES, DAYS } from "../config/workspace-config/config-rules";
 import { REHEARSAL_LIMITS } from "../rehearsal/rehearsal";
-import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/setup-put-off";
+import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/put-off";
 import { SECOND_MS } from "../shared/time";
-import { LEAD_PREVIEW_WORDS } from "./preview-words";
+import { LEAD_PREVIEW_WORDS } from "./words";
 
 export const PREVIEW_STATES = ["building", "ready", "failed", "claimed", "ended"] as const;
 export type PreviewState = (typeof PREVIEW_STATES)[number];
@@ -102,11 +102,11 @@ export function previewTurnsOf(raw: unknown): PreviewTurnVM[] {
     const o = t && typeof t === "object" ? (t as Record<string, unknown>) : null;
     if (!o || (o.role !== "user" && o.role !== "assistant") || typeof o.content !== "string") return [];
     const then = o.then && typeof o.then === "object" ? (o.then as Record<string, unknown>) : null;
-    const said =
+    const turn =
       o.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
         ? { words: then.words, tone: then.tone as Tone }
         : null;
-    return [{ role: o.role, text: o.content, then: said }];
+    return [{ role: o.role, text: o.content, then: turn }];
   });
 }
 
@@ -140,28 +140,33 @@ function servicesLine(services: readonly { name: string }[]): string {
 
 /** What it knows, each with where it was read from: the listing's hours, address, number and site; the site's services. */
 export function previewKnowsOf(profile: PreviewPageFacts["profile"], phoneDisplay: string | null): PreviewKnowsRowVM[] {
-  const W = LEAD_PREVIEW_WORDS;
+  const words = LEAD_PREVIEW_WORDS;
   const rows: PreviewKnowsRowVM[] = [];
   const add = (key: PreviewKnowsRowVM["key"], value: string | null | undefined, from: string) => {
-    if (value?.trim()) rows.push({ key, label: W.rows[key], value: value.trim(), from });
+    if (value?.trim()) rows.push({ key, label: words.rows[key], value: value.trim(), from });
   };
-  add("hours", hoursLines(profile?.hours ?? null).join(" · "), W.from.google);
-  add("address", profile?.address, W.from.google);
-  add("phone", phoneDisplay, W.from.google);
-  add("website", profile?.website?.replace(/^https?:\/\//, "").replace(/\/$/, ""), W.from.google);
-  add("services", servicesLine(profile?.services ?? []), W.from.site);
+  add("hours", calendarHoursLines(profile?.hours ?? null).join(" · "), words.from.google);
+  add("address", profile?.address, words.from.google);
+  add("phone", phoneDisplay, words.from.google);
+  add("website", profile?.website?.replace(/^https?:\/\//, "").replace(/\/$/, ""), words.from.google);
+  add("services", servicesLine(profile?.services ?? []), words.from.site);
   return rows;
 }
 
 /** Which page a preview is now: its door's state, read against its clock and its limit. */
 export function previewStateOf(
-  f: Pick<PreviewPageFacts, "state" | "ends_at" | "asked_count">,
+  previewPageFacts: Pick<PreviewPageFacts, "state" | "ends_at" | "asked_count">,
   now: Date,
 ): PreviewPageState {
-  if (f.state === "claimed") return "taken";
-  if (f.state === "ended" || f.state === "failed" || Date.parse(f.ends_at) <= now.getTime()) return "ended";
-  if (f.state === "building") return "building";
-  return f.asked_count >= PREVIEW_LIMITS.messages ? "spent" : "ready";
+  if (previewPageFacts.state === "claimed") return "taken";
+  if (
+    previewPageFacts.state === "ended" ||
+    previewPageFacts.state === "failed" ||
+    Date.parse(previewPageFacts.ends_at) <= now.getTime()
+  )
+    return "ended";
+  if (previewPageFacts.state === "building") return "building";
+  return previewPageFacts.asked_count >= PREVIEW_LIMITS.messages ? "spent" : "ready";
 }
 
 /**
@@ -196,25 +201,28 @@ export function previewClaimable(state: PreviewPageState): boolean {
  * What a preview's use counts for in its first run once it is someone's own (L4), as the member's own Setup marks: talked
  * to or called, its receptionist met; called, its rehearsal heard, so Rehearse waits on no review of it.
  */
-export function previewFirstRunMarks(f: { asked_count: number; call_count: number }): string[] {
+export function previewFirstRunMarks(fields: { asked_count: number; call_count: number }): string[] {
   return [
-    ...(f.asked_count > 0 || f.call_count > 0 ? [RECEPTIONIST_MET] : []),
-    ...(f.call_count > 0 ? [REHEARSE_SKIPPED] : []),
+    ...(fields.asked_count > 0 || fields.call_count > 0 ? [RECEPTIONIST_MET] : []),
+    ...(fields.call_count > 0 ? [REHEARSE_SKIPPED] : []),
   ];
 }
 
 /** The page, from its facts and the clock. */
-export function previewPageOf(f: PreviewPageFacts, now: Date): PreviewPageVM {
-  const state = previewStateOf(f, now);
-  const turns = state === "ended" || state === "taken" ? [] : previewTurnsOf(f.turns);
+export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): PreviewPageVM {
+  const state = previewStateOf(previewPageFacts, now);
+  const turns = state === "ended" || state === "taken" ? [] : previewTurnsOf(previewPageFacts.turns);
   return {
     state,
-    business: f.business,
-    logo_url: f.logo_url,
+    business: previewPageFacts.business,
+    logo_url: previewPageFacts.logo_url,
     turns,
-    left: Math.max(0, PREVIEW_LIMITS.messages - f.asked_count),
-    call_left_ms: Math.max(0, PREVIEW_LIMITS.callMs - f.call_seconds * SECOND_MS),
-    starters: state === "ready" && !turns.length ? previewStartersOf(f.profile) : [],
-    knows: state === "ready" || state === "spent" ? previewKnowsOf(f.profile, f.phone_display) : [],
+    left: Math.max(0, PREVIEW_LIMITS.messages - previewPageFacts.asked_count),
+    call_left_ms: Math.max(0, PREVIEW_LIMITS.callMs - previewPageFacts.call_seconds * SECOND_MS),
+    starters: state === "ready" && !turns.length ? previewStartersOf(previewPageFacts.profile) : [],
+    knows:
+      state === "ready" || state === "spent"
+        ? previewKnowsOf(previewPageFacts.profile, previewPageFacts.phone_display)
+        : [],
   };
 }

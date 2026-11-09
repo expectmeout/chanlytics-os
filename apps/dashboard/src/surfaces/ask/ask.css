@@ -105,9 +105,91 @@ body.ask-open .tb-ask .tb-ask-face {
   flex: none;
   order: 9;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   margin: 8px 12px 10px;
-  padding: 0 8px 0 16px;
+  padding: 0 8px;
   border-radius: var(--radius-xl);
+}
+/* The panel with a file over it: the field says it will take it. */
+.ask-line.dropping .ask-stage {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* The photos beside the field (line/attached.tsx): a row of small tiles over it, each with its × in the corner; dim while one
+   goes, ringed where it was refused, its words under the row. */
+.ask-attached {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+}
+.ask-attached-row {
+  display: flex;
+  gap: 8px;
+  overflow: auto hidden;
+  padding: 4px 4px 0 0;
+}
+.ask-attached-photo {
+  position: relative;
+  flex: none;
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: var(--bg-active);
+}
+.ask-attached-pic,
+.ask-attached-unseen {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.ask-attached-unseen {
+  overflow: hidden;
+  padding: 4px;
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ask-attached-photo.sending .ask-attached-pic,
+.ask-attached-photo.sending .ask-attached-unseen,
+.ask-attached-photo.preparing .ask-attached-unseen {
+  opacity: 0.45;
+}
+.ask-attached-photo.failed {
+  outline: 2px solid var(--danger);
+}
+.ask-attached-photo .ask-attached-away {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--radius-circle);
+  background: var(--ink);
+  color: var(--bg);
+}
+/* A thumb's reach around the small mark, which never holds the row's scroll up. */
+.ask-attached-away::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+@media (hover: hover) {
+  .ask-attached-away:hover {
+    color: var(--bg);
+  }
+}
+.ask-attached-why {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
 }
 .ask-stage-row {
   display: flex;
@@ -176,6 +258,10 @@ body.ask-open .tb-ask .tb-ask-face {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Inside its chip's height: the touch floor for buttons (mobile.css, `html.frame-on button`) stood it over the chip. */
+.ask-scope .ask-scope-clear {
+  min-height: 0;
+}
 /* The delete question sits under the middle, over the foot. */
 .ask-line .ask-confirm {
   flex: none;
@@ -215,25 +301,6 @@ body.ask-open .tb-ask .tb-ask-face {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-/* A chip of words to pick (the peek's tones, leads-peek.jsx). */
-.ask-follow-chip {
-  font: inherit;
-  font-size: var(--text-label);
-  color: var(--ink);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  padding: 5px 11px;
-  cursor: pointer;
-  text-align: left;
-}
-@media (hover: hover) {
-  .ask-follow-chip:hover {
-    border-color: var(--line-strong);
-    background: var(--bg-hover);
-  }
 }
 
 /* ---- Under the band: Right now, chips for the questions, compact rows for the conversations; the question while Ask
@@ -601,56 +668,37 @@ body.ask-open .tb-ask .tb-ask-face {
   gap: 14px;
   min-width: 0;
 }
+/* An answer's figures as chips (D1 of the answers canvas): a number, what it counts, on one line that opens where it came
+   from. One wrapping row at every width, so a sentence and its numbers read as one thought. The press is the kit's chip; a
+   figure with nowhere to open is the same words at rest. */
 .ask-figures {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .ask-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  padding: 10px 12px 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-inset);
-  background: var(--bg-raised);
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
+  gap: 5px;
 }
-.ask-tile:has(:focus-visible),
-.ask-tile.open {
-  background: var(--bg-hover);
-  border-color: var(--line-strong);
+.ask-tile.plain {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.ask-tile strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .ask-tile-label {
-  font-size: var(--text-read);
   color: var(--ink-muted);
-  margin-left: 5px;
 }
 .ask-tile-note {
-  font-size: var(--text-read);
   color: var(--ink-dim);
-}
-.ask-tile-from {
-  display: none;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
-/* The keys' focus (the value is a button) or a press: where the figure comes from shows (S4). A pointer resting on it
-   changes nothing: the value's tooltip says it (surfaces/ask/turn.tsx AskFigure). The hover that swapped the note for the source
-   drew a band and ran the source into the label on the one-line figures ("todayFrom Today", Ruben's recording, 16 Oct
-   2026). */
-.ask-tile:has(:focus-visible) .ask-tile-from,
-.ask-tile-from[data-open="true"] {
-  display: inline-flex;
-}
-.ask-tile:has(:focus-visible) .ask-tile-note,
-.ask-tile.open .ask-tile-note {
-  display: none;
 }
 .ask-breakdown {
   display: flex;
@@ -783,20 +831,17 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-card.undone {
   opacity: 0.6;
 }
+/* A record, once kept: one line and its Undo, no card around it (the Keep shape). */
+.ask-card.ask-quiet {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
 .ask-card-head {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  column-gap: 11px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-}
-.ask-card-mark {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-mark);
-  background: var(--surface-inset-fill);
-  color: var(--ink-muted);
 }
 .ask-card-name {
   display: flex;
@@ -811,10 +856,52 @@ body.ask-open .tb-ask .tb-ask-face {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.ask-card-kind {
-  font-size: var(--text-label);
+.ask-card-sub {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+/* Which channel a version is for, where a message has more than one. */
+.ask-card-channel {
+  font-size: var(--text-xs);
   line-height: 1.35;
   color: var(--ink-dim);
+}
+/* A record: what it keeps in a line, with no ground under it (the Keep shape). */
+.ask-card-line {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* How a plan runs, folded: its sentences, a tick on each that is done. */
+.ask-card-how {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.ask-card-how summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.ask-card-how ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-muted);
+}
+.ask-card-how .ok {
+  margin-right: 5px;
+  color: var(--ok-ink);
+}
+/* Quick changes under a card with words: the kit's question chips, on one wrapping row. */
+.ask-card-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .ask-card-change {
   padding: 10px 12px;
@@ -960,7 +1047,8 @@ body.ask-open .tb-ask .tb-ask-face {
   padding: 0 2px;
 }
 .ask-fold {
-  grid-template-columns: 32px minmax(0, 1fr) 12px;
+  grid-template-columns: minmax(0, 1fr) 12px;
+  column-gap: 11px;
 }
 .ask-fold-chev {
   color: var(--ink-faint);
@@ -989,7 +1077,7 @@ body.ask-open .tb-ask .tb-ask-face {
 /* Why a step folded cannot go yet is said on it too, on the head's left edge. */
 .ask-shut > p {
   margin-top: -10px;
-  padding: 0 12px 11px 57px;
+  padding: 0 12px 11px 14px;
 }
 @media (hover: hover) {
   .ask-shut .ask-fold:hover {
@@ -1020,36 +1108,6 @@ body.ask-open .tb-ask .tb-ask-face {
     opacity: 1;
   }
 }
-/* A plan's cards as one group (surfaces/ask/turn.tsx AskPlan; the marketing manager's spec §5.8): its steps a column at the cards'
-   own gap, each step's head a quiet line over its card (.ask-step-n), and the one press for the steps that send nothing
-   on a line of its own above them (.ask-steps-press), so it keeps its own width. Layout alone: the head's words are the
-   kit's (.rec-hint), the press the kit's button, a send's wait the kit's state pill. */
-.ask-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-.ask-step {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.ask-step-n {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 0 2px;
-}
-.ask-steps-press {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
 /* ---- The Line's layout, a phone's screen and a desk's panel alike (the Stage's spec, section 5; Ruben, 16 Oct 2026:
    the desk's Line is the phone's, docked at the right). The phone's own (its screen, the keys, its ✦, its touch sizes)
    is the block after this one. ---- */
@@ -1292,6 +1350,70 @@ body.ask-open .tb-ask .tb-ask-face {
   padding-top: 14px;
 }
 /* Your words (D2): at the right, in the Inbox's own sent bubble; the answers are open. */
+/* A post's card (card-post.tsx): the real picture, its shape held while it comes. */
+.ask-post {
+  display: grid;
+  gap: 10px;
+}
+.ask-post-picture {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  background: var(--bg-active);
+}
+.ask-post-waiting {
+  animation: ask-post-waits 1.4s var(--ease-out) infinite alternate;
+}
+@keyframes ask-post-waits {
+  to {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask-post-waiting {
+    animation: none;
+  }
+}
+/* What a question came with, over its words, on the same edge. */
+.ask-q-files {
+  align-self: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 80%;
+  margin: 0 16px 6px 56px;
+}
+.ask-q-file {
+  display: block;
+  width: 112px;
+  height: 112px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--bg-active);
+}
+.ask-q-file:only-child {
+  width: 200px;
+  height: 200px;
+}
+.ask-q-file img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ask-q-file-unseen {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
 .ask-q {
   align-self: flex-end;
   max-width: 80%;
@@ -1337,33 +1459,6 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-items {
   margin: 0;
   gap: 8px;
-}
-.ask-figures {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.ask-tile,
-.ask-tile.open,
-.ask-tile:has(:focus-visible) {
-  display: block;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-.ask-tile-note,
-.ask-tile.open .ask-tile-note,
-.ask-tile:has(:focus-visible) .ask-tile-note {
-  display: inline;
-}
-.ask-tile-note::before {
-  content: " · ";
-}
-.ask-tile-from[data-open="true"],
-.ask-tile:has(:focus-visible) .ask-tile-from {
-  display: flex;
-  margin-top: 2px;
 }
 .ask-unverified {
   margin-left: 0;
@@ -1551,7 +1646,7 @@ body.ask-open .tb-ask .tb-ask-face {
      (components.css, the badges): nothing under 80%, so the ✦ is furniture; from 80% (`data-usage`) the amber dot
      "needs you" wears everywhere here, breathing; at 100% red. It rides the rim at the top right with the surface's
      own ring around it. What needs you on the page is the three's own colour: lit where they stand as a page arrives,
-     and kept lit while something waits (legacy-bridge/arrival.ts); the states while Ask works. Chosen from the canvas
+     and kept lit while something waits (bridge/arrival.ts); the states while Ask works. Chosen from the canvas
      (Ruben, 25 Sep: "let's go with 4", then "the dot only past 80%, amber then red; if something needs attention the
      three stay in colour at rest"); the beam it replaces is B3 to B5 of the spec. Nothing sets `data-usage` yet (AskDisc
      says why), so the dot waits, undrawn, for the usage surface. */
@@ -1581,6 +1676,10 @@ body.ask-open .tb-ask .tb-ask-face {
     box-shadow: var(--shadow-rim);
     opacity: var(--dot-on);
     transition: opacity 0.5s ease;
+  }
+  /* Only while it shows: an animation running on a dot nobody can see styled the page again on every frame. */
+  .phone-ask .ask-disc[data-usage="warned"]::before,
+  .phone-ask .ask-disc[data-usage="over"]::before {
     animation: ask-dot-breathe 2.6s ease-in-out infinite;
   }
   @keyframes ask-dot-breathe {
@@ -1696,9 +1795,14 @@ body.ask-open .tb-ask .tb-ask-face {
     font-size: var(--field-text-touch);
     min-height: 44px;
   }
-  .ask-send {
+  .ask-send,
+  .ask-attach {
     width: 36px;
     height: 36px;
+  }
+  /* Beside the + and the one button, the chip leaves the words their room. */
+  .ask-scope {
+    max-width: 110px;
   }
   .ask-row {
     min-height: 48px;
@@ -1784,8 +1888,9 @@ body.ask-open .tb-ask .tb-ask-face {
 
 /* Last, so it wins over the phone's own motion too: nothing moves but the finger's drag. */
 @media (prefers-reduced-motion: reduce) {
-  /* the ✦'s beam holds still: the disc, the three's still frame and the colours stay */
-  .phone-ask .ask-disc::before {
+  /* the ✦'s dot holds still: the disc, the three's still frame and the colours stay */
+  .phone-ask .ask-disc[data-usage="warned"]::before,
+  .phone-ask .ask-disc[data-usage="over"]::before {
     animation: none;
   }
   .ask-cursor,

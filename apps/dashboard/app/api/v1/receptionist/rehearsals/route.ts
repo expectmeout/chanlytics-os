@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { SPEND_REHEARSE } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { startRehearsal } from "@/server/receptionist/rehearsal";
+import { write, workspace } from "@/server/shared/route";
+import { startRehearsal } from "@/server/settings/rehearsal";
 
 /**
  * POST /api/v1/receptionist/rehearsals — Settings › How it answers, Rehearse (decision 0069): a call in the browser with

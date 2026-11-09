@@ -2,7 +2,7 @@
  * A person's Visits tab (canvas A, V-01): one pane, its line of how they stand (kept, missed, how often they come, how
  * many wait for a word), then the visits nobody has marked, each asking whether they came with the visit line's two
  * presses; the visits ahead; and the visits past, each a door to its day on the Calendar with the word said on it. Every
- * word is contracts' (person-page/visits.ts); the presses are the visit line's own (VisitActs), which the page re-reads
+ * word is contracts' (people/person-page/visits.ts); the presses are the visit line's own (VisitActs), which the page re-reads
  * after as it does for Up next.
  */
 import type { ReactElement } from "react";
@@ -11,7 +11,7 @@ import type { PersonVisitRowVM, PersonVisitsVM } from "@chanlytics/contracts";
 import { EmptyState } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
 import { Panel } from "../../../kit/panel/panel";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { VisitActs } from "../../../visit-line";
 import type { PageCtx } from "../ctx";
 

@@ -10,7 +10,7 @@
  *             whom), frozen as the request the mailbox sends (the adapter's emailRequest port) and written as the queued
  *             row the door demands before anything leaves (written once the person is claimed). A message about their visit
  *             or their proposal carries no unsubscribe: its foot says a reply of STOP stops them. An OFFER leaves from
- *             the mailbox on the campaigns domain, and its foot owes more (contracts emailFoot): why they get it, the
+ *             the mailbox on the campaigns domain, and its foot owes more (contracts customerEmailFoot): why they get it, the
  *             business's name and postal address, and the Unsubscribe link, which the one-click headers carry too. A
  *             business with no postal address on file sends none: the person is held (`no_business_address`). An offer is
  *             what contracts isOfferByEmail says: a marketing message, and (decision D2) the business's own news, a
@@ -25,8 +25,7 @@ import {
   type FeedNames,
   RECIPIENT_REASON_HEARD,
   allowanceRoom,
-  emailFoot,
-  emailFootHtml,
+  customerEmailFoot,
   enrolPurpose,
   heldByAllowance,
   isOfferByEmail,
@@ -42,13 +41,15 @@ import {
   type ParamSpec,
   type SendPurpose,
   type VersionWords,
+  recordOrEmpty,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { broadcastEmailId } from "../campaigns/reach-out-ids";
-import type { Channel as DoorChannel, Delivery } from "../deliver";
+import type { Channel as DoorChannel, Delivery } from "../deliver/deliver";
 
 /**
  * The wires a broadcast goes out on: every channel of the send door but an Instagram DM, which answers a person and never
- * starts a conversation (Meta lets a business start none, and no yes covers it: contracts consent-channels.ts).
+ * starts a conversation (Meta lets a business start none, and no yes covers it: contracts consent/channels.ts).
  */
 export type BroadcastChannel = Exclude<DoorChannel, "instagram">;
 type Channel = BroadcastChannel;
@@ -60,6 +61,7 @@ import type {
   RecipientMark,
   RecipientRow,
 } from "./ports";
+import type { ContactId } from "@chanlytics/contracts";
 
 /**
  * Which yes this run's send needs at the door: what its enrolment asked (contracts enrolPurpose, the stricter of the
@@ -76,13 +78,17 @@ export function purposeAtTheDoor(trigger: string | null, message: { category: st
 }
 
 /** The channel a person is reached on: the one their row says, and WhatsApp for a run made before rows said. */
-export function channelOf(r: Pick<RecipientRow, "channel">): Channel {
-  return r.channel === "sms" || r.channel === "email" ? r.channel : "whatsapp";
+export function channelOf(recipient: Pick<RecipientRow, "channel">): Channel {
+  return recipient.channel === "sms" || recipient.channel === "email" ? recipient.channel : "whatsapp";
 }
 
 /** Whether a send on this person's wire may still start at `now` (BroadcastBatchCommand.startBy): always, on one with no moment. */
-export function startsInTime(cmd: BroadcastBatchCommand, r: Pick<RecipientRow, "channel">, now: number): boolean {
-  const by = cmd.startBy?.[channelOf(r)];
+export function startsInTime(
+  cmd: BroadcastBatchCommand,
+  recipient: Pick<RecipientRow, "channel">,
+  now: number,
+): boolean {
+  const by = cmd.startBy?.[channelOf(recipient)];
   return by === undefined || now <= by;
 }
 
@@ -147,13 +153,13 @@ export interface Work {
    * day-before reminder: broadcast.ts holdForLater), and when that is: the run waits for it rather than for a minute.
    */
   waiting: { count: number; retryAt: Date | null };
-  mark(contactId: string, patch: RecipientMark): Promise<void>;
+  mark(contactId: ContactId, patch: RecipientMark): Promise<void>;
 }
 
 /** A visit run's or a follow-up's words for one person, resolved when the run was made and kept on their row. */
-export function rowFacts(r: Pick<RecipientRow, "facts">): Record<string, unknown> {
-  return r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts)
-    ? (r.facts as Record<string, unknown>)
+export function rowFacts(recipient: Pick<RecipientRow, "facts">): Record<string, unknown> {
+  return recipient.facts !== null && typeof recipient.facts === "object" && !Array.isArray(recipient.facts)
+    ? recordOrEmpty(recipient.facts)
     : {};
 }
 
@@ -177,14 +183,14 @@ export async function batchSlots(
  * stands (broadcast-feed.ts visitStands, handed in, and asked only of a person not left out: one the breath left out is
  * skipped even where the calendar could not be read).
  */
-export function rowHold(r: Pick<RecipientRow, "facts">, visitStands: () => boolean): string | null {
-  if (leftOutByFacts(rowFacts(r))) return RECIPIENT_REASON_HEARD;
+export function rowHold(recipient: Pick<RecipientRow, "facts">, visitStands: () => boolean): string | null {
+  if (leftOutByFacts(rowFacts(recipient))) return RECIPIENT_REASON_HEARD;
   return visitStands() ? null : "appointment_changed";
 }
 
 /** What a run's messages record: that a broadcast sent them, which, and for a run, its playbook (a thread reads "by the Win-back playbook"). */
 function metaOf(b: BroadcastRow) {
-  const label = (b.audience as { label?: unknown } | null)?.label;
+  const label = recordOrNull(b.audience)?.label;
   return {
     source: "broadcast",
     broadcast_id: b.id,
@@ -211,15 +217,15 @@ function versionOf(w: Work, channel: "email" | "sms"): VersionWords | null {
  * message about a visit and not an offer): it counts toward the month and always goes. This is the backstop; the run's
  * enrolment already held whoever the month could not carry (campaigns/allowance.ts).
  */
-export async function overAllowance(w: Work, channel: "email" | "sms"): Promise<boolean> {
-  if (!heldByAllowance(w.trigger, w.purpose)) return false;
-  w.month[channel] ??= await w.ports.monthSent(channel);
-  return allowanceRoom(channel, w.month[channel] ?? 0) === 0;
+export async function isOverAllowance(work: Work, channel: "email" | "sms"): Promise<boolean> {
+  if (!heldByAllowance(work.trigger, work.purpose)) return false;
+  work.month[channel] ??= await work.ports.monthSent(channel);
+  return allowanceRoom(channel, work.month[channel] ?? 0) === 0;
 }
 
 /** One more email or text has left: the batch's own count of the month. */
-export function countSent(w: Work, channel: Channel): void {
-  if (channel !== "whatsapp") w.month[channel] = (w.month[channel] ?? 0) + 1;
+export function countSent(work: Work, channel: Channel): void {
+  if (channel !== "whatsapp") work.month[channel] = (work.month[channel] ?? 0) + 1;
 }
 
 /** The foot an email carries as the adapter takes it: its text, and for an offer the link and the foot in HTML. */
@@ -243,54 +249,63 @@ type Prepared = { held: string } | { delivery: Delivery; queue?: QueuedEmail };
  * one already there that is no longer queued has had its say.
  */
 async function emailDelivery(
-  w: Work,
-  i: { r: RecipientRow; c: ContactRow; to: string; conversationId: string; params: string[] },
+  work: Work,
+  input: { r: RecipientRow; c: ContactRow; to: string; conversationId: string; params: string[] },
   base: Omit<Delivery, "channel" | "body">,
 ): Promise<Prepared> {
-  const version = versionOf(w, "email");
+  const version = versionOf(work, "email");
   if (!version) return { held: "no_channel" };
-  const said = renderOwnVersion("email", version, i.params, w.b.template_language);
-  if (!said.subject) return { held: "no_channel" };
+  const rendered = renderOwnVersion("email", version, input.params, work.b.template_language);
+  if (!rendered.subject) return { held: "no_channel" };
   const messageId = await broadcastEmailId({
-    broadcastId: w.b.id,
-    contactId: i.c.id,
-    attempt: i.r.attempt,
-    waits: w.cmd.waits ?? 0,
-    stalls: w.cmd.stalls ?? 0,
+    broadcastId: work.b.id,
+    contactId: input.c.id,
+    attempt: input.r.attempt,
+    waits: work.cmd.waits ?? 0,
+    stalls: work.cmd.stalls ?? 0,
   });
-  const { businessName, address } = w.facts;
+  const { businessName, address } = work.facts;
   let foot: Foot;
-  if (isOfferByEmail({ channel: "email", purpose: w.purpose, proactive: base.proactive, about: base.about })) {
+  if (isOfferByEmail({ channel: "email", purpose: work.purpose, proactive: base.proactive, about: base.about })) {
     // An offer, and the business's own news with it (decision D2), owes the postal address and a way out the person can
     // press: with neither, nobody is written to. It leaves on the campaigns domain, as the offer foot's request says.
     if (!address?.trim()) return { held: "no_business_address" };
-    const unsubscribeUrl = await w.ports.unsubscribeUrl({ messageId, contactId: i.c.id });
+    const unsubscribeUrl = await work.ports.unsubscribeUrl({ messageId, contactId: input.c.id });
     if (!unsubscribeUrl?.trim()) return { held: "no_channel" };
     // Someone who asked for offers by email says so; anyone else who may get one has dealt with the business.
-    const offer = {
-      kind: "offer" as const,
-      why: i.c.email_marketing === "opted_in" ? ("asked" as const) : ("customer" as const),
-      unsubscribeUrl,
-    };
-    foot = {
-      footer: emailFoot(businessName, address, offer, w.b.template_language),
-      offer: { unsubscribeUrl, footerHtml: emailFootHtml(businessName, address, offer, w.b.template_language) },
-    };
+    const reason = input.c.email_marketing === "opted_in" ? ("asked" as const) : ("customer" as const);
+    foot = customerEmailFoot({
+      business: businessName,
+      address,
+      language: work.b.template_language,
+      offer: { why: reason, unsubscribeUrl },
+      facts: {},
+    });
   } else
-    foot = {
-      footer: emailFoot(businessName, address, { kind: "visit", facts: rowFacts(i.r) }, w.b.template_language),
-    };
-  const request = await w.ports.emailRequest({ messageId, to: i.to, subject: said.subject, body: said.body, ...foot });
+    foot = customerEmailFoot({
+      business: businessName,
+      address,
+      language: work.b.template_language,
+      offer: null,
+      facts: rowFacts(input.r),
+    });
+  const request = await work.ports.emailRequest({
+    messageId,
+    to: input.to,
+    subject: rendered.subject,
+    body: rendered.body,
+    ...foot,
+  });
   if (!request) return { held: "no_channel" };
   return {
-    delivery: { ...base, channel: "email", body: said.body, messageId, email: request },
+    delivery: { ...base, channel: "email", body: rendered.body, messageId, email: request },
     queue: {
       id: messageId,
-      conversationId: i.conversationId,
-      contactId: i.c.id,
-      body: said.body,
+      conversationId: input.conversationId,
+      contactId: input.c.id,
+      body: rendered.body,
       request,
-      meta: metaOf(w.b),
+      meta: metaOf(work.b),
     },
   };
 }
@@ -301,8 +316,8 @@ async function emailDelivery(
  * that id has had its say (sent, canceled, failed), and nothing goes. Any other delivery has no row to write. A write
  * that fails throws, with nothing written.
  */
-export async function queueEmailRow(w: Work, made: { queue?: QueuedEmail }): Promise<boolean> {
-  return !made.queue || (await w.ports.queueEmail(made.queue)).status === "queued";
+export async function queueEmailRow(work: Work, created: { queue?: QueuedEmail }): Promise<boolean> {
+  return !created.queue || (await work.ports.queueEmail(created.queue)).status === "queued";
 }
 
 /**
@@ -310,44 +325,44 @@ export async function queueEmailRow(w: Work, made: { queue?: QueuedEmail }): Pro
  * them, which every version of the message fills the same way.
  */
 export async function prepare(
-  w: Work,
-  i: { r: RecipientRow; c: ContactRow; channel: Channel; to: string; conversationId: string; params: string[] },
+  work: Work,
+  input: { r: RecipientRow; c: ContactRow; channel: Channel; to: string; conversationId: string; params: string[] },
 ): Promise<Prepared> {
-  const { b, cmd } = w;
+  const { b, cmd } = work;
   const base = {
     tenantId: cmd.tenantId,
-    conversationId: i.conversationId,
-    contactId: i.c.id,
-    to: i.to,
+    conversationId: input.conversationId,
+    contactId: input.c.id,
+    to: input.to,
     sender: "human" as const,
     kind: "broadcast" as const,
-    purpose: w.purpose,
+    purpose: work.purpose,
     proactive: true,
     // A visit's or a follow-up's run is about something of theirs, any other run (a broadcast) the business's news, which by
     // email asks a yes covering email or a relationship (contracts messageAboutOfTrigger, decision D1): the run's moment,
     // read as the enrolment read it, so the two cannot disagree about anyone.
-    about: messageAboutOfTrigger(w.trigger),
+    about: messageAboutOfTrigger(work.trigger),
     // The moment itself, for the door's one question about it: whether this send passes the thread's 24-hour pause (D4).
-    trigger: w.trigger,
+    trigger: work.trigger,
     // A send the provider provably did not take (a connection that never opened, its "not now") is handed back rather
     // than written as failed: this person waits in the queue, and the run waits with them (00282).
     holdIfNotTaken: true,
     // A run's message names its playbook, so a thread reads "by the Win-back playbook".
     meta: metaOf(b),
   };
-  if (i.channel === "whatsapp") {
+  if (input.channel === "whatsapp") {
     return {
       delivery: {
         ...base,
         channel: "whatsapp",
-        body: renderTemplate(w.tpl.body_preview, i.params),
-        template: { name: b.template_name, language: b.template_language, params: i.params },
+        body: renderTemplate(work.tpl.body_preview, input.params),
+        template: { name: b.template_name, language: b.template_language, params: input.params },
       },
     };
   }
-  if (i.channel === "email") return emailDelivery(w, i, base);
-  const version = versionOf(w, "sms");
+  if (input.channel === "email") return emailDelivery(work, input, base);
+  const version = versionOf(work, "sms");
   if (!version) return { held: "no_channel" };
-  const said = renderOwnVersion("sms", version, i.params, b.template_language);
-  return { delivery: { ...base, channel: "sms", body: said.body } };
+  const rendered = renderOwnVersion("sms", version, input.params, b.template_language);
+  return { delivery: { ...base, channel: "sms", body: rendered.body } };
 }

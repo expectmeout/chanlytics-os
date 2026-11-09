@@ -35,49 +35,51 @@
  *
  * Cross-workspace: a provider webhook; the Retell agent id (or call id) names the workspace before anything is written.
  */
-import { mail, notifyOnceAs, reachesTenant, type NotifyMessage } from "../ops/notify.js";
-import { pageOperator } from "../ops/page-operator.js";
-import { loadTenantNotifications, loadTenantRuntime } from "../tenant-runtime.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { keepDelivery, signatureHeaders } from "../intake/keep.js";
+import { heldTenantId } from "@chanlytics/contracts";
+import { sendOpsMail, notifyOnceAs, reachesTenant, type NotifyMessage } from "../shared/alerts/notify.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
+import { loadTenantNotifications, loadTenantRuntime } from "../shared/tenant-runtime.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { keepDelivery, signatureHeaders } from "../shared/keep-event.js";
 import {
   normalizeCall,
   parseTranscriptText,
   updateLiveCall,
   type NormalizedCall,
   type RetellCall,
-} from "../packages/channels.js";
+} from "@chanlytics/channels/voice";
 import {
   pauseConversation,
   resolveChannelDetailed,
-  callerNameOf,
-  ingestCall,
-  recordCallNote,
-  linkCallMessage,
-  claimCallNotification,
-  claimGuardCorrection,
-  markCallNoticeTold,
-  emitEvent,
-  claimControl,
-  releaseControl,
-  stampCallConfigVersion,
-  CALL_CONTROL_S,
   type ChannelLookup,
   type RoutedChannel,
-} from "../packages/db.js";
+} from "@chanlytics/db/channels";
+import {
+  claimCallNotification,
+  claimGuardCorrection,
+  findAgentOfCall,
+  findCallerName,
+  ingestCall,
+  linkCallMessage,
+  markCallNoticeTold,
+  recordCallNote,
+  stampCallConfigVersion,
+} from "@chanlytics/db/voice";
+import { emitEvent } from "@chanlytics/db/events";
+import { claimControl, releaseControl, CALL_CONTROL_S } from "@chanlytics/db/conversations";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "./call-recording.js";
 import { isRehearsalCall, settleRehearsalEvent } from "./rehearsal-call.js";
 import { markForwardingVerified } from "./forwarding.js";
 import { tellPhonesCallStarted } from "./call-activity.js";
-import { apns, apnsKeys } from "../ops/apns.js";
-import { erasedBeforeCall } from "../erased.js";
-import { upsertEscalation } from "../packages/jobs.js";
-import { frameGuardrail, pauseMsOf, MIN_MS, priceAllowance, spokenBreach } from "../packages/contracts.js";
+import { apns, apnsKeys } from "./apns.js";
+import { wasErasedBeforeCall } from "../shared/erased.js";
+import { upsertEscalation } from "@chanlytics/jobs";
+import { frameGuardrail, pauseMsOf, MIN_MS, priceAllowance, spokenBreach, recordOrEmpty } from "@chanlytics/contracts";
 import { linkOfferedOn } from "../calendar/availability.js";
-import { env } from "../env.js";
-import { keptUrl, retellSigned } from "./voice-door-auth.js";
-import { logger, errField } from "../log.js";
+import { env } from "../shared/env.js";
+import { keptUrl, retellSigned } from "../shared/door-auth.js";
+import { logger, errField } from "../shared/log.js";
 import {
   planCallEvent,
   callNotice,
@@ -87,10 +89,12 @@ import {
   type CallEventPlan,
   type CallStep,
 } from "./call-event.js";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { logAndGoOn, logKeptGoing } from "@chanlytics/log";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
-const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
+const PLATFORM_TENANT = heldTenantId("00000000-0000-0000-0000-000000000000");
 
 /**
  * When a refused delivery last left an evidence row, per instance. The row is
@@ -115,7 +119,7 @@ async function recordWebhookAuth(
   key: boolean,
   forms: { raw: boolean; restringified: boolean },
 ): Promise<void> {
-  const L = logger();
+  const log = logger();
   try {
     const db = pg();
     if (!db) return;
@@ -127,7 +131,7 @@ async function recordWebhookAuth(
       sig_restringified: forms.restringified,
     });
   } catch (e) {
-    L.error("webhook_auth_event_failed", { error: errField(e) });
+    log.error("webhook_auth_event_failed", { error: errField(e) });
   }
 }
 
@@ -163,16 +167,16 @@ async function recordWebhookAuth(
  * shape.
  */
 async function admitted(raw: string, signature: string | null): Promise<boolean> {
-  const L = logger();
+  const log = logger();
   if (!env.RETELL_WEBHOOK_KEY) {
     // Named, every delivery, so the one configuration step that stands between
     // this door and a real signature is not a thing someone has to already
     // know: without it, no delivery verifies.
-    L.warn("retell_webhook_key_unset", { fix: "set RETELL_WEBHOOK_KEY to the badged key" });
+    log.warn("retell_webhook_key_unset", { fix: "set RETELL_WEBHOOK_KEY to the badged key" });
   }
-  // The check itself is voice-door-auth.ts's `retellSigned`, which the other three voice doors use too.
+  // The check itself is shared/door-auth.ts's `retellSigned`, which the other three voice doors use too.
   const { ok: sigOk, raw: sigRaw, restringified: sigRestringified } = retellSigned(raw, signature);
-  L.info("retell_webhook_auth", { sig: sigOk });
+  log.info("retell_webhook_auth", { sig: sigOk });
   // AWAITED, not fired and forgotten. A serverless invocation is frozen when it
   // answers and nothing in this app registers a waitUntil, so an un-awaited
   // insert only lands if another delivery happens to thaw the instance in
@@ -221,26 +225,26 @@ interface Delivery {
  * keep the KEY NAMES (never the words) so the next delivery says which.
  */
 function readDelivery(raw: string): Delivery | null {
-  const L = logger();
+  const log = logger();
   let body: { event?: string; call?: RetellCall };
   try {
-    body = JSON.parse(raw);
+    body = JSON.parse(raw) as typeof body;
   } catch {
-    return null;
+    return null; // Not JSON: nothing to read.
   }
   const { event, call } = body;
-  L.info("retell_event", { retell_event: event, call_id: call?.call_id ?? null });
+  log.info("retell_event", { retell_event: event, call_id: call?.call_id ?? null });
   if (!call?.call_id) return null;
   if (event === "transcript_updated" && !call.call_status) call.call_status = "ongoing";
-  const top = body as unknown as Record<string, unknown>;
+  const top = recordOrEmpty(body);
   const bodyKeys = Object.keys(top).filter((k) => k !== "call");
-  const callKeys = Object.keys(call as unknown as Record<string, unknown>);
+  const callKeys = Object.keys(recordOrEmpty(call));
   if (event === "transcript_updated") {
     if (!call.transcript_with_tool_calls && Array.isArray(top.transcript_with_tool_calls)) {
-      call.transcript_with_tool_calls = top.transcript_with_tool_calls as RetellCall["transcript_with_tool_calls"];
+      call.transcript_with_tool_calls = top.transcript_with_tool_calls;
     }
     if (!call.transcript_object && Array.isArray(top.transcript_object)) {
-      call.transcript_object = top.transcript_object as RetellCall["transcript_object"];
+      call.transcript_object = top.transcript_object;
     }
     if (!call.transcript && typeof top.transcript === "string") call.transcript = top.transcript;
     if (!call.transcript_object && !call.transcript_with_tool_calls && call.transcript) {
@@ -261,12 +265,12 @@ function readDelivery(raw: string): Delivery | null {
  */
 async function erasureOf(
   db: Db,
-  n: NormalizedCall,
+  normalizedCall: NormalizedCall,
   routed: RoutedChannel | null,
   event: string | undefined,
 ): Promise<"erased" | "erasure_unreadable" | null> {
-  const L = logger();
-  if (!routed || !n.fromE164 || !n.startedAtIso) return null;
+  const log = logger();
+  if (!routed || !normalizedCall.fromE164 || !normalizedCall.startedAtIso) return null;
   // A read that FAILED is not "nobody asked to be forgotten". The comment
   // above once promised a late sweep to catch what this let through; there
   // is no such sweep, so the promise was the only thing standing between a
@@ -274,18 +278,18 @@ async function erasureOf(
   // the provider redelivers, and a blip costs a retry rather than a person.
   let erased: boolean;
   try {
-    erased = await erasedBeforeCall(db, routed.tenantId, n.fromE164, n.startedAtIso);
+    erased = await wasErasedBeforeCall(db, routed.tenantId, normalizedCall.fromE164, normalizedCall.startedAtIso);
   } catch (e) {
-    L.error("retell_call_erasure_unreadable", {
-      call: n.retellCallId,
+    log.error("retell_call_erasure_unreadable", {
+      call: normalizedCall.retellCallId,
       tenant_id: routed.tenantId,
       error: errField(e),
     });
     return "erasure_unreadable";
   }
   if (erased) {
-    L.info("retell_call_skipped_erased", {
-      call: n.retellCallId,
+    log.info("retell_call_skipped_erased", {
+      call: normalizedCall.retellCallId,
       tenant_id: routed.tenantId,
       retell_event: event,
     });
@@ -309,23 +313,18 @@ async function erasureOf(
  * earn different answers at the door, and this read once dropped its error
  * on the floor.
  */
-async function routeDelivery(db: Db, n: { agentId: string | null; retellCallId: string }): Promise<ChannelLookup> {
-  const L = logger();
-  if (n.agentId) return resolveChannelDetailed(db, "voice", n.agentId);
-  const { data, error } = await db
-    .from("calls")
-    .select("agent_id")
-    .eq("retell_call_id", n.retellCallId)
-    .limit(1)
-    .maybeSingle();
+async function routeDelivery(db: Db, input: { agentId: string | null; retellCallId: string }): Promise<ChannelLookup> {
+  const log = logger();
+  if (input.agentId) return resolveChannelDetailed(db, "voice", input.agentId);
+  const { data, error } = await findAgentOfCall(db, input.retellCallId);
   if (error) {
     // The REASON rides the log: an RLS or grant regression on `calls` must
     // read differently from a network blip, and the door's refusal names
     // the call, not the cause.
-    L.error("retell_call_row_unreadable", { call_id: n.retellCallId, error: error.message });
+    log.error("retell_call_row_unreadable", { call_id: input.retellCallId, error: error.message });
     return { channel: null, lookupFailed: true };
   }
-  const agentId = (data as { agent_id?: string | null } | null)?.agent_id ?? null;
+  const agentId = data?.agent_id ?? null;
   return agentId ? resolveChannelDetailed(db, "voice", agentId) : { channel: null, lookupFailed: false };
 }
 
@@ -334,23 +333,27 @@ async function routeDelivery(db: Db, n: { agentId: string | null; retellCallId: 
  * of the people who take calls. Best effort beside the call's own door, and bounded (apns.ts: three seconds a push),
  * since the webhook's answer waits on it.
  */
-async function tellPhones(db: Db, tenantId: string, s: Extract<CallStep, { kind: "call_activity" }>): Promise<void> {
-  const L = logger();
+async function tellPhones(
+  db: Db,
+  tenantId: TenantId,
+  callStep: Extract<CallStep, { kind: "call_activity" }>,
+): Promise<void> {
+  const log = logger();
   const keys = apnsKeys();
   if (!keys) return;
-  const outcome = await tellPhonesCallStarted(db, tenantId, s.call, apns(keys)).catch((e: unknown) => {
-    L.error("call_activity_failed", { call: s.retellCallId, error: errField(e) });
+  const outcome = await tellPhonesCallStarted(db, tenantId, callStep.call, apns(keys)).catch((e: unknown) => {
+    log.error("call_activity_failed", { call: callStep.retellCallId, error: errField(e) });
     return null;
   });
   if (outcome) {
-    L.info("call_activity_started", {
-      call: s.retellCallId,
+    log.info("call_activity_started", {
+      call: callStep.retellCallId,
       started: outcome.started,
       refused: outcome.refused.length,
       gone: outcome.gone,
       already: outcome.already,
     });
-    for (const r of outcome.refused) L.warn("call_activity_refused", { call: s.retellCallId, error: r.error });
+    for (const r of outcome.refused) log.warn("call_activity_refused", { call: callStep.retellCallId, error: r.error });
   }
 }
 
@@ -359,7 +362,7 @@ async function tellPhones(db: Db, tenantId: string, s: Extract<CallStep, { kind:
  * on the row the ingest made (decision 0069, R6). Never fatal: a call that cannot be stamped is a call reviewed against
  * the settings as they stand, and says so.
  */
-async function stampConfigVersion(db: Db, tenantId: string, retellCallId: string, call: RetellCall): Promise<void> {
+async function stampConfigVersion(db: Db, tenantId: TenantId, retellCallId: string, call: RetellCall): Promise<void> {
   const v = call.metadata?.config_version;
   if (typeof v !== "number" || !Number.isInteger(v) || v < 1) return;
   try {
@@ -371,12 +374,12 @@ async function stampConfigVersion(db: Db, tenantId: string, retellCallId: string
 
 /** A call nobody's agent owns: dead-lettered under the platform, never guessed into a tenant. */
 async function deadLetter(db: Db, n: NormalizedCall): Promise<void> {
-  const L = logger();
-  L.error("retell_unroutable_agent", { agent_id: n.agentId });
+  const log = logger();
+  log.error("retell_unroutable_agent", { agent_id: n.agentId });
   await emitEvent(db, PLATFORM_TENANT, "ingest.unroutable", null, null, {
     channel: "voice",
     agent_id: n.agentId,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event ingest.unroutable"));
 }
 
 /**
@@ -388,70 +391,74 @@ async function deadLetter(db: Db, n: NormalizedCall): Promise<void> {
  */
 async function recordDelivery(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   callId: string | null,
   data: Record<string, unknown>,
 ): Promise<void> {
-  const L = logger();
+  const log = logger();
   try {
     await emitEvent(db, tenantId, "webhook.delivery", callId ? "call" : null, callId, {
       provider: "retell",
       ...data,
     });
   } catch (e) {
-    L.error("webhook_delivery_event_failed", { error: errField(e) });
+    log.error("webhook_delivery_event_failed", { error: errField(e) });
   }
 }
 
 /** The note in the caller's thread, and the call row pointed at it. */
-async function landNote(db: Db, tenantId: string, s: Extract<CallStep, { kind: "note" }>): Promise<void> {
+async function landNote(db: Db, tenantId: TenantId, callStep: Extract<CallStep, { kind: "note" }>): Promise<void> {
   const msgId = await recordCallNote(db, {
     tenantId,
-    conversationId: s.conversationId,
-    contactId: s.contactId,
-    body: s.body,
-    externalId: s.externalId,
-    channelTsIso: s.channelTsIso,
+    conversationId: callStep.conversationId,
+    contactId: callStep.contactId,
+    body: callStep.body,
+    externalId: callStep.externalId,
+    channelTsIso: callStep.channelTsIso,
   });
-  if (msgId) await linkCallMessage(db, tenantId, s.callId, msgId);
+  if (msgId) await linkCallMessage(db, tenantId, callStep.callId, msgId);
 }
 
 /** The call's own hold on the thread, let go when the call is over and renewed while it runs. */
-async function holdThread(db: Db, tenantId: string, s: Extract<CallStep, { kind: "hold" }>): Promise<void> {
-  const L = logger();
+async function holdThread(db: Db, tenantId: TenantId, s: Extract<CallStep, { kind: "hold" }>): Promise<void> {
+  const log = logger();
   const holder = { kind: "call" as const, callId: s.retellCallId };
   const thread = { tenantId, conversationId: s.conversationId, holder };
   await (s.over ? releaseControl(db, thread) : claimControl(db, { ...thread, seconds: CALL_CONTROL_S })).catch(
     (e: unknown) => {
-      L.error("retell_call_hold_failed", { call: s.retellCallId, over: s.over, error: errField(e) });
+      log.error("retell_call_hold_failed", { call: s.retellCallId, over: s.over, error: errField(e) });
     },
   );
 }
 
 /** The caller handed to a person: the thread paused for the workspace's own hours, the one escalation with the to-do. */
-async function handToPerson(db: Db, routed: RoutedChannel, s: Extract<CallStep, { kind: "callback" }>): Promise<void> {
-  const L = logger();
+async function handToPerson(
+  db: Db,
+  routed: RoutedChannel,
+  callStep: Extract<CallStep, { kind: "callback" }>,
+): Promise<void> {
+  const log = logger();
   // A call the receptionist could not finish steps it aside on the thread for the workspace's pause; a call that reached
   // no answer (missed, or left without a word) leaves it answering what they write.
-  if (s.pause) {
+  if (callStep.pause) {
     const rt = await loadTenantRuntime(db, routed);
     const pauseMs = pauseMsOf(rt.policy["reply"]?.limits);
     // Measured from the call's end, never from this delivery: Retell retries a slow delivery, and a pause measured
     // from each one slid forward with every replay (docs/conversation-flow.md, G9). The same call ended once.
-    const from = s.endedAtIso ? Date.parse(s.endedAtIso) : Date.now();
-    await pauseConversation(db, routed.tenantId, s.conversationId, new Date(from + pauseMs).toISOString());
+    const from = callStep.endedAtIso ? Date.parse(callStep.endedAtIso) : Date.now();
+    await pauseConversation(db, routed.tenantId, callStep.conversationId, new Date(from + pauseMs).toISOString());
   }
-  const opened = await upsertEscalation(db, routed.tenantId, s.conversationId, "callback", s.details);
-  L.info("call_callback_needed", { tenant_id: routed.tenantId, call: s.callId, escalation: opened });
+  const opened = await upsertEscalation(db, routed.tenantId, callStep.conversationId, "callback", callStep.details);
+  log.info("call_callback_needed", { tenant_id: routed.tenantId, call: callStep.callId, escalation: opened });
 }
 
 /** The owner told a standing rule was broken out loud. */
-async function raiseBreach(db: Db, tenantId: string, s: Extract<CallStep, { kind: "policy_block" }>): Promise<void> {
-  const L = logger();
-  const said = await upsertEscalation(db, tenantId, s.conversationId, s.reason, s.details);
+async function raiseBreach(db: Db, tenantId: TenantId, s: Extract<CallStep, { kind: "policy_block" }>): Promise<void> {
+  const log = logger();
+  const sentence = await upsertEscalation(db, tenantId, s.conversationId, s.reason, s.details);
   // The words the agent said are the owner's to read in the Inbox, never the
   // platform's log: the turn number and the outcome are what a search needs.
-  L.warn("voice_policy_block_price", { tenant_id: tenantId, call: s.callId, turn: s.turn, escalation: said });
+  log.warn("voice_policy_block_price", { tenant_id: tenantId, call: s.callId, turn: s.turn, escalation: sentence });
 }
 
 /**
@@ -462,22 +469,27 @@ async function raiseBreach(db: Db, tenantId: string, s: Extract<CallStep, { kind
 async function correctReceptionist(
   db: Db,
   routed: RoutedChannel,
-  s: Extract<CallStep, { kind: "correct_live_call" }>,
+  callStep: Extract<CallStep, { kind: "correct_live_call" }>,
 ): Promise<void> {
-  const L = logger();
-  if (!(await claimGuardCorrection(db, routed.tenantId, s.callId))) return;
+  const log = logger();
+  if (!(await claimGuardCorrection(db, routed.tenantId, callStep.callId))) return;
   // What the correction offers is what this receptionist offers on a call: the link where WhatsApp can carry it, or
   // the details (linkOfferedOn).
   const rt = await loadTenantRuntime(db, routed);
   // The plan asks for a correction only while the key is held (canCorrect).
-  const put = await updateLiveCall({ apiKey: env.RETELL_API_KEY! }, s.retellCallId, {
-    additionalContext: frameGuardrail(s.rule, { hasBookingLink: linkOfferedOn("call", rt) }),
+  const put = await updateLiveCall({ apiKey: env.RETELL_API_KEY ?? "" }, callStep.retellCallId, {
+    additionalContext: frameGuardrail(callStep.rule, { hasBookingLink: linkOfferedOn("call", rt) }),
     // Never by decree. Every whisper this product sends is worked into the
     // next answer rather than spoken on command, and a correction the caller
     // hears being read out is a second mistake on top of the first.
     triggerResponse: false,
   });
-  L.info("voice_guardrail_correction", { call: s.retellCallId, rule: s.rule, ok: put.ok, status: put.status });
+  log.info("voice_guardrail_correction", {
+    call: callStep.retellCallId,
+    rule: callStep.rule,
+    ok: put.ok,
+    status: put.status,
+  });
 }
 
 /**
@@ -487,13 +499,14 @@ async function correctReceptionist(
  * Read at the call's start, where its prompt was composed (call-start.ts): a call that runs past midnight on an offer's
  * last day is judged by what the caller's receptionist was told, the offer's note and its price included.
  */
-async function allowedOnCall(db: Db, routed: RoutedChannel, n: NormalizedCall): Promise<ReadonlySet<string> | null> {
-  if (!spokenBreach(n.transcriptObject, null)) return null;
+async function allowedOnCall(db: Db, routed: RoutedChannel, call: NormalizedCall): Promise<ReadonlySet<string> | null> {
+  if (!spokenBreach(call.transcriptObject, null)) return null;
   try {
     const rt = await loadTenantRuntime(db, routed);
-    const composedAt = n.startedAtIso ? new Date(n.startedAtIso) : new Date();
+    const composedAt = call.startedAtIso ? new Date(call.startedAtIso) : new Date();
     return rt.loadFailed ? null : priceAllowance(rt.brain, rt.timezone, composedAt);
-  } catch {
+  } catch (e) {
+    logKeptGoing("a call's allowance", e);
     return null;
   }
 }
@@ -502,52 +515,52 @@ async function allowedOnCall(db: Db, routed: RoutedChannel, n: NormalizedCall): 
 async function applyStep(
   db: Db,
   routed: RoutedChannel,
-  s: Exclude<CallStep, { kind: "claim_notification" }>,
+  callStep: Exclude<CallStep, { kind: "claim_notification" }>,
 ): Promise<void> {
-  const L = logger();
-  switch (s.kind) {
+  const log = logger();
+  switch (callStep.kind) {
     case "log":
-      L.info(s.event, s.fields);
+      log.info(callStep.event, callStep.fields);
       return;
     case "forwarding_verified":
-      await markForwardingVerified(db, routed.tenantId, s.call);
+      await markForwardingVerified(db, routed.tenantId, callStep.call);
       return;
     case "call_activity":
-      await tellPhones(db, routed.tenantId, s);
+      await tellPhones(db, routed.tenantId, callStep);
       return;
     case "delivery":
-      await recordDelivery(db, routed.tenantId, s.callId, s.data);
+      await recordDelivery(db, routed.tenantId, callStep.callId, callStep.data);
       return;
     case "note":
-      await landNote(db, routed.tenantId, s);
+      await landNote(db, routed.tenantId, callStep);
       return;
     case "hold":
-      await holdThread(db, routed.tenantId, s);
+      await holdThread(db, routed.tenantId, callStep);
       return;
     case "callback":
-      await handToPerson(db, routed, s);
+      await handToPerson(db, routed, callStep);
       return;
     case "policy_block":
-      await raiseBreach(db, routed.tenantId, s);
+      await raiseBreach(db, routed.tenantId, callStep);
       return;
     case "correct_live_call":
-      await correctReceptionist(db, routed, s);
+      await correctReceptionist(db, routed, callStep);
       return;
     case "page_platform":
       // Platform-wide, never the workspace's: the page names the reason and the workspace id, no caller, no words.
       await pageOperator(
         { db },
-        `voice_ending:${s.reason}`,
-        `Calls are ending on our side: ${s.words}`,
-        `A call to workspace ${routed.tenantId} ended "${s.reason}" (${s.words}). ${s.mend} Every call may end the same way until it is mended.`,
+        `voice_ending:${callStep.reason}`,
+        `Calls are ending on our side: ${callStep.words}`,
+        `A call to workspace ${routed.tenantId} ended "${callStep.reason}" (${callStep.words}). ${callStep.mend} Every call may end the same way until it is mended.`,
       );
       return;
     case "copy_recording":
       await copyRecording(db, {
         tenantId: routed.tenantId,
-        callId: s.callId,
-        providerUrl: s.providerUrl,
-        attempts: s.attempts,
+        callId: callStep.callId,
+        providerUrl: callStep.providerUrl,
+        attempts: callStep.attempts,
         timeoutMs: WEBHOOK_COPY_TIMEOUT_MS,
       });
       return;
@@ -594,10 +607,10 @@ async function tellOwner(
 ): Promise<"told" | "owed"> {
   if (!routed) return "told";
   const target = { tenantId: routed.tenantId, ...(await loadTenantNotifications(db, routed.tenantId)) };
-  const told = await notifyOnceAs(target, { ...notice, onceKey: `call:${call.retellCallId}` });
-  if (told === "told" && call.fresh && !reachesTenant(target)) await mail(target, notice);
-  if (told !== "told") {
-    logger({ tenant_id: routed.tenantId }).warn("call_notice_owed", { call: call.retellCallId, outcome: told });
+  const noticed = await notifyOnceAs(target, { ...notice, onceKey: `call:${call.retellCallId}` });
+  if (noticed === "told" && call.fresh && !reachesTenant(target)) await sendOpsMail(target, notice);
+  if (noticed !== "told") {
+    logger({ tenant_id: routed.tenantId }).warn("call_notice_owed", { call: call.retellCallId, outcome: noticed });
     return "owed";
   }
   if (call.id) await markCallNoticeTold(db, routed.tenantId, call.id);
@@ -605,19 +618,19 @@ async function tellOwner(
 }
 
 /**
- * The name the owner saved for the caller, for the notice to lead with (callerNameOf: their name, else their WhatsApp
+ * The name the owner saved for the caller, for the notice to lead with (findCallerName: their name, else their WhatsApp
  * name): null for a caller nobody saved, or a call that was no one's. A read that fails is logged and read as none: it is
  * the notice's last step after the claim that makes it once, so a throw here would lose the owner's notice for a name.
  */
 async function savedCallerName(
   db: Db,
   routed: RoutedChannel | null,
-  contactId: string | null,
+  contactId: ContactId | null,
   retellCallId: string,
 ): Promise<string | null> {
   if (!routed || !contactId) return null;
   try {
-    return await callerNameOf(db, routed.tenantId, contactId);
+    return await findCallerName(db, routed.tenantId, contactId);
   } catch (e) {
     logger().warn("call_notice_name_unreadable", {
       tenant_id: routed.tenantId,
@@ -629,7 +642,7 @@ async function savedCallerName(
 }
 
 export async function receiveCallEvent(request: Request): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const raw = await request.text();
   if (!(await admitted(raw, request.headers.get("x-retell-signature")))) {
     return refuse(401, "unauthorized");
@@ -637,13 +650,13 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
   const delivery = readDelivery(raw);
   if (!delivery) return json(200, { ok: true });
   const { event, call } = delivery;
-  const n = normalizeCall(call);
+  const result = normalizeCall(call);
   const db = pg();
   if (!db) {
     // No control plane: nothing can be checked or written, so the delivery is
     // not acknowledged. The SMS and WhatsApp doors answer the same 503, and a
-    // credential-less deployment answers no_database platform-wide (lib/pg.ts).
-    L.error("retell_no_database", { call_id: n.retellCallId, retell_event: event });
+    // credential-less deployment answers no_database platform-wide (lib/shared/pg.ts).
+    log.error("retell_no_database", { call_id: result.retellCallId, retell_event: event });
     return refuse(503, "no_database");
   }
   // A web call is a rehearsal (decision 0069, D4): an owner in the browser, never a customer. It is kept out of the
@@ -661,13 +674,13 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
   // a 200, which the provider took as delivered and never sent again; and it
   // skipped the erasure guard below on the way, since the guard could not be
   // placed either.
-  const lookup = await routeDelivery(db, n);
+  const lookup = await routeDelivery(db, result);
   const routed = lookup.channel;
   // Kept under the event and the call's id, before the verdict (decision 0032, 00336), a routing that could not be read
   // included: Retell stops after three tries, and the kept delivery is the replay after a fix.
   await keepDelivery(db, {
     provider: "retell",
-    id: `${event}:${n.retellCallId}`,
+    id: `${event}:${result.retellCallId}`,
     door: "/api/retell-webhook",
     url: keptUrl(request),
     tenantId: routed?.tenantId ?? null,
@@ -675,7 +688,11 @@ export async function receiveCallEvent(request: Request): Promise<Response> {
     body: raw,
   });
   if (lookup.lookupFailed) {
-    L.error("retell_routing_unreadable", { call_id: n.retellCallId, agent_id: n.agentId, retell_event: event });
+    log.error("retell_routing_unreadable", {
+      call_id: result.retellCallId,
+      agent_id: result.agentId,
+      retell_event: event,
+    });
     return refuse(503, "routing_unreadable");
   }
   const settled = await settleCall(db, routed, delivery);
@@ -707,10 +724,10 @@ type CallSettled =
  * and no notice. The claim on the call (calls.notified_at) keeps the notice to once, whichever settles it first.
  */
 export async function settleCall(db: Db, routed: RoutedChannel | null, delivery: Delivery): Promise<CallSettled> {
-  const L = logger();
+  const log = logger();
   const { event, call } = delivery;
-  const n = normalizeCall(call);
-  const erasure = await erasureOf(db, n, routed, event);
+  const result = normalizeCall(call);
+  const erasure = await erasureOf(db, result, routed, event);
   if (erasure) return { kind: erasure };
 
   // null = the plan made no claim (a dead letter makes none); true = this
@@ -722,23 +739,23 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
   // The call's own row, which that notice opens.
   let callId: string | null = null;
   // The person the ingest placed the call on, whose saved name the owner's notice leads with.
-  let callerId: string | null = null;
+  let callerId: ContactId | null = null;
 
   try {
-    if (!routed) await deadLetter(db, n);
+    if (!routed) await deadLetter(db, result);
     else {
       // The provider's payload is kept as the call ends and is analysed (scrub_call_raw's allowlist, 00530): a live turn
       // carries none, so the row keeps what it has instead of rewriting it on every turn.
       const keepsPayload = event === "call_ended" || event === "call_analyzed";
-      const res = await ingestCall(db, routed.tenantId, n, keepsPayload ? call : undefined);
-      await stampConfigVersion(db, routed.tenantId, n.retellCallId, call);
+      const res = await ingestCall(db, routed.tenantId, result, keepsPayload ? call : undefined);
+      await stampConfigVersion(db, routed.tenantId, result.retellCallId, call);
       const plan = planCallEvent(
-        { ...delivery, n },
+        { ...delivery, n: result },
         {
           ingest: res,
           alreadyCorrected: false,
           canCorrect: !!env.RETELL_API_KEY,
-          allowed: await allowedOnCall(db, routed, n),
+          allowed: await allowedOnCall(db, routed, result),
         },
       );
       callAbout = plan.about;
@@ -746,7 +763,7 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
       callerId = res.contact_id;
       notifyClaim = await applyPlan(db, routed, plan);
     }
-  } catch (e) {
+  } catch (error) {
     // A non-2xx is the only thing that earns a retry. Swallowing this with
     // a 200 forfeited the three deliveries Retell offers, and an ended call
     // whose analysis failed to land read "No summary" forever — while the
@@ -755,27 +772,27 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
     // stored recording is terminal), so a retry is safe -- and the answer is
     // a 503, as the WhatsApp and SMS doors give a write the database
     // refused: try again.
-    L.error("ingest_call_failed", { error: errField(e) });
+    log.error("ingest_call_failed", { error: errField(error) });
     return { kind: "ingest_failed" };
   }
 
   // The owner is told once per call, by the claim: of its analysis, or of a customer's call that never connected, which
   // may never be analysed (R11 S6-8). A missed call the plan made no claim for (a stale delivery, a dead letter) tells
   // nobody.
-  const missed = event !== "call_analyzed" && isMissedCall(n);
+  const missed = event !== "call_analyzed" && isMissedCall(result);
   if (event !== "call_analyzed" && !(missed && notifyClaim !== null)) return { kind: "settled", told: false };
   // A retry or a replay finds the claim taken: the notice is asked again under its name, and sends only a mail still
   // owed (notifyOnce); told already, it sends nothing and the delivery is a duplicate.
-  const saved = await savedCallerName(db, routed, callerId, n.retellCallId);
-  const told = await tellOwner(
+  const saved = await savedCallerName(db, routed, callerId, result.retellCallId);
+  const notice = await tellOwner(
     db,
     routed,
-    missed ? missedCallNotice(n, saved, callId) : callNotice(n, call, callAbout, saved, callId),
-    { id: callId, retellCallId: n.retellCallId, fresh: notifyClaim === true },
+    missed ? missedCallNotice(result, saved, callId) : callNotice(result, call, callAbout, saved, callId),
+    { id: callId, retellCallId: result.retellCallId, fresh: notifyClaim === true },
   );
-  if (told === "owed") return { kind: "notice_owed" };
+  if (notice === "owed") return { kind: "notice_owed" };
   if (notifyClaim === false) {
-    L.info("retell_analyzed_duplicate", { call_id: n.retellCallId });
+    log.info("retell_analyzed_duplicate", { call_id: result.retellCallId });
     return { kind: "duplicate" };
   }
   return { kind: "settled", told: true };

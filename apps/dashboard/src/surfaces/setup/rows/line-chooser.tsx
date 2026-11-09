@@ -4,12 +4,13 @@
  * gets one.
  */
 import { useState } from "react";
-import { canDo, gate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { setupVerbs, type LineChoice, type SetupSurface } from "../surface";
+import { US_AREA_CODE } from "@chanlytics/contracts";
 
 interface ChooserProps {
   S: SetupSurface;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   onDone: () => void;
   onKeep: () => void;
 }
@@ -141,7 +142,7 @@ export const LineChooser = ({ S, flash, onDone, onKeep }: ChooserProps) => {
   const find = async () => {
     // Enter in the area code reaches this too, past the gated Find numbers, so it asks the same gate.
     if (!owner) return;
-    if (!/^\d{3}$/.test(area)) {
+    if (!US_AREA_CODE.test(area)) {
       flash({ tone: "warn", msg: <>Three digits, like 305.</> });
       return;
     }

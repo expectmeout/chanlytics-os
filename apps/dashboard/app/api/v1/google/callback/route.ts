@@ -1,5 +1,5 @@
-import { read, account } from "@/server/route";
-import { googleCallback } from "@/server/connections/google-actions";
+import { read, account } from "@/server/shared/route";
+import { handleGoogleCallback } from "@/server/settings/google-actions";
 
 /**
  * GET /api/v1/google/callback — back from Google with a code and the state.
@@ -17,10 +17,10 @@ import { googleCallback } from "@/server/connections/google-actions";
  * after the state has proved itself — its own door, in the order the proof
  * demands.
  *
- * The handle is googleCallback in src/server/connections/google-actions.ts: the route is its declaration (who may, how
+ * The handle is handleGoogleCallback in src/server/settings/google-actions.ts: the route is its declaration (who may, how
  * often), the verb is what it does.
  */
 export const GET = read({
   scope: account,
-  handle: ({ ctx, req }) => googleCallback(ctx, req),
+  handle: ({ ctx, req }) => handleGoogleCallback(ctx, req),
 });

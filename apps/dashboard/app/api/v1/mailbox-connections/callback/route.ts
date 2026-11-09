@@ -1,5 +1,5 @@
-import { read, account } from "@/server/route";
-import { mailboxCallback } from "@/server/connections/mailbox-connections";
+import { read, account } from "@/server/shared/route";
+import { handleMailboxCallback } from "@/server/connections/mailbox-connections";
 
 /**
  * GET /api/v1/mailbox-connections/callback — back from Google or Microsoft with a code and the state (the address both
@@ -9,9 +9,9 @@ import { mailboxCallback } from "@/server/connections/mailbox-connections";
  * here. It names the workspace chosen at connect time, and this person's standing in it is judged after the state has
  * proved itself. Every outcome is a redirect to Connections with one word the block reads once.
  *
- * The handle is mailboxCallback in src/server/connections/mailbox-connections.ts.
+ * The handle is handleMailboxCallback in src/server/connections/mailbox-connections.ts.
  */
 export const GET = read({
   scope: account,
-  handle: ({ ctx, req }) => mailboxCallback(ctx, req),
+  handle: ({ ctx, req }) => handleMailboxCallback(ctx, req),
 });

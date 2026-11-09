@@ -62,9 +62,9 @@ test.describe("Consent for one person", () => {
     expect(seen.length).toBe(0);
     await how.getByRole("button", { name: "In person" }).click();
     await expect.poll(() => seen.length).toBe(1);
-    expect(seen[0].method).toBe("PUT");
-    expect(seen[0].url).toContain("workspace=");
-    expect(seen[0].body).toEqual({ consent: "opted_in", source: "in_person" });
+    expect(seen[0]?.method).toBe("PUT");
+    expect(seen[0]?.url).toContain("workspace=");
+    expect(seen[0]?.body).toEqual({ consent: "opted_in", source: "in_person" });
     // The second answer, offers, is its own control with its own words: since #907 its row's label ("Offers and news")
     // is the record kit's, outside the control, and the control says what is on record for offers in a sentence of its
     // own (settings-card.tsx offersHint): a yes only in writing while none is on record.
@@ -106,9 +106,9 @@ test.describe("Consent for one person", () => {
     await input.fill("Test Name");
     await input.press("Enter");
     await expect.poll(() => seen.length).toBe(1);
-    expect(seen[0].method).toBe("PUT");
-    expect(seen[0].url).toContain("workspace=");
-    expect(seen[0].body).toEqual({ name: "Test Name" });
+    expect(seen[0]?.method).toBe("PUT");
+    expect(seen[0]?.url).toContain("workspace=");
+    expect(seen[0]?.body).toEqual({ name: "Test Name" });
 
     // Since #919 notes are a dated, signed log of their own (person-notes.jsx): a note is one POST to the person's
     // notes door, with its words as `body`, and the details door is not touched.
@@ -127,9 +127,9 @@ test.describe("Consent for one person", () => {
     await notes.fill("Sees Sofia. Prefers mornings.");
     await page.getByTestId("person-notes-save").click();
     await expect.poll(() => noted.length).toBe(1);
-    expect(noted[0].method).toBe("POST");
-    expect(noted[0].url).toContain("workspace=");
-    expect(noted[0].body).toMatchObject({ body: "Sees Sofia. Prefers mornings." });
+    expect(noted[0]?.method).toBe("POST");
+    expect(noted[0]?.url).toContain("workspace=");
+    expect(noted[0]?.body).toMatchObject({ body: "Sees Sofia. Prefers mornings." });
     expect(seen.length, "a note never goes through the details door").toBe(1);
   });
 
@@ -175,7 +175,7 @@ test.describe("Consent for one person", () => {
     await input.fill("  Robin.E2E@Example.COM ");
     await input.press("Enter");
     await expect(row).toContainText("robin.e2e@example.com");
-    expect(JSON.parse(puts[0])).toEqual({ email: "Robin.E2E@Example.COM" });
+    expect(JSON.parse(puts[0] ?? "null")).toEqual({ email: "Robin.E2E@Example.COM" });
 
     // Still there on a cold load: it was stored, not drawn.
     await page.reload();
@@ -237,8 +237,14 @@ test.describe("Consent for one person", () => {
     await expect(card).toBeVisible();
     // The link is changed in the sheet's edit: "Edit proposal" is the next act where there is none, else one of the
     // card's quiet moves. On the person's Overview the next act is Up next's rung, not the card's (person-deal.tsx
-    // `rung`, contracts person-page/next.ts); the card leads with it where no Up next is drawn.
+    // `rung`, contracts people/person-page/next.ts); the card leads with it where no Up next is drawn.
+    // A deal folds: its link and its quiet moves are behind a press on its title.
+    const unfolded = async () => {
+      const title = card.getByTestId("person-deal-title");
+      if ((await title.getAttribute("aria-expanded")) !== "true") await title.click();
+    };
     const edit = async () => {
+      await unfolded();
       await page
         .getByTestId("person-up-next-act")
         .or(card.getByTestId("person-deal-next"))
@@ -261,6 +267,7 @@ test.describe("Consent for one person", () => {
     await input.fill(" docs.example.com/p/robin-e2e ");
     await save.click();
     await expect(sheet).toHaveCount(0);
+    await unfolded();
     await expect(card.getByTestId("person-deal-link")).toHaveText("docs.example.com");
     await expect(card.getByTestId("person-deal-link")).toHaveAttribute("href", "https://docs.example.com/p/robin-e2e");
     expect(JSON.parse(posts.at(-1) ?? "{}")).toMatchObject({
@@ -270,6 +277,8 @@ test.describe("Consent for one person", () => {
 
     // Still there on a cold load: it was stored, not drawn.
     await page.reload();
+    await expect(card).toBeVisible();
+    await unfolded();
     await expect(page.getByTestId("person-deal-link").first()).toHaveText("docs.example.com");
 
     // Emptied, it is cleared: the door is told which field was emptied, and the card says there is none.
@@ -277,8 +286,9 @@ test.describe("Consent for one person", () => {
     await sheet.getByTestId("deal-sheet-link-input").fill("");
     await save.click();
     await expect(sheet).toHaveCount(0);
+    await unfolded();
     await expect(card.getByTestId("person-deal-link")).toHaveCount(0);
-    await expect(card.getByTestId("person-deal-fact").first()).toHaveText("No link");
+    await expect(card.getByTestId("person-deal-fact").first()).toHaveText("No link yet");
     expect(JSON.parse(posts.at(-1) ?? "{}").clear).toContain("proposal_url");
   });
 });

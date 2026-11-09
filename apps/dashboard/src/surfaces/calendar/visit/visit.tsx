@@ -15,7 +15,6 @@ import { useState } from "react";
 import {
   ADD_TO_PEOPLE_WORDS,
   BOOKING_REQUEST_WORDS,
-  CALENDAR_VISIT_SHEET_WORDS as W,
   VISIT_ASK_WORDS,
   VISIT_WORDS,
   addToPeopleOf,
@@ -24,11 +23,10 @@ import {
   formatPhoneDisplay,
   type AppointmentWord,
   type CalendarBlockVM,
-  type VisitMoreAct,
-  type VisitSheetVM,
   type VisitWord,
 } from "@chanlytics/contracts";
-import { commitVerb } from "@/legacy-bridge/verbs/commit";
+import { CALENDAR_VISIT_SHEET_WORDS as W, type VisitMoreAct, type VisitSheetVM } from "./sheet-view";
+import { commitVerb } from "@/bridge/verbs/commit";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
 import { Button } from "../../kit/button/button";
@@ -40,7 +38,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu, type MenuItem } from "../../kit/menu/menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { gate, navigate, openDealSheet, type DealSheetAsk } from "../../legacy-verbs";
+import { gate, navigate, openDealSheet, type DealSheetAsk } from "../../frame-verbs";
 import { openStepSheet } from "../../people/deal/deal-verbs";
 import { sayVisit } from "../../visit-line";
 import { answerRequest } from "../../booking-request";

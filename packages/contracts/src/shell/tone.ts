@@ -21,15 +21,15 @@
  *
  * The toast's tones (chrome.ts) are the four of these that a flash can be.
  */
-import { BROADCAST_STATE_LABELS } from "../broadcasts/broadcasts";
+import { BROADCAST_STATE_LABELS } from "../campaigns/broadcasts/states";
 import { STOP_WORDS } from "../consent/consent";
-import { CALL_OUTCOME_WORDS } from "../conversations/call-dto";
-import { HELD_WORDS, NEEDS_YOU_WORD } from "../conversations/standing";
+import { CALL_RESULT_WORDS } from "../conversations/call-dto";
+import { HELD_WORDS, NEEDS_YOU_WORD, THREAD_MOVE_WORDS } from "../conversations/standing";
 import { PERSON_MODE_WORDS } from "../people/person-receptionist";
 import { PERSON_STATE_LABELS } from "../people/person-state";
 import { ROLE_WORDS } from "./identity";
-import { SETUP_STATE_WORDS } from "../setup/setup";
-import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
+import { SETUP_STATE_WORDS } from "../setup/lines";
+import { CALENDAR_FEED_WORDS } from "../calendar/words/labels";
 import { SOURCE_WORDS, type FactSource } from "../config/facts";
 import {
   LEAD_CALL_OUTCOME_TONES,
@@ -41,9 +41,10 @@ import {
   LEAD_REVIEW_WORD,
   LEAD_STAGE_WORDS,
 } from "../leads/leads";
-import { DEAL_STAGE_WORDS } from "../deals/deal-words";
-import { TEMPLATE_STATUS_WORDS } from "../templates/templates";
-import { REPLY_CHIP_WORDS } from "../reach-out/reach-out-replies";
+import { DEAL_STAGE_WORDS } from "../deals/words";
+import { TEMPLATE_STATUS_WORDS } from "../campaigns/templates/templates";
+import { REPLY_CHIP_WORDS } from "../campaigns/reach-out/replies/intents";
+import { textOrEmpty } from "../shared/unknown";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -122,6 +123,24 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = /* @__PURE__ */ (() => 
     handled: "plain",
     booked: "ok",
     decided: "ok",
+    // Whose move it is (waits/thread-move.ts): the head, the row and Conversations wear these, and pass no tone by
+    // hand, which is how Needs you came to be coral on the head and amber on the row.
+    failed: "danger",
+    wrote_again: "warn",
+    sending: "accent",
+    replying: "info",
+    unanswered: "warn",
+    no_reply: "info",
+    auto_reply: "info",
+    sent: "info",
+    went_quiet: "plain",
+    answered: "ok",
+    call: "ok",
+    automated: "plain",
+    stopped: STOP_WORDS.tone,
+    archived: "plain",
+    aside: "plain",
+    nothing: "plain",
   },
   // A thread somebody has wears the Inbox's own tones for it (`thread` above): yours is in hand, a teammate's is theirs.
   standing: {
@@ -221,6 +240,9 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
     handled: "Receptionist replied",
     booked: "Booked",
     decided: "Handled",
+    ...THREAD_MOVE_WORDS,
+    // The word the row's mark says beside their name (kit StoppedMark), so the head and the row agree.
+    stopped: STOP_WORDS.mark,
   },
   standing: {
     escalated: NEEDS_YOU_WORD,
@@ -235,7 +257,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   },
   // How a call ended is the ladder's (callOutcomeFor), said once (CALL_OUTCOME_WORDS) for Live, Conversations, the thread's
   // call card and a person's History; a call the provider has gone quiet about is no ending, and is said beside them.
-  call: { ...CALL_OUTCOME_WORDS, stale: "No word from the provider" },
+  call: { ...CALL_RESULT_WORDS, stale: "No word from the provider" },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: STOP_WORDS.pill, unknown: "Consent unknown" },
   mode: PERSON_MODE_WORDS,
@@ -260,7 +282,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = /* @__PURE_
   lead_fit: LEAD_FIT_WORDS,
   reach: LEAD_EMAIL_WORDS,
   lead_call_outcome: LEAD_CALL_OUTCOME_WORDS,
-  // The chip's words (reach-out-replies.ts); the strip's sentence ("Wrote back · interested") keeps REPLY_INTENT_WORDS.
+  // The chip's words (reach-out/replies.ts); the strip's sentence ("Wrote back · interested") keeps REPLY_INTENT_WORDS.
   reply: REPLY_CHIP_WORDS,
   // `lead_row_state` is a tone and no words: the row composes its own tag (`Contacted · 2m`) in toLeadRowVM,
   // and nothing ever asks this map for it. Words here would be a second set of the same five. A map whose
@@ -276,13 +298,13 @@ export function stateTone(kind: StateKind, value: unknown): Tone {
 
 /** The words for a state, or the value itself when nobody has written any. */
 export function stateLabel(kind: StateKind, value: unknown): string {
-  const v = typeof value === "string" ? value : String(value ?? "");
+  const v = textOrEmpty(value);
   return LABEL_OF[kind]?.[v] ?? v;
 }
 
 /**
  * Every word a pill says, by kind and state: the label maps, read whole. The test that holds one word to one state reads it
- * (tooling/scripts/tests/shell/words/one-word-per-state.test.mjs), so a label two states share is a decision someone wrote
+ * (tests/shell/words/one-word-per-state.test.mjs), so a label two states share is a decision someone wrote
  * down, not an accident of two pages.
  */
 export function stateWordList(): Array<{ kind: StateKind; value: string; label: string }> {
@@ -318,7 +340,7 @@ export function leadPinTone(lead: LeadPinnable): Tone {
   return stateTone("lead_row_state", lead.state);
 }
 
-/** A lead's row state, as the row wears it (lead-row.ts LeadRowVM["state"]). */
+/** A lead's row state, as the row wears it (leads/row.ts LeadRowVM["state"]). */
 type LeadMapState = "ready" | "contacted" | "talking" | "review" | "out";
 
 /** The legend's order: what is furthest along first, then what waits on the owner, then the rest. */

@@ -63,3 +63,36 @@ html[data-outline-search] .frame-outline .tb-ask-label {
 html[data-outline-bare] .frame-outline > :not(.pg-light) {
   display: none;
 }
+
+/* The rows a phone last showed, over the outline and then the frame until the page's own are drawn (contracts
+   shell/first-rows.ts): the screen as it was left, in the frame's own classes, so these rules only stand it over the page.
+   In the page, never fixed: Safari reads a box fixed to the window's foot as that edge's colour, and would paint its bar
+   flat for the moment this stands (Safari 26's strip). Its ground is the one picture (mobile.css, "ONE PICTURE"). No rule here
+   names its elements by position: `.first-rows *` is asked of every element of every page at every restyle, and cost a
+   phone's load 0.2 s (the A/B of 6 Nov 2026). What a copy's elements play as they arrive is stopped on each as it is kept
+   (first-rows.ts). */
+.first-rows {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100lvh;
+  overflow: clip;
+  z-index: 1000;
+}
+/* A copy some minutes old says no time and no day: "2h" may be 22 by now. Their room stands until the page says them. */
+.first-rows[data-aged] [data-when] {
+  visibility: hidden;
+}
+/* A drag does nothing until the page is there: nothing under the copy may scroll out from under it. */
+html[data-first-rows] {
+  touch-action: none;
+}
+/* What stands under the copy is laid out, so the page is measured as it will stand, and never painted: drawn too, a phone drew
+   two whole screens of glass for one it could see. By the two elements' own names, so the copy's going restyles them, and
+   their children only inherit it. */
+html[data-first-rows] .frame-outline,
+html[data-first-rows] #root {
+  visibility: hidden;
+}

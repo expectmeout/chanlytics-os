@@ -17,6 +17,7 @@ import {
   SECOND_MS,
 } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits, PolicyMode } from "@chanlytics/contracts";
+import { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS } from "../shared/reply-horizon";
 
 /**
  * A reply mode as an owner reads it, the Autonomy pane's own head for it ("Asks you", "Stays quiet"): what a hold's
@@ -26,6 +27,8 @@ export function modeSaid(mode: string): string {
   return Object.hasOwn(POLICY_MODE_WORDS, mode) ? POLICY_MODE_WORDS[mode as PolicyMode].head : mode;
 }
 
+export { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS };
+
 export const MAX_REPLIES_PER_DAY = 20; // per thread
 /**
  * The longest a reply turn may take from its start to the model's answer: the job's function stops at sixty seconds
@@ -33,34 +36,6 @@ export const MAX_REPLIES_PER_DAY = 20; // per thread
  * deadline is usually sooner (jobs ledger.ts YIELD_AT_MS from the tick's start), and the turn is held to whichever is first.
  */
 export const TURN_BUDGET_MS = 40 * SECOND_MS;
-export const STALE_MS = 10 * 60 * 1000; // "late" — worth noting in the log
-export const STALE_REPLY_MS = 2 * 60 * 60 * 1000; // past this a person answers, not the bot
-
-/**
- * How late a message is, and what that means. Inside the reply horizon the
- * customer is still in the conversation they started, and answering late
- * beats not answering; beyond it an automated reply would arrive out of
- * nowhere, so a person picks it up. Meta redelivers for days, so an outage
- * longer than the horizon must never turn its backlog into silence.
- */
-export function ageVerdict(
-  timestampS: string | number | undefined,
-  now = Date.now(),
-): { ageMs: number; verdict: "fresh" | "late" | "stale" } {
-  const ageMs = timestampS ? now - Number(timestampS) * 1000 : 0;
-  return { ageMs, verdict: ageMs > STALE_REPLY_MS ? "stale" : ageMs > STALE_MS ? "late" : "fresh" };
-}
-
-/**
- * Whether words for a message sent at `atMs` (epoch ms) would reach the customer past the reply horizon if they left
- * at `now`: what the send door asks of the receptionist's held draft (deliver.ts). The verdict above, from the same
- * horizon, so a reply held through an outage is a person's exactly as a message that came in that late is. A moment
- * nobody knows (null) is not late.
- */
-export function pastReplyHorizon(atMs: number | null, now: number): boolean {
-  return atMs !== null && ageVerdict(atMs / 1000, now).verdict === "stale";
-}
-
 /**
  * How long the reply waits before it goes out, and why.
  *
@@ -150,30 +125,30 @@ function urgentPhone(x: Pick<LayerTwoIn, "brainCfg" | "known">): string | null {
  * (contracts heldLine). Either way the thread is a person's now, and the Inbox
  * says why.
  */
-export function layerTwo(x: LayerTwoIn): LayerTwoOut {
-  let { replyText, escalate, escalationReason } = x;
-  const phone = urgentPhone(x);
+export function layerTwo(layerTwoIn: LayerTwoIn): LayerTwoOut {
+  let { replyText, escalate, escalationReason } = layerTwoIn;
+  const phone = urgentPhone(layerTwoIn);
   let priceBlocked = false;
-  const moneyHeld = x.intent === "money" || namesMoney(replyText);
-  if (priceBreach(replyText, priceAllowance(x.brainCfg, x.tz, x.now))) {
+  const moneyHeld = layerTwoIn.intent === "money" || namesMoney(replyText);
+  if (priceBreach(replyText, priceAllowance(layerTwoIn.brainCfg, layerTwoIn.tz, layerTwoIn.now))) {
     priceBlocked = true;
-    replyText = heldLine("price", x.language, phone);
+    replyText = heldLine("price", layerTwoIn.language, phone);
     escalate = true;
     escalationReason = "policy_block";
   }
-  const askClass = moneyHeld ? "money" : policyAskClass(x.policy, x.intent);
+  const askClass = moneyHeld ? "money" : policyAskClass(layerTwoIn.policy, layerTwoIn.intent);
   let complied: boolean | null = null;
   if (askClass) {
-    const carriesLink = !!x.brainCfg.booking_link && replyText.includes(x.brainCfg.booking_link);
+    const carriesLink = !!layerTwoIn.brainCfg.booking_link && replyText.includes(layerTwoIn.brainCfg.booking_link);
     complied = askClass === "booking" ? !carriesLink : escalate;
     if (askClass === "money" && !priceBlocked) {
       // Words about money are never kept, even ones that only promise a person: the line says the same, and nothing
       // the model wrote about a refund or a term reaches the customer.
-      replyText = heldLine("money", x.language, phone);
+      replyText = heldLine("money", layerTwoIn.language, phone);
     } else if (askClass === "booking" && carriesLink) {
-      replyText = heldLine("booking", x.language, phone);
+      replyText = heldLine("booking", layerTwoIn.language, phone);
     } else if (askClass === "faq" && !escalate) {
-      replyText = heldLine("faq", x.language, phone);
+      replyText = heldLine("faq", layerTwoIn.language, phone);
     }
     escalate = true;
     escalationReason = "policy_ask";
@@ -187,7 +162,7 @@ export function layerTwo(x: LayerTwoIn): LayerTwoOut {
  * not "held by policy". A saved-but-unparseable config is a MISTAKE, not an
  * absence, and the sentence sends the operator to the right place.
  */
-export function holdCopy(x: {
+export function holdCopy(input: {
   brainCfg: BrainConfig | null;
   personMode: string | null;
   replyMode: string;
@@ -200,27 +175,27 @@ export function holdCopy(x: {
    */
   loadFailed?: boolean;
 }): { personHold: boolean; reason: "person_hold" | "policy_block"; details: string; botText: string; why: string } {
-  const personHold = !!x.brainCfg && !!x.personMode;
-  const details = x.brainCfg
+  const personHold = !!input.brainCfg && !!input.personMode;
+  const details = input.brainCfg
     ? personHold
-      ? `You set the receptionist to ${modeSaid(x.replyMode)} for this person — it stays out of the thread; answer them yourself.`
-      : `Replies are set to ${modeSaid(x.replyMode)} — the receptionist holds every message for a person.`
-    : x.configBroken
+      ? `You set the receptionist to ${modeSaid(input.replyMode)} for this person — it stays out of the thread; answer them yourself.`
+      : `Replies are set to ${modeSaid(input.replyMode)} — the receptionist holds every message for a person.`
+    : input.configBroken
       ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field."
-      : x.loadFailed
+      : input.loadFailed
         ? "This workspace's settings could not be reached just now, so the receptionist stayed silent rather than answer in a voice that might not be yours. Nothing is wrong with your configuration and nothing needs changing; the next message tries again."
         : "No brain profile configured — the receptionist stays silent until Settings fills one in.";
   const botText = personHold ? "(held — you handle this person yourself)" : "(held — no auto-reply for this workspace)";
-  const why = x.brainCfg
+  const reason = input.brainCfg
     ? personHold
-      ? `this person is set to ${modeSaid(x.replyMode)}`
-      : `replies are set to ${modeSaid(x.replyMode)}`
-    : x.configBroken
+      ? `this person is set to ${modeSaid(input.replyMode)}`
+      : `replies are set to ${modeSaid(input.replyMode)}`
+    : input.configBroken
       ? "settings could not be read"
-      : x.loadFailed
+      : input.loadFailed
         ? "the workspace's settings could not be reached"
         : "no persona configured";
-  return { personHold, reason: personHold ? "person_hold" : "policy_block", details, botText, why };
+  return { personHold, reason: personHold ? "person_hold" : "policy_block", details, botText, why: reason };
 }
 
 /**

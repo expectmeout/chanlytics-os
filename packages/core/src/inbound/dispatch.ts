@@ -2,11 +2,11 @@
  * What happens to the words: the veto window and the confidence dial (steps.ts holdPlan), the reply held as a
  * draft, the hold that could not be written, and the send, told apart by what the wire answered.
  */
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 import { causeOf } from "../messages/send";
 import { holdPlan } from "./steps";
 import { GO, type Answering } from "./context";
-import { handledOf, noteHandledAfter, processedAfter, SET_ASIDE, type Asked } from "./handled";
+import { handledOf, noteHandledAfter, getProcessedAfter, SET_ASIDE, type Asked } from "./handled";
 import type { Turn } from "./model-turn";
 
 /** How long the reply waits and why, the draft when one was written, and the reply's quality signal. */
@@ -103,7 +103,7 @@ function turnHold(at: Answering, turn: Turn, details: string): Asked {
 const handoffWhy = (turn: Turn, otherwise: string): string => (turn.bookingRequest ? "booking_request" : otherwise);
 
 /** A veto window that did not happen is recorded; a hold that could not be written keeps the words; a draft waits. */
-export async function heldOrKept(
+export async function holdOrKeep(
   at: Answering,
   turn: Turn,
   hold: Hold,
@@ -137,13 +137,13 @@ export async function heldOrKept(
     const post: Promise<unknown>[] = [];
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality, escalate: true }));
     post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-    const asked = sink.escalate(
+    const escalate = sink.escalate(
       "policy_block",
       `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent — "${bodyText}"`,
     );
-    post.push(asked);
+    post.push(escalate);
     post.push(
-      tell(asked, {
+      tell(escalate, {
         said: bodyText,
         answered: replyText,
         why: "low confidence, not held",
@@ -151,13 +151,13 @@ export async function heldOrKept(
       }),
     );
     await Promise.all(post);
-    await processedAfter(sink, asked, "none", brainMeta?.intent ?? null);
+    await getProcessedAfter(sink, escalate, "none", brainMeta?.intent ?? null);
     L.warn("wa_hold_unscheduled_kept", { confidence: brainMeta?.confidence, min: plan.minConfidence });
     return;
   }
   if (queued) {
     const post: Promise<unknown>[] = [];
-    let asked: Asked | null = null;
+    let request: Asked | null = null;
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       // An escalating draft still pauses and alerts — a human should be looking
@@ -166,7 +166,7 @@ export async function heldOrKept(
       post.push(
         sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : undefined),
       );
-      asked = turnHold(
+      request = turnHold(
         at,
         turn,
         fallback
@@ -175,9 +175,9 @@ export async function heldOrKept(
             ? `${brainMeta.reason} — "${bodyText}"`
             : bodyText,
       );
-      post.push(asked);
+      post.push(request);
       post.push(
-        tell(asked, {
+        tell(request, {
           said: bodyText,
           answered: replyText,
           why: handoffWhy(turn, "assistant flagged handoff (reply held for review)"),
@@ -186,7 +186,7 @@ export async function heldOrKept(
       );
     }
     await Promise.all(post);
-    await processedAfter(sink, asked, "queued", brainMeta?.intent ?? null);
+    await getProcessedAfter(sink, request, "queued", brainMeta?.intent ?? null);
     L.info("wa_reply_queued", { delay_ms: delayMs, escalate });
     return;
   }
@@ -198,19 +198,16 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
   const { send, sink, pauseMs, tell, pauseHours, L, ingestMs, channel } = at;
   const { replyText, fallback, brainMeta, usage, escalate } = turn;
   const { replyQuality } = hold;
-  const sent = await send(
-    replyText,
-    fallback ? fallback.meta : (brainMeta as unknown as Record<string, Json> | undefined),
-  );
+  const sent = await send(replyText, fallback ? fallback.meta : (brainMeta as Record<string, Json> | undefined));
   const tSent = Date.now();
   if (sent.outcome === "sent") {
     // The door recorded the row; what is left is the usage and the handoff.
     const post: Promise<unknown>[] = [];
-    let asked: Asked | null = null;
+    let request: Asked | null = null;
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
-      asked = turnHold(
+      request = turnHold(
         at,
         turn,
         fallback
@@ -219,9 +216,9 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
             ? `${brainMeta.reason} — "${bodyText}"`
             : bodyText,
       );
-      post.push(asked);
+      post.push(request);
       post.push(
-        tell(asked, {
+        tell(request, {
           said: bodyText,
           answered: replyText,
           why: fallback ? fallback.alertReason : handoffWhy(turn, "assistant flagged handoff"),
@@ -230,7 +227,7 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
       );
     }
     await Promise.all(post);
-    await processedAfter(sink, asked, "sent", brainMeta?.intent ?? null);
+    await getProcessedAfter(sink, request, "sent", brainMeta?.intent ?? null);
   } else if (sent.outcome === "refused") {
     // The wire found what the gates above could not see a moment ago: the
     // person asked to stop, a human took the thread, the workspace paused.
@@ -245,19 +242,19 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
     // (handoff) without being marked processed: the deadman sweep still finishes it.
     // Why, in the words a queued reply's failure says it (messages/send.ts causeOf): a number with no credentials is
     // "not connected", never "HTTP 503".
-    const asked = sink.escalate(
+    const request = sink.escalate(
       "send_failed",
       `Auto-reply could not be sent (${causeOf(sent, channel)}). Customer got no answer.`,
     );
     await Promise.all([
-      tell(asked, {
+      tell(request, {
         said: bodyText,
         answered: "(send failed — the customer received no reply)",
         why: "send_failed",
       }),
-      asked,
+      request,
     ]);
-    await noteHandledAfter(sink, asked, "none", brainMeta?.intent ?? null);
+    await noteHandledAfter(sink, request, "none", brainMeta?.intent ?? null);
   }
   L.info("wa_replied", {
     escalate,

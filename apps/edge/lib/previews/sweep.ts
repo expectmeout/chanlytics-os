@@ -13,12 +13,15 @@
  * cannot be read. Its lines carry `sweep: "previews"`, and the tick ends in one previews_swept.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { deleteAgent, deleteRetellLlm } from "../packages/channels.js";
-import { endPreview, previewsPastTheirEnd, voiceAgentOf, type Database } from "../packages/db.js";
-import { json, refuse } from "../http.js";
-import { env } from "../env.js";
-import { errField, type Logger } from "../log.js";
+import { deleteAgent, deleteRetellLlm } from "@chanlytics/channels/voice";
+import { endPreview, listPreviewsPastTheirEnd } from "@chanlytics/db/campaigns";
+import { findVoiceAgent } from "@chanlytics/db/facts";
+import type { Database } from "@chanlytics/db/types";
+import { json, refuse } from "../shared/http.js";
+import { env } from "../shared/env.js";
+import { errField, type Logger } from "../shared/log.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -39,29 +42,29 @@ type Swept = "ended" | "held" | "failed";
 
 async function endOne(
   db: Db,
-  row: { id: string; tenant_id: string; preview_tenant_id: string | null },
+  row: { id: string; tenant_id: TenantId; preview_tenant_id: TenantId | null },
   provider: PreviewProvider,
-  L: Logger,
+  log: Logger,
 ): Promise<Swept> {
-  const agent = row.preview_tenant_id ? await voiceAgentOf(db, row.preview_tenant_id) : null;
+  const agent = row.preview_tenant_id ? await findVoiceAgent(db, row.preview_tenant_id) : null;
   if (agent) {
     if (!provider.apiKey) {
-      L.warn("preview_end_failed", { preview_id: row.id, step: "agent", why: "no_provider_key" });
+      log.warn("preview_end_failed", { preview_id: row.id, step: "agent", why: "no_provider_key" });
       return "held";
     }
     const cfg = { apiKey: provider.apiKey };
     const gone = await provider.deleteAgent(cfg, agent.agentId);
     if (!gone.ok) {
-      L.warn("preview_end_failed", { preview_id: row.id, step: "agent", status: gone.status });
+      log.warn("preview_end_failed", { preview_id: row.id, step: "agent", status: gone.status });
       return "held";
     }
     // The LLM costs nothing on its own: one the provider kept is logged and left, and the preview still ends.
     if (agent.llmId) {
       const llm = await provider.deleteRetellLlm(cfg, agent.llmId);
-      if (!llm.ok) L.warn("preview_end_failed", { preview_id: row.id, step: "llm", status: llm.status });
+      if (!llm.ok) log.warn("preview_end_failed", { preview_id: row.id, step: "llm", status: llm.status });
     }
   }
-  if (await endPreview(db, row.id)) L.info("preview_ended", { preview_id: row.id, agent: !!agent });
+  if (await endPreview(db, row.id)) log.info("preview_ended", { preview_id: row.id, agent: !!agent });
   return "ended";
 }
 
@@ -70,9 +73,9 @@ export async function sweepPreviews(
   provider: PreviewProvider = { apiKey: env.RETELL_API_KEY, deleteAgent, deleteRetellLlm },
   now: () => number = Date.now,
 ): Promise<Response> {
-  let rows: Awaited<ReturnType<typeof previewsPastTheirEnd>>;
+  let rows: Awaited<ReturnType<typeof listPreviewsPastTheirEnd>>;
   try {
-    rows = await previewsPastTheirEnd(db, new Date(now()), PREVIEWS_PER_TICK);
+    rows = await listPreviewsPastTheirEnd(db, new Date(now()), PREVIEWS_PER_TICK);
   } catch (e) {
     L.error("preview_end_failed", { step: "read", error: errField(e) });
     return refuse(503, "no_database");

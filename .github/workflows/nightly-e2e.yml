@@ -1,61 +1,74 @@
 name: Nightly e2e
 
-# The end-to-end suite against the deployed app, every morning.
+# The end-to-end suite, every night.
 #
 # Every user-facing bug this project has shipped was found by loading the page
 # and looking; the suite encodes that class of bug, and until now it ran only
-# when somebody remembered to run it. 09:00 UTC is 05:00 in New York — before
-# the salon opens, after the night's deploys.
+# when somebody remembered to run it.
 #
-# Two halves. The credential-free specs (the auth gate, no fabricated data)
-# run on every schedule. The signed-in specs need a session minted with a
-# service-role key and skip, with a stated reason, when the three secrets
-# below are absent. ci.yml's rule — no live service secrets in CI — still
-# holds for pull requests; whether this ONE scheduled job may hold them is
-# the owner's decision, made by adding the secrets in the repository
-# settings, and until then the job is honest about what it covered.
+# Three kinds of job, so that a night asks little of production:
+#
+#   suite       the Node suite, with no database and no secret
+#   whole       every spec, on a copy of this commit: a local stack and its own
+#               build, on the runner, with no secret and production out of reach
+#   production  a short walk of the real thing, the speed budgets and the doors,
+#               the one job that holds production's key
+#
+# Why apart: the whole suite on production was about 125,000 reads a night, and
+# production's database rebooted during it on 1, 4 and 6 Nov 2026; the Node suite
+# wrote and deleted there with the service key; and a checkout at one commit was
+# testing whatever had deployed since. On its own stack 98.2% of what passed on
+# production passed unchanged, in 44 minutes, and the Node suite held its coverage
+# with no database, since nightly-database.yml runs the suites that need one on a
+# stack of their own (the trial of 6 Nov, run 42282387310).
+#
+# The hour it asks for is not the hour it gets: GitHub starts a schedule here 3.4
+# to 10.3 hours late, whichever hour it asks for (every daily workflow's last 25
+# runs, read 6 Nov 2026). Asked for at 09:00, it started between 15:11 and 19:18
+# UTC, in the working day. Asked for at 23:17, it starts between about 02:40 and
+# 09:35 UTC, the small hours in New York, and before the Sunday weeklies.
+#
+# ci.yml's rule — no live service secrets in CI — still holds for pull requests;
+# whether this ONE job may hold them is the owner's decision, made by adding the
+# secrets in the repository settings, and until then the job is honest about what
+# it covered: the signed-in specs skip, with a stated reason, when they are absent.
 #
 # A dispatch by hand may ask for the credential-free half alone, and point it
 # at another address (one that needs no bypass): no secret is read, nothing is written, and
 # no issue is filed or closed for a run that covered only part of the suite.
 on:
   schedule:
-    - cron: "0 9 * * *"
+    - cron: "17 23 * * *"
   workflow_dispatch:
     inputs:
       credential_free_only:
         description: "Only the specs that need no credentials: no secret read, nothing written, no issue filed"
         type: boolean
         default: false
-      base_url:
-        description: "Where the credential-free specs run, an address that needs no bypass (a preview with protection off; preview-smoke.yml takes the protected ones); production when empty. The signed-in specs always run against production."
+      specs:
+        description: "Only these specs, on the whole suite's copy, for a look at a few reds in minutes: e2e/leads.spec.ts e2e/shell/phone.spec.ts. No node suite, no check of production, no issue filed."
         type: string
         default: ""
-
-# One run at a time. workspace-create.spec.ts really creates and deletes a
-# tenant, `retries: 2` means up to three of those per run, and create_workspace
-# allows five an hour -- so a manual dispatch overlapping the cron exhausts the
-# budget and the spec then fails with "Too many new workspaces in a short
-# time", which looks nothing like the bug anyone is chasing.
-concurrency:
-  group: nightly-e2e
-  cancel-in-progress: false
+      base_url:
+        description: "Where the credential-free specs run, an address that needs no bypass (a preview with protection off; preview-smoke.yml takes the protected ones); production when empty. Read by that half alone: the whole suite runs on its own copy, and the check of production is of production."
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
-  # The node suite with the service credentials, its integration suites against real Postgres. Its own jobs with their
-  # own cap, ahead of the specs: in one 60-minute job its 31 minutes left the specs too little, and from 1 Oct 2026
-  # every run ended cancelled with the specs unfinished. The specs still run after it, never beside it: both write
-  # to the e2e project, and create_workspace allows five an hour.
+  # The Node suite, with no database: its database and integration suites skip here and run on their own stack every
+  # night (nightly-database.yml, `pnpm test:db`, in the two passes they need). Its own jobs with their own cap, ahead of
+  # the specs: in one 60-minute job its 31 minutes left the specs too little, and from 1 Oct 2026 every run ended
+  # cancelled with the specs unfinished.
   #
   # Four parts at once, each a quarter of the files (Node's --test-shard), as CI's are: in one runner the suite outgrew
   # its 45 minutes, and from 14 Oct 2026 every night was cancelled with a quarter of it unrun, the failures in that
   # quarter seen by nobody. Each part keeps its coverage report, and the coverage job below judges the four together.
   suite:
-    name: Node suite against real Postgres (${{ matrix.part }}/4)
-    if: ${{ !inputs.credential_free_only }}
+    name: Node suite (${{ matrix.part }}/4)
+    if: ${{ !inputs.credential_free_only && !inputs.specs }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -71,17 +84,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The integration suites talk to real Postgres. ci.yml holds no live
-      # secrets by policy, so until now they ran NOWHERE — written tests
-      # covering erasure, the message lifecycle, opt-out, the deadman and the
-      # metrics, executed by nobody. SUPABASE_URL is what they read; passing
-      # only NEXT_PUBLIC_SUPABASE_URL left them skipping even here.
-      - name: Integration suites against real Postgres
-        run: pnpm test -- --test-shard=${{ matrix.part }}/4
+      - run: pnpm test -- --test-shard=${{ matrix.part }}/4
         env:
-          REQUIRE_SERVICE_CREDENTIALS: "1"
-          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
           # Where this part's coverage report is kept, for the coverage job (tooling/scripts/checks/test.mjs).
           TEST_LCOV: coverage-part.lcov
       # The report names the code it ran, not a workspace's data; a day is enough for the job below.
@@ -113,28 +117,155 @@ jobs:
           path: parts
       - run: node tooling/scripts/checks/coverage.mjs parts/coverage-part-1/coverage-part.lcov parts/coverage-part-2/coverage-part.lcov parts/coverage-part-3/coverage-part.lcov parts/coverage-part-4/coverage-part.lcov
 
-  e2e:
-    name: Playwright against production
-    # After the suite, whatever it said: a red suite is no reason to leave the pages unlooked at. A dispatch for the
-    # credential-free half skips the suite, and this still runs.
+  # Every spec, on a copy of this commit: a local stack and its own build, on this runner. It holds no secret: its keys are
+  # the local stack's published demo keys, and a stand-in the stub never reads. The specs and the app are one commit, so
+  # a deploy cannot land under a run. After the suite, whatever it said: a red suite is no reason to leave the pages
+  # unlooked at.
+  whole:
+    name: The whole suite on its own stack
     needs: suite
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && !inputs.credential_free_only }}
     runs-on: ubuntu-latest
-    # A green run takes about fifteen minutes; a run with a handful of failing specs takes their three tries each
-    # on top. The cap was 30, and from 20 Sep every run hit it, so every run ended "cancelled" -- past the steps
-    # below that say so, since a cancelled job is not a failed one. The cap leaves room for the failures to finish
-    # and be reported; the report job speaks on a cancellation too.
+    # 44 minutes with its setup on 6 Nov 2026, with its reds' tries on top.
     timeout-minutes: 60
     # Who the signed-in specs are, and who else is on their team: addresses at
     # example.com, which receive no mail. e2e-workspace.mjs makes both users
     # and their workspace; session.ts signs in as the first.
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Says this run is meant to be signed in, so skipping the signed-in
+      # half is a failure rather than a quiet success. Not keyed on CI:
+      # GitHub sets that for the pull-request job too, which is meant to
+      # run credential-free.
+      REQUIRE_SERVICE_CREDENTIALS: "1"
+      # Nothing here skips for want of data (7 Nov 2026; e2e/skip-ceiling.ts prints each reason): the workspace is this
+      # run's own, so the number does not wander with a customer's month, and the first skip is a red night. A skip behind
+      # a switch the run did not set, a paid model's, is not counted.
+      E2E_MAX_SKIPS: "0"
+      E2E_USER_EMAIL: e2e-owner@example.com
+      E2E_MEMBER_EMAIL: e2e-member@example.com
+      # localhost by name: Next says a request's host as localhost whatever it was asked by (NextURL), so asked as
+      # 127.0.0.1 the proxy's rewrite of an address that names nothing reads as another host and comes back to the
+      # proxy, which sends it to sign in: the opt-in page's 404 answered 307.
+      E2E_BASE_URL: http://localhost:3100
+      # Unset, the app calls production's edge (apps/dashboard/src/server/edge.ts). The trial called one path of it.
+      EDGE_URL: http://127.0.0.1:3101
+      # Without a credential the app never calls the edge at all (edgeConfigured), and the stand-in reads none.
+      EDGE_CALL_SECRET: a-stand-in-the-stub-never-reads
+      # What /api/version answers, which is how the step below knows the app is this commit.
+      VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+      # Every request says what it touched, for the refresh map's derivation (decision 0058 stage C, the page-open
+      # PRD's P4): the suite runs every write path in its own workspace, which a week of production's sample does not.
+      # The app's log below keeps those lines.
+      E2E_TOUCHES_ALL: "1"
+      # E2E_PAID_MODEL is not set: the Ask tests that run a real model turn
+      # skip and say so, and what a page would ask by itself (a turn, Today's
+      # morning, the Line's warm) stops at the sign-in (e2e/session.ts).
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.116.0
+      - run: pnpm install --frozen-lockfile
+      # So a mistake fails here instead of reaching what customers use, and the edge's logs are not this project's to read.
+      - name: Production cannot be reached from this machine
+        run: echo "127.0.0.1 app.chanlytics.com chanlytics-messaging.vercel.app" | sudo tee -a /etc/hosts
+      # A file's picture is drawn through Storage's image route, as production's is: off in config.toml, for the stacks
+      # that do not start imgproxy.
+      - name: Pictures, as production draws them
+        run: sed -i '/^# \[storage.image_transformation\]/,+1 s/^# //' supabase/config.toml
+      # ghcr.io answers a burst of image pulls with "toomanyrequests" (database.yml says more): a failed start keeps what
+      # it pulled, so a few more attempts, spaced out, finish the set.
+      - name: Start the stack
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if supabase start -x studio,inbucket,edge-runtime,logflare,vector; then exit 0; fi
+            echo "supabase start failed on attempt $attempt; pulling the rest after a pause" >&2
+            supabase stop --no-backup || true
+            sleep $((attempt * 15))
+          done
+          exit 1
+      - name: Point everything at the stack
+        run: |
+          service="$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')"
+          anon="$(supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')"
+          {
+            echo "SUPABASE_URL=http://127.0.0.1:54321"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$service"
+            echo "SUPABASE_ANON_KEY=$anon"
+            echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon"
+          } >> "$GITHUB_ENV"
+      - name: Build this commit
+        run: pnpm --filter @chanlytics/dashboard build
+      - name: Start the edge's stand-in and the app
+        run: |
+          nohup node tooling/scripts/e2e-harness/edge-stub.mjs 3101 > edge-stub.log 2>&1 &
+          nohup pnpm --filter @chanlytics/dashboard exec next start -p 3100 > next-start.log 2>&1 &
+      - name: The app answers, at this commit
+        run: |
+          for i in $(seq 1 60); do
+            said="$(curl -fsS http://localhost:3100/api/version || true)"
+            case "$said" in *"$GITHUB_SHA"*) echo "$said"; exit 0 ;; esac
+            sleep 2
+          done
+          cat next-start.log
+          exit 1
+      # The run's own workspace, before any spec signs in: a test owner with exactly one membership, fake people, one
+      # conversation, one call and a WhatsApp channel with no credentials. And, on a copy alone, what production's sweeps
+      # would act on there: the eval's paused Win-back, a run waiting for an OK and emails handed to their owner. Nothing
+      # sweeps here, and the check of production below passes neither.
+      - name: The run's own workspace, in its known state
+        run: node --import tsx tooling/scripts/ops/e2e-workspace.mjs --apply --seed-win-back
+      - name: What only a copy may hold
+        run: node --import tsx tooling/scripts/e2e-harness/copy-states.mjs
+      - run: pnpm e2e:install
+      # One retry: a copy on this machine has no network to forgive, and a retry that passes hides a flake.
+      - name: Every spec
+        run: pnpm exec playwright test --retries=1 $SPECS
+        env:
+          SPECS: ${{ inputs.specs }}
+      - name: What reached for the edge, by path
+        if: ${{ !cancelled() }}
+        run: sed -E 's/\?.*$//' edge-stub.log | sort | uniq -c | sort -rn | head -40
+      # Everything here is the stack's made-up data.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: whole-suite
+          path: |
+            playwright-report
+            next-start.log
+            edge-stub.log
+          retention-days: 7
+          if-no-files-found: warn
+
+  # The real thing, briefly: a walk of the pages, the speed budgets, and the doors only production can answer. After the
+  # whole suite, whatever it said: a red there is no reason to leave production unlooked at. A dispatch for the
+  # credential-free half skips both suites, and this still runs. It holds production's key, and no other job does.
+  production:
+    name: The check of production
+    needs: whole
+    if: ${{ !cancelled() && !inputs.specs }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Ask's weekly and Leads' weekly write this workspace too, and e2e-workspace.mjs rewrites it, so the three take turns.
+    concurrency:
+      group: nightly-e2e
+      cancel-in-progress: false
     env:
       E2E_USER_EMAIL: e2e-owner@example.com
       E2E_MEMBER_EMAIL: e2e-member@example.com
       # "true" for a dispatch that asked for the credential-free half alone; "false" on the schedule.
       CREDENTIAL_FREE: ${{ inputs.credential_free_only && 'true' || 'false' }}
     # issues: write is the whole point of the steps that say what happened -- a
-    # red run at 09:00 that nobody is told about is the failure this suite
+    # red run in the night that nobody is told about is the failure this suite
     # exists to prevent, one level up.
     permissions:
       contents: read
@@ -205,19 +336,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
-      - name: The signed-in specs and the credential-free ones
+      - name: The walk, the budgets and the doors
         if: ${{ !cancelled() && env.CREDENTIAL_FREE != 'true' }}
-        run: pnpm e2e
+        run: pnpm e2e e2e/production e2e/coverage.spec.ts e2e/auth/auth-gate.spec.ts e2e/auth/signup.spec.ts e2e/shell/csp.spec.ts
         env:
           CI: "true"
-          # Says this run is meant to be signed in, so skipping the signed-in
-          # half is a failure rather than a quiet success. Not keyed on CI:
-          # GitHub sets that for the pull-request job too, which is meant to
-          # run credential-free.
+          E2E_PRODUCTION: "1"
           REQUIRE_SERVICE_CREDENTIALS: "1"
-          # Every request says what it touched, for the refresh map's derivation (decision 0058 stage C, the page-open
-          # PRD's P4): the suite runs every write path in its own workspace, which a week of production's sample does not.
-          E2E_TOUCHES_ALL: "1"
           E2E_BASE_URL: https://app.chanlytics.com
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
@@ -230,10 +355,6 @@ jobs:
           # skips and says why, since no example.com address can receive the code.
           # Adding the secret is the owner's call.
           E2E_SIGNUP_EMAIL: ${{ secrets.E2E_SIGNUP_EMAIL }}
-          # E2E_PAID_MODEL is not set: the Ask tests that run a real model turn
-          # skip and say so, and what a page would ask by itself (a turn, Today's
-          # morning, the Line's warm) stops at the sign-in (e2e/session.ts). Set
-          # it to "1" on a run that should spend.
       # The credential-free half alone, by hand: no key of any kind in the
       # environment, so every signed-in spec skips and says why, and nothing
       # the run touches can write.
@@ -251,19 +372,16 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
-  # Somebody has to be told. The run starts at 09:00 with nobody watching,
-  # and its whole purpose is to notice things. One issue, not one a night:
-  # a red run comments on it (the old per-night issues fold into it the
-  # first time), a green run closes it, and the second red run in a row
-  # pages the platform through the edge's pager door, once PAGER_URL and
-  # PAGER_KEY are set (docs/runbook.md, What CI proves). A half the cap
-  # cancelled is a half nobody heard from: it is red too. The issue says
-  # which half was red: the node suite, the specs, or both. The suite is green when its four parts passed and what
-  # they ran of the code held its floors.
+  # Somebody has to be told. The run starts in the night with nobody watching, and its whole purpose is to notice things.
+  # Two reds, said apart (decision 0106). The suites', on a copy no customer is on: one issue, the owner's, and no page.
+  # Production's: an issue of its own, and its first red pages the platform through the edge's pager door, once PAGER_URL
+  # and PAGER_KEY are set (docs/runbook.md, What CI proves), since a customer may be seeing it. A red run comments on its
+  # issue and the first green closes it. A job the cap cancelled is a job nobody heard from: it is red too. The suites are
+  # green when the four parts passed, what they ran of the code held its floors, and the whole suite passed.
   report:
     name: Say what the night came to
-    needs: [suite, coverage, e2e]
-    if: ${{ always() && !inputs.credential_free_only }}
+    needs: [suite, coverage, whole, production]
+    if: ${{ always() && !inputs.credential_free_only && !inputs.specs }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -274,22 +392,40 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Say so, where a person will see it
+      - name: Say what the suites came to
         shell: bash
         run: |
           nightly=(--title "Nightly e2e is red" --match "Nightly e2e is red" --match "Nightly e2e failed " --match "Nightly e2e hit its cap ")
           if [ "$SUITE" = "success" ] && [ "$COVERAGE" != "success" ]; then SUITE="passed, but what it ran of the code was not held to its floors ($COVERAGE)"; fi
-          if [ "$SUITE" = "success" ] && [ "$SPECS" = "success" ]; then
+          if [ "$SUITE" = "success" ] && [ "$WHOLE" = "success" ]; then
             node tooling/scripts/ops/rolling-issue.mjs --state green "${nightly[@]}"
           else
-            echo "The nightly's node suite: $SUITE. Its specs against production: $SPECS. A cancelled half hit its cap or was cancelled by hand before it finished; the run's jobs say which tests failed." > nightly.md
-            node tooling/scripts/ops/rolling-issue.mjs --state red "${nightly[@]}" --body-file nightly.md --page-after 2 --condition nightly_red --assignee "$OWNER"
+            echo "The nightly's node suite: $SUITE. The whole suite on its own stack: $WHOLE. A cancelled job hit its cap or was cancelled by hand before it finished; the run's jobs say which tests failed." > nightly.md
+            node tooling/scripts/ops/rolling-issue.mjs --state red "${nightly[@]}" --body-file nightly.md --assignee "$OWNER"
           fi
         env:
           SUITE: ${{ needs.suite.result }}
           COVERAGE: ${{ needs.coverage.result }}
-          SPECS: ${{ needs.e2e.result }}
+          WHOLE: ${{ needs.whole.result }}
           # The red issue is the owner's: GitHub tells an assignee of every comment, and nobody else was told.
+          OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Whatever the suites' step came to: a refusal there is no reason for production's red to go unsaid.
+      - name: Say what the check of production came to
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          check=(--title "Production check is red" --match "Production check is red")
+          case "$PRODUCTION" in
+            success) node tooling/scripts/ops/rolling-issue.mjs --state green "${check[@]}" ;;
+            skipped) echo "The check of production did not run, so this night says nothing of production." ;;
+            *)
+              echo "The check of production: $PRODUCTION. A customer may be seeing what it saw. A cancelled job hit its cap or was cancelled by hand before it finished; the run's jobs say which tests failed." > production.md
+              node tooling/scripts/ops/rolling-issue.mjs --state red "${check[@]}" --body-file production.md --page-after 1 --condition production_check_red --assignee "$OWNER"
+              ;;
+          esac
+        env:
+          PRODUCTION: ${{ needs.production.result }}
           OWNER: ${{ github.repository_owner }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PAGER_URL: ${{ secrets.PAGER_URL }}

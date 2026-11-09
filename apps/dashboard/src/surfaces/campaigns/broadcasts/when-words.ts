@@ -4,7 +4,7 @@
  */
 import { runApprovalRefusal, runDaysAt, waitingRunOffer, whenItGoes } from "@chanlytics/contracts";
 import type { WaitingRunOffer, WhenItGoesReceipt } from "@chanlytics/contracts";
-import { pageClock, type PageClock } from "@/legacy-bridge/zone";
+import { pageClock, type PageClock } from "@/bridge/zone";
 
 /** A waiting run as the approve verb reads it: whose it is, the day it was made for, and its moment. */
 interface WaitingRun {
@@ -36,7 +36,7 @@ export function bcLateWords(run: WaitingRun): string | null {
  * What a waiting run's row may offer outside its sheet (contracts waitingRunOffer, THE reading), asked by the business's
  * clock as bcLateWords asks: approve it, skip it alone with the verb's sentence for why (its day has passed, or the
  * workspace is paused: `at.paused`), or open it (a reach-out's run, or one whose playbook the page does not hold:
- * `at.known`). A playbook's card reads it here; Coming up's line reads the same rule in contracts (lifecycle-tiles.ts).
+ * `at.known`). A playbook's card reads it here; Coming up's line reads the same rule in contracts (lifecycle/tiles.ts).
  */
 function bcRunOffer(run: WaitingRun, at: { paused: boolean; known: boolean }): WaitingRunOffer {
   return waitingRunOffer(run, approvalDaysNow(), at);

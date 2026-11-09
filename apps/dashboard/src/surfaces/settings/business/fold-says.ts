@@ -3,7 +3,7 @@
 // Split from folds.ts, which adds willSay and changedLines to the tab's saver (saver.ts). Pure but for willSay's cache,
 // and no JSX.
 
-import { BUSINESS_TAB, type ConsequenceVM, type FoldSection } from "@/legacy-bridge/business-tab";
+import { BUSINESS_TAB, type ConsequenceVM, type FoldSection } from "@/bridge/business-tab";
 import { settingsNow } from "./shell";
 
 /** The blocks of one brain, resolved: each block as the brain a save goes on writes it, by channel and block. */

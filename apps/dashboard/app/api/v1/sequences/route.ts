@@ -1,8 +1,8 @@
-import { read, write, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, write, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { sequences } from "@/server/readers/sequences";
-import { NEW_SEQUENCE_BODY } from "@/server/sequences/bodies";
-import { makeSequenceNow } from "@/server/sequences/doors";
+import { NEW_SEQUENCE_BODY } from "@/server/campaigns/sequences/bodies";
+import { makeSequenceNow } from "@/server/campaigns/sequences/doors";
 
 /**
  * GET /api/v1/sequences — everything the workspace sends on its own (decision 0060), newest first: each sequence's

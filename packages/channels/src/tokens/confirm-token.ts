@@ -17,8 +17,8 @@ export const CONFIRM_PATH = "/c/";
 
 const CONFIRM_LABEL = "chanlytics-confirm:";
 
-export function signConfirmToken(secret: string, c: ConfirmClaims): string {
-  return sealLink("signConfirmToken", CONFIRM_LABEL, secret, c);
+export function signConfirmToken(secret: string, confirmClaims: ConfirmClaims): string {
+  return sealLink("signConfirmToken", CONFIRM_LABEL, secret, confirmClaims);
 }
 
 /** The claims a token seals, or null for anything that is not a confirmation link one of these secrets made. */

@@ -1,7 +1,7 @@
 import { REPLY_DRAFTS_IDS_MAX, ReplyDraftsQuerySchema } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
-import { requireUuidList } from "@/server/request-guards";
-import { draftsKept } from "@/server/conversations/drafts";
+import { read, workspace } from "@/server/shared/route";
+import { requireUuidList } from "@/server/shared/request-guards";
+import { listDraftsKept } from "@/server/conversations/drafts";
 
 /**
  * GET /api/v1/conversations/drafts?ids=a,b — the drafts Ask kept on these threads (decision 0071, 00475): Today's rows
@@ -14,7 +14,7 @@ export const GET = read({
   scope: workspace,
   query: ReplyDraftsQuerySchema,
   handle: ({ ctx, member, input }) =>
-    draftsKept(
+    listDraftsKept(
       ctx,
       member,
       input.ids === undefined ? null : (requireUuidList(input.ids, "conversation", REPLY_DRAFTS_IDS_MAX) ?? []),

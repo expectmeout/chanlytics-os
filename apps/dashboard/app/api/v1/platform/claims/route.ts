@@ -1,6 +1,7 @@
-import { write, platform } from "@/server/route";
+import { heldTenantId } from "@chanlytics/contracts";
+import { write, platform } from "@/server/shared/route";
 import { ClaimSchema } from "@chanlytics/contracts";
-import { consoleClaim } from "@/server/platform/console";
+import { claimConsole } from "@/server/console/console";
 
 /**
  * POST /api/v1/platform/claims — {tenant_id, take}: take a workspace for four hours, or let it go (decision 0066), so
@@ -12,5 +13,7 @@ export const POST = write({
   role: null,
   rate: "platform_claim",
   input: ClaimSchema,
-  handle: async ({ office, input }) => ({ claim: await consoleClaim(office, input.tenant_id, input.take) }),
+  handle: async ({ office, input }) => ({
+    claim: await claimConsole(office, heldTenantId(input.tenant_id), input.take),
+  }),
 });

@@ -21,7 +21,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  instagramCall,
+  callInstagram,
   instagramCodeRequest,
   instagramLongLivedRequest,
   instagramMeRequest,
@@ -31,23 +31,24 @@ import {
   parseInstagramMe,
   parseInstagramToken,
   type InstagramApp,
-} from "../packages/channels.js";
+} from "@chanlytics/channels/instagram";
+import { emitEvent, recordActivation } from "@chanlytics/db/events";
 import {
-  emitEvent,
-  instagramAccountHolder,
+  findInstagramAccountHolder,
   putChannelSecret,
-  recordActivation,
   setInstagramStatus,
   writeInstagramAccount,
-  type Database,
-} from "../packages/db.js";
-import { UUID } from "../packages/contracts.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { env } from "../env.js";
-import { logger } from "../log.js";
+} from "@chanlytics/db/channels";
+import type { Database } from "@chanlytics/db/types";
+import { UUID, recordOrNull, isTenantId } from "@chanlytics/contracts";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { env } from "../shared/env.js";
+import { logger } from "../shared/log.js";
 import type { InstagramSecret } from "./credentials.js";
+import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -79,22 +80,22 @@ const isRefused = (v: unknown): v is Refused => typeof v === "object" && v !== n
 
 /** One call of the way in, read as its parser reads it, or Meta's words for its refusal (each caller names its code). */
 async function step<T>(
-  L: Log,
-  what: "exchange" | "token" | "account" | "subscribe",
+  log: Log,
+  kind: "exchange" | "token" | "account" | "subscribe",
   call: Promise<{ outcome: string; status: number; json: Record<string, unknown> | null; error: string | null }>,
   parse: (json: unknown) => T,
 ): Promise<T | Refused> {
-  const a = await call;
-  if (a.outcome !== "ok") {
-    const detail = instagramErrorOf(a.json)?.message ?? a.error ?? `HTTP ${a.status}`;
-    L.info("ig_connect_refused", { at: what, status: a.status, error: detail.slice(0, 200) });
+  const first = await call;
+  if (first.outcome !== "ok") {
+    const detail = instagramErrorOf(first.json)?.message ?? first.error ?? `HTTP ${first.status}`;
+    log.info("ig_connect_refused", { at: kind, status: first.status, error: detail.slice(0, 200) });
     return { refused: detail.slice(0, 300) };
   }
   try {
-    return parse(a.json);
+    return parse(first.json);
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
-    L.info("ig_connect_refused", { at: what, error: detail.slice(0, 200) });
+    log.info("ig_connect_refused", { at: kind, error: detail.slice(0, 200) });
     return { refused: detail.slice(0, 300) };
   }
 }
@@ -104,16 +105,16 @@ async function step<T>(
  * write that follows would otherwise move a live account, its token and its DMs between workspaces. A read that failed
  * says nothing about who holds it.
  */
-async function heldElsewhere(db: Db, L: Log, tenantId: string, accountId: string): Promise<Response | null> {
-  let holder: { tenant_id: string } | null;
+async function heldElsewhere(db: Db, log: Log, tenantId: TenantId, accountId: string): Promise<Response | null> {
+  let holder: { tenant_id: TenantId } | null;
   try {
-    holder = await instagramAccountHolder(db, accountId);
+    holder = await findInstagramAccountHolder(db, accountId);
   } catch (e) {
-    L.info("ig_connect_channel_read_failed", { error: e instanceof Error ? e.message : String(e) });
+    log.info("ig_connect_channel_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return refuse(503, "channel_read_failed");
   }
   if (holder && holder.tenant_id !== tenantId) {
-    L.info("ig_connect_account_taken");
+    log.info("ig_connect_account_taken");
     return refuse(409, "instagram_account_taken");
   }
   return null;
@@ -122,39 +123,38 @@ async function heldElsewhere(db: Db, L: Log, tenantId: string, accountId: string
 async function connect(
   db: Db,
   app: InstagramApp,
-  by: { tenantId: string; userId: string },
+  by: { tenantId: TenantId; userId: string },
   code: string,
 ): Promise<Response> {
   const { tenantId, userId } = by;
-  let L = logger({ tenant_id: tenantId });
+  let log = logger({ tenant_id: tenantId });
   // 1. The code becomes a short token, then a 60-day one, granted what the business allowed.
-  const grant = await step(L, "exchange", instagramCall(instagramCodeRequest(app, code)), parseInstagramCodeGrant);
+  const grant = await step(log, "exchange", callInstagram(instagramCodeRequest(app, code)), parseInstagramCodeGrant);
   if (isRefused(grant)) return refuse(502, "exchange_failed", grant.refused);
   if (grant.permissions.length > 0 && !grant.permissions.includes(MESSAGES_SCOPE)) {
-    L.info("ig_connect_messages_not_granted");
+    log.info("ig_connect_messages_not_granted");
     return refuse(403, "instagram_messages_not_granted", "The business did not allow its messages to be managed.");
   }
   const long = await step(
-    L,
+    log,
     "token",
-    instagramCall(instagramLongLivedRequest(app.clientSecret, grant.accessToken)),
+    callInstagram(instagramLongLivedRequest(app.clientSecret, grant.accessToken)),
     parseInstagramToken,
   );
   if (isRefused(long)) return refuse(502, "exchange_failed", long.refused);
   // 2. The account the token speaks for, by the id its webhooks name.
-  const me = await step(L, "account", instagramCall(instagramMeRequest(long.accessToken)), parseInstagramMe);
+  const me = await step(log, "account", callInstagram(instagramMeRequest(long.accessToken)), parseInstagramMe);
   if (isRefused(me)) return refuse(502, "instagram_account_unreadable", me.refused);
-  L = logger({ tenant_id: tenantId, account: me.accountId });
-  const held = await heldElsewhere(db, L, tenantId, me.accountId);
+  log = logger({ tenant_id: tenantId, account: me.accountId });
+  const held = await heldElsewhere(db, log, tenantId, me.accountId);
   if (held) return held;
   // 3. Its DMs reach this app's webhook.
   const sub = await step(
-    L,
+    log,
     "subscribe",
-    instagramCall(instagramSubscribeRequest(long.accessToken, me.accountId)),
+    callInstagram(instagramSubscribeRequest(long.accessToken, me.accountId)),
     (j) => {
-      if ((j as { success?: unknown } | null)?.success !== true)
-        throw new Error("Instagram did not confirm the subscription");
+      if (recordOrNull(j)?.success !== true) throw new Error("Instagram did not confirm the subscription");
       return true;
     },
   );
@@ -168,11 +168,11 @@ async function connect(
     config: { username: me.username, name: me.name, connected_at: now.toISOString(), connected_by: userId },
   });
   if (row === "taken") {
-    L.info("ig_connect_account_taken", { at: "insert" });
+    log.info("ig_connect_account_taken", { at: "insert" });
     return refuse(409, "instagram_account_taken");
   }
   if ("failed" in row) {
-    L.info("ig_connect_channel_write_failed", { error: row.failed });
+    log.info("ig_connect_channel_write_failed", { error: row.failed });
     return refuse(500, "channel_write_failed");
   }
   // 5. The token, in the Vault, through the one door that writes a credential.
@@ -185,13 +185,13 @@ async function connect(
   try {
     await putChannelSecret(db, row.id, { ...secret });
   } catch (e) {
-    L.info("ig_connect_credentials_failed", { error: e instanceof Error ? e.message : String(e) });
+    log.info("ig_connect_credentials_failed", { error: e instanceof Error ? e.message : String(e) });
     await setInstagramStatus(db, tenantId, row.id, "disabled");
     return refuse(500, "credentials_failed");
   }
   // 6. Only now may the account route.
   if (!(await setInstagramStatus(db, tenantId, row.id, "active"))) {
-    L.info("ig_connect_channel_write_failed", { at: "activate" });
+    log.info("ig_connect_channel_write_failed", { at: "activate" });
     return refuse(500, "channel_write_failed");
   }
   await emitEvent(db, tenantId, "channel.connected", "channel", row.id, {
@@ -199,24 +199,24 @@ async function connect(
     account_id: me.accountId,
     username: me.username,
     by: userId,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event channel.connected"));
   // The workspace's first line that answers, the funnel's first milestone, whichever wire it is.
   await recordActivation(db, tenantId, "line_live", "instagram").catch(() => false);
-  L.info("ig_connected", { channel_id: row.id, username: me.username });
+  log.info("ig_connected", { channel_id: row.id, username: me.username });
   return json(200, { ok: true, channel_id: row.id, account_id: me.accountId, username: me.username, name: me.name });
 }
 
-async function disconnect(db: Db, tenantId: string, channelId: string): Promise<Response> {
-  const L = logger({ tenant_id: tenantId, channel_id: channelId });
+async function disconnect(db: Db, tenantId: TenantId, channelId: string): Promise<Response> {
+  const log = logger({ tenant_id: tenantId, channel_id: channelId });
   if (!(await setInstagramStatus(db, tenantId, channelId, "disabled"))) {
-    L.info("ig_disconnect_failed");
+    log.info("ig_disconnect_failed");
     return refuse(404, "not_found");
   }
-  L.info("ig_disconnected");
+  log.info("ig_disconnected");
   return json(200, { ok: true });
 }
 
-export async function instagramOp(auth: Admitted, body: Partial<InstagramBody>): Promise<Response> {
+export async function runInstagramOp(auth: Admitted, body: Partial<InstagramBody>): Promise<Response> {
   const op = typeof body.op === "string" ? body.op : "";
   const app = instagramApp();
   if (op === "status")
@@ -229,7 +229,7 @@ export async function instagramOp(auth: Admitted, body: Partial<InstagramBody>):
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
   const userId = personFor(auth, body.user_id) ?? "";
-  if (!UUID.test(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
+  if (!isTenantId(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   if (op === "connect") {

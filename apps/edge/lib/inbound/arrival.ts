@@ -20,11 +20,13 @@
  *                       so a runner killed mid-turn leaves a job the ledger claims again, and nothing is said twice.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { InboundMessage } from "../packages/channels.js";
-import type { Database, IngestResult, Json, RoutedChannel } from "../packages/db.js";
-import { answerInbound, recordInbound, type InboundCarrier } from "../packages/core.js";
-import { markSpoke, scheduleJobOnce, type ClaimedJob } from "../packages/jobs.js";
-import { errField, logger } from "../log.js";
+import type { InboundMessage } from "@chanlytics/channels/inbound";
+import type { IngestResult, RoutedChannel } from "@chanlytics/db/channels";
+import type { Database, Json } from "@chanlytics/db/types";
+import { answerInbound, recordInbound, type InboundCarrier } from "@chanlytics/core";
+import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
+import { errField, logger } from "../shared/log.js";
+import type { JobPayload } from "@chanlytics/contracts";
 import { corePorts, realPorts, type InboundPorts } from "./ports.js";
 
 /**
@@ -91,7 +93,7 @@ export async function recordThenSchedule(
 ): Promise<IngestResult | null> {
   const ing = await recordArrival(a, routed, ports);
   if (!ing) return null;
-  const payload: Json = {
+  const payload: JobPayload<"inbound_answer"> = {
     ...wire,
     // The wire its job answers on, said rather than read from what the payload carries (./answer-job.ts jobWireOf).
     wire: a.inbound.channel,

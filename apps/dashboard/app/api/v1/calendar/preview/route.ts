@@ -1,7 +1,7 @@
-import { AppError } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { jsonBody } from "@/server/request-guards";
-import { tenantFacts } from "@/server/tenant";
+import { AppError, recordOrNull } from "@chanlytics/contracts";
+import { write, workspace } from "@/server/shared/route";
+import { readJsonBody } from "@/server/shared/request-guards";
+import { getTenantFacts } from "@/server/shared/tenant";
 import { previewFeed } from "@/server/calendar/feed-preview";
 
 /**
@@ -16,10 +16,10 @@ export const POST = write({
   role: "operator",
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
-    const body = (await jsonBody(req)) as { url?: unknown } | null;
+    const body = recordOrNull(await readJsonBody(req));
     const url = typeof body?.url === "string" ? body.url.trim() : "";
     if (!url) throw new AppError("validation", "Paste the calendar's iCal address first.");
-    const { timezone } = await tenantFacts(ctx.supabase, member.tenantId);
+    const { timezone } = await getTenantFacts(ctx.supabase, member.tenantId);
     return await previewFeed(url, timezone);
   },
 });

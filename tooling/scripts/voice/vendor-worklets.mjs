@@ -5,7 +5,7 @@
  * so with no paths the WebRTC conversation's audio setup fails and the connection goes down a second after it is up
  * (seen in Chrome, 3 Oct 2026). This writes the modules' sources, read out of the installed client, to
  * apps/dashboard/public/voice/, where 'self' serves them; the Line's voice module names those paths. Run after the
- * client's version changes; tooling/scripts/tests/ask-voice/voice-worklets.test.mjs fails a public file that drifted.
+ * client's version changes; tests/ask/voice/voice-worklets.test.mjs fails a public file that drifted.
  *
  *   node tooling/scripts/voice/vendor-worklets.mjs            writes the two files
  */

@@ -19,11 +19,20 @@ import {
   templateUsage,
   type MessageRead,
   type TemplateSends,
+  DbFailure,
 } from "@chanlytics/contracts";
 // The database's count of the same sends (00374); contracts' templateSends is the fold it replaced, read below for a
 // database before it.
-import { sequenceNamesOf, templateSends as sendsByTemplate } from "@chanlytics/db";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
+import {
+  listSequenceNames,
+  listStepsOfTemplates,
+  listTemplatesForPage,
+  pageRunsOfTemplates,
+  pageSendsSent,
+  pageTemplatesFromInbox,
+} from "@chanlytics/db/campaigns";
+import { getTemplateSends as sendsByTemplate } from "@chanlytics/db/reports";
+import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as facts from "./facts";
 
 /**
@@ -33,9 +42,6 @@ import * as facts from "./facts";
  * array to the browser so three composers can each dig the same string out of it
  * would put Meta's shape in a .jsx file, where the compiler cannot see it.
  */
-const COLUMNS =
-  "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at, title, components";
-
 /** Rows per page: PostgREST's max_rows (supabase config), which answers at most this many whatever a select asks for. */
 const TEMPLATES_PAGE = 1000;
 
@@ -47,13 +53,13 @@ const TEMPLATES_PAGE = 1000;
  * another.
  */
 async function everyRow<T>(
-  what: string,
+  text: string,
   page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<T[]> {
   const out: T[] = [];
   for (;;) {
     const { data, error } = await page(out.length, out.length + TEMPLATES_PAGE - 1);
-    if (error) throw new Error(`${what}: ${error.message}`);
+    if (error) throw new DbFailure(error, `${text}`);
     out.push(...(data ?? []));
     if ((data ?? []).length < TEMPLATES_PAGE) return out;
   }
@@ -82,35 +88,17 @@ async function templateSendsRead(
     // audience it was scheduled for; the wire holds people back from it and a
     // run can stop part-way, and Reports › Campaigns counts "Messages sent"
     // from these rows, apart from "Delivered". Counted the way that page counts.
-    everyRow("broadcast_recipients", (from, to) =>
-      rc.ctx.supabase
-        .from("sequence_sends")
-        .select("broadcast_id:batch_id, state, sent_at")
-        .eq("tenant_id", tenantId)
-        .is("lead_id", null)
-        .eq("state", "sent")
-        .order("batch_id")
-        .order("contact_id")
-        .range(from, to),
-    ),
+    everyRow("broadcast_recipients", (from, to) => pageSendsSent(rc.ctx.supabase, tenantId, from, to)),
     // The one door a run does not cover: a template the Inbox sent into a closed
     // window, on its own message row. It left when WhatsApp took it -- the
     // wamid; a row still in its veto window, withdrawn or refused has none. A
     // run's own messages name no template (deliver records them without one),
     // so nothing counted on a recipient row above is counted again here.
-    everyRow("messages", (from, to) =>
-      rc.ctx.supabase
-        .from("messages")
-        .select("template_name, external_id, created_at")
-        .eq("tenant_id", tenantId)
-        .eq("direction", "outbound")
-        .not("template_name", "is", null)
-        .not("external_id", "is", null)
-        .order("id")
-        .range(from, to),
-    ),
+    everyRow("messages", (from, to) => pageTemplatesFromInbox(rc.ctx.supabase, tenantId, from, to)),
   ]);
-  return templateSends({ runs: runRows, recipients, inbox });
+  // A customer's send always names its batch (00540's check).
+  const sends = recipients.flatMap((r) => (r.broadcast_id ? [{ ...r, broadcast_id: r.broadcast_id }] : []));
+  return templateSends({ runs: runRows, recipients: sends, inbox });
 }
 
 /**
@@ -121,12 +109,8 @@ async function templateSendsRead(
  */
 async function templatesOf(rc: ReaderContext, all: boolean) {
   const tenantId = rc.tenantId;
-  const { data, error } = await rc.ctx.supabase
-    .from("templates")
-    .select(COLUMNS)
-    .eq("tenant_id", tenantId)
-    .order("name");
-  if (error) throw new Error(error.message);
+  const { data, error } = await listTemplatesForPage(rc.ctx.supabase, tenantId);
+  if (error) throw new DbFailure(error);
   // The message as the customer receives it -- heading, footer, buttons -- and
   // why this product cannot send it, if it cannot. Meta's array stays behind:
   // three composers digging the same shapes out of it would put Meta's schema
@@ -162,26 +146,16 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   // credited with. A run's state says whether its playbook is waiting on the
   // owner; a name and a date let a message people send by hand name the latest
   // two.
-  const runs = everyRow("broadcasts", (from, to) =>
-    rc.ctx.supabase
-      .from("sequence_batches")
-      .select("id, template_name, playbook_id:step_id, sequence_id, name, state, created_at")
-      .eq("tenant_id", tenantId)
-      .order("id")
-      .range(from, to),
-  );
+  const runs = everyRow("broadcasts", (from, to) => pageRunsOfTemplates(rc.ctx.supabase, tenantId, from, to));
   const [pb, runRows, sends, sequences] = await Promise.all([
     // Its clock, for the line under what sends it ("runs daily at 10:00"), its last day, and its sequence and place there
     // ("VIP color clients · step 2").
-    rc.ctx.supabase
-      .from("sequence_steps")
-      .select("id, name, template_name, state, trigger, run_hour, cadence_days, until, sequence_id, place")
-      .eq("tenant_id", tenantId),
+    listStepsOfTemplates(rc.ctx.supabase, tenantId),
     runs,
     templateSendsRead(rc, runs),
-    sequenceNamesOf(rc.ctx.supabase, tenantId),
+    listSequenceNames(rc.ctx.supabase, tenantId),
   ]);
-  if (pb.error) throw new Error(pb.error.message);
+  if (pb.error) throw new DbFailure(pb.error);
   // A campaign past its last day by the business's day (the turn's zone) sends nothing more: said so, never its clock (S1-3).
   // A zone that cannot be read judges none ended: what sends each still reads.
   const zone = await load(rc, facts.facts, undefined).then(
@@ -221,16 +195,16 @@ type LibraryRead = Extract<TemplatesRead, { usedBy: unknown }>;
 export function messageReadsOf(read: LibraryRead): MessageRead[] {
   const rows = new Map(read.templates.map((t) => [t.id, t]));
   const usedBy = new Map(Object.entries(read.usedBy));
-  return read.messages.map((m) => {
-    const row = rows.get(m.versions.whatsapp?.id ?? m.anchor.id);
+  return read.messages.map((message) => {
+    const row = rows.get(message.versions.whatsapp?.id ?? message.anchor.id);
     const variables: unknown[] = Array.isArray(row?.variables) ? row.variables : [];
     const labels = row ? slotLabels(row) : [];
     return {
-      name: m.name,
-      language: m.language,
-      category: m.purpose === "marketing" ? "marketing" : "utility",
+      name: message.name,
+      language: message.language,
+      category: message.purpose === "marketing" ? "marketing" : "utility",
       versions: VERSION_CHANNELS.flatMap((channel) => {
-        const v = m.versions[channel];
+        const v = message.versions[channel];
         return v ? [{ channel, id: v.id, state: metaStatusOf(rows.get(v.id)?.meta_status) }] : [];
       }),
       slots: (row ? defaultSlotKinds(row) : []).map((kind, i) => {
@@ -242,7 +216,7 @@ export function messageReadsOf(read: LibraryRead): MessageRead[] {
           kind,
         };
       }),
-      used_by: (usedBy.get(m.name)?.playbooks ?? []).map((p) => ({ id: p.id, name: p.name })),
+      used_by: (usedBy.get(message.name)?.playbooks ?? []).map((p) => ({ id: p.id, name: p.name })),
     };
   });
 }
@@ -272,7 +246,7 @@ export const templates: Reader<{ all: boolean }, TemplatesRead> = {
         route: addressOf({ kind: "template", name: t.name }),
         label: t.title || t.name,
       })),
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };

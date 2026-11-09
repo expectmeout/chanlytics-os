@@ -100,23 +100,23 @@ export function callBookingLine(base: {
   const followUp = base.phone_display
     ? `take ${NO_LINK_DETAILS}, give the phone number above, and offer to have someone follow up.`
     : `take ${NO_LINK_DETAILS} and offer to have someone follow up.`;
-  const said = "Then say what the tool answers: it tells you how the link went and whether it arrived. ";
+  const sentence = "Then say what the tool answers: it tells you how the link went and whether it arrived. ";
   if (!ways.whatsapp)
     return (
       "Booking: when the caller wants to book, use send_booking_link — it sends the booking link by text message to the number they are calling from, " +
-      `${ours}Tell them it comes as a text message. ${said}If it fails, ${followUp}`
+      `${ours}Tell them it comes as a text message. ${sentence}If it fails, ${followUp}`
     );
-  const asked =
+  const text =
     'Booking: when the caller wants to book, first ask "Do you use WhatsApp on this number?" ' +
     `If they do, use send_booking_link — it sends the booking link to the caller's WhatsApp, on the number they are calling from, ${ours}`;
   if (!ways.text)
     return (
-      `${asked}Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. ` +
+      `${text}Tell them it comes by WhatsApp, not as a text message. Then say what the tool answers: it waits a moment for WhatsApp's own answer, so it tells you whether it arrived. ` +
       `If they do not use WhatsApp there, or it fails, ${followUp}`
     );
   return (
-    `${asked}Tell them it comes by WhatsApp. If they do not use WhatsApp there, use send_booking_link with by set to "text", and tell them it comes as a text message. ` +
-    `When WhatsApp cannot deliver it, the tool sends it by text instead. ${said}If it fails, ${followUp}`
+    `${text}Tell them it comes by WhatsApp. If they do not use WhatsApp there, use send_booking_link with by set to "text", and tell them it comes as a text message. ` +
+    `When WhatsApp cannot deliver it, the tool sends it by text instead. ${sentence}If it fails, ${followUp}`
   );
 }
 

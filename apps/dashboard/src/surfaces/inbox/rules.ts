@@ -3,9 +3,19 @@
  * on you, the bucket a thread sits in, the order a bucket stands in, a draft's own key in the veto store, and the
  * thread a route names. The pages read them, and so does needs-you.ts for the parts it says apart (through `ixWaiting`):
  * the Inbox's band and head, and Ask's Right now, so no two of them can say different numbers (the badge's one count is
- * Today's rows above To do, 0048 amended 2 Nov 2026); the standalone mockup gets `ixWaitsOnYou` from legacy-globals.ts.
+ * Today's rows above To do, 0048 amended 2 Nov 2026); the standalone mockup gets `ixWaitsOnYou` from mockup-globals.ts.
  */
-import { replyWaitsOnYou, threadWait, type WaitingThread } from "@chanlytics/contracts";
+import {
+  HOUR_MS,
+  moveWaits,
+  threadMoveNow,
+  threadWait,
+  waitedSaid,
+  waitedSince,
+  type ThreadList,
+  type ThreadMove,
+  type WaitingThread,
+} from "@chanlytics/contracts";
 import { VW_STORE, type VetoState } from "./store";
 import type { RealThread, Thread, ThreadState } from "./types";
 
@@ -41,59 +51,85 @@ export const ixReadAgain = (st: VetoState, nowMs: number): boolean => {
 // ---- What waits on you, and where a thread sits ----
 
 /**
+ * Who owes the next move on a real thread at this moment (contracts thread-move.ts): the answer its read carried, its
+ * clock run on, with the one thing only a tab knows, a reply held in it. The head, the row, the tab and the count all ask
+ * this, so no two of them can say different things of one thread.
+ */
+export const ixMoveOf = (t: RealThread, nowMs: number = Date.now()): ThreadMove =>
+  threadMoveNow(t.move, nowMs, ixHeld(VW_STORE.state, t));
+
+/**
+ * How long a move has stood, in the one family (8d, 3h, 40m): a hold's wait as its read said it, which a refresh says again by
+ * its clock (contracts inboxThreadClock), and any other by the clock it is drawn at. Null where no wait is worth saying.
+ */
+export const ixMoveWaited = (t: RealThread, move: ThreadMove, nowMs: number = Date.now()): string | null => {
+  if (move.sinceMs === undefined) return null;
+  return t.waited && move.sinceMs === t.escalatedAtMs ? t.waited : waitedSince(move.sinceMs, nowMs);
+};
+
+/** What the bare figure means, on a hover and to a screen reader: someone waiting on you or a teammate, or how long ago ours went. */
+export const ixWaitSaid = (move: ThreadMove, waited: string): string =>
+  move.list === "escalated" || move.move === "theirs" ? waitedSaid(waited) : `${waited} ago`;
+
+/**
+ * When the next thread's clock runs out, within the hour; null with none that soon. A reply being worked out that never comes
+ * has no read to say so: the page draws itself again at this moment (inbox-page.tsx useMoveClock).
+ */
+export const ixNextMoveAt = (threads: readonly Thread[], nowMs: number): number | null => {
+  let next: number | null = null;
+  for (const t of threads) {
+    const at = t.real ? ixMoveOf(t, nowMs).until?.atMs : undefined;
+    if (at !== undefined && at - nowMs <= HOUR_MS && (next === null || at < next)) next = at;
+  }
+  return next;
+};
+
+/**
  * A reply counting down to auto-send waits on you for those seconds: you can still stop it, and after them it is in
- * your name. ONE rule for the Needs you chip, the bucket a row sits in, the order it sits in, this page's count and
- * the sidebar badge, so no two of them can say different numbers. Such a thread sat in Handled with nothing on its
- * row, and the countdown showed only in the pane you had to open first.
- * The rule is contracts' (standing.ts replyWaitsOnYou), People's Needs you too.
+ * your name. Such a thread sat in Handled with nothing on its row, and the countdown showed only in the pane you had to
+ * open first.
  */
 export const ixSending = (t: Thread | null | undefined, nowMs: number = Date.now()): boolean =>
-  !!(t && t.real && t.veto && replyWaitsOnYou({ endsAtMs: t.veto.endsAtMs, held: ixHeld(VW_STORE.state, t) }, nowMs));
+  !!(t && t.real && ixMoveOf(t, nowMs).move === "sending");
 
 /**
- * A real thread as contracts' count reads it (waits.ts WaitingThread): the answer its view model carries, and the reply
- * counting down with whether THIS tab has held it, the one thing only a tab knows. The Inbox's chip and list, and the parts
+ * A real thread as contracts' count reads it (waits.ts WaitingThread). The Inbox's chip and list, and the parts
  * needs-you.ts says apart, ask contracts' `threadWait` of this, so none of them can count a thread the others do not.
  */
-export const ixWaiting = (t: RealThread): WaitingThread => ({
-  needsYou: !!t.needsYou,
-  send:
-    t.veto && typeof t.veto.endsAtMs === "number"
-      ? { endsAtMs: t.veto.endsAtMs, held: ixHeld(VW_STORE.state, t) }
-      : null,
-});
+export const ixWaiting = (t: RealThread, nowMs: number = Date.now()): WaitingThread => moveWaits(ixMoveOf(t, nowMs));
 
 /**
- * What waits on you now: a real thread nobody has taken, or a reply about to send. A seeded thread keeps the
- * mockup's rule, since "needs" is a state no real thread holds. The same two facts read off the wire, for a page that
- * holds the conversations and not these rows, are contracts' `conversationWaitsOnYou` (Today's headline): the two are one
+ * What waits on you now: a real thread the rule puts in Needs you, or a reply about to send. A seeded thread keeps the
+ * mockup's rule, since "needs" is a state no real thread holds. The same answer read off the wire, for a page that
+ * holds the conversations and not these rows, is contracts' `conversationWaitsOnYou` (Today's headline): the two are one
  * rule (waits.ts threadWait), and inbox-counts.test.mjs holds them to it.
  */
 export const ixWaitsOnYou = (t: Thread | null | undefined, nowMs: number = Date.now()): boolean =>
   t && t.real
-    ? threadWait(ixWaiting(t), nowMs) !== null
+    ? threadWait(ixWaiting(t, nowMs), nowMs) !== null
     : !!t && (t.state === "needs" || (t.state === "escalated" && !t.takenOver));
 
 /**
- * The bucket a thread SITS in -- the same rule as the chip over it, which is what the line above this block has
- * claimed all along. A thread's own STATE stays "escalated" while a teammate holds it, and the list read the state
- * while the chip read what waits on you: three rows under a chip that said two, and one of them somebody else's
- * job. Needs you holds what waits on you and nothing else; a thread a teammate has taken is Handled, where its row
- * still says who has it.
+ * The list a thread SITS in: the rule's (thread-move.ts), the same rule as the chip over it. Needs you holds what is yours
+ * to do and nothing else, Waiting what is theirs or a teammate's, Handled what nobody owes; archived is in no list, and
+ * search and a link still find it. A seeded thread keeps the state the mockup wrote.
  */
-export const ixBucketOf = (t: Thread | null | undefined, nowMs: number = Date.now()): ThreadState | null | undefined =>
-  ixSending(t, nowMs)
-    ? "escalated"
-    : t && t.real && t.state === "escalated" && !ixWaitsOnYou(t, nowMs)
-      ? "done"
-      : t && t.state;
+export const ixBucketOf = (
+  t: Thread | null | undefined,
+  nowMs: number = Date.now(),
+): ThreadState | ThreadList | null | undefined => (t && t.real ? ixMoveOf(t, nowMs).list : t && t.state);
 
 /**
- * The order a bucket stands in: a reply about to send first, then what needs you, then the threads you have, then a
- * teammate's, each group in the server's order. A teammate's thread sat above the one waiting on you (I2).
+ * The order a list stands in: a reply about to send first, then what needs you, each group in the server's order. In
+ * Waiting, the threads you have, then a teammate's, then the rest. A teammate's thread sat above the one waiting on you (I2).
  */
-export const ixRank = (t: Thread): number =>
-  ixSending(t) ? -1 : t && t.real && t.state === "escalated" ? (t.needsYou ? 0 : t.takenOver ? 1 : 2) : 0;
+export const ixRank = (t: Thread): number => {
+  if (!t || !t.real) return 0;
+  const m = ixMoveOf(t);
+  if (m.move === "sending") return -1;
+  if (m.list !== "waiting") return 0;
+  return m.move === "yours" ? 1 : m.move === "theirs" ? 2 : 3;
+};
 
 /**
  * The thread a route names. The id is passed on even when the Inbox has not loaded that thread: dropping it opened
@@ -128,7 +164,7 @@ interface IxOpeningAt {
 // badge over it says. It opened on Handled, and the run waited unseen under a tab that said no number.
 export const ixFirstBucket = (list: Thread[], runsWaiting: boolean): string => {
   if (runsWaiting) return "escalated";
-  for (const s of ["escalated", "needs", "snoozed", "done"]) {
+  for (const s of ["escalated", "needs", "waiting", "snoozed", "done"]) {
     if (list.some((x) => ixBucketOf(x) === s)) return s;
   }
   return "escalated";
@@ -141,9 +177,14 @@ export const ixOpeningBucket = (threads: Thread[], initialThreadId: string | nul
   if (at.toSendOpen) return "escalated";
   const t = initialThreadId ? threads.find((x) => x.id === initialThreadId) : undefined;
   const had = at.had;
-  if (t)
-    return typeof had === "string" && had && (had === "all" || ixBucketOf(t) === had) ? had : (ixBucketOf(t) ?? "");
-  return typeof had === "string" && had ? had : ixFirstBucket(threads, at.runsWaiting);
+  const kept = typeof had === "string" && had ? had : null;
+  if (t) {
+    const own = ixBucketOf(t);
+    // An archived thread a link names opens beside the list the member had: no list holds it.
+    if (own === "out") return kept ?? "done";
+    return kept && (kept === "all" || own === kept) ? kept : (own ?? "");
+  }
+  return kept ?? ixFirstBucket(threads, at.runsWaiting);
 };
 
 /**

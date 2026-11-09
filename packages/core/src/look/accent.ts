@@ -6,7 +6,8 @@
  *      named for a brand or a primary colour (resolved one level);
  *   3. failing those, the most used colour on the page that is neither paper nor ink.
  * White, black and greys are never an accent; a colour too light for white words is darkened until they read
- * (contracts readableOnWhite), so what is kept is what a button can wear. Null when the page gives nothing.
+ * (contracts readableOnWhite), so what is kept is what a button can wear. Null when the page gives nothing. A colour the
+ * page's reader saw as the brand's (accentOfColour) is held to the same two rules.
  */
 import { hexOfRgb, isAccentLike, parseCssColour, readableOnWhite, type Rgb } from "@chanlytics/contracts";
 
@@ -45,14 +46,20 @@ const mostUsed = (counts: Map<string, number>): string | null =>
 const backgroundsOf = (declarations: string): string =>
   [...declarations.matchAll(/background(?:-color)?\s*:\s*([^;}]+)/gi)].map((x) => x[1] ?? "").join(";");
 
+/** A colour said to be the brand's, as a button can wear it; null for paper, ink, a grey, or no colour at all. */
+export function accentOfColour(sentence: string | null | undefined): string | null {
+  const rgb = sentence ? parseCssColour(sentence) : null;
+  return rgb && isAccentLike(rgb) ? readableOnWhite(hexOfRgb(rgb)) : null;
+}
+
 export function siteAccentOf(html: string): string | null {
   const page = html.slice(0, HTML_MAX);
   // 1. Said on purpose.
   const theme =
     first(page, /<meta[^>]+name=["']theme-color["'][^>]+content=["']([^"']+)["']/i) ??
     first(page, /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']theme-color["']/i);
-  const themed = theme ? parseCssColour(theme) : null;
-  if (themed && isAccentLike(themed)) return readableOnWhite(hexOfRgb(themed));
+  const themed = accentOfColour(theme);
+  if (themed) return themed;
 
   const css = (page.match(/<style\b[^>]*>([\s\S]*?)<\/style>/gi) ?? []).join("\n");
   const inline = (page.match(/\bstyle=["'][^"']*["']/gi) ?? []).join("\n");

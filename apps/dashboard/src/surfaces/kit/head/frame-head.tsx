@@ -6,19 +6,20 @@
  * (standing.ts) and by the crumbs the frame drew. Classic has none of it: the frame leaves no place, and this draws
  * nothing, so the tree Classic draws is the tree it drew.
  *
- * Drawn beside the shell by LegacyApp, in the same React tree, so the head's parts are the kit's TSX and the places
+ * Drawn beside the shell by FrameApp, in the same React tree, so the head's parts are the kit's TSX and the places
  * are the shell's markup: the shell draws no kit component of its own, and the kit knows nothing of the shell.
  */
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { knownZone } from "@/legacy-bridge/zone";
+import { knownZone } from "@/bridge/zone";
 import { pageDatelineParts, pageDatelineShort, useMinute } from "./dateline";
 import { watchFrameTop, watchPageEdges } from "./frame-top";
 import { watchPageGive } from "../motion/page-give";
+import { SAYS_WHEN } from "../says-when";
 import { PageHead } from "./page-head";
 import { crumbLabel, useCrumbsShown, useStandingSaid } from "./standing";
 import type { BackWay, ShownCrumb } from "./standing";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 
 /** The places the frame leaves, by id: the dateline in the top bar, the head, the act beside the views, and under them. */
 const PLACES = { dateline: "pg-dateline", head: "pg-head", act: "pg-act", under: "pg-under" } as const;
@@ -131,7 +132,7 @@ function BackButton({ back }: { back: BackWay }) {
 /**
  * "Friday, October 2 · 4:02 PM" in the business's zone, in the top bar's row; the hour is a span of its own, which a
  * phone's head leaves out (kit.css: the phone boards say "FRIDAY, OCTOBER 2"). The zone is the workspace's, known once
- * its read lands (legacy-bridge/zone.ts); before that the head says the time in UTC and asks again until it is known,
+ * its read lands (bridge/zone.ts); before that the head says the time in UTC and asks again until it is known,
  * so a page that opens before the read never keeps the wrong hour. Where the way back stands in the date's place
  * (useBackWay), it is drawn here instead.
  */
@@ -162,7 +163,7 @@ function PageDateline() {
   const { day, time } = (hour ? pageDatelineShort : pageDatelineParts)(now, zone ?? "UTC");
   return (
     <>
-      <p className="pg-dateline" data-hour={hour || undefined}>
+      <p className="pg-dateline" data-hour={hour || undefined} {...SAYS_WHEN}>
         {day}
         <span className="pg-dateline-time"> · {time}</span>
       </p>
@@ -241,7 +242,7 @@ export function FrameHead({ look }: { look: string }) {
       setPlaces(null);
       return undefined;
     }
-    // The shell draws its places in the commit that draws this (they are siblings under LegacyApp), so they exist by
+    // The shell draws its places in the commit that draws this (they are siblings under FrameApp), so they exist by
     // now; a shell that has not drawn yet is asked again on the next frame, and one drawn again from nothing (the
     // crumbs move, or the places left the document, below) is asked for its new places.
     let raf = 0;

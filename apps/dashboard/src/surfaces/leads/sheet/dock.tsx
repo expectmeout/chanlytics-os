@@ -2,19 +2,21 @@
  * The lead sheet's dock (the canvas "Lead sheet, redesigned", 1 Nov 2026): only what to press, at the sheet's foot, held
  * still while the card turns, each press saying what it does; the card above it says why. For a lead to decide on, Not a
  * fit and Later as round glyphs, then Add to the pick with ▾ beside it (the picker); while a sequence has them, what needs
- * you there, the way out of it quiet beside the one primary, and the other answers under its caret. No dock at all where
- * nothing needs you (contracts leadDockOf): the sheet draws no foot. Its keys are the shortcuts sheet's to say, never
+ * you there, the way out of it quiet beside the one primary, and the other answers under its caret; where it runs and
+ * nothing needs you, its quiet ways on side by side, no primary. No dock at all where nothing is left to press (contracts
+ * leadDockOf): the sheet draws no foot. Its keys are the shortcuts sheet's to say, never
  * drawn here. On a phone each glyph carries its word under it, and the primary takes the room left, its words cut short
  * before ▾ is ever pushed off.
  *
  * Hookless.
  */
 import type { ReactNode } from "react";
-import { LEAD_DOCK_WORDS as D, type LeadSheetDockVM, type LeadSheetSlotVM } from "@chanlytics/contracts";
+import { LEAD_DOCK_WORDS as D, type LeadSheetDockVM } from "./model/dock";
+import type { LeadSheetSlotVM } from "./model/view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
 
 /** The right a press's door checks: Keep, Leave out and Put back are a partner's doors (find's); the rest an operator's. */
 const rightOf = (s: LeadSheetSlotVM) =>
@@ -33,6 +35,8 @@ const DOING: Partial<Record<LeadSheetSlotVM["act"], string>> = {
   approve: "approve a batch",
   decide: "decide a held email",
   take_out: "take this lead out",
+  leave: "take this lead out",
+  write: "write to this lead",
 };
 
 /** What a press says at the control: why it is off, else the gate's sentence for a role that may not press it. */
@@ -169,8 +173,8 @@ const glyphOf = (p: DockProps, act: "not_a_fit" | "later") => {
 /** The dock: the round glyphs where the lead is to decide on, its quieter presses, and the one primary. */
 export const SheetDock = (p: DockProps) => {
   const d = p.dock;
-  // A single way back and nothing else takes the dock's width.
-  const wide = !d.primary && !d.x && d.others.length === 1;
+  // With no primary and no glyphs, the quiet presses share the dock's width: one way back, or a running sequence's ways on.
+  const wide = !d.primary && !d.x;
   return (
     <div className={`lw-dock${d.x ? " x" : ""}`} data-busy={p.busy ? "true" : undefined} data-testid="lead-sheet-dock">
       {d.x ? glyphOf(p, "not_a_fit") : null}

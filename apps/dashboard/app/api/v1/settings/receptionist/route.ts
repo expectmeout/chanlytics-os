@@ -1,5 +1,5 @@
-import { write, workspace } from "@/server/route";
-import { receptionistFromWhatIsKnown } from "@/server/receptionist/first-receptionist";
+import { write, workspace } from "@/server/shared/route";
+import { getReceptionistFromWhatIsKnown } from "@/server/receptionist/first-receptionist";
 
 /**
  * POST /api/v1/settings/receptionist — the receptionist from what is known (server/receptionist/first-receptionist.ts): set up
@@ -11,5 +11,5 @@ export const POST = write({
   scope: workspace,
   role: "partner",
   rate: "settings",
-  handle: ({ ctx, member }) => receptionistFromWhatIsKnown(ctx, member.tenantId),
+  handle: ({ ctx, member }) => getReceptionistFromWhatIsKnown(ctx, member.tenantId),
 });

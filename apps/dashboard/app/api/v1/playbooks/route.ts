@@ -1,6 +1,6 @@
-import { read, write, workspace } from "@/server/route";
+import { read, write, workspace } from "@/server/shared/route";
 import { startNewPlaybook } from "@/server/campaigns/playbook-row";
-import { load, readerContext } from "@/server/readers";
+import { load, readerContext } from "@/server/shared/reader";
 import { playbooks } from "@/server/readers/playbooks";
 
 /**

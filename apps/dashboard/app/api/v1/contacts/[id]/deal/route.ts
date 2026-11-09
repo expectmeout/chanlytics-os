@@ -1,7 +1,7 @@
 import { AppError, DEAL_REFUSALS, DealMoveBody, normalizeLink, whyNotALink } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
-import { currentDealOf, recordDealMove } from "@/server/people/deals";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
+import { findCurrentDeal, recordDealMove } from "@/server/people/deals";
 
 /**
  * POST /api/v1/contacts/:id/deal — record a deal on a person's word (0004).
@@ -48,6 +48,6 @@ export const POST = write({
       ...(input.lost_reason ? { lost_reason: input.lost_reason } : {}),
       ...(input.clear?.length ? { clear: input.clear } : {}),
     });
-    return { ...recorded, current: await currentDealOf(ctx, contact.tenant_id, contact.id) };
+    return { ...recorded, current: await findCurrentDeal(ctx, contact.tenant_id, contact.id) };
   },
 });

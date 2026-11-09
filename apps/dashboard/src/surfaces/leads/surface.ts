@@ -1,6 +1,6 @@
 /**
  * The Leads scope's surface and acts (PRD §6, §8, §9; the review's E8, E9,
- * S13), moved from legacy-bridge/leads.ts with the page (decision 0015). The
+ * S13), moved from bridge/leads.ts with the page (decision 0015). The
  * page reads the surface through the seam (`useSurface("leads")`) and imports
  * the acts below; every act goes through its route (routes.generated.ts) and
  * refresh-map re-applies this surface after a write, which PATCHES what is
@@ -10,8 +10,8 @@
  *
  * Every read is made under a key -- the workspace and the whole view -- and an
  * answer that lands under a newer key is dropped. New rows a refresh finds are
- * offered ("12 new"), not sorted in, unless the owner is reading in the order
- * found, where they append after what is already read.
+ * offered ("12 new"), not sorted in, unless the owner is reading the oldest
+ * found first, where they append after what is already read.
  */
 import {
   LEAD_VIEW_SORTS,
@@ -20,7 +20,6 @@ import {
   parseLeadsRoute,
   stageArgs,
   toLeadPeekVM,
-  leadRowOf,
   type LeadCounts,
   type LeadMonthDto,
   type LeadPileCountsDto,
@@ -34,20 +33,22 @@ import {
   type LeadSuggestionsDto,
   type LeadsBulkInput,
 } from "@chanlytics/contracts";
-import { api } from "@/legacy-bridge/api";
-import { workspaceZone } from "@/legacy-bridge/zone";
-import { getActiveWorkspace, routeOnScreen } from "@/legacy-bridge/workspace";
-import { heldViews } from "@/legacy-bridge/held-views";
-import { canDo } from "../legacy-verbs";
+import { api } from "@/bridge/api";
+import { workspaceZone } from "@/bridge/zone";
+import { getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
+import { heldViews } from "@/bridge/held-views";
+import { canDo } from "../frame-verbs";
 import { unwrap, type ApiResult, type RouteKey } from "@/client/api";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 export type { LeadsSurface } from "./surface-types";
-import type { LeadSearchesAnswer, LeadsExportView, LeadsPageAnswer, LeadsView } from "./surface-types";
+import type { LeadSearchesAnswer, LeadsPageAnswer, LeadsView } from "./surface-types";
+import type { DraftData } from "./peek/types";
+import { keptRows, leadRowsOf } from "./row-memo";
+import { queryOf } from "./view-query";
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
-const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
-const LEADS_PAGE = 500;
+const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "stage", dir: "asc" };
 
 /* ------------------------------------------------------ how a call is sent */
 
@@ -74,8 +75,9 @@ interface LeadCallOptions {
  * on a 401, forgets the reads a write invalidated, and takes what a write
  * leaves stale from `refresh-map.ts` rather than from the caller.
  */
-function leadCall<O>(key: string, opts: LeadCallOptions = {}): Promise<ApiResult<O>> {
-  return api()(key as RouteKey, opts as never) as unknown as Promise<ApiResult<O>>;
+export function leadCall<O>(key: string, opts: LeadCallOptions = {}): Promise<ApiResult<O>> {
+  // The route is named at run time, so the one client's per-route types cannot follow it: O is the route's, by its caller.
+  return api()(key as RouteKey, opts as never) as Promise<ApiResult<O>>;
 }
 
 /** A read the runner treats as the surface's own: a refusal throws, the way `api.ts`'s `read` does. */
@@ -155,20 +157,10 @@ function viewKey(v: LeadsView): string {
   return `${getActiveWorkspace() ?? ""}|${leadsRoute(v)}|${v.q ?? ""}|${v.sort}|${v.dir}|${v.sort === "pile" ? (v.pileList ?? "") : ""}`;
 }
 
-function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Record<string, string> {
-  const q: Record<string, string> = { list: v.list, sort: v.sort, dir: v.dir, limit: String(LEADS_PAGE) };
-  if (v.searchId) q.search = v.searchId;
-  if (v.cls) q.class = v.cls;
-  if (v.sort === "pile" && v.pileList) q.pile_list = v.pileList;
-  // The box's words, read where the page's filters are (00500): a chip is part of the route, the words are not.
-  if (v.q && v.q.trim()) q.q = v.q.trim();
-  for (const [k, val] of Object.entries(v.chips))
-    if (val !== undefined && val !== null && val !== "") q[k] = String(val);
-  if (after) {
-    q.after_key = after.key;
-    q.after_id = after.id;
-  }
-  return q;
+/** What a row's words are made from: the clock, and its own search (D5): a review row names what it waits on in the queue's words. */
+function rowsMadeBy(L: LeadsLoaded | null, now: Date) {
+  const searches = new Map((L?.searches ?? []).map((s) => [s.id, s]));
+  return { tz: L?.tz ?? "UTC", now, searchOf: (id: string) => searches.get(id) ?? null };
 }
 
 function publishLeads(failed = false): void {
@@ -178,9 +170,7 @@ function publishLeads(failed = false): void {
   // the old view that landed first published the old rows under the new view's route: the page took the new view for
   // landed, its rows stopped dimming, and the last view's rows stood under the new title until the read came back.
   const shown = L?.view ?? view;
-  // Each row is handed its own search (D5): a review row names what it waits on in the queue's words.
-  const vmOf = (r: LeadRowDto) =>
-    leadRowOf(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null);
+  const madeBy = rowsMadeBy(L, now);
   // An erased lead is gone from every view this tab holds at once: a view read before the erase still has it.
   const rows = (L?.rows ?? []).filter((r) => !erased.has(r.id));
   const drawn = new Set(rows.map((r) => r.id));
@@ -188,7 +178,7 @@ function publishLeads(failed = false): void {
     searches: L?.searches ?? [],
     counts: L?.counts ?? NO_COUNTS,
     cardsLive: L?.cardsLive ?? [],
-    rows: rows.map(vmOf),
+    rows: leadRowsOf(rows, madeBy),
     next: L?.next ?? null,
     offered: L?.offered.filter((r) => !erased.has(r.id)).length ?? 0,
     view: shown,
@@ -198,9 +188,10 @@ function publishLeads(failed = false): void {
     month: L?.month ?? null,
     pile: L?.pile ?? null,
     viewCounts: L?.viewCounts ?? null,
-    peeked: peekedHere()
-      .filter((r) => !drawn.has(r.id))
-      .map(vmOf),
+    peeked: leadRowsOf(
+      peekedHere().filter((r) => !drawn.has(r.id)),
+      madeBy,
+    ),
     tz: L?.tz ?? "UTC",
     readFailed: failed,
     fetchedAt: now.getTime(),
@@ -334,12 +325,12 @@ async function refreshView(): Promise<void> {
   L.asOfChange = asOfChange;
   const fresh = new Map(page.rows.map((r) => [r.id, r]));
   const loaded = new Set(L.rows.map((r) => r.id));
-  const rows = L.rows.map((r) => fresh.get(r.id) ?? r);
+  const rows = keptRows(L.rows, fresh);
   const arrived = page.rows.filter((r) => !loaded.has(r.id) && !L.offered.some((o) => o.id === r.id));
-  // The order found: after what is already read. An empty view: as read, since nothing on screen moves (29 Oct 2026: a
-  // running search's first three sat behind "3 new" over "No leads in this view yet").
-  if (L.view.sort === "found" || !L.rows.length) rows.push(...arrived);
-  else L.offered.push(...arrived); // any other order: offered, never sorted in
+  // The oldest found first: after what is already read, where they sort. An empty view: as read, since nothing on screen
+  // moves (29 Oct 2026: a running search's first three sat behind "3 new" over "No leads in this view yet").
+  if ((L.view.sort === "found" && L.view.dir === "asc") || !L.rows.length) rows.push(...arrived);
+  else L.offered.push(...arrived); // any other order, the newest first among them: offered, never sorted in
   L.searches = searches.searches;
   L.counts = page.counts ?? searches.counts ?? L.counts;
   L.cardsLive = searches.cards_live ?? L.cardsLive;
@@ -554,7 +545,7 @@ export async function draftForLead(
   id: string,
   input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } },
 ) {
-  return leadCall<{ to: string; subject: string; body: string; mailto: string }>("POST leads/[id]/draft", {
+  return leadCall<DraftData>("POST leads/[id]/draft", {
     params: { id },
     body: input,
     refresh: false,
@@ -587,17 +578,6 @@ export async function bulkLeads(body: LeadsBulkInput) {
       refresh: "behind",
     }),
   );
-}
-/**
- * A copy of a view's leads as the CSV the page saves (kit downloadCsv), narrowed by the Filter's reach where one is on.
- * Marking what it took moves the month's count (§0.2), so it is a press that POSTs and not a link that GETs (decision 0047,
- * lane 6); the leads read again behind the answer.
- */
-export async function exportLeadsFile(view: LeadsExportView) {
-  return leadCall<{ file: string; csv: string; rows: number }>("POST leads/export", {
-    body: view,
-    refresh: "behind",
-  });
 }
 /** Check again (D3): the mailbox check once more for the addresses whose last check did not answer. */
 export async function checkLeadsAgain(ids: string[]) {

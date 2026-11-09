@@ -24,6 +24,8 @@ interface SetupCardRowProps {
   tone: string;
   stateWords: string;
   name: ReactNode;
+  /** The name a phone says, beside the row's one pill (contracts SetupCardRowVM.short); the name where none is given. */
+  nameShort?: ReactNode;
   note?: { long: ReactNode; short: ReactNode } | null;
   sentence: ReactNode;
   left?: ReactNode;
@@ -38,6 +40,7 @@ export const SetupCardRow = ({
   tone,
   stateWords,
   name,
+  nameShort = null,
   note = null,
   sentence,
   left = null,
@@ -51,7 +54,14 @@ export const SetupCardRow = ({
     <span className="setup-card-dot" data-tone={tone} role="img" aria-label={stateWords} title={stateWords} />
     <div className="setup-card-body">
       <span className="setup-card-name">
-        {name}
+        {nameShort ? (
+          <>
+            <span className="setup-card-long">{name}</span>
+            <span className="setup-card-short">{nameShort}</span>
+          </>
+        ) : (
+          name
+        )}
         {note ? (
           <span className="setup-back" data-testid={testid ? `${testid}-back` : undefined}>
             <span aria-hidden="true"> · </span>

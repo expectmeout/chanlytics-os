@@ -23,7 +23,7 @@ import {
   zoneOfRegion,
   type WeekHours,
 } from "@chanlytics/contracts";
-import { reachOutRunIdFor, sendIdFor } from "./reach-out-ids";
+import { getReachOutRunId, sendIdFor } from "./reach-out-ids";
 import { followerRefusalOf } from "./reach-out-ports";
 import type { PlannedSend, ReachOutLead, ReachOutRunOutcome, ReachOutRunPorts, ReachOutStep } from "./reach-out-ports";
 
@@ -64,7 +64,8 @@ export async function runReachOut(
     }
   if (passed.length > 0) await ports.passOver(step.root_id, passed);
   const weeks = new Map(leads.map((l) => [l.lead_id, weekHoursOf(l.hours).week]));
-  for (const l of leads) if (neverOpen(weeks.get(l.lead_id)!)) skips.push({ lead: l, reason: "closed_every_day" });
+  const weekOf = (l: (typeof leads)[number]) => weeks.get(l.lead_id) ?? weekHoursOf(l.hours).week;
+  for (const l of leads) if (neverOpen(weekOf(l))) skips.push({ lead: l, reason: "closed_every_day" });
   const skipped = new Set(skips.map((s) => s.lead.lead_id));
   leads = leads.filter((l) => !skipped.has(l.lead_id)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
@@ -93,7 +94,7 @@ export async function runReachOut(
       sends: leads.map((l) => ({
         id: l.lead_id,
         zone: zoneOfRegion(l.region) ?? ports.workspaceZone,
-        week: weeks.get(l.lead_id)!,
+        week: weekOf(l),
         only: keeps.get(l.lead_id) ?? null,
       })),
       senders: sending,
@@ -106,7 +107,7 @@ export async function runReachOut(
 
   const firstAt = Math.min(...placed.map((p) => p.sendAtMs));
   const run = {
-    id: await reachOutRunIdFor(step.id, cmd.runFor),
+    id: await getReachOutRunId(step.id, cmd.runFor),
     tenant_id: step.tenant_id,
     playbook_id: step.id,
     run_for: cmd.runFor,

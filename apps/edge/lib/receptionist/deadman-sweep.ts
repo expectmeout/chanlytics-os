@@ -17,7 +17,7 @@
  *      escalation, reason brain_error), its owner told what the customer said, and the message stamped handled;
  *      nothing is answered on its own. The second is marked failed and its thread flagged (send_failed), except a
  *      campaign's email, which its run counts. Email is not swept here: its intake is a job with its own lease.
- *   2. sweepStrandedRuns (lib/ops/stranded-runs.ts), on its own too (stranded_run_sweep_failed) and inside a time
+ *   2. sweepStrandedRuns (lib/receptionist/stranded-runs.ts), on its own too (stranded_run_sweep_failed) and inside a time
  *      budget: a run still scheduled ten minutes past its time with no broadcast_send job to start it is marked not
  *      sent (run_interrupted) and its owner told once, with the run's own link. A reach-out's run is not one.
  *   3. deadman_candidates(UNANSWERED_AFTER): the open escalations nobody has been warned about, oldest first. Each
@@ -46,17 +46,20 @@
  * (deadman_query_failed), before any escalation is told. Its lines carry `sweep: "deadman"` and, for a workspace,
  * its `tenant_id`.
  */
-import { json } from "../http.js";
-import { notify, notifyOnce, reachesTenant, NOTIFY_TIMEOUT_MS } from "../ops/notify.js";
-import { loadTenantNotifications } from "../tenant-runtime.js";
-import { errField } from "../log.js";
-import { pageOperator } from "../ops/page-operator.js";
-import { markProcessed } from "../packages/db.js";
-import { upsertEscalation } from "../packages/jobs.js";
+import { json } from "../shared/http.js";
+import { notify, notifyOnce, reachesTenant, NOTIFY_TIMEOUT_MS } from "../shared/alerts/notify.js";
+import { loadTenantNotifications } from "../shared/tenant-runtime.js";
+import { errField } from "../shared/log.js";
+import { pageOperator } from "../shared/alerts/page-operator.js";
+import { markProcessed } from "@chanlytics/db/channels";
+import { upsertEscalation } from "@chanlytics/jobs";
 import { sweepUnfinished } from "./unfinished.js";
-import { sweepStrandedRuns } from "../ops/stranded-runs.js";
-import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "../packages/contracts.js";
+import { sweepStrandedRuns } from "./stranded-runs.js";
+import { MIN_MS, reasonLabelOf, waitsOnAPerson } from "@chanlytics/contracts";
 import type { SweepTick } from "../ops/sweep-door.js";
+import { listDeadmanCandidates, markDeadmanAlerted } from "@chanlytics/db/conversations";
+import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** How long a customer may wait on a human before this is a problem. */
 const UNANSWERED_AFTER = "2 hours";
@@ -72,7 +75,7 @@ const UNANSWERED_AFTER = "2 hours";
 
 interface Candidate {
   escalation_id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   conversation_id: string;
   reason: string;
   details: string | null;
@@ -113,7 +116,7 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
   } catch (e) {
     L.error("unfinished_sweep_failed", { error: errField(e) });
   }
-  // A run still scheduled past its time with nothing on the ledger to send it (ops/stranded-runs.ts): asked on its own
+  // A run still scheduled past its time with nothing on the ledger to send it (receptionist/stranded-runs.ts): asked on its own
   // too, so it never costs the watchdog its tick.
   let stranded = 0;
   try {
@@ -127,15 +130,15 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
   } catch (e) {
     L.error("stranded_run_sweep_failed", { error: errField(e) });
   }
-  const asked = { ...unfinished, stranded };
+  const fields = { ...unfinished, stranded };
 
-  const { data, error } = await db.rpc("deadman_candidates", { p_older_than: UNANSWERED_AFTER });
+  const { data, error } = await listDeadmanCandidates(db, UNANSWERED_AFTER);
   if (error) {
     L.error("deadman_query_failed", { error: error.message });
     return json(500, { ok: false });
   }
-  const candidates = (data ?? []) as unknown as Candidate[];
-  if (candidates.length === 0) return json(200, { ok: true, flagged: 0, ...asked });
+  const candidates = data ?? [];
+  if (candidates.length === 0) return json(200, { ok: true, flagged: 0, ...fields });
 
   // One addressing lookup per TENANT, not per escalation: a backlog is usually
   // one workspace having a bad morning.
@@ -177,7 +180,9 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
       // only alarm channel this system has. The platform still needs to know,
       // so it is told through the pager that remembers: one page per workspace
       // per six hours, durable across instances, stamped only when it sends.
-      const target = { tenantId: c.tenant_id, ...addressing.get(c.tenant_id)! };
+      const address = addressing.get(c.tenant_id);
+      if (!address) continue;
+      const target = { tenantId: c.tenant_id, ...address };
       if (!reachesTenant(target)) {
         unaddressable.add(c.tenant_id);
         L.warn("deadman_tenant_unaddressable", { tenant_id: c.tenant_id, escalation: c.escalation_id });
@@ -231,19 +236,19 @@ export async function sweepDeadman({ db, L, started }: SweepTick): Promise<Respo
         `and the workspace has no notification recipients on file — so its owner cannot be told, here or anywhere.\n\n` +
         `Set them in Settings › Notifications for that workspace. The warning is raised as soon as somebody is on file; ` +
         `nothing about this customer has been marked as handled.`,
-    ).catch(() => {});
+    ).catch(logAndGoOn("pageOperator"));
   }
 
-  L.info("deadman_swept", { candidates: candidates.length, flagged, left, ...asked });
-  return json(200, { ok: true, candidates: candidates.length, flagged, ...asked });
+  L.info("deadman_swept", { candidates: candidates.length, flagged, left, ...fields });
+  return json(200, { ok: true, candidates: candidates.length, flagged, ...fields });
 }
 
 /**
  * The once-guard on one escalation whose warning was delivered (escalations.deadman_alerted_at). The warning went out;
  * failing to stamp means it may repeat next tick. Noisy beats silent, but it must be visible.
  */
-async function markAlerted(db: SweepTick["db"], L: SweepTick["L"], c: Candidate): Promise<void> {
-  const { error } = await db.rpc("deadman_mark_alerted", { p_ids: [c.escalation_id] });
+async function markAlerted(db: SweepTick["db"], log: SweepTick["L"], c: Candidate): Promise<void> {
+  const { error } = await markDeadmanAlerted(db, [c.escalation_id]);
   if (error)
-    L.error("deadman_mark_failed", { tenant_id: c.tenant_id, escalation: c.escalation_id, error: error.message });
+    log.error("deadman_mark_failed", { tenant_id: c.tenant_id, escalation: c.escalation_id, error: error.message });
 }

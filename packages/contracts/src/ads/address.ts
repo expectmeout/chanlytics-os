@@ -46,8 +46,8 @@ export const isAdsParam = (param: string): boolean => /^ads(:|$)/.test(param);
 
 /**
  * Whether a workspace's config turns its Ads preview on (`features.ads_preview`, the flag registry's `ads_preview`): its
- * Campaigns › Ads drawn from the sample, as a demo session draws it, until the Ads read is wired (0049). Read off the
- * config as stored, so anything but `true` is off.
+ * Campaigns › Ads, opening on what is true of it and with the sample a press away, until the Ads read is wired (0049). Read off
+ * the config as stored, so anything but `true` is off. The one reader of the flag: the frame and the pages each ask it.
  */
 export function adsPreviewOf(config: unknown): boolean {
   if (typeof config !== "object" || config === null || !("features" in config)) return false;

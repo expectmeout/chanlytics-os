@@ -1,59 +1,63 @@
 /**
  * The answer while its JSON is still arriving (the Line's spec, 7.4): the headline and the detail read from a prefix of
- * what the model has written so far, drawn as the final message will draw them (ask-answer.ts sayAsDrawn), and Show's
+ * what the model has written so far, drawn as the final message will draw them (ask/answer/normalize.ts sayAsDrawn), and Show's
  * figures and rows as each one closes (the end-to-end review, C1). With the answer tool (ASK_ANSWER_TOOL) the answer's
  * JSON streams on every round, so a figure or a row can be drawn the moment its object is whole rather than when the
  * final lands. Each is grounded exactly as the final will ground it (normalizeAnswer), so a row the turn did not read is
  * never drawn, not even for a moment. A preview: the final message is the truth. And the answer of a turn the person
  * stopped while it was written (stoppedAnswer). Pure.
  */
-import {
-  ASK_ANSWER_CAPS,
-  clipLines,
-  failedAnswer,
-  normalizeAnswer,
-  sayAsDrawn,
-  type AskAnswer,
-  type AskFigure,
-  type AskItem,
-} from "./ask-answer";
+import { ASK_ANSWER_CAPS, clipLines, type AskAnswer, type AskFigure, type AskItem } from "./answer/shape";
+import { failedAnswer } from "./answer/prose";
+import { normalizeAnswer, sayAsDrawn } from "./answer/normalize";
 import { opensWithBlock } from "./answer-text";
-import type { AskLanguage } from "./ask-language";
+import type { AskLanguage } from "./language";
 import type { AskReadSet } from "./citations";
 
 /**
  * The string value of `"key": "…"` in a JSON prefix, decoded as far as it has arrived: up to the first unescaped
  * quote, or the end of what is there.
  */
-function partialField(s: string, key: string): string {
-  const k = s.indexOf(`"${key}"`);
-  if (k < 0) return "";
-  const colon = s.indexOf(":", k + key.length + 2);
+function partialField(text: string, key: string): string {
+  const index = text.indexOf(`"${key}"`);
+  if (index < 0) return "";
+  const colon = text.indexOf(":", index + key.length + 2);
   if (colon < 0) return "";
-  let i = colon + 1;
-  while (i < s.length && /\s/.test(s.charAt(i))) i++;
-  if (s[i] !== '"') return "";
-  i++;
+  let next = colon + 1;
+  while (next < text.length && /\s/.test(text.charAt(next))) next++;
+  if (text[next] !== '"') return "";
+  next++;
   let out = "";
-  while (i < s.length) {
-    const c = s[i];
-    if (c === '"') break;
-    if (c === "\\") {
-      const n = s[i + 1];
-      if (n === undefined) break;
-      if (n === "u") {
-        const hex = s.slice(i + 2, i + 6);
+  while (next < text.length) {
+    const item = text[next];
+    if (item === '"') break;
+    if (item === "\\") {
+      const nextChar = text[next + 1];
+      if (nextChar === undefined) break;
+      if (nextChar === "u") {
+        const hex = text.slice(next + 2, next + 6);
         if (hex.length < 4) break;
         out += String.fromCharCode(parseInt(hex, 16) || 0x20);
-        i += 6;
+        next += 6;
         continue;
       }
-      out += n === "n" ? "\n" : n === "t" ? "\t" : n === "r" ? "\r" : n === "b" ? "\b" : n === "f" ? "\f" : n;
-      i += 2;
+      out +=
+        nextChar === "n"
+          ? "\n"
+          : nextChar === "t"
+            ? "\t"
+            : nextChar === "r"
+              ? "\r"
+              : nextChar === "b"
+                ? "\b"
+                : nextChar === "f"
+                  ? "\f"
+                  : nextChar;
+      next += 2;
       continue;
     }
-    out += c;
-    i++;
+    out += item;
+    next++;
   }
   return out;
 }
@@ -106,37 +110,37 @@ interface Frame {
  * strings and their escapes respected, so a brace or a key's name inside a string is never taken for one.
  */
 function closedShowEntries(prefix: string): { figures: unknown[]; items: unknown[] } {
-  const got: { figures: unknown[]; items: unknown[] } = { figures: [], items: [] };
+  const result: { figures: unknown[]; items: unknown[] } = { figures: [], items: [] };
   const stack: Frame[] = [];
-  for (let i = 0; i < prefix.length; i++) {
-    const c = prefix[i];
+  for (let index = 0; index < prefix.length; index++) {
+    const item = prefix[index];
     const top = stack.at(-1);
-    if (c === '"') {
-      const end = stringEnd(prefix, i);
+    if (item === '"') {
+      const end = stringEnd(prefix, index);
       if (end < 0) break;
       if (top?.open === "{" && top.expectsKey) {
-        top.key = String(JSON.parse(prefix.slice(i, end + 1)));
+        top.key = String(JSON.parse(prefix.slice(index, end + 1)));
         top.expectsKey = false;
       }
-      i = end;
-    } else if (c === "{" || c === "[") {
+      index = end;
+    } else if (item === "{" || item === "[") {
       const name = top ? (top.open === "{" ? top.key : "[]") : null;
-      stack.push({ open: c, name, start: i, key: null, expectsKey: c === "{" });
-    } else if (c === "}" || c === "]") {
+      stack.push({ open: item, name, start: index, key: null, expectsKey: item === "{" });
+    } else if (item === "}" || item === "]") {
       const done = stack.pop();
       // An entry closed: the root, then `show`, then the list it stands in.
       const [, show, list] = stack;
       const at = stack.length === 3 && show?.name === "show" && list?.open === "[" ? list.name : null;
       if (done?.open === "{" && (at === "figures" || at === "items")) {
         try {
-          got[at].push(JSON.parse(prefix.slice(done.start, i + 1)));
+          result[at].push(JSON.parse(prefix.slice(done.start, index + 1)));
         } catch {
           // A closed object that does not parse is no entry: the final says what it was.
         }
       }
-    } else if (c === "," && top?.open === "{") top.expectsKey = true;
+    } else if (item === "," && top?.open === "{") top.expectsKey = true;
   }
-  return got;
+  return result;
 }
 
 /** Show as written so far, grounded in this turn's reads as the final will be: empty until a figure or a row closes. */
@@ -182,9 +186,9 @@ const ASK_STOPPED_WORDS = {
  * written so far under it, as the person read it, its lines kept (a table or a list stays one), the detail on a line of
  * its own when it opens with one. Nothing written yet leaves the headline alone.
  */
-export function stoppedAnswer(said: { headline: string; detail: string } | null, language: AskLanguage): AskAnswer {
+export function stoppedAnswer(spoken: { headline: string; detail: string } | null, language: AskLanguage): AskAnswer {
   const a = failedAnswer(ASK_STOPPED_WORDS[language === "es" ? "es" : "en"], language);
-  const own = opensWithBlock(said?.detail ?? "");
-  const so = [said?.headline, said?.detail].filter(Boolean).join(own ? "\n" : " ");
+  const own = opensWithBlock(spoken?.detail ?? "");
+  const so = [spoken?.headline, spoken?.detail].filter(Boolean).join(own ? "\n" : " ");
   return { ...a, say: { ...a.say, detail: clipLines(so, ASK_ANSWER_CAPS.detail) } };
 }

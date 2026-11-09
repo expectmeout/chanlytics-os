@@ -107,10 +107,10 @@ export interface BeginReceipt extends ReplyReceipt {
  * line that says how to stop.
  */
 async function fitsWire(ports: BeginPorts, cmd: BeginAsk, row: WriteRow, way: WriteWay): Promise<string | undefined> {
-  const W = NEW_CONVERSATION_WORDS.refusals;
+  const refusals = NEW_CONVERSATION_WORDS.refusals;
   const { body } = cmd;
   if (way.carries === "approved") {
-    if (!body.template?.name) throw new AppError("window_closed", W.approvedOnly);
+    if (!body.template?.name) throw new AppError("window_closed", refusals.approvedOnly);
     await shapeTemplate(
       ports.reply,
       { tenant_id: cmd.tenantId, marketing_consent: row.marketing_consent ?? null },
@@ -119,7 +119,7 @@ async function fitsWire(ports: BeginPorts, cmd: BeginAsk, row: WriteRow, way: Wr
     return undefined;
   }
   const words = body.text?.trim();
-  if (!words) throw new AppError("validation", W.noWords);
+  if (!words) throw new AppError("validation", refusals.noWords);
   if (words.length > REPLY_LIMITS[way.wire].max) throw new AppError("validation", REPLY_LIMITS[way.wire].refusal);
   // An email that answers none of theirs names its subject; a thread they have may hold the business's last to go under.
   if (way.wire === "email" && !body.subject?.trim() && !row.latest_conversation_id)
@@ -130,7 +130,7 @@ async function fitsWire(ports: BeginPorts, cmd: BeginAsk, row: WriteRow, way: Wr
   const thread = cmd.conv?.id ?? row.latest_conversation_id;
   if (thread && (await ports.textedBefore(cmd.tenantId, thread))) return undefined;
   const text = ports.firstText(words);
-  if (text === null) throw new AppError("validation", W.noRoomForStop);
+  if (text === null) throw new AppError("validation", refusals.noRoomForStop);
   return text === words ? undefined : text;
 }
 
@@ -145,12 +145,12 @@ export async function mayBegin(
   ports: BeginPorts,
   ask: BeginAsk,
 ): Promise<{ way: WriteWay; leavesAs: string | undefined }> {
-  const W = NEW_CONVERSATION_WORDS.refusals;
+  const refusals = NEW_CONVERSATION_WORDS.refusals;
   const row = await ports.person(ask.tenantId, ask.personId);
-  if (!row) throw new AppError("not_found", W.notYours, 404);
+  if (!row) throw new AppError("not_found", refusals.notYours, 404);
   const now = new Date(ports.reply.now());
   const way = writeWaysOf(row, await ports.ready(ask.tenantId), now).find((w) => w.wire === ask.wire);
-  if (!way || !way.ok) throw new AppError("conflict", way?.why ?? W.notThatWay);
+  if (!way || !way.ok) throw new AppError("conflict", way?.why ?? refusals.notThatWay);
   return { way, leavesAs: await fitsWire(ports, ask, row, way) };
 }
 

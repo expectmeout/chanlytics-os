@@ -6,7 +6,7 @@
  * through the surface's doors (../surface.ts). Nothing here names the vendor: the owner sees Claude finding businesses,
  * and where each fact came from. Its parts are plain functions, never components, so its tree is the one it always drew.
  */
-import type { ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
 import { LEAD_WORDS, leadReviewGroups, type LeadPeekVM, type LeadRowVM } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -37,6 +37,7 @@ import { peekVMFor } from "../surface";
 import type { LeadsScopeProps } from "../page/props";
 import { LeadsBulkBar } from "./bulk-bar";
 import { LeadsActs, LeadsControlsRight, LeadsHead } from "./controls";
+import { leadHeadMenus, leadQueueGroupOf, leadsFootOf } from "./head-menus";
 import { LeadPlanSheet, LeadsImportAct, LeadsNewSearch, LeadsPhoneBar } from "./phone-bar";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { LeadsRailRows } from "./rail";
@@ -51,6 +52,7 @@ type Sections = TableSection<LeadRowVM>[] | null;
 const railRowsOf = (p: P, phone: boolean) => (
   <LeadsRailRows
     compact={phone}
+    named={p.named}
     rail={p.rail}
     list={p.view.list}
     searchId={p.view.searchId}
@@ -95,6 +97,9 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
     swapRef={p.swapRef}
     rowClass={ldRowClass}
     sections={sections}
+    groupOf={leadQueueGroupOf(p.surface, { phone })}
+    menus={phone ? null : leadHeadMenus(p)}
+    foot={phone ? null : leadsFootOf(p)}
     total={p.total}
     sortBy={p.sortBy}
     sortDir={p.sortDir}
@@ -102,6 +107,7 @@ const tableOf = (p: P, phone: boolean, sections: Sections) => (
     onOpen={p.onPeek}
     filtered={p.filtered}
     onClearFilters={p.onClearFilters}
+    onNearEnd={p.surface.next ? p.onMore : undefined}
     selectable={p.canFind || p.canExport}
     selectMode={p.selectMode}
     onToggleAll={p.onToggleAll}
@@ -139,6 +145,9 @@ const phoneBarOf = (p: P) => (
     sortItems={p.sortItems}
     reach={p.reach}
     onReach={p.onReach}
+    statusGroups={p.statusGroups}
+    onStatusGroup={p.onStatusGroup}
+    statusCounts={p.statusCounts}
   />
 );
 
@@ -176,6 +185,7 @@ const planPanelOf = (p: P, phone: boolean) => {
       proposal={p.finderProposal}
       plan={p.finderPlan}
       facts={p.finderFacts}
+      baseVersion={p.finderBaseVersion}
       trace={p.finderTrace}
       pick={p.finderPick}
       refusal={p.finderRefusal}
@@ -326,7 +336,10 @@ const scopeBodyOf = (p: P, phone: boolean, table: ReactElement) => {
   return p.firstDay ? firstDayOf(p, phone) : table;
 };
 
-/** The next page: how many of how many are loaded, and Show more. */
+/**
+ * The next page: how many of how many are loaded, and Show more, which stands for a keyboard and for a read the scroll asked
+ * for that failed. The scroll asks for it two screens before the end (the table's onNearEnd), and says so here.
+ */
 const moreOf = (p: P) => (
   <div className="cl-section-sub ld-more" data-testid="leads-more">
     {p.rows.length.toLocaleString()} of {p.total.toLocaleString()} loaded{" "}
@@ -337,7 +350,7 @@ const moreOf = (p: P) => (
       onClick={p.onMore}
       data-testid="leads-more-btn"
     >
-      {p.loadingMore ? "Loading…" : "Show more"}
+      {p.loadingMore ? "Loading more…" : "Show more"}
     </button>
   </div>
 );
@@ -473,6 +486,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
           name. A phone's head holds New search past the first day (phone-bar.tsx LeadsNewSearch), and its bar Import; a
           desk's first day holds no act beside the page's own door, and keeps the door for a list under it. */}
       {phone && !p.firstDay && !p.newSearch && phoneBarOf(p)}
+      <RowsLand p={p} />
       <div className="cl-main-scroll pl-main" ref={p.scrollRef} data-sheet={sheetMarkOf(p)} {...leadRowReach(p.aim)}>
         {phone || p.firstDay ? <LeadsHead act={headActOf(p, phone)} /> : deskTopOf(p)}
         {p.newSearch ? (
@@ -535,6 +549,32 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
     </div>
   );
 };
+
+/**
+ * Rows land while a search runs and you are at the top (D9 of the answers canvas): what a refresh found is taken in by itself,
+ * in the groups it arrives in. The moment you scroll or open a lead they hold still and "3 new" comes back, so nothing moves
+ * under your finger, which is what the rule it softens was for (E8).
+ */
+function RowsLand({
+  p,
+}: {
+  p: {
+    surface: { offered: number };
+    onTakeOffered: () => unknown;
+    scrollRef?: { current: HTMLElement | null } | null;
+    strip?: { state: string } | null;
+    peek?: unknown;
+  };
+}) {
+  const offered = p.surface.offered;
+  const running = p.strip?.state === "running";
+  const atTop = (p.scrollRef?.current?.scrollTop ?? 0) < 8;
+  const open = !!p.peek;
+  useEffect(() => {
+    if (offered > 0 && running && atTop && !open) void p.onTakeOffered();
+  }, [offered, running, atTop, open, p]);
+  return null;
+}
 
 export const LeadsScope = (p: P) => {
   // The same band People's cards use and the same one the page's listener judges the Columns menu by. The page hands it

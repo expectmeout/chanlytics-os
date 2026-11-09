@@ -7,7 +7,7 @@
  */
 import { Suspense, lazy, useEffect } from "react";
 import { LIFECYCLE_WORDS, RUN_UNNAMED_WORDS, SEQUENCES_ROUTE, runRoute } from "@chanlytics/contracts";
-import { backFrom, replaceRoute } from "../../legacy-verbs";
+import { backFrom, replaceRoute } from "../../frame-verbs";
 import type { SurfaceKey } from "../../surface-values";
 import { useReadsHere } from "../../use-surface";
 import { hearRunDetail, peekRunDetail } from "../broadcasts/detail-read";

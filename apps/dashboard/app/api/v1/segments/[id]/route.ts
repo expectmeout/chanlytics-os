@@ -1,5 +1,5 @@
-import { write } from "@/server/route";
-import { listScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { listScope } from "@/server/shared/verbs";
 import { changeSavedList, removeSavedList } from "@/server/people/list-write";
 
 /**

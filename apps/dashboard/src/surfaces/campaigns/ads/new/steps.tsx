@@ -4,7 +4,7 @@
  * title, which takes the focus as the step changes so a screen reader hears where it is.
  */
 import type { Ref } from "react";
-import { NEW_AD } from "@chanlytics/contracts/ads-page";
+import { NEW_AD } from "../model/words-new";
 import type { StepProps } from "./new-bits";
 import type { Step } from "./new-state";
 import { StepAd } from "./step-ad";

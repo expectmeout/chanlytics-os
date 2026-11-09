@@ -8,7 +8,7 @@
  * went and how long it has, or that it expired. You come first; the rest stay in the roster's order.
  */
 import { invitationWords, joinedWords, memberGetsAlerts, memberWords, personInitials } from "@chanlytics/contracts";
-import type { TeamInvite, TeamMember } from "@/legacy-bridge/surfaces/settings";
+import type { TeamInvite, TeamMember } from "@/bridge/surfaces/settings";
 
 /** One row of the card: a member, or an invitation. */
 export interface TeamPerson {

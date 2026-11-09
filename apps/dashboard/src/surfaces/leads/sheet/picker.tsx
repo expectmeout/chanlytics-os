@@ -10,13 +10,13 @@
  */
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { LEAD_SHEET_WORDS as W, newStartFirst, type LeadPickerRowVM } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS as W, newStartFirst, type LeadPickerRowVM } from "./model/view";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { ListRow } from "../../kit/list-row/list-row";
 import { StatePill } from "../../kit/pill/state-pill";
-import { focusAsDrawn, gate } from "../../legacy-verbs";
+import { focusAsDrawn, gate } from "../../frame-verbs";
 
 /** A row that is a press: Enter and Space press it, as a button's would. */
 const pressKeys = (go: () => void) => (e: KeyboardEvent) => {
@@ -25,8 +25,8 @@ const pressKeys = (go: () => void) => (e: KeyboardEvent) => {
   go();
 };
 
-/** ‹ Back to the card, and the step's title. */
-const stepHead = (title: string, onBack: () => void, sub?: string | null) => (
+/** ‹ Back to the card, and the step's title: the picker's, New's and Write to them's (write.tsx). */
+export const stepHead = (title: string, onBack: () => void, sub?: string | null) => (
   <div className="lw-step-h">
     <Button variant="quiet" size="sm" onClick={onBack} data-testid="lead-sheet-step-back">
       <Icon name="chevron" size={11} className="lw-back-glyph" />
@@ -48,10 +48,12 @@ interface PickerProps {
   busy: boolean;
   onPick: (row: LeadPickerRowVM) => void;
   onNew: () => void;
+  /** One email of your own instead of a sequence; null where none can be written to them here. */
+  onWrite: (() => void) | null;
   onBack: () => void;
 }
 
-/** The picker: each sequence to leads, the pick marked, and New sequence. */
+/** The picker: each sequence to leads, the pick marked, New sequence, and one email instead. */
 export function SheetPicker(p: PickerProps) {
   const title = "name" in p.who ? W.picker.title(p.who.name) : W.picker.titleMany(p.who.count);
   return (
@@ -110,6 +112,24 @@ export function SheetPicker(p: PickerProps) {
         data-testid="lead-sheet-new"
         {...gate("approve", "start a sequence")}
       />
+      {p.onWrite ? (
+        <ListRow
+          bare
+          role="button"
+          tabIndex={0}
+          className="lw-pick-row is-new"
+          name={
+            <>
+              <Icon name="mail" size={14} /> {W.picker.write}
+            </>
+          }
+          said={W.picker.writeLine}
+          onClick={p.onWrite}
+          onKeyDown={pressKeys(p.onWrite)}
+          data-testid="lead-sheet-write-one"
+          {...gate("approve", "write to this lead")}
+        />
+      ) : null}
     </div>
   );
 }

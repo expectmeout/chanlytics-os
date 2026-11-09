@@ -27,7 +27,7 @@
  * planted in the page, never on disk), and exits 0 only when the first two agree and the third does not.
  *
  * It runs a browser, so it is a tool a person runs, not part of `pnpm test`; the comparison it makes is tested there
- * (tooling/scripts/tests/styles/style-equality.test.mjs). docs/runbook.md, "Prove a style change", says what it
+ * (tests/styles/style-equality.test.mjs). docs/runbook.md, "Prove a style change", says what it
  * cannot prove.
  */
 /* global document, getComputedStyle, window, KeyboardEvent, location -- walk() and the few lines handed to
@@ -395,7 +395,7 @@ async function recordContext(browser, job) {
       timeout: LOAD_TIMEOUT_MS,
     });
     await settle(page, quiet, where);
-    // The standalone document starts dark and turns on the `t` key (legacy/Chanlytics.html).
+    // The standalone document starts dark and turns on the `t` key (mockup/Chanlytics.html).
     if (theme !== "dark") {
       await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" })));
       await page.clock.fastForward(THEME_MS);

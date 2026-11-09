@@ -14,8 +14,11 @@
 import { Fragment, useState } from "react";
 import type { ReactElement } from "react";
 import type { AdsRead } from "@chanlytics/contracts";
-import { DOOR_ORDER, LIST, ZIPS, areaValueOf } from "@chanlytics/contracts/ads-page";
-import type { ChipId, EditVM, SentencePart } from "@chanlytics/contracts/ads-page";
+import { DOOR_ORDER } from "../model/words";
+import { LIST, ZIPS } from "../model/drawer/words";
+import { areaValueOf } from "../model/drawer/edit-lists";
+import type { ChipId, SentencePart } from "../model/vm-base";
+import type { EditVM } from "../model/drawer/edit-lists";
 import { Popover } from "../../../kit/popover/popover";
 import { Token } from "../../../kit/picker/picker";
 import { cx } from "../../../kit/variants";

@@ -10,13 +10,40 @@ import {
   type ResolvedFacts,
   type TenantConfig,
   type RehearsalDto,
+  recordOrEmpty,
+  ASK_MEMORY_LIMITS,
+  REACH_OUT_DRAFTS_PER_DAY,
+  REACH_OUT_MONTH_EMAILS,
+  REPLY_MODE_UNSET,
+  mailboxIsLive,
+  mailboxSendsNow,
+  mailboxWords,
+  parseTenantConfig,
+  type MailboxConnectionDto,
+  type ReachOutChainDto,
+  type ReachOutSettingsDto,
+  type ReachOutSettingsMailbox,
+  type ReachOutSettingsSequence,
+  firstNameOf,
 } from "@chanlytics/contracts";
-import { rehearsalById, reviewLinkOf } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
-import { promptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
-import { linesFor } from "../connections/lines";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
+import { findRehearsalById } from "@chanlytics/db/facts";
+import { countSentByStep, findWorkspaceWords, reviewLinkOf } from "@chanlytics/db/campaigns";
+import { findNewestSearchName } from "@chanlytics/db/leads";
+import { askMemoryLines, getJournalMemberNames } from "@chanlytics/db/ask";
+import { listPolicies } from "@chanlytics/db/workspace";
+import type { RouteContext } from "../shared/with-route";
+import { findPromptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
+import { listLines } from "../connections/lines";
+import { listMailboxConnectionsWithDays } from "../connections/mailbox-connections";
+import { readReachOutMonthOrNull } from "../campaigns/month-sent";
+import { listChains } from "../campaigns/reach-outs/reach-outs";
+import { log } from "../shared/log";
+import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as readers from "./facts";
+import { findWorkspaceFacts } from "@chanlytics/db/workspace";
+import { listWorkspaceChannels } from "@chanlytics/db/channels";
+import { findGoogleListingAddress } from "@chanlytics/db/google";
+import type { TenantId } from "@chanlytics/contracts";
 
 function maskFeedUrl(u: string): string {
   return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
@@ -44,7 +71,7 @@ export function withHiddenFeed(role: string, incoming: unknown, stored: unknown)
   const storedUrl = (stored as { calendar?: { ical_url?: unknown } } | null)?.calendar?.ical_url;
   const sent = (incoming as { calendar?: { ical_url?: unknown } }).calendar?.ical_url;
   if (typeof storedUrl !== "string" || typeof sent !== "string" || sent !== maskFeedUrl(storedUrl)) return incoming;
-  return { ...(incoming as Record<string, unknown>), calendar: (stored as { calendar: unknown }).calendar };
+  return { ...recordOrEmpty(incoming), calendar: (stored as { calendar: unknown }).calendar };
 }
 
 /**
@@ -56,15 +83,15 @@ export function withHiddenFeed(role: string, incoming: unknown, stored: unknown)
  * is one answer — which is the whole point of facts.ts. With it, from the same row, whether the workspace is ours
  * (00469): only ours makes previews for its leads (decision 0079).
  */
-export async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts & { ours: boolean }> {
+export async function getKnownFacts(ctx: RouteContext, tenantId: TenantId): Promise<KnownFacts & { ours: boolean }> {
   const [ws, ch, gl, lines] = await Promise.all([
-    ctx.supabase.from("tenants").select("name, timezone, ours").eq("id", tenantId).maybeSingle(),
-    ctx.supabase.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId),
-    ctx.supabase.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle(),
+    findWorkspaceFacts(ctx.supabase, tenantId),
+    listWorkspaceChannels(ctx.supabase, tenantId),
+    findGoogleListingAddress(ctx.supabase, tenantId),
     // The number the business keeps and forwards: the same rows, read the same way, as Setup's line rows. A failed
     // read is no forwarding, on purpose: the settings read and a save still go through, and a transfer number is
     // then judged against the line alone, as it was before forwarding was known.
-    linesFor(ctx.supabase, tenantId).catch(() => []),
+    listLines(ctx.supabase, tenantId).catch(() => []),
   ]);
   // None of these is worth failing the settings read for. A workspace whose
   // channels could not be listed sees its typed values unresolved, which is
@@ -123,7 +150,7 @@ export const settings: Reader<undefined, SettingsRead> = {
       const cfg = parsed.config;
       const visible = feedVisibleTo(rc.role, cfg);
       const [known, reviewLink] = await Promise.all([
-        knownFacts(rc.ctx, rc.tenantId),
+        getKnownFacts(rc.ctx, rc.tenantId),
         // Whether the listing keeps a review link: the composers offer it to a review-link slot, and the review ask
         // with it, only where it does, as they offer the booking link only where one is on file. A read that fails is
         // none here, as a fact above is: the settings read never fails for it.
@@ -134,7 +161,7 @@ export const settings: Reader<undefined, SettingsRead> = {
       // cannot see (the Autonomy rows, these facts, the closures, the calendar's
       // openings), so the pane's card is the prompt and not a rendering of it.
       // The feed address is read here and stays here.
-      const prompt = await promptPreview(
+      const prompt = await findPromptPreview(
         rc.ctx,
         rc.tenantId,
         { brain: cfg.brain ?? null, calendarUrl: cfg.calendar?.ical_url ?? null },
@@ -163,7 +190,7 @@ export const settings: Reader<undefined, SettingsRead> = {
           previews: known.ours,
         },
         rows: [],
-        stamp: stamp(),
+        stamp: readerStamp(),
       };
     }
     // `as const` on both: the two answers are told apart by this one flag, and the client narrows on it.
@@ -176,7 +203,7 @@ export const settings: Reader<undefined, SettingsRead> = {
         issues: parsed.issues,
       },
       rows: [],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -189,20 +216,158 @@ export const settings: Reader<undefined, SettingsRead> = {
 export const rehearsal: Reader<{ id: string }, RehearsalDto> = {
   name: "rehearsal",
   async read(rc, { id }) {
-    const r = await rehearsalById(rc.ctx.supabase, rc.tenantId, id);
-    if (!r) throw new AppError("not_found", "Rehearsal not found.");
+    const result = await findRehearsalById(rc.ctx.supabase, rc.tenantId, id);
+    if (!result) throw new AppError("not_found", "Rehearsal not found.");
     const data: RehearsalDto = {
-      id: r.id,
-      kind: r.kind,
-      started_at: r.started_at,
-      ended_at: r.ended_at,
-      seconds: r.seconds,
-      end_reason: r.end_reason,
-      transcript: r.transcript,
-      config_version: r.config_version,
-      review: r.review,
-      fixes: r.fixes,
+      id: result.id,
+      kind: result.kind,
+      started_at: result.started_at,
+      ended_at: result.ended_at,
+      seconds: result.seconds,
+      end_reason: result.end_reason,
+      transcript: result.transcript,
+      config_version: result.config_version,
+      review: result.review,
+      fixes: result.fixes,
     };
-    return { data, rows: [], stamp: stamp() };
+    return { data, rows: [], stamp: readerStamp() };
+  },
+};
+
+/* ------------------------------------------------------------ How it reaches out (decision 0113) */
+
+/** A chain's first step where it is an email with words: what Try it writes, and what the drafter reads. */
+const openingEmailOf = (chain: ReachOutChainDto) => {
+  const first = chain.steps.at(0);
+  return first && !first.hand && first.body.trim() ? first : null;
+};
+
+/** The newest running sequence to leads whose first step is an email: Try it's words, and Signs as' first guess. */
+export function newestLeadSequence(chains: readonly ReachOutChainDto[]): ReachOutSettingsSequence | null {
+  const chain = chains
+    .filter((c) => c.state === "running" && openingEmailOf(c))
+    .reduce<ReachOutChainDto | null>((best, c) => (!best || c.created_at > best.created_at ? c : best), null);
+  const first = chain ? openingEmailOf(chain) : null;
+  if (!chain || !first) return null;
+  const second = chain.steps.at(1);
+  return {
+    root_id: chain.root_id,
+    name: chain.name,
+    search_id: chain.search?.id ?? null,
+    include_unconfirmed: chain.include_unconfirmed,
+    signed_by: chain.signed_by,
+    signs_with: chain.signs_with,
+    mailbox_id: chain.mailbox_ids[0] ?? null,
+    first: { subject: first.subject, body: first.body },
+    next:
+      second && !second.hand && second.after_days !== null
+        ? { after_days: second.after_days, body: second.body }
+        : null,
+  };
+}
+
+/** A step's words, subject and body, as a claim is looked for in them. */
+const wordsOfStep = (step: ReachOutChainDto["steps"][number]): string => `${step.subject ?? ""}\n${step.body}`;
+
+/** The email steps whose words carry one of the claims, word for word: the only steps worth counting. */
+export function stepsCarrying(claims: readonly string[], chains: readonly ReachOutChainDto[]): string[] {
+  const texts = claims.map((c) => c.trim()).filter(Boolean);
+  return chains.flatMap((c) =>
+    c.steps.filter((s) => !s.hand && texts.some((t) => wordsOfStep(s).includes(t))).map((s) => s.id),
+  );
+}
+
+/** Each claim with the emails sent from steps whose words carry it. */
+export function claimCounts(
+  claims: readonly string[],
+  chains: readonly ReachOutChainDto[],
+  sent: ReadonlyMap<string, number>,
+): ReachOutSettingsDto["claims"] {
+  return claims.map((text) => {
+    const t = text.trim();
+    const sends = chains
+      .flatMap((c) => c.steps)
+      .filter((s) => !s.hand && t && wordsOfStep(s).includes(t))
+      .reduce((n, s) => n + (sent.get(s.id) ?? 0), 0);
+    return { text, sends };
+  });
+}
+
+/** The mailbox Where it sends from shows: the first that sends now, else the first; as Connections says it. */
+export function mailboxShown(
+  mailboxes: readonly MailboxConnectionDto[],
+  nowMs: number,
+  tz: string,
+): ReachOutSettingsMailbox | null {
+  const live = mailboxes.filter(mailboxIsLive);
+  const shown = live.find((m) => mailboxSendsNow(m, nowMs)) ?? live.at(0);
+  if (!shown) return null;
+  const words = mailboxWords(shown, nowMs, tz);
+  return {
+    address: shown.address,
+    provider: shown.provider,
+    pill: words.pill,
+    tone: words.tone,
+    day: words.day,
+    ramp: words.ramp,
+  };
+}
+
+/** One part of the read, which may fail alone: the page draws the rest, and the failure is logged. */
+async function partOrElse<T>(read: Promise<T>, part: string, tenantId: TenantId, otherwise: T): Promise<T> {
+  try {
+    return await read;
+  } catch (e) {
+    log.error("reach_out_settings_read_failed", { tenant_id: tenantId, read: part, error: e });
+    return otherwise;
+  }
+}
+
+/**
+ * GET settings/reach-out: what How it reaches out shows beyond the config. The mailbox as Connections says it, the month's
+ * first emails against their share, the claims' counts, the lines Ask learned from how the owner writes, the newest
+ * running sequence to leads, and Autonomy's reply mode, which a lead's drafted answer follows.
+ */
+export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
+  name: "reach_out_settings",
+  async read(rc) {
+    const db = rc.ctx.supabase;
+    const tenantId = rc.tenantId;
+    const [row, facts, mailboxes, sent, memory, chains, policies, ownWords, names, newestSearch] = await Promise.all([
+      partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
+      partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
+      partOrElse(listMailboxConnectionsWithDays(db, tenantId, rc.now), "mailboxes", tenantId, []),
+      readReachOutMonthOrNull(tenantId, rc.now),
+      partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
+      partOrElse(listChains(rc.ctx, tenantId), "chains", tenantId, []),
+      partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
+      partOrElse(findWorkspaceWords(db, tenantId), "about", tenantId, null),
+      partOrElse<Record<string, string>>(getJournalMemberNames(db, [rc.ctx.userId]), "name", tenantId, {}),
+      partOrElse(findNewestSearchName(db, tenantId), "newest_search", tenantId, null),
+    ]);
+    const name = names[rc.ctx.userId]?.trim() || null;
+    const claims = parseTenantConfig(row?.data?.config)?.reach_out?.proof ?? [];
+    const counted = await partOrElse(
+      countSentByStep(db, tenantId, stepsCarrying(claims, chains)),
+      "counts",
+      tenantId,
+      new Map(),
+    );
+    return {
+      data: {
+        mailbox: mailboxShown(mailboxes, rc.now.getTime(), facts?.data.timezone ?? "UTC"),
+        month: { sent, of: REACH_OUT_MONTH_EMAILS },
+        by_hand_per_day: REACH_OUT_DRAFTS_PER_DAY,
+        claims: claimCounts(claims, chains, counted),
+        voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),
+        sequence: newestLeadSequence(chains),
+        reply_mode: policies.find((p) => p.class === "reply")?.mode ?? REPLY_MODE_UNSET,
+        about: ownWords?.text ?? null,
+        about_from: ownWords?.from ?? null,
+        known: { name, first_name: firstNameOf(name, null), newest_search: newestSearch },
+      },
+      rows: [],
+      stamp: readerStamp(),
+    };
   },
 };

@@ -6,7 +6,7 @@
  *
  *   - the sentences the door refuses with (MERGE_REFUSALS), which the route carries back as they are;
  *   - the rule for what the merged person has answered (mergedAnswers), which the door applies in SQL. One rule, two
- *     spellings, held equal case by case on a real database by tooling/scripts/tests/people/merge/merge-people.db.test.mjs;
+ *     spellings, held equal case by case on a real database by tests/people/merge/merge-people.db.test.mjs;
  *   - the source a consent answer carries in the ledger when the merge changed it.
  *
  * THE RULE (D5): the most careful answer wins on each question. A stop on either record is a stop for the person: a
@@ -92,12 +92,20 @@ function offersAnswer(a: string, b: string, stopped: boolean): Answer {
 }
 
 /** The most careful answer on each question (D5). Symmetric: which record is kept does not change an answer. */
-export function mergedAnswers(a: RecordAnswers, b: RecordAnswers): MergedAnswers {
-  const stopped = a.consent === "opted_out" || a.dnc || b.consent === "opted_out" || b.dnc;
+export function mergedAnswers(recordAnswers: RecordAnswers, otherRecordAnswers: RecordAnswers): MergedAnswers {
+  const stopped =
+    recordAnswers.consent === "opted_out" ||
+    recordAnswers.dnc ||
+    otherRecordAnswers.consent === "opted_out" ||
+    otherRecordAnswers.dnc;
   return {
-    consent: stopped ? "opted_out" : a.consent === "opted_in" || b.consent === "opted_in" ? "opted_in" : "unknown",
+    consent: stopped
+      ? "opted_out"
+      : recordAnswers.consent === "opted_in" || otherRecordAnswers.consent === "opted_in"
+        ? "opted_in"
+        : "unknown",
     dnc: stopped,
-    marketing: offersAnswer(a.marketing, b.marketing, stopped),
-    emailMarketing: offersAnswer(a.emailMarketing, b.emailMarketing, stopped),
+    marketing: offersAnswer(recordAnswers.marketing, otherRecordAnswers.marketing, stopped),
+    emailMarketing: offersAnswer(recordAnswers.emailMarketing, otherRecordAnswers.emailMarketing, stopped),
   };
 }

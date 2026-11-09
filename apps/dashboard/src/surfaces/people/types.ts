@@ -25,8 +25,10 @@ export type PeopleRead = Pick<PeopleSurface, "rows" | "lists" | "saved" | "views
 export interface PeopleFlash {
   tone?: string;
   msg: ReactNode;
-  /** As the shell's own flash has it (legacy-verbs.ts LegacyFlash): null where a refusal offers no undo. */
+  /** As the shell's own flash has it (frame-verbs.ts FrameFlash): null where a refusal offers no undo. */
   undo?: (() => unknown) | null;
+  /** A name for what it says: a second flash with the same name says it in this one's place, as a walk says how far it has come. */
+  once?: string;
 }
 export type Flash = (flash: PeopleFlash) => void;
 

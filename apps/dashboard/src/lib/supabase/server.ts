@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { namedFetch, type Database } from "@chanlytics/db";
-import { env, servedOverHttps } from "@/server/env";
+import { namedFetch } from "@chanlytics/db/shared";
+import type { Database } from "@chanlytics/db/types";
+import { env, servedOverHttps } from "@/server/shared/env";
 import { sessionCookieOptions } from "./cookie-options";
 
 /**
@@ -32,7 +33,7 @@ export async function createClient() {
 }
 
 /**
- * The client for a request that carries the session's access token as a bearer instead of the cookie (server/bearer.ts,
+ * The client for a request that carries the session's access token as a bearer instead of the cookie (server/shared/auth/bearer.ts,
  * decision 0011): no cookie is read or written, and every read runs under RLS as that token. The token's own
  * verification is the route's (getClaims over it), never assumed from the header.
  */

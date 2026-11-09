@@ -5,8 +5,9 @@
  * and, where going live did not wait for it, on You're live. Meta's SDK is fetched as it opens, as Connections fetches it.
  */
 import { useEffect, useState } from "react";
-import { FIRST_RUN_HELPERS, formatPhoneDisplay, type WhatsappChoice } from "@chanlytics/contracts";
-import { refusalToast, type LegacyFlash } from "../../../legacy-verbs";
+import { formatPhoneDisplay, type WhatsappChoice } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
+import { refusalToast, type FrameFlash } from "../../../frame-verbs";
 import { waConnect } from "../../../settings/connections/whatsapp";
 import { setupVerbs } from "../../surface";
 import { W } from "../words";
@@ -17,7 +18,7 @@ const SO = FIRST_RUN_HELPERS.goLiveWords.switchOn;
 export function WhatsappSteps(o: {
   choice: WhatsappChoice | null;
   number: string | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }) {
   const [notShared, setNotShared] = useState(false);
   const [busy, setBusy] = useState(false);

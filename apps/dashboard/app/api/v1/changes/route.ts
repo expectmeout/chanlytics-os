@@ -1,5 +1,5 @@
-import { read, workspace } from "@/server/route";
-import { ChangesQuerySchema, changesSince } from "@/server/live-feed";
+import { read, workspace } from "@/server/shared/route";
+import { ChangesQuerySchema, getChangesSince } from "@/server/shared/live-feed";
 
 /**
  * GET /api/v1/changes?since=<ISO 8601> — what the workspace's topic told since a moment (decision 0019 step 4; the
@@ -9,11 +9,11 @@ import { ChangesQuerySchema, changesSince } from "@/server/live-feed";
  *
  * Any member. A notice is no row: a table, an event, the statuses a statement left and its clock.
  *
- * The handle is changesSince in src/server/live-feed.ts: the route is its declaration (who may, how often), the verb is
+ * The handle is getChangesSince in src/server/shared/live-feed.ts: the route is its declaration (who may, how often), the verb is
  * what it does.
  */
 export const GET = read({
   scope: workspace,
   query: ChangesQuerySchema,
-  handle: ({ ctx, member, input }) => changesSince(ctx, member, input),
+  handle: ({ ctx, member, input }) => getChangesSince(ctx, member, input),
 });

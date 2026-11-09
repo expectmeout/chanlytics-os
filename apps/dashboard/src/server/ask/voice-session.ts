@@ -13,14 +13,14 @@ import {
   insertVoiceSession,
   moveVoiceSessionContext,
   readVoiceSession as readRow,
-  type Database,
-  type Json,
   type VoiceEndReason,
   type VoiceSessionRow,
-} from "@chanlytics/db";
+} from "@chanlytics/db/ask";
+import type { Database, Json } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RouteContext } from "../with-route";
-import type { Member } from "../route";
+import type { RouteContext } from "../shared/with-route";
+import type { Member } from "../shared/route";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 /**
  * A voice conversation's session (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.1, §3.3, §6): the row
@@ -28,7 +28,7 @@ import type { Member } from "../route";
  * before it runs a turn. The brain door is called by ElevenLabs with no cookie, so the token is how it runs Ask as
  * this member under RLS: sealed with a secret the database does not hold (ASK_VOICE_SECRET), good for the token's own
  * hour, opened only by the door. The id the browser and the vendor carry is 256 random bits; the row is keyed by its
- * sha256, so a read of the table alone opens nothing. The table is packages/db's (ask-voice-session.ts); this module is
+ * sha256, so a read of the table alone opens nothing. The table is packages/db's (ask/voice-session.ts); this module is
  * the one that knows the secret.
  */
 
@@ -95,11 +95,12 @@ export function tokenExpiry(token: string): string | null {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   try {
-    const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as { exp?: unknown };
+    const claims = JSON.parse(Buffer.from(parts[1] ?? "", "base64url").toString("utf8")) as { exp?: unknown };
     return typeof claims.exp === "number" && Number.isFinite(claims.exp)
       ? new Date(claims.exp * 1000).toISOString()
       : null;
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
 }
@@ -116,7 +117,7 @@ interface VoiceSessionStart {
 }
 
 /** A page's context as the column holds it: the schema's own fields, as JSON (an absent field is absent, not undefined). */
-const contextColumn = (c: PageContext | null): Json => (c ? (JSON.parse(JSON.stringify(c)) as Json) : null);
+const contextColumn = (c: PageContext | null): Json => (c ? jsonCopyOf(c) : null);
 /** A scope as the column holds it: its three fields, or none (store.ts holds the thread's the same way). */
 const scopeColumn = (s: AskScope | null): Json => (s ? { kind: s.kind, id: s.id, label: s.label } : null);
 

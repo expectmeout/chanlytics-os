@@ -11,15 +11,15 @@ import {
   WALK_IN_WORDS,
   phoneVoiceShown,
   type BusinessReadDto,
-  type FirstRunCheckVM,
   type ReceptionistCardVM,
   type WalkIns,
 } from "@chanlytics/contracts";
-import type { SettingsRecord } from "@/legacy-bridge/surfaces/settings";
+import type { FirstRunCheckVM } from "../model/view";
+import type { SettingsRecord } from "@/bridge/surfaces/settings";
 import { Icon } from "../../../kit/icon/icon";
 import { RecordToggleGroup } from "../../../kit/record/field";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { gate, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, type FrameFlash } from "../../../frame-verbs";
 import { businessTabSave } from "../../shell";
 import { FrCheck } from "../check";
 import { brainOf } from "../inputs";
@@ -31,7 +31,7 @@ import { W } from "../words";
 const WALK_INS: readonly WalkIns[] = WALK_INS_CHOICES.filter((c): c is WalkIns => c !== "unset");
 
 /** Walk-ins, saved as a booking rule (booking_rules.walk_ins): the owner's answer, one sentence of the rules it keeps. */
-function saveWalkIns(value: WalkIns, flash: (f: LegacyFlash) => void): void {
+function saveWalkIns(value: WalkIns, flash: (f: FrameFlash) => void): void {
   businessTabSave.saver.save({
     row: "walk_ins",
     change: (b, p) => {
@@ -53,7 +53,7 @@ function WalkInsRow({
 }: {
   stored: string | null;
   canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }) {
   const [picked, setPicked] = useState<WalkIns | null>(null);
   const value = picked ?? ((WALK_INS as readonly string[]).includes(stored ?? "") ? (stored as WalkIns) : null);
@@ -106,7 +106,7 @@ function Greeting({ card, voiceId }: { card: ReceptionistCardVM; voiceId: string
 export function FrReceptionist(o: {
   check: FirstRunCheckVM;
   card: ReceptionistCardVM;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   make: () => void;
   making: boolean;
   go: (to: string) => void;

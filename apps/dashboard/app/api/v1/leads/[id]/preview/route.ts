@@ -1,6 +1,6 @@
-import { read, write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
-import { leadPreviewFor, makeLeadPreviewFor } from "@/server/leads/lead-preview";
+import { read, write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
+import { getLeadPreview, makeLeadPreviewFor } from "@/server/leads/preview";
 
 /**
  * GET /api/v1/leads/:id/preview — the lead's own receptionist as its sender sees it (decision 0079): its row's facts for
@@ -13,7 +13,7 @@ import { leadPreviewFor, makeLeadPreviewFor } from "@/server/leads/lead-preview"
  */
 export const GET = read({
   scope: workspace,
-  handle: ({ ctx, member }) => leadPreviewFor(ctx, member.tenantId, requireUuid(ctx.params.id, "lead")),
+  handle: ({ ctx, member }) => getLeadPreview(ctx, member.tenantId, requireUuid(ctx.params.id, "lead")),
 });
 
 export const POST = write({

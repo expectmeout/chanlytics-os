@@ -3,7 +3,7 @@
  * pick, at To decide"): Leads, on the search its leads come from where it is known, with this sequence as where Add goes.
  */
 import { leadsRoute } from "@chanlytics/contracts";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import { pileAsk } from "./surface";
 
 /**

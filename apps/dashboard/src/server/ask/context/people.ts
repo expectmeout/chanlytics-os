@@ -17,13 +17,12 @@ import {
   toLeadRowVM,
   visitStands,
   type CalendarBlockVM,
-  type LeadClass,
-  type LeadList,
   type PersonRowDto,
   type PersonRowVM,
   type PipelineView,
+  isOneOf,
 } from "@chanlytics/contracts";
-import { load, type ReaderContext } from "../../readers";
+import { load, type ReaderContext } from "../../shared/reader";
 import * as facts from "../../readers/facts";
 import { everyone as everyoneReader } from "../../readers/everyone";
 import { dealBoard } from "../../readers/people";
@@ -61,10 +60,10 @@ async function peopleRows(rc: ReaderContext) {
   return { all, tz, vm };
 }
 
-/** A person's line as people.search says them (read/people.ts personLine): name, state, detail, last contact, next step. */
-function personLine(r: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number): string {
-  const last = r.last_message_at ?? r.last_call_at;
-  const step = nextStepOf(r, tz, nowMs);
+/** A person's line as people.search says them (read/people/people.ts personLine): name, state, detail, last contact, next step. */
+function personLine(person: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number): string {
+  const last = person.last_message_at ?? person.last_call_at;
+  const step = nextStepOf(person, tz, nowMs);
   return line(
     [
       vm.name,
@@ -73,24 +72,24 @@ function personLine(r: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number)
       last ? `last contact ${ago(Date.parse(last), tz, nowMs)}` : null,
       step ? `${step.words} · ${step.day.words}` : null,
     ],
-    `clients/${r.id}`,
+    `clients/${person.id}`,
   );
 }
 
 /** People: the people on the list the page drew, and how many there are in all. */
-export const people: Provider = async (rc, ctx) => {
+export const readPeople: Provider = async (rc, ctx) => {
   const { all, tz, vm } = await peopleRows(rc);
   const byId = new Map(all.map((r) => [r.id, r]));
   const rows: ContextRow[] = [];
   for (const { id } of idsOf(ctx, "person")) {
-    const r = byId.get(id);
-    if (!r) continue;
-    const v = vm(r);
+    const found = byId.get(id);
+    if (!found) continue;
+    const result = vm(found);
     rows.push({
       source: sourceOf("person", id),
-      title: v.name,
-      text: personLine(r, v, tz, rc.now.getTime()),
-      ref: refOf("person", id, v.name, `clients/${id}`),
+      title: result.name,
+      text: personLine(found, result, tz, rc.now.getTime()),
+      ref: refOf("person", id, result.name, `clients/${id}`),
     });
   }
   return {
@@ -105,7 +104,7 @@ export const people: Provider = async (rc, ctx) => {
  * follow-up and the workspace's pace from People's first page), which Ask's people.pipeline reads too. Every workspace
  * has the Pipeline (0008, amended 18 Oct 2026).
  */
-export const pipeline: Provider = async (rc, ctx) => {
+export const readPipeline: Provider = async (rc, ctx) => {
   const whole = (await load(rc, dealBoard, undefined)).data.board;
   const pace = whole.pace;
   const found = new Map(whole.groups.flatMap((g) => g.rows.map((row) => [row.id, { row, group: g.label }] as const)));
@@ -132,8 +131,8 @@ export const pipeline: Provider = async (rc, ctx) => {
       ref: refOf("person", id, row.name, `clients/${id}`),
     });
   }
-  const asked = (ctx.view ?? "").replace(/:search$/, "");
-  const view: PipelineView = isPipelineView(asked) ? asked : "all";
+  const viewKey = (ctx.view ?? "").replace(/:search$/, "");
+  const view: PipelineView = isPipelineView(viewKey) ? viewKey : "all";
   // What the proposals out and the clients come to: Ask's alone, since the page says counts only (pipelineWorth).
   const worth = pipelineWorth(whole);
   return {
@@ -156,7 +155,7 @@ function spanOf(view: string | null | undefined): { from: string | null; days: n
 }
 
 /** The Calendar: the people its board names in the span the page drew, each with what they have on it, and the span. */
-export const calendar: Provider = async (rc, ctx) => {
+export const readCalendar: Provider = async (rc, ctx) => {
   const vm = toCalendarVM((await load(rc, calendarReader, spanOf(ctx.view))).data.calendar, rc.now);
   const named = new Map<string, { name: string; on: string[] }>();
   // What stands: a visit the record says was cancelled is drawn struck on the board and is none anywhere it is counted.
@@ -198,21 +197,21 @@ export const calendar: Provider = async (rc, ctx) => {
 function leadsQueryOf(ctx: { route: string; view?: string | null }) {
   const parsed = parseLeadsRoute(ctx.route);
   const [list, cls] = (ctx.view ?? "").split("/");
-  const onList = (LEAD_LISTS as readonly string[]).includes(list) ? (list as LeadList) : (parsed?.list ?? "all");
-  const onClass = (LEAD_CLASSES as readonly string[]).includes(cls) ? (cls as LeadClass) : (parsed?.cls ?? null);
+  const onList = isOneOf(LEAD_LISTS, list) ? list : (parsed?.list ?? "all");
+  const onClass = isOneOf(LEAD_CLASSES, cls) ? cls : (parsed?.cls ?? null);
   return { list: onList, cls: onClass, searchId: parsed?.searchId ?? null };
 }
 
 /** Leads: the leads the page drew, each as its row says it, the rail's counts and the searches waiting on the owner. */
-export const leads: Provider = async (rc, ctx) => {
-  const v = leadsQueryOf(ctx);
+export const readLeads: Provider = async (rc, ctx) => {
+  const leadsQuery = leadsQueryOf(ctx);
   // The page's own query; one the schema refuses reads the Leads page as it opens, never nothing.
-  const asked = LeadsQuerySchema.safeParse({
-    list: v.list,
-    ...(v.cls ? { class: v.cls } : {}),
-    ...(v.searchId ? { search: v.searchId } : {}),
+  const request = LeadsQuerySchema.safeParse({
+    list: leadsQuery.list,
+    ...(leadsQuery.cls ? { class: leadsQuery.cls } : {}),
+    ...(leadsQuery.searchId ? { search: leadsQuery.searchId } : {}),
   });
-  const query = asked.success ? asked.data : LeadsQuerySchema.parse({});
+  const query = request.success ? request.data : LeadsQuerySchema.parse({});
   const [read, found, tz] = await Promise.all([
     load(rc, leadsReader, query),
     load(rc, searchesReader, undefined).then((r) => r.data),
@@ -224,31 +223,31 @@ export const leads: Provider = async (rc, ctx) => {
   const refs = refsOf(read.rows);
   const rows: ContextRow[] = [];
   for (const { id } of idsOf(ctx, "lead")) {
-    const r = byId.get(id);
-    if (!r) continue;
-    const vm = toLeadRowVM(r, tz, rc.now);
+    const found = byId.get(id);
+    if (!found) continue;
+    const vm = toLeadRowVM(found, tz, rc.now);
     rows.push({
       source: sourceOf("lead", id),
       title: vm.name,
       text: line(
         [vm.name, vm.category, vm.area, vm.fitLabel, vm.stageLabel, vm.emailWord],
-        leadsRoute({ searchId: v.searchId, list: v.list, cls: v.cls, peek: id }),
+        leadsRoute({ searchId: leadsQuery.searchId, list: leadsQuery.list, cls: leadsQuery.cls, peek: id }),
       ),
       ref: refs.get(id) ?? null,
     });
   }
-  const c = found.counts;
+  const counts = found.counts;
   const waiting = found.searches.filter((s) => s.round?.state === "waiting_on_owner").length;
   return {
     rows,
     aggregate: aggregateOf([
       `${pageWithView(ctx)}: ${rows.length} leads on screen`,
-      `all: ${c.all}`,
-      `ready: ${c.ready}`,
-      `nurture: ${c.nurture}`,
-      `converted: ${c.converted}`,
-      `said no: ${c.said_no}`,
-      `not a fit: ${c.not_a_fit}`,
+      `all: ${counts.all}`,
+      `ready: ${counts.ready}`,
+      `nurture: ${counts.nurture}`,
+      `converted: ${counts.converted}`,
+      `said no: ${counts.said_no}`,
+      `not a fit: ${counts.not_a_fit}`,
       `searches: ${found.searches.length}`,
       waiting ? `${waiting} ${waiting === 1 ? "search" : "searches"} waiting for your answer` : null,
     ]),

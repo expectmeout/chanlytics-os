@@ -20,11 +20,11 @@ import {
   type MessageAbout,
   type PurposeBearing,
 } from "../consent/consent";
-import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/consent-channels";
+import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, type ConsentChannel } from "../consent/channels";
 import type { WrittenChannel } from "../conversations/thread-channel";
 import { STOP_WORDS } from "../consent/consent";
-import { replyWindow } from "../config/policy";
-import type { ChannelsReady } from "../broadcasts/reach-for";
+import { replyWindow } from "../config/policy/prices";
+import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
 import type { PersonRowDto } from "../people/person-dto";
 import { QUIET_AFTER_DAYS } from "../people/person-state";
 import { DAY_MS, HOUR_MS } from "../shared/time";
@@ -133,12 +133,12 @@ interface Judged {
   about: MessageAbout;
 }
 
-function holdOf(wire: ConsentChannel, r: WriteRow, { bearing, ready, starts, about }: Judged): WriteHold | null {
+function holdOf(wire: ConsentChannel, write: WriteRow, { bearing, ready, starts, about }: Judged): WriteHold | null {
   if (isOptedOutContact(bearing)) return "stopped";
   if (wire === "email") {
-    if (!r.email) return "no_address";
-    if (r.email_suppressed_at) return "address_stopped";
-  } else if (!r.phone_e164) return "no_number";
+    if (!write.email) return "no_address";
+    if (write.email_suppressed_at) return "address_stopped";
+  } else if (!write.phone_e164) return "no_number";
   if (ready && !ready[wire].ready) return "not_ready";
   if (isOfferByEmail({ channel: wire, purpose: "conversational", proactive: starts, about })) return "no_history";
   // The one predicate, told this is a person's own message and whether it begins there (`begins`): the send door asks
@@ -153,27 +153,27 @@ function holdOf(wire: ConsentChannel, r: WriteRow, { bearing, ready, starts, abo
  * the workspace's lines were not judged (a person's page before People has read them), so every hold but not_ready is
  * said, and the sheet and the send judge the lines again.
  */
-export function writeWaysOf(r: WriteRow, ready: ChannelsReady | null, now: Date = new Date()): WriteWay[] {
+export function writeWaysOf(write: WriteRow, ready: ChannelsReady | null, now: Date = new Date()): WriteWay[] {
   const relationship = relationshipOnRecord({
-    lastWroteAt: r.last_wrote_at,
-    lastInboundCallAt: r.last_inbound_call_at,
-    hasDeal: !!r.deal_id,
+    lastWroteAt: write.last_wrote_at,
+    lastInboundCallAt: write.last_inbound_call_at,
+    hasDeal: !!write.deal_id,
   });
   const about: MessageAbout = relationship ? "theirs" : "ours";
   const bearing: PurposeBearing = {
-    consent: r.consent,
-    dnc: r.dnc,
-    marketing_consent: r.marketing_consent,
-    consent_channels: r.consent_channels,
-    marketing_channels: r.marketing_channels,
-    email_marketing: r.email_marketing,
+    consent: write.consent,
+    dnc: write.dnc,
+    marketing_consent: write.marketing_consent,
+    consent_channels: write.consent_channels,
+    marketing_channels: write.marketing_channels,
+    email_marketing: write.email_marketing,
     has_relationship: relationship,
   };
-  const heard = { lastWrote: heardWire(r.last_inbound_channel), calledAt: r.last_inbound_call_at ?? null };
+  const heard = { lastWrote: heardWire(write.last_inbound_channel), calledAt: write.last_inbound_call_at ?? null };
   return CONSENT_CHANNELS.map((wire): WriteWay => {
     const starts = startsOn(wire, heard, now);
-    const hold = holdOf(wire, r, { bearing, ready, starts, about });
-    const window = replyWindow(wire, r.latest_wa_inbound_at, now);
+    const hold = holdOf(wire, write, { bearing, ready, starts, about });
+    const window = replyWindow(wire, write.latest_wa_inbound_at, now);
     const left = window.closesAtIso ? new Date(window.closesAtIso).getTime() - now.getTime() : 0;
     return {
       wire,

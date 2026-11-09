@@ -9,26 +9,20 @@
  * lead-sheet.ts).
  */
 import type { ReactNode } from "react";
-import {
-  LEAD_CARD_WORDS,
-  LEAD_SHEET_WORDS as W,
-  LEAD_WORDS,
-  REWRITE_WORDS,
-  type LeadCardPart,
-  type LeadNowFactVM,
-  type LeadNowVM,
-  type LeadPeekVM,
-  type LeadPileEndVM,
-  type LeadRowVM,
-} from "@chanlytics/contracts";
-import { EmailParts, emailParagraphs } from "../../campaigns/sequences/place/email-as";
+import { LEAD_WORDS, type LeadPeekVM, type LeadRowVM } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS as W, type LeadPileEndVM } from "./model/view";
+import type { LeadNowFactVM, LeadNowVM } from "./model/now";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { Menu } from "../../kit/menu/menu";
 import { Meter } from "../../kit/meter/meter";
 import { StatePill } from "../../kit/pill/state-pill";
-import { gate } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
+import { MenuInPlace, menuGroups, type PeopleMenuItem } from "../../people/menu-groups";
 import { LeadTile } from "../cells/tile";
+import type { Flash, PeekActs } from "../peek/types";
+import { SheetEmail, type EmailBox } from "./email-box";
 import type { SheetMail } from "./facts";
 
 /* ------------------------------------------------------------------------------------------------------- who -- */
@@ -138,99 +132,72 @@ export function SheetDoors(p: { vm: LeadPeekVM; callDoor: boolean; onCall: () =>
   );
 }
 
-/* --------------------------------------------------------------------------------------------------- the email -- */
+/** What is known of them, as text to paste elsewhere: the name, where, the phone, the email and the site. */
+const allOf = (vm: LeadPeekVM) =>
+  [
+    vm.name,
+    vm.sub,
+    vm.where ? vm.where.line : null,
+    vm.reach.phone ? vm.reach.phone.value : null,
+    vm.reach.email.address,
+    vm.links.website ? vm.links.website.href : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-/** The opening as it goes: still being written, the words the check refused marked, or its words as they stand. */
-function OpeningOf({ mail, part }: { mail: SheetMail; part: Extract<LeadCardPart, { kind: "opening" }> }) {
-  if (mail.writing)
-    return (
-      <span className="lw-open" data-testid="lead-card-opening">
-        {W.mail.writing}
-      </span>
-    );
-  const o = mail.opening;
-  if (!o)
-    return (
-      <span className={part.text ? "lw-opening" : "lw-open"} data-testid="lead-card-opening">
-        {part.text ?? LEAD_CARD_WORDS.opening}
-      </span>
-    );
-  return (
-    <span className="lw-opening" data-testid="lead-card-opening">
-      {o.before}
-      {o.said ? (
-        <mark className="lw-refused" data-testid="lead-card-refused">
-          {o.said}
-        </mark>
-      ) : null}
-      {o.after}
-    </span>
-  );
-}
-
-/** A paragraph of the email: its opening as it goes, and the rest in plain words, a slot with no value as the hole it is. */
-const mailParagraph = (mail: SheetMail, para: readonly LeadCardPart[], at: number) => {
-  const opening = para.find((x) => x.kind === "opening");
-  return (
-    <p key={at}>
-      {opening && opening.kind === "opening" ? (
-        <OpeningOf mail={mail} part={opening} />
-      ) : (
-        <EmailParts parts={para} plain />
-      )}
-    </p>
-  );
-};
-
-/** The email on the card: as it goes, a few lines of it until it is asked for whole. */
-function SheetEmail(p: {
-  mail: SheetMail;
-  whole: boolean;
-  onWhole: () => void;
-  onRewrite: (() => void) | null;
-  onUndo: (() => void) | null;
+/**
+ * The lead's More, its rare acts behind one labelled caret (Ruben, 20 Oct 2026: no three dots): They wrote back… (an email
+ * sent by hand, where no mailbox is read), Copy details, Never write to them again (every sequence) where the dock's
+ * Take out does not already ask it, and what contracts' leadPeekMenu offers this member (Erase, the owner's).
+ */
+export function SheetMore(p: {
+  vm: LeadPeekVM;
+  on: PeekActs;
+  /** Only you can say a reply came. */
+  told: boolean;
+  /** Never write to them again stands here: a sequence has them, and the dock's Take out does not ask it. */
+  never: boolean;
+  flash: Flash;
+  onSaid: () => void;
+  onNever: () => void;
 }) {
-  const { mail } = p;
-  const clip = p.whole ? "" : mail.tall ? " is-clipped is-tall" : " is-clipped";
+  const { vm, on } = p;
+  const items: PeopleMenuItem[] = [
+    ...(p.told ? [{ label: W.menu.theyWrote, icon: "chat", onClick: p.onSaid }] : []),
+    {
+      label: W.menu.copy,
+      icon: "copy",
+      onClick: () => {
+        void navigator.clipboard?.writeText(allOf(vm)).then(() => p.flash({ tone: "ok", msg: W.menu.copied }));
+      },
+    },
+    ...(p.never ? [{ label: W.menu.never, title: W.menu.neverHint, icon: "stop", onClick: p.onNever }] : []),
+    ...(on.menu ?? []).map((m) => ({
+      label: m.id === "erase" ? W.menu.erase : m.label,
+      icon: "x",
+      danger: m.danger,
+      onClick: m.id === "erase" ? on.onEraseAsk : undefined,
+    })),
+  ];
   return (
-    <div className="lw-now-mail" data-testid="lead-card-email">
-      <p className="lw-now-to" data-testid="lead-card-to">
-        {mail.to}
-      </p>
-      {mail.subject ? (
-        <p className="lw-now-subj" data-testid="lead-card-subject">
-          <EmailParts parts={mail.subject} plain />
-        </p>
-      ) : null}
-      <div className={`lw-now-body${clip}`} data-testid="lead-card-body">
-        {emailParagraphs(mail.body).map((para, at) => mailParagraph(mail, para, at))}
-      </div>
-      <div className="lw-now-acts">
-        <LinkButton className="lw-link" onClick={p.onWhole} data-testid="lead-sheet-read-all">
-          {p.whole ? W.mail.less : W.mail.readAll}
-        </LinkButton>
-        {p.onRewrite ? (
-          <LinkButton
-            className="lw-link q"
-            onClick={p.onRewrite}
-            data-testid="lead-sheet-rewrite"
-            {...gate("approve", "rewrite the opening")}
+    <MenuInPlace>
+      <Menu
+        label={W.moreOf}
+        trigger={
+          <Button
+            variant="secondary"
+            size="sm"
+            className="lw-door lw-door-more"
+            aria-label={W.moreOf}
+            data-testid="peek-more"
           >
-            {W.mail.rewrite}
-          </LinkButton>
-        ) : null}
-        {p.onUndo ? (
-          <LinkButton
-            className="lw-link q"
-            onClick={p.onUndo}
-            data-testid="lead-sheet-rewrite-undo"
-            {...gate("approve", "put the earlier opening back")}
-          >
-            {REWRITE_WORDS.undo}
-          </LinkButton>
-        ) : null}
-      </div>
-    </div>
+            {W.more}
+            <Icon name="chevron-down" size={11} />
+          </Button>
+        }
+        groups={menuGroups(items)}
+      />
+    </MenuInPlace>
   );
 }
 
@@ -260,6 +227,7 @@ export const SheetNow = (p: {
   onWhole: () => void;
   onRewrite: (() => void) | null;
   onUndo: (() => void) | null;
+  box: EmailBox;
 }) => {
   const { now } = p;
   return (
@@ -287,7 +255,14 @@ export const SheetNow = (p: {
       ) : null}
       {now.facts.map(factRow)}
       {p.mail ? (
-        <SheetEmail mail={p.mail} whole={p.whole} onWhole={p.onWhole} onRewrite={p.onRewrite} onUndo={p.onUndo} />
+        <SheetEmail
+          mail={p.mail}
+          whole={p.whole}
+          onWhole={p.onWhole}
+          onRewrite={p.onRewrite}
+          onUndo={p.onUndo}
+          box={p.box}
+        />
       ) : null}
     </section>
   );

@@ -1,7 +1,16 @@
 import "server-only";
-import { AppError, MIN_MS, TRY_IT_WORDS, tryItVM, type TryItAnswer, type TryItVM } from "@chanlytics/contracts";
-import { callEdge, edgeConfigured, edgeReasonOf } from "../edge";
-import { log } from "../log";
+import {
+  AppError,
+  MIN_MS,
+  TRY_IT_WORDS,
+  tryItVM,
+  type TryItAnswer,
+  type TryItVM,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
+import { callEdge, edgeConfigured, edgeReasonOf } from "../shared/edge";
+import { log } from "../shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Settings › How it answers, Try it: a message an owner writes as a customer would, answered by the receptionist as it
@@ -28,14 +37,17 @@ interface TryTurn {
 /** A field of the door's answer, read as the box reads it: the shape is the edge's, so nothing in it is taken on trust. */
 function tryAnswerOf(raw: unknown): TryItAnswer | null {
   if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  if (r.ok !== true || typeof r.text !== "string") return null;
-  const then = r.then && typeof r.then === "object" ? (r.then as TryItAnswer["then"]) : null;
-  const meta = r.meta && typeof r.meta === "object" ? (r.meta as Record<string, unknown>) : null;
-  const b = r.booking && typeof r.booking === "object" ? (r.booking as Record<string, unknown>) : null;
+  const response = recordOrEmpty(raw);
+  if (response.ok !== true || typeof response.text !== "string") return null;
+  const then = response.then && typeof response.then === "object" ? (response.then as TryItAnswer["then"]) : null;
+  const meta = response.meta && typeof response.meta === "object" ? recordOrEmpty(response.meta) : null;
+  const bookingRecord =
+    response.booking && typeof response.booking === "object" ? recordOrEmpty(response.booking) : null;
   const booking =
-    b && typeof b.slot === "string" ? { slot: b.slot, service: typeof b.service === "string" ? b.service : "" } : null;
-  return { text: r.text, meta, then: then && typeof then.text === "string" ? then : null, booking };
+    bookingRecord && typeof bookingRecord.slot === "string"
+      ? { slot: bookingRecord.slot, service: typeof bookingRecord.service === "string" ? bookingRecord.service : "" }
+      : null;
+  return { text: response.text, meta, then: then && typeof then.text === "string" ? then : null, booking };
 }
 
 /**
@@ -44,22 +56,22 @@ function tryAnswerOf(raw: unknown): TryItAnswer | null {
  * (decision 0079): the edge's token then names the workspace alone.
  */
 export async function tryReceptionist(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string | null,
   text: string,
   history: readonly TryTurn[],
 ): Promise<TryItVM> {
   if (!edgeConfigured()) throw new AppError("conflict", TRY_IT_WORDS.notLive, 409);
-  const a = await callEdge(
+  const result = await callEdge(
     "/api/admin/eval",
-    { tenant_id: tenantId, cases: [{ id: "try", text, history }] },
+    { tenant_id: tenantId, cases: [{ id: "try", text, history: [...history] }] },
     { workspace: tenantId, user: userId, timeoutMs: TRY_TIMEOUT_MS },
   );
-  const results = (a.body as { results?: unknown } | null)?.results;
-  const answer = a.status === 200 && Array.isArray(results) ? tryAnswerOf(results[0]) : null;
+  const results = result.body?.results;
+  const answer = result.status === 200 && Array.isArray(results) ? tryAnswerOf(results[0]) : null;
   if (answer) return tryItVM(answer);
-  const reason = edgeReasonOf(a);
-  log.warn("receptionist_try_failed", { tenant_id: tenantId, reason, status: a.status });
+  const reason = edgeReasonOf(result);
+  log.warn("receptionist_try_failed", { tenant_id: tenantId, reason, status: result.status });
   if (reason === "no_persona" || reason === "config_broken")
     throw new AppError("conflict", TRY_IT_WORDS.noPersona, 409);
   throw new AppError("upstream_anthropic", TRY_IT_WORDS.failed, 502, { reason });

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { write } from "@/server/route";
-import { erasureScope } from "@/server/verbs";
-import { notAPerson } from "@/server/connections/mailbox-senders";
+import { write } from "@/server/shared/route";
+import { erasureScope } from "@/server/shared/verbs";
+import { markNotAPerson } from "@/server/people/mailbox-senders";
 
 const Body = z.object({ scope: z.enum(["address", "domain"]) }).strict();
 
@@ -18,5 +18,5 @@ export const POST = write({
   role: "owner",
   rate: "erase",
   input: Body,
-  handle: ({ ctx, row, input }) => notAPerson(ctx, row, input.scope),
+  handle: ({ ctx, row, input }) => markNotAPerson(ctx, row, input.scope),
 });

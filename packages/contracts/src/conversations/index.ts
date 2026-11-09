@@ -5,17 +5,16 @@ export {
   CALL_TRANSCRIPT,
   callAttemptWords,
   DISCONNECTION_LABELS,
+  MISSED_CALL_LINE,
   missedCall,
   neverConnected,
   reachedVoicemail,
+  UNCONNECTED_DIAL_LINE,
 } from "./call-dto";
 export type { CallDto } from "./call-dto";
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./call-vm";
 export type { CallVM } from "./call-vm";
-export { CONVERSATION_MOVES, conversationMoveAllowed, conversationPatch } from "./conversation-moves";
-export type { ConversationMoveName, ConversationPatch } from "./conversation-moves";
-export { toConversationVM } from "./conversation-vm";
-export type { ConversationMessageVM, ConversationVM } from "./conversation-vm";
+export { DRAFT_DOOR, STEER_DOOR } from "./edge-doors";
 export {
   dockLineOf,
   DRAFTED_TODO,
@@ -37,25 +36,23 @@ export {
   waitsOnAPerson,
 } from "./escalations";
 export type { BookingRequestDto, EscalationDto, HoldAct, OpenHold } from "./escalations";
-export { REFERRAL_ID_MAX } from "./first-touch";
 export { HANDLED_OUTCOMES } from "./handled";
 export type { Handled } from "./handled";
+export type { InboxThreadVM } from "./inbox-thread-vm";
+export { countdownClock, theyWroteLast, toInboxThreadVM } from "./inbox-thread/thread-vm";
 export {
   conversationWaitsOnYou,
-  countdownClock,
   HELD_BY_ID_MAX,
   heldDraftWaits,
   heldThreadIds,
   snoozedThreadWords,
-  theyWroteLast,
   THREAD_PANE_WORDS,
   threadStanding,
   threadsWaitingOnYou,
   threadWaitsOf,
-  toInboxThreadVM,
-} from "./inbox-thread";
-export type { InboxThreadVM } from "./inbox-thread-vm";
+} from "./inbox-thread/waits";
 export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageAuthor, messageVia, messageWhy } from "./message-author";
+export { lastWordLine } from "./message-author";
 export type { EmailClaim, MessageAuthor } from "./message-author";
 export {
   emailLeftOutOf,
@@ -84,6 +81,9 @@ export {
   reachedCustomer,
   sendFailureWords,
 } from "./message-words";
+export { lastExchanged, sentFactsOf } from "./message-words";
+export { CONVERSATION_MOVES, conversationMoveAllowed, conversationPatch } from "./moves";
+export type { ConversationMoveName, ConversationPatch } from "./moves";
 export {
   HELD_WORDS,
   heldPill,
@@ -98,7 +98,15 @@ export {
   standingOf,
   standingOfThread,
 } from "./standing";
-export type { SeenMarksDto, SeenOf, SeenReading, Standing, StandingInput, StandingVerdict } from "./standing";
+export type {
+  SeenMarksDto,
+  SeenOf,
+  SeenReading,
+  Standing,
+  StandingInput,
+  StandingVerdict,
+  ThreadMoveKey,
+} from "./standing";
 export {
   agentFor,
   answerWireOf,
@@ -112,7 +120,8 @@ export {
   writtenChannelOf,
 } from "./thread-channel";
 export type { ThreadChannel, WrittenChannel } from "./thread-channel";
-export { formatWaited, inboxThreadClock, shortTime, waitedSaid } from "./thread-clock";
+export { formatWaited, inboxThreadClock, shortTime, waitedSaid, waitedSince } from "./thread-clock";
+export { bubbleTime } from "./thread-clock";
 export {
   contactMeta,
   contactName,

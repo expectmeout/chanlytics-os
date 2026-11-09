@@ -1,20 +1,29 @@
 import "server-only";
-import { foldWordsMessages, type MembershipRole } from "@chanlytics/contracts";
-import { log, type DashboardLogEvent } from "@/server/log";
-import type { GatewayRefusal } from "./gateway";
+import { foldWordsMessages, MODEL_PAUSED_WORDS, type MembershipRole } from "@chanlytics/contracts";
+import { log, type DashboardLogEvent } from "@/server/shared/log";
+import type { GatewayRefusal } from "../shared/model/gateway";
 import { toApiTools } from "./tools";
-import { featureRejected } from "./sse";
+import { featureRejected } from "../shared/model/stream";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * A refusal the turn could not do without, as the person is told it in their language, and logged. A request refused
  * (bad_request) is one we built, or an edge that would not take it: our fault, never the question's, so it is said as
  * ours and logged loudly under its own name (ask_request_refused); the rest are the gateway's (ask_gateway_refused).
  */
-export function refusalSaid(r: GatewayRefusal, es: boolean, at: { tenant_id: string; round: number }): string {
-  const said = { kind: r.kind, ...at, message: "message" in r ? String(r.message).slice(0, 300) : undefined };
-  if (r.kind === "bad_request") log.error("ask_request_refused", said);
-  else log.error("ask_gateway_refused", said);
-  switch (r.kind) {
+export function refusalSaid(
+  gatewayRefusal: GatewayRefusal,
+  es: boolean,
+  at: { tenant_id: TenantId; round: number },
+): string {
+  const refusal = {
+    kind: gatewayRefusal.kind,
+    ...at,
+    message: "message" in gatewayRefusal ? String(gatewayRefusal.message).slice(0, 300) : undefined,
+  };
+  if (gatewayRefusal.kind === "bad_request") log.error("ask_request_refused", refusal);
+  else log.error("ask_gateway_refused", refusal);
+  switch (gatewayRefusal.kind) {
     case "preview":
       return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";
     case "budget":
@@ -27,6 +36,8 @@ export function refusalSaid(r: GatewayRefusal, es: boolean, at: { tenant_id: str
       return es
         ? "Ask está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
         : "Ask is off while this workspace is paused. Resume it from Settings › Billing.";
+    case "model_paused":
+      return es ? MODEL_PAUSED_WORDS.ask.es : MODEL_PAUSED_WORDS.ask.en;
     case "unreachable":
       return es
         ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."
@@ -59,10 +70,12 @@ export const DROP_EVENTS: Record<Dropped, DashboardLogEvent> = {
 
 /**
  * A refusal of a replayed thinking block (D12): its signature invalid, or bound to a different conversation -- the
- * API decides it before any output, so the round is asked again with the words instead.
+ * API decides it before any output, so the round is asked again with the words instead. Or of a picture it replays that
+ * Anthropic no longer holds (a file deleted while the chain was warm): words alone carry its name and what it showed, and Ask
+ * opens it again if it can.
  */
 function replayRefused(message: string): boolean {
-  return /^400\b/.test(message) && /signature|bound to a different conversation/i.test(message);
+  return /^4(00|04)\b/.test(message) && /signature|bound to a different conversation|file.*not found/i.test(message);
 }
 
 /** A refusal of the request for its search_result blocks, or their cache marks (D14). */

@@ -6,16 +6,17 @@
  * secret), the body (readBody) and the model as a port, which a test hands in; evaluateCases in
  * lib/receptionist/eval.ts is everything after.
  */
-import { readBody } from "../../lib/admin-door.js";
-import { authorizeAdmin } from "../../lib/admin-auth.js";
-import { adminDoor } from "../../lib/log.js";
-import { evaluateCases, type BrainPort } from "../../lib/receptionist/eval.js";
-export { type BrainPort } from "../../lib/receptionist/eval.js";
+import { readBody } from "../../lib/shared/admin-door.js";
+import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
+import { adminDoor } from "../../lib/shared/log.js";
+import { evaluateCases, type EvalBrainPort } from "../../lib/receptionist/eval.js";
+import { EVAL_DOOR } from "@chanlytics/contracts";
+export { type EvalBrainPort } from "../../lib/receptionist/eval.js";
 
-export const POST = adminDoor(async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
+export const POST = adminDoor(async function POST(request: Request, brain?: EvalBrainPort | null): Promise<Response> {
   // A door for one workspace: the harness (tooling/scripts/eval-brain.mjs) mints a token for it and that workspace,
   // as the dashboard mints one; the key opens it only on an edge without the secret.
   const auth = await authorizeAdmin(request, "/api/admin/eval");
   if (!auth.ok) return auth.response;
-  return evaluateCases(auth, await readBody(request), brain);
+  return evaluateCases(auth, await readBody(request, EVAL_DOOR), brain);
 });

@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
-import { read, write, account } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
+import { read, write, account } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
 import { deleteThread, readThread } from "@/server/ask/store";
 
 /**

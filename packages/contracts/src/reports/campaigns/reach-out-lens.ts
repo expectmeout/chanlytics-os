@@ -16,7 +16,7 @@
  * Pure, and only Reports' page reads it (PAGE_ONLY in tooling/scripts/gen/contracts-browser-entry.mjs).
  */
 import { mailboxHoldWords } from "../../email/mailbox-standing";
-import { stepLabelOf } from "../../reach-out/reach-out-sheet";
+import { stepLabelOf } from "../../campaigns/reach-out/sheet/words";
 import { clockDate, clockNear } from "../../shared/clock";
 import { pct, sumOf } from "../../shared/numbers";
 import { isCount } from "../../shared/unknown";
@@ -29,17 +29,11 @@ import type {
   ReachOutReportDto,
   ReachOutReportStepDto,
 } from "../reach-out-report";
-import { mixOf, noMix, type MixEntry, type MixPartVM, type RateRowVM } from "../report-mix";
-import {
-  REPORT_MIN_N,
-  compareWords,
-  isThinShare,
-  shareSaid,
-  shareWasWords,
-  type ReportStripTile,
-} from "../report-tiles";
-import { dayPointOf, endedOn, rangeLabelOf, withinWords } from "../reports";
-import { sequenceRoute } from "../../sequences/sequence-address";
+import { mixOf, noMix, type MixEntry, type MixPartVM, type RateRowVM } from "../mix";
+import { REPORT_MIN_N, compareWords, isThinShare, shareSaid, shareWasWords, type ReportStripTile } from "../tiles";
+import { dayPointOf, endedOn } from "../dtos";
+import { rangeLabelOf, withinWords } from "../reports";
+import { sequenceRoute } from "../../campaigns/sequences/address";
 
 /**
  * A line of the sources table: a reach-out, then each of its steps on its own line. Every cell is words, in businesses
@@ -259,7 +253,7 @@ function businessesPart(dto: ReachOutReportDto, when: WhenWords): MixPartVM {
     ["interested", "Interested", interested],
     ["booked", "Booked", booked],
     // Won (00426): a deal naming the business, won; not said where the database does not count it.
-    ...(isCount(won) ? ([["won", "Won", won]] as MixEntry[]) : []),
+    ...(isCount(won) ? ([["won", "Won", won]] satisfies MixEntry[]) : []),
     ["said_no", "Said no", said_no],
   ];
   const shares =
@@ -319,25 +313,26 @@ function anglesPart(dto: ReachOutReportDto, when: WhenWords): ReachOutLensVM["an
  */
 function answeredCell(wroteBack: number, businesses: number | undefined): string {
   if (businesses === undefined || businesses === 0) return String(wroteBack);
-  const said = shareSaid(pct(wroteBack, businesses), wroteBack, businesses) ?? String(wroteBack);
-  return isThinShare(businesses, REPORT_MIN_N) ? said : `${said} (${wroteBack})`;
+  const sentence = shareSaid(pct(wroteBack, businesses), wroteBack, businesses) ?? String(wroteBack);
+  return isThinShare(businesses, REPORT_MIN_N) ? sentence : `${sentence} (${wroteBack})`;
 }
 
 /** The cells a line says: what a chain's steps sum to, or one step's own. */
-function cellsOf(c: ReachOutReportCounts, businesses: number | undefined) {
+function cellsOf(reportCounts: ReachOutReportCounts, businesses: number | undefined) {
   // A share of the emails written, from five (shareSaid: the count it is of under that, a dash of none); of the businesses likewise.
-  const landed = shareSaid(pct(c.delivered, c.written), c.delivered, c.written) ?? DASH;
-  const answered = answeredCell(c.wrote_back, businesses);
+  const landed =
+    shareSaid(pct(reportCounts.delivered, reportCounts.written), reportCounts.delivered, reportCounts.written) ?? DASH;
+  const answered = answeredCell(reportCounts.wrote_back, businesses);
   return {
-    written: String(c.written),
+    written: String(reportCounts.written),
     delivered: landed,
     businesses: businesses === undefined ? DASH : String(businesses),
     wroteBack: answered,
-    interested: String(c.interested),
-    booked: String(c.booked),
-    won: isCount(c.won) ? String(c.won) : DASH,
-    saidNo: String(c.said_no),
-    bounced: String(c.bounced),
+    interested: String(reportCounts.interested),
+    booked: String(reportCounts.booked),
+    won: isCount(reportCounts.won) ? String(reportCounts.won) : DASH,
+    saidNo: String(reportCounts.said_no),
+    bounced: String(reportCounts.bounced),
   };
 }
 
@@ -379,36 +374,36 @@ function chainBusinesses(steps: ReachOutReportStepDto[]): number | undefined {
   return sumOf(steps.map((s) => countedBusinesses(s) ?? 0));
 }
 
-function chainSourceLine(c: ReachOutReportChainDto, nowMs: number, tz: string): ReachOutLensSourceLine {
-  const last = c.last_at ? Date.parse(c.last_at) : NaN;
+function chainSourceLine(reportChain: ReachOutReportChainDto, nowMs: number, tz: string): ReachOutLensSourceLine {
+  const last = reportChain.last_at ? Date.parse(reportChain.last_at) : NaN;
   const meta = [
     "To leads",
-    plural(c.steps.length, "step"),
-    plural(c.runs, "run"),
-    c.search ? c.search.name : null,
-    c.state === "running" ? null : "paused",
+    plural(reportChain.steps.length, "step"),
+    plural(reportChain.runs, "run"),
+    reportChain.search ? reportChain.search.name : null,
+    reportChain.state === "running" ? null : "paused",
   ];
   return {
-    id: c.root_id,
+    id: reportChain.root_id,
     kind: "chain",
-    name: c.name,
+    name: reportChain.name,
     meta: meta.filter(Boolean).join(" · "),
-    to: sequenceRoute(c.root_id),
-    ...cellsOf(summed(c.steps), chainBusinesses(c.steps)),
+    to: sequenceRoute(reportChain.root_id),
+    ...cellsOf(summed(reportChain.steps), chainBusinesses(reportChain.steps)),
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : "",
   };
 }
 
-function stepSourceLine(root: string, s: ReachOutReportStepDto): ReachOutLensSourceLine {
+function stepSourceLine(root: string, reachOutReportStep: ReachOutReportStepDto): ReachOutLensSourceLine {
   const line = {
-    id: `${root}:${s.id}`,
+    id: `${root}:${reachOutReportStep.id}`,
     kind: "step",
-    name: `${s.n + 1} · ${stepLabelOf({ n: s.n, hand: s.hand ? { kind: s.hand } : null })}`,
+    name: `${reachOutReportStep.n + 1} · ${stepLabelOf({ n: reachOutReportStep.n, hand: reachOutReportStep.hand ? { kind: reachOutReportStep.hand } : null })}`,
     to: null,
     last: "",
   } as const;
-  if (s.hand) return { ...line, meta: `${s.handed} handed to you`, ...HAND_CELLS };
-  return { ...line, meta: "", ...cellsOf(s, countedBusinesses(s)) };
+  if (reachOutReportStep.hand) return { ...line, meta: `${reachOutReportStep.handed} handed to you`, ...HAND_CELLS };
+  return { ...line, meta: "", ...cellsOf(reachOutReportStep, countedBusinesses(reachOutReportStep)) };
 }
 
 function sourceLines(dto: ReachOutReportDto, nowMs: number): ReachOutLensSourceLine[] {
@@ -424,16 +419,16 @@ function sourceLines(dto: ReachOutReportDto, nowMs: number): ReachOutLensSourceL
  * A mailbox's state as the card says it: connected, held since a day and why, or not sending; the emails their owner sent
  * from their own inbox (00429) are theirs.
  */
-function mailboxStateWords(d: ReachOutReportMailboxDto, nowMs: number, tz: string): string {
-  if (d.yours) return "You send these";
-  if (d.address === null || d.state === "removed") return "Since removed";
-  if (d.state === "connected") return "Connected";
-  if (d.state === "held") {
-    const held = d.held_at ? Date.parse(d.held_at) : NaN;
+function mailboxStateWords(reportMailbox: ReachOutReportMailboxDto, nowMs: number, tz: string): string {
+  if (reportMailbox.yours) return "You send these";
+  if (reportMailbox.address === null || reportMailbox.state === "removed") return "Since removed";
+  if (reportMailbox.state === "connected") return "Connected";
+  if (reportMailbox.state === "held") {
+    const held = reportMailbox.held_at ? Date.parse(reportMailbox.held_at) : NaN;
     const since = Number.isFinite(held) ? ` since ${clockNear(held, tz, nowMs)}` : "";
-    return `Held${since}: ${mailboxHoldWords(d.held_why)}`;
+    return `Held${since}: ${mailboxHoldWords(reportMailbox.held_why)}`;
   }
-  if (d.state === "reconnect") return "Signed out: reconnect it";
+  if (reportMailbox.state === "reconnect") return "Signed out: reconnect it";
   return "Paused";
 }
 
@@ -446,28 +441,28 @@ function mailboxCell(n: number, sent: number, share: (n: number, of: number) => 
 }
 
 function mailboxRows(dto: ReachOutReportDto, nowMs: number): ReachOutMailboxRow[] {
-  return dto.mailboxes.map((d) =>
-    d.yours
+  return dto.mailboxes.map((mailbox) =>
+    mailbox.yours
       ? // Sent from their own inbox (00429): a bounce or a complaint reaches them, never us, so no share is said.
         {
           id: "your-inbox",
           address: "Your own inbox",
-          state: mailboxStateWords(d, nowMs, dto.timezone),
+          state: mailboxStateWords(mailbox, nowMs, dto.timezone),
           held: false,
-          sent: d.sent,
+          sent: mailbox.sent,
           landed: DASH,
           bounced: DASH,
           complained: DASH,
         }
       : {
-          id: d.address ?? "removed",
-          address: d.address ?? "A mailbox since removed",
-          state: mailboxStateWords(d, nowMs, dto.timezone),
-          held: d.state === "held",
-          sent: d.sent,
-          landed: mailboxCell(d.delivered, d.sent, pct),
-          bounced: mailboxCell(d.bounced, d.sent, tenthOf),
-          complained: mailboxCell(d.complained, d.sent, tenthOf),
+          id: mailbox.address ?? "removed",
+          address: mailbox.address ?? "A mailbox since removed",
+          state: mailboxStateWords(mailbox, nowMs, dto.timezone),
+          held: mailbox.state === "held",
+          sent: mailbox.sent,
+          landed: mailboxCell(mailbox.delivered, mailbox.sent, pct),
+          bounced: mailboxCell(mailbox.bounced, mailbox.sent, tenthOf),
+          complained: mailboxCell(mailbox.complained, mailbox.sent, tenthOf),
         },
   );
 }

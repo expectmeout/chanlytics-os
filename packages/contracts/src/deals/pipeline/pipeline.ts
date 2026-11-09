@@ -18,20 +18,20 @@
  * deal's own wherever it has them (DealVM); nothing is decided twice. Every other word the Pipeline says is here, and
  * a page only composes it. Pure.
  *
- * This module builds the Pipeline (pipelineOf) in the shape pipeline-vm.ts declares and in pipeline-words.ts's
- * words. Its views, the rail and the address are pipeline-views.ts's; the peek is pipeline-peek.ts's; the board's
- * moves, the rows' order and a selection's pass are pipeline-board.ts's.
+ * This module builds the Pipeline (pipelineOf) in the shape pipeline/vm.ts declares and in pipeline/words.ts's
+ * words. Its views, the rail and the address are pipeline/views.ts's; the peek is pipeline/peek.ts's; the board's
+ * moves, the rows' order and a selection's pass are pipeline/board.ts's.
  */
-import { visitStateOf } from "../../calendar/calendar-words";
+import { visitStateOf } from "../../calendar/words/visit";
 import { clockDate, clockNear, clockNearWhen } from "../../shared/clock";
 import { plural } from "../../shared/words";
 import { DEAL_CARD_WORDS } from "../sheet/deal-card";
-import { amountTotalsWords } from "../deal-amount";
-import { daysInStageWords, dealIsOpen, wholeDaysSince, type DealVM } from "../deal-vm";
-import { heardSinceProposal, proposalTone, waitingOnProposal, type DealPaceVM } from "../deal-waits";
-import { consultationsWithoutProposal, consultsHeldWords, dealStageOf } from "../deal-consultations";
+import { amountTotalsWords } from "../amount";
+import { daysInStageWords, dealIsOpen, wholeDaysSince, type DealVM } from "../vm";
+import { heardSinceProposal, proposalTone, waitingOnProposal, type DealPaceVM } from "../waits";
+import { consultationsWithoutProposal, consultsHeldWords, dealStageOf } from "../consultations";
 import { stepDayOf } from "../../notes/steps";
-import { followUpWords } from "../../playbooks/playbooks";
+import { followUpWords } from "../../campaigns/playbooks/playbooks";
 import type {
   PipelineChip,
   PipelineGroupKey,
@@ -43,12 +43,12 @@ import type {
   PipelineStep,
   PipelineVM,
   PipelineFilter,
-} from "./pipeline-vm";
-import { pipelineRowId } from "./pipeline-vm";
-import { GROUP_WORDS, PIPELINE_WORDS } from "./pipeline-words";
-import { serviceOf, stepDue, type PipelineView } from "./pipeline-views";
+} from "./vm";
+import { pipelineRowId } from "./vm";
+import { GROUP_WORDS, PIPELINE_WORDS } from "./words";
+import { serviceOf, stepDue, type PipelineView } from "./views";
 
-const upper = (s: string): string => (s ? `${s[0].toUpperCase()}${s.slice(1)}` : s);
+const upper = (s: string): string => (s ? `${(s[0] ?? "").toUpperCase()}${s.slice(1)}` : s);
 /** A time in stage in words, "8 d" or "today", from the one count of whole days (wholeDaysSince); "" without one. */
 const daysWords = (days: number | null): string => (days === null ? "" : daysInStageWords(days));
 /** A visit is said by the calendar's own clock, as People says it (PersonRowVM.nextVisit). */
@@ -61,31 +61,31 @@ const followUpOfRow = (r: PipelineSource, d: DealVM): PipelineSource["followUp"]
 /**
  * A proposal out's one chip, the first that holds: past its day, nothing back in a week, heard back since, its day, no
  * link to it. Past its day is first: it is the owner's whatever came back since, and the chip says who a deal waits on
- * as its steps do (deal-waits.ts proposalTone), so a lapsed proposal is never said in the info tone.
+ * as its steps do (deals/waits.ts proposalTone), so a lapsed proposal is never said in the info tone.
  * "Heard back", not "They wrote": what came back (`askedMs`) is the later of their last message and a call they placed.
  * The wait is said once: its number is the row's In stage, so the chip says "Nothing back" and no figure.
  */
 function proposalChip(
-  r: PipelineSource,
-  d: DealVM,
+  pipelineSource: PipelineSource,
+  deal: DealVM,
   tz: string,
   nowMs: number,
   pace: DealPaceVM | null,
 ): PipelineChip | null {
   // Judged against this row's deal (0029): the person's other proposal has its own row and its own wait.
-  const mine = { deal: d, askedMs: r.askedMs };
-  const followUp = followUpOfRow(r, d);
-  if (d.validUntil?.lapsed) return { words: d.validUntil.words, tone: "warn" };
+  const mine = { deal: deal, askedMs: pipelineSource.askedMs };
+  const followUp = followUpOfRow(pipelineSource, deal);
+  if (deal.validUntil?.lapsed) return { words: deal.validUntil.words, tone: "warn" };
   if (waitingOnProposal(mine, nowMs, pace))
     return followUp?.kind === "will"
       ? { words: followUpWords(followUp, tz, nowMs), tone: "info" }
       : { words: PIPELINE_WORDS.nothingBack, tone: "warn" };
-  if (heardSinceProposal(mine) && r.askedMs !== null)
-    return { words: `Heard back ${clockNear(r.askedMs, tz, nowMs)}`, tone: "info" };
-  if (d.validUntil) return { words: d.validUntil.words, tone: "plain" };
+  if (heardSinceProposal(mine) && pipelineSource.askedMs !== null)
+    return { words: `Heard back ${clockNear(pipelineSource.askedMs, tz, nowMs)}`, tone: "info" };
+  if (deal.validUntil) return { words: deal.validUntil.words, tone: "plain" };
   // Recorded with no link: an honest one (a PDF sent by email, a meeting), so a fact at rest, never a warning (0008);
   // the deal card's own words for it.
-  if (!d.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "plain" };
+  if (!deal.proposal) return { words: DEAL_CARD_WORDS.noLink, tone: "plain" };
   return null;
 }
 
@@ -94,8 +94,8 @@ const clientChip = (d: DealVM): PipelineChip | null => (d.since ? { words: upper
 
 /** Passed or ended: why they passed, else the stage's word, and the day it closed ("Price · Sep 20", "Ended · Sep 12"). */
 function closedChip(d: DealVM, tz: string, nowMs: number): PipelineChip {
-  const what = d.reason ? d.reason.words : d.word;
-  return { words: d.sinceMs === null ? what : `${what} · ${clockDate(d.sinceMs, tz, nowMs)}`, tone: "plain" };
+  const subject = d.reason ? d.reason.words : d.word;
+  return { words: d.sinceMs === null ? subject : `${subject} · ${clockDate(d.sinceMs, tz, nowMs)}`, tone: "plain" };
 }
 
 const step = (
@@ -110,7 +110,7 @@ const step = (
 
 /**
  * A deal's steps: the consultation where one was held, then the proposal and the client -- a proposal out is where it
- * stands, in the tone of who it waits on (deal-waits.ts proposalTone, the one rule the deal sheet and the person page's
+ * stands, in the tone of who it waits on (deals/waits.ts proposalTone, the one rule the deal sheet and the person page's
  * card draw it in too); a client has come through both. A pass or an end has none.
  */
 function dealTrack(r: PipelineSource, d: DealVM, nowMs: number, pace: DealPaceVM | null): PipelineStep[] {
@@ -144,13 +144,13 @@ function stepOn<T extends PipelineSource>(x: PipelineRowBody<T>, n: PipelineNext
 }
 
 function dealRow<T extends PipelineSource>(
-  x: { r: T; d: DealVM; id: string },
+  input: { r: T; d: DealVM; id: string },
   chip: PipelineChip | null,
   nowMs: number,
   group: PipelineGroupKey,
   pace: DealPaceVM | null,
 ): PipelineRowBody<T> {
-  const { r, d, id } = x;
+  const { r, d, id } = input;
   return {
     id,
     group,
@@ -169,24 +169,24 @@ function dealRow<T extends PipelineSource>(
 /**
  * A consultation that has ended with no proposal since: when, and the step not taken yet. The rule measures from its end
  * (`consultedMs`); the words date it from its start, the day it was, so one that took Monday reads Monday. It is
- * said as the visit is everywhere (calendar-words.ts visitStateOf, D1-consult-held): "Kept" where the owner said they came,
+ * said as the visit is everywhere (calendar/words.ts visitStateOf, D1-consult-held): "Kept" where the owner said they came,
  * "Past" where nobody said, never "Held", which says it took place. A missed one is no consultation to follow (the row's
  * last visit leaves it out).
  */
-function heldRow<T extends PipelineSource>(r: T, endMs: number, tz: string, nowMs: number): PipelineRowBody<T> {
-  const heldMs = r.lastVisitMs !== null && Number.isFinite(r.lastVisitMs) ? r.lastVisitMs : endMs;
-  const said = visitStateOf(r.lastVisitLine?.mark ?? null, endMs, nowMs);
+function heldRow<T extends PipelineSource>(item: T, endMs: number, tz: string, nowMs: number): PipelineRowBody<T> {
+  const heldMs = item.lastVisitMs !== null && Number.isFinite(item.lastVisitMs) ? item.lastVisitMs : endMs;
+  const visitState = visitStateOf(item.lastVisitLine?.mark ?? null, endMs, nowMs);
   return {
-    id: r.id,
+    id: item.id,
     group: "consultations",
-    name: r.name,
-    person: r,
+    name: item.name,
+    person: item,
     deal: null,
     service: null,
     value: null,
     inStage: daysWords(wholeDaysSince(heldMs, nowMs)),
     chip: {
-      words: `${said ? `${said.text} ` : ""}${clockNear(heldMs, zoneOf(r, tz), nowMs)} · no proposal yet`,
+      words: `${visitState ? `${visitState.text} ` : ""}${clockNear(heldMs, zoneOf(item, tz), nowMs)} · no proposal yet`,
       tone: "warn",
     },
     // Held, and the proposal is the step now: in warn, as the chip says it, since it waits on the owner.
@@ -196,18 +196,18 @@ function heldRow<T extends PipelineSource>(r: T, endMs: number, tz: string, nowM
 
 /** A consultation coming up: when it is ("Fri 2:00 PM", or the day alone for one that takes the day). */
 function aheadRow<T extends PipelineSource>(
-  r: T,
-  c: { startMs: number; allDay: boolean },
+  item: T,
+  context: { startMs: number; allDay: boolean },
   tz: string,
   nowMs: number,
 ): PipelineRowBody<T> {
-  const zone = zoneOf(r, tz);
-  const when = c.allDay ? clockNear(c.startMs, zone, nowMs) : clockNearWhen(c.startMs, zone, nowMs);
+  const zone = zoneOf(item, tz);
+  const when = context.allDay ? clockNear(context.startMs, zone, nowMs) : clockNearWhen(context.startMs, zone, nowMs);
   return {
-    id: r.id,
+    id: item.id,
     group: "consultations",
-    name: r.name,
-    person: r,
+    name: item.name,
+    person: item,
     deal: null,
     service: null,
     value: null,
@@ -270,24 +270,24 @@ function bandsOf<T extends PipelineSource>(
   nowMs: number,
 ): PipelineBands<T> {
   const out: PipelineBands<T> = { ahead: [], proposals: [], clients: [], closed: [] };
-  for (const r of rows) {
-    const held = heldSet.has(r);
-    const stage = held ? "consultation" : dealStageOf(r, nowMs);
-    const aheadOf = !held && stage === "consultation" ? r.consultAhead : null;
-    if (aheadOf) out.ahead.push({ r, c: aheadOf });
+  for (const row of rows) {
+    const held = heldSet.has(row);
+    const stage = held ? "consultation" : dealStageOf(row, nowMs);
+    const aheadOf = !held && stage === "consultation" ? row.consultAhead : null;
+    if (aheadOf) out.ahead.push({ r: row, c: aheadOf });
     // Someone consulting has no open deal today (dealStageOf names an open one first); were one theirs, its row would
     // still never take the id their consultation's row has.
     const consulting = held || !!aheadOf;
-    const open = openOf(r);
+    const open = openOf(row);
     // The row their People row's deal stands for comes first, so it keeps their id; then the rest, newest first.
-    const first = open.find((d) => d === r.deal || (d.id !== null && d.id === r.deal?.id)) ?? open[0] ?? null;
+    const first = open.find((d) => d === row.deal || (d.id !== null && d.id === row.deal?.id)) ?? open[0] ?? null;
     const ordered = first ? [first, ...open.filter((d) => d !== first)] : [];
     ordered.forEach((d, i) => {
-      const id = pipelineRowId(r.id, consulting || i > 0 ? (d.id ?? String(i)) : null);
-      (d.stage === "proposed" ? out.proposals : out.clients).push({ r, d, id });
+      const id = pipelineRowId(row.id, consulting || i > 0 ? (d.id ?? String(i)) : null);
+      (d.stage === "proposed" ? out.proposals : out.clients).push({ r: row, d, id });
     });
-    if (!open.length && !consulting && r.deal && stage && stage !== "consultation")
-      out.closed.push({ r, d: r.deal, id: r.id });
+    if (!open.length && !consulting && row.deal && stage && stage !== "consultation")
+      out.closed.push({ r: row, d: row.deal, id: row.id });
   }
   return out;
 }

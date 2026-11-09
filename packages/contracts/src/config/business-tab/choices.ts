@@ -31,9 +31,9 @@ export interface BookingFacts {
 }
 
 /** The choice the stored fields come to, by what the receptionist does with them. */
-export function bookingChoiceOf(f: BookingFacts): BookingChoice {
-  if (f.takes) return "confirm";
-  if (!f.held && f.linkInChat) return "link";
+export function bookingChoiceOf(bookingFacts: BookingFacts): BookingChoice {
+  if (bookingFacts.takes) return "confirm";
+  if (!bookingFacts.held && bookingFacts.linkInChat) return "link";
   return "person";
 }
 
@@ -48,27 +48,33 @@ export type ChoiceWrite =
  * or one that changes nothing yet; the cleanup after it only keeps a switch from lying in wait (requests left on under
  * a link a customer books with). A failed second write leaves the workspace in one of the three choices, never between.
  */
-export function bookingChoiceWrites(to: BookingChoice, f: Omit<BookingFacts, "takes" | "calendar">): ChoiceWrite[] {
+export function bookingChoiceWrites(
+  to: BookingChoice,
+  bookingFacts: Omit<BookingFacts, "takes" | "calendar">,
+): ChoiceWrite[] {
   const out: ChoiceWrite[] = [];
   if (to === "link") {
-    if (f.held) out.push({ kind: "policy", cls: "booking", mode: "auto" });
-    if (f.switchOn) out.push({ kind: "booking_requests", on: false });
+    if (bookingFacts.held) out.push({ kind: "policy", cls: "booking", mode: "auto" });
+    if (bookingFacts.switchOn) out.push({ kind: "booking_requests", on: false });
   } else if (to === "confirm") {
     // The switch first: under a link it waits until the row holds bookings, so nothing between the two is new.
-    if (!f.switchOn) out.push({ kind: "booking_requests", on: true });
-    if (f.linkInChat && !f.held) out.push({ kind: "policy", cls: "booking", mode: "ask" });
+    if (!bookingFacts.switchOn) out.push({ kind: "booking_requests", on: true });
+    if (bookingFacts.linkInChat && !bookingFacts.held) out.push({ kind: "policy", cls: "booking", mode: "ask" });
   } else {
     // The switch off first: with the row holding bookings, that alone is "you reply to each one".
-    if (f.switchOn) out.push({ kind: "booking_requests", on: false });
-    if (f.linkInChat && !f.held) out.push({ kind: "policy", cls: "booking", mode: "ask" });
+    if (bookingFacts.switchOn) out.push({ kind: "booking_requests", on: false });
+    if (bookingFacts.linkInChat && !bookingFacts.held) out.push({ kind: "policy", cls: "booking", mode: "ask" });
   }
   return out;
 }
 
 /** Why a choice cannot be made yet, or null: a link to send, a calendar to read open times from. */
-export function bookingChoiceNeeds(to: BookingChoice, f: Pick<BookingFacts, "linkInChat" | "calendar">): string | null {
-  if (to === "link" && !f.linkInChat) return BOOKING_CHOICE_WORDS.needs.link;
-  if (to === "confirm" && !f.calendar) return BOOKING_CHOICE_WORDS.needs.confirm;
+export function bookingChoiceNeeds(
+  to: BookingChoice,
+  bookingFacts: Pick<BookingFacts, "linkInChat" | "calendar">,
+): string | null {
+  if (to === "link" && !bookingFacts.linkInChat) return BOOKING_CHOICE_WORDS.needs.link;
+  if (to === "confirm" && !bookingFacts.calendar) return BOOKING_CHOICE_WORDS.needs.confirm;
   return null;
 }
 
@@ -105,24 +111,24 @@ export interface PriceFacts {
   handed: boolean;
 }
 
-export function priceChoiceOf(f: PriceFacts): PriceChoice {
-  if (f.handed) return "yours";
-  return f.neverQuote ? "never" : "written";
+export function priceChoiceOf(priceFacts: PriceFacts): PriceChoice {
+  if (priceFacts.handed) return "yours";
+  return priceFacts.neverQuote ? "never" : "written";
 }
 
 /**
  * The writes that make `to` true, in order. The rule first: while the row hands every such question to a person it
  * changes nothing a customer reads, so a failed second write leaves "hands it to you" standing.
  */
-export function priceChoiceWrites(to: PriceChoice, f: PriceFacts): ChoiceWrite[] {
+export function priceChoiceWrites(to: PriceChoice, priceFacts: PriceFacts): ChoiceWrite[] {
   const out: ChoiceWrite[] = [];
   if (to === "yours") {
-    if (!f.handed) out.push({ kind: "policy", cls: "faq", mode: "ask" });
+    if (!priceFacts.handed) out.push({ kind: "policy", cls: "faq", mode: "ask" });
     return out;
   }
   const neverQuote = to === "never";
-  if (f.neverQuote !== neverQuote) out.push({ kind: "never_quote_prices", on: neverQuote });
-  if (f.handed) out.push({ kind: "policy", cls: "faq", mode: "auto" });
+  if (priceFacts.neverQuote !== neverQuote) out.push({ kind: "never_quote_prices", on: neverQuote });
+  if (priceFacts.handed) out.push({ kind: "policy", cls: "faq", mode: "auto" });
   return out;
 }
 

@@ -9,7 +9,7 @@
  *   build-manifest.json           the runtime every page loads (its root main files; the polyfills are left out, a
  *                                 current browser never fetches them)
  *   a page's client manifest      the chunks and stylesheets of every segment on the page, from the root layout down:
- *                                 the workspace's layout's carry the shell, which LegacyHost imports (until 17 Oct
+ *                                 the workspace's layout's carry the shell, which FrameHost imports (until 17 Oct
  *                                 2026 by `import()`, and the loadable manifest named it)
  *   a page's loadable manifest    what `next/dynamic` loads when the page draws, where it names anything
  *
@@ -80,7 +80,7 @@ const KINDS = ["js", "css"];
 const LABELS = { js: "route JS", css: "route CSS" };
 /** How a person runs this, for the messages that name a flag. */
 const COMMAND = "corepack pnpm check:bundle";
-const BASELINE = "tooling/scripts/tests/baselines/bundle-ceiling.json";
+const BASELINE = "tests/baselines/bundle-ceiling.json";
 
 /** A build that is not the shape this reads: fails with exit 2, rather than measuring less. */
 class BuildShape extends Error {}

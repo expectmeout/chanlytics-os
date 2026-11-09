@@ -1,0 +1,732 @@
+/**
+ * WhatsApp Cloud API adapter (Blueprint P2): normalizes webhook payloads into
+ * canonical events and performs sends. No persistence, no decisions — the edge
+ * wires this to the repositories. Config is passed in; env is never read here.
+ */
+import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, recordOrEmpty, valueAt } from "@chanlytics/contracts";
+import { REFERRAL_ID_MAX } from "./first-touch";
+import { asksToStop } from "../inbound/stop-request";
+import { answerObject, fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
+import { errField, logger } from "@chanlytics/log";
+import type { InboundMessage } from "../inbound/inbound";
+
+const GRAPH = "https://graph.facebook.com/v25.0";
+
+export interface WaConfig {
+  phoneId: string;
+  accessToken: string;
+}
+
+/* ------------------------------- inbound ------------------------------- */
+
+export interface WaRawMessage {
+  from: string;
+  id: string;
+  type: string;
+  timestamp?: string;
+  text?: { body?: string };
+  image?: { id?: string; mime_type?: string; caption?: string };
+  audio?: { id?: string; mime_type?: string };
+  video?: { id?: string; mime_type?: string; caption?: string };
+  document?: { id?: string; mime_type?: string; caption?: string; filename?: string };
+  sticker?: { id?: string; mime_type?: string };
+  /** Tap on a TEMPLATE quick-reply button. Both fields hold the label. */
+  button?: { payload?: string; text?: string };
+  /** Tap on an interactive reply button, or a pick from an interactive list. */
+  interactive?: {
+    type?: string;
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string; description?: string };
+  };
+  /** An emoji tapped onto one of OUR messages. Carries no request. */
+  reaction?: { message_id?: string; emoji?: string };
+  /** A pin drop. Readable by a person, and useful — unlike a voice note. */
+  location?: { latitude?: number; longitude?: number; name?: string; address?: string };
+  /** One or more shared contact cards. */
+  contacts?: Array<{ name?: { formatted_name?: string }; phones?: Array<{ phone?: string }> }>;
+  /** Platform housekeeping (a customer changed their number). Not from a person. */
+  system?: { body?: string; type?: string };
+  /**
+   * Present when the person came in through a click-to-WhatsApp ad or post: Meta names it (`source_id`) and says what
+   * it was (`source_type`). The rest of it (headline, link, click id) is never kept. This is the shape Meta documents,
+   * not one a message is trusted to have: `adReferralOf` reads it without assuming any of it.
+   */
+  referral?: { source_id?: string; source_type?: string };
+}
+
+export interface WaChangeValue {
+  metadata?: { phone_number_id?: string; display_phone_number?: string };
+  contacts?: Array<{ wa_id?: string; profile?: { name?: string } }>;
+  messages?: WaRawMessage[];
+  /** Receipts for what we sent: `timestamp` is when Meta says the status happened, in seconds, as a string. */
+  statuses?: Array<{
+    id?: string;
+    status?: string;
+    timestamp?: string;
+    recipient_id?: string;
+    errors?: unknown;
+    pricing?: unknown;
+  }>;
+  message_echoes?: Array<{ to?: string; id?: string; text?: { body?: string } }>;
+  /** A chunk of the chat history the business shared as its app was kept (coexistence, the `history` field). */
+  history?: WaHistoryChunk[];
+  /** The app's contacts, as the business keeps them there (coexistence, the `smb_app_state_sync` field). */
+  state_sync?: WaStateSyncItem[];
+  errors?: WaGraphNotice[];
+}
+
+/** An error Meta puts in a webhook's value: its code and its words. */
+interface WaGraphNotice {
+  code?: number;
+  title?: string;
+  message?: string;
+}
+
+/* ----------------- what came before, as the kept app shares it (coexistence) ----------------- */
+
+/** One message of a shared chat: `to` only on what the business sent. A type-named object holds the contents. */
+interface WaHistoryMessage extends Partial<Omit<WaRawMessage, "from" | "id" | "type">> {
+  from?: string;
+  to?: string;
+  id?: string;
+  type?: string;
+  history_context?: { status?: string };
+}
+
+/**
+ * A chunk of the history (Meta's "Onboarding WhatsApp Business app users"): which of the three phases it belongs to
+ * (0 the day before the number connected, 1 back to 90 days, 2 back to 180), its place, how far the whole has come
+ * (100 is all of it), and the one-to-one chats in it. A business that turned sharing off is told as an error instead.
+ */
+export interface WaHistoryChunk {
+  metadata?: { phase?: number; chunk_order?: number; progress?: number };
+  threads?: Array<{ id?: string; messages?: WaHistoryMessage[] }>;
+  errors?: WaGraphNotice[];
+}
+
+/** One contact of the kept app: added or removed, with the names it is kept under (none on a removal). */
+export interface WaStateSyncItem {
+  type?: string;
+  contact?: { full_name?: string; first_name?: string; phone_number?: string };
+  action?: string;
+  metadata?: { timestamp?: string };
+}
+
+/** Meta's code for a history the business chose not to share, in the app's own prompt. */
+export const WA_HISTORY_NOT_SHARED = 2593109;
+
+/** A message of the history, as the edge keeps it: whose chat, which way it went, its words, and when. */
+export interface WaHistoryRead {
+  /** The chat's WhatsApp id: the customer's, as a message from them names them. */
+  thread: string;
+  messageId: string;
+  direction: "inbound" | "outbound";
+  type: "text" | "media";
+  body: string | null;
+  at: string;
+  rawType: string;
+  status: string | null;
+}
+
+/** What one delivery's history change says: its phase and progress, a refusal to share, and its messages in order. */
+export interface WaHistoryOf {
+  phase: number | null;
+  progress: number | null;
+  declined: boolean;
+  messages: WaHistoryRead[];
+}
+
+const digitsOf = (v: string | undefined): string => (v ?? "").replace(/\D/g, "");
+
+/** The words a message of any type carries: a text's body, an attachment's caption; none for the rest. */
+function historyWordsOf(m: WaHistoryMessage): string | null {
+  const t = m.type ?? "";
+  if (t === "text") return m.text?.body?.trim() || null;
+  const caption = t ? valueAt(m, t, "caption") : null;
+  return typeof caption === "string" && caption.trim() ? caption.trim() : null;
+}
+
+/** One message of a chat, or null for one with no id or no time (nothing to keep it once by, or to place it). */
+function historyMessageOf(waHistoryMessage: WaHistoryMessage, thread: string, business: string): WaHistoryRead | null {
+  const secs = Number(waHistoryMessage.timestamp);
+  if (!waHistoryMessage.id || !Number.isFinite(secs) || secs <= 0) return null;
+  const outbound = !!waHistoryMessage.to || (!!business && digitsOf(waHistoryMessage.from) === business);
+  return {
+    thread,
+    messageId: waHistoryMessage.id,
+    direction: outbound ? "outbound" : "inbound",
+    type: waHistoryMessage.type === "text" ? "text" : "media",
+    body: historyWordsOf(waHistoryMessage),
+    at: new Date(secs * 1000).toISOString(),
+    rawType: waHistoryMessage.type ?? "unknown",
+    status: waHistoryMessage.history_context?.status ?? null,
+  };
+}
+
+const noticesOf = (v: unknown): WaGraphNotice[] => (Array.isArray(v) ? (v as WaGraphNotice[]) : []);
+
+/**
+ * A `history` change read: every chunk's chats as messages, each named by its chat (a business-sent one by its `to`),
+ * the furthest phase and progress any chunk says, and whether the business declined to share (code 2593109, on the
+ * value or on a chunk). Group chats are never in it; what has no id or no time is left out.
+ */
+export function sharedHistoryOf(waChange: WaChangeValue): WaHistoryOf {
+  const business = digitsOf(waChange.metadata?.display_phone_number);
+  let phase: number | null = null;
+  let progress: number | null = null;
+  let declined = noticesOf(waChange.errors).some((e) => e.code === WA_HISTORY_NOT_SHARED);
+  const messages: WaHistoryRead[] = [];
+  for (const chunk of waChange.history ?? []) {
+    if (noticesOf(chunk.errors).some((e) => e.code === WA_HISTORY_NOT_SHARED)) declined = true;
+    const md = chunk.metadata ?? {};
+    if (typeof md.phase === "number") phase = Math.max(phase ?? 0, md.phase);
+    if (typeof md.progress === "number") progress = Math.max(progress ?? 0, md.progress);
+    for (const t of chunk.threads ?? []) {
+      const thread = digitsOf(t.id);
+      if (!thread) continue;
+      for (const m of t.messages ?? []) {
+        const read = historyMessageOf(m, thread, business);
+        if (read) messages.push(read);
+      }
+    }
+  }
+  return { phase, progress, declined, messages };
+}
+
+/** A contact the kept app shared: its number as dialled, and the name it is kept under. */
+export interface WaSyncedContact {
+  phone: string;
+  name: string | null;
+}
+
+/** The contacts a `smb_app_state_sync` change adds; a removal is the app's own business and changes nothing here. */
+export function contactsSyncedOf(waChange: WaChangeValue): WaSyncedContact[] {
+  const out: WaSyncedContact[] = [];
+  for (const s of waChange.state_sync ?? []) {
+    if ((s.type && s.type !== "contact") || s.action === "remove") continue;
+    const digits = digitsOf(s.contact?.phone_number);
+    if (digits.length < 7) continue;
+    const name = (s.contact?.full_name ?? s.contact?.first_name ?? "").trim();
+    out.push({ phone: `+${digits}`, name: name || null });
+  }
+  return out;
+}
+
+export interface WaMediaRef {
+  provider_media_id: string;
+  mime_type: string | null;
+  caption: string | null;
+  filename: string | null;
+  fetch_state: "pending" | "stored" | "failed";
+  storage_path?: string;
+}
+
+/** Canonical view of one inbound customer message. */
+export interface NormalizedInbound {
+  waId: string; // sender id verbatim (identity external_id)
+  phoneDigits: string; // dialable digits (m.from)
+  profileName: string | null;
+  messageId: string;
+  type: "text" | "media";
+  /**
+   * What KIND of thing arrived, which is not the same question as which column
+   * it is stored in.
+   *
+   * `type` above answers "text or attachment" and maps to messages.type. It
+   * cannot answer "should the receptionist apologise for this", and collapsing
+   * the two is how a thumbs-up came to mute the bot for a day: anything that
+   * was not text or an attachment fell into "media with no body", and the
+   * edge's unreadable branch then acknowledged it, paused the receptionist for
+   * pauseMs, opened an escalation and emailed the owner. A reaction carries no
+   * request; a pin drop is perfectly readable by a person; a system notice is
+   * not from the customer at all. Each needs a different answer, so each gets
+   * a name.
+   */
+  kind: "text" | "media" | "reaction" | "location" | "contacts" | "system" | "unsupported";
+  rawType: string;
+  body: string | null;
+  channelTsIso: string | null;
+  media: WaMediaRef | null;
+  optOut: boolean;
+  /** An explicit START/ALTA — the only thing that lifts an opt-out. */
+  optIn: boolean;
+  /** The words were the OFFERS ones specifically -- express written consent to be marketed to, which is a separate answer. */
+  optInMarketing: boolean;
+  /** The ad or post this person clicked to write, when Meta says: its id and kind (K3). Null for a message with none. */
+  referral: { sourceId: string; sourceType: string | null } | null;
+}
+
+/**
+ * What a referral's id may not hold: a control character (a NUL among them) or a lone surrogate. Postgres refuses both
+ * inside the `p_meta` the id travels in (jsonb has no \u0000, and no lone surrogate is valid JSON), which would fail
+ * `ingest_inbound`, make `pgIngest` throw IngestFailed and the door answer 503, and Meta would redeliver the same payload
+ * for ever: the customer's message would never land. A whitespace control at either end is padding, trimmed before this
+ * is asked; one inside the id is refused.
+ */
+const UNSTORABLE_IN_ID = /[\p{Cc}\p{Cs}]/u;
+
+/**
+ * What a referral's kind may be: Meta's own are the words `ad` and `post`, so a word of letters, digits, `_` and `-`, at
+ * most 32 long. Anything else (a control character, a lone surrogate, a sentence, megabytes) is not a kind Meta sent and
+ * is kept as none; the kind has no column to agree with, so the 32 is said here and nowhere else.
+ */
+const REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
+
+/**
+ * The ad or post a message came from (K3), read defensively. A click-to-WhatsApp referral's shape is Meta's to change
+ * and unverified here, so nothing is assumed of `r`: it may be absent, not an object, or hold an id that is not a string.
+ * Only the id and the kind are kept, and only when what they hold can always be written. The id is trimmed (padding is
+ * not part of an id, and the trigger trims the same), then it is none when blank, longer than `REFERRAL_ID_MAX` (the one
+ * length the column keeps, contracts first-touch.ts; never cut, a cut id would name another ad) or holding what
+ * `UNSTORABLE_IN_ID` names: the stamp the database would refuse for it is the person's wire instead. The kind that is
+ * not a plain word is null, and the id stands. Never throws, so a referral can cost a message nothing.
+ */
+function adReferralOf(r: unknown): NormalizedInbound["referral"] {
+  if (typeof r !== "object" || r === null) return null;
+  return storableReferral("source_id" in r ? r.source_id : null, "source_type" in r ? r.source_type : null);
+}
+
+/**
+ * A referral's id and kind as a message may carry them, by the rules above: the id trimmed and kept only when it can
+ * always be written, the kind only when it is a plain word. Every wire's adapter reads its own referral through this
+ * one rule (an Instagram DM's ad or link too, instagram/events.ts). Never throws.
+ */
+export function storableReferral(rawId: unknown, rawKind: unknown): NormalizedInbound["referral"] {
+  const id = typeof rawId === "string" ? rawId.trim() : "";
+  if (id.length < 1 || id.length > REFERRAL_ID_MAX || UNSTORABLE_IN_ID.test(id)) return null;
+  const kind = typeof rawKind === "string" ? rawKind.trim() : "";
+  return { sourceId: id, sourceType: REFERRAL_KIND.test(kind) ? kind : null };
+}
+
+/**
+ * What the customer actually chose, for messages where they chose rather than
+ * typed — a template quick-reply, an interactive button, a list selection.
+ *
+ * `label` is the text they saw and tapped; `id` is the developer-set payload
+ * behind it. Both are consent-bearing. The label is what a Spanish-speaking
+ * customer reads ("Detener"), the id is what the tenant controls and can set to
+ * a canonical token, so a button whose label is localised still opts out when
+ * its id is "stop". Meta's own webhook reference uses "Unsubscribe" as the
+ * example button payload — a word already in OPT_OUT_PATTERN.
+ */
+function chosenReply(waRawMessage: WaRawMessage): { label: string; id: string } | null {
+  if (waRawMessage.button) {
+    // payload and text both carry the label; payload is the one a tenant can
+    // set independently when building the template.
+    const label = waRawMessage.button.text ?? waRawMessage.button.payload ?? "";
+    const id = waRawMessage.button.payload ?? "";
+    return label || id ? { label, id } : null;
+  }
+  const buttonReply = waRawMessage.interactive?.button_reply ?? waRawMessage.interactive?.list_reply;
+  if (buttonReply) {
+    const label = buttonReply.title ?? "";
+    const id = buttonReply.id ?? "";
+    return label || id ? { label, id } : null;
+  }
+  return null;
+}
+
+/** The attachment a message carries, as a reference to fetch later: nothing is downloaded here. Null without an id. */
+function mediaRefOf(
+  src: { id?: string; mime_type?: string; caption?: string; filename?: string } | null,
+): WaMediaRef | null {
+  if (!src?.id) return null;
+  return {
+    provider_media_id: src.id,
+    mime_type: src.mime_type ?? null,
+    caption: src.caption ?? null,
+    filename: src.filename ?? null,
+    fetch_state: "pending",
+  };
+}
+
+export function normalizeInbound(waRawMessage: WaRawMessage, value: WaChangeValue): NormalizedInbound {
+  // Never guess identity: contacts[0] can belong to a DIFFERENT sender in a
+  // batched webhook, and contact_identities.external_id is a permanent mapping.
+  const list = value.contacts || [];
+  const contact = list.find((c) => c.wa_id === waRawMessage.from) ?? (list.length === 1 ? list[0] : undefined);
+  const mediaSrc =
+    waRawMessage.image ||
+    waRawMessage.audio ||
+    waRawMessage.video ||
+    waRawMessage.document ||
+    waRawMessage.sticker ||
+    null;
+
+  // A tap IS text the customer sent — they just picked it instead of typing it.
+  // Treating button and list replies as unreadable was two bugs in one: the
+  // consent gate never saw a "Stop" button (so pressing it changed nothing),
+  // and the message fell through to the non-text branch, which answered a
+  // customer trying to unsubscribe with "sorry, I can't read that".
+  const chosen = chosenReply(waRawMessage);
+  const typed = waRawMessage.type === "text" && !!waRawMessage.text?.body;
+  const isText = typed || !!chosen;
+
+  // Everything that is neither typed text nor an attachment, named rather than
+  // lumped together. Location and contacts get a body a person can read, so
+  // they reach the operator as a fact rather than as "[location message]".
+  const loc = waRawMessage.location;
+  const cards = waRawMessage.contacts?.length ? waRawMessage.contacts : null;
+  const kind: NormalizedInbound["kind"] = isText
+    ? "text"
+    : waRawMessage.type === "reaction" && waRawMessage.reaction
+      ? "reaction"
+      : loc && (loc.latitude != null || loc.address || loc.name)
+        ? "location"
+        : cards
+          ? "contacts"
+          : waRawMessage.type === "system"
+            ? "system"
+            : mediaSrc?.id
+              ? "media"
+              : "unsupported";
+
+  const describeLocation = (): string => {
+    const where = [loc?.name, loc?.address].filter(Boolean).join(", ");
+    const coords = loc?.latitude != null && loc?.longitude != null ? `${loc.latitude}, ${loc.longitude}` : null;
+    return `Shared a location${where ? `: ${where}` : ""}${coords ? ` (${coords})` : ""}`;
+  };
+  const describeCards = (): string => {
+    const names = (cards ?? []).map((c) => c.name?.formatted_name || c.phones?.[0]?.phone).filter(Boolean);
+    return `Shared a contact card${names.length ? `: ${names.join(", ")}` : ""}`;
+  };
+
+  const body = typed
+    ? (waRawMessage.text?.body ?? "")
+    : chosen
+      ? chosen.label || chosen.id
+      : kind === "reaction"
+        ? (waRawMessage.reaction?.emoji ?? null)
+        : kind === "location"
+          ? describeLocation()
+          : kind === "contacts"
+            ? describeCards()
+            : kind === "system"
+              ? (waRawMessage.system?.body ?? null)
+              : null;
+
+  // Consent is tested against the label AND the developer-set id, so a tenant
+  // can make a localised button opt out by giving it the id "stop".
+  const consentText = [body, chosen?.id].filter((s): s is string => !!s);
+  const matches = (re: RegExp) => consentText.some((s) => re.test(s));
+  return {
+    waId: contact?.wa_id || waRawMessage.from,
+    phoneDigits: waRawMessage.from,
+    profileName: contact?.profile?.name || null,
+    messageId: waRawMessage.id,
+    // Reactions, locations, contact cards and system notices all carry words
+    // rather than bytes, so they are stored as text — messages.type has no
+    // column for them and needs none. `kind` is what routing consults.
+    type: isText || (body !== null && kind !== "media") ? "text" : "media",
+    kind,
+    rawType: waRawMessage.type,
+    body,
+    channelTsIso: waRawMessage.timestamp ? new Date(Number(waRawMessage.timestamp) * 1000).toISOString() : null,
+    media: mediaRefOf(mediaSrc),
+    optOut: isText && consentText.some((s) => asksToStop(s, "whatsapp")),
+    // WHICH yes, and only that one. START, UNSTOP, RESUME and ALTA answer the
+    // appointment question; YES OFFERS answers the offers question and nothing
+    // else. It used to answer both -- "texting OFFERS is also a way back in from
+    // a STOP" -- which is one opt-in enrolling a person in two programs: the
+    // thing the carriers refuse a campaign for (30913), and the message flow had
+    // to confess it in the field the refusal named. The way back in from a STOP
+    // is START, as the carriers' own reply to a STOP says.
+    optIn: isText && matches(CONVERSATION_OPT_IN_PATTERN),
+    optInMarketing: isText && matches(MARKETING_OPT_IN_PATTERN),
+    referral: adReferralOf(waRawMessage.referral),
+  };
+}
+
+/**
+ * A WhatsApp message as the one inbound shape (inbound.ts, decision 0001): the normaliser's reading of it, on its wire,
+ * by its person. The sender's id is their identity on WhatsApp, and the digits Meta sent it from their number.
+ */
+export function inboundFromWhatsapp(
+  waRawMessage: WaRawMessage,
+  value: WaChangeValue,
+): InboundMessage & { channel: "whatsapp" } {
+  const inbound = normalizeInbound(waRawMessage, value);
+  return {
+    channel: "whatsapp",
+    externalId: inbound.messageId,
+    identity: {
+      externalId: inbound.waId,
+      phoneE164: inbound.phoneDigits ? `+${inbound.phoneDigits}` : null,
+      email: null,
+    },
+    profileName: inbound.profileName,
+    type: inbound.type,
+    kind: inbound.kind,
+    rawType: inbound.rawType,
+    body: inbound.body,
+    channelTsIso: inbound.channelTsIso,
+    media: inbound.media,
+    consent: { optOut: inbound.optOut, optIn: inbound.optIn, optInMarketing: inbound.optInMarketing },
+    referral: inbound.referral,
+  };
+}
+
+/**
+ * What Meta says a message was billed as, on a `sent`, `delivered` or `read` receipt (K8): whether it is billable, the
+ * model that priced it and its category and type. Meta sends no amount and no currency, so none is kept: the operator
+ * prices a category by the recipient's country with Meta's rate card. A type alias, so it is a Json without a cast.
+ */
+export type WaPricing = { billable?: boolean; pricing_model?: string; category?: string; type?: string };
+
+/**
+ * A word of Meta's pricing (`PMP`, `utility`, `authentication-international`, `free_customer_service`): letters, digits, `_`
+ * and `-`, at most 40. Anything else (a sentence, a control character, a megabyte) is not one. The same word the
+ * database's message_keep_cost (00319) accepts, so what this keeps is what it stores: tied to it by
+ * tests/messages/a-message-keeps-what-it-cost-to-send.db.test.mjs, which runs one table of pricings
+ * through both, so an edit to either alone is a red test (database files run in CI when database paths change: run it).
+ */
+const PRICING_WORD = /^[A-Za-z0-9_-]{1,40}$/;
+
+/**
+ * Meta's `pricing` as kept, read without trusting any of it: each key stands or falls on its own, and nothing but the four
+ * is kept. The category is the key the operator prices by, and the cost door refuses an answer without one, so a pricing
+ * without a valid category is none (null), and the caller says it was dropped. Never throws.
+ */
+export function waPricingOf(raw: unknown): WaPricing | null {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const item = recordOrEmpty(raw);
+  const out: WaPricing = {};
+  if (typeof item.billable === "boolean") out.billable = item.billable;
+  for (const key of ["pricing_model", "category", "type"] as const) {
+    const word = item[key];
+    if (typeof word === "string" && PRICING_WORD.test(word)) out[key] = word;
+  }
+  return out.category ? out : null;
+}
+
+/**
+ * Meta's code for a message it did not deliver because the person chose, in WhatsApp, to stop marketing messages from
+ * this business (Cloud API error 131050, "This recipient has chosen to stop receiving marketing messages on WhatsApp
+ * from your business"). It comes in a failed receipt's `errors`. Not 131049 (Meta's own per-person limit on marketing
+ * templates) and not 131047 (the reply window): neither is the person's answer.
+ */
+const WA_STOPPED_MARKETING = 131050;
+
+/** Whether a receipt's `errors` say the person stopped marketing messages from this business. Never throws. */
+export function waStoppedMarketing(errors: unknown): boolean {
+  if (!Array.isArray(errors)) return false;
+  return errors.some((e) => Number(valueAt(e, "code")) === WA_STOPPED_MARKETING);
+}
+
+/* -------------------------------- sends -------------------------------- */
+
+export interface SendResult {
+  ok: boolean;
+  wamid: string | null;
+  status: number;
+  errorBody?: string;
+  /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
+  code?: number | null;
+  /** Graph's error_subcode, where it gives one: Instagram's refusal of a DM outside its window is code 10, subcode 2018278. */
+  subcode?: number | null;
+  /**
+   * A person's email reply only (core emailSender): whether it left by the connected mailbox it was frozen with, or as
+   * the workspace's hosted mailbox's request, and why not by its own when it could not.
+   */
+  leftAs?: "own" | "mailbox";
+  leftAsWhy?: EmailLeftAsWhy;
+  /**
+   * An email sent from a connected mailbox (decision 0056): the Message-ID it went under and the provider's thread it
+   * sits in, which no receipt will bring later. The door stamps both on its row (meta.email.message_id, thread_id).
+   */
+  email?: { messageId: string | null; threadId: string | null; mailboxId: string };
+  /**
+   * What the send came to (provider-fetch SendOutcome): `retryable` left nothing and may be tried again later;
+   * `unknown` may have been taken, and is never sent again blind. Absent from a wire's own refusal (no credentials, a
+   * request it will not send), which asked no provider.
+   */
+  outcome?: SendOutcome;
+}
+
+/**
+ * Why a person's reply frozen with a connected mailbox left as the hosted mailbox's request instead (N5, G15).
+ * `own_not_sending`: the mailbox it was frozen with stopped sending (signed out, paused, held) between the freeze and
+ * the send; `own_has_no_route`: it was removed.
+ */
+export type EmailLeftAsWhy =
+  "no_own_route" | "own_has_no_route" | "own_not_sending" | "twin_names_another_recipient" | "route_refuses_twin";
+
+/**
+ * Every Graph send goes through here. Two reasons:
+ *
+ * 1. A bare `fetch` REJECTS on a network fault (DNS, reset, TLS). That
+ *    rejection escaped the webhook's per-message loop into a single outer
+ *    catch that returns 200 — so Meta never retried, the loud send-failure
+ *    branch never ran, and the remaining messages in the batch were dropped
+ *    silently. A send adapter must RETURN a result, never throw.
+ * 2. It was unbounded. One hung connection to Graph could consume the whole
+ *    60s invocation and take the rest of the batch with it.
+ *
+ * status 0 means "never reached Meta", which is distinct from any HTTP status. Both are providerFetch's now, which
+ * also says what the send came to: Graph's "not now" (graphThrottled) left nothing, so it is `retryable` whatever
+ * its HTTP status.
+ *
+ * One try, under this bound and nothing shorter: the job runner starts a send only while the bound still ends inside its
+ * function (jobs ledger startByAt).
+ */
+export const WHATSAPP_SEND_TIMEOUT_MS = 15_000;
+
+async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
+  const response = await fetchFromProvider("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    timeoutMs: WHATSAPP_SEND_TIMEOUT_MS,
+    // A reply is always put on the wire: another call's timeouts never fail it (provider-fetch's breaker).
+    breaker: "count",
+  });
+  if (response.status === 0)
+    return { ok: false, wamid: null, status: 0, errorBody: response.error ?? "no answer", outcome: response.outcome };
+  const out = recordOrEmpty(answerObject(response));
+  const wamid = valueAt(out, "messages", 0, "id");
+  const code = valueAt(out, "error", "code");
+  const ok = response.outcome === "ok";
+  const sent: SendResult = {
+    ok,
+    wamid: typeof wamid === "string" ? wamid : null,
+    status: response.status,
+    errorBody: ok ? undefined : JSON.stringify(out).slice(0, 200),
+    // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
+    code: !ok && typeof code === "number" ? code : null,
+  };
+  return { ...sent, outcome: graphThrottled(sent) ? "retryable" : response.outcome };
+}
+
+/**
+ * Meta's "not now": the codes Graph answers when this number, this app or this
+ * business account has sent faster than it may. The message was not taken, so
+ * it may be tried again later, and nobody after it will get through sooner.
+ *
+ *   4        the app's calls ran over its rate limit
+ *   80007    the business account's rate limit
+ *   130429   the number's message throughput
+ *   131048   too many of the number's messages were blocked or reported, so
+ *            Meta is limiting how many it may send
+ *   131056   too many messages to the same person in a short while
+ *
+ * Distinct from a failure whose outcome is unknown: a timeout (status 0) or a
+ * 5xx may have been taken all the same, and is never read as a throttle.
+ */
+const GRAPH_THROTTLE_CODES: readonly number[] = [4, 80007, 130429, 131048, 131056];
+
+/** Whether Graph refused a send as too many, too fast: HTTP 429, or one of GRAPH_THROTTLE_CODES. */
+export function graphThrottled(row: { ok: boolean; status: number; code?: number | null }): boolean {
+  if (row.ok) return false;
+  return row.status === 429 || (typeof row.code === "number" && GRAPH_THROTTLE_CODES.includes(row.code));
+}
+
+export async function sendText(cfg: WaConfig, to: string, body: string): Promise<SendResult> {
+  return postGraph(cfg, { messaging_product: "whatsapp", to, type: "text", text: { body } });
+}
+
+/** Approved-template send — the only legal path outside the 24h window. */
+export async function sendTemplate(
+  cfg: WaConfig,
+  to: string,
+  template: { name: string; language: string; params: string[] },
+): Promise<SendResult> {
+  return postGraph(cfg, {
+    messaging_product: "whatsapp",
+    to,
+    type: "template",
+    template: {
+      name: template.name,
+      language: { code: template.language },
+      components: template.params.length
+        ? [{ type: "body", parameters: template.params.map((t) => ({ type: "text", text: t })) }]
+        : [],
+    },
+  });
+}
+
+/** How long the typing indicator is waited for: a courtesy, so never long. */
+const TYPING_TIMEOUT_MS = 3_000;
+
+/**
+ * The customer's message marked read with the typing indicator beside it, while the receptionist writes its answer:
+ * WhatsApp shows "typing..." until the reply arrives or twenty-five seconds pass (Cloud API, a status update carrying
+ * `typing_indicator`). A courtesy and never a send: it puts no words in front of anyone, so an open breaker holds it,
+ * and what it answers is only whether Graph took it.
+ */
+export async function sendTypingIndicator(cfg: WaConfig, messageId: string): Promise<boolean> {
+  const answer = await fetchFromProvider("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      status: "read",
+      message_id: messageId,
+      typing_indicator: { type: "text" },
+    }),
+    timeoutMs: TYPING_TIMEOUT_MS,
+  });
+  return answer.outcome === "ok";
+}
+
+/* -------------------------------- media -------------------------------- */
+
+/**
+ * Meta media URLs expire in minutes — fetch at ingest. Returns the bytes and
+ * mime so the caller can store them (Supabase Storage via the service client).
+ *
+ * BOUNDED, because this is awaited BEFORE the customer's acknowledgement goes
+ * out and before the rest of the webhook batch is handled. Both calls used to
+ * be bare `fetch` with no signal and no size limit, so one large video or one
+ * hung connection could consume the entire 60s invocation: the sender gets no
+ * reply, and every other message in that batch is dropped with it. Meta's
+ * retry then finds them already ingested and suppresses redelivery.
+ *
+ * The size cap is checked from Content-Length BEFORE reading the body, so an
+ * oversized file costs one round trip rather than the memory.
+ */
+const MEDIA_META_TIMEOUT_MS = 8_000;
+const MEDIA_BYTES_TIMEOUT_MS = 15_000;
+const MEDIA_MAX_BYTES = 25 * 1024 * 1024; // Meta's own document ceiling
+
+export async function fetchMediaBytes(
+  cfg: WaConfig,
+  providerMediaId: string,
+): Promise<{ bytes: ArrayBuffer; mime: string | null } | null> {
+  try {
+    // The media's address is Graph's JSON, asked through providerFetch; its bytes are a download, fetched below.
+    const metaRes = await fetchFromProvider("meta", `${GRAPH}/${providerMediaId}`, {
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+      timeoutMs: MEDIA_META_TIMEOUT_MS,
+      idempotent: true,
+      tries: 2,
+    });
+    // No answer at all is said as the thrown fetch was; Graph's own no is a null, as it was.
+    if (metaRes.status === 0) logger().error("media_fetch_failed", { media_id: providerMediaId, error: metaRes.error });
+    if (metaRes.outcome !== "ok") return null;
+    const meta = recordOrEmpty(answerObject(metaRes));
+    if (typeof meta.url !== "string" || !meta.url) return null;
+
+    const binRes = await fetch(meta.url, {
+      headers: { Authorization: `Bearer ${cfg.accessToken}` },
+      signal: AbortSignal.timeout(MEDIA_BYTES_TIMEOUT_MS),
+    });
+    if (!binRes.ok) return null;
+
+    const declared = Number(binRes.headers.get("content-length") ?? "0");
+    if (declared > MEDIA_MAX_BYTES) {
+      logger().error("media_too_large", { media_id: providerMediaId, bytes: declared });
+      return null;
+    }
+    const bytes = await binRes.arrayBuffer();
+    if (bytes.byteLength > MEDIA_MAX_BYTES) {
+      logger().error("media_too_large_after_read", { media_id: providerMediaId, bytes: bytes.byteLength });
+      return null;
+    }
+    return { bytes, mime: typeof meta.mime_type === "string" ? meta.mime_type : binRes.headers.get("content-type") };
+  } catch (e) {
+    // A timeout or network fault must return, not throw: the caller stores a
+    // 'failed' fetch_state and the conversation still reaches a human.
+    logger().error("media_fetch_failed", { media_id: providerMediaId, error: errField(e) });
+    return null;
+  }
+}

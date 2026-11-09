@@ -1,7 +1,7 @@
 import { wake } from "@chanlytics/core";
-import { write } from "@/server/route";
-import { conversationScope } from "@/server/verbs";
-import { threadPorts } from "@/server/ports/core-ports";
+import { write } from "@/server/shared/route";
+import { conversationScope } from "@/server/shared/verbs";
+import { threadPorts } from "@/server/conversations/ports";
 
 /** Wake now: end a snooze early and put the thread back exactly as it was. */
 export const POST = write({

@@ -14,12 +14,13 @@
  * a tick no code reads.
  */
 import { ALERT_ADDRESSES_MAX } from "../config/workspace-config/alerts";
-import { LEAD_QUESTION_WAIT_LINE } from "../leads/lead-plan";
+import { LEAD_QUESTION_WAIT_LINE } from "../leads/plan";
 import { agoShort } from "../shared/time";
 // The kinds as a type alone: the list is NOTIFICATION_DELIVERY's own keys, so the page's entry (alert-pane.ts) loads
 // nothing of the bell's feed.
-import type { ServerNotificationKind } from "./notifications";
+import type { ServerNotificationKind } from "./notifications/feed-input";
 import { BELL_LIST_ROWS, BELL_WINDOW_DAYS, type PushKind } from "./push";
+import { isOneOf, keysOf } from "../shared/unknown";
 
 /**
  * How each kept kind reaches the owner, beyond the row on the bell: by email as well, or on the bell alone.
@@ -67,6 +68,8 @@ const NOTIFICATION_DELIVERY = {
   reply_held: "bell",
   // Ask's morning cards on Today (00470): a line on the member's own bell, no more.
   ask_cards: "bell",
+  // Photos an import found, waiting for a person's word in Files (00551): a line on the bell, no more.
+  files_waiting: "bell",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
   website_form: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
@@ -79,9 +82,9 @@ export type EmailedNotificationKind = {
 export type BellNotificationKind = Exclude<ServerNotificationKind, EmailedNotificationKind>;
 
 /** Every kind the edge emails. */
-export const EMAILED_NOTIFICATION_KINDS: readonly EmailedNotificationKind[] = (
-  Object.keys(NOTIFICATION_DELIVERY) as ServerNotificationKind[]
-).filter((k): k is EmailedNotificationKind => NOTIFICATION_DELIVERY[k] === "email");
+export const EMAILED_NOTIFICATION_KINDS: readonly EmailedNotificationKind[] = keysOf(NOTIFICATION_DELIVERY).filter(
+  (k): k is EmailedNotificationKind => NOTIFICATION_DELIVERY[k] === "email",
+);
 
 /**
  * Whether a notice of this kind is a kind that is emailed. A kind the table does not know is kept as a plain alert
@@ -321,11 +324,12 @@ export const BELL_LINE_KINDS = [
   "member_left",
   "note_to_keep",
   "ask_cards",
+  "files_waiting",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */
 const EMAIL_CHOICE_KINDS: readonly EmailChoiceKind[] = ALERT_TOPICS.flatMap((t) =>
-  t.email === "choice" ? (t.kinds as readonly EmailChoiceKind[]) : [],
+  t.email === "choice" ? t.kinds : [],
 );
 
 /**
@@ -348,7 +352,7 @@ export function emailsFor(
   kind: string | null | undefined,
 ): boolean {
   if (!emailsNotificationKind(kind)) return false;
-  return !(emailOffOf(notifications) as readonly string[]).includes(kind ?? "");
+  return !isOneOf(emailOffOf(notifications), kind ?? "");
 }
 
 /** Whether a topic's email is on for this business: always, or a choice it has not turned off. */
@@ -357,8 +361,8 @@ function topicEmailed(
   notifications: { email_off?: readonly unknown[] | null } | null | undefined,
 ): boolean {
   if (topic.email === null) return false;
-  const off = emailOffOf(notifications) as readonly string[];
-  return topic.email === "always" || !topic.kinds.some((k) => off.includes(k));
+  const off = emailOffOf(notifications);
+  return topic.email === "always" || !topic.kinds.some((k) => isOneOf(off, k));
 }
 
 /** Whether a topic reaches this member's phones: a topic phones are told, none of whose kinds the member turned off. */
@@ -389,7 +393,7 @@ function switchKinds(off: Set<string>, kinds: readonly string[], on: boolean): v
 export function withTopicPush(pushOff: readonly string[], topic: AlertTopic, on: boolean): PushKind[] {
   const off = new Set(pushOff);
   if (topic.phone) switchKinds(off, topic.kinds, on);
-  return ALERT_TOPICS.flatMap((t) => (t.phone ? (t.kinds as readonly PushKind[]) : [])).filter((k) => off.has(k));
+  return ALERT_TOPICS.flatMap((t) => (t.phone ? t.kinds : [])).filter((k) => off.has(k));
 }
 
 /**
@@ -418,10 +422,10 @@ export const ALERT_PANE_WORDS = {
   test: "Send a test",
   testing: "Sending…",
   testSent: (n: number) => (n === 1 ? "A test was sent to 1 address." : `A test was sent to ${n} addresses.`),
-  testNot: (why: "no_address" | "not_live" | "not_sent" | null) =>
-    why === "no_address"
+  testNot: (reason: "no_address" | "not_live" | "not_sent" | null) =>
+    reason === "no_address"
       ? "There is no address to send a test to."
-      : why === "not_live"
+      : reason === "not_live"
         ? "Tests are sent from the live app only, not from a preview."
         : "The test could not be sent. Try again in a minute.",
   phone: (n: number) => (n > 1 ? "Your phones" : "Your phone"),
@@ -466,12 +470,12 @@ export const ALERT_PANE_WORDS = {
  * The test Settings › Notifications sends (decision 0040): to every address the business's alerts go to, once, so an
  * owner knows each one arrives. It names the business and where the choice is made, and asks nothing.
  */
-export function alertTestMail(o: { business: string; link: string }): { subject: string; body: string } {
+export function alertTestMail(options: { business: string; link: string }): { subject: string; body: string } {
   return {
-    subject: `Test alert for ${o.business}`,
+    subject: `Test alert for ${options.business}`,
     body:
-      `This is a test from Settings › Notifications. If you can read it, alerts for ${o.business} reach this address: ` +
-      `a customer who needs a person, and whatever is ticked under Email.\n\nNothing needs doing.\n\n${o.link}`,
+      `This is a test from Settings › Notifications. If you can read it, alerts for ${options.business} reach this address: ` +
+      `a customer who needs a person, and whatever is ticked under Email.\n\nNothing needs doing.\n\n${options.link}`,
   };
 }
 
@@ -508,7 +512,7 @@ export interface AlertGridGroup {
  * it, its phone cell by the member's own (`phone` null where they have no phone; `choosable` false where the choice
  * cannot be saved yet, so a phone cell says what it is told and offers nothing).
  */
-export function alertGrid(o: {
+export function alertGrid(options: {
   notifications: { email_off?: readonly unknown[] | null } | null | undefined;
   emailHeld: EmailHeld;
   phone: { pushOff: readonly string[]; choosable: boolean } | null;
@@ -518,22 +522,24 @@ export function alertGrid(o: {
     .map((group): AlertGridGroup => ({
       group,
       title: ALERT_GROUP_TITLES[group],
-      rows: ALERT_TOPICS.filter((t) => t.group === group && !bellOnly(t, !!o.phone)).map((topic): AlertGridRow => ({
-        topic,
-        email:
-          topic.email === "always"
-            ? { kind: "always" }
-            : topic.email === null
+      rows: ALERT_TOPICS.filter((t) => t.group === group && !bellOnly(t, !!options.phone)).map(
+        (topic): AlertGridRow => ({
+          topic,
+          email:
+            topic.email === "always"
+              ? { kind: "always" }
+              : topic.email === null
+                ? { kind: "none" }
+                : { kind: "tick", on: topicEmailed(topic, options.notifications), held: options.emailHeld },
+          phone: !options.phone
+            ? null
+            : !topic.phone
               ? { kind: "none" }
-              : { kind: "tick", on: topicEmailed(topic, o.notifications), held: o.emailHeld },
-        phone: !o.phone
-          ? null
-          : !topic.phone
-            ? { kind: "none" }
-            : o.phone.choosable
-              ? { kind: "tick", on: topicPushed(topic, o.phone.pushOff), held: null }
-              : { kind: "told" },
-      })),
+              : options.phone.choosable
+                ? { kind: "tick", on: topicPushed(topic, options.phone.pushOff), held: null }
+                : { kind: "told" },
+        }),
+      ),
     }))
     .filter((g) => g.rows.length > 0);
 }
@@ -547,10 +553,10 @@ export function bellLineFor(hasPhone: boolean): string {
 }
 
 /** A phone as the page names it: what it is, and when it was last seen, never its token. */
-export function phoneLine(p: { platform: string; last_seen_at: string | null }, now: number): string {
-  const what = p.platform === "ios" ? "iPhone" : "Android phone";
-  const at = p.last_seen_at ? Date.parse(p.last_seen_at) : NaN;
-  if (Number.isNaN(at)) return what;
+export function phoneLine(params: { platform: string; last_seen_at: string | null }, now: number): string {
+  const subject = params.platform === "ios" ? "iPhone" : "Android phone";
+  const at = params.last_seen_at ? Date.parse(params.last_seen_at) : NaN;
+  if (Number.isNaN(at)) return subject;
   const ago = agoShort(at, now);
-  return `${what} · ${ago === "now" ? "seen just now" : `seen ${ago} ago`}`;
+  return `${subject} · ${ago === "now" ? "seen just now" : `seen ${ago} ago`}`;
 }

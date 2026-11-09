@@ -1,7 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getTenantConfig, getTenantConfigAsMember, type Database, type TenantConfigRow } from "@chanlytics/db";
-import { serviceDb } from "@/server/service-db";
+import { getTenantConfig, getTenantConfigAsMember, type TenantConfigRow } from "@chanlytics/db/workspace";
+import type { Database } from "@chanlytics/db/types";
+import { serviceDb } from "@/server/shared/service-db";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * The workspace's configuration row, whole, as the server reads it on a member's behalf: the one way the dashboard
@@ -17,12 +19,12 @@ import { serviceDb } from "@/server/service-db";
  * the server answers still hides the address from whoever may not see it (readers/settings.ts feedVisibleTo).
  * `db` is the member's session. Null: no row, or not a member.
  */
-export async function configRowOf(db: SupabaseClient<Database>, tenantId: string): Promise<TenantConfigRow | null> {
+export async function findConfigRow(db: SupabaseClient<Database>, tenantId: TenantId): Promise<TenantConfigRow | null> {
   const row = await getTenantConfigAsMember(db, tenantId);
   return row?.feed_hidden ? getTenantConfig(serviceDb(), tenantId) : row;
 }
 
-/** The configuration as stored, for a member's session: configRowOf's `config`, or null with no row. */
-export async function storedConfigOf(db: SupabaseClient<Database>, tenantId: string): Promise<unknown> {
-  return (await configRowOf(db, tenantId))?.config ?? null;
+/** The configuration as stored, for a member's session: findConfigRow's `config`, or null with no row. */
+export async function getStoredConfig(db: SupabaseClient<Database>, tenantId: TenantId): Promise<unknown> {
+  return (await findConfigRow(db, tenantId))?.config ?? null;
 }

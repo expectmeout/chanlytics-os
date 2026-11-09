@@ -13,7 +13,7 @@
  *   companiesOf     a page's people by company: each company once, its people (five at most) and its addressee, the
  *                   most senior one with a work address; a company with nobody to write to is no lead
  */
-import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
+import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels/leads";
 import {
   LEAD_CARDS,
   LEAD_ESTIMATE_MARGIN,
@@ -32,11 +32,11 @@ import {
 } from "@chanlytics/contracts";
 import { CARDS, PEOPLE_CAP_FLOOR_USD, PEOPLE_RUN_TIMEOUT_SECS, type PersonAtCompany } from "../cards";
 import { FINAL_RUN_STATES, runStateOf } from "../endings";
-import { runIdFor, sha256Hex } from "../ids";
+import { runIdFor, hashSha256Hex } from "../ids";
 import { companyFactsOf, judgeCompanyBatch, opIdFor, type JudgedCompanies } from "../judge";
 import type { CollectCompany, CollectJudgment, CollectPage, LeadPorts, LeadRoundRow, LeadRunRow } from "../ports";
 import { claimOrRecover, startFailed } from "./claim";
-import type { CollectOutcome } from "./collect";
+import type { CollectOutcome } from "./collect/batches";
 import type { StartOutcome, TermOutcome } from "./start";
 import {
   FIRST_COLLECT_SECONDS,
@@ -89,7 +89,7 @@ function capOf(plan: LeadPeoplePlan, leftUsd: number): number {
 
 /** lead_round_start for a people plan: its one run, made by its id, claimed, and only then started at the provider. */
 export async function startPeople(
-  p: LeadPorts,
+  leadPorts: LeadPorts,
   round: LeadRoundRow,
   plan: LeadPeoplePlan,
   owner: string,
@@ -98,7 +98,7 @@ export async function startPeople(
   const card = CARDS.people_at_companies;
   const id = await runIdFor(round.id, "main", PEOPLE_TERM);
   const cap = capOf(plan, leftUsd);
-  const [row] = await p.db.runsEnsure([
+  const [row] = await leadPorts.db.runsEnsure([
     {
       id,
       tenant_id: round.tenant_id,
@@ -107,36 +107,36 @@ export async function startPeople(
       term: PEOPLE_TERM,
       actor: card.actor,
       build: card.build,
-      webhook_token_hash: await sha256Hex(await p.webhookToken(id)),
+      webhook_token_hash: await hashSha256Hex(await leadPorts.webhookToken(id)),
       cap_usd: cap,
     },
   ]);
   if (!row) throw new Error("lead_round_start: the people run's row was not made");
-  const said = (kind: TermOutcome, why?: string): StartOutcome => ({
+  const said = (kind: TermOutcome, reason?: string): StartOutcome => ({
     kind: "started",
     phase: "main",
-    runs: [{ term: PEOPLE_TERM, kind, ...(why ? { why } : {}) }],
+    runs: [{ term: PEOPLE_TERM, kind, ...(reason ? { why: reason } : {}) }],
   });
   if (row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner)) return said("already");
-  if (outOfTime(p)) throw new LeadRetry("out of time before the people run's start");
-  const claim = await claimOrRecover(p, card.actor, row, owner);
+  if (outOfTime(leadPorts)) throw new LeadRetry("out of time before the people run's start");
+  const claim = await claimOrRecover(leadPorts, card.actor, row, owner);
   if (claim !== "mine") return said(claim === "recovered" ? "reconciled" : "someone_elses");
-  const token = await p.webhookToken(row.id);
+  const token = await leadPorts.webhookToken(row.id);
   const input = { ...(card.buildInput(plan, peopleToAsk(plan)) as Record<string, unknown>), [INPUT_MARKER]: row.id };
   try {
-    const started = await p.apify.startRun(card.actor, input, {
+    const started = await leadPorts.apify.startRun(card.actor, input, {
       build: card.build,
       timeoutSecs: PEOPLE_RUN_TIMEOUT_SECS,
       maxTotalChargeUsd: cap,
-      webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }],
+      webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(leadPorts, row.id, token) }],
     });
-    await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, cap);
-    await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
+    await leadPorts.db.runRecordStart(row.id, owner, started.id, started.datasetId, cap);
+    await leadPorts.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
     return said("started");
   } catch (e) {
-    const failed = await startFailed(p, row, owner, e);
+    const failed = await startFailed(leadPorts, row, owner, e);
     if (failed.kind === "refused") {
-      await p.db.roundEnd(round.id, "source_failed");
+      await leadPorts.db.roundEnd(round.id, "source_failed");
       return said(failed.kind, failed.why);
     }
     return said(failed.kind);
@@ -144,8 +144,8 @@ export async function startPeople(
 }
 
 /** What a company's person says on its row: their title and the company's size. */
-const reasonOf = (who: LeadPerson | undefined, size: string | null): string =>
-  [who?.title, size ? `${size} people` : null].filter((x): x is string => !!x).join(" · ");
+const reasonOf = (leadPerson: LeadPerson | undefined, size: string | null): string =>
+  [leadPerson?.title, size ? `${size} people` : null].filter((x): x is string => !!x).join(" · ");
 
 /** A page's people by company (00430): each company once, with its people and its addressee. */
 export function companiesOf(found: readonly PersonAtCompany[]): CollectCompany[] {
@@ -156,22 +156,22 @@ export function companiesOf(found: readonly PersonAtCompany[]): CollectCompany[]
     .map((f, i) => ({ f, i, rank: rankOf(leadRoleOf(f.person.seniority, f.person.title)) }))
     .sort((a, b) => Number(!a.f.person.email) - Number(!b.f.person.email) || a.rank - b.rank || a.i - b.i)
     .map((x) => x.f);
-  for (const f of ranked) {
-    const at = by.get(f.company.key) ?? { company: f.company, people: [] };
-    const named = f.person.name.toLowerCase();
+  for (const item of ranked) {
+    const at = by.get(item.company.key) ?? { company: item.company, people: [] };
+    const named = item.person.name.toLowerCase();
     const twice = at.people.some(
-      (x) => (f.person.email && x.email === f.person.email) || x.name.toLowerCase() === named,
+      (x) => (item.person.email && x.email === item.person.email) || x.name.toLowerCase() === named,
     );
     if (!twice && at.people.length < LEAD_PEOPLE_MAX)
       at.people.push({
-        name: f.person.name,
-        first_name: f.person.first_name ?? firstNameOf(f.person.name, null),
-        title: f.person.title,
-        role: leadRoleOf(f.person.seniority, f.person.title),
-        email: f.person.email,
-        profile_url: f.person.profile_url,
+        name: item.person.name,
+        first_name: item.person.first_name ?? firstNameOf(item.person.name, null),
+        title: item.person.title,
+        role: leadRoleOf(item.person.seniority, item.person.title),
+        email: item.person.email,
+        profile_url: item.person.profile_url,
       });
-    by.set(f.company.key, at);
+    by.set(item.company.key, at);
   }
   const out: CollectCompany[] = [];
   for (const { company, people } of by.values()) {
@@ -216,7 +216,7 @@ interface JudgedPage {
  * row's; one its facts do not settle, or whose batch the judge refused twice, waits in Needs review.
  */
 async function judgedPage(
-  p: LeadPorts,
+  leadPorts: LeadPorts,
   round: LeadRoundRow,
   run: LeadRunRow,
   plan: LeadPeoplePlan,
@@ -224,41 +224,41 @@ async function judgedPage(
   companies: CollectCompany[],
 ): Promise<JudgedPage> {
   if (!companies.length) return { kept: [], judgments: [], leftOut: 0, refused: null };
-  if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the companies' judge");
+  if (outOfTime(leadPorts, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the companies' judge");
   const batches: CollectCompany[][] = [];
   for (let i = 0; i < companies.length; i += LEAD_JUDGE_BATCH) batches.push(companies.slice(i, i + LEAD_JUDGE_BATCH));
   const judged: JudgedCompanies[] = await Promise.all(
     batches.map((b, i) =>
       judgeCompanyBatch(
-        p.judge,
+        leadPorts.judge,
         plan,
         b.map((c, ref) => companyFactsOf(ref, c)),
         opIdFor(run.id, base, i),
         i,
         round,
-        () => !outOfTime(p, JUDGE_MARGIN_MS),
+        () => !outOfTime(leadPorts, JUDGE_MARGIN_MS),
       ),
     ),
   );
   const out: JudgedPage = { kept: [], judgments: [], leftOut: 0, refused: null };
-  batches.forEach((b, i) => {
-    const j = judged[i];
-    if (!j) return;
-    if (j.judgment) out.judgments.push(j.judgment);
-    if (j.refused) out.refused = j.why ?? "refused";
-    b.forEach((c, ref) => {
-      const answer = j.answers.get(ref) ?? null;
+  batches.forEach((batch, batchIndex) => {
+    const json = judged[batchIndex];
+    if (!json) return;
+    if (json.judgment) out.judgments.push(json.judgment);
+    if (json.refused) out.refused = json.why ?? "refused";
+    batch.forEach((item, ref) => {
+      const answer = json.answers.get(ref) ?? null;
       const verdict = companyFitOf(answer);
       if (verdict.left_out) {
         out.leftOut += 1;
         return;
       }
       out.kept.push({
-        ...c,
-        reason: answer?.reason || c.reason,
+        ...item,
+        reason: answer?.reason || item.reason,
         fit: verdict.fit,
         reasons: verdict.reasons,
-        judgment: { op_id: j.judgment?.op_id ?? null, answer, model: j.judgment?.model ?? null },
+        judgment: { op_id: json.judgment?.op_id ?? null, answer, model: json.judgment?.model ?? null },
       });
     });
   });
@@ -280,15 +280,15 @@ function pendingOf(state: LeadRunState, held: number): { ending_pending?: LeadRo
  * judged once, on the read that reaches that many, with the earlier ones read again where they came in a read before.
  */
 async function unreadableStart(
-  p: LeadPorts,
+  leadPorts: LeadPorts,
   at: { datasetId: string | null; base: number; items: readonly unknown[]; found: number },
 ): Promise<boolean> {
   const card = CARDS.people_at_companies;
   const reaches = at.base < UNREADABLE_PAGE && at.base + at.items.length >= UNREADABLE_PAGE;
   if (!reaches || at.found > 0) return false;
   if (at.base === 0 || !at.datasetId) return true;
-  if (outOfTime(p)) throw new LeadRetry("out of time before reading the first people again");
-  const head = (await p.apify.listItems(at.datasetId, 0, at.base, [...card.fields])).items;
+  if (outOfTime(leadPorts)) throw new LeadRetry("out of time before reading the first people again");
+  const head = (await leadPorts.apify.listItems(at.datasetId, 0, at.base, [...card.fields])).items;
   return head.every((it) => card.mapItem(it) === null);
 }
 
@@ -298,7 +298,7 @@ async function unreadableStart(
  * read, sends the round to its checks.
  */
 export async function collectPeople(
-  p: LeadPorts,
+  leadPorts: LeadPorts,
   round: LeadRoundRow,
   run: LeadRunRow,
   owner: string,
@@ -310,9 +310,9 @@ export async function collectPeople(
   let usage = run.usage_usd;
   let datasetId = run.dataset_id;
   if (!alreadyFinal) {
-    if (outOfTime(p)) throw new LeadRetry("out of time before reading the people run");
+    if (outOfTime(leadPorts)) throw new LeadRetry("out of time before reading the people run");
     try {
-      const remote = await p.apify.getRun(run.apify_run_id as string);
+      const remote = await leadPorts.apify.getRun(run.apify_run_id as string);
       remoteState = runStateOf(remote.status);
       usage = remote.usageTotalUsd ?? usage;
       datasetId = remote.datasetId ?? datasetId;
@@ -324,21 +324,21 @@ export async function collectPeople(
   const base = run.read_offset;
   let items: unknown[] = [];
   if (datasetId && !alreadyFinal) {
-    if (outOfTime(p)) throw new LeadRetry("out of time before reading the people");
-    items = (await p.apify.listItems(datasetId, base, PAGE_ITEMS, [...card.fields])).items;
+    if (outOfTime(leadPorts)) throw new LeadRetry("out of time before reading the people");
+    items = (await leadPorts.apify.listItems(datasetId, base, PAGE_ITEMS, [...card.fields])).items;
   }
   const found = items.map((it) => card.mapItem(it)).filter((x): x is PersonAtCompany => x !== null);
   // Each company read against what was asked before any is kept (judgedPage); the plan is read as collect read it.
   const plan = peoplePlanOf(round.plan);
   if (!plan) throw new Error("lead_collect: a people run under a round whose plan is not a people plan");
-  const judged = await judgedPage(p, round, run, plan, base, companiesOf(found));
-  if (judged.kept.length) await p.db.companyUpsert(round.id, judged.kept);
+  const judged = await judgedPage(leadPorts, round, run, plan, base, companiesOf(found));
+  if (judged.kept.length) await leadPorts.db.companyUpsert(round.id, judged.kept);
   // Nothing of the run's first items read: it is stopped at the provider now, never paid for to its cap. The provider's
   // own state then ends it, read by the next collect with its last usage, and the round ends as the source's failure
   // (pendingOf: aborted, nobody held), never as a search that found nobody. A stop the provider did not answer leaves the
   // page uncommitted, so the collect is tried again and asks again; one it refused (the run is over already) is an answer.
-  if (await unreadableStart(p, { datasetId, base, items, found: found.length })) {
-    await p.apify.abortRun(run.apify_run_id as string).catch((e: unknown) => {
+  if (await unreadableStart(leadPorts, { datasetId, base, items, found: found.length })) {
+    await leadPorts.apify.abortRun(run.apify_run_id as string).catch((e: unknown) => {
       if (!isRefused(e)) throw e;
     });
   }
@@ -350,7 +350,7 @@ export async function collectPeople(
   // first collect is read as running here, and the collect this one schedules at once sends the round to its checks.
   const queued = round.state === "queued";
   const runDone = runOver && !queued;
-  const held = runDone ? (await p.db.membersOfRound(round.id)).length : 0;
+  const held = runDone ? (await leadPorts.db.membersOfRound(round.id)).length : 0;
   const page: CollectPage = {
     judgment: judged.judgments.length ? judged.judgments : null,
     places: [],
@@ -367,7 +367,7 @@ export async function collectPeople(
         ? { state: "running", question: null, ending: null }
         : null,
   };
-  const res = await p.db.collectCommit(run.id, owner, gen, base, to, page);
+  const res = await leadPorts.db.collectCommit(run.id, owner, gen, base, to, page);
   if (!res.ok) return { kind: "lost", why: res.why };
   return {
     kind: "committed",
@@ -376,5 +376,6 @@ export async function collectPeople(
     runState: page.run_state,
     roundState: res.round_state,
     judgeRefused: judged.refused,
+    siteReads: 0,
   };
 }

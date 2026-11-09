@@ -14,18 +14,16 @@
  * door answers with a 503 so Meta sends it again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { waPricingOf, waStoppedMarketing, type WaChangeValue } from "../packages/channels.js";
-import {
-  keepMessageCost,
-  recordStatusByExternalId,
-  recordWhatsAppOffersStop,
-  type Database,
-  type Json,
-} from "../packages/db.js";
-import { MIN_MS, phoneTail } from "../packages/contracts.js";
-import { logger, type Logger } from "../log.js";
-import { flagLateFailure } from "../receptionist/late-failure.js";
-import { pgSafe } from "../inbound/persist.js";
+import { waPricingOf, waStoppedMarketing, type WaChangeValue } from "@chanlytics/channels/whatsapp";
+import { keepMessageCost, recordStatusByExternalId } from "@chanlytics/db/channels";
+import { recordWhatsAppOffersStop } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
+import { MIN_MS, phoneTail } from "@chanlytics/contracts";
+import { logger, type Logger } from "../shared/log.js";
+import { flagLateFailure } from "../shared/late-failure.js";
+import { runPgSafe } from "../inbound/persist.js";
+import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Receipt = NonNullable<WaChangeValue["statuses"]>[number];
 
@@ -35,7 +33,6 @@ function receiptStatusOf(s: string | undefined): "sent" | "delivered" | "read" |
 }
 
 /** What Meta sent as `errors`, as the JSON it is: the body was parsed from JSON, so the round trip changes nothing and tells the compiler what the parse knew. */
-const asJson = (v: unknown): Json => JSON.parse(JSON.stringify(v)) as Json;
 
 /**
  * What Meta says the message cost, kept beside the status the receipt just moved. The pricing is read here, key by key,
@@ -44,19 +41,19 @@ const asJson = (v: unknown): Json => JSON.parse(JSON.stringify(v)) as Json;
  * best-effort in a guard of its own: a database that refuses it is `pg_cost_failed`, and the receipt is as it was.
  */
 async function keepCost(
-  L: Logger,
+  log: Logger,
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   id: string,
-  s: Receipt,
+  receipt: Receipt,
 ): Promise<void> {
-  if (s.pricing === undefined || s.pricing === null) return;
-  const pricing = waPricingOf(s.pricing);
+  if (receipt.pricing === undefined || receipt.pricing === null) return;
+  const pricing = waPricingOf(receipt.pricing);
   if (!pricing) {
-    L.warn("wa_pricing_dropped", { id, status: s.status });
+    log.warn("wa_pricing_dropped", { id, status: receipt.status });
     return;
   }
-  await pgSafe("cost", () => keepMessageCost(db, tenantId, id, pricing));
+  await runPgSafe("cost", () => keepMessageCost(db, tenantId, id, pricing));
 }
 
 /**
@@ -73,58 +70,72 @@ function youngReceipt(s: Receipt, nowMs = Date.now()): boolean {
 }
 
 /** How many receipts the database would not take, which must come again (0 when every one was recorded). */
+/** One receipt's writes. True when it must be delivered again: a flag that could not be written leaves the row as it was. */
+async function recordOneReceipt(
+  db: SupabaseClient<Database> | null,
+  tenantId: TenantId | null,
+  statusEntry: Receipt,
+  log: Logger,
+): Promise<boolean> {
+  log.info("wa_status", {
+    id: statusEntry.id,
+    status: statusEntry.status,
+    to_tail: phoneTail(statusEntry.recipient_id),
+    errors: statusEntry.errors,
+  });
+  const status = receiptStatusOf(statusEntry.status);
+  if (!db || !tenantId || !statusEntry.id || !status) return false;
+  const id = statusEntry.id;
+  const error = statusEntry.errors ? jsonCopyOf({ errors: statusEntry.errors }) : undefined;
+  // The person stopped marketing messages from this business: their answer (recorded below), never a failed send.
+  const stopped = status === "failed" && waStoppedMarketing(statusEntry.errors);
+  if (status === "failed" && !stopped) {
+    // Before the row moves: a flag that could not be written leaves it as it was, so the redelivery flags it.
+    const flagged = await runPgSafe("escalation", () =>
+      flagLateFailure(db, tenantId, {
+        externalId: id,
+        channel: "whatsapp",
+        error: statusEntry.errors ? { errors: statusEntry.errors } : {},
+      }),
+    );
+    if (flagged === undefined) {
+      return true;
+    }
+    // A failure about a send whose row does not carry Meta's id YET (its receipt beat our own write): asked for again
+    // while it is young, so the owner hears of it once the row has its id; past that it is history we never wrote.
+    if (flagged === "not_ours" && youngReceipt(statusEntry)) return true;
+  }
+  // A status the database did not keep is asked for again (the write throws: pg_status_failed): acknowledged, the
+  // row stood at "sent" for good. Applying it twice is safe (the guard keeps the rank monotone).
+  if ((await runPgSafe("status", () => recordStatusByExternalId(db, tenantId, id, status, error))) === undefined)
+    return true;
+  await keepCost(log, db, tenantId, id, statusEntry);
+  if (stopped) {
+    const recorded = await runPgSafe("offers_stop", () => recordWhatsAppOffersStop(db, { tenantId, externalId: id }));
+    // A write that threw has said so itself (pg_offers_stop_failed): this line is for an answer the database gave.
+    if (recorded !== undefined) log.info("wa_marketing_stopped", { id, recorded });
+  }
+  return false;
+}
+
+/** How many of one delivery's receipts are written at a time: a big send can bring hundreds together, each several writes. */
+const RECEIPTS_AT_ONCE = 10;
+
 export async function recordReceipts(
   db: SupabaseClient<Database> | null,
-  tenantId: string | null,
+  tenantId: TenantId | null,
   statuses: Receipt[],
 ): Promise<number> {
-  const L = logger();
+  const log = logger();
   let again = 0;
   // One receipt per message and status: Meta can repeat one in a single delivery, and the copies, read together, each
   // found the row still sent and each raised the failure.
   const once = [...new Map(statuses.map((s) => [`${s.id}\u0000${s.status}`, s])).values()];
-  await Promise.all(
-    once.map(async (s) => {
-      L.info("wa_status", { id: s.id, status: s.status, to_tail: phoneTail(s.recipient_id), errors: s.errors });
-      const status = receiptStatusOf(s.status);
-      if (!db || !tenantId || !s.id || !status) return;
-      const id = s.id;
-      const error = s.errors ? asJson({ errors: s.errors }) : undefined;
-      // The person stopped marketing messages from this business: their answer (recorded below), never a failed send.
-      const stopped = status === "failed" && waStoppedMarketing(s.errors);
-      if (status === "failed" && !stopped) {
-        // Before the row moves: a flag that could not be written leaves it as it was, so the redelivery flags it.
-        const flagged = await pgSafe("escalation", () =>
-          flagLateFailure(db, tenantId, {
-            externalId: id,
-            channel: "whatsapp",
-            error: s.errors ? { errors: s.errors } : {},
-          }),
-        );
-        if (flagged === undefined) {
-          again += 1;
-          return;
-        }
-        // A failure about a send whose row does not carry Meta's id YET (its receipt beat our own write): asked for again
-        // while it is young, so the owner hears of it once the row has its id; past that it is history we never wrote.
-        if (flagged === "not_ours" && youngReceipt(s)) {
-          again += 1;
-          return;
-        }
-      }
-      // A status the database did not keep is asked for again (the write throws: pg_status_failed): acknowledged, the
-      // row stood at "sent" for good. Applying it twice is safe (the guard keeps the rank monotone).
-      if ((await pgSafe("status", () => recordStatusByExternalId(db, tenantId, id, status, error))) === undefined) {
-        again += 1;
-        return;
-      }
-      await keepCost(L, db, tenantId, id, s);
-      if (stopped) {
-        const recorded = await pgSafe("offers_stop", () => recordWhatsAppOffersStop(db, { tenantId, externalId: id }));
-        // A write that threw has said so itself (pg_offers_stop_failed): this line is for an answer the database gave.
-        if (recorded !== undefined) L.info("wa_marketing_stopped", { id, recorded });
-      }
-    }),
-  );
+  for (let at = 0; at < once.length; at += RECEIPTS_AT_ONCE) {
+    const answers = await Promise.all(
+      once.slice(at, at + RECEIPTS_AT_ONCE).map((statusEntry) => recordOneReceipt(db, tenantId, statusEntry, log)),
+    );
+    again += answers.filter(Boolean).length;
+  }
   return again;
 }

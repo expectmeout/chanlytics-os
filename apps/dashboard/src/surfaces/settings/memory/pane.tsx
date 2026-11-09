@@ -13,14 +13,14 @@ import {
   memoryTextProblem,
   type AskMemoryLineDto,
 } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { EmptyState } from "../../kit/empty/empty";
 import { Field, fieldProblem } from "../../kit/field/field";
 import { useRecordFold } from "../../kit/record/hooks";
 import { RecordInline } from "../../kit/record/inline";
 import { RecordRow } from "../../kit/record/row";
-import { canDo, gate, meNow, refreshSurface, type LegacyFlash } from "../../legacy-verbs";
+import { canDo, gate, meNow, refreshSurface, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { memoryVerbs } from "./verbs";
 
@@ -189,7 +189,7 @@ function AddLine({ press }: { press: Press }) {
   );
 }
 
-export function PaneMemory({ flash }: { flash: (f: LegacyFlash) => void }) {
+export function PaneMemory({ flash }: { flash: (f: FrameFlash) => void }) {
   const held = useSurface("ask_memory");
   if (held === undefined)
     return <EmptyState kind="card" glyph="sparkle" title={W.paneTitle} body={W.reading} testid="mem-reading" />;

@@ -59,7 +59,7 @@
  *     after the run was made (convergeCampaigns): every row terminal and dated from the run. The workspace holds no run
  *     waiting for a person or for a send job, no queued message and no failed one (Today counts each failed message as a
  *     reply that failed to deliver), and nothing here is for a sweep, a job or the bell to select;
- *   - under `--seed-win-back` alone (Ruben's run by hand, never the nightly's),
+ *   - under `--seed-win-back` alone (Ruben's run by hand here, the whole suite's on its stack),
  *     one playbook, a Win-back on silence, paused so no sweep runs it, on a
  *     made-up message of its own: what Ask's change cases resume, rename and
  *     retime (the moment spec, A8; decision D3); without it, an existing
@@ -67,10 +67,10 @@
  *   - and there is no job, open escalation, open step or line, and no run that is not sent: the two handovers are resolved,
  *     since the deadman pages the platform for one left open two hours, the three steps are done, and the one run went.
  *
- * Merging seeds no Win-back: the nightly (.github/workflows/nightly-e2e.yml, every
- * day at 09:00 UTC) passes --apply alone. The Win-back's first run,
- * `--apply --seed-win-back`, is Ruben's call, run by hand and away from 09:00
- * UTC, after the merge; the nightly then keeps it paused and adds nothing.
+ * Production holds no Win-back by a merge: the nightly's check of it (.github/workflows/nightly-e2e.yml) passes --apply alone.
+ * Its first run there, `--apply --seed-win-back`, is Ruben's call, by hand; that job then keeps it paused and adds nothing.
+ * The whole suite passes the flag on its own stack, where nothing sweeps, and e2e-harness/copy-states.mjs writes what else
+ * only a copy may hold.
  *
  * It refuses an owner or teammate address outside example.com, so it can never
  * reset a real account, and refuses when the owner belongs to any workspace but
@@ -97,7 +97,7 @@ import {
   leadsRoute,
   newReceptionistDefaults,
 } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db";
+import { emitEvent } from "@chanlytics/db/events";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -482,7 +482,7 @@ export const GOOGLE_DAYS = [
 export const RECEPTIONIST_PREFIX = "e2e-seed-r-";
 /** The call nobody took: Casey Example's, that never connected, with nobody ringing back or writing in the hour after. */
 export const MISSED_CALL_ID = `${RECEPTIONIST_PREFIX}missed`;
-/** The hold the owner set, as a held draft carries it (apps/edge/lib/receptionist/draft-queue.ts: `meta.delay_ms`). */
+/** The hold the owner set, as a held draft carries it (apps/edge/lib/ai/draft-queue.ts: `meta.delay_ms`). */
 const HOLD_MS = MIN_MS;
 /**
  * Sam's five asks, on the workspace's own calendar (days before the run, and the wall-clock time), every one at least two
@@ -1711,7 +1711,7 @@ function atLocal(day, clock, zone = TIMEZONE) {
  *   - the held replies went out (`delivered`) and the others were cancelled, so the booking-link note (a trigger on a
  *     `sent` row) does not run and no hold is waiting; the call is a dial that never connected, with no recording, no
  *     thread and its post-call mail already sent, which the calls sweep and the note sweep both leave alone;
- *   - the blocked send is an event on the ledger, of the kind and the data packages/core/src/deliver.ts files
+ *   - the blocked send is an event on the ledger, of the kind and the data packages/core/src/deliver/deliver.ts files
  *     (message.send_blocked, through emitEvent), about Sam's thread since the message it would be about is not one of the
  *     seed's; nothing reads it but the lens. A run deletes the workspace's blocked sends before it files its own: the
  *     messages they were about are the ones the specs and this seed clear.
@@ -2368,7 +2368,7 @@ export async function convergeCampaigns(db, T, ownerId, now) {
  * it (playbooks_due takes only a running one), on a made-up message of its own: approved, no slot, a WhatsApp row the
  * channel above cannot send from, synced from nowhere and named for no starter. What Ask's change cases resume, rename
  * and retime, and what a "pause" case finds already paused. Added only under --seed-win-back (`seed`), Ruben's run by
- * hand: the nightly's converge never passes it, so merging seeds nothing. Without it, an existing Win-back is put back
+ * hand or the whole suite's on its stack: production's converge never passes it. Without it, an existing Win-back is put back
  * as it was seeded (a spec that resumed it never leaves it running), and nothing is added. Another playbook a spec made
  * is that spec's to remove. Says what it did, or null where it did nothing.
  */
@@ -2384,7 +2384,7 @@ async function convergeWinBack(db, T, ownerId, seed) {
       .eq("language", "en_US")
       .maybeSingle(),
   );
-  // The nightly's converge (no --seed-win-back) adds nothing: with no message on file there is no Win-back to put back.
+  // Production's converge (no --seed-win-back) adds nothing: with no message on file there is no Win-back to put back.
   if (!found && !seed) return null;
   const message =
     found ??
@@ -2776,8 +2776,8 @@ export async function verify(db, T, ownerId) {
 }
 
 /**
- * The script's arguments: --apply writes, and --seed-win-back (Ruben's run by hand, never the nightly's, which passes
- * --apply alone) adds the eval's Win-back where it is not there.
+ * The script's arguments: --apply writes, and --seed-win-back (Ruben's run by hand, or the whole suite's on its stack;
+ * the check of production passes --apply alone) adds the eval's Win-back where it is not there.
  */
 export function runOptions(argv) {
   return { apply: argv.includes("--apply"), seedWinBack: argv.includes("--seed-win-back") };

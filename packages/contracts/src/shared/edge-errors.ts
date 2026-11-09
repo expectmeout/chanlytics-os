@@ -7,7 +7,7 @@
  * sentence nor the database's own words stand where a caller expects a code.
  *
  * The edge's `json` and `refuse` (apps/edge/lib/http.ts) take a body whose `error` is an `EdgeErrorCode`, so a code
- * outside the list is a type error wherever a door answers; tooling/scripts/tests/edge/error-codes.test.mjs holds the
+ * outside the list is a type error wherever a door answers; tests/edge/error-codes.test.mjs holds the
  * list to the edge both ways, over the syntax tree: a code a refusal answers and not here, a code here that no refusal
  * answers, a refusal whose code is a value handed on and not named in its register, a sentence in an `error`. Sorted,
  * so two changes that add a code each land in different places. A new code is snake_case and names its domain first
@@ -27,7 +27,6 @@ export const EDGE_ERROR_CODES = [
   "bad_template",
   "bad_tenant",
   "brain_failed",
-  "calendar_backlog",
   "campaign_rejected",
   "channel_read_failed",
   "channel_write_failed",
@@ -39,6 +38,9 @@ export const EDGE_ERROR_CODES = [
   "could_not_retire_old_draft",
   "credentials_failed",
   "direct",
+  "door_failed",
+  "draft_not_owed",
+  "draft_refused",
   "email_off",
   "empty_draft",
   "erasure_unreadable",
@@ -66,6 +68,7 @@ export const EDGE_ERROR_CODES = [
   "meta_refused",
   "mock_registration",
   "model_failed",
+  "model_paused",
   "model_unavailable",
   "model_unreachable",
   "no_account",
@@ -117,6 +120,7 @@ export const EDGE_ERROR_CODES = [
   "not_rejected",
   "not_trialing",
   "nothing_to_answer",
+  "nothing_to_do",
   "number_ambiguous",
   "number_missing",
   "number_taken",
@@ -125,7 +129,6 @@ export const EDGE_ERROR_CODES = [
   "pin_required",
   "platform_hold",
   "platform_only",
-  "playbooks_backlog",
   "policy_block_price",
   "policy_never",
   "preview_failed",
@@ -182,7 +185,7 @@ export type EdgeErrorCode = (typeof EDGE_ERROR_CODES)[number];
 /**
  * The codes the dashboard's own side of an edge call answers with when no door answered: the call was never made
  * (`no_edge_credential`, this deployment holds nothing the edge honours; `preview`, a preview never calls a live
- * provider) or never came back (`edge_timeout`, `edge_unreachable`; apps/dashboard/src/server/edge.ts callEdge). No
+ * provider) or never came back (`edge_timeout`, `edge_unreachable`; apps/dashboard/src/server/shared/edge.ts callEdge). No
  * edge door answers one, so they are not EDGE_ERROR_CODES; they are named here so the dashboard reads every code an
  * answer can carry from one union.
  */
@@ -194,9 +197,9 @@ export type EdgeAnswerCode = EdgeErrorCode | EdgeCallCode;
 /**
  * An edge answer's JSON body as the dashboard reads it: its code is one of the union, so a comparison with a code no
  * set names does not compile, and a code the edge renames fails the dashboard's typecheck at every place that reads
- * it; the other fields are each door's own.
+ * it; the other fields are each door's own, declared with the door (edge/door.ts `answerFields`).
  */
-export type EdgeAnswerBody = { error?: EdgeAnswerCode; detail?: string; [field: string]: unknown };
+export type EdgeAnswerBody = { ok?: boolean; error?: EdgeAnswerCode; detail?: string };
 
 /** An edge door's refusal: the code a caller compares, and the words for a person or for support when there are any. */
 export type EdgeRefusal = { ok: false; error: EdgeErrorCode; detail?: string };

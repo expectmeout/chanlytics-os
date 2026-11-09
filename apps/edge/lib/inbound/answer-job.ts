@@ -11,9 +11,9 @@
  * the send door answers as it does for any wire it could not use: the thread is flagged for a person and the owner told.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import type { ClaimedJob } from "../packages/jobs.js";
-import { answerWhatsapp } from "../whatsapp/answer-later.js";
+import type { Database } from "@chanlytics/db/types";
+import type { ClaimedJob } from "@chanlytics/jobs";
+import { answerWhatsapp } from "../intake/answer-later.js";
 import { answerDm } from "../instagram/dm-answer.js";
 import { answerText } from "../sms/inbound-text.js";
 

@@ -5,12 +5,15 @@
  * page, several open as a list of doors), then each ad as the kit's ListRow `bare` on the Messages phone row's shape (a 22px door
  * ring, the name the door to its drawer, the bookings over what each cost at the end, the platform and door, the state as a dot
  * and a word), then the Ask line as the LAST row; then Coming, What came back in one line, and the quiet footnote with its door to
- * Results. No group heads, no platform tile: the door is in each row's line, and a platform's standing is the pane line's.
+ * Results. No group heads, no platform tile: the door is in each row's line, and a platform's standing is the pane line's. In a
+ * workspace's preview a person who waits is no door: no page there holds a sample person.
  */
 import { useState } from "react";
 import { ADS_WORDS, adsResultsRoute } from "@chanlytics/contracts";
-import { GATE, PHONE } from "@chanlytics/contracts/ads-page";
-import type { AdRowVM, AdWaitingRowVM, AdsVM, AskVM } from "@chanlytics/contracts/ads-page";
+import { GATE } from "../model/words";
+import { PHONE } from "../model/words-page";
+import type { AdRowVM, AdsVM, AskVM } from "../model/page";
+import type { AdWaitingRowVM } from "../model/page-parts";
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
@@ -19,9 +22,10 @@ import type { LinkButtonProps } from "../../../kit/link-button/link-button";
 import { ListRow } from "../../../kit/list-row/list-row";
 import { Panel } from "../../../kit/panel/panel";
 import { cx } from "../../../kit/variants";
-import { gate, routeDoor } from "../../../legacy-verbs";
+import { gate, routeDoor } from "../../../frame-verbs";
 import { cmRowPress } from "../../parts/head";
 import { spends } from "../ask-line";
+import { adsInPreview } from "../shown";
 import { CameBackBlock, ComingBlock } from "../tiles";
 
 interface WrapRowProps {
@@ -64,23 +68,35 @@ interface OpenProps {
   onOpen: (route: string) => void;
 }
 
-/** One person who waits: a door to their conversation or page, the ad and when, and the days in amber. */
+/** One person who waits: a door to their conversation or page, the ad and when, and the days in amber. In a preview, no door. */
 function WaitingPerson({ person }: { person: AdWaitingRowVM }) {
+  const opens = !adsInPreview();
+  const said = (
+    <>
+      <span className="ads-waiting-who">
+        <b>{person.name}</b>
+        <span className="ads-waiting-line">{person.line}</span>
+        {opens ? <span className="ads-waiting-where">{person.tip}</span> : null}
+      </span>
+      <span className="ads-since">{person.since}</span>
+    </>
+  );
   return (
     <li className="ads-waiting-person" data-testid="ads-needs-person">
-      <LinkButton
-        {...routeDoor(person.open)}
-        className="ads-waiting-door"
-        aria-description={person.tip}
-        data-testid="ads-needs-door"
-      >
-        <span className="ads-waiting-who">
-          <b>{person.name}</b>
-          <span className="ads-waiting-line">{person.line}</span>
-          <span className="ads-waiting-where">{person.tip}</span>
+      {opens ? (
+        <LinkButton
+          {...routeDoor(person.open)}
+          className="ads-waiting-door"
+          aria-description={person.tip}
+          data-testid="ads-needs-door"
+        >
+          {said}
+        </LinkButton>
+      ) : (
+        <span className="ads-waiting-door" data-testid="ads-needs-name">
+          {said}
         </span>
-        <span className="ads-since">{person.since}</span>
-      </LinkButton>
+      )}
     </li>
   );
 }
@@ -97,18 +113,19 @@ interface WaitingProps {
 
 /**
  * The people from ads who wait on the owner: the one amber row. One person is a door to their conversation (their page where
- * there is none); several open as a list of doors, one each, so no one is reached only by being first.
+ * there is none); several open as a list of doors, one each, so no one is reached only by being first. A preview's row has no door to
+ * be, so it opens as that list however many there are.
  */
 function WaitingRow({ people, needs, names, since }: WaitingProps) {
   const [open, setOpen] = useState(false);
   const first = people.at(0);
   if (!first) return null;
-  const many = people.length > 1;
-  const press: LinkButtonProps = many
+  const asList = people.length > 1 || adsInPreview();
+  const press: LinkButtonProps = asList
     ? { onClick: () => setOpen((was) => !was), "aria-expanded": open }
     : { ...routeDoor(first.open), "aria-description": first.tip };
   const list =
-    many && open ? (
+    asList && open ? (
       <ul className="ads-waiting-list" data-testid="ads-needs-list">
         {people.map((person) => (
           <WaitingPerson key={person.personId} person={person} />

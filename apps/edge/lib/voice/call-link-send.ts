@@ -18,9 +18,9 @@
  * promotion (core textRefusal), re-reads the person's no at the wire, and records the carrier's STOP (Twilio 21610) as
  * theirs. The words open with the business's name and end with how to stop, as every sample the carriers approved does.
  */
-import { json } from "../http.js";
-import type { pg } from "../pg.js";
-import { smsSenderForTenant, smsWire } from "../sms/sms.js";
+import { json } from "../shared/http.js";
+import type { pg } from "../shared/pg.js";
+import { findSmsSenderForTenant, smsWire } from "../lines/sms.js";
 import {
   deliver,
   outboundGate,
@@ -28,10 +28,13 @@ import {
   textRefusal,
   type DeliveryRefusal,
   type OutboundRefusal,
-} from "../packages/core.js";
-import { countSentToday, emitEvent, textLineFacts, type OutboundTarget } from "../packages/db.js";
-import { NO_LINK_DETAILS, senderWords, type AskedPurpose } from "../packages/contracts.js";
-import type { Logger } from "../log.js";
+} from "@chanlytics/core";
+import { countSentToday, type OutboundTarget } from "@chanlytics/db/channels";
+import { emitEvent } from "@chanlytics/db/events";
+import { findTextLineFacts } from "@chanlytics/db/campaigns";
+import { NO_LINK_DETAILS, senderWords, type AskedPurpose } from "@chanlytics/contracts";
+import type { Logger } from "../shared/log.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -49,7 +52,7 @@ export const onTheCall = (isCaller: boolean) => ({ proactive: !isCaller, about: 
 
 /** Where a refused send is said and recorded: the thread it would have joined, the call that asked, the modes read. */
 export interface RefusedAt {
-  tenantId: string;
+  tenantId: TenantId;
   conversationId: string;
   callId: string | undefined;
   publishedNumber: string | null;
@@ -95,7 +98,7 @@ export interface LinkLeg {
  * as well. Requiring one would block the booking link on almost every first call, and texting the person who asked for
  * it, at the number they are calling from, is a reply rather than outreach. It holds for a text as for WhatsApp.
  */
-export async function gateOnTheCall(leg: LinkLeg, channel: "whatsapp" | "sms", purpose: AskedPurpose) {
+export async function runGateOnTheCall(leg: LinkLeg, channel: "whatsapp" | "sms", purpose: AskedPurpose) {
   return outboundGate({
     // The row whole (an `OutboundTarget` is a `PurposeBearing`): no field's name re-mapped by hand to get wrong.
     contact: leg.contact,
@@ -128,14 +131,14 @@ export async function gateOnTheCall(leg: LinkLeg, channel: "whatsapp" | "sms", p
  * came before any row existed to name. The caller is on the line, so the agent is told what to SAY -- never that a
  * colleague is mid-thread with them, or what our policy is.
  */
-export async function refusedOnTheCall(
+export async function refuseOnTheCall(
   db: Db,
-  L: Logger,
+  log: Logger,
   refusal: OutboundRefusal,
   at: RefusedAt,
   channel: "whatsapp" | "sms",
 ): Promise<Response> {
-  L.info("retell_fn_refused", { tenant_id: at.tenantId, reason: refusal, mode: at.mode, person_mode: at.personMode });
+  log.info("retell_fn_refused", { tenant_id: at.tenantId, reason: refusal, mode: at.mode, person_mode: at.personMode });
   await emitEvent(db, at.tenantId, "message.send_blocked", "conversation", at.conversationId, {
     reason: refusal,
     source: VOICE_SEND_SOURCE,
@@ -150,16 +153,16 @@ export async function refusedOnTheCall(
  * what they did. Email's refusals and outreach's cannot arise on a phone's wire; the compiler cannot know that. The
  * call names the refusals it has words for, and for any other one, "it could not be sent" is the true thing to say.
  */
-export function saidOfTheWire(r: DeliveryRefusal): OutboundRefusal {
-  if (r === "erased") return "opted_out";
-  if (r === "superseded_by_human") return "human_has_it";
-  return r === "opted_out" ||
-    r === "not_opted_in" ||
-    r === "no_marketing_consent" ||
-    r === "paused" ||
-    r === "human_has_it" ||
-    r === "sms_carries_no_promotions"
-    ? r
+export function saidOfTheWire(deliveryRefusal: DeliveryRefusal): OutboundRefusal {
+  if (deliveryRefusal === "erased") return "opted_out";
+  if (deliveryRefusal === "superseded_by_human") return "human_has_it";
+  return deliveryRefusal === "opted_out" ||
+    deliveryRefusal === "not_opted_in" ||
+    deliveryRefusal === "no_marketing_consent" ||
+    deliveryRefusal === "paused" ||
+    deliveryRefusal === "human_has_it" ||
+    deliveryRefusal === "sms_carries_no_promotions"
+    ? deliveryRefusal
     : "policy_hold";
 }
 
@@ -190,14 +193,14 @@ const TEXT_UNSURE = `The text message may not have gone out. Tell the caller the
  */
 export async function linkByText(leg: LinkLeg, after: TextAfter): Promise<Response | null> {
   const { db, L, at } = leg;
-  if (textRefusal("conversational", await textLineFacts(db, at.tenantId)) !== null) return null;
-  const gate = await gateOnTheCall(leg, "sms", "conversational");
-  if (!gate.allowed) return refusedOnTheCall(db, L, gate.refusal ?? "policy_hold", at, "sms");
-  const w = senderWords(leg.language);
-  // The door every send leaves through, on the workspace's own texting line (smsSenderForTenant; none, or one that could
+  if (textRefusal("conversational", await findTextLineFacts(db, at.tenantId)) !== null) return null;
+  const gate = await runGateOnTheCall(leg, "sms", "conversational");
+  if (!gate.allowed) return refuseOnTheCall(db, L, gate.refusal ?? "policy_hold", at, "sms");
+  const result = senderWords(leg.language);
+  // The door every send leaves through, on the workspace's own texting line (findSmsSenderForTenant; none, or one that could
   // not be read, the door says), recorded in the caller's thread either way, and told this call (onCall).
   const out = await deliver(
-    { db, wire: { sms: smsWire(await smsSenderForTenant(db, at.tenantId)) } },
+    { db, wire: { sms: smsWire(await findSmsSenderForTenant(db, at.tenantId)) } },
     {
       tenantId: at.tenantId,
       conversationId: at.conversationId,
@@ -208,7 +211,7 @@ export async function linkByText(leg: LinkLeg, after: TextAfter): Promise<Respon
       // A reply to their own request, never an offer: the texting line carries none.
       purpose: "conversational",
       ...onTheCall(leg.isCaller),
-      body: `${w.linkAsked(leg.business.name, leg.business.link)}\n${w.textStop}.`,
+      body: `${result.linkAsked(leg.business.name, leg.business.link)}\n${result.textStop}.`,
       onCall: at.callId,
       meta: { source: VOICE_SEND_SOURCE, call_id: at.callId ?? null, by: "text", after },
     },

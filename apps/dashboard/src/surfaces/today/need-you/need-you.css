@@ -120,6 +120,11 @@
   color: var(--accent-ink);
   white-space: nowrap;
 }
+/* A verb that is not the page's one coral says so in the plain ink: only the act that leads is the accent's (8 Nov 2026:
+   Answer stood in coral under a filled coral Send, and Mark all done in coral under "Nothing needs you"). */
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button.ghost {
+  color: var(--ink);
+}
 /* A second verb (a run's See who's on it) in the muted ink, before the first. */
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button:not(:last-child) {
   color: var(--ink-muted);
@@ -226,7 +231,7 @@
   flex: 1 1 auto;
   min-width: 0;
 }
-/* What it is, before whose: "Reply · drafted by Ask", "Call notes · only you see these". */
+/* What it is, before whose: "Reply · Ask's draft", "Call notes · only you see these". */
 .ny-by-words b {
   font-weight: var(--weight-medium);
   color: var(--ink-muted);

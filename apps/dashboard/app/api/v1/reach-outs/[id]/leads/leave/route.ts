@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { write } from "@/server/route";
-import { reachOutScope } from "@/server/verbs";
-import { leaveOut } from "@/server/leads/lead-workbench";
+import { write } from "@/server/shared/route";
+import { reachOutScope } from "@/server/shared/verbs";
+import { leaveOut } from "@/server/leads/workbench";
 
 const Body = z.object({ lead_id: z.uuid() });
 

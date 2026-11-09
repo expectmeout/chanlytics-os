@@ -11,7 +11,7 @@
  * test stands in for any of them there, until the gates are imported everywhere (the one-system plan, step 9).
  */
 import type { Role } from "@chanlytics/contracts";
-import type { GateProps } from "../legacy-verbs";
+import type { GateProps } from "../frame-verbs";
 
 /** Whether the role acting may do a permission's act: with no role store, it may. */
 export const canDo = (a: string): boolean => {

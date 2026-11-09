@@ -16,19 +16,21 @@ import {
   type CampaignStuckRawDto,
   type ReachOutChainTotalsDto,
   type ReachOutReportDto,
+  shaped,
 } from "@chanlytics/contracts";
 import {
-  campaignLedger,
-  campaignSeries,
-  campaignStuck,
-  reachOutChainTotals,
-  whatsappChannelFacts,
+  findCampaignLedger,
+  getCampaignSeries,
+  findCampaignStuck,
+  getReachOutChainTotals,
   type ReportWindow,
-} from "@chanlytics/db";
-import { log } from "@/server/log";
-import { reachOutReportOf } from "../campaigns/reach-out-report";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
-import { askedHead, reportWindowFor, windowRead } from "./report";
+} from "@chanlytics/db/reports";
+import { findWhatsappChannelFacts } from "@chanlytics/db/campaigns";
+import { readAnswer } from "@chanlytics/db/shared";
+import { log } from "@/server/shared/log";
+import { getReachOutReport } from "./reach-out-report";
+import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
+import { getAskedHead, reportWindowFor, getWindow } from "./report";
 
 /**
  * GET reports/campaigns, as the route answers it: what the offers earned over one of the three presets (the route
@@ -47,9 +49,13 @@ export const campaignReport: Reader<ReportWindow, { report: CampaignReportDto }>
   async read(rc, window) {
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
-    const report = (await windowRead(campaignSeries(ctx.supabase, tenantId, window))) as unknown as CampaignReportDto;
+    const report = readAnswer(
+      "campaign_series",
+      shaped<CampaignReportDto>().nullable(),
+      await getWindow(getCampaignSeries(ctx.supabase, tenantId, window)),
+    );
     if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
-    return { data: { report }, rows: [], stamp: stamp() };
+    return { data: { report }, rows: [], stamp: readerStamp() };
   },
 };
 
@@ -59,7 +65,7 @@ export const campaignReport: Reader<ReportWindow, { report: CampaignReportDto }>
  * sources, the numbers a campaign's row on Campaigns says (D35). Null where they could not be read, logged, never
  * all-time totals in their place. Ask's campaigns read and the Campaigns page's context say them.
  */
-export async function lastDaysBySource(rc: ReaderContext): Promise<CampaignSourceDto[] | null> {
+export async function listLastDaysBySource(rc: ReaderContext): Promise<CampaignSourceDto[] | null> {
   try {
     const window = await reportWindowFor(rc, { period: CAMPAIGNS_RESULTS_PERIOD });
     return (await load(rc, campaignReport, window)).data.report.sources ?? [];
@@ -72,7 +78,7 @@ export async function lastDaysBySource(rc: ReaderContext): Promise<CampaignSourc
   }
 }
 
-/** A campaign's sends and replies in those days (lastDaysBySource's): none where it sent nothing, null where unread. */
+/** A campaign's sends and replies in those days (listLastDaysBySource's): none where it sent nothing, null where unread. */
 export function lastDaysOf(
   sources: readonly CampaignSourceDto[] | null,
   id: string,
@@ -84,7 +90,7 @@ export function lastDaysOf(
 
 /**
  * GET reports/reach-outs, as the route answers it: what the reach-outs wrote over the window and what came of it (00241
- * reach_out_report, campaigns/reach-out-report.ts reachOutReportOf), and beside it each chain's own totals by its root
+ * reach_out_report, readers/reach-out-report.ts getReachOutReport), and beside it each chain's own totals by its root
  * (reach_out_chain_totals, 00375), so a chain past the report's twenty still says its numbers or "Nothing sent" (spec
  * 2026-10-09 §4.5). Both are read over the one window the route worked out (readers/report.ts reportWindowFor), its
  * last day named to each only where it is not today, so the report and the chains count the same days. The report's own
@@ -101,8 +107,8 @@ export const reachOutReport: Reader<
   name: "reachOutReport",
   async read(rc, window) {
     const [{ report }, totals] = await Promise.all([
-      reachOutReportOf(rc.ctx, rc.tenantId, window),
-      reachOutChainTotals(rc.ctx.supabase, rc.tenantId, window).catch((e: unknown) => {
+      getReachOutReport(rc.ctx, rc.tenantId, window),
+      getReachOutChainTotals(rc.ctx.supabase, rc.tenantId, window).catch((e: unknown) => {
         log.error("reach_out_chain_totals_read_failed", {
           tenant_id: rc.tenantId,
           error: e instanceof Error ? e.message : String(e),
@@ -111,7 +117,7 @@ export const reachOutReport: Reader<
       }),
     ]);
     const chains = typeof totals === "string" ? chainTotalsFromReport(report) : chainTotalsOf(totals);
-    return { data: { report, chains }, rows: [], stamp: stamp() };
+    return { data: { report, chains }, rows: [], stamp: readerStamp() };
   },
 };
 
@@ -119,9 +125,9 @@ export const reachOutReport: Reader<
  * Each reach-out's numbers over Campaigns' own period, read as GET reports/reach-outs?period=30d reads them (reachOutReport,
  * over the route's own window): each chain's own totals by its root, or the report's twenty where those cannot be read,
  * which its row on Campaigns says (contracts chainResultsOf). Null where the report could not be read, logged. The
- * reach-outs' twin of lastDaysBySource: Ask's context of the page says them.
+ * reach-outs' twin of listLastDaysBySource: Ask's context of the page says them.
  */
-export async function chainLastDays(rc: ReaderContext): Promise<ReachOutChainTotalsDto | null> {
+export async function findChainLastDays(rc: ReaderContext): Promise<ReachOutChainTotalsDto | null> {
   try {
     const window = await reportWindowFor(rc, { period: CAMPAIGNS_RESULTS_PERIOD });
     return (await load(rc, reachOutReport, window)).data.chains;
@@ -143,7 +149,7 @@ export async function chainLastDays(rc: ReaderContext): Promise<ReachOutChainTot
  */
 async function stuckOf(rc: ReaderContext): Promise<{ stuck: CampaignStuckRawDto | null; stuckFailed: boolean }> {
   try {
-    const answer = await campaignStuck(rc.ctx.supabase, rc.tenantId);
+    const answer = await findCampaignStuck(rc.ctx.supabase, rc.tenantId);
     if (answer === null) {
       log.warn("campaign_stuck_missing", { tenant_id: rc.tenantId });
       return { stuck: null, stuckFailed: false };
@@ -184,7 +190,7 @@ function checkedAtOf(config: Record<string, unknown>): string | null {
  */
 async function numberOf(rc: ReaderContext): Promise<CampaignNumberDto> {
   try {
-    const channel = await whatsappChannelFacts(rc.ctx.supabase, rc.tenantId);
+    const channel = await findWhatsappChannelFacts(rc.ctx.supabase, rc.tenantId);
     if (channel === null) return { state: "none" };
     const health = numberHealthOfConfig(channel.config);
     return {
@@ -207,7 +213,7 @@ async function numberOf(rc: ReaderContext): Promise<CampaignNumberDto> {
 /**
  * GET reports/campaigns/ledger, as the route answers it: what the Campaigns lens reads beyond the sends' own report
  * (campaignReport). Three reads, made together, each failing alone: the window over `days` and the same number before
- * them, which one SECURITY INVOKER function counts in the workspace's own zone (campaignLedger: the people sent to and who
+ * them, which one SECURITY INVOKER function counts in the workspace's own zone (findCampaignLedger: the people sent to and who
  * wrote back, the runs, what was held back and why they stopped, why sends failed, each message, how soon the first reply
  * came and how long approvals waited); what is stuck now (stuckOf), as of now whatever the days; and the connected
  * number's health (numberOf). Contracts' campaignLedgerDtoOf makes the route's answer of them, and judges what is stuck by
@@ -224,15 +230,15 @@ export const campaignLedgerReport: Reader<ReportWindow, CampaignLedgerDto> = {
   name: "campaignLedgerReport",
   async read(rc, window) {
     const [answer, stuck, number] = await Promise.all([
-      campaignLedger(rc.ctx.supabase, rc.tenantId, window),
+      findCampaignLedger(rc.ctx.supabase, rc.tenantId, window),
       stuckOf(rc),
       numberOf(rc),
     ]);
     const series = isCampaignLedgerSeriesDto(answer) ? answer : null;
     if (answer === null) log.warn("campaign_ledger_missing", { tenant_id: rc.tenantId });
     else if (series === null) throw new AppError("not_found", "No workspace found for this report.", 404);
-    const head = series ?? (await askedHead(rc, window));
+    const head = series ?? (await getAskedHead(rc, window));
     const data = campaignLedgerDtoOf(series, { ...stuck, number, head, nowMs: rc.now.getTime() });
-    return { data, rows: [], stamp: stamp() };
+    return { data, rows: [], stamp: readerStamp() };
   },
 };

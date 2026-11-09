@@ -13,6 +13,7 @@
 import {
   appointmentWords,
   businessTrailOf,
+  ESCALATION_REASON_SHORT,
   heldWords,
   isIdentifierName,
   rowReachWords,
@@ -21,7 +22,7 @@ import {
   type SeenReading,
 } from "@chanlytics/contracts";
 import { carryReply } from "../../inbox/carried-reply";
-import { navigate } from "../../legacy-verbs";
+import { navigate } from "../../frame-verbs";
 import { unreadHere } from "../../seen";
 import { VisitState } from "../../visit-line";
 import { visitWordHere } from "../../workspace-word";
@@ -30,7 +31,9 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import type { DataCard, DataColumn, RowPick } from "../../kit/table/columns";
+import { SAYS_WHEN } from "../../kit/says-when";
+import { ROW_ACTS_PX, type DataCard, type DataColumn, type RowPick } from "../../kit/table/columns";
+import { CellLines } from "../../kit/table/lines";
 import type { ColCtx, PeopleCellCtx } from "../types";
 import { offersOf, plReceptMark, plReceptSaysTheState, plVisitStart, plWhen } from "../words";
 import { plRowCard } from "./row-card";
@@ -374,7 +377,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     key: "state",
     label: "State",
     sort: { first: "desc", value: plStateSort },
-    width: { base: 128, min: 118, max: 240 },
+    width: { base: 136, min: 118, max: 240 },
     csv: { head: "State", cell: (p) => p.stateLabel },
     cell: plStateCell,
   },
@@ -386,7 +389,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     label: "Next step",
     sort: { first: "asc", value: plNextSort },
     hint: "Their next step, and the day it is due",
-    width: { base: 140, min: 112, max: 240 },
+    width: { base: 148, min: 112, max: 240 },
     csv: { head: "Next step", cell: (p) => (p.nextStep ? [p.nextStep.words, p.nextStep.day.words].join(" · ") : "") },
     cell: (p) => (
       <td
@@ -401,10 +404,10 @@ export const PL_COLUMNS: PeopleColumn[] = [
         data-testid="row-next-step"
       >
         {p.nextStep ? (
-          <span className="cl-row-step">
-            <span className="cl-row-step-words">{p.nextStep.words}</span>
-            <span className="cl-row-step-when">{p.nextStep.day.words}</span>
-          </span>
+          <CellLines
+            top={<span className="cl-row-step-words">{p.nextStep.words}</span>}
+            sub={<span className="cl-row-step-when">{p.nextStep.day.words}</span>}
+          />
         ) : null}
       </td>
     ),
@@ -426,14 +429,14 @@ export const PL_COLUMNS: PeopleColumn[] = [
     label: "Last contact",
     sort: { first: "desc", value: plLastSort },
     hint: "When you last spoke, and who spoke",
-    width: { base: 124, min: 112, max: 240 },
+    width: { base: 132, min: 112, max: 240 },
     csv: { head: "Last contact", cell: (p) => p.lastContact.label },
     cell: (p) => (
       <td key="last" className="dim cl-last-cell" title={plWhen(p.lastContact.at)}>
-        <span className="cl-row-last">
-          <span className="cl-row-last-when">{p.lastContact.when || p.lastContact.by}</span>
-          {p.lastContact.when && <span className="cl-row-last-by">{p.lastContact.by}</span>}
-        </span>
+        <CellLines
+          top={<span className="cl-row-last-when">{p.lastContact.when || p.lastContact.by}</span>}
+          sub={p.lastContact.when ? <span className="cl-row-last-by">{p.lastContact.by}</span> : null}
+        />
       </td>
     ),
   },
@@ -445,7 +448,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     labelOf: (x) => appointmentWords(x.word ?? "appointment").Many,
     sort: { first: "asc", value: plVisitsSort },
     needs: (x) => !!x.withCalendar,
-    width: { base: 144, min: 120, max: 240 },
+    width: { base: 152, min: 120, max: 240 },
     csv: {
       head: "Next appointment",
       headOf: (x) => appointmentWords(x.word ?? "appointment").next,
@@ -603,7 +606,8 @@ export const PL_COLUMNS: PeopleColumn[] = [
     key: "actions",
     label: "",
     fixed: true,
-    width: { base: 84 },
+    // The row's own right gutter: the acts float in from it over the row's end (clients.css), in no column of their own.
+    width: { base: ROW_ACTS_PX },
     cell: (p, x) => (
       <td key="actions" className="cl-actions-cell">
         <PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} />
@@ -624,6 +628,9 @@ export const PL_COLUMNS: PeopleColumn[] = [
 const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attention">, pick?: RowPick) => {
   const words = attentionWordsOf(p, attention);
   const asks = p.state === "needs_you" || p.state === "waiting_on_you";
+  // Whose turn it is ("they wrote last") or that they wrote by email is the third line's again ("They wrote · 7d ago"):
+  // said once there, and the row stands two lines (the phone pass, 3 Nov 2026).
+  const saysLast = p.state === "waiting_on_you" || p.stateDetail === ESCALATION_REASON_SHORT.email_review;
   const line = p.nextVisitLine;
   return plRowCard({
     face: { person: { name: p.name, initials: p.initials } },
@@ -638,18 +645,18 @@ const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attentio
     unread: plUnread(p),
     numeric: isIdentifierName(p.name),
     pill: <PeopleStatePill state={p.state} label={p.stateLabel} />,
-    lead: asks && p.stateDetail ? p.stateDetail : words,
+    lead: saysLast ? null : asks && p.stateDetail ? p.stateDetail : words,
     leadTestid: asks && p.stateDetail ? "row-state-detail" : "row-words",
     facts: [
       // A stop the pill does not say (the State cell's, on a desktop): the first of the card's facts.
       stopToldBesideState(p) ? <StoppedMark key="stopped" testid="row-stopped" /> : null,
       line ? (
-        <span key="visit" className="pl-card-visit" data-testid="row-next-visit">
+        <span key="visit" className="pl-card-visit" data-testid="row-next-visit" {...SAYS_WHEN}>
           <Icon name="calendar" size={11} />
           {[line.day, line.time, line.state ? line.state.text : ""].filter(Boolean).join(" · ")}
         </span>
       ) : null,
-      <span key="last" className="pl-card-last">
+      <span key="last" className="pl-card-last" {...SAYS_WHEN}>
         {p.lastContact.label}
       </span>,
     ],

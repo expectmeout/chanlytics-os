@@ -1,4 +1,4 @@
-import LegacyHost from "@/legacy-bridge/LegacyHost";
+import FrameHost from "@/bridge/FrameHost";
 
 /**
  * /w/<slug>/<route> — the OS shell for one workspace, named in the address (plan 3.5).
@@ -11,8 +11,8 @@ import LegacyHost from "@/legacy-bridge/LegacyHost";
  * each call, so every workspace's frame is the one prerendered for all (decision 0053, step 5).
  *
  * `children` is the route's page. Until a surface has a page of its own it is the catch-all's, which draws nothing:
- * the route is the frame's legacy table's to draw.
+ * the route is the frame's route table's to draw.
  */
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  return <LegacyHost>{children}</LegacyHost>;
+  return <FrameHost>{children}</FrameHost>;
 }

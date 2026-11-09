@@ -5,20 +5,17 @@
  * `registration-status` (api/admin/lines.ts) call it; the filing itself is
  * a2p-register.ts.
  */
-import {
-  answerObject,
-  smsStateFor,
-  registrationVerdict,
-  refusalWords,
-  twilioRequest,
-  type CampaignError,
-} from "../packages/channels.js";
-import { formatPhoneDisplay, type EdgeErrorCode } from "../packages/contracts.js";
-import { emitEvent, tenantDb } from "../packages/db.js";
-import { keepOnce } from "../ops/notify.js";
+import { answerObject } from "@chanlytics/channels/shared";
+import { smsStateFor, registrationVerdict, refusalWords, requestTwilio } from "@chanlytics/channels/lines";
+import { formatPhoneDisplay, type EdgeErrorCode } from "@chanlytics/contracts";
+import { emitEvent } from "@chanlytics/db/events";
+import { logger } from "../shared/log.js";
+import { keepOnce } from "../shared/alerts/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
-import { lineAccount, refreshLineToken } from "../sms/sms.js";
+import { findLineAccount, refreshLineToken } from "./sms.js";
 import type { Db, LineRow } from "./a2p-register.js";
+import { saveLineRow } from "@chanlytics/db/lines";
+import { logAndGoOn } from "@chanlytics/log";
 
 const SYNC_READ_MS = 15000;
 
@@ -38,7 +35,7 @@ export type RegistrationSync = {
  * throws, as the bare fetch it replaces did.
  */
 async function readAsTwilio(path: string, acct: { sid: string; token: string }) {
-  const r = await twilioRequest(acct, "GET", `https://messaging.twilio.com/v1${path}`, { timeoutMs: SYNC_READ_MS });
+  const r = await requestTwilio(acct, "GET", `https://messaging.twilio.com/v1${path}`, { timeoutMs: SYNC_READ_MS });
   if (r.status === 0) throw new Error(`twilio: ${r.error ?? "no answer"}`);
   return { status: r.status, body: answerObject(r) };
 }
@@ -65,24 +62,33 @@ async function askRegistration(line: LineRow, acct: { sid: string; token: string
 async function keepAnswer(
   db: Db,
   line: LineRow,
-  answer: { smsState: string; mock: LineRow["reg_mock"]; reason: string | null },
+  answer: { smsState: LineRow["sms_state"]; mock: LineRow["reg_mock"]; reason: string | null },
 ): Promise<void> {
   const { smsState, mock, reason } = answer;
   const moved = smsState !== line.sms_state;
   const news = moved || mock !== line.reg_mock || reason !== line.last_error;
-  await tenantDb(db, line.tenant_id)
-    .from("lines")
-    .update({
-      // Asked: to the back of the sweep's queue, news or not (lines_set_updated_at stamps it too).
-      updated_at: new Date().toISOString(),
-      ...(news ? { sms_state: smsState, reg_mock: mock, last_error: reason } : {}),
-      // Only when the state actually MOVED. This sweep runs hourly and wrote it
-      // every time, so `state_since` meant "the last hour" rather than "when this
-      // wait began" -- and the Setup row reads it to say how long the carriers
-      // have had it, which therefore never got past an hour.
-      ...(moved ? { state_since: new Date().toISOString() } : {}),
-    })
-    .eq("id", line.id);
+  const written = await saveLineRow(db, line, {
+    // Asked: to the back of the sweep's queue, news or not (lines_set_updated_at stamps it too).
+    updated_at: new Date().toISOString(),
+    ...(news ? { sms_state: smsState, reg_mock: mock, last_error: reason } : {}),
+    // Only when the state actually MOVED. This sweep runs hourly and wrote it
+    // every time, so `state_since` meant "the last hour" rather than "when this
+    // wait began" -- and the Setup row reads it to say how long the carriers
+    // have had it, which therefore never got past an hour.
+    ...(moved ? { state_since: new Date().toISOString() } : {}),
+  });
+  if (written.error) lineStateNotWritten(line, written.error.message);
+}
+
+/** A read of the registration that could not be had, kept on the row so the sweep's queue moves past it (see below). */
+async function noteLineError(db: Db, line: LineRow, lastError: string): Promise<void> {
+  const noted = await saveLineRow(db, line, { last_error: lastError });
+  if (noted.error) lineStateNotWritten(line, noted.error.message);
+}
+
+/** A line's row that could not take what the sweep learned: said, and written on the next hour's read. */
+function lineStateNotWritten(line: LineRow, error: string): void {
+  logger({ tenant_id: line.tenant_id }).error("line_state_write_failed", { line_id: line.id, error });
 }
 
 export async function syncRegistration(db: Db, line: LineRow): Promise<RegistrationSync> {
@@ -92,17 +98,14 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   // defect below: a 401 and a brand the carriers are still thinking about
   // produced the same value -- null -- and null means "no answer yet".
   // Both are the workspace's own, so both are read as its subaccount.
-  const sub = await lineAccount(db, line).catch(() => null);
+  const sub = await findLineAccount(db, line).catch(() => null);
   if (!sub) {
     // Recorded, like the two refusals below, and for a second reason: the
     // hourly sweep reads the least-recently-asked lines first, and a row it
     // returns from without touching never moves down the queue. Twenty lines
     // with a lost token would otherwise hold every page for ever and the
     // twenty-first would never be asked about at all.
-    await tenantDb(db, line.tenant_id)
-      .from("lines")
-      .update({ last_error: "could not read the registration: the line has no credentials on file" })
-      .eq("id", line.id);
+    await noteLineError(db, line, "could not read the registration: the line has no credentials on file");
     return { ok: false, smsState: line.sms_state, error: "no_line_credentials" };
   }
 
@@ -123,21 +126,16 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   if (refused(answers)) {
     const fresh = await refreshLineToken(db, line);
     if (!fresh.ok) {
-      await tenantDb(db, line.tenant_id)
-        .from("lines")
-        .update({ last_error: `could not read the registration: ${fresh.detail ?? fresh.error}` })
-        .eq("id", line.id);
+      await noteLineError(db, line, `could not read the registration: ${fresh.detail ?? fresh.error}`);
       return { ok: false, smsState: line.sms_state, error: fresh.error, detail: fresh.detail };
     }
     answers = await ask(fresh.account);
     if (refused(answers)) {
-      await tenantDb(db, line.tenant_id)
-        .from("lines")
-        .update({
-          last_error:
-            "could not read the registration: the provider refused the line's credentials even after a refresh",
-        })
-        .eq("id", line.id);
+      await noteLineError(
+        db,
+        line,
+        "could not read the registration: the provider refused the line's credentials even after a refresh",
+      );
       return { ok: false, smsState: line.sms_state, error: "provider_unauthorized" };
     }
   }
@@ -183,11 +181,11 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   const reason = refusing
     ? (refusalWords({
         brandFailureReason: typeof brand?.failure_reason === "string" ? brand.failure_reason : null,
-        campaignErrors: Array.isArray(usa2p?.errors) ? (usa2p.errors as CampaignError[]) : null,
+        campaignErrors: Array.isArray(usa2p?.errors) ? usa2p.errors : null,
       }) ?? "the carriers sent the registration back")
     : null;
-  const told = await tellThenKeep(db, line, { smsState, mock, reason });
-  if (told === null)
+  const notice = await tellThenKeep(db, line, { smsState, mock, reason });
+  if (notice === null)
     return {
       ok: false,
       smsState: line.sms_state,
@@ -199,7 +197,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
     smsState,
     brand: brandStatus ?? undefined,
     campaign: campaignStatus ?? undefined,
-    told,
+    told: notice,
   };
 }
 
@@ -244,6 +242,6 @@ async function tellThenKeep(
     from: line.sms_state,
     to: smsState,
     mock,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event"));
   return true;
 }

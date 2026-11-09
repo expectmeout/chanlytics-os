@@ -54,7 +54,7 @@ export const REPLAYED = [
   "packages/contracts/src/schema-sets.generated.ts",
   "packages/db/src/database.types.ts",
   "supabase/schema.sql",
-  "tooling/scripts/tests/_unique-keys.generated.json",
+  "tests/_unique-keys.generated.json",
 ];
 export const isReplayed = (file) => REPLAYED.includes(file);
 
@@ -77,8 +77,7 @@ export function isWritten(file) {
  * baseline main keeps (the coverage floors, the bundle's ceilings, the hearing tests' lists) is a person's, as before.
  */
 export const isRetired = (file) =>
-  /^packages\/[^/]+\/dist\//.test(file) ||
-  /^tooling\/scripts\/tests\/(baselines\/|source-scan-baseline\.json$)/.test(file);
+  /^packages\/[^/]+\/dist\//.test(file) || /^tests\/(baselines\/|source-scan-baseline\.json$)/.test(file);
 
 /** The pages whose number blocks and drawn tree left them that day, each block now a pointer (decision 0074). */
 export const BLOCK_PAGES = ["docs/architecture.md", "docs/debt.md", "docs/takeover.md"];

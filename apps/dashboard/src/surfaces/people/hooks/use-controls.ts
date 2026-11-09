@@ -15,7 +15,7 @@
  * mode, the toast, the claim that "all N that match" are picked, and the box's and the pane's elements.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { canDo } from "../../legacy-verbs";
+import { canDo } from "../../frame-verbs";
 import {
   columnsIn,
   shownColumnsOf,
@@ -44,9 +44,13 @@ interface ControlsArgs<R extends TableRow, X, C> {
   colCtx: C;
   people: PeopleRead;
   sortFirst: { by: string; dir: SortDir };
+  /** The orders that stand whether their column shows or not, beside the first (columns.ts `sortShownOf`). */
+  sortStands?: readonly string[];
   sortThen?: SortThen;
   railRow?: string | null;
   extraDefaults?: View | null;
+  /** A saved view read as the page's cells are now (kit/table/state.ts `viewNow`). */
+  viewNow?: (saved: View) => View;
 }
 
 /** A desk's columns where a phone draws cards. */
@@ -113,6 +117,7 @@ export function usePlControls<R extends TableRow, X, C>(args: ControlsArgs<R, X,
     store: VIEW_STORE,
     railRow: args.railRow,
     extraDefaults: args.extraDefaults,
+    viewNow: args.viewNow,
   });
   // "Select all 1,240 that match": the bulk bar hands the view's filters to the server instead of a list of ids. A claim
   // about the server's view, not the table's state (kit/table/state.ts).
@@ -138,7 +143,7 @@ export function usePlControls<R extends TableRow, X, C>(args: ControlsArgs<R, X,
   );
   const chosen = table.chosen;
   // The order a desk's table stands in is one its member can see (sortShownOf); the member's sort stays theirs.
-  const shown = phone ? chosen : sortShownOf(deskColumns, chosen, sortFirst);
+  const shown = phone ? chosen : sortShownOf(deskColumns, chosen, sortFirst, args.sortStands);
   // What the table sorts by: the order it shows, with the page's tiebreak (kit/table/use-data-table.ts `sorting`).
   const applied = useMemo(
     () => sortingFor(shown.by, shown.dir, table.sortThen),

@@ -11,9 +11,11 @@ An owner says what businesses they want, in words, on the Leads page or anywhere
 card: the kind of business, up to five search terms, an area, a count, the contact preferred (a phone, or an email
 checked) and what to leave out. Nothing is searched or spent before Approve. A search then runs in **rounds**:
 
-1. **The probe.** 25 places across the terms, judged, so the round learns its yield and can ask the owner whether
-   what it is finding is what they meant (the question after 25).
-2. **The main phase.** What the count still needs, over the probe's yield.
+1. **The probe.** 25 places across the terms the reserve holds a run for, judged, so the round learns its yield and
+   can ask the owner whether what it is finding is what they meant (the question after 25). A probe that leaves no
+   run's room goes to the checks on what it found.
+2. **The main phase.** What the count still needs, over the probe's yield: a term not yet asked before one that was,
+   and one asked again past what it read, since the provider answers a term from its top (`mainAsk`).
 3. **The checks.** Every email found goes through the mailbox checker, so an address counts only once it is proved.
 
 A round ends with one of nine endings (`packages/contracts/src/leads/search/endings.ts`). A later round of the same
@@ -38,7 +40,7 @@ review on its address until the checker answers.
     month's and today's searching (`lead_spend_room`, `lead_check_estimate`), and is charged where it runs.
 - **Sources (§0.3).** Only Apify actors at pinned builds (`packages/core/src/leads/cards.ts`). The health sweep reads
   every pin by its build id, and since 00506 each actor's prices once a day against the last read
-  (`apps/edge/lib/leads/lead-sources.ts`, `lead_platform.prices`).
+  (`apps/edge/lib/leads/sources.ts`, `lead_platform.prices`).
 - **Consent (§0.4).** Amended by decisions 0056 and 0057: a lead is written to by a sequence to leads from the
   business's own connected mailbox, never from the platform's. A lead becomes a person only on a real conversation (a
   reply, a call marked Interested, a booking, a deal; `lead_convert_by`).
@@ -49,7 +51,7 @@ review on its address until the checker answers.
 States: `queued → probing → waiting_on_owner → running → checking → ended`, held by `lead_rounds_guard`, which stamps
 `lead_rounds.state_since` on every move (00506).
 
-The jobs (`packages/jobs/src/handlers.ts`), each a verb in `packages/core/src/leads/runner/`:
+The jobs (`packages/jobs/src/handlers/handlers.ts`), each a verb in `packages/core/src/leads/runner/`:
 
 | Job                | Verb                    | What it does                                                                      |
 | ------------------ | ----------------------- | --------------------------------------------------------------------------------- |
@@ -63,13 +65,13 @@ run's next collect, the round's checks (`lead_check`, batch 0) or the main phase
 Before 00506 the checks and the main phase were written after the commit, and a function killed between the two left a
 round waiting on a job nobody wrote. `packages/core/src/leads/runner/round-decision.ts` decides what follows.
 
-**The judge's time.** A lead job has at least 32 seconds of a tick (`packages/jobs/src/ledger.ts`). The judge is never
+**The judge's time.** A lead job has at least 32 seconds of a tick (`packages/jobs/src/runner/ledger.ts`). The judge is never
 started with less than its own 28-second bound left (`runner/rules.ts` `JUDGE_MARGIN_MS`); the second model's screen
 (decision 0085) is asked only where the judge keeps that bound after it (`SCREEN_MARGIN_MS`); and a refused answer is
 asked again only while the bound is still left, or its places wait in Needs review.
-`tooling/scripts/tests/leads/engine/tick-geometry.test.mjs` holds the numbers to each other.
+`tests/leads/engine/tick-geometry.test.mjs` holds the numbers to each other.
 
-**The sweep** (`apps/edge/lib/leads/lead-sweep.ts`, every five minutes):
+**The sweep** (`apps/edge/lib/leads/sweep-plan.ts`, every five minutes):
 
 - **Runs.** A running run nobody is collecting gets a collect; one past 45 minutes is aborted and read once more; a
   lost start is reconciled from the provider's own list; a run whose collects failed three times is given up.
@@ -86,21 +88,21 @@ found, and since 00506 the bell says so.
 
 ## Where to look
 
-| For                             | Read                                                                                                                                                      |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The plan, its words, its prices | `packages/contracts/src/leads/search/` (`plan.ts`, `cards.ts`, `class.ts`, `endings.ts`, `caps.ts`)                                                       |
-| The runner                      | `packages/core/src/leads/runner/` over `packages/core/src/leads/ports.ts`                                                                                 |
-| The runner's database half      | `apps/edge/lib/leads/lead-db.ts` (the edge's binding of core's `LeadDb`)                                                                                  |
-| The provider and the judge      | `packages/channels/src/leads/apify.ts`, `packages/channels/src/leads/lead-judge.ts`, `apps/edge/lib/leads/lead-wires.ts`                                  |
-| The webhook                     | `apps/edge/api/apify-webhook.ts`, `apps/edge/lib/leads/apify-delivery.ts`                                                                                 |
-| The sweep                       | `apps/edge/api/cron/leads.ts`, `apps/edge/lib/leads/leads-sweep.ts`, `apps/edge/lib/leads/lead-sweep.ts`                                                  |
-| The routes                      | `apps/dashboard/app/api/v1/lead-searches/`, `apps/dashboard/app/api/v1/leads/`                                                                            |
-| What they call                  | `apps/dashboard/src/server/leads/`                                                                                                                        |
-| Ask's cards                     | `apps/dashboard/src/server/ask/tools/act/leads/`                                                                                                          |
-| The page                        | `apps/dashboard/src/surfaces/leads/`                                                                                                                      |
-| The doors in SQL                | `supabase/migrations/00140_the_lead_finder_engine.sql` and the migrations after it to `00506_a_search_never_stalls_and_every_spend_is_counted.sql`        |
-| The tests                       | `tooling/scripts/tests/leads/`; the seeded simulation of a whole search under faults is `tooling/scripts/tests/leads/rounds/the-search-survives.test.mjs` |
-| The weekly real search          | `.github/workflows/leads-weekly.yml`, running `e2e/leads.spec.ts`'s paid search                                                                           |
+| For                             | Read                                                                                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The plan, its words, its prices | `packages/contracts/src/leads/search/` (`plan.ts`, `cards.ts`, `class.ts`, `endings.ts`, `caps.ts`)                                                |
+| The runner                      | `packages/core/src/leads/runner/` over `packages/core/src/leads/ports.ts`                                                                          |
+| The runner's database half      | `apps/edge/lib/leads/db.ts` (the edge's binding of core's `LeadDb`)                                                                                |
+| The provider and the judge      | `packages/channels/src/leads/apify.ts`, `packages/channels/src/leads/judge.ts`, `apps/edge/lib/leads/wires.ts`                                     |
+| The webhook                     | `apps/edge/api/apify-webhook.ts`, `apps/edge/lib/leads/apify-delivery.ts`                                                                          |
+| The sweep                       | `apps/edge/api/cron/leads.ts`, `apps/edge/lib/leads/sweep.ts`, `apps/edge/lib/leads/sweep-plan.ts`                                                 |
+| The routes                      | `apps/dashboard/app/api/v1/lead-searches/`, `apps/dashboard/app/api/v1/leads/`                                                                     |
+| What they call                  | `apps/dashboard/src/server/leads/`                                                                                                                 |
+| Ask's cards                     | `apps/dashboard/src/server/ask/tools/act/leads/`                                                                                                   |
+| The page                        | `apps/dashboard/src/surfaces/leads/`                                                                                                               |
+| The doors in SQL                | `supabase/migrations/00140_the_lead_finder_engine.sql` and the migrations after it to `00506_a_search_never_stalls_and_every_spend_is_counted.sql` |
+| The tests                       | `tests/leads/`; the seeded simulation of a whole search under faults is `tests/leads/rounds/the-search-survives.test.mjs`                          |
+| The weekly real search          | `.github/workflows/leads-weekly.yml`, running `e2e/leads.spec.ts`'s paid search                                                                    |
 
 ## What is owed
 
@@ -109,8 +111,8 @@ found, and since 00506 the bell says so.
 - A trial searches nothing (`maySpend` admits only `active`). A small first search is Ruben's call on spend.
 - Reports has no Leads lens (`packages/contracts/src/reports/lenses.ts`, "Leads in phase C"). It needs a canvas
   first.
-- The main phase asks the provider again for the probe's places and pays for them (`lead_runs.already_yours` counts
-  them since 00506). Measure the share, then size `mainAsk` for it.
+- A term asked again pays again for what it read, since the provider has no offset (`lead_runs.already_yours` counts
+  them since 00506). `mainAsk` goes to a term not yet asked first, so this is what a search pays only once it has none.
 - The membership doors fold into one (`docs/debt.md`'s rows for `lead_search_members`, `leads` and `lead_searches`).
 - The runner's table reads move behind repository functions in `packages/db`, with the binding staying in the edge
   (packages/db does not import core's ports).

@@ -2,6 +2,7 @@
  * What the receptionist can do, and what it cannot: the abilities card's rows and what holds the whole card back,
  * computed from what the records show, and the things no switch turns on (cannotRows).
  */
+import { valueAt } from "../../shared/unknown";
 import { POLICY_MODE_WORDS, POLICY_MODES, type PolicyMode } from "../workspace-config/policy-classes";
 import { handoffChatWords, transferWords } from "./handoff-words";
 
@@ -143,84 +144,84 @@ export interface AbilitiesVM {
  * number is connected and the line is not live, Setup's own sentence says why (the live walk's SET-2, 27 Oct 2026). On a
  * call it goes by text where WhatsApp cannot carry it and there is a texting line (28 Oct 2026).
  */
-function bookingLinkDetail(i: AbilityInputs): string {
-  if (!i.hasBookingLink) return "No booking link, so it takes their details for you to follow up.";
-  if (!i.whatsappLive) {
-    const why = i.whatsappStatus
-      ? `It goes out on WhatsApp, which isn't live here yet: ${i.whatsappStatus}`
+function bookingLinkDetail(abilityInputs: AbilityInputs): string {
+  if (!abilityInputs.hasBookingLink) return "No booking link, so it takes their details for you to follow up.";
+  if (!abilityInputs.whatsappLive) {
+    const reason = abilityInputs.whatsappStatus
+      ? `It goes out on WhatsApp, which isn't live here yet: ${abilityInputs.whatsappStatus}`
       : "It goes out on WhatsApp, which isn't connected here.";
-    if (!i.voiceLive) return why;
-    return i.textingLine && !i.bookingHeld
-      ? `${why} On a call it sends it by text instead.`
-      : `${why} On a call it offers to have someone follow up instead.`;
+    if (!abilityInputs.voiceLive) return reason;
+    return abilityInputs.textingLine && !abilityInputs.bookingHeld
+      ? `${reason} On a call it sends it by text instead.`
+      : `${reason} On a call it offers to have someone follow up instead.`;
   }
-  if (i.bookingHeld)
+  if (abilityInputs.bookingHeld)
     return "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.";
-  if (!i.voiceLive) return "It sends it in the thread.";
-  if (i.hasBookingTemplate)
-    return i.textingLine
+  if (!abilityInputs.voiceLive) return "It sends it in the thread.";
+  if (abilityInputs.hasBookingTemplate)
+    return abilityInputs.textingLine
       ? "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the thread."
       : "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread.";
-  return i.textingLine
+  return abilityInputs.textingLine
     ? "In chat it sends it in the thread. On a call it sends it by text, until you have an approved booking-link WhatsApp message."
     : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
 }
 
 /** Where the booking link goes, for the rows that send it or promise it (abilityRows). */
-function linkWays(i: AbilityInputs, chatAnswers: boolean, repliesHeld: boolean) {
+function linkWays(abilityInputs: AbilityInputs, chatAnswers: boolean, repliesHeld: boolean) {
   // In chat the link goes in the thread. On a call it goes as a template to the caller's
   // own WhatsApp (retell-fn deliver({ channel: "whatsapp" })), or by text from the texting
   // line when WhatsApp cannot carry it. So a call with neither an approved template nor a
   // texting line cannot send it -- whatever the booking link field holds.
-  const callSendsLink = i.voiceLive && ((i.whatsappLive && i.hasBookingTemplate) || i.textingLine);
+  const callSendsLink =
+    abilityInputs.voiceLive &&
+    ((abilityInputs.whatsappLive && abilityInputs.hasBookingTemplate) || abilityInputs.textingLine);
   // Where the booking-link row is ready in chat. Another row that promises the link after
   // something else promises it only here: with no WhatsApp to send it by, no link, or
   // bookings held on the Autonomy tab, "then the link" would not be true.
-  const linkGoes = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  const linkGoes = abilityInputs.hasBookingLink && chatAnswers && !abilityInputs.bookingHeld;
   return {
     linkGoes,
     // A call's send goes through the same outbound gate the Replies row holds, and the Booking row's: so on a call the
     // link goes where there is one, a way to send it, and neither row holding it.
-    linkOnCall: i.hasBookingLink && callSendsLink && !i.bookingHeld && !repliesHeld,
+    linkOnCall: abilityInputs.hasBookingLink && callSendsLink && !abilityInputs.bookingHeld && !repliesHeld,
     // ...and whether the row promising it after the times may do so without naming a channel. A workspace on both lines
     // with no approved booking-link template and no texting line sends it in chat and not on a call (retell-fn's deliver
     // has nothing to send). Said unqualified, the openings row told such a workspace its call offers times "then the link".
-    linkIsChatsAlone: linkGoes && i.voiceLive && !callSendsLink,
+    linkIsChatsAlone: linkGoes && abilityInputs.voiceLive && !callSendsLink,
   };
 }
 
-export function abilityRows(i: AbilityInputs): AbilitiesVM {
-  if (!i || typeof i !== "object")
+export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
+  if (!abilityInputs || typeof abilityInputs !== "object")
     throw new TypeError(
       "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.",
     );
-  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter(
-    (k) => typeof (i as unknown as Record<string, unknown>)[k] !== "boolean",
-  );
+  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter((k) => typeof valueAt(abilityInputs, k) !== "boolean");
   if (notBoolean.length) {
     throw new TypeError(
       `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`,
     );
   }
-  if (!POLICY_MODES.includes(i.replyMode)) {
+  if (!POLICY_MODES.includes(abilityInputs.replyMode)) {
     throw new TypeError(
-      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(i.replyMode)}: every chat ability turns on it.`,
+      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(abilityInputs.replyMode)}: every chat ability turns on it.`,
     );
   }
   // The Replies row holds the receptionist back: nothing is composed in chat, and a call's
   // booking-link send is refused. Said once for the card (`held` below), never on each row.
-  const repliesHeld = i.replyMode === "ask" || i.replyMode === "never";
+  const repliesHeld = abilityInputs.replyMode === "ask" || abilityInputs.replyMode === "never";
   // A chat ability needs a WhatsApp number that answers AND leave to answer with it.
-  const chatAnswers = i.whatsappLive && !repliesHeld;
-  const both = { voice: i.voiceLive, whatsapp: chatAnswers };
+  const chatAnswers = abilityInputs.whatsappLive && !repliesHeld;
+  const both = { voice: abilityInputs.voiceLive, whatsapp: chatAnswers };
   // Nothing is ready on a channel that is not answering. An input filled against a
   // dead line is a setting, not an ability, and drawing it ready would tell an owner
   // the booking link goes out when there is nothing to send it.
-  const answering = i.voiceLive || chatAnswers;
+  const answering = abilityInputs.voiceLive || chatAnswers;
 
-  const { linkGoes, linkOnCall, linkIsChatsAlone } = linkWays(i, chatAnswers, repliesHeld);
+  const { linkGoes, linkOnCall, linkIsChatsAlone } = linkWays(abilityInputs, chatAnswers, repliesHeld);
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = bookingLinkDetail(i);
+  const bookingDetail = bookingLinkDetail(abilityInputs);
 
   const rows: AbilityRowVM[] = [
     {
@@ -242,18 +243,21 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       // With bookings held, a call still offers the openings (call-start.ts; check_availability, with the team
       // confirming) and chat is handed them, while layerTwo replaces a booking reply carrying the link. So this
       // says what holds on both: it has them, and a request to book gets no link.
-      detail: !i.hasCalendarFeed
+      detail: !abilityInputs.hasCalendarFeed
         ? linkGoes
           ? `No calendar to read, so it does not guess at open times —${inChat} it sends the link instead.`
           : "No calendar to read, so it does not guess at open times."
-        : i.bookingHeld
+        : abilityInputs.bookingHeld
           ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows."
           : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
-      channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
+      channels: {
+        voice: abilityInputs.voiceLive && abilityInputs.hasCalendarFeed,
+        whatsapp: chatAnswers && abilityInputs.hasCalendarFeed,
+      },
       // The link or the Google calendar a connected mailbox reads (calendarFeedKeyOf), whichever the openings come from.
       runsOn: { label: "Your calendar", row: "calendar" },
-      ready: answering && i.hasCalendarFeed,
-      missing: !i.hasCalendarFeed,
+      ready: answering && abilityInputs.hasCalendarFeed,
+      missing: !abilityInputs.hasCalendarFeed,
     },
     {
       id: "booking_link",
@@ -265,19 +269,19 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       channels: { voice: linkOnCall, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes || linkOnCall,
-      missing: !i.hasBookingLink,
+      missing: !abilityInputs.hasBookingLink,
     },
     {
       id: "transfer",
       title: "Put a caller through",
       // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
-      detail: transferWords(i.hasHandoffNumber),
-      channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
+      detail: transferWords(abilityInputs.hasHandoffNumber),
+      channels: { voice: abilityInputs.voiceLive && abilityInputs.hasHandoffNumber, whatsapp: false },
       // The transfer number's one editor, Who you are's "Transfer number" (the plan's Task 3.2 decision): the
       // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
       runsOn: { label: "The transfer number", row: "handoff_number" },
-      ready: i.voiceLive && i.hasHandoffNumber,
-      missing: !i.hasHandoffNumber,
+      ready: abilityInputs.voiceLive && abilityInputs.hasHandoffNumber,
+      missing: !abilityInputs.hasHandoffNumber,
     },
     {
       id: "handoff",
@@ -286,7 +290,10 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
       // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
       // hand-off row's fold says it in the same words (handoffChatWords).
-      detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
+      detail: handoffChatWords({
+        hasEscalateWhen: abilityInputs.hasEscalateWhen,
+        pauseHours: abilityInputs.pauseHours,
+      }),
       channels: { voice: false, whatsapp: chatAnswers },
       runsOn: { label: "Your reasons", row: "escalate_when" },
       ready: chatAnswers,
@@ -296,16 +303,16 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
     {
       id: "vision",
       title: "Look at a photo",
-      detail: i.visionOn
+      detail: abilityInputs.visionOn
         ? "It says what it sees and suggests the next step, under the rules it always keeps."
         : "Off. A photo is passed to a person.",
-      channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
+      channels: { voice: false, whatsapp: chatAnswers && abilityInputs.visionOn },
       // Its switch is on this row since 18 Oct 2026 (it sat in the rules fold, among limits): no other row supplies it.
       runsOn: null,
-      ready: chatAnswers && i.visionOn,
+      ready: chatAnswers && abilityInputs.visionOn,
       // Off is the one state an owner changes from this card.
-      missing: !i.visionOn,
-      on: i.visionOn,
+      missing: !abilityInputs.visionOn,
+      on: abilityInputs.visionOn,
     },
   ];
 
@@ -313,7 +320,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
   // clause only where there is a call: a workspace on WhatsApp alone is promised nothing about one.
   const held = repliesHeld
     ? {
-        sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} — ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
+        sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[abilityInputs.replyMode].chip} — ${POLICY_MODE_WORDS[abilityInputs.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${abilityInputs.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
         door: "Your Autonomy tab",
         to: "admin/autonomy" as const,
       }
@@ -380,24 +387,24 @@ const CANNOT_REQUESTS_BOOK =
  * `hasBookingLink` is checked the same way: two of the rows lean on a link, and
  * a business that quotes, with none, is told what does the work instead.
  */
-export function cannotRows(i: {
+export function cannotRows(input: {
   smsLive: boolean;
   hasBookingLink: boolean;
   /** The workspace takes booking requests (contracts takesBookingRequests); left out, none is promised. */
   takesRequests?: boolean;
 }): CannotRowVM[] {
-  if (typeof i?.smsLive !== "boolean") {
+  if (typeof input?.smsLive !== "boolean") {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
   }
-  if (typeof i?.hasBookingLink !== "boolean") {
+  if (typeof input?.hasBookingLink !== "boolean") {
     throw new TypeError(
       "cannotRows needs true or false for hasBookingLink: left out, a business with no link would be told its link books.",
     );
   }
-  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && i.smsLive)).map((r) =>
-    r.id === "book" && i.takesRequests === true
+  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && input.smsLive)).map((r) =>
+    r.id === "book" && input.takesRequests === true
       ? { ...r, detail: CANNOT_REQUESTS_BOOK }
-      : !i.hasBookingLink && CANNOT_NO_LINK[r.id]
+      : !input.hasBookingLink && CANNOT_NO_LINK[r.id]
         ? { ...r, detail: CANNOT_NO_LINK[r.id] as string }
         : r,
   );

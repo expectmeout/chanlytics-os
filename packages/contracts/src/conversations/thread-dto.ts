@@ -1,7 +1,7 @@
 /**
  * A thread on the wire: the message and conversation DTOs the conversations route returns, when a message
  * happened, and whether its person asked not to be contacted. The view models over them are inbox-thread.ts,
- * conversation-vm.ts and, for a call's own row, call-vm.ts over call-dto.ts.
+ * conversations/vm.ts and, for a call's own row, call-vm.ts over call-dto.ts.
  */
 import { isOptedOutContact } from "../consent/consent";
 
@@ -41,16 +41,16 @@ export interface MessageDto {
 }
 
 /** When a message happened, preferring the channel's own clock over ours. */
-export function messageAt(m: MessageDto): string {
-  return m.channel_ts ?? m.created_at;
+export function messageAt(message: MessageDto): string {
+  return message.channel_ts ?? message.created_at;
 }
 
 /**
  * The order a thread is read in, the earliest first, by when each message happened (messageAt): the Inbox's read, a
  * thread's own read and a page putting the two together sort by it, so one message never stands in two places.
  */
-export function inReadingOrder(a: MessageDto, b: MessageDto): number {
-  return Date.parse(messageAt(a)) - Date.parse(messageAt(b));
+export function inReadingOrder(message: MessageDto, otherMessage: MessageDto): number {
+  return Date.parse(messageAt(message)) - Date.parse(messageAt(otherMessage));
 }
 
 /**
@@ -100,6 +100,10 @@ export interface ConversationDto {
   state: "open" | "needs_human" | "snoozed" | "archived";
   paused_until: string | null;
   snooze_until?: string | null;
+  /** When it was set aside as not a customer's, and still is (00539, decision 0093); absent from a server a deploy behind. */
+  set_aside_at?: string | null;
+  /** What its sender was read as: pitch, or notice. */
+  set_aside_why?: string | null;
   assignee_user_id?: string | null;
   assignee_is_me?: boolean;
   last_wa_inbound_at?: string | null;

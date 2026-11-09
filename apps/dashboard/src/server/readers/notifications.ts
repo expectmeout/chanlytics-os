@@ -7,7 +7,7 @@ import type {
   NotificationsDto,
   PushPlatform,
 } from "@chanlytics/contracts";
-import { load, stamp, type Reader } from "./index";
+import { load, readerStamp, type Reader } from "../shared/reader";
 import {
   BELL_LIST_ROWS,
   BELL_WINDOW_DAYS,
@@ -19,17 +19,27 @@ import {
   pushOffOf,
   unreadFor,
   zoneDayKey,
+  isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
-import { memberAlertsOf, memberViewsOf, olderUnreadFor } from "@chanlytics/db";
+import {
+  findBellSeen,
+  getMemberAlerts,
+  getMemberViews,
+  getOlderUnread,
+  listBellRows,
+  listNotificationMarks,
+} from "@chanlytics/db/notices";
 import { facts as factsReader } from "./facts";
 import { searches as searchesReader } from "./searches";
 import { sequences as sequencesReader } from "./sequences";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * GET notifications, as the route answers it: the workspace's kept notifications of the last thirty days by the turn's
  * clock, the newest BELL_LIST_ROWS of them, with this person's own marks on each row, whether the server closed it
  * (closed_at, 00421), when they last opened the bell, and their unread count of the whole window (`unread`): the listed
- * rows' and the older ones', counted by the one count the push job's badge uses (packages/db olderUnreadFor, unreadOfReaders' rule), so the
+ * rows' and the older ones', counted by the one count the push job's badge uses (packages/db getOlderUnread, getUnreadOfReaders' rule), so the
  * page, the icon and the push agree on a busy month (the wiring's second audit, S6-10). The older rows are read only
  * when the list is full and some of them may be unread (newer than the seen moment). The route's body, moved here whole.
  * A notification is not a row a citation names: none of the thirteen is the bell's.
@@ -41,17 +51,11 @@ export const notifications: Reader<undefined, NotificationsDto> = {
     const since = new Date(rc.now.getTime() - BELL_WINDOW_DAYS * DAY_MS).toISOString();
     const sb = rc.ctx.supabase;
     const [rows, seen] = await Promise.all([
-      sb
-        .from("notifications")
-        .select("id, kind, title, body, route, subject_type, subject_id, created_at, closed_at")
-        .eq("tenant_id", tenantId)
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(BELL_LIST_ROWS),
-      sb.from("notification_reads").select("seen_at").eq("tenant_id", tenantId).eq("user_id", rc.userId).maybeSingle(),
+      listBellRows(sb, tenantId, since, BELL_LIST_ROWS),
+      findBellSeen(sb, tenantId, rc.userId),
     ]);
-    if (rows.error) throw new Error(rows.error.message);
-    if (seen.error) throw new Error(seen.error.message);
+    if (rows.error) throw new DbFailure(rows.error);
+    if (seen.error) throw new DbFailure(seen.error);
     // The marks for THESE notifications. Read in parallel it could name no ids,
     // so it fetched every mark this person has ever left, in every workspace
     // they belong to -- a row per notification per user, kept for ever, to
@@ -63,7 +67,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
     // after the oldest row listed, and none older than the seen moment counts, so the read starts there.
     const olderRead =
       ids.length === BELL_LIST_ROWS && oldest && !(seenAt && seenAt >= oldest)
-        ? olderUnreadFor(sb, {
+        ? getOlderUnread(sb, {
             tenantId,
             reader: rc.userId,
             fromIso: seenAt && seenAt > since ? seenAt : since,
@@ -72,33 +76,27 @@ export const notifications: Reader<undefined, NotificationsDto> = {
             // The holds' threads among them: the bell draws a hold that still waits as its own row (bellOlderOf).
             holdKinds: kindsEndedBy("hold"),
           })
-        : Promise.resolve({ unread: 0, holdThreads: [] as string[] });
+        : Promise.resolve({ unread: 0, holdThreads: [] });
     const [marks, older] = await Promise.all([
-      ids.length
-        ? sb
-            .from("notification_marks")
-            .select("notification_id, read_at, dismissed_at")
-            .eq("user_id", rc.userId)
-            .in("notification_id", ids)
-        : Promise.resolve({ data: [], error: null }),
+      ids.length ? listNotificationMarks(sb, rc.userId, ids) : Promise.resolve({ data: [], error: null }),
       olderRead,
     ]);
-    if (marks.error) throw new Error(marks.error.message);
+    if (marks.error) throw new DbFailure(marks.error);
     const byId = new Map((marks.data ?? []).map((m) => [m.notification_id, m]));
-    const notifications: NotificationDto[] = (rows.data ?? []).map((r) => {
-      const m = byId.get(r.id);
+    const notifications: NotificationDto[] = (rows.data ?? []).map((row) => {
+      const found = byId.get(row.id);
       return {
-        id: r.id,
-        kind: r.kind,
-        title: r.title,
-        body: r.body,
-        route: r.route,
-        subject_type: r.subject_type,
-        subject_id: r.subject_id,
-        created_at: r.created_at,
-        read: !!m?.read_at,
-        dismissed: !!m?.dismissed_at,
-        closed_at: r.closed_at ?? null,
+        id: row.id,
+        kind: row.kind,
+        title: row.title,
+        body: row.body,
+        route: row.route,
+        subject_type: row.subject_type,
+        subject_id: row.subject_id,
+        created_at: row.created_at,
+        read: !!found?.read_at,
+        dismissed: !!found?.dismissed_at,
+        closed_at: row.closed_at ?? null,
       };
     });
     const listedUnread = unreadFor(
@@ -116,7 +114,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
       unread: listedUnread + older.unread,
       ...(older.holdThreads.length ? { older_holds: older.holdThreads } : {}),
     };
-    return { data: out, rows: [], stamp: stamp() };
+    return { data: out, rows: [], stamp: readerStamp() };
   },
 };
 
@@ -128,17 +126,15 @@ export const notifications: Reader<undefined, NotificationsDto> = {
 export const memberAlerts: Reader<undefined, MemberAlertsDto> = {
   name: "member_alerts",
   async read(rc) {
-    const row = await memberAlertsOf(rc.ctx.supabase, { tenantId: rc.tenantId, userId: rc.userId });
+    const row = await getMemberAlerts(rc.ctx.supabase, { tenantId: rc.tenantId, userId: rc.userId });
     const out: MemberAlertsDto = {
       push_off: pushOffOf(row.pushOff),
       phones: row.phones
-        .filter((p): p is typeof p & { platform: PushPlatform } =>
-          (PUSH_PLATFORMS as readonly string[]).includes(p.platform),
-        )
+        .filter((p): p is typeof p & { platform: PushPlatform } => isOneOf(PUSH_PLATFORMS, p.platform))
         .map((p) => ({ platform: p.platform, app_version: p.app_version, last_seen_at: p.last_seen_at })),
       choosable: row.choosable,
     };
-    return { data: out, rows: [], stamp: stamp() };
+    return { data: out, rows: [], stamp: readerStamp() };
   },
 };
 
@@ -150,8 +146,8 @@ export const memberAlerts: Reader<undefined, MemberAlertsDto> = {
 export const memberViews: Reader<undefined, Record<string, unknown>> = {
   name: "member_views",
   async read(rc) {
-    const views = await memberViewsOf(rc.ctx.supabase, { tenantId: rc.tenantId, userId: rc.userId });
-    return { data: views, rows: [], stamp: stamp() };
+    const views = await getMemberViews(rc.ctx.supabase, { tenantId: rc.tenantId, userId: rc.userId });
+    return { data: views, rows: [], stamp: readerStamp() };
   },
 };
 
@@ -179,12 +175,12 @@ interface FollowUpsNow {
 }
 
 /** Which follow-ups are due, by what the searches and the sequences say now (contracts followUpDue). */
-export function followUpsNow(follow: readonly AskFollowUp[], p: FollowUpParts): FollowUpsNow {
+export function followUpsNow(follow: readonly AskFollowUp[], followUpParts: FollowUpParts): FollowUpsNow {
   const world = {
-    searches: new Map((p.searches ?? []).map((s) => [s.id, s.round?.state ?? ""])),
-    replies: new Map((p.sequences ?? []).map((s) => [s.id, s.needs.replies])),
+    searches: new Map((followUpParts.searches ?? []).map((s) => [s.id, s.round?.state ?? ""])),
+    replies: new Map((followUpParts.sequences ?? []).map((s) => [s.id, s.needs.replies])),
     // An unread zone is no day at all, so a follow-up waiting for one is never due on a guess.
-    today: p.zone ? zoneDayKey(p.nowMs, p.zone) : "",
+    today: followUpParts.zone ? zoneDayKey(followUpParts.nowMs, followUpParts.zone) : "",
   };
   const due = follow.filter((f) => followUpDue(f, world));
   return { due, waiting: follow.filter((f) => !due.includes(f)) };
@@ -200,13 +196,13 @@ export const askFollowUps: Reader<undefined, FollowUpsNow> = {
   async read(rc) {
     const follow = followUpsOf((await load(rc, memberViews, undefined)).data);
     const waits = (wake: FollowUpWake) => follow.some((f) => f.wake === wake);
-    const quiet = <T>(read: Promise<T>): Promise<T | null> => read.catch(() => null);
+    const quiet = <T>(read: Promise<T>): Promise<T | null> => read.catch(logAndGoOn("a follow-up's read", null));
     const [searches, sequences, zone] = await Promise.all([
       waits("search_done") ? quiet(load(rc, searchesReader, undefined).then((r) => r.data.searches)) : null,
       waits("replies") ? quiet(load(rc, sequencesReader, undefined).then((r) => r.data.sequences)) : null,
       waits("date") ? quiet(load(rc, factsReader, undefined).then((r) => r.data.timezone)) : null,
     ]);
     const data = followUpsNow(follow, { searches, sequences, nowMs: rc.now.getTime(), zone });
-    return { data, rows: [], stamp: stamp() };
+    return { data, rows: [], stamp: readerStamp() };
   },
 };

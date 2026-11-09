@@ -1,11 +1,10 @@
 {
-  "//": "noUncheckedIndexedAccess waits here until core's index reads are guarded: check:debt counts them (the unchecked-index measure). A project of its own, built by `tsc -b` into .types/ (declarations only, never committed), so a project that references it reads its types as this one compiled them, under these options (decision 0074).",
+  "//": "A project of its own, built by `tsc -b` into .types/ (declarations only, never committed), so a project that references it reads its types as this one compiled them, under these options (decision 0074).",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "resolveJsonModule": true,
     "lib": ["ES2022", "DOM"],
     "types": ["node"],
-    "noUncheckedIndexedAccess": false,
     "composite": true,
     "noEmit": false,
     "emitDeclarationOnly": true,
@@ -14,6 +13,9 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
+    {
+      "path": "../log"
+    },
     {
       "path": "../channels"
     },

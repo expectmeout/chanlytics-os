@@ -16,11 +16,12 @@ import "server-only";
  * its own small HTML on that page's paper (link-page.ts).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { confirmationEmailOf, setEmailOffersYes, type Database, type OffersYesOutcome } from "@chanlytics/db";
-import { addressOf, verifyConfirmToken, type ConfirmClaims } from "@chanlytics/channels";
+import { findConfirmationEmail, setEmailOffersYes, type OffersYesOutcome } from "@chanlytics/db/campaigns";
+import type { Database } from "@chanlytics/db/types";
+import { addressOf } from "@chanlytics/channels/email";
+import { verifyConfirmToken, type ConfirmClaims } from "@chanlytics/channels/tokens";
 import { confirmPageWords, escapeHtml, MIN_MS, type ConfirmPageView } from "@chanlytics/contracts";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
 import {
   LINK_PAGE_HEADERS,
   LINK_PAGE_MAX_BYTES,
@@ -32,26 +33,19 @@ import {
   readLinkFields,
   type LinkPageLook,
 } from "./link-page";
+import { secrets } from "@/server/public/unsubscribe";
 
 /** The header a confirmation page answers with, naming its view: how a test, or a probe, tells the page answering. */
 const CONFIRM_PAGE_HEADER = "x-confirm-page";
-
-/** The secrets a link may be sealed under (the unsubscribe link's: the current, then the previous), or null without one. */
-function confirmSecrets(): string[] | null {
-  const current = env.UNSUBSCRIBE_SECRET;
-  if (!current) return null;
-  const previous = env.UNSUBSCRIBE_SECRET_PREVIOUS;
-  return previous ? [current, previous] : [current];
-}
 
 /** When each thing was last said: a scanner fetching every link must not flood the log. */
 const confirmSaidAt = new Map<string, number>();
 
 /** Whether a line may be said now: once a minute at most for each. */
-function sayNow(what: "unavailable" | "bad_link"): boolean {
+function sayNow(kind: "unavailable" | "bad_link"): boolean {
   const now = Date.now();
-  if (now - (confirmSaidAt.get(what) ?? 0) < MIN_MS) return false;
-  confirmSaidAt.set(what, now);
+  if (now - (confirmSaidAt.get(kind) ?? 0) < MIN_MS) return false;
+  confirmSaidAt.set(kind, now);
   return true;
 }
 
@@ -65,18 +59,18 @@ interface Asked {
 const NOBODY: Asked = { business: null, address: null, look: NO_LOOK };
 
 /** One view of the page: the business's mark over its words, a button in its colour where it asks, no script. */
-function confirmPage(status: number, view: ConfirmPageView, asked: Asked): Response {
-  const w = confirmPageWords(view, asked);
-  const lines = w.lines.map((l) => `<p>${escapeHtml(l)}</p>`).join("");
-  const button = w.button
+function confirmPage(status: number, view: ConfirmPageView, request: Asked): Response {
+  const result = confirmPageWords(view, request);
+  const lines = result.lines.map((l) => `<p>${escapeHtml(l)}</p>`).join("");
+  const button = result.button
     ? `<form method="post"><input type="hidden" name="confirm" value="yes">` +
-      `<button type="submit">${escapeHtml(w.button)}</button></form>`
+      `<button type="submit">${escapeHtml(result.button)}</button></form>`
     : "";
-  const look = { ...asked.look, business: asked.look.business ?? asked.business };
+  const look = { ...request.look, business: request.look.business ?? request.business };
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${linkPageStyle(look)}</style></head>
-<body><main>${linkPageMark(look)}<div class="card"><h1>${escapeHtml(w.title)}</h1>${lines}${button}</div></main></body></html>`;
+<meta name="robots" content="noindex, nofollow"><title>${escapeHtml(result.title)}</title><style>${linkPageStyle(look)}</style></head>
+<body><main>${linkPageMark(look)}<div class="card"><h1>${escapeHtml(result.title)}</h1>${lines}${button}</div></main></body></html>`;
   return new Response(html, {
     status,
     headers: { ...LINK_PAGE_HEADERS, "content-type": "text/html; charset=utf-8", [CONFIRM_PAGE_HEADER]: view },
@@ -85,7 +79,7 @@ function confirmPage(status: number, view: ConfirmPageView, asked: Asked): Respo
 
 /** The link's claims and the database, or the page that says why there are none. */
 function opened(token: string): { claims: ConfirmClaims; db: SupabaseClient<Database> } | Response {
-  const keys = confirmSecrets();
+  const keys = secrets();
   const db = linkPageDb();
   if (!keys || !db) {
     if (sayNow("unavailable")) log.error("signup_confirm_unavailable", { why: keys ? "no_database" : "no_secret" });
@@ -102,7 +96,7 @@ function opened(token: string): { claims: ConfirmClaims; db: SupabaseClient<Data
 /** Who asks and about which address, off the email the link names, and the workspace's look; null when the workspace holds no such email. */
 async function confirmationAsked(db: SupabaseClient<Database>, c: ConfirmClaims): Promise<Asked | null> {
   const [email, look] = await Promise.all([
-    confirmationEmailOf(db, { tenantId: c.tenantId, messageId: c.messageId }),
+    findConfirmationEmail(db, { tenantId: c.tenantId, messageId: c.messageId }),
     linkPageLookOf(db, c.tenantId),
   ]);
   if (!email) return null;
@@ -113,8 +107,8 @@ export async function confirmGet(token: string): Promise<Response> {
   const open = opened(token);
   if (open instanceof Response) return open;
   try {
-    const asked = await confirmationAsked(open.db, open.claims);
-    return asked ? confirmPage(200, "ask", asked) : confirmPage(404, "gone", NOBODY);
+    const pending = await confirmationAsked(open.db, open.claims);
+    return pending ? confirmPage(200, "ask", pending) : confirmPage(404, "gone", NOBODY);
   } catch (e) {
     log.error("signup_confirm_failed", {
       tenant_id: open.claims.tenantId,

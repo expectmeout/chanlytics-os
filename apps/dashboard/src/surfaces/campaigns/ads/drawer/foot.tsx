@@ -4,13 +4,14 @@
  * the ad's own presses: Pause | Edit, Resume | Edit, Run it again, or only Pause and Resume for an ad the owner made on the
  * platform itself. Nothing at all while an ad is being made.
  */
-import type { FootAct } from "@chanlytics/contracts/ads-page";
-import { DRAWER, GATE } from "@chanlytics/contracts/ads-page";
+import type { FootAct } from "../model/drawer/view";
+import { DRAWER } from "../model/drawer/words";
+import { GATE } from "../model/words";
 import { Button } from "../../../kit/button/button";
 import { Confirm } from "../../../kit/confirm/confirm";
 import { Icon } from "../../../kit/icon/icon";
 import { UnsavedAsk } from "../../../kit/record/work";
-import { gate } from "../../../legacy-verbs";
+import { gate } from "../../../frame-verbs";
 import type { Pane } from "./use-pane";
 
 /** Whether the foot has anything to say or press. */

@@ -1,7 +1,7 @@
-import { read, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { leadPlace } from "@/server/readers/leads";
-import { requireUuid } from "@/server/request-guards";
+import { requireUuid } from "@/server/shared/request-guards";
 
 /**
  * GET /api/v1/leads/:id/place — where one lead stands in a sequence (00459 sequence_place): the sequence, its row as

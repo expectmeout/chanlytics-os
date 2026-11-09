@@ -4,10 +4,10 @@
  * from the chrome's words (chrome.ts): the phone app reads those through its own entry (mobile/phone-app.ts), and
  * what a page opens on reaches into the pages' own rules (Reports' periods), which the phone app has no part in.
  */
-import { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE } from "../reports/report-periods";
+import { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE } from "../reports/periods";
 import { ROUTE_WORDS } from "./address";
 
-/** The settings read (legacy-bridge/surfaces/settings.ts): the business, the team, the policies, every template. */
+/** The settings read (bridge/surfaces/settings.ts): the business, the team, the policies, every template. */
 const SETTINGS_READ = ["settings", "team", "policies", "templates?all=1"] as const;
 /** A person's id in the address, as the route reads it (surface-registry personRouteId): a uuid, nothing else. */
 const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -72,7 +72,7 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   "clients/get-yes": ["contacts", "segments", "views", "broadcasts"],
   segments: ["contacts", "segments", "views"],
   // Leads is a scope of People with a surface of its own: its searches, and the first page of everyone in its order.
-  leads: ["lead-searches", "leads?list=all&sort=fit&dir=asc&limit=500"],
+  leads: ["lead-searches", "leads?list=all&sort=stage&dir=asc&limit=500"],
   // The weeks around the business's today, by the route's clock (GET calendar `around`), and the campaigns over the same
   // weeks (GET calendar/runs, the board's marks: Show includes campaigns until the member turns them off).
   calendar: ["calendar?around=today", "calendar/runs?around=today"],
@@ -126,6 +126,12 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now,
   // and a message open in it (`campaigns/messages/<name>`, its home) is drawn from them.
   "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1"],
+  // Campaigns › Ads (`campaigns/ads…`, where it is drawn; an ad, New ad and Results among its addresses): the settings read, which
+  // says whether it is drawn and whose business it is, and nothing of Sequences. It waited for Sequences' list it does not draw. What
+  // a workspace's page counts is the page's own read, made as its code is in (campaigns/ads/first-touch.ts): the boot lets go of what
+  // the head started once its own reads are in (api.ts dropPrefetched), before a page that loads on demand could take it, so the
+  // dearest of the reports would be read twice.
+  "campaigns/ads": SETTINGS_READ,
   // Settings: its own read, and the partner account the rail names Partner by; a pane its address names opens on its own
   // (below, the head reads the pane's word: `settings/billing` is `admin/billing`), and a pane not named there on these.
   admin: [...SETTINGS_READ, "partner"],
@@ -137,9 +143,16 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   "admin/hours": [...SETTINGS_READ, "partner", "calendar?around=today"],
   // Setup's read is its connections and the member's saved views beside them (setup/surface.ts), as Today's reads.
   "admin/receptionist": [...SETTINGS_READ, "partner", "setup", "views"],
+  // How it reaches out (decision 0113): the record's rows from the settings read, and what it shows beyond it (its mailbox,
+  // the month, the claims' counts, the voice, the newest sequence), kept by its pane (settings/frame/pane-reads.ts).
+  "admin/outreach": [...SETTINGS_READ, "partner", "settings/reach-out"],
   "admin/team": [...SETTINGS_READ, "partner", "team/partner"],
   "admin/notifications": [...SETTINGS_READ, "partner", "me/alerts"],
   "admin/profile": ["partner", "views"],
+  // A partner's own page and the back office, drawn from none of the settings read: fallen through to `admin`, each open
+  // started its four reads and nobody took them, so they were asked for nothing and the page never fell quiet (6 Nov 2026).
+  "admin/partner": ["partner"],
+  "admin/platform": ["partner"],
   "admin/integrations": [
     "partner",
     "channels",
@@ -151,6 +164,7 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   ],
   "admin/billing": ["partner", "billing"],
   "admin/memory": ["partner", "ask/memory"],
+  "admin/files": ["partner", "files"],
   "admin/activity": ["partner", "activity"],
   start: ["setup", "views"],
 };
@@ -235,7 +249,7 @@ const PREFETCH_TIMEOUT_MS = 15_000;
 /**
  * The route's own reads, started from the document head.
  *
- * Nothing was fetched until the shell had mounted: the HTML, the framework's chunks, hydration, the legacy chunk,
+ * Nothing was fetched until the shell had mounted: the HTML, the framework's chunks, hydration, the frame's chunk,
  * the mount, and only then the first request -- 2,033 ms into a cold load of a person's page, on a document whose
  * first byte came at 26 ms (measured on production, 25 Sep 2026). This script runs as the head arrives and starts
  * the read every workspace page opens on -- who is looking (GET workspaces) -- and the page's own: on a person's page
@@ -274,6 +288,8 @@ export function routePrefetchScript(): string {
     // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), a message open in it among its addresses,
     // and opens on its own reads; a message's drawer over Sequences (`message:<name>`) went into it, and lands there.
     'if(s==="campaigns"&&/^messages?(\\/|:|$)/.test(l))s="campaigns/messages";',
+    // Ads is a view of Campaigns too (`campaigns/ads`, `campaigns/ads:new`, `campaigns/ads:ad:<id>`), and opens on its own reads.
+    'if(s==="campaigns"&&/^ads(:|$)/.test(l))s="campaigns/ads";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).

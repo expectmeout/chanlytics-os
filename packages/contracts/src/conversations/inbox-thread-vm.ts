@@ -7,6 +7,7 @@ import type { BookingRequestCardVM } from "../calendar/visit/booking-request";
 import type { HoldAct } from "./escalations";
 import type { MediaVM } from "./message-media";
 import type { ThreadChannel } from "./thread-channel";
+import type { ThreadMove } from "../waits/thread-move";
 
 /* ---- Inbox ThreadVM (Blueprint §7): escalations + conversations mapped into
    the mockup's thread shape. Fed fields only — approvals/confidence/$ are
@@ -44,6 +45,8 @@ export interface InboxThreadVM {
   whoMeta: string;
   avatar: string;
   state: "escalated" | "snoozed" | "done";
+  /** Who owes the next move, in the list that says so (thread-move.ts): the word the head and the row wear, and the tab. */
+  move: ThreadMove;
   takenOver: boolean;
   /** A teammate has this thread: the page names them and offers no take-over. */
   claimedByOther: boolean;
@@ -67,22 +70,21 @@ export interface InboxThreadVM {
   archived: boolean;
   /**
    * A quiet thread's one line: who had the last word, in the words Conversations uses, and whether a reply
-   * didn't send. Null unless the thread is Handled and not archived. Every quiet thread read "Answered by the
-   * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1).
+   * didn't send. Null unless nobody has flagged the thread and it is not archived. Every quiet thread read "Answered by the
+   * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1). Its pill's word
+   * and colour are the move's.
    */
   lastWord: {
     text: string;
-    tone: "ok" | "plain" | "warn" | "danger";
-    short: string | null;
     /** When the words that didn't send were written, by the business's clock ("10:49 AM"): the bar says it beside the pill. */
     at?: string;
   } | null;
   /**
-   * They wrote last and a hold on what they wrote closed with nothing sent (a hand back, a "Can't"): the receptionist does
-   * not come back to a message it held, so nobody will answer unless a person does (LastHoldDto). What the hold noted of
-   * their ask, when it closed, and how long they have waited since they wrote. Null on every other thread.
+   * The dock's words where they wrote last and nobody has answered, or will once a reply being worked out runs out
+   * (thread-move.ts `unanswered`): nobody will unless a person does. What a hold on it noted of their ask and when it closed,
+   * where one did (a hand back, a "Can't": LastHoldDto). Null on every other thread.
    */
-  unanswered: { line: string; closed: string; waited: string; sinceMs: number } | null;
+  unanswered: { line: string; closed: string } | null;
   /**
    * This thread is waiting on a human, and no human has it yet.
    *
@@ -165,6 +167,8 @@ export interface InboxThreadVM {
   /** The stamp of the reader's own mark on this person as this read carried it, epoch ms; 0 where they have none. */
   markAtMs: number;
   escalatedAtMs?: number;
+  /** Set aside as not a customer's (decision 0093): under Set aside, with Not a customer and Reply anyway on its dock. */
+  setAside?: boolean;
   /**
    * New to the reader: the customer wrote or called after they last opened the thread, or they put it back as unread
    * (standing.ts isUnseen, over the reader's own marks, 00349). It meant needsYou until the marks were kept, since

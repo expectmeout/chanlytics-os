@@ -24,17 +24,19 @@
  * Email is off on a deployment that names no EMAIL_DOMAIN: 404, the door does
  * not exist there.
  */
-import { json, refuse } from "../http.js";
-import { pg } from "../pg.js";
-import { digestId, keepDelivery, signatureHeaders } from "../intake/keep.js";
-import { logger, errField } from "../log.js";
+import { heldTenantId } from "@chanlytics/contracts";
+import { json, refuse } from "../shared/http.js";
+import { pg } from "../shared/pg.js";
+import { digestId, keepDelivery, signatureHeaders } from "../shared/keep-event.js";
+import { logger, errField } from "../shared/log.js";
 import { emailDomain } from "./email.js";
-import { planResendEvent } from "./email-ingress.js";
-import { applyEmailReceipt } from "./email-receipts.js";
-import { emitEvent } from "../packages/db.js";
-import { scheduleJobOnce } from "../packages/jobs.js";
-import { env } from "../env.js";
-import { MIN_MS } from "../packages/contracts.js";
+import { planResendEvent } from "./ingress.js";
+import { applyEmailReceipt } from "./receipts.js";
+import { emitEvent } from "@chanlytics/db/events";
+import { scheduleJobOnce } from "@chanlytics/jobs";
+import { env } from "../shared/env.js";
+import { MIN_MS } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The event is metadata: ids, addresses, a subject. Anything larger is not one. */
 const MAX_BODY_BYTES = 256 * 1024;
@@ -47,7 +49,7 @@ let lastUnroutableRow = 0;
 export async function receiveResendEvent(request: Request): Promise<Response> {
   const domain = emailDomain();
   if (!domain) return refuse(404, "email_off");
-  const L = logger({ door: "resend-webhook", svix_id: request.headers.get("svix-id") });
+  const log = logger({ door: "resend-webhook", svix_id: request.headers.get("svix-id") });
 
   const rawBody = await request.text();
   if (rawBody.length > MAX_BODY_BYTES) return refuse(413, "too_large");
@@ -70,12 +72,12 @@ export async function receiveResendEvent(request: Request): Promise<Response> {
     });
   } catch (e) {
     // A mailbox that could not be looked up is not "nobody's": the delivery comes back.
-    L.error("resend_webhook_unreadable", { error: errField(e) });
+    log.error("resend_webhook_unreadable", { error: errField(e) });
     return refuse(503, "no_database");
   }
 
   if (verdict.kind === "refuse") {
-    L.warn(verdict.log);
+    log.warn(verdict.log);
     return refuse(verdict.status, verdict.status === 401 ? "unauthorized" : "bad_request");
   }
   // Kept under svix's id, before the verdict is applied (decision 0032, 00336); its signature carries a timestamp, so a
@@ -91,15 +93,20 @@ export async function receiveResendEvent(request: Request): Promise<Response> {
   });
 
   if (verdict.kind === "receipt") {
-    const r = verdict.receipt;
+    const receipt = verdict.receipt;
     try {
-      const outcome = await applyEmailReceipt(db, r, new Date().toISOString());
-      L.info("email_receipt", { type: r.type, tenant_id: r.tenantId, message: r.messageId, outcome });
+      const outcome = await applyEmailReceipt(db, receipt, new Date().toISOString());
+      log.info("email_receipt", {
+        type: receipt.type,
+        tenant_id: receipt.tenantId,
+        message: receipt.messageId,
+        outcome,
+      });
     } catch (e) {
-      L.error("email_receipt_not_applied", {
-        type: r.type,
-        tenant_id: r.tenantId,
-        message: r.messageId,
+      log.error("email_receipt_not_applied", {
+        type: receipt.type,
+        tenant_id: receipt.tenantId,
+        message: receipt.messageId,
         error: errField(e),
       });
       return refuse(503, "no_database");
@@ -109,13 +116,13 @@ export async function receiveResendEvent(request: Request): Promise<Response> {
 
   if (verdict.unroutable > 0 && Date.now() - lastUnroutableRow >= UNROUTABLE_ROW_MS) {
     lastUnroutableRow = Date.now();
-    await emitEvent(db, "00000000-0000-0000-0000-000000000000", "ingest.unroutable", null, null, {
+    await emitEvent(db, heldTenantId("00000000-0000-0000-0000-000000000000"), "ingest.unroutable", null, null, {
       channel: "email",
       addresses: verdict.unroutable,
-    }).catch(() => {});
+    }).catch(logAndGoOn("event ingest.unroutable"));
   }
   if (verdict.kind === "ignore") {
-    L.info(verdict.log);
+    log.info(verdict.log);
     return json(200, { ok: true });
   }
 
@@ -128,10 +135,10 @@ export async function receiveResendEvent(request: Request): Promise<Response> {
         dueAt: now,
         payload: { mailbox_id: job.mailboxId, received_id: verdict.receivedId },
       });
-      L.info("email_received", { tenant_id: job.tenantId, mailbox: job.mailboxId, outcome });
+      log.info("email_received", { tenant_id: job.tenantId, mailbox: job.mailboxId, outcome });
     }
   } catch (e) {
-    L.error("email_intake_not_scheduled", { error: errField(e) });
+    log.error("email_intake_not_scheduled", { error: errField(e) });
     return refuse(503, "no_database");
   }
   return json(200, { ok: true });

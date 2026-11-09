@@ -1,6 +1,5 @@
 import "server-only";
 import {
-  CUSTOMER_MESSAGE_SKILL,
   MESSAGE_CRAFT_JSON_SCHEMA,
   MessageCraftAnswerSchema,
   craftedVersions,
@@ -12,22 +11,23 @@ import {
   type CraftVersions,
   type MessageBrief,
 } from "@chanlytics/contracts";
-import { log } from "@/server/log";
-import { load } from "../../readers";
+import { CUSTOMER_MESSAGE_SKILL } from "./customer-message/skill";
+import { log } from "@/server/shared/log";
+import { load } from "../../shared/reader";
 import { businessShape, config, facts } from "../../readers/facts";
-import type { ToolContext } from "../tools/context";
+import type { ToolContext } from "../tools/context/tool-defs";
 import { CRAFT_MIN_MS, craftWith, turnDeadline, type CraftKept } from "./craft";
 
 /** The services a brief names: enough to know the business, never its price notes (a price is the draft's alone). */
 const SERVICES_SAID = 12;
 
 /** What the business is, for the writer, as the turn's own readers read it; null where any of it could not be read. */
-async function businessOf(t: ToolContext): Promise<MessageBrief["business"] | null> {
+async function businessOf(toolContext: ToolContext): Promise<MessageBrief["business"] | null> {
   try {
     const [named, row, shape] = await Promise.all([
-      load(t.rc, facts, undefined).then((r) => r.data),
-      load(t.rc, config, undefined).then((r) => r.data),
-      load(t.rc, businessShape, undefined).then((r) => r.data),
+      load(toolContext.rc, facts, undefined).then((r) => r.data),
+      load(toolContext.rc, config, undefined).then((r) => r.data),
+      load(toolContext.rc, businessShape, undefined).then((r) => r.data),
     ]);
     // A configuration that does not parse is not "no voice": the words would be written in nobody's.
     const parsed = parseTenantConfigResult(row?.config ?? null);
@@ -37,11 +37,16 @@ async function businessOf(t: ToolContext): Promise<MessageBrief["business"] | nu
       name: parsed.config.brain?.business_name || named.name,
       tone: profile?.tone?.trim() || null,
       services: (profile?.services ?? []).slice(0, SERVICES_SAID).map((s) => s.name),
-      notes: notesInForce(profile?.notes, named.timezone, t.rc.now).map(noteAsTold),
+      notes: notesInForce(profile?.notes, named.timezone, toolContext.rc.now).map(noteAsTold),
       word: shape.word,
     };
   } catch (e) {
-    log.error("ask_tool_read_failed", { tool: "customer_message", read: "business", tenant_id: t.tenantId, error: e });
+    log.error("ask_tool_read_failed", {
+      tool: "customer_message",
+      read: "business",
+      tenant_id: toolContext.tenantId,
+      error: e,
+    });
     return null;
   }
 }
@@ -65,41 +70,56 @@ type MessageWritten = { wrote: true; versions: CraftVersions } | { wrote: false;
  * writer is told to write around the offer's value. The writer reads what the owner asked in their own words too, and
  * ends before the turn does (the loop's `endsAt`).
  */
-export async function writeCustomerMessage(t: ToolContext, asked: MessageAskedOf): Promise<MessageWritten> {
-  const said = (r: MessageWritten & { ms: number; issues?: string[]; detail?: string }): MessageWritten => {
+export async function writeCustomerMessage(
+  toolContext: ToolContext,
+  messageAskedOf: MessageAskedOf,
+): Promise<MessageWritten> {
+  const said = (
+    messageWritten: MessageWritten & { ms: number; issues?: string[]; detail?: string },
+  ): MessageWritten => {
     log.info("ask_skill_crafted", {
-      tenant_id: t.tenantId,
+      tenant_id: toolContext.tenantId,
       skill: CUSTOMER_MESSAGE_SKILL.id,
-      outcome: r.wrote ? "wrote" : "kept",
-      ...(r.wrote ? {} : { why: r.why }),
-      ms: r.ms,
-      ...(r.issues ? { issues: r.issues } : {}),
-      ...(r.detail ? { detail: r.detail.slice(0, 200) } : {}),
+      outcome: messageWritten.wrote ? "wrote" : "kept",
+      ...(messageWritten.wrote ? {} : { why: messageWritten.why }),
+      ms: messageWritten.ms,
+      ...(messageWritten.issues ? { issues: messageWritten.issues } : {}),
+      ...(messageWritten.detail ? { detail: messageWritten.detail.slice(0, 200) } : {}),
     });
-    return r.wrote ? { wrote: true, versions: r.versions } : { wrote: false, why: r.why };
+    return messageWritten.wrote
+      ? { wrote: true, versions: messageWritten.versions }
+      : { wrote: false, why: messageWritten.why };
   };
-  const deadline = turnDeadline(t);
+  const deadline = turnDeadline(toolContext);
   // Too little of the turn left to write in: nothing is read or asked.
   if (deadline - Date.now() < CRAFT_MIN_MS) return said({ wrote: false, why: "late", ms: 0 });
-  const business = await businessOf(t);
+  const business = await businessOf(toolContext);
   if (!business) return said({ wrote: false, why: "unread", ms: 0 });
   // The owner's own words beside Ask's draft of them, where a turn asked: what they gave is what the message may say.
-  const owner = t.question?.trim() || null;
-  const brief: MessageBrief = { business, message: { ...asked, reused: t.step !== undefined, asked: owner } };
-  const made = await craftWith(CUSTOMER_MESSAGE_SKILL, {
-    tenantId: t.tenantId,
-    userId: t.ctx.userId,
+  const owner = toolContext.question?.trim() || null;
+  const brief: MessageBrief = {
+    business,
+    message: { ...messageAskedOf, reused: toolContext.step !== undefined, asked: owner },
+  };
+  const created = await craftWith(CUSTOMER_MESSAGE_SKILL, {
+    tenantId: toolContext.tenantId,
+    userId: toolContext.ctx.userId,
     question: messageBriefText(brief),
     schema: MESSAGE_CRAFT_JSON_SCHEMA,
     answer: MessageCraftAnswerSchema,
     deadline,
     what: "message",
   });
-  if (!made.ok)
-    return said({ wrote: false, why: made.why, ms: made.ms, ...(made.detail ? { detail: made.detail } : {}) });
-  const { versions, missing } = craftedVersions(made.answer, brief);
+  if (!created.ok)
+    return said({
+      wrote: false,
+      why: created.why,
+      ms: created.ms,
+      ...(created.detail ? { detail: created.detail } : {}),
+    });
+  const { versions, missing } = craftedVersions(created.answer, brief);
   const issues = messageCraftIssues(versions, brief, missing);
   if (issues.length)
-    return said({ wrote: false, why: "checks", ms: made.ms, issues: issues.map((i) => `${i.channel} ${i.code}`) });
-  return said({ wrote: true, versions, ms: made.ms });
+    return said({ wrote: false, why: "checks", ms: created.ms, issues: issues.map((i) => `${i.channel} ${i.code}`) });
+  return said({ wrote: true, versions, ms: created.ms });
 }

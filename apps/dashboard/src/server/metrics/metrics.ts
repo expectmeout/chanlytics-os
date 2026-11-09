@@ -3,7 +3,7 @@
  *
  * `metrics_summary` answers the routing rows. A workspace's email line is its
  * mailbox and this deployment's mail domain, which the database cannot see,
- * so it is added here, from `emailLineFor`, the judgement Setup and
+ * so it is added here, from `getEmailLine`, the judgement Setup and
  * Connections make with the rest of what they say of email. For a one-day window the hold the day's replies waited is added too
  * (`reply_hold`: the one rule's count of the replies that went out as the hold ended, later, and with none), because the function
  * answers the median and the median of a held reply is the hold. The replies are the function's own (`replies`, 00359: the rows it
@@ -13,11 +13,24 @@
  * Today count the same lines, say the same speed and the same bookings.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HOUR_MS, emailWires, holdOf, replyHoldDtoOf, type MetricsSummaryDto } from "@chanlytics/contracts";
-import { firstReplies, type Database } from "@chanlytics/db";
-import { emailLineFor } from "../connections/email";
-import { bookedSince, bookingsLately } from "./bookings";
-import { log } from "@/server/log";
+import {
+  HOUR_MS,
+  emailWires,
+  holdOf,
+  replyHoldDtoOf,
+  type MetricsSummaryDto,
+  recordOrNull,
+  shaped,
+  valueAt,
+  DbFailure,
+} from "@chanlytics/contracts";
+import { listFirstReplies, readMetricsSummary } from "@chanlytics/db/reports";
+import { readAnswer } from "@chanlytics/db/shared";
+import type { Database } from "@chanlytics/db/types";
+import { getEmailLine } from "../connections/email";
+import { findBookedSince, findBookingsLately } from "./bookings";
+import { log } from "@/server/shared/log";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** The window the day's replies are read over: Today's one day. A longer window carries none (a period's replies are Reports', report_series). */
 const REPLIES_WINDOW_DAYS = 1;
@@ -28,15 +41,15 @@ const REPLIES_WINDOW_DAYS = 1;
  */
 const REPLIES_LOOKBACK_MS = 26 * HOUR_MS;
 
-type RecentReplies = Awaited<ReturnType<typeof firstReplies>>;
+type RecentReplies = Awaited<ReturnType<typeof listFirstReplies>>;
 
 /**
  * The receptionist's replies of the last 26 hours with the hold each waited, asked of `first_replies` itself: only where the
  * function's answer carried none (a database before 00359). Null when the read failed (logged): the sentence then says the
  * median, as it did.
  */
-function recentReplies(supabase: SupabaseClient<Database>, tenantId: string): Promise<RecentReplies | null> {
-  return firstReplies(supabase, tenantId, new Date(Date.now() - REPLIES_LOOKBACK_MS)).catch((e: unknown) => {
+function recentReplies(supabase: SupabaseClient<Database>, tenantId: TenantId): Promise<RecentReplies | null> {
+  return listFirstReplies(supabase, tenantId, new Date(Date.now() - REPLIES_LOOKBACK_MS)).catch((e: unknown) => {
     log.error("today_replies_read_failed", { error: e });
     return null;
   });
@@ -49,8 +62,8 @@ function recentReplies(supabase: SupabaseClient<Database>, tenantId: string): Pr
  */
 function repliesOf(answered: unknown): RecentReplies | null {
   if (!Array.isArray(answered)) return null;
-  return answered.flatMap((r: unknown) => {
-    const row = r as { asked_at?: unknown; s?: unknown; hold?: unknown } | null;
+  return answered.flatMap((response: unknown) => {
+    const row = recordOrNull(response);
     return row && typeof row.asked_at === "string" && typeof row.s === "number" && Number.isFinite(row.s)
       ? [
           {
@@ -70,40 +83,44 @@ function holdSummary(rows: RecentReplies, since: string): MetricsSummaryDto["rep
 }
 
 /** Null when the function answered nothing, or answered its own error; each caller refuses in its own words. */
-export async function metricsSummaryFor(
+export async function findMetricsSummary(
   supabase: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   days: number,
 ): Promise<MetricsSummaryDto | null> {
   // Together, not waterfalled: one indexed row must not sit behind three
   // plpgsql aggregates on Today's wall clock.
   const day = days === REPLIES_WINDOW_DAYS;
   const [res, email, lately] = await Promise.all([
-    supabase.rpc("metrics_summary", { p_tenant_id: tenantId, p_days: days }),
+    readMetricsSummary(supabase, tenantId, days),
     // A mailbox that cannot be read is a line that cannot be counted, which is
     // its own state (callsRead is the same shape), never a blank Today and
     // never a count that is short by one.
-    emailLineFor(supabase, tenantId).catch((e: unknown) => {
+    getEmailLine(supabase, tenantId).catch((e: unknown) => {
       log.error("today_email_line_read_failed", { error: e });
       return null;
     }),
     // What was booked today, which the day's figures lead with (bookings.ts): a longer window carries none.
-    day ? bookingsLately(supabase, tenantId) : Promise.resolve(undefined),
+    day ? findBookingsLately(supabase, tenantId) : Promise.resolve(undefined),
   ]);
-  if (res.error) throw new Error(res.error.message);
+  if (res.error) throw new DbFailure(res.error);
   // The function's answer, less the day's replies it carries for this server alone (00359): they are counted here and
   // never sent on, so the page's payload is the one it always took.
-  const { replies: carried, ...summary } = (res.data ?? {}) as unknown as MetricsSummaryDto & { replies?: unknown };
+  const { replies: carried, ...summary } = readAnswer(
+    "readMetricsSummary",
+    shaped<MetricsSummaryDto & { replies?: unknown }>(),
+    res.data ?? {},
+  );
   const answered: MetricsSummaryDto | null = res.data ? summary : null;
-  if (!answered || (answered as unknown as { error?: string }).error) return null;
+  if (!answered || valueAt(answered, "error")) return null;
   // A day's replies are the function's own rows where it answers them. Asked of first_replies only where it does not (a
   // dashboard deployed before its migration: either order works), and then after the function, which is the wait every
   // read of Today had beside it.
   // The day's midnight, as the function says it: an answer that names none is not the day's, and carries no bookings.
-  const since = (answered as Partial<MetricsSummaryDto>).window?.since;
+  const since = answered.window?.since;
   const [recent, bookings] = await Promise.all([
     !day ? null : (repliesOf(carried) ?? recentReplies(supabase, tenantId)),
-    lately === undefined || !since ? undefined : lately && bookedSince(supabase, tenantId, lately, since),
+    lately === undefined || !since ? undefined : lately && findBookedSince(supabase, tenantId, lately, since),
   ]);
   const hold = recent === null ? undefined : holdSummary(recent, answered.window.since);
   const held = hold === undefined ? answered : { ...answered, reply_hold: hold };

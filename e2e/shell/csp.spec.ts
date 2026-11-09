@@ -1,5 +1,6 @@
 import { test, expect, errors, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
+import { watchViolations } from "./csp-violations";
 
 /**
  * The Content-Security-Policy, reporting.
@@ -12,21 +13,12 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
  * here, in the nightly, before the header is flipped to enforcing and takes
  * the page down instead.
  */
-const VIOLATION = /Content Security Policy|Report Only|Refused to (load|execute|apply|connect|frame)/i;
-
 async function violationsOn(page: Page, path: string, settle: () => Promise<void>): Promise<string[]> {
-  const seen: string[] = [];
-  // A directive the browser ignores in a report-only policy is a note about the header, not a page the policy would break.
-  const NOTE = /is ignored when delivered in a report-only policy/i;
-  const onConsole = (m: { text(): string }) => {
-    const t = m.text();
-    if (VIOLATION.test(t) && !NOTE.test(t)) seen.push(`${path}: ${t.slice(0, 240)}`);
-  };
-  page.on("console", onConsole);
+  const watch = watchViolations(page, path);
   await page.goto(path);
   await settle();
-  page.off("console", onConsole);
-  return seen;
+  watch.stop();
+  return watch.seen;
 }
 
 /**
@@ -57,9 +49,9 @@ test.describe("Content-Security-Policy, enforced", () => {
     const policy = headers["content-security-policy"];
     expect(policy, "the enforced policy").toBeTruthy();
     expect(headers["content-security-policy-report-only"], "nothing rides report-only any more").toBeUndefined();
-    const scriptSrc = /script-src ([^;,]*)/.exec(policy)![1].trim().split(/\s+/);
+    const scriptSrc = (/script-src ([^;,]*)/.exec(policy ?? "")?.[1] ?? "").trim().split(/\s+/);
     // Meta's SDK host, and Stripe's for paying in the page (decision 0073, R16): the origins Stripe's CSP guide names,
-    // as tooling/scripts/tests/routes/csp.test.mjs holds them.
+    // as tests/routes/csp.test.mjs holds them.
     expect(scriptSrc).toEqual([
       "'self'",
       "'unsafe-inline'",
@@ -70,7 +62,8 @@ test.describe("Content-Security-Policy, enforced", () => {
     ]);
     expect(policy).toContain("object-src 'none'");
     expect(policy).toContain("frame-ancestors 'none'");
-    expect(policy).toContain("upgrade-insecure-requests");
+    // Production's, served over https: a copy on plain http has nothing to upgrade to (csp.ts).
+    if (process.env.E2E_PRODUCTION) expect(policy).toContain("upgrade-insecure-requests");
   });
 
   test("the public pages raise no violation", async ({ page }) => {
@@ -84,6 +77,9 @@ test.describe("Content-Security-Policy, enforced", () => {
   test.describe("signed in", () => {
     test.skip(!HAVE_SESSION, WHY_SKIPPED);
     test("every real surface raises no violation", async ({ page }) => {
+      // Eighteen cold opens were 3,800 of the 5,700 reads the check of production asked (6 Nov 2026). The whole suite
+      // walks every surface on its own stack, and production's walk watches the pages it opens (production/walk.spec.ts).
+      test.skip(!!process.env.E2E_PRODUCTION, "the whole suite walks every surface; production's walk watches its own");
       test.setTimeout(180_000);
       await signIn(page);
       const seen: string[] = [];

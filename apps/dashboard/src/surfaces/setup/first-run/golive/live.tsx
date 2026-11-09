@@ -7,13 +7,10 @@
  * step's onward is Open Today, which switches calls on (the page's Finish, with the "you're live" email).
  */
 import type { ReactNode } from "react";
-import {
-  FIRST_RUN_HELPERS,
-  firstRunStepRoute,
-  type FirstRunGoLiveVM,
-  type WhatsappChoice,
-} from "@chanlytics/contracts";
-import type { LegacyFlash } from "../../../legacy-verbs";
+import { firstRunStepRoute, type WhatsappChoice } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
+import type { FirstRunGoLiveVM } from "../model/golive";
+import type { FrameFlash } from "../../../frame-verbs";
 import { WhatsappSteps } from "./whatsapp";
 
 const LW = FIRST_RUN_HELPERS.goLiveWords.live;
@@ -25,7 +22,7 @@ function noteAct(o: {
   n: LiveNote;
   whatsapp: WhatsappChoice | null;
   waNumber: string | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
 }): ReactNode {
   const { n } = o;
@@ -58,7 +55,7 @@ export function FrYoureLive({
   /** Where it answers' WhatsApp choice, and the number it is kept on, for its steps. */
   whatsapp: WhatsappChoice | null;
   waNumber: string | null;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   /** What was set up (FrLive), drawn under the moves. */
   summary: ReactNode;
 }) {

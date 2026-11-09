@@ -1,9 +1,11 @@
 import { z } from "zod";
-import { write, workspace } from "@/server/route";
-import { requireUuid } from "@/server/request-guards";
-import { answerOf, refusalOf, saidLeadKept } from "@/server/leads/leads";
+import { write, workspace } from "@/server/shared/route";
+import { requireUuid } from "@/server/shared/request-guards";
+import { answerOf, refusalOf, recordLeadKept } from "@/server/leads/leads";
+import { keepFoundLead } from "@/server/leads/search-acts";
+import { DbFailure } from "@chanlytics/contracts";
 
-const Body = z.object({ search_id: z.string().uuid() });
+const Body = z.object({ search_id: z.uuid() });
 
 /**
  * POST /api/v1/leads/:id/keep: the owner keeps a place from Needs review. It
@@ -17,15 +19,15 @@ export const POST = write({
   input: Body,
   handle: async ({ ctx, member, input }) => {
     const leadId = requireUuid(ctx.params.id, "lead");
-    const { data, error } = await ctx.supabase.rpc("lead_member_keep", {
+    const { data, error } = await keepFoundLead(ctx, {
       p_search_id: input.search_id,
       p_lead_id: leadId,
     });
-    if (error) throw new Error(`lead_member_keep: ${error.message}`);
-    const a = answerOf(data);
-    const refused = refusalOf(a);
+    if (error) throw new DbFailure(error, "lead_member_keep");
+    const answer = answerOf(data);
+    const refused = refusalOf(answer);
     if (refused) throw refused;
-    await saidLeadKept({ tenantId: member.tenantId, leadId, searchId: input.search_id, by: ctx.userId });
-    return { lead_id: leadId, op_id: a.op_id, version: a.version };
+    await recordLeadKept({ tenantId: member.tenantId, leadId, searchId: input.search_id, by: ctx.userId });
+    return { lead_id: leadId, op_id: answer.op_id, version: answer.version };
   },
 });

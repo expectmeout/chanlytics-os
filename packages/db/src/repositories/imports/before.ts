@@ -8,15 +8,19 @@
  * (import_person), how many people the workspace holds, and what a file line says of a person before Chanlytics
  * (person_before_note), each on the member's session.
  */
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
-import { tenantDb } from "../../tenant-db";
+import type { Database, Json } from "../../types";
+import { tenantDb } from "../../shared/tenant-db";
+import { recordOrEmpty } from "@chanlytics/contracts";
+import { asJson } from "../../shared/json";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
 /** One message from before, as the door takes it. */
 export interface BeforeMessage {
-  tenantId: string;
+  tenantId: TenantId;
   channel: "email" | "whatsapp";
   /** The wire's own id for the person: the address for email, the WhatsApp id for a chat. */
   external: string;
@@ -37,41 +41,42 @@ export interface BeforeKept {
   kept: boolean;
   erased: boolean;
   conversationId: string | null;
-  contactId: string | null;
+  contactId: ContactId | null;
   /** A new person in People, made by this message. */
   newPerson: boolean;
 }
 
-export async function keepBefore(db: Db, m: BeforeMessage): Promise<BeforeKept> {
+export async function keepBefore(db: Db, beforeMessage: BeforeMessage): Promise<BeforeKept> {
   const { data, error } = await db.rpc("ingest_before", {
-    p_tenant_id: m.tenantId,
-    p_channel: m.channel,
-    p_external: m.external,
-    p_phone: m.phone ?? "",
-    p_email: m.email ?? "",
-    p_name: m.name ?? "",
-    p_message_external_id: m.messageId,
-    p_direction: m.direction,
-    p_type: m.type ?? "text",
-    p_body: m.body ?? "",
-    p_channel_ts: m.at,
-    p_meta: m.meta ?? {},
+    p_tenant_id: beforeMessage.tenantId,
+    p_channel: beforeMessage.channel,
+    p_external: beforeMessage.external,
+    p_phone: beforeMessage.phone ?? "",
+    p_email: beforeMessage.email ?? "",
+    p_name: beforeMessage.name ?? "",
+    p_message_external_id: beforeMessage.messageId,
+    p_direction: beforeMessage.direction,
+    p_type: beforeMessage.type ?? "text",
+    p_body: beforeMessage.body ?? "",
+    p_channel_ts: beforeMessage.at,
+    p_meta: beforeMessage.meta ?? {},
   });
-  if (error) throw Object.assign(new Error(`ingest_before: ${error.message}`), { code: error.code });
-  const o = (data ?? {}) as Record<string, unknown>;
-  if (o.erased === true) return { kept: false, erased: true, conversationId: null, contactId: null, newPerson: false };
+  if (error) throw new DbFailure(error, "ingest_before");
+  const row = recordOrEmpty(data);
+  if (row.erased === true)
+    return { kept: false, erased: true, conversationId: null, contactId: null, newPerson: false };
   return {
-    kept: o.is_new === true,
+    kept: row.is_new === true,
     erased: false,
-    conversationId: typeof o.conversation_id === "string" ? o.conversation_id : null,
-    contactId: typeof o.contact_id === "string" ? o.contact_id : null,
-    newPerson: o.person === "new",
+    conversationId: typeof row.conversation_id === "string" ? row.conversation_id : null,
+    contactId: typeof row.contact_id === "string" ? heldContactId(row.contact_id) : null,
+    newPerson: row.person === "new",
   };
 }
 
 /** What import_person made of a line: the person, whether they were on file already, and what became of the address. */
 interface ImportedPerson {
-  contact_id: string;
+  contact_id: ContactId;
   existed: boolean;
   email: "set" | "kept" | "taken" | null;
 }
@@ -83,14 +88,14 @@ interface ImportedPerson {
  */
 export async function importPerson(
   db: Db,
-  tenantId: string,
-  p: { name: string; phone: string | null; email: string | null },
+  tenantId: TenantId,
+  params: { name: string; phone: string | null; email: string | null },
 ): Promise<{ ok: true; made: ImportedPerson } | { ok: false; code: string | undefined; message: string }> {
   const { data, error } = await db.rpc("import_person", {
     p_tenant_id: tenantId,
-    p_name: p.name,
-    p_phone_e164: p.phone ?? "",
-    p_email: p.email ?? "",
+    p_name: params.name,
+    p_phone_e164: params.phone ?? "",
+    p_email: params.email ?? "",
   });
   if (error) return { ok: false, code: error.code, message: error.message };
   return { ok: true, made: importedOf(data) };
@@ -100,20 +105,24 @@ export async function importPerson(
 function importedOf(data: Json): ImportedPerson {
   const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
   const email = o.email === "set" || o.email === "kept" || o.email === "taken" ? o.email : null;
-  return { contact_id: typeof o.contact_id === "string" ? o.contact_id : "", existed: o.existed === true, email };
+  return {
+    contact_id: heldContactId(typeof o.contact_id === "string" ? o.contact_id : ""),
+    existed: o.existed === true,
+    email,
+  };
 }
 
 /**
  * How many people the workspace holds (neither erased nor merged into another): the first run's "Your dashboard, filling
  * in" and Live's "0 of 604 said yes" (decision 0073). Counted by the database, never by reading every row.
  */
-export async function peopleCount(db: Db, tenantId: string): Promise<number> {
+export async function getPeopleCount(db: Db, tenantId: TenantId): Promise<number> {
   const { count, error } = await tenantDb(db, tenantId)
     .from("contacts")
     .select("id", { count: "exact", head: true })
     .is("erased_at", null)
     .is("merged_into_contact_id", null);
-  if (error) throw new Error(`cannot count the people: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count the people");
   return count ?? 0;
 }
 
@@ -122,18 +131,18 @@ export async function peopleCount(db: Db, tenantId: string): Promise<number> {
  * last visit, visits, birthday and tool in contacts.before, each where not already there (person_before_note). Under the
  * member's session: the door asks that they act for the workspace.
  */
-export async function personBeforeNote(
+export async function recordPersonBeforeNote(
   db: Db,
-  tenantId: string,
-  contactId: string,
+  tenantId: TenantId,
+  contactId: ContactId,
   before: { via?: string; last_visit?: string; visits?: number; birthday?: string },
   notes: string | null,
 ): Promise<void> {
   const { error } = await db.rpc("person_before_note", {
     p_tenant_id: tenantId,
     p_contact_id: contactId,
-    p_before: before as Json,
+    p_before: asJson(before),
     p_notes: notes ?? undefined,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
 }

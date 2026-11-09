@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FIX_KINDS, SPEND_REVIEW } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { routeRehearsalFix } from "@/server/receptionist/rehearsal";
+import { write, workspace } from "@/server/shared/route";
+import { routeRehearsalFix } from "@/server/settings/rehearsal";
 
 /**
  * POST /api/v1/receptionist/fix — where a correction goes (decision 0069, R4): the owner's words under an answer routed

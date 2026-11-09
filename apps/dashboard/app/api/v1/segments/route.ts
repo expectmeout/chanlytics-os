@@ -1,5 +1,5 @@
-import { read, write, workspace } from "@/server/route";
-import { load, readerContext } from "@/server/readers";
+import { read, write, workspace } from "@/server/shared/route";
+import { load, readerContext } from "@/server/shared/reader";
 import { lists } from "@/server/readers/lists";
 import { createSavedList } from "@/server/people/list-write";
 

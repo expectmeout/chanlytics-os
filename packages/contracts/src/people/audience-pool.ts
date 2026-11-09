@@ -10,27 +10,21 @@
 import type { ConsultRules } from "../calendar/service-offer";
 import { feedWithRecord, type PoolRecord } from "../calendar/appointment-item";
 import type { FeedItem } from "../calendar/feed";
-import {
-  indexFeed,
-  toVisitDto,
-  visitsIn,
-  type OwnAddresses,
-  type PersonLike,
-  type PersonVisitsDto,
-  type VisitDto,
-} from "../calendar/calendar-people";
-import type { ChannelsReady } from "../broadcasts/reach-for";
+import { indexFeed, visitsIn, type OwnAddresses, type PersonLike } from "../calendar/people/matching";
+import { toVisitDto, type PersonVisitsDto, type VisitDto } from "../calendar/people/visits";
+import type { ChannelsReady } from "../campaigns/broadcasts/reach-for";
 import { isOptedOutContact } from "../consent/consent";
 import { isEmailStopped } from "../conversations/thread-contact";
-import { isConsultationTitle } from "../deals/deal-consultations";
+import { isConsultationTitle } from "../deals/consultations";
 import type { ListContext } from "./lists/lists";
 import type { PersonRowDto } from "./person-dto";
 import type { HolderNames } from "./person-receptionist";
-import { igClockOfRow, replyChannelOfRow, toPersonRowVM, type PersonRowVM } from "./person-row";
+import { igClockOfRow, replyChannelOfRow, type PersonRowVM } from "./person-row/row-facts";
+import { toPersonRowVM } from "./person-row/row-vm";
 
 /** A People row as the calendar matches it: a name a human gave, their number, their address. */
 export function personLikeOf(
-  p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164"> &
+  person: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164"> &
     Partial<
       Pick<
         PersonRowDto,
@@ -52,36 +46,36 @@ export function personLikeOf(
     >,
 ): PersonLike {
   return {
-    id: p.id,
-    name: p.display_name || p.wa_profile_name || "",
-    phone: p.phone_e164,
+    id: person.id,
+    name: person.display_name || person.wa_profile_name || "",
+    phone: person.phone_e164,
     // Optional on the Pick the way personName takes it: a row read before 00125 carries no address, and no address is
     // no match, never a crash.
-    email: p.email ?? null,
-    thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
-    waInboundAt: p.latest_wa_inbound_at ?? null,
+    email: person.email ?? null,
+    thread: person.has_chat && person.latest_conversation_id ? person.latest_conversation_id : null,
+    waInboundAt: person.latest_wa_inbound_at ?? null,
     igInboundAt: igClockOfRow({
-      last_inbound_channel: p.last_inbound_channel ?? null,
-      last_wrote_at: p.last_wrote_at ?? null,
+      last_inbound_channel: person.last_inbound_channel ?? null,
+      last_wrote_at: person.last_wrote_at ?? null,
     }),
     // What a reply to them is judged by, from the same row and the same functions the People row asks (person-row.ts), so the
     // board's block offers the booking link, or does not, as the row does. A row without the columns says no stop: absence is
     // no opt-out (consent.ts).
     reach: {
       wire: replyChannelOfRow({
-        has_chat: p.has_chat ?? false,
-        last_inbound_channel: p.last_inbound_channel ?? null,
-        message_channels: p.message_channels,
+        has_chat: person.has_chat ?? false,
+        last_inbound_channel: person.last_inbound_channel ?? null,
+        message_channels: person.message_channels,
       }),
-      emailStopped: isEmailStopped({ email_suppressed_at: p.email_suppressed_at ?? null }),
-      optedOut: isOptedOutContact({ consent: p.consent, dnc: p.dnc }),
+      emailStopped: isEmailStopped({ email_suppressed_at: person.email_suppressed_at ?? null }),
+      optedOut: isOptedOutContact({ consent: person.consent, dnc: person.dnc }),
     },
     // The business they work at, while it stands (0052): the calendar's fourth match.
-    business: p.lead_id && !p.lead_gone && p.lead_name ? p.lead_name : null,
+    business: person.lead_id && !person.lead_gone && person.lead_name ? person.lead_name : null,
     // Its own addresses, on its own person alone (people_list, 00418): a booking from one is theirs, by their business.
     businessEmails:
-      p.lead_id && !p.lead_gone && p.lead_emails
-        ? p.lead_emails.map((e) => e.trim().toLowerCase()).filter((e) => e.length > 0)
+      person.lead_id && !person.lead_gone && person.lead_emails
+        ? person.lead_emails.map((e) => e.trim().toLowerCase()).filter((e) => e.length > 0)
         : [],
   };
 }
@@ -116,16 +110,16 @@ export function peopleVisitsOf(
   const mark = (v: VisitDto | null): VisitDto | null =>
     v ? { ...v, consultation: isConsultationTitle(v.title, cal.services, cal.rules) } : null;
   const out = new Map<string, PersonVisitsDto>();
-  for (const p of people) {
-    const v = visitsIn(index, personLikeOf(p), nowMs);
-    out.set(p.id, {
+  for (const item of people) {
+    const visits = visitsIn(index, personLikeOf(item), nowMs);
+    out.set(item.id, {
       timezone: cal.timezone,
       source: cal.source,
       state: "ok",
-      next: mark(toVisitDto(v.next)),
-      last: mark(toVisitDto(v.last)),
-      near: v.near.map((x) => mark(toVisitDto(x))).filter((x): x is VisitDto => x !== null),
-      missed: mark(toVisitDto(v.missed ?? null)),
+      next: mark(toVisitDto(visits.next)),
+      last: mark(toVisitDto(visits.last)),
+      near: visits.near.map((x) => mark(toVisitDto(x))).filter((x): x is VisitDto => x !== null),
+      missed: mark(toVisitDto(visits.missed ?? null)),
     });
   }
   return out;
@@ -174,13 +168,20 @@ export interface PoolOptions {
  * The row one person is read as: the lists, the column, the row's second line, the thread's chip and Today's proposals
  * waiting all read it from here. Every workspace has deals (0008, amended 18 Oct 2026), so it carries theirs.
  */
-export function poolRowOf(person: PersonRowDto, o: PoolOptions): PersonRowVM {
-  return toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
+export function poolRowOf(person: PersonRowDto, poolOptions: PoolOptions): PersonRowVM {
+  return toPersonRowVM(
+    person,
+    poolOptions.tz,
+    poolOptions.now,
+    poolOptions.viewer,
+    poolOptions.ready,
+    poolOptions.names ?? null,
+  );
 }
 
 /** Everyone's rows, as poolRowOf reads each. */
-export function poolRowsOf(people: readonly PersonRowDto[], o: PoolOptions): PersonRowVM[] {
-  return people.map((p) => poolRowOf(p, o));
+export function poolRowsOf(people: readonly PersonRowDto[], poolOptions: PoolOptions): PersonRowVM[] {
+  return people.map((p) => poolRowOf(p, poolOptions));
 }
 
 /** Whether the profile names a consult-first service (0004): a list that reads consultations can be counted only then. */
@@ -189,11 +190,16 @@ export function consultFirstOf(rules: ConsultRules | null | undefined): boolean 
 }
 
 /** What a pool can give a list (lists.ts ListContext): its calendar, a deal on file, a consult-first service, and a viewer. */
-export function poolListContext(o: {
+export function poolListContext(options: {
   calendar: ListContext["calendar"];
   hasDeals: boolean;
   consultFirst: boolean;
   viewer: string | null;
 }): ListContext {
-  return { calendar: o.calendar, hasDeals: o.hasDeals, consultFirst: o.consultFirst, viewer: o.viewer !== null };
+  return {
+    calendar: options.calendar,
+    hasDeals: options.hasDeals,
+    consultFirst: options.consultFirst,
+    viewer: options.viewer !== null,
+  };
 }

@@ -7,13 +7,15 @@
  * HMAC-SHA256 over them under the secret, after the label. A link is opened under the current secret or, while a
  * rotation settles, the one before it.
  */
+import { heldContactId, heldTenantId } from "@chanlytics/contracts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { UUID } from "@chanlytics/contracts";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /** What a link seals: whose it is, and the email it came in. */
 export interface SealedClaims {
-  tenantId: string;
-  contactId: string;
+  tenantId: TenantId;
+  contactId: ContactId;
   messageId: string;
 }
 
@@ -31,15 +33,15 @@ const macOf = (label: string, secret: string, payload: Buffer): Buffer =>
   createHmac("sha256", secret).update(label).update(payload).digest().subarray(0, MAC_BYTES);
 
 /** The link's token, sealed under `label` and `secret`; `who` names the caller in what it throws. */
-export function sealLink(who: string, label: string, secret: string, c: SealedClaims): string {
-  if (!secret) throw new Error(`${who}: no secret`);
-  for (const id of [c.tenantId, c.contactId, c.messageId])
-    if (!UUID.test(id)) throw new Error(`${who}: the workspace, the person and the email are uuids`);
+export function sealLink(personName: string, label: string, secret: string, sealedClaims: SealedClaims): string {
+  if (!secret) throw new Error(`${personName}: no secret`);
+  for (const id of [sealedClaims.tenantId, sealedClaims.contactId, sealedClaims.messageId])
+    if (!UUID.test(id)) throw new Error(`${personName}: the workspace, the person and the email are uuids`);
   const payload = Buffer.concat([
     Buffer.from([VERSION]),
-    bytesOf(c.tenantId),
-    bytesOf(c.contactId),
-    bytesOf(c.messageId),
+    bytesOf(sealedClaims.tenantId),
+    bytesOf(sealedClaims.contactId),
+    bytesOf(sealedClaims.messageId),
   ]);
   return Buffer.concat([payload, macOf(label, secret, payload)]).toString("base64url");
 }
@@ -65,8 +67,8 @@ export function openLink(
   const mac = raw.subarray(PAYLOAD_BYTES);
   if (!keys.some((k) => timingSafeEqual(mac, macOf(label, k, payload)))) return null;
   return {
-    tenantId: uuidOf(payload.subarray(1, 17)),
-    contactId: uuidOf(payload.subarray(17, 33)),
+    tenantId: heldTenantId(uuidOf(payload.subarray(1, 17))),
+    contactId: heldContactId(uuidOf(payload.subarray(17, 33))),
     messageId: uuidOf(payload.subarray(33, 49)),
   };
 }

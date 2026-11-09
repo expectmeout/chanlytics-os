@@ -12,11 +12,11 @@
  *     sentence that lets it ask, so the two cannot drift.
  *
  * The question is asked on WhatsApp alone: a text carries no offers (deliver.ts), and the sign-up page offers the yes on
- * WhatsApp only (consent-page.ts). The prompt names WhatsApp for every conversation it is composed for, a text
+ * WhatsApp only (consent/public-page.ts). The prompt names WhatsApp for every conversation it is composed for, a text
  * included (it rides the same road), so the conversation's channel is said in the facts as well, and the sentence that
  * lets the receptionist ask is never said on a text or a call.
  */
-import { yesCovers } from "../../consent/consent-channels";
+import { yesCovers } from "../../consent/channels";
 import { STOP_ENDED_OFFERS_SOURCE } from "../../people/person-consent";
 import { clockDate } from "../../shared/clock";
 import { OFFERS_OPT_IN_PHRASES } from "../../shared/enums";
@@ -48,7 +48,7 @@ const FACT = /* @__PURE__ */ (() => ({
  * ask: the rule fails closed.
  */
 export function offersFacts(
-  p: {
+  params: {
     /** contacts.marketing_consent: unknown, opted_in or opted_out. Absent where the reader never learned it. */
     marketingConsent?: string | null;
     /**
@@ -68,19 +68,19 @@ export function offersFacts(
   const out: string[] = [];
   if (channel === "sms") out.push(FACT.text);
   if (channel === "instagram") out.push(FACT.dm);
-  const asked = p.offersAskedAt;
+  const offersAskedAt = params.offersAskedAt;
   // Offers go by WhatsApp, so a yes counts where it covers WhatsApp (yesCovers, the one reading of a row's channels): a
   // yes kept for text alone is not said on WhatsApp, and reads like no answer yet.
   const open =
-    p.marketingConsent === "unknown" ||
-    (p.marketingConsent === "opted_in" && !yesCovers(p.marketingChannels, "whatsapp"));
-  if (p.marketingConsent === "opted_in" && !open) out.push(FACT.yes);
-  else if (p.marketingConsent === "opted_out") out.push(FACT.no);
+    params.marketingConsent === "unknown" ||
+    (params.marketingConsent === "opted_in" && !yesCovers(params.marketingChannels, "whatsapp"));
+  if (params.marketingConsent === "opted_in" && !open) out.push(FACT.yes);
+  else if (params.marketingConsent === "opted_out") out.push(FACT.no);
   else if (open) {
-    if (typeof asked === "string") {
-      const at = Date.parse(asked);
+    if (typeof offersAskedAt === "string") {
+      const at = Date.parse(offersAskedAt);
       out.push(FACT.asked(Number.isFinite(at) ? clockDate(at, tz, now.getTime()) : null));
-    } else if (asked === null && channel === "whatsapp" && !p.optedOut) out.push(FACT.never);
+    } else if (offersAskedAt === null && channel === "whatsapp" && !params.optedOut) out.push(FACT.never);
   }
   return out;
 }
@@ -91,18 +91,18 @@ export function offersFacts(
  * A START is a yes to messages about their own visit and nothing more, so a person who had offers before they stopped
  * would otherwise wait for news that no longer comes. The confirmation says so, with the phrase that turns offers
  * on again (the inbound path records it as their own yes). On WHATSAPP ALONE: the texting line's confirmation is the
- * campaign's filed opt-in message, word for word (consent-page.ts optInConfirmation), and offers are never offered on
+ * campaign's filed opt-in message, word for word (consent/public-page.ts optInConfirmation), and offers are never offered on
  * that line (30896). Nothing for a person who never said yes, who was asked and did not answer, or who said no: the
  * receptionist's own ask is once (offersAskRule), and this is not a second one. It is said on each START while the
  * ended yes is the answer on their row, and no longer once they answer about offers again. The sentence holds the
  * phrase, so the database counts it as the ask (offers_asked_at) and the receptionist does not ask after it.
  */
 export function offersAfterStart(
-  p: { marketingConsent?: string | null; marketingConsentSource?: string | null },
+  params: { marketingConsent?: string | null; marketingConsentSource?: string | null },
   channel: LeadChannel | undefined,
 ): string | null {
   if (channel !== "whatsapp") return null;
-  if (p.marketingConsent !== "unknown" || p.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
+  if (params.marketingConsent !== "unknown" || params.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
   return `Offers and news stay off. Reply ${OFFERS_OPT_IN_PHRASES.en} to get them here again.`;
 }
 

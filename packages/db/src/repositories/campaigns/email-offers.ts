@@ -9,8 +9,17 @@
  * here is how a person is judged: that is contracts' mayMessageFor, which reads what these keep.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { offerPauseOf, type OfferCounts, type OfferPause, type OfferPauseReason } from "@chanlytics/contracts";
-import type { Database, Json } from "../../database.types";
+import {
+  offerPauseOf,
+  type OfferCounts,
+  type OfferPause,
+  type OfferPauseReason,
+  recordOrEmpty,
+  recordOrNull,
+  DbFailure,
+} from "@chanlytics/contracts";
+import type { Database, Json } from "../../types";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -35,14 +44,14 @@ function noFunction(error: { message: string; code?: string } | null | undefined
  * it for every offer, so a pause set a moment ago holds the next one. Any other failed read throws, a schema cache that
  * could not find a column among them: "we could not check" is not "not paused".
  */
-export async function emailOffersPause(db: Db, tenantId: string): Promise<OfferPause | null> {
+export async function pauseEmailOffersFor(db: Db, tenantId: TenantId): Promise<OfferPause | null> {
   const { data, error } = await db
     .from("mailboxes")
     .select("offers_paused_at, offers_paused_reason")
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (noColumn(error, "offers_paused_at", "offers_paused_reason")) return null;
-  if (error) throw new Error(`cannot read whether offers by email are paused: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read whether offers by email are paused");
   return offerPauseOf(data?.offers_paused_at, data?.offers_paused_reason);
 }
 
@@ -54,19 +63,19 @@ export async function emailOffersPause(db: Db, tenantId: string): Promise<OfferP
  */
 export async function pauseEmailOffers(
   db: Db,
-  p: { tenantId: string; reason: OfferPauseReason; counts: OfferCounts },
+  params: { tenantId: TenantId; reason: OfferPauseReason; counts: OfferCounts },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("pause_email_offers", {
-    p_tenant_id: p.tenantId,
-    p_reason: p.reason,
+    p_tenant_id: params.tenantId,
+    p_reason: params.reason,
     p_counts: {
-      complaint_sample: p.counts.complaintSample,
-      complaints: p.counts.complaints,
-      bounce_sample: p.counts.bounceSample,
-      bounces: p.counts.bounces,
+      complaint_sample: params.counts.complaintSample,
+      complaints: params.counts.complaints,
+      bounce_sample: params.counts.bounceSample,
+      bounces: params.counts.bounces,
     },
   });
-  if (error) throw new Error(`cannot pause offers by email: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot pause offers by email");
   return data === true;
 }
 
@@ -75,11 +84,11 @@ export async function pauseEmailOffers(
  * last 500 and the hard bounces among them (email_offer_counts). `host` is the campaigns domain, so only offers are counted.
  * A failed read throws, and the receipt that asked comes again.
  */
-export async function emailOfferCounts(db: Db, p: { tenantId: string; host: string }): Promise<OfferCounts> {
-  const { data, error } = await db.rpc("email_offer_counts", { p_tenant_id: p.tenantId, p_host: p.host });
-  if (error) throw new Error(`cannot count the offers by email: ${error.message}`);
-  const c = (data ?? {}) as Record<string, unknown>;
-  const n = (k: string): number => (typeof c[k] === "number" ? c[k] : 0);
+export async function getEmailOfferCounts(db: Db, params: { tenantId: TenantId; host: string }): Promise<OfferCounts> {
+  const { data, error } = await db.rpc("email_offer_counts", { p_tenant_id: params.tenantId, p_host: params.host });
+  if (error) throw new DbFailure(error, "cannot count the offers by email");
+  const item = recordOrEmpty(data);
+  const n = (k: string): number => (typeof item[k] === "number" ? item[k] : 0);
   return {
     complaintSample: n("complaint_sample"),
     complaints: n("complaints"),
@@ -122,26 +131,26 @@ const REFUSALS: ReadonlySet<string> = new Set([
  */
 export async function setEmailOffersYes(
   db: Db,
-  p: {
-    tenantId: string;
-    contactId: string;
+  params: {
+    tenantId: TenantId;
+    contactId: ContactId;
     source: "customer_message" | "form" | "confirmed_signup";
     messageId: string | null;
     evidence: Json;
   },
 ): Promise<OffersYesOutcome> {
   const { data, error } = await db.rpc("set_email_offers_yes", {
-    p_tenant_id: p.tenantId,
-    p_contact_id: p.contactId,
-    p_source: p.source,
-    ...(p.messageId ? { p_message_id: p.messageId } : {}),
-    p_evidence: p.evidence,
+    p_tenant_id: params.tenantId,
+    p_contact_id: params.contactId,
+    p_source: params.source,
+    ...(params.messageId ? { p_message_id: params.messageId } : {}),
+    p_evidence: params.evidence,
   });
-  if (error) throw new Error(`cannot record the yes to offers by email: ${error.message}`);
-  const said = (data ?? null) as { changed?: unknown; refused?: unknown } | null;
-  if (said?.changed === true) return "recorded";
-  return typeof said?.refused === "string" && REFUSALS.has(said.refused)
-    ? (said.refused as OffersYesOutcome)
+  if (error) throw new DbFailure(error, "cannot record the yes to offers by email");
+  const answer = recordOrNull(data);
+  if (answer?.changed === true) return "recorded";
+  return typeof answer?.refused === "string" && REFUSALS.has(answer.refused)
+    ? (answer.refused as OffersYesOutcome)
     : "unchanged";
 }
 
@@ -150,14 +159,17 @@ export async function setEmailOffersYes(
  * page a customer lands on from it speaks the language they read the offer in. Null when the broadcast is not there or
  * kept none. A failed read throws, and the page then says its words in English rather than fail the press.
  */
-export async function offerLanguageOf(db: Db, p: { tenantId: string; broadcastId: string }): Promise<string | null> {
+export async function offerLanguageOf(
+  db: Db,
+  params: { tenantId: TenantId; broadcastId: string },
+): Promise<string | null> {
   const { data, error } = await db
     .from("sequence_batches")
     .select("template_language")
-    .eq("tenant_id", p.tenantId)
-    .eq("id", p.broadcastId)
+    .eq("tenant_id", params.tenantId)
+    .eq("id", params.broadcastId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the language the offer was sent in: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the language the offer was sent in");
   return data?.template_language ?? null;
 }
 
@@ -175,19 +187,22 @@ export interface Unsubscribed {
  */
 export async function setEmailUnsubscribed(
   db: Db,
-  p: { tenantId: string; contactId: string; messageId: string | null; evidence: Json },
+  params: { tenantId: TenantId; contactId: ContactId; messageId: string | null; evidence: Json },
 ): Promise<Unsubscribed> {
   const { data, error } = await db.rpc("set_email_marketing", {
-    p_tenant_id: p.tenantId,
-    p_contact_id: p.contactId,
+    p_tenant_id: params.tenantId,
+    p_contact_id: params.contactId,
     p_state: "opted_out",
     p_source: "unsubscribe",
-    ...(p.messageId ? { p_message_id: p.messageId } : {}),
-    p_evidence: p.evidence,
+    ...(params.messageId ? { p_message_id: params.messageId } : {}),
+    p_evidence: params.evidence,
   });
-  if (error) throw new Error(`cannot record the unsubscribe: ${error.message}`);
-  const said = (data ?? null) as { business?: unknown; changed?: unknown } | null;
-  return { business: typeof said?.business === "string" ? said.business : null, changed: said?.changed === true };
+  if (error) throw new DbFailure(error, "cannot record the unsubscribe");
+  const answer = recordOrNull(data);
+  return {
+    business: typeof answer?.business === "string" ? answer.business : null,
+    changed: answer?.changed === true,
+  };
 }
 
 /**
@@ -196,16 +211,19 @@ export async function setEmailUnsubscribed(
  */
 export async function stopAllMessages(
   db: Db,
-  p: { tenantId: string; contactId: string; messageId: string | null },
+  params: { tenantId: TenantId; contactId: ContactId; messageId: string | null },
 ): Promise<Unsubscribed> {
   const { data, error } = await db.rpc("stop_all_messages", {
-    p_tenant_id: p.tenantId,
-    p_contact_id: p.contactId,
-    ...(p.messageId ? { p_message_id: p.messageId } : {}),
+    p_tenant_id: params.tenantId,
+    p_contact_id: params.contactId,
+    ...(params.messageId ? { p_message_id: params.messageId } : {}),
   });
-  if (error) throw new Error(`cannot record that all messages stop: ${error.message}`);
-  const said = (data ?? null) as { business?: unknown; changed?: unknown } | null;
-  return { business: typeof said?.business === "string" ? said.business : null, changed: said?.changed === true };
+  if (error) throw new DbFailure(error, "cannot record that all messages stop");
+  const answer = recordOrNull(data);
+  return {
+    business: typeof answer?.business === "string" ? answer.business : null,
+    changed: answer?.changed === true,
+  };
 }
 
 /**
@@ -213,9 +231,9 @@ export async function stopAllMessages(
  * a database 00299 has not reached (its function is not there), where nothing about offers by email is counted yet. Any
  * other failed read throws.
  */
-export async function offersEmailReach(db: Db, tenantId: string): Promise<number | null> {
+export async function findOffersEmailReach(db: Db, tenantId: TenantId): Promise<number | null> {
   const { data, error } = await db.rpc("offers_email_reach", { p_tenant_id: tenantId });
   if (noFunction(error, "offers_email_reach")) return null;
-  if (error) throw new Error(`cannot count who an offer by email reaches: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count who an offer by email reaches");
   return typeof data === "number" ? data : null;
 }

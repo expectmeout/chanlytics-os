@@ -1,7 +1,7 @@
 /**
  * Ask's cards as Today presses them (decisions 0070, 0071 and 0087; Ask found draws them, zones/found.tsx): the morning's
  * ideas, and what Ask noticed that a press changes. A card is approved through its own verb walk, as Ask's Line approves
- * it (legacy-verbs.ts askCalls), and what became of it is kept on its turn one outcome after another, never two over one
+ * it (frame-verbs.ts askCalls), and what became of it is kept on its turn one outcome after another, never two over one
  * turn at once, so the Line reads it back too. A plan's step, which is pressed with its plan, opens in Ask. A new
  * campaign's rules are its sheet (CardSheet), opened on a press of its line.
  */
@@ -12,7 +12,7 @@ import {
   type AskMorningCard,
   type AskProposalOutcome,
 } from "@chanlytics/contracts";
-import { undoVerb } from "@/legacy-bridge/verbs/commit";
+import { undoVerb } from "@/bridge/verbs/commit";
 import { askAbout, askCards, canDo } from "../shell";
 import type { WorkProps } from "./parts";
 import { useRowState } from "./row-state";
@@ -49,6 +49,11 @@ export function dismissedOnTurn(messageId: string | null, card: AskMorningCard):
   });
 }
 
+/** A Not today taken back, kept on its turn in the same way: the idea is offered again. */
+export function restoreOnTurn(messageId: string | null, card: AskMorningCard): Promise<boolean> {
+  return keptOnTurn(messageId, card, { state: "undone", receipt: W.undo, atMs: Date.now(), undo: null });
+}
+
 /** What an idea's presses are handed: the card, the turn it came on, and how the row keeps its place and says things. */
 interface IdeaPorts {
   card: AskMorningCard;
@@ -59,8 +64,9 @@ interface IdeaPorts {
   /**
    * Rests the card for the member a week (views.ask_found, every Ask found row); where a turn holds it (an idea), Not today
    * is kept on that turn besides, so tomorrow's morning and every member's Today leave it out (contracts settledTitles).
+   * `onUndone` is told as its toast's Undo brings the row back.
    */
-  rest: () => Promise<void>;
+  rest: (onUndone: () => void) => Promise<void>;
 }
 
 /**
@@ -119,8 +125,13 @@ export function useIdeaActs(p: IdeaPorts) {
     if (busy) return;
     p.keep();
     setSaid({ words: W.idea.gone, tone: "rest", undo: null });
-    // The member's rest, then the turn's word (none where no turn holds the card), whatever the rest came to.
-    await p.rest().catch(() => undefined);
+    // The member's rest, then the turn's word (none where no turn holds the card), whatever the rest came to. Its toast's
+    // Undo takes back both, and the row draws as it did.
+    const back = () => {
+      setSaid(null);
+      void restoreOnTurn(messageId, card);
+    };
+    await p.rest(back).catch(() => undefined);
     await dismissedOnTurn(messageId, card);
   };
   return { said, busy, open, approve, undo, notToday };

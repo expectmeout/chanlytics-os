@@ -8,7 +8,7 @@
  * that vanished if either file moved or went, and the typed side called them with `?.`, so a missing door did nothing and
  * said nothing.
  *
- * Here they are real exports a page imports. The frame fills the bridge's registry with its doors as it renders (LegacyApp
+ * Here they are real exports a page imports. The frame fills the bridge's registry with its doors as it renders (FrameApp
  * hands it `fillDoors` as a prop), before the pages under it draw; a door the registry does not hold answers as a stand-in
  * window would (a test's, the standalone mockup's), else says so once (`door_missing`) and does nothing, as it always did.
  * The names the pages that have not moved read (`askAbout`, `appNavigate`, `appAsk`) are published from here by
@@ -19,11 +19,13 @@
  */
 import type { AskScope } from "@chanlytics/contracts";
 // A type only, which a bundle drops: this module imports nothing at run time, so the kit and every surface can import it.
-import type { GoOptions } from "@/legacy-bridge/workspace";
+import type { GoOptions } from "@/bridge/workspace";
 
 /** What Ask is opened with: a question to ask, or to finish with `mode` "compose"; a conversation to open; and the scope its chip opens on. */
 interface AskAbout {
   prompt?: string;
+  /** A question a page words itself, in both languages: the Line asks the one it last spoke, since a press has no words to read one from. */
+  prompts?: Readonly<Record<"en" | "es", string>>;
   mode?: string;
   thread?: string;
   about?: AskScope;
@@ -35,6 +37,10 @@ interface AskAbout {
   links?: Array<{ label: string; to: string }>;
   actions?: Array<{ label: string; run?: () => unknown }>;
 }
+
+/** The words a door asks in: a page's own in the language the Line last spoke, else the one question it was handed. */
+export const askedWords = (d: Pick<AskAbout, "prompt" | "prompts">, language: string): string | undefined =>
+  d.prompts ? d.prompts[language === "es" ? "es" : "en"] : d.prompt;
 
 /**
  * What the frame holds for every page: its own move, its Ask, a person's Back to the People view they were opened from, and
@@ -126,16 +132,28 @@ export function openAsk(): void {
   missing("openAsk");
 }
 
+/** What a door asked for, until the Line has heard it: its code comes as a chunk, and an event nobody is listening for is gone. */
+let askedOfTheLine: AskAbout | null = null;
+
 /**
  * Open Ask on a question: the Line asks it, or with `mode` "compose" leaves it in the field to finish; `thread` opens that
  * conversation as it is; `about` is the scope chip it opens with. It opens Ask, then hands it `ask:seed` (surfaces/ask/line/
- * useArSeedKeys). A demo session's seeded palette reads the same event, with its canned answer, links and actions.
+ * useArSeedKeys). A demo session's seeded palette reads the same event, with its canned answer, links and actions. A press in
+ * the first seconds of a page, or on a slow phone, comes before the Line's code does, so what was asked is kept for it to take.
  */
 export function askAbout(about: AskAbout = {}): void {
   const own = standIn("askAbout");
   if (own) return own(about);
+  askedOfTheLine = about;
   openAsk();
   window.dispatchEvent(new CustomEvent("ask:seed", { detail: about }));
+}
+
+/** What was asked and has not been heard yet, once: the Line takes it as it starts to listen, and as it hears each one. */
+export function takeAskedOfTheLine(): AskAbout | null {
+  const asked = askedOfTheLine;
+  askedOfTheLine = null;
+  return asked;
 }
 
 /**
@@ -215,10 +233,26 @@ export const routeDoor = (to: string, go: ((to: string) => void) | null = null):
       if (go) go(to);
       else if (win.CHANLY && win.CHANLY.nav) win.CHANLY.nav(to);
     },
-    // A finger is a scroll or a swipe first (legacy-verbs warmsOnReach).
+    // A finger is a scroll or a swipe first (frame-verbs warmsOnReach).
     onPointerEnter: (e) => {
       if (!e || e.pointerType !== "touch") warm();
     },
     onFocus: warm,
   };
 };
+
+/** Who hears Ask's calls arrive: the frame is drawn before the bridge installs them (holdAsk, frame-verbs.ts). */
+const askHearers = new Set<() => void>();
+
+/** Ask's calls are in, or gone: everyone hearing is told. */
+export function tellAskHeld(): void {
+  askHearers.forEach((hear) => hear());
+}
+
+/** Hear Ask's calls arrive, as a capsule that watches Ask's voice has nothing to watch until they are in; answers the stop. */
+export function hearAskHeld(hear: () => void): () => void {
+  askHearers.add(hear);
+  return () => {
+    askHearers.delete(hear);
+  };
+}

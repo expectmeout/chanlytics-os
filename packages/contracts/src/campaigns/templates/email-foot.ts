@@ -1,0 +1,171 @@
+/**
+ * The foot the sender puts under a campaign's email, said once for every kind of email that has one (One message, every
+ * channel, steps 3 to 5): the send adds it (core's broadcast-channels.ts, the reach-out's request), and the composers' and
+ * the sheet's previews draw it (campaigns/broadcasts/preview-by-channel.ts), so what an owner reads beside the message is what the
+ * person gets. It is the sender's, never stored with a version or a step: it names the business and the reason, and the
+ * way out. It speaks the language of the version it is under (sender-words.ts: English, Spanish, and English for any other).
+ *
+ * Three kinds, one builder:
+ *   visit  a message about their visit or their proposal. It carries no unsubscribe, so its way out is a reply of STOP.
+ *   offer  an offer to a customer (the spec's 4.6): why they are getting it, the business's name and postal address, and
+ *          an Unsubscribe link, the one the mail client's one click carries too. It refuses to build with the address or
+ *          the link blank, as a cold foot does.
+ *   cold   a reach-out's first email or nudge to a business the finder found (CAN-SPAM): why they are hearing from you,
+ *          that it is marketing, who you are and where, and the way to say no: a reply, in the words. Its text carries
+ *          no link (decision 0056: an email from a person's own mailbox reads as one person's, plain), and the one-click
+ *          unsubscribe rides in its List-Unsubscribe header, the link the HTML twin would carry. It refuses to build with
+ *          a part blank rather than let an email go whose foot says less than the law needs.
+ */
+import { escapeHtml } from "../../shared/html";
+import { senderWords, type SenderWords } from "./sender-words";
+
+/**
+ * Which foot, and what it says that is its own. An `offer` says why a customer gets it: `asked` is someone who asked for
+ * offers by email themselves (YES OFFERS); `customer` is someone who has dealt with the business (they wrote, called or
+ * have a deal) and has not unsubscribed. A `cold` foot's reason is the finder's words for where the business was found
+ * (reach-out/reach-out.ts whyFrom). Both carry the link the Unsubscribe line and the List-Unsubscribe header share.
+ */
+export type EmailFoot =
+  | { kind: "visit"; facts: Record<string, unknown> }
+  | { kind: "offer"; why: "customer" | "asked"; unsubscribeUrl: string }
+  /**
+   * A cold email's: its link rides in the List-Unsubscribe header alone. An email its owner sends from their own inbox
+   * (a reach-out's draft, 00429) has no header, so no link: its way out is the reply its words ask for.
+   */
+  | { kind: "cold"; why: string; unsubscribeUrl: string | null };
+
+/** The foots that carry an unsubscribe link, and so have an HTML twin to put it in. */
+export type LinkedFoot = Exclude<EmailFoot, { kind: "visit" }>;
+
+/** Why a customer gets an offer, in the words of the language it is sent in. */
+const offerWhy = (w: SenderWords, personName: string, reason: "customer" | "asked"): string =>
+  reason === "asked" ? w.offerAsked(personName) : w.offerCustomer(personName);
+
+/**
+ * An offer's address and link, trimmed, or the refusal: an offer's foot owes the business's postal address and the way out
+ * (CAN-SPAM, the spec's 4.6), so the builder never makes one without them, as the cold foot never does. A business with no
+ * address on file sends no offers (the send holds the person: `no_business_address`; the composers say so before anyone
+ * sends); the preview of an offer with none says so rather than draw a foot the send would never carry.
+ */
+function offerParts(address: string | null | undefined, f: { unsubscribeUrl: string }) {
+  const parts = { address: address?.trim() ?? "", url: f.unsubscribeUrl.trim() };
+  if (!parts.address || !parts.url) throw new Error("emailFoot: an offer foot names where and how to stop");
+  return parts;
+}
+
+/**
+ * The cold foot's parts, trimmed, or the refusal: a cold email is not sent with a part of its foot missing, and the sheet
+ * refuses to start without an address. Its text says the way out in words ("no thanks"); the link is asked for only
+ * where the foot draws it (`link`: the HTML twin), since a draft its owner sends carries none.
+ */
+function coldParts(
+  business: string,
+  address: string | null | undefined,
+  fields: { why: string; unsubscribeUrl: string | null },
+  link: boolean,
+) {
+  const parts = {
+    why: fields.why.trim(),
+    business: business.trim(),
+    address: address?.trim() ?? "",
+    url: fields.unsubscribeUrl?.trim() ?? "",
+  };
+  if (!parts.why || !parts.business || !parts.address || (link && !parts.url))
+    throw new Error("emailFoot: a cold foot names why, who, where and how to stop");
+  return parts;
+}
+
+/**
+ * The foot of an email, in text: why they are hearing from the business, how to stop hearing from it, then who and where
+ * when the Business record has a postal address. `language` is the version's (null where it kept none): the words are
+ * said in it, so a Spanish version does not end in English.
+ *
+ * A visit's reason names what the message is about, from the words their row kept (a proposal's link, a visit's time), else
+ * says only that they have been in touch; its way out is a reply of STOP. An offer's reason is its own (offerWhy), and its
+ * way out the Unsubscribe link, after who and where. A cold foot's is the finder's reason, the marketing line, who and
+ * where, and the "no thanks" reply: its link is the header's alone.
+ */
+export function emailFoot(
+  business: string,
+  address: string | null | undefined,
+  foot: EmailFoot,
+  language: string | null,
+): string {
+  const result = senderWords(language);
+  if (foot.kind === "cold") {
+    const p = coldParts(business, address, foot, false);
+    return [p.why, result.marketing, `${p.business} · ${p.address}`, `${result.noThanks}.`].join("\n");
+  }
+  const text = business.trim() || result.us;
+  if (foot.kind === "offer") {
+    const p = offerParts(address, foot);
+    return [offerWhy(result, text, foot.why), `${text} · ${p.address}`, `${result.unsubscribe}: ${p.url}`].join("\n");
+  }
+  const where = address?.trim();
+  const facts = foot.facts;
+  const reason =
+    typeof facts.proposal_link === "string"
+      ? result.visitProposal(text)
+      : typeof facts.visit_when === "string"
+        ? result.visitBooked(text)
+        : result.visitInTouch(text);
+  return where ? `${reason}\n${result.emailStop}\n${text} · ${where}` : `${reason}\n${result.emailStop}`;
+}
+
+/**
+ * A foot with a link, in HTML, the link reading "Unsubscribe" (the canvas draws it so) or its word in the version's
+ * language: the same lines as `emailFoot`'s, which a text-only reader keeps with the address spelled out. Everything is
+ * escaped. The request builder checks that this carries the very link the List-Unsubscribe header does (channels
+ * buildEmailRequest). A cold foot refuses a blank part, as its text does.
+ */
+export function emailFootHtml(
+  business: string,
+  address: string | null | undefined,
+  foot: LinkedFoot,
+  language: string | null,
+): string {
+  const result = senderWords(language);
+  if (foot.kind === "cold") {
+    const p = coldParts(business, address, foot, true);
+    return (
+      `<p>${escapeHtml(p.why)}<br>${escapeHtml(result.marketing)}<br>` +
+      `${escapeHtml(p.business)} · ${escapeHtml(p.address)}<br>` +
+      `${escapeHtml(result.noThanks)} · <a href="${escapeHtml(p.url)}">${escapeHtml(result.unsubscribe)}</a></p>`
+    );
+  }
+  const text = business.trim() || result.us;
+  const parts = offerParts(address, foot);
+  return (
+    `<p>${escapeHtml(offerWhy(result, text, foot.why))}<br>` +
+    `${escapeHtml(`${text} · ${parts.address}`)}<br>` +
+    `<a href="${escapeHtml(parts.url)}">${escapeHtml(result.unsubscribe)}</a></p>`
+  );
+}
+
+/**
+ * A customer's email's foot (00440's runs), the one choice the send, its preview and Send me a test make: an offer's where
+ * the email is one (consent isOfferByEmail says so; `offer` is why they may get it and the link that unsubscribes them),
+ * in text and in HTML beside the link the request's headers carry; else a message about their own visit or proposal's,
+ * its reason from what their row kept (`facts`), in text alone. Throws where an offer's foot lacks its address or link
+ * (emailFoot): the send holds the person first.
+ */
+export function customerEmailFoot(options: {
+  business: string;
+  address: string | null | undefined;
+  language: string | null;
+  offer: { why: "customer" | "asked"; unsubscribeUrl: string } | null;
+  facts: Record<string, unknown>;
+}): { footer: string; offer?: { unsubscribeUrl: string; footerHtml: string } } {
+  if (!options.offer)
+    return {
+      footer: emailFoot(options.business, options.address, { kind: "visit", facts: options.facts }, options.language),
+    };
+  const offer = { kind: "offer" as const, ...options.offer };
+  return {
+    footer: emailFoot(options.business, options.address, offer, options.language),
+    offer: {
+      unsubscribeUrl: options.offer.unsubscribeUrl,
+      footerHtml: emailFootHtml(options.business, options.address, offer, options.language),
+    },
+  };
+}

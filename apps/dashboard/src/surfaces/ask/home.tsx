@@ -13,8 +13,8 @@ import type {
   AskSurface,
   AskThreadVM,
 } from "@chanlytics/contracts";
-import type { AskApi } from "@/legacy-bridge/ask";
-import type { LegacyFlash } from "../legacy-verbs";
+import type { AskApi } from "@/bridge/ask";
+import type { FrameFlash } from "../frame-verbs";
 import { BarChart, BarList } from "../kit/charts/bar";
 import { ChartCard, SegmentBar } from "../kit/charts/card";
 import type { ChartConfig, ChartRow } from "../kit/charts/geometry";
@@ -38,6 +38,8 @@ export interface LineRow {
   th?: AskThreadVM;
   compose?: boolean;
   following?: string;
+  /** What Ask noticed, by its key: the row Not now rests a week. */
+  rest?: string;
   people?: number;
   runs?: number;
   searches?: number;
@@ -129,7 +131,23 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
       ],
     },
   ];
-  // What Ask said it would come back to, come due (legacy-bridge/ask/follow-ups.ts): its own line, and pressed, what it
+  // What Ask noticed (D7 of the answers canvas): one thing, with its plan a press away. Ask speaks first here, never a list.
+  const notice = A.noticed ? A.noticed() : null;
+  if (notice)
+    sections.push({
+      key: "noticed",
+      items: [
+        {
+          type: "follow",
+          label: notice.says,
+          q: notice.ask ?? notice.fill ?? "",
+          ...(notice.fill && !notice.ask ? { compose: true } : {}),
+          ...(notice.to ? { to: notice.to } : {}),
+          rest: notice.key,
+        },
+      ],
+    });
+  // What Ask said it would come back to, come due (bridge/ask/follow-ups.ts): its own line, and pressed, what it
   // said it would ask itself then, which clears it (the route's `following`).
   const due = A.followUpsDue ? A.followUpsDue() : [];
   if (due.length)
@@ -199,6 +217,7 @@ export const AskRows = ({
   setSel,
   onActivate,
   onDelete,
+  onRest,
   t,
   empty,
 }: {
@@ -207,6 +226,8 @@ export const AskRows = ({
   setSel: (i: number) => void;
   onActivate: (it: LineRow) => void;
   onDelete: (th: AskThreadVM) => void;
+  /** Not now, on what Ask noticed: it rests a week. */
+  onRest?: (key: string) => void;
   t: LineWords;
   empty?: string | null;
 }) => {
@@ -250,12 +271,26 @@ export const AskRows = ({
     return (
       <div key={i} {...shared} className={`ask-row ${it.type}${sel ? " sel" : ""}`}>
         {it.type === "thread" ? <Icon name="chat" size={13} className="ask-row-glyph" /> : null}
-        {it.type === "follow" ? <span className="subtab-dot" aria-hidden="true" /> : null}
+        {it.type === "follow" && !it.rest ? <span className="subtab-dot" aria-hidden="true" /> : null}
         <span className="ask-row-main">
           <span className="ask-row-label">{it.label}</span>
           {it.sub ? <span className="ask-row-sub">{it.sub}</span> : null}
         </span>
         {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
+        {it.rest ? (
+          <LinePress
+            kind="words"
+            className="ask-row-meta"
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (it.rest) onRest?.(it.rest);
+            }}
+            data-testid="ask-row-rest"
+          >
+            {t.notNow}
+          </LinePress>
+        ) : null}
         {it.type === "thread" ? (
           <LinePress
             kind="remove"
@@ -364,7 +399,7 @@ export const AskReads = ({ traces, since = null, t }: { traces: string[]; since?
 // a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
 // answer's say, its headline then its detail, then its list a line an entry with its marks (contracts answerText): what
 // Copy takes. `spoken` are the same written for the ear, the list an entry a sentence (contracts answerSpoken): what
-// Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through hooks.ts useAskSpeech;
+// Read aloud speaks in Ask's one voice (the one-way speech, bridge/ask/speech.ts through hooks.ts useAskSpeech;
 // docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
 // drawn, never read. Nobody speaks back: a follow-up is typed, or said with the mic held. Between the press and the first word
 // the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
@@ -375,12 +410,15 @@ export const AskActs = ({
   speech,
   flash,
   t,
+  copy: offerCopy = true,
 }: {
   words: string;
   spoken: string;
   speech: ReturnType<typeof useAskSpeech>;
-  flash: (flash: LegacyFlash) => void;
+  flash: (flash: FrameFlash) => void;
   t: LineWords;
+  /** Copy, which goes under an answer with cards: what there is to copy is on the card (D14 of the answers canvas). */
+  copy?: boolean;
 }) => {
   const copy = async () => {
     try {
@@ -401,19 +439,21 @@ export const AskActs = ({
   // Each says its word beside its glyph on a desk, where two bare glyphs were missed (ask.css `.ask-act-word`).
   return (
     <span className="ask-acts" data-testid="ask-acts">
-      <LinePress
-        kind="act"
-        className="ask-act"
-        onClick={copy}
-        aria-label={t.copy}
-        title={t.copy}
-        data-testid="ask-copy"
-      >
-        <Icon name="copy" size={14} />
-        <span className="ask-act-word" aria-hidden="true">
-          {t.copyWord}
-        </span>
-      </LinePress>
+      {offerCopy ? (
+        <LinePress
+          kind="act"
+          className="ask-act"
+          onClick={copy}
+          aria-label={t.copy}
+          title={t.copy}
+          data-testid="ask-copy"
+        >
+          <Icon name="copy" size={14} />
+          <span className="ask-act-word" aria-hidden="true">
+            {t.copyWord}
+          </span>
+        </LinePress>
+      ) : null}
       {speech.canSpeak ? (
         <LinePress
           kind="act"

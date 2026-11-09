@@ -1,6 +1,7 @@
-import { write, platform } from "@/server/route";
+import { heldTenantId } from "@chanlytics/contracts";
+import { write, platform } from "@/server/shared/route";
 import { LINE_ACTS, LineActSchema } from "@chanlytics/contracts";
-import { platformLineAct } from "@/server/platform/platform";
+import { runPlatformLineAct } from "@/server/console/platform";
 
 /**
  * POST /api/v1/platform/lines/retry — resume another workspace's line where it stopped.
@@ -24,7 +25,7 @@ export const POST = write({
   act: LINE_ACTS.retry,
   input: LineActSchema,
   handle: async ({ office, input }) => {
-    const r = await platformLineAct(office, "retry", input.tenant_id, input.line_id, input.why);
+    const r = await runPlatformLineAct(office, "retry", heldTenantId(input.tenant_id), input.line_id, input.why);
     // The edge's own answer, unchanged. A 409 from it is a real fact about the
     // line -- "the line is answering, not failed", "already_registered" -- and
     // rewording it here would put a second opinion between support and the truth.

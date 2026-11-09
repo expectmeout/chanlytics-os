@@ -6,8 +6,8 @@
 import { useState } from "react";
 import type { SyntheticEvent } from "react";
 import type { LiveCallVM } from "@chanlytics/contracts";
-import { whisperCall } from "@/legacy-bridge/inbox-verbs";
-import { gate, useLegacyToast } from "../legacy-verbs";
+import { whisperCall } from "@/bridge/inbox-verbs";
+import { gate, useFrameToast } from "../frame-verbs";
 import { Icon } from "../kit/icon/icon";
 import { useHoldToTalk } from "../kit/talk/use-hold-to-talk";
 
@@ -95,8 +95,9 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
   const [last, setLast] = useState<string | null>(null);
   // The one-line note says who hears it; a press opens what the receptionist does with it.
   const [explain, setExplain] = useState(false);
-  const [toastNode, flash] = useLegacyToast();
+  const [toastNode, flash] = useFrameToast();
 
+  const [typing, setTyping] = useState(false);
   const send = async (words?: string) => {
     const t = String(words ?? text).trim();
     if (!t || busy) return;
@@ -109,7 +110,7 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
     if (r.ok) {
       setLast(t);
       setText("");
-      flash({ msg: <>Whispered — the receptionist works it into its next answer</> });
+      flash({ msg: <>Whispered. It uses it when it fits.</> });
     } else {
       flash({ tone: "danger", msg: <>Not whispered — {r.message}</> });
     }
@@ -135,7 +136,38 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
   const hasWords = !!text.trim();
   const talking = listening || (!hasWords && canTalk);
   return (
-    <div className="lm-whisper" data-testid="live-whisper">
+    <div className="lm-whisper" data-testid="live-whisper" data-typing={typing || !canTalk ? "1" : undefined}>
+      {/* A phone's call (D8 of the answers canvas): the hold is the page, big enough to find without looking; ink at rest,
+          coral while it listens. Type instead stays, for a place you can't speak. The desk keeps its field. */}
+      {canTalk ? (
+        <div className="lm-hold-wrap">
+          <button
+            type="button"
+            className={`lm-hold${listening ? " on" : ""}`}
+            data-testid="live-whisper-hold"
+            data-own-drag
+            aria-pressed={listening}
+            onPointerDown={talk.start}
+            onPointerUp={talk.stop}
+            onPointerLeave={talk.stop}
+            onPointerCancel={talk.stop}
+            onContextMenu={(e) => e.preventDefault()}
+            disabled={busy}
+            {...gate("approve")}
+          >
+            <Icon name="mic" size={24} />
+            <span>{listening ? "Listening" : "Hold to whisper"}</span>
+          </button>
+          <button
+            type="button"
+            className="lm-hold-type"
+            onClick={() => setTyping((v) => !v)}
+            data-testid="live-whisper-type"
+          >
+            {typing ? "Hold to talk instead" : "Type instead"}
+          </button>
+        </div>
+      ) : null}
       <div className="lm-whisper-row capsule">
         <input
           className="set-input"

@@ -25,32 +25,28 @@ import {
   type AskMorningCard,
   type AskMorningDto,
   type AskProposal,
+  recordOrEmpty,
+  isOneOf,
 } from "@chanlytics/contracts";
-import {
-  askCardsTold,
-  askFirstAnswer,
-  askMorningOf,
-  askMorningsSince,
-  askMorningWrite,
-  batchStatesOf,
-  heldSendsOf,
-  memberViewsOf,
-  type Json,
-} from "@chanlytics/db";
-import type { RouteContext } from "../../with-route";
-import type { Member } from "../../route";
-import { env } from "../../env";
-import { log } from "../../log";
-import { serviceDb } from "../../service-db";
-import { load, readerContext, type ReaderContext } from "../../readers";
-import { editedSince } from "../tools/read/sequences";
+import { askCardsTold, getMemberViews } from "@chanlytics/db/notices";
+import { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "@chanlytics/db/ask";
+import { batchStatesOf, getHeldSends } from "@chanlytics/db/campaigns";
+import type { Json } from "@chanlytics/db/types";
+import type { RouteContext } from "../../shared/with-route";
+import type { Member } from "../../shared/route";
+import { env } from "../../shared/env";
+import { log } from "../../shared/log";
+import { serviceDb } from "../../shared/service-db";
+import { load, readerContext, type ReaderContext } from "../../shared/reader";
+import { getEditedSince } from "../tools/read/sequences";
 import * as readers from "../../readers/facts";
 import { createThread } from "../store";
 import { finishAskTurn, prepareAskTurn } from "../turn";
-import { findingCards, sequencesAndRuns } from "./findings";
+import { listFindingCards, getSequencesAndRuns } from "./findings";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
- * Ask speaks first (decision 0070; contracts ask-memory/morning.ts says what Today shows): once a day, when a member who
+ * Ask speaks first (decision 0070; contracts ask/memory/morning.ts says what Today shows): once a day, when a member who
  * acts arrives on Today, the page asks for the morning (POST ask/morning). The day is claimed through the morning's door,
  * once a member a day; the call that wins runs one Ask turn as the member, after the response has gone, in a thread of
  * their own titled with the day, asking ASK_MORNING_QUESTION in the member's language; then the door records how many
@@ -106,9 +102,9 @@ async function aroundMorning(
   nowMs: number,
 ): Promise<AroundMorning> {
   const [read, offered, views] = await Promise.all([
-    sequencesAndRuns(ctx, member.tenantId),
+    getSequencesAndRuns(ctx, member.tenantId),
     seenLately(ctx, member, clock.day),
-    memberViewsOf(ctx.supabase, { tenantId: member.tenantId, userId: ctx.userId }).catch(
+    getMemberViews(ctx.supabase, { tenantId: member.tenantId, userId: ctx.userId }).catch(
       (e: unknown): Record<string, unknown> => {
         log.error("ask_findings_unread", { tenant_id: member.tenantId, error: e });
         return {};
@@ -117,7 +113,7 @@ async function aroundMorning(
   ]);
   const seen = ideasWithResults(offered, read.runs);
   const rested = restedOf(views[ASK_FOUND_VIEW]);
-  const findings = await findingCards(ctx, member, { ...clock, nowMs }, read, rested);
+  const findings = await listFindingCards(ctx, member, { ...clock, nowMs }, read, rested);
   return { seen, beside: { findings, rested, lately: latelyRows(seen, clock.day) } };
 }
 
@@ -125,7 +121,7 @@ async function aroundMorning(
 function morningSay(answer: Json | null): { headline: string; detail: string } {
   const say =
     answer && typeof answer === "object" && !Array.isArray(answer) && answer.say && typeof answer.say === "object"
-      ? (answer.say as Record<string, unknown>)
+      ? recordOrEmpty(answer.say)
       : {};
   return {
     headline: typeof say.headline === "string" ? say.headline : "",
@@ -169,7 +165,7 @@ const namedIn = (card: AskMorningCard, key: string): string => {
  */
 async function stillTrue(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   cards: readonly AskMorningCard[],
 ): Promise<AskMorningCard[]> {
   const batches = cards.filter((c) => c.kind === "run").map((c) => namedIn(c, "broadcast_id"));
@@ -178,7 +174,7 @@ async function stillTrue(
   try {
     const [states, held] = await Promise.all([
       batchStatesOf(ctx.supabase, tenantId, batches),
-      heldSendsOf(ctx.supabase, tenantId, sends),
+      getHeldSends(ctx.supabase, tenantId, sends),
     ]);
     return cards.filter((c) => {
       if (c.kind === "run") return BATCH_STILL_OPEN.includes(states.get(namedIn(c, "broadcast_id")) ?? "");
@@ -191,7 +187,7 @@ async function stillTrue(
 }
 
 /** The member's morning of today as Today reads it. */
-export async function morningOf(ctx: RouteContext, member: Member, nowMs: number): Promise<AskMorningDto> {
+export async function getMorning(ctx: RouteContext, member: Member, nowMs: number): Promise<AskMorningDto> {
   const clock = await workspaceClock(ctx, member, nowMs);
   const { day } = clock;
   const offered = morningOffered(member);
@@ -221,10 +217,10 @@ export async function morningOf(ctx: RouteContext, member: Member, nowMs: number
   if (answer.failed) return { ...running, state: "failed", message_id: answer.id };
   const waiting = waitingCards(answer.proposals, nowMs, settledTitles(seen, day));
   const cards = (await stillTrue(ctx, member.tenantId, waiting)).slice(0, ASK_MORNING_CARDS_MAX);
-  const made = Array.isArray(answer.proposals) && answer.proposals.length > 0;
+  const created = Array.isArray(answer.proposals) && answer.proposals.length > 0;
   return {
     ...asOfNow,
-    state: made ? "ready" : "quiet",
+    state: created ? "ready" : "quiet",
     thread_id: row.thread_id,
     message_id: answer.id,
     ...morningSay(answer.answer),
@@ -237,7 +233,7 @@ export async function morningOf(ctx: RouteContext, member: Member, nowMs: number
  * they edited any since yesterday, else the plain one, so a workspace that sends no cold email, or a day with no edit,
  * spends no read or round on them and hears nothing of them. A read that fails asks the plain one, and says so.
  */
-export async function morningQuestionFor(
+export async function getMorningQuestion(
   ctx: RouteContext,
   member: Member,
   now: Date,
@@ -245,7 +241,7 @@ export async function morningQuestionFor(
 ): Promise<string> {
   try {
     const since = new Date(now.getTime() - DAY_MS).toISOString();
-    const { edited } = await editedSince(rc, ctx.userId, since);
+    const { edited } = await getEditedSince(rc, ctx.userId, since);
     return edited.length > 0 ? ASK_MORNING_EDITED_QUESTION : ASK_MORNING_QUESTION;
   } catch (e) {
     log.error("ask_morning_edited_unread", { tenant_id: member.tenantId, error: e });
@@ -255,7 +251,7 @@ export async function morningQuestionFor(
 
 /** The language a morning is asked in: the page's, where it names one Ask speaks; else English. */
 export function morningLanguage(raw: unknown): AskLanguage {
-  return typeof raw === "string" && (ASK_LANGUAGES as readonly string[]).includes(raw) ? (raw as AskLanguage) : "en";
+  return typeof raw === "string" && isOneOf(ASK_LANGUAGES, raw) ? raw : "en";
 }
 
 /**
@@ -280,33 +276,33 @@ function morningTitle(day: string, locale: unknown): string {
 /**
  * The morning's turn, run once the day is claimed: the thread made and named on the day, the turn asked as the member
  * and saved as any turn is, then the waiting cards counted on the day and, when any wait, the member's own bell told.
- * Nothing it fails at is the page's: the morning reads as failed once it has stalled (morningOf), and the log says why.
+ * Nothing it fails at is the page's: the morning reads as failed once it has stalled (getMorning), and the log says why.
  */
 async function runMorning(
   ctx: RouteContext,
   member: Member,
-  m: { day: string; language: AskLanguage; title: string; lately: string },
+  message: { day: string; language: AskLanguage; title: string; lately: string },
 ): Promise<void> {
   const tenantId = member.tenantId;
   try {
-    const thread = await createThread(ctx, tenantId, m.title, null);
-    await askMorningWrite(ctx.supabase, tenantId, m.day, { act: "thread", threadId: thread.id });
+    const thread = await createThread(ctx, tenantId, message.title, null);
+    await askMorningWrite(ctx.supabase, tenantId, message.day, { act: "thread", threadId: thread.id });
     const prepared = await prepareAskTurn(ctx, member, {
-      text: await morningQuestionFor(ctx, member, new Date()),
+      text: await getMorningQuestion(ctx, member, new Date()),
       threadId: thread.id,
       scope: null,
       surface: "today",
       context: null,
       openedMs: null,
       answering: null,
-      language: m.language,
-      lately: m.lately,
+      language: message.language,
+      lately: message.lately,
     });
     const done = await finishAskTurn(prepared, () => {});
     const cards = done.result.failed
       ? 0
       : Math.min(done.message.proposals.filter((p) => !p.outcome).length, ASK_MORNING_CARDS_MAX);
-    const answered = await askMorningWrite(ctx.supabase, tenantId, m.day, { act: "answered", cards });
+    const answered = await askMorningWrite(ctx.supabase, tenantId, message.day, { act: "answered", cards });
     if (answered.recorded && cards > 0)
       await askCardsTold(serviceDb(), {
         tenantId,
@@ -330,11 +326,11 @@ export async function startMorning(
   ask: { language: AskLanguage; locale: unknown },
   nowMs: number,
 ): Promise<{ morning: AskMorningDto; run: Promise<void> | null }> {
-  if (!morningOffered(member)) return { morning: await morningOf(ctx, member, nowMs), run: null };
+  if (!morningOffered(member)) return { morning: await getMorning(ctx, member, nowMs), run: null };
   const clock = await workspaceClock(ctx, member, nowMs);
   const { day } = clock;
   const claim = await askMorningWrite(ctx.supabase, member.tenantId, day, { act: "claim" });
-  if (claim.refused || !claim.claimed) return { morning: await morningOf(ctx, member, nowMs), run: null };
+  if (claim.refused || !claim.claimed) return { morning: await getMorning(ctx, member, nowMs), run: null };
   const { seen, beside } = await aroundMorning(ctx, member, clock, nowMs);
   const morning: AskMorningDto = {
     day,

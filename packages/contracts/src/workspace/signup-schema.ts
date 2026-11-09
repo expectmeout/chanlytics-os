@@ -23,7 +23,7 @@ export const SignupSchema = z
       .trim()
       .min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.")
       .max(SIGNUP_NAME_MAX, "That name is too long — 120 characters at most."),
-    email: z.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+    email: z.string().trim().toLowerCase().regex(z.regexes.email, "Enter a work email address.").max(254),
     /**
      * The credential, and the reason it is OPTIONAL here rather than required.
      *

@@ -1,6 +1,6 @@
 import { PageContextSchema } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { readerContext } from "@/server/readers";
+import { write, workspace } from "@/server/shared/route";
+import { readerContext } from "@/server/shared/reader";
 import { buildContext } from "@/server/ask/context";
 
 /**

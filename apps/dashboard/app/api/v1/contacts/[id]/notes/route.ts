@@ -1,7 +1,7 @@
 import { NoteWriteBody } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { contactScope } from "@/server/verbs";
-import { noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
+import { write } from "@/server/shared/route";
+import { contactScope } from "@/server/shared/verbs";
+import { addNote, editNote, noteAnswer, noteOn, writtenNote } from "@/server/people/person-notes";
 
 /**
  * POST /api/v1/contacts/:id/notes — write a note on a person, or change one (0007).
@@ -17,7 +17,7 @@ export const POST = write({
   handle: async ({ ctx, row: contact, input }) => {
     if (input.note_id) {
       await noteOn(ctx, contact.id, input.note_id);
-      const { data, error } = await ctx.supabase.rpc("person_note_edit", {
+      const { data, error } = await editNote(ctx, {
         p_note_id: input.note_id,
         p_body: input.body,
         ...(input.for_user_id ? { p_for_user_id: input.for_user_id } : {}),
@@ -30,13 +30,10 @@ export const POST = write({
       const { note } = noteAnswer("person_note_edit", data, error);
       return { note: note ? writtenNote(ctx, note) : null };
     }
-    const { data, error } = await ctx.supabase.rpc("person_note_add", {
-      p_contact_id: contact.id,
-      p_body: input.body,
-      ...(input.for_user_id ? { p_for_user_id: input.for_user_id } : {}),
-      p_team_only: input.team_only ?? false,
-      ...(input.due_on ? { p_due_on: input.due_on } : {}),
-      ...(input.deal_id ? { p_deal_id: input.deal_id } : {}),
+    const { data, error } = await addNote(ctx, contact.id, input.body, input.team_only ?? false, {
+      forUserId: input.for_user_id,
+      dueOn: input.due_on,
+      dealId: input.deal_id,
     });
     const { note } = noteAnswer("person_note_add", data, error);
     return { note: note ? writtenNote(ctx, note) : null };

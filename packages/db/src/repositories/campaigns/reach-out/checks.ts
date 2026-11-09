@@ -1,0 +1,107 @@
+/** Reach out: checks. */
+
+import { maySpend, type SpendKind, DbFailure } from "@chanlytics/contracts";
+import { recordEvent } from "../../events/events";
+import { findBusinessDescription } from "../../imports/business-reads";
+import type { Db, ReachOutSendRow } from "./reach-out";
+import type { BusinessReadSource, TenantId } from "@chanlytics/contracts";
+
+/**
+ * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),
+ * first contacted when its first email left, its last outcome "emailed", and its event. Written only as it was read
+ * (its version), so a person working the lead at the same moment wins and the next email says so again.
+ */
+export async function recordLeadWritten(
+  db: Db,
+  params: { tenantId: TenantId; leadId: string; at: string; sendId: string; retried?: boolean },
+): Promise<boolean> {
+  const { data: lead, error } = await db
+    .from("leads")
+    .select("stage, version, contacted_at, blanked_at, erased_at")
+    .eq("tenant_id", params.tenantId)
+    .eq("id", params.leadId)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "cannot read the lead a send wrote to");
+  // A lead blanked or erased since keeps nothing of what was written to it, as the owner's Sent writes it (00429).
+  if (!lead || lead.blanked_at || lead.erased_at) return false;
+  const { data: moved, error: e2 } = await db
+    .from("leads")
+    .update({
+      stage: lead.stage === "ready" ? "nurture" : lead.stage,
+      contacted_at: lead.contacted_at ?? params.at,
+      last_outcome: "emailed",
+      version: lead.version + 1,
+    })
+    .eq("tenant_id", params.tenantId)
+    .eq("id", params.leadId)
+    .eq("version", lead.version)
+    .select("id");
+  if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
+  // Worked by a person at the same moment: read again and write once more (it only merges), then say it was not.
+  if ((moved ?? []).length === 0) return params.retried ? false : recordLeadWritten(db, { ...params, retried: true });
+  const sentence = { by: "reach_out" as const, send_id: params.sendId };
+  const { error: e3 } = await recordEvent(db, params.tenantId, "lead.emailed", "lead", params.leadId, sentence);
+  if (e3) throw new Error(`cannot record the lead's email: ${e3}`);
+  return true;
+}
+
+/**
+ * What the check found, written only onto a send still planned, not yet checked, and at the words' version it was read
+ * at (R3, R5): a check never undoes an owner's answer, and never stamps words that changed under it. Its lease ends.
+ */
+export async function recordCheck(
+  db: Db,
+  params: { tenantId: TenantId; id: string; gen: number; patch: Partial<ReachOutSendRow> },
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("sequence_sends")
+    .update({ ...params.patch, check_started_at: null })
+    .eq("tenant_id", params.tenantId)
+    .eq("id", params.id)
+    .eq("state", "planned")
+    .is("checked_at", null)
+    .eq("check_gen", params.gen)
+    .select("id");
+  if (error) throw new DbFailure(error, "cannot record the send's check");
+  return (data ?? []).length === 1;
+}
+
+/**
+ * Whether a workspace may spend now (contracts maySpend, by the spend's kind: reach-out and a plan's own reads the
+ * number's row, the finder its leads'): a paused workspace, or one with no billing row, may not. The one reading of it:
+ * the step's run (run-context.ts), the check, the dashboard's chains, the finder's runner and the rehearsal's window ask
+ * it. A read that fails throws: "we could not check" is not "yes".
+ */
+export async function mayWorkspaceSpend(db: Db, tenantId: TenantId, kind: SpendKind = "number"): Promise<boolean> {
+  const [tenant, billing] = await Promise.all([
+    db.from("tenants").select("status").eq("id", tenantId).maybeSingle(),
+    db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  if (tenant.error) throw new DbFailure(tenant.error, "cannot read the workspace");
+  if (billing.error) throw new DbFailure(billing.error, "cannot read the workspace's billing");
+  if (tenant.data?.status === "paused" || !billing.data) return false;
+  return maySpend(billing.data.mode, billing.data.status, kind);
+}
+
+/** The workspace's own words about what it does (business_records.about, 00152), for the writer. */
+export async function findWorkspaceAbout(db: Db, tenantId: TenantId): Promise<string | null> {
+  const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new DbFailure(error, "cannot read the business record");
+  return data?.about?.trim() || null;
+}
+
+/**
+ * What a writer of a cold email reads of what the business does, and where it came from (decision 0113): what the owner
+ * wrote of it, else what its Google profile or its website says of itself, so a business that filled in nothing is still
+ * written for from what is known of it. Those are others' words, so a prompt fences them. The mailbox's reader asks
+ * findWorkspaceAbout, which holds what the owner wrote alone: it is told this in its instructions.
+ */
+export async function findWorkspaceWords(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ text: string; from: "record" | BusinessReadSource } | null> {
+  const about = await findWorkspaceAbout(db, tenantId);
+  if (about) return { text: about, from: "record" };
+  const read = await findBusinessDescription(db, tenantId);
+  return read ? { text: read.text, from: read.source } : null;
+}

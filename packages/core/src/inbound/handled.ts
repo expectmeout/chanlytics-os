@@ -5,7 +5,7 @@
  * became: one of contracts' four `Handled` words. This is the one rule that picks the word, from the two facts a way out has, whether
  * a person was asked and what became of the receptionist's own reply. The twenty-two ways out call it, and none of them
  * words the rule itself: a second implementation, even one that agrees, is how a stamp comes to say `handoff` for a
- * message nobody was asked about. The executed test (tooling/scripts/tests/inbound/phases/) holds
+ * message nobody was asked about. The executed test (tests/inbound/phases/) holds
  * the rule over every way out, in both directions.
  *
  * A handoff is an escalation that LANDED: the sink wrote one (opened, changed or refreshed it). A write the database
@@ -21,6 +21,7 @@
 import type { BrainIntent, EscalationReason, Handled } from "@chanlytics/contracts";
 import type { InboundSink } from "./ports";
 import type { Answering } from "./context";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** What the sink answered to an escalation: how it landed (packages/jobs EscalationOutcome), or nothing when it failed. */
 type EscalateAnswer = Awaited<ReturnType<InboundSink["escalate"]>>;
@@ -68,13 +69,15 @@ export function escalationOf(answer: EscalateAnswer): Escalation {
  * escalation that threw is a refused one, and the message is marked all the same. `asked` is null where nobody was
  * asked.
  */
-export async function processedAfter(
+export async function getProcessedAfter(
   sink: Pick<InboundSink, "processed">,
-  asked: Asked | null,
+  request: Asked | null,
   reply: Reply,
   intent: BrainIntent | null = null,
 ): Promise<unknown> {
-  const escalation: Escalation = asked ? escalationOf(await asked.catch(() => undefined)) : "none";
+  const escalation: Escalation = request
+    ? escalationOf(await request.catch(logAndGoOn("a hold's escalation")))
+    : "none";
   return sink.processed(handledOf({ escalation, reply }), intent);
 }
 
@@ -86,11 +89,11 @@ export async function processedAfter(
  */
 export async function noteHandledAfter(
   sink: Pick<InboundSink, "noteHandled">,
-  asked: Asked,
+  request: Asked,
   reply: Reply,
   intent: BrainIntent | null = null,
 ): Promise<unknown> {
-  const escalation = escalationOf(await asked.catch(() => undefined));
+  const escalation = escalationOf(await request.catch(logAndGoOn("a hold's escalation")));
   return escalation === "landed" ? sink.noteHandled(handledOf({ escalation, reply }), intent) : undefined;
 }
 
@@ -117,7 +120,7 @@ export async function handToAPerson(at: Answering, h: HandOver, also: Promise<un
   await Promise.all([
     asked,
     at.tell(asked, { said: h.said, answered: h.answered, why: h.reason }),
-    processedAfter(at.sink, asked, "none"),
+    getProcessedAfter(at.sink, asked, "none"),
     ...also,
   ]);
   return undefined;

@@ -16,19 +16,20 @@
  * door's replay gate (ingest_inbound) makes a second knock a no-op. A picture's bytes are not in the record read here, so
  * a picture message comes back as its words alone.
  *
- * pg_cron asks for it every ten minutes ('texts-sweep', 00536) while a line that can text exists; the work is bounded by
+ * pg_cron asks for it every ten minutes ('texts-sweep', 00578) while a line that can text exists; the work is bounded by
  * time (TEXTS_YIELD_AT_MS from the door's first line), and the tick ends in one texts_swept with its counts.
  */
-import { HOUR_MS, MIN_MS, oneTimeCodeOf } from "../packages/contracts.js";
-import { twilioSignature, type ReceivedText } from "../packages/channels.js";
-import { linesThatText, textsAlreadyHeard } from "../packages/db.js";
-import { env } from "../env.js";
-import { json } from "../http.js";
-import { errField } from "../log.js";
+import { HOUR_MS, MIN_MS, oneTimeCodeOf } from "@chanlytics/contracts";
+import { signTwilio, type ReceivedText } from "@chanlytics/channels/lines";
+import { linesThatText } from "@chanlytics/db/lines";
+import { textsAlreadyHeard } from "@chanlytics/db/events";
+import { env } from "../shared/env.js";
+import { json } from "../shared/http.js";
+import { errField } from "../shared/log.js";
 import { lineProviderFromEnv, type LineProviderChoice } from "../lines/lines.js";
 import type { SweepTick } from "../ops/sweep-door.js";
 import { receiveInboundText } from "./inbound-text.js";
-import { lineAccount } from "./sms.js";
+import { findLineAccount } from "../lines/sms.js";
 
 /** How far back a line's record is read: a day of an outage, at most, is taken in. */
 const TEXTS_LOOKBACK_MS = 24 * HOUR_MS;
@@ -60,7 +61,7 @@ async function knockFor(url: string, token: string, form: Record<string, string>
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded",
-      "x-twilio-signature": await twilioSignature(token, url, form),
+      "x-twilio-signature": await signTwilio(token, url, form),
     },
     body: new URLSearchParams(form).toString(),
   });
@@ -83,7 +84,7 @@ export async function sweepUnheardTexts(tick: SweepTick, world: TextsSweepWorld 
     // The line's account (its token is the vault's) and its record: a line with no account has no texts to read.
     let read: { account: { sid: string; token: string }; texts: ReceivedText[] } | null;
     try {
-      const account = await lineAccount(db, line);
+      const account = await findLineAccount(db, line);
       read = account
         ? { account, texts: await choice.provider.recentTexts(account, line.e164, world.now() - TEXTS_LOOKBACK_MS) }
         : null;

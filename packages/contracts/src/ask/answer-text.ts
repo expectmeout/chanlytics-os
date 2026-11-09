@@ -3,10 +3,10 @@
  * read behind it (isUngrounded), whether two questions are one thread, the Open button's words, a next question that
  * echoes a place already offered, whether its own words claim a write (claimsWrite), where its headline's first
  * sentence ends (firstSentence), and the formatting its words may carry, read as blocks the Line draws (answerBlocks)
- * and as the plain words Copy and a voice take (answerPlain). The answer's shape and its normaliser are ask-answer.ts's.
+ * and as the plain words Copy and a voice take (answerPlain). The answer's shape and its normaliser are ask/answer/normalize.ts's.
  */
-import type { AskAnswer, AskList, AskSource } from "./ask-answer";
-import type { AskLanguage } from "./ask-language";
+import type { AskAnswer, AskList, AskSource } from "./answer/shape";
+import type { AskLanguage } from "./language";
 
 /* ------------------------------------------------------------- the answer */
 
@@ -48,15 +48,15 @@ const HEADLINE_STOP = /[.!?]["'”’)\]]*\s+(?=[\p{Lu}\d¿¡"“'‘(])/gu;
  * the second is the detail's opening. Decided by the words before a stop and the letter after it alone, so a stop that
  * ends the first sentence while it streams still ends it once the answer lands.
  */
-export function firstSentence(s: string): [string, string] {
-  for (const m of s.matchAll(HEADLINE_STOP)) {
-    const before = /[\p{L}.]+$/u.exec(s.slice(0, m.index))?.[0] ?? "";
+export function firstSentence(text: string): [string, string] {
+  for (const m of text.matchAll(HEADLINE_STOP)) {
+    const before = /[\p{L}.]+$/u.exec(text.slice(0, m.index))?.[0] ?? "";
     if (m[0][0] === "." && (before.length === 1 || before.includes(".") || NOT_AN_END.has(before.toLowerCase())))
       continue;
     const stop = m[0].trimEnd().length;
-    return [s.slice(0, m.index + stop), s.slice(m.index + m[0].length)];
+    return [text.slice(0, m.index + stop), text.slice(m.index + m[0].length)];
   }
-  return [s, ""];
+  return [text, ""];
 }
 
 /* --------------------------------------------------------------- grounding */
@@ -73,23 +73,23 @@ export function isUngrounded(answer: string, reads: number): boolean {
 /* ---------------------------------------------------- what an answer shows */
 
 /** Two questions are the same thread when they differ only in case, spacing and punctuation. */
-export function sameQuestion(a: string, b: string): boolean {
+export function sameQuestion(first: string, second: string): boolean {
   const norm = (s: string) =>
     s
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\s]/gu, "")
       .replace(/\s+/g, " ")
       .trim();
-  const x = norm(a);
-  return x.length > 0 && x === norm(b);
+  const x = norm(first);
+  return x.length > 0 && x === norm(second);
 }
 
 /**
  * The next questions a thread has not asked or offered already, in their order (the answer canvas, item 15: a chip
  * offered again, or the question just asked offered back, reads as Ask not listening).
  */
-export function nextNotAsked(next: readonly string[], asked: readonly string[]): string[] {
-  return next.filter((q) => !asked.some((a) => sameQuestion(a, q)));
+export function nextNotAsked(next: readonly string[], texts: readonly string[]): string[] {
+  return next.filter((q) => !texts.some((a) => sameQuestion(a, q)));
 }
 
 /** The Open button's words, by where it goes; the model's label only for a page. */
@@ -117,8 +117,8 @@ export const FOLLOWUP_ECHO: Array<[RegExp, RegExp]> = [
  * message received -- never a sentence the answer says. The eval's headline check (one sentence) and the write claims
  * read only this. Moved from the eval (tooling/scripts/eval-ask-context.mjs), which reads it from here.
  */
-export const unquoted = (s: string | null | undefined): string =>
-  (s ?? "").replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1…");
+export const unquoted = (text: string | null | undefined): string =>
+  (text ?? "").replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1…");
 
 /**
  * What an answer may never say: that it did something. Ask proposes and a person approves (spec §7), so a sentence
@@ -309,9 +309,9 @@ function tableOf(headLine: string, bodyLines: string[]): AnswerBlock {
 
 /** A run of `>` lines as a quote, or a callout where its first line carries an alert's mark (`[!WARNING]`). */
 function quoteOf(lines: string[]): Extract<AnswerBlock, { kind: "quote" | "callout" }> {
-  const said = lines.map((l) => QUOTE_LINE.exec(l)?.[1]?.trim() ?? "");
-  const mark = CALLOUT.exec(said[0] ?? "");
-  const rest = mark ? [mark[2] ?? "", ...said.slice(1)] : said;
+  const quoted = lines.map((l) => QUOTE_LINE.exec(l)?.[1]?.trim() ?? "");
+  const mark = CALLOUT.exec(quoted[0] ?? "");
+  const rest = mark ? [mark[2] ?? "", ...quoted.slice(1)] : quoted;
   const runs = rest.filter(Boolean).map(answerRuns);
   if (!mark) return { kind: "quote", lines: runs };
   const tone: AnswerCalloutTone = /^(NOTE|TIP)$/i.test(mark[1] ?? "") ? "note" : "warn";
@@ -334,27 +334,27 @@ export function answerBlocks(text: string): AnswerBlock[] {
     if (para.length) blocks.push({ kind: "text", lines: para });
     para = [];
   };
-  for (let i = 0; i < lines.length;) {
-    const line = at(i);
+  for (let index = 0; index < lines.length;) {
+    const line = at(index);
     const heading = HEADING.exec(line.trim())?.[1];
     const first = listPointOf(line);
     if (!line.trim()) {
       endPara();
-      i++;
+      index++;
     } else if (heading) {
       endPara();
       blocks.push({ kind: "heading", runs: answerRuns(heading) });
-      i++;
+      index++;
     } else if (QUOTE_LINE.test(line)) {
       endPara();
       const run: string[] = [];
-      for (; i < lines.length && QUOTE_LINE.test(at(i)); i++) run.push(at(i));
+      for (; index < lines.length && QUOTE_LINE.test(at(index)); index++) run.push(at(index));
       const block = quoteOf(run);
       if (block.lines.length) blocks.push(block);
-    } else if (TABLE_LINE.test(line) && TABLE_RULE.test(at(i + 1))) {
+    } else if (TABLE_LINE.test(line) && TABLE_RULE.test(at(index + 1))) {
       endPara();
       const body: string[] = [];
-      for (i += 2; i < lines.length && TABLE_LINE.test(at(i)); i++) body.push(at(i));
+      for (index += 2; index < lines.length && TABLE_LINE.test(at(index)); index++) body.push(at(index));
       blocks.push(tableOf(line, body));
     } else if (first) {
       endPara();
@@ -364,17 +364,17 @@ export function answerBlocks(text: string): AnswerBlock[] {
       const run: string[] = [];
       for (
         ;
-        i < lines.length &&
-        at(i).trim() &&
-        (LIST_LINE.test(at(i)) || /^\s+\S/.test(at(i))) &&
-        !(run.length && otherKind(listPointOf(at(i))));
-        i++
+        index < lines.length &&
+        at(index).trim() &&
+        (LIST_LINE.test(at(index)) || /^\s+\S/.test(at(index))) &&
+        !(run.length && otherKind(listPointOf(at(index))));
+        index++
       )
-        run.push(at(i));
+        run.push(at(index));
       blocks.push({ kind: "list", list: wordsListOf(run) });
     } else {
       para.push(answerRuns(line.trim()));
-      i++;
+      index++;
     }
   }
   endPara();
@@ -385,7 +385,7 @@ export function answerBlocks(text: string): AnswerBlock[] {
  * Whether words open with a block of their own (a heading, a list or a table), which starts on its own line when words
  * are put before it: the headline's extra sentence, a stopped turn's headline, Copy's headline.
  */
-export const opensWithBlock = (s: string): boolean => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\||>)/.test(s);
+export const opensWithBlock = (text: string): boolean => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\||>)/.test(text);
 
 /** The runs' words, the marks gone. */
 const runsText = (runs: AnswerRun[]) => runs.map((r) => r.text).join("");
@@ -447,9 +447,13 @@ type AskChartBefore = Omit<AskChart, "series" | "points"> & {
 };
 
 /** A stored chart as the page draws one: one from before series is one series, named by its label. */
-export function storedChart(c: AskChart | AskChartBefore): AskChart {
-  if (c.series) return c;
-  return { ...c, series: [c.label], points: c.points.map((p) => ({ label: p.label, values: [p.value] })) };
+export function storedChart(askChart: AskChart | AskChartBefore): AskChart {
+  if (askChart.series) return askChart;
+  return {
+    ...askChart,
+    series: [askChart.label],
+    points: askChart.points.map((p) => ({ label: p.label, values: [p.value] })),
+  };
 }
 
 /** A chart's words: one line, its spacing folded, cut at `n`. */
@@ -475,12 +479,12 @@ export function answerChart(
   ground: (source: unknown) => AskSource | null,
   caps: { label: number; points: number; series: number },
 ): AskChart | null {
-  const c = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const label = chartWords(c.label, caps.label);
-  const series = chartSeries(c.series, label, caps);
-  const asked = ASK_CHART_KINDS.find((k) => k === c.kind);
-  const kind = asked === "bars" && series.length > 1 ? "columns" : asked;
-  const all = (Array.isArray(c.points) ? c.points : []).flatMap((p: unknown) => {
+  const item = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const label = chartWords(item.label, caps.label);
+  const series = chartSeries(item.series, label, caps);
+  const found = ASK_CHART_KINDS.find((k) => k === item.kind);
+  const kind = found === "bars" && series.length > 1 ? "columns" : found;
+  const all = (Array.isArray(item.points) ? item.points : []).flatMap((p: unknown) => {
     const q = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
     const name = chartWords(q.label, caps.label);
     const given: unknown[] = Array.isArray(q.values) ? q.values.slice(0, series.length) : [];
@@ -489,15 +493,15 @@ export function answerChart(
   });
   const points = kind === "bars" ? all.slice(0, caps.points) : all.slice(-caps.points);
   if (!kind || !label || points.length < 2) return null;
-  const source = ground(c.source);
+  const source = ground(item.source);
   return source ? { kind, label, series, points, source } : null;
 }
 
 /** Every word and number a chart says, for the "not from your data" check (answerWords). */
-export const chartSaid = (c: AskChart): string[] => [
-  c.label,
-  ...c.series,
-  ...c.points.flatMap((p) => [p.label, ...p.values.map(String)]),
+export const chartSaid = (askChart: AskChart): string[] => [
+  askChart.label,
+  ...askChart.series,
+  ...askChart.points.flatMap((p) => [p.label, ...p.values.map(String)]),
 ];
 
 /** A chart as Copy says it: its series named where there are two or more, then each point's values in their order. */
@@ -521,22 +525,26 @@ function listLines(l: AskList): string[] {
  * each, their formatting read as plain words (answerPlain). A detail that opens with a heading, a list or a table starts
  * on its own line.
  */
-export function answerText(a: AskAnswer): string {
-  const own = a.form === "prose" || opensWithBlock(a.say.detail);
-  const say = [a.say.headline, a.say.detail].filter(Boolean).join(own ? "\n" : " ");
-  return answerPlain([say, ...listLines(a.show.list ?? NO_LIST)].filter(Boolean).join("\n"));
+export function answerText(askAnswer: AskAnswer): string {
+  const own = askAnswer.form === "prose" || opensWithBlock(askAnswer.say.detail);
+  const say = [askAnswer.say.headline, askAnswer.say.detail].filter(Boolean).join(own ? "\n" : " ");
+  return answerPlain([say, ...listLines(askAnswer.show.list ?? NO_LIST)].filter(Boolean).join("\n"));
 }
 
 /** The answer as Copy takes it: its words (answerText), then its parts, each figure and each row, a line each. */
-export function answerCopy(a: AskAnswer): string {
-  const b = a.show.breakdown;
-  const c = a.show.chart;
+export function answerCopy(askAnswer: AskAnswer): string {
+  const breakdown = askAnswer.show.breakdown;
+  const chart = askAnswer.show.chart;
   return [
-    answerText(a),
-    ...(b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : []),
-    ...(c ? [chartCopy(c)] : []),
-    ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
-    ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" · ")),
+    answerText(askAnswer),
+    ...(breakdown
+      ? [`${breakdown.total} ${breakdown.label}: ${breakdown.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`]
+      : []),
+    ...(chart ? [chartCopy(chart)] : []),
+    ...askAnswer.show.figures.map(
+      (f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`,
+    ),
+    ...askAnswer.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" · ")),
   ]
     .filter(Boolean)
     .join("\n");
@@ -551,18 +559,20 @@ const sentences = (lines: string[]) =>
     .join(" ");
 
 /** A list as a voice reads it: each entry its own sentence, a numbered one with its number; nothing for no entries. */
-export function listSpoken(l: AskList): string {
-  return sentences(l.entries.map((e, i) => (l.style === "numbers" ? `${i + 1}. ${e}` : e)));
+export function listSpoken(askList: AskList): string {
+  return sentences(askList.entries.map((e, i) => (askList.style === "numbers" ? `${i + 1}. ${e}` : e)));
 }
 
 /**
  * The answer's words as a voice reads them (Read aloud, a spoken question, the voice door): the headline, the detail's
  * lines, then the list (listSpoken). The figures and rows are drawn, never read.
  */
-export function answerSpoken(a: AskAnswer): string {
-  const l = a.show.list ?? NO_LIST;
-  const said = sentences([a.say.headline, ...answerPlain(a.say.detail, true).split("\n")]);
-  return [said, listSpoken({ ...l, entries: l.entries.map((e) => answerPlain(e, true)) })].filter(Boolean).join(" ");
+export function answerSpoken(askAnswer: AskAnswer): string {
+  const l = askAnswer.show.list ?? NO_LIST;
+  const sentence = sentences([askAnswer.say.headline, ...answerPlain(askAnswer.say.detail, true).split("\n")]);
+  return [sentence, listSpoken({ ...l, entries: l.entries.map((e) => answerPlain(e, true)) })]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /* ------------------------------------------------------ the answer's JSON */
@@ -574,24 +584,25 @@ export function answerSpoken(a: AskAnswer): string {
  * 2026: "Unexpected non-whitespace character after JSON at position 1282", on 2 to 4 turns in 10 on Reports), which
  * failed a turn whose answer was whole.
  */
-export function firstJsonValue(s: string): { value: unknown; rest: string } | null {
-  const start = s.search(/\S/);
-  if (start < 0 || (s[start] !== "{" && s[start] !== "[")) return null;
+export function firstJsonValue(text: string): { value: unknown; rest: string } | null {
+  const start = text.search(/\S/);
+  if (start < 0 || (text[start] !== "{" && text[start] !== "[")) return null;
   let depth = 0;
   let inString = false;
   let escaped = false;
-  for (let i = start; i < s.length; i++) {
-    const c = s[i];
+  for (let index = start; index < text.length; index++) {
+    const item = text[index];
     if (inString) {
       if (escaped) escaped = false;
-      else if (c === "\\") escaped = true;
-      else if (c === '"') inString = false;
-    } else if (c === '"') inString = true;
-    else if (c === "{" || c === "[") depth++;
-    else if ((c === "}" || c === "]") && --depth === 0) {
+      else if (item === "\\") escaped = true;
+      else if (item === '"') inString = false;
+    } else if (item === '"') inString = true;
+    else if (item === "{" || item === "[") depth++;
+    else if ((item === "}" || item === "]") && --depth === 0) {
       try {
-        return { value: JSON.parse(s.slice(start, i + 1)), rest: s.slice(i + 1) };
+        return { value: JSON.parse(text.slice(start, index + 1)), rest: text.slice(index + 1) };
       } catch {
+        // Not JSON: nothing to read.
         return null;
       }
     }

@@ -8,7 +8,7 @@
  * apps/dashboard/src/server/core-ports.ts.
  */
 import type { DecisionSubject, DecisionVerb, TenantId } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
+import type { Json } from "@chanlytics/db/types";
 
 /** The thread as the route's scope loaded it. A verb names only the fields it reads. */
 export interface Thread {
@@ -39,6 +39,16 @@ export interface ThreadPorts {
    * transaction. Null iff no row changed, and then nothing was written.
    */
   handBack(tenantId: TenantId, conversationId: string): Promise<{ decision_id: string } | null>;
+  /**
+   * A thread set aside is not a customer's (00539): off the list, its sender's address automated, the decision; with `undo`,
+   * all of it back. Null iff no row changed, and then nothing was written.
+   */
+  notACustomer(tenantId: TenantId, conversationId: string, undo: boolean): Promise<{ decision_id: string } | null>;
+  /**
+   * A thread set aside is a customer's after all (00539): open again, its sender a person, its hold back, the decision. Null
+   * iff no row changed, and then nothing was written.
+   */
+  replyAnyway(tenantId: TenantId, conversationId: string): Promise<{ decision_id: string } | null>;
   /** snoozed until; pause and assignee cleared. True iff a row changed. */
   snooze(conversationId: string, untilIso: string): Promise<boolean>;
   /** open with the snooze cleared, only while still snoozed. True iff a row changed. */

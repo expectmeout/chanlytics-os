@@ -1,12 +1,12 @@
 import { AppError, PeopleExportQuerySchema, parseListToken, type PersonRowDto } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
-import { everyoneOnce } from "@/server/people/people";
-import { tenantFacts } from "@/server/tenant";
-import { audiencePool, poolList } from "@/server/people/audience";
-import { channelsReadyOrNull } from "@/server/campaigns/channels-ready";
-import { attachment, dateTag, peopleCsv, safeName } from "@/server/export/export";
-import { recordDecision } from "@/server/verbs";
-import { log } from "@/server/log";
+import { read, workspace } from "@/server/shared/route";
+import { listEveryoneOnce } from "@/server/people/people";
+import { getTenantFacts } from "@/server/shared/tenant";
+import { getAudiencePool, findPoolList } from "@/server/campaigns/audience";
+import { findChannelsReadyOrNull } from "@/server/campaigns/channels-ready";
+import { attachment, dateTag, peopleCsv, safeName } from "@/server/shared/export-file";
+import { recordDecision } from "@/server/shared/verbs";
+import { log } from "@/server/shared/log";
 
 /**
  * GET /api/v1/contacts/export — everyone, as a CSV, for the business's own
@@ -25,17 +25,17 @@ export const GET = read({
   rate: "export",
   query: PeopleExportQuerySchema,
   handle: async ({ ctx, member, input }) => {
-    const { name, timezone } = await tenantFacts(ctx.supabase, member.tenantId);
+    const { name, timezone } = await getTenantFacts(ctx.supabase, member.tenantId);
     const now = new Date();
     // Everyone, not listPeople(): one call is capped at 1000 in the database,
     // and a CSV that stops there is indistinguishable from a complete one --
     // on the export whose ledger row says a full copy of the list was taken.
-    // And each of them once (everyoneOnce), not everyone(): someone who writes
+    // And each of them once (listEveryoneOnce), not everyone(): someone who writes
     // while the pages are read moves past the cursor, and a file has no next
     // pass to read them on. A list is counted over the same people.
     const all = async () => {
       const rows: PersonRowDto[] = [];
-      for await (const page of everyoneOnce(ctx, member.tenantId)) rows.push(...page);
+      for await (const page of listEveryoneOnce(ctx, member.tenantId)) rows.push(...page);
       return rows;
     };
     let people: PersonRowDto[];
@@ -43,15 +43,15 @@ export const GET = read({
     const ref = input.list ? parseListToken(input.list) : null;
     if (ref && input.list) {
       // The list is counted as the page counts it, and who can be sent what is judged against what the workspace sends on.
-      const pool = await audiencePool(
+      const pool = await getAudiencePool(
         ctx,
         member.tenantId,
         timezone,
         now,
-        await channelsReadyOrNull(ctx, member.tenantId, { withPause: false }),
+        await findChannelsReadyOrNull(ctx, member.tenantId, { withPause: false }),
         { people: all },
       );
-      const found = await poolList(ctx, member.tenantId, pool, ref);
+      const found = await findPoolList(ctx, member.tenantId, pool, ref);
       if (!found) throw new AppError("not_found", "That list isn't here.", 404);
       if ("unknown" in found)
         throw new AppError("conflict", `${found.label} can't be counted here. ${found.unknown}`, 409);

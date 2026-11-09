@@ -60,27 +60,29 @@
  *
  * Cross-workspace: the calls sweep visits every workspace's calls; each write carries the row's own tenant_id.
  */
-import { json, refuse } from "../http.js";
-import type { pg } from "../pg.js";
-import { errField, type Logger } from "../log.js";
+import { json, refuse } from "../shared/http.js";
+import type { pg } from "../shared/pg.js";
+import { errField, type Logger } from "../shared/log.js";
 import {
   getCall,
   normalizeCall,
   callSummaryLine,
-  type NormalizedCall,
   type RetellCall,
   type RetellCallRead,
-} from "../packages/channels.js";
+} from "@chanlytics/channels/voice";
 import {
-  callsOwedAnAnalysis,
-  callsOwedANotice,
   ingestCall,
-  recordCallNote,
   linkCallMessage,
-  resolveChannelDetailed,
+  listCallsGoneQuiet,
+  listCallsOwedAnAnalysis,
+  listCallsOwedANotice,
+  listCallsWithoutNote,
+  listRecordingsPending,
+  recordCallNote,
   setCallRecording,
-} from "../packages/db.js";
-import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS, MIN_MS } from "../packages/contracts.js";
+} from "@chanlytics/db/voice";
+import { removeMedia, resolveChannelDetailed } from "@chanlytics/db/channels";
+import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import { settleCall } from "./call-webhook.js";
 import {
   copyRecording,
@@ -89,8 +91,9 @@ import {
   RECORDING_MAX_ATTEMPTS,
   SWEEP_COPY_TIMEOUT_MS,
 } from "./call-recording.js";
-import { env } from "../env.js";
+import { env } from "../shared/env.js";
 import type { SweepTick } from "../ops/sweep-door.js";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** Only look at rows that have had time to settle — a call that started
  *  seconds ago is not evidence of anything, and asking about it wastes a
@@ -186,7 +189,7 @@ interface ProviderLeg {
 }
 
 /** A call still marked ongoing that has had time to settle. */
-type StaleCall = { tenant_id: string; retell_call_id: string };
+type StaleCall = { tenant_id: TenantId; retell_call_id: string };
 
 /**
  * The calls the webhook never said had ended, each put to the provider until
@@ -217,8 +220,8 @@ async function reconcileStale(leg: ProviderLeg, stale: StaleCall[]) {
         L.warn("calls_sweep_unknown_to_provider", { call: row.retell_call_id, status: read.status });
         continue;
       }
-      const n = normalizeCall(read.call);
-      if (n.status === "ongoing") {
+      const call = normalizeCall(read.call);
+      if (call.status === "ongoing") {
         // A genuinely long call. Re-ingesting still refreshes updated_at, which
         // is what keeps isLiveCall() honest for calls that outlive the heartbeat
         // window without producing turn events.
@@ -228,9 +231,13 @@ async function reconcileStale(leg: ProviderLeg, stale: StaleCall[]) {
       }
       // Both deliveries lost: a call that has ended with its analysis is settled as the webhook would have settled it,
       // the hold and the owner's notice with it (R11 S11-3); anything else is re-ingested, as ever.
-      if (n.status !== "ongoing" && read.call.call_analysis && (await settleAnalysed(db, read.call, L)) === "settled")
+      if (
+        call.status !== "ongoing" &&
+        read.call.call_analysis &&
+        (await settleAnalysed(db, read.call, L)) === "settled"
+      )
         continue;
-      await ingestCall(db, row.tenant_id, n, read.call);
+      await ingestCall(db, row.tenant_id, call, read.call);
     } catch (e) {
       // One bad row must not abandon the rest of the batch.
       L.error("calls_sweep_row_failed", { call: row.retell_call_id, error: errField(e) });
@@ -244,10 +251,10 @@ async function reconcileStale(leg: ProviderLeg, stale: StaleCall[]) {
  * agent the call names. One that routes nowhere, or whose routing could not be read, is left for the next tick; a settle
  * the database refused throws, so the row stays owed.
  */
-async function settleAnalysed(db: ProviderLeg["db"], call: RetellCall, L: Logger): Promise<"settled" | "unroutable"> {
+async function settleAnalysed(db: ProviderLeg["db"], call: RetellCall, log: Logger): Promise<"settled" | "unroutable"> {
   const routing = call.agent_id ? await resolveChannelDetailed(db, "voice", call.agent_id) : null;
   if (!routing?.channel) {
-    L.warn("calls_sweep_settle_unroutable", {
+    log.warn("calls_sweep_settle_unroutable", {
       call: call.call_id,
       lookup_failed: routing?.lookupFailed ?? false,
     });
@@ -274,7 +281,7 @@ async function settleUnanalysed(leg: ProviderLeg) {
   const counts = { candidates: 0, settled: 0, notYet: 0, unroutable: 0, deferred: 0 };
   let owed;
   try {
-    owed = await callsOwedAnAnalysis(db, {
+    owed = await listCallsOwedAnAnalysis(db, {
       nowMs: Date.now(),
       fromMs: ANALYSIS_GRACE_MS,
       toMs: SETTLE_FOR_MS,
@@ -322,7 +329,7 @@ async function finishOwedNotices(leg: ProviderLeg) {
   const counts = { candidates: 0, told: 0, owed: 0, notYet: 0, unroutable: 0, deferred: 0 };
   let owed;
   try {
-    owed = await callsOwedANotice(db, {
+    owed = await listCallsOwedANotice(db, {
       nowMs: Date.now(),
       fromMs: NOTICE_GRACE_MS,
       toMs: NOTICE_FOR_MS,
@@ -373,28 +380,17 @@ async function finishOwedNotices(leg: ProviderLeg) {
  * Leg 5: the calls that ended without an analysis, and the missed calls whose line the webhook did not write, each
  * given its line in the customer's thread once NOTE_GRACE_MS has passed (the webhook writes it with the summary).
  */
-async function writeMissingNotes(db: ProviderLeg["db"], L: Logger) {
+async function writeMissingNotes(db: ProviderLeg["db"], log: Logger) {
   const notes = { candidates: 0, written: 0 };
   const grace = new Date(Date.now() - NOTE_GRACE_MS).toISOString();
-  const { data: unnoted, error: noteErr } = await db
-    .from("calls")
-    .select(
-      "id, tenant_id, retell_call_id, conversation_id, contact_id, direction, status, duration_ms, in_voicemail, summary, started_at",
-    )
-    .in("status", ["ended", "error", "not_connected"])
-    .is("message_id", null)
-    .not("conversation_id", "is", null)
-    // A missed call may carry no end: it is judged by when it was made.
-    .or(`ended_at.lt.${grace},and(ended_at.is.null,created_at.lt.${grace})`)
-    .order("ended_at", { ascending: true, nullsFirst: true })
-    .limit(MAX_NOTES_PER_TICK);
-  if (noteErr) L.error("calls_sweep_notes_query_failed", { error: noteErr.message });
+  const { data: unnoted, error: noteErr } = await listCallsWithoutNote(db, grace, MAX_NOTES_PER_TICK);
+  if (noteErr) log.error("calls_sweep_notes_query_failed", { error: noteErr.message });
   for (const row of unnoted ?? []) {
     if (!row.conversation_id) continue;
     notes.candidates++;
     const line = callSummaryLine({
       direction: row.direction === "outbound" ? "outbound" : "inbound",
-      status: row.status as NormalizedCall["status"],
+      status: row.status,
       durationMs: row.duration_ms,
       summary: row.summary,
       inVoicemail: row.in_voicemail,
@@ -427,14 +423,11 @@ async function writeMissingNotes(db: ProviderLeg["db"], L: Logger) {
 async function retryRecordings(leg: ProviderLeg) {
   const { db, apiKey, provider, L } = leg;
   const recordings = { candidates: 0, stored: 0, retry: 0, failed: 0, deferred: 0 };
-  const { data: pendingRec, error: recErr } = await db
-    .from("calls")
-    .select("id, tenant_id, retell_call_id, recording, ended_at")
-    .in("status", ["ended", "error"])
-    .filter("recording->>fetch_state", "eq", "pending")
-    .lt("updated_at", new Date(Date.now() - SETTLE_MS).toISOString())
-    .order("updated_at", { ascending: true })
-    .limit(MAX_RECORDINGS_PER_TICK * 2);
+  const { data: pendingRec, error: recErr } = await listRecordingsPending(
+    db,
+    new Date(Date.now() - SETTLE_MS).toISOString(),
+    MAX_RECORDINGS_PER_TICK * 2,
+  );
   if (recErr) L.error("calls_sweep_recordings_query_failed", { error: recErr.message });
   for (const row of pendingRec ?? []) {
     const rec = (row.recording ?? {}) as { attempts?: number };
@@ -512,7 +505,7 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
     {
       now: new Date(),
       remove: async (paths) => {
-        const { data, error } = await db.storage.from("media").remove(paths);
+        const { data, error } = await removeMedia(db, paths);
         return { removed: (data ?? []).map((o) => o.name), error: error?.message ?? null };
       },
     },
@@ -529,21 +522,18 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
     return refuse(503, "no_provider_credentials");
   }
 
-  const { data: stale, error } = await db
-    .from("calls")
-    .select("id, tenant_id, retell_call_id, updated_at")
-    .eq("status", "ongoing")
-    // Two reasons to ask: nobody has heard from the call for SETTLE_MS, or it
-    // has simply run past OVERLONG_MS — long calls happen, and the Live page
-    // says such a call is being checked, which has to be true.
-    .or(
-      `updated_at.lt.${new Date(Date.now() - SETTLE_MS).toISOString()},started_at.lt.${new Date(Date.now() - OVERLONG_MS).toISOString()}`,
-    )
-    .order("updated_at", { ascending: true })
-    .limit(CALLS_PER_TICK);
+  // Two reasons to ask: nobody has heard from the call for SETTLE_MS, or it
+  // has simply run past OVERLONG_MS — long calls happen, and the Live page
+  // says such a call is being checked, which has to be true.
+  const { data: stale, error } = await listCallsGoneQuiet(
+    db,
+    new Date(Date.now() - SETTLE_MS).toISOString(),
+    new Date(Date.now() - OVERLONG_MS).toISOString(),
+    CALLS_PER_TICK,
+  );
   if (error) {
     L.error("calls_sweep_query_failed", { error: error.message });
-    return refuse(500, "query_failed");
+    return refuse(503, "query_failed");
   }
 
   const provider: ProviderTick = {

@@ -1,17 +1,21 @@
-import { isUuid, type PersonRowDto } from "@chanlytics/contracts";
+import { isUuid, type PersonRowDto, listOrEmpty, DbFailure } from "@chanlytics/contracts";
 import {
-  PEOPLE_PAGE,
   addPersonByHand,
-  everyoneIn,
-  everyoneOnceIn,
-  peopleCursorOf,
-  peoplePage,
-  personRow,
-  readAllRows,
+  countPeopleListed,
+  findPersonRow,
+  listEveryoneIn,
+  listEveryoneOnceIn,
+  listPeoplePage,
+  pageReplyRules,
+  PEOPLE_PAGE,
   type PeopleCursor,
-} from "@chanlytics/db";
-import { dbRefusal, type RouteContext } from "../with-route";
-import { log } from "@/server/log";
+  peopleCursorOf,
+} from "@chanlytics/db/people";
+import { readAllRows } from "@chanlytics/db/shared";
+import { dbRefusal, type RouteContext } from "../shared/with-route";
+import { log } from "@/server/shared/log";
+import { stillListed } from "./going";
+import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 /**
  * Everyone who has written to or phoned a workspace, with the reply mode in
@@ -47,14 +51,16 @@ export function nextPeopleParam(row: PersonRowDto | undefined): string | null {
 
 /** A place in the order read back from `?after=`; null when it is not one this route gave (the route refuses it). */
 export function peopleCursorParam(param: string): PeopleCursor | null {
-  let v: unknown;
+  let value: unknown;
   try {
-    v = JSON.parse(Buffer.from(param, "base64url").toString("utf8"));
+    value = JSON.parse(Buffer.from(param, "base64url").toString("utf8"));
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
-  if (!Array.isArray(v) || v.length !== 3) return null;
-  const [at, added, id] = v as unknown[];
+  const parts = listOrEmpty(value);
+  if (parts.length !== 3) return null;
+  const [at, added, id] = parts;
   const moment = (x: unknown): x is string =>
     typeof x === "string" && (x === "-infinity" || Number.isFinite(Date.parse(x)));
   return moment(at) && moment(added) && added !== "-infinity" && isUuid(id) ? { at, added, id: id as string } : null;
@@ -76,12 +82,12 @@ function searchNeedle(q: string | null | undefined): string {
 
 export async function listPeople(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
   page: PeoplePage = {},
 ): Promise<PersonRowDto[]> {
   // The policies with the rows, not after them: they are the workspace's, and a page waited a round trip for them.
   const [rows, pols] = await Promise.all([
-    peoplePage(ctx.supabase, tenantId, { ...page, q: searchNeedle(page.q) || null }),
+    listPeoplePage(ctx.supabase, tenantId, { ...page, q: searchNeedle(page.q) || null }),
     replyPolicies(ctx, tenantId),
   ]);
   return withReplyModes(rows, pols);
@@ -94,20 +100,13 @@ export async function listPeople(
  * the CSV and Ask's people tool said the wrong mode. The workspace's own row first (its subject is null), then by id:
  * one whole order, so no page repeats or skips a row, and the row everyone without their own follows is on the first.
  */
-function replyPolicies(ctx: Pick<RouteContext, "supabase">, tenantId: string) {
-  return readAllRows("reply policies", (from, to) =>
-    ctx.supabase
-      .from("policies")
-      .select("subject_type, subject_id, mode")
-      .eq("tenant_id", tenantId)
-      .eq("class", "reply")
-      .order("subject_type", { ascending: true, nullsFirst: true })
-      .order("id")
-      .range(from, to),
-  ).catch((e: unknown) => {
-    log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
-    return null;
-  });
+function replyPolicies(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId) {
+  return readAllRows("reply policies", (from, to) => pageReplyRules(ctx.supabase, tenantId, from, to)).catch(
+    (e: unknown) => {
+      log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
+      return null;
+    },
+  );
 }
 
 /**
@@ -132,24 +131,24 @@ function withReplyModes(rows: PersonRowDto[], pols: Awaited<ReturnType<typeof re
  * one page however it is asked — and a caller that wants the whole workspace
  * and does not loop gets 1000 rows with no error, no flag and no way to tell
  * them from "that is everyone". Every read that means all of them goes through
- * here, or, for a copy that has no next pass, through everyoneOnce.
+ * here, or, for a copy that has no next pass, through listEveryoneOnce.
  */
-export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
-  const [rows, pols] = await Promise.all([everyoneIn(ctx.supabase, tenantId), replyPolicies(ctx, tenantId)]);
+export async function listEveryone(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<PersonRowDto[]> {
+  const [rows, pols] = await Promise.all([listEveryoneIn(ctx.supabase, tenantId), replyPolicies(ctx, tenantId)]);
   return withReplyModes(rows, pols);
 }
 
 /**
  * EVERYONE EXACTLY ONCE, a page at a time, with their reply modes: for a copy (the people CSV, the workspace export),
- * which has no next pass to read someone who wrote while its pages were read (packages/db everyoneOnceIn).
+ * which has no next pass to read someone who wrote while its pages were read (packages/db listEveryoneOnceIn).
  */
-export async function* everyoneOnce(
+export async function* listEveryoneOnce(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
+  tenantId: TenantId,
 ): AsyncGenerator<PersonRowDto[]> {
   // Read beside the first page, as everyone() reads them; a read that fails is none, so it never rejects.
   const pols = replyPolicies(ctx, tenantId);
-  for await (const page of everyoneOnceIn(ctx.supabase, tenantId)) yield withReplyModes(page, await pols);
+  for await (const page of listEveryoneOnceIn(ctx.supabase, tenantId)) yield withReplyModes(page, await pols);
 }
 
 /**
@@ -157,12 +156,15 @@ export async function* everyoneOnce(
  * person a thread is with (`{ thread }`, GET contacts?thread: the Inbox's head before People's book is in). None for
  * someone this workspace does not hold, or holds no longer (erased, or merged into another).
  */
-export async function onePerson(
+export async function findOnePerson(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
-  who: string | { thread: string },
+  tenantId: TenantId,
+  personOrThread: string | { thread: string },
 ): Promise<PersonRowDto | null> {
-  const [row, pols] = await Promise.all([personRow(ctx.supabase, tenantId, who), replyPolicies(ctx, tenantId)]);
+  const [row, pols] = await Promise.all([
+    findPersonRow(ctx.supabase, tenantId, personOrThread),
+    replyPolicies(ctx, tenantId),
+  ]);
   return row ? (withReplyModes([row], pols).at(0) ?? null) : null;
 }
 
@@ -177,16 +179,11 @@ export async function onePerson(
  */
 export async function countPeople(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
-  q: string | null,
+  tenantId: TenantId,
+  searchText: string | null,
 ): Promise<number> {
-  let query = ctx.supabase
-    .from("contacts")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .is("erased_at", null)
-    .is("merged_into_contact_id", null);
-  const needle = searchNeedle(q);
+  const needle = searchNeedle(searchText);
+  let searchOr: string | null = null;
   if (needle) {
     const digits = needle.replace(/\D/g, "");
     const clauses = [
@@ -195,10 +192,11 @@ export async function countPeople(
       `email.ilike.*${needle}*`,
       ...(digits.length >= 3 ? [`phone_e164.ilike.*${digits}*`] : []),
     ];
-    query = query.or(clauses.join(","));
+    searchOr = clauses.join(",");
   }
-  const { count, error } = await query;
-  if (error) throw new Error(error.message);
+  // Who people_page lists (00547).
+  const { count, error } = await countPeopleListed(ctx.supabase, tenantId, stillListed(Date.now()), searchOr);
+  if (error) throw new DbFailure(error);
   return count ?? 0;
 }
 
@@ -208,10 +206,10 @@ export async function countPeople(
  */
 export async function addPerson(
   ctx: Pick<RouteContext, "supabase">,
-  tenantId: string,
-  p: { phone: string | null; email: string | null; name: string; source: string },
-): Promise<{ contact_id: string; existed: boolean }> {
-  const { data, error } = await addPersonByHand(ctx.supabase, { tenantId, ...p });
+  tenantId: TenantId,
+  params: { phone: string | null; email: string | null; name: string; source: string },
+): Promise<{ contact_id: ContactId; existed: boolean }> {
+  const { data, error } = await addPersonByHand(ctx.supabase, { tenantId, ...params });
   if (error || !data) throw dbRefusal(error ?? { message: "add_person answered without a person" });
   return data;
 }

@@ -4,22 +4,23 @@
  * label: the card's next act, the thread's Deal group and the Calendar peek's. The card is deal-card.ts; the
  * sheet is deal-sheet.ts.
  */
-import { DEAL_ACT_WORDS, type DealActId, type DealStage } from "../deal-words";
-import type { DealVM } from "../deal-vm";
-import { waitingOnProposal, type DealPaceVM } from "../deal-waits";
-import type { VisitMark } from "../../calendar/calendar-dto";
-import { consultationHappened, consultServiceOf, noProposalSince } from "../deal-consultations";
+import { DEAL_ACT_WORDS, type DealActId, type DealStage } from "../words";
+import type { DealVM } from "../vm";
+import { waitingOnProposal, type DealPaceVM } from "../waits";
+import type { VisitMark } from "../../calendar/dto";
+import { consultationHappened, consultServiceOf, noProposalSince } from "../consultations";
 import { EMAIL_CANT_REACH, mayReach, proposalAction, proposalMessage } from "../../people/person-reach";
 import type { ReplyVia } from "../../people/person-words";
 import type { PersonNoteVM } from "../../notes/person-notes";
-import type { FollowUpStand } from "../../playbooks/playbooks";
+import type { FollowUpStand } from "../../campaigns/playbooks/playbooks";
+import { isOneOf } from "../../shared/unknown";
 
 /** What the sheet is opened to do: a new proposal, the proposal edited, a passed one again, a yes, a pass, an end. */
 export const DEAL_SHEET_MODES = ["propose", "edit", "again", "won", "lost", "ended"] as const;
 export type DealSheetMode = (typeof DEAL_SHEET_MODES)[number];
 
-export function isDealSheetMode(s: unknown): s is DealSheetMode {
-  return typeof s === "string" && (DEAL_SHEET_MODES as readonly string[]).includes(s);
+export function isDealSheetMode(text: unknown): text is DealSheetMode {
+  return typeof text === "string" && isOneOf(DEAL_SHEET_MODES, text);
 }
 
 /**
@@ -99,17 +100,27 @@ export interface DealSend {
  * proposal and says why here.
  */
 export function dealSendOf(
-  p: Pick<DealPerson, "consent" | "openThread" | "replyVia" | "replyWindow" | "emailSuppressed">,
+  dealPerson: Pick<DealPerson, "consent" | "openThread" | "replyVia" | "replyWindow" | "emailSuppressed">,
 ): DealSend {
-  const on = p.replyVia === "Email" ? "by email" : p.replyVia === "Text" ? "as a text" : "on WhatsApp";
+  const on =
+    dealPerson.replyVia === "Email" ? "by email" : dealPerson.replyVia === "Text" ? "as a text" : "on WhatsApp";
   const label = `Send it now ${on}`;
-  const reach = mayReach(p);
+  const reach = mayReach(dealPerson);
   if (!reach) {
-    const stopped = p.consent.state === "opted_out" || p.consent.dnc;
-    const why = stopped ? DEAL_SEND_WHY.stopped : p.openThread ? DEAL_SEND_WHY.emailStopped : DEAL_SEND_WHY.none;
-    return { can: false, reach, why, label };
+    const stopped = dealPerson.consent.state === "opted_out" || dealPerson.consent.dnc;
+    const reason = stopped
+      ? DEAL_SEND_WHY.stopped
+      : dealPerson.openThread
+        ? DEAL_SEND_WHY.emailStopped
+        : DEAL_SEND_WHY.none;
+    return { can: false, reach, why: reason, label };
   }
-  if (!proposalAction({ via: p.replyVia, window: p.replyWindow, emailStopped: p.emailSuppressed }, null).ready)
+  if (
+    !proposalAction(
+      { via: dealPerson.replyVia, window: dealPerson.replyWindow, emailStopped: dealPerson.emailSuppressed },
+      null,
+    ).ready
+  )
     return { can: false, reach, why: DEAL_SEND_WHY.window, label };
   return { can: true, reach, why: null, label };
 }
@@ -166,25 +177,25 @@ export const act = (id: DealActId, extra: { text?: string; hint?: string; servic
  * New proposal, a card dropped on the board. Null where the title names none, where no service needs a consultation,
  * and where they have that service open already, which the door would refuse (already_open).
  */
-export function consultedService(p: DealPerson): string | null {
-  if (!p.consultationTitle) return null;
+export function consultedService(dealPerson: DealPerson): string | null {
+  if (!dealPerson.consultationTitle) return null;
   const named = consultServiceOf(
-    p.consultationTitle,
-    (p.services ?? []).map((name) => ({ name })),
-    { consult_first: p.consultFirst ?? [] },
+    dealPerson.consultationTitle,
+    (dealPerson.services ?? []).map((name) => ({ name })),
+    { consult_first: dealPerson.consultFirst ?? [] },
   );
-  const open = (p.deals ?? (p.deal ? [p.deal] : [])).some(
+  const open = (dealPerson.deals ?? (dealPerson.deal ? [dealPerson.deal] : [])).some(
     (d) => d.service === named && (d.stage === "proposed" || d.stage === "won"),
   );
   return named && !open ? named : null;
 }
 
 /** Whether a deal's proposal went: the deal's own word for it on a person's page, else the person's for its link. */
-export function sentOf(p: DealPerson, deal: DealVM): { at: string; via: string | null } | null {
+export function sentOf(dealPerson: DealPerson, deal: DealVM): { at: string; via: string | null } | null {
   const url = deal.proposal?.url ?? null;
   if (!url) return null;
   if (deal.proposal && deal.proposal.sent !== undefined) return deal.proposal.sent ?? null;
-  return p.proposal && p.proposal.url === url ? (p.proposal.sent ?? null) : null;
+  return dealPerson.proposal && dealPerson.proposal.url === url ? (dealPerson.proposal.sent ?? null) : null;
 }
 
 /**
@@ -198,27 +209,33 @@ export function sentOf(p: DealPerson, deal: DealVM): { at: string; via: string |
  * person may hold one open deal per service); the person's current one by default.
  */
 /** The follow-up's standing, where it is of this deal: the person's current one, the one the follow-up names. */
-export function followUpOn(p: DealPerson, deal: DealVM): FollowUpStand | null {
-  return deal === p.deal || (deal.id !== null && deal.id === p.deal?.id) ? (p.followUp ?? null) : null;
+export function followUpOn(dealPerson: DealPerson, deal: DealVM): FollowUpStand | null {
+  return deal === dealPerson.deal || (deal.id !== null && deal.id === dealPerson.deal?.id)
+    ? (dealPerson.followUp ?? null)
+    : null;
 }
 
-export function dealNextAct(p: DealPerson, nowMs: number, deal: DealVM | null = p.deal): DealAct | null {
-  if (!deal || deal.stage === "ended") return act("propose", { service: consultedService(p) });
+export function dealNextAct(
+  dealPerson: DealPerson,
+  nowMs: number,
+  deal: DealVM | null = dealPerson.deal,
+): DealAct | null {
+  if (!deal || deal.stage === "ended") return act("propose", { service: consultedService(dealPerson) });
   if (deal.stage === "won") return null;
   if (deal.stage === "lost") return act("again");
   const url = deal.proposal?.url ?? null;
   if (!url) return act("edit");
   if (deal.proposal?.sending) return act("won");
-  const send = dealSendOf(p);
-  const sent = sentOf(p, deal);
+  const send = dealSendOf(dealPerson);
+  const sent = sentOf(dealPerson, deal);
   const words = (text: string) => (send.can ? { text } : { hint: DEAL_ACT_HINTS.approved });
   if (!sent && send.reach) return act("send", words(proposalMessage(url)));
   // The proposal follow-up has them in hand (0006): its run nudges them, and a second, by hand, would be two.
   if (
     sent &&
     send.reach &&
-    followUpOn(p, deal)?.kind !== "will" &&
-    waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null)
+    followUpOn(dealPerson, deal)?.kind !== "will" &&
+    waitingOnProposal({ deal, askedMs: dealPerson.askedMs ?? null }, nowMs, dealPerson.dealPace ?? null)
   )
     return act("follow-up", words(proposalFollowUp(url)));
   return act("won");
@@ -273,9 +290,9 @@ export function calendarPeekDeal(
   people: PeekPeople | null | undefined,
   nowMs: number,
 ): CalendarPeekDealVM {
-  const who = block.person;
-  const row = who && people ? (people.rows ?? []).find((r) => r.id === who.id) : undefined;
-  if (!who || !row) return { stage: null, start: null };
+  const person = block.person;
+  const row = person && people ? (people.rows ?? []).find((r) => r.id === person.id) : undefined;
+  if (!person || !row) return { stage: null, start: null };
   const deal = row.deal ?? null;
   const endMs = Date.parse(block.end);
   // Over, and held as far as anyone said: one marked missed or cancelled took none, so no proposal follows it (D1-consult-held).
@@ -290,7 +307,7 @@ export function calendarPeekDeal(
     stage: deal ? deal.stage : null,
     start:
       over && noProposalSince(deal, endMs)
-        ? { act: act("propose"), personId: who.id, service: block.consultService }
+        ? { act: act("propose"), personId: person.id, service: block.consultService }
         : null,
   };
 }

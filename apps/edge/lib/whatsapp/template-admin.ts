@@ -8,10 +8,10 @@
  * id on the channel row, so Meta is spoken to as the business, and a workspace with no channel, no WABA or no token is
  * refused before Meta is asked.
  */
-import { json, refuse } from "../http.js";
-import { personFor, workspaceFor, type Admitted } from "../admin-auth.js";
-import { pg } from "../pg.js";
-import { waCredentialsForTenant } from "../tenant-runtime.js";
+import { json, refuse } from "../shared/http.js";
+import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { pg } from "../shared/pg.js";
+import { getWaCredentialsForTenant } from "../shared/tenant-runtime.js";
 import {
   createTemplate,
   mapCategory,
@@ -22,9 +22,19 @@ import {
   templateRow,
   type MetaTemplateComponent,
 } from "./meta-templates.js";
-import type { Json } from "../packages/db.js";
-import { logger } from "../log.js";
-import { UUID } from "../packages/contracts.js";
+
+import { logger, refuseFailure, logFailure } from "../shared/log.js";
+import { UUID, NUMBERED_SLOT, isTenantId, textOrEmpty } from "@chanlytics/contracts";
+import { findWhatsAppAccount } from "@chanlytics/db/channels";
+import {
+  deleteTemplateRow,
+  findWhatsAppTemplate,
+  listWhatsAppTemplateKeys,
+  saveTemplateRow,
+  saveTemplateRows,
+} from "@chanlytics/db/campaigns";
+import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 const NAME = /^[a-z0-9_]{1,512}$/;
 
@@ -53,7 +63,7 @@ export async function createWhatsappTemplate(
     labels?: unknown;
   }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
@@ -64,50 +74,37 @@ export async function createWhatsappTemplate(
   const category = typeof body.category === "string" ? body.category.toUpperCase() : "";
   const components = Array.isArray(body.components) ? (body.components as MetaTemplateComponent[]) : null;
   const text = typeof body.body === "string" ? body.body : null;
-  const examples = Array.isArray(body.examples) ? (body.examples as unknown[]).map(String) : [];
+  const examples = Array.isArray(body.examples) ? body.examples.map(String) : [];
   // The words a person gave each slot, kept on the row so the composers can say them.
-  const labels = Array.isArray(body.labels)
-    ? body.labels.map((l: unknown) =>
-        String(l ?? "")
-          .trim()
-          .slice(0, 40),
-      )
-    : [];
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant");
+  const labels = Array.isArray(body.labels) ? body.labels.map((l: unknown) => textOrEmpty(l).trim().slice(0, 40)) : [];
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant");
   if (!NAME.test(name) || !language || !["MARKETING", "UTILITY"].includes(category) || !components || !text) {
     return refuse(400, "bad_template");
   }
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  // The account of the oldest active number, whose credentials waCredentialsForTenant gives: a workspace may hold two.
-  const { data: ch } = await db
-    .from("tenant_channels")
-    .select("id, waba_id")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "whatsapp")
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  // The account of the oldest active number, whose credentials getWaCredentialsForTenant gives: a workspace may hold two.
+  const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
+  if (chErr) return refuseFailure(503, "read_failed", chErr);
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
-  const creds = await waCredentialsForTenant(db, tenantId);
+  const creds = await getWaCredentialsForTenant(db, tenantId);
   const token = creds.outcome === "present" ? creds.credentials.accessToken : null;
   if (!token) return refuse(503, "no_token");
-  const made = await createTemplate(token, ch.waba_id, { name, language, category, components });
-  if (!made.ok) {
-    L.error("wa_template_create_failed", {
+  const created = await createTemplate(token, ch.waba_id, { name, language, category, components });
+  if (!created.ok) {
+    log.error("wa_template_create_failed", {
       tenant_id: tenantId,
       name,
-      status: made.status,
-      error: made.error.slice(0, 300),
+      status: created.status,
+      error: created.error.slice(0, 300),
     });
-    return refuse(502, "meta_refused", made.error);
+    return refuse(502, "meta_refused", created.error);
   }
 
-  const status = mapStatus(made.data.status);
-  const positions = [...new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
+  const status = mapStatus(created.data.status);
+  const positions = [...new Set([...text.matchAll(NUMBERED_SLOT)].map((m) => Number(m[1])))].sort((a, b) => a - b);
   const variables = positions.map((n) => ({
     position: n,
     label: labels[n - 1] || `Value ${n}`,
@@ -115,28 +112,24 @@ export async function createWhatsappTemplate(
   }));
   const row = {
     tenant_id: tenantId,
-    channel: "whatsapp",
+    channel: "whatsapp" as const,
     name,
     language,
     meta_status: status,
-    category: mapCategory(made.data.category ?? category),
-    meta_id: made.data.id,
-    components: components as unknown as Json,
+    category: mapCategory(created.data.category ?? category),
+    meta_id: created.data.id,
+    components: jsonCopyOf(components),
     body_preview: text,
-    variables: variables as unknown as Json,
+    variables: jsonCopyOf(variables),
     rejected_reason: null,
     synced_at: new Date().toISOString(),
-    source: "chanlytics",
+    source: "chanlytics" as const,
     created_by: userId,
   };
-  const { data: saved, error } = await db
-    .from("templates")
-    .upsert(row, { onConflict: "tenant_id,channel,name,language" })
-    .select("id")
-    .single();
-  if (error || !saved) return refuse(500, "write_failed", error?.message);
-  L.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: made.data.id });
-  return json(200, { ok: true, id: saved.id, meta_id: made.data.id, meta_status: status });
+  const { data: saved, error } = await saveTemplateRow(db, tenantId, row);
+  if (error || !saved) return refuseFailure(503, "write_failed", error);
+  log.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: created.data.id });
+  return json(200, { ok: true, id: saved.id, meta_id: created.data.id, meta_status: status });
 }
 
 /**
@@ -152,36 +145,24 @@ export async function deleteWhatsappTemplate(
   auth: Admitted,
   body: Partial<{ tenant_id?: unknown; template_id?: unknown }>,
 ): Promise<Response> {
-  const L = logger();
+  const log = logger();
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   const templateId = typeof body.template_id === "string" ? body.template_id : "";
-  if (!UUID.test(tenantId) || !UUID.test(templateId)) return refuse(400, "bad_request");
+  if (!isTenantId(tenantId) || !UUID.test(templateId)) return refuse(400, "bad_request");
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  const { data: row } = await db
-    .from("templates")
-    .select("id, name, language, meta_id")
-    .eq("id", templateId)
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp")
-    .maybeSingle();
+  const { data: row, error: rowErr } = await findWhatsAppTemplate(db, tenantId, templateId);
+  if (rowErr) return refuseFailure(503, "read_failed", rowErr);
   if (!row) return refuse(404, "not_found");
 
-  const { data: ch } = await db
-    .from("tenant_channels")
-    .select("id, waba_id")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "whatsapp")
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
+  if (chErr) return refuseFailure(503, "read_failed", chErr);
   if (!ch?.waba_id) return refuse(409, "no_waba");
-  const creds = await waCredentialsForTenant(db, tenantId);
+  const creds = await getWaCredentialsForTenant(db, tenantId);
   // None on file, or none readable just now: a 503 either way, since this door is tried again by hand.
   if (creds.outcome !== "present") return refuse(503, "no_token");
   const accessToken = creds.credentials.accessToken;
@@ -199,10 +180,10 @@ export async function deleteWhatsappTemplate(
     ? await deleteTemplate(accessToken, ch.waba_id, row.name, row.meta_id)
     : ({ ok: false, status: 404, error: "not synced: no template id on file, so Meta was not asked" } as const);
   if (!row.meta_id)
-    L.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });
+    log.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });
   // Not found at Meta is a delete that already happened.
   if (!gone.ok && gone.status !== 404 && !/does not exist|not found|Unsupported get request/i.test(gone.error)) {
-    L.error("wa_template_delete_failed", {
+    log.error("wa_template_delete_failed", {
       tenant_id: tenantId,
       name: row.name,
       status: gone.status,
@@ -210,9 +191,9 @@ export async function deleteWhatsappTemplate(
     });
     return refuse(502, "meta_refused", gone.error);
   }
-  const { error } = await db.from("templates").delete().eq("id", row.id).eq("tenant_id", tenantId);
-  if (error) return refuse(500, "write_failed", error.message);
-  L.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
+  const { error } = await deleteTemplateRow(db, tenantId, row.id);
+  if (error) return refuseFailure(503, "write_failed", error);
+  log.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
   return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });
 }
 
@@ -236,23 +217,15 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
-  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant");
+  if (!isTenantId(tenantId)) return refuse(400, "bad_tenant");
   const db = pg();
   if (!db) return refuse(503, "no_database");
 
-  const { data: ch, error: chErr } = await db
-    .from("tenant_channels")
-    .select("id, waba_id")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "whatsapp")
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (chErr) return refuse(500, "channel_read_failed", chErr.message);
+  const { data: ch, error: chErr } = await findWhatsAppAccount(db, tenantId);
+  if (chErr) return refuse(503, "channel_read_failed", logFailure("read", chErr));
   if (!ch) return refuse(409, "no_channel");
   if (!ch.waba_id) return refuse(409, "no_waba");
-  const synced = await templatesSynced(db, tenantId, ch.waba_id);
+  const synced = await syncTemplates(db, tenantId, ch.waba_id);
   if (!synced.ok) return refuse(synced.status, synced.code, synced.detail);
   return json(200, {
     ok: true,
@@ -266,7 +239,12 @@ export async function syncWhatsappTemplates(auth: Admitted, body: Partial<{ tena
 /** What a sync of a workspace's templates with Meta did, or why it could not. */
 type TemplatesSynced =
   | { ok: true; seen: number; approved: number; marketing: number; syncedAt: string }
-  | { ok: false; status: 500 | 502 | 503; code: "no_token" | "meta_failed" | "write_failed"; detail?: string };
+  | {
+      ok: false;
+      status: 500 | 502 | 503;
+      code: "no_token" | "meta_failed" | "read_failed" | "write_failed";
+      detail?: string;
+    };
 
 /**
  * The workspace's WhatsApp templates as Meta holds them, kept on its rows by name and language: the sync's body, which the
@@ -274,19 +252,19 @@ type TemplatesSynced =
  * wiring's second audit, R11 S11-6: the bell said "Template approved" over a Library still saying pending). Never throws
  * for Meta's or the database's refusal: it answers why.
  */
-export async function templatesSynced(
+export async function syncTemplates(
   db: NonNullable<ReturnType<typeof pg>>,
-  tenantId: string,
+  tenantId: TenantId,
   wabaId: string,
 ): Promise<TemplatesSynced> {
-  const L = logger();
-  const creds = await waCredentialsForTenant(db, tenantId);
+  const log = logger();
+  const creds = await getWaCredentialsForTenant(db, tenantId);
   // None on file, or none readable just now: a 503 either way, since the door is tried again by hand.
   if (creds.outcome !== "present") return { ok: false, status: 503, code: "no_token" };
 
   const listed = await listTemplates(creds.credentials.accessToken, wabaId);
   if (!listed.ok) {
-    L.error("wa_templates_list_failed", {
+    log.error("wa_templates_list_failed", {
       tenant_id: tenantId,
       status: listed.status,
       error: listed.error.slice(0, 200),
@@ -294,11 +272,9 @@ export async function templatesSynced(
     return { ok: false, status: 502, code: "meta_failed", detail: listed.error };
   }
 
-  const { data: existing } = await db
-    .from("templates")
-    .select("name, language, variables")
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp");
+  const { data: existing, error: readError } = await listWhatsAppTemplateKeys(db, tenantId);
+  // A read that failed is not no rows on file: every label would go back to Value 1, and Meta's sample be hidden again.
+  if (readError) return { ok: false, status: 503, code: "read_failed", detail: logFailure("read", readError) };
   const keep = new Map((existing ?? []).map((r) => [`${r.name}|${r.language}`, labelsOf(r.variables)]));
   const now = new Date();
   const rows = listed.templates.map((t) => templateRow(t, tenantId, keep.get(`${t.name}|${t.language}`) ?? [], now));
@@ -308,30 +284,32 @@ export async function templatesSynced(
   const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));
   const known = rows.filter((r) => !fresh.includes(r));
   if (known.length) {
-    const { error } = await db.from("templates").upsert(
+    const { error } = await saveTemplateRows(
+      db,
+      tenantId,
       known.map((r) => ({
         ...r,
-        components: r.components as unknown as Json,
-        variables: r.variables as unknown as Json,
+        components: jsonCopyOf(r.components),
+        variables: jsonCopyOf(r.variables),
       })),
-      { onConflict: "tenant_id,channel,name,language" },
     );
-    if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
+    if (error) return { ok: false, status: 503, code: "write_failed", detail: logFailure("write", error) };
   }
   if (fresh.length) {
-    const { error } = await db.from("templates").upsert(
+    const { error } = await saveTemplateRows(
+      db,
+      tenantId,
       fresh.map((r) => ({
         ...r,
-        components: r.components as unknown as Json,
-        variables: r.variables as unknown as Json,
+        components: jsonCopyOf(r.components),
+        variables: jsonCopyOf(r.variables),
         hidden_at: now.toISOString(),
       })),
-      { onConflict: "tenant_id,channel,name,language" },
     );
-    if (error) return { ok: false, status: 500, code: "write_failed", detail: error.message };
+    if (error) return { ok: false, status: 503, code: "write_failed", detail: logFailure("write", error) };
   }
   const approved = rows.filter((r) => r.meta_status === "approved").length;
   const marketing = rows.filter((r) => r.meta_status === "approved" && r.category === "marketing").length;
-  L.info("wa_templates_synced", { tenant_id: tenantId, seen: rows.length, approved, marketing });
+  log.info("wa_templates_synced", { tenant_id: tenantId, seen: rows.length, approved, marketing });
   return { ok: true, seen: rows.length, approved, marketing, syncedAt: now.toISOString() };
 }

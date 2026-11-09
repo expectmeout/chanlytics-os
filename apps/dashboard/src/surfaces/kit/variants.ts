@@ -1,6 +1,6 @@
 /**
  * The kit's two class helpers (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4). A component renders
- * the kit's classes, so a legacy page that writes them by hand and a surface that draws the component draw the same
+ * the kit's classes, so a shell page that writes them by hand and a surface that draws the component draw the same
  * markup: `cx` joins a component's classes, and `variants` maps its props to them, the part of shadcn's
  * class-variance-authority the kit needs, with no dependency.
  */

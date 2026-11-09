@@ -8,19 +8,14 @@
  */
 import { Fragment } from "react";
 import type { MouseEventHandler, ReactNode } from "react";
-import {
-  NEW_SINCE_WORDS,
-  TIMELINE_FILTERS,
-  filterTimeline,
-  personFaceOf,
-  timelineFilterLabel,
-} from "@chanlytics/contracts";
+import { TIMELINE_FILTERS, filterTimeline, personFaceOf, timelineFilterLabel } from "@chanlytics/contracts";
+import { NEW_SINCE_WORDS } from "./model/new-since";
 import type { AppointmentWord, PersonVM } from "@chanlytics/contracts";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { EmptyState } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { holdStill, routeDoor } from "../../legacy-verbs";
+import { holdStill, routeDoor } from "../../frame-verbs";
 import { VisitAsk } from "../../visit-line";
 
 type Item = PersonVM["timeline"][number];

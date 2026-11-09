@@ -1,16 +1,24 @@
 /**
  * How a table is laid out (moved from people/table/columns-menu.tsx, decision 0083), for People, Leads and the
  * Pipeline: the kit's Menu holding which columns show (switches, which stay open while each is flipped, as a menu of
- * acts does not, the fill column drawn on and refusing a press), how tall a row stands, and the way back from widths and
- * places the member changed. Escape and a press outside close it and give focus back to its button, and while it is open
- * it is in PL_OVERLAY (people/words.ts), so the page's keys hold still behind it. A phone draws cards, not columns: each
+ * acts does not, the fill column drawn on and refusing a press; each under its group's heading where the page declares
+ * one), how tall a row stands, and the way back from the widths, places and switches the member changed. Escape and a
+ * press outside close it and give focus back to its button, and while it is open it is in PL_OVERLAY (people/words.ts), so
+ * the page's keys hold still behind it. A phone draws cards, not columns: each
  * page leaves its controls row, and this with it, off a phone.
  */
 import { Button } from "../button/button";
 import { Icon } from "../icon/icon";
 import { Menu } from "../menu/menu";
-import type { MenuGroup } from "../menu/menu";
-import { columnOptionsOf, orderedColumns, type AnyDataColumn, type Density } from "./columns";
+import type { MenuGroup, MenuItem } from "../menu/menu";
+import {
+  choicesFrom,
+  columnGroupsOf,
+  columnOptionsOf,
+  orderedColumns,
+  type AnyDataColumn,
+  type Density,
+} from "./columns";
 import type { TableState } from "./state";
 import { useSlice } from "./use-table";
 
@@ -30,10 +38,13 @@ export function TableColumnsMenu({
   columns,
   desk = true,
   rowHeight = true,
+  groups: headings,
 }: {
   state: TableState;
   /** The columns this workspace declares (columns.ts `columnsIn`). */
   columns: readonly AnyDataColumn[];
+  /** The order of the headings its columns name, where it is not the order they are first declared in. */
+  groups?: readonly string[];
   /** The widths and the row height are a desk's: where the table has them, the menu offers them beside the columns. */
   desk?: boolean;
   /** Whether the table's rows can stand at two heights: Leads' rows have the height of their card, and say nothing of it. */
@@ -47,6 +58,12 @@ export function TableColumnsMenu({
   // foot of a scroll nobody knew was there (691px of menu on a 900px window, 27 Oct 2026), and it is the one way out of
   // a layout that went wrong.
   const groups: MenuGroup[] = [];
+  const toDefaults: MenuItem = {
+    label: "Show default columns",
+    title: "Show the columns this table starts with",
+    onSelect: state.showDefaults,
+    disabled: Object.keys(choicesFrom(columns, state.visibility)).length === 0,
+  };
   if (desk) {
     groups.push(
       ...(rowHeight
@@ -75,23 +92,28 @@ export function TableColumnsMenu({
             onSelect: state.resetLayout,
             disabled: !sized && state.order.length === 0,
           },
+          toDefaults,
         ],
       },
     );
+  } else {
+    groups.push({ items: [toDefaults] });
   }
-  groups.push({
-    header: "Show on the table",
-    toggles: {
-      onToggle: state.toggleColumn,
-      tick,
-      items: columnOptionsOf(orderedColumns(columns, state.order), state.visibility).map((c) => ({
-        value: c.key,
-        label: c.label,
-        on: c.on,
-        locked: c.locked ? "Always" : undefined,
-      })),
-    },
-  });
+  const options = columnOptionsOf(orderedColumns(columns, state.order), state.visibility);
+  for (const set of columnGroupsOf(columns, options, headings))
+    groups.push({
+      header: set.group ?? "Show on the table",
+      toggles: {
+        onToggle: state.toggleColumn,
+        tick,
+        items: set.options.map((c) => ({
+          value: c.key,
+          label: c.label,
+          on: c.on,
+          locked: c.locked ? "Always" : undefined,
+        })),
+      },
+    });
   return (
     <div className="more-wrap dtable-cols">
       <Menu

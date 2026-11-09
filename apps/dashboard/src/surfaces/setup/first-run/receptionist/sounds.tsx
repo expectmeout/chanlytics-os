@@ -10,7 +10,6 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  FIRST_RUN_HELPERS,
   PHONE_PACES,
   PHONE_PACE_WORDS,
   PHONE_VOICES,
@@ -24,9 +23,10 @@ import {
   type PhonePace,
   type Personality,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 import { Icon } from "../../../kit/icon/icon";
 import { RecordField, RecordToggleGroup } from "../../../kit/record/field";
-import { gate, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, type FrameFlash } from "../../../frame-verbs";
 import { businessTabSave } from "../../shell";
 import type { CardBrain } from "../inputs";
 
@@ -37,7 +37,7 @@ function saveProfileKey(o: {
   key: "phone_voice" | "phone_pace" | "tone" | "assistant_name";
   value: string | null;
   said: string;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
 }): void {
   businessTabSave.saver.save({
     row: o.key,
@@ -147,7 +147,7 @@ function NameBox({
 }: {
   brain: CardBrain;
   canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   id: string;
 }) {
   const stored = (brain.profile?.assistant_name ?? "").trim();
@@ -187,7 +187,7 @@ export function FrSounds({
 }: {
   brain: CardBrain;
   canEdit: boolean;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   /** On a phone's sheet, the press that closes it; none beside the step on a desk. */
   onDone?: () => void;
   /** The base its element ids are made from: the panel beside the step and the phone's sheet are on one page. */

@@ -1,19 +1,19 @@
 /**
  * Ask's citation grammar: the kinds a citation may name, the rule that keeps one honest (a row a reader returned this
- * turn, or a page) and where each opens. Read by ask.ts's message, the answer's normaliser (ask-answer.ts) and the
+ * turn, or a page) and where each opens. Read by ask.ts's message, the answer's normaliser (ask/answer/normalize.ts) and the
  * format the model writes (answer-format.ts). Pure; it imports only the tables of the addresses the pages themselves parse.
  */
 import { addressOf } from "../activity/record-address";
 import { calendarParamParts } from "../calendar/appointment-key";
 import { JOURNEY_STAGE_IDS, type JourneyStageId } from "../journey/journey";
-import type { LifecycleGroup } from "../playbooks/lifecycle/lifecycle-types";
-import { parseLeadsRoute, leadsRoute } from "../leads/lead-plan";
+import type { LifecycleGroup } from "../campaigns/playbooks/lifecycle/types/tiles";
+import { parseLeadsRoute, leadsRoute } from "../leads/plan";
 import { BUILTIN_LISTS } from "../people/lists/builtin-lists";
-import { parseListToken } from "../people/lists/list-token";
+import { parseListToken } from "../people/lists/token";
 import { GET_YES_ROUTE } from "../people/lists/people-route";
 import { LENS_ROUTES, reportsRouteParts } from "../reports/lenses";
 import { retiredRouteOf } from "../shell/address";
-import { TO_SEND_ROUTE } from "../sequences/sequence-address";
+import { TO_SEND_ROUTE } from "../campaigns/sequences/address";
 
 /* ----------------------------------------------------------- the citation */
 
@@ -106,7 +106,10 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "start",
   "admin/workspace",
   "admin/hours",
+  "admin/files",
   "admin/receptionist",
+  // How it reaches out (decision 0113): a card of propose_settings' reach_out opens on its row.
+  "admin/outreach",
   "admin/team",
   "admin/autonomy",
   "admin/notifications",
@@ -217,17 +220,17 @@ export function groundCitations(citations: AskCitation[], read: AskReadSet): { k
   const kept: AskCitation[] = [];
   let dropped = 0;
   const seen = new Set<string>();
-  for (const said of citations) {
-    const landed = said.kind === "page" ? movedPageOf(said.id) : null;
-    const c = landed === null ? said : { ...said, id: landed };
-    const ok = c.kind === "page" ? isPageRoute(c.id) : read[c.kind].has(c.id);
-    const key = `${c.kind}:${c.id}`;
+  for (const citation of citations) {
+    const landed = citation.kind === "page" ? movedPageOf(citation.id) : null;
+    const item = landed === null ? citation : { ...citation, id: landed };
+    const ok = item.kind === "page" ? isPageRoute(item.id) : read[item.kind].has(item.id);
+    const key = `${item.kind}:${item.id}`;
     if (!ok || seen.has(key)) {
       dropped++;
       continue;
     }
     seen.add(key);
-    kept.push(c);
+    kept.push(item);
   }
   return { kept, dropped };
 }
@@ -249,7 +252,7 @@ const OWN_ROUTES: Partial<Record<AskCitationKind, (id: string) => string>> = {
  * was made before answers kept one, when a row was a thread, a conversation, a call or a person: it opens where the
  * pages open those. A row of another kind the read set does not hold opens nowhere: "".
  */
-export function citationRoute(c: AskCitation, read?: AskReadSet): string {
-  if (c.kind === "page") return c.id;
-  return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
+export function citationRoute(askCitation: AskCitation, read?: AskReadSet): string {
+  if (askCitation.kind === "page") return askCitation.id;
+  return read?.[askCitation.kind].get(askCitation.id)?.route ?? OWN_ROUTES[askCitation.kind]?.(askCitation.id) ?? "";
 }

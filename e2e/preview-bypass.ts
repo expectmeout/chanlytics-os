@@ -7,7 +7,9 @@ import { request, type FullConfig } from "@playwright/test";
  */
 export default async function previewBypass(config: FullConfig): Promise<void> {
   const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-  const { baseURL, storageState } = config.projects[0].use;
+  const use = config.projects[0]?.use;
+  const baseURL = use?.baseURL;
+  const storageState = use?.storageState;
   if (!secret || !baseURL || typeof storageState !== "string") return;
   const context = await request.newContext({ baseURL });
   const res = await context.get("/", {

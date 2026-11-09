@@ -4,7 +4,7 @@
  * it, `VW_UTIL`), and what a page reads of the two surfaces' rows (`inboxData`, `conversationsData`).
  *
  * `IX_STORE` is shared: the sidebar's badge, the top bar's bell, Today and the demo's pages read it. It is published once,
- * under its old name, for the pages that have not moved (legacy-globals.ts). The veto store has no reader beyond the
+ * under its old name, for the pages that have not moved (mockup-globals.ts). The veto store has no reader beyond the
  * Inbox, and is not published.
  */
 import { INBOX_BUCKET_WORDS } from "@chanlytics/contracts";
@@ -19,17 +19,30 @@ export const REAL_BUCKETS: InboxBucket[] = [
   {
     id: "escalated",
     label: INBOX_BUCKET_WORDS.escalated,
-    hint: "The receptionist stopped and asked for a human",
+    hint: "Yours to do: someone asked for a person, nobody answered them, or a reply didn't send",
     icon: "flag",
     accent: true,
   },
   {
+    id: "waiting",
+    label: INBOX_BUCKET_WORDS.waiting,
+    hint: "The next move is theirs, or a teammate's: your follow-up list",
+    icon: "users",
+  },
+  {
     id: "done",
     label: INBOX_BUCKET_WORDS.done,
-    hint: "Answered by the receptionist, or a teammate has it — nothing for you to do",
+    hint: "Answered, closed or gone quiet: nothing for you to do",
     icon: "check",
   },
   { id: "snoozed", label: INBOX_BUCKET_WORDS.snoozed, hint: "Hidden until they wake", icon: "clock" },
+  {
+    id: "aside",
+    label: INBOX_BUCKET_WORDS.aside,
+    hint: "Not a customer's, as far as we can tell: sales pitches and programs' mail",
+    icon: "archive",
+    onlyWithRows: true,
+  },
 ];
 
 /** The wires a real thread travels, as the Inbox's rows name them. */

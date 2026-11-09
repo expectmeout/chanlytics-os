@@ -10,14 +10,16 @@ import "./results.css";
 import { useEffect, useMemo, useState } from "react";
 import { ADS_SCOPE_ALL, adsReportRoute } from "@chanlytics/contracts";
 import type { AdsConfig, AdsRead, AdsScope } from "@chanlytics/contracts";
-import { RESULTS, adsResultsOf } from "@chanlytics/contracts/ads-page";
-import type { AdsResultsVM } from "@chanlytics/contracts/ads-page";
+import { RESULTS } from "./words";
+import { adsResultsOf } from "./view";
+import type { AdsResultsVM } from "./view";
 import { EmptyState } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { routeDoor } from "../../../legacy-verbs";
+import { routeDoor } from "../../../frame-verbs";
 import { PaneSheet } from "../../home/pane-sheet";
 import { CmPane } from "../../parts/split";
+import { PreviewNote } from "../preview-note";
 import { CameBackCard, DaysCard, ResultsFigures, ResultsHead, RowsCard, ScopePicker } from "./results-parts";
 
 interface ResultsSheetProps {
@@ -86,6 +88,7 @@ export function ResultsSheet({ open, read, config, onClose }: ResultsSheetProps)
           onClose={onClose}
         >
           <div className="ads-res-body">
+            <PreviewNote />
             <SheetBody vm={vm} />
           </div>
         </CmPane>

@@ -36,23 +36,27 @@ import {
   type ReportPeriodId,
   type ReportProfile,
   type ReviewsReportDto,
+  shaped,
+  causedBy,
 } from "@chanlytics/contracts";
 import {
   ReportWindowNotReadable,
-  peopleSeries,
-  receptionistSeries,
+  findPeopleSeries,
+  findReceptionistSeries,
   reportSeries,
-  reviewsLedger,
+  findReviewsLedger,
   type ReportWindow,
-} from "@chanlytics/db";
-import { googleReadiness } from "../connections/google";
-import { bookingReport, linksBooked } from "../calendar/people-visits";
-import { dealReport } from "../people/deals";
-import { load, stamp, type Reader, type ReaderContext } from "./index";
+} from "@chanlytics/db/reports";
+import { readAnswer } from "@chanlytics/db/shared";
+import { getGoogleReadiness } from "../connections/google";
+import { readBookingReport, listLinksBooked } from "../calendar/people-visits";
+import { readDealReport } from "../people/deals";
+import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { googleReader } from "./connections";
 import { everyone as everyoneRead } from "./everyone";
 import * as facts from "./facts";
-import { log } from "@/server/log";
+import { log } from "@/server/shared/log";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * Everyone in People, as the turn holds them (readers/everyone.ts): the booking line, the deals and the booking link's people
@@ -83,7 +87,7 @@ async function bookingOf(
   return people
     .then(async (rows) => {
       const [zone, settings] = await Promise.all([load(rc, facts.facts, undefined), load(rc, facts.config, undefined)]);
-      return bookingReport(rc.ctx, rc.tenantId, rows, days, undefined, {
+      return readBookingReport(rc.ctx, rc.tenantId, rows, days, undefined, {
         timezone: zone.data.timezone,
         config: settings.data?.config ?? null,
       });
@@ -140,7 +144,7 @@ export const report: Reader<
     // 330 ms on the server for a workspace of a few conversations, the slowest read the dashboard makes). The series
     // is still what decides there is a report at all: its answer is waited for first, and a function that answers
     // nothing is the route's 404 whatever the others found, each of which keeps its own failure to itself.
-    const series = windowRead(reportSeries(ctx.supabase, tenantId, window));
+    const series = getWindow(reportSeries(ctx.supabase, tenantId, window));
     // Asked, then booked — the one conversion line, from the calendar. Read once: the deals below say where the new
     // clients came from out of the same rows.
     const people = everyoneOf(rc);
@@ -150,16 +154,16 @@ export const report: Reader<
     // that says where the new clients came from. A window that ended before today is its own days in the workspace's
     // zone, first midnight to the one after its last.
     const dealsRead = spanOf(rc, window)
-      .then(async (span) => dealReport(ctx, tenantId, days, await people.catch(() => []), rc.now, span))
+      .then(async (span) => readDealReport(ctx, tenantId, days, await people.catch(() => []), rc.now, span))
       .catch(() => null);
-    const report = (await series) as unknown as ReportDto;
+    const report = readAnswer("report_series", shaped<ReportDto>().nullable(), await series);
     if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
     const [booking, deals] = await Promise.all([bookingRead, dealsRead]);
     const profile = await profileOf(rc);
     return {
       data: { report, booking, deals, profile },
       rows: [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${plural(days, "day")}` }],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -184,7 +188,7 @@ export const reportHeadline: Reader<{ period: ReportPeriodId }, { headline: Repo
     return {
       data: { headline: headlineOf(answer, period, booking) },
       rows: [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${plural(days, "day")}` }],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
@@ -257,12 +261,12 @@ async function spanOf(rc: ReaderContext, window: ReportWindow): Promise<{ since:
  * merge and 00360 goes to production on the owner's word, so until then a picked window is refused in words, where a
  * period by name reads as it always did. Never the days of some other window in its place.
  */
-export async function windowRead<T>(read: Promise<T>): Promise<T> {
+export async function getWindow<T>(read: Promise<T>): Promise<T> {
   try {
     return await read;
   } catch (e) {
     if (e instanceof ReportWindowNotReadable)
-      throw new AppError("validation", "Picked days cannot be read yet. Pick a period that ends today.");
+      throw causedBy(new AppError("validation", "Picked days cannot be read yet. Pick a period that ends today."), e);
     throw e;
   }
 }
@@ -287,14 +291,14 @@ export const reviewsReport: Reader<ReportWindow, ReviewsReportDto> = {
     const { days } = window;
     const [held, answer] = await Promise.all([
       load(rc, googleReader, undefined),
-      reviewsLedger(rc.ctx.supabase, rc.tenantId, window),
+      findReviewsLedger(rc.ctx.supabase, rc.tenantId, window),
     ]);
     if (answer === null) log.warn("reviews_ledger_missing", { tenant_id: rc.tenantId });
     else if (!isReviewsLedgerDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
-    const g = held.data;
-    const ledger = isReviewsLedgerDto(answer) && reviewsAreOnRecord(g) ? answer : null;
+    const data = held.data;
+    const ledger = isReviewsLedgerDto(answer) && reviewsAreOnRecord(data) ? answer : null;
     const timezone = ledger?.timezone ?? (await load(rc, facts.facts, undefined)).data.timezone;
-    const readable = g.listing !== null || (await googleReadiness().then((r) => r.places || r.profile));
+    const readable = data.listing !== null || (await getGoogleReadiness().then((r) => r.places || r.profile));
     return {
       data: {
         timezone,
@@ -302,19 +306,19 @@ export const reviewsReport: Reader<ReportWindow, ReviewsReportDto> = {
         // The window's last day where it ended before today: the lens counts to it, and says so (contracts endedOn).
         ...(window.end !== null && { end: window.end }),
         days: ledger?.days ?? days,
-        google: g,
+        google: data,
         readable,
         ledger,
       },
       rows: [],
-      stamp: stamp(),
+      stamp: readerStamp(),
     };
   },
 };
 
 /**
  * Of the people sent the booking link, how many have booked since: People read once, narrowed to the people the link went
- * to, and counted against the calendar by the one rule "asked, then booked" counts by (linksBooked). Never fatal: a read
+ * to, and counted against the calendar by the one rule "asked, then booked" counts by (listLinksBooked). Never fatal: a read
  * that fails is `unavailable` (logged, as the booking line's is), and a calendar that cannot say (`none`, `unavailable`)
  * leaves `booked` null, never 0. The zone and the settings are the turn's, as bookingOf takes them. Days that ended before
  * today are `ended` with nothing read, for the reason the booking line gives (bookingOf): People and the calendar are as
@@ -339,7 +343,7 @@ async function linksOf(
       load(rc, facts.config, undefined),
     ]);
     const known = { timezone: zone.data.timezone, config: settings.data?.config ?? null };
-    const found = await linksBooked(
+    const found = await listLinksBooked(
       rc.ctx,
       rc.tenantId,
       people.filter((p) => linked.has(p.id)),
@@ -359,7 +363,7 @@ async function linksOf(
 
 /**
  * GET reports/receptionist, as the route answers it: what the receptionist did over `days`, which one SECURITY INVOKER
- * function counts in the workspace's own zone (receptionistSeries: the held replies, the topics and languages, the
+ * function counts in the workspace's own zone (findReceptionistSeries: the held replies, the topics and languages, the
  * calls, the handovers, when people write, the booking links sent and what is open now), and beside it the hours the
  * workspace keeps (the report's own profile, profileOf). Contracts' receptionistDtoOf makes the route's answer of the
  * two: who waits on the person looking is decided there, by the one rule (standingOfThread), and the people sent the link
@@ -379,7 +383,7 @@ export const receptionistReport: Reader<ReportWindow, ReceptionistDto> = {
     const zone = load(rc, facts.facts, undefined);
     zone.catch(() => undefined);
     const [answer, profile] = await Promise.all([
-      receptionistSeries(rc.ctx.supabase, rc.tenantId, window),
+      findReceptionistSeries(rc.ctx.supabase, rc.tenantId, window),
       profileOf(rc),
     ]);
     const nowMs = rc.now.getTime();
@@ -392,11 +396,15 @@ export const receptionistReport: Reader<ReportWindow, ReceptionistDto> = {
         ...(window.end !== null && { end: window.end }),
         days: window.days,
       };
-      return { data: receptionistDtoOf(null, { booked: null, profile, head, nowMs }), rows: [], stamp: stamp() };
+      return { data: receptionistDtoOf(null, { booked: null, profile, head, nowMs }), rows: [], stamp: readerStamp() };
     }
     if (!isReceptionistSeriesDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
     const booked = await linksOf(rc, window, answer.links);
-    return { data: receptionistDtoOf(answer, { booked, profile, head: answer, nowMs }), rows: [], stamp: stamp() };
+    return {
+      data: receptionistDtoOf(answer, { booked, profile, head: answer, nowMs }),
+      rows: [],
+      stamp: readerStamp(),
+    };
   },
 };
 
@@ -431,13 +439,13 @@ async function bookOf(rc: ReaderContext): Promise<PeopleNowDto | null> {
  * default, never the route's failure: what is still answered is judged in it. (The Receptionist's reader starts the zone's
  * read with its other two and lets a failure of it fail the read, so it builds its own head.)
  */
-export async function askedHead(
+export async function getAskedHead(
   rc: ReaderContext,
   window: ReportWindow,
 ): Promise<{ timezone: string; today: string; end?: string; days: number }> {
   const timezone = await load(rc, facts.facts, undefined).then(
     (f) => f.data.timezone,
-    () => DEFAULT_TIMEZONE,
+    logAndGoOn("load facts.facts", DEFAULT_TIMEZONE),
   );
   return {
     timezone,
@@ -464,16 +472,16 @@ export async function askedHead(
 export const peopleReport: Reader<ReportWindow, PeopleDto> = {
   name: "peopleReport",
   async read(rc, window) {
-    const [answer, now] = await Promise.all([peopleSeries(rc.ctx.supabase, rc.tenantId, window), bookOf(rc)]);
+    const [answer, now] = await Promise.all([findPeopleSeries(rc.ctx.supabase, rc.tenantId, window), bookOf(rc)]);
     if (answer === null) {
       log.warn("people_series_missing", { tenant_id: rc.tenantId });
       // The zone the book was counted in, which the turn holds: asked again only if that read failed, and if it fails
       // again the answer carries the product's default zone, which nothing reads of an answer with neither half (the
       // page draws its kept cards, Ask says `available: false`).
-      const head = await askedHead(rc, window);
-      return { data: peopleDtoOf(null, { now, head }), rows: [], stamp: stamp() };
+      const head = await getAskedHead(rc, window);
+      return { data: peopleDtoOf(null, { now, head }), rows: [], stamp: readerStamp() };
     }
     if (!isPeopleSeriesDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
-    return { data: peopleDtoOf(answer, { now, head: answer }), rows: [], stamp: stamp() };
+    return { data: peopleDtoOf(answer, { now, head: answer }), rows: [], stamp: readerStamp() };
   },
 };

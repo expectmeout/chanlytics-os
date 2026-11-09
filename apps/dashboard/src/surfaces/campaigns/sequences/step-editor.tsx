@@ -11,7 +11,7 @@
  * stood, every channel's version and its languages with it. The foot says what a save reaches. Saved through the
  * sequence's own doors (00442): a new step at the end, or this one changed; its words changed apart, since a WhatsApp
  * version not yet approved waits while the step sends its own (`waits`). The server judges the values against the
- * message (core templateValues) and says what it refused in words. Inside the step's sheet, Cancel and Save stand in its
+ * message (core getTemplateValues) and says what it refused in words. Inside the step's sheet, Cancel and Save stand in its
  * foot (record-foot.ts RecordFootContext), with what a save reaches beside them on a desk and over the fields' end on a
  * phone, so the press is at the thumb however long the step's fields run. A call for you or a note for the team (decision
  * 0065 step 6) is changed in its own one-column editor below (HandEditor), its wait and condition the same choices.
@@ -45,8 +45,8 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { Segmented } from "../../kit/segmented/segmented";
 import { Select } from "../../kit/select/select";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
-import { gate } from "../../legacy-verbs";
-import type { LegacyFlash } from "../../legacy-verbs";
+import { gate } from "../../frame-verbs";
+import type { FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { cmBusinessOf, cmOfferedFrom, cmStandInOf, type CmOffered } from "../parts/channels";
 import { warmMessagePane } from "../home/campaigns-code";
@@ -59,7 +59,7 @@ import { HandTask } from "./step-words";
 import { useBatchRead } from "./use-record";
 import { pressed } from "./verbs";
 
-type Flash = (flash: LegacyFlash) => void;
+type Flash = (flash: FrameFlash) => void;
 
 /** The waits a step may take, in days (00441: one to ninety). */
 const WAITS = [1, 2, 3, 4, 5, 7, 10, 14, 21, 28, 30, 45, 60, 90] as const;

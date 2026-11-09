@@ -8,16 +8,35 @@ import {
   type AskProposalOutcome,
   type AskScope,
   type AskThreadVM,
-  type AskTurnShape,
   DAY_MS,
   citationRoute,
   storedAnswer,
   v1FromAnswer,
+  recordOrEmpty,
+  listOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db";
-import type { RouteContext } from "../with-route";
-import { answeringOf, askTurnText, titleFromQuestion } from "./prompt";
-import { log } from "@/server/log";
+import type { AskTurnShape } from "./shape";
+import { withFilesAttached, withFilesOpened } from "@/server/files/line";
+import type { Json } from "@chanlytics/db/types";
+import type { RouteContext } from "../shared/with-route";
+import { getAttached, fileIdsOf, type AttachedFile } from "../files/attached";
+import { answeringOf, askTurnText, titleFromQuestion } from "./prompt/prompt";
+import { log } from "@/server/shared/log";
+import {
+  deleteAskThread,
+  findAskThread,
+  findAskTurnContent,
+  insertAskThread,
+  insertAskTurn,
+  listAskThreads,
+  listAskTurns,
+  listAskTurnsRaw,
+  patchAskThread,
+  saveAskTurnContent,
+} from "@chanlytics/db/ask";
+import { jsonCopyOf } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
 
 /**
  * Ask threads on the session client. RLS (migration 00040) keeps every read
@@ -43,12 +62,16 @@ interface MessageRow {
 const THREADS_CAP = 40;
 const MESSAGES_CAP = 60;
 
-export function toThreadVM(r: ThreadRow): AskThreadVM {
+/** The files a thread's questions came with, as they are now: one that was removed is not here. */
+type NamedFiles = ReadonlyMap<string, AttachedFile>;
+const NONE_NAMED: NamedFiles = new Map();
+
+export function toThreadVM(thread: ThreadRow): AskThreadVM {
   return {
-    id: r.id,
-    title: r.title || "Untitled",
-    lastAtMs: Date.parse(r.last_at) || 0,
-    scope: (r.scope as AskScope | null) ?? null,
+    id: thread.id,
+    title: thread.title || "Untitled",
+    lastAtMs: Date.parse(thread.last_at) || 0,
+    scope: (thread.scope as AskScope | null) ?? null,
   };
 }
 
@@ -56,30 +79,33 @@ export function toThreadVM(r: ThreadRow): AskThreadVM {
  * The stored turn, back into the shape the Line draws: a turn made since the Line carries its answer ({v: 2, answer},
  * spec 7.6); one made before has the v1 fields only, and the Line reads it through answerFromV1.
  */
-export function toMessageVM(r: MessageRow): AskMessageVM {
-  const c = (r.content ?? {}) as Record<string, unknown>;
-  const cites = Array.isArray(c.citations) ? (c.citations as AskMessageVM["citations"]) : [];
+export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
+  const content = recordOrEmpty(message.content);
+  const cites = Array.isArray(content.citations) ? (content.citations as AskMessageVM["citations"]) : [];
+  const files = fileIdsOf(content.files);
   const answer =
-    c.v === 2 && c.answer && typeof c.answer === "object" && (c.answer as AskAnswer).v === 2
-      ? storedAnswer(c.answer as AskAnswer)
+    content.v === 2 && content.answer && typeof content.answer === "object" && (content.answer as AskAnswer).v === 2
+      ? storedAnswer(content.answer as AskAnswer)
       : null;
   return {
     ...(answer ? { answer } : {}),
-    id: r.id,
-    role: r.role === "assistant" ? "assistant" : "user",
-    text: typeof c.text === "string" ? c.text : "",
-    at: r.created_at,
-    atMs: Date.parse(r.created_at) || 0,
+    ...(files.length ? { files: files.map((id) => ({ id, name: named.get(id)?.name ?? null })) } : {}),
+    id: message.id,
+    role: message.role === "assistant" ? "assistant" : "user",
+    text: typeof content.text === "string" ? content.text : "",
+    at: message.created_at,
+    atMs: Date.parse(message.created_at) || 0,
     citations: cites.map((x) => ({ ...x, to: x.to || citationRoute(x) })),
-    followups: Array.isArray(c.followups) ? (c.followups as string[]) : [],
-    navigate: c.navigate && typeof c.navigate === "object" ? (c.navigate as AskMessageVM["navigate"]) : null,
-    proposals: Array.isArray(c.proposals) ? (c.proposals as AskMessageVM["proposals"]) : [],
-    language: c.language === "es" || c.language === "en" ? c.language : "other",
-    ungrounded: c.ungrounded === true,
-    tools: Array.isArray(c.tools) ? (c.tools as string[]) : [],
-    latencyMs: typeof c.latency_ms === "number" ? c.latency_ms : null,
-    rounds: typeof c.rounds === "number" ? c.rounds : null,
-    failed: c.failed === true,
+    followups: listOrEmpty(content.followups).filter((f): f is string => typeof f === "string"),
+    navigate:
+      content.navigate && typeof content.navigate === "object" ? (content.navigate as AskMessageVM["navigate"]) : null,
+    proposals: Array.isArray(content.proposals) ? (content.proposals as AskMessageVM["proposals"]) : [],
+    language: content.language === "es" || content.language === "en" ? content.language : "other",
+    ungrounded: content.ungrounded === true,
+    tools: listOrEmpty(content.tools).filter((t): t is string => typeof t === "string"),
+    latencyMs: typeof content.latency_ms === "number" ? content.latency_ms : null,
+    rounds: typeof content.rounds === "number" ? content.rounds : null,
+    failed: content.failed === true,
   };
 }
 
@@ -89,32 +115,43 @@ export function toMessageVM(r: MessageRow): AskMessageVM {
  * thread's morning, read beside it only where it was made before then, must be none (an anti-join the database does,
  * so a year of mornings is left out as surely as one).
  */
-export async function listThreads(ctx: RouteContext, tenantId: string): Promise<AskThreadVM[]> {
-  const { data, error } = await ctx.supabase
-    .from("ask_threads")
-    .select("id, title, scope, last_at, created_at, ask_mornings(made_at)")
-    .eq("tenant_id", tenantId)
-    .lt("ask_mornings.made_at", new Date(Date.now() - DAY_MS).toISOString())
-    .is("ask_mornings", null)
-    .order("last_at", { ascending: false })
-    .limit(THREADS_CAP);
-  if (error) throw new Error(error.message);
+export async function listThreads(ctx: RouteContext, tenantId: TenantId): Promise<AskThreadVM[]> {
+  const { data, error } = await listAskThreads(
+    ctx.supabase,
+    tenantId,
+    new Date(Date.now() - DAY_MS).toISOString(),
+    THREADS_CAP,
+  );
+  if (error) throw new DbFailure(error);
   return (data ?? []).map(toThreadVM);
 }
 
 /**
  * A stored turn as the model reads it on a later turn: the words, and for a person's answer to a search's question
- * the search it answered (askTurnText), which is stored beside their words and never shown as them.
+ * the search it answered (askTurnText), which is stored beside their words and never shown as them, and the files it came
+ * with, by the name that opens them now (contracts withFilesAttached); for an answer, the files Ask opened in that turn
+ * (withFilesOpened), so a cold turn knows what it looked at and that it must open one again to judge it.
  */
-export function modelTurnOf(r: MessageRow): { role: "user" | "assistant"; text: string } {
-  const vm = toMessageVM(r);
-  const c = (r.content ?? {}) as Record<string, unknown>;
-  return { role: vm.role, text: askTurnText(vm.text, vm.role === "user" ? answeringOf(c.answering) : null) };
+export function modelTurnOf(
+  message: MessageRow,
+  named: NamedFiles = NONE_NAMED,
+): { role: "user" | "assistant"; text: string } {
+  const vm = toMessageVM(message);
+  const content = recordOrEmpty(message.content);
+  const sentence = askTurnText(vm.text, vm.role === "user" ? answeringOf(content.answering) : null);
+  const namedOf = (ids: unknown) => fileIdsOf(ids).map((id) => named.get(id) ?? null);
+  return {
+    role: vm.role,
+    text:
+      vm.role === "assistant"
+        ? withFilesOpened(sentence, namedOf(content.opened))
+        : withFilesAttached(sentence, namedOf(content.files)),
+  };
 }
 
 /** How a stored turn's earlier turns reached the model (AskTurnShape.replay), or null: a question, or a turn from before. */
 function replayOf(shape: unknown): AskTurnShape["replay"] | null {
-  const kind = shape && typeof shape === "object" ? (shape as { replay?: unknown }).replay : null;
+  const kind = recordOrEmpty(shape).replay;
   return kind === "live" || kind === "rebuilt" || kind === "none" ? kind : null;
 }
 
@@ -130,14 +167,10 @@ export async function readThread(
   replays: Array<AskTurnShape["replay"] | null>;
   /** The thread may have more rows than the read returns (MESSAGES_CAP): the oldest would not be here. */
   truncated: boolean;
-  tenantId: string;
+  tenantId: TenantId;
 } | null> {
-  const { data: t, error } = await ctx.supabase
-    .from("ask_threads")
-    .select("id, tenant_id, title, scope, last_at, created_at")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const { data: t, error } = await findAskThread(ctx.supabase, id);
+  if (error) throw new DbFailure(error);
   if (!t) return null;
   // The newest MESSAGES_CAP rows, newest first (the id breaks a tie in the clock, so every read agrees), then put back
   // in the order they were written: a thread past thirty turns reopens on its latest, and its history ends at the last.
@@ -146,23 +179,18 @@ export async function readThread(
   // (content.raw, the Phase 5 plan, D11), up to sixty of which a whole read would ship on every turn and every reopen.
   // A key a row does not hold reads as null, which both take as absent. The shape, whole (a nested path would read
   // each row again), says how each turn's history went: where a live replay's chain begins, before any raw is read.
-  const { data: msgs, error: merr } = await ctx.supabase
-    .from("ask_messages")
-    .select(
-      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering, shape:content->shape",
-    )
-    .eq("thread_id", id)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(MESSAGES_CAP);
+  const { data: msgs, error: merr } = await listAskTurns(ctx.supabase, id, MESSAGES_CAP);
   if (merr) throw new Error(merr.message);
   const rows = (msgs ?? [])
     .reverse()
     .map(({ id: messageId, role, created_at, ...content }) => ({ id: messageId, role, created_at, content }));
+  // What the thread's questions came with, as those files are now. Most threads have none, and read nothing more.
+  const fileIds = [...new Set(rows.flatMap((r) => [...fileIdsOf(r.content.files), ...fileIdsOf(r.content.opened)]))];
+  const named = fileIds.length ? await getAttached(ctx, t.tenant_id, fileIds) : NONE_NAMED;
   return {
     thread: toThreadVM(t),
-    messages: rows.map(toMessageVM),
-    turns: rows.map(modelTurnOf),
+    messages: rows.map((r) => toMessageVM(r, named)),
+    turns: rows.map((r) => modelTurnOf(r, named)),
     replays: rows.map((r) => replayOf(r.content.shape)),
     truncated: rows.length >= MESSAGES_CAP,
     tenantId: t.tenant_id,
@@ -175,8 +203,8 @@ export async function readThread(
  * (memory.ts). RLS keeps it to the caller's own; a row it hides, or one gone, is absent.
  */
 export async function readRaws(ctx: RouteContext, ids: string[]): Promise<Map<string, unknown>> {
-  const { data, error } = await ctx.supabase.from("ask_messages").select("id, raw:content->raw").in("id", ids);
-  if (error) throw new Error(error.message);
+  const { data, error } = await listAskTurnsRaw(ctx.supabase, ids);
+  if (error) throw new DbFailure(error);
   return new Map((data ?? []).map((r) => [r.id, r.raw]));
 }
 
@@ -185,32 +213,35 @@ const scopeColumn = (s: AskScope | null): Json => (s ? { kind: s.kind, id: s.id,
 
 export async function createThread(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   title: string,
   scope: AskScope | null,
 ): Promise<AskThreadVM> {
-  const { data, error } = await ctx.supabase
-    .from("ask_threads")
-    .insert({ tenant_id: tenantId, user_id: ctx.userId, title, scope: scopeColumn(scope) })
-    .select("id, title, scope, last_at, created_at")
-    .single();
-  if (error) throw new Error(`ask thread: ${error.message}`);
+  const { data, error } = await insertAskThread(ctx.supabase, {
+    tenant_id: tenantId,
+    user_id: ctx.userId,
+    title,
+    scope: scopeColumn(scope),
+  });
+  if (error) throw new DbFailure(error, "ask thread");
   return toThreadVM(data);
 }
 
 export async function appendMessage(
   ctx: RouteContext,
   threadId: string,
-  tenantId: string,
+  tenantId: TenantId,
   role: "user" | "assistant",
   content: Record<string, unknown>,
 ): Promise<{ id: string; created_at: string }> {
-  const { data, error } = await ctx.supabase
-    .from("ask_messages")
-    .insert({ thread_id: threadId, tenant_id: tenantId, user_id: ctx.userId, role, content: content as Json })
-    .select("id, created_at")
-    .single();
-  if (error) throw new Error(`ask message: ${error.message}`);
+  const { data, error } = await insertAskTurn(ctx.supabase, {
+    thread_id: threadId,
+    tenant_id: tenantId,
+    user_id: ctx.userId,
+    role,
+    content: jsonCopyOf(content),
+  });
+  if (error) throw new DbFailure(error, "ask message");
   return data;
 }
 
@@ -223,7 +254,7 @@ export async function appendMessage(
  */
 export async function keepQuickTurn(
   ctx: RouteContext,
-  tenantId: string,
+  tenantId: TenantId,
   turn: { text: string; threadId: string | null; answer: AskAnswer; quick: NonNullable<AskIntent>["kind"] },
 ): Promise<{ id: string; title: string }> {
   let thread: { id: string; title: string };
@@ -259,14 +290,11 @@ export async function touchThread(
   scope: AskScope | null | undefined,
   title?: string,
 ): Promise<void> {
-  const { error } = await ctx.supabase
-    .from("ask_threads")
-    .update({
-      last_at: new Date().toISOString(),
-      ...(scope === undefined ? {} : { scope: scopeColumn(scope) }),
-      ...(title ? { title } : {}),
-    })
-    .eq("id", threadId);
+  const { error } = await patchAskThread(ctx.supabase, threadId, {
+    last_at: new Date().toISOString(),
+    ...(scope === undefined ? {} : { scope: scopeColumn(scope) }),
+    ...(title ? { title } : {}),
+  });
   if (error) log.error("ask_thread_touch_failed", { error: error.message });
 }
 
@@ -281,38 +309,36 @@ export async function setProposalOutcome(
   proposalId: string,
   outcome: AskProposalOutcome,
 ): Promise<AskProposal> {
-  const { data: m, error } = await ctx.supabase
-    .from("ask_messages")
-    .select("id, content")
-    .eq("id", messageId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const { data: m, error } = await findAskTurnContent(ctx.supabase, messageId);
+  if (error) throw new DbFailure(error);
   if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
-  const content = (m.content ?? {}) as Record<string, unknown>;
+  const content = recordOrEmpty(m.content);
   const proposals = Array.isArray(content.proposals) ? (content.proposals as AskProposal[]) : [];
-  const idx = proposals.findIndex((p) => p.id === proposalId);
-  if (idx < 0) throw new AppError("not_found", "No such card on that turn.", 404);
-  const current = proposals[idx].outcome;
+  const card = proposals.find((p) => p.id === proposalId);
+  if (!card) throw new AppError("not_found", "No such card on that turn.", 404);
+  const current = card.outcome;
   // An approved card is approved once, and after it only undone: a Not now or a failure sent by a page that drew the card
   // before it was approved (another tab, Today's morning read a while ago) would hide what was done and lose its Undo.
-  if (current && current.state === "done" && outcome.state !== "undone") {
+  const onlyPaused = current?.state === "done" && outcome.state === "done" && outcome.paused !== current.paused;
+  if (current && current.state === "done" && outcome.state !== "undone" && !onlyPaused) {
     throw new AppError("conflict", "That card was already approved.", 409);
   }
-  const next = proposals.map((p, i) => (i === idx ? { ...p, outcome } : p));
+  const settled: AskProposal = { ...card, outcome };
+  const next = proposals.map((p) => (p === card ? settled : p));
   // Read whole and written back whole, never by path: the turn as the model was sent it (content.raw) stays beside
   // the card's outcome.
-  const { data: upd, error: uerr } = await ctx.supabase
-    .from("ask_messages")
-    .update({ content: { ...content, proposals: next } as unknown as Json })
-    .eq("id", messageId)
-    .select("id");
+  const { data: upd, error: uerr } = await saveAskTurnContent(
+    ctx.supabase,
+    messageId,
+    jsonCopyOf({ ...content, proposals: next }),
+  );
   if (uerr) throw new Error(uerr.message);
   if (!upd?.length) throw new AppError("not_found", "That turn is not yours.", 404);
-  return next[idx];
+  return settled;
 }
 
 export async function deleteThread(ctx: RouteContext, id: string): Promise<void> {
-  const { data, error } = await ctx.supabase.from("ask_threads").delete().eq("id", id).select("id");
-  if (error) throw new Error(error.message);
+  const { data, error } = await deleteAskThread(ctx.supabase, id);
+  if (error) throw new DbFailure(error);
   if (!data?.length) throw new AppError("not_found", "That thread is not yours or is already gone.", 404);
 }

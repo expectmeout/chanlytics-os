@@ -4,15 +4,15 @@
  * message returns; a message that passes them all returns GO.
  */
 import { isOptedOutContact } from "@chanlytics/contracts";
-import type { IngestResult } from "@chanlytics/db";
+import type { IngestResult } from "@chanlytics/db/channels";
 import { effectiveReplyMode } from "./reply-posture";
 import { resolveConsent } from "./consent";
 import { isThreadUnknown } from "./thread";
-import { handledOf, handToAPerson, processedAfter, SET_ASIDE } from "./handled";
+import { handledOf, handToAPerson, getProcessedAfter, SET_ASIDE } from "./handled";
 import { GO, type Answering, type InboundContext, type ModeInForce } from "./context";
 
 /** The mode in force for this one message: the workspace's posture, or this person's own setting where one is set. */
-export async function modeInForce(cx: InboundContext, ing: IngestResult): Promise<ModeInForce> {
+export async function readModeInForce(cx: InboundContext, ing: IngestResult): Promise<ModeInForce> {
   const { db, tenantId, ports, posture, L } = cx;
   // Reassigned once THIS person's own setting is known, just before the
   // policy is consulted below.
@@ -38,7 +38,7 @@ export async function modeInForce(cx: InboundContext, ing: IngestResult): Promis
 }
 
 /** A thread that could not be read, consent, the carriers' hold and what kind of message arrived, in that order. */
-export async function firstGates(at: Answering): Promise<typeof GO | undefined> {
+export async function runFirstGates(at: Answering): Promise<typeof GO | undefined> {
   const { thread, L, sink, n, ing, carrier } = at;
   // The memory could not be read, and there is no second copy to ask. We do
   // not know whether a human has taken this thread over, what was already
@@ -85,7 +85,7 @@ export async function firstGates(at: Answering): Promise<typeof GO | undefined> 
     // event (SUBSCRIBERS.consent_notice), in the Inbox's words. NO hold is opened: nothing may be sent to them, so a
     // hold asked a person for something that cannot be done, and sat in Needs you, Today's queue and the badge, with a
     // mail and a push, until a member pressed Resolve. A later message from the same person asks nobody either.
-    await processedAfter(sink, null, "none");
+    await getProcessedAfter(sink, null, "none");
     // `decided_by` matters after the fact: which of the two sources held them out.
     L.info("wa_skip_opt_out", {
       this_message: n.consent.optOut,

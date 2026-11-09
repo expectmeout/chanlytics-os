@@ -1,5 +1,7 @@
 /** Email: the workspace's own address, the free-mail providers, and the mailboxes it writes from (decision 0056). */
-export { posesAsReply } from "./email-subject";
+export { coldEmailOf } from "./cold-email";
+export type { ColdEmail } from "./cold-email";
+export { ALERT_TEST_DOOR, EMAIL_WIRE_DOOR, MAILBOXES_DOOR, SIGNUP_CONFIRM_DOOR, TEST_TO_SELF_DOOR } from "./edge-doors";
 export { isFreeMail } from "./free-mail";
 export {
   EMAIL_ELSEWHERE_SENTENCE,
@@ -26,33 +28,37 @@ export {
   customerDomainWords,
   DMARC_RECOMMENDED,
   MAILBOX_CARD_WORDS,
-  MAILBOX_CONNECTION_STATES,
-  MAILBOX_CONNECTIONS_MAX,
   MAILBOX_DNS_WORDS,
-  MAILBOX_PROVIDER_WORDS,
-  MAILBOX_PROVIDERS,
   MAILBOX_SIGNATURE_WORDS,
   mailboxActs,
-  mailboxConnectionDtoOf,
   mailboxDnsOf,
   mailboxesFootWords,
   mailboxGmailSignsWords,
-  mailboxHealthWords,
-  mailboxHoldOf,
   mailboxRecordRows,
   mailboxRecordStateWords,
   mailboxRowWords,
   mailboxSendingLines,
-  mailboxSendsNow,
   mailboxSignsAsWords,
   mailboxSignsChoiceOf,
+  SPF_LOOKUPS_MAX,
+} from "./mailbox-connections/rows";
+export type { MailboxRecordRow, MailboxRowWords, MailboxSignsChoice } from "./mailbox-connections/rows";
+export {
+  MAILBOX_CONNECTION_STATES,
+  MAILBOX_CONNECTIONS_MAX,
+  MAILBOX_PROVIDER_WORDS,
+  MAILBOX_PROVIDERS,
+  mailboxConnectionDtoOf,
+  mailboxHealthWords,
+  mailboxHoldOf,
+  mailboxIsLive,
+  mailboxSendsNow,
   mailboxSignsOf,
   mailboxWords,
   reachOutWritesFrom,
-  SPF_LOOKUPS_MAX,
   SPF_RECORD_MAX,
   SPF_RECORDS_JOIN,
-} from "./mailbox-connections";
+} from "./mailbox-connections/states";
 export type {
   DnsRecordState,
   MailboxConnectionDto,
@@ -60,13 +66,10 @@ export type {
   MailboxCounts,
   MailboxDnsRecord,
   MailboxProvider,
-  MailboxRecordRow,
-  MailboxRowWords,
   MailboxSigns,
-  MailboxSignsChoice,
   MailboxSignsFrom,
   MailboxWords,
-} from "./mailbox-connections";
+} from "./mailbox-connections/states";
 export {
   MAILBOX_LEFT_WHY_WORDS,
   MAILBOX_SENDERS_WORDS,
@@ -103,3 +106,5 @@ export {
   senderReadingSystem,
 } from "./sender-reading";
 export type { SenderFacts, SenderKind, SenderReading } from "./sender-reading";
+export { firstSubject, oneLine, posesAsReply, replySubject } from "./subject";
+export { emailTextOf } from "./text";

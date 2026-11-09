@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PREFETCH_OPEN, REPORT_PERIOD_IDS } from "@chanlytics/contracts";
-import { read, workspace } from "@/server/route";
+import { read, workspace } from "@/server/shared/route";
 import { openPage, type OpenRead } from "@/server/workspace/page-open";
 import { GET as workspaces } from "../workspaces/route";
 import { GET as today } from "../today/route";

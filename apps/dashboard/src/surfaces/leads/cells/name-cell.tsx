@@ -88,10 +88,6 @@ export const LeadRatedCard = ({ l }: { l: LeadRowVM }) => {
 /** The row's classes on its tr (leads.css): a lead's row, its state, and its class. One function, so a memoised row sees the same one each draw. */
 export const ldRowClass = (l: LeadRowVM) => `ld-row ld-row-${l.state} ld-cls-${l.cls}`;
 
-// Whether the Stage column says exactly what the name's state tag would: Talking, or a lead out of the running that is
-// not left out (the column draws nothing for a left-out lead, and Needs review and Contacted say more than it does).
-const ldStageSaysIt = (l: LeadRowVM) => l.state === "talking" || (l.state === "out" && l.cls !== "excluded");
-
 /** People's rows by business, made once for each read of them, whatever number of rows draws from it. */
 const peopleIndexes = new WeakMap<readonly PersonRowVM[], LeadPeopleIndex>();
 
@@ -127,7 +123,7 @@ export const ldClientOf = (l: LeadRowVM, x: Pick<LeadCellCtx, "peopleRows"> | nu
  * The Client pill of a lead someone at is a client: a door to that person, in People (the lead's row opens the lead itself,
  * and nothing opened the person from here, D1-lead-person-door). A page that cannot open one draws the pill alone.
  */
-const ldClientPill = (l: LeadRowVM, x: Pick<LeadCellCtx, "onOpenPerson" | "peopleRows">) => {
+export const ldClientPill = (l: LeadRowVM, x: Pick<LeadCellCtx, "onOpenPerson" | "peopleRows">) => {
   const person = ldPeopleOf(l, x)?.client ?? null;
   const pill = <StatePill kind="deal" value="won" testid="lead-state-tag" />;
   return person && x.onOpenPerson ? (
@@ -199,52 +195,70 @@ const ldPlaceTag = (l: LeadRowVM, x: LeadCellCtx) => {
   return place ? <StatePill kind="tone" value={place.tone} label={place.word} testid="lead-state-tag" /> : null;
 };
 
+/**
+ * Whether the name wears the lead's fit: while the search's fits differ, and not under the Not contacted head, where the
+ * Stage column says it with why (contracts leadStatusOf): said once.
+ */
+const wearsFit = (l: LeadRowVM, x: LeadCellCtx) =>
+  x.mixedFits && !(x.grouped && x.stageShown && l.state === "ready" && !l.statusGroup);
+
 export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
   <td key="business" className={`cl-name-cell ld-biz-cell ${l.cls}`}>
     <div className="cl-row-name ld-row-name">
       <LeadTile l={l} onExpand={x.onExpand} />
       <LeadHover as="div" className="cl-row-name-block ld-hover" card={<LeadNameCard l={l} x={x} />}>
         <div className="cl-row-fullname">
-          <button
-            type="button"
+          {/* A real link to the lead: a plain press opens its sheet here, and a press with a key held, a middle press or a
+              long one are the browser's, a new tab on the lead. None of them is a press of the row. */}
+          <a
             className="ld-biz-name"
+            href={x.hrefOf(l.id)}
             onClick={(e) => {
               e.stopPropagation();
+              if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+              e.preventDefault();
               x.onOpen(l.id);
             }}
             aria-describedby={`${l.id}-card`}
             data-testid="lead-name"
           >
             {l.name}
-          </button>
+          </a>
           {l.places > 1 && (
             <span className="ld-badge" title="Two listings on the map for one business">
               {l.places} listings
             </span>
           )}
-          {x.mixedFits && l.fit ? (
+          {l.fit && wearsFit(l, x) ? (
             <StatePill kind="lead_fit" value={l.fit} label={l.fitLabel} testid="lead-fit-tag" />
           ) : null}
-          {/* One status: a lead in a sequence wears its place there, unless the Stage column says it. Said once: while
-              the Stage column is drawn, the name's tag gives way where the column says the same thing (Talking; a lead
-              that said no or is not a fit). It stays where it says more: Needs review, Filtered out (the column is empty
-              for a filtered-out lead), and Contacted with how long ago. */}
-          {ldClientOf(l, x)
-            ? ldClientPill(l, x)
-            : (ldPlaceTag(l, x) ??
-              (l.stateTag && !(x.stageShown && ldStageSaysIt(l))
-                ? ldTalkingDoor(l, x, {
-                    kind: "lead_row_state",
-                    value: l.state,
-                    label: l.stateTag,
-                    testid: "lead-state-tag",
-                    named: false,
-                  })
-                : null))}
+          {/* One status, said once: while the Stage column is drawn it says where the lead stands, whatever that is
+              (columns.tsx stageCell), and the name wears no tag. With the column hidden the name wears it: a client,
+              else its place in a sequence, else its own state. */}
+          {x.stageShown
+            ? null
+            : ldClientOf(l, x)
+              ? ldClientPill(l, x)
+              : (ldPlaceTag(l, x) ??
+                (l.stateTag
+                  ? ldTalkingDoor(l, x, {
+                      kind: "lead_row_state",
+                      value: l.state,
+                      label: l.stateTag,
+                      testid: "lead-state-tag",
+                      named: false,
+                    })
+                  : null))}
         </div>
-        {/* Who at the business is in People says more than where it is, once someone there has a name of their own (0052). */}
-        <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">
-          {l.cls === "excluded" ? l.fitLabel : l.waitsOn || ldPeopleOf(l, x)?.line || l.sub}
+        {/* Who at the business is in People says more than where it is, once someone there has a name of their own (0052).
+            What left a lead out, or what a review waits on, is the Stage column's line while that is drawn, and this
+            line's only while it is hidden: said once. */}
+        <div className={`cl-row-meta ld-sub${!x.stageShown && l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">
+          {x.stageShown
+            ? ldPeopleOf(l, x)?.line || l.sub
+            : l.cls === "excluded"
+              ? l.fitLabel
+              : l.waitsOn || ldPeopleOf(l, x)?.line || l.sub}
         </div>
       </LeadHover>
     </div>

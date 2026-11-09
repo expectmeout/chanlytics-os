@@ -4,7 +4,7 @@
  *
  * The card, the privacy page and the Terms said "everything", and the file held people, conversations, calls and the
  * consent history: 54 of the 59 workspace tables an owner's session can read were in no section of it, and nothing failed
- * as the gap grew. Erasure has a rule that makes a new column say how it is reached (packages/db erasure/registry.ts);
+ * as the gap grew. Erasure has a rule that makes a new column say how it is reached (packages/db repositories/erasure/registry.ts);
  * this is the export's. Every kind of record (RECORD_KINDS) names one of three answers, and a kind added there does not
  * compile until it names one here:
  *
@@ -99,6 +99,18 @@ export const EXPORT_OF = {
       why: "What was brought is in the file's people, conversations and bookings, and what you kept of the profile and the website is in its business section; the rest is a progress record and a copy of what is public.",
     },
   },
+  file: {
+    not_exported: {
+      what: "Your photos",
+      why: "They are files, not rows: each one downloads from Settings › Files.",
+    },
+  },
+  draft: {
+    not_exported: {
+      what: "The replies Ask drafted and you did not send",
+      why: "They are suggestions, never sent and written again when someone writes; what you sent is in the file's conversations.",
+    },
+  },
   rehearsal: {
     not_exported: {
       what: "Your rehearsals with the receptionist",
@@ -129,22 +141,21 @@ export const EXPORT_HOLDS_WORDS =
 /** What the owner's copy leaves out, as the card says it: each `what` of exportLeftOut, the why at the file's end. */
 export function exportLeftOutWords(): string {
   // Semicolons between them: a thing left out may itself be a list ("its numbers, mailboxes and connections").
-  const what = exportLeftOut().map((l) => l.what.charAt(0).toLowerCase() + l.what.slice(1));
-  return `Not in it: ${what.slice(0, -1).join("; ")}; and ${what.at(-1) ?? ""}. The end of the file says why for each.`;
+  const subject = exportLeftOut().map((l) => l.what.charAt(0).toLowerCase() + l.what.slice(1));
+  return `Not in it: ${subject.slice(0, -1).join("; ")}; and ${subject.at(-1) ?? ""}. The end of the file says why for each.`;
 }
 
 /** Everything the owner's copy does not hold, each with why: the file's `not_included`, in the order the kinds are named. */
 export function exportLeftOut(): ExportLeftOut[] {
   const kinds: ExportLeftOut[] = [];
-  for (const how of Object.values(EXPORT_OF) as readonly ExportOf[])
-    if ("not_exported" in how) kinds.push(how.not_exported);
+  for (const how of Object.values(EXPORT_OF)) if ("not_exported" in how) kinds.push(how.not_exported);
   return [...kinds, ...LEFT_OUT_BESIDE_THE_KINDS];
 }
 
 /** The sections some kind of record is exported to, each once, in the file's order. */
 export function exportedSections(): ExportSection[] {
   const named = new Set<ExportSection>();
-  for (const how of Object.values(EXPORT_OF) as readonly ExportOf[]) if ("section" in how) named.add(how.section);
+  for (const how of Object.values(EXPORT_OF)) if ("section" in how) named.add(how.section);
   return EXPORT_SECTIONS.filter((s) => named.has(s));
 }
 

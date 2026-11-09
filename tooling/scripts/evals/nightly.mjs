@@ -21,12 +21,12 @@
  * held it and what was said has been read. Exit 0 = held, 1 = the line or a hard case was missed, 2 = could not run.
  *
  * It lives outside tests/, so `pnpm test` never runs it (it costs money and needs a key); the pure parts (wilsonLower,
- * gateOf, runCase) are executed by tooling/scripts/tests/ai/nightly-evals.test.mjs over a scripted API.
+ * gateOf, runCase) are executed by tests/ai/nightly-evals.test.mjs over a scripted API.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { askModel } from "@chanlytics/channels";
+import { askModel } from "@chanlytics/channels/ai";
 import {
   BRAIN_OUTPUT_JSON_SCHEMA,
   brainMetaOf,
@@ -116,12 +116,12 @@ export function loadWorkspace(file = WORKSPACE) {
 
 /**
  * Who a case is speaking with, as the receptionist hears it: the person's lines as the database writes them
- * (packages/db describeLead), under the heading the edge's brain gives them (apps/edge/lib/receptionist/brain.ts whoNote).
+ * (packages/db describeLead), under the heading the edge's brain gives them (apps/edge/lib/ai/receptionist-brain.ts whoNote).
  * None for a case that names nobody, which is asked as a first message from a stranger.
  */
 export async function whoOf(workspace, c) {
   if (!c.who) return null;
-  const { describeLead } = await import("@chanlytics/db");
+  const { describeLead } = await import("@chanlytics/db/conversations");
   const lead = {
     contactId: "eval-person",
     conversationId: null,
@@ -152,7 +152,8 @@ export async function runCase(key, workspace, c, over = {}) {
       output_config: { effort: "low", format: { type: "json_schema", schema: BRAIN_OUTPUT_JSON_SCHEMA } },
     },
   };
-  const r = await askModel(key, ask, { fetch: over.fetch, sleep: over.sleep });
+  // Our own use, on the eval key, for no customer: no profile, by decision (decision 0097).
+  const r = await askModel(key, { ...ask, attribution: { profileId: null } }, { fetch: over.fetch, sleep: over.sleep });
   const ms = Date.now() - started;
   if (r.outcome !== "ok") return { id: c.id, ok: false, error: `${r.outcome}: ${r.error}`, ms };
   if (r.message.stop_reason === "refusal" || r.message.stop_reason === "max_tokens") {

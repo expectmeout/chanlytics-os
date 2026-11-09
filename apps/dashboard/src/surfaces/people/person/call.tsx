@@ -22,7 +22,7 @@ import {
   stepDayName,
 } from "@chanlytics/contracts";
 import type { PersonCallOutcome, PersonCallVM, PersonVM } from "@chanlytics/contracts";
-import { pageClock } from "@/legacy-bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Popover } from "../../kit/popover/popover";

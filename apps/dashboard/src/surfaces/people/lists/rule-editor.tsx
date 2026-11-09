@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import { FieldError } from "../../kit/field-error/field-error";
-import { focusAsDrawn } from "../../legacy-verbs";
+import { focusAsDrawn } from "../../frame-verbs";
 import { lists } from "../people-lists";
 import type { Flash, SavedList } from "../types";
 import type { ListDraftOf } from "../rail/new-list";

@@ -27,13 +27,14 @@
  */
 import { shortCode, addressInMessage, oneTimeCodeOf } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
-import type { IngestResult, Json } from "@chanlytics/db";
-import type { Wire } from "../deliver";
+import type { IngestResult } from "@chanlytics/db/channels";
+import type { Json } from "@chanlytics/db/types";
+import type { Wire } from "../deliver/deliver";
 import { type EscalateOutcome, IngestFailed } from "./ports";
-import { toldFromItsEvent } from "../subscribers";
+import { toldFromItsEvent } from "../events/subscribers";
 import { handledOf, SET_ASIDE } from "./handled";
 import type { ThreadState } from "./thread";
-import { errField } from "@chanlytics/channels";
+import { errField } from "@chanlytics/log";
 import type { HoldWords, InboundContext, Ingested } from "./context";
 
 // Persist first, or say so. An ingest write that fails is the one loss the
@@ -46,8 +47,8 @@ async function ingestOrSay(cx: InboundContext): Promise<IngestResult> {
   try {
     // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3).
     return await ports.persist.ingest(db, tenantId, n, cx.routed?.channelId ?? null);
-  } catch (e) {
-    if (e instanceof IngestFailed) {
+  } catch (error) {
+    if (error instanceof IngestFailed) {
       // The copy is best effort: a mailbox that cannot be reached must not mask the loss.
       try {
         await ports.alertStaff(
@@ -61,7 +62,7 @@ async function ingestOrSay(cx: InboundContext): Promise<IngestResult> {
         L.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
       }
     }
-    throw e;
+    throw error;
   }
 }
 
@@ -143,7 +144,7 @@ async function setAside(cx: InboundContext): Promise<boolean> {
 export async function recordMessage(cx: InboundContext): Promise<IngestResult | undefined> {
   if (await setAside(cx)) return undefined;
   // The door that calls this schedules the message's answer next, and that job takes the message in again. The yeses it
-  // carries are kept with it here, in the ingest's own transaction (00534), so nothing is left for the job to write.
+  // carries are kept with it here, in the ingest's own transaction (00576), so nothing is left for the job to write.
   const ing = await ingestOrSay(cx);
   return ing.is_new ? ing : undefined;
 }
@@ -238,12 +239,12 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
    * their leisure and is talked over by the bot's next reply.
    */
   const tell = async (
-    asked: Promise<EscalateOutcome> | null,
+    escalateOutcome: Promise<EscalateOutcome> | null,
     { said, answered, why, pausedHours = null }: HoldWords,
   ) => {
     // A hold written is told from its event (decision 0043): once, after the commit, out of this request. One whose
     // write failed, or a deployment with no database to write it in, is told here, as it was decided.
-    if (toldFromItsEvent(asked ? await asked.catch(() => undefined) : undefined)) return;
+    if (toldFromItsEvent(escalateOutcome ? await escalateOutcome.catch(() => undefined) : undefined)) return;
     await ports.alertStaff(from, said, answered, why, {
       target: notifyTarget,
       channel,

@@ -1,5 +1,5 @@
-import { read, platform } from "@/server/route";
-import { consoleBugs } from "@/server/platform/support";
+import { read, platform } from "@/server/shared/route";
+import { getConsoleBugs } from "@/server/console/support";
 
 /**
  * GET /api/v1/platform/support/bugs — Health's bug reports (decision 0067): the last thirty days of "Something isn't
@@ -7,5 +7,5 @@ import { consoleBugs } from "@/server/platform/support";
  */
 export const GET = read({
   scope: platform,
-  handle: async ({ office }) => consoleBugs(office),
+  handle: async ({ office }) => getConsoleBugs(office),
 });

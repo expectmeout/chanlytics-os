@@ -1,11 +1,13 @@
 /**
  * A connected profile synced: every review of its location read, decided
- * against what is on record (packages/channels google-sync.ts), written and
+ * against what is on record (packages/channels google/sync.ts), written and
  * told, under the auto mode the new ones answered (review-answers.ts), and
  * last the listing's review link read again from its location (00415).
  * The hourly sweep, "Check now" and a location's bind call it.
  */
-import { emitEvent, noteImport, reviewLinkOf, type Database } from "../packages/db.js";
+import { emitEvent } from "@chanlytics/db/events";
+import { noteImport } from "@chanlytics/db/imports";
+import { reviewLinkOf } from "@chanlytics/db/campaigns";
 import {
   GBP_REVIEWS_FIRST_PAGES,
   GBP_REVIEWS_MAX_PAGES,
@@ -15,7 +17,7 @@ import {
   reviewParent,
   type PlacesHttp,
   type ProfileSyncPlan,
-} from "../packages/channels.js";
+} from "@chanlytics/channels/google";
 import {
   autoReplyBell,
   lensRoute,
@@ -23,19 +25,31 @@ import {
   reviewDraftsBell,
   reviewRoute,
   type EdgeRefusal,
-} from "../packages/contracts.js";
-import { keepOnce, recordNotification } from "../ops/notify.js";
-import { errField, logger, type Logger } from "../log.js";
-import { readAllRows } from "../paged.js";
-import { http } from "./places.js";
-import { aboutReview, reviewRowIds, type ConnectionRow, type Db } from "./google-rows.js";
-import { tokenFor } from "./profile-credentials.js";
+  DbFailure,
+} from "@chanlytics/contracts";
+import { keepOnce, recordNotification } from "../shared/alerts/notify.js";
+import { errField, logger, type Logger } from "../shared/log.js";
+import { readAllRows } from "../shared/paged.js";
+import { http } from "../shared/google/places.js";
+import { aboutReview, reviewRowIds, type ConnectionRow, type Db } from "../shared/google/rows.js";
+import { tokenFor } from "../shared/google/credentials.js";
 import { causeOfRead, causeOfToken, syncMended, tellSyncStopped, type SyncCause } from "./sync-notice.js";
 import { answerNewReviews } from "./review-answers.js";
 import type { CheckResult } from "./listing-check.js";
+import {
+  deleteGoogleReviews,
+  pageGoogleReviewReplies,
+  patchGoogleConnection,
+  patchGoogleListing,
+  patchGoogleListingAtPlace,
+  saveGoogleListingDay,
+  saveGoogleReviews,
+} from "@chanlytics/db/google";
+import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The reviews a sync read, on the imports ledger: the count Google gives (else those read), unanswered, the oldest. */
-async function noteReviews(db: Db, tenantId: string, plan: ProfileSyncPlan): Promise<void> {
+async function noteReviews(db: Db, tenantId: TenantId, plan: ProfileSyncPlan): Promise<void> {
   const oldest = plan.reviews
     .map((r) => (r.created_at ? Date.parse(r.created_at) : NaN))
     .filter((ms) => Number.isFinite(ms))
@@ -70,44 +84,42 @@ const syncErrorOf = (r: EdgeRefusal): string => r.detail ?? r.error;
  */
 async function letReviewsGo(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   origin: "places" | "profile",
   which: { seenBefore?: string | null; only?: readonly string[] } = {},
 ): Promise<void> {
-  let q = db.from("google_reviews").delete().eq("tenant_id", tenantId).eq("origin", origin);
-  if (which.seenBefore) q = q.lt("last_seen_at", which.seenBefore);
-  if (which.only) q = q.in("review_id", [...which.only]);
-  const gone = await q;
-  if (gone.error) throw new Error(gone.error.message);
+  const gone = await deleteGoogleReviews(db, tenantId, { origin, ...which });
+  if (gone.error) throw new DbFailure(gone.error);
 }
 
 /** The reviews a read listed, each written over the profile's row of it (one per review id), stamped with the read. */
 async function keepReviews(
   db: Db,
-  tenantId: string,
+  tenantId: TenantId,
   reviews: ReturnType<typeof planProfileSync>["reviews"],
 ): Promise<void> {
   if (!reviews.length) return;
-  const up = await db.from("google_reviews").upsert(
-    reviews.map((r) => ({
+  const up = await saveGoogleReviews(
+    db,
+    tenantId,
+    reviews.map((review) => ({
       tenant_id: tenantId,
-      review_id: r.review_id,
+      review_id: review.review_id,
       origin: "profile",
-      rating: r.rating,
-      author: r.author,
+      rating: review.rating,
+      author: review.author,
       author_uri: null,
-      author_photo_uri: r.author_photo_uri,
-      body: r.text,
+      author_photo_uri: review.author_photo_uri,
+      body: review.text,
       language_code: null,
-      published_at: r.created_at,
-      reply_text: r.reply_text,
-      replied_at: r.replied_at,
+      published_at: review.created_at,
+      reply_text: review.reply_text,
+      replied_at: review.replied_at,
       maps_uri: null,
-      last_seen_at: r.last_seen_at,
+      last_seen_at: review.last_seen_at,
     })),
-    { onConflict: "tenant_id,review_id" },
   );
-  if (up.error) throw new Error(up.error.message);
+  if (up.error) throw new DbFailure(up.error);
 }
 
 /**
@@ -127,16 +139,16 @@ async function ringNewReviews(db: Db, conn: ConnectionRow, plan: ProfileSyncPlan
   );
   const fresh = plan.fresh.map((r) => r.review_id).sort();
   let lost = false;
-  for (const b of plan.bells) {
+  for (const bell of plan.bells) {
     const kept = await keepOnce(
       conn.tenant_id,
       {
         kind: "review",
-        title: b.title,
-        body: b.body,
-        ...aboutReview(rowIds, b.review_id),
-        onceKey: b.review_id
-          ? `review_bell:${conn.tenant_id}:${b.review_id}`
+        title: bell.title,
+        body: bell.body,
+        ...aboutReview(rowIds, bell.review_id),
+        onceKey: bell.review_id
+          ? `review_bell:${conn.tenant_id}:${bell.review_id}`
           : `review_bells:${conn.tenant_id}:${fresh.join(",") || String(plan.listing?.review_count ?? "")}`,
       },
       { push: true },
@@ -152,10 +164,6 @@ async function ringNewReviews(db: Db, conn: ConnectionRow, plan: ProfileSyncPlan
 /** What the bell is about: the review, when it tells of one by name. */
 const aboutOne = (answered: ReadonlyArray<{ id: string }>): { type: string; id: string } | null =>
   answered.length === 1 && answered[0] ? { type: "review", id: answered[0].id } : null;
-
-/** The workspace's listing, changed in place: what a sync read of the rating and the count, or the review link. */
-const changeListing = (db: Db, tenantId: string, set: Database["public"]["Tables"]["google_listings"]["Update"]) =>
-  db.from("google_listings").update(set).eq("tenant_id", tenantId);
 
 /**
  * The listing's review link (00415) as its bound location gives it now. The bind wrote it from the location it bound
@@ -199,8 +207,8 @@ async function keepReviewLink(
   }
   let wrote;
   try {
-    wrote = await changeListing(db, conn.tenant_id, { new_review_uri: link }).eq("place_id", place).select("tenant_id");
-    if (wrote.error) throw new Error(wrote.error.message);
+    wrote = await patchGoogleListingAtPlace(db, conn.tenant_id, place, { new_review_uri: link });
+    if (wrote.error) throw new DbFailure(wrote.error);
   } catch (e) {
     L.warn("google_review_link_write_failed", { error: errField(e) });
     return;
@@ -227,7 +235,7 @@ export async function syncProfile(
   now = new Date(),
   net: PlacesHttp = http,
 ): Promise<CheckResult> {
-  const L = logger({ tenant_id: conn.tenant_id, location: conn.location_name ?? "" });
+  const log = logger({ tenant_id: conn.tenant_id, location: conn.location_name ?? "" });
   if (!conn.location_name) return { ok: false, error: "no_location" };
   const failed = async (error: string, cause: SyncCause) => {
     // The stamp is NOT moved, for the reasons checkListing gives above: a
@@ -235,21 +243,23 @@ export async function syncProfile(
     // a failed first attempt made the next real sync think it had run before —
     // leaving the Places reviews on file as duplicates for ever and answering
     // reviews the owner had already seen.
-    const { error: upErr } = await db
-      .from("google_connections")
-      .update({ sync_error: error.slice(0, 300) })
-      .eq("tenant_id", conn.tenant_id);
+    const { error: upErr } = await patchGoogleConnection(db, conn.tenant_id, { sync_error: error.slice(0, 300) });
     if (upErr) throw new Error(upErr.message);
-    L.warn("google_profile_sync_failed", { error, cause });
-    await tellSyncStopped(db, conn, { cause, now, L });
+    log.warn("google_profile_sync_failed", { error, cause });
+    await tellSyncStopped(db, conn, { cause, now, L: log });
     return { ok: false as const, error };
   };
-  const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
-  if (!t.ok) return failed(syncErrorOf(t), causeOfToken(t));
+  const token = await tokenFor(db, conn.tenant_id, now.getTime(), net);
+  if (!token.ok) return failed(syncErrorOf(token), causeOfToken(token));
   const first = !conn.last_synced_at;
   let page;
   try {
-    page = await listReviews(net, t.token, reviewParent(conn.account_name, conn.location_name), reviewPagesOf(first));
+    page = await listReviews(
+      net,
+      token.token,
+      reviewParent(conn.account_name, conn.location_name),
+      reviewPagesOf(first),
+    );
   } catch (e) {
     return failed(e instanceof Error ? e.message : String(e), causeOfRead(e));
   }
@@ -260,14 +270,7 @@ export async function syncProfile(
     replied_at: string | null;
     reply_text: string | null;
     origin: string;
-  }>("google_reviews", (from, to) =>
-    db
-      .from("google_reviews")
-      .select("review_id, replied_at, reply_text, origin")
-      .eq("tenant_id", conn.tenant_id)
-      .order("review_id")
-      .range(from, to),
-  );
+  }>("google_reviews", (from, to) => pageGoogleReviewReplies(db, conn.tenant_id, from, to));
   const plan = planProfileSync(
     { last_synced_at: conn.last_synced_at },
     new Map(
@@ -283,22 +286,21 @@ export async function syncProfile(
   await keepReviews(db, conn.tenant_id, plan.reviews);
   if (plan.prune) await letReviewsGo(db, conn.tenant_id, "profile", { seenBefore: plan.synced_at });
   if (plan.listing) {
-    const l = await changeListing(db, conn.tenant_id, plan.listing);
-    if (l.error) throw new Error(l.error.message);
+    const l = await patchGoogleListing(db, conn.tenant_id, plan.listing);
+    if (l.error) throw new DbFailure(l.error);
   }
   if (plan.day) {
-    const d = await db
-      .from("google_listing_days")
-      .upsert({ tenant_id: conn.tenant_id, ...plan.day }, { onConflict: "tenant_id,day" });
-    if (d.error) throw new Error(d.error.message);
+    const d = await saveGoogleListingDay(db, conn.tenant_id, plan.day);
+    if (d.error) throw new DbFailure(d.error);
   }
   // The new reviews told before the stamp, so a bell that could not be kept is asked for again (ringNewReviews).
   await ringNewReviews(db, conn, plan);
-  const done = await db
-    .from("google_connections")
-    .update({ last_synced_at: plan.synced_at, sync_error: null, reviews_complete: plan.complete })
-    .eq("tenant_id", conn.tenant_id);
-  if (done.error) throw new Error(done.error.message);
+  const done = await patchGoogleConnection(db, conn.tenant_id, {
+    last_synced_at: plan.synced_at,
+    sync_error: null,
+    reviews_complete: plan.complete,
+  });
+  if (done.error) throw new DbFailure(done.error);
   // A notice of a breakage closes once a sync works: asked where one could be open (sync-notice.ts syncMended).
   if (wasFailing || first) await syncMended(db, conn.tenant_id, "google_connection.synced");
   // The first sync is history, never answered. After that, the row's mode answers what came in on duty (decision 0064:
@@ -306,10 +308,12 @@ export async function syncProfile(
   // logged, not thrown.
   const { answered, drafted } = first
     ? { answered: [], drafted: [] }
-    : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now, net).catch((e) => {
-        L.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
-        return { answered: [], drafted: [] };
-      });
+    : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now, net).catch(
+        (e: unknown) => {
+          log.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
+          return { answered: [], drafted: [] };
+        },
+      );
   // What went, and what is held for the owner (with when it goes, or that it waits for their OK): one review's bell opens
   // that review (its reply is under it), several open the lens.
   for (const [said, which] of [
@@ -333,16 +337,16 @@ export async function syncProfile(
       counted: 0,
       rating: plan.listing?.rating ?? null,
       review_count: plan.listing?.review_count ?? null,
-    }).catch(() => {});
+    }).catch(logAndGoOn("event google.reviews"));
   }
   // What came in, on the imports ledger as Google's reviews (decision 0073, R23): every one on record, those waiting for a
   // reply, and how far back the oldest goes. A note that fails is logged: the reviews are kept all the same.
   await noteReviews(db, conn.tenant_id, plan).catch((e: unknown) =>
-    L.warn("google_profile_sync_failed", { error: errField(e), cause: "ledger" }),
+    log.warn("google_profile_sync_failed", { error: errField(e), cause: "ledger" }),
   );
   // Last, once the reviews are kept, rung and told: a slow or killed read of the link costs only the link.
-  await keepReviewLink(db, conn, { token: t.token, first, net, L, location: conn.location_name });
-  L.info("google_profile_synced", {
+  await keepReviewLink(db, conn, { token: token.token, first, net, L: log, location: conn.location_name });
+  log.info("google_profile_synced", {
     read: plan.reviews.length,
     fresh: plan.fresh.length,
     replied: plan.replied.length,

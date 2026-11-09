@@ -8,19 +8,21 @@
  * deploy order works.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
-import { bookedSeenOf, type FeedItem, type OwnAddresses } from "../packages/contracts.js";
-import { logger } from "../log.js";
+import type { Database } from "@chanlytics/db/types";
+import type { FeedItem, OwnAddresses, TenantId } from "@chanlytics/contracts";
+import { bookedSeenOf } from "./reach-out-booked-rule";
+import { logger } from "../shared/log.js";
+import { recordReachOutBooked } from "@chanlytics/db/campaigns";
 
-export async function bookedFromCalendar(
+export async function recordBookedFromCalendar(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   items: FeedItem[],
   own: OwnAddresses,
 ): Promise<number> {
   const seen = bookedSeenOf(items, own);
   if (!seen.length) return 0;
-  const { data, error } = await db.rpc("reach_out_booked", { p_tenant_id: tenantId, p_seen: seen });
+  const { data, error } = await recordReachOutBooked(db, { p_tenant_id: tenantId, p_seen: seen });
   if (error) {
     logger({ tenant_id: tenantId }).warn("reach_out_booked_failed", { error: error.message });
     return 0;

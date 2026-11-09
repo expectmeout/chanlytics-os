@@ -3,8 +3,9 @@
  * happens when they tap, call or send the form), with the Feed | Story | Reel choice held here so it survives a step. The
  * amber line about a price the receptionist never quotes is said once, under "What it's about", not again here.
  */
-import { NEW_AD, PREVIEW } from "@chanlytics/contracts/ads-page";
-import type { NewAdVM } from "@chanlytics/contracts/ads-page";
+import { NEW_AD } from "../model/words-new";
+import { PREVIEW } from "../model/drawer/words";
+import type { NewAdVM } from "../model/new-ad";
 import { Segmented } from "../../../kit/segmented/segmented";
 import { AdPreview } from "../drawer/preview";
 import type { FrameKind } from "../drawer/preview";

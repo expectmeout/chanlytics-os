@@ -54,19 +54,19 @@ export function seeingOf(at: Answering) {
     if (Date.now() <= pausedUntilNow) {
       // A person has the thread: nothing is said, and the message is held for them as words are (00454). Set aside with
       // nobody told, it waited unseen past the pause (the closed-loop audit of 17 Oct 2026, B).
-      const asked = sink.escalate(
+      const escalated = sink.escalate(
         "wrote_while_held",
         `They sent a ${n.rawType} message while your team had this thread. Open it and answer them, or hand the thread back.`,
       );
       await Promise.all([
-        asked,
-        tell(asked, {
+        escalated,
+        tell(escalated, {
           said: `[${n.rawType} message]`,
           answered: "(no reply sent — a person on your team has this thread)",
           why: "wrote_while_held",
         }),
       ]);
-      return { pausedUntil: 0, way: { escalation: escalationOf(await asked), reply: "none" } };
+      return { pausedUntil: 0, way: { escalation: escalationOf(await escalated), reply: "none" } };
     }
     // The acknowledgement is the receptionist speaking, so it obeys the
     // same rule as every reply: only when the mode in force lets it speak.
@@ -79,12 +79,13 @@ export function seeingOf(at: Answering) {
     // paused)": the customer had heard nothing, the receptionist was muted
     // until tomorrow, and the one person who could fix it had been told the
     // opposite. Every other send in this file branches on this.
-    const acked = mayAck
-      ? // A courtesy, not an answer: marked so it does not spend the daily cap.
-        (await send(fallbacks!.non_text, { ack: true })).outcome === "sent"
-      : false;
+    const acked =
+      mayAck && fallbacks
+        ? // A courtesy, not an answer: marked so it does not spend the daily cap.
+          (await send(fallbacks.non_text, { ack: true })).outcome === "sent"
+        : false;
     const pausedUntil = acked ? Date.now() + pauseMs : 0;
-    const why = acked
+    const reason = acked
       ? "auto-acknowledged, bot paused"
       : mayAck
         ? "the acknowledgement could not be sent — the customer has heard nothing back"
@@ -93,19 +94,19 @@ export function seeingOf(at: Answering) {
           : personMode
             ? `no acknowledgement — this person is set to ${modeSaid(replyMode)}`
             : `no acknowledgement — replies are set to ${modeSaid(replyMode)}`;
-    const asked = sink.escalate("non_text", `Customer sent a ${n.rawType} message — ${why}.`);
+    const escalate = sink.escalate("non_text", `Customer sent a ${n.rawType} message — ${reason}.`);
     await Promise.all([
       ...(pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : []),
-      asked,
-      tell(asked, {
+      escalate,
+      tell(escalate, {
         said: `[${n.rawType} message]`,
-        answered: `(${why})`,
+        answered: `(${reason})`,
         why: "non_text",
         pausedHours: pausedUntil ? pauseHours : null,
       }),
     ]);
     L.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
-    return { pausedUntil, way: { escalation: escalationOf(await asked), reply: acked ? "sent" : "none" } };
+    return { pausedUntil, way: { escalation: escalationOf(await escalate), reply: acked ? "sent" : "none" } };
   };
   return { maySee, sayUnreadable };
 }
@@ -113,7 +114,7 @@ export function seeingOf(at: Answering) {
 type Seen = ReturnType<typeof seeingOf>;
 
 /** Anything that is not words, and not a photo the receptionist will look at: acknowledged where it may be, and handed over. */
-export async function unreadableGate(at: Answering, seen: Seen): Promise<typeof GO | undefined> {
+export async function runUnreadableGate(at: Answering, seen: Seen): Promise<typeof GO | undefined> {
   const { n, sink, thread } = at;
   const { maySee, sayUnreadable } = seen;
   if (!maySee && (n.type !== "text" || !n.body)) {
@@ -123,8 +124,8 @@ export async function unreadableGate(at: Answering, seen: Seen): Promise<typeof 
     // much as ~23s of pure timeout, before being told we had seen it. Nothing
     // in the ack depends on those bytes, so it joins the work at the end.
     const media = sink.media(n);
-    const said = await sayUnreadable(thread.pausedUntil);
-    await Promise.all([media, sink.processed(handledOf(said.way))]);
+    const outcome = await sayUnreadable(thread.pausedUntil);
+    await Promise.all([media, sink.processed(handledOf(outcome.way))]);
     return;
   }
   return GO;
@@ -150,7 +151,7 @@ export function wordsOf(at: Answering, seen: Seen): string {
 }
 
 /** The photo's bytes, now that every gate has agreed there will be a reply; nothing when it could not be used. */
-export async function photoOf(
+export async function findPhoto(
   at: Answering,
   seen: Seen,
 ): Promise<{ photo: { mime: string; base64: string } | null } | undefined> {
@@ -162,17 +163,21 @@ export async function photoOf(
   // model would have been shown, so none of them should have paid for it.
   let photo: { mime: string; base64: string } | null = null;
   if (maySee) {
-    const got = await sink.media(n);
-    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
-      photo = { mime: got.mime, base64: toBase64(got.bytes) };
-      L.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
+    const result = await sink.media(n);
+    if (result && isVisionMime(result.mime) && result.bytes.byteLength <= VISION_MAX_BYTES) {
+      photo = { mime: result.mime, base64: toBase64(result.bytes) };
+      L.info("wa_photo_seen", { bytes: result.bytes.byteLength, mime: result.mime });
     } else {
       // Nothing to look at after all, and a caption is not an answer to a
       // picture nobody saw: the same handoff the routing above would have given
       // it, rather than a confident reply composed from the words alone.
-      L.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
-      const said = await sayUnreadable(thread.pausedUntil);
-      await sink.processed(handledOf(said.way));
+      L.info("wa_photo_not_seen", {
+        fetched: !!result,
+        bytes: result?.bytes.byteLength ?? null,
+        mime: result?.mime ?? null,
+      });
+      const outcome = await sayUnreadable(thread.pausedUntil);
+      await sink.processed(handledOf(outcome.way));
       return;
     }
   }

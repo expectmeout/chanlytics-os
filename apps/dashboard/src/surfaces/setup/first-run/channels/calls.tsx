@@ -9,7 +9,6 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
-  FIRST_RUN_HELPERS,
   areaCodeOf,
   normalizePhone,
   type FirstRunPhoneVM,
@@ -17,8 +16,9 @@ import {
   type PhoneCompany,
   type PhoneRings,
 } from "@chanlytics/contracts";
+import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
 import { RecordToggleGroup } from "../../../kit/record/field";
-import type { LegacyFlash } from "../../../legacy-verbs";
+import type { FrameFlash } from "../../../frame-verbs";
 import { setupVerbs, type LineChoice } from "../../surface";
 import type { KeptPhoneChoice } from "../memory";
 import { keptNumber, newNumber, phoneWays } from "../phone";
@@ -80,7 +80,7 @@ export function FrCalls(o: {
   ph: FirstRunPhoneVM;
   choice: KeptPhoneChoice | null;
   setChoice: (c: KeptPhoneChoice | null) => void;
-  flash: (f: LegacyFlash) => void;
+  flash: (f: FrameFlash) => void;
   go: (to: string) => void;
 }) {
   const { ph, choice, setChoice, flash, go } = o;

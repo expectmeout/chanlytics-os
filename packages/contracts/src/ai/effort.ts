@@ -9,7 +9,7 @@
  * Ask's turn raises its effort this way for a draft and sets it back on the next turn that is none (the dashboard's
  * server/ask/effort.ts); the edge lets the messages through and holds a round to the ceiling its effort earns
  * (ask-gateway.ts, askRoundCap); the port sends them, with their beta, only to a model that takes them, and folds them
- * into the request's own effort for one that does not (channels models/anthropic.ts, MODEL_TAKES.effortMessages).
+ * into the request's own effort for one that does not (channels ai/anthropic.ts, MODEL_TAKES.effortMessages).
  *
  * The API's words, probed 15 Oct 2026: without the beta, "messages.1.output_config: Extra inputs are not permitted";
  * to Sonnet 5, "output_config.effort requires a model that supports per-turn effort; this model does not"; a level it
@@ -17,7 +17,8 @@
  * was read through it (6,568 tokens): a hair salon's three-step win-back drafted in 8.1 s at low, 8.8 s at high, and
  * 86 s and 8,854 output tokens at max.
  */
-import { MODEL_EFFORTS, type ModelEffort } from "./models";
+import { MODEL_EFFORTS, type ModelEffort } from "./models/routes";
+import { isOneOf, listOrEmpty } from "../shared/unknown";
 
 /** The beta an effort message needs (Anthropic's migration guide for Opus 5.5, read 15 Oct 2026). */
 export const EFFORT_MESSAGE_BETA = "mid-conversation-output-config-2026-07-01";
@@ -37,13 +38,13 @@ export function effortMessage(effort: ModelEffort): EffortMessage {
 const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** Whether `m` is an effort message: a system message, no content, an output_config with a level the API takes and nothing else. */
-export function isEffortMessage(m: unknown): m is EffortMessage {
-  if (!isPlainObject(m)) return false;
-  const { role, content, output_config: oc, ...rest } = m;
+export function isEffortMessage(message: unknown): message is EffortMessage {
+  if (!isPlainObject(message)) return false;
+  const { role, content, output_config: oc, ...rest } = message;
   if (role !== "system" || !Array.isArray(content) || content.length > 0 || Object.keys(rest).length > 0) return false;
   if (!isPlainObject(oc)) return false;
   const { effort, ...more } = oc;
-  return Object.keys(more).length === 0 && (MODEL_EFFORTS as readonly unknown[]).includes(effort);
+  return Object.keys(more).length === 0 && isOneOf(MODEL_EFFORTS, effort);
 }
 
 /** The effort in force at the end of `messages`: the last effort message's, else `base`, the request's own. */
@@ -56,8 +57,8 @@ export function effortInForce<B extends ModelEffort | null>(messages: readonly u
 }
 
 /** Whether `a` thinks longer than `b`: further along MODEL_EFFORTS. */
-export function effortAbove(a: ModelEffort, b: ModelEffort): boolean {
-  return MODEL_EFFORTS.indexOf(a) > MODEL_EFFORTS.indexOf(b);
+export function effortAbove(modelEffort: ModelEffort, otherModelEffort: ModelEffort): boolean {
+  return MODEL_EFFORTS.indexOf(modelEffort) > MODEL_EFFORTS.indexOf(otherModelEffort);
 }
 
 /**
@@ -65,7 +66,7 @@ export function effortAbove(a: ModelEffort, b: ModelEffort): boolean {
  * ended on as the request's own, beside its format. A body that carries none is returned as it is.
  */
 export function foldEffortMessages(body: Record<string, unknown>): Record<string, unknown> {
-  const messages = Array.isArray(body.messages) ? (body.messages as unknown[]) : [];
+  const messages = listOrEmpty(body.messages);
   const effort = effortInForce(messages, null);
   if (effort === null) return body;
   const own = isPlainObject(body.output_config) ? body.output_config : {};

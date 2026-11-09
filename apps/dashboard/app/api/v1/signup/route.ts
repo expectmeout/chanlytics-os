@@ -10,13 +10,13 @@ import {
   signupPosture,
   signupPostureFor,
 } from "@chanlytics/contracts";
-import { isSameOrigin } from "@/server/request-guards";
-import { takeRate } from "@/server/rate-limit";
-import { ipOf, hashKey as hash } from "@/server/request-ip";
-import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/platform/signup";
-import { previewForSignup } from "@/server/previews/claim";
-import { env } from "@/server/env";
-import { log } from "@/server/log";
+import { isSameOrigin } from "@/server/shared/request-guards";
+import { takeRate } from "@/server/shared/rate-limit";
+import { ipOf, hashKey as hash } from "@/server/shared/request-ip";
+import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/workspace/signup";
+import { findPreviewForSignup } from "@/server/previews/claim";
+import { env } from "@/server/shared/env";
+import { log } from "@/server/shared/log";
 
 /**
  * /api/v1/signup — the one door a stranger may use.
@@ -37,7 +37,7 @@ import { log } from "@/server/log";
  */
 const PRIVATE = { "cache-control": "private, no-store" } as const;
 
-export async function GET(): Promise<Response> {
+export function GET(): Response {
   // The page asks what to render before it renders anything. `posture` is the
   // one field it needs; the two booleans stay so a client deployed before this
   // keeps working, which matters because the page and the API ship separately.
@@ -51,6 +51,7 @@ export async function POST(req: Request): Promise<Response> {
   const started = Date.now();
   try {
     if (!isSameOrigin(req)) throw new AppError("forbidden", SIGNUP_WORDS.crossSite);
+    // A body that is not JSON is none: what reads it next refuses.
     const parsed = SignupSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new AppError("validation", parsed.error.issues[0]?.message ?? "Check the form.");
     const input = parsed.data;
@@ -59,7 +60,7 @@ export async function POST(req: Request): Promise<Response> {
     // A lead's own receptionist's live link opens sign-up whatever the posture (decision 0079): it stands for an
     // invite code, and rides on the account for the first screen to claim. One that cannot be made theirs any more is
     // no link at all, and the posture is the switch's.
-    const preview = input.preview && (await previewForSignup(input.preview)) ? input.preview : undefined;
+    const preview = input.preview && (await findPreviewForSignup(input.preview)) ? input.preview : undefined;
     const posture = signupPostureFor(signupPosture(env.SIGNUP_CODE), !!preview);
 
     // THE WAITLIST BRANCH RETURNS BEFORE ANYTHING IS CREATED.

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FixChangeSchema } from "@chanlytics/contracts";
-import { write, workspace } from "@/server/route";
-import { keepRehearsalChange } from "@/server/receptionist/rehearsal";
+import { write, workspace } from "@/server/shared/route";
+import { keepRehearsalChange } from "@/server/settings/rehearsal";
 
 /**
  * POST /api/v1/receptionist/keep — { rehearsal_id, change, via, channel } (decision 0069): one change kept from a

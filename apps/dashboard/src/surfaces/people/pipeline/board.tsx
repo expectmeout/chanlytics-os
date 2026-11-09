@@ -12,7 +12,8 @@
  * under it and which columns show every card are PipelineScope's.
  */
 import type { DragEvent } from "react";
-import type { PipelineGroupKey, PipelineMove, PipelineRowVM } from "@chanlytics/contracts";
+import type { PipelineGroupKey, PipelineRowVM } from "@chanlytics/contracts";
+import type { PipelineMove } from "./board-view";
 import { isIdentifierName } from "@chanlytics/contracts";
 import { Face } from "../../kit/face/face";
 import { StatePill } from "../../kit/pill/state-pill";

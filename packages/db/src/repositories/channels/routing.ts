@@ -4,13 +4,14 @@
  * Cross-workspace: a webhook finds its workspace by the provider's id (kind, external_id) on tenant_channels.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
-import { MIN_MS } from "@chanlytics/contracts";
-import { dbLog } from "../../observe";
+import type { Database, Json } from "../../types";
+import { MIN_MS, type SchemaSet, DbFailure } from "@chanlytics/contracts";
+import { dbLog } from "../../shared/observe";
+import type { TenantId } from "@chanlytics/contracts";
 
 export interface RoutedChannel {
   channelId: string;
-  tenantId: string;
+  tenantId: TenantId;
   kind: string;
   /** The provider's id this row routes on: a WhatsApp phone_number_id, a Retell agent id, an SMS number. */
   externalId: string;
@@ -41,7 +42,7 @@ export interface ChannelLookup {
 
 export async function resolveChannelDetailed(
   db: SupabaseClient<Database>,
-  kind: string,
+  kind: SchemaSet<"tenant_channels.kind">,
   externalId: string,
 ): Promise<ChannelLookup> {
   const key = `${kind}:${externalId}`;
@@ -71,7 +72,7 @@ const ROUTED_COLUMNS = "id, tenant_id, kind, number_e164, credentials_ref, confi
 /** A channel's row as the runtime takes it. */
 function routedOf(row: {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   kind: string;
   external_id: string;
   number_e164: string | null;
@@ -93,10 +94,10 @@ function routedOf(row: {
  * A workspace's channel of a kind as a door that no channel routed reads it (a steer, an eval): its oldest active row,
  * the one contracts channelFor picks, since a workspace may hold two of a kind. Null with none. A read that fails throws.
  */
-export async function oldestActiveChannel(
+export async function findOldestActiveChannel(
   db: SupabaseClient<Database>,
-  tenantId: string,
-  kind: string,
+  tenantId: TenantId,
+  kind: SchemaSet<"tenant_channels.kind">,
 ): Promise<RoutedChannel | null> {
   const { data, error } = await db
     .from("tenant_channels")
@@ -107,14 +108,14 @@ export async function oldestActiveChannel(
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the workspace's ${kind} channel: ${error.message}`);
+  if (error) throw new DbFailure(error, `cannot read the workspace's ${kind} channel`);
   return data ? routedOf(data) : null;
 }
 
 /** The common case: callers that cannot act on the distinction. */
 export async function resolveChannel(
   db: SupabaseClient<Database>,
-  kind: string,
+  kind: SchemaSet<"tenant_channels.kind">,
   externalId: string,
 ): Promise<RoutedChannel | null> {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
@@ -132,11 +133,11 @@ export interface WhatsappNumberRow {
  * may be two; the first is the one contracts channelFor picks, and the one a send goes from when nothing says which
  * number its person wrote to. A read that fails throws.
  */
-export async function activeWhatsappNumbers(
+export async function listActiveWhatsappNumbers(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
 ): Promise<WhatsappNumberRow[]> {
-  return activeChannelRows(db, tenantId, "whatsapp");
+  return listActiveChannelRows(db, tenantId, "whatsapp");
 }
 
 /** What a failed read says it could not read, in the words a person searching the logs knows. */
@@ -146,9 +147,9 @@ const CHANNEL_ROWS_WORDS = { whatsapp: "WhatsApp numbers", instagram: "Instagram
  * A workspace's active channels of a kind that sends (its WhatsApp numbers, its Instagram accounts), oldest first, as a
  * send from one needs the row. A read that fails throws.
  */
-export async function activeChannelRows(
+export async function listActiveChannelRows(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   kind: "whatsapp" | "instagram",
 ): Promise<WhatsappNumberRow[]> {
   const { data, error } = await db
@@ -158,7 +159,7 @@ export async function activeChannelRows(
     .eq("kind", kind)
     .eq("status", "active")
     .order("created_at", { ascending: true });
-  if (error) throw new Error(`cannot read the workspace's ${CHANNEL_ROWS_WORDS[kind]}: ${error.message}`);
+  if (error) throw new DbFailure(error, `cannot read the workspace's ${CHANNEL_ROWS_WORDS[kind]}`);
   return data ?? [];
 }
 
@@ -167,12 +168,12 @@ export async function activeChannelRows(
  * id of the channel that routed it, which core inbound/ingest.ts writes). Null when nothing says: they never wrote on
  * WhatsApp, or their newest message was kept before its line was. A read that fails throws.
  */
-export async function whatsappLineOf(
+export async function findWhatsappLine(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
 ): Promise<string | null> {
-  return lineWrittenTo(db, tenantId, conversationId, "whatsapp");
+  return findLineWrittenTo(db, tenantId, conversationId, "whatsapp");
 }
 
 /**
@@ -180,9 +181,9 @@ export async function whatsappLineOf(
  * whose ids for a person are its own): the line their newest message on that wire came in on (meta.line). Null when
  * nothing says. A read that fails throws.
  */
-export async function lineWrittenTo(
+export async function findLineWrittenTo(
   db: SupabaseClient<Database>,
-  tenantId: string,
+  tenantId: TenantId,
   conversationId: string,
   channel: "whatsapp" | "instagram",
 ): Promise<string | null> {
@@ -196,8 +197,44 @@ export async function lineWrittenTo(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the ${channel} line this thread was written to: ${error.message}`);
+  if (error) throw new DbFailure(error, `cannot read the ${channel} line this thread was written to`);
   const meta = data?.meta;
   const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
   return typeof line === "string" && line ? line : null;
 }
+
+/** The workspace's oldest active WhatsApp number's row (its id, vault reference and Meta's id), as the database answered. */
+export const findWhatsAppRouting = async (db: SupabaseClient<Database>, tenantId: TenantId) =>
+  db
+    .from("tenant_channels")
+    .select("id, credentials_ref, external_id")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "whatsapp")
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+/** What a channel keeps in the Vault (get_channel_credentials), as the database answered (readChannelSecret throws). */
+export const getChannelCredentials = async (db: SupabaseClient<Database>, channelId: string) =>
+  db.rpc("get_channel_credentials", { p_channel_id: channelId });
+
+/** Every routing row of the workspace's: its kind, its number and its status. */
+export const listWorkspaceChannels = async (db: SupabaseClient<Database>, tenantId: TenantId) =>
+  db.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId);
+
+/** The number of the workspace's oldest active channel of `kind`, as the database answered. */
+export const findChannelNumber = async (
+  db: SupabaseClient<Database>,
+  tenantId: TenantId,
+  kind: SchemaSet<"tenant_channels.kind">,
+) =>
+  db
+    .from("tenant_channels")
+    .select("number_e164")
+    .eq("tenant_id", tenantId)
+    .eq("kind", kind)
+    .eq("status", "active")
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();

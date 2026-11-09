@@ -1,7 +1,8 @@
 import "server-only";
-import { deployment } from "../env";
+import { deployment } from "../shared/env";
 import { MIN_MS } from "@chanlytics/contracts";
-import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../edge";
+import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
+import type { TenantId } from "@chanlytics/contracts";
 
 /** What the browser needs to start signup is read from the edge's environment: a second's work. */
 const SIGNUP_CONFIG_TIMEOUT_MS = 10_000;
@@ -23,27 +24,28 @@ interface SignupConfig {
 }
 
 /** What the browser needs to start Embedded Signup; honest about what is missing. */
-export async function whatsappSignupConfig(asker: { workspace: string; user: string }): Promise<SignupConfig> {
+export async function getWhatsappSignupConfig(asker: { workspace: string; user: string }): Promise<SignupConfig> {
   if (!deployment.providersLive)
     return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: "preview", keep_app: false };
   // The platform's app config, about no workspace; the token still says who asked for which (defect 25).
-  const r = await callEdge("/api/admin/whatsapp/signup-config", null, {
+  const answer = await callEdge("/api/admin/whatsapp/signup-config", null, {
     ...asker,
     method: "GET",
     timeoutMs: SIGNUP_CONFIG_TIMEOUT_MS,
   });
-  const j = r.body as (SignupConfig & { ok?: boolean }) | null;
-  if (!edgeAnswered(r) || !j?.ok) {
-    const said = typeof r.body?.detail === "string" && r.status >= 503 ? r.body.detail : `edge ${r.status}`;
-    return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: said, keep_app: false };
+  const json = answer.body;
+  if (!edgeAnswered(answer) || !json?.ok) {
+    const sentence =
+      typeof answer.body?.detail === "string" && answer.status >= 503 ? answer.body.detail : `edge ${answer.status}`;
+    return { app_id: null, config_id: null, graph_version: "v25.0", ready: false, reason: sentence, keep_app: false };
   }
   return {
-    app_id: j.app_id,
-    config_id: j.config_id,
-    graph_version: j.graph_version,
-    ready: j.ready,
-    reason: j.reason,
-    keep_app: j.keep_app === true,
+    app_id: json.app_id ?? null,
+    config_id: json.config_id ?? null,
+    graph_version: json.graph_version ?? "v25.0",
+    ready: json.ready === true,
+    reason: json.reason ?? null,
+    keep_app: json.keep_app === true,
   };
 }
 
@@ -68,42 +70,31 @@ type ConnectOutcome =
  * coexistence: decision 0073, R12) is already registered, and the edge asks Meta for the app's contacts and chats (R21).
  */
 export async function connectWhatsApp(
-  tenantId: string,
+  tenantId: TenantId,
   userId: string,
   body: { code: string; phone_number_id?: string; waba_id?: string; keep_app?: true },
 ): Promise<ConnectOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/whatsapp/connect",
     { tenant_id: tenantId, user_id: userId, ...body },
     { workspace: tenantId, user: userId, timeoutMs: CONNECT_TIMEOUT_MS },
   );
-  const j = (r.body ?? {}) as {
-    ok?: boolean;
-    channel_id?: string;
-    phone_number_id?: string;
-    waba_id?: string;
-    ids_from?: string;
-    number_e164?: string | null;
-    verified_name?: string | null;
-    quality_rating?: string | null;
-    registration?: string;
-    detail?: string;
-  };
-  if (edgeAnswered(r) && j.ok && j.channel_id) {
+  const result = answer.body ?? {};
+  if (edgeAnswered(answer) && result.ok && result.channel_id) {
     return {
       ok: true,
-      channelId: j.channel_id,
-      phoneNumberId: j.phone_number_id ?? body.phone_number_id ?? "",
-      wabaId: j.waba_id ?? body.waba_id ?? "",
-      idsFrom: j.ids_from === "token" ? "token" : "message",
-      numberE164: j.number_e164 ?? null,
-      verifiedName: j.verified_name ?? null,
-      qualityRating: j.quality_rating ?? null,
-      registration: j.registration ?? "registered",
+      channelId: result.channel_id,
+      phoneNumberId: result.phone_number_id ?? body.phone_number_id ?? "",
+      wabaId: result.waba_id ?? body.waba_id ?? "",
+      idsFrom: result.ids_from === "token" ? "token" : "message",
+      numberE164: result.number_e164 ?? null,
+      verifiedName: result.verified_name ?? null,
+      qualityRating: result.quality_rating ?? null,
+      registration: result.registration ?? "registered",
     };
   }
-  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
+  return { ok: false, reason: edgeReasonOf(answer), detail: result.detail };
 }
 
 type StandingCheck = { ok: true; kept: string; canSend: string } | { ok: false; reason: EdgeReason; detail?: string };
@@ -113,15 +104,15 @@ type StandingCheck = { ok: true; kept: string; canSend: string } | { ok: false; 
  * on the channel (where Connections' row reads it from) and tells the owner if it turned BLOCKED. Answers what was kept and
  * Meta's word for whether the number may send; what Meta said stays on the channel. A preview never asks a real number.
  */
-export async function checkWhatsAppStanding(tenantId: string, userId: string): Promise<StandingCheck> {
+export async function checkWhatsAppStanding(tenantId: TenantId, userId: string): Promise<StandingCheck> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const r = await callEdge(
+  const answer = await callEdge(
     "/api/admin/whatsapp/standing",
     { tenant_id: tenantId, user_id: userId },
     { workspace: tenantId, user: userId, timeoutMs: STANDING_TIMEOUT_MS },
   );
-  const j = (r.body ?? {}) as { ok?: boolean; kept?: string; can_send?: string; detail?: string };
-  if (edgeAnswered(r) && j.ok && typeof j.kept === "string" && typeof j.can_send === "string")
-    return { ok: true, kept: j.kept, canSend: j.can_send };
-  return { ok: false, reason: edgeReasonOf(r), detail: j.detail };
+  const body = answer.body ?? {};
+  if (edgeAnswered(answer) && body.ok && typeof body.kept === "string" && typeof body.can_send === "string")
+    return { ok: true, kept: body.kept, canSend: body.can_send };
+  return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }

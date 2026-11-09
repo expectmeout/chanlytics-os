@@ -1,0 +1,213 @@
+/**
+ * Texting on the edge: the line a workspace texts through, its credentials
+ * from the vault, and the one sender every outbound text goes through —
+ * the receptionist's reply, a held draft fired later, a person's reply from
+ * the Inbox. The provider is the same one the lines saga uses, so the dry
+ * provider on a preview sends nothing and says so.
+ *
+ * Cross-workspace: an inbound text names only the number it reached, so its line is found by that number.
+ */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@chanlytics/db/types";
+import type { LineSecrets, ProviderAccount } from "@chanlytics/channels/lines";
+import type { ProviderReply } from "@chanlytics/channels/shared";
+import type { SendResult } from "@chanlytics/channels/whatsapp";
+import { answerObject } from "@chanlytics/channels/shared";
+import { smsStatusUrl, smsRefusalOf, requestTwilio } from "@chanlytics/channels/lines";
+import { lineProviderFromEnv } from "./lines.js";
+import { edgeFnUrl } from "../shared/dashboard-origin.js";
+import { logger, errField, logFailure, type Logger } from "../shared/log.js";
+import { phoneTail, type EdgeRefusal, DbFailure } from "@chanlytics/contracts";
+import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
+import { findLineByE164, findTextingLineOf, getLineCredentials, putLineCredentials } from "@chanlytics/db/lines";
+import { asJson } from "@chanlytics/db/shared";
+import type { TenantId } from "@chanlytics/contracts";
+
+type Db = SupabaseClient<Database>;
+const SUBACCOUNT_READ_TIMEOUT_MS = 15000;
+export type SmsLine = Pick<
+  Database["public"]["Tables"]["lines"]["Row"],
+  "id" | "tenant_id" | "e164" | "provider" | "subaccount_sid" | "messaging_service_sid" | "sms_state" | "voice_state"
+>;
+
+/** The line a text arrived on, by the number Twilio says it was sent to. */
+export async function findLineByNumber(db: Db, e164: string): Promise<SmsLine | null> {
+  const { data, error } = await findLineByE164(db, e164);
+  if (error) throw new DbFailure(error, `reading the line for ${e164}`);
+  return data ?? null;
+}
+
+/** The line a workspace texts from: the one with a Messaging Service, newest first. */
+async function smsLineForTenant(db: Db, tenantId: TenantId): Promise<SmsLine | null> {
+  const { data, error } = await findTextingLineOf(db, tenantId);
+  if (error) throw new DbFailure(error, "reading the texting line");
+  return data ?? null;
+}
+
+/** The subaccount the line lives in, with its token from the vault. Null when either is missing. */
+export async function findLineAccount(db: Db, line: SmsLine): Promise<ProviderAccount | null> {
+  if (!line.subaccount_sid) return null;
+  const { data, error } = await getLineCredentials(db, line.id);
+  if (error) throw new DbFailure(error, "reading the line's credentials");
+  const s = (data && typeof data === "object" && !Array.isArray(data) ? data : {}) as LineSecrets;
+  return s.auth_token ? { sid: line.subaccount_sid, token: s.auth_token } : null;
+}
+
+/**
+ * What a failed read of a subaccount says, by what the call came to (provider-fetch's four outcomes) and never by
+ * "it was not ok": a 401 or 403 is the one answer that means the platform's own credentials are wrong, and an operator
+ * is sent to the master key for it and for nothing else. A 503, a 429, a timeout or a breaker held is the provider not
+ * answering just now, which the next tick asks again; any other 4xx is the provider's no about this one subaccount.
+ */
+function refreshRefusal(log: Logger, providerReply: ProviderReply): EdgeRefusal {
+  if (providerReply.outcome === "refused" && (providerReply.status === 401 || providerReply.status === 403)) {
+    // The MASTER credentials are wrong, which is a different and worse fault:
+    // nothing can be provisioned either. Said in those words so whoever reads
+    // the log is not sent looking at the subaccount.
+    log.error("line_token_refresh_refused", {
+      status: providerReply.status,
+      note: "the platform's own Twilio credentials were refused",
+    });
+    return {
+      ok: false,
+      error: "provider_unauthorized",
+      detail: `the provider refused the platform's credentials (HTTP ${providerReply.status})`,
+    };
+  }
+  if (providerReply.outcome === "refused") {
+    log.error("line_token_refresh_failed", { status: providerReply.status, outcome: providerReply.outcome });
+    return {
+      ok: false,
+      error: "provider_refused",
+      detail: `the provider would not give this line's subaccount token (HTTP ${providerReply.status})`,
+    };
+  }
+  // Nothing says the platform's key is wrong: the read got no answer, or a gateway's. The next check asks again.
+  log.warn("line_token_refresh_failed", {
+    status: providerReply.status,
+    outcome: providerReply.outcome,
+    reason: providerReply.error,
+  });
+  const heard = providerReply.status ? `HTTP ${providerReply.status}` : (providerReply.error ?? "no answer");
+  return {
+    ok: false,
+    error: "unavailable",
+    detail: `the provider could not be asked just now (${heard}); the next check asks again`,
+  };
+}
+
+/**
+ * Re-read a line's subaccount token from the provider and put it back in the Vault.
+ *
+ * A subaccount's auth token can be rotated in the Twilio console at any moment,
+ * and our copy is dead the instant it is. Nothing noticed: every provider call
+ * for that line answers 401, and the call that mattered most -- the hourly read
+ * of where the carrier registration stands -- turned an unanswerable question
+ * into "the carriers have not answered yet". The line would have sat in
+ * `registering` for ever with nothing wrong on any page.
+ *
+ * The parent account can read its own subaccounts' tokens, which is how the
+ * saga obtained this one in the first place. So the platform can heal itself
+ * rather than wait for somebody to notice and paste a secret.
+ *
+ * Returns the new account on success. Never throws: a failure is a verdict the
+ * caller reports, its code in `error` and what happened in `detail`.
+ */
+export async function refreshLineToken(
+  db: Db,
+  line: SmsLine,
+): Promise<{ ok: true; account: ProviderAccount } | EdgeRefusal> {
+  if (!line.subaccount_sid) return { ok: false, error: "no_subaccount" };
+  const choice = lineProviderFromEnv();
+  if (!choice || choice.name !== "twilio") return { ok: false, error: "no_provider" };
+  const log = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  const master = choice.master;
+  const result = await requestTwilio(
+    master,
+    "GET",
+    `https://api.twilio.com/2010-04-01/Accounts/${line.subaccount_sid}.json`,
+    {
+      timeoutMs: SUBACCOUNT_READ_TIMEOUT_MS,
+    },
+  );
+  if (result.outcome !== "ok") return refreshRefusal(log, result);
+  const body = answerObject(result);
+  const token = typeof body?.auth_token === "string" && body.auth_token ? body.auth_token : null;
+  if (!token)
+    return { ok: false, error: "no_token", detail: "the provider did not return a token for this subaccount" };
+  const { error } = await putLineCredentials(db, line.id, asJson({ auth_token: token }));
+  if (error) return { ok: false, error: "write_failed", detail: logFailure("write", error) };
+  log.info("line_token_refreshed", { subaccount: line.subaccount_sid });
+  return { ok: true, account: { sid: line.subaccount_sid, token } };
+}
+
+export interface SmsSender {
+  send(to: string, body: string): Promise<SendResult>;
+}
+
+/**
+ * The sender for one line. `wamid` carries the provider's message id under
+ * the name the WhatsApp path gave it, so every caller records it the same
+ * way; `code` carries the provider's own error code, so the send door (core
+ * deliver.ts) can tell the carrier's no on the person's behalf -- Twilio
+ * 21610, the person replied STOP to this number (channels smsRefusalOf) --
+ * from a failure of ours. The first is said here as the person's refusal,
+ * the second as our failure: alerting greps the second.
+ */
+export function smsSenderFor(line: SmsLine, acct: ProviderAccount): SmsSender | null {
+  const choice = lineProviderFromEnv();
+  if (!choice || !line.messaging_service_sid) return null;
+  const serviceSid = line.messaging_service_sid;
+  const log = logger({ tenant_id: line.tenant_id, line_id: line.id });
+  return {
+    async send(to, body) {
+      // The carrier's word comes back to /api/sms-status, signed with this line's own token, and lands on the row by its sid.
+      const sendSms = await choice.provider.sendSms(acct, {
+        serviceSid,
+        to,
+        body,
+        statusCallback: smsStatusUrl(edgeFnUrl()),
+      });
+      if (sendSms.ok) log.info("sms_sent", { to_tail: phoneTail(to), sid: sendSms.sid });
+      else if (smsRefusalOf(sendSms))
+        log.info("sms_send_refused", { to_tail: phoneTail(to), status: sendSms.status, code: sendSms.code });
+      else log.error("sms_send_failed", { to_tail: phoneTail(to), status: sendSms.status, code: sendSms.code });
+      return {
+        ok: sendSms.ok,
+        wamid: sendSms.sid,
+        status: sendSms.status,
+        code: sendSms.code,
+        errorBody: sendSms.ok ? undefined : `Twilio ${sendSms.code ?? sendSms.status}`,
+        ...(sendSms.outcome ? { outcome: sendSms.outcome } : {}),
+      };
+    },
+  };
+}
+
+/**
+ * The sender a job runner injects for a tenant: nothing when the workspace has no texting line yet, or its line
+ * carries no credentials -- a refusal at the door. A read that FAILED (the lines table, the vault) is neither: the line
+ * may well be there, so the wire could not be bound (core WireUnavailable), and a reply waits for a heartbeat that
+ * can read it instead of failing for good and flagging a thread over a blip.
+ */
+export async function findSmsSenderForTenant(db: Db, tenantId: TenantId): Promise<SmsSender | null | WireUnavailable> {
+  try {
+    const line = await smsLineForTenant(db, tenantId);
+    if (!line) return null;
+    const acct = await findLineAccount(db, line);
+    return acct ? smsSenderFor(line, acct) : null;
+  } catch (e) {
+    logger({ tenant_id: tenantId }).error("sms_sender_unavailable", { error: errField(e) });
+    return wireUnavailable(errField(e));
+  }
+}
+
+/**
+ * The texting line as the send door's wire (core deliver's `sms`): a text's address given its "+" (a contact is keyed on
+ * bare international digits), and the line's absence, or a read that failed, passed on as the door reads each. The job
+ * runner's replies and a call's booking link (voice/call-booking-link-text.ts) bind it the same way.
+ */
+export function smsWire(line: SmsSender | null | WireUnavailable): Sender | null | WireUnavailable {
+  if (line === null || isWireUnavailable(line)) return line;
+  return (to, p) => line.send(to.startsWith("+") ? to : `+${to}`, p.body);
+}

@@ -1,7 +1,8 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
-import { givenOf, motionSettled, pullHeld, sheetFloat } from "../signals";
+import { givenOf, motionSettled, pullHeld, sheetFloat, sheetFoot } from "../signals";
+import { apiGet } from "../workspace";
 
 /**
  * The phone shell, on a real workspace at a phone's width.
@@ -199,11 +200,14 @@ test.describe("Phone shell on a real workspace", () => {
     await expect.poll(x, { message: "the drawer slides in to the edge" }).toBe(edge);
     expect(Math.round((await sidebar.boundingBox())!.width), "the desk's 248px").toBe(248);
 
-    await swipeAcross(page, 200, 170, 420);
+    // On the card, which is as tall as what it holds: under it a thumb is on the page, and nothing follows it.
+    const box = (await sidebar.boundingBox())!;
+    const onIt = Math.round(box.y + box.height / 2);
+    await swipeAcross(page, 200, 170, onIt);
     await expect.poll(x, { message: "30px: it settles back" }).toBe(edge);
     await expect(nav).toHaveCount(1);
 
-    await swipeAcross(page, 200, 60, 420);
+    await swipeAcross(page, 200, 60, onIt);
     await expect(nav, "past a third: it goes").toHaveCount(0);
     await expect(sidebar, "and once it has slid shut it has no box").toBeHidden();
 
@@ -222,7 +226,8 @@ test.describe("Phone shell on a real workspace", () => {
     // than a slot that is empty the rest of the time. Calendar took it.
     // The places are links (a door is a link) and More, which is no place, a button after them: the kit's TabBar.
     const tabs = page.getByTestId("phone-tabs").locator(".tab-bar-tab");
-    await expect(tabs).toHaveText(["Today", "Inbox", "Calendar", "People", "More"]);
+    // Inbox's count rides its tab, when it has one.
+    await expect(tabs).toHaveText(["Today", /Inbox$/, "Calendar", "People", "More"]);
     await tabs.filter({ hasText: "Calendar" }).click();
     await expect(page).toHaveURL(atRoute(/^calendar/));
     await page.goto("/#/inbox");
@@ -249,7 +254,7 @@ test.describe("Phone shell on a real workspace", () => {
     // A bucket is a list, never a conversation. Picking Handled or Snoozed opened that bucket's first thread over
     // the rows -- the list gone, a customer nobody asked for on the phone -- and a bucket with nothing in it left
     // neither on the screen.
-    for (const name of ["Handled", "Snoozed"]) {
+    for (const name of ["Waiting", "Handled", "Snoozed"]) {
       const chip = page.locator(".subtab", { hasText: name }).first();
       if ((await chip.count()) === 0) continue;
       await chip.click();
@@ -313,15 +318,21 @@ test.describe("Phone shell on a real workspace", () => {
   /**
    * Live's call panel head wraps before it squeezes. Its titles were `flex: 1` beside controls that would
    * not shrink, so on a phone the name had ~90px and the meta line's number and start time fell into
-   * columns one word wide. The head is there only with a call open (one on the line, or one a link names), so a
-   * workspace with nobody on the line skips it. Read-only: nothing here is pressed.
+   * columns one word wide. The head is there only with a call open (one on the line, or one a link names), and a phone
+   * draws it beside the calls only for one a link names: one on the line is a screen of its own, with a head of its own.
+   * So it opens the call the workspace last had, by its link. Read-only: nothing here is pressed.
    */
   test("Live: the call panel's head gives the name the width, and each fact stays on one line", async ({ page }) => {
-    await page.goto("/#/live");
+    const { calls } = (await (await apiGet(page, "/api/v1/calls")).json()).data as {
+      calls: Array<{ id: string; status: string }>;
+    };
+    const call = calls.find((c) => c.status === "ended");
+    test.skip(!call, "no call has ended here: no panel head to measure");
+    await page.goto(`/#/live/${call?.id}`);
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("live-real")).toBeVisible();
     const head = page.locator(".lm-head").first();
-    test.skip((await head.count()) === 0, "nobody is on the line: no panel head to measure");
+    await expect(head).toBeVisible();
     const width = page.viewportSize()?.width ?? 390;
     const titles = await page.locator(".lm-head-titles").first().boundingBox();
     expect(titles && titles.width >= Math.min(260, width - 40), `the name and its facts had ${titles?.width}px`).toBe(
@@ -356,7 +367,8 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const bar = page.getByTestId("people-phone-bar");
     await expect(bar).toBeVisible();
-    for (const id of ["people-phone-lists", "people-phone-search"])
+    // The search rests in its glyph while it holds no words (phone-bar.tsx foldSearch, #2081), for the room over the rows.
+    for (const id of ["people-phone-lists", "people-phone-find"])
       await expect(bar.getByTestId(id)).toBeInViewport({ ratio: 1 });
     await expect(page.locator(".cl-controls")).toHaveCount(0);
     expect(
@@ -376,15 +388,14 @@ test.describe("Phone shell on a real workspace", () => {
       (await row.locator(".pl-card > .list-row-end").boundingBox())!.height,
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
-    // Search: the field from the first draw, at 16px (a phone zooms into anything smaller). Nothing focuses it by
-    // itself, and ONE tap begins the typing: it rested as a capsule a tap only swapped for the field, and a second tap
-    // raised the keyboard (Ruben, 11 Oct 2026). The clear (×) empties it from the first word and keeps it in focus
-    // (there is no Cancel).
+    // Search: at 16px (a phone zooms into anything smaller). Nothing focuses it by itself, and ONE tap begins the typing:
+    // it rested as a capsule a tap only swapped for the field, and a second tap raised the keyboard (Ruben, 11 Oct 2026).
+    // The clear (×) empties it from the first word and keeps it in focus (there is no Cancel).
     const field = page.getByTestId("people-phone-search");
-    await expect(field).toBeVisible();
     await expect(field).not.toBeFocused();
-    await field.tap();
+    await bar.getByTestId("people-phone-find").tap();
     await expect(field).toBeFocused();
+    await expect(field).toBeInViewport({ ratio: 1 });
     expect(await field.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
     await field.fill("zz");
     await page.getByTestId("people-phone-search-clear").tap();
@@ -435,8 +446,8 @@ test.describe("Phone shell on a real workspace", () => {
       return Math.round(b.y + b.height);
     };
     // At rest it floats clear of the foot (#1789); on the keys it stands on them, the keys the higher of the two.
-    const float = await sheetFloat(page);
-    await expect.poll(foot, { message: "at rest, floating just clear of the bottom" }).toBe(tall - float);
+    const rest = await sheetFoot(page);
+    await expect.poll(foot, { message: "at rest, floating just clear of the bottom" }).toBe(tall - rest);
     const keys = 300;
     await page.evaluate((kb) => document.documentElement.style.setProperty("--kb", `${kb}px`), keys);
     await expect.poll(foot, { message: "standing on the keys" }).toBe(tall - keys);
@@ -444,7 +455,7 @@ test.describe("Phone shell on a real workspace", () => {
     const save = (await page.getByTestId("rec-sheet-save-people-add").boundingBox())!;
     expect(save.y + save.height, "Save above the keys").toBeLessThanOrEqual(tall - keys);
     await page.evaluate(() => document.documentElement.style.setProperty("--kb", "0px"));
-    await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall - float);
+    await expect.poll(foot, { message: "back down when the keyboard goes" }).toBe(tall - rest);
   });
   /**
    * A thumb pulls a sheet down to close it (the kit's Sheet, through kit/motion/swipe.ts touchSwipe, 5 Oct 2026): from its handle,
@@ -587,7 +598,9 @@ test.describe("Phone shell on a real workspace", () => {
     await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".list-row-face", ".list-row-name", "a lead");
     const seen = Object.entries(shapes);
     test.skip(seen.length < 2, "this workspace has fewer than two lists with anything in them");
-    const [first, firstShape] = seen[0];
+    const [firstSeen] = seen;
+    if (!firstSeen) return;
+    const [first, firstShape] = firstSeen;
     // The same row, drawn with its facts line (84px) or without one: a thread with no second agent, confidence, tags
     // or value (the nightly's threads) is name and sub alone, one 19px line shorter (inbox.css .ix-thread-foot draws
     // only when there is something to say). The face, the gutter and the name's type are the row's either way.
@@ -627,12 +640,14 @@ test.describe("Phone shell on a real workspace", () => {
         (els, sels) => {
           const lineOf = (row: Element) => (sels.drawnOn ? row.querySelector(sels.drawnOn) : row) ?? row;
           const at = els.findIndex((el, i) => els[i + 1]?.previousElementSibling === el);
-          if (at < 0) return null;
-          const row = lineOf(els[at + 1]);
+          const [head] = els;
+          const next = els[at + 1];
+          if (at < 0 || !head || !next) return null;
+          const row = lineOf(next);
           const line = getComputedStyle(row, "::after");
           const words = row.querySelector(sels.name);
           return {
-            first: getComputedStyle(lineOf(els[0]), "::after").content,
+            first: getComputedStyle(lineOf(head), "::after").content,
             left: Math.round(Number.parseFloat(line.left)),
             right: Math.round(Number.parseFloat(line.right)),
             height: Number.parseFloat(line.height),
@@ -653,7 +668,9 @@ test.describe("Phone shell on a real workspace", () => {
     await read("templates", ".msg-list > .msg-row", ".msg-row-title", "Messages", ".msg-row-line");
     const seen = Object.entries(rules);
     test.skip(seen.length === 0, "this workspace has no list of two rows");
-    const [first, firstRule] = seen[0];
+    const [firstSeen] = seen;
+    if (!firstSeen) return;
+    const [first, firstRule] = firstSeen;
     for (const [label, rule] of seen) {
       expect(rule.first, `${label}'s first row has no line over it`).toBe("none");
       expect(rule.left, `${label}'s line starts under the name`).toBe(rule.name);
@@ -679,9 +696,11 @@ test.describe("Phone shell on a real workspace", () => {
       await strip.evaluate((el) => {
         const s = el.getBoundingClientRect();
         const tabs = [...el.querySelectorAll<HTMLElement>(".stabs-tab")];
-        const t = tabs[0].getBoundingClientRect();
+        const [tab, nextTab] = tabs;
+        if (!tab || !nextTab) throw new Error("a strip holds two tabs");
+        const t = tab.getBoundingClientRect();
         // Where the words are, not the box: a Range over the label's own text (a tab can carry a count after it).
-        const label = [...tabs[0].childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())!;
+        const label = [...tab.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())!;
         const range = document.createRange();
         range.selectNodeContents(label);
         const w = range.getBoundingClientRect();
@@ -692,7 +711,7 @@ test.describe("Phone shell on a real workspace", () => {
           tab: Math.round(t.height),
           words: Math.round(w.left - t.left),
           middle: Math.round((w.top + w.bottom) / 2 - t.top),
-          step: Math.round(tabs[1].getBoundingClientRect().left - t.right),
+          step: Math.round(nextTab.getBoundingClientRect().left - t.right),
           underline: picked ? getComputedStyle(picked).borderBottomColor : null,
           // Nothing that holds it scrolls: what scrolls is what a pull down drags, and People's strip went with its rows.
           inScroller: (() => {
@@ -726,7 +745,9 @@ test.describe("Phone shell on a real workspace", () => {
       probe.remove();
       return colour;
     });
-    const [first, firstShape] = shapes[0];
+    const [firstOne] = shapes;
+    if (!firstOne) return;
+    const [first, firstShape] = firstOne;
     // The Inbox's and People's strips stand beside the page's act and give 4px of each tab's side to it (components.css,
     // "Beside the act the strip has 44px less"); Settings' has no act beside it, so a tab's words sit further in there.
     // The Inbox's act says a word since #1508 ("+ New": a plus alone said nothing), and beside that capsule its strip
@@ -750,6 +771,49 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * What stands beside the strip stands on its line, at the height of what it matches: a coral act as tall as the view
+   * picked in the strip, and an empty capsule as tall as the strip (Ruben, 4 and 6 Nov 2026). At the strip's 36 the coral
+   * read bigger than the tabs beside it. It is still 44 to a finger, by a margin no one sees.
+   */
+  test("a coral act is the height of the view picked and a capsule the strip's, on one line", async ({ page }) => {
+    const placeOf = (el: Locator) =>
+      el.evaluate((node) => {
+        const r = node.getBoundingClientRect();
+        return { top: Math.round(r.top), height: Math.round(r.height) };
+      });
+    const actOn = async (label: string, hash: string) => {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      const act = page.locator(".pg-act-slot").locator("button, a").first();
+      await expect(act, `${label} draws an act beside its strip`).toBeVisible();
+      return act;
+    };
+    for (const [label, hash] of [
+      ["the Inbox", "conversations"],
+      ["People", "clients"],
+    ] as const) {
+      const act = await actOn(label, hash);
+      expect(await placeOf(act), `${label}'s act is the view picked's height, on its line`).toEqual(
+        await placeOf(page.locator(".pg-slot > nav .stabs-tab.active")),
+      );
+      const pressed = await act.evaluate((node) => {
+        const r = node.getBoundingClientRect();
+        return [r.top - 7, r.bottom + 7].map((y) => node.contains(document.elementFromPoint(r.left + r.width / 2, y)));
+      });
+      expect(pressed, `${label}'s act is pressed over and under what it draws`).toEqual([true, true]);
+    }
+    for (const [label, hash] of [
+      ["the Calendar", "calendar"],
+      ["Reports", "reports"],
+    ] as const) {
+      const act = await actOn(label, hash);
+      expect(await placeOf(act), `${label}'s capsule is its strip's height, on its line`).toEqual(
+        await placeOf(page.locator(".pg-slot > nav")),
+      );
+    }
+  });
+
+  /**
    * Every list pulls under a thumb, however short (25 Sep). A list rubber-bands on a touch screen only when it holds
    * more than its box: Needs you with two threads and Live with no calls could not be pulled at all, where
    * Conversations could, and Live's panel cut its last lines off with no way to scroll to them. On a phone the window
@@ -766,11 +830,11 @@ test.describe("Phone shell on a real workspace", () => {
   test("every list pulls under a thumb, however short: the Inbox's views, People's scopes and Campaigns' rooms", async ({
     page,
   }) => {
-    // Nine pages, each loaded to a quiet network: 38 to 42 s of a page's 45 (27 Oct 2026), and over it on a slower runner.
-    test.setTimeout(90_000);
+    // Nine pages, each loaded to a quiet network: 32 s in a fresh browser, and past 90 late in the suite's one long-lived
+    // worker, step by step with no one step at fault (the whole suite, 7 Nov 2026).
+    test.setTimeout(180_000);
     const pulls: Record<string, string> = {};
-    // Where the list is, and what gives under a pull: its own scroller (a box that scrolls itself), its rows, or the
-    // route view.
+    // Where the list is, and what gives under a pull: its rows, or the route view.
     for (const [hash, sel, gives] of [
       ["inbox", ".ix-threads", ".ix-threads"],
       ["conversations", ".cv-rows", ".cv-rows"],
@@ -790,13 +854,6 @@ test.describe("Phone shell on a real workspace", () => {
       const box = page.locator(sel).first();
       // A surface this workspace (or the local harness) does not draw, or a pane a phone leaves out while nothing is open.
       if ((await box.count()) === 0 || !(await box.isVisible())) continue;
-      if (gives === "own") {
-        pulls[`${hash} ${sel}`] = await box.evaluate((el) => {
-          const oy = getComputedStyle(el).overflowY;
-          return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight ? "gives" : "holds";
-        });
-        continue;
-      }
       const at = (await box.boundingBox())!;
       const top = page.locator(".frame-top");
       const topWas = (await top.boundingBox())!.y;
@@ -980,9 +1037,10 @@ test.describe("Phone shell on a real workspace", () => {
     };
     // Floating just clear of the screen's sides and foot, as every phone sheet does (#1789).
     const float = await sheetFloat(page);
+    const rest = await sheetFoot(page);
     await expect
       .poll(edges, { message: "side to side and on the bottom, clear by the float" })
-      .toEqual([float, size.width - float, size.height - float]);
+      .toEqual([float, size.width - float, size.height - rest]);
     await expect(pop.locator(".tbn-handle")).toBeVisible();
     const y = Math.round((await pop.boundingBox())!.y) + 20;
     const cdp = await page.context().newCDPSession(page);
@@ -1068,10 +1126,10 @@ test.describe("Phone shell on a real workspace", () => {
    * a pull dragged them, as People's strip did before #1041: now the bar stands over the days (8 Oct 2026: the board
    * takes the room the page leaves, and the pane never pulls), sticking under the frame's top as the window scrolls the
    * days (21 Oct 2026, mobile.css "The window scrolls": in a pane of its own Safari's toolbar stood on a flat band under
-   * it), and a swipe across the days walks to the next or previous days, as the steps do. The views keep their 38px
-   * look, with 44px to press.
+   * it), and a swipe across the days walks to the next or previous days, as the steps do. The views are drawn 28 tall
+   * in a strip of 36 (4 Nov 2026), and pressed across the whole of it.
    */
-  test("the Calendar's bar stays over its days, a swipe walks them, and its views are a thumb tall to press", async ({
+  test("the Calendar's bar stays over its days, a swipe walks them, and its views are pressed across their strip", async ({
     page,
   }) => {
     await page.goto("/#/calendar");
@@ -1184,8 +1242,9 @@ test.describe("Phone shell on a real workspace", () => {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     };
     const places: Record<string, string> = {};
-    // The room under the list is the list's own where the row's page is a thread: the window scrolls an open thread and
-    // opens it at its end (#1781), and room left on the body was that end, the thread scrolled out of sight above it.
+    // The room under the list is the list's own where the row's page is a thread: while the window scrolled an open thread
+    // (#1781, until the thread became a screen of its own on 3 Nov 2026) it opened it at its end, and room left on the
+    // body was that end, the thread scrolled out of sight above it.
     for (const [hash, rowSel, opened, room] of [
       ["conversations", ".cv-row", ".conversations .ix-thread-pane", ".conversations > .cv-list"],
       ["clients", ".pl-table tbody tr.pl-card-row", ".cl-prof-name", "body"],
@@ -1333,7 +1392,8 @@ test.describe("Phone shell on a real workspace", () => {
     test.skip(ids.length === 0, "nobody on this workspace");
     let tabs = 0;
     for (const id of ids) {
-      await page.goto(`/#/clients/${id}`);
+      // On History's own tab: a person with any record opens on their Overview, and draws the strip nowhere else.
+      await page.goto(`/#/clients/${id}/history`);
       await expect(page.getByTestId("person-now")).toBeVisible();
       await page.waitForLoadState("networkidle");
       tabs = await page.locator(".cl-tl-filters .subtab").count();
@@ -1354,10 +1414,10 @@ test.describe("Phone shell on a real workspace", () => {
       [Math.round(back.y), Math.round(back.height)],
       "the way back is as tall as what stands at the bar's right, on its line",
     ).toEqual([Math.round(bell.y), Math.round(bell.height)]);
-    const underThumb = await page.evaluate(
-      ([x, y]) => !!document.elementFromPoint(x, y)?.closest(".pg-back"),
-      [back.x + back.width / 2, back.y + back.height + 5],
-    );
+    const underThumb = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest(".pg-back"), {
+      x: back.x + back.width / 2,
+      y: back.y + back.height + 5,
+    });
     expect(underThumb, "a thumb a little under the capsule still presses it").toBe(true);
     const face = (await page.locator(".cl-prof-id .face").first().boundingBox())!;
     expect(face.x, "the face stands at the page's gutter, not after an arrow of its own").toBeLessThanOrEqual(17);
@@ -1450,5 +1510,39 @@ test.describe("Phone shell on a real workspace", () => {
     await who.click();
     await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/[\w-]+$/);
     await expect(page.locator(".cl-profile")).toBeVisible();
+  });
+
+  /**
+   * A long name ends in its ellipsis before More, on one line, and their page says it whole (Ruben, 5 Nov 2026): it ran
+   * 32px on under the ⋯, with the line under it. This workspace's names are short, so the head lends one a business's.
+   */
+  test("a long name in a thread's header stops before More, on one line", async ({ page }) => {
+    await page.goto("/#/inbox");
+    await page.waitForLoadState("networkidle");
+    const row = page.locator(".ix-thread").first();
+    test.skip((await row.count()) === 0, "no thread on this workspace");
+    await row.click();
+    const head = page.locator(".ix-thread-pane > .ix-th-head");
+    await expect(head).toBeVisible();
+    await motionSettled(page);
+    const fit = await head.evaluate((el) => {
+      const words = el.querySelector(".ix-th-name-words");
+      const name = words?.firstChild;
+      const more = el.querySelector(".ix-th-more")?.getBoundingClientRect();
+      const under = el.querySelector(".ix-th-sub");
+      if (!words || !name || !more || !under) return null;
+      const was = name.nodeValue;
+      name.nodeValue = "24 Hr. Emergency Plumbing & Hot Water Repairs of Greater Springfield";
+      const box = words.getBoundingClientRect();
+      const measured = {
+        cut: words.scrollWidth > words.clientWidth,
+        oneLine: box.height < parseFloat(getComputedStyle(words).fontSize) * 2,
+        nameClearOfMore: box.right <= more.left,
+        lineClearOfMore: under.getBoundingClientRect().right <= more.left,
+      };
+      name.nodeValue = was;
+      return measured;
+    });
+    expect(fit).toEqual({ cut: true, oneLine: true, nameClearOfMore: true, lineClearOfMore: true });
   });
 });

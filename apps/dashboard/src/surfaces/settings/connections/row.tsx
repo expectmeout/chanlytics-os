@@ -22,19 +22,15 @@
  * a phone.
  */
 import { useState, type MouseEvent, type ReactNode } from "react";
-import {
-  MESSAGES_ROUTE,
-  type ConnectionKind,
-  type ConnectionRow as Row,
-  type ConnectionVerb,
-} from "@chanlytics/contracts";
+import { MESSAGES_ROUTE } from "@chanlytics/contracts";
+import type { ConnectionKind, ConnectionLine as Row, ConnectionVerb } from "./model/setup";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
-import { canDo, gate, navigate } from "../../legacy-verbs";
+import { canDo, gate, navigate } from "../../frame-verbs";
 
 const VERB_TESTID: Record<string, string> = {
   "verb:google-check": "google-check",

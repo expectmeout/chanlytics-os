@@ -7,7 +7,7 @@
 import { agoWords, WEEK_MS } from "../shared/time";
 import { clockDate } from "../shared/clock";
 import { relationshipOnRecord, STOP_WORDS } from "../consent/consent";
-import { channelsWords, coveredChannels } from "../consent/consent-channels";
+import { channelsWords, coveredChannels } from "../consent/channels";
 import { consentSourceLabel, STOP_ENDED_OFFERS_SOURCE, type PersonConsent } from "./person-consent";
 import { fmtDate, ts } from "./person-helpers";
 import type { PersonRowDto } from "./person-dto";
@@ -52,16 +52,17 @@ export function theirTurnWords(last: Pick<PersonLastContact, "who" | "kind">): s
  * (lastContactOf): an email with only HTML, kept by the six months' import before it read HTML, had no words, and 13
  * rows said "Not heard from" beside "They wrote" (the live walk, 27 Oct 2026).
  */
-export function heardAt(r: PersonRowDto): number | null {
-  const wrote = ts(r.last_inbound_at) ?? (r.last_message_direction === "inbound" ? ts(r.last_message_at) : null);
-  const at = [wrote, ts(r.last_inbound_call_at ?? null)].filter((x): x is number => x !== null);
+export function heardAt(person: PersonRowDto): number | null {
+  const wrote =
+    ts(person.last_inbound_at) ?? (person.last_message_direction === "inbound" ? ts(person.last_message_at) : null);
+  const at = [wrote, ts(person.last_inbound_call_at ?? null)].filter((x): x is number => x !== null);
   return at.length ? Math.max(...at) : null;
 }
 
-export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonLastContact {
-  const m = ts(r.last_message_at);
-  const k = ts(r.last_call_at);
-  if (m === null && k === null) {
+export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): PersonLastContact {
+  const result = ts(person.last_message_at);
+  const lastCallMs = ts(person.last_call_at);
+  if (result === null && lastCallMs === null) {
     return {
       ts: null,
       at: null,
@@ -72,15 +73,15 @@ export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): Perso
       label: "No contact recorded",
     };
   }
-  if (k !== null && (m === null || k > m)) {
+  if (lastCallMs !== null && (result === null || lastCallMs > result)) {
     // "Phoned" only when THEY did: last_call_at holds the receptionist's own outbound calls too, and the row said
     // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (above) already reads it this way.
-    const theirs = ts(r.last_inbound_call_at) === k;
+    const theirs = ts(person.last_inbound_call_at) === lastCallMs;
     const by = theirs ? "Phoned" : "We called";
-    const when = ago(k, tz, nowMs);
+    const when = ago(lastCallMs, tz, nowMs);
     return {
-      ts: k,
-      at: r.last_call_at,
+      ts: lastCallMs,
+      at: person.last_call_at,
       kind: "call",
       who: theirs ? "they" : "system",
       by,
@@ -88,31 +89,39 @@ export function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): Perso
       label: `${by} · ${when}`,
     };
   }
-  const who: PersonLastContact["who"] =
-    r.last_message_direction === "inbound"
+  const lastContact: PersonLastContact["who"] =
+    person.last_message_direction === "inbound"
       ? "they"
-      : r.last_message_sender === "human"
+      : person.last_message_sender === "human"
         ? "team"
-        : r.last_message_sender === "ai"
+        : person.last_message_sender === "ai"
           ? "receptionist"
           : "system";
   // A reply answers something: to someone who never wrote or called, the team and the receptionist wrote first. The row
   // said "Not heard from" beside "Your team replied" for the people a cold email reached (27 Oct 2026).
-  const answered = heardAt(r) !== null;
+  const answered = heardAt(person) !== null;
   const verb =
-    who === "they"
+    lastContact === "they"
       ? "They wrote"
-      : who === "team"
+      : lastContact === "team"
         ? answered
           ? "Your team replied"
           : "Your team wrote"
-        : who === "receptionist"
+        : lastContact === "receptionist"
           ? answered
             ? "Receptionist replied"
             : "Receptionist wrote"
           : "We sent";
-  const when = ago(m as number, tz, nowMs);
-  return { ts: m, at: r.last_message_at, kind: "message", who, by: verb, when, label: `${verb} · ${when}` };
+  const when = ago(result as number, tz, nowMs);
+  return {
+    ts: result,
+    at: person.last_message_at,
+    kind: "message",
+    who: lastContact,
+    by: verb,
+    when,
+    label: `${verb} · ${when}`,
+  };
 }
 
 export interface PersonFirstContact {
@@ -125,28 +134,28 @@ export interface PersonFirstContact {
   evidence: boolean;
 }
 
-export function firstContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonFirstContact {
-  const f = ts(r.first_contact_at);
-  if (f !== null) return { ts: f, label: fmtDate(f, tz, nowMs), estimate: false, evidence: !r.has_backfill };
-  const e = ts(r.earliest_row_at);
-  if (e !== null && r.has_backfill)
+export function firstContactOf(person: PersonRowDto, tz: string, nowMs: number): PersonFirstContact {
+  const f = ts(person.first_contact_at);
+  if (f !== null) return { ts: f, label: fmtDate(f, tz, nowMs), estimate: false, evidence: !person.has_backfill };
+  const e = ts(person.earliest_row_at);
+  if (e !== null && person.has_backfill)
     return { ts: e, label: `Before ${fmtDate(e, tz, nowMs)}`, estimate: true, evidence: false };
-  if (e !== null) return { ts: e, label: fmtDate(e, tz, nowMs), estimate: false, evidence: !r.has_backfill };
+  if (e !== null) return { ts: e, label: fmtDate(e, tz, nowMs), estimate: false, evidence: !person.has_backfill };
   return { ts: null, label: "—", estimate: true, evidence: false };
 }
 
 /** One line for the person's profile about offers: how and when they said yes and on which channels, or what they said. */
-function offersSub(r: PersonRowDto, marketing: PersonConsent["marketing"], tz: string, nowMs: number): string {
+function offersSub(person: PersonRowDto, marketing: PersonConsent["marketing"], tz: string, nowMs: number): string {
   if (marketing === "opted_out") return "no offers";
   // A yes a stop ended (00323) is not "never asked": they said yes once, and took everything back.
   if (marketing !== "opted_in")
-    return r.marketing_consent_source === STOP_ENDED_OFFERS_SOURCE
+    return person.marketing_consent_source === STOP_ENDED_OFFERS_SOURCE
       ? "their yes ended when they said stop"
       : "never asked about offers";
-  const when = ts(r.marketing_consent_updated_at ?? null);
-  const how = consentSourceLabel(r.marketing_consent_source ?? null);
+  const when = ts(person.marketing_consent_updated_at ?? null);
+  const how = consentSourceLabel(person.marketing_consent_source ?? null);
   const date = when !== null ? fmtDate(when, tz, nowMs) : "recorded";
-  return `${how ? `${how} · ` : ""}${date} · ${channelsWords(coveredChannels(r.marketing_channels))}`;
+  return `${how ? `${how} · ` : ""}${date} · ${channelsWords(coveredChannels(person.marketing_channels))}`;
 }
 
 /** How an answer about email offers was given, in a person's page's words. */
@@ -166,16 +175,16 @@ const EMAIL_OFFERS_SOURCES: Record<string, string> = {
  * and "not asked" says so quietly.
  */
 function emailOffersOf(
-  r: PersonRowDto,
+  person: PersonRowDto,
   relationship: boolean,
   tz: string,
   nowMs: number,
 ): Pick<PersonConsent, "emailMarketing" | "emailMarketingSource" | "emailOffersLabel" | "emailOffersSub"> {
-  const answer = r.email_marketing;
+  const answer = person.email_marketing;
   const emailMarketing: PersonConsent["emailMarketing"] =
     answer === "opted_in" || answer === "opted_out" || answer === "unknown" ? answer : null;
-  const source = r.email_marketing_source ?? null;
-  const when = ts(r.email_marketing_updated_at ?? null);
+  const source = person.email_marketing_source ?? null;
+  const when = ts(person.email_marketing_updated_at ?? null);
   const how = source ? (EMAIL_OFFERS_SOURCES[source] ?? source) : null;
   const dated = `${how ? `${how} · ` : ""}${when !== null ? fmtDate(when, tz, nowMs) : "recorded"}`;
   if (emailMarketing === "opted_in")
@@ -195,40 +204,40 @@ function emailOffersOf(
   };
 }
 
-export function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonConsent {
-  const dnc = !!r.dnc;
+export function consentOf(person: PersonRowDto, tz: string, nowMs: number): PersonConsent {
+  const dnc = !!person.dnc;
   const state: PersonConsent["state"] =
-    r.consent === "opted_out" || dnc ? "opted_out" : r.consent === "opted_in" ? "opted_in" : "unknown";
-  const when = ts(r.consent_updated_at);
+    person.consent === "opted_out" || dnc ? "opted_out" : person.consent === "opted_in" ? "opted_in" : "unknown";
+  const when = ts(person.consent_updated_at);
   const date = when !== null ? fmtDate(when, tz, nowMs) : "recorded";
-  const how = consentSourceLabel(r.consent_source);
+  const how = consentSourceLabel(person.consent_source);
   const sub =
     state === "opted_out"
-      ? r.consent_source === "customer_message"
+      ? person.consent_source === "customer_message"
         ? `STOP received${when !== null ? ` ${fmtDate(when, tz, nowMs)}` : ""}`
         : `${how ? `${how} · ` : ""}${date}`
       : state === "opted_in"
-        ? `${how ? `${how} · ` : ""}${date} · ${channelsWords(coveredChannels(r.consent_channels))}`
+        ? `${how ? `${how} · ` : ""}${date} · ${channelsWords(coveredChannels(person.consent_channels))}`
         : "no opt-in recorded";
   // The offers answer, judged on its own. A STOP or a do-not-call stops
   // everything, so it shows here as opted_out too -- but declining offers never
   // reads back as an opt-out of conversation.
   const marketing: PersonConsent["marketing"] =
-    dnc || r.consent === "opted_out"
+    dnc || person.consent === "opted_out"
       ? "opted_out"
-      : r.marketing_consent === "opted_in"
+      : person.marketing_consent === "opted_in"
         ? "opted_in"
-        : r.marketing_consent === "opted_out"
+        : person.marketing_consent === "opted_out"
           ? "opted_out"
           : "unknown";
-  const marketingSub = offersSub(r, marketing, tz, nowMs);
+  const marketingSub = offersSub(person, marketing, tz, nowMs);
   // They wrote (in a person's own words: last_wrote_at, not an automatic reply or a list's mail), called or have a deal: all
   // three are columns people_list returns (the newest deal's id is any deal's). A row read before 00299 has no last_wrote_at,
   // which is no relationship on record: an offer by email then asks for the person's own yes.
   const relationship = relationshipOnRecord({
-    lastWroteAt: r.last_wrote_at ?? null,
-    lastInboundCallAt: r.last_inbound_call_at ?? null,
-    hasDeal: !!r.deal_id,
+    lastWroteAt: person.last_wrote_at ?? null,
+    lastInboundCallAt: person.last_inbound_call_at ?? null,
+    hasDeal: !!person.deal_id,
   });
   return {
     state,
@@ -237,15 +246,15 @@ export function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonCon
     // The answer in the words its own control uses (Yes, Not asked, No), as marketingLabel is the offers answer's.
     answerLabel: state === "opted_in" ? "Yes" : state === "opted_out" ? "No" : "Not asked",
     sub,
-    source: r.consent_source ?? null,
+    source: person.consent_source ?? null,
     marketing,
-    marketingSource: r.marketing_consent_source ?? null,
+    marketingSource: person.marketing_consent_source ?? null,
     marketingSub,
     // The offers answer in the words People's Offers column uses, so a list and the page agree.
     marketingLabel: marketing === "opted_in" ? "Yes" : marketing === "opted_out" ? "No" : "Not asked",
-    channels: r.consent_channels ?? null,
-    marketingChannels: r.marketing_channels ?? null,
-    ...emailOffersOf(r, relationship, tz, nowMs),
+    channels: person.consent_channels ?? null,
+    marketingChannels: person.marketing_channels ?? null,
+    ...emailOffersOf(person, relationship, tz, nowMs),
     relationship,
   };
 }

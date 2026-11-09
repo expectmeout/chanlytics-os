@@ -6,9 +6,12 @@
  * on a workspace's table goes through `tenantDb`, so none can reach another workspace's row.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../../database.types";
-import { tenantDb } from "../../tenant-db";
+import type { Database, Json } from "../../types";
+import { tenantDb } from "../../shared/tenant-db";
 
+import { recordOrEmpty, type SchemaSet, DbFailure } from "@chanlytics/contracts";
+import { asJson } from "../../shared/json";
+import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** One source's row, as the page reads it (contracts imports/ledger.ts ImportRowDto). */
@@ -36,19 +39,19 @@ function ledgerCountsOf(raw: unknown): Record<string, number> {
 }
 
 /** The workspace's ledger, every row it holds: a source's, or a mailbox's of a source. */
-export async function importsOf(db: Db, tenantId: string): Promise<ImportLedgerRow[]> {
+export async function listImports(db: Db, tenantId: TenantId): Promise<ImportLedgerRow[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("imports")
     .select(
       "source, connection_id, state, counts, parts_done, parts_total, oldest, started_at, finished_at, last_error, via",
     );
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []).map((r) => ({ ...r, counts: ledgerCountsOf(r.counts) }));
 }
 
 /** A run's state, written: counts added to what came before (`add`) or set whole; its parts, reach, cursor and error. */
 export interface ImportNote {
-  tenantId: string;
+  tenantId: TenantId;
   source: string;
   state: "queued" | "running" | "done" | "failed";
   counts?: Record<string, number>;
@@ -67,24 +70,24 @@ export interface ImportNote {
   take?: boolean;
 }
 
-export async function noteImport(db: Db, n: ImportNote): Promise<void> {
+export async function noteImport(db: Db, importNote: ImportNote): Promise<void> {
   const { error } = await db.rpc("import_ledger_note", {
-    p_tenant_id: n.tenantId,
-    p_source: n.source,
-    p_state: n.state,
-    p_counts: (n.counts ?? {}) as Json,
-    p_add: n.add ?? false,
-    p_parts_done: n.partsDone ?? undefined,
-    p_parts_total: n.partsTotal ?? undefined,
-    p_oldest: n.oldest ?? undefined,
-    p_via: n.via ?? undefined,
-    p_error: n.error ?? undefined,
-    p_cursor: n.cursor ?? undefined,
-    p_connection_id: n.connectionId ?? undefined,
-    p_run: n.run ?? undefined,
-    p_take: n.take ?? undefined,
+    p_tenant_id: importNote.tenantId,
+    p_source: importNote.source,
+    p_state: importNote.state,
+    p_counts: asJson(importNote.counts ?? {}),
+    p_add: importNote.add ?? false,
+    p_parts_done: importNote.partsDone ?? undefined,
+    p_parts_total: importNote.partsTotal ?? undefined,
+    p_oldest: importNote.oldest ?? undefined,
+    p_via: importNote.via ?? undefined,
+    p_error: importNote.error ?? undefined,
+    p_cursor: importNote.cursor ?? undefined,
+    p_connection_id: importNote.connectionId ?? undefined,
+    p_run: importNote.run ?? undefined,
+    p_take: importNote.take ?? undefined,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
 }
 
 /** A row as a part reads it before it reads on: where it stands, the run that holds it and its job's place. */
@@ -97,9 +100,7 @@ export interface ImportRunRow {
 
 /** The mailbox a row's cursor names, as the parts write it; null where it names none. */
 const namedIn = (cursor: unknown): unknown =>
-  cursor && typeof cursor === "object" && !Array.isArray(cursor)
-    ? (cursor as Record<string, unknown>).connection
-    : null;
+  cursor && typeof cursor === "object" && !Array.isArray(cursor) ? recordOrEmpty(cursor).connection : null;
 
 /**
  * A source's row, as the part that reads it next finds it: the mailbox's own (for what a mailbox brings), else the row
@@ -108,18 +109,18 @@ const namedIn = (cursor: unknown): unknown =>
  */
 export async function importRowOf(
   db: Db,
-  tenantId: string,
-  source: string,
+  tenantId: TenantId,
+  source: SchemaSet<"imports.source">,
   connectionId: string | null = null,
 ): Promise<ImportRunRow | null> {
-  const q = tenantDb(db, tenantId)
+  const result = tenantDb(db, tenantId)
     .from("imports")
     .select("connection_id, state, run, last_error, job_cursor")
     .eq("source", source);
   const { data, error } = await (connectionId
-    ? q.or(`connection_id.eq.${connectionId},connection_id.is.null`)
-    : q.is("connection_id", null));
-  if (error) throw new Error(error.message);
+    ? result.or(`connection_id.eq.${connectionId},connection_id.is.null`)
+    : result.is("connection_id", null));
+  if (error) throw new DbFailure(error);
   const rows = data ?? [];
   const kept = rows.find((r) => r.connection_id === null);
   const named = kept ? namedIn(kept.job_cursor) : null;
@@ -139,8 +140,8 @@ export async function importRowOf(
 /** Where a source's job stands (its cursor), for the job that picks it up again; null before it ran. */
 export async function importCursorOf(
   db: Db,
-  tenantId: string,
-  source: string,
+  tenantId: TenantId,
+  source: SchemaSet<"imports.source">,
   connectionId: string | null = null,
 ): Promise<Json | null> {
   return (await importRowOf(db, tenantId, source, connectionId))?.job_cursor ?? null;

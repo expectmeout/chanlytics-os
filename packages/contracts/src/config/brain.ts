@@ -17,6 +17,7 @@ import { POLICY_COVERS } from "./workspace-config/policy-classes";
 import type { BrainOutput } from "./brain-schema";
 import { INTENT_LABELS } from "./intent-labels";
 import { BOOKING_REQUEST_SCHEMA_FIELDS } from "../calendar/visit/booking-request";
+import { isOneOf, listOrEmpty } from "../shared/unknown";
 
 export const BRAIN_INTENTS = [
   "booking",
@@ -87,8 +88,8 @@ export const BRAIN_OUTPUT_JSON_SCHEMA = {
  * The answer's schema for one turn: the record, and where the workspace takes booking requests on this turn, the two
  * fields a time the customer picked is written in (decision 0061). A turn that takes none is sent exactly the record.
  */
-export function brainOutputSchemaFor(o: { bookingRequests: boolean }) {
-  if (!o.bookingRequests) return BRAIN_OUTPUT_JSON_SCHEMA;
+export function brainOutputSchemaFor(options: { bookingRequests: boolean }) {
+  if (!options.bookingRequests) return BRAIN_OUTPUT_JSON_SCHEMA;
   return {
     ...BRAIN_OUTPUT_JSON_SCHEMA,
     properties: { ...BRAIN_OUTPUT_JSON_SCHEMA.properties, ...BOOKING_REQUEST_SCHEMA_FIELDS },
@@ -160,17 +161,13 @@ export interface ReplyWhyVM {
 /** From a message row's meta; null when the row carries no reasoning. */
 export function replyWhy(meta: Record<string, unknown> | null | undefined): ReplyWhyVM | null {
   if (!meta || typeof meta !== "object") return null;
-  const intent = (BRAIN_INTENTS as readonly string[]).includes(String(meta.intent))
-    ? (meta.intent as BrainIntent)
-    : null;
+  const intent = isOneOf(BRAIN_INTENTS, meta.intent) ? meta.intent : null;
   const conf =
     typeof meta.confidence === "number" && Number.isFinite(meta.confidence)
       ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100)
       : null;
   if (intent === null && conf === null) return null;
-  const facts = Array.isArray(meta.facts_used)
-    ? (meta.facts_used as unknown[]).filter((f): f is string => typeof f === "string" && !!f.trim())
-    : [];
+  const facts = listOrEmpty(meta.facts_used).filter((f): f is string => typeof f === "string" && !!f.trim());
   const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
   const source = typeof meta.source === "string" ? meta.source : null;
   const heldFor = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;

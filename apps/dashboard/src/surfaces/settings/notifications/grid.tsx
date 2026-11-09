@@ -13,7 +13,7 @@ import {
 import { Icon } from "../../kit/icon/icon";
 import { Press } from "../../kit/press";
 import { RecordTip } from "../../kit/record/field";
-import { gate, showTip, type GateProps } from "../../legacy-verbs";
+import { gate, showTip, type GateProps } from "../../frame-verbs";
 
 /** What a press of a tick asks for: the topic, its channel, and the state it asks for. */
 export type PutTick = (topic: AlertTopic, channel: "email" | "phone", on: boolean) => void;

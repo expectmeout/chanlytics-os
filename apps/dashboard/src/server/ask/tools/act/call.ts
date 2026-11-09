@@ -1,43 +1,40 @@
 import "server-only";
 import { z } from "zod";
-import { addressOf, callerName } from "@chanlytics/contracts";
-import { load } from "../../../readers";
+import { addressOf, callerName, UUID } from "@chanlytics/contracts";
+import { load } from "../../../shared/reader";
 import { call as callReader } from "../../../readers/call";
-import {
-  UUID,
-  actAction,
-  defineActions,
-  noteRow,
-  propose,
-  refuse,
-  str,
-  unlessNotFound,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../context";
+import { noteRow, str, readUnlessNotFound } from "../context/tool-reads";
+import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
+import { propose, refuse } from "../context/context";
 
 /**
  * The call a card names: in progress, in this workspace, with who it is with as Live names them; or the refusal. Read
  * as calls.get reads it (readers/call.ts), so the card and the read say one caller.
  */
-async function liveCall(t: ToolContext, callId: string): Promise<{ id: string; who: string } | ProposalOutcome> {
+async function liveCall(
+  toolContext: ToolContext,
+  callId: string,
+): Promise<{ id: string; who: string } | ProposalOutcome> {
   const id = str(callId, 40);
   if (!UUID.test(id)) return refuse("call_id must be an id a read returned");
-  const read = await unlessNotFound(load(t.rc, callReader, { id }));
+  const read = await readUnlessNotFound(load(toolContext.rc, callReader, { id }));
   if (!read) return refuse("no such call in this workspace");
   const { call } = read.data;
   if (call.status !== "ongoing") return refuse("that call is not in progress; there is nobody on the line");
   // As Live names the call (callerName): the saved name, else the number as the phone showed it, never the raw digits.
-  const who = callerName(call);
-  noteRow(t, "call", id, who, addressOf({ kind: "call", id }));
-  return { id, who };
+  const personName = callerName(call);
+  noteRow(toolContext, "call", id, personName, addressOf({ kind: "call", id }));
+  return { id, who: personName };
 }
 const notLive = (c: { id: string; who: string } | ProposalOutcome): c is ProposalOutcome => "result" in c;
 
-async function proposeWhisper(t: ToolContext, input: { call_id: string; text: string }): Promise<ProposalOutcome> {
+async function proposeWhisper(
+  toolContext: ToolContext,
+  input: { call_id: string; text: string },
+): Promise<ProposalOutcome> {
   const text = str(input.text, 500);
   if (!text) return refuse("text is required");
-  const call = await liveCall(t, input.call_id);
+  const call = await liveCall(toolContext, input.call_id);
   if (notLive(call)) return call;
   return propose({
     kind: "whisper",
@@ -82,7 +79,7 @@ export const propose_call = defineActions({
       examples: [{ call_id: "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", text: "Offer Saturday at 10." }],
       label: "Preparing a whisper",
       words:
-        "Action whisper takes call_id and text: a sentence only the phone receptionist hears, worked into its next answer to the caller. It shapes what the receptionist says next and never reaches the caller as written.",
+        "Action whisper takes call_id and text, a sentence only the phone receptionist hears, worked into its next answer to the caller; it never reaches the caller as written.",
       build: proposeWhisper,
     }),
     hand_over: actAction({

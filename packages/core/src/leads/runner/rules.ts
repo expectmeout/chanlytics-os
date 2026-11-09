@@ -27,7 +27,7 @@
  * collect.ts, check.ts and sweep.ts.
  */
 
-import { LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS } from "@chanlytics/contracts";
+import { LEAD_NO_SITE_KEY, LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS, recordOrNull } from "@chanlytics/contracts";
 import { JUDGE_TIMEOUT_MS } from "../judge";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
 
@@ -67,6 +67,7 @@ export const PROVIDER_RUN_PAGE = 100;
 export const OUT_OF_AREA_REASON = "outside the area you asked for";
 export const NO_LOCATION_REASON = "no location on the listing";
 export const CLOSED_REASON = "closed on Google Maps";
+export const NO_SITE_REASON = "no website of its own on its listing";
 export const DUPLICATE_REASON = "the same place, listed twice";
 
 export type Phase = "probe" | "main";
@@ -86,13 +87,21 @@ const isRetryable = (e: unknown): e is { name: string; status: number | null } =
   (e as { name?: string } | null)?.name === "ApifyRetryable";
 const minute = (p: LeadPorts) => Math.floor(p.now().getTime() / MIN_MS);
 const outOfTime = (p: LeadPorts, marginMs: number = DEADLINE_MARGIN_MS) => p.now().getTime() + marginMs > p.deadline;
+/** The most a batch's mark step takes, its time permitting: it is the last thing the collect does and the first it gives up. */
+export const MARK_ALLOWANCE_MS = 12_000;
+/**
+ * When a batch's mark step stops: its allowance, or before that what must stay free behind it. A batch another follows in
+ * this invocation leaves the next judge its whole bound; the last leaves only the kill margin its commit runs inside.
+ */
+const markUntil = (p: LeadPorts, last: boolean): number =>
+  Math.min(p.now().getTime() + MARK_ALLOWANCE_MS, p.deadline - (last ? DEADLINE_MARGIN_MS : JUDGE_MARGIN_MS));
 const webhookUrl = (p: LeadPorts, runRowId: string, token: string) =>
   `${p.webhookBase}/api/apify-webhook?run=${encodeURIComponent(runRowId)}&token=${encodeURIComponent(token)}`;
 /** Round 1 runs to the plan's count (its probe asks for 25 of it); a later round to what lead_search_more set as its target. */
 export const targetOf = (round: LeadRoundRow): number => (round.purpose === "probe" ? round.plan.count : round.target);
 /** A member the judge answered for, as opposed to one left out or held by rule. */
 const wasJudged = (m: LeadMemberRow): boolean => {
-  const j = m.judgment as { answer?: unknown } | null;
+  const j = recordOrNull(m.judgment);
   return !!j && typeof j === "object" && j.answer !== null && j.answer !== undefined;
 };
 
@@ -107,4 +116,7 @@ async function heldBack(p: LeadPorts, tenantId: LeadRoundRow["tenant_id"]): Prom
   return null;
 }
 
-export { heldBack, iso, isRefused, isRetryable, minute, outOfTime, webhookUrl, wasJudged };
+/** A member the sizing counts as looked at: one the judge answered for, or one code left out for having no site to read. */
+const wasWeighed = (m: LeadMemberRow): boolean => wasJudged(m) || m.excluded_by === LEAD_NO_SITE_KEY;
+
+export { heldBack, iso, isRefused, isRetryable, markUntil, minute, outOfTime, wasWeighed, webhookUrl, wasJudged };

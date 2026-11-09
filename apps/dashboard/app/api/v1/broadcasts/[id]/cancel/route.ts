@@ -1,7 +1,7 @@
 import { cancelBroadcast } from "@chanlytics/core";
-import { write } from "@/server/route";
-import { broadcastScope } from "@/server/verbs";
-import { cancelBroadcastPorts } from "@/server/ports/campaign-ports";
+import { write } from "@/server/shared/route";
+import { broadcastScope } from "@/server/shared/verbs";
+import { cancelBroadcastPorts } from "@/server/campaigns/ports";
 
 /**
  * POST /api/v1/broadcasts/:id/cancel — stop a broadcast that has not

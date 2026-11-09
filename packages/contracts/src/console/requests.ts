@@ -7,6 +7,7 @@
 import type { Tone } from "../shell/tone";
 import { DAY_MS } from "../shared/time";
 import { clockDateYear } from "../shared/clock";
+import { isOneOf } from "../shared/unknown";
 
 export const REQUEST_KINDS = ["delete_workspace", "delete_person", "copy"] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
@@ -91,8 +92,8 @@ export function requestClock(
 }
 
 /** A request's Q-number, as the inbox and the log say it. */
-export function requestCode(n: number): string {
-  return `Q-${n}`;
+export function requestCode(count: number): string {
+  return `Q-${count}`;
 }
 
 export interface RequestStepVM {
@@ -175,7 +176,7 @@ export function requestDayWords(iso: string, tz: string): string {
 
 /** Whether a step belongs to a kind: a route refuses one that does not. */
 function requestHasStep(kind: RequestKind, step: string): step is RequestStep {
-  return (REQUEST_STEPS[kind] as readonly string[]).includes(step);
+  return isOneOf(REQUEST_STEPS[kind], step);
 }
 
 /**

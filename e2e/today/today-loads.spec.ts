@@ -49,7 +49,7 @@ test.describe("Today on a cold load", () => {
     const load = await page.evaluate(
       () => (window as unknown as { __todayLoad: { queue: number[]; above: string[]; head: number } }).__todayLoad,
     );
-    const first = load.queue[0];
+    const first = load.queue[0] ?? 0;
     const moved = Math.max(...load.queue.map((y) => Math.abs(y - first)));
     expect(moved, `the queue's tops, frame by frame: ${load.queue.join(" > ")}`).toBeLessThanOrEqual(ENTRANCE_PX);
     // Whatever stands above the queue at the end stood there in its first frame: nothing landed over it.

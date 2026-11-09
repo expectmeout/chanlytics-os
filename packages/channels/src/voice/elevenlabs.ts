@@ -7,7 +7,8 @@
  * the outcomes a door can answer with: `ok`, `rejected` (the vendor said no; asking again gets the same answer) or
  * `unreachable` (no answer, or "not now": a 429 is the vendor's concurrency or rate limit, sources §9).
  */
-import { answerObject, providerFetch, type ProviderReply } from "../provider-fetch";
+import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
+import { sameBytes } from "../shared/same-bytes";
 
 const ELEVENLABS_API = "https://api.elevenlabs.io";
 /** One round trip to the vendor, bounded: a mint while a person waits for the first word, or an erase after the call. */
@@ -28,7 +29,7 @@ export interface ElevenLabsConfig {
   agentId: string;
 }
 
-type Deps = Parameters<typeof providerFetch>[3];
+type Deps = Parameters<typeof fetchFromProvider>[3];
 
 export type ConversationMint =
   | { outcome: "ok"; token: string; conversationId: string }
@@ -57,17 +58,18 @@ const notOk = (a: ProviderReply): { outcome: "rejected" | "unreachable"; status:
  */
 export async function mintConversationToken(cfg: ElevenLabsConfig, deps?: Deps): Promise<ConversationMint> {
   const url = `${ELEVENLABS_API}/v1/convai/conversation/token?agent_id=${encodeURIComponent(cfg.agentId)}`;
-  const a = await providerFetch(
+  const response = await fetchFromProvider(
     "elevenlabs",
     url,
     { method: "GET", headers: { "xi-api-key": cfg.apiKey }, timeoutMs: ELEVENLABS_TIMEOUT_MS },
     deps,
   );
-  if (a.outcome !== "ok") return notOk(a);
-  const j = answerObject(a);
-  const token = typeof j?.token === "string" ? j.token : "";
-  const conversationId = typeof j?.conversation_id === "string" ? j.conversation_id : "";
-  if (!token || !conversationId) return { outcome: "rejected", status: a.status, error: "no token in the answer" };
+  if (response.outcome !== "ok") return notOk(response);
+  const result = answerObject(response);
+  const token = typeof result?.token === "string" ? result.token : "";
+  const conversationId = typeof result?.conversation_id === "string" ? result.conversation_id : "";
+  if (!token || !conversationId)
+    return { outcome: "rejected", status: response.status, error: "no token in the answer" };
   return { outcome: "ok", token, conversationId };
 }
 
@@ -93,7 +95,7 @@ export async function speakText(
   deps?: Deps,
 ): Promise<SpeechStream> {
   const url = `${ELEVENLABS_API}/v1/text-to-speech/${encodeURIComponent(input.voiceId)}/stream?output_format=mp3_44100_128`;
-  const a = await providerFetch(
+  const response = await fetchFromProvider(
     "elevenlabs",
     url,
     {
@@ -110,8 +112,8 @@ export async function speakText(
     },
     deps,
   );
-  if (a.outcome !== "ok" || !a.body) return notOk(a);
-  return { outcome: "ok", body: a.body, contentType: a.headers?.get("content-type") || "audio/mpeg" };
+  if (response.outcome !== "ok" || !response.body) return notOk(response);
+  return { outcome: "ok", body: response.body, contentType: response.headers?.get("content-type") || "audio/mpeg" };
 }
 
 /** The vendor's record of a conversation, erased (`DELETE /v1/convai/conversations/{id}`): what door D does once the minutes are written. */
@@ -120,7 +122,7 @@ export async function deleteConversation(
   conversationId: string,
   deps?: Deps,
 ): Promise<{ outcome: "ok" | "rejected" | "unreachable"; status: number }> {
-  const a = await providerFetch(
+  const response = await fetchFromProvider(
     "elevenlabs",
     `${ELEVENLABS_API}/v1/convai/conversations/${encodeURIComponent(conversationId)}`,
     {
@@ -133,28 +135,24 @@ export async function deleteConversation(
     deps,
   );
   return {
-    outcome: a.outcome === "ok" ? "ok" : a.outcome === "refused" ? "rejected" : "unreachable",
-    status: a.status,
+    outcome: response.outcome === "ok" ? "ok" : response.outcome === "refused" ? "rejected" : "unreachable",
+    status: response.status,
   };
 }
 
 const hexOf = (b: ArrayBuffer): string =>
   Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
 
-/** Constant-time, so a wrong signature says nothing about how wrong it was. */
-function sameBytes(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 /**
  * The signature the vendor computes for one delivery: HMAC-SHA256, keyed with the webhook's secret, over
  * `<timestamp>.<raw body>`, hex, prefixed `v0=`. Web Crypto, like the Resend, Twilio, Meta and Retell verifiers, so
  * it runs on the edge as it is. Exported because a test signs with it.
  */
-export async function elevenLabsWebhookSignature(secret: string, timestamp: string, rawBody: string): Promise<string> {
+export async function verifyElevenLabsWebhookSignature(
+  secret: string,
+  timestamp: string,
+  rawBody: string,
+): Promise<string> {
   const enc = new TextEncoder();
   const key = await globalThis.crypto.subtle.importKey(
     "raw",
@@ -184,11 +182,11 @@ export async function verifyElevenLabsWebhook(
     const i = part.indexOf("=");
     if (i > 0) fields.set(part.slice(0, i).trim(), part.slice(i + 1).trim());
   }
-  const t = fields.get("t") ?? "";
-  const ts = Number(t);
-  if (!/^\d+$/.test(t) || !Number.isFinite(ts) || Math.abs(nowMs / 1000 - ts) > ELEVENLABS_WEBHOOK_TOLERANCE_S)
+  const field = fields.get("t") ?? "";
+  const ts = Number(field);
+  if (!/^\d+$/.test(field) || !Number.isFinite(ts) || Math.abs(nowMs / 1000 - ts) > ELEVENLABS_WEBHOOK_TOLERANCE_S)
     return false;
   const v0 = fields.get("v0");
   if (!v0) return false;
-  return sameBytes(`v0=${v0}`, await elevenLabsWebhookSignature(secret, t, rawBody));
+  return sameBytes(`v0=${v0}`, await verifyElevenLabsWebhookSignature(secret, field, rawBody));
 }

@@ -6,8 +6,8 @@ import {
   RUN_NOW_WITHOUT_VERSION_WORDS,
   triggerOf,
 } from "@chanlytics/contracts";
-import { write } from "@/server/route";
-import { playbookScope } from "@/server/verbs";
+import { write } from "@/server/shared/route";
+import { playbookScope } from "@/server/shared/verbs";
 import { runPlaybookNow } from "@/server/campaigns/playbook-run";
 import { refuseOnArchivedList } from "@/server/campaigns/playbooks";
 
@@ -21,7 +21,7 @@ import { refuseOnArchivedList } from "@/server/campaigns/playbooks";
  * ran today says so. Owner or operator, judged where the playbook lives
  * (playbookScope).
  */
-const SAID: Record<string, string> = {
+const REASON_WORDS: Record<string, string> = {
   preview: "Running only works on the production dashboard.",
   not_found: CAMPAIGN_NOT_FOUND,
   never: "This campaign's class is set to Never in Settings › Autonomy, so nothing runs.",
@@ -48,28 +48,32 @@ export const POST = write({
     if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
     // Nor is one on an archived list run now (00169): it is paused until its list is restored or it is moved.
     await refuseOnArchivedList(ctx, p);
-    const r = await runPlaybookNow(p.tenant_id, id, ctx.userId);
-    if (!r.ok) {
-      const said = SAID[r.reason] ?? `The run did not happen (${r.reason}).`;
+    const runPlaybook = await runPlaybookNow(p.tenant_id, id, ctx.userId);
+    if (!runPlaybook.ok) {
+      const sentence = REASON_WORDS[runPlaybook.reason] ?? `The run did not happen (${runPlaybook.reason}).`;
       // A paused workspace is the workspace's to fix, not an upstream's: 402, as every other refusal to spend is.
-      if (r.reason === "payment_required") throw new AppError("payment_required", said, 402);
+      if (runPlaybook.reason === "payment_required") throw new AppError("payment_required", sentence, 402);
       throw new AppError(
-        r.reason === "not_found" ? "not_found" : "upstream_meta",
-        said,
-        r.reason === "not_found" ? 404 : 502,
+        runPlaybook.reason === "not_found" ? "not_found" : "upstream_meta",
+        sentence,
+        runPlaybook.reason === "not_found" ? 404 : 502,
       );
     }
-    if (r.outcome === "off")
-      throw new AppError("conflict", SAID[r.skipped ?? ""] ?? `Nothing ran (${r.skipped}).`, 409);
+    if (runPlaybook.outcome === "off")
+      throw new AppError(
+        "conflict",
+        REASON_WORDS[runPlaybook.skipped ?? ""] ?? `Nothing ran (${runPlaybook.skipped}).`,
+        409,
+      );
     // When it really goes: a run outside the hours a send may go out in waits for nine, and the receipt says so.
     return {
       id,
-      outcome: r.outcome,
-      eligible: r.eligible ?? 0,
-      broadcast_id: r.broadcastId ?? null,
+      outcome: runPlaybook.outcome,
+      eligible: runPlaybook.eligible ?? 0,
+      broadcast_id: runPlaybook.broadcastId ?? null,
       name: p.name,
-      scheduled_for: r.scheduledFor,
-      moved_from: r.movedFrom,
+      scheduled_for: runPlaybook.scheduledFor,
+      moved_from: runPlaybook.movedFrom,
     };
   },
 });

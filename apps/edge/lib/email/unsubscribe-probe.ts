@@ -1,5 +1,5 @@
 /**
- * The probe of the unsubscribe links (Reach out, Part 2.6): run by the mailboxes sweep (mailbox/mailbox-sweep.ts), with
+ * The probe of the unsubscribe links (Reach out, Part 2.6): run by the mailboxes sweep (mailbox/sweep.ts), with
  * no clock of its own.
  *
  * Every reach-out email carries a link the edge seals under UNSUBSCRIBE_SECRET (in its List-Unsubscribe header, which a
@@ -21,9 +21,10 @@
  * page's own rule, because link scanners open every URL in an email. Without the edge's own key nothing is sealed, so
  * nothing is probed.
  */
-import { signUnsubscribeToken, unsubscribeUrl } from "../packages/channels.js";
-import { UNSUBSCRIBE_PAGE_HEADER } from "../packages/contracts.js";
-import { errField, type Logger } from "../log.js";
+import { heldContactId, heldTenantId } from "@chanlytics/contracts";
+import { signUnsubscribeToken, unsubscribeUrl } from "@chanlytics/channels/tokens";
+import { UNSUBSCRIBE_PAGE_HEADER } from "@chanlytics/contracts";
+import { errField, type Logger } from "../shared/log.js";
 
 const UNSUBSCRIBE_PROBE_PAGE = "email_unsubscribe_links_broken";
 /** How long each ask waits. Both asks and the pause between them count in the sweep's time budget. */
@@ -39,7 +40,7 @@ interface ProbePorts {
   /** The origin the links name, where the page answers: UNSUBSCRIBE_ORIGIN, or the dashboard's (dashboard-origin.ts). */
   origin: string;
   log: Logger;
-  /** The platform's pager (ops/page-operator.ts). */
+  /** The platform's pager (shared/alerts/page-operator.ts). */
   page: (key: string, subject: string, body: string) => Promise<unknown>;
 }
 
@@ -54,6 +55,7 @@ async function ask(url: string, log: Logger): Promise<Answer> {
     log.warn("unsubscribe_probe_unreadable", { error: errField(e) });
     return { seen: "no answer" };
   }
+  // Closing what this is done with: nothing to do if that fails.
   await res.body?.cancel().catch(() => {});
   const { status } = res;
   const view = res.headers.get(UNSUBSCRIBE_PAGE_HEADER);
@@ -93,27 +95,31 @@ function wordsFor(outcome: Exclude<ProbeOutcome, "no_secret" | "opens">, at: str
   );
 }
 
-export async function probeUnsubscribe(p: ProbePorts): Promise<ProbeOutcome> {
-  if (!p.secret) return "no_secret";
+export async function probeUnsubscribe(probePorts: ProbePorts): Promise<ProbeOutcome> {
+  if (!probePorts.secret) return "no_secret";
   const url = unsubscribeUrl(
-    p.origin,
-    signUnsubscribeToken(p.secret, { tenantId: NOBODY, contactId: NOBODY, messageId: NOBODY }),
+    probePorts.origin,
+    signUnsubscribeToken(probePorts.secret, {
+      tenantId: heldTenantId(NOBODY),
+      contactId: heldContactId(NOBODY),
+      messageId: NOBODY,
+    }),
   );
-  let answer = await ask(url, p.log);
+  let answer = await ask(url, probePorts.log);
   let seen = "seen" in answer ? answer.seen : "";
   if ("seen" in answer) {
     await new Promise((resolve) => setTimeout(resolve, PROBE_RETRY_AFTER_MS));
-    answer = await ask(url, p.log);
+    answer = await ask(url, probePorts.log);
     if ("seen" in answer) seen = `${seen}, then ${answer.seen}`;
   }
   const outcome: ProbeOutcome = "seen" in answer ? "unreachable" : answer.outcome;
   if (outcome === "opens") return outcome;
   if ("status" in answer) seen = String(answer.status);
-  p.log.error("unsubscribe_probe_failed", { outcome, seen });
-  await p.page(
+  probePorts.log.error("unsubscribe_probe_failed", { outcome, seen });
+  await probePorts.page(
     UNSUBSCRIBE_PROBE_PAGE,
     "Cold email: unsubscribe links don't open",
-    wordsFor(outcome, unsubscribeUrl(p.origin, ""), seen),
+    wordsFor(outcome, unsubscribeUrl(probePorts.origin, ""), seen),
   );
   return outcome;
 }

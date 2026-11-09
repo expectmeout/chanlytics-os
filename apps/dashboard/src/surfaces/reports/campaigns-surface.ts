@@ -3,7 +3,7 @@
  * stands now, read for the Campaigns lens (contracts `CampaignReportDto`, `GET reports/campaigns`: the sends' own report; the
  * ledger, `GET reports/campaigns/ledger`: the window beyond the sends' counts and what is stuck; and the reach-outs' report,
  * `GET reports/reach-outs`, its `report` half) and published as each route gave it. Part of the SurfaceData seam
- * (legacy-bridge/surface-data.ts); the lens reads what it publishes through `useFollower("reports_campaigns")`. The fold into its
+ * (bridge/surface-data.ts); the lens reads what it publishes through `useFollower("reports_campaigns")`. The fold into its
  * view models is the page's (`toCampaignLensVM` and `toReachOutLensVM`, the page-only entry `@chanlytics/contracts/report-lens`), so
  * the fold never rides the route's chunk: this module imports the DTOs' types and nothing else of the lens.
  *
@@ -31,10 +31,10 @@
  * while the lens is open, so the map is for the writer's own tab, for the zone and for a yes or a stop, which the feed does not carry
  * to this lens (a person arriving is not a change to what it counts).
  */
-import { read } from "@/legacy-bridge/api";
-import { COUNTED_RECEIPTS, RECEIPTS_QUIET_MS, type RealtimeChange } from "@/legacy-bridge/surface-realtime";
-import { keepForItsPage } from "@/legacy-bridge/surface-registry";
-import { routeOnScreen } from "@/legacy-bridge/workspace";
+import { read } from "@/bridge/api";
+import { COUNTED_RECEIPTS, RECEIPTS_QUIET_MS, type RealtimeChange } from "@/bridge/surface-realtime";
+import { keepForItsPage } from "@/bridge/surface-registry";
+import { routeOnScreen } from "@/bridge/workspace";
 import {
   reportRangeKey,
   reportsRouteParts,
@@ -75,7 +75,7 @@ const heardOnTheLens =
 
 /**
  * How long a burst of changes is waited out before the lens is read again. Asked for as five seconds; the runner never waits
- * more than three after the first change (surface-runner.ts REFRESH_MAX_WAIT_MS, so a steady stream is still read), and the
+ * more than three after the first change (surface-realtime.ts REFRESH_MAX_WAIT_MS, so a steady stream is still read), and the
  * three are what is waited: one read for a burst, not one for each pause longer than 800 ms (campaigns-surface.test.mjs runs it).
  */
 const LIVE_WAIT_MS = 5_000;

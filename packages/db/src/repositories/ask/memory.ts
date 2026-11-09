@@ -6,8 +6,15 @@
  * caller may not touch is P0002), for the route to answer.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AskJournalDayDto, AskMemoryLineDto, AskMemorySource } from "@chanlytics/contracts";
-import type { Database } from "../../database.types";
+import {
+  recordOrEmpty,
+  type AskJournalDayDto,
+  type AskMemoryLineDto,
+  type AskMemorySource,
+  type TenantId,
+  DbFailure,
+} from "@chanlytics/contracts";
+import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
@@ -17,7 +24,7 @@ export type AskMemoryDoor = { id: string; text: string; again: boolean } | { ref
 const memorySource = (v: unknown): AskMemorySource => (v === "pane" || v === "learned" ? v : "ask");
 
 /** The workspace's live lines, newest first, at most `limit`. */
-export async function askMemoryLines(db: Db, tenantId: string, limit: number): Promise<AskMemoryLineDto[]> {
+export async function askMemoryLines(db: Db, tenantId: TenantId, limit: number): Promise<AskMemoryLineDto[]> {
   const { data, error } = await db
     .from("ask_memory_lines")
     .select("id, text, source, made_at, updated_at, kept_by, thread_id")
@@ -26,7 +33,7 @@ export async function askMemoryLines(db: Db, tenantId: string, limit: number): P
     .order("made_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`ask_memory_lines: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_memory_lines");
   return (data ?? []).map((r) => ({
     id: r.id,
     text: r.text,
@@ -39,7 +46,7 @@ export async function askMemoryLines(db: Db, tenantId: string, limit: number): P
 }
 
 /** The journal's newest written days, newest first, at most `limit`. */
-export async function askJournalDays(db: Db, tenantId: string, limit: number): Promise<AskJournalDayDto[]> {
+export async function askJournalDays(db: Db, tenantId: TenantId, limit: number): Promise<AskJournalDayDto[]> {
   const { data, error } = await db
     .from("ask_journal_days")
     .select("day, text")
@@ -47,15 +54,15 @@ export async function askJournalDays(db: Db, tenantId: string, limit: number): P
     .eq("state", "written")
     .order("day", { ascending: false })
     .limit(limit);
-  if (error) throw new Error(`ask_journal_days: ${error.message}`);
+  if (error) throw new DbFailure(error, "ask_journal_days");
   return (data ?? []).flatMap((r) => (r.text ? [{ day: r.day, text: r.text }] : []));
 }
 
 /** A door's jsonb answer, read: the line, or its refusal. */
 function doorAnswer(fn: string, data: unknown): AskMemoryDoor {
-  const d = (data && typeof data === "object" ? data : {}) as { memory?: unknown; again?: unknown; error?: unknown };
+  const d = recordOrEmpty(data);
   if (typeof d.error === "string") return { refused: d.error };
-  const m = (d.memory && typeof d.memory === "object" ? d.memory : {}) as { id?: unknown; text?: unknown };
+  const m = recordOrEmpty(d.memory);
   if (typeof m.id !== "string") throw new Error(`${fn}: answered no line`);
   return { id: m.id, text: typeof m.text === "string" ? m.text : "", again: d.again === true };
 }
@@ -63,41 +70,45 @@ function doorAnswer(fn: string, data: unknown): AskMemoryDoor {
 /** Keep a line (ask_memory_write, keep): as the person signed in, from a turn of Ask or from the pane. */
 export async function keepAskMemory(
   db: Db,
-  p: { tenantId: string; text: string; source: AskMemorySource; threadId: string | null },
+  params: { tenantId: TenantId; text: string; source: AskMemorySource; threadId: string | null },
 ): Promise<AskMemoryDoor> {
   const { data, error } = await db.rpc("ask_memory_write", {
-    p_tenant_id: p.tenantId,
+    p_tenant_id: params.tenantId,
     p_act: "keep",
-    p_text: p.text,
-    p_source: p.source,
-    ...(p.threadId ? { p_thread_id: p.threadId } : {}),
+    p_text: params.text,
+    p_source: params.source,
+    ...(params.threadId ? { p_thread_id: params.threadId } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return doorAnswer("ask_memory_write keep", data);
 }
 
 /** Change a line's words (ask_memory_write, change): the settings permission, a line of this workspace. */
 export async function changeAskMemory(
   db: Db,
-  p: { tenantId: string; id: string; text: string },
+  params: { tenantId: TenantId; id: string; text: string },
 ): Promise<AskMemoryDoor> {
   const { data, error } = await db.rpc("ask_memory_write", {
-    p_tenant_id: p.tenantId,
+    p_tenant_id: params.tenantId,
     p_act: "change",
-    p_id: p.id,
-    p_text: p.text,
+    p_id: params.id,
+    p_text: params.text,
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return doorAnswer("ask_memory_write change", data);
 }
 
 /** Forget a line (ask_memory_write, forget): the settings permission, or the member who kept it. */
 export async function forgetAskMemory(
   db: Db,
-  p: { tenantId: string; id: string },
+  params: { tenantId: TenantId; id: string },
 ): Promise<{ id: string; text: string; again: boolean }> {
-  const { data, error } = await db.rpc("ask_memory_write", { p_tenant_id: p.tenantId, p_act: "forget", p_id: p.id });
-  if (error) throw error;
+  const { data, error } = await db.rpc("ask_memory_write", {
+    p_tenant_id: params.tenantId,
+    p_act: "forget",
+    p_id: params.id,
+  });
+  if (error) throw new DbFailure(error);
   const answer = doorAnswer("ask_memory_write forget", data);
   if ("refused" in answer) throw new Error(`ask_memory_write forget: ${answer.refused}`);
   return answer;
@@ -114,9 +125,9 @@ export interface AskRecallRow {
 }
 
 /** What the member's own past turns, the memory and the journal say that holds the words (search_ask), newest first. */
-export async function searchAsk(db: Db, tenantId: string, words: string, limit: number): Promise<AskRecallRow[]> {
+export async function searchAsk(db: Db, tenantId: TenantId, words: string, limit: number): Promise<AskRecallRow[]> {
   const { data, error } = await db.rpc("search_ask", { p_tenant: tenantId, p_words: words, p_limit: limit });
-  if (error) throw new Error(`search_ask: ${error.message}`);
+  if (error) throw new DbFailure(error, "search_ask");
   return (data ?? []).flatMap((r) =>
     r.kind === "turn" || r.kind === "memory" || r.kind === "journal"
       ? [{ kind: r.kind, id: r.id ?? null, thread_id: r.thread_id ?? null, at: r.at, snippet: r.snippet ?? "" }]

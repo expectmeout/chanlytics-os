@@ -24,7 +24,7 @@ import type {
   AdsConfig,
   AdsRead,
 } from "@chanlytics/contracts";
-import { starterCopy } from "@chanlytics/contracts/ads-page";
+import { starterCopy } from "./model/new-ad";
 import { DEMO_ZONE } from "../../demo-zone";
 
 // ---------------------------------------------------------------------------------------------------------------------

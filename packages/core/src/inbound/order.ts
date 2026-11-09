@@ -23,7 +23,7 @@ export interface InboundGate {
   then: string;
   /** The hold a gate opens for a person, the ordinary way; null where nobody is asked. */
   hold: EscalationReason | null;
-  /** The log line a gate writes when it stops a message (apps/edge/lib/log-events.ts); null for a step. */
+  /** The log line a gate writes when it stops a message (apps/edge/lib/shared/log-events.ts); null for a step. */
   log: string | null;
 }
 

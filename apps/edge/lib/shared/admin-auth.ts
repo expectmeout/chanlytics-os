@@ -1,0 +1,178 @@
+/**
+ * Who may open an admin door.
+ *
+ * A dashboard call carries a token minted for this door (packages/channels
+ * edge-token): one door, one workspace, one person, one minute, its own
+ * secret. The shared key (DIAG_KEY) is the platform's: an operator's
+ * terminal, the eval harness, the golden probe. The rules, in order:
+ *
+ *   - the edge has the secret and a token is presented: the token must
+ *     verify; there is no falling back from a bad token to the key. A token
+ *     opens a door once: its nonce is remembered here until it expires, and
+ *     the same token again is refused (`token_replayed`). A token that names
+ *     a body opens the door for that body only (`token_body`);
+ *   - the edge has the secret and no token: the key opens nothing, unless
+ *     the door names the platform's key as its credential for this knock
+ *     (`platformKey`: the diagnostic and the pager, which nothing mints a token for).
+ *     Either way the knock logs
+ *     `admin_door_key_only` with the door and whether it came in, so what
+ *     still relies on the key can be read off the log;
+ *   - the edge has no secret (a preview; production refuses to load without
+ *     one, env.ts): a token is ignored and the key decides. That is DIAG_KEY's
+ *     switch, a row of contracts' flag registry (ai/flags.ts) with its day.
+ *
+ * The key rode beside the token on every dashboard call, and alone it opened
+ * every door on an edge that could have verified a token: the token bought
+ * nothing while the key travelled with it, and a key that leaked opened
+ * twenty-two doors for any workspace. The dashboard sends no key once it can
+ * sign (src/server/shared/edge.ts), so the two projects hold EDGE_CALL_SECRET
+ * together or not at all: an edge without it refuses a dashboard that signs.
+ *
+ * A token names the body it was minted for, and a door that takes a body
+ * refuses one that names none (`token_body`). Tokens without one were let in
+ * while either app might deploy first, behind the EDGE_TOKEN_UNBOUND switch;
+ * it closed on 31 October 2026, every dashboard deployed since mid-October
+ * minting bound tokens.
+ *
+ * A door that acts on a workspace then asks workspaceFor(): a token that
+ * names one is believed over the body, and a body that names another is
+ * refused.
+ */
+import { heldTenantId } from "@chanlytics/contracts";
+import crypto from "node:crypto";
+import { json, refuse } from "./http.js";
+import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels/tokens";
+import { UUID } from "@chanlytics/contracts";
+import { env } from "./env.js";
+import { logger } from "./log.js";
+import type { TenantId } from "@chanlytics/contracts";
+
+/** What a door says when the credential that knocked names no workspace. */
+export const NAMES_NO_WORKSPACE = "this door acts only for a workspace its credential names, and this one names none";
+
+/** A knock let in: how, and the workspace and person its token names (a key names neither). */
+export interface Admitted {
+  ok: true;
+  via: "token" | "key";
+  workspace: TenantId | null;
+  user: string | null;
+}
+
+type AdminAuth = Admitted | { ok: false; response: Response };
+
+/** The shared key, compared in constant time. An unset or empty key matches nothing, an empty knock included. */
+export function sameKey(presented: string | null, key: string | undefined): boolean {
+  if (!key || !presented) return false;
+  const a = Buffer.from(presented);
+  const b = Buffer.from(key);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/** How many tokens an instance remembers at once: a minute's calls many times over; past it the oldest is forgotten. */
+const NONCES_HELD = 10_000;
+
+/**
+ * The tokens this instance has let in, by nonce, each until it expires: a token is good for one knock. Per
+ * instance, as the edge keeps no state between them; a replay that reaches another instance inside the same minute
+ * still has to carry the same body to the same door for the same workspace.
+ */
+const seen = new Map<string, number>();
+
+/** Whether this nonce is new here, remembering it until `exp`. A nonce seen before and not yet expired is not. */
+function firstUse(nonce: string, exp: number, now: number): boolean {
+  const held = seen.get(nonce);
+  if (held !== undefined && held >= now) return false;
+  if (seen.size >= NONCES_HELD) {
+    for (const [n, until] of seen) if (until < now) seen.delete(n);
+    // Still full: forget the oldest, which expires first.
+    while (seen.size >= NONCES_HELD) seen.delete(seen.keys().next().value as string);
+  }
+  seen.set(nonce, exp);
+  return true;
+}
+
+export async function authorizeAdmin(
+  request: Request,
+  aud: string,
+  opts: {
+    /**
+     * This knock is the platform's: the key opens it on an edge that holds the secret too. Say why at the call, and
+     * decide it per knock where only one op is the platform's (a door that reads the body first).
+     */
+    platformKey?: boolean;
+    /** The body as received, for a door that read it before asking (mailboxes); otherwise read here. */
+    body?: string;
+  } = {},
+): Promise<AdminAuth> {
+  // The request is named by the door around this (log.ts adminDoor): the dashboard's name when it sent one.
+  const token = request.headers.get("x-edge-token");
+  const secret = env.EDGE_CALL_SECRET;
+  if (token && secret) {
+    const now = Date.now();
+    const result = verifyEdgeToken(secret, token, aud, now);
+    if (!result.ok) return { ok: false, response: refuse(403, `token_${result.reason}`) };
+    const hasBody = request.method !== "GET" && request.method !== "HEAD";
+    if (result.claims.bh !== undefined) {
+      const body = opts.body ?? (await request.clone().text());
+      if (!edgeBodyMatches(result.claims, body)) return { ok: false, response: refuse(403, "token_body") };
+    } else if (hasBody) {
+      return { ok: false, response: refuse(403, "token_body", "the token names no body, and this door takes one") };
+    }
+    if (!firstUse(result.claims.nonce, result.claims.exp, now))
+      return { ok: false, response: refuse(403, "token_replayed") };
+    return {
+      ok: true,
+      via: "token",
+      workspace: result.claims.ws ? heldTenantId(result.claims.ws) : null,
+      user: result.claims.user,
+    };
+  }
+  if (!sameKey(request.headers.get("x-diag-key"), env.DIAG_KEY)) {
+    return { ok: false, response: json(403, { ok: false }) };
+  }
+  if (secret) {
+    // The key alone, where a token could have been presented: the knock the old rule let in, logged either way.
+    const ok = opts.platformKey === true;
+    logger().info("admin_door_key_only", { door: aud, ok });
+    if (!ok) return { ok: false, response: refuse(403, "token_required") };
+  }
+  return { ok: true, via: "key", workspace: null, user: null };
+}
+
+/**
+ * The workspace a door acts on: the token's when it names one; the body's
+ * otherwise (a key-authorised caller, or a token about no workspace). A body
+ * that names another workspace than the token is refused.
+ */
+export function workspaceFor(
+  auth: Admitted,
+  bodyTenant: unknown,
+): { ok: true; tenantId: TenantId | null } | { ok: false; response: Response } {
+  const fromBody = typeof bodyTenant === "string" && bodyTenant.trim() ? bodyTenant.trim() : null;
+  if (auth.workspace && fromBody && fromBody !== auth.workspace) {
+    return { ok: false, response: refuse(403, "workspace_mismatch") };
+  }
+  const named = auth.workspace ?? fromBody;
+  return { ok: true, tenantId: named === null ? null : heldTenantId(named) };
+}
+
+/**
+ * The person a door acts for: the token's when it names one, else the body's when it is a person's id (a key-authorised
+ * knock, or a token from a dashboard before tokens named their person). A body that names another person than the
+ * token is not believed: the token is what the dashboard signed, and the person is who a row is written down as (a
+ * connection's `connected_by`, a spend's user, a domain's `by`).
+ */
+export function personFor(auth: Admitted, bodyUser: unknown): string | null {
+  const fromBody = typeof bodyUser === "string" && UUID.test(bodyUser.trim()) ? bodyUser.trim() : null;
+  return auth.user ?? fromBody;
+}
+
+/**
+ * The workspace a door that acts on one workspace's row must be told by the token (the live-call doors, the steer, the
+ * line codes): the token's. A key-authorised knock (a preview, which holds no secret) names none. The live-call doors
+ * and the line codes refuse a knock that names none (voice/live-call-door.ts, lines/line-codes.ts); the steer refuses a
+ * token that names none (receptionist/steer.ts), since EDGE_TOKEN_UNBOUND closed on 31 October 2026.
+ */
+export function tokenWorkspace(auth: Admitted): TenantId | null {
+  return auth.workspace;
+}

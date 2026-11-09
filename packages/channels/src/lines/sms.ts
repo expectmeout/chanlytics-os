@@ -22,8 +22,8 @@ import {
   type LineCodeDto,
 } from "@chanlytics/contracts";
 import type { ReceivedText } from "./lines";
-import type { InboundMessage } from "../inbound";
-import { asksToStop } from "../stop-request";
+import type { InboundMessage } from "../inbound/inbound";
+import { asksToStop } from "../inbound/stop-request";
 
 /** Twilio's inbound message, the fields the product reads. */
 export interface SmsInbound {
@@ -84,18 +84,18 @@ function textWithPictures(s: SmsInbound): string | null {
  * the carriers' own words for a line, which hold every word and sentence the normaliser reads as one and more
  * (stop-request.ts), or the carrier's verdict, which outranks the words.
  */
-export function inboundFromSms(s: SmsInbound, nowMs = Date.now()): InboundMessage & { channel: "sms" } {
-  const digits = senderDigits(s);
-  const body = textWithPictures(s);
-  const carrier = mergeConsent(carrierConsent(s), smsKeywordConsent(s.body));
+export function inboundFromSms(smsInbound: SmsInbound, nowMs = Date.now()): InboundMessage & { channel: "sms" } {
+  const digits = senderDigits(smsInbound);
+  const body = textWithPictures(smsInbound);
+  const carrier = mergeConsent(carrierConsent(smsInbound), smsKeywordConsent(smsInbound.body));
   return {
     channel: "sms",
-    externalId: s.messageSid,
+    externalId: smsInbound.messageSid,
     identity: { externalId: digits, phoneE164: digits ? `+${digits}` : null, email: null },
     profileName: null,
     type: body ? "text" : "media",
     kind: body ? "text" : "unsupported",
-    rawType: body ? "text" : s.numMedia > 0 ? "image" : "unsupported",
+    rawType: body ? "text" : smsInbound.numMedia > 0 ? "image" : "unsupported",
     body,
     channelTsIso: new Date(Math.floor(nowMs / 1000) * 1000).toISOString(),
     media: null,
@@ -124,9 +124,9 @@ export interface CarrierConsent {
   optIn: boolean;
 }
 
-export function carrierConsent(s: Pick<SmsInbound, "optOutType">): CarrierConsent | null {
-  if (s.optOutType === "STOP") return { optOut: true, optIn: false };
-  if (s.optOutType === "START") return { optOut: false, optIn: true };
+export function carrierConsent(smsInbound: Pick<SmsInbound, "optOutType">): CarrierConsent | null {
+  if (smsInbound.optOutType === "STOP") return { optOut: true, optIn: false };
+  if (smsInbound.optOutType === "START") return { optOut: false, optIn: true };
   return null;
 }
 
@@ -139,10 +139,16 @@ export function smsKeywordConsent(body: string | null | undefined): CarrierConse
   return { optOut: true, optIn: false };
 }
 
-export function mergeConsent(a: CarrierConsent | null, b: CarrierConsent | null): CarrierConsent | null {
-  if (!a) return b;
-  if (!b) return a;
-  return { optOut: a.optOut || b.optOut, optIn: a.optIn || b.optIn };
+export function mergeConsent(
+  carrierConsent: CarrierConsent | null,
+  consentRecord: CarrierConsent | null,
+): CarrierConsent | null {
+  if (!carrierConsent) return consentRecord;
+  if (!consentRecord) return carrierConsent;
+  return {
+    optOut: carrierConsent.optOut || consentRecord.optOut,
+    optIn: carrierConsent.optIn || consentRecord.optIn,
+  };
 }
 
 /**
@@ -175,8 +181,8 @@ export function lineCodesFrom(texts: readonly ReceivedText[], nowMs: number): Li
  */
 export const SMS_OPTED_OUT_CODE = 21610;
 
-export function smsRefusalOf(r: { ok: boolean; code?: number | null }): "opted_out" | null {
-  return !r.ok && r.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
+export function smsRefusalOf(row: { ok: boolean; code?: number | null }): "opted_out" | null {
+  return !row.ok && row.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
 }
 
 /**
@@ -283,7 +289,7 @@ export function twilioSignedString(url: string, form: Record<string, string>): s
 }
 
 /** HMAC-SHA1 of the signed string with the auth token, base64 — the value of X-Twilio-Signature. */
-export async function twilioSignature(authToken: string, url: string, form: Record<string, string>): Promise<string> {
+export async function signTwilio(authToken: string, url: string, form: Record<string, string>): Promise<string> {
   const key = await crypto.subtle.importKey("raw", utf8Bytes(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
     "sign",
   ]);
@@ -292,10 +298,10 @@ export async function twilioSignature(authToken: string, url: string, form: Reco
 }
 
 /** Constant-time equality on the two base64 strings. */
-export function sameSignature(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
+export function sameSignature(first: string, second: string): boolean {
+  if (first.length !== second.length) return false;
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < first.length; i++) diff |= first.charCodeAt(i) ^ second.charCodeAt(i);
   return diff === 0;
 }
 
@@ -306,5 +312,5 @@ export async function verifyTwilioSignature(
   header: string | null,
 ): Promise<boolean> {
   if (!header) return false;
-  return sameSignature(await twilioSignature(authToken, url, form), header);
+  return sameSignature(await signTwilio(authToken, url, form), header);
 }
