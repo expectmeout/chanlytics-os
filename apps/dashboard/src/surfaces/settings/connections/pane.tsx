@@ -223,11 +223,6 @@ async function runVerb(
 ): Promise<void> {
   const verb = r.verb;
   if (!verb) return;
-  const oneStep = ONE_STEP_VERBS[verb.to];
-  if (oneStep) {
-    oneStep(r, k);
-    return;
-  }
   switch (verb.to) {
     case "verb:whatsapp-connect":
     case "verb:whatsapp-connect-keep": {
@@ -290,6 +285,8 @@ async function runVerb(
       k.toggleEmail();
       return;
     default:
+      // A connect that leaves for a provider's own screen, or a disconnect asked about first (ONE_STEP_VERBS).
+      ONE_STEP_VERBS[verb.to]?.(r, k);
       // A line that stopped part-way, set up again in place, as Start's row does it (contracts ownLineStandOf).
       if (verb.to.startsWith("verb:retry-line:")) {
         k.setBusy(true);

@@ -123,15 +123,15 @@ export async function startInstagramConnect(ctx: RouteContext, member: Member): 
  * it. Every outcome is a redirect to Connections with one word the row reads once.
  */
 export async function handleInstagramCallback(ctx: RouteContext, req: Request): Promise<Response> {
-  const came = loginReturnOf(req);
+  const loginReturn = loginReturnOf(req);
   let slug: string | null = null;
-  const back = backToConnections(PROVIDER, came.origin, () => slug);
+  const back = backToConnections(PROVIDER, loginReturn.origin, () => slug);
   // A person who pressed Cancel on Instagram's screen comes back with error=access_denied.
-  const refused = came.refused;
+  const refused = loginReturn.refused;
   if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
-  const proof = await verifyState(secret, came.state, Date.now());
+  const proof = await verifyState(secret, loginReturn.state, Date.now());
   if (!proof.ok) return back("error", `state_${proof.reason}`);
   if (proof.state.p !== PROVIDER) return back("error", "state_malformed");
   if (proof.state.u !== ctx.userId) return back("error", "someone_else");
@@ -144,7 +144,7 @@ export async function handleInstagramCallback(ctx: RouteContext, req: Request): 
   } catch {
     return back("error", "no_workspace");
   }
-  const code = came.code;
+  const code = loginReturn.code;
   if (!code) return back("error", "no_code");
   const answer = await edgeInstagram({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
   const body = answer.body ?? {};

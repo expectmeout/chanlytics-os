@@ -326,14 +326,14 @@ function rowButton(
 }
 
 /** A joined row's second way on (an Instagram account moved to Meta's one connection), beside its own acts; null for none. */
-function alsoButton(r: Row, run: ConnectionRowProps["run"], busy: boolean): ReactNode {
-  if (!r.also) return null;
+function alsoButton(row: Row, run: ConnectionRowProps["run"], busy: boolean): ReactNode {
+  if (!row.also) return null;
   return verbButton({
-    r,
-    verb: r.also,
-    label: r.also.label,
+    r: row,
+    verb: row.also,
+    label: row.also.label,
     variant: "secondary",
-    run: (row) => run({ ...row, verb: row.also ?? null }),
+    run: (pressed) => run({ ...pressed, verb: pressed.also ?? null }),
     busy,
   });
 }
