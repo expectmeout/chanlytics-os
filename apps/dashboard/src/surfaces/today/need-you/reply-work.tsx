@@ -10,7 +10,7 @@
  */
 import { useState, type ReactNode } from "react";
 import { NEED_YOU_WORDS as W, THREAD_CHANNEL_WORDS, addressOf, type TodayQueueRowVM } from "@chanlytics/contracts";
-import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
+import { undoVerb } from "@/bridge/verbs/commit";
 import { carryNotAPerson, carryReply } from "../../inbox/carried-reply";
 import { Button } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
