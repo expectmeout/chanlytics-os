@@ -1573,6 +1573,29 @@ COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_li
 
 
 --
+-- Name: calendars_hand_out(timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select public.jobs_hand_out(
+    'calendar_read',
+    array(select d.tenant_id from public.calendars_due(p_before, 2147483647) d),
+    p_spread_seconds
+  );
+$$;
+
+
+--
+-- Name: FUNCTION calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) IS 'A calendar_read for each workspace whose calendar is due, judged by calendars_due (00569, decision 0115). Answers how many it wrote.';
+
+
+--
 -- Name: call_connected(text, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4822,6 +4845,13 @@ begin
   delete from push_devices where user_id = v_user;
   delete from notification_marks where user_id = v_user;
   delete from notification_reads where user_id = v_user;
+  -- Each workspace they sat in hears of it (team_notice, 00437), in this transaction, so the news cannot be lost to a write
+  -- that fails after the seat has gone (00570).
+  insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+  select m.tenant_id, 'member.left', 'system', 'workspace', m.tenant_id,
+         jsonb_build_object('by', v_user, 'how', 'account_deleted')
+    from memberships m
+   where m.user_id = v_user;
   delete from memberships where user_id = v_user;
   delete from auth.users where id = v_user;
   return jsonb_build_object('deleted', true, 'workspaces_left_empty', v_orphaned, 'workspaces_emptied', to_jsonb(v_emptied));
@@ -8430,6 +8460,36 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed | scheduled (a retry waiting, its attempts kept or one fewer, 00526); done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
+
+
+--
+-- Name: jobs_hand_out(text, uuid[], integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_handed integer;
+begin
+  -- The kind's own key (job_kinds, the workspace) holds one per workspace while one waits or runs.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select t.id, p_kind,
+         now() + make_interval(secs => abs(hashtext(t.id::text)::bigint) % greatest(p_spread_seconds, 1)),
+         '{}'::jsonb
+    from unnest(p_tenants) as t(id)
+  on conflict do nothing;
+  get diagnostics v_handed = row_count;
+  return v_handed;
+end $$;
+
+
+--
+-- Name: FUNCTION jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) IS 'One job of a kind per workspace named, each due within the spread by a hash of its workspace, unless one already waits or runs (00569, decision 0115). Answers how many it wrote. The service role''s: a sweep hands out what it found due.';
 
 
 --
@@ -16284,35 +16344,6 @@ $$;
 --
 
 COMMENT ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) IS 'Keeps one page load''s reports ([{id, name, value, page?, part?, from?, warm?, detail?}]) with the device and the build; a report naming no page is of p_page; a known id takes the new value and detail. Answers how many it kept. Service role: POST /api/v1/vitals.';
-
-
---
--- Name: note_sweep_backlog(text, integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) RETURNS integer
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_ticks integer;
-begin
-  update public.sweep_status
-     set backlog_ticks = case when p_remaining > 0 then backlog_ticks + 1 else 0 end
-   where sweep = p_sweep
-  returning backlog_ticks into v_ticks;
-  -- No row means the sweep is not registered with sweep_health, which is a
-  -- deployment mistake rather than a backlog. Say zero: never alert on the
-  -- absence of bookkeeping.
-  return coalesce(v_ticks, 0);
-end $$;
-
-
---
--- Name: FUNCTION note_sweep_backlog(p_sweep text, p_remaining integer); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) IS 'Records whether a sweep finished with work left, and returns how many ticks in a row that has now been true. Atomic, because an overlapping tick reading and writing this separately would undercount precisely when the backlog is real.';
 
 
 --
@@ -31509,6 +31540,32 @@ end $$;
 
 
 --
+-- Name: sequence_steps_hand_out(text, text, timestamp with time zone, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select public.jobs_hand_out(
+    p_job_kind,
+    array(
+      select distinct (d.step ->> 'tenant_id')::uuid
+        from public.sequence_steps_due(p_kind, p_at, p_last_hour, 2147483647) d
+    ),
+    p_spread_seconds
+  );
+$$;
+
+
+--
+-- Name: FUNCTION sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) IS 'A job for each workspace with a step of that kind due, judged by sequence_steps_due (00569, decision 0115). Answers how many it wrote.';
+
+
+--
 -- Name: sequence_steps_of(uuid, uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -36308,9 +36365,7 @@ CREATE TABLE public.events (
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     version smallint DEFAULT 1 NOT NULL,
-    request_id text DEFAULT public.request_id_of_caller(),
-    aggregate_version integer,
-    causation_id uuid
+    request_id text DEFAULT public.request_id_of_caller()
 )
 PARTITION BY RANGE (created_at);
 
@@ -36330,20 +36385,6 @@ COMMENT ON COLUMN public.events.request_id IS 'The request this row was written 
 
 
 --
--- Name: COLUMN events.aggregate_version; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.events.aggregate_version IS 'The version of the record this event is about, as the door left it (decision 0032): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00334.';
-
-
---
--- Name: COLUMN events.causation_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.events.causation_id IS 'The event this one was written in answer to, where a reaction wrote it (decision 0032). Null for a fact that arrived from outside, and for every row written before 00334.';
-
-
---
 -- Name: events_default; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -36357,9 +36398,7 @@ CREATE TABLE public.events_default (
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     version smallint DEFAULT 1 NOT NULL,
-    request_id text DEFAULT public.request_id_of_caller(),
-    aggregate_version integer,
-    causation_id uuid
+    request_id text DEFAULT public.request_id_of_caller()
 );
 
 
@@ -39863,7 +39902,6 @@ CREATE TABLE public.sweep_status (
     requested_at timestamp with time zone,
     note text,
     alerted_at timestamp with time zone,
-    backlog_ticks integer DEFAULT 0 NOT NULL,
     jobname text,
     max_silence interval,
     judged_by text DEFAULT 'request'::text NOT NULL,
@@ -39893,13 +39931,6 @@ COMMENT ON COLUMN public.sweep_status.note IS 'Set when the trigger could not se
 --
 
 COMMENT ON COLUMN public.sweep_status.alerted_at IS 'Suppression stamp, set only after an alert was actually DELIVERED, cleared on recovery.';
-
-
---
--- Name: COLUMN sweep_status.backlog_ticks; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sweep_status.backlog_ticks IS 'Consecutive ticks this sweep finished with work still queued. Reset to 0 the moment it drains. At 3 the sweep answers 503, which turns it red in sweep_health and mails the platform.';
 
 
 --
@@ -49697,6 +49728,14 @@ GRANT ALL ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_
 
 
 --
+-- Name: FUNCTION calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) TO service_role;
+
+
+--
 -- Name: FUNCTION call_connected(p_status text, p_duration_ms integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -50888,6 +50927,14 @@ GRANT ALL ON FUNCTION public.jobs_backlog(p_wait interval) TO service_role;
 REVOKE ALL ON FUNCTION public.jobs_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.jobs_guard() TO authenticated;
 GRANT ALL ON FUNCTION public.jobs_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) TO service_role;
 
 
 --
@@ -52167,14 +52214,6 @@ GRANT ALL ON FUNCTION public.note_for_you_notify(p_tenant_id uuid, p_contact_id 
 
 REVOKE ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) TO service_role;
-
-
---
--- Name: FUNCTION note_sweep_backlog(p_sweep text, p_remaining integer); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) TO service_role;
 
 
 --
@@ -54405,6 +54444,14 @@ GRANT ALL ON FUNCTION public.sequence_steps_first_gone() TO service_role;
 
 REVOKE ALL ON FUNCTION public.sequence_steps_gone_ends_the_wait() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_steps_gone_ends_the_wait() TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) TO service_role;
 
 
 --

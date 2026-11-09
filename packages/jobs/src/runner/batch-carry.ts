@@ -1,7 +1,10 @@
 import type { BatchCarry } from "@chanlytics/core";
 
 /** What the run has waited through rides in the payload to the next batch, and only while it is running. */
-export function nextBatch(id: string, carry: BatchCarry | undefined): Record<string, string | number> {
+export function nextBatch(
+  id: string,
+  carry: BatchCarry | undefined,
+): { broadcast_id: string; waits?: number; stalls?: number } {
   return {
     broadcast_id: id,
     ...(carry?.waits ? { waits: carry.waits } : {}),

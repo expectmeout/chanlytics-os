@@ -321,6 +321,49 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["file_id", "step"],
     never: [],
   },
+  // A workspace's hourly work, handed out by its clock (00569, decision 0115). Nothing here puts words on a wire: a moment's
+  // run schedules its send, a step's plans it. Each asks what is due when it runs, so a second try runs only what the first
+  // did not, and what fails for good is the platform's to mend and tried again the next hour anyway.
+  campaign_moments: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 10 * SECOND_MS,
+    ids: [],
+    never: [],
+  },
+  reach_out_steps: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 10 * SECOND_MS,
+    ids: [],
+    never: [],
+  },
+  calendar_read: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 10 * SECOND_MS,
+    ids: [],
+    never: [],
+  },
+  google_read: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 10 * SECOND_MS,
+    ids: [],
+    never: [],
+  },
   // The ledger's own proof that it runs (00526): it does nothing, and Health says when it stops finishing.
   canary: {
     speaks: false,

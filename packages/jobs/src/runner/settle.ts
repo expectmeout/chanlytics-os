@@ -502,6 +502,10 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   inbound_answer: null,
   website_read: null,
   erasure_finish: null,
+  campaign_moments: null,
+  reach_out_steps: null,
+  calendar_read: null,
+  google_read: null,
   canary: null,
 };
 

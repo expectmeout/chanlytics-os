@@ -24,7 +24,7 @@ export const CLOCK_KINDS = ["reconcile", "judge", "keep", "roll", "due", "event-
 export const CLOCKS = {
   calendar: {
     kind: "event-shaped",
-    why: "parses each feed hourly to add people and stamp booked leads; appointment events from push sync replace it, the iCal read a fallback (0002)",
+    why: "hands each workspace with a feed a job hourly, which parses it to add people and stamp booked leads (0115); appointment events from push sync replace it, the iCal read a fallback (0002)",
   },
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
   channel_quality: { kind: "reconcile", why: "reads each connected WhatsApp number's quality rating from Meta" },
@@ -36,7 +36,10 @@ export const CLOCKS = {
     kind: "reconcile",
     why: "writes the reply a hold is owed where its event was dropped, its run died or the rules changed; the hold's own events write the rest (00538, decision 0093)",
   },
-  google: { kind: "reconcile", why: "reads each workspace's listings and profiles from Google" },
+  google: {
+    kind: "reconcile",
+    why: "hands each workspace with a listing or a profile due a job, which reads them from Google (0115)",
+  },
   health: { kind: "judge", why: "judges every clock, and mails and pages when one falls silent" },
   instagram_tokens: {
     kind: "reconcile",
@@ -74,7 +77,7 @@ export const CLOCKS = {
   platform_metrics_roll: { kind: "roll", why: "counts each workspace's day" },
   playbooks: {
     kind: "due",
-    why: "runs each step of every sequence once a day, at its hour in its workspace's zone, judged from the hour and the day it last ran on its row (00245; sequence_steps_due, 00441); skips a playbook's run still waiting for approval once the day it was made for has passed (its row's run_for, the approve verb's own rule: contracts runTooLate); and writes the day's reach-out line at six",
+    why: "hands each workspace with a step due a job that runs it, once a day, at its hour in its workspace's zone, judged from the hour and the day it last ran on its row (00245; sequence_steps_due, 00441; 0115); skips a playbook's run still waiting for approval once the day it was made for has passed (its row's run_for, the approve verb's own rule: contracts runTooLate); and writes the day's reach-out line at six",
     times: ["sequence_steps.run_hour", "sequence_steps.last_run_for"],
     fn: "sequence_steps_due",
   },

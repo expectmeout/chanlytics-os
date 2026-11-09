@@ -19,8 +19,8 @@
  *                  that fails is a 500 once the other legs have run; a call
  *                  that ended -- or errored -- without an analysis gets its
  *                  line in the thread, once.
- *   google         listings not read for twenty hours, never-read first, forty
- *                  a tick; a read writes the listing, the day (by the workspace's
+ *   google         listings not read for twenty hours, never-read first, each
+ *                  workspace's handed a job; a read writes the listing, the day (by the workspace's
  *                  own clock), the reviews, and rings the bell; a connected
  *                  profile is synced as the owner with a token refreshed from
  *                  Vault; a refusal stays on its row.
@@ -1430,6 +1430,41 @@ test("calls: a purge the bucket refuses marks nothing and stops no other leg, th
 
 /* ----------------------------------------------------------------- google */
 
+const { googleReader } = await import(at("apps/edge/lib/google/sweep.ts"));
+const { pg } = await import(at("apps/edge/lib/shared/pg.ts"));
+
+/**
+ * The clock's knock, then what it handed out, run as the ledger runs it (decision 0115): each google_read in the order written,
+ * under one deadline as one tick's are, taken off the ledger, and what they came to added up.
+ */
+async function googleHour() {
+  const [status, body] = await answer(await knock("google"));
+  if (status !== 200) return [status, body];
+  const db = pg();
+  const { data: handed } = await db.from("jobs").select("*").eq("kind", "google_read");
+  const total = {
+    ok: true,
+    listings_due: 0,
+    listings_read: 0,
+    profiles_due: 0,
+    profiles_synced: 0,
+    fresh: 0,
+    counted: 0,
+    failed: 0,
+    remaining: 0,
+  };
+  const deadline = Date.now() + 45_000;
+  for (const job of handed ?? []) {
+    const came = await googleReader(db).read(job, deadline);
+    await db.from("jobs").delete().eq("id", job.id);
+    if ("skipped" in came) continue;
+    const { read } = came;
+    for (const k of Object.keys(total)) if (k !== "ok" && k !== "remaining") total[k] += read[k];
+    total.remaining += read.left;
+  }
+  return [200, total];
+}
+
 const listing = (T, n, over = {}) => ({
   tenant_id: T,
   place_id: `ChIJ${String(n).padStart(20, "0")}`,
@@ -1485,7 +1520,7 @@ test("google: without a Places key or an OAuth client the sweep says so and read
   assert.equal(net.calls.length, 0);
 });
 
-test("google: listings not read for twenty hours are read again — never read first, then the oldest, forty a tick — and a read writes the rating, the count, the day and the reviews Google shows, ringing the bell for what is new; a refusal stays on its row and moves no stamp", async () => {
+test("google: listings not read for twenty hours are read again — never read first, then the oldest, every one that is due — and a read writes the rating, the count, the day and the reviews Google shows, ringing the bell for what is new; a refusal stays on its row and moves no stamp", async () => {
   const tenants = [];
   const listings = [];
   const add = (n, over, ws = {}) => {
@@ -1502,7 +1537,7 @@ test("google: listings not read for twenty hours are read again — never read f
   const unzoned = add(2, { checked_at: ago(23 * HOUR) }, { timezone: null }); // no zone on its row: the platform's default
   for (let k = 3; k <= 39; k++) add(k, { checked_at: ago((21 + k) * HOUR) }); // 24h .. 60h ago
   const refused = listings[5].tenant_id; // Google refuses this one
-  const newest = add(40, { checked_at: ago(21 * HOUR) }); // due, but the most recently read of the due: the forty-first waits
+  add(40, { checked_at: ago(21 * HOUR) }); // due, the most recently read of the due: past the forty the clock once read
   const fresh = add(41, { checked_at: ago(HOUR) }); // read an hour ago: not due
   const tables = {
     tenants,
@@ -1562,7 +1597,7 @@ test("google: listings not read for twenty hours are read again — never read f
   });
 
   const at = new Date();
-  const [status, body] = await answer(await knock("google"));
+  const [status, body] = await googleHour();
   assert.ok(
     net.calls.every((c) => c.url.startsWith("https://places.googleapis.com/")),
     "the sweep reads Places alone: no website, even a never-read listing's",
@@ -1570,8 +1605,8 @@ test("google: listings not read for twenty hours are read again — never read f
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual(body, {
     ok: true,
-    listings_due: 40,
-    listings_read: 39,
+    listings_due: 41,
+    listings_read: 40,
     profiles_due: 0,
     profiles_synced: 0,
     fresh: 1,
@@ -1583,10 +1618,8 @@ test("google: listings not read for twenty hours are read again — never read f
   // The rotation, from what was asked.
   const asked = net.calls.map((c) => placeIdOf(c.url));
   assert.equal(dueOrder.length, 41, "forty-one are due");
-  assert.deepEqual(asked, dueOrder.slice(0, 40), "never read first, then the oldest read; forty of the forty-one");
+  assert.deepEqual(asked, dueOrder, "never read first, then the oldest read; all forty-one");
   assert.equal(asked[0], rowOf(never).place_id);
-  assert.equal(dueOrder[40], rowOf(newest).place_id, "the one that waits is the most recently read of the due");
-  assert.ok(!asked.includes(rowOf(newest).place_id), "the forty-first waits for the next hour");
   assert.ok(!asked.includes(rowOf(fresh).place_id), "read an hour ago: not due");
   assert.ok(
     net.calls.every(
@@ -1623,7 +1656,7 @@ test("google: listings not read for twenty hours are read again — never read f
     [dayIn("America/New_York", at)],
     "a workspace with no zone on its row is on the platform's default, New York",
   );
-  assert.equal(tables.google_listing_days.length, 39, "one day row per read");
+  assert.equal(tables.google_listing_days.length, 40, "one day row per read");
   const bad = rowOf(refused);
   assert.equal(
     bad.check_error,
@@ -1635,7 +1668,6 @@ test("google: listings not read for twenty hours are read again — never read f
     [refusedBefore.rating, refusedBefore.review_count, refusedBefore.checked_at],
     "and the last good numbers; the stamp does not move -- it is the news cutoff, the first-sync flag and the due window at once",
   );
-  assert.equal(rowOf(newest).checked_at, ago(21 * HOUR), "untouched this tick");
   assert.equal(rowOf(fresh).checked_at, ago(HOUR));
 
   // The bell rings for the one review written since the last read; the old one shown by relevance is not news.
@@ -1662,13 +1694,13 @@ test("google: listings not read for twenty hours are read again — never read f
     [[news, "google.reviews", "google", { source: "places", fresh: 1, counted: 1, rating: 4.6, review_count: 11 }]],
   );
 
-  // The next hour: the refused listing (its stamp never moved) and the forty-first, oldest first; nothing else is due.
-  const [s2, b2] = await answer(await knock("google"));
+  // The next hour: the refused listing (its stamp never moved); nothing else is due.
+  const [s2, b2] = await googleHour();
   assert.equal(s2, 200);
-  assert.deepEqual([b2.listings_due, b2.listings_read, b2.failed, b2.fresh, b2.counted], [2, 2, 0, 0, 0]);
+  assert.deepEqual([b2.listings_due, b2.listings_read, b2.failed, b2.fresh, b2.counted], [1, 1, 0, 0, 0]);
   assert.deepEqual(
-    net.calls.slice(40).map((c) => placeIdOf(c.url)),
-    [rowOf(refused).place_id, rowOf(newest).place_id],
+    net.calls.slice(41).map((c) => placeIdOf(c.url)),
+    [rowOf(refused).place_id],
   );
   assert.equal(rowOf(refused).check_error, null, "a read that succeeds clears the words");
   assert.ok(Date.parse(rowOf(refused).checked_at) >= NOW);
@@ -1773,7 +1805,7 @@ test("google: a connected profile not synced for twenty hours is synced as the o
   });
 
   const at = new Date();
-  const [status, body] = await answer(await knock("google"));
+  const [status, body] = await googleHour();
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual(
     body,
@@ -1872,16 +1904,16 @@ test("google: a connected profile not synced for twenty hours is synced as the o
   );
 
   // The next hour: the synced profile rests; the rejected one is tried again, and fails again on its row.
-  const [s2, b2] = await answer(await knock("google"));
+  const [s2, b2] = await googleHour();
   assert.equal(s2, 200);
   assert.deepEqual([b2.profiles_due, b2.profiles_synced, b2.failed], [1, 0, 1]);
   assert.equal(net.calls.length, 4, "one more token request, for the one profile still due");
   assert.equal(toldT2().length, 1, "told once: the hour's next failure finds the notice kept under the same breakage");
 });
 
-test("google: past the tick's budget no listing or profile is started: the rest of the page is remaining, unread and unstamped, and keeps its place for the next hour", async (t) => {
-  // Forty reads and forty syncs in turn, with no deadline, could run past the function's minute: killed part way, the
-  // sweep answered nothing, and its request read as a timeout (the calendar's sweep was cut to a budget for the same).
+test("google: past a job's deadline no listing or profile is started: the rest is left, unread and unstamped, and keeps its place for the next hour", async (t) => {
+  // A job claimed late in the ledger's minute has little of it left: past its deadline it starts nothing more, and the next
+  // hour's clock hands out another. Here the hour's jobs share one deadline, as a tick's do.
   t.mock.timers.enable({ apis: ["Date"], now: NOW });
   const tenants = [];
   const listings = [];
@@ -1907,12 +1939,12 @@ test("google: past the tick's budget no listing or profile is started: the rest 
   });
   const before = listings.map((l) => l.checked_at);
 
-  const [status, body] = await answer(await knock("google"));
+  const [status, body] = await googleHour();
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual(
     [body.listings_due, body.listings_read, body.failed, body.remaining],
     [3, 1, 0, 2],
-    "one read; the two the budget left are remaining, not failed",
+    "one read; the two past the deadline are left, not failed",
   );
   assert.deepEqual(
     net.calls.map((c) => placeIdOf(c.url)),
@@ -1925,13 +1957,60 @@ test("google: past the tick's budget no listing or profile is started: the rest 
   );
 
   // The next hour reads them, oldest first.
-  const [s2, b2] = await answer(await knock("google"));
+  const [s2, b2] = await googleHour();
   assert.equal(s2, 200);
   assert.deepEqual([b2.listings_due, b2.listings_read, b2.remaining], [2, 2, 0]);
   assert.deepEqual(
     net.calls.slice(1).map((c) => placeIdOf(c.url)),
     [listings[1].place_id, listings[2].place_id],
   );
+});
+
+test("google: the clock reads nothing itself: each workspace with something due is handed one job, however often it knocks, and a job that finds nothing due reads nothing", async () => {
+  const tenants = [];
+  const listings = [];
+  const due = [];
+  for (let n = 0; n < 5; n++) {
+    const T = tenant(400 + n);
+    due.push(T);
+    tenants.push(tenantRow(T));
+    listings.push(listing(T, 400 + n, { checked_at: ago((30 - n) * HOUR) }));
+  }
+  const rested = tenant(409);
+  tenants.push(tenantRow(rested));
+  listings.push(listing(rested, 409, { checked_at: ago(HOUR) }));
+  const tables = {
+    tenants,
+    google_listings: listings,
+    google_connections: [],
+    google_reviews: [],
+    google_listing_days: [],
+    notifications: [],
+    events: [],
+    jobs: [],
+  };
+  const db = use(tables);
+  const net = silent("the clock asks Google nothing: the jobs do");
+
+  assert.deepEqual(await answer(await knock("google")), [200, { ok: true, due: 5, handed: 5 }]);
+  assert.deepEqual(
+    tables.jobs.map((j) => [j.kind, j.tenant_id, j.payload]),
+    due.map((T) => ["google_read", T, {}]),
+    "one a workspace, the longest waiting first, and none for the workspace at rest",
+  );
+  assert.deepEqual(
+    await answer(await knock("google")),
+    [200, { ok: true, due: 5, handed: 0 }],
+    "a job still waiting is not handed out twice",
+  );
+  assert.equal(tables.jobs.length, 5);
+
+  assert.deepEqual(
+    await googleReader(db).read({ tenant_id: rested }, Date.now() + 45_000),
+    { skipped: "not due" },
+    "read since the clock looked: its job ends having read nothing",
+  );
+  assert.equal(net.calls.length, 0);
 });
 
 /* ------------------------------------------------------------------ lines */

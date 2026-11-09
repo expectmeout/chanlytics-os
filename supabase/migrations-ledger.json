@@ -60,10 +60,7 @@
     "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
     "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a reply is drafted when it is owed (decision 0093) took 00538 and 00539 above every claim; it lands above or beside them",
-    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544",
-    "00569": "claimed by cm-background (#2209, background/clocks-hand-out-work, a clock hands out work), open and not on main when a reach-out reads the same at any size took 00572 above it; it lands above 00572, or this gap goes when it lands first",
-    "00570": "claimed by cm-background (#2209, background/clocks-hand-out-work, a clock hands out work), open and not on main when a reach-out reads the same at any size took 00572 above it; it lands above 00572, or this gap goes when it lands first",
-    "00571": "claimed by cm-background (#2209, background/clocks-hand-out-work, a clock hands out work), open and not on main when a reach-out reads the same at any size took 00572 above it; it lands above 00572, or this gap goes when it lands first"
+    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -574,6 +571,9 @@
     "00566_the_status_read_starts_at_its_leads.sql": "f1a4d96fb735081180c8e2128ee76c702e5ddf94df0471a1bd038a9d8b09777a",
     "00567_what_each_step_sent_is_one_read.sql": "15659ec06f01820adb1062e319e0071785cc92feceefd1c91d18b0869f163b85",
     "00568_a_place_is_read_the_same_whatever_is_guessed.sql": "36e20a9004b50195cf4bddd875b66adffd31c5813dab65b42b492079898e3898",
+    "00569_a_clock_hands_out_work.sql": "b62ab15c5193caca165ca3dadb652f4b6278f8db0096b80770fbbfc42ab5ac6a",
+    "00570_a_member_who_deletes_their_account_is_said_with_it.sql": "e9eed67867e4488826c1079ea1a7e76144ff5c8cfb52ac58757f42ae985de8ed",
+    "00571_the_two_event_columns_nothing_filled_go.sql": "ae604be9003939fdf8995d55b19d45211d936191aab9de05b371b6b4460034d9",
     "00572_a_reach_out_reads_the_same_at_any_size.sql": "9df52a80eef5cd6f9ab24e8edac3ba5dad2231c21e76abafaaeff15580917968"
   }
 }

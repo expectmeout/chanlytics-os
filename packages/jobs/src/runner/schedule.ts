@@ -13,7 +13,15 @@
  */
 import { cancelScheduledJobs, hasRequeuedCopy, insertJob, insertJobOnce, readJobToRequeue } from "@chanlytics/db/jobs";
 import type { Json } from "@chanlytics/db/types";
-import { JOB_KINDS, type JobKind, recordOrEmpty, recordOrNull, DbFailure } from "@chanlytics/contracts";
+import { jsonCopyOf } from "@chanlytics/db/shared";
+import {
+  JOB_KINDS,
+  type JobKind,
+  type JobPayload,
+  recordOrEmpty,
+  recordOrNull,
+  DbFailure,
+} from "@chanlytics/contracts";
 import { logger, requestId } from "@chanlytics/log";
 import { kindPolicyOf } from "./kinds";
 import { SPEAKS_TO_A_PERSON, type Db } from "./ledger";
@@ -27,7 +35,16 @@ function named(payload: Json): Json {
   return { ...payload, request_id: id };
 }
 
-export interface ScheduleParams {
+/** A job to write: its payload is what its kind carries (contracts JOB_PAYLOADS). */
+export interface ScheduleParams<K extends JobKind = JobKind> {
+  tenantId: TenantId;
+  kind: K;
+  dueAt: Date;
+  payload: JobPayload<K>;
+}
+
+/** The row as it is kept: what a requeue copies back was read from the ledger, and is already kept. */
+interface KeptJob {
   tenantId: TenantId;
   kind: JobKind;
   dueAt: Date;
@@ -82,7 +99,7 @@ function askedKeyOf(kind: JobKind, payload: Json): string | null {
  * requeue are held alike, and the rule is spelled once. The two lead kinds whose key a writer asks for are the one
  * exception (askedKeyOf).
  */
-function rowToInsert(scheduleParams: ScheduleParams) {
+function rowToInsert(scheduleParams: KeptJob) {
   const refused = payloadRefusal(scheduleParams.kind, scheduleParams.payload);
   if (refused) throw new Error(`schedule_job: ${scheduleParams.kind}: ${refused}`);
   const askedKey = askedKeyOf(scheduleParams.kind, scheduleParams.payload);
@@ -95,8 +112,16 @@ function rowToInsert(scheduleParams: ScheduleParams) {
   };
 }
 
-export async function scheduleJob(db: Db, scheduleParams: ScheduleParams): Promise<{ jobId: string }> {
-  const { data, error } = await insertJob(db, rowToInsert(scheduleParams));
+const asKeptJob = <K extends JobKind>(params: ScheduleParams<K>): KeptJob => ({
+  ...params,
+  payload: jsonCopyOf(params.payload),
+});
+
+export async function scheduleJob<K extends JobKind>(
+  db: Db,
+  scheduleParams: ScheduleParams<K>,
+): Promise<{ jobId: string }> {
+  const { data, error } = await insertJob(db, rowToInsert(asKeptJob(scheduleParams)));
   if (error || !data) throw new DbFailure(error ?? { message: "no row" }, "schedule_job");
   return { jobId: data.id };
 }
@@ -106,11 +131,15 @@ export async function scheduleJob(db: Db, scheduleParams: ScheduleParams): Promi
  * second insert for the same subject is the provider delivering its webhook again, and is answered as the fact it is
  * rather than thrown: the work is already on the ledger.
  */
-export async function scheduleJobOnce(
+export async function scheduleJobOnce<K extends JobKind>(
   db: Db,
-  scheduleParams: ScheduleParams,
+  scheduleParams: ScheduleParams<K>,
 ): Promise<"scheduled" | "already_scheduled"> {
-  const { error } = await insertJobOnce(db, rowToInsert(scheduleParams));
+  return writeOnce(db, asKeptJob(scheduleParams));
+}
+
+async function writeOnce(db: Db, job: KeptJob): Promise<"scheduled" | "already_scheduled"> {
+  const { error } = await insertJobOnce(db, rowToInsert(job));
   if (!error) return "scheduled";
   if (error.code === "23505") return "already_scheduled";
   // The database's code travels with it: a caller tells a refusal (a kind the database does not know) from a write that
@@ -194,6 +223,6 @@ export async function requeueFailedJob(
     ...(row.payload !== null && typeof row.payload === "object" && !Array.isArray(row.payload) ? row.payload : {}),
     requeue_of: row.id,
   };
-  const again = await scheduleJobOnce(db, { tenantId, kind, dueAt: new Date(), payload });
+  const again = await writeOnce(db, { tenantId, kind, dueAt: new Date(), payload });
   return again === "scheduled" ? { outcome: "requeued", kind } : { outcome: "already_scheduled" };
 }

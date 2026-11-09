@@ -1,5 +1,5 @@
 import "server-only";
-import { emitEvent, recordEvent, getSubjectsWith } from "@chanlytics/db/events";
+import { recordEvent, getSubjectsWith } from "@chanlytics/db/events";
 import { getOwnPartner } from "@chanlytics/db/partners";
 import { inviteUserByEmail } from "@chanlytics/db/auth";
 import {
@@ -10,7 +10,6 @@ import {
   leaveWorkspaceTeam,
   listInvitesForAddress,
   listOpenInvitations,
-  listWorkspaceIds,
   lookupUserForInvite,
   readTeamRoster,
   removeFromTeam,
@@ -421,23 +420,4 @@ export async function joinFromInvitations(
     })),
   );
   return { joined };
-}
-
-/**
- * The workspaces a person is in, read before their account goes: its rows go with it, and each of those workspaces
- * is told a member left (recordLeft). A read that fails is no list, and the deletion goes on without the record.
- */
-export async function listSeats(db: SupabaseClient<Database>, userId: string): Promise<string[]> {
-  return listWorkspaceIds(db, userId).catch(() => []);
-}
-
-/**
- * A person deleted their account: said on the ledger of each workspace they sat in, so the team that reads the log
- * sees a seat go rather than a name vanish from the roster with no trace. Who they were is not kept: the account is
- * gone, and the id names no row. As the service role: their own session ended with the account.
- */
-export async function recordLeft(tenantIds: readonly TenantId[], userId: string): Promise<void> {
-  const db = serviceDb();
-  for (const tenantId of tenantIds)
-    await emitEvent(db, tenantId, "member.left", "workspace", tenantId, { by: userId, how: "account_deleted" });
 }

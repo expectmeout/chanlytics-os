@@ -462,9 +462,13 @@
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
     "POST /api/cron/channel-quality": {
-      "wrapper": "door",
+      "wrapper": "sweepDoor",
+      "sweep": "channel_quality",
+      "sweep_options": {
+        "noDbEvent": "channel_quality_no_db"
+      },
       "knock": "authorizeCron",
-      "knock_in": "POST in apps/edge/api/cron/channel-quality.ts"
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
     "POST /api/cron/deadman": {
       "wrapper": "sweepDoor",

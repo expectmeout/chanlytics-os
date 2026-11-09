@@ -26,7 +26,6 @@ import {
 import { giveUpRun, reconcileUnknownRuns, runIdFor, type LeadPorts, type LeadRunRow } from "@chanlytics/core";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { leadDb } from "./db.js";
-import { jsonCopyOf } from "@chanlytics/db/shared";
 import type { SweepTick } from "../ops/sweep-door.js";
 import {
   claimLeadRun,
@@ -191,13 +190,13 @@ function sweepPorts(
     webhookBase: wires.webhookBase,
     webhookToken: wires.webhookToken,
     schedule: async (kind, payload, runAfterSeconds) => {
-      const row = runs.find((r) => r.id === payload.run_id);
+      const row = runs.find((r) => r.id === recordOrEmpty(payload).run_id);
       if (row)
         await scheduleJobOnce(db, {
           tenantId: row.tenant_id,
           kind,
           dueAt: new Date(Date.now() + runAfterSeconds * 1000),
-          payload: jsonCopyOf(payload),
+          payload,
         });
     },
     deadline,

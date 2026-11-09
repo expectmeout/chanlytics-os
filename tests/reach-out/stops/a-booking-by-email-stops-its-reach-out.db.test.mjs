@@ -198,9 +198,7 @@ const eventOf = async (id) =>
   ok(
     await db
       .from("events")
-      .select(
-        "id, tenant_id, kind, subject_type, subject_id, data, created_at, version, aggregate_version, causation_id",
-      )
+      .select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version")
       .eq("tenant_id", A)
       .eq("kind", "appointment.changed")
       .eq("subject_id", id)
