@@ -44,7 +44,7 @@ export async function findBusinessDescription(
 ): Promise<{ text: string; source: BusinessReadSource } | null> {
   const { data, error } = await tenantDb(db, tenantId).from("business_reads").select("source, facts").order("source");
   if (error) throw new Error(`cannot read what the business's reads say: ${error.message}`);
-  for (const row of data ?? []) {
+  for (const row of data) {
     const text = businessReadFactsOf(row.facts).description;
     const source = BUSINESS_READ_SOURCES.find((s) => s === row.source);
     if (text && source) return { text, source };

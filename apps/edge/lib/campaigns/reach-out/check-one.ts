@@ -413,12 +413,12 @@ export interface CheckWorkspace {
 }
 
 export async function checkWorkspaceOf(db: Db, tenantId: TenantId): Promise<CheckWorkspace> {
-  const [w, said] = await Promise.all([findWorkspaceNameAndConfig(db, tenantId), findWorkspaceWords(db, tenantId)]);
+  const [w, ownWords] = await Promise.all([findWorkspaceNameAndConfig(db, tenantId), findWorkspaceWords(db, tenantId)]);
   const config = parseTenantConfig(w.config);
   const brain = config?.brain;
   const name = w.name?.trim() || null;
   return {
-    opening: openingWorkspaceOf(name ?? "", config, said?.text ?? null),
+    opening: openingWorkspaceOf(name ?? "", config, ownWords?.text ?? null),
     businessName: name,
     address: brain?.profile?.address?.trim() || null,
     bookingLink: brain?.booking_link?.trim() || null,

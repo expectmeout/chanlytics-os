@@ -20,7 +20,8 @@ import {
   useBtChanged,
   btOpening,
 } from "./common";
-import { type BtEditDoor, useBtEditor, type BtEditor } from "./editor";
+import { useBtEditor, type BtEditor } from "./editor";
+import type { BtEditDoor } from "./editor-rows";
 
 /* ------------------------------------ a set of fields, under the row that states them ------------------------------------ */
 

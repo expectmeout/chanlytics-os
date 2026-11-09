@@ -16,7 +16,7 @@ import { storedReachOut, type OutreachShared } from "./card";
 const BOX_WORDS = REACH_OUT_SETTINGS_WORDS;
 
 /** What a fold's body is handed. */
-export type Fields = Parameters<Parameters<typeof BtFold>[0]["body"]>[0];
+export type BoxFields = Parameters<Parameters<typeof BtFold>[0]["body"]>[0];
 
 /** The share of a box's limit it says how much of it is used from. */
 const NEAR_LIMIT = 0.8;
@@ -50,7 +50,7 @@ function ReachOutBox({
   spec: BoxSpec;
   shows: string | null;
   from: string | null;
-  f: Fields;
+  f: BoxFields;
 }) {
   const { id, known, rows } = spec;
   const text = textOrEmpty(f.draft);

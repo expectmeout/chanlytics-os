@@ -62,15 +62,15 @@ const UNBACKED_AGAIN =
  * What How it reaches out says of the writer (decision 0113), as data: each line only where the owner wrote it, and with
  * no offer of theirs what the business says it does (db findWorkspaceWords), so the email knows what it is about.
  */
-function writerLines(config: ReturnType<typeof parseTenantConfig>, said: string | null): string[] {
+export function writerLines(config: ReturnType<typeof parseTenantConfig>, ownWords: string | null): string[] {
   const section = config?.reach_out;
   const tone = reachOutToneOf(config);
   const claims = (section?.proof ?? []).map((c) => `- ${fencedInline("record", c)}`);
   return [
     section?.offer?.trim()
       ? `What it offers them: ${fencedInline("record", section.offer.trim())}`
-      : said
-        ? `What the business does, in its own words: ${fencedInline("record", said)}`
+      : ownWords
+        ? `What the business does, in its own words: ${fencedInline("record", ownWords)}`
         : null,
     section?.who_for?.trim() ? `Who it writes to: ${fencedInline("record", section.who_for.trim())}` : null,
     section?.fixes?.trim() ? `What it fixes for them: ${fencedInline("record", section.fixes.trim())}` : null,
@@ -127,7 +127,7 @@ export async function draftFor(
   }
   const held = await getAddressesSuppressed(serviceDb(), lead.tenant_id, [lead.email]);
   if (held.size > 0) throw new AppError("conflict", LEAD_ASKED_NOT_WRITTEN, 409);
-  const [facts, config, said] = await Promise.all([
+  const [facts, config, ownWords] = await Promise.all([
     draftFacts(ctx, lead),
     getStoredConfig(ctx.supabase, lead.tenant_id)
       .then(parseTenantConfig)
@@ -151,7 +151,7 @@ export async function draftFor(
               role: "user",
               content: [
                 `Who is writing: ${offer.name}${offer.services.length ? `, which offers ${offer.services.join(", ")}` : ""}.`,
-                ...writerLines(config, said?.text ?? null),
+                ...writerLines(config, ownWords?.text ?? null),
                 `Who it goes to: ${facts.join("; ")}.`,
                 ...(previous ? [`The last draft was:\nSubject: ${previous.subject}\n${previous.body}`] : []),
                 again ?? sentence,

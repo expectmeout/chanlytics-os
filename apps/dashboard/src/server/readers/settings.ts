@@ -333,7 +333,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const tenantId = rc.tenantId;
-    const [row, facts, mailboxes, sent, memory, chains, policies, words, names, newestSearch] = await Promise.all([
+    const [row, facts, mailboxes, sent, memory, chains, policies, ownWords, names, newestSearch] = await Promise.all([
       partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
       partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
       partOrElse(listMailboxConnectionsWithDays(db, tenantId, rc.now), "mailboxes", tenantId, []),
@@ -362,8 +362,8 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),
         sequence: newestLeadSequence(chains),
         reply_mode: policies.find((p) => p.class === "reply")?.mode ?? REPLY_MODE_UNSET,
-        about: words?.text ?? null,
-        about_from: words?.from ?? null,
+        about: ownWords?.text ?? null,
+        about_from: ownWords?.from ?? null,
         known: { name, first_name: firstNameOf(name, null), newest_search: newestSearch },
       },
       rows: [],

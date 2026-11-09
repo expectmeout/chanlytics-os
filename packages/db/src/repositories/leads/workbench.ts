@@ -37,7 +37,7 @@ export async function findNewestSearchName(db: Db, tenantId: TenantId): Promise<
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`cannot read the newest search: ${error.message}`);
-  return data?.name?.trim() || null;
+  return data?.name.trim() || null;
 }
 
 /** The workspace's searches' names, `limit` of them. */

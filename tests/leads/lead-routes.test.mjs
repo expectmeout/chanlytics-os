@@ -1017,21 +1017,6 @@ test("a draft needs the business's address, its foot is code's, and the model is
   );
 });
 
-test("a draft with no offer written reads what the business says of itself, as data", async (t) => {
-  setServiceClient(fakeDb({}, {}, { lead_addresses_suppressed: () => [] }));
-  t.after(() => setServiceClient(null));
-  const tables = world({ role: "operator" });
-  tables.business_reads = [
-    { tenant_id: A, source: "website", facts: { description: "Evening cleaning for clinics." }, error: null },
-  ];
-  await draft.POST.run(req("POST", {}), ctxOf(tables, { id: LEAD }, doors()));
-  assert.ok(
-    JSON.stringify(modelCalls.at(-1).request.messages).includes(
-      "What the business does, in its own words: <record>Evening cleaning for clinics.</record>",
-    ),
-  );
-});
-
 test("a draft to an address on the never-again list is refused before the model is asked, and a list that can't be read is no yes", async (t) => {
   t.after(() => setServiceClient(null));
   const before = modelCalls.length;

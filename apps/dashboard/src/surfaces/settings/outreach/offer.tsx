@@ -13,7 +13,7 @@ import { Icon } from "../../kit/icon/icon";
 import { RecordBox } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
 import { BtFold } from "../business/gestures/fold";
-import { reachOutFold, roomSaid, type Fields } from "./box";
+import { reachOutFold, roomSaid, type BoxFields } from "./box";
 import { OutreachCard, storedReachOut, type OutreachShared } from "./card";
 
 const OFFER_CARDS = REACH_OUT_SETTINGS_WORDS;
@@ -59,7 +59,7 @@ export function OfferCard(shared: OutreachShared) {
 }
 
 /** The claims as the fold edits them: one box a claim, a remove beside each, and an add while there is room. */
-const ProofRows = ({ f }: { f: Fields }) => {
+const ProofRows = ({ f }: { f: BoxFields }) => {
   const claims = Array.isArray(f.draft) ? f.draft.map(textOrEmpty) : [];
   const put = (next: string[], keys: string[]) => f.update(() => next, keys);
   // The one empty box a list with nothing in it opens on has nothing to take away.
@@ -142,13 +142,13 @@ export function ProofCard(shared: OutreachShared) {
         opensOn={adding || !claims.length ? [...claims, ""] : null}
         rest={({ request, can }) => (
           <>
-            {claims.map((claim, i) => (
+            {claims.map((claim, index) => (
               <RecordRow
-                key={i}
-                id={i === 0 ? "proof" : `proof-${i}`}
+                key={index}
+                id={index === 0 ? "proof" : `proof-${index}`}
                 label={claim}
                 stacked
-                value={<span data-testid={`rec-row-proof-${i}-meta`}>{OFFER_CARDS.proof.count(sends(claim))}</span>}
+                value={<span data-testid={`rec-row-proof-${index}-meta`}>{OFFER_CARDS.proof.count(sends(claim))}</span>}
                 act={
                   shared.canEdit && can
                     ? {

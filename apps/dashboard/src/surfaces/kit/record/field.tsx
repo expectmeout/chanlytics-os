@@ -104,6 +104,23 @@ function boxRest(props: object, own: Set<string>): Record<string, unknown> {
   return rest;
 }
 
+/** What a box that grows with its words asks of its field (`grows`): its ref and its class; nothing, for any other. */
+function useGrowingBox(grows: boolean, words: string | number | null | undefined) {
+  const box = useRef<HTMLTextAreaElement>(null);
+  useGrowAsTyped(box, grows ? String(words ?? "") : "");
+  return grows ? { ref: box, className: "rec-input-grows" } : { ref: undefined, className: null };
+}
+
+/** What stands under a box: what is wrong with it, which a hint gives way to. */
+function fieldUnder(o: { problem: ReactNode; problemId: string; hint: ReactNode; hintId: string }) {
+  if (o.problem) return <FieldError id={o.problemId} message={o.problem} />;
+  return o.hint ? (
+    <span className="rec-hint" id={o.hintId}>
+      {o.hint}
+    </span>
+  ) : null;
+}
+
 /**
  * A field: a label that holds its box, and under it a hint or what is wrong. With an `action` (Say it's Fill) the press
  * stands inside the box's end; the label then names the box by its id, since a label may hold no second control.
@@ -111,10 +128,8 @@ function boxRest(props: object, own: Set<string>): Record<string, unknown> {
 export function RecordField(props: RecordFieldProps) {
   const { id, label, value, onChange, unit = null, hint = null, problem = null, rows = null, testid = null } = props;
   const action = props.action ?? null;
-  const grows = !!props.grows && !!rows;
+  const growing = useGrowingBox(!!props.grows && !!rows, value);
   const autoId = useId();
-  const sized = useRef<HTMLTextAreaElement>(null);
-  useGrowAsTyped(sized, grows ? String(value ?? "") : "");
   const rest = boxRest(props, REC_FIELD_OWN);
   const fieldId = id || autoId;
   const problemId = `rec-${fieldId}-problem`;
@@ -122,7 +137,7 @@ export function RecordField(props: RecordFieldProps) {
   const describedBy = [problem ? problemId : hint ? hintId : null, rest["aria-describedby"]].filter(Boolean).join(" ");
   const box = {
     ...rest,
-    className: ["rec-input", grows && "rec-input-grows", rest.className].filter(Boolean).join(" "),
+    className: ["rec-input", growing.className, rest.className].filter(Boolean).join(" "),
     value: value == null ? "" : value,
     onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       if (onChange) onChange(e.target.value);
@@ -132,18 +147,8 @@ export function RecordField(props: RecordFieldProps) {
   };
   // The box takes the field's id only where a label beside it names it by that id (an `action`): elsewhere the label holds it.
   const named = action ? { ...box, id: fieldId } : box;
-  const control = rows ? (
-    <textarea rows={rows} ref={grows ? sized : undefined} {...named} />
-  ) : (
-    <input type="text" {...named} />
-  );
-  const under = problem ? (
-    <FieldError id={problemId} message={problem} />
-  ) : hint ? (
-    <span className="rec-hint" id={hintId}>
-      {hint}
-    </span>
-  ) : null;
+  const control = rows ? <textarea rows={rows} ref={growing.ref} {...named} /> : <input type="text" {...named} />;
+  const under = fieldUnder({ problem, problemId, hint, hintId });
   if (action)
     return (
       <div className="rec-field" data-testid={testid || undefined}>

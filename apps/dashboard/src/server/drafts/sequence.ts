@@ -325,13 +325,13 @@ export async function getOwner(
   const { ctx, tenantId } = rc;
   const profile = config?.brain?.profile;
   const reachOut = config?.reach_out;
-  const [said, memory, examples] = await Promise.all([
+  const [ownWords, memory, examples] = await Promise.all([
     readOrNull(findWorkspaceWords(ctx.supabase, tenantId), "about", tenantId),
     readOrNull(askMemoryLines(ctx.supabase, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId),
     readOrNull(startedExamples(rc, rows), "examples", tenantId),
   ]);
   return {
-    about: said?.text ?? null,
+    about: ownWords?.text ?? null,
     services: (profile?.services ?? []).slice(0, SERVICES_SAID).map((s) => s.name),
     // A cold email's own tone where the owner set one on How it reaches out (0113), else the receptionist's.
     tone: reachOutToneOf(config),
