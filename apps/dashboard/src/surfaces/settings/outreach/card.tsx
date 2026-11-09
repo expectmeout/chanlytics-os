@@ -1,5 +1,5 @@
 /**
- * How it reaches out (decision 0113): what every card of the page shares. A card is the record kit's, as How it answers'
+ * Cold email (decision 0113): what every card of the page shares. A card is the record kit's, as How it answers'
  * are (business/tab.tsx btaCard): its title and line over its rows. What the page reads beyond the config is the pane's
  * kept read (frame/pane-reads.ts), begun before the pane is drawn and read again behind it.
  */

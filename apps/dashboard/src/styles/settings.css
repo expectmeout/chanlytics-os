@@ -1735,8 +1735,38 @@ html.frame-on .bt-link { position: relative; }
 .bt-note { padding: 6px 0; border-top: 1px solid var(--line); }
 .bt-note-head + .bt-note { border-top: none; }
 .bt-note > .field-error { grid-column: 1 / -1; }
+/* Cold email's page: where it stands, then the email and the rows. One column, the email after the status; where the pane
+   itself is 760px wide (a rail and a nav stand beside it, so the screen's width says nothing), the rows on one side and
+   the email on the other, always in view as they are edited. */
+.set-pane > .ro-page { max-width: none; container-type: inline-size; }
+.ro-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.ro-top, .ro-main, .ro-side { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.ro-main > *, .ro-top > *, .ro-side > * { max-width: var(--measure-prose); }
+@container (min-width: 760px) {
+  .ro-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 380px); grid-template-areas: "top side" "main side"; align-items: start; }
+  .ro-top { grid-area: top; }
+  .ro-main { grid-area: main; }
+  .ro-side { grid-area: side; position: sticky; top: 0; }
+}
 /* Cold email's line under its name. */
 .ro-sub { margin: 0; color: var(--ink-muted); text-wrap: pretty; }
+/* Where it stands: amber where it waits on the owner, quiet where it does not. */
+.ro-standing { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 64px; }
+.ro-standing[data-needs="true"] { background: var(--warn-soft); }
+.ro-standing-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold, 600); color: var(--ink); text-wrap: pretty; }
+.ro-standing[data-needs="true"] .ro-standing-head { color: var(--warn-ink); }
+.ro-standing-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.ro-standing-detail { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
+/* A list a line each: what is left before a first email, a sending check, what a reply sets off. */
+.ro-steps { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; width: 100%; }
+.ro-step, .ro-check { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.ro-step-mark, .ro-check-mark { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); color: var(--ok-ink); }
+.ro-step[data-done="true"] .ro-step-mark { background: var(--ok-soft); border-color: transparent; }
+.ro-check[data-ok="true"] .ro-check-mark { background: var(--ok-soft); border-color: transparent; }
+.ro-check[data-ok="false"] .ro-check-mark { background: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
+.ro-step-words { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.ro-step-words > small { font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
+.ro-step[data-done="true"] .ro-step-words { color: var(--ink-dim); }
 /* Cold email's claims (decision 0113): one box a claim and its remove beside it, under the notes' rules. */
 .ro-claims { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
 .ro-claim { align-self: stretch; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px 8px; padding: 6px 0; border-top: 1px solid var(--line); }

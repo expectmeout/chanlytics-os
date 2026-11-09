@@ -1,5 +1,5 @@
 /**
- * Settings › How it reaches out (decision 0113), EXECUTED on the stub React over the business tab's harness: its cards in
+ * Settings › Cold email (decisions 0113, 0115), EXECUTED on the stub React over the business tab's harness: its cards in
  * their order, a box that opens on what its row shows and stores it only once changed, a row saved as one key of the
  * config's reach_out section and nothing else, a signature refused in the page's words, what a reply sets off with only
  * one row the owner's, and the rail that lists it. Every claim is something the page drew, or something a press on it sent.
@@ -41,7 +41,7 @@ const typeIn = (tree, fold, text) => boxIn(tree, fold).props.onChange({ target: 
 // The cards are a chunk of their own (business/tab.tsx), fetched as the page is first drawn: the page's other tests
 // draw them once it is in, and this one holds that the first draw asks for it and draws them as it lands.
 page();
-await until(() => byTestId(redrawTab(), "rec-card-offer") !== null, "How it reaches out's cards, fetched as drawn");
+await until(() => byTestId(redrawTab(), "rec-card-pitch") !== null, "Cold email's cards, fetched as drawn");
 
 test("the page says under its name what it is for", () => {
   assert.equal(
@@ -55,20 +55,42 @@ test("the page draws its cards in the order a person needs them", () => {
     (n) => n.props["data-testid"],
   );
   assert.deepEqual(cards, [
-    "rec-card-offer",
-    "rec-card-proof",
+    "rec-standing",
+    "rec-card-sample",
+    "rec-card-pitch",
+    "rec-card-facts",
     "rec-card-sound",
     "rec-card-ending",
-    "rec-card-sends-from",
-    "rec-card-writes-back",
-    "rec-card-rules",
-    "rec-card-told",
-    "rec-card-try",
+    "rec-card-sending",
+    "rec-card-replies",
+    "rec-card-never",
+    "rec-card-kept",
   ]);
 });
 
 /** The page's own read, landed, as the cards draw from it; each test here says the part it is about. */
 const READ = {
+  standing: {
+    kind: "sending",
+    headline: "Sending",
+    detail: "Clinics · Austin: 34 sent, 5 replies, 2 interested",
+    act: null,
+    to: "campaigns/sequences/r",
+    needsYou: false,
+    steps: [],
+  },
+  sending: {
+    from: "maya@brightlinecleaning.example",
+    more: 0,
+    health: "healthy",
+    pace: "10 a day now, 20 after 7 more days of sending",
+    ceiling: null,
+    checks: [{ ok: true, title: "Your domain is set up to send", detail: "Its email records are in place" }],
+    today: { sent: 7, cap: 10 },
+    month: "34 sent, of 2,000 included",
+    customerHost: null,
+  },
+  batch_mode: "veto",
   mailbox: null,
   month: { sent: 0, of: 2000 },
   by_hand_per_day: 30,
@@ -103,8 +125,8 @@ const GOAL = { ask: { goal: "Twenty new clinics a month" } };
 
 test("a row with nothing set says what the writers read in its place, and its box opens on those words", () => {
   const tree = drawTab({ part: "outreach", config: GOAL });
-  assert.match(textOf(byTestId(tree, "rec-card-offer")), /Twenty new clinics a month/);
-  assert.match(textOf(byTestId(tree, "rec-card-offer")), /Read from your goal on Details, until you write it here\./);
+  assert.match(textOf(byTestId(tree, "rec-card-pitch")), /Twenty new clinics a month/);
+  assert.match(textOf(byTestId(tree, "rec-card-pitch")), /Read from your goal on Details, until you write it here\./);
   openFold(tree, "offer");
   const opened = redrawTab();
   assert.equal(boxIn(opened, "offer").props.value, "Twenty new clinics a month");
@@ -151,14 +173,14 @@ test("those words cleared store nothing either: the writers go on reading them, 
   tree = redrawTab();
   saveFoldOf(tree, "offer");
   assert.equal(sent.length, 0);
-  assert.match(textOf(byTestId(redrawTab(), "rec-card-offer")), /Twenty new clinics a month/);
+  assert.match(textOf(byTestId(redrawTab(), "rec-card-pitch")), /Twenty new clinics a month/);
 });
 
 test("what the website says of the business stands in the row, named as the website's", async () => {
   let tree = await drawOnRead(GOAL, { about: "Evening cleaning for clinics.", about_from: "website" }, (t) =>
-    /Evening cleaning for clinics\./.test(textOf(byTestId(t, "rec-card-offer"))),
+    /Evening cleaning for clinics\./.test(textOf(byTestId(t, "rec-card-pitch"))),
   );
-  assert.match(textOf(byTestId(tree, "rec-card-offer")), /Read from your website, until you write it here\./);
+  assert.match(textOf(byTestId(tree, "rec-card-pitch")), /Read from your website, until you write it here\./);
   openFold(tree, "offer");
   tree = redrawTab();
   assert.equal(boxIn(tree, "offer").props.value, "Evening cleaning for clinics.");
@@ -434,18 +456,17 @@ test("a signature with a link is refused under its box, in the page's words, and
   assert.match(textOf(foldOf(tree, "ending")), new RegExp(REACH_OUT_REFUSAL_WORDS.signature));
 });
 
-test("what a reply sets off: the answer's offer is the owner's to change, the other four are code's", () => {
-  const tree = page();
-  assert.ok(byTestId(tree, "rec-row-act-reply_offer"), "the offer opens its fold");
-  for (const id of ["not_now", "said_no", "wrong_person", "away"]) {
-    const row = byTestId(tree, `rec-row-${id}`);
-    assert.ok(row, id);
-    assert.equal(
-      find(row, (n) => classes(n).includes("rec-row-act")),
-      null,
-      `${id} has no act`,
-    );
-  }
+test("what a reply sets off is one line and a sheet, and what it offers is the pitch's to change", () => {
+  let tree = page();
+  assert.ok(byTestId(tree, "rec-row-act-reply_offer"), "the offer's own row is on the pitch");
+  assert.ok(find(byTestId(tree, "rec-card-pitch"), (n) => n.props?.["data-testid"] === "rec-row-act-reply_offer"));
+  press(byTestId(tree, "rec-row-act-replies"));
+  tree = redrawTab();
+  const rows = textOf(byTestId(tree, "rec-replies-rows"));
+  for (const words of ["Interested, or a question", "Not now", "No", "Wrong person", "Away"])
+    assert.ok(rows.includes(words), words);
+  press(byTestId(tree, "rec-reply-mode-door"));
+  assert.equal(went.at(-1), "admin/autonomy");
 });
 
 test("the reply offer saves as one key, and the booking link, as before the page, is stored as nothing", () => {
@@ -454,16 +475,208 @@ test("the reply offer saves as one key, and the booking link, as before the page
   openFold(tree, "reply_offer");
   tree = redrawTab();
   const choice = byTestId(tree, "rec-reply-offer-choice");
-  find(choice, (n) => n.props?.["aria-checked"] !== undefined && textOf(n) === "A call with you").props.onClick();
+  find(
+    choice,
+    (n) => n.props?.["aria-checked"] !== undefined && /^Talk on a short call/.test(textOf(n)),
+  ).props.onClick();
   tree = redrawTab();
   saveFoldOf(tree, "reply_offer");
   assert.equal(sent[0].config.reach_out.reply_offer, "call");
 });
 
-test("Connections and To send are doors, never settings of this page", () => {
-  const tree = page();
-  press(byTestId(tree, "rec-row-act-send_mailbox"));
+test("Connections is a door, never a setting of this page", async () => {
+  let tree = await drawOnRead({}, {}, (t) => !!byTestId(t, "rec-sending-pill"));
+  press(byTestId(tree, "rec-row-act-send_from"));
+  tree = redrawTab();
+  press(byTestId(tree, "rec-sending-connections"));
   assert.equal(went.at(-1), "admin/integrations");
+});
+
+test("nothing offers sending by hand", async () => {
+  const tree = await drawOnRead({}, {}, (t) => !!byTestId(t, "rec-sending-pill"));
+  const words = textOf(tree);
+  assert.doesNotMatch(words, /Without a mailbox/);
+  assert.doesNotMatch(words, /To send/);
+});
+
+test("where it stands is amber where it waits on the owner, quiet where it does not", async () => {
+  const held = {
+    kind: "held",
+    headline: "Sending paused to protect your name",
+    detail: "Fix it, then resume.",
+    act: "See what to fix",
+    to: "admin/integrations",
+    needsYou: true,
+    steps: [],
+  };
+  let tree = await drawOnRead({}, {}, (t) => textOf(byTestId(t, "rec-standing-head")) === "Sending");
+  assert.equal(byTestId(tree, "rec-standing").props["data-needs"], "false");
+  assert.equal(byTestId(tree, "rec-standing-act"), null, "sending has nothing to press");
+  tree = await drawOnRead({}, { standing: held }, (t) =>
+    /Sending paused/.test(textOf(byTestId(t, "rec-standing-head"))),
+  );
+  assert.equal(byTestId(tree, "rec-standing").props["data-needs"], "true");
+  press(byTestId(tree, "rec-standing-act"));
+  assert.equal(went.at(-1), "admin/integrations");
+});
+
+test("a new account's answer lists what is left, each with its own door", async () => {
+  const steps = [
+    { id: "mailbox", done: false, title: "Connect your mailbox", detail: "Emails go out from your own address" },
+    { id: "address", done: true, title: "Add your business address", detail: "The law asks for it in every email" },
+    { id: "people", done: false, title: "Find businesses to write to", detail: "Start with clinics" },
+  ];
+  const standing = {
+    kind: "not_started",
+    headline: "2 things before your first email",
+    detail: null,
+    act: null,
+    to: null,
+    needsYou: true,
+    steps,
+  };
+  const tree = await drawOnRead({}, { standing }, (t) => !!byTestId(t, "rec-steps"));
+  assert.ok(byTestId(tree, "rec-step-mailbox-door"));
+  assert.equal(byTestId(tree, "rec-step-address-door"), null, "a step that is done has no door");
+  press(byTestId(tree, "rec-step-people-door"));
+  assert.equal(went.at(-1), "clients/leads");
+});
+
+test("someone who can only read is told so, and offered no press", async () => {
+  const standing = {
+    kind: "no_mailbox",
+    headline: "Connect your mailbox to start sending",
+    detail: null,
+    act: "Connect Google",
+    to: null,
+    needsYou: true,
+    steps: [],
+  };
+  const tree = await drawOnRead({}, { standing }, (t) => !!byTestId(t, "rec-standing-head"));
+  assert.equal(byTestId(tree, "rec-viewer-note"), null, "an owner is not told");
+  globalThis.window.fetch = (url) =>
+    Promise.resolve(
+      String(url).includes("settings/reach-out")
+        ? new Response(JSON.stringify({ ok: true, data: { ...READ, standing } }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        : new Response(JSON.stringify({ ok: false }), { status: 500 }),
+    );
+  const may = globalThis.window.canDo;
+  globalThis.window.canDo = () => false;
+  try {
+    const viewer = drawTab({ part: "outreach", config: {} });
+    assert.equal(byTestId(viewer, "rec-standing-act"), null);
+    assert.equal(byTestId(viewer, "rec-row-act-offer"), null, "and no row opens");
+    assert.equal(textOf(byTestId(viewer, "rec-viewer-note")), "Only an owner can change these, or connect a mailbox.");
+  } finally {
+    globalThis.window.canDo = may;
+  }
+  unmount();
+});
+
+test("what they do next says what it reaches today, and whether there is a booking link to offer", async () => {
+  let tree = drawTab({ part: "outreach", config: {}, brain: { booking_link: "" } });
+  openFold(tree, "reply_offer");
+  tree = redrawTab();
+  const choice = textOf(byTestId(tree, "rec-reply-offer-choice"));
+  assert.match(choice, /Talk on a short call/);
+  assert.match(choice, /Answers to interested replies offer a call\./);
+  assert.match(choice, /Book through your link/);
+  assert.match(choice, /Just reply/);
+  assert.match(textOf(byTestId(tree, "rec-reply-offer-link")), /no booking link yet/);
+  unmount();
+  tree = drawTab({ part: "outreach", config: {}, brain: { booking_link: "https://book.example/maya" } });
+  openFold(tree, "reply_offer");
+  assert.match(textOf(byTestId(redrawTab(), "rec-reply-offer-link")), /book\.example\/maya/);
+  unmount();
+});
+
+test("each sheet says what the change reaches, as it stands today", () => {
+  for (const [fold, words] of [
+    ["offer", /Running ones use it for their first line\./],
+    ["fixes", /Running ones keep their words\./],
+    ["who_for", /Who actually gets an email is the search you pick/],
+  ]) {
+    openFold(drawTab({ part: "outreach", config: {} }), fold);
+    assert.match(textOf(foldOf(redrawTab(), fold)), words, fold);
+    unmount();
+  }
+  openFold(drawTab({ part: "outreach", config: {} }), "ending");
+  assert.match(
+    textOf(byTestId(redrawTab(), "rec-ending-note")),
+    /Signature and phone reach every email as soon as you save\./,
+  );
+  unmount();
+});
+
+test("Sending's sheet shows what Healthy means, and Send more only for a mailbox on the customer's domain", async () => {
+  let tree = await drawOnRead({}, {}, (t) => !!byTestId(t, "rec-sending-pill"));
+  assert.equal(textOf(byTestId(tree, "rec-sending-pill")), "Healthy");
+  press(byTestId(tree, "rec-row-act-send_from"));
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "rec-sending-checks")), /Your domain is set up to send/);
+  assert.match(textOf(byTestId(tree, "rec-sending-today")), /7 of 10/);
+  assert.match(textOf(byTestId(tree, "rec-sending-month")), /34 sent, of 2,000 included/);
+  assert.equal(byTestId(tree, "rec-sending-more"), null);
+  unmount();
+  const sending = {
+    ...READ.sending,
+    ceiling: "That's the most for a mailbox on your main domain.",
+    customerHost: "brightline.example",
+  };
+  tree = await drawOnRead({}, { sending }, (t) => {
+    press(byTestId(t, "rec-row-act-send_from"));
+    return !!byTestId(redrawTab(), "rec-sending-more");
+  });
+  assert.match(textOf(byTestId(tree, "rec-sending-pace")), /That's the most for a mailbox on your main domain\./);
+  press(byTestId(tree, "rec-sending-more"));
+  tree = redrawTab();
+  const more = textOf(byTestId(tree, "rec-send-more-sheet"));
+  assert.match(more, /Like getbrightline\.example, with a mailbox on Google Workspace/);
+  assert.match(more, /stays at 20 a day/);
+  unmount();
+});
+
+test("Before each batch offers holding or asking, never sending on its own, and says it is for new sequences", async () => {
+  let tree = await drawOnRead({}, {}, (t) => /Held 30 minutes/.test(textOf(byTestId(t, "rec-row-batch_mode"))));
+  openFold(tree, "batch_mode");
+  tree = redrawTab();
+  const choice = textOf(byTestId(tree, "rec-batch-mode-choice"));
+  assert.match(choice, /Hold it 30 minutes so I can stop it/);
+  assert.match(choice, /Ask me/);
+  assert.doesNotMatch(choice, /Send it/);
+  const note = textOf(byTestId(tree, "rec-batch-note"));
+  assert.match(note, /For new sequences\. Each sequence can change its own\./);
+  assert.match(note, /New words always wait for your OK/);
+  unmount();
+});
+
+test("the rules say the two they left out: customers, and countries", async () => {
+  let tree = await drawOnRead({}, {}, (t) => !!byTestId(t, "rec-row-act-rules"));
+  press(byTestId(tree, "rec-row-act-rules"));
+  tree = redrawTab();
+  const rules = textOf(byTestId(tree, "rec-rules"));
+  assert.match(rules, /Never to your customers, or anyone who said no/);
+  assert.match(rules, /US, Canada and UK freely\. Elsewhere it asks you first, and never Germany and Austria/);
+  unmount();
+});
+
+test("who never hears says how many, by address, and a count not read is left out", async () => {
+  let tree = await drawOnRead({}, { never: { said_no: 4, asked_to_stop: 2 } }, (t) =>
+    /6 so far\./.test(textOf(byTestId(t, "rec-card-never"))),
+  );
+  press(byTestId(tree, "rec-row-act-never"));
+  tree = redrawTab();
+  const sheet = textOf(byTestId(tree, "rec-never-sheet"));
+  assert.match(sheet, /Said no4/);
+  assert.match(sheet, /Asked to stop2/);
+  assert.match(sheet, /Always, on its own/);
+  unmount();
+  tree = await drawOnRead({}, { never: null }, (t) => !/so far/.test(textOf(byTestId(t, "rec-card-never"))));
+  assert.doesNotMatch(textOf(byTestId(tree, "rec-card-never")), /so far/);
+  unmount();
 });
 
 test("the rail lists it as Cold email, in a group of its own after Autonomy, and its rows open on it", () => {
@@ -505,7 +718,7 @@ test("Try it with no running sequence to leads says to start one, and asks the p
   let tree = page();
   press(byTestId(tree, "rec-row-act-try_lead"));
   tree = redrawTab();
-  assert.match(textOf(byTestId(tree, "rec-try-none")), /Start a sequence first/);
+  assert.match(textOf(byTestId(tree, "rec-try-none")), /Start a sequence to see one/);
   assert.ok(!asked.some((u) => u.includes("reach-outs/preview")), "no sequence, no email written");
 });
 

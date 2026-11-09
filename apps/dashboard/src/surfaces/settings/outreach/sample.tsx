@@ -1,5 +1,5 @@
 /**
- * How it reaches out (decision 0113): Try it on a lead. At rest a card of one row, as How it answers' Rehearse is; open,
+ * Cold email (decision 0113): a sample email, which was Try it on a lead. At rest a card of one row, as How it answers' Rehearse is; open,
  * the kit's sheet, with one real email: the newest running sequence's first email for the first business its search
  * would write to, through the preview door the sequence's sheet was built with (POST reach-outs/preview: the check's own
  * writer and reader and the sender's own assembly, nothing stored, Ask's day spent as a lead's draft spends it). The
@@ -70,8 +70,8 @@ const TriedEmail = ({ preview, claims }: { preview: ReachOutPreviewDto; claims: 
   </div>
 );
 
-/** Try it: the card at rest, and its sheet while it is open. */
-export function TryCard({
+/** A sample email: the card at rest, and its sheet while it is open. Written on a press, from a running sequence, until the page writes one by itself. */
+export function SampleCard({
   read,
   signedBy,
   claims,
@@ -87,9 +87,10 @@ export function TryCard({
   const [round, setRound] = useState(0);
   const tried = useTried(fold.open, seq, signedBy, { at, round });
   return (
-    <OutreachCard id="try" title={TRY_CARD.title} sub={TRY_CARD.sub}>
+    <OutreachCard id="sample" title={TRY_CARD.title}>
       <RecordRow
         id="try_lead"
+        stacked
         label={TRY_CARD.key}
         value={TRY_CARD.value}
         act={{

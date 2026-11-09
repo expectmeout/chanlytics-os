@@ -20,6 +20,7 @@ import {
   REACH_OUT_REFUSAL_WORDS,
   reachOutRuleLines,
   writesBackRows,
+  replyLineOf,
   replyModeHint,
   SEND_DAY_FRAME,
   ASK_FIRST_WORDS_MAX,
@@ -198,10 +199,12 @@ test("what backs a number is the claims and the business's name", () => {});
 
 test("the rules the page states are the numbers the code keeps", () => {
   const rules = reachOutRuleLines();
-  assert.equal(rules.length, 7);
-  assert.equal(rules[3], "Under 120 words, no line in capitals. Ask keeps its own to 80, follow-ups to 50");
-  assert.equal(rules[5], "A new mailbox sends 10 a day, then 20, 30 and 40, a week apart");
-  assert.equal(rules[6], "Listens 30 days for a reply, and stops the moment one comes");
+  assert.equal(rules.length, 9);
+  assert.equal(rules[3], "Short: first emails under 80 words, follow-ups under 50");
+  assert.equal(rules[5], "Never to your customers, or anyone who said no");
+  assert.equal(rules[6], "US, Canada and UK freely. Elsewhere it asks you first, and never Germany and Austria");
+  assert.equal(rules[7], "A new mailbox starts at 10 a day, and rises a week at a time");
+  assert.equal(rules[8], "Listens 30 days for a reply, and stops the moment one comes");
 });
 
 test("what a reply sets off: five rows, one of them the owner's to change", () => {
@@ -216,11 +219,16 @@ test("what a reply sets off: five rows, one of them the owner's to change", () =
       ["away", true],
     ],
   );
+  assert.equal(rows[0].value, "An answer is drafted that offers a call. You send it.");
   assert.equal(
-    rows[0].value,
-    "Your sequence stops for them. An answer is drafted for you to send, offering a call with you",
+    writesBackRows(undefined, "ask", true)[0].value,
+    "An answer is drafted that offers your booking link. You send it.",
   );
-  assert.equal(writesBackRows(undefined, "ask", true)[0].value.endsWith("offering your booking link"), true);
+  assert.equal(
+    replyLineOf("ask"),
+    "Their emails stop, you're told right away, and an answer is drafted for you to send.",
+  );
+  assert.equal(replyLineOf("never"), "Their emails stop, and you're told right away.");
   // Only a quiet Replies row stops the draft (contracts draftRefusal); whatever else it is set to, a person sends it.
   for (const mode of ["ask", "veto", "auto"])
     assert.equal(replyModeHint(mode), "Drafted while Autonomy › Replies is on. Only you send it.", mode);
@@ -228,8 +236,8 @@ test("what a reply sets off: five rows, one of them the owner's to change", () =
 
 test("with Autonomy's Replies quiet, the rows say nothing is drafted: a phone hides a filled row's hint", () => {
   const quiet = writesBackRows("call", "never", true);
-  assert.equal(quiet[0].value, "Your sequence stops for them. Nothing is drafted while Autonomy › Replies stays quiet");
-  assert.equal(quiet[1].value, "A step on Today says to write again on the day they named");
+  assert.equal(quiet[0].value, "Nothing is drafted while Autonomy › Replies stays quiet.");
+  assert.equal(quiet[1].value, "Waits, and you're reminded on the day they named.");
   assert.equal(replyModeHint("never"), null, "the row says it; the hint would say it twice");
 });
 
@@ -245,12 +253,12 @@ test("with no booking link set, the answer to a lead offers none, and the row sa
   const without = writesBackRows("booking_link", "ask", false);
   assert.equal(
     without[0].value,
-    "Your sequence stops for them. An answer is drafted for you to send, answering what they asked: there is no booking link to offer yet",
+    "An answer is drafted that sticks to what they asked, since there is no booking link to offer yet. You send it.",
   );
   assert.equal(writesBackRows(undefined, "ask", false)[0].value, without[0].value, "unset is the booking link");
   // A call or the answer alone never needed one.
-  assert.match(writesBackRows("call", "ask", false)[0].value, /offering a call with you$/);
-  assert.match(writesBackRows("booking_link", "ask", true)[0].value, /offering your booking link$/);
+  assert.match(writesBackRows("call", "ask", false)[0].value, /offers a call\./);
+  assert.match(writesBackRows("booking_link", "ask", true)[0].value, /offers your booking link\./);
 });
 
 test("the rule lines read the window and Ask's word counts from the numbers the code keeps", () => {
@@ -259,7 +267,10 @@ test("the rule lines read the window and Ask's word counts from the numbers the 
     rules[4],
     `Arrives ${SEND_DAY_FRAME.from / 60} to ${SEND_DAY_FRAME.to / 60 - 12} their time, while they're open`,
   );
-  assert.ok(rules[3].endsWith(`Ask keeps its own to ${ASK_FIRST_WORDS_MAX}, follow-ups to ${ASK_LATER_WORDS_MAX}`));
+  assert.equal(
+    rules[3],
+    `Short: first emails under ${ASK_FIRST_WORDS_MAX} words, follow-ups under ${ASK_LATER_WORDS_MAX}`,
+  );
 });
 
 const WORDS_TENANT = "11111111-1111-4111-8111-111111111111";

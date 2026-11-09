@@ -21,6 +21,7 @@ import {
   mailboxIsLive,
   mailboxSendsNow,
   mailboxWords,
+  newSequenceMode,
   parseTenantConfig,
   type ColdEmailStandingFacts,
   type MailboxConnectionDto,
@@ -439,6 +440,8 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
           }),
         ),
         sending: coldEmailSendingOf(mailboxes, month, rc.now.getTime()),
+        batch_mode:
+          newSequenceMode(policies.find((p) => p.class === "outreach")?.mode, "leads") === "veto" ? "veto" : "ask",
         never,
         foot: { business: facts?.data.name?.trim() || null, address: parsed?.brain?.profile?.address?.trim() || null },
         mailbox: mailboxShown(mailboxes, rc.now.getTime(), tz),

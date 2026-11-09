@@ -252,6 +252,7 @@ export {
   REACH_OUT_SETTINGS_WORDS,
   reachOutRuleLines,
   REPLY_OFFER_WORDS,
+  replyLineOf,
   replyModeHint,
   tryCheckLine,
   writesBackRows,
