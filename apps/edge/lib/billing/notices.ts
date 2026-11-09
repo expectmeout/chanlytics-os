@@ -11,6 +11,7 @@ import { DEFAULT_TIMEZONE, billingDayWords } from "@chanlytics/contracts";
 import { keepOnce, notifyOnceAs } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -85,6 +86,6 @@ export async function noteTrialEnding(
     `stripe:${eventId}`,
   );
   await emitEvent(db, row.tenant_id, "billing.trial_ending", "subscription", null, { trial_end: trialEnd }).catch(
-    () => {},
+    logAndGoOn("event billing.trial_ending"),
   );
 }

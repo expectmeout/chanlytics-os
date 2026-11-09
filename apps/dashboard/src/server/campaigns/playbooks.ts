@@ -21,6 +21,7 @@ import {
   type PlaybookPolicyClass,
   type PlaybookTrigger,
   type Touches,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { isPlaybookTotalsDto, type PlaybookTotalsDto } from "./lifecycle/totals";
 import {
@@ -206,7 +207,7 @@ export async function followUpFacts(
     findWhatsappHealth(ctx, tenantId),
     proposalsOut(ctx, tenantId),
   ]);
-  if (pb.error) throw new Error(pb.error.message);
+  if (pb.error) throw new DbFailure(pb.error);
   const data = pb.data;
   // It is the proposal follow-up, read where a deal is on file (readers/people.ts).
   const runs = !!data && campaignRunsOn({ ...data, trigger: "proposal_waiting" }, { tz, now });
@@ -298,7 +299,7 @@ export async function listPlaybookRows(ctx: RouteContext, tenantId: TenantId): P
   if (!moments) ({ data: rows, error } = await read(columns, false));
   if (missing("list_key")) ({ data: rows, error } = await read(columns.replace("list_key, ", ""), moments));
   if (missing("list_id")) ({ data: rows, error } = await read(columns.replace("list_id, list_key, ", ""), moments));
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   // Each step's sequence's mode (decision 0064): what its batches do, which the run, Resume and Ask say by.
   const modes = await getSequenceModes(
     ctx.supabase,
@@ -437,7 +438,7 @@ async function archivedListRefusal(
   if (params.trigger !== "saved_list") return null;
   const { data: on, error } = await findStepList(ctx.supabase, params.id);
   // A campaign whose list cannot be read is not one whose list stands: it would resume onto an archived list.
-  if (error) throw new Error(`cannot read the campaign's list: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the campaign's list");
   const listId = on?.list_id ?? null;
   const list = listId ? await listRow(ctx.supabase, listId) : null;
   return list?.archived_at
@@ -475,7 +476,7 @@ export function playbookPatchPorts(ctx: RouteContext, tenantId: TenantId): Check
 export function playbookWriteError(error: { code?: string; message: string }): Error {
   return error.code === "23505" && error.message.includes("sequence_steps_one_follow_up")
     ? new AppError("conflict", FOLLOW_UP_ONE, 409)
-    : new Error(error.message);
+    : new DbFailure(error);
 }
 
 /**

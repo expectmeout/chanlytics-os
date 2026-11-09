@@ -5,7 +5,7 @@
  * service role — scheduling a job, calling the edge — go through the
  * server-only service module at the call sites.
  */
-import { asContactId } from "@chanlytics/contracts";
+import { asContactId, DbFailure } from "@chanlytics/contracts";
 import {
   AppError,
   asTenantId,
@@ -104,7 +104,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   // went wrong" — a typo in a URL reading as a server fault.
   const convId = requireUuid(id, "conversation");
   const { data, error } = await findThreadScope(ctx.supabase, convId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "Conversation not found.");
   // tenant_id is a uuid column, so the check cannot refuse a row this read returns: it names what the id is.
   return {
@@ -159,7 +159,7 @@ interface VerbContact {
 async function loadContact(ctx: RouteContext, id: string): Promise<VerbContact> {
   const contactId = asContactId(requireUuid(id, "contact"));
   const { data: contact, error } = await findPersonScope(ctx.supabase, contactId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
   return { id: contact.id, tenant_id: contact.tenant_id, marketing_consent: contact.marketing_consent ?? null };
 }
@@ -192,7 +192,7 @@ interface VerbMessage {
 async function loadMessage(ctx: RouteContext, id: string): Promise<VerbMessage> {
   const messageId = requireUuid(id, "message");
   const { data, error } = await findMessageScope(ctx.supabase, messageId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "Message not found.", 404);
   return data;
 }
@@ -210,7 +210,7 @@ export interface VerbCall {
 async function loadCall(ctx: RouteContext, id: string): Promise<VerbCall> {
   const callId = requireUuid(id, "call");
   const { data, error } = await findCallScope(ctx.supabase, callId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "Call not found.", 404);
   return data;
 }
@@ -235,7 +235,7 @@ export async function replyChannelOf(
   conv: { id: string; tenant_id: TenantId },
 ): Promise<WrittenChannel> {
   const { data, error } = await listCustomerWrites(ctx.supabase, conv.tenant_id, conv.id, LAST_WROTE_LOOKBACK);
-  if (error) throw new Error(`reading the last inbound: ${error.message}`);
+  if (error) throw new DbFailure(error, "reading the last inbound");
   const theirs = data ?? [];
   const wrote = theirs.find((m) => isPersonsWords(m.meta)) ?? theirs[0];
   if (wrote) return writtenChannelOf(wrote.channel);
@@ -280,7 +280,7 @@ export async function recordDecision(
     log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb, subject: subjectType });
     attempt = await insert(null);
   }
-  if (attempt.error || !attempt.data) throw new Error(`decision: ${attempt.error?.message ?? "no row"}`);
+  if (attempt.error || !attempt.data) throw new DbFailure(attempt.error ?? { message: "no row" }, "decision");
   return attempt.data.id;
 }
 
@@ -311,7 +311,7 @@ export async function resolveOpenEscalation(
 export async function pauseMsFor(ctx: RouteContext, tenantId: TenantId): Promise<number> {
   const { data, error } = await findReplyLimits(ctx.supabase, tenantId);
   // A pause that cannot be read is not the default one: a member's take-over would hold for the wrong time.
-  if (error) throw new Error(`cannot read the workspace's reply pause: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace's reply pause");
   return pauseMsOf(recordOrNull(data?.limits));
 }
 
@@ -375,7 +375,7 @@ interface VerbErasure {
 async function loadErasable(ctx: RouteContext, id: string): Promise<VerbErasure> {
   const contactId = asContactId(requireUuid(id, "contact"));
   const { data, error } = await findErasableScope(ctx.supabase, contactId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "Contact not found.");
   return data;
 }
@@ -404,7 +404,7 @@ export const listScope = row((ctx, params) => loadList(ctx, String(params.id ?? 
 async function loadBroadcast(ctx: RouteContext, id: string) {
   const broadcastId = requireUuid(id, "broadcast");
   const { data, error } = await findRunScope(ctx.supabase, broadcastId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "Run not found.", 404);
   return { ...data, tenant_id: asTenantId(data.tenant_id) };
 }
@@ -422,7 +422,7 @@ export const sequenceScope = row((ctx, params) => loadSequence(ctx, String(param
 async function loadTemplate(ctx: RouteContext, id: string) {
   const templateId = requireUuid(id, "template");
   const { data, error } = await findTemplateScope(ctx.supabase, templateId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "Template not found.", 404);
   return data;
 }
@@ -434,7 +434,7 @@ async function loadPlaybook(ctx: RouteContext, id: string) {
   const playbookId = requireUuid(id, "campaign");
   // Its class and its message are what a change of its channels alone is judged by (campaigns/playbook-row.ts).
   const { data, error } = await findPlaybookScope(ctx.supabase, playbookId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", CAMPAIGN_NOT_FOUND, 404);
   return data;
 }

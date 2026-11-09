@@ -13,9 +13,9 @@
  */
 import { json } from "../shared/http.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
-import { errorMessage, workspaceOf } from "../shared/admin-door.js";
+import { workspaceOf } from "../shared/admin-door.js";
 import { platformFrom, post } from "../shared/alerts/notify.js";
-import { logger } from "../shared/log.js";
+import { logger, logFailure } from "../shared/log.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { getPartnerInviteMail } from "@chanlytics/db/partners";
 import { partnerInviteEmail } from "@chanlytics/contracts";
@@ -33,7 +33,7 @@ export async function sendPartnerInvite(auth: Admitted, body: Partial<{ tenant_i
   try {
     invite = await getPartnerInviteMail(at.db, at.tenantId);
   } catch (e) {
-    return json(503, { ok: false, error: "read_failed", detail: errorMessage(e) });
+    return json(503, { ok: false, error: "read_failed", detail: logFailure("read", e) });
   }
   // Answered, taken back, expired or never asked: there is nobody waiting to be told.
   if (!invite) return json(404, { ok: false, error: "no_open_invitation" });

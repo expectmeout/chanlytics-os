@@ -12,6 +12,7 @@ import { afterProbe } from "../question";
 import { runsRoom } from "../sizing";
 import { nearbyFor } from "./places";
 import { type Phase, outOfTime, targetOf, wasJudged } from "./rules";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The round's first batch of mailbox checks, written with the page that sends the round to them. */
 const FIRST_CHECK = { kind: "lead_check", batch: 0, run_after_seconds: 0 } as const;
@@ -98,7 +99,10 @@ async function phaseOver(
   const byKey = new Map<string, number | null>();
   for (const r of inPhase) {
     if (outOfTime(leadPorts) || !r.apify_run_id) continue;
-    const input = (await leadPorts.apify.runInput(r.apify_run_id).catch(() => null)) as Record<string, unknown> | null;
+    const input = (await leadPorts.apify.runInput(r.apify_run_id).catch(logAndGoOn("runInput", null))) as Record<
+      string,
+      unknown
+    > | null;
     byKey.set(r.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
   }
   // Every term short says the area is searched; a term this phase never asked has said no such thing.

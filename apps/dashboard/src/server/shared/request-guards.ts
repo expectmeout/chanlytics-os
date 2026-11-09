@@ -38,6 +38,7 @@ export function isSameOrigin(request: Request): boolean {
   try {
     return new URL(origin).host === host;
   } catch {
+    // Not an address.
     return false;
   }
 }

@@ -1,6 +1,6 @@
 /** People: people. */
 
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import type { PostgrestError } from "@supabase/supabase-js";
 import {
   recordOrEmpty,
@@ -23,7 +23,7 @@ import type { TenantId, ContactId } from "@chanlytics/contracts";
  */
 export async function seePersonNote(db: Db, noteId: string): Promise<{ seen: boolean; why: string | null }> {
   const { data, error } = await db.rpc("person_note_seen", { p_note_id: noteId });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   const o = recordOrEmpty(data);
   return { seen: typeof o.seen === "string", why: typeof o.error === "string" ? o.error : null };
 }
@@ -44,7 +44,7 @@ export async function listPeopleAtLead(db: Db, tenantId: TenantId, leadId: strin
     .is("erased_at", null)
     .is("merged_into_contact_id", null)
     .limit(PEOPLE_AT_A_LEAD);
-  if (error) throw new Error(`listPeopleAtLead: ${error.message}`);
+  if (error) throw new DbFailure(error, "listPeopleAtLead");
   const people = data ?? [];
   if (!people.length) return [];
   const ids = people.map((p) => p.id);
@@ -54,7 +54,7 @@ export async function listPeopleAtLead(db: Db, tenantId: TenantId, leadId: strin
     db.from("person_moments").select("contact_id, in_touch_at").eq("tenant_id", tenantId).in("contact_id", ids),
     getPersonIdsWaitingOnYou(db, tenantId, ids, Date.now()),
   ]);
-  if (moments.error) throw new Error(`listPeopleAtLead: ${moments.error.message}`);
+  if (moments.error) throw new DbFailure(moments.error, "listPeopleAtLead");
   const touched = new Map((moments.data ?? []).map((m) => [m.contact_id, m.in_touch_at]));
   return people
     .map((p) => {
@@ -79,7 +79,7 @@ export async function listSigners(db: Db, tenantId: TenantId, personId: ContactI
     .is("undone_at", null)
     .order("read_at", { ascending: false })
     .limit(5);
-  if (error) throw new Error(`listSigners: ${error.message}`);
+  if (error) throw new DbFailure(error, "listSigners");
   return (data ?? []).flatMap((item) =>
     item.signer_name && (item.signer_state === "offered" || item.signer_state === "adopted")
       ? [
@@ -150,7 +150,7 @@ export async function resolvePerson(db: Db, resolvePersonInput: ResolvePersonInp
     p_source: resolvePersonInput.source,
     p_detail: resolvePersonInput.detail ?? {},
   });
-  if (error) throw Object.assign(new Error(`resolve_person: ${error.message}`), { code: error.code });
+  if (error) throw new DbFailure(error, "resolve_person");
   const row = recordOrEmpty(data);
   if (typeof row.contact_id !== "string") throw new Error("resolve_person answered without a person");
   return {
@@ -183,7 +183,7 @@ export async function openDoubtsOf(db: Db, tenantId: TenantId, contactId: Contac
     .or(`contact_id.eq.${contactId},other_id.eq.${contactId}`)
     .order("created_at");
   if (error && (error.code === "PGRST205" || error.code === "42P01")) return [];
-  if (error) throw new Error(`person_doubts: ${error.message}`);
+  if (error) throw new DbFailure(error, "person_doubts");
   const rows = data ?? [];
   if (!rows.length) return [];
   const otherOf = (r: (typeof rows)[number]) => (r.contact_id === contactId ? heldContactId(r.other_id) : r.contact_id);
@@ -195,7 +195,7 @@ export async function openDoubtsOf(db: Db, tenantId: TenantId, contactId: Contac
     .in("id", otherIds.slice(0, IDS_PER_READ))
     .is("erased_at", null)
     .is("merged_into_contact_id", null);
-  if (others.error) throw new Error(`person_doubts: ${others.error.message}`);
+  if (others.error) throw new DbFailure(others.error, "person_doubts");
   const byId = new Map((others.data ?? []).map((c) => [c.id, c]));
   const out: PersonDoubtDto[] = [];
   for (const r of rows) {
@@ -220,7 +220,7 @@ export async function findDoubtOn(
     .eq("id", doubtId)
     .or(`contact_id.eq.${contactId},other_id.eq.${contactId}`)
     .maybeSingle();
-  if (error) throw new Error(`person_doubts: ${error.message}`);
+  if (error) throw new DbFailure(error, "person_doubts");
   return data;
 }
 
@@ -230,7 +230,7 @@ export async function dismissPersonDoubt(
   doubtId: string,
 ): Promise<{ doubt_id: string; settled_as: string | null }> {
   const { data, error } = await db.rpc("person_doubt_dismiss", { p_doubt_id: doubtId });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   const o = recordOrEmpty(data);
   return {
     doubt_id: typeof o.doubt_id === "string" ? o.doubt_id : doubtId,
@@ -253,7 +253,7 @@ export async function markContactSeen(
   contactIds: readonly ContactId[],
 ): Promise<SeenMarksDto> {
   const { data, error } = await db.rpc("contact_seen", { p_tenant_id: tenantId, p_contact_ids: [...contactIds] });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   const value = recordOrEmpty(data);
   const marks = listOrEmpty(value.marks).map(recordOrEmpty);
   return {
@@ -289,7 +289,7 @@ export async function markContact(
     p_seen: mark.seen,
     ...(mark.heardAt ? { p_heard_at: mark.heardAt } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   const value = recordOrEmpty(data);
   return {
     contact_id: contactId,

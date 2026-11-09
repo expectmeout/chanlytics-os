@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 export type AppointmentNoticeRow = Database["public"]["Tables"]["appointment_notices"]["Row"];
@@ -29,7 +30,7 @@ export async function findAppointmentNotice(
     .eq("tenant_id", tenantId)
     .eq("notice_id", noticeId)
     .maybeSingle();
-  if (error) throw new Error(`appointment_notice: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice");
   return data;
 }
 
@@ -38,7 +39,7 @@ export async function keepAppointmentNotice(db: Db, row: AppointmentNoticeInsert
   const { error } = await db
     .from("appointment_notices")
     .upsert({ ...row, read_at: new Date().toISOString() }, { onConflict: "tenant_id,notice_id" });
-  if (error) throw new Error(`appointment_notice_keep: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice_keep");
 }
 
 /**
@@ -54,7 +55,7 @@ export async function holdNoticeIfUnkept(db: Db, row: AppointmentNoticeInsert): 
       { onConflict: "tenant_id,notice_id", ignoreDuplicates: true },
     )
     .select("notice_id");
-  if (error) throw new Error(`appointment_notice_hold: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice_hold");
   return (data?.length ?? 0) > 0;
 }
 
@@ -84,8 +85,8 @@ export async function findAppointmentNotices(
       .eq("tenant_id", tenantId)
       .eq("outcome", "held"),
   ]);
-  if (latest.error) throw new Error(`appointment_notices_latest: ${latest.error.message}`);
-  if (held.error) throw new Error(`appointment_notices_held: ${held.error.message}`);
+  if (latest.error) throw new DbFailure(latest.error, "appointment_notices_latest");
+  if (held.error) throw new DbFailure(held.error, "appointment_notices_held");
   return { tool: latest.data?.tool ?? null, last_at: latest.data?.received_at ?? null, held: held.count ?? 0 };
 }
 
@@ -98,7 +99,7 @@ export async function findAppointmentNotices(
  */
 export async function hasMemberAddress(db: Db, tenantId: TenantId, address: string): Promise<boolean> {
   const { data, error } = await db.rpc("member_has_address", { p_tenant_id: tenantId, p_address: address });
-  if (error) throw new Error(`member_has_address: ${error.message}`);
+  if (error) throw new DbFailure(error, "member_has_address");
   return data === true;
 }
 
@@ -116,7 +117,7 @@ export async function listHeldNotices(db: Db, tenantId: TenantId): Promise<Appoi
     .eq("outcome", "held")
     .order("received_at", { ascending: false })
     .limit(HELD_MAX);
-  if (error) throw new Error(`appointment_notices_held_list: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notices_held_list");
   return data ?? [];
 }
 
@@ -138,7 +139,7 @@ export async function findHeldNoticeKeys(db: Db, tenantId: TenantId): Promise<Re
     .order("received_at", { ascending: false })
     .order("id", { ascending: true })
     .limit(HELD_KEYS_CAP);
-  if (error) throw new Error(`appointment_notices_held_keys: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notices_held_keys");
   const rows = data ?? [];
   if (rows.length >= HELD_KEYS_CAP) return null;
   return new Set(rows.flatMap((r) => [r.id, r.notice_id]));
@@ -156,7 +157,7 @@ export async function findAppointmentNoticeById(
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(`appointment_notice_by_id: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice_by_id");
   return data;
 }
 
@@ -172,6 +173,6 @@ export async function dismissAppointmentNotice(db: Db, tenantId: TenantId, id: s
     .eq("id", id)
     .eq("outcome", "held")
     .select("id");
-  if (error) throw new Error(`appointment_notice_dismiss: ${error.message}`);
+  if (error) throw new DbFailure(error, "appointment_notice_dismiss");
   return (data?.length ?? 0) > 0;
 }

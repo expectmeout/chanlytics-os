@@ -19,7 +19,7 @@ import { json, refuse } from "../shared/http.js";
 import { tokenWorkspace, type Admitted } from "../shared/admin-auth.js";
 import { errorMessage } from "../shared/admin-door.js";
 import { pg } from "../shared/pg.js";
-import { errField, logger } from "../shared/log.js";
+import { errField, logger, refuseFailure } from "../shared/log.js";
 import { lineCodesFrom, type ProviderAccount } from "@chanlytics/channels/lines";
 import { LINE_CODES_WITHIN_MS, isTenantId } from "@chanlytics/contracts";
 import { findOwnLine } from "@chanlytics/db/lines";
@@ -47,7 +47,7 @@ export async function readLineCodes(auth: Admitted): Promise<Response> {
   const held = await ownLineAccount(db, tenantId).catch((e: unknown) =>
     e instanceof Error ? e : new Error(String(e)),
   );
-  if (held instanceof Error) return refuse(503, "read_failed", held.message);
+  if (held instanceof Error) return refuseFailure(503, "read_failed", held);
   if (!held) return json(200, { ok: true, codes: [] });
   const choice = lineProviderFromEnv();
   if (!choice) return refuse(503, "no_line_provider");

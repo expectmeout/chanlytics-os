@@ -41,6 +41,7 @@ import { pg } from "../shared/pg.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { errField, logger } from "../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -197,6 +198,7 @@ async function bookingPageToRead(
     if (!page) return null;
     return new URL(page).hostname === new URL(siteUrl).hostname ? null : page;
   } catch {
+    // Not an address.
     return null;
   }
 }
@@ -240,7 +242,9 @@ export async function askWebsiteRead(
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const cfg = parseTenantConfig((await getTenantConfig(db, tenantId))?.config ?? null);
-  const listing = listingFactsOf(await findListingFactsStored(db, tenantId).catch(() => null));
+  const listing = listingFactsOf(
+    await findListingFactsStored(db, tenantId).catch(logAndGoOn("findListingFactsStored", null)),
+  );
   const website = cfg?.brain?.profile?.website ?? listing?.website ?? null;
   if (!feedUrlOk(website)) return json(200, { ok: true, asked: false });
   await scheduleWebsiteRead(db, tenantId, website);

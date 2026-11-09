@@ -1,6 +1,6 @@
 /** People: pages. */
 
-import { heldContactId, heldTenantId } from "@chanlytics/contracts";
+import { heldContactId, heldTenantId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   openDealsFromJson,
@@ -46,7 +46,7 @@ export async function listNamesOfPeople(
       .select(PERSON_FACE_COLUMNS)
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IDS_PER_READ));
-    if (error) throw new Error(`listNamesOfPeople: ${error.message}`);
+    if (error) throw new DbFailure(error, "listNamesOfPeople");
     out.push(...(data ?? []));
   }
   return out;
@@ -79,7 +79,7 @@ export async function listPersonDecisions(
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(PERSON_DECISIONS);
-  if (error) throw new Error(`person decisions: ${error.message}`);
+  if (error) throw new DbFailure(error, "person decisions");
   return (data ?? []).map((d) => ({ ...d, payload: recordOrNull(d.payload) }));
 }
 
@@ -123,7 +123,7 @@ export async function listPeoplePage(
     ...(limit !== PEOPLE_PAGE ? { p_limit: limit } : {}),
     ...(after ? { p_after_at: after.at, p_after_added: after.added, p_after_id: after.id } : {}),
   });
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  if (error) throw new DbFailure(error);
   return (data ?? []).map(rowOfPeopleList);
 }
 
@@ -150,7 +150,7 @@ export async function findPersonRow(db: Db, tenantId: TenantId, personOf: Person
   const contactId = typeof personOf === "string" ? personOf : thread?.contact_id;
   if (!contactId) return null;
   const { data, error } = await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contactId });
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  if (error) throw new DbFailure(error);
   const first = (data ?? [])[0];
   return first ? rowOfPeopleList(first) : null;
 }
@@ -237,7 +237,7 @@ export async function getErasureDigests(db: Db, tenantId: TenantId, values: stri
   const items = [...new Set(values.filter((v) => v !== ""))];
   if (items.length === 0) return new Map();
   const { data, error } = await db.rpc("erasure_digests", { p_tenant_id: tenantId, p_values: items });
-  if (error) throw new Error(`cannot make the erasure digests: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot make the erasure digests");
   const digests = data ?? [];
   if (digests.length !== items.length) throw new Error("the erasure digests came back short");
   const out = new Map<string, string>();
@@ -267,7 +267,7 @@ export async function scrubPersonNotes(
   });
   // A database before 00341 has no scrub, and the notes stay as they were: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
-  if (error) throw new Error(`person_notes_scrub: ${error.message}`);
+  if (error) throw new DbFailure(error, "person_notes_scrub");
   return data ?? 0;
 }
 
@@ -353,7 +353,7 @@ interface MergedPeople {
  */
 export async function mergePeople(db: Db, keep: string, merge: string): Promise<MergedPeople> {
   const { data, error } = await db.rpc("merge_people", { p_keep: keep, p_merge: merge });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return mergedOf(data);
 }
 
@@ -370,7 +370,7 @@ export async function findKeptPerson(db: Db, tenantId: TenantId, contactId: Cont
       .eq("tenant_id", tenantId)
       .eq("id", at)
       .maybeSingle();
-    if (error) throw Object.assign(new Error(error.message), { code: error.code });
+    if (error) throw new DbFailure(error);
     if (!data || data.erased_at) return null;
     if (!data.merged_into_contact_id) return at === contactId ? null : at;
     at = data.merged_into_contact_id;
@@ -433,28 +433,28 @@ function nameAnswerOf(v: unknown, doneKey: "named" | "undone" | "declined"): Per
  */
 export async function adoptPersonName(db: Db, personId: string, messageId: string): Promise<PersonNameAnswer> {
   const { data, error } = await db.rpc("person_name_adopt", { p_contact_id: personId, p_message_id: messageId });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return nameAnswerOf(data, "named");
 }
 
 /** Undo of Use this name: the name it replaced goes back, settled, so that sign-off is never taken again. */
 export async function undoPersonName(db: Db, personId: string): Promise<PersonNameAnswer> {
   const { data, error } = await db.rpc("person_name_undo", { p_contact_id: personId });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return nameAnswerOf(data, "undone");
 }
 
 /** The notice's ×: the signer declined for everyone, the name settled. */
 export async function declinePersonName(db: Db, personId: string, messageId: string): Promise<PersonNameAnswer> {
   const { data, error } = await db.rpc("person_name_decline", { p_contact_id: personId, p_message_id: messageId });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return nameAnswerOf(data, "declined");
 }
 
 /** Link a business (0052): the person works at this lead, by a member's hand, settled. */
 export async function joinPersonToLead(db: Db, personId: string, leadId: string): Promise<{ leadId: string }> {
   const { data, error } = await db.rpc("person_join_lead", { p_contact_id: personId, p_lead_id: leadId });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   const o = recordOrEmpty(data);
   return { leadId: typeof o.lead_id === "string" ? o.lead_id : leadId };
 }
@@ -462,7 +462,7 @@ export async function joinPersonToLead(db: Db, personId: string, leadId: string)
 /** Not at this business (0052): the person is unlinked from the lead they work at, settled. */
 export async function leavePersonLead(db: Db, personId: string): Promise<{ left: boolean }> {
   const { data, error } = await db.rpc("person_leave_lead", { p_contact_id: personId });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   const o = recordOrEmpty(data);
   return { left: o.left === true };
 }

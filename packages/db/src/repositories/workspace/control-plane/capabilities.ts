@@ -1,7 +1,7 @@
 /** Control plane: capabilities. */
 
 import type { PostgrestError } from "@supabase/supabase-js";
-import { hasPublicPages, openToCustomersOf, recordOrEmpty } from "@chanlytics/contracts";
+import { hasPublicPages, openToCustomersOf, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
 import type { Db } from "./config";
@@ -21,7 +21,7 @@ export async function listWorkspacesWithANumberChosen(db: Db): Promise<string[]>
       .in("phone->>way", ["new", "keep"])
       .order("tenant_id")
       .range(from, from + TRIAL_PAGE - 1);
-    if (error) throw new Error(`cannot read the setup choices: ${error.message}`);
+    if (error) throw new DbFailure(error, "cannot read the setup choices");
     out.push(...(data ?? []).map((r) => r.tenant_id));
     if ((data ?? []).length < TRIAL_PAGE) return out;
   }
@@ -63,7 +63,7 @@ export async function listTrialingWorkspaceIds(db: Db): Promise<string[]> {
       .not("stripe_subscription_id", "is", null)
       .order("tenant_id")
       .range(from, from + TRIAL_PAGE - 1);
-    if (error) throw new Error(`cannot read the trials: ${error.message}`);
+    if (error) throw new DbFailure(error, "cannot read the trials");
     out.push(...(data ?? []).map((r) => r.tenant_id));
     if ((data ?? []).length < TRIAL_PAGE) return out;
   }
@@ -74,7 +74,7 @@ const TRIAL_PAGE = 500;
 /** What a workspace has used of what a trial includes (00512's trial_use): its calls' seconds and its replies. */
 export async function getTrialUse(db: Db, tenantId: TenantId): Promise<{ callSeconds: number; replies: number }> {
   const { data, error } = await db.rpc("trial_use", { p_tenant_id: tenantId });
-  if (error) throw new Error(`trial_use: ${error.message}`);
+  if (error) throw new DbFailure(error, "trial_use");
   const o = recordOrEmpty(data);
   const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
   return { callSeconds: n(o.call_seconds), replies: n(o.replies) };
@@ -91,7 +91,7 @@ export async function findWorkspacePublicSlug(db: Db, tenantId: TenantId): Promi
     .select("slug, status, left_empty_at")
     .eq("id", tenantId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace");
   if (!data) return null;
   const open = openToCustomersOf({ paused: data.status === "paused", ended: !!data.left_empty_at, billing: null });
   return hasPublicPages(data.status, open) ? data.slug : null;
@@ -100,14 +100,14 @@ export async function findWorkspacePublicSlug(db: Db, tenantId: TenantId): Promi
 /** The workspace's name and its address, for a message that names it and links to it; null when there is no such workspace. A read that fails throws. */
 export async function findWorkspaceNamed(db: Db, tenantId: TenantId): Promise<{ name: string; slug: string } | null> {
   const { data, error } = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
-  if (error) throw new Error(`cannot read the workspace: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace");
   return data ? { name: data.name, slug: data.slug } : null;
 }
 
 /** The zone a workspace keeps its clock in (`tenants.timezone`); null when there is no such workspace. A read that fails throws. */
 export async function findWorkspaceZone(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
-  if (error) throw new Error(`cannot read the workspace's zone: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace's zone");
   return data?.timezone ?? null;
 }
 
@@ -123,14 +123,14 @@ export async function getMembershipCount(db: Db, userId: string): Promise<number
     .from("memberships")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId);
-  if (error) throw new Error(`memberships_count: ${error.message}`);
+  if (error) throw new DbFailure(error, "memberships_count");
   return count ?? 0;
 }
 
 /** The workspaces this user belongs to, by id, read on the session client, which sees only its own rows. */
 export async function listWorkspaceIds(db: Db, userId: string): Promise<string[]> {
   const { data, error } = await db.from("memberships").select("tenant_id").eq("user_id", userId);
-  if (error) throw new Error(`memberships_of: ${error.message}`);
+  if (error) throw new DbFailure(error, "memberships_of");
   return (data ?? []).map((m) => m.tenant_id);
 }
 

@@ -24,6 +24,7 @@ export const POST = write({
     const id = requireUuid(ctx.params.id, "turn");
     const pid = typeof ctx.params.pid === "string" ? ctx.params.pid.slice(0, 40) : "";
     if (!/^p-[a-z0-9-]+$/.test(pid)) throw new AppError("validation", "Which card?");
+    // A body that is not JSON is none: what reads it next refuses.
     const body: unknown = await req.json().catch(() => null);
     const parsed = AskProposalOutcomeSchema.safeParse(body);
     if (!parsed.success) throw new AppError("validation", "An outcome is { state, receipt, atMs, undo?, made? }.");

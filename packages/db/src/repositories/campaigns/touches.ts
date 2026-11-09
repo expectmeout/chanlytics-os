@@ -37,6 +37,7 @@ import type { Database } from "../../types";
 import { readAllRows } from "../../shared/paged";
 import { findWorkspaceZone } from "../workspace/control-plane/capabilities";
 import type { ContactId, TenantId } from "@chanlytics/contracts";
+import { dbLogAndGoOn } from "../../shared/observe";
 
 type Db = SupabaseClient<Database>;
 
@@ -150,10 +151,7 @@ async function touchesOf(db: Db, tenantId: TenantId, since: Date, now: Date, fol
         .or(runsSince(since));
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
     }),
-    findWorkspaceZone(db, tenantId).then(
-      (zone) => zone || DEFAULT_TIMEZONE,
-      () => null,
-    ),
+    findWorkspaceZone(db, tenantId).then((zone) => zone || DEFAULT_TIMEZONE, dbLogAndGoOn("findWorkspaceZone", null)),
   ]);
   const today = zone ? localDate(zone, now) : null;
   const runs = all.filter(

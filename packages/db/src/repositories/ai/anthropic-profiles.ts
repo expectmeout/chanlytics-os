@@ -16,7 +16,7 @@
  *
  * Cross-workspace: a person's profile belongs to no workspace, and the sweep and Health read every workspace's by name.
  */
-import { heldTenantId } from "@chanlytics/contracts";
+import { heldTenantId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   anthropicActed,
@@ -53,7 +53,7 @@ export async function findAnthropicProfile(db: Db, subject: ProfiledSubject): Pr
   const { data, error } = await (
     subject.kind === "person" ? q.eq("user_id", subject.userId) : q.eq("tenant_id", heldTenantId(subject.tenantId))
   ).maybeSingle();
-  if (error) throw new Error(`anthropic_profiles: ${error.message}`);
+  if (error) throw new DbFailure(error, "anthropic_profiles");
   return data ? { profile_id: data.profile_id, enforcement_status: statusOfRow(data.enforcement_status) } : null;
 }
 
@@ -75,7 +75,7 @@ export async function claimAnthropicProfile(db: Db, subject: ProfiledSubject): P
     p_kind: subject.kind,
     p_subject: subjectIdOf(subject),
   });
-  if (error) throw new Error(`anthropic_profile_claim: ${error.message}`);
+  if (error) throw new DbFailure(error, "anthropic_profile_claim");
   const c = readAnswer("anthropic_profile_claim", ProfileClaim, data);
   if (!c?.id || !c.reference_id || !c.onboarded_at) return null;
   return { id: c.id, referenceId: c.reference_id, onboardedAt: c.onboarded_at };
@@ -83,12 +83,12 @@ export async function claimAnthropicProfile(db: Db, subject: ProfiledSubject): P
 
 export async function keepAnthropicProfileId(db: Db, rowId: string, profileId: string): Promise<void> {
   const { error } = await db.from("anthropic_profiles").update({ profile_id: profileId }).eq("id", rowId);
-  if (error) throw new Error(`anthropic_profiles: ${error.message}`);
+  if (error) throw new DbFailure(error, "anthropic_profiles");
 }
 
 export async function dropAnthropicProfile(db: Db, rowId: string): Promise<void> {
   const { error } = await db.from("anthropic_profiles").delete().eq("id", rowId);
-  if (error) throw new Error(`anthropic_profiles: ${error.message}`);
+  if (error) throw new DbFailure(error, "anthropic_profiles");
 }
 
 /** A row as the sweep reads it. */
@@ -131,7 +131,7 @@ export async function listAnthropicProfileRows(db: Db): Promise<AnthropicProfile
 
 export async function listAnthropicProfilesWaiting(db: Db, limit: number): Promise<ProfiledSubject[]> {
   const { data, error } = await db.rpc("anthropic_profiles_waiting", { p_limit: limit });
-  if (error) throw new Error(`anthropic_profiles_waiting: ${error.message}`);
+  if (error) throw new DbFailure(error, "anthropic_profiles_waiting");
   return (data ?? []).map((w) =>
     w.kind === "person" ? { kind: "person", userId: w.subject } : { kind: "workspace", tenantId: w.subject },
   );
@@ -152,7 +152,7 @@ export async function setAnthropicEnforcement(
       enforcement_at: at,
     })
     .eq("id", rowId);
-  if (error) throw new Error(`anthropic_profiles: ${error.message}`);
+  if (error) throw new DbFailure(error, "anthropic_profiles");
 }
 
 export async function findWorkspaceModelStanding(db: Db, tenantId: TenantId): Promise<ModelStanding | null> {

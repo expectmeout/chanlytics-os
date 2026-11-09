@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Database } from "../../types";
 import { readColumn } from "../../shared/read-json";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 /** A metric's numbers by what they count (a job's kind, a channel): what each of the three JSON columns holds. */
 const COUNTS = z.record(z.string(), z.number()).nullable();
@@ -26,7 +27,7 @@ export interface MigrationHead {
  */
 export async function getMigrationHead(db: Db): Promise<MigrationHead> {
   const { data, error } = await db.rpc("migration_head");
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const row = data?.[0];
   return { head: row?.head ?? null, applied: row?.applied ?? 0 };
 }
@@ -57,7 +58,7 @@ export async function listPlatformDay(db: Db, day: string): Promise<PlatformDayP
     .from("platform_metrics")
     .select("tenant_id, brain_p95_ms, job_lag_ms, duplicate_sends, dead_letters, relay_lag_ms, intake_lag_ms")
     .eq("day", day);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const rows = data ?? [];
   // The workspaces' names and standing, for the page: a second read, by the ids the day holds, a hundred at a time.
   const ids = [...new Set(rows.map((r) => r.tenant_id))];
@@ -67,7 +68,7 @@ export async function listPlatformDay(db: Db, day: string): Promise<PlatformDayP
       .from("tenants")
       .select("id, name, status, ours")
       .in("id", ids.slice(i, i + NAMES_PER_READ));
-    if (t.error) throw new Error(t.error.message);
+    if (t.error) throw new DbFailure(t.error);
     for (const w of t.data ?? []) if (w.status === "active" && !w.ours) live.set(w.id, w.name);
   }
   return rows.flatMap((row) => {

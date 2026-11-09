@@ -4,6 +4,7 @@ import { answer, type DoorResult } from "../reach-out/leads";
 import type { Db } from "./reads";
 import { decided, type DoorDecision, type SequenceDoorAnswer } from "./doors";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 /** The search a sequence to leads draws its new ready leads from, or none (00459 reach_out_source_set: auto-add). */
 export async function setChainSource(
@@ -54,6 +55,6 @@ export async function cancelSequenceBatch(
     p_batch_id: params.batchId,
     p_from: params.from,
   });
-  if (error) throw new Error(`cannot cancel the batch: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot cancel the batch");
   return data === true;
 }

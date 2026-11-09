@@ -10,6 +10,7 @@ import { markImageFrom, MARK_MAX_BYTES } from "../mark-image";
 import { runEachAtOnce } from "../../shared/each-at-once";
 import type { LeadColumns, LeadPorts } from "../ports";
 import { SITES_AT_ONCE, type SiteReads } from "./site-reads";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * The business's own mark (D6), for the places given (a left-out place stores none of the rest, §0.4, and is its caller's
@@ -54,10 +55,10 @@ export async function markPlaces(
     if (!fetchBytes || !storeMark) return;
     for (const url of marks.filter((u) => !SAYS_SVG.test(u)).slice(0, MARK_TRIES)) {
       if (left() < MARK_LEAST_MS) return;
-      const bytes = await fetchBytes(url, left(), MARK_MAX_BYTES).catch(() => null);
+      const bytes = await fetchBytes(url, left(), MARK_MAX_BYTES).catch(logAndGoOn("fetchBytes", null));
       const image = bytes ? markImageFrom(bytes) : null;
       if (!bytes || !image) continue;
-      const path = await storeMark(bytes, image).catch(() => null);
+      const path = await storeMark(bytes, image).catch(logAndGoOn("storeMark", null));
       if (!path) return;
       place.logo_url = url;
       place.mark_path = path;

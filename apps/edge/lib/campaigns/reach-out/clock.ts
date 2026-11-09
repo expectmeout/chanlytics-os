@@ -50,7 +50,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { sendMessageId } from "@chanlytics/core";
-import { draftRefusalOf, isWaitRefusal } from "@chanlytics/contracts";
+import { draftRefusalOf, isWaitRefusal, DbFailure } from "@chanlytics/contracts";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
 import type { Logger } from "../../shared/log.js";
 import { UNKNOWN_OUTCOME_MS } from "../../shared/unknown-outcome.js";
@@ -291,7 +291,7 @@ export async function runReachOutClock(
       const { error: e1 } = await startBatchSending(db, id);
       if (e1) throw new Error(`cannot start the run ${id}: ${e1.message}`);
       const { data, error } = await finishBatchSending(db, id, now.toISOString());
-      if (error) throw new Error(`cannot finish the run ${id}: ${error.message}`);
+      if (error) throw new DbFailure(error, `cannot finish the run ${id}`);
       if ((data ?? []).length > 0) out.finished += 1;
     }
 

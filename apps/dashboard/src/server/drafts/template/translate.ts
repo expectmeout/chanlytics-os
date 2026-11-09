@@ -22,6 +22,7 @@ import {
   validateTemplateDraft,
   type TemplateCategoryChoice,
   textOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { WorkspaceFacts } from "@/server/ask/prompt/stable-system";
@@ -100,7 +101,7 @@ export async function getTranslationSource(
     };
   } else {
     const { data, error } = await findTemplateToTranslate(ctx.supabase, tenantId, ref.id);
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     if (!data) return { ok: false, code: "not_found", message: "That template is not on file here." };
     const parts = templateParts(data.components);
     const reason = templateUntranslatable({

@@ -149,7 +149,7 @@ test("a word the door refuses is refused in the door's words, and nothing is wri
   const before_ = ok(await db.from("tenant_channels").select("config").eq("id", ids.older).single()).config;
   await assert.rejects(
     keepChannelQuality(db, A, ids.older, "not a word"),
-    /^Error: channel_keep_quality: .*not a rating word/,
+    /^DbFailure: channel_keep_quality: .*not a rating word/,
   );
   const after_ = ok(await db.from("tenant_channels").select("config").eq("id", ids.older).single()).config;
   assert.deepEqual(after_, before_);
@@ -213,7 +213,7 @@ test(
     assert.equal(await keepChannelStanding(db, A, ids.voice, s("BLOCKED")), "gone", "a voice line holds no standing");
     await assert.rejects(
       keepChannelStanding(db, A, ids.older, s("not a word")),
-      /^Error: channel_keep_standing: .*not a standing/,
+      /^DbFailure: channel_keep_standing: .*not a standing/,
     );
   },
 );

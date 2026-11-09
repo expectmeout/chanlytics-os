@@ -15,6 +15,7 @@ export const PUT = write({
   role: null,
   rate: "device_register",
   handle: async ({ ctx, req }) => {
+    // A body that is not JSON is none: what reads it next refuses.
     const parsed = parseDevice(await req.json().catch(() => ({})));
     if (!parsed.ok) throw new AppError("validation", parsed.reason, 400);
     const { device } = parsed;

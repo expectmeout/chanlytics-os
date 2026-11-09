@@ -21,7 +21,7 @@ import {
   whatsappStoppedRunWords,
   wireFailure,
 } from "@chanlytics/contracts";
-import { errField } from "@chanlytics/log";
+import { errField, logAndGoOn } from "@chanlytics/log";
 import type { Delivered, Delivery } from "../../deliver/deliver";
 import type { BroadcastChannel as Channel } from "../broadcast-channels";
 import { isNotTakenError, isWireUnavailableError } from "../../deliver/wire-senders";
@@ -422,10 +422,7 @@ async function stopForTheLimit(
 ): Promise<void> {
   const { ports, b } = work;
   await release(ports, b.id, contactId, "throttled");
-  const sent = await ports.tally(b.id).then(
-    (t) => t.sent,
-    () => null,
-  );
+  const sent = await ports.tally(b.id).then((t) => t.sent, logAndGoOn("tally", null));
   const words = LIMIT_WORDS[limit];
   await ports.fail(b.id, "provider_limit");
   await ports.alert({
@@ -484,7 +481,7 @@ async function backOff(
         `${channel}: a broadcast could not reach the provider`,
         `Broadcast ${stoppedRun.id} could not open a connection to ${words.to}; the person it was for is back in the queue and the run ${at ? `tries again at ${at.toISOString()}` : "has stopped"}.`,
       )
-      ?.catch(() => undefined);
+      ?.catch(logAndGoOn("paging the platform"));
   if (at && !nextOpenMoment(timezone, at).moved) {
     await ports.scheduleNext(stoppedRun.id, at, { waits: waited + 1 });
     return;

@@ -1,6 +1,6 @@
 /** Broadcasts: broadcasts. */
 
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import "server-only";
 import {
   AppError,
@@ -82,7 +82,7 @@ async function waitingBeyond(ctx: RouteContext, tenantId: TenantId, shown: reado
     const ids = (await listWaitingRuns(ctx.supabase, tenantId)).map((r) => r.id).filter((id) => !seen.has(id));
     if (!ids.length) return [];
     const { data, error } = await listRunRowsByIds(ctx.supabase, tenantId, ids);
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     return (data ?? []) as BroadcastRow[];
   } catch (e) {
     log.error("broadcasts_waiting_read_failed", {
@@ -109,7 +109,7 @@ export async function listBroadcasts(
   tenantId: TenantId,
 ): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
   const { data: rows, error } = await listRecentRunRows(ctx.supabase, tenantId, RECENT + 1);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const all = (rows ?? []) as BroadcastRow[];
   const recent = all.slice(0, RECENT);
   const beyond = all.length > RECENT ? await waitingBeyond(ctx, tenantId, recent) : [];
@@ -155,7 +155,7 @@ async function withHeld(ctx: RouteContext, tenantId: TenantId, rows: BroadcastDt
  */
 export async function listRuns(ctx: RouteContext, tenantId: TenantId): Promise<BroadcastDto[]> {
   const { data: rows, error } = await listPlaybookRunRows(ctx.supabase, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
 }
 
@@ -195,7 +195,7 @@ async function consentEventsOf(
       contactIds.slice(index, index + IN_CHUNK),
       since,
     );
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     for (const e of data ?? []) {
       if (e.subject_id) out.push({ id: e.id, contactId: e.subject_id, at: e.created_at, data: e.data });
     }
@@ -264,7 +264,7 @@ async function recipientsOf(ctx: RouteContext, tenantId: TenantId, id: string): 
 /** One broadcast and every person on it, in the words of what happened to them -- and what came back from each. */
 export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: string): Promise<BroadcastDetailDto> {
   const { data: row, error } = await findRunRow(ctx.supabase, tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!row) throw new AppError("not_found", "Run not found.", 404);
 
   // Its numbers as the database counts them go out WITH its people, not after every read below; read where the sheet
@@ -346,7 +346,7 @@ export async function listPersonRuns(
   >();
   for (let i = 0; i < ids.length; i += IN_CHUNK) {
     const { data, error } = await listRunNames(ctx.supabase, tenantId, ids.slice(i, i + IN_CHUNK));
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     for (const b of data ?? []) runs.set(b.id, b);
   }
   const out: (PersonCampaignDto & { at: string })[] = [];

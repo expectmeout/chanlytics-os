@@ -200,6 +200,7 @@ export function parseFrame(frame: string): GatewayEvent | null {
   try {
     ev = JSON.parse(data) as RawEvent;
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
   switch (ev.type) {

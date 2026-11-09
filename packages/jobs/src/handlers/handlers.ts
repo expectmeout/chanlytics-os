@@ -14,7 +14,7 @@ import {
   textOrEmpty,
 } from "@chanlytics/contracts";
 import { requestIdShaped } from "@chanlytics/channels/tokens";
-import { logger, withRequestId } from "@chanlytics/log";
+import { logger, withRequestId, logAndGoOn } from "@chanlytics/log";
 import { CertainFailure, SUBSCRIBERS, type SubscriberPorts } from "@chanlytics/core";
 import { findFreedTimeFacts } from "@chanlytics/db/campaigns";
 import { findEventOfDelivery, isSubscriptionPaused, findDelivery, settleDelivery } from "@chanlytics/db/events";
@@ -411,7 +411,7 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<Dis
         `Job ${job.id}: ${refused}.`,
         job.tenant_id,
       )
-      ?.catch(() => undefined);
+      ?.catch(logAndGoOn("paging the platform"));
     throw new CertainFailure(`${job.kind}: ${refused}`, `it was never run: ${refused}`);
   }
   // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,

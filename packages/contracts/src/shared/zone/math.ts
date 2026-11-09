@@ -99,6 +99,7 @@ export function usableZone(tz: string | null | undefined): string {
       partsFormatOf(name);
       zone = name;
     } catch {
+      // A zone or a code the runtime does not know.
       zone = "UTC";
     }
     if (USABLE.size >= USABLE_KEPT) USABLE.clear();

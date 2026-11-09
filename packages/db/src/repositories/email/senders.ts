@@ -19,6 +19,7 @@ import {
   type SenderKind,
   type SenderReading,
   isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { dbLog } from "../../shared/observe";
@@ -29,7 +30,7 @@ type Db = SupabaseClient<Database>;
 /** What the workspace said of its senders, by address or domain (contracts senderVerdictOf reads it). */
 export async function getMailboxSenderVerdicts(db: Db, tenantId: TenantId): Promise<Map<string, MailboxSenderVerdict>> {
   const { data, error } = await db.from("mailbox_senders").select("sender, verdict").eq("tenant_id", tenantId);
-  if (error) throw new Error(`cannot read what the workspace said of its senders: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read what the workspace said of its senders");
   return new Map((data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"] as const));
 }
 
@@ -74,8 +75,8 @@ export async function listMailboxSendersOf(db: Db, tenantId: TenantId): Promise<
       .eq("tenant_id", tenantId)
       .order("set_at", { ascending: false }),
   ]);
-  if (left.error) throw new Error(`cannot read what the mailbox left: ${left.error.message}`);
-  if (said.error) throw new Error(`cannot read what the workspace said of its senders: ${said.error.message}`);
+  if (left.error) throw new DbFailure(left.error, "cannot read what the mailbox left");
+  if (said.error) throw new DbFailure(said.error, "cannot read what the workspace said of its senders");
   const verdicts = new Map(
     (said.data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"] as const),
   );
@@ -105,7 +106,7 @@ export async function sortMailboxSender(
     // A null verdict takes it back: the door reads it as SQL's null.
     p_verdict: params.verdict,
   });
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  if (error) throw new DbFailure(error);
 }
 
 /**
@@ -125,7 +126,7 @@ async function readingsAbout(db: Db, tenantId: TenantId, addresses: string[]): P
     .select("address, about")
     .eq("tenant_id", tenantId)
     .in("address", addresses);
-  if (error) throw new Error(`cannot read what the senders were read to be: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read what the senders were read to be");
   return new Map((data ?? []).flatMap((r) => (r.about ? [[r.address, r.about] as const] : [])));
 }
 
@@ -139,7 +140,7 @@ export async function findSenderReading(db: Db, tenantId: TenantId, address: str
     .eq("tenant_id", tenantId)
     .eq("address", address.trim().toLowerCase())
     .maybeSingle();
-  if (error) throw new Error(`cannot read what the sender was read to be: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read what the sender was read to be");
   return data && isSenderKind(data.kind) ? { kind: data.kind, about: data.about } : null;
 }
 
@@ -204,7 +205,7 @@ export async function getTalksWith(db: Db, tenantId: TenantId, address: string):
     .is("erased_at", null)
     .is("merged_into_contact_id", null)
     .limit(PEOPLE_AT_AN_ADDRESS);
-  if (error) throw new Error(`cannot read who has the address: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read who has the address");
   if (!people?.length) return false;
   if (people.some((p) => p.acquired_via !== null && OWNER_DOORS.has(p.acquired_via))) return true;
   const { data: said, error: saidError } = await db
@@ -217,7 +218,7 @@ export async function getTalksWith(db: Db, tenantId: TenantId, address: string):
     )
     .or("channel.neq.email,direction.eq.outbound")
     .limit(SAID_READ);
-  if (saidError) throw new Error(`cannot read what was said with the address: ${saidError.message}`);
+  if (saidError) throw new DbFailure(saidError, "cannot read what was said with the address");
   return (said ?? []).some((m) => m.channel !== "email" || m.sender !== "ai");
 }
 
@@ -228,7 +229,7 @@ export async function getTalksWith(db: Db, tenantId: TenantId, address: string):
  */
 export async function recordDomainSaidAutomated(db: Db, tenantId: TenantId, domain: string): Promise<boolean> {
   const { data, error } = await db.rpc("sender_domain_said_automated", { p_tenant_id: tenantId, p_domain: domain });
-  if (error) throw new Error(`cannot ask what others said of the domain: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot ask what others said of the domain");
   return data === true;
 }
 
@@ -254,7 +255,7 @@ export async function getMailboxPeopleSince(
     .gte("channel_ts", since.toISOString())
     .contains("meta", { mailbox_id: mailboxId })
     .limit(CAME_IN_READ_MAX);
-  if (error) throw new Error(`cannot read who wrote to the mailbox: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read who wrote to the mailbox");
   return new Set((data ?? []).map((r) => r.contact_id)).size;
 }
 
@@ -272,6 +273,6 @@ export async function getMailboxLeftSince(db: Db, tenantId: TenantId, since: Dat
       .limit(CAME_IN_READ_MAX),
     getMailboxSenderVerdicts(db, tenantId),
   ]);
-  if (left.error) throw new Error(`cannot read what the mailbox left: ${left.error.message}`);
+  if (left.error) throw new DbFailure(left.error, "cannot read what the mailbox left");
   return (left.data ?? []).filter((r) => senderVerdictOf(verdicts, r.address) !== "person").length;
 }

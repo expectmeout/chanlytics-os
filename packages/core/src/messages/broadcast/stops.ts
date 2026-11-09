@@ -1,7 +1,7 @@
 /** Broadcast: stops. */
 
 import { addressOf, finishedRunHeldWhy, type JobNews, jittered, wireFailure } from "@chanlytics/contracts";
-import { errField, logger } from "@chanlytics/log";
+import { errField, logger, logAndGoOn } from "@chanlytics/log";
 import type { Delivered } from "../../deliver/deliver";
 import type { BroadcastChannel as Channel } from "../broadcast-channels";
 import { channelOf, type Work } from "../broadcast-channels";
@@ -53,9 +53,10 @@ export function wireIsDown(out: Extract<Delivered, { outcome: "failed" }>): bool
  * with the door's own error, and jobs/settle hands the people still queued
  * to a fresh run, a bounded number of times when every run dies the same way.
  */
-export class ThrownAtTheDoor {
+export class ThrownAtTheDoor extends Error {
   readonly error: unknown;
   constructor(error: unknown) {
+    super("thrown at the door", { cause: error });
     this.error = error;
   }
 }
@@ -226,7 +227,7 @@ export async function offersAtTheHead(
         "email: a broadcast's offers wait, the campaigns domain could not be checked",
         `Tenant ${cmd.tenantId}, broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unread}.`,
       )
-      ?.catch(() => undefined);
+      ?.catch(logAndGoOn("paging the platform"));
     return "wait";
   }
   const reason = await ports.offersClosed();
@@ -306,10 +307,7 @@ export async function stopAfterHours(
   stoppedRun: StoppedRun,
   waited: boolean,
 ): Promise<void> {
-  const sent = await ports.tally(stoppedRun.id).then(
-    (t) => t.sent,
-    () => null,
-  );
+  const sent = await ports.tally(stoppedRun.id).then((t) => t.sent, logAndGoOn("tally", null));
   await ports.fail(stoppedRun.id, "after_hours");
   await ports.alert({
     kind: "broadcast_stopped",

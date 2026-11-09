@@ -37,6 +37,7 @@ import {
   type ReportProfile,
   type ReviewsReportDto,
   shaped,
+  causedBy,
 } from "@chanlytics/contracts";
 import {
   ReportWindowNotReadable,
@@ -55,6 +56,7 @@ import { googleReader } from "./connections";
 import { everyone as everyoneRead } from "./everyone";
 import * as facts from "./facts";
 import { log } from "@/server/shared/log";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * Everyone in People, as the turn holds them (readers/everyone.ts): the booking line, the deals and the booking link's people
@@ -264,7 +266,7 @@ export async function getWindow<T>(read: Promise<T>): Promise<T> {
     return await read;
   } catch (e) {
     if (e instanceof ReportWindowNotReadable)
-      throw new AppError("validation", "Picked days cannot be read yet. Pick a period that ends today.");
+      throw causedBy(new AppError("validation", "Picked days cannot be read yet. Pick a period that ends today."), e);
     throw e;
   }
 }
@@ -443,7 +445,7 @@ export async function getAskedHead(
 ): Promise<{ timezone: string; today: string; end?: string; days: number }> {
   const timezone = await load(rc, facts.facts, undefined).then(
     (f) => f.data.timezone,
-    () => DEFAULT_TIMEZONE,
+    logAndGoOn("load facts.facts", DEFAULT_TIMEZONE),
   );
   return {
     timezone,

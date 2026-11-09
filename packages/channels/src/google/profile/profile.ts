@@ -1,7 +1,7 @@
 /** Profile: profile. */
 
 import { PlacesError, type PlacesHttp, type PlacesRequest, refusal } from "../places";
-import { nonBlankOrNull, recordOrNull } from "@chanlytics/contracts";
+import { nonBlankOrNull, recordOrNull, causedBy } from "@chanlytics/contracts";
 import {
   GBP_PHOTO_SIDE,
   GBP_REVIEWS_MAX_PAGES,
@@ -183,8 +183,8 @@ export async function callProfileApi(http: PlacesHttp, req: PlacesRequest): Prom
   if (!r.body.trim()) return {};
   try {
     return JSON.parse(r.body);
-  } catch {
-    throw new PlacesError(502, "Google answered with something other than JSON");
+  } catch (e) {
+    throw causedBy(new PlacesError(502, "Google answered with something other than JSON"), e);
   }
 }
 

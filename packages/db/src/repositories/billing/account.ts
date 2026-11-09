@@ -20,6 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
@@ -63,6 +64,6 @@ export async function applyBilling(
     ...(params.expect ? { p_expect: { ...params.expect } } : {}),
     ...(params.tenantStatus ? { p_tenant_status: params.tenantStatus } : {}),
   });
-  if (error) throw new Error(`billing_apply: ${error.message}`);
+  if (error) throw new DbFailure(error, "billing_apply");
   return data === true;
 }

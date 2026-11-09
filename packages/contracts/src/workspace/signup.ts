@@ -227,6 +227,7 @@ export function deviceTimezone(
     const tz = resolve();
     return tz && tz.length <= 64 ? tz : undefined;
   } catch {
+    // A browser that cannot say its zone.
     return undefined;
   }
 }

@@ -22,6 +22,7 @@ import {
   recordOrNull,
   shaped,
   valueAt,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { listFirstReplies, readMetricsSummary } from "@chanlytics/db/reports";
 import { readAnswer } from "@chanlytics/db/shared";
@@ -102,7 +103,7 @@ export async function findMetricsSummary(
     // What was booked today, which the day's figures lead with (bookings.ts): a longer window carries none.
     day ? findBookingsLately(supabase, tenantId) : Promise.resolve(undefined),
   ]);
-  if (res.error) throw new Error(res.error.message);
+  if (res.error) throw new DbFailure(res.error);
   // The function's answer, less the day's replies it carries for this server alone (00359): they are counted here and
   // never sent on, so the page's payload is the one it always took.
   const { replies: carried, ...summary } = readAnswer(

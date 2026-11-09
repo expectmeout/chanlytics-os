@@ -12,7 +12,7 @@
  * And the one answer a member may not record but may ask for: a website sign-up's yes to offers by email, which only the
  * person's press on its confirmation link gives (00489), asked for here (askToConfirmSignup).
  */
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import {
   AppError,
   CONSENT_RESET_SOURCE,
@@ -168,7 +168,7 @@ export async function recordConsentMany(
   const note = noteOf(input.note);
   const ids = [...new Set(input.ids)];
   const { data, error } = await listPeopleStanding(ctx.supabase, ids.map(heldContactId));
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const ours = (data ?? []).filter((c) => c.tenant_id === tenantId && !c.erased_at);
   const skipped = ids.filter((id) => !ours.some((c) => c.id === id));
   const failed: ManyOutcome["failed"] = [];

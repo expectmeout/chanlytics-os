@@ -24,7 +24,7 @@ import type { Database } from "../../types";
 import { dbLog } from "../../shared/observe";
 import { readAnswer } from "../../shared/read-json";
 import { z } from "zod";
-import { recordOrEmpty } from "@chanlytics/contracts";
+import { recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -63,7 +63,7 @@ export async function claimControl(
     p_ref: params.holder.kind === "call" ? params.holder.callId : null,
     p_seconds: params.seconds,
   });
-  if (error) throw new Error(`claim_conversation_control: ${error.message}`);
+  if (error) throw new DbFailure(error, "claim_conversation_control");
   return readAnswer("claim_conversation_control", z.enum(CONTROL_OUTCOMES), data);
 }
 
@@ -83,7 +83,7 @@ export async function releaseControl(
     p_by: params.holder.kind === "person" ? params.holder.userId : null,
     p_ref: params.holder.kind === "call" ? params.holder.callId : null,
   });
-  if (error) throw new Error(`release_conversation_control: ${error.message}`);
+  if (error) throw new DbFailure(error, "release_conversation_control");
   return data === true;
 }
 
@@ -103,14 +103,14 @@ export async function claimReplyTurn(
     p_conversation: conversationId,
     p_message: messageId,
   });
-  if (error) throw new Error(`claim_reply_turn: ${error.message}`);
+  if (error) throw new DbFailure(error, "claim_reply_turn");
   return data !== false;
 }
 
 /** Whether this message still holds its thread's turn once the model has answered: false only when a newer message took it. */
 export async function holdsReplyTurn(db: Db, conversationId: string, messageId: string): Promise<boolean> {
   const { data, error } = await db.rpc("holds_reply_turn", { p_conversation: conversationId, p_message: messageId });
-  if (error) throw new Error(`holds_reply_turn: ${error.message}`);
+  if (error) throw new DbFailure(error, "holds_reply_turn");
   return data !== false;
 }
 
@@ -132,7 +132,7 @@ export async function readLiveHold(
     .eq("tenant_id", tenantId)
     .eq("id", conversationId)
     .maybeSingle();
-  if (error) throw new Error(`readLiveHold: ${error.message}`);
+  if (error) throw new DbFailure(error, "readLiveHold");
   return data;
 }
 
@@ -175,7 +175,7 @@ export async function takeOverThread(
     ...(memberMove.via ? { p_via: memberMove.via } : {}),
     ...(memberMove.undoOf ? { p_undo_of: memberMove.undoOf } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
   const id = data.decision_id;
   if (typeof id !== "string" || typeof data.paused_until !== "string" || typeof data.withdrawn_drafts !== "number")
@@ -219,7 +219,7 @@ export async function markThreadNotACustomer(
     ...(memberMove.via ? { p_via: memberMove.via } : {}),
     ...(memberMove.undoOf ? { p_undo_of: memberMove.undoOf } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return decisionIdOf(data);
 }
 
@@ -234,7 +234,7 @@ export async function replyAnywayThread(db: Db, memberMove: MemberMove): Promise
     ...(memberMove.via ? { p_via: memberMove.via } : {}),
     ...(memberMove.undoOf ? { p_undo_of: memberMove.undoOf } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return decisionIdOf(data);
 }
 
@@ -252,7 +252,7 @@ export async function handBackThread(db: Db, memberMove: MemberMove): Promise<Ha
     ...(memberMove.via ? { p_via: memberMove.via } : {}),
     ...(memberMove.undoOf ? { p_undo_of: memberMove.undoOf } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
   const id = data.decision_id;
   if (typeof id !== "string" || typeof data.resolved_escalations !== "number")
@@ -283,7 +283,7 @@ export async function withdrawQueued(
     p_message_ids: params.messageIds,
     ...(params.reason ? { p_reason: params.reason } : {}),
   });
-  if (error) throw new Error(`withdraw_queued: ${error.message}`);
+  if (error) throw new DbFailure(error, "withdraw_queued");
   return Array.isArray(data) ? data : [];
 }
 
@@ -298,7 +298,7 @@ export async function withdrawAiDrafts(
     p_reason: params.reason,
     ...(params.keepMessageId ? { p_keep_message_id: params.keepMessageId } : {}),
   });
-  if (error) throw new Error(`withdraw_ai_drafts: ${error.message}`);
+  if (error) throw new DbFailure(error, "withdraw_ai_drafts");
   return Array.isArray(data) ? data : [];
 }
 
@@ -314,7 +314,7 @@ export async function withdrawMemberDrafts(
     p_tenant_id: params.tenantId,
     p_conversation_id: params.conversationId,
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return typeof data === "number" ? data : 0;
 }
 
@@ -328,7 +328,7 @@ export async function withdrawMemberMessage(
     p_message_id: params.messageId,
     ...(params.reason ? { p_reason: params.reason } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   return data === true;
 }
 
@@ -355,7 +355,7 @@ export async function callBackMessage(
     ...(params.via ? { p_via: params.via } : {}),
     ...(params.undoOf ? { p_undo_of: params.undoOf } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
   const id = data.decision_id;
   if (typeof id !== "string") throw new Error("message_call_back: the door answered without its decision");
@@ -378,7 +378,7 @@ export async function sendQueuedNow(
     ...(params.via ? { p_via: params.via } : {}),
     ...(params.undoOf ? { p_undo_of: params.undoOf } : {}),
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
   const id = data.decision_id;
   if (typeof id !== "string") throw new Error("message_send_now: the door answered without its decision");
@@ -402,7 +402,7 @@ export async function openEscalation(
     p_reason: params.reason,
     p_details: params.details,
   });
-  if (error) throw new Error(`escalation_open: ${error.message}`);
+  if (error) throw new DbFailure(error, "escalation_open");
   if (data !== "opened" && data !== "changed" && data !== "refreshed")
     throw new Error(`escalation_open: the door answered ${String(data)}`);
   return data;

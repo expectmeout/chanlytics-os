@@ -22,6 +22,7 @@ export const POST = write({
   role: "viewer",
   rate: "ask",
   handle: async ({ ctx, req, member }) => {
+    // A body that is not JSON is none: what reads it next refuses.
     const body = (await req.json().catch(() => null)) as {
       text?: unknown;
       answer?: unknown;

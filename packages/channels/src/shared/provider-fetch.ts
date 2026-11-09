@@ -298,6 +298,7 @@ async function once(provider: Provider, url: string, call: ProviderCall, deps: R
     try {
       json = text ? JSON.parse(text) : null;
     } catch {
+      // Not JSON: nothing to read.
       json = null;
     }
     providerReply = {

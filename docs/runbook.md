@@ -1353,6 +1353,10 @@ inserted_at > now() - interval '10 minutes' order by inserted_at desc;`. None fo
 
 ## Read the logs
 
+### Find a failure
+
+A crash on the edge is `door_failed` (its `door`, its stack); on the dashboard, `route_failed`. A refusal a route answered is `route_refused`, with `db_code` where the database refused and `cause` where a catch kept what went wrong underneath it. A door that could not read or write is `door_reply_failed`. Work that went on past a failure is `kept_going`, with `what` was being done. Each carries `request_id`, which is the `x-request-id` of the answer (decision 0114).
+
 ### What a log line holds
 
 Every line the platform writes is one JSON object on stdout, from one logger (`packages/log/src/`; the edge's

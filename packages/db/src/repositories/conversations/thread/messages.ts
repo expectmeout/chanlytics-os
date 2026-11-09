@@ -10,6 +10,7 @@ import {
   offersFacts,
   disclosureFacts,
   recordOrNull,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { IDS_PER_READ } from "../../people/pages";
 import { DELIVERED, effectiveAt, type Db, type LeadContext } from "./history";
@@ -180,7 +181,7 @@ export async function searchMessages(
     p_since: since.toISOString(),
     p_limit: limit,
   });
-  if (error) throw new Error(`searchMessages: ${error.message}`);
+  if (error) throw new DbFailure(error, "searchMessages");
   // The generated row types every column as present; a call's channel, and a call's thread and person, may be null.
   return (data ?? []).map((r): MessageHit => ({
     kind: hitKind(r.kind),
@@ -224,7 +225,7 @@ export async function listFailedMessageErrors(
       .eq("tenant_id", tenantId)
       .eq("status", "failed")
       .in("id", ids.slice(index, index + IDS_PER_READ));
-    if (error) throw new Error(`listFailedMessageErrors: ${error.message}`);
+    if (error) throw new DbFailure(error, "listFailedMessageErrors");
     for (const r of data ?? [])
       if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
         out.push({ id: r.id, error: r.error });
@@ -245,7 +246,7 @@ export async function listMessageSenders(db: Db, tenantId: TenantId, ids: readon
       .select("id, sender, status, type")
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IDS_PER_READ));
-    if (error) throw new Error(`listMessageSenders: ${error.message}`);
+    if (error) throw new DbFailure(error, "listMessageSenders");
     out.push(...(data ?? []));
   }
   return out;
@@ -271,7 +272,7 @@ export async function wasRepliedTo(
     .eq("direction", "outbound")
     .eq("meta->>reply_to", messageId)
     .limit(1);
-  if (error) throw new Error(`wasRepliedTo: ${error.message}`);
+  if (error) throw new DbFailure(error, "wasRepliedTo");
   return (data ?? []).length > 0;
 }
 
@@ -292,7 +293,7 @@ export async function replyAnswersAt(
     .eq("tenant_id", params.tenantId)
     .eq("id", params.messageId)
     .maybeSingle();
-  if (error) throw new Error(`replyAnswersAt: ${error.message}`);
+  if (error) throw new DbFailure(error, "replyAnswersAt");
   if (!reply) return null;
   const answers = recordOrNull(reply.meta)?.reply_to;
   if (typeof answers !== "string" || !answers) return Date.parse(reply.created_at);
@@ -303,7 +304,7 @@ export async function replyAnswersAt(
     .eq("conversation_id", params.conversationId)
     .eq("id", answers)
     .maybeSingle();
-  if (askedError) throw new Error(`replyAnswersAt: ${askedError.message}`);
+  if (askedError) throw new DbFailure(askedError, "replyAnswersAt");
   return effectiveAt(asked ?? { channel_ts: null, created_at: reply.created_at });
 }
 
@@ -322,7 +323,7 @@ export async function wasTextReached(db: Db, tenantId: TenantId, conversationId:
     .eq("channel", "sms")
     .in("status", DELIVERED)
     .limit(1);
-  if (error) throw new Error(`wasTextReached: ${error.message}`);
+  if (error) throw new DbFailure(error, "wasTextReached");
   return (data ?? []).length > 0;
 }
 
@@ -332,7 +333,7 @@ export async function wasTextReached(db: Db, tenantId: TenantId, conversationId:
  */
 export async function openConversation(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string> {
   const { data, error } = await db.rpc("conversation_open", { p_tenant_id: tenantId, p_contact_id: contactId });
-  if (error) throw error;
+  if (error) throw new DbFailure(error);
   if (typeof data !== "string" || !data) throw new Error("conversation_open: the door answered no thread");
   return data;
 }
@@ -352,7 +353,7 @@ export async function findOurLastWire(db: Db, tenantId: TenantId, conversationId
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`reading the last outbound: ${error.message}`);
+  if (error) throw new DbFailure(error, "reading the last outbound");
   return data?.channel ?? null;
 }
 

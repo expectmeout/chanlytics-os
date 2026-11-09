@@ -76,6 +76,7 @@ import { noteImport } from "@chanlytics/db/imports";
 import type { DueCalendar } from "@chanlytics/db/jobs";
 import type { SweepTick } from "../ops/sweep-door.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** What the reads kept as appointments, for the tick's log line. */
 export type Kept = { added: number; moved: number; back: number; vanished: number; seen: number; stale: number };
@@ -292,7 +293,7 @@ export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
       out.tenants += 1;
       out.failed += 1;
       L.error("calendar_sweep_failed", { tenant_id: row.tenant_id, error: e instanceof Error ? e.message : String(e) });
-      await markCalendarChecked(db, row.tenant_id, now).catch(() => undefined);
+      await markCalendarChecked(db, row.tenant_id, now).catch(logAndGoOn("markCalendarChecked"));
     }
   }
   const backlog = await noteBacklog(db, "calendar", out.remaining);

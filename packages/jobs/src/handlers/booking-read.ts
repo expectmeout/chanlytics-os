@@ -25,7 +25,7 @@ import {
   type StoredAppointment,
 } from "@chanlytics/core";
 import { emailPlainText } from "@chanlytics/channels/email";
-import { logger } from "@chanlytics/log";
+import { logger, logAndGoOn } from "@chanlytics/log";
 import {
   findAppointmentByClientStart,
   findAppointmentByKey,
@@ -190,7 +190,8 @@ export async function runBookingRead(ctx: JobContext, job: ClaimedJob): Promise<
     log.warn("booking_notice_held", { job: job.id, received_id: receivedId, outcome: "not_a_notice" });
     return;
   }
-  const tz = (await findWorkspaceZone(db, job.tenant_id).catch(() => null)) ?? DEFAULT_TIMEZONE;
+  const tz =
+    (await findWorkspaceZone(db, job.tenant_id).catch(logAndGoOn("findWorkspaceZone", null))) ?? DEFAULT_TIMEZONE;
   // Held after the reader tried on every try and failed, as against held before any try because it may not be asked; and
   // whether the reader answered this try, after which a throw is a write's, not the reader's.
   let triedAndFailed = false;

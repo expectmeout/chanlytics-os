@@ -51,6 +51,7 @@ import { listMailboxConnectionsWithDays, findMailboxesLeftToday, getMailboxesRea
 import { env } from "../shared/env";
 import { asJson } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
 export function emailDomain(): string | null {
@@ -179,7 +180,7 @@ export async function getSignedByThread(
   if (conversations.length === 0) return signed;
   const read = await listMailboxConnectionsOf(ctx.supabase, tenantId)
     .then(async (rows) => ({ rows, who: await identitiesOver(ctx, tenantId, conversations, rows) }))
-    .catch(() => null);
+    .catch(logAndGoOn("who wrote from which mailbox", null));
   for (const [id, w] of read?.who ?? []) {
     const words = signatureBy(signingMailboxOf(w, read?.rows ?? [], ctx.userId))?.text;
     if (words) signed.set(id, words);

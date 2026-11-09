@@ -6,7 +6,7 @@
  * read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BOOKING_VIAS } from "@chanlytics/contracts";
+import { BOOKING_VIAS, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -35,7 +35,7 @@ export async function findVisitChangesSince(
     .gte("created_at", sinceIso)
     .order("created_at", { ascending: false })
     .limit(ARRIVALS_READ_MAX);
-  if (error) throw new Error(`cannot read the visits' changes: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the visits' changes");
   return data ?? [];
 }
 
@@ -50,6 +50,6 @@ export async function canBookingsArrive(db: Db, tenantId: TenantId): Promise<boo
     .eq("tenant_id", tenantId)
     .in("source", [...BOOKING_VIAS])
     .limit(1);
-  if (error) throw new Error(`cannot read whether bookings arrive: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read whether bookings arrive");
   return (data ?? []).length > 0;
 }

@@ -16,6 +16,7 @@ import {
   milesLabel,
   type LeadRowDto,
   type LeadsQuery,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { csvCell, dateTag, safeName } from "../shared/export-file";
 import { getLeadsPage, type LeadsPageAnswer } from "./page-read";
@@ -148,7 +149,7 @@ export async function exportLeads(
     from,
   );
   const { data, error } = await markLeadsExported(ctx.supabase, tenantId, ids);
-  if (error) throw new Error(`lead_export_mark: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_export_mark");
   const { name, timezone } = await getTenantFacts(ctx.supabase, tenantId);
   log.info("export.leads", {
     user: ctx.userId,

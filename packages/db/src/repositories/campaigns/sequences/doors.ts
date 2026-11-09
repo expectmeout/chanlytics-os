@@ -14,6 +14,7 @@ import { putBackOf, withListedWhyNot, withOneLeadsOpening, withOpenings, withPla
 import type { Db } from "./reads";
 import { z } from "zod";
 import { readAnswer } from "../../../shared/read-json";
+import { DbFailure } from "@chanlytics/contracts";
 
 /** How many ids one `in` list carries: two hundred keeps the URL short (the run reader's own chunk). */
 const REPLIES_IN_CHUNK = 200;
@@ -37,7 +38,7 @@ export async function listLeadRepliesOfBatches(
       .eq("tenant_id", tenantId)
       .not("lead_id", "is", null)
       .in("batch_id", [...chunk]);
-    if (sends.error) throw new Error(`cannot read the batches' emails: ${sends.error.message}`);
+    if (sends.error) throw new DbFailure(sends.error, "cannot read the batches' emails");
     const ids = (sends.data ?? []).map((s) => s.id);
     for (let count = 0; count < ids.length; count += REPLIES_IN_CHUNK) {
       const replies = await db
@@ -47,7 +48,7 @@ export async function listLeadRepliesOfBatches(
         .in("send_id", ids.slice(count, count + REPLIES_IN_CHUNK))
         .in("claim", ["person", "owner"])
         .is("undone_at", null);
-      if (replies.error) throw new Error(`cannot read the replies: ${replies.error.message}`);
+      if (replies.error) throw new DbFailure(replies.error, "cannot read the replies");
       for (const r of replies.data ?? []) out.add(r.conversation_id);
     }
   }
@@ -64,7 +65,7 @@ export async function getSequencePeople(
     p_sequence_id: params.sequenceId,
     ...(params.limit ? { p_limit: params.limit } : {}),
   });
-  if (error) throw new Error(`cannot read who is in the sequence: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read who is in the sequence");
   const result = (data ?? {}) as Partial<SequencePeopleDto>;
   const rows = Array.isArray(result.rows) ? result.rows : [];
   return { counts: result.counts ?? {}, rows: await withOpenings(db, params.tenantId, rows) };
@@ -73,7 +74,7 @@ export async function getSequencePeople(
 /** One lead's place in the sequence it stands in or last was in (00459), its opening and Put back; null in none. */
 export async function findSequencePlace(db: Db, tenantId: TenantId, leadId: string): Promise<SequencePlaceDto | null> {
   const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
-  if (error) throw new Error(`cannot read where the lead stands: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read where the lead stands");
   const result = data as SequencePlaceDto | null;
   if (!result || !result.sequence || !result.place) return null;
   const place = { ...result, sends: Array.isArray(result.sends) ? result.sends : [] };
@@ -89,7 +90,7 @@ export async function listSequencePlaces(
 ): Promise<SequencePlaceOfDto[]> {
   if (leadIds.length === 0) return [];
   const { data, error } = await db.rpc("sequence_places_of", { p_tenant_id: tenantId, p_lead_ids: [...leadIds] });
-  if (error) throw new Error(`cannot read where the leads stand: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read where the leads stand");
   const rows: unknown = data;
   return Array.isArray(rows) ? withListedWhyNot(db, tenantId, rows as SequencePlaceOfDto[]) : [];
 }
@@ -105,7 +106,7 @@ export async function getSequenceHistory(
     ...(params.before ? { p_before: params.before } : {}),
     ...(params.limit ? { p_limit: params.limit } : {}),
   });
-  if (error) throw new Error(`cannot read what the sequence sent: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read what the sequence sent");
   const result = (data ?? {}) as Partial<SequenceHistoryDto>;
   return { batches: Array.isArray(result.batches) ? result.batches : [], more: result.more === true };
 }
@@ -202,7 +203,7 @@ export async function getPeopleHandRun(
     p_day: params.day,
     p_items: params.items,
   });
-  if (error) throw new Error(`cannot write the call or note step's run: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot write the call or note step's run");
   const item = readAnswer("sequence_hand_run", PeopleHandRunAnswer, data ?? {});
   return { made: item.made ?? 0, already: item.already ?? 0 };
 }

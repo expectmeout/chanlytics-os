@@ -69,6 +69,7 @@ export async function receiveGmailPush(request: Request): Promise<Response> {
     log.warn("mailbox_push_refused", { why: "not_our_subscription" });
     return refuse(401, "unauthorized");
   }
+  // A body that is not JSON is none: what reads it next refuses.
   const pushNote = gmailPushOf(await request.json().catch(() => null));
   if (!pushNote) return pushHeard();
   const db = pg();
@@ -93,6 +94,7 @@ export async function receiveGraphPush(request: Request): Promise<Response> {
     if (validation.length > VALIDATION_MAX) return refuse(400, "bad_request");
     return text(200, validation, { "content-type": "text/plain" });
   }
+  // A body that is not JSON is none: what reads it next refuses.
   const notes = graphNotificationsOf(await request.json().catch(() => null));
   const trusted = notes.filter((n) => clientStateMatches(n.clientState, push.clientState));
   if (notes.length > 0 && trusted.length === 0) {

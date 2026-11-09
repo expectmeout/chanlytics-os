@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
-import { MIN_MS, type SchemaSet } from "@chanlytics/contracts";
+import { MIN_MS, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import { dbLog } from "../../shared/observe";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -108,7 +108,7 @@ export async function findOldestActiveChannel(
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the workspace's ${kind} channel: ${error.message}`);
+  if (error) throw new DbFailure(error, `cannot read the workspace's ${kind} channel`);
   return data ? routedOf(data) : null;
 }
 
@@ -159,7 +159,7 @@ export async function listActiveChannelRows(
     .eq("kind", kind)
     .eq("status", "active")
     .order("created_at", { ascending: true });
-  if (error) throw new Error(`cannot read the workspace's ${CHANNEL_ROWS_WORDS[kind]}: ${error.message}`);
+  if (error) throw new DbFailure(error, `cannot read the workspace's ${CHANNEL_ROWS_WORDS[kind]}`);
   return data ?? [];
 }
 
@@ -197,7 +197,7 @@ export async function findLineWrittenTo(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the ${channel} line this thread was written to: ${error.message}`);
+  if (error) throw new DbFailure(error, `cannot read the ${channel} line this thread was written to`);
   const meta = data?.meta;
   const line = meta && typeof meta === "object" && !Array.isArray(meta) ? meta.line : null;
   return typeof line === "string" && line ? line : null;

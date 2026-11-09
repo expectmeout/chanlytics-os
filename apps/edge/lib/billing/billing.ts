@@ -10,7 +10,7 @@ import {
   reclaimBillingEvent,
 } from "@chanlytics/db/billing";
 import { emitEvent } from "@chanlytics/db/events";
-import { type BillingInvoiceDto, type BillingStatus, type SchemaSet, MIN_MS } from "@chanlytics/contracts";
+import { type BillingInvoiceDto, type BillingStatus, type SchemaSet, MIN_MS, DbFailure } from "@chanlytics/contracts";
 import { mendWarnings } from "../shared/alerts/notify.js";
 import { tellOnce } from "./notices.js";
 import { logger } from "../shared/log.js";
@@ -26,6 +26,7 @@ import {
   type Db,
 } from "./subscription.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export async function getInvoices(
   db: Db,
@@ -179,7 +180,9 @@ export async function forgetCustomer(db: Db, row: BillingRow, customerId: string
   });
   if (!forgotten) return false;
   const deleted = { source: DELETED_CUSTOMER, status: "none" };
-  await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, deleted).catch(() => {});
+  await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, deleted).catch(
+    logAndGoOn("event billing.updated"),
+  );
   return true;
 }
 
@@ -262,7 +265,7 @@ async function insertClaim(
   const { error } = await insertBillingClaim(db, { id, type, tenant_id: tenantId, state: CLAIMED, lease_until: lease });
   if (!error) return true;
   if (error.code === "23505") return false;
-  throw new Error(error.message);
+  throw new DbFailure(error);
 }
 
 /** What a delivery gets for its claim: the lease it now holds; the event applied already; or held by a delivery still inside its lease. */
@@ -300,10 +303,10 @@ export async function keepEvent(
   if (await insertClaim(db, id, type, tenantId, lease)) return { claim: "taken", lease };
   // Stripe's own ledger, keyed by its event's id before the workspace is known: read across workspaces by design.
   const seen = await findBillingEventState(db, id);
-  if (seen.error) throw new Error(seen.error.message);
+  if (seen.error) throw new DbFailure(seen.error);
   if (seen.data?.state === APPLIED) return { claim: "applied" };
   const up = await reclaimBillingEvent(db, id, lease, now.toISOString());
-  if (up.error) throw new Error(up.error.message);
+  if (up.error) throw new DbFailure(up.error);
   if (!up.data?.length) return { claim: "held" };
   // The id's field is not called `event`: that is the line's own name (log.ts), and a field of that name replaces it.
   logger({ hook: "stripe" }).warn("stripe_event_reclaimed", { event_id: id, type, tenant_id: tenantId });
@@ -319,7 +322,7 @@ export async function keepEvent(
  */
 export async function completeEvent(db: Db, id: string, lease: string, tenantId: TenantId | null): Promise<boolean> {
   const up = await completeBillingEvent(db, id, lease);
-  if (up.error) throw new Error(up.error.message);
+  if (up.error) throw new DbFailure(up.error);
   if (up.data?.length) return true;
   logger({ hook: "stripe" }).warn("stripe_event_claim_lost", { event_id: id, tenant_id: tenantId });
   return false;
@@ -369,10 +372,14 @@ export async function notePayment(db: Db, row: BillingRow, paymentNote: PaymentN
       `stripe:${paymentNote.eventId}`,
     );
     if (mailOwed) throw new Error("the declined card's mail did not go; it goes on the retry");
-    await emitEvent(db, row.tenant_id, "billing.payment_failed", "subscription", null, {}).catch(() => {});
+    await emitEvent(db, row.tenant_id, "billing.payment_failed", "subscription", null, {}).catch(
+      logAndGoOn("event billing.payment_failed"),
+    );
   } else if (paymentNote.amountPaid === undefined || paymentNote.amountPaid > 0) {
     await keepOnRow(db, row.tenant_id, { last_paid_at: now.toISOString() });
-    await emitEvent(db, row.tenant_id, "billing.paid", "subscription", null, {}).catch(() => {});
+    await emitEvent(db, row.tenant_id, "billing.paid", "subscription", null, {}).catch(
+      logAndGoOn("event billing.paid"),
+    );
     // A paid invoice mends "A payment did not go through" and the trial's warning (contracts NOTICE_MENDS).
     await mendWarnings(db, { tenantId: row.tenant_id, by: { change: "billing.paid" }, subject: null, keptId: null });
   }

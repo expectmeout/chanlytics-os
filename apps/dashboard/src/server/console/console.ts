@@ -36,6 +36,7 @@ import {
   type SupportBookDto,
   type SupportReportDto,
   isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { listPlatformEvents, listPlatformOverview, findPlatformPartners, getPlatformWaitlist } from "./platform";
 import type { BackOffice } from "../shared/back-office";
@@ -121,7 +122,7 @@ interface ConsoleHomeDto {
 /** What each workspace's model calls cost in the last thirty days, summed in the database. */
 async function spendOf(office: BackOffice): Promise<Record<string, number>> {
   const { data, error } = await getModelSpend(office.db, 30);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return Object.fromEntries((data ?? []).map((r) => [r.tenant_id, Number(r.usd)]));
 }
 
@@ -197,7 +198,7 @@ interface ConsoleWorkspaceDto {
  */
 export async function getConsoleWorkspace(office: BackOffice, slug: string): Promise<ConsoleWorkspaceDto> {
   const found = await findTenantBySlug(office.db, slug);
-  if (found.error) throw new Error(found.error.message);
+  if (found.error) throw new DbFailure(found.error);
   const tenant = found.data;
   if (!tenant) throw new AppError("not_found", CONSOLE_WORDS.noSuchWorkspace, 404);
   const nowIso = new Date().toISOString();

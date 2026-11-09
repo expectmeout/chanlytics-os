@@ -6,6 +6,7 @@ import { getAppointmentWord, hasDealsRead } from "../people/deals";
 import { findChannelsReadyOrNull } from "../campaigns/channels-ready";
 import { FACTS_READER, load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { parseTenantConfig, type AppointmentWord, type ChannelsReady, MIN_MS } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * The workspace's facts, read once.
@@ -124,10 +125,7 @@ export const businessShape: Reader<undefined, BusinessShape> = {
     const [word, dealt, settings] = await Promise.all([
       load(rc, appointmentWord, undefined).then((r) => r.data),
       load(rc, hasDeals, undefined).then((r) => r.data),
-      load(rc, config, undefined).then(
-        (r) => r.data,
-        () => null,
-      ),
+      load(rc, config, undefined).then((r) => r.data, logAndGoOn("load config", null)),
     ]);
     const parsed = parseTenantConfig(settings?.config ?? null);
     return {

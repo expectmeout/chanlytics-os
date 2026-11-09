@@ -41,6 +41,7 @@ import {
   type ModelSpeed,
   type ThinkingType,
   recordOrNull,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
@@ -71,7 +72,7 @@ export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: T
   const log = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await findAskTokensToday(db, tenantId);
-    if (error) throw new Error(`ask_tokens_day: ${error.message}`);
+    if (error) throw new DbFailure(error, "ask_tokens_day");
     return num(Number(data));
   } catch (e) {
     log.error("ask_budget_read_failed", { error: errField(e) });
@@ -157,6 +158,7 @@ export function teeUsage(
       try {
         ev = JSON.parse(raw) as typeof ev;
       } catch {
+        // Not JSON: nothing to read.
         continue;
       }
       if (ev.type === "message_start" && ev.message?.usage) {

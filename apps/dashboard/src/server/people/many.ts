@@ -1,5 +1,5 @@
 /** The verbs on many people at once: their receptionist mode, a note appended to each, and their erasure. */
-import { heldContactId, recordOrEmpty } from "@chanlytics/contracts";
+import { heldContactId, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { ContactId } from "@chanlytics/contracts";
 import { NOTE_LINE_MAX, NOTE_REFUSALS, type PersonReceptionistMode } from "@chanlytics/contracts";
 import { beginPeopleErasure } from "@chanlytics/db/erasure";
@@ -33,7 +33,7 @@ async function ours<T extends { id: string; tenant_id: TenantId; erased_at: stri
   columns: string,
 ): Promise<{ rows: T[]; skipped: string[] }> {
   const { data, error } = await listPeopleWith(ctx.supabase, ids, columns);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   // The columns are the caller's, chosen at run time, past the client's typed parser: T is the columns it named.
   const rows = ((data ?? []) as unknown as T[]).filter((c) => c.tenant_id === tenantId && !c.erased_at);
   return { rows, skipped: ids.filter((id) => !rows.some((c) => c.id === id)) };

@@ -117,6 +117,7 @@ export async function readLinkFields(req: Request): Promise<Map<string, string> 
       if (done) break;
       size += value.byteLength;
       if (size > LINK_PAGE_MAX_BYTES) {
+        // Closing what this is done with: nothing to do if that fails.
         await reader.cancel().catch(() => {});
         return "too_large";
       }
@@ -139,6 +140,7 @@ export async function readLinkFields(req: Request): Promise<Map<string, string> 
       for (const [k, v] of new URLSearchParams(new TextDecoder().decode(bytes).trim())) fields.set(k, v.trim());
     }
   } catch {
+    // A body this cannot decode: said as unreadable.
     return "unreadable";
   }
   return fields;

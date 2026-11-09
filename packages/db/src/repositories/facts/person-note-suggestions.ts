@@ -8,6 +8,7 @@ import type { Database } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../shared/read-json";
+import { DbFailure } from "@chanlytics/contracts";
 
 /** What person_note_suggest answers: the door's refusal, or the note it kept. */
 const NoteSuggested = z.object({ error: z.string(), note: z.object({ id: z.string() }).partial() }).partial();
@@ -38,7 +39,7 @@ export async function suggestPersonNote(
     p_source: params.source,
     ...(params.sourceId ? { p_source_id: params.sourceId } : {}),
   });
-  if (error) throw new Error(`person_note_suggest: ${error.message}`);
+  if (error) throw new DbFailure(error, "person_note_suggest");
   const value = readAnswer("person_note_suggest", NoteSuggested, data ?? {});
   if (typeof value.error === "string") return { refused: value.error };
   if (typeof value.note?.id !== "string") throw new Error("person_note_suggest answered without a note");

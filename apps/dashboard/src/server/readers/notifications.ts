@@ -20,6 +20,7 @@ import {
   unreadFor,
   zoneDayKey,
   isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
 import {
   findBellSeen,
@@ -32,6 +33,7 @@ import {
 import { facts as factsReader } from "./facts";
 import { searches as searchesReader } from "./searches";
 import { sequences as sequencesReader } from "./sequences";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * GET notifications, as the route answers it: the workspace's kept notifications of the last thirty days by the turn's
@@ -52,8 +54,8 @@ export const notifications: Reader<undefined, NotificationsDto> = {
       listBellRows(sb, tenantId, since, BELL_LIST_ROWS),
       findBellSeen(sb, tenantId, rc.userId),
     ]);
-    if (rows.error) throw new Error(rows.error.message);
-    if (seen.error) throw new Error(seen.error.message);
+    if (rows.error) throw new DbFailure(rows.error);
+    if (seen.error) throw new DbFailure(seen.error);
     // The marks for THESE notifications. Read in parallel it could name no ids,
     // so it fetched every mark this person has ever left, in every workspace
     // they belong to -- a row per notification per user, kept for ever, to
@@ -79,7 +81,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
       ids.length ? listNotificationMarks(sb, rc.userId, ids) : Promise.resolve({ data: [], error: null }),
       olderRead,
     ]);
-    if (marks.error) throw new Error(marks.error.message);
+    if (marks.error) throw new DbFailure(marks.error);
     const byId = new Map((marks.data ?? []).map((m) => [m.notification_id, m]));
     const notifications: NotificationDto[] = (rows.data ?? []).map((row) => {
       const found = byId.get(row.id);
@@ -194,7 +196,7 @@ export const askFollowUps: Reader<undefined, FollowUpsNow> = {
   async read(rc) {
     const follow = followUpsOf((await load(rc, memberViews, undefined)).data);
     const waits = (wake: FollowUpWake) => follow.some((f) => f.wake === wake);
-    const quiet = <T>(read: Promise<T>): Promise<T | null> => read.catch(() => null);
+    const quiet = <T>(read: Promise<T>): Promise<T | null> => read.catch(logAndGoOn("a follow-up's read", null));
     const [searches, sequences, zone] = await Promise.all([
       waits("search_done") ? quiet(load(rc, searchesReader, undefined).then((r) => r.data.searches)) : null,
       waits("replies") ? quiet(load(rc, sequencesReader, undefined).then((r) => r.data.sequences)) : null,

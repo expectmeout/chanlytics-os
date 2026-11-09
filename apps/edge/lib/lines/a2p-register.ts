@@ -38,6 +38,7 @@ import {
   registrationPathOf,
   registrationPreflight,
   type EdgeErrorCode,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { platformTo } from "../shared/alerts/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -161,7 +162,7 @@ export async function listFilingProblems(
     receptionistNameOf(db, line.tenant_id),
   ]);
   // Our numbers unread are not none: the check would take the line we answer on for the owner's own phone.
-  if (ours.error) throw new Error(`cannot read the workspace's lines: ${ours.error.message}`);
+  if (ours.error) throw new DbFailure(ours.error, "cannot read the workspace's lines");
   const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
   const problems = Object.values(businessRecordProblems(options.record, path, { ourNumbers }));
 
@@ -299,7 +300,7 @@ async function takeFiling(db: Db, filing: Filing, record: BusinessRecord): Promi
     },
     { fact: LEASE_FACT, now: new Date(now).toISOString() },
   );
-  if (error) throw new Error(`taking the line for its filing: ${error.message}`);
+  if (error) throw new DbFailure(error, "taking the line for its filing");
   return data?.[0] ?? null;
 }
 
@@ -480,7 +481,7 @@ function receiptSaver(db: Db, line: LineRow, facts: Record<string, unknown>): A2
     }
     if (touchedFacts) row.facts = facts;
     const { error } = await saveLineRow(db, line, row);
-    if (error) throw new Error(`keeping the registration's receipt: ${error.message}`);
+    if (error) throw new DbFailure(error, "keeping the registration's receipt");
   };
 }
 

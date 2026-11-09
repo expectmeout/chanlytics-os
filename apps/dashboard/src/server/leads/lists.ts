@@ -14,6 +14,7 @@ import {
   type LeadChooseInput,
   type LeadImportAnswer,
   type LeadImportInput,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { answerOf, refusalOf } from "./answers";
 import type { RouteContext } from "../shared/with-route";
@@ -24,7 +25,7 @@ type Ctx = Pick<RouteContext, "supabase">;
 
 /** The door's answer, once it did not refuse. */
 function taken<T>(fn: string, data: unknown, error: { message: string } | null): T {
-  if (error) throw new Error(`${fn}: ${error.message}`);
+  if (error) throw new DbFailure(error, `${fn}`);
   const refused = refusalOf(answerOf(data));
   if (refused) throw refused;
   return data as T;

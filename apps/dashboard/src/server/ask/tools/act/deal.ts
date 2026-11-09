@@ -1,4 +1,4 @@
-import { asContactId } from "@chanlytics/contracts";
+import { asContactId, DbFailure } from "@chanlytics/contracts";
 import "server-only";
 import { z } from "zod";
 import {
@@ -154,7 +154,7 @@ async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<
   const { id: asked, stage, url, day, reason, stepWords, stepDay } = checked;
   const id = asContactId(asked);
   const { data: c, error } = await findPersonCard(toolContext.ctx.supabase, toolContext.tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
   // Every deal of theirs: the current one may be the oldest, since a running engagement outlives newer proposals
   // (pickCurrentDeal). A read that fails is a card that cannot be checked, never a move proposed against no row.

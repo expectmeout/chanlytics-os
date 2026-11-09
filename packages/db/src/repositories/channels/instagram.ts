@@ -10,6 +10,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
+import { dbLogAndGoOn } from "../../shared/observe";
 type Db = SupabaseClient<Database>;
 
 /** An account's row as the sweep and the wires take it. */
@@ -29,21 +31,21 @@ export async function listActiveInstagramAccounts(db: Db): Promise<InstagramAcco
     .eq("kind", "instagram")
     .eq("status", "active")
     .order("created_at", { ascending: true });
-  if (error) throw new Error(`listActiveInstagramAccounts: ${error.message}`);
+  if (error) throw new DbFailure(error, "listActiveInstagramAccounts");
   return data ?? [];
 }
 
 /** What a channel keeps in the Vault (get_channel_credentials), as stored; null when it keeps nothing. */
 export async function readChannelSecret(db: Db, channelId: string): Promise<Json | null> {
   const { data, error } = await db.rpc("get_channel_credentials", { p_channel_id: channelId });
-  if (error) throw new Error(`readChannelSecret: ${error.message}`);
+  if (error) throw new DbFailure(error, "readChannelSecret");
   return data ?? null;
 }
 
 /** A channel's secret put in the Vault, through the one function that writes a credential (put_channel_credentials). */
 export async function putChannelSecret(db: Db, channelId: string, secret: Json): Promise<void> {
   const { error } = await db.rpc("put_channel_credentials", { p_channel_id: channelId, p_secret: secret });
-  if (error) throw new Error(`putChannelSecret: ${error.message}`);
+  if (error) throw new DbFailure(error, "putChannelSecret");
 }
 
 /** Which workspace holds an Instagram account's row, if any: the connect door refuses one another workspace holds. */
@@ -57,7 +59,7 @@ export async function findInstagramAccountHolder(
     .eq("kind", "instagram")
     .eq("external_id", accountId)
     .maybeSingle();
-  if (error) throw new Error(`findInstagramAccountHolder: ${error.message}`);
+  if (error) throw new DbFailure(error, "findInstagramAccountHolder");
   return data;
 }
 
@@ -101,7 +103,9 @@ export async function writeInstagramAccount(
     .select("id")
     .single();
   if (created.error?.code === "23505") {
-    const holder = await findInstagramAccountHolder(db, fields.accountId).catch(() => null);
+    const holder = await findInstagramAccountHolder(db, fields.accountId).catch(
+      dbLogAndGoOn("findInstagramAccountHolder", null),
+    );
     return holder?.tenant_id === fields.tenantId ? { id: holder.id } : "taken";
   }
   if (created.error || !created.data) return { failed: created.error?.message ?? "no row" };
@@ -146,7 +150,7 @@ export async function noteInstagramToken(
     .eq("id", channelId)
     .eq("kind", "instagram")
     .select("id");
-  if (error) throw new Error(`noteInstagramToken: ${error.message}`);
+  if (error) throw new DbFailure(error, "noteInstagramToken");
   return !!data?.length;
 }
 
@@ -161,7 +165,7 @@ export async function markMessageUnsent(
   externalId: string,
 ): Promise<{ outcome: "forgot"; storagePath: string | null } | { outcome: "none" }> {
   const { data, error } = await db.rpc("message_unsent", { p_tenant_id: tenantId, p_external_id: externalId });
-  if (error) throw new Error(`message_unsent: ${error.message}`);
+  if (error) throw new DbFailure(error, "message_unsent");
   const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
   if (o.outcome !== "forgot") return { outcome: "none" };
   return { outcome: "forgot", storagePath: typeof o.storage_path === "string" ? o.storage_path : null };
@@ -182,7 +186,7 @@ export async function findInstagramId(db: Db, tenantId: TenantId, contactId: Con
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw Object.assign(new Error(`findInstagramId: ${error.message}`), { code: error.code });
+  if (error) throw new DbFailure(error, "findInstagramId");
   return data?.external_id ?? null;
 }
 
@@ -200,7 +204,7 @@ export async function findPersonOfInstagramId(db: Db, tenantId: TenantId, igsid:
     .eq("external_id", igsid)
     .limit(1)
     .maybeSingle();
-  if (error) throw Object.assign(new Error(`findPersonOfInstagramId: ${error.message}`), { code: error.code });
+  if (error) throw new DbFailure(error, "findPersonOfInstagramId");
   if (!data || data.contacts?.erased_at) return null;
   return data.contacts?.merged_into_contact_id ?? data.contact_id;
 }
@@ -212,7 +216,7 @@ export async function findPersonOfInstagramId(db: Db, tenantId: TenantId, igsid:
  */
 export async function listLastDmsSentTo(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string[]> {
   const threads = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId);
-  if (threads.error) throw new Error(`listLastDmsSentTo: ${threads.error.message}`);
+  if (threads.error) throw new DbFailure(threads.error, "listLastDmsSentTo");
   const ids = (threads.data ?? []).map((c) => c.id);
   if (!ids.length) return [];
   const { data, error } = await db
@@ -224,7 +228,7 @@ export async function listLastDmsSentTo(db: Db, tenantId: TenantId, contactId: C
     .eq("direction", "outbound")
     .order("created_at", { ascending: false })
     .limit(DMS_TO_COMPARE);
-  if (error) throw new Error(`listLastDmsSentTo: ${error.message}`);
+  if (error) throw new DbFailure(error, "listLastDmsSentTo");
   return (data ?? []).flatMap((m) => (m.body ? [m.body] : []));
 }
 /** How many of the DMs sent last an echo's words are compared with: a split reply's parts follow it within seconds. */
@@ -249,7 +253,7 @@ export async function findLastInboundOn(
     .order("channel_ts", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`findLastInboundOn: ${error.message}`);
+  if (error) throw new DbFailure(error, "findLastInboundOn");
   return data?.channel_ts ?? data?.created_at ?? null;
 }
 

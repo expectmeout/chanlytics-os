@@ -21,7 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db/types";
 import { claimDueJob, stampJobSpoke, swapFiredJob } from "@chanlytics/db/jobs";
-import { DAY_MS, MIN_MS, jittered } from "@chanlytics/contracts";
+import { DAY_MS, MIN_MS, jittered, DbFailure } from "@chanlytics/contracts";
 import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
 import { TWILIO_TIMEOUT_MS } from "@chanlytics/channels/lines";
 import { WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels/whatsapp";
@@ -246,7 +246,7 @@ export const UNKNOWN_KIND_GIVE_UP_MS = DAY_MS;
 /** The next due job, claimed for this run; null when nothing is due. */
 export async function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow | null> {
   const { data, error } = await claimDueJob(db, leaseSeconds);
-  if (error) throw new Error(`claim_due_jobs: ${error.message}`);
+  if (error) throw new DbFailure(error, "claim_due_jobs");
   const rows: LedgerRow[] = data ?? [];
   return rows[0] ?? null;
 }
@@ -266,7 +266,7 @@ export async function markSpoke(
   if (job.spoke_at) return;
   const at = new Date().toISOString();
   const { data, error } = await stampJobSpoke(db, job, at);
-  if (error) throw new Error(`mark_spoke: ${error.message}`);
+  if (error) throw new DbFailure(error, "mark_spoke");
   if ((data?.length ?? 0) === 0) throw new Error("mark_spoke: this run no longer holds the job");
   job.spoke_at = at;
 }
@@ -278,7 +278,7 @@ export async function markSpoke(
  */
 export async function completeJob(db: Db, job: { id: string; attempts: number }): Promise<boolean> {
   const { data, error } = await swapFiredJob(db, job, { state: "done", lease_until: null });
-  if (error) throw new Error(`complete_job: ${error.message}`);
+  if (error) throw new DbFailure(error, "complete_job");
   return (data?.length ?? 0) > 0;
 }
 
@@ -288,7 +288,7 @@ export async function failJob(db: Db, job: { id: string; attempts: number }, rea
     last_error: reason.slice(0, 500),
     lease_until: null,
   });
-  if (error) throw new Error(`fail_job: ${error.message}`);
+  if (error) throw new DbFailure(error, "fail_job");
   return (data?.length ?? 0) > 0;
 }
 
@@ -316,6 +316,6 @@ export async function deferJob(
     last_error: reason.slice(0, 500),
     ...(giveBackClaim ? { attempts: Math.max(0, job.attempts - 1) } : {}),
   });
-  if (error) throw new Error(`defer_job: ${error.message}`);
+  if (error) throw new DbFailure(error, "defer_job");
   return (data?.length ?? 0) > 0;
 }

@@ -84,6 +84,7 @@ import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * When the moments stop for the tick: what is not started stays due and runs next hour, as a moment is due all day from
@@ -313,7 +314,7 @@ async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<D
     }
     if (!runDueNow(row, tz, now)) {
       L.warn("playbooks_page_not_due", { tenant_id: row.tenant_id, tz, kind: "reach_out", count: 1 });
-      await stampReachOutStep(db, row.id, { at: now }).catch(() => undefined);
+      await stampReachOutStep(db, row.id, { at: now }).catch(logAndGoOn("stampReachOutStep"));
       continue;
     }
     out.due += 1;
@@ -324,7 +325,7 @@ async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<D
     } catch (e) {
       L.error("reach_out_run_failed", { playbook_id: row.id, error: e instanceof Error ? e.message : String(e) });
       out.failed += 1;
-      await stampReachOutStep(db, row.id, { at: now }).catch(() => undefined);
+      await stampReachOutStep(db, row.id, { at: now }).catch(logAndGoOn("stampReachOutStep"));
     }
   }
 }

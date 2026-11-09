@@ -11,6 +11,7 @@ import { readAllRows } from "../../shared/paged";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
 import { z } from "zod";
 import { readAnswer } from "../../shared/read-json";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -90,9 +91,9 @@ export async function readLeadOne(
     }),
     db.from("lead_places").select("id", { count: "exact", head: true }).eq("lead_id", leadId),
   ]);
-  if (l.error) throw new Error(`readLeadOne: ${l.error.message}`);
-  if (m.error) throw new Error(`lead_member_of: ${m.error.message}`);
-  if (places.error) throw new Error(`readLeadOne: ${places.error.message}`);
+  if (l.error) throw new DbFailure(l.error, "readLeadOne");
+  if (m.error) throw new DbFailure(m.error, "lead_member_of");
+  if (places.error) throw new DbFailure(places.error, "readLeadOne");
   const lead = l.data;
   const member = memberOf(m.data);
   if (!lead || lead.tenant_id !== tenantId || lead.blanked_at || lead.erased_at || !member) return null;
@@ -134,7 +135,7 @@ export async function getLeadViewCounts(
     p_list: params.list,
     ...(params.filters ? { p_filters: params.filters } : {}),
   });
-  if (error) throw new Error(`lead_view_counts: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_view_counts");
   const value = data && typeof data === "object" && !Array.isArray(data) ? data : {};
   const by =
     value.excluded_by && typeof value.excluded_by === "object" && !Array.isArray(value.excluded_by)
@@ -156,7 +157,7 @@ export async function getLeadViewCounts(
  */
 export async function readIdeaHistory(db: Db, tenantId: TenantId): Promise<Json> {
   const { data, error } = await db.rpc("lead_suggest_history", { p_tenant_id: tenantId });
-  if (error) throw new Error(`lead_suggest_history: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_suggest_history");
   return data;
 }
 
@@ -174,7 +175,7 @@ type IdeasWriteArgs = Database["public"]["Functions"]["lead_suggestions_write"][
 /** The one writer of lead_suggestions (00400), by act; its answer as a record, or {} where it answered none. */
 async function writeIdeas(db: Db, args: IdeasWriteArgs): Promise<Record<string, Json | undefined>> {
   const { data, error } = await db.rpc("lead_suggestions_write", args);
-  if (error) throw new Error(`lead_suggestions_write(${args.p_act}): ${error.message}`);
+  if (error) throw new DbFailure(error, `lead_suggestions_write(${args.p_act})`);
   return data && typeof data === "object" && !Array.isArray(data) ? data : {};
 }
 
@@ -237,7 +238,7 @@ export async function findIdeasClockAndLanguage(
   tenantId: TenantId,
 ): Promise<{ timezone: string | null; locale: string | null } | null> {
   const { data, error } = await db.from("tenants").select("timezone, locale").eq("id", tenantId).maybeSingle();
-  if (error) throw new Error(`tenants: ${error.message}`);
+  if (error) throw new DbFailure(error, "tenants");
   return data;
 }
 
@@ -255,7 +256,7 @@ export async function findIdeasBasis(db: Db, tenantId: TenantId): Promise<string
     .order("ended_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`lead_rounds: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_rounds");
   return data ? data.ended_at : null;
 }
 
@@ -265,7 +266,7 @@ export async function findIdeasBasis(db: Db, tenantId: TenantId): Promise<string
  */
 export async function listLeadCardsLive(db: Db): Promise<string[]> {
   const { data, error } = await db.rpc("lead_cards_live");
-  if (error) throw new Error(`cannot read which cards find leads: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read which cards find leads");
   return data ?? ["local_businesses"];
 }
 
@@ -278,7 +279,7 @@ export type LeadPricesSeen = Record<string, Record<string, number>>;
  */
 export async function findLeadPricesSeen(db: Db): Promise<{ prices: LeadPricesSeen; checkedAt: string | null }> {
   const { data, error } = await db.from("lead_platform").select("prices, prices_checked_at").limit(1).maybeSingle();
-  if (error) throw new Error(`cannot read the lead sources' prices: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the lead sources' prices");
   const prices = data?.prices;
   return {
     prices: prices && typeof prices === "object" && !Array.isArray(prices) ? (prices as LeadPricesSeen) : {},
@@ -292,7 +293,7 @@ export async function keepLeadPrices(db: Db, prices: LeadPricesSeen, at: Date): 
     .from("lead_platform")
     .update({ prices, prices_checked_at: at.toISOString() })
     .eq("id", true);
-  if (error) throw new Error(`cannot keep the lead sources' prices: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot keep the lead sources' prices");
 }
 
 /** What lead_people_search_create answers: the search and its round, or the door's refusal and its sentence. */
@@ -316,7 +317,7 @@ export async function createLeadPeopleSearch(
     p_estimate_usd: params.estimateUsd,
     ...(params.threadId ? { p_thread_id: params.threadId } : {}),
   });
-  if (error) throw new Error(`lead_people_search_create: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_people_search_create");
   return readAnswer("lead_people_search_create", PeopleSearchMade, data ?? {});
 }
 
@@ -360,7 +361,7 @@ export async function upsertLeadCompany(
   companies: Json[],
 ): Promise<{ made: number; held: number; left_out: number }> {
   const { data, error } = await db.rpc("lead_company_upsert", { p_round_id: roundId, p_companies: companies });
-  if (error) throw new Error(`lead_company_upsert: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_company_upsert");
   const r = readAnswer("lead_company_upsert", CompaniesKept, data ?? {});
   return { made: r.made ?? 0, held: r.held ?? 0, left_out: r.left_out ?? 0 };
 }
@@ -378,7 +379,7 @@ export async function findLeadCountries(db: Db, ids: readonly string[]): Promise
       .from("leads")
       .select("id, country")
       .in("id", unique.slice(i, i + 100));
-    if (error) throw new Error(`cannot read the leads' countries: ${error.message}`);
+    if (error) throw new DbFailure(error, "cannot read the leads' countries");
     for (const r of data ?? []) out.set(r.id, r.country?.trim().toUpperCase() || null);
   }
   return out;
@@ -447,7 +448,7 @@ export async function getIdeaCustomerRows(db: Db, tenantId: TenantId): Promise<I
  */
 export async function getLeadAllowance(db: Db, tenantId: TenantId): Promise<number> {
   const { data, error } = await db.rpc("lead_allowance", { p_tenant_id: tenantId });
-  if (error) throw new Error(`lead_allowance: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_allowance");
   const n = typeof data === "number" ? data : Number(data);
   if (!Number.isFinite(n)) throw new Error("lead_allowance answered no number");
   return n;
@@ -471,7 +472,7 @@ export async function recordLeadSiteReadsSpent(
     p_reads: reads,
     p_usd: usd,
   });
-  if (error) throw new Error(`lead_site_reads_spent: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_site_reads_spent");
 }
 
 /** A lead with a site and no copy of its mark yet (00161), as the leads sweep tries it again. */
@@ -504,7 +505,7 @@ export async function listLeadsUnmarked(db: Db, from: Date, until: Date, limit: 
     .lt("found_at", until.toISOString())
     .order("found_at", { ascending: true })
     .limit(limit);
-  if (error) throw new Error(`leads: ${error.message}`);
+  if (error) throw new DbFailure(error, "leads");
   return (data ?? []).flatMap((r) => (r.website_host ? [{ ...r, website_host: r.website_host }] : []));
 }
 
@@ -528,6 +529,6 @@ export async function keepLeadMark(
     .is("blanked_at", null)
     .is("erased_at", null)
     .select("id");
-  if (error) throw new Error(`leads: ${error.message}`);
+  if (error) throw new DbFailure(error, "leads");
   return (data ?? []).length > 0;
 }

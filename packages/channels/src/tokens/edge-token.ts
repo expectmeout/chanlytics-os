@@ -86,6 +86,7 @@ export function verifyEdgeToken(secret: string, token: string, aud: string, nowM
   try {
     claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as EdgeClaims;
   } catch {
+    // Not JSON: nothing to read.
     return { ok: false, reason: "malformed" };
   }
   if (!claims || typeof claims !== "object" || typeof claims.aud !== "string")

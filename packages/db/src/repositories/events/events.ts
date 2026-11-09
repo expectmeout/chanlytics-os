@@ -10,6 +10,7 @@ import {
   type PlatformActedData,
   type WabaEventKind,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { dbLog, dbRequestId } from "../../shared/observe";
@@ -359,7 +360,7 @@ export async function findFilePosted(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`file posted: ${error.message}`);
+  if (error) throw new DbFailure(error, "file posted");
   if (data?.kind !== "file.posted") return null;
   const post = recordOrEmpty(data.data);
   if (typeof post.post_name !== "string") return null;
@@ -387,6 +388,6 @@ export async function getSubjectsWith(
     .eq("tenant_id", tenantId)
     .eq("kind", kind)
     .in("subject_id", subjectIds);
-  if (error) throw new Error(`events: ${error.message}`);
+  if (error) throw new DbFailure(error, "events");
   return new Set((data ?? []).map((r) => r.subject_id).filter((id): id is string => typeof id === "string"));
 }

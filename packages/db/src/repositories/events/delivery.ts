@@ -1,6 +1,6 @@
 /** Events: delivery. */
 
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import { personName, type ActivationMilestone } from "@chanlytics/contracts";
 import type { Json } from "../../types";
 import { dbLog } from "../../shared/observe";
@@ -65,7 +65,7 @@ export interface DeliveryRow {
  */
 export async function relayEvents(db: Db, limit: number): Promise<number> {
   const { data, error } = await db.rpc("relay_events", { p_limit: limit });
-  if (error) throw new Error(`relay_events: ${error.message}`);
+  if (error) throw new DbFailure(error, "relay_events");
   return data ?? 0;
 }
 
@@ -77,7 +77,7 @@ export async function findEventOfDelivery(db: Db, tenantId: TenantId, eventId: s
     .eq("tenant_id", tenantId)
     .eq("id", eventId)
     .maybeSingle();
-  if (error) throw new Error(`events: ${error.message}`);
+  if (error) throw new DbFailure(error, "events");
   return data;
 }
 
@@ -89,7 +89,7 @@ export async function isSubscriptionPaused(db: Db, kind: string, subscriber: str
     .eq("kind", kind)
     .eq("subscriber", subscriber)
     .maybeSingle();
-  if (error) throw new Error(`event_subscriptions: ${error.message}`);
+  if (error) throw new DbFailure(error, "event_subscriptions");
   return data ? data.paused : true;
 }
 
@@ -107,7 +107,7 @@ export async function findDelivery(
     .eq("event_id", eventId)
     .eq("subscriber", subscriber)
     .maybeSingle();
-  if (error) throw new Error(`event_deliveries: ${error.message}`);
+  if (error) throw new DbFailure(error, "event_deliveries");
   return data;
 }
 
@@ -129,7 +129,7 @@ export async function settleDelivery(
     .eq("tenant_id", details.tenantId)
     .eq("event_id", details.eventId)
     .eq("subscriber", details.subscriber);
-  if (error) throw new Error(`event_deliveries: ${error.message}`);
+  if (error) throw new DbFailure(error, "event_deliveries");
 }
 
 /**
@@ -149,7 +149,7 @@ export async function failOpenDelivery(
     .eq("subscriber", details.subscriber)
     .eq("state", "scheduled")
     .select("event_id");
-  if (error) throw new Error(`event_deliveries: ${error.message}`);
+  if (error) throw new DbFailure(error, "event_deliveries");
   return (data?.length ?? 0) > 0;
 }
 
@@ -170,7 +170,7 @@ export async function finishBroadcast(
     p_id: id,
     p_event: rowOf(tenantId, "broadcast.sent", "broadcast", id, tally),
   });
-  if (error) throw new Error(`finish_broadcast: ${error.message}`);
+  if (error) throw new DbFailure(error, "finish_broadcast");
   return data === true;
 }
 
@@ -228,7 +228,7 @@ async function readByIds<R>(
   const answers = await Promise.all(chunks(ids).map((some) => read(some)));
   const out: R[] = [];
   for (const a of answers) {
-    if (a.error) throw new Error(a.error.message);
+    if (a.error) throw new DbFailure(a.error);
     out.push(...(a.data ?? []));
   }
   return out;

@@ -75,6 +75,7 @@ export async function verifyGooglePushToken(
     header = recordOrEmpty(JSON.parse(utf8.decode(unb64url(head))));
     claims = recordOrEmpty(JSON.parse(utf8.decode(unb64url(body))));
   } catch {
+    // Not JSON: nothing to read.
     return { ok: false, why: "malformed" };
   }
   if (header.alg !== "RS256" || typeof header.kid !== "string") return { ok: false, why: "malformed" };
@@ -115,6 +116,7 @@ export function gmailPushOf(body: unknown): { address: string; historyId: string
       historyId: typeof h === "string" || typeof h === "number" ? String(h) : null,
     };
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
 }

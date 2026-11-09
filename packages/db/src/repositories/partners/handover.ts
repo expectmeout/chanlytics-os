@@ -2,7 +2,7 @@
 
 import type { Db } from "./partner";
 import { saysMissing, isMissingFunction } from "../../shared/missing-door";
-import { recordOrEmpty, textOrEmpty, recordOrNull } from "@chanlytics/contracts";
+import { recordOrEmpty, textOrEmpty, recordOrNull, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 
 /* ------------------------------------------------------------------------------------------------ handovers */
@@ -135,7 +135,7 @@ export async function getPartnerHandovers(db: Db): Promise<PartnerHandoverLine[]
     .order("handover_sent_at", { ascending: false });
   if (error) {
     if (/\b(origin|handover_\w+)\b/.test(error.message) && saysMissing(error.message)) return [];
-    throw new Error(`getPartnerHandovers: ${error.message}`);
+    throw new DbFailure(error, "getPartnerHandovers");
   }
   return (data ?? []).map((r) => ({
     tenantId: r.tenant_id,
@@ -169,7 +169,7 @@ export async function getHandoverInvite(db: Db, tenantId: TenantId): Promise<Han
     .eq("tenant_id", tenantId)
     .eq("origin", "handover")
     .maybeSingle();
-  if (error) throw new Error(`getHandoverInvite: ${error.message}`);
+  if (error) throw new DbFailure(error, "getHandoverInvite");
   if (!data?.handover_email || !data.handover_expires_at) return null;
   if (data.handover_accepted_at || data.handover_declined_at) return null;
   if (Date.parse(data.handover_expires_at) <= Date.now()) return null;
@@ -269,7 +269,7 @@ export async function getPartnerInvitations(db: Db): Promise<PartnerInvitation[]
   const { data, error } = await db.rpc("partner_invitations_mine");
   if (error) {
     if (isMissingFunction(error)) return [];
-    throw new Error(`getPartnerInvitations: ${error.message}`);
+    throw new DbFailure(error, "getPartnerInvitations");
   }
   return (data ?? []).map((r) => ({
     tenantId: r.tenant_id,

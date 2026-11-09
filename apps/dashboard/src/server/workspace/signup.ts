@@ -2,7 +2,13 @@ import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import { addToWaitlist, refreshWaitlistRow } from "@chanlytics/db/workspace";
 import { signUpOnPublicKey } from "@chanlytics/db/auth";
-import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
+import {
+  PENDING_WORKSPACE_KEY,
+  addressAlreadyKnown,
+  sendFailureIsOurs,
+  type SignupInput,
+  DbFailure,
+} from "@chanlytics/contracts";
 
 /**
  * Sign-up, the half that knows who exists.
@@ -120,7 +126,7 @@ export async function signUp(input: SignupInput & { password: string }): Promise
     // dead end for the person and an oracle for everyone else.
     if (addressAlreadyKnown(error)) return { created: false, userId: null, codeUnsent: false };
     if (!sendFailureIsOurs(error)) {
-      throw new Error(`signUp: ${error.message}`);
+      throw new DbFailure(error, "signUp");
     }
     log.warn("signup_code_not_sent", { ourFault: true, message: error.message.slice(0, 120) });
     return { created: false, userId: null, codeUnsent: true };
@@ -162,7 +168,7 @@ export async function joinWaitlist(input: { email: string; name?: string; source
   const meta = { business: input.name ?? null, source: input.source ?? null };
   const { error } = await addToWaitlist(db, { email, ...meta });
   if (!error) return;
-  if (error.code !== "23505") throw new Error(`waitlist: ${error.message}`);
+  if (error.code !== "23505") throw new DbFailure(error, "waitlist");
   // They asked twice, which is not a failure they should ever see. Their place
   // in the queue is left alone and only what they told us moves; a row already
   // invited is left entirely alone, because a repeat is not a re-join.

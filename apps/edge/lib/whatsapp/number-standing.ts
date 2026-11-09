@@ -23,7 +23,7 @@ import { pg } from "../shared/pg.js";
 import { keepChannelStanding, findWhatsappNumber, type WhatsappNumber } from "@chanlytics/db/jobs";
 import type { Database } from "@chanlytics/db/types";
 import { standingAlertWords, type NumberStanding, isTenantId } from "@chanlytics/contracts";
-import { errField, logger, type Logger } from "../shared/log.js";
+import { errField, logFailure, logger, type Logger } from "../shared/log.js";
 import { notify } from "../shared/alerts/notify.js";
 import { getWaCredentialsForTenant } from "../shared/tenant-runtime.js";
 import { getNumberStanding } from "./meta-graph.js";
@@ -154,7 +154,7 @@ export async function checkNumberStanding(auth: Admitted, body: Partial<{ tenant
   try {
     number = await findWhatsappNumber(db, tenantId);
   } catch (e) {
-    return refuse(503, "channel_read_failed", errField(e));
+    return refuse(503, "channel_read_failed", logFailure("read", e));
   }
   if (!number) return refuse(409, "no_channel");
   const creds = await getWaCredentialsForTenant(db, tenantId);

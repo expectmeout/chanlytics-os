@@ -3,7 +3,7 @@
  * themselves; the ones the edge calls are the service role's alone. A row lives from its bytes proven until they are gone:
  * file_start holds a place on the ledger and nothing else, and file_found is the one door every road keeps a file by.
  */
-import { heldTenantId } from "@chanlytics/contracts";
+import { heldTenantId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isOneOf,
@@ -75,7 +75,7 @@ export async function recordFileFound(
     p_edition: args.edition,
     ...(args.actor ? { p_actor: args.actor } : {}),
   });
-  if (error) throw new Error(`file found: ${error.message}`);
+  if (error) throw new DbFailure(error, "file found");
   return fateOf(data);
 }
 
@@ -109,7 +109,7 @@ export async function recordFileMade(
     p_made: args.made,
     ...(args.actor ? { p_actor: args.actor } : {}),
   });
-  if (error) throw new Error(`file made: ${error.message}`);
+  if (error) throw new DbFailure(error, "file made");
   return fateOf(data);
 }
 
@@ -167,20 +167,20 @@ export async function keepFileLook(
     p_name: args.name,
     p_shows: args.shows,
   });
-  if (error) throw new Error(`file look: ${error.message}`);
+  if (error) throw new DbFailure(error, "file look");
 }
 
 /** What a public listing offered and nobody kept goes aside: that listing was not this business's, or its own profile came. */
 export async function setFileListingAside(db: Db, tenantId: TenantId): Promise<number> {
   const { data, error } = await db.rpc("file_listing_aside", { p_tenant_id: tenantId });
-  if (error) throw new Error(`file listing aside: ${error.message}`);
+  if (error) throw new DbFailure(error, "file listing aside");
   return typeof data === "number" ? data : 0;
 }
 
 /** A removed file's bytes and Anthropic's copy are gone, so its row goes. */
 export async function recordFilePurged(db: Db, tenantId: TenantId, id: string): Promise<void> {
   const { error } = await db.rpc("file_purged", { p_tenant_id: tenantId, p_id: id });
-  if (error) throw new Error(`file purged: ${error.message}`);
+  if (error) throw new DbFailure(error, "file purged");
 }
 
 /* ------------------------------------------------------------------------------------------------- videos (00556) -- */
@@ -224,7 +224,7 @@ export async function beginFileVideo(
     p_seconds: video.seconds,
     ...(video.actor ? { p_actor: video.actor } : {}),
   });
-  if (error) throw new Error(`file video begin: ${error.message}`);
+  if (error) throw new DbFailure(error, "file video begin");
   const answer = recordOrEmpty(data);
   if (answer.fate !== "kept" && answer.fate !== "here" && answer.fate !== "full" && answer.fate !== "minutes")
     throw new Error("file video begin: no fate answered");
@@ -238,7 +238,7 @@ export async function beginFileVideo(
 /** A video's bytes have all gone: its tile says it is being made ready. Only from uploading. */
 export async function markFileMediaProcessing(db: Db, tenantId: TenantId, id: string): Promise<void> {
   const { error } = await db.rpc("file_media_processing", { p_tenant_id: tenantId, p_id: id });
-  if (error) throw new Error(`file media processing: ${error.message}`);
+  if (error) throw new DbFailure(error, "file media processing");
 }
 
 /** What the platform's word did to a row, found by its id there. */
@@ -274,21 +274,21 @@ export async function markFileMediaReady(
     p_width: media.width,
     p_height: media.height,
   });
-  if (error) throw new Error(`file media ready: ${error.message}`);
+  if (error) throw new DbFailure(error, "file media ready");
   return mediaFateOf(data, "file media ready");
 }
 
 /** The platform could not read a video: its tile says so, with the platform's own code kept for the server. */
 export async function markFileMediaFailed(db: Db, mediaRef: string, code: string | null): Promise<MediaFate> {
   const { data, error } = await db.rpc("file_media_failed", { p_media_ref: mediaRef, p_error: code ?? "" });
-  if (error) throw new Error(`file media failed: ${error.message}`);
+  if (error) throw new DbFailure(error, "file media failed");
   return mediaFateOf(data, "file media failed");
 }
 
 /** A video whose bytes never arrived, a day on: removed, for the purge to finish. Answers whether it was one. */
 export async function removeLapsedUpload(db: Db, tenantId: TenantId, id: string): Promise<boolean> {
   const { data, error } = await db.rpc("file_upload_lapsed", { p_tenant_id: tenantId, p_id: id });
-  if (error) throw new Error(`file upload lapsed: ${error.message}`);
+  if (error) throw new DbFailure(error, "file upload lapsed");
   return data === true;
 }
 
@@ -316,5 +316,5 @@ export async function keepFileSound(
     p_by: entry.by ? { model: entry.by.model, at: entry.by.at } : null,
     p_said: entry.said,
   });
-  if (error) throw new Error(`file sound keep: ${error.message}`);
+  if (error) throw new DbFailure(error, "file sound keep");
 }

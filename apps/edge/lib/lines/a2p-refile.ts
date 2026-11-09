@@ -7,9 +7,10 @@
 import { deleteCampaignRequest, updateCampaignRequest, encodeForm, requestTwilio } from "@chanlytics/channels/lines";
 import type { EdgeErrorCode } from "@chanlytics/contracts";
 import { findLineAccount } from "./sms.js";
-import { logger } from "../shared/log.js";
+import { logger, logFailure } from "../shared/log.js";
 import { listFilingProblems, TWILIO_TIMEOUT_MS, type Db, type LineRow, type RecordRow } from "./a2p-register.js";
 import { saveLineRowBack } from "@chanlytics/db/lines";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * What a refile step answers: the row as it now reads; or why not, as a code, with the pre-flight's sentences in
@@ -62,7 +63,7 @@ export async function unfileMockRegistration(
     return { ok: false, error: "record_incomplete", problems };
   }
   if (line.messaging_service_sid && line.campaign_sid) {
-    const sub = await findLineAccount(db, line).catch(() => null);
+    const sub = await findLineAccount(db, line).catch(logAndGoOn("findLineAccount", null));
     if (!sub) return { ok: false, error: "no_line_credentials" };
     const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
     const result = await requestTwilio(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });
@@ -105,7 +106,7 @@ export async function unfileMockRegistration(
     last_error: null,
     state_since: new Date().toISOString(),
   });
-  if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
+  if (cleared.error) return { ok: false, error: "write_failed", detail: logFailure("write", cleared.error) };
   return { ok: true, row: cleared.data };
 }
 
@@ -159,7 +160,7 @@ export async function resubmitRejectedCampaign(
     return { ok: false, error: "record_incomplete", problems };
   }
 
-  const sub = await findLineAccount(db, line).catch(() => null);
+  const sub = await findLineAccount(db, line).catch(logAndGoOn("findLineAccount", null));
   if (!sub) return { ok: false, error: "no_line_credentials" };
 
   const req = updateCampaignRequest(line.messaging_service_sid, line.campaign_sid, {
@@ -190,7 +191,7 @@ export async function resubmitRejectedCampaign(
     last_error: null,
     state_since: new Date().toISOString(),
   });
-  if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
+  if (cleared.error) return { ok: false, error: "write_failed", detail: logFailure("write", cleared.error) };
   return { ok: true, row: cleared.data };
 }
 
@@ -229,7 +230,7 @@ export async function replaceRejectedCampaign(
     return { ok: false, error: "record_incomplete", problems };
   }
   if (line.messaging_service_sid && line.campaign_sid) {
-    const sub = await findLineAccount(db, line).catch(() => null);
+    const sub = await findLineAccount(db, line).catch(logAndGoOn("findLineAccount", null));
     if (!sub) return { ok: false, error: "no_line_credentials" };
     const req = deleteCampaignRequest(line.messaging_service_sid, line.campaign_sid);
     const result = await requestTwilio(sub, req.method, req.url, { timeoutMs: TWILIO_TIMEOUT_MS });
@@ -254,6 +255,6 @@ export async function replaceRejectedCampaign(
     last_error: null,
     state_since: new Date().toISOString(),
   });
-  if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
+  if (cleared.error) return { ok: false, error: "write_failed", detail: logFailure("write", cleared.error) };
   return { ok: true, row: cleared.data };
 }

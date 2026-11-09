@@ -457,6 +457,7 @@ export async function fetchLinkedMedia(
     const res = await fetchImpl(url, { signal: AbortSignal.timeout(LINKED_MEDIA_TIMEOUT_MS), redirect: "follow" });
     if (!res.ok || !res.body) return null;
     if (Number(res.headers.get("content-length") ?? 0) > LINKED_MEDIA_MAX_BYTES) {
+      // Closing what this is done with: nothing to do if that fails.
       await res.body.cancel().catch(() => undefined);
       return null;
     }
@@ -468,6 +469,7 @@ export async function fetchLinkedMedia(
       if (done) break;
       size += value.byteLength;
       if (size > LINKED_MEDIA_MAX_BYTES) {
+        // Closing what this is done with: nothing to do if that fails.
         await reader.cancel().catch(() => undefined);
         return null;
       }
@@ -482,6 +484,7 @@ export async function fetchLinkedMedia(
     const mime = res.headers.get("content-type")?.split(";")[0]?.trim() || null;
     return { bytes: out.buffer, mime };
   } catch {
+    // A picture that cannot be fetched is none: the message still lands.
     return null;
   }
 }

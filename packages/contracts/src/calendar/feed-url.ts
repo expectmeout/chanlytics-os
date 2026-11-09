@@ -68,6 +68,7 @@ export async function fetchPublic(
     const res = await fetchImpl(at, { ...init, redirect: "manual" });
     if (res.status >= 300 && res.status < 400) {
       const next = res.headers.get("location");
+      // Closing what this is done with: nothing to do if that fails.
       await res.body?.cancel().catch(() => undefined);
       at = next ? feedUrlOk(URL.canParse(next, at) ? new URL(next, at).toString() : null) : null;
       continue;

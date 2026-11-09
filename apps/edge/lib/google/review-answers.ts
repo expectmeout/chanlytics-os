@@ -19,9 +19,10 @@ import {
   type EdgeRefusal,
   type ReviewReplyFacts,
   type ReviewReplyMode,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { draftReviewReply } from "./review-reply.js";
-import { logger } from "../shared/log.js";
+import { logger, logFailure } from "../shared/log.js";
 import { http } from "../shared/google/places.js";
 import { connectionOf, type ConnectionRow, type Db } from "../shared/google/rows.js";
 import { tokenFor } from "../shared/google/credentials.js";
@@ -33,6 +34,7 @@ import {
   saveHeldReviewReply,
 } from "@chanlytics/db/google";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * The drafts one sync may write under the auto mode: twice the replies it posts, so a review the model could not
@@ -49,8 +51,8 @@ export async function reviewReplyMode(db: Db, tenantId: TenantId): Promise<Revie
 /** What the receptionist knows about the business when it writes under a review: the name, the tone, the languages, the services — from the same profile the WhatsApp brain speaks from. */
 async function reviewFacts(db: Db, tenantId: TenantId): Promise<ReviewReplyFacts> {
   const [t, c] = await Promise.all([findWorkspaceName(db, tenantId), findConfigRow(db, tenantId)]);
-  if (t.error) throw new Error(t.error.message);
-  if (c.error) throw new Error(c.error.message);
+  if (t.error) throw new DbFailure(t.error);
+  if (c.error) throw new DbFailure(c.error);
   const brain = parseTenantConfig(c.data?.config)?.brain ?? null;
   const profile = brain?.profile;
   return {
@@ -70,7 +72,7 @@ export async function draftFor(
   rowId: string,
 ): Promise<{ ok: true; text: string } | EdgeRefusal> {
   const review = await findReviewToAnswer(db, tenantId, rowId);
-  if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
+  if (review.error) return { ok: false, error: "review_read_failed", detail: logFailure("read", review.error) };
   if (!review.data) return { ok: false, error: "no_review" };
   const facts = await reviewFacts(db, tenantId);
   const result = await draftReviewReply(
@@ -124,7 +126,7 @@ async function markReplied(
     drafted_at: null,
     posts_at: null,
   });
-  if (up.error) throw new Error(up.error.message);
+  if (up.error) throw new DbFailure(up.error);
 }
 
 /**
@@ -140,7 +142,7 @@ async function writeHeldReply(
   timed = false,
 ): Promise<boolean> {
   const up = await saveHeldReviewReply(db, tenantId, rowId, set, timed);
-  if (up.error) throw new Error(up.error.message);
+  if (up.error) throw new DbFailure(up.error);
   return (up.data ?? []).length > 0;
 }
 
@@ -159,7 +161,7 @@ async function postReply(
     chars: text.length,
     by: "receptionist",
     ...(at.usage === undefined ? {} : { usage: at.usage }),
-  }).catch(() => {});
+  }).catch(logAndGoOn("event google.replied"));
 }
 
 /**
@@ -186,7 +188,7 @@ async function answerNewReviews(
   // left to read it (doesWorkspaceAnswerOnItsOwn says which).
   if (!(await doesWorkspaceAnswerOnItsOwn(db, conn.tenant_id))) return nothingAnswered();
   const unreplied = await listUnrepliedProfileReviews(db, conn.tenant_id, 20);
-  if (unreplied.error) throw new Error(unreplied.error.message);
+  if (unreplied.error) throw new DbFailure(unreplied.error);
   const rows: Unreplied[] = unreplied.data ?? [];
   if (!rows.length) return nothingAnswered();
   // A held reply whose time came goes first, under Holds it alone: one stopped has no time, and Ask me posts nothing alone.
@@ -251,7 +253,7 @@ async function answerNewReviews(
       await emitEvent(db, conn.tenant_id, "google.reply_held", "review", pick.id, {
         review_id: pick.review_id,
         why: hold,
-      }).catch(() => {});
+      }).catch(logAndGoOn("event google.reply_held"));
       continue;
     }
     try {
@@ -277,7 +279,7 @@ export async function holdReviewReply(
   try {
     return { ok: true, held: await writeHeldReply(db, tenantId, rowId, { posts_at: null }, true) };
   } catch (e) {
-    return { ok: false, error: "review_write_failed", detail: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: "review_write_failed", detail: logFailure("write", e) };
   }
 }
 
@@ -292,7 +294,7 @@ export async function replyOnProfile(
   const conn = await connectionOf(db, tenantId);
   if (!conn || !conn.location_name) return { ok: false, error: "not_connected" };
   const review = await findReviewOnGoogle(db, tenantId, rowId);
-  if (review.error) return { ok: false, error: "review_read_failed", detail: review.error.message };
+  if (review.error) return { ok: false, error: "review_read_failed", detail: logFailure("read", review.error) };
   if (!review.data) return { ok: false, error: "no_review" };
   if (review.data.origin !== "profile") return { ok: false, error: "not_from_profile" };
   const token = await tokenFor(db, tenantId, now.getTime());
@@ -312,12 +314,12 @@ export async function replyOnProfile(
   try {
     await markReplied(db, tenantId, rowId, reply);
   } catch (e) {
-    return { ok: false, error: "review_write_failed", detail: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: "review_write_failed", detail: logFailure("write", e) };
   }
   await emitEvent(db, tenantId, "google.replied", "review", rowId, {
     review_id: review.data.review_id,
     chars: comment.length,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event google.replied"));
   return { ok: true, ...reply };
 }
 

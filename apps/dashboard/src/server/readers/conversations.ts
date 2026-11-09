@@ -7,6 +7,7 @@ import {
   theyWroteLast,
   type ConversationDto,
   type MessageDto,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { listFailedMessageErrors, searchMessages } from "@chanlytics/db/conversations";
 import { listLastClosedHolds } from "@chanlytics/db/people";
@@ -75,7 +76,7 @@ export const conversations: Reader<
       : threadIds
         ? threads().select(CONVERSATION_COLUMNS).eq("tenant_id", tenantId).in("id", threadIds)
         : listed().order("last_message_at", { ascending: false, nullsFirst: false }).limit(THREADS_MAX));
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     const ids = (convs ?? []).map((c) => c.id);
     const messagesOf = async (): Promise<Map<string, MessageDto[]>> => {
       if (!ids.length) return new Map();

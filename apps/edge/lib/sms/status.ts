@@ -51,6 +51,7 @@ import { pageOperator, type PageOutcome } from "../shared/alerts/page-operator.j
 import { logger } from "../shared/log.js";
 import { phoneTail } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 const empty = (status: number) => text(status, "", { "content-type": "text/plain" });
 
@@ -80,7 +81,7 @@ async function pageLostReport(
       "",
       "This page comes at most once in six hours for the workspace.",
     ].join("\n"),
-  ).catch((): PageOutcome => "failed");
+  ).catch(logAndGoOn<PageOutcome>("pageOperator", "failed"));
 }
 
 export async function receiveSmsStatus(request: Request): Promise<Response> {

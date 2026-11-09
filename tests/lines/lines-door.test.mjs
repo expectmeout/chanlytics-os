@@ -594,7 +594,7 @@ test("buy for a workspace that may spend writes a provisioning row and schedules
   const [s4, b4] = await answer(await knock({ op: "buy", number: NUMBER }));
   assert.equal(s4, 503);
   assert.equal(b4.error, "could_not_queue");
-  assert.match(b4.detail, /schedule_job: permission denied/);
+  assert.equal(b4.detail, "Could not save that just now. Try again in a moment.");
   assert.equal(b4.line.voice_state, "provisioning", "the row stands; the lines sweep picks it up past the deadline");
 });
 

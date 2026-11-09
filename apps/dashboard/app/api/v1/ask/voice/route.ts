@@ -17,6 +17,7 @@ export const POST = write({
     const secret = env.ASK_VOICE_SECRET;
     if (!secret) throw new AppError("upstream_voice", "Voice is not set up on this deployment.", 503);
     const tenantId = member.tenantId;
+    // A body that is not JSON is none: what reads it next refuses.
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     const { threadId, scope, language, context, surface } = asked(body, tenantId);
 

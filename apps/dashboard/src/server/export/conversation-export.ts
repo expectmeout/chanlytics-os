@@ -3,7 +3,7 @@
  * message, oldest first, for the business's own records. The export is written to the ledger as a decision. The route
  * declares who may and how often.
  */
-import { AppError, memberMetaOf } from "@chanlytics/contracts";
+import { AppError, memberMetaOf, DbFailure } from "@chanlytics/contracts";
 import type { MessageDto } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/shared/request-guards";
 import { getTenantFacts } from "@/server/shared/tenant";
@@ -21,7 +21,7 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
   const { supabase, userId, params } = ctx;
   const id = requireUuid(params.id, "conversation");
   const { data: conv, error } = await findThreadForExport(supabase, member.tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!conv) throw new AppError("not_found", "Conversation not found.");
   // Offset paging under one TOTAL order, as the workspace export does, not a
   // `.lt(created_at)` cursor: two messages written in the same transaction

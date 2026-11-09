@@ -14,6 +14,7 @@ import { pg } from "../lib/shared/pg.js";
 import { platformHealthOf } from "@chanlytics/contracts";
 import { door } from "../lib/shared/log.js";
 import { readPlatformHealth, type HealthDb } from "../lib/ops/platform-health.js";
+import { logKeptGoing } from "@chanlytics/log";
 
 const CACHE_MS = 10_000;
 let cached: { at: number; status: number; body: string } | null = null;
@@ -89,7 +90,8 @@ export const GET = door(async function GET(): Promise<Response> {
   let judged: { status: number; body: HealthAnswer };
   try {
     judged = await judgeHealth(db);
-  } catch {
+  } catch (e) {
+    logKeptGoing("health's judgement", e);
     judged = { status: 503, body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "error" } };
   }
   return remember(judged.status, judged.body);

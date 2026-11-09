@@ -11,6 +11,7 @@ import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { readAllRows } from "../../shared/paged";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -65,7 +66,7 @@ export async function openDealsOf(db: Db, tenantId: TenantId, contactId: Contact
     .eq("contact_id", contactId)
     .in("stage", ["proposed", "won"])
     .order("created_at", { ascending: false });
-  if (result.error) throw new Error(result.error.message);
+  if (result.error) throw new DbFailure(result.error);
   return (result.data ?? []).map((d) => ({ id: d.id, service: d.service }));
 }
 

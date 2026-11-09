@@ -50,6 +50,8 @@ import {
   type JobKind,
   type LedgerNowDto,
   type OperatorPageDto,
+  DbFailure,
+  causedBy,
 } from "@chanlytics/contracts";
 import { readSide } from "./console";
 import { listPlatformDays } from "./day-counts";
@@ -59,13 +61,14 @@ import type { BackOffice } from "../shared/back-office";
 import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** How many rows each list reads at most: more than a month of a healthy platform's, few enough to send whole. */
 const HEALTH_ROWS = { workspaces: 2000, failedJobs: 200, pages: 100, clientErrors: 5000, requeueKind: 200 } as const;
 
 /** A read's rows, or its failure thrown for side() to say. */
 const healthRowsOf = <T>(r: { data: T | null; error: { message: string } | null }): T => {
-  if (r.error) throw new Error(r.error.message);
+  if (r.error) throw new DbFailure(r.error);
   if (r.data === null) throw new Error("no answer");
   return r.data;
 };
@@ -297,8 +300,8 @@ export async function requeueHealthKind(
       let rows: { id: string; tenant_id: TenantId }[];
       try {
         rows = await listFailedJobsOfKind(office.db, { kind, sinceIso, limit: HEALTH_ROWS.requeueKind });
-      } catch {
-        throw new AppError("internal", "The failed jobs could not be read. Try again in a moment.", 503);
+      } catch (e) {
+        throw causedBy(new AppError("internal", "The failed jobs could not be read. Try again in a moment.", 503), e);
       }
       let requeued = 0;
       let refused = 0;
@@ -310,7 +313,7 @@ export async function requeueHealthKind(
             by_email: office.email,
           });
           if (error) throw new Error(error);
-        }).catch(() => null);
+        }).catch(logAndGoOn("requeueFailedJob", null));
         if (result?.outcome === "requeued") requeued += 1;
         else refused += 1;
       }

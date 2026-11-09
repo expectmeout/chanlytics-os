@@ -3,6 +3,7 @@ import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, refusalOf, recordLeadExcluded } from "@/server/leads/leads";
 import { excludeFoundLead } from "@/server/leads/search-acts";
+import { DbFailure } from "@chanlytics/contracts";
 
 const Body = z.object({ search_id: z.uuid() });
 
@@ -18,7 +19,7 @@ export const POST = write({
       p_search_id: input.search_id,
       p_lead_id: leadId,
     });
-    if (error) throw new Error(`lead_member_exclude: ${error.message}`);
+    if (error) throw new DbFailure(error, "lead_member_exclude");
     const answer = answerOf(data);
     const refused = refusalOf(answer);
     if (refused) throw refused;

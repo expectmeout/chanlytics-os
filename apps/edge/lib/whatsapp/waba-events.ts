@@ -39,6 +39,7 @@ import {
   type WabaEventKind,
   MESSAGES_ROUTE,
   textOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { logger, errField, type Logger } from "../shared/log.js";
 import { findChannelConfig, listNumbersOfWaba, patchChannelRow } from "@chanlytics/db/channels";
@@ -53,7 +54,7 @@ export async function findNotifications(
 ): Promise<NotificationsConfig | null> {
   const { data, error } = await findConfigRow(db, tenantId);
   // Unread is not "tell nobody": an account's news would be dropped. Thrown, the delivery is tried again.
-  if (error) throw new Error(`cannot read the workspace's notifications: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace's notifications");
   return parseTenantConfig(data?.config ?? null)?.notifications ?? null;
 }
 

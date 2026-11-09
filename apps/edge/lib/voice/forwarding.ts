@@ -32,6 +32,7 @@ import { recordNotification } from "../shared/alerts/notify.js";
 import { logger, errField } from "../shared/log.js";
 import { listLinesAwaitingForwarding, saveForwardingVerified } from "@chanlytics/db/lines";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export interface ForwardingCall {
   fromE164: string | null;
@@ -90,7 +91,7 @@ export async function markForwardingVerified(
         from: call.fromE164,
         call_id: call.callId,
         proof,
-      }).catch(() => {});
+      }).catch(logAndGoOn("event line.forwarding_verified"));
       log.info("forwarding_verified", { line: row.id, call: call.callId });
       return true;
     }

@@ -58,7 +58,7 @@ import {
   findWhatsappAloneRefusal,
   type AskedMessage,
 } from "../../context/tool-reads";
-import { propose, refuse } from "../../context/context";
+import { propose, refuse, refuseThrown } from "../../context/context";
 import type { ProposalOutcome, ToolContext } from "../../context/tool-defs";
 import { channelsWaitWords } from "../playbook-channels";
 import {
@@ -418,7 +418,7 @@ export async function proposeOnStarter(
       zoneAndSettings(toolContext.rc),
     );
   } catch (e) {
-    return refuse(e instanceof Error ? e.message : String(e));
+    return refuseThrown(e);
   }
   const { params, cls, channels } = judged;
   // What the workspace can send on, as the turn already holds it (readers/facts.ts); unread, it is WhatsApp alone. Read

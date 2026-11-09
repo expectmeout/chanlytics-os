@@ -12,7 +12,7 @@ import {
   type PlacesHttp,
   type TokenGrant,
 } from "@chanlytics/channels/google";
-import { MIN_MS, type EdgeRefusal, recordOrEmpty } from "@chanlytics/contracts";
+import { MIN_MS, type EdgeRefusal, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import { profileClient } from "./config.js";
 import { http } from "./places.js";
 import type { Db } from "./rows.js";
@@ -55,13 +55,13 @@ async function storeCredentials(
   let { error } = await put(true);
   if (error?.code === NO_SUCH_FUNCTION && ifRefreshToken) ({ error } = await put(false));
   if (error?.code === TOKEN_CHANGED && ifRefreshToken) return "changed";
-  if (error) throw new Error(`credentials: ${error.message}`);
+  if (error) throw new DbFailure(error, "credentials");
   return "kept";
 }
 
 async function readCredentials(db: Db, tenantId: TenantId): Promise<StoredCredentials | null> {
   const { data, error } = await getGoogleCredentials(db, tenantId);
-  if (error) throw new Error(`credentials: ${error.message}`);
+  if (error) throw new DbFailure(error, "credentials");
   const storedCredentials = data as Partial<StoredCredentials> | null;
   return storedCredentials && typeof storedCredentials.refresh_token === "string"
     ? {

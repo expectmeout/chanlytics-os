@@ -16,6 +16,7 @@ import {
   REPLY_DELAY_MIN_MS,
   REPLY_DELAY_MAX_MS,
   policyModeRefusal,
+  causedBy,
 } from "@chanlytics/contracts";
 import { listPolicies, setPolicyMode } from "@chanlytics/db/workspace";
 import { recordEvent } from "@chanlytics/db/events";
@@ -211,7 +212,7 @@ export async function changePolicy(ctx: RouteContext, input: z.infer<typeof Poli
     if (e instanceof AppError) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     if (/money decisions are owner-only/.test(msg)) {
-      throw new AppError("forbidden", "Money stays owner-only by charter — that row is locked.", 403);
+      throw causedBy(new AppError("forbidden", "Money stays owner-only by charter — that row is locked.", 403), e);
     }
     throw e;
   }

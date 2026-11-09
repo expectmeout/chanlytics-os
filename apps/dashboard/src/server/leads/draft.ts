@@ -17,6 +17,7 @@ import {
   parseTenantConfig,
   reachOutToneOf,
   siteHost,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { findWorkspaceWords, getAddressesSuppressed } from "@chanlytics/db/campaigns";
 import { getStoredConfig } from "../workspace/config-row";
@@ -29,6 +30,7 @@ import { serviceDb } from "../shared/service-db";
 import type { RouteContext } from "../shared/with-route";
 import { SHORTER_ASK, WARMER_ASK } from "@/server/shared/model/tones";
 import { findLeadDraftFacts } from "@chanlytics/db/leads";
+import { logAndGoOn } from "@chanlytics/log";
 
 /* -------------------------------------------------------------- the draft */
 
@@ -82,7 +84,7 @@ export function writerLines(config: ReturnType<typeof parseTenantConfig>, ownWor
 /** What this lead is, in the words the card saw: never a guess, and never the name of whoever fetched it. */
 async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): Promise<string[]> {
   const { data, error } = await findLeadDraftFacts(ctx.supabase, lead.id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const item = data ?? null;
   const out = [item?.business_name ?? lead.business_name];
   if (item?.category) out.push(item.category);
@@ -129,10 +131,8 @@ export async function draftFor(
   if (held.size > 0) throw new AppError("conflict", LEAD_ASKED_NOT_WRITTEN, 409);
   const [facts, config, ownWords] = await Promise.all([
     draftFacts(ctx, lead),
-    getStoredConfig(ctx.supabase, lead.tenant_id)
-      .then(parseTenantConfig)
-      .catch(() => null),
-    findWorkspaceWords(ctx.supabase, lead.tenant_id).catch(() => null),
+    getStoredConfig(ctx.supabase, lead.tenant_id).then(parseTenantConfig).catch(logAndGoOn("getStoredConfig", null)),
+    findWorkspaceWords(ctx.supabase, lead.tenant_id).catch(logAndGoOn("findWorkspaceWords", null)),
   ]);
   const sentence =
     input.tone === "shorter" ? SHORTER_ASK : input.tone === "warmer" ? WARMER_ASK : "Write the first one.";

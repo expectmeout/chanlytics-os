@@ -127,6 +127,7 @@ function scanlinesOf(header: Header, idat: Uint8Array[]): Uint8Array | null {
     // One byte more than the picture may hold: a stream that inflates past it is not this picture, and stops there.
     raw = inflateSync(Buffer.concat(idat), { maxOutputLength: expected + 1 });
   } catch {
+    // Not a picture this can read.
     return null;
   }
   if (raw.length !== expected) return null;

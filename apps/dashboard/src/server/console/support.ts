@@ -1,4 +1,4 @@
-import { heldTenantId, recordOrEmpty } from "@chanlytics/contracts";
+import { heldTenantId, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import "server-only";
 
 /**
@@ -71,6 +71,7 @@ import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
 import { inSet } from "@/server/console/acts";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * How many of each the queue reads: far past what ninety days of a help desk holds. A read that reached it says so in
@@ -125,8 +126,8 @@ async function whoSent(office: BackOffice, userIds: readonly string[]): Promise<
   const ids = [...new Set(userIds)];
   if (!ids.length) return new Map();
   const { members, profiles } = await getSupportPeople(office.db, ids);
-  if (members.error) throw new Error(members.error.message);
-  if (profiles.error) throw new Error(profiles.error.message);
+  if (members.error) throw new DbFailure(members.error);
+  if (profiles.error) throw new DbFailure(profiles.error);
   const nameOf = new Map((profiles.data ?? []).map((p) => [p.user_id, p.display_name.trim() || null]));
   return new Map(
     (members.data ?? []).map((m) => [
@@ -142,7 +143,7 @@ export async function listReportsSince(
   input: { sinceIso?: string; tenantId?: TenantId; side: ReportSide; limit?: number },
 ): Promise<SupportReportDto[]> {
   const { data, error } = await listReports(office.db, { ...input, limit: input.limit ?? BOOK_ROWS });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const rows = data ?? [];
   if (rows.length >= (input.limit ?? BOOK_ROWS)) log.error("platform_console_read_failed", { read: "reports_capped" });
   const person = await whoSent(
@@ -174,11 +175,11 @@ export async function listAsksSince(
   input: { sinceIso: string; tenantId?: TenantId; limit?: number },
 ): Promise<SetupAskDto[]> {
   const { data, error } = await setupAsks(office.db, { ...input, limit: input.limit ?? BOOK_ROWS });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const rows = (data ?? []).filter((e): e is typeof e & { tenant_id: TenantId } => !!e.tenant_id);
   const ids = [...new Set(rows.map((e) => e.tenant_id))];
   const names = ids.length ? await getTenantNames(office.db, ids) : { data: [], error: null };
-  if (names.error) throw new Error(names.error.message);
+  if (names.error) throw new DbFailure(names.error);
   const byId = new Map((names.data ?? []).map((t) => [t.id, t]));
   const askers = [...new Set(rows.flatMap((e) => askerOf(e.data) ?? []))];
   const [who, emails] = await Promise.all([
@@ -186,7 +187,7 @@ export async function listAsksSince(
     Promise.all(
       askers
         .slice(0, ASKER_LOOKUPS)
-        .map(async (u) => [u, await findPersonEmail(office.db, u).catch(() => null)] as const),
+        .map(async (u) => [u, await findPersonEmail(office.db, u).catch(logAndGoOn("findPersonEmail", null))] as const),
     ).then((pairs) => new Map(pairs)),
   ]);
   return rows.flatMap((row) => {
@@ -214,7 +215,7 @@ export async function listAsksSince(
 /** The team's marks on questions and asks since a moment, as the queue reads them. */
 async function marksSince(office: BackOffice, sinceIso: string): Promise<SupportActDto[]> {
   const { data, error } = await getSupportMarks(office.db, { sinceIso, limit: BOOK_ROWS });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []).flatMap((act) =>
     act.target_id && (act.target_kind === "report" || act.target_kind === "ask")
       ? [
@@ -234,7 +235,7 @@ async function marksSince(office: BackOffice, sinceIso: string): Promise<Support
 async function signalsOf(office: BackOffice, tenantIds: readonly TenantId[]): Promise<Record<string, AskSignalsDto>> {
   if (!tenantIds.length) return {};
   const { data, error } = await isForwardingVerified(office.db, tenantIds);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const out: Record<string, AskSignalsDto> = {};
   for (const l of data ?? []) {
     const was = out[l.tenant_id]?.forwarding_verified_at;
@@ -245,7 +246,7 @@ async function signalsOf(office: BackOffice, tenantIds: readonly TenantId[]): Pr
 
 export async function claimsNow(office: BackOffice, nowIso: string): Promise<ClaimDto[]> {
   const { data, error } = await getLiveClaims(office.db, nowIso);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? [];
 }
 
@@ -327,7 +328,7 @@ export async function getConsoleSupport(
     supportBook(office, now),
     countBugReports(office.db, weekAgo).then(
       (r) => (r.error ? null : (r.count ?? 0)),
-      () => null,
+      logAndGoOn("countBugReports", null),
     ),
   ]);
   const all = queueOf(office, book, now);

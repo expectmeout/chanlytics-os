@@ -27,7 +27,7 @@ import { fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
 import { receivedEmailFrom, type ReceivedEmail } from "./intake";
 import { mailDomainsFrom, resendLimitOf, type MailDomainFacts } from "./provider-answers";
 import type { EmailRequest } from "./request";
-import { recordOrNull } from "@chanlytics/contracts";
+import { recordOrNull, causedBy } from "@chanlytics/contracts";
 
 export interface ResendConfig {
   apiKey: string;
@@ -264,8 +264,8 @@ export async function fetchReceivedEmail(cfg: ResendConfig, receivedId: string):
   let body: unknown;
   try {
     body = JSON.parse(raw);
-  } catch {
-    throw new Error(`resend: received email ${receivedId} answered something that is not JSON`);
+  } catch (e) {
+    throw causedBy(new Error(`resend: received email ${receivedId} answered something that is not JSON`), e);
   }
   const email = receivedEmailFrom(body);
   if (!email) throw new Error(`resend: received email ${receivedId} answered a shape that is not an email`);
@@ -297,8 +297,8 @@ export async function fetchMailDomains(cfg: ResendConfig): Promise<MailDomainFac
   let body: unknown;
   try {
     body = JSON.parse(raw);
-  } catch {
-    throw new Error("resend: domains answered something that is not JSON");
+  } catch (e) {
+    throw causedBy(new Error("resend: domains answered something that is not JSON"), e);
   }
   const domains = mailDomainsFrom(body);
   if (!domains) throw new Error("resend: domains answered a shape that is not a list of domains");

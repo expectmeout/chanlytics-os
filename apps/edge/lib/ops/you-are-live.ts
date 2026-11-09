@@ -19,7 +19,7 @@ import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { sendOpsMail, reachesTenant } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
-import { logger, errField } from "../shared/log.js";
+import { logger, errField, refuseFailure } from "../shared/log.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import {
   alertTestMail,
@@ -55,7 +55,7 @@ export async function sendYouAreLive(auth: Admitted, body: Partial<{ tenant_id?:
   ]);
   // A read that failed would send a thinner email that says less than is true: none is sent instead.
   const failed = [tenant, voice, kept, cfg, call, whatsapp].find((q) => q.error);
-  if (failed?.error) return refuse(503, "read_failed", failed.error.message);
+  if (failed?.error) return refuseFailure(503, "read_failed", failed.error);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
 
   const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };

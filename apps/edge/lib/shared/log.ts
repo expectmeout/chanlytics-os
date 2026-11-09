@@ -27,7 +27,9 @@ import {
   type LogFields,
 } from "@chanlytics/log";
 import { observeDb } from "@chanlytics/db/shared";
+import { textOrEmpty, valueAt } from "@chanlytics/contracts";
 import { env } from "./env.js";
+import { refuse } from "./http.js";
 import type { LogEvent } from "./log-events.js";
 
 export type { LogEvent };
@@ -77,7 +79,30 @@ function signedName(request: Request): string | null {
     const verdict = verifyEdgeToken(secret, token, new URL(request.url).pathname);
     return verdict.ok ? (verdict.claims.rid ?? null) : null;
   } catch {
+    // A token that does not verify names nothing.
     return null;
+  }
+}
+
+/**
+ * What a door answers when its handler throws, the one place a failure no door caught lands (decision 0114). It crashed
+ * the function: the platform answered with a page of its own and an unstructured stack, with no request name to find it
+ * by. Now one line says which door, what failed and where, and the caller reads a code. The status is still a failure's,
+ * so a provider still redelivers and a clock still counts a failed tick.
+ */
+async function answerCaught<A extends unknown[]>(
+  handler: (request: Request, ...rest: A) => Promise<Response>,
+  request: Request,
+  rest: A,
+): Promise<Response> {
+  try {
+    return await handler(request, ...rest);
+  } catch (failure) {
+    oneLogger<LogEvent>().error("door_failed", {
+      door: request?.url ? new URL(request.url).pathname : undefined,
+      error: failure,
+    });
+    return refuse(500, "door_failed");
   }
 }
 
@@ -99,7 +124,7 @@ export function door<A extends unknown[]>(
     const id = request?.headers
       ? ((trust ? signedName(request) : null) ?? requestIdOf(request.headers, { trustCaller: trust }))
       : globalThis.crypto.randomUUID();
-    return withRequestId(id, async () => named(await handler(request, ...rest), id));
+    return withRequestId(id, async () => named(await answerCaught(handler, request, rest), id));
   };
 }
 
@@ -108,4 +133,37 @@ export function adminDoor<A extends unknown[]>(
   handler: (request: Request, ...rest: A) => Promise<Response>,
 ): (request: Request, ...rest: A) => Promise<Response> {
   return door(handler, { trustCaller: true });
+}
+
+/** What a caller reads of a read, a write or a run that failed: a try-again, never the database's or a library's text. */
+const FAILURE_WORDS = {
+  read: "Could not read that just now. Try again in a moment.",
+  write: "Could not save that just now. Try again in a moment.",
+  run: "Could not run that just now. Try again in a moment.",
+} as const;
+
+/** The codes a door refuses a failure of its own with, each said in the words of what it was doing. */
+const FAILURE_KINDS = { read_failed: "read", query_failed: "read", write_failed: "write", run_failed: "run" } as const;
+
+/**
+ * A failure's text goes in the log, and the caller gets the words it may read (decision 0114). `detail` is shown as it
+ * is (the dashboard's edgeRefusalWords), so a database's sentence put there reached a person. For a door's own result;
+ * `refuseFailure` when the door answers it straight away.
+ */
+export function logFailure(kind: keyof typeof FAILURE_WORDS, failure: unknown): string {
+  const code = valueAt(failure, "code");
+  oneLogger<LogEvent>().error("door_reply_failed", {
+    kind,
+    ...(typeof code === "string" ? { db_code: code } : {}),
+    error:
+      failure instanceof Error
+        ? failure
+        : textOrEmpty(valueAt(failure, "message")) || (typeof failure === "string" ? failure : "no answer"),
+  });
+  return FAILURE_WORDS[kind];
+}
+
+/** A read, a write or a run that failed, refused with its code: the text logged, the plain words in `detail`. */
+export function refuseFailure(status: number, code: keyof typeof FAILURE_KINDS, failure: unknown): Response {
+  return refuse(status, code, logFailure(FAILURE_KINDS[code], failure));
 }

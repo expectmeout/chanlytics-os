@@ -31,6 +31,7 @@ import { secretToProvision } from "../shared/door-auth.js";
 import { findLineRow } from "@chanlytics/db/lines";
 import { findWorkspaceName } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 interface LineProvisionOutcome {
   ok: boolean;
@@ -76,7 +77,7 @@ export async function provisionLineJob(
     return { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret", did: "nothing", why: "no credentials" };
 
   const row = await findLineRow(db, tenantId, lineId);
-  if (row.error) throw new Error(`line_provision: ${row.error.message}`);
+  if (row.error) throw new DbFailure(row.error, "line_provision");
   if (!row.data) return { ok: true, did: "nothing", why: "released" };
   let line = row.data;
   if (line.voice_state === "answering") return { ok: true, did: "nothing", why: "answering" };
@@ -84,7 +85,7 @@ export async function provisionLineJob(
     return { ok: true, did: "nothing", why: line.voice_state };
 
   const tenant = await findWorkspaceName(db, line.tenant_id);
-  if (tenant.error) throw new Error(`line_provision: ${tenant.error.message}`);
+  if (tenant.error) throw new DbFailure(tenant.error, "line_provision");
   if (!tenant.data) return { ok: false, error: "no such workspace", did: "nothing", why: "no workspace" };
 
   let did: LineProvisionOutcome["did"] = "ran";

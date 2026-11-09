@@ -33,6 +33,7 @@ import { recordWorkspaceBegun } from "../workspace/create";
 import { log } from "../shared/log";
 import type { RouteContext } from "../shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The service role, where this deployment holds it: the page and sign-up know only the link. */
 type Db = ReturnType<typeof linkPageDb>;
@@ -58,7 +59,7 @@ export async function findPreviewForSignup(token: string): Promise<PreviewForSig
   if (!db || !row?.preview_tenant_id) return null;
   const [look, lead] = await Promise.all([
     linkPageLookOf(db, row.preview_tenant_id),
-    findLeadForPreview(db, row.tenant_id, row.lead_id).catch(() => null),
+    findLeadForPreview(db, row.tenant_id, row.lead_id).catch(logAndGoOn("findLeadForPreview", null)),
   ]);
   return look.business ? { business: look.business, email: lead?.email ?? null } : null;
 }

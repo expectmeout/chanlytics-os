@@ -280,7 +280,7 @@ test(
     assert.equal(await keepMessageCost(db, A.id, `wamid.k8.${stamp}.nobody`, PRICING), false);
     await assert.rejects(
       keepMessageCost(db, "not-a-uuid", m.external_id, PRICING),
-      /^Error: message_keep_cost: .*uuid/,
+      /^DbFailure: message_keep_cost: .*uuid/,
     );
   },
 );

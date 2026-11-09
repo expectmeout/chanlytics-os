@@ -9,6 +9,7 @@ import {
   type SequenceEvidenceDto,
   type SequenceMode,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type {
   ReachOutFedBy,
@@ -22,6 +23,7 @@ import type {
 import type { Database } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
 import { withReadyCounts } from "../sequence-waiting";
+import { dbLogAndGoOn } from "../../../shared/observe";
 
 export type Db = SupabaseClient<Database>;
 
@@ -39,7 +41,7 @@ interface FollowUpDueRow {
  */
 export async function followUpsDue(db: Db, stepId: string, runFor: string): Promise<FollowUpDueRow[]> {
   const { data, error } = await db.rpc("sequence_follow_ups_due", { p_step_id: stepId, p_run_for: runFor });
-  if (error) throw new Error(`cannot read who the step is due to: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read who the step is due to");
   return (data ?? []).flatMap((r) =>
     r.enrollment_id && r.contact_id
       ? [{ enrollment_id: r.enrollment_id, contact_id: r.contact_id, sent_at: r.sent_at ?? null }]
@@ -62,7 +64,7 @@ export async function leaveSequence(
     p_why: params.why,
     ...(params.by ? { p_by: params.by } : {}),
   });
-  if (error) throw new Error(`cannot take them out of the sequence: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot take them out of the sequence");
   return typeof data === "number" ? data : 0;
 }
 
@@ -80,7 +82,7 @@ export async function leaveSequenceForLeads(
     p_sequence_id: params.sequenceId,
     p_leads: params.leads.map((l) => ({ lead_id: l.lead_id, why: l.why })),
   });
-  if (error) throw new Error(`cannot pass over the step's leads: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot pass over the step's leads");
   return typeof data === "number" ? data : 0;
 }
 
@@ -121,7 +123,7 @@ export async function listSequencesOfPerson(
     .eq("state", "in")
     .order("next_at", { ascending: true, nullsFirst: false })
     .limit(20);
-  if (error) throw new Error(`cannot read the sequences they are in: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the sequences they are in");
   const rows = data ?? [];
   if (rows.length === 0) return [];
   const names = await db
@@ -131,7 +133,7 @@ export async function listSequencesOfPerson(
       "id",
       rows.map((r) => r.sequence_id),
     );
-  if (names.error) throw new Error(`cannot read the sequences they are in: ${names.error.message}`);
+  if (names.error) throw new DbFailure(names.error, "cannot read the sequences they are in");
   const nameOf = new Map((names.data ?? []).map((q) => [q.id, q.name]));
   return rows.flatMap((r) => {
     const name = nameOf.get(r.sequence_id);
@@ -156,8 +158,8 @@ export async function findSequenceRow(
     db.from("sequence_steps").select("sequence_id").eq("id", id).maybeSingle(),
     db.from("sequence_batches").select("sequence_id").eq("id", id).maybeSingle(),
   ]);
-  if (step.error) throw new Error(`cannot read the sequence's step: ${step.error.message}`);
-  if (batch.error) throw new Error(`cannot read the sequence's batch: ${batch.error.message}`);
+  if (step.error) throw new DbFailure(step.error, "cannot read the sequence's step");
+  if (batch.error) throw new DbFailure(batch.error, "cannot read the sequence's batch");
   const of = step.data?.sequence_id ?? batch.data?.sequence_id ?? null;
   return of ? sequenceById(db, of) : null;
 }
@@ -168,7 +170,7 @@ async function sequenceById(db: Db, id: string) {
     .select("id, tenant_id, name, starts, state")
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the sequence: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the sequence");
   return data;
 }
 
@@ -194,7 +196,7 @@ export async function getSequenceModes(
     .select("id, mode")
     .eq("tenant_id", tenantId)
     .in("id", [...new Set(ids)]);
-  if (error) throw new Error(`cannot read the sequences' modes: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the sequences' modes");
   for (const r of data ?? []) out.set(r.id, isSequenceMode(r.mode) ? r.mode : "ask");
   return out;
 }
@@ -210,7 +212,7 @@ export async function listSequenceEvidence(
   days: number = EVIDENCE_DAYS,
 ): Promise<SequenceEvidenceDto[]> {
   const { data, error } = await db.rpc("sequence_evidence", { p_tenant_id: tenantId, p_days: days });
-  if (error) throw new Error(`cannot read what the sequences' batches did: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read what the sequences' batches did");
   return (data ?? []).map((r) => ({
     sequence_id: r.sequence_id,
     policy_class: r.policy_class,
@@ -227,7 +229,7 @@ export async function listSequenceOverview(db: Db, tenantId: TenantId, sequenceI
     p_tenant_id: tenantId,
     ...(sequenceId ? { p_sequence_id: sequenceId } : {}),
   });
-  if (error) throw new Error(`cannot read the sequences: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the sequences");
   return withReadyCounts(db, tenantId, readerRowsOf<SequenceRowDto>(data));
 }
 
@@ -249,8 +251,8 @@ export async function listSequencesAtAGlance(db: Db, tenantId: TenantId): Promis
     db.from("sequences").select("id, name, state, mode").eq("tenant_id", tenantId).eq("state", "on"),
     db.from("sequence_steps").select("id, sequence_id, place").eq("tenant_id", tenantId).order("place"),
   ]);
-  if (sequences.error) throw new Error(`cannot read the sequences: ${sequences.error.message}`);
-  if (steps.error) throw new Error(`cannot read their steps: ${steps.error.message}`);
+  if (sequences.error) throw new DbFailure(sequences.error, "cannot read the sequences");
+  if (steps.error) throw new DbFailure(steps.error, "cannot read their steps");
   const first = new Map<string, string>();
   for (const step of steps.data ?? []) if (!first.has(step.sequence_id)) first.set(step.sequence_id, step.id);
   return (sequences.data ?? []).map((s) => {
@@ -269,8 +271,8 @@ export async function findSequenceOfPart(db: Db, tenantId: TenantId, id: string)
     db.from("sequence_batches").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle(),
     db.from("sequence_steps").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle(),
   ]);
-  if (batch.error) throw new Error(`cannot read the batch's sequence: ${batch.error.message}`);
-  if (step.error) throw new Error(`cannot read the step's sequence: ${step.error.message}`);
+  if (batch.error) throw new DbFailure(batch.error, "cannot read the batch's sequence");
+  if (step.error) throw new DbFailure(step.error, "cannot read the step's sequence");
   const of = (r: unknown): string | null => {
     const v = recordOrEmpty(r).sequence_id;
     return typeof v === "string" ? v : null;
@@ -294,7 +296,7 @@ async function firstStepFacts(
     .eq("tenant_id", tenantId)
     .eq("id", stepId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the first step's run: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the first step's run");
   return data;
 }
 
@@ -314,7 +316,7 @@ async function lastRunSkipped(db: Db, tenantId: TenantId, stepId: string): Promi
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the step's last run: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the step's last run");
   const sentence = data?.data;
   return sentence && typeof sentence === "object" && !Array.isArray(sentence) && typeof sentence.skipped === "string"
     ? sentence.skipped
@@ -349,7 +351,7 @@ async function sequenceHistoryFacts(
     leadSends().eq("state", "skipped").not("drafted_at", "is", null).limit(1),
   ]);
   for (const r of [batch, written, draftedThenSkipped])
-    if (r.error) throw new Error(`cannot read what the sequence has done: ${r.error.message}`);
+    if (r.error) throw new DbFailure(r.error, "cannot read what the sequence has done");
   return {
     ran: (batch.data ?? []).length > 0,
     wrote: (written.data ?? []).length > 0 || (draftedThenSkipped.data ?? []).length > 0,
@@ -372,9 +374,9 @@ export async function findSequenceRecordFacts(
   history: { ran: boolean; wrote: boolean } | undefined;
 }> {
   const [first, lastRunOff, history] = await Promise.all([
-    firstStepFacts(db, tenantId, sequenceId).catch(() => undefined),
-    lastRunSkipped(db, tenantId, sequenceId).catch(() => undefined),
-    sequenceHistoryFacts(db, tenantId, sequenceId).catch(() => undefined),
+    firstStepFacts(db, tenantId, sequenceId).catch(dbLogAndGoOn("firstStepFacts")),
+    lastRunSkipped(db, tenantId, sequenceId).catch(dbLogAndGoOn("lastRunSkipped")),
+    sequenceHistoryFacts(db, tenantId, sequenceId).catch(dbLogAndGoOn("sequenceHistoryFacts")),
   ]);
   return { first, lastRunOff, history };
 }
@@ -409,9 +411,9 @@ export async function findOneOffMessage(
         .limit(1),
     ),
   ]);
-  if (batch.error) throw new Error(`cannot read the one-off's message: ${batch.error.message}`);
+  if (batch.error) throw new DbFailure(batch.error, "cannot read the one-off's message");
   const failed = by.find((r) => r.error);
-  if (failed?.error) throw new Error(`cannot read how the one-off goes: ${failed.error.message}`);
+  if (failed?.error) throw new DbFailure(failed.error, "cannot read how the one-off goes");
   if (!batch.data) return null;
   return {
     template_name: batch.data.template_name,
@@ -432,7 +434,7 @@ export async function getLeadsFedBy(db: Db, tenantId: TenantId, searchId: string
     .eq("tenant_id", tenantId)
     .eq("id", searchId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read what the sequence writes to: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read what the sequence writes to");
   return isLeadList(data) ? "list" : "search";
 }
 
@@ -453,7 +455,7 @@ export async function listRunningStepsOn(
     .eq("tenant_id", tenantId)
     .eq("state", "running")
     .in("trigger", [...triggers]);
-  if (error) throw new Error(`cannot read what runs at this moment: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read what runs at this moment");
   return data ?? [];
 }
 
@@ -463,13 +465,13 @@ export async function listRunningStepsOn(
  */
 export async function listSequenceNames(db: Db, tenantId: TenantId): Promise<{ id: string; name: string }[]> {
   const { data, error } = await db.from("sequences").select("id, name").eq("tenant_id", tenantId);
-  if (error) throw new Error(`cannot read the sequences' names: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the sequences' names");
   return data ?? [];
 }
 
 /** A sequence's steps in their places, with what each sent in the last 30 days (00442 sequence_steps_of). */
 export async function listSequenceSteps(db: Db, tenantId: TenantId, sequenceId: string): Promise<SequenceStepDto[]> {
   const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });
-  if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the sequence's steps");
   return readerRowsOf<SequenceStepDto>(data);
 }

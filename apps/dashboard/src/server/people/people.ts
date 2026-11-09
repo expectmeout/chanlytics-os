@@ -1,4 +1,4 @@
-import { isUuid, type PersonRowDto, listOrEmpty } from "@chanlytics/contracts";
+import { isUuid, type PersonRowDto, listOrEmpty, DbFailure } from "@chanlytics/contracts";
 import {
   addPersonByHand,
   countPeopleListed,
@@ -55,6 +55,7 @@ export function peopleCursorParam(param: string): PeopleCursor | null {
   try {
     value = JSON.parse(Buffer.from(param, "base64url").toString("utf8"));
   } catch {
+    // Not JSON: nothing to read.
     return null;
   }
   const parts = listOrEmpty(value);
@@ -195,7 +196,7 @@ export async function countPeople(
   }
   // Who people_page lists (00547).
   const { count, error } = await countPeopleListed(ctx.supabase, tenantId, stillListed(Date.now()), searchOr);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return count ?? 0;
 }
 

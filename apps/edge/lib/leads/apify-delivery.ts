@@ -29,6 +29,7 @@ import { leadDb } from "./db.js";
 import { leadWires } from "./wires.js";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import { findRunForDelivery } from "@chanlytics/db/leads";
+import { DbFailure } from "@chanlytics/contracts";
 
 /** The delivery is a pointer: ids and a status. Anything larger is not one. */
 const MAX_BODY = 64_000;
@@ -50,13 +51,14 @@ export async function receiveApifyDelivery(request: Request): Promise<Response> 
   try {
     body = JSON.parse(raw);
   } catch {
+    // Not JSON: nothing to read.
     body = null;
   }
 
   let runRow: IngressRunRow | null;
   try {
     const { data, error } = await findRunForDelivery(db, runRowId);
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     runRow = data ?? null;
   } catch (e) {
     log.error("apify_webhook_read_failed", { error: errField(e) });

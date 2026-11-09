@@ -7,7 +7,7 @@
  * fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { RUN_GOING_STATES, versionWords } from "@chanlytics/contracts";
+import { RUN_GOING_STATES, versionWords, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import type { JsonObject } from "../../events/events";
 import { readAllRows } from "../../../shared/paged";
@@ -53,7 +53,7 @@ export async function listReachOutSteps(db: Db, tenantId: TenantId): Promise<Rea
     .select(STEP_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("kind", "reach_out");
-  if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the reach-outs");
   return data ?? [];
 }
 
@@ -76,7 +76,7 @@ export async function findReachOutRoot(
     .eq("kind", "reach_out")
     .eq("trigger", "lead_first")
     .maybeSingle();
-  if (error) throw new Error(`cannot read the reach-out: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the reach-out");
   return data;
 }
 
@@ -98,7 +98,7 @@ export async function findReachOutSendRef(
     .select("id, tenant_id, broadcast_id:batch_id, state, reason, attempts")
     .eq("id", id)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the email: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the email");
   // A lead's own email (00540) has no run, and no To send names it.
   return data?.broadcast_id ? { ...data, broadcast_id: data.broadcast_id } : null;
 }
@@ -127,7 +127,7 @@ export async function findEmailWordsByTemplate(
     .select("id, components, body_preview")
     .eq("tenant_id", tenantId)
     .in("id", ids);
-  if (error) throw new Error(`cannot read the reach-outs' words: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the reach-outs' words");
   return new Map((data ?? []).map((t) => [t.id, emailWordsFrom(t)]));
 }
 
@@ -143,7 +143,7 @@ export async function findSearchesByIds(
     .select("id, name, via")
     .eq("tenant_id", tenantId)
     .in("id", ids);
-  if (error) throw new Error(`cannot read the searches: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the searches");
   return new Map((data ?? []).map((s) => [s.id, { name: s.name, via: s.via }]));
 }
 
@@ -151,7 +151,7 @@ export async function findSearchesByIds(
 export async function getLeadNamesByIds(db: Db, tenantId: TenantId, ids: string[]): Promise<Map<string, string>> {
   if (ids.length === 0) return new Map();
   const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
-  if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the leads' names");
   return new Map((data ?? []).map((l) => [l.id, l.business_name]));
 }
 
@@ -182,7 +182,7 @@ export async function handRun(
     p_day: params.day,
     p_items: params.items,
   });
-  if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot write the hand step's run");
   const item = readAnswer("reach_out_hand_run", HandRunAnswer, data ?? {});
   return { made: item.made ?? 0, already: item.already ?? 0 };
 }
@@ -239,7 +239,7 @@ export async function listRunsWaiting(db: Db, tenantId: TenantId): Promise<{ id:
     .select("id, audience")
     .eq("tenant_id", tenantId)
     .eq("state", "pending_approval");
-  if (error) throw new Error(`cannot read the runs waiting: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the runs waiting");
   return data ?? [];
 }
 
@@ -279,7 +279,7 @@ export async function listReachOutRunSends(db: Db, tenantId: TenantId, runId: st
     .eq("tenant_id", tenantId)
     .eq("batch_id", runId)
     .not("lead_id", "is", null);
-  if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the run's emails");
   // A lead's send names its lead (the filter above): the row says so to the type.
   return (data ?? []).flatMap((r) => (r.lead_id ? [{ ...r, lead_id: r.lead_id }] : []));
 }
@@ -290,7 +290,7 @@ export async function stampReachOutStep(db: Db, id: string, params: { at: Date; 
     .from("sequence_steps")
     .update({ last_run_at: params.at.toISOString(), ...(params.runFor ? { last_run_for: params.runFor } : {}) })
     .eq("id", id);
-  if (error) throw new Error(`cannot stamp the step's day: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot stamp the step's day");
 }
 
 /**
@@ -310,7 +310,7 @@ export async function recheckSends(
     p_tenant_id: params.tenantId,
     ...(params.fromState ? { p_from_state: params.fromState } : {}),
   });
-  if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot put the sends back to be checked");
   return typeof data === "number" ? data : 0;
 }
 
@@ -355,7 +355,7 @@ export async function listHeldNoticeDue(
     .limit(params.limit);
   if (params.tenantId) sends = sends.eq("tenant_id", params.tenantId);
   const held = await sends;
-  if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
+  if (held.error) throw new DbFailure(held.error, "cannot read the held");
   const byRun = new Map<string, { held: number; reasons: Set<string> }>();
   for (const s of held.data ?? []) {
     if (!s.broadcast_id) continue;
@@ -370,7 +370,7 @@ export async function listHeldNoticeDue(
     .select("id, tenant_id, name, state, audience, updated_at")
     .in("id", [...byRun.keys()])
     .in("state", [...RUN_GOING_STATES]);
-  if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
+  if (runs.error) throw new DbFailure(runs.error, "cannot read the held's runs");
   return (runs.data ?? []).flatMap((row) => {
     const audience: JsonObject =
       row.audience && typeof row.audience === "object" && !Array.isArray(row.audience) ? row.audience : {};
@@ -410,7 +410,7 @@ export async function markHeldNotice(
     .eq("id", params.id);
   if (params.ifUpdatedAt) query = query.eq("updated_at", params.ifUpdatedAt);
   const { data, error } = await query.select("id");
-  if (error) throw new Error(`cannot mark the run: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot mark the run");
   return (data ?? []).length === 1;
 }
 

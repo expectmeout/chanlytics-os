@@ -13,7 +13,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { appLink, leadQuestionMail, leadQuestionRoute, recordOrNull } from "@chanlytics/contracts";
+import { appLink, leadQuestionMail, leadQuestionRoute, recordOrNull, DbFailure } from "@chanlytics/contracts";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { sendOpsMail, reachesTenant, type NotifyPorts } from "../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../shared/tenant-runtime.js";
@@ -41,8 +41,8 @@ export async function tellLeadQuestion(
       findWorkspaceSlug(db, r.tenant_id),
     ]);
     // A mail with a link to no workspace is no question asked: the round waits, and its next tell tries again.
-    if (searchRead.error) throw new Error(`cannot read the search: ${searchRead.error.message}`);
-    if (tenantRead.error) throw new Error(`cannot read the workspace: ${tenantRead.error.message}`);
+    if (searchRead.error) throw new DbFailure(searchRead.error, "cannot read the search");
+    if (tenantRead.error) throw new DbFailure(tenantRead.error, "cannot read the workspace");
     const search = searchRead.data;
     const workspace = tenantRead.data;
     const words = leadQuestionMail({

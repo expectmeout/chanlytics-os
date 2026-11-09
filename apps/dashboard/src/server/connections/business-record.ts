@@ -13,6 +13,7 @@ import {
   type BusinessRecordDto,
   type RegistrationPath,
   isOneOf,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { findBusinessOnRecord, listLineNumbersOf } from "@chanlytics/db/lines";
 import { findWorkspacePublicSlug } from "@chanlytics/db/workspace";
@@ -61,11 +62,12 @@ export async function readBusinessRecord(ctx: RouteContext, member: Member) {
  */
 async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<string[]> {
   const { data, error } = await listLineNumbersOf(ctx.supabase, tenantId);
-  if (error) throw new Error(`reading this workspace's numbers: ${error.message}`);
+  if (error) throw new DbFailure(error, "reading this workspace's numbers");
   return (data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
 }
 
 export async function saveBusinessRecord(ctx: RouteContext, req: Request, member: Member) {
+  // A body that is not JSON is none: what reads it next refuses.
   const body = (await req.json().catch(() => ({}))) as { record?: Partial<BusinessRecordDto>; path?: string };
   const record = body.record && typeof body.record === "object" ? body.record : {};
   // WHICH registration this is for, said by the page rather than guessed from a

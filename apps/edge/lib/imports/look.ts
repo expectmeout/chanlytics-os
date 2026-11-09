@@ -16,6 +16,7 @@ import {
   WORKSPACE_LOGOS_BUCKET,
   workspaceLogoPath,
   type LookRead,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { fetchImageBytes, type SitePage } from "@chanlytics/channels/website";
 import { publicFetcher } from "@chanlytics/channels/shared";
@@ -45,7 +46,7 @@ async function storedLogo(db: Db, tenantId: TenantId, png: Uint8Array): Promise<
       .from(WORKSPACE_LOGOS_BUCKET)
       .upload(path, png, { contentType: "image/png", cacheControl: CACHE_S, upsert: false });
     const { error } = await Promise.race([upload, late]);
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     return path;
   } catch (e) {
     logger({ tenant_id: tenantId }).warn("website_look_failed", { step: "store", error: errField(e) });

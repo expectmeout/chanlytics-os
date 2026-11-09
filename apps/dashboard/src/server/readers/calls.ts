@@ -1,5 +1,5 @@
 import "server-only";
-import { addressOf, callerName, type CallDto, type SchemaSet } from "@chanlytics/contracts";
+import { addressOf, callerName, type CallDto, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import { listedCall, toCallDto } from "../conversations/dto";
 import { readerStamp, type Reader, type RowRef } from "../shared/reader";
 import { isGoing } from "../people/going";
@@ -32,7 +32,7 @@ export const calls: Reader<
       { conversationId, status, ids, transcriptLike: words ? anywhere(words) : undefined },
       100,
     );
-    if (error) throw new Error(error.message);
+    if (error) throw new DbFailure(error);
     // A list leaves out whoever is being erased (people/going.ts); a thread's own calls, and a call by its id, still read.
     const now = rc.now.getTime();
     const shown =

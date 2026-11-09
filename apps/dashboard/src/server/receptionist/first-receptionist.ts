@@ -20,6 +20,7 @@ import {
   configReceptionistOf,
   withStoredKeysKept,
   type BrainConfig,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { findWorkspaceName, putTenantConfig } from "@chanlytics/db/workspace";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -51,7 +52,7 @@ export async function getReceptionistFromWhatIsKnown(
   } else {
     // The name typed at sign-up, which the resolver takes where no listing names the business.
     const workspace = await findWorkspaceName(ctx.supabase, tenantId);
-    if (workspace.error) throw new Error(workspace.error.message);
+    if (workspace.error) throw new DbFailure(workspace.error);
     brain = firstReceptionistOf({ workspaceName: workspace.data?.name ?? null, listing });
     if (!brain) throw new AppError("validation", "This workspace has no name to give the receptionist yet.");
   }

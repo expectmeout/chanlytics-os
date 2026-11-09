@@ -45,6 +45,7 @@ interface ReportFiled {
 /** The workspace the tab named, when the member belongs to it; null otherwise, and never a refusal. */
 async function reportedFrom(ctx: RouteContext, workspace: string | null): Promise<TenantId | null> {
   if (!workspace) return null;
+  // Not theirs to name: no workspace, and never a refusal.
   return getMemberContext(ctx, workspace).then(
     (m) => m.tenantId,
     () => null,

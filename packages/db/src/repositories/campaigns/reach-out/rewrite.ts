@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../../types";
 import { answer, type DoorResult } from "./leads";
 
-import { recordOrEmpty, type SchemaSet, type TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet, type TenantId, DbFailure } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /**
@@ -68,13 +68,13 @@ export async function sendOpeningsOf(
     .eq("tenant_id", params.tenantId)
     .in("id", params.sendIds)
     .not("lead_id", "is", null);
-  if (error) throw new Error(`cannot read the emails' openings: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the emails' openings");
   const rows = data ?? [];
   const stepIds = [...new Set(rows.flatMap((r) => [r.step_id, r.sequence_id]).filter((x): x is string => !!x))];
   const steps = stepIds.length
     ? await db.from("sequence_steps").select("id, state").eq("tenant_id", params.tenantId).in("id", stepIds)
     : { data: [], error: null };
-  if (steps.error) throw new Error(`cannot read the emails' steps: ${steps.error.message}`);
+  if (steps.error) throw new DbFailure(steps.error, "cannot read the emails' steps");
   const running = new Set((steps.data ?? []).filter((s) => s.state === "running").map((s) => s.id));
   const byId = new Map(rows.map((r) => [r.id, r]));
   return params.sendIds.flatMap((id) => {
@@ -141,7 +141,7 @@ export async function findLeadStepOpening(
       .eq("id", params.leadId)
       .maybeSingle(),
   ]);
-  if (send.error) throw new Error(`cannot read the lead's email at its step: ${send.error.message}`);
-  if (lead.error) throw new Error(`cannot read the lead's listing: ${lead.error.message}`);
+  if (send.error) throw new DbFailure(send.error, "cannot read the lead's email at its step");
+  if (lead.error) throw new DbFailure(lead.error, "cannot read the lead's listing");
   return { written: send.data?.opening ?? null, listing: lead.data ?? null };
 }

@@ -21,7 +21,7 @@
  * The turns' two clocks are the database's own (purge_model_turns and purge_model_prompts, nightly on one registered
  * job), so nothing here runs them.
  */
-import { heldTenantId } from "@chanlytics/contracts";
+import { heldTenantId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mayUseModels, RETENTION_DAYS } from "@chanlytics/contracts";
 import type { AiUsageBody, ModelTurnRequest, ModelTurnResponse, TenantId } from "@chanlytics/contracts";
@@ -33,7 +33,7 @@ type Db = SupabaseClient<Database>;
 export async function recordModelUsage(db: Db, rows: AiUsageBody | AiUsageBody[]): Promise<void> {
   const held = (row: AiUsageBody) => ({ ...row, tenant_id: heldTenantId(row.tenant_id) });
   const { error } = await db.from("ai_usage").insert(Array.isArray(rows) ? rows.map(held) : held(rows));
-  if (error) throw new Error(`ai_usage: ${error.message}`);
+  if (error) throw new DbFailure(error, "ai_usage");
 }
 
 export async function mayWorkspaceUseModels(db: Db, tenantId: TenantId): Promise<boolean> {
@@ -41,8 +41,8 @@ export async function mayWorkspaceUseModels(db: Db, tenantId: TenantId): Promise
     db.from("tenants").select("status, left_empty_at").eq("id", tenantId).maybeSingle(),
     db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle(),
   ]);
-  if (tenant.error) throw new Error(`cannot read the workspace: ${tenant.error.message}`);
-  if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
+  if (tenant.error) throw new DbFailure(tenant.error, "cannot read the workspace");
+  if (billing.error) throw new DbFailure(billing.error, "cannot read the workspace's billing");
   // Every workspace has a billing row since 00073 (the ones before it on `direct`): none is not a yes.
   if (!tenant.data || !billing.data) return false;
   return mayUseModels(billing.data.mode, billing.data.status, {
@@ -59,7 +59,7 @@ export interface AiFailures {
 
 export async function listAiFailuresHour(db: Db, min: number): Promise<AiFailures[]> {
   const { data, error } = await db.rpc("ai_failures_hour", { p_min: min });
-  if (error) throw new Error(`ai_failures_hour: ${error.message}`);
+  if (error) throw new DbFailure(error, "ai_failures_hour");
   return (data ?? []).map((r) => ({
     tenant_id: r.tenant_id,
     failed_calls: Number(r.failed_calls) || 0,
@@ -69,7 +69,7 @@ export async function listAiFailuresHour(db: Db, min: number): Promise<AiFailure
 
 export async function purgeAiUsage(db: Db): Promise<number> {
   const { data, error } = await db.rpc("ai_usage_purge", { p_keep: `${RETENTION_DAYS.ai_usage} days` });
-  if (error) throw new Error(`ai_usage_purge: ${error.message}`);
+  if (error) throw new DbFailure(error, "ai_usage_purge");
   return Number(data) || 0;
 }
 
@@ -100,7 +100,7 @@ export async function keepModelTurn(db: Db, turn: ModelTurnKept): Promise<void> 
     ...(turn.model ? { p_model: turn.model } : {}),
     ...(turn.latencyMs === null ? {} : { p_latency_ms: Math.max(0, Math.round(turn.latencyMs)) }),
   });
-  if (error) throw new Error(`model_turn_keep: ${error.message}`);
+  if (error) throw new DbFailure(error, "model_turn_keep");
 }
 
 /** An erasure's hand: the workspace's kept turns that name any of the person's identifiers, deleted; how many went. */
@@ -108,7 +108,7 @@ export async function scrubModelTurns(db: Db, tenantId: TenantId, needles: reado
   const { data, error } = await db.rpc("model_turns_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
   // A database before 00401 keeps no turn, so nothing is there to scrub: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
-  if (error) throw new Error(`model_turns_scrub: ${error.message}`);
+  if (error) throw new DbFailure(error, "model_turns_scrub");
   return data ?? 0;
 }
 

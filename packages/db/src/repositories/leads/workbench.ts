@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
-import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { DbFailure, type TenantId, type ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Args<F extends keyof Database["public"]["Functions"]> = Database["public"]["Functions"][F]["Args"];
@@ -36,7 +36,7 @@ export async function findNewestSearchName(db: Db, tenantId: TenantId): Promise<
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the newest search: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the newest search");
   return data?.name.trim() || null;
 }
 

@@ -49,7 +49,7 @@ import {
 import { readAndKeepStanding } from "../whatsapp/number-standing.js";
 import { startWhatsappHistory } from "../imports/history-import.js";
 import { env } from "../shared/env.js";
-import { logger } from "../shared/log.js";
+import { logger, refuseFailure } from "../shared/log.js";
 import { UUID, isTenantId } from "@chanlytics/contracts";
 import {
   findWhatsAppNumberHolder,
@@ -60,6 +60,7 @@ import {
 } from "@chanlytics/db/channels";
 import { asJson } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 interface ConnectBody {
   tenant_id?: string;
@@ -91,8 +92,8 @@ async function connected(
     number_e164: input.e164,
     verified_name: input.name,
     by: input.by,
-  }).catch(() => {});
-  await recordActivation(db, tenantId, "line_live", "whatsapp").catch(() => false);
+  }).catch(logAndGoOn("event channel.connected"));
+  await recordActivation(db, tenantId, "line_live", "whatsapp").catch(logAndGoOn("recordActivation", false));
   const log = logger({ tenant_id: tenantId, phone_number_id: input.phoneNumberId, waba_id: input.wabaId });
   await readAndKeepStanding({ db, log }, input.token, {
     tenant_id: tenantId,
@@ -146,7 +147,7 @@ async function writeChannelRow(
       // to somebody else would be a worse answer than the upsert used to give.
       // Who holds the number now, whichever workspace it is: the answer this read exists for.
       const mineNow = await findWhatsAppNumberHolder(db, phoneNumberId);
-      if (mineNow.error) return refuse(503, "read_failed", mineNow.error.message);
+      if (mineNow.error) return refuseFailure(503, "read_failed", mineNow.error);
       if (mineNow.data?.tenant_id === tenantId) {
         log.info("wa_connect_raced_self");
         row = { id: mineNow.data.id };

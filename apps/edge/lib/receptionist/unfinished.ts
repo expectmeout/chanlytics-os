@@ -35,7 +35,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { isAutomatedSend, isCampaignEmail, MIN_MS, HOUR_MS, type SchemaSet } from "@chanlytics/contracts";
+import { isAutomatedSend, isCampaignEmail, MIN_MS, HOUR_MS, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import type { EscalationOutcome } from "@chanlytics/jobs";
 import { toldFromItsEvent } from "@chanlytics/core";
 import type { logger } from "../shared/log.js";
@@ -164,7 +164,7 @@ async function liveJobsNaming(
 ): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   const { data, error } = await listLiveJobsNaming(db, kind, ids, dueSince);
-  if (error) throw new Error(`unfinished: cannot read the jobs: ${error.message}`);
+  if (error) throw new DbFailure(error, "unfinished: cannot read the jobs");
   const named = (data ?? []).map((j) => {
     const p = j.payload;
     return p !== null && typeof p === "object" && !Array.isArray(p) && typeof p.message_id === "string"
@@ -196,7 +196,7 @@ const textsInHand = (db: Db, rows: InboundRow[], now: number) =>
 async function answersSince(db: Db, rows: InboundRow[], since: string): Promise<Map<string, string[]>> {
   const convIds = [...new Set(rows.map((r) => r.conversation_id).filter((c): c is string => !!c))];
   const { data: answered, error } = await listRepliesSince(db, convIds, [...ANSWER_STATES], since);
-  if (error) throw new Error(`unfinished: cannot read replies: ${error.message}`);
+  if (error) throw new DbFailure(error, "unfinished: cannot read replies");
   const repliesBy = new Map<string, string[]>();
   for (const a of answered ?? []) {
     if (isAutomatedSend(a.meta)) continue;
@@ -336,7 +336,7 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
         reason: "orphaned",
         note: ORPHAN_NOTE,
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new DbFailure(error);
       if (!changed?.length) continue; // another tick, or the send itself, got there first
       out.orphaned += 1;
       // A campaign's email (a reach-out's) is its run's to count: the clock plans it again (orphaned never left), and

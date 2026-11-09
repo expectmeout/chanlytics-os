@@ -7,6 +7,7 @@ import { MIN_MS } from "@chanlytics/contracts";
 import { runStateOf } from "../endings";
 import type { LeadPorts, LeadRunRow } from "../ports";
 import { INPUT_MARKER, PROVIDER_RUN_PAGE, iso, isRefused, isRetryable } from "./rules";
+import { logAndGoOn } from "@chanlytics/log";
 
 /** The provider's run that carries this row's id in its input, if one exists. */
 async function findOurRun(
@@ -63,7 +64,7 @@ async function startFailed(
     const reason = error instanceof Error ? error.message : String(error);
     await leadPorts
       .tell?.({ kind: "source_refused", actor: row.actor, build: row.build, why: reason })
-      .catch(() => undefined);
+      .catch(logAndGoOn("telling the platform a lead source refused"));
     return { kind: "refused", why: reason };
   }
   if (isRetryable(error) && error.status === null) {

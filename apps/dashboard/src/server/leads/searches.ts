@@ -15,6 +15,7 @@ import {
   type LeadStage,
   type PersonLeadDto,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { asJson } from "@chanlytics/db/shared";
@@ -39,6 +40,7 @@ import { serviceDb } from "../shared/service-db";
 import { type Params, row } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 export interface SearchViewRow {
   id: string;
@@ -117,7 +119,7 @@ export async function searchRow(
   id: string,
 ): Promise<SearchViewRow> {
   const { data, error } = await findSearchCard(ctx.supabase, tenantId, id);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "This search is not in your workspace.", 404);
   return data as SearchViewRow;
 }
@@ -153,7 +155,7 @@ export function morePlanOf(search: Pick<SearchViewRow, "plan">, plan: LeadSearch
 
 async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SearchViewRow[]> {
   const { data, error } = await listSearchCards(ctx.supabase, tenantId, 200);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return (data ?? []) as SearchViewRow[];
 }
 
@@ -181,7 +183,7 @@ export interface LeadRow {
 async function loadLead(ctx: Pick<RouteContext, "supabase">, id: string): Promise<LeadRow> {
   const leadId = requireUuid(id, "lead");
   const { data, error } = await findLeadScope(ctx.supabase, leadId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const found = (data ?? null) as LeadRow | null;
   if (!found || found.erased_at) throw new AppError("not_found", "That lead is not in your workspace.", 404);
   return found;
@@ -200,7 +202,7 @@ interface LeadSearchScopeRow {
 async function loadLeadSearch(ctx: Pick<RouteContext, "supabase">, id: string): Promise<LeadSearchScopeRow> {
   const searchId = requireUuid(id, "search");
   const { data, error } = await findSearchScope(ctx.supabase, searchId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "This search is not in your workspace.", 404);
   return data;
 }
@@ -212,7 +214,7 @@ export const leadSearchScope = row((ctx: RouteContext, params: Params) => loadLe
 /** The rail's six numbers (lead_list_counts), or zeroes when the workspace has none. */
 export async function listSearchCounts(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<LeadCounts> {
   const { data, error } = await readLeadListCounts(ctx.supabase, tenantId);
-  if (error) throw new Error(`lead_list_counts: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_list_counts");
   const leadCounts = recordOrEmpty(data);
   const n = (v: unknown) => (typeof v === "number" ? v : 0);
   return {
@@ -338,7 +340,7 @@ export async function renameSearch(
   name: string,
 ): Promise<{ name: string }> {
   const { data, error } = await renameLeadSearch(ctx.supabase, leadSearchScope.id, name);
-  if (error) throw new Error(`lead_search_rename: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_search_rename");
   const answer = answerOf(data);
   const refused = refusalOf(answer);
   if (refused) throw refused;
@@ -360,7 +362,7 @@ export async function removeSearch(
   leadSearchScope: LeadSearchScopeRow,
 ): Promise<{ archived: number; kept: number; toast: string }> {
   const { data, error } = await removeLeadSearch(ctx.supabase, leadSearchScope.id);
-  if (error) throw new Error(`lead_search_remove: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_search_remove");
   const answer = answerOf(data);
   const refused = refusalOf(answer);
   if (refused) throw refused;
@@ -392,7 +394,7 @@ export async function undoSearch(
   leadSearchScope: LeadSearchScopeRow,
 ): Promise<{ removed: number; credited: number; op_id: string | null; version: number; toast: string }> {
   const { data, error } = await undoLeadSearchRemoval(ctx.supabase, leadSearchScope.id);
-  if (error) throw new Error(`lead_search_undo: ${error.message}`);
+  if (error) throw new DbFailure(error, "lead_search_undo");
   const answer = answerOf(data);
   const refused = refusalOf(answer);
   if (refused) throw refused;
@@ -422,8 +424,8 @@ export async function findLeadOfPerson(
   contactId: ContactId,
 ): Promise<PersonLeadDto | null> {
   const { data, error } = await findNewestLeadOfPerson(ctx.supabase, tenantId, contactId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (!data) return null;
-  const reach = await findLeadTimeline(ctx, tenantId, data.id).catch(() => null);
+  const reach = await findLeadTimeline(ctx, tenantId, data.id).catch(logAndGoOn("findLeadTimeline", null));
   return { id: data.id, business_name: data.business_name, found_at: data.found_at, reach_out: reach };
 }

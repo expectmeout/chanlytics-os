@@ -10,6 +10,7 @@ import {
 import type { SendQueuedCommand, SendQueuedPorts } from "./ports";
 import { pageTheProvider } from "./provider-page";
 import { toldFromItsEvent } from "../events/subscribers";
+import { logAndGoOn } from "@chanlytics/log";
 
 export type { SendQueuedCommand } from "./ports";
 
@@ -256,7 +257,7 @@ async function resendLater(
       `${channel}: a workspace's credentials could not be read`,
       `Tenant ${cmd.tenantId}, message ${payload.message_id}: ${unavailableError.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`,
     )
-    ?.catch(() => undefined);
+    ?.catch(logAndGoOn("paging the platform"));
 }
 
 /** What a failed send owes: the platform paged for its own conditions, the thread flagged and the owner told. */

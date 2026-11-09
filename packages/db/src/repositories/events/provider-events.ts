@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SCHEMA_SETS, TenantId } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { asJson } from "../../shared/json";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -59,7 +60,7 @@ export async function findProviderEvent(
     .eq("provider", provider)
     .eq("provider_event_id", providerEventId)
     .maybeSingle();
-  if (error) throw new Error(`provider_events: ${error.message}`);
+  if (error) throw new DbFailure(error, "provider_events");
   // The row's provider is the one asked for: the column's closed set is the table's, which the types do not carry.
   return data ? { ...data, provider, headers: headersOf(data.headers) } : null;
 }
@@ -77,6 +78,6 @@ export async function scrubProviderEvents(db: Db, tenantId: TenantId, needles: r
   const { data, error } = await db.rpc("provider_events_scrub", { p_tenant_id: tenantId, p_needles: [...needles] });
   // A database before 00336 has no ledger, so nothing is kept to scrub: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
-  if (error) throw new Error(`provider_events_scrub: ${error.message}`);
+  if (error) throw new DbFailure(error, "provider_events_scrub");
   return data ?? 0;
 }

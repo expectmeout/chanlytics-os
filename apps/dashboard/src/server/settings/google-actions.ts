@@ -118,6 +118,7 @@ export async function replyToGoogleReview(ctx: RouteContext & { params: Params }
     google_refused: "Google did not accept the reply.",
   };
   const id = requireUuid(ctx.params.id, "review");
+  // A body that is not JSON is none: what reads it next refuses.
   const body = recordOrEmpty(await req.json().catch(() => ({})));
   const comment = cleanReply(body.comment);
   if (!comment) throw new AppError("validation", "Write the reply first.", 400);
@@ -169,6 +170,7 @@ export async function stopGoogleReviewReply(ctx: RouteContext & { params: Params
 }
 
 export async function searchGoogleFor(ctx: RouteContext, req: Request, member: Member) {
+  // A body that is not JSON is none: what reads it next refuses.
   const body = recordOrEmpty(await req.json().catch(() => ({})));
   // A phone number goes whole and with its country, which Google needs to match a listing by its number.
   let query = typeof body.query === "string" ? placesQueryOf(body.query).slice(0, 200) : "";

@@ -19,6 +19,8 @@ import {
   type NotificationsConfig,
   type PolicyLimits,
   type KnownFacts,
+  DbFailure,
+  causedBy,
 } from "@chanlytics/contracts";
 import {
   findWhatsappLine,
@@ -207,7 +209,7 @@ async function resolveWaCredentials(
   } else {
     const { data, error } = await findWhatsAppRouting(db, routed.tenantId);
     // A number that cannot be read is not a workspace with none: the reply would go nowhere and say nothing.
-    if (error) throw new Error(`cannot read the workspace's WhatsApp number: ${error.message}`);
+    if (error) throw new DbFailure(error, "cannot read the workspace's WhatsApp number");
     channelId = data?.id ?? null;
     ref = data?.credentials_ref ?? null;
     externalId = data?.external_id ?? null;
@@ -310,13 +312,13 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       bookingMessageOf(db, routed.tenantId),
       textingLineOf(db, routed.tenantId),
     ]);
-    if (cfgQ.error) throw new Error(cfgQ.error.message);
-    if (polQ.error) throw new Error(polQ.error.message);
+    if (cfgQ.error) throw new DbFailure(cfgQ.error);
+    if (polQ.error) throw new DbFailure(polQ.error);
     // No check here on purpose: resolveWaCredentials handles its own failure
     // by logging and falling back to the environment. Throwing would mark the
     // whole runtime unreadable — holding every thread of a tenant that does
     // not use per-channel credentials at all — over a lookup it never needed.
-    if (tzQ.error) throw new Error(tzQ.error.message);
+    if (tzQ.error) throw new DbFailure(tzQ.error);
 
     // A BROKEN config is not an ABSENT one. Both end in silence, but only one
     // is somebody's mistake, and reporting "no brain profile configured" while
@@ -553,7 +555,7 @@ async function numberWrittenTo(
       conversation_id: conversationId,
       error,
     });
-    throw new WireUnavailableError("whatsapp", error);
+    throw causedBy(new WireUnavailableError("whatsapp", error), e);
   }
 }
 
@@ -617,7 +619,7 @@ export async function loadTenantNotifications(
         return null;
       }),
     ]);
-    if (cfgQ.error) throw new Error(cfgQ.error.message);
+    if (cfgQ.error) throw new DbFailure(cfgQ.error);
     const parsed = parseTenantConfigResult(cfgQ.data?.config);
     const envPhoneId = env.WHATSAPP_PHONE_ID || "";
     // A channel we could not read leaves ONE question unanswered -- whether

@@ -58,6 +58,7 @@ import { errField, logger } from "../shared/log.js";
 import { getInstagramCredentials } from "./credentials.js";
 import { recordThenAnswerDm } from "./dm-answer.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -237,7 +238,7 @@ async function unroutable(db: Db, account: string, n: number): Promise<void> {
   await emitEvent(db, heldTenantId("00000000-0000-0000-0000-000000000000"), "ingest.unroutable", null, null, {
     channel: "instagram",
     account,
-  }).catch(() => {});
+  }).catch(logAndGoOn("event ingest.unroutable"));
   await alertUnroutable("instagram", account, n);
 }
 

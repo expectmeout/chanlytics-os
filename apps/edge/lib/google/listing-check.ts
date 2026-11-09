@@ -7,7 +7,7 @@
 import { emitEvent } from "@chanlytics/db/events";
 import { patchListing } from "@chanlytics/db/imports";
 import { planListingCheck, type PlaceDetails } from "@chanlytics/channels/google";
-import { localDate, HOUR_MS } from "@chanlytics/contracts";
+import { localDate, HOUR_MS, DbFailure } from "@chanlytics/contracts";
 import { scheduleWebsiteRead } from "../imports/website-read.js";
 import { keepAndPush } from "../shared/alerts/notify.js";
 import { logger } from "../shared/log.js";
@@ -29,6 +29,7 @@ import {
   saveGoogleListingDay,
   saveGoogleReviews,
 } from "@chanlytics/db/google";
+import { logAndGoOn } from "@chanlytics/log";
 
 export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
@@ -98,7 +99,7 @@ export async function checkListing(
 
   await patchListing(db, row.tenant_id, plan.listing);
   const day = await saveGoogleListingDay(db, row.tenant_id, plan.day);
-  if (day.error) throw new Error(day.error.message);
+  if (day.error) throw new DbFailure(day.error);
   if (plan.reviews.length) {
     // first_seen_at is not in the payload: an existing row keeps its own.
     const reviews = await saveGoogleReviews(
@@ -119,7 +120,7 @@ export async function checkListing(
         last_seen_at: review.last_seen_at,
       })),
     );
-    if (reviews.error) throw new Error(reviews.error.message);
+    if (reviews.error) throw new DbFailure(reviews.error);
   }
   // A new review reaches the phones too (decision 0040), about the review's row and opening it (contracts reviewRoute).
   const rowIds = await reviewRowIds(
@@ -142,7 +143,7 @@ export async function checkListing(
       counted: plan.counted,
       rating: plan.listing.rating,
       review_count: plan.listing.review_count,
-    }).catch(() => {});
+    }).catch(logAndGoOn("event google.reviews"));
   }
   log.info("google_checked", {
     rating: plan.listing.rating,
@@ -169,7 +170,7 @@ type DueRead<Row> = (
 async function rowsDue<Row>(read: DueRead<Row>, db: Db, now: Date, limit: number): Promise<Row[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
   const { data, error } = await read(db, before, limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ?? [];
 }
 

@@ -26,6 +26,7 @@ function sameSite(href: string, home: URL): string | null {
   try {
     url = new URL(decodeEntities(href), home);
   } catch {
+    // Not an address.
     return null;
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;
@@ -50,6 +51,7 @@ function pagesPicker(pageUrl: string): {
   try {
     home = new URL(pageUrl);
   } catch {
+    // Not an address.
     return null;
   }
   const self = sameSite(pageUrl, home);

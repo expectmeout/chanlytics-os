@@ -43,6 +43,7 @@ import {
   type ConsoleAct,
   type ConsoleSight,
   type SpendWords,
+  causedBy,
 } from "@chanlytics/contracts";
 import {
   claimIdempotencyKey,
@@ -64,6 +65,7 @@ import { takeRate, type RateBucket } from "./rate-limit";
 import { getBackOffice, type BackOffice } from "./back-office";
 import { log } from "./log";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Role = MemberContext["role"];
 export type Params = Record<string, string | string[] | undefined>;
@@ -218,8 +220,8 @@ function bodyAsJson(text: string): unknown {
   if (!text.trim()) return {};
   try {
     return JSON.parse(text);
-  } catch {
-    throw new AppError("validation", "Expected a JSON body.");
+  } catch (e) {
+    throw causedBy(new AppError("validation", "Expected a JSON body."), e);
   }
 }
 
@@ -338,7 +340,7 @@ async function onceForKey<O>(
   try {
     out = await run();
   } catch (e) {
-    await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso }).catch(() => {});
+    await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso }).catch(logAndGoOn("releaseIdempotencyKey"));
     throw e;
   }
   const response = viaJson<Json>(out === undefined ? { ok: true } : out);

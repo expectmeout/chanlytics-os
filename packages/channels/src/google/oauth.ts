@@ -214,6 +214,7 @@ export async function verifyState(
   try {
     oAuthState = JSON.parse(dec.decode(unb64url(payload))) as OAuthState;
   } catch {
+    // Not JSON: nothing to read.
     return { ok: false, reason: "malformed" };
   }
   if (

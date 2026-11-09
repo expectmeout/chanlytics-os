@@ -15,6 +15,7 @@ export async function listPlatformDays(
   office: BackOffice,
   days: number = PLATFORM_DAYS_READ.days,
 ): Promise<PlatformDayRowDto[] | null> {
+  // Said below, as any failed read is.
   const result = await readPlatformMetrics(office.db, days).then(
     (x) => x,
     () => ({ data: null, error: { code: "unreachable", message: "unreadable" } }),

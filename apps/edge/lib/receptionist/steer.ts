@@ -47,6 +47,7 @@ import { queueDraft } from "../ai/draft-queue.js";
 import { env } from "../shared/env.js";
 import { logger, errField } from "../shared/log.js";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 const MAX_CHARS = 500;
 
@@ -145,11 +146,13 @@ const draftChannelOf = (c: string | null): InboundChannel => (c === "sms" || c =
 async function draftAddressOf(
   db: NonNullable<ReturnType<typeof pg>>,
   channel: InboundChannel,
-  m: { tenant_id: TenantId; contact_id: ContactId | null },
+  message: { tenant_id: TenantId; contact_id: ContactId | null },
   phone: string | null,
 ): Promise<string | null> {
   if (channel !== "instagram") return phone;
-  return m.contact_id ? findInstagramId(db, m.tenant_id, m.contact_id).catch(() => null) : null;
+  return message.contact_id
+    ? findInstagramId(db, message.tenant_id, message.contact_id).catch(logAndGoOn("findInstagramId", null))
+    : null;
 }
 
 function draftOf(db: NonNullable<ReturnType<typeof pg>>, messageId: string, workspace: TenantId | null) {

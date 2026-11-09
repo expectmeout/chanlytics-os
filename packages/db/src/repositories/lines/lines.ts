@@ -7,7 +7,7 @@
  * own door (findLineAccount, apps/edge/lib/sms/sms.ts). A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LINE_FILED_NAMES, recordOrEmpty } from "@chanlytics/contracts";
+import { LINE_FILED_NAMES, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
 import type { TenantId } from "@chanlytics/contracts";
@@ -32,7 +32,7 @@ export async function findOwnLine(
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the workspace's own line: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the workspace's own line");
   return data;
 }
 
@@ -45,7 +45,7 @@ export async function findBusinessOnRecord(
   tenantId: TenantId,
 ): Promise<Database["public"]["Tables"]["business_records"]["Row"] | null> {
   const { data, error } = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
-  if (error) throw new Error(`cannot read the business on record: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the business on record");
   return data;
 }
 
@@ -55,7 +55,7 @@ export async function findBusinessOnRecord(
  */
 export async function dropLineCredentials(db: SupabaseClient<Database>, lineId: string): Promise<void> {
   const { error } = await db.rpc("drop_line_credentials", { p_line_id: lineId });
-  if (error) throw new Error(`dropping the line's token: ${error.message}`);
+  if (error) throw new DbFailure(error, "dropping the line's token");
 }
 
 /**
@@ -74,7 +74,7 @@ export async function findFiledNames(
     .eq("tenant_id", tenantId)
     .neq("provider", "carrier")
     .order("created_at", { ascending: true });
-  if (error) throw new Error(`cannot read the names the workspace filed: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the names the workspace filed");
   const named = (key: string): string | null => {
     for (const row of data ?? []) {
       const value = recordOrEmpty(row.facts)[key];

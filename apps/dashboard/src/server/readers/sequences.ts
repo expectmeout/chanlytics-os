@@ -36,6 +36,7 @@ import { listChains } from "../campaigns/reach-outs/reach-outs";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as readers from "./facts";
 import { playbooks as playbooksReader } from "./playbooks";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * The Sequences page's reads (decision 0060), one reader each, which Ask's tools read too, so the number Ask says is the
@@ -96,7 +97,9 @@ async function startsWith(
     return { fed_by: fedBy, chain };
   }
   if (row.starts === "date" && row.date)
-    return { one_off: await findOneOffMessage(db, rc.tenantId, row.date.batch_id).catch(() => null) };
+    return {
+      one_off: await findOneOffMessage(db, rc.tenantId, row.date.batch_id).catch(logAndGoOn("findOneOffMessage", null)),
+    };
   return {};
 }
 
@@ -111,6 +114,7 @@ async function startsWith(
 function sequenceReads(rc: ReaderContext, id: string) {
   const rows = listSequenceOverview(rc.ctx.supabase, rc.tenantId, id);
   const starts = rows.then(([row]) => (row ? startsWith(rc, row) : {}));
+  // Read below, where it is awaited: this only keeps it from counting as unhandled until then.
   starts.catch(() => {});
   return Promise.all([
     rows,
@@ -148,6 +152,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
       load(rc, readers.appointmentWord, undefined).then((r) => r.data),
       listSequenceEvidence(rc.ctx.supabase, rc.tenantId).catch(() => undefined),
     ]);
+    // Read below, where it is awaited: this only keeps it from counting as unhandled until then.
     workspace.catch(() => {});
     // The id asked for is a sequence's own as a row's door or a record's address names it, so its row, steps and run facts
     // are read in one wave with the workspace's: its row was read first and the rest after it, a wait each (the tabs review

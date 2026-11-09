@@ -1,4 +1,4 @@
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, causedBy } from "@chanlytics/contracts";
 import {
   AppError,
   AUDIENCE_KINDS,
@@ -261,11 +261,7 @@ async function breathOf(
   if (!breathe) return { goes: enrolled, leftOut: [] };
   const touches = await ports.touches(at.now).catch((e: unknown) => {
     createLog.error("campaign_step_failed", { step: "touches", error: errField(e) });
-    throw new AppError(
-      "internal",
-      "Who has had a message from you lately, or has one due, could not be read just now. Nothing was sent; try again.",
-      500,
-    );
+    throw causedBy(new AppError("internal", TOUCHES_NOT_READ, 500), e);
   });
   return breathSplit(enrolled, (e) => e.row.id, leftOutBy(touches, at.sendsAt.getTime(), at.now.getTime()));
 }
@@ -292,6 +288,10 @@ async function breathOf(
  * sentences for the person composing: the values are judged against the message
  * the workspace holds, which no schema knows.
  */
+const TOUCHES_NOT_READ =
+  "Who has had a message from you lately, or has one due, could not be read just now. Nothing was sent; try again.";
+const MONTH_NOT_COUNTED = "This month's emails and texts could not be counted just now. Nothing was sent; try again.";
+
 export async function createBroadcast(
   ports: CreateBroadcastPorts,
   cmd: CreateBroadcastCommand,
@@ -360,11 +360,7 @@ export async function createBroadcast(
     purpose,
   ).catch((e: unknown) => {
     createLog.error("campaign_step_failed", { step: "month_count", error: errField(e) });
-    throw new AppError(
-      "internal",
-      "This month's emails and texts could not be counted just now. Nothing was sent; try again.",
-      500,
-    );
+    throw causedBy(new AppError("internal", MONTH_NOT_COUNTED, 500), e);
   });
 
   // Named for the business's day, not the server's (UTC on Vercel).

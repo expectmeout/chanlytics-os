@@ -7,7 +7,7 @@
  * declares who may.
  */
 import QRCode from "qrcode";
-import { AppError, optInLink, takesSignUps } from "@chanlytics/contracts";
+import { AppError, optInLink, takesSignUps, DbFailure } from "@chanlytics/contracts";
 import { isWorkspaceOpenToCustomers } from "@chanlytics/db/workspace";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -30,7 +30,7 @@ export async function findConsentQr(ctx: RouteContext, member: Member) {
     throw new AppError("conflict", "The workspace is not taking sign-ups, so there is no code to hand out.", 409);
   // The oldest active number, the one Connections shows: a workspace may hold two, and the code says the same one each time.
   const { data: ch, error } = await findChannelNumber(ctx.supabase, tenantId, "whatsapp");
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   const link = optInLink(ch?.number_e164);
   if (!link) throw new AppError("not_found", "No WhatsApp number to say yes to yet.", 404);
   const svg = await QRCode.toString(link, { type: "svg", margin: 1, width: 240, errorCorrectionLevel: "M" });

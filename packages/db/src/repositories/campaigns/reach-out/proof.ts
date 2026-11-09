@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
 import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -17,6 +18,6 @@ export async function countSentByStep(
   const ids = [...new Set(stepIds)];
   if (ids.length === 0) return new Map();
   const { data, error } = await db.rpc("sequence_sent_by_step", { p_tenant_id: tenantId, p_step_ids: ids });
-  if (error) throw new Error(`cannot count the steps' sent emails: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count the steps' sent emails");
   return new Map(data.map((row) => [row.step_id, row.sent]));
 }

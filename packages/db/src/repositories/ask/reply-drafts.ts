@@ -12,6 +12,7 @@ import {
   type MessageDto,
   type SchemaSet,
   recordOrEmpty,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { findReachOutReply } from "../campaigns/reach-out/outreach";
@@ -49,7 +50,7 @@ export async function listConversationsSetAside(db: Db, tenantId: TenantId): Pro
     .eq("state", "archived")
     .order("set_aside_at", { ascending: false })
     .limit(SET_ASIDE_READ);
-  if (error) throw new Error(`conversations: ${error.message}`);
+  if (error) throw new DbFailure(error, "conversations");
   return (data ?? []).map((r) => r.id);
 }
 
@@ -68,7 +69,7 @@ export async function listConversationDrafts(
   const { data, error } = await ("newest" in which
     ? all.order("made_at", { ascending: false }).limit(which.newest + 1)
     : all.in("conversation_id", [...which]));
-  if (error) throw new Error(`conversation_drafts: ${error.message}`);
+  if (error) throw new DbFailure(error, "conversation_drafts");
   return data ?? [];
 }
 
@@ -101,8 +102,8 @@ export async function findThreadDraftFacts(
       .limit(1)
       .maybeSingle(),
   ]);
-  if (msg.error) throw new Error(`messages: ${msg.error.message}`);
-  if (hold.error) throw new Error(`escalations: ${hold.error.message}`);
+  if (msg.error) throw new DbFailure(msg.error, "messages");
+  if (hold.error) throw new DbFailure(hold.error, "escalations");
   const details = hold.data?.details;
   return {
     forMessageId: msg.data?.id ?? null,
@@ -164,7 +165,7 @@ export async function replyDraftThreadOf(
     .eq("tenant_id", tenantId)
     .eq("id", conversationId)
     .maybeSingle();
-  if (conv.error) throw new Error(`conversations: ${conv.error.message}`);
+  if (conv.error) throw new DbFailure(conv.error, "conversations");
   if (!conv.data) return null;
   const [messages, hold, person, kept] = await Promise.all([
     db
@@ -193,9 +194,9 @@ export async function replyDraftThreadOf(
       : Promise.resolve({ data: null, error: null }),
     listConversationDrafts(db, tenantId, [conversationId]),
   ]);
-  if (messages.error) throw new Error(`messages: ${messages.error.message}`);
-  if (hold.error) throw new Error(`escalations: ${hold.error.message}`);
-  if (person.error) throw new Error(`contacts: ${person.error.message}`);
+  if (messages.error) throw new DbFailure(messages.error, "messages");
+  if (hold.error) throw new DbFailure(hold.error, "escalations");
+  if (person.error) throw new DbFailure(person.error, "contacts");
   const rows = messages.data ?? [];
   const theirs = rows.find((m) => m.sender === "customer") ?? null;
   const email = theirs ? emailOf(theirs.meta) : { subject: null, name: null, address: null };
@@ -255,7 +256,7 @@ export async function claimConversationDraft(
     ...(details.again ? { p_again: true } : {}),
     ...(details.staleBefore ? { p_stale_before: details.staleBefore.toISOString() } : {}),
   });
-  if (error) throw new Error(`conversation_draft_claim: ${error.message}`);
+  if (error) throw new DbFailure(error, "conversation_draft_claim");
   return data === true;
 }
 
@@ -293,7 +294,7 @@ export async function writeConversationDraft(
     ...(details.whyFailed ? { p_why_failed: details.whyFailed } : {}),
     ...(details.madeBy ? { p_made_by: details.madeBy } : {}),
   });
-  if (error) throw new Error(`conversation_draft_write: ${error.message}`);
+  if (error) throw new DbFailure(error, "conversation_draft_write");
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const item = recordOrEmpty(data);
   const text = (v: unknown) => (typeof v === "string" ? v : null);
@@ -323,7 +324,7 @@ export async function dropConversationDraft(
     .eq("conversation_id", details.conversationId)
     .eq("kind", details.kind)
     .eq("state", "writing");
-  if (error) throw new Error(`conversation_drafts: ${error.message}`);
+  if (error) throw new DbFailure(error, "conversation_drafts");
 }
 
 /**
@@ -350,7 +351,7 @@ export async function recordConversationDraftFailed(
   const { data, error } = await (
     details.forMessageId ? held.eq("for_message_id", details.forMessageId) : held.is("for_message_id", null)
   ).select("id");
-  if (error) throw new Error(`conversation_drafts: ${error.message}`);
+  if (error) throw new DbFailure(error, "conversation_drafts");
   return (data?.length ?? 0) > 0;
 }
 
@@ -367,7 +368,7 @@ export async function setConversationAside(
     p_conversation_id: details.conversationId,
     p_why: details.why,
   });
-  if (error) throw new Error(`conversation_set_aside: ${error.message}`);
+  if (error) throw new DbFailure(error, "conversation_set_aside");
   return data === true;
 }
 
@@ -378,7 +379,7 @@ export async function replyDraftsDue(
   limit: number,
 ): Promise<Array<{ tenantId: TenantId; conversationId: string }>> {
   const { data, error } = await db.rpc("reply_drafts_due", { p_rules: rules, p_limit: limit });
-  if (error) throw new Error(`reply_drafts_due: ${error.message}`);
+  if (error) throw new DbFailure(error, "reply_drafts_due");
   return (data ?? []).map((r) => ({ tenantId: r.tenant_id, conversationId: r.conversation_id }));
 }
 
@@ -394,6 +395,6 @@ export async function findConversationOfEscalation(
     .eq("tenant_id", tenantId)
     .eq("id", escalationId)
     .maybeSingle();
-  if (error) throw new Error(`escalations: ${error.message}`);
+  if (error) throw new DbFailure(error, "escalations");
   return data?.conversation_id ?? null;
 }

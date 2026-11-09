@@ -8,7 +8,7 @@
  * (import_person), how many people the workspace holds, and what a file line says of a person before Chanlytics
  * (person_before_note), each on the member's session.
  */
-import { heldContactId } from "@chanlytics/contracts";
+import { heldContactId, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { tenantDb } from "../../shared/tenant-db";
@@ -61,7 +61,7 @@ export async function keepBefore(db: Db, beforeMessage: BeforeMessage): Promise<
     p_channel_ts: beforeMessage.at,
     p_meta: beforeMessage.meta ?? {},
   });
-  if (error) throw Object.assign(new Error(`ingest_before: ${error.message}`), { code: error.code });
+  if (error) throw new DbFailure(error, "ingest_before");
   const row = recordOrEmpty(data);
   if (row.erased === true)
     return { kept: false, erased: true, conversationId: null, contactId: null, newPerson: false };
@@ -122,7 +122,7 @@ export async function getPeopleCount(db: Db, tenantId: TenantId): Promise<number
     .select("id", { count: "exact", head: true })
     .is("erased_at", null)
     .is("merged_into_contact_id", null);
-  if (error) throw new Error(`cannot count the people: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot count the people");
   return count ?? 0;
 }
 
@@ -144,5 +144,5 @@ export async function recordPersonBeforeNote(
     p_before: asJson(before),
     p_notes: notes ?? undefined,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { standingFromConfig, type ChannelDto } from "@chanlytics/contracts";
+import { standingFromConfig, type ChannelDto, DbFailure } from "@chanlytics/contracts";
 import { findLastInboundOn } from "@chanlytics/db/channels";
 import { readerStamp, type Reader } from "../shared/reader";
 import { listChannelsForPage } from "@chanlytics/db/workspace";
@@ -24,8 +24,8 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
       findLastInboundOn(supabase, tenantId, "whatsapp"),
       findLastCallIn(supabase, tenantId),
     ]);
-    if (rows.error) throw new Error(rows.error.message);
-    if (lastCall.error) throw new Error(lastCall.error.message);
+    if (rows.error) throw new DbFailure(rows.error);
+    if (lastCall.error) throw new DbFailure(lastCall.error);
     // The DM clock only where an Instagram account is connected: most workspaces have none, and ask nothing more.
     const lastDm = rows.data?.some((c) => c.kind === "instagram")
       ? await findLastInboundOn(supabase, tenantId, "instagram")

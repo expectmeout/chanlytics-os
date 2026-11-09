@@ -36,6 +36,7 @@ import {
   type LeadSearchPlan,
   recordOrNull,
   shaped,
+  DbFailure,
 } from "@chanlytics/contracts";
 import type {
   CollectCommitResult,
@@ -55,7 +56,7 @@ type Rpc = (
 ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
 
 function must<T>(text: string, r: { data: T | null; error: { message: string } | null }): T {
-  if (r.error) throw new Error(`${text}: ${r.error.message}`);
+  if (r.error) throw new DbFailure(r.error, `${text}`);
   return r.data as T;
 }
 

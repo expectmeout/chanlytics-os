@@ -21,7 +21,7 @@ import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { notify } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
-import { logger } from "../shared/log.js";
+import { logger, refuseFailure } from "../shared/log.js";
 import { setupAskMail, isTenantId } from "@chanlytics/contracts";
 import { findWorkspaceCard } from "@chanlytics/db/workspace";
 
@@ -45,7 +45,7 @@ export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): P
   if (!isTenantId(tenantId) || !result) return refuse(400, "bad_request", "tenant_id and a known `what` are required");
 
   const tenant = await findWorkspaceCard(db, tenantId);
-  if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
+  if (tenant.error) return refuseFailure(503, "read_failed", tenant.error);
   if (!tenant.data) return refuse(404, "not_found", "no such workspace");
 
   const by = typeof body.by === "string" && body.by.trim() ? body.by.trim().slice(0, 120) : "a member";

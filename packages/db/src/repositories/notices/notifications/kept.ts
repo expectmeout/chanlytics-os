@@ -1,7 +1,7 @@
 /** Notifications: kept. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HOUR_MS, MIN_MS, type OptOutPerson, UUID, type SchemaSet } from "@chanlytics/contracts";
+import { HOUR_MS, MIN_MS, type OptOutPerson, UUID, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import { DELIVERED } from "../../conversations/thread/history";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -16,7 +16,7 @@ export type Db = SupabaseClient<Database>;
  */
 export async function forgetNotification(db: Db, params: { tenantId: TenantId; id: string }): Promise<void> {
   const { error } = await db.from("notifications").delete().eq("tenant_id", params.tenantId).eq("id", params.id);
-  if (error) throw new Error(`cannot take the notification back: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot take the notification back");
 }
 
 /**
@@ -40,7 +40,7 @@ export async function askCardsTold(
     subject_id: params.threadId,
     recipient_user_id: params.userId,
   });
-  if (error) throw new Error(`cannot tell the member their morning: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot tell the member their morning");
 }
 
 /** A kept notice as its retry finds it: which row, and whether its mail is still owed. */
@@ -84,7 +84,7 @@ export async function findNotice(
           .limit(1)
       : null;
   if (!found) return null;
-  if (found.error) throw new Error(`cannot read what the workspace was told: ${found.error.message}`);
+  if (found.error) throw new DbFailure(found.error, "cannot read what the workspace was told");
   const row = (found.data ?? [])[0];
   return row ? { id: row.id, kind: row.kind, mailOwed: row.mail_due_at !== null } : null;
 }
@@ -106,7 +106,7 @@ export async function recordMailSent(
     })
     .eq("tenant_id", params.tenantId)
     .eq("id", params.id);
-  if (error) throw new Error(`cannot record that the notice was mailed: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot record that the notice was mailed");
 }
 
 /**
@@ -127,7 +127,7 @@ export async function wasNoticeKept(
     .eq("subject_type", params.subjectType)
     .eq("subject_id", params.subjectId)
     .limit(1);
-  if (error) throw new Error(`cannot read what the workspace was told: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read what the workspace was told");
   return (data ?? []).length > 0;
 }
 
@@ -154,7 +154,7 @@ export async function listReviewsNamed(
     read("review_id", ids),
   ]);
   const error = byRow.error ?? byGoogle.error;
-  if (error) throw new Error(`cannot read the reviews the notices name: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the reviews the notices name");
   const seen = new Map<string, { id: string; reviewId: string; replied: boolean }>();
   for (const r of [...(byRow.data ?? []), ...(byGoogle.data ?? [])])
     seen.set(r.id, { id: r.id, reviewId: r.review_id, replied: !!r.reply_text?.trim() });
@@ -172,7 +172,7 @@ export async function reviewRowsByGoogleId(
     .select("id, review_id")
     .eq("tenant_id", tenantId)
     .in("review_id", [...googleIds]);
-  if (error) throw new Error(`cannot read the reviews on record: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the reviews on record");
   return new Map((data ?? []).map((r) => [r.review_id, r.id]));
 }
 
@@ -195,7 +195,7 @@ interface HoldFactsRead {
 
 /** One row of a read, or null; a read that fails throws with what it read. */
 export const oneOr = <T>(r: { data: T[] | null; error: { message: string } | null }, text: string): T | null => {
-  if (r.error) throw new Error(`cannot read ${text}: ${r.error.message}`);
+  if (r.error) throw new DbFailure(r.error, `cannot read ${text}`);
   return r.data?.[0] ?? null;
 };
 
@@ -304,7 +304,7 @@ export async function holdTold(
     .eq("source_event", params.eventId)
     .is("mail_due_at", null)
     .limit(1);
-  if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
+  if (answered.error) throw new DbFailure(answered.error, "cannot read what the workspace was told");
   if ((answered.data ?? []).length) return true;
   const since = new Date(Date.parse(params.at) - MIN_MS).toISOString();
   const inline = await db
@@ -317,7 +317,7 @@ export async function holdTold(
     .is("source_event", null)
     .gte("created_at", since)
     .limit(1);
-  if (inline.error) throw new Error(`cannot read what the workspace was told: ${inline.error.message}`);
+  if (inline.error) throw new DbFailure(inline.error, "cannot read what the workspace was told");
   return (inline.data ?? []).length > 0;
 }
 
@@ -362,7 +362,7 @@ export async function wasOptOutTold(
     .eq("source_event", params.eventId)
     .is("mail_due_at", null)
     .limit(1);
-  if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
+  if (answered.error) throw new DbFailure(answered.error, "cannot read what the workspace was told");
   if ((answered.data ?? []).length) return true;
   const since = new Date(Date.parse(params.at) - MIN_MS).toISOString();
   const twin = await db
@@ -375,7 +375,7 @@ export async function wasOptOutTold(
     .neq("source_event", params.eventId)
     .gte("created_at", since)
     .limit(1);
-  if (twin.error) throw new Error(`cannot read what the workspace was told: ${twin.error.message}`);
+  if (twin.error) throw new DbFailure(twin.error, "cannot read what the workspace was told");
   return (twin.data ?? []).length > 0;
 }
 
@@ -393,7 +393,7 @@ export async function wasEventTold(db: Db, params: { tenantId: TenantId; eventId
     .eq("source_event", params.eventId)
     .is("mail_due_at", null)
     .limit(1);
-  if (answered.error) throw new Error(`cannot read what the workspace was told: ${answered.error.message}`);
+  if (answered.error) throw new DbFailure(answered.error, "cannot read what the workspace was told");
   return (answered.data ?? []).length > 0;
 }
 

@@ -18,10 +18,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { listChainSteps, listLeadClocks, moveSend, type ReachOutSendRow } from "@chanlytics/db/campaigns";
 import { findWorkspaceZone } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
-import { DAY_MS, DEFAULT_TIMEZONE, timetable, weekHoursOf, zoneOfRegion } from "@chanlytics/contracts";
+import { DAY_MS, DEFAULT_TIMEZONE, timetable, weekHoursOf, zoneOfRegion, DbFailure } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
 import type { Logger } from "../../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -47,7 +48,7 @@ type Move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>) => Promise<boo
 /** A step's pace and mailboxes, and whether its chain's root says its owner sends it (00429), in one read. */
 async function stepAndRootOf(db: Db, tenantId: TenantId, stepId: string, rootId: string) {
   const { data, error } = await listChainSteps(db, tenantId, [stepId, rootId]);
-  if (error) throw new Error(`the step: ${error.message}`);
+  if (error) throw new DbFailure(error, "the step");
   const rows = data ?? [];
   return {
     step: rows.find((p) => p.id === stepId) ?? null,
@@ -94,6 +95,12 @@ async function keepTheirs(
   return group.filter((s) => !theirs.includes(s));
 }
 
+/** A workspace's clock; one that cannot be read is the default's, and said in the log. */
+const zoneOrDefault = async (
+  db: Parameters<typeof findWorkspaceZone>[0],
+  tenantId: Parameters<typeof findWorkspaceZone>[1],
+) => (await findWorkspaceZone(db, tenantId).catch(logAndGoOn("findWorkspaceZone", null))) || DEFAULT_TIMEZONE;
+
 export async function replanSends(db: Db, items: Replan[], now: Date, log: Logger): Promise<ReplanCounts> {
   const out: ReplanCounts = { replanned: 0, waiting: 0, gave_up: 0 };
   if (items.length === 0) return out;
@@ -127,8 +134,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         if (le) throw new Error(`the leads: ${le.message}`);
         leads.push(...(data ?? []));
       }
-      if (!zones.has(tenantId))
-        zones.set(tenantId, (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE);
+      if (!zones.has(tenantId)) zones.set(tenantId, await zoneOrDefault(db, tenantId));
       // A later step's send keeps the mailbox its lead's chain writes from; a first one may take any of the step's.
       const keeps = !!step?.after_step_id;
       // Each mailbox's times, less these sends' own: a send planned again never waits for the time it held.

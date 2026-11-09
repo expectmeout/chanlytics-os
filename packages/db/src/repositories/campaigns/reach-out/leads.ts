@@ -6,7 +6,7 @@
  * route says them at the status the code means (dbRefusal).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isLeadList } from "@chanlytics/contracts";
+import { isLeadList, DbFailure } from "@chanlytics/contracts";
 import type {
   LeadBackDto,
   LeadPileCountsDto,
@@ -93,7 +93,7 @@ export async function getReachOutFedBy(db: Db, tenantId: TenantId, searchId: str
     .eq("tenant_id", tenantId)
     .eq("id", searchId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read the chain's search: ${error.message}`);
+  if (error) throw new DbFailure(error, "cannot read the chain's search");
   return isLeadList(data) ? "list" : "search";
 }
 

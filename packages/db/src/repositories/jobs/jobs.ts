@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
 import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /**
@@ -34,7 +35,7 @@ export async function readJobToRequeue(db: Db, tenantId: TenantId, jobId: string
     .eq("id", jobId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (error) throw new Error(`read_job: ${error.message}`);
+  if (error) throw new DbFailure(error, "read_job");
   return data;
 }
 
@@ -52,7 +53,7 @@ export async function hasRequeuedCopy(db: Db, tenantId: TenantId, jobId: string)
     .eq("payload->>requeue_of", jobId)
     .neq("state", "failed")
     .limit(1);
-  if (error) throw new Error(`read_job_copies: ${error.message}`);
+  if (error) throw new DbFailure(error, "read_job_copies");
   return (data?.length ?? 0) > 0;
 }
 
@@ -69,7 +70,7 @@ export async function listFailedJobsOfKind(
     .gte("updated_at", input.sinceIso)
     .order("updated_at", { ascending: true })
     .limit(input.limit);
-  if (error) throw new Error(`read_failed_jobs: ${error.message}`);
+  if (error) throw new DbFailure(error, "read_failed_jobs");
   return data ?? [];
 }
 
@@ -107,7 +108,7 @@ export async function assembleBroadcast(
     ...(decision?.via ? { p_via: decision.via } : {}),
     ...(decision?.undoOf ? { p_undo_of: decision.undoOf } : {}),
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   if (data === null || typeof data !== "object" || Array.isArray(data) || typeof data.id !== "string")
     throw new Error("broadcast not created");
   const decisionId = typeof data.decision_id === "string" ? data.decision_id : null;
@@ -130,7 +131,7 @@ export async function claimQueuedSend(db: Db, tenantId: TenantId, messageId: str
     .eq("status", "queued")
     .is("sending_at", null)
     .select("id");
-  if (error) throw new Error(`claim_queued_send: ${error.message}`);
+  if (error) throw new DbFailure(error, "claim_queued_send");
   return (data?.length ?? 0) > 0;
 }
 
@@ -147,7 +148,7 @@ export async function releaseQueuedSend(db: Db, tenantId: TenantId, messageId: s
     .eq("id", messageId)
     .eq("tenant_id", tenantId)
     .eq("status", "queued");
-  if (error) throw new Error(`release_queued_send: ${error.message}`);
+  if (error) throw new DbFailure(error, "release_queued_send");
 }
 
 /**
@@ -178,7 +179,7 @@ export async function approveBroadcast(
     ...(args.via ? { p_via: args.via } : {}),
     ...(args.undoOf ? { p_undo_of: args.undoOf } : {}),
   });
-  if (error) throw new Error(`approve_broadcast: ${error.message}`);
+  if (error) throw new DbFailure(error, "approve_broadcast");
   if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
   const id = data.decision_id;
   if (typeof id !== "string") throw new Error("approve_broadcast: the door answered without its decision");
@@ -263,7 +264,7 @@ export async function queueSend(
     p_due_at: input.dueAt.toISOString(),
     p_payload: input.payload,
   });
-  if (error || typeof data !== "string") throw new Error(`queue_send: ${error?.message ?? "no message"}`);
+  if (error || typeof data !== "string") throw new DbFailure(error ?? { message: "no message" }, "queue_send");
   return data;
 }
 
@@ -272,7 +273,7 @@ export async function listPausedJobKinds(
   db: Db,
 ): Promise<{ kind: string; paused_at: string; paused_why: string | null }[]> {
   const { data, error } = await db.from("job_kinds").select("kind, paused_at, paused_why").not("paused_at", "is", null);
-  if (error) throw new Error(`read_paused_kinds: ${error.message}`);
+  if (error) throw new DbFailure(error, "read_paused_kinds");
   return (data ?? []).flatMap((k) =>
     k.paused_at ? [{ kind: k.kind, paused_at: k.paused_at, paused_why: k.paused_why }] : [],
   );

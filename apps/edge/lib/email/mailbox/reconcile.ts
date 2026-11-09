@@ -28,6 +28,7 @@ import { UNKNOWN_OUTCOME_MS } from "../../shared/unknown-outcome.js";
 import { getToken } from "./credentials.js";
 import { errField, type Logger } from "../../shared/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -86,7 +87,8 @@ export async function reconcileMailbox(
           if (moved) out.sent += 1;
           continue;
         }
-        if (found.draftId) await deleteGraphMessage(token.token, found.draftId).catch(() => null);
+        if (found.draftId)
+          await deleteGraphMessage(token.token, found.draftId).catch(logAndGoOn("deleteGraphMessage", null));
         if (
           await getEmailNeverLeft(db, {
             tenantId: email.tenantId,

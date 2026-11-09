@@ -32,6 +32,7 @@ import {
   finiteOrNull,
   nonBlankOrNull,
   recordOrNull,
+  causedBy,
 } from "@chanlytics/contracts";
 
 export const PLACES_BASE = "https://places.googleapis.com/v1";
@@ -312,8 +313,8 @@ async function call(http: PlacesHttp, req: PlacesRequest): Promise<unknown> {
   if (r.status < 200 || r.status >= 300) throw refusal(r.status, r.body);
   try {
     return JSON.parse(r.body);
-  } catch {
-    throw new PlacesError(502, "Google answered with something other than JSON");
+  } catch (e) {
+    throw causedBy(new PlacesError(502, "Google answered with something other than JSON"), e);
   }
 }
 

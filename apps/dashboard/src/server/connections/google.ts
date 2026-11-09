@@ -17,6 +17,7 @@ import {
   type GoogleListingDto,
   type GoogleListingFacts,
   DAY_MS,
+  DbFailure,
 } from "@chanlytics/contracts";
 
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
@@ -37,7 +38,7 @@ const DAYS_KEPT = 92;
 
 export async function findListing(db: SupabaseClient<Database>, tenantId: TenantId): Promise<GoogleListingDto | null> {
   const { data, error } = await findListingCard(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -50,7 +51,7 @@ export async function findListingFacts(
   tenantId: TenantId,
 ): Promise<{ name: string; address: string | null; facts: GoogleListingFacts | null } | null> {
   const { data, error } = await findGoogleListingFacts(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ? { name: data.name, address: data.address, facts: listingFactsOf(data.facts) } : null;
 }
 
@@ -59,7 +60,7 @@ export async function findConnection(
   tenantId: TenantId,
 ): Promise<GoogleConnectionDto | null> {
   const { data, error } = await findConnectionCard(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data;
 }
 
@@ -82,8 +83,8 @@ export async function getGoogle(
     listRecentReviews(db, tenantId, REVIEWS_SHOWN),
     listListingDaysSince(db, tenantId, sinceDay),
   ]);
-  if (reviews.error) throw new Error(reviews.error.message);
-  if (days.error) throw new Error(days.error.message);
+  if (reviews.error) throw new DbFailure(reviews.error);
+  if (days.error) throw new DbFailure(days.error);
   return {
     listing,
     connection,

@@ -17,6 +17,7 @@ import {
   type ReachOutReplyDto,
   type ReplyFrom,
   type ReplyUndoRefusal,
+  causedBy,
 } from "@chanlytics/contracts";
 import {
   listReachOutSteps,
@@ -160,7 +161,7 @@ export async function undoReading(ctx: RouteContext, messageId: string): Promise
     return { undone: true, result: await undoReplyReading(ctx.supabase, messageId) };
   } catch (e) {
     const now = await replyUndoableOf(ctx.supabase, messageId);
-    if (now) throw undoRefusal(isReplyUndoRefusal(now) ? now : "not_found");
+    if (now) throw causedBy(undoRefusal(isReplyUndoRefusal(now) ? now : "not_found"), e);
     throw e;
   }
 }

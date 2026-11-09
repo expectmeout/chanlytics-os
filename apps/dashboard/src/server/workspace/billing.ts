@@ -13,6 +13,7 @@ import {
   type BillingAccountDto,
   type BillingPriceDto,
   type ModelStanding,
+  DbFailure,
 } from "@chanlytics/contracts";
 import { deployment } from "../shared/env";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
@@ -23,7 +24,7 @@ import type { TenantId } from "@chanlytics/contracts";
 
 export async function findBilling(db: SupabaseClient<Database>, tenantId: TenantId): Promise<BillingAccountDto | null> {
   const { data, error } = await findPlanForPage(db, tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new DbFailure(error);
   return data ? billingAccountDto(data) : null;
 }
 

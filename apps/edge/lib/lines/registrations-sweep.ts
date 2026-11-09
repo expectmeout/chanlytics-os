@@ -14,7 +14,7 @@
  *
  * Cross-workspace: the registration sweep asks after every workspace's waiting lines; each write is keyed by the line's own row.
  */
-import { json, refuse } from "../shared/http.js";
+import { json } from "../shared/http.js";
 import { dashboardOrigin } from "../shared/dashboard-origin.js";
 import { registerLine } from "./a2p-register.js";
 import { filingPages } from "./ops/filing.js";
@@ -25,6 +25,7 @@ import type { SweepTick } from "../ops/sweep-door.js";
 import { findBusinessOnRecord, findLineRow, listLinesAwaitingCarriers } from "@chanlytics/db/lines";
 
 import type { SchemaSet } from "@chanlytics/contracts";
+import { refuseFailure } from "../shared/log.js";
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const REGISTRATIONS_PER_TICK = 20;
 
@@ -53,7 +54,7 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
   // writes the row, so `updated_at` is exactly "when we last asked".
   // A refused line, only with its campaign on file (above).
   const { data: lines, error } = await listLinesAwaitingCarriers(db, ASKED, REGISTRATIONS_PER_TICK);
-  if (error) return refuse(503, "read_failed", error.message);
+  if (error) return refuseFailure(503, "read_failed", error);
   if (!lines?.length) return json(200, { ok: true, checked: 0 });
 
   const origin = dashboardOrigin();

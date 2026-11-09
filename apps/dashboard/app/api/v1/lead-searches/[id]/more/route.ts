@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LeadSearchPlanSchema, SPEND_LEADS } from "@chanlytics/contracts";
+import { LeadSearchPlanSchema, SPEND_LEADS, DbFailure } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { answerOf, estimateForRound, morePlanOf, planAsJson, refusalOf, searchRow } from "@/server/leads/leads";
@@ -36,7 +36,7 @@ export const POST = write({
       p_plan: planAsJson(plan),
       p_estimate_usd: estimateForRound(plan, input.purpose, search.counted),
     });
-    if (error) throw new Error(`lead_search_more: ${error.message}`);
+    if (error) throw new DbFailure(error, "lead_search_more");
     const answer = answerOf(data);
     const refused = refusalOf(answer);
     if (refused) throw refused;
