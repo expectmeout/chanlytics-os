@@ -232,7 +232,7 @@ export interface MailboxCounts {
 const COUNT_FLOOR = 150;
 
 /** The share past which a mailbox holds itself: 3% of what it sent (decision 0056, 8). */
-const HOLD_PERCENT = 3;
+export const MAILBOX_HOLD_PERCENT = 3;
 
 /**
  * The hold a mailbox's own mail earns it, or null (decision 0056, 8): any complaint, else hard bounces and servers'
@@ -245,8 +245,8 @@ export function mailboxHoldOf(mailboxCounts: MailboxCounts | null): MailboxHold 
   if (!mailboxCounts) return null;
   const of = Math.max(mailboxCounts.sent, COUNT_FLOOR);
   if (mailboxCounts.complained > 0) return "complaint";
-  if ((mailboxCounts.bounced + mailboxCounts.blocked) * 100 > HOLD_PERCENT * of) return "bounces";
-  if (mailboxCounts.unsubscribed * 100 > HOLD_PERCENT * of) return "unsubscribes";
+  if ((mailboxCounts.bounced + mailboxCounts.blocked) * 100 > MAILBOX_HOLD_PERCENT * of) return "bounces";
+  if (mailboxCounts.unsubscribed * 100 > MAILBOX_HOLD_PERCENT * of) return "unsubscribes";
   return null;
 }
 

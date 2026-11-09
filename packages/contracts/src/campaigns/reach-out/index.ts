@@ -256,6 +256,8 @@ export {
   tryCheckLine,
   writesBackRows,
 } from "./settings";
+export { coldEmailSendingOf } from "./sending";
+export type { ColdEmailCheck, ColdEmailHealth, ColdEmailSending } from "./sending";
 export { coldEmailStandingOf } from "./standing";
 export type {
   ColdEmailRunning,

@@ -8,6 +8,7 @@ import { REACH_OUT_LIMITS, type ReplyOffer } from "../../config/workspace-config
 import { MAILBOX_RAMP } from "../../email/mailbox-standing";
 import type { BusinessReadSource } from "../../imports/business-reads";
 import { mayDraftReply } from "./reply-draft";
+import type { ColdEmailSending } from "./sending";
 import type { ColdEmailStanding } from "./standing";
 import { REACH_OUT_REPLY_DAYS } from "./replies/intents";
 import { SEND_DAY_FRAME } from "./timetable";
@@ -272,6 +273,8 @@ export interface ReachOutSettingsSequence {
 export interface ReachOutSettingsDto {
   /** The one thing that matters most, and what to press (contracts coldEmailStandingOf). */
   standing: ColdEmailStanding;
+  /** Whether it is healthy, what it can really send, and what its ramp gives next (contracts coldEmailSendingOf). */
+  sending: ColdEmailSending;
   mailbox: ReachOutSettingsMailbox | null;
   /** The month's first emails against their share; sent is null where they could not be counted. */
   month: { sent: number | null; of: number };
