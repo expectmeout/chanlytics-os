@@ -60,12 +60,17 @@ export function useFitRest(fits: boolean): (sheet: HTMLElement | null) => void {
       changes.disconnect();
     };
   }, []);
-  useEffect(() => start(fits ? held.current : null), [fits, start]);
+  // One function for the sheet's whole life: a new one would have React hand the sheet back and over again as its shape turns.
+  const fitsNow = useRef(fits);
+  useEffect(() => {
+    fitsNow.current = fits;
+    start(fits ? held.current : null);
+  }, [fits, start]);
   return useCallback(
     (sheet: HTMLElement | null) => {
       held.current = sheet;
-      start(fits ? sheet : null);
+      start(fitsNow.current ? sheet : null);
     },
-    [fits, start],
+    [start],
   );
 }
