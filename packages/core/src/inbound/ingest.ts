@@ -47,7 +47,7 @@ async function ingestOrSay(cx: InboundContext): Promise<IngestResult> {
   const { ports, db, tenantId, n, from, notifyTarget, L, channel } = cx;
   try {
     // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3).
-    return await ports.persist.ingest(db, tenantId, n, cx.routed.channelId);
+    return await ports.persist.ingest(db, tenantId, n, cx.routed?.channelId ?? null);
   } catch (error) {
     if (error instanceof IngestFailed) {
       // The copy is best effort: a mailbox that cannot be reached must not mask the loss.

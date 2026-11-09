@@ -24,7 +24,7 @@ export function seeingOf(at: Answering) {
   const maySee =
     n.type === "media" &&
     !!n.media &&
-    !!rt.features?.vision &&
+    !!rt?.features?.vision &&
     isVisionMime(n.media.mime_type) &&
     !!brainCfg &&
     speaksUnattended(replyMode) &&

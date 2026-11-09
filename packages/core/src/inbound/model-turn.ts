@@ -56,10 +56,10 @@ async function leadNoteFor(at: Answering): Promise<string | undefined> {
         : await ports.leads.read(db, tenantId, e164 ?? from, 1, ing.message_id);
     // The conversation's channel rides along: the prompt says WhatsApp even on a text, and the ask for the yes to offers
     // is for WhatsApp alone (contracts offers-ask.ts).
-    leadNote = ports.leads.describe(lead, new Date(), rt.timezone ?? "UTC", channel);
+    leadNote = ports.leads.describe(lead, new Date(), rt?.timezone ?? "UTC", channel);
     // Their appointments, from the same feed the openings come from:
     // "when is my appointment?" is answered from the calendar, never guessed.
-    const visits = await ports.calendar.visits(rt, { phone: e164, name: lead.name });
+    const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
     if (visits) leadNote = `${leadNote}\n${visits}`;
   } catch (e) {
     L.warn("lead_context_unavailable", { error: errField(e) });
@@ -85,12 +85,12 @@ function checked(
     escalate: row.escalate,
     escalationReason: row.reason ?? "human_token",
     brainCfg,
-    policy: rt.policy,
+    policy: rt?.policy,
     intent,
     language: row.meta?.language ?? null,
-    known: rt.known,
+    known: rt?.known,
     // The clock the prompt was composed at: a note's price is allowed exactly while the receptionist was told the note.
-    tz: rt.timezone,
+    tz: rt?.timezone,
     now,
   });
   if (two.priceBlocked) L.warn("policy_block_price");
@@ -115,7 +115,7 @@ async function requestOf(
 ): Promise<Pick<Turn, "replyText" | "escalate" | "escalationReason" | "bookingRequest">> {
   const { ports, rt, L, ing } = at;
   const requests = ports.calendar.requests;
-  if (!requests || !inboundBrainReply.booking?.slot) return turn;
+  if (!rt || !requests || !inboundBrainReply.booking?.slot) return turn;
   const terms = await requests.terms(rt, ing.contact_id, now);
   const request = terms
     ? requestedBookingOf({ slot: inboundBrainReply.booking.slot, service: inboundBrainReply.booking.service, ...terms })
@@ -165,7 +165,7 @@ export async function takeModelTurn(
   // A persona is certain here: the mode in force held every message of a workspace without one (./reply-gates.ts).
   const brainCfg = at.brainCfg as BrainConfig;
   // The words a turn falls back on, which the context makes from the same config this turn runs on.
-  const fallbacks = at.fallbacks ?? fallbackMessages(brainCfg, rt.known);
+  const fallbacks = at.fallbacks ?? fallbackMessages(brainCfg, rt?.known);
   let replyText: string;
   let escalate: boolean;
   let escalationReason: string;
@@ -186,9 +186,9 @@ export async function takeModelTurn(
       // and a rate-capped message each paid an HTTP fetch and an ICS parse for
       // a value none of them ever reads, and the ingest write that must never
       // wait waited behind it.
-      const openings = await ports.calendar.openings(rt);
+      const openings = rt ? await ports.calendar.openings(rt) : null;
       // Where the workspace takes booking requests, the answer's schema carries a time the customer picks (decision 0061).
-      const takes = ports.calendar.requests?.takes(rt) === true;
+      const takes = !!rt && ports.calendar.requests?.takes(rt) === true;
       // The turn's one clock: the prompt, the clock note and layer two all read the business's day from it, so the notes
       // the receptionist is told and the prices it may say from them are the same notes.
       const now = new Date();
@@ -196,27 +196,27 @@ export async function takeModelTurn(
       const item = await brain.generateReply({
         history: thread.history,
         userText: photo
-          ? photoUserText(n.media?.caption, priceAllowance(brainCfg, rt.timezone, now) ? "written" : "none")
+          ? photoUserText(n.media?.caption, priceAllowance(brainCfg, rt?.timezone, now) ? "written" : "none")
           : bodyText,
         // Composed from the workspace's structured facts when it has them,
         // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens. A text is told it answers texts (compose.ts).
-        systemPrompt: resolveSystemPrompt(brainCfg, channel, rt.timezone, now, rt.policy, rt.known),
+        systemPrompt: resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known),
         fallbackText: fallbacks.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
         // it was answering too, from nothing — it had a table of hours and no
         // idea what day it was.
-        nowNote: `${describeNow(rt.timezone, now, brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
+        nowNote: `${describeNow(rt?.timezone, now, brainCfg.profile?.closures)}${openings ? `\n\n${openings}` : ""}`,
         ...(photo ? { image: photo } : {}),
         // Who it is for: the model port writes the call to the usage ledger and stamps the meta with the settings'
         // version the prompt was composed from.
         call: {
-          tenantId: at.tenantId,
+          tenantId: at.tenantId ?? null,
           subjectId: at.ing.conversation_id,
-          configVersion: rt.configVersion ?? null,
+          configVersion: rt?.configVersion ?? null,
           // A second model is put the customer's own words in shadow, when it is on (contracts shadowWordsOf).
           shadowText: shadowWordsOf({ text: bodyText, photo: photo !== null, caption: n.media?.caption }),
           ...(takes ? { bookingRequests: true } : {}),
@@ -256,10 +256,12 @@ export async function takeModelTurn(
     // marked processed, no escalation opened, and the route logged one line and
     // answered 200 — so Meta never retried either. A PLATFORM notice must never
     // be what costs a customer their reply.
-    try {
-      await ports.page({ db }, NO_MODEL_PAGE.key, NO_MODEL_PAGE.subject, NO_MODEL_PAGE.body);
-    } catch (e) {
-      L.error("wa_no_model_page_failed", { error: errField(e) });
+    if (db) {
+      try {
+        await ports.page({ db }, NO_MODEL_PAGE.key, NO_MODEL_PAGE.subject, NO_MODEL_PAGE.body);
+      } catch (e) {
+        L.error("wa_no_model_page_failed", { error: errField(e) });
+      }
     }
   }
   return { replyText, escalate, escalationReason, usage, brainMeta, fallback, brainMs, photo, bookingRequest };

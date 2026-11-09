@@ -70,22 +70,22 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
   // a truth table — they were four inline booleans, and one of them made
   // `status='disabled'` fail to silence the receptionist.
   const posture = replyPosture({
-    runtimeUsable: !rt.loadFailed,
-    policyMode: rt.policy["reply"]?.mode,
+    runtimeUsable: !!rt && !rt.loadFailed,
+    policyMode: rt?.policy["reply"]?.mode,
   });
-  const brainCfg: BrainConfig | null = rt.brain ?? null;
+  const brainCfg: BrainConfig | null = rt?.brain ?? null;
   // What goes out in the business's name when the receptionist cannot answer, with its details as they are now (S5).
-  const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt.known) : null;
-  const notif: NotificationsConfig | null = rt.notifications ?? null;
+  const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt?.known) : null;
+  const notif: NotificationsConfig | null = rt?.notifications ?? null;
   // One addressing decision per message, reused by every alert below.
   const notifyTarget: InboundHandoff["target"] = {
     tenantId,
     notifications: notif,
     isEnvDefault,
     // Read with the runtime, so an alert's mail links the workspace's page without a read of its own.
-    ...(rt.slug !== undefined ? { slug: rt.slug } : {}),
+    ...(rt?.slug !== undefined ? { slug: rt.slug } : {}),
   };
-  const replyLimits = rt.policy["reply"]?.limits ?? {};
+  const replyLimits = rt?.policy["reply"]?.limits ?? {};
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
   const pauseMs = pauseMsOf(replyLimits);
   // The number the handoff email states, read by the rule the pause and
