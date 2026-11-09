@@ -266,7 +266,7 @@ export function SendingCard(shared: OutreachShared & { again: () => void }) {
         id="send_from"
         label={SEND_WORDS.from}
         value={sending?.from ? `${sending.from}${sending.more ? ` ${SEND_WORDS.more(sending.more)}` : ""}` : null}
-        empty={sending ? SEND_WORDS.none : "…"}
+        empty={sending ? SEND_WORDS.none : shared.read ? SEND_WORDS.unread : "…"}
         act={fromAct(sending, open)}
       />
       {sending?.pace ? <RecordRow id="send_pace" label={SEND_WORDS.pace} value={sending.pace} /> : null}

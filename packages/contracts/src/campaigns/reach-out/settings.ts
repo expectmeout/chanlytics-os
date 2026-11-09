@@ -1,5 +1,5 @@
 /**
- * Cold email (decisions 0113, 0115): Settings' page of what Chanlytics says when it writes to businesses for you. The
+ * Cold email (decisions 0113, 0116): Settings' page of what Chanlytics says when it writes to businesses for you. The
  * section is the config's (`reach_out`, config-schema.ts), and what each writer reads of it is section.ts; the page's
  * words, its rules and its read are here, so the page and Ask say one thing. Apart, since a contracts module rides whole
  * into every page that imports it: a lead's card reads the signature, and needs none of the page's words.
@@ -220,6 +220,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
     month: "This month",
     batch: "Before each batch",
     none: "Not connected",
+    /** The page's read came back without its mailboxes: not known, which is neither connected nor not. */
+    unread: "Couldn't check just now",
     more: (n: number) => `and ${n} more`,
     health: {
       healthy: "Healthy",

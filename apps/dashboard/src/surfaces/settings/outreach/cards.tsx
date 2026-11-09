@@ -1,5 +1,5 @@
 /**
- * Settings › Cold email (decisions 0113, 0115): what Chanlytics says when it writes to businesses for you. A part of the
+ * Settings › Cold email (decisions 0113, 0116): what Chanlytics says when it writes to businesses for you. A part of the
  * business's record (business/tab.tsx BusinessPart "outreach"), so its rows are folds of the one record saved through the
  * tab's one saver, and what it shows beyond the config is the pane's own read. In the order an owner cares: where it
  * stands, an email, what wrote it, how it goes out, and last what cannot be changed. Where the pane is wide enough the
@@ -50,7 +50,7 @@ export function OutreachCards({
           <p className="ro-sub" data-testid="rec-outreach-sub">
             {REACH_OUT_SETTINGS_WORDS.sub}
           </p>
-          {read && !read.standing ? null : <StandingCard standing={read?.standing ?? null} canEdit={canEdit} />}
+          {read && !read.standing ? null : <StandingCard standing={read?.standing ?? null} />}
           {offerless ? (
             <p className="bt-gap" data-testid="rec-offer-gap">
               <span className="bt-gap-dot" aria-hidden="true" />

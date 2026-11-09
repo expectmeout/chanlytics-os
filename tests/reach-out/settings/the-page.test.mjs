@@ -1,5 +1,5 @@
 /**
- * Settings › Cold email (decisions 0113, 0115), EXECUTED on the stub React over the business tab's harness: its cards in
+ * Settings › Cold email (decisions 0113, 0116), EXECUTED on the stub React over the business tab's harness: its cards in
  * their order, a box that opens on what its row shows and stores it only once changed, a row saved as one key of the
  * config's reach_out section and nothing else, a signature refused in the page's words, what a reply sets off with only
  * one row the owner's, and the rail that lists it. Every claim is something the page drew, or something a press on it sent.
@@ -508,6 +508,8 @@ test("a read that could not decide draws no answer, and no address is called mis
   assert.equal(byTestId(tree, "rec-standing"), null);
   assert.doesNotMatch(textOf(byTestId(tree, "rec-card-ending")), /No address yet/);
   assert.equal(byTestId(tree, "rec-sending-pill"), null);
+  assert.match(textOf(byTestId(tree, "rec-row-send_from")), /Couldn't check just now/, "unknown, never still loading");
+  assert.doesNotMatch(textOf(byTestId(tree, "rec-row-send_from")), /Not connected/);
   unmount();
 });
 
@@ -582,6 +584,59 @@ test("someone who can only read is told so, and offered no press", async () => {
     assert.equal(byTestId(viewer, "rec-standing-act"), null);
     assert.equal(byTestId(viewer, "rec-row-act-offer"), null, "and no row opens");
     assert.equal(textOf(byTestId(viewer, "rec-viewer-note")), "Only an owner can change these, or connect a mailbox.");
+  } finally {
+    globalThis.window.canDo = may;
+  }
+  unmount();
+});
+
+test("each press shows to whoever may do it: an operator approves a batch, and connects no mailbox and starts no search", async () => {
+  const head = (re) => (t) => {
+    const h = byTestId(t, "rec-standing-head");
+    return !!h && re.test(textOf(h));
+  };
+  const waiting = {
+    kind: "waiting_ok",
+    headline: "Your first 12 emails are ready for your OK",
+    detail: null,
+    act: "Read and approve",
+    to: "sends/33333333-3333-4333-8333-333333333333",
+    needsYou: true,
+    steps: [],
+  };
+  const mailbox = {
+    ...waiting,
+    kind: "no_mailbox",
+    headline: "Connect your mailbox to start sending",
+    act: "Connect Google",
+    to: null,
+  };
+  const fresh = {
+    ...waiting,
+    kind: "not_started",
+    headline: "2 things before your first email",
+    act: null,
+    to: null,
+    steps: [
+      { id: "mailbox", done: false, title: "Connect your mailbox", detail: "Emails go out from your own address" },
+      {
+        id: "people",
+        done: false,
+        title: "Find businesses to write to",
+        detail: "Start with Dental offices in Austin",
+      },
+    ],
+  };
+  const may = globalThis.window.canDo;
+  globalThis.window.canDo = (action) => action === "approve";
+  try {
+    let tree = await drawOnRead({}, { standing: waiting }, head(/ready for your OK/));
+    assert.equal(textOf(byTestId(tree, "rec-standing-act")), "Read and approve", "an OK is theirs to give");
+    tree = await drawOnRead({}, { standing: mailbox }, head(/Connect your mailbox/));
+    assert.equal(byTestId(tree, "rec-standing-act"), null, "a mailbox is the settings'");
+    tree = await drawOnRead({}, { standing: fresh }, head(/2 things/));
+    assert.equal(byTestId(tree, "rec-step-mailbox-door"), null);
+    assert.equal(byTestId(tree, "rec-step-people-door"), null, "the lead finder is the owner's and the partner's");
   } finally {
     globalThis.window.canDo = may;
   }
