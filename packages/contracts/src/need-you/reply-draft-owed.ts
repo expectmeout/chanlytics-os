@@ -5,7 +5,6 @@
 import { replyWindow } from "../config/policy/prices";
 import { windowClockOf } from "../config/policy/reply-limits";
 import { holdActOf } from "../conversations/escalations";
-import type { CallBrief } from "../new-conversation/person-draft";
 import type { ReplyDraftKind } from "./reply-drafts";
 
 /** What the question reads of a thread (packages/db replyDraftFactsOf). */
@@ -168,38 +167,33 @@ export function draftUseOf(draft: string, sent: string): DraftUse {
   return words.length && kept / words.length >= EDITED_KEEPS ? "edited" : "not_used";
 }
 
-/** What a call back's brief is told, after the business's own prompt in its draft voice. */
-export const DRAFT_BRIEF_RULES = [
-  "This time write no message. The owner or a member of their team will phone this person: write them a brief in JSON.",
-  // Who phones is not known when the brief is written, and a name may not be invented: the opening read "Hi, this is
-  // calling from Chanlytics" (27 Oct 2026).
-  '`opening`: the first sentence to say, naming the business. Who will phone is not known: name nobody, and leave no place for a name ("Hi, it\'s <the business>, returning your call").',
-  "`points`: two to four things to say, each one short line.",
-  "`avoid`: what to leave out, such as a price they were not given or anything the details here do not support.",
-  "`ask`: the one thing to ask for.",
-] as const;
+/**
+ * The one thing a model is still asked of a call back (his calls D13 and D14, 9 Nov 2026): whether the caller is selling to the
+ * business. What they want, their call and their record are already stored, so no notes are written; the one real note in
+ * production coached an owner through what looks like a sales call, and saying so is what would have helped. When unsure, no: a
+ * customer told they look like a salesperson is the worse mistake.
+ */
+export const CALL_SELLING_RULES =
+  "You read the record of a call to a small business. Say whether the caller is selling something to the business (marketing, a " +
+  "listing, search rankings, card processing, a vendor's service, a scam about any of those) rather than being a customer, or " +
+  "someone who wants what the business offers. When unsure, say no. `what` says in a few plain words what they are selling, " +
+  "and is empty if they are not.";
 
-/** The shape a brief is answered in. */
-export const DRAFT_BRIEF_SCHEMA = /* @__PURE__ */ (() => ({
+/** The shape that read is answered in. */
+export const CALL_SELLING_SCHEMA = /* @__PURE__ */ (() => ({
   type: "object",
-  properties: {
-    opening: { type: "string" },
-    points: { type: "array", items: { type: "string" } },
-    avoid: { type: "array", items: { type: "string" } },
-    ask: { type: "string" },
-  },
-  required: ["opening", "points", "avoid", "ask"],
+  properties: { selling: { type: "boolean" }, what: { type: "string" } },
+  required: ["selling", "what"],
   additionalProperties: false,
 }))();
 
-/** The most a brief may take: the same room as a reply. */
-export const DRAFT_MAX_TOKENS = 900;
+/** The most that read may take: one line. */
+export const CALL_SELLING_MAX_TOKENS = 120;
 
-/** The model's answer as a brief, or null for one that says nothing to do on a call. */
-export function draftBriefOf(answer: unknown): CallBrief | null {
+/** The model's answer as what they are selling, or null where they are not, or it said nothing readable. */
+export function callSellingOf(answer: unknown): string | null {
   const a = answer && typeof answer === "object" && !Array.isArray(answer) ? (answer as Record<string, unknown>) : {};
-  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-  const lines = (v: unknown) => (Array.isArray(v) ? v.map(text).filter(Boolean) : []);
-  const brief = { opening: text(a.opening), points: lines(a.points), avoid: lines(a.avoid), ask: text(a.ask) };
-  return brief.opening || brief.points.length ? brief : null;
+  if (a.selling !== true) return null;
+  const what = typeof a.what === "string" ? a.what.trim() : "";
+  return what || "someone selling to you";
 }

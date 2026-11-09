@@ -11,6 +11,11 @@ export interface SheetRestControl {
   at: SheetRest;
   onRest: (at: SheetRest) => void;
   turn: { up: string; down: string };
+  /**
+   * Its first rest is as tall as what it holds, where it is the fixed half (use-fit-rest.ts): a short job stands short, and a
+   * pull up gives it the height for more.
+   */
+  fit?: boolean;
 }
 
 export function SheetHandle({ rest, testid }: { rest?: SheetRestControl | null; testid?: string }) {

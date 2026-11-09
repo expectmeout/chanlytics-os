@@ -51,7 +51,6 @@ const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zon
 const { TodayHeadFigures } = await import("../../../apps/dashboard/src/surfaces/today/zones/figures.tsx");
 const { PhoneSoFar } = await import("../../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
 const { TodayAlertBand } = await import("../../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
-const { BriefBox } = await import("../../../apps/dashboard/src/surfaces/today/need-you/parts.tsx");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { useHeadSay } = await import("../../../apps/dashboard/src/surfaces/today/need-you/head-say.ts");
 
@@ -175,7 +174,10 @@ test("Need you holds each wait to the business's own target, and the open card s
   } finally {
     setSurfaceValue("settings", undefined);
   }
+  // On a desk, beside the name of the row it has open; on a phone Up next is its line, and the sheet says the rest.
+  phone = false;
   const [card] = rowsOf(draw(NeedYou), "handoff");
+  phone = true;
   assert.equal(textOf(find(card, (n) => classes(n).includes("cl-attn-meta"))), "asked for a person");
   assert.equal(
     find(card, (n) => classes(n).includes("set-mark")),
@@ -293,7 +295,7 @@ test("how many were done today follows how many need you, where no list head say
   assert.ok(byTestId(draw(TodayEnd), "today-end"), "nobody waiting: the page says it is done");
 });
 
-test("on a phone a group's head holds See all where it could not hold everyone, and nothing stands under the list", () => {
+test("on a phone a group's foot says how many more wait and goes to them, and nothing stands under the list", () => {
   phone = true;
   set(twoWaiting());
   assert.equal(
@@ -301,21 +303,16 @@ test("on a phone a group's head holds See all where it could not hold everyone, 
     null,
     "REGRESSION: a pill under a divider, where every other card's door is in its head",
   );
-  // Up next and five waiting on you (contracts NEED_YOU_CAPS); past them the group's head is the way to the rest.
+  // Up next and five waiting on you (contracts NEED_YOU_CAPS); past them the group's own foot is the way to the rest.
   set(manyWaiting(8));
   const queue = draw(NeedYou);
   assert.equal(rowsOf(queue, "handoff").length, 6, "Up next and the five waiting");
   assert.equal(footOf(queue), null);
-  const waiting = byTestId(queue, "today-group-waiting");
-  const door = find(waiting, (n) => classes(n).includes("tz-door"));
-  assert.equal(textOf(door), "See all", "with the door to them");
+  const door = byTestId(byTestId(queue, "today-group-waiting"), "today-group-waiting-more");
+  assert.equal(textOf(door).trim(), "2 more waiting", "with the door to them");
   assert.match(door.props.href, /\/inbox$/);
-  // A group's head is a card's head: it stands inside the pane, as the day's does.
-  const pane = find(waiting, (n) => classes(n).includes("ny-pane"));
-  assert.ok(
-    find(pane, (n) => classes(n).includes("tz-head")),
-    "REGRESSION: a small label outside the card",
-  );
+  // The one Inbox door is the list's head, on a phone as on a desk.
+  assert.ok(byTestId(queue, "today-queue-door"), "one door on the head");
 });
 
 test("on a phone a run waiting for your OK says so once, in its sentence, and opens with Review", () => {
@@ -354,28 +351,6 @@ test("on a phone a run waiting for your OK says so once, in its sentence, and op
     delete W.__BROADCASTS;
     phone = true;
   }
-});
-
-test("on a phone's card Ask's brief is its first line with Read; the walk's sheet and a desk draw it whole", () => {
-  const brief = {
-    opening: "Hi, it's the studio, returning your call.",
-    points: ["Ask about Thursday"],
-    ask: null,
-    avoid: [],
-  };
-  fresh();
-  const card = again(() => W.React.createElement(BriefBox, { brief, onRead: () => {} }));
-  assert.ok(textOf(card).includes("Open with"), textOf(card));
-  assert.ok(textOf(card).includes("“Hi, it's the studio, returning your call.”"), textOf(card));
-  assert.ok(!textOf(card).includes("Call notes"), "no head over its one line");
-  assert.ok(!textOf(card).includes("Ask about Thursday"), "the rest is the sheet's");
-  assert.ok(
-    find(card, (n) => n.type === "button" && textOf(n).includes("Read")),
-    "Read opens it",
-  );
-  const whole = again(() => W.React.createElement(BriefBox, { brief }));
-  assert.ok(textOf(whole).includes("Call notes · only you see these"), textOf(whole));
-  assert.ok(textOf(whole).includes("Ask about Thursday"), textOf(whole));
 });
 
 test("under a phone's head only what stops customers being answered: a run waiting and a job that failed stay in the bell", () => {
@@ -428,7 +403,7 @@ test("under a phone's head only what stops customers being answered: a run waiti
   }
 });
 
-test("a call back that has waited past a week says first that it may be let go; a newer one goes straight to its brief", async () => {
+test("a call back that has waited past a week says in its sheet that it may be let go; a newer one is simply owed", async () => {
   const { CallWork } = await import("../../../apps/dashboard/src/surfaces/today/need-you/call-work.tsx");
   const { NEED_YOU_WORDS, NEED_YOU_OLD_MS, DAY_MS } = await import("@chanlytics/contracts");
   const callBack = (waitedMs) => ({
@@ -451,36 +426,30 @@ test("a call back that has waited past a week says first that it may be let go; 
         tz: ZONE,
         flash: () => {},
         keep: () => {},
+        whole: true,
       }),
     );
   };
-  assert.ok(textOf(work(NEED_YOU_OLD_MS + DAY_MS)).includes(NEED_YOU_WORDS.staleCall), "Ask's word, before its notes");
+  assert.ok(textOf(work(NEED_YOU_OLD_MS + DAY_MS)).includes(NEED_YOU_WORDS.staleCall), "said under what they wanted");
   assert.ok(!textOf(work(DAY_MS)).includes(NEED_YOU_WORDS.staleCall), "a call back under a week is simply owed");
 });
 
-test("on a phone each group of Need you is a pane of its own under its name, To do's too; a desk's are rows in Need you's pane", () => {
+test("on a phone Need you is one pane, its groups small labels over its rows, as a desk's are", () => {
   phone = true;
   set(twoWaiting());
   const queue = draw(NeedYou);
   const groups = all(queue, (n) => classes(n).includes("ny-group"));
   assert.ok(groups.length > 0, "the groups");
-  for (const g of groups)
-    assert.ok(
-      find(g, (n) => classes(n).includes("ny-pane") && classes(n).includes("panel-flush")),
-      "each a kit pane of its own, its rows edge to edge",
-    );
+  assert.equal(
+    find(queue, (n) => classes(n).includes("ny-pane")),
+    null,
+    "REGRESSION: five cards on a phone",
+  );
+  assert.ok(byTestId(queue, "today-queue-door"), "the list's own head, with its door");
   assert.ok(
     groups.some((g) => g.props["data-testid"] === "today-group-todo"),
     "To do among them",
   );
-  phone = false;
-  const desk = draw(NeedYou);
-  assert.equal(
-    find(desk, (n) => classes(n).includes("ny-pane")),
-    null,
-    "a desk's groups are rows in Need you's pane",
-  );
-  phone = true;
 });
 
 test("Need you has no cuts over it, on a desk or a phone: its groups are its order (the canvas of 2 Nov 2026)", () => {
@@ -512,7 +481,7 @@ test("Need you has no cuts over it, on a desk or a phone: its groups are its ord
   }
 });
 
-test("on a phone's card Ask's reply is read where it stands, and Edit beside Send opens the walk on it", () => {
+test("on a phone's Up next two lines of Ask's reply stand with no box round them, and a press opens the walk on it", () => {
   phone = true;
   // Sofia wrote an hour ago on WhatsApp: the window is open, so Ask's reply can be sent from the card.
   // A thread of its own: the drafts the tab holds outlive a test, and an earlier one read Sofia's and was refused.
@@ -543,23 +512,18 @@ test("on a phone's card Ask's reply is read where it stands, and Edit beside Sen
     const queue = draw(NeedYou);
     const card = byTestId(rowsOf(queue, "handoff")[0], "queue-handoff-work");
     assert.ok(textOf(card).includes("Six of us is $540"), textOf(card));
+    const peek = find(card, (n) => classes(n).includes("ny-glimpse"));
+    assert.ok(peek, "two lines of the words, no box in a box");
     assert.equal(
-      find(card, (n) => classes(n).includes("ny-read")),
+      find(card, (n) => n.type === "button" && textOf(n) === "Edit"),
       null,
-      "no Read in the draft's head",
+      "no Edit beside Send: the field in the sheet is the edit",
     );
-    const draft = find(card, (n) => classes(n).includes("ny-draft"));
-    assert.ok(
-      classes(draft.rendered ?? draft).includes("panel-inset") || draft.props.variant === "inset",
-      "the inset's ground",
-    );
-    const edit = find(card, (n) => n.type === "button" && textOf(n) === "Edit");
-    assert.ok(edit, "Edit, beside Send");
     assert.ok(
       find(card, (n) => n.type === "button" && textOf(n) === "Send"),
-      "and Send",
+      "Send",
     );
-    press(edit);
+    peek.props.onClick();
     const walk = find(
       again(() => W.React.createElement(NeedYou, {})),
       (n) => typeof n.type === "function" && n.type.name === "WalkSheet",
@@ -570,7 +534,7 @@ test("on a phone's card Ask's reply is read where it stands, and Edit beside Sen
   }
 });
 
-test("the head says Ask drafted a reply only where its words can go: never over a card whose one press is a template", () => {
+test("the head says Ask has a reply ready only where its words can go: never over a card whose one press is a template", () => {
   phone = true;
   /** One handoff on WhatsApp, its window open or shut, with Ask's reply kept for it; what the head is told of it. */
   const headOver = (lastIn) => {
@@ -598,10 +562,10 @@ test("the head says Ask drafted a reply only where its words can go: never over 
     return again(() => useHeadSay());
   };
   try {
-    assert.match(String(headOver("2026-09-18T19:00:00Z")), /Ask drafted a reply/, "an open window: the words can go");
+    assert.match(String(headOver("2026-09-18T19:00:00Z")), /Ask has a reply ready/, "an open window: the words can go");
     assert.doesNotMatch(
       String(headOver("2026-09-16T19:00:00Z")),
-      /Ask drafted/,
+      /Ask has/,
       "REGRESSION: the head said a reply was drafted over a card whose one press was Choose a template",
     );
   } finally {

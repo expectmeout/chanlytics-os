@@ -4,10 +4,18 @@
  *
  * Internal endpoint: the per-call token, called by the dashboard's draft route after RLS has proved the thread belongs to
  * the member's workspace and the role door has been checked there. The token names that workspace, and a thread of another
- * is a thread that is not there. Body: { conversation_id, kind, instruction? }. Nothing leaves by it: the words are kept on
+ * is a thread that is not there. Body: { conversation_id, kind, instruction?, given? }. Nothing leaves by it: the words are kept on
  * the thread's row, for the reply's own door to send on a press.
  */
-import { MIN_MS, SECOND_MS, UUID, type ReplyDraftKind, isTenantId } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  REPLY_DRAFT_GIVEN_MAX,
+  REPLY_DRAFT_INSTRUCTION_MAX,
+  SECOND_MS,
+  UUID,
+  type ReplyDraftKind,
+  isTenantId,
+} from "@chanlytics/contracts";
 import { rewriteReplyDraft, type RewriteOutcome } from "@chanlytics/core";
 import { replyDraftPortsOf, type ReplyDraftEdge } from "@chanlytics/jobs";
 import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../shared/admin-auth.js";
@@ -17,8 +25,9 @@ import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { draftEdge } from "./writer.js";
 
-/** A member's change, as long as the route takes it. */
-const INSTRUCTION_MAX = 500;
+/** A member's change, and the words on their screen it is asked of, as long as the route takes them. */
+const INSTRUCTION_MAX = REPLY_DRAFT_INSTRUCTION_MAX;
+const GIVEN_MAX = REPLY_DRAFT_GIVEN_MAX;
 /** How long the member's own wait gives the writer: the route's two tries, and one more ask, under the door's minute. */
 const DOOR_MS = MIN_MS - 5 * SECOND_MS;
 
@@ -41,7 +50,7 @@ function refused(outcome: Extract<RewriteOutcome, { done: false }>["refused"]): 
 
 export async function draftAtTheDoor(
   auth: Admitted,
-  body: Partial<{ conversation_id: string; kind: string; instruction: string }>,
+  body: Partial<{ conversation_id: string; kind: string; instruction: string; given: string }>,
   over?: { edge?: ReplyDraftEdge } | null,
 ): Promise<Response> {
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
@@ -51,7 +60,8 @@ export async function draftAtTheDoor(
   const conversationId = String(body.conversation_id ?? "");
   const kind: ReplyDraftKind = body.kind === "brief" ? "brief" : "reply";
   const instruction = String(body.instruction ?? "").trim();
-  if (!UUID.test(conversationId) || instruction.length > INSTRUCTION_MAX)
+  const given = String(body.given ?? "").trim();
+  if (!UUID.test(conversationId) || instruction.length > INSTRUCTION_MAX || given.length > GIVEN_MAX)
     return refuse(400, "bad_request", `conversation_id, and an instruction of ${INSTRUCTION_MAX} characters at most`);
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -61,6 +71,7 @@ export async function draftAtTheDoor(
     conversationId,
     kind,
     instruction: instruction || null,
+    given: given || null,
     by: auth.user,
     now: new Date(started),
     deadline: started + DOOR_MS,

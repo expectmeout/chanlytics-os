@@ -357,9 +357,9 @@ test("Today's card: while a step is open, one row back to where the owner left o
   assert.equal(before.title, "Finish setting up");
   assert.equal(before.left, "5 steps left");
   assert.deepEqual(before.start, {
-    name: "Not answering yet",
-    sentence: "We find you on Google and build a receptionist that answers as you.",
-    status: "Next: your business",
+    name: "Your business",
+    sentence: "Then your receptionist, rehearse, where it answers and go live.",
+    status: "Not answering yet",
     cta: "Continue setting up",
     ctaShort: "Continue",
     to: "start",
@@ -371,14 +371,14 @@ test("Today's card: while a step is open, one row back to where the owner left o
   const texting = setupCardOf(
     setupSteps(empty({ business: facts, channels: { ...empty().channels, whatsapp: live().channels.whatsapp } }), NOW),
   );
-  assert.equal(texting.start.name, "Calls aren't answered yet");
-  assert.equal(texting.start.status, "Next: where it answers");
+  assert.equal(texting.start.name, "Where it answers");
+  assert.equal(texting.start.status, "Calls aren't answered yet");
   // Calls answered and a step still open (the business, here): the row never says calls are not answered.
   const calls = setupCardOf(
     setupSteps(empty({ channels: { ...empty().channels, voice: live().channels.voice } }), NOW),
   );
-  assert.equal(calls.start.name, "Answering");
-  assert.equal(calls.start.status, "Next: your business");
+  assert.equal(calls.start.name, "Your business");
+  assert.equal(calls.start.status, "Answering");
 
   // Paid and going live, the number kept still to forward: Go live's rows that are the owner's first (canvas T·c).
   const going = setupCardOf(setupSteps(live({ want: { way: "keep", number: "+13055550100" } }), NOW));

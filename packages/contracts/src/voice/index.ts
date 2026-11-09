@@ -93,4 +93,12 @@ export {
   phoneVoiceShown,
 } from "./phone-voices";
 export type { PhoneVoice } from "./phone-voices";
-export { frameGuardrail, frameHandOver, frameSteer, frameWhisper, injectedTurn, whisperText } from "./whisper";
+export {
+  frameDraftChange,
+  frameGuardrail,
+  frameHandOver,
+  frameSteer,
+  frameWhisper,
+  injectedTurn,
+  whisperText,
+} from "./whisper";

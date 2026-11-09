@@ -77,15 +77,14 @@ test("the countdown says seconds under a minute and minutes from one up", () => 
 });
 
 test("the head's sentence after the count: what Ask prepared, then the one thing that cannot wait; nothing when nothing is", () => {
-  const none = { replies: 0, briefs: 0, writing: 0, firstWindow: null, held: null };
+  const none = { replies: 0, writing: 0, firstWindow: null, held: null };
   assert.equal(needYouSay(none), null);
-  assert.equal(needYouSay({ ...none, replies: 1 }), "Ask drafted a reply.");
-  assert.equal(needYouSay({ ...none, replies: 2, briefs: 1 }), "Ask drafted 2 replies and a call brief.");
+  assert.equal(needYouSay({ ...none, replies: 1 }), "Ask has a reply ready.");
   // One sentence, said by the head after how many need you, with the window's own time and the first name (Today in three
   // zones, 2 Nov 2026: "Sofia's window closes at 9:40 AM").
   assert.equal(
     needYouSay({ ...none, replies: 3, firstWindow: { who: "Dana Ruiz", at: "11:52 AM" } }),
-    "Ask drafted 3 replies, and Dana's window closes at 11:52 AM.",
+    "Ask has 3 replies ready, and Dana's window closes at 11:52 AM.",
   );
   assert.equal(
     needYouSay({ ...none, firstWindow: { who: "Dana", at: "11:52 AM" } }),
@@ -99,7 +98,7 @@ test("the head's sentence after the count: what Ask prepared, then the one thing
   );
   assert.equal(
     needYouSay({ ...none, replies: 1, firstWindow: { who: "Sam", at: "5:10 PM" }, held: { who: "Priya Shah" } }),
-    "Your receptionist answers Priya on its own unless you stop it. Ask drafted a reply, and Sam's window closes at 5:10 PM.",
+    "Your receptionist answers Priya on its own unless you stop it. Ask has a reply ready, and Sam's window closes at 5:10 PM.",
     "a reply that goes on its own in minutes comes before a window that closes in hours",
   );
   assert.equal(needYouSay({ ...none, writing: 2 }), "Ask is drafting your replies.", "writing, with nothing ready yet");
@@ -112,7 +111,7 @@ test("the head's sentence after the count: what Ask prepared, then the one thing
       held: { who: "+1 (917) 555-0102" },
       firstWindow: { who: "ana@example.com", at: "9:40 AM" },
     }),
-    "Your receptionist answers +1 (917) 555-0102 on its own unless you stop it. Ask drafted a reply, and ana@example.com's window closes at 9:40 AM.",
+    "Your receptionist answers +1 (917) 555-0102 on its own unless you stop it. Ask has a reply ready, and ana@example.com's window closes at 9:40 AM.",
     "REGRESSION: the head said 'Your receptionist answers +1 on its own'",
   );
 });

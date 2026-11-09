@@ -800,6 +800,23 @@ const kitRestsSheet = () =>
   `<button type="button" class="btn btn-sm btn-primary">Add</button></div></footer></section>`;
 
 /**
+ * The kit's Sheet with its first rest fitted to what it holds (`rest.fit`, kit-behaves.tsx's; Today's walk) and a flat foot
+ * (`flatFoot`): its head runs into what it holds, and its presses stand on its own ground.
+ */
+const kitFitSheet = () =>
+  `<button type="button" class="btn">Reply to Chris</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet sheet-rests" role="dialog" tabindex="-1" data-rest="half" data-rest-fit="true">` +
+  `<button type="button" class="sheet-handle" aria-label="Pull up for the whole conversation" aria-expanded="false"></button>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Chris Webb</h2>` +
+  `<p class="rec-sheet-sub">Text · waited 7h</p></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body"><div>${KIT_ROWS}</div></div>` +
+  `<footer class="rec-sheet-foot rec-sheet-foot-flat"><div data-foot-pair="">` +
+  `<button type="button" class="btn">Not now</button>` +
+  `<button type="button" class="btn btn-primary">Send</button></div></footer></section>`;
+
+/**
  * The kit's Sheet in a phone's job's shape, open on its second step (kit-behaves.tsx's): the control that opened it,
  * the wash, and the dialog with its way back, its title and its word, and the step's one act.
  */
@@ -2928,6 +2945,7 @@ export const FAMILIES = [
       { id: "sheet-kit-job", stage: "sheet", html: kitJobSheet() },
       { id: "sheet-kit-kicker", stage: "sheet", html: kitKickerSheet() },
       { id: "sheet-kit-rests", stage: "sheet", html: kitRestsSheet() },
+      { id: "sheet-kit-fit", stage: "sheet", html: kitFitSheet() },
     ],
   },
   {

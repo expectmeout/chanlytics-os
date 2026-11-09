@@ -234,6 +234,10 @@ export const SETUP_CARD_WORDS = {
   answering: "Answering",
   callsNotAnswered: "Calls aren't answered yet",
   next: (name: string) => `Next: ${name.toLowerCase()}`,
+  then: (names: readonly string[]) =>
+    names.length
+      ? `Then ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0]}.`
+      : null,
   keptTitle: "Kept for you",
   goingLive: "Finish going live",
   needYou: (n: number) => `${n} need${n === 1 ? "s" : ""} you`,
@@ -302,6 +306,12 @@ function keptForYouOf(vm: SetupVM, setupCardWho: SetupCardWho | undefined): stri
 /** Go live's rows that wait on the owner once paid: the forwarding, the check of the line, WhatsApp. */
 const GOING_LIVE_ROWS = ["keep", "try", "whatsapp"] as const;
 
+/** What comes after the step it opens on: the head over it has already said nothing answers yet (9 Nov 2026). */
+const stepsAfter = (fr: ReturnType<typeof firstRunOf>): string[] =>
+  fr.steps
+    .filter((s) => s.state !== "done" && s.key !== fr.current)
+    .map((s) => firstRunStepDefOf(s.key).name.toLowerCase());
+
 /** Today's card: what is left to set up, or null when nothing is. */
 export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCardVM | null {
   const words = SETUP_CARD_WORDS;
@@ -330,9 +340,13 @@ export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCard
       left: `${left} ${left === 1 ? "step" : "steps"} left`,
       start: {
         // Said as it is: nothing answers yet; WhatsApp answers and calls do not; or calls are answered and a step is open.
-        name: !vm.readiness.answering ? words.notAnswering : vm.tryIt?.voice ? words.answering : words.callsNotAnswered,
-        sentence: def.lead,
-        status: words.next(def.name),
+        name: def.name,
+        sentence: words.then(stepsAfter(fr)) ?? def.lead,
+        status: !vm.readiness.answering
+          ? words.notAnswering
+          : vm.tryIt?.voice
+            ? words.answering
+            : words.callsNotAnswered,
         cta: words.startCta,
         ctaShort: words.startShort,
         to: FIRST_RUN_ROUTE,

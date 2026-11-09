@@ -71,6 +71,7 @@ export type { MediaVM } from "./message-media";
 export {
   clipAtWord,
   draftSendsAtMs,
+  failedWayOf,
   failureWordsOf,
   heldDraftOf,
   isHeldDraft,

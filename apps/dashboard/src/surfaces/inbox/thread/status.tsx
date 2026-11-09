@@ -20,6 +20,7 @@ import { Notice } from "../../kit/notice/notice";
 import { ixMoveOf } from "../rules";
 import { gate, navigate, useToast } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
+import { CallAfter, CallBackPress, callWaits } from "../call-back/call-after";
 import { ixDockDials } from "./band";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
 import { IxWhy } from "./send-words";
@@ -388,12 +389,7 @@ function holdWhy(thread: Thread): ReactNode {
 function takeAct(p: DockProps, thread: Thread): ReactNode {
   const { onTakeOver } = p;
   if (thread.holdAct === "hand_back") return null;
-  if (ixDockDials(thread))
-    return (
-      <Button size="sm" href={`tel:${thread.phone}`} onClick={() => onTakeOver(thread.id)} data-testid="ix-call-back">
-        <Icon name="phone" size={12} /> Call back
-      </Button>
-    );
+  if (ixDockDials(thread)) return <CallBackPress thread={thread} onTakeOver={onTakeOver} />;
   if (thread.primaryChannel === "phone")
     return (
       <Button size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve", "take over a conversation")}>
@@ -572,7 +568,8 @@ function needsYouState(p: DockProps, thread: Thread) {
       // Why it was held, a press away, where the box holds no draft whose own Why this? says what it read, and no card says
       // what was asked.
       source={drafted || card ? null : holdWhy(thread)}
-      line
+      // Three presses stand under the words: beside them the words had a finger's width.
+      line={!callWaits(thread, ixDockDials(thread))}
       acts={acts}
     />
   );
@@ -783,6 +780,7 @@ export const ThreadStatus = (props: StatusProps) => {
 
       {snoozedBar(p)}
 
+      <CallAfter thread={p.thread} onHandBack={p.onHandBack} />
       {escalatedBar(p)}
       {p.thread.real && p.thread.setAside ? <SetAsideBar thread={p.thread} /> : handledBar(p)}
       {yoursBar(p)}

@@ -174,12 +174,19 @@ export function OlderGroup({
   const [open, setOpen] = useRowState("today-older", "open", false);
   const [only] = rows;
   return (
-    <NeedYouGroup title={W.group.old} count={null} pane={!!ctx.phone} bare={bare} testid="today-group-old">
+    <NeedYouGroup title={W.group.old} count={null} bare={bare} testid="today-group-old">
       {only && rows.length === 1 && !handed ? (
         <OlderPerson row={only} ctx={ctx} />
       ) : (
         <>
-          <OlderSummary rows={rows} ctx={ctx} handed={handed} onHanded={onHanded} onOpen={() => setOpen(!open)} />
+          <OlderSummary
+            rows={rows}
+            ctx={ctx}
+            handed={handed}
+            onHanded={onHanded}
+            // On a phone it walks them, one by one, as its own walk (his call D7); a desk opens them in place.
+            onOpen={() => (ctx.phone && only ? ctx.open(only.id) : setOpen(!open))}
+          />
           {open && !handed ? rows.map((r) => <OlderPerson key={r.id} row={r} ctx={ctx} />) : null}
         </>
       )}

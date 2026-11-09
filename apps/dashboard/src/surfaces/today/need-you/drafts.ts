@@ -79,10 +79,10 @@ export function draftViewNow(w: DraftWant): ReplyDraftView {
  * The call the drafts make (POST conversations/[id]/draft): a member's change, or their Try again, kept by the edge on the
  * row every page hears. The reads shared in flight are kept: nothing else a page reads moves with a draft.
  */
-const postDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction?: string) =>
+const postDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction?: string, given?: string) =>
   api()("POST conversations/[id]/draft", {
     params: { id: w.conversationId },
-    body: { kind: w.kind, ...(instruction ? { instruction } : {}) },
+    body: { kind: w.kind, ...(instruction ? { instruction } : {}), ...(instruction && given?.trim() ? { given } : {}) },
     refresh: "behind",
     keepsReads: true,
   });
@@ -94,11 +94,12 @@ const postDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction?: 
 async function askAgain(
   w: Pick<DraftWant, "conversationId" | "kind">,
   instruction?: string,
+  given?: string,
 ): Promise<{ ok: true; words: string } | { ok: false; why: string }> {
   const key = draftKeyOf(w);
   rewriting.add(key);
   tellDrafts();
-  const r = await postDraft(w, instruction).catch(() => null);
+  const r = await postDraft(w, instruction, given).catch(() => null);
   rewriting.delete(key);
   if (r && r.ok) heldRows.set(key, r.data);
   tellDrafts();
@@ -106,9 +107,9 @@ async function askAgain(
   return { ok: false, why: (r && !r.ok && r.message) || NEED_YOU_WORDS.couldNot };
 }
 
-/** A member's change to the draft (Rewrite, Change it with Ask): the new words stand in every row that reads it. */
-export const rewriteDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction: string) =>
-  askAgain(w, instruction);
+/** What is said to Ask about a draft, with the words on the screen: the new words stand in every row that reads it. */
+export const rewriteDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction: string, given?: string) =>
+  askAgain(w, instruction, given);
 
 /** A draft that could not be written, asked for again. */
 export const tryDraftAgain = (w: Pick<DraftWant, "conversationId" | "kind">) => askAgain(w);

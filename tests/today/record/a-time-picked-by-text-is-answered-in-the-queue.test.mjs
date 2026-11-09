@@ -10,7 +10,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { BOOKING_REQUEST_WORDS, NEED_YOU_WORDS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
+import { SEND_GRACE_MS, toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { NOW, ZONE, metrics, waiting } from "./_world.mjs";
 import { until } from "../../shared/_until.mjs";
@@ -30,10 +30,11 @@ installStubReact({
 });
 const W = globalThis.window;
 const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
-const { RequestWork } = await import("../../../apps/dashboard/src/surfaces/today/need-you/call-work.tsx");
+const { RequestWork } = await import("../../../apps/dashboard/src/surfaces/today/need-you/sheet/request-work.tsx");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 // What a row came to is kept by the row for the visit (need-you/row-state.ts): each test here is a visit of its own.
 const { clearRowStates } = await import("../../../apps/dashboard/src/surfaces/today/need-you/row-state.ts");
+const { clearSend } = await import("../../../apps/dashboard/src/surfaces/today/need-you/sends.ts");
 
 const ASKED = "Asked for Sat, Sep 19, 2:00 PM · Balayage";
 /** Ana picked a time by text; the receptionist held it for the owner. Her WhatsApp window is open: she wrote a minute ago. */
@@ -56,7 +57,7 @@ const requestDay = () =>
   );
 after(() => setSurfaceValue("today", undefined));
 
-test("the hold is a row that says what they asked for, answered with Booked it and Can't, the thread its door", () => {
+test("the hold is a row that says what they asked for, answered with Confirm and send or Another time, the thread its door", () => {
   const vm = requestDay();
   const [row] = vm.queue.rows;
   assert.deepEqual(
@@ -71,9 +72,13 @@ test("the hold is a row that says what they asked for, answered with Booked it a
   const first = byTestId(tree, "queue-handoff");
   assert.ok(textOf(first).includes(ASKED), textOf(first));
   const button = (words) => all(first, (n) => n.type === "button" && textOf(n).trim() === words);
-  assert.equal(button("Booked it").length, 1);
-  assert.equal(button("Can't").length, 1);
-  assert.equal(button("Booked it")[0].props["aria-label"], "Booked it: Ana Reyes", "a reader hears whose");
+  assert.equal(button("Confirm and send").length, 1);
+  assert.equal(button("Another time").length, 1);
+  assert.equal(
+    button("Confirm and send")[0].props["aria-label"],
+    "Confirm and send: Ana Reyes",
+    "a reader hears whose",
+  );
   // The row is not one button now that it holds its own presses: its words open the thread.
   assert.equal(first.props.onClick, undefined);
   find(first, (n) => classes(n).includes("cl-attn-body")).props.onClick();
@@ -82,7 +87,7 @@ test("the hold is a row that says what they asked for, answered with Booked it a
 
 /* ------------------------------------------ the row's work, pressed ------------------------------------------ */
 
-const CONFIRM = "You're booked for Saturday, September 19 at 2:00 PM for a Balayage.";
+const CONFIRM = "Confirmed, see you then.";
 /** What the booking request's door was asked, and what it answers next. Reads behind a write fail here: not this file's. */
 const doors = [];
 let doorSays;
@@ -100,6 +105,7 @@ const work = () =>
     row: requestDay().queue.rows[0],
     main: "primary",
     may: true,
+    whole: true,
     tz: ZONE,
     flash: (f) => flashes.push(f),
     keep: (r) => kept.push(r.id),
@@ -116,56 +122,71 @@ const reset = () => {
   flashes.length = 0;
   went.length = 0;
   doorSays = () => answered(CONFIRM);
+  clearSend("q-e-a");
   clearRowStates();
   fresh();
 };
 
-test("Booked it answers through the door and lays the confirmation it drafts in the row, to send or not; a second press waits", async () => {
+test("Confirm and send asks no door until the grace has run, then says yes and tells them, in that order", async (t) => {
   reset();
-  let release;
-  doorSays = () => new Promise((resolve) => (release = () => resolve(answered(CONFIRM))));
-  press(buttonsIn(work(), "Booked it")[0]);
-  await until(() => doors.length === 1, "the door was asked");
-  assert.deepEqual(doors, [["POST", "/api/v1/conversations/cv-a/booking-request", { booked: true }]]);
-  assert.deepEqual(kept, ["q-e-a"], "kept in its place on the card before the door answers");
-  const asking = again(work);
-  assert.equal(buttonsIn(asking, "Booked it")[0].props.disabled, true, "a second press waits for the first");
-  assert.equal(buttonsIn(asking, "Can't")[0].props.disabled, true);
-  release();
-  // The confirmation stands in the row's words, typed in where they stand (the refined canvas, 31 Oct 2026): its box's
-  // value, under a head that says what it is and whose.
-  const typed = (tree) =>
-    find(tree, (n) => n.props?.["aria-label"] === NEED_YOU_WORDS.yourWords("Ana Reyes"))?.props.value;
-  await until(() => typed(again(work)) === CONFIRM, "the confirmation is drafted in the row");
-  const drafted = again(work);
-  assert.ok(textOf(drafted).includes("Confirmation · Ask's draft"), textOf(drafted));
-  assert.equal(buttonsIn(drafted, "Send").length, 1, "sent from the row, through the reply's door");
-  assert.deepEqual(went, [], "the row keeps it: no trip to the thread");
-  press(buttonsIn(drafted, "Don't send")[0]);
-  assert.ok(textOf(again(work)).includes(BOOKING_REQUEST_WORDS.said.booked("Ana Reyes")), "not sent: what was done");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    press(buttonsIn(work(), "Confirm and send")[0]);
+    assert.deepEqual(doors, [], "nothing said to anyone while Undo still means it never happened");
+    assert.deepEqual(kept, ["q-e-a"], "kept in its place while it counts down");
+    assert.equal(buttonsIn(again(work), "Undo").length, 1, "Undo, in its place");
+    t.mock.timers.tick(SEND_GRACE_MS);
+  } finally {
+    t.mock.timers.reset();
+  }
+  await until(() => doors.length === 2, "both doors were asked");
+  assert.deepEqual(doors, [
+    ["POST", "/api/v1/conversations/cv-a/booking-request", { booked: true }],
+    ["POST", "/api/v1/conversations/cv-a/reply", { text: CONFIRM }],
+  ]);
+  await until(() => textOf(again(work)).includes("Booked for"), "and it says so");
 });
 
-test("Can't says the thread waits on their reply; a refusal is the door's own sentence and the row still asks", async () => {
+test("Undo inside the grace: nothing was said, the row asks again, and a refusal is the door's own sentence", async (t) => {
   reset();
-  doorSays = () => answered(null);
-  press(buttonsIn(work(), "Can't")[0]);
-  await until(
-    () => textOf(again(work)).includes(BOOKING_REQUEST_WORDS.said.cant("Ana Reyes")),
-    "Can't is said in the row",
-  );
-  assert.deepEqual(doors, [["POST", "/api/v1/conversations/cv-a/booking-request", { booked: false }]]);
-  assert.equal(buttonsIn(again(work), "Send").length, 0, "nothing drafted to send");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    press(buttonsIn(work(), "Confirm and send")[0]);
+    press(buttonsIn(again(work), "Undo")[0]);
+    await Promise.resolve();
+    t.mock.timers.tick(SEND_GRACE_MS);
+  } finally {
+    t.mock.timers.reset();
+  }
+  await until(() => kept.length === 0, "the row is let go");
+  assert.deepEqual(doors, [], "REGRESSION: Undo that said yes anyway");
 
   reset();
   doorSays = () => ({
     status: 409,
     body: { ok: false, error: { code: "conflict", message: "It was answered already." } },
   });
-  press(buttonsIn(work(), "Booked it")[0]);
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    press(buttonsIn(work(), "Confirm and send")[0]);
+    t.mock.timers.tick(SEND_GRACE_MS);
+  } finally {
+    t.mock.timers.reset();
+  }
   await until(() => flashes.length > 0, "the refusal is said");
   assert.equal(flashes.at(-1).tone, "danger");
   assert.equal(textOf(flashes.at(-1).msg), "It was answered already.");
-  const still = again(work);
-  assert.equal(buttonsIn(still, "Booked it").length, 1, "refused: the row still asks");
-  assert.equal(buttonsIn(still, "Booked it")[0].props.disabled, false);
+  assert.deepEqual(kept, [], "and the row still asks");
+  await until(() => buttonsIn(again(work), "Confirm and send").length === 1, "its press stands again");
+});
+
+test("Another time offers what is open, and goes back to the time they asked for", async () => {
+  reset();
+  press(buttonsIn(work(), "Another time")[0]);
+  const other = again(work);
+  assert.ok(textOf(other).includes("Another day"), `and the Calendar for any other: ${textOf(other)}`);
+  assert.ok(textOf(other).includes("has gone, sorry") || textOf(other).includes("What they'll get"), textOf(other));
+  press(buttonsIn(other, "Back")[0]);
+  assert.equal(buttonsIn(again(work), "Confirm and send").length, 1, "back to what they asked for");
+  assert.deepEqual(doors, [], "nothing said");
 });

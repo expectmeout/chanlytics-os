@@ -19,7 +19,8 @@
  * reader of a thumb), following the finger, and its handle says so; it is as tall as what it holds, up to its cap, and
  * its height glides as what it holds changes (motion/use-height-glide). A record's sheet may instead have two rests on a
  * phone (`rest`, rests.ts: the lead workbench's pile): one height, standing down at half and whole at full, its handle a
- * button between them and a pull moving it, from half down to close. The kit writes none of the rest by hand.
+ * button between them and a pull moving it, from half down to close, and its half may fit what it holds (use-fit-rest.ts).
+ * The kit writes none of the rest by hand.
  *
  * Open is the page's (`open`), and so is closed: `onClose` asks, and the page answers by setting `open`, so a page
  * that asks first about what was typed, or holds a save that is out, keeps it open. It is drawn in a portal on the
@@ -38,6 +39,7 @@ import { cx } from "../variants";
 import { useBackCloses } from "./back";
 import { SheetHandle, type SheetRestControl } from "./handle";
 import { restSwipe } from "./rests";
+import { useFitRest } from "./use-fit-rest";
 
 /** A step inside a job: the way back to the one it came from, named for a screen reader, its glyph drawn. */
 export type SheetBack = { label: string; glyph: ReactElement; onBack: () => void };
@@ -81,12 +83,14 @@ type SheetShape =
        */
       footCloses?: boolean;
       /**
-       * Two rests on a phone (kit.css "Two rests", rests.ts): at half it stands down by the rule's length, what it holds
-       * first over the page and its foot held still at the screen's foot; at full it stands whole. Where it stands is the
-       * page's (`at`), and `onRest` asks to move it: the handle is a button that turns it, named by `turn`, and a pull
-       * moves it, from half down to close. On a desk it is the side pane, and has none.
+       * Two rests on a phone (kit.css "Two rests", rests.ts): at half it stands down by the rule's length, or with `fit`
+       * as tall as what it holds, what it holds first over the page and its foot held still at the screen's foot; at full
+       * it stands whole. Where it stands is the page's (`at`), and `onRest` asks to move it: the handle is a button that
+       * turns it, named by `turn`, and a pull moves it, from half down to close. On a desk it is the side pane, and has none.
        */
       rest?: SheetRestControl;
+      /** The foot is its presses alone on the sheet's ground, no pill round them (kit.css "A flat foot"). */
+      flatFoot?: boolean;
       back?: undefined;
     }
   | {
@@ -102,6 +106,7 @@ type SheetShape =
       toolsInLine?: undefined;
       footCloses?: undefined;
       rest?: undefined;
+      flatFoot?: undefined;
     };
 
 /** A sheet: whether it is open, what asks it to close, its head, what it holds, and its shape's parts. */
@@ -205,7 +210,7 @@ function recordParts(p: SheetProps & { shape?: "record" }) {
       </header>
       {p.tools && !p.toolsInLine ? <div className="rec-sheet-tools">{p.tools}</div> : null}
       <div className="rec-sheet-body">{p.children}</div>
-      {p.foot ? <footer className="rec-sheet-foot">{p.foot}</footer> : null}
+      {p.foot ? <footer className={cx("rec-sheet-foot", p.flatFoot && "rec-sheet-foot-flat")}>{p.foot}</footer> : null}
     </>
   );
 }
@@ -253,15 +258,17 @@ export function Sheet(props: SheetProps) {
     return self.current && at instanceof HTMLElement && self.current.contains(at) ? at : self.current;
   }, []);
   const glide = useHeightGlide();
-  // The sheet as it is on the page, for its own focus, its height's glide, and the page's ref.
+  const fitRest = useFitRest(!!shown.rest?.fit);
+  // The sheet as it is on the page, for its own focus, its height's glide, its first rest, and the page's ref.
   const place = useCallback(
     (el: HTMLElement | null) => {
       self.current = el;
       glide(el);
+      fitRest(el);
       if (typeof ref === "function") ref(el);
       else if (ref) ref.current = el;
     },
-    [ref, glide],
+    [ref, glide, fitRest],
   );
   return (
     <Dialog.Root
@@ -282,6 +289,7 @@ export function Sheet(props: SheetProps) {
           data-foot-closes={shown.footCloses ? "true" : undefined}
           data-fit={shown.fit ? "true" : undefined}
           data-rest={shown.rest ? shown.rest.at : undefined}
+          data-rest-fit={shown.rest?.fit ? "true" : undefined}
           data-testid={testid}
           {...(shown.rest
             ? restSwipe({ rest: shown.rest.at, onRest: shown.rest.onRest, onClose, when: onAPhone })

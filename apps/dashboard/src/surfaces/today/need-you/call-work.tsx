@@ -1,112 +1,119 @@
 /**
- * The rows of Need you that are not a reply to write (decision 0071, E6), each with what Ask prepared and its follow
- * through in the row: a call back (Ask's brief, Call from the member's own phone, then how it went: Reached hands the
- * thread back to the receptionist, its hold resolved, and No answer puts a call on tomorrow's steps); a time picked by
- * text (Booked it, and the confirmation it drafts sent from the row); a step due (Done, or Not now, which moves its day).
- * Yesterday's visit is visit-work.tsx's.
+ * The rows of Need you that are not a reply to write (decision 0071; one sheet, 9 Nov 2026). A call back: what they want, their
+ * real call to hear or read, and what the record holds of them, no model's notes about any of it (his call D13); the coral reads
+ * the clock (his call D6); and how it went after the call, with what to remember kept on their page. A step due: the job, what
+ * was last said, and what to write, which becomes its message (his call D10); Done, or Not now, which moves its day. Yesterday's
+ * visit is visit-work.tsx's, a time asked for by text request-work.tsx's.
  */
-import { useState, type ReactNode } from "react";
-import {
-  BOOKING_REQUEST_WORDS,
-  NEED_YOU_OLD_MS,
-  NEED_YOU_WORDS as W,
-  NOTE_WORDS,
-  callDays,
-  stepDays,
-  type TodayQueueRowVM,
-} from "@chanlytics/contracts";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { NEED_YOU_OLD_MS, NEED_YOU_WORDS as W, callDays, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
-import { answerRequest } from "../../booking-request";
-import { Button } from "../../kit";
-import { appNavigate, gate } from "../shell";
+import { Button, Segmented } from "../../kit";
+import { Icon } from "../../kit/icon/icon";
+import type { PeopleSurface } from "../../people/surface";
+import { appNavigate, borrowed, gate } from "../shell";
 import { useDraft } from "./drafts";
-import { Acts, BriefBox, Done, Note, NotNow, Writing, type WorkProps } from "./parts";
-import { ReplyWork, useMarkDone, useNotNow, type Snoozed } from "./reply-work";
+import { Acts, Done, Note, NotNow, State, Words, startKind, type WorkProps } from "./parts";
+import { useMarkDone, useNotNow, type Snoozed } from "./row-verbs";
+import { SayToAsk } from "./sheet/ask-line";
+import { callMomentOf, callWhoOf } from "./sheet/moment";
+import { openClockOf } from "./sheet/reads";
 import { useRowState } from "./row-state";
+import { Said } from "./sheet/said";
 
-/** How the call went, asked once it was made: reached them, no answer, or it was never made. Called, not drawn. */
-function howItWent(presses: { onReached: () => void; onNoAnswer: () => void; onDidNot: () => void }) {
+/** How the call went, once it was made. */
+type Went = "reached" | "no_answer" | "didnt";
+
+/** What the record holds of a caller, in a line: when they were last here and when they are next, or that this is their first. */
+function recordOf(personId: string | null): string | null {
+  if (!personId) return W.call.firstTime;
+  const person = borrowed<PeopleSurface>("__PEOPLE")?.rows.find((r) => r.id === personId);
+  if (!person) return null;
+  const parts = [
+    person.lastVisit ? W.call.lastHere(person.lastVisit) : "",
+    person.nextVisit ? W.call.nextHere(person.nextVisit) : "",
+  ].filter(Boolean);
+  return parts.join(" ") || W.call.neverHere;
+}
+
+/** The call itself: its press to hear it where it was kept, how long, and the door to read it. */
+function CallRow({
+  call,
+  who,
+  to,
+  tz,
+}: {
+  call: NonNullable<TodayQueueRowVM["call"]>;
+  who: string;
+  to: string;
+  tz: string;
+}) {
+  const [playing, setPlaying] = useState(false);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => () => audio.current?.pause(), []);
+  const play = () => {
+    if (!audio.current) {
+      const href = window.__href ? window.__href("GET calls/[id]/recording", { id: call.id }) : null;
+      if (!href) return;
+      audio.current = new Audio(href);
+      audio.current.onended = () => setPlaying(false);
+      audio.current.onerror = () => setPlaying(false);
+    }
+    if (playing) audio.current.pause();
+    else void audio.current.play();
+    setPlaying(!playing);
+  };
   return (
-    <>
-      <Note>{W.call.how}</Note>
-      <div className="ny-picks">
-        <Button onClick={presses.onReached} {...gate("approve", "hand the thread back")}>
-          {W.call.reached}
+    <div className="ny-callrow">
+      {call.recorded ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          iconOnly
+          className="ny-play"
+          aria-label={playing ? W.call.pause : W.call.play}
+          onClick={play}
+        >
+          <Icon name={playing ? "pause" : "play"} size={13} />
         </Button>
-        <Button onClick={presses.onNoAnswer} {...gate("approve", "set a step")}>
-          {W.call.noAnswer}
-        </Button>
-        <Button variant="quiet" onClick={presses.onDidNot}>
-          {W.call.didNot}
-        </Button>
-      </div>
-    </>
+      ) : null}
+      <span className="ny-callrow-words">
+        <b>{W.call.theirCall(who)}</b>
+        <span>{W.call.whenLong(call.at_ms, call.duration_ms, tz)}</span>
+      </span>
+      <Button variant="quiet" size="text" onClick={() => appNavigate(to)}>
+        {W.call.readIt}
+        <Icon name="chevron" size={11} />
+      </Button>
+    </div>
   );
 }
 
-/**
- * A call's presses. Past a week its note says to let it go if it is nothing to you, so letting it go leads, and Call is the
- * quiet one beside it (8 Nov 2026: the note said mark it done over a coral Call, with Mark done under Not now). Called, not
- * drawn.
- */
-function callActs(acts: {
-  row: TodayQueueRowVM;
-  main: WorkProps["main"];
-  foot: WorkProps["foot"];
-  notNow: ReactNode;
-  mark: (() => void) | null;
-  onCall: () => void;
-}) {
-  const { row, main, foot } = acts;
-  const press = (variant: WorkProps["main"] | "quiet") =>
-    row.phone ? (
-      <Button variant={variant} href={`tel:${row.phone}`} onClick={acts.onCall}>
-        {W.call.call}
-      </Button>
-    ) : (
-      <Button variant={variant} onClick={() => appNavigate(row.cta.to)}>
-        {W.open}
-      </Button>
-    );
-  if (acts.mark && row.waitedMs >= NEED_YOU_OLD_MS)
-    return (
-      <Acts
-        foot={foot}
-        start={press("quiet")}
-        end={
-          <Button variant={main} onClick={acts.mark}>
-            {W.oldDone.yes}
-          </Button>
-        }
-      />
-    );
-  return <Acts foot={foot} start={acts.notNow} end={press(main)} />;
-}
-
-/** One that has waited past a week says first it may be let go. Called, not drawn. */
-const staleNote = (waitedMs: number) => (waitedMs >= NEED_YOU_OLD_MS ? <Note>{W.staleCall}</Note> : null);
-
-/** A call back: Ask's brief, Call, then how it went. One that has waited past a week says first it may be let go. */
-export function CallWork(p: WorkProps) {
-  const { row, main, may, tz, flash, keep, unkeep } = p;
+/** Whether this call reads as someone selling to the business, not a customer: the one thing a model is still asked of a call. */
+function useSelling(row: TodayQueueRowVM): { selling: boolean; what: string | null } {
   const want =
     row.conversationId && row.writes
       ? {
           conversationId: row.conversationId,
           kind: "brief" as const,
           forMessageId: row.writes.for_message_id,
-          expected: true,
+          expected: false,
           askedAtMs: row.writes.for_message_at_ms ?? null,
         }
       : null;
-  const draft = useDraft(want);
+  const read = useDraft(want);
+  return read?.state === "pitch" ? { selling: true, what: read.what } : { selling: false, what: null };
+}
+
+/** A call back's own doing: how it went, once it was made, and what each answer does; what to remember, on their page. */
+function useCallAfter(p: WorkProps, notNow: ReturnType<typeof useNotNow>) {
+  const { row, tz, flash, keep, unkeep } = p;
   // Kept by the row, not by this part: the sheet on a phone draws the same row's work after the page does (row-state.ts).
   const [phase, setPhase] = useRowState<"idle" | "how" | "reached" | "again">(row.id, "phase", "idle");
+  const [went, setWent] = useRowState<Went>(row.id, "went", "reached");
+  const [note, setNote] = useRowState<string>(row.id, "note", "");
   const [undoOf, setUndoOf] = useRowState<Record<string, unknown> | null>(row.id, "undo", null);
-  const [snoozed, setSnoozed] = useRowState<Snoozed | null>(row.id, "snoozed", null);
-  const notNow = useNotNow(p, setSnoozed);
-  const marked = useMarkDone(p);
-
+  const [saving, setSaving] = useState(false);
   // Reached: the call did what they asked, so the thread goes back to the receptionist and its hold resolves with it
   // (core handBack, one transaction); a resolve alone left the thread the team's, still counted as waiting on you.
   const reached = async () => {
@@ -152,217 +159,230 @@ export function CallWork(p: WorkProps) {
     setPhase("how");
     unkeep(row);
   };
+  /** What they said to remember, on their page: a note, for the team alone. */
+  const remember = async (words: string) => {
+    if (!row.person_id) {
+      flash({ tone: "warn", msg: <>{W.call.noPage}</> });
+      return false;
+    }
+    const r = await commitVerb("note", { contact_id: row.person_id, body: words, team_only: true, who: row.who });
+    if (!r.ok) {
+      flash({ tone: "danger", msg: <>{r.message}</> });
+      return false;
+    }
+    setNote([note, words].filter(Boolean).join(" "));
+    return true;
+  };
+  const finish = async () => {
+    setSaving(true);
+    if (went === "reached") await reached();
+    else if (went === "no_answer") await again();
+    else setPhase("idle");
+    setSaving(false);
+  };
+  return { phase, setPhase, went, setWent, note, undoOf, saving, undoReached, undoAgain, remember, finish };
+}
 
+/** How the call went, asked once it was made, with what to remember. Called, not drawn. */
+function howItWent(p: WorkProps, after: ReturnType<typeof useCallAfter>) {
+  const { row, main, may } = p;
+  return (
+    <>
+      <State>{W.call.how}</State>
+      <Segmented
+        label={W.call.how}
+        value={after.went}
+        onValueChange={(v: Went) => after.setWent(v)}
+        options={[
+          { value: "reached", label: W.call.reached },
+          { value: "no_answer", label: W.call.noAnswer },
+          { value: "didnt", label: W.call.didNot },
+        ]}
+      />
+      {after.note ? <Words label={W.call.onTheirPage} text={after.note} who={row.who} onChange={null} /> : null}
+      {may ? (
+        <SayToAsk placeholder={after.note ? W.call.rememberMore : W.call.remember} onSay={after.remember} />
+      ) : null}
+      <Acts
+        foot={p.foot}
+        end={
+          <Button
+            variant={main}
+            disabled={after.saving}
+            aria-busy={after.saving || undefined}
+            onClick={() => void after.finish()}
+            {...gate("approve", "say how the call went")}
+          >
+            {W.done}
+          </Button>
+        }
+      />
+    </>
+  );
+}
+
+/** A call's presses, by what the moment asks (his call D6). Called, not drawn. */
+function callActsOf(
+  p: WorkProps,
+  moment: ReturnType<typeof callMomentOf>,
+  a: { notNow: ReturnType<typeof useNotNow>; marked: ReturnType<typeof useMarkDone>; onCall: () => void },
+) {
+  const { row, main, may } = p;
+  const { notNow, marked, onCall } = a;
+  const quiet = startKind(p.foot);
+  const call = (variant: WorkProps["main"] | "quiet" | "secondary", label: string, phone = true) => (
+    <Button variant={variant} href={`tel:${row.phone ?? ""}`} onClick={onCall}>
+      {phone ? <Icon name="phone" size={15} /> : null}
+      {label}
+    </Button>
+  );
+  const notNowPress: ReactNode =
+    row.conversationId && may ? (
+      <NotNow
+        who={row.who}
+        choices={notNow.choices}
+        caption={W.backSooner(row.who)}
+        onOpen={notNow.fresh}
+        onChoose={(i) => void notNow.choose(i)}
+        busy={notNow.busy}
+        markDone={marked.mark}
+        foot={p.foot}
+      />
+    ) : null;
+  if (moment.lead === "open")
+    return (
+      <Acts
+        foot={p.foot}
+        start={notNowPress}
+        end={
+          <Button variant={main} onClick={() => appNavigate(row.cta.to)}>
+            {W.open}
+          </Button>
+        }
+      />
+    );
+  if (moment.lead === "mark")
+    return (
+      <Acts
+        foot={p.foot}
+        start={call(quiet, W.call.callAnyway, false)}
+        end={
+          marked.mark ? (
+            <Button variant={main} onClick={marked.mark}>
+              {W.oldDone.yes}
+            </Button>
+          ) : null
+        }
+      />
+    );
+  if (moment.lead === "wait")
+    return (
+      <Acts
+        foot={p.foot}
+        start={call(quiet, W.call.callNow, false)}
+        end={
+          <Button
+            variant={main}
+            disabled={notNow.busy}
+            onClick={() => void notNow.until(moment.until, moment.back.replace(/^Back /, ""))}
+          >
+            {moment.back}
+          </Button>
+        }
+      />
+    );
+  return <Acts foot={p.foot} start={notNowPress} end={call(main, W.call.callWho(callWhoOf(row.who)))} />;
+}
+
+/** What a call back came to, where it has come to something. Called, not drawn. */
+function callEnded(
+  p: WorkProps,
+  a: {
+    marked: ReturnType<typeof useMarkDone>;
+    snoozed: Snoozed | null;
+    setSnoozed: (s: Snoozed | null) => void;
+    after: ReturnType<typeof useCallAfter>;
+  },
+): ReactNode {
+  const { row, unkeep } = p;
+  const { marked, snoozed, after } = a;
   if (marked.done)
-    return <Done words={W.oldDone.done(1)} detail={W.oldDone.detail} act={{ label: W.undo, onPress: marked.undo }} />;
+    return (
+      <Done
+        words={W.oldDone.done(1)}
+        detail={W.oldDone.detail}
+        act={{ label: W.undo, onPress: marked.undo }}
+        foot={p.foot}
+      />
+    );
   if (snoozed)
     return (
       <Done
         tone="rest"
         words={W.notNow}
         detail={W.back(snoozed.back)}
+        foot={p.foot}
         act={{
           label: W.wake,
           onPress: () =>
             void undoVerb("thread_verb", snoozed.record).then((r) => {
               if (!r.ok) return;
-              setSnoozed(null);
+              a.setSnoozed(null);
               unkeep(row);
             }),
         }}
       />
     );
-  if (phase === "reached")
+  if (after.phase === "reached")
     return (
       <Done
         tone="ok"
         words={W.call.reachedDone}
-        act={undoOf ? { label: W.undo, onPress: () => void undoReached() } : null}
-      />
-    );
-  if (phase === "again")
-    return (
-      <Done tone="rest" words={W.call.again} act={undoOf ? { label: W.undo, onPress: () => void undoAgain() } : null} />
-    );
-  if (phase === "how")
-    return howItWent({
-      onReached: () => void reached(),
-      onNoAnswer: () => void again(),
-      onDidNot: () => setPhase("idle"),
-    });
-  return (
-    <>
-      {staleNote(row.waitedMs)}
-      {draft?.state === "ready" && draft.draft.words.brief ? (
-        <BriefBox brief={draft.draft.words.brief} onRead={p.read} />
-      ) : draft?.state === "writing" ? (
-        <Writing />
-      ) : null}
-      {callActs({
-        row,
-        main,
-        foot: p.foot,
-        mark: marked.mark,
-        onCall: () => setPhase("how"),
-        notNow:
-          row.conversationId && may ? (
-            <NotNow
-              who={row.who}
-              choices={notNow.choices}
-              caption={W.backSooner(row.who)}
-              onOpen={notNow.fresh}
-              onChoose={(i) => void notNow.choose(i)}
-              busy={notNow.busy}
-              markDone={marked.mark}
-            />
-          ) : null,
-      })}
-    </>
-  );
-}
-
-/** A time the customer picked by text: Booked it, and the confirmation it drafts, sent from the row; or Can't. */
-export function RequestWork(p: WorkProps) {
-  const { row, main, may, flash, keep, unkeep } = p;
-  const [said, setSaid] = useRowState<{ booked: boolean; reply: string | null; receipt: string } | null>(
-    row.id,
-    "said",
-    null,
-  );
-  const [busy, setBusy] = useState(false);
-  const answer = async (booked: boolean) => {
-    if (!row.request) return;
-    setBusy(true);
-    keep(row);
-    const r = await answerRequest(row.request.conversationId, booked, row.who);
-    setBusy(false);
-    if (!r.ok) {
-      unkeep(row);
-      return flash({ tone: "danger", msg: <>{r.message}</> });
-    }
-    setSaid({ booked, reply: r.reply, receipt: r.receipt });
-  };
-  if (said?.booked && said.reply)
-    return (
-      <ReplyWork
-        {...p}
-        row={{ ...row, prepared: said.reply }}
-        what={W.booked.confirmation}
-        start={
-          <Button variant="quiet" onClick={() => setSaid({ ...said, reply: null })}>
-            {W.booked.dontSend}
-          </Button>
-        }
-      />
-    );
-  if (said) return <Done words={said.receipt} />;
-  return (
-    <Acts
-      foot={p.foot}
-      start={
-        <Button
-          variant="quiet"
-          onClick={() => void answer(false)}
-          disabled={busy}
-          data-testid="queue-request-cant"
-          {...gate("approve", BOOKING_REQUEST_WORDS.gate)}
-          aria-label={`${BOOKING_REQUEST_WORDS.cant_it}: ${row.who}`}
-        >
-          {BOOKING_REQUEST_WORDS.cant_it}
-        </Button>
-      }
-      end={
-        <Button
-          variant={main}
-          onClick={() => void answer(true)}
-          disabled={busy || !may}
-          aria-busy={busy || undefined}
-          data-testid="queue-request-booked"
-          {...gate("approve", BOOKING_REQUEST_WORDS.gate)}
-          aria-label={`${BOOKING_REQUEST_WORDS.booked_it}: ${row.who}`}
-        >
-          {BOOKING_REQUEST_WORDS.booked_it}
-        </Button>
-      }
-    />
-  );
-}
-
-/** A step due: Done (the page's own, with its toast and Undo), or Not now, which moves its day. */
-export function StepWork(p: WorkProps & { onDone: () => void }) {
-  const { row, main, may, tz, keep, unkeep } = p;
-  // Kept by the row, not by this part: the walk's sheet and the page's row say the same (row-state.ts).
-  const [moved, setMoved] = useRowState<string | null>(row.id, "moved", null);
-  const [refused, setRefused] = useRowState<string | null>(row.id, "refused", null);
-  // The days as they stand when the menu opens (its trigger's press), and again at the press that moves it: a Today left
-  // open past midnight offers, and writes, the new day's.
-  const [at, setAt] = useState(() => Date.now());
-  const daysAt = (ms: number) => stepDays(ms, tz).filter((d) => d.key !== "pick" && d.label !== "Today");
-  const days = daysAt(at);
-  // The step's day, moved through the note's own edit, as People's step sheet moves it (its author's to change): its words
-  // and whom it is for sent as they are, since the door sets both from what it is sent; only the day differs. Undo moves it
-  // back to today, where it was due. A refusal (a step a teammate wrote) is said in the row.
-  const dueOn = async (key: string) =>
-    row.step
-      ? commitVerb("note", {
-          contact_id: row.step.person_id,
-          note_id: row.step.note_id,
-          body: row.sentence,
-          for_user_id: row.step.for_user_id,
-          team_only: true,
-          due_on: key,
-          who: row.who,
-        })
-      : null;
-  const move = async (i: number) => {
-    const d = daysAt(Date.now()).find((x) => x.label === days[i]?.label) ?? days[i];
-    if (!d) return;
-    setRefused(null);
-    keep(row);
-    const r = await dueOn(d.key);
-    if (r && !r.ok) {
-      unkeep(row);
-      return setRefused(r.message);
-    }
-    if (r) setMoved(d.title);
-  };
-  const back = async () => {
-    const today = stepDays(Date.now(), tz).find((d) => d.label === "Today");
-    const r = today ? await dueOn(today.key) : null;
-    if (r && !r.ok) return setRefused(r.message);
-    if (r) setMoved(null);
-  };
-  if (moved)
-    return <Done tone="rest" words={W.step.moved(moved)} act={{ label: W.undo, onPress: () => void back() }} />;
-  return (
-    <>
-      {refused ? <Note tone="danger">{refused}</Note> : null}
-      <Acts
         foot={p.foot}
-        start={
-          may ? (
-            <NotNow
-              who={row.who}
-              label={W.step.moveFor}
-              choices={days.map((d) => ({ label: d.label, when: d.title }))}
-              caption={null}
-              onOpen={() => setAt(Date.now())}
-              onChoose={(i) => void move(i)}
-            />
-          ) : null
-        }
-        end={
-          // Several rows say Done: a reader hears whose, as the thread header's does (NOTE_WORDS.markDone).
-          <Button
-            variant={main}
-            onClick={p.onDone}
-            {...gate("approve", "mark a step done")}
-            aria-label={NOTE_WORDS.markDone(row.sentence)}
-          >
-            {row.cta.label}
-          </Button>
-        }
+        act={after.undoOf ? { label: W.undo, onPress: () => void after.undoReached() } : null}
       />
+    );
+  if (after.phase === "again")
+    return (
+      <Done
+        tone="rest"
+        words={W.call.again}
+        foot={p.foot}
+        act={after.undoOf ? { label: W.undo, onPress: () => void after.undoAgain() } : null}
+      />
+    );
+  return after.phase === "how" ? howItWent(p, after) : null;
+}
+
+/** A call back: what they want, their call, their record, the press the moment asks for, then how it went. */
+export function CallWork(p: WorkProps) {
+  const { row, tz } = p;
+  const { selling } = useSelling(row);
+  const [snoozed, setSnoozed] = useRowState<Snoozed | null>(row.id, "snoozed", null);
+  const notNow = useNotNow(p, setSnoozed);
+  const marked = useMarkDone(p);
+  const after = useCallAfter(p, notNow);
+  const ended = callEnded(p, { marked, snoozed, setSnoozed, after });
+  if (ended) return ended;
+  const moment = callMomentOf(row, { nowMs: Date.now(), tz, open: openClockOf(), selling });
+  const acts = callActsOf(p, moment, { notNow, marked, onCall: () => after.setPhase("how") });
+  // A phone's Up next says the row's words above it, and its one press: the sheet holds the rest.
+  if (!p.whole) return acts;
+  const old = row.waitedMs >= NEED_YOU_OLD_MS;
+  const record = recordOf(row.person_id);
+  return (
+    <>
+      <State small={old ? W.staleCall : null}>{row.sentence}</State>
+      {selling ? <Note tone="warn">{W.call.selling}</Note> : null}
+      {row.call ? <CallRow call={row.call} who={row.who} to={row.cta.to} tz={tz} /> : null}
+      {record ? (
+        <div className="ny-record">
+          <span>{W.call.onRecord}</span>
+          <span>{record}</span>
+        </div>
+      ) : null}
+      {p.pulled ? <Said row={row} pulled /> : null}
+      {acts}
     </>
   );
 }

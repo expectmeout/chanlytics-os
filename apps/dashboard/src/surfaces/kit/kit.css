@@ -4659,6 +4659,24 @@ a.list-row {
     transition: none;
   }
 }
+/* A two-rest sheet fitted to what it holds (Sheet's `rest.fit`; one sheet, 9 Nov 2026): it is read and answered on, so its ground
+   is solid, where the glass let the page's rows and its coral read through the words; and its head runs into what it holds. */
+.sheet.sheet-rests[data-rest-fit] {
+  background-color: var(--surface-pop-fill);
+  backdrop-filter: none;
+}
+.sheet.sheet-rests[data-rest-fit] > .rec-sheet-head {
+  padding-bottom: var(--space-2);
+  border-bottom: 0;
+}
+.sheet.sheet-rests[data-rest-fit] > .rec-sheet-body {
+  --rec-gutter: var(--space-4);
+}
+.sheet.sheet-rests[data-rest-fit] .rec-sheet-sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 
 /* ---------- Sub-tabs — a page's own sub-menu ----------
    The few ways to cut the list a page shows (the Inbox's buckets, Conversations' channels), as small text tabs on a line,
@@ -5687,6 +5705,19 @@ a.list-row {
 footer.rec-sheet-foot .btn {
   height: var(--control-h-lg);
   padding: 0 16px;
+}
+/* A flat foot (Sheet's `flatFoot`; one sheet, 9 Nov 2026): its presses alone on the sheet's own ground, a quiet one sized by its
+   word and the page's act taking the rest of the width, where a pill round them read as a bar in a box. */
+.rec-sheet-foot.rec-sheet-foot-flat {
+  margin: 0;
+  padding: var(--space-2) var(--space-3)
+    calc(var(--space-3) + max(0px, env(safe-area-inset-bottom, 0px) - var(--sheet-foot, 0px)));
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.rec-sheet-foot.rec-sheet-foot-flat::before {
+  display: none;
 }
 /* A foot of acts alone, no line of words beside them (`data-foot-acts`: a step's Take away, Send me a test and Edit; a
    lead's step's Take this step out and Done): one inset all round, so its acts stand as far from the rim at either end.

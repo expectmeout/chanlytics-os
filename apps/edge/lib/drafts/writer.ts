@@ -21,15 +21,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   describeNow,
-  DRAFT_BRIEF_RULES,
-  DRAFT_BRIEF_SCHEMA,
-  DRAFT_MAX_TOKENS,
+  CALL_SELLING_MAX_TOKENS,
+  CALL_SELLING_RULES,
+  CALL_SELLING_SCHEMA,
+  callSellingOf,
   DRAFT_USED_WORDS,
-  draftBriefOf,
   draftHeadroomSpent,
   draftRefusal,
   replyOfferSteer,
   fenced,
+  frameDraftChange,
   frameSteer,
   namesMoney,
   NO_FOLLOW_UP_TIME,
@@ -41,6 +42,7 @@ import {
   replySubject,
   replyTextOf,
   resolveSystemPrompt,
+  SECOND_MS,
   tokenBudgetSpent,
   tokenCapOf,
   type PromptWire,
@@ -57,6 +59,7 @@ import { layerTwo, type BriefWritten, type ReplyDraftAsk, type ReplyWritten } fr
 import type { ReplyDraftEdge } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
+import { findOpenings } from "../calendar/availability.js";
 import { askJson, promptHashOf } from "../ai/model.js";
 import { brainCallOf, generateReply } from "../ai/receptionist-brain.js";
 import { recordTokens, getTokensLast24h } from "../ai/budget.js";
@@ -149,11 +152,23 @@ async function noteOf(
   }
 }
 
-/** A member's change: the words they keep, as data, and what they asked. Told to the brain as a steer is. */
-const changeOf = (given: string | null, instruction: string): string =>
-  [given ? `Your last draft said:\n${fenced("reply", given)}` : null, frameSteer(instruction)]
-    .filter(Boolean)
-    .join("\n\n");
+/** A member's change: the words they keep, as data, what they asked, and what is open, so "offer my next two" can be done. */
+const changeOf = (given: string | null, frame: string, open: string | null): string =>
+  [given ? `Your last draft said:\n${fenced("reply", given)}` : null, frame, open].filter(Boolean).join("\n\n");
+
+/** How long a change waits on the calendar before it is written without its open times. */
+const OPENINGS_MS = 4 * SECOND_MS;
+
+/** What is open on the calendar as a change is asked (his call D9, 9 Nov 2026); nothing where it cannot say in time. */
+async function openingsForChange(rt: TenantRuntime, at: Date, tenantId: TenantId): Promise<string | null> {
+  try {
+    const open = await inTime(findOpenings(rt, "chat", at), OPENINGS_MS);
+    return open ? `What is open on the business's calendar right now, if they ask you to offer times:\n${open}` : null;
+  } catch (e) {
+    logger({ tenant_id: tenantId }).warn("reply_draft", { openings: "unavailable", error: errField(e) });
+    return null;
+  }
+}
 
 /** What the prompt was handed of the workspace and the thread, as Why this? says it. */
 function usedOf(rt: TenantRuntime, wire: string, turns: number, notes: boolean): string[] {
@@ -236,6 +251,23 @@ const noWords = (r: { reason?: string; text: string }): boolean =>
 const instructionOf = (ask: ReplyDraftAsk, rt: TenantRuntime): string | null =>
   ask.answersLead ? replyOfferSteer(rt.replyOffer) : ask.instruction;
 
+/**
+ * What the brain is asked to change, and what it was given to say. Only the member's own words are theirs to give figures in, and
+ * only those get the open times: an answer to a lead steered by Settings stays a steer.
+ */
+async function changeAsked(
+  rt: TenantRuntime,
+  at: Date,
+  tenantId: TenantId,
+  ask: ReplyDraftAsk,
+): Promise<{ change: string | undefined; given: string | null }> {
+  const instruction = instructionOf(ask, rt);
+  if (!instruction) return { change: undefined, given: null };
+  const open = ask.instruction ? await openingsForChange(rt, at, tenantId) : null;
+  const frame = ask.instruction ? frameDraftChange(ask.instruction) : frameSteer(instruction);
+  return { change: changeOf(ask.given, frame, open), given: [instruction, ask.given ?? ""].join("\n") };
+}
+
 async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftAsk): Promise<ReplyWritten> {
   const { db, brain, now } = writing;
   const log = logger({ tenant_id: tenantId });
@@ -254,9 +286,7 @@ async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
   const at = new Date(now());
   const wire: PromptWire = ask.wire;
   const system = resolveSystemPrompt(brainConfig, wire, rt.timezone, at, rt.policy, rt.known, "draft");
-  const instruction = instructionOf(ask, rt);
-  const change = instruction ? changeOf(ask.given, instruction) : undefined;
-  const given = instruction ? [instruction, ask.given ?? ""].join("\n") : null;
+  const { change, given } = await changeAsked(rt, at, tenantId, ask);
   const askBrain = async (steer: string | undefined) => {
     const ms = ask.deadline - now();
     if (ms <= 0) throw new Error("reply_draft: no time left for the receptionist");
@@ -327,47 +357,33 @@ async function writeBrief(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
   };
   const gate = await readied(writing, tenantId, ask);
   if ("why" in gate) return said(gate.why);
-  const { rt, brainConfig } = gate;
+  const { rt } = gate;
   const ms = ask.deadline - now();
   if (ms <= 0) throw new Error("reply_draft: no time left for the brief");
   const thread = await readThreadState(db, tenantId, ask.conversationId, null, BRIEF_TURNS);
-  const { note, notes } = await noteOf(db, tenantId, rt, ask);
-  const at = new Date(now());
-  const system = [
-    resolveSystemPrompt(brainConfig, "voice", rt.timezone, at, rt.policy, rt.known, "draft"),
-    ...DRAFT_BRIEF_RULES,
-  ].join("\n");
   const turns = thread.history
     .map((t) => `${t.role === "user" ? "They said" : "We said"}: ${t.content.slice(0, BRIEF_TURN_CHARS)}`)
     .join("\n");
   const answered = await askJson({
     purpose: "reply_draft",
-    system,
+    system: CALL_SELLING_RULES,
     user: [
-      describeNow(rt.timezone, at, brainConfig.profile?.closures),
-      note ?? null,
       ask.holdDetails ? `What the receptionist left for the call:\n${fenced("record", ask.holdDetails)}` : null,
-      turns ? `What has been said:\n${fenced("record", turns)}` : null,
-      ask.instruction ? frameSteer(ask.instruction) : null,
+      turns ? `What was said:\n${fenced("record", turns)}` : null,
     ]
       .filter(Boolean)
       .join("\n\n"),
-    schema: DRAFT_BRIEF_SCHEMA,
-    maxTokens: DRAFT_MAX_TOKENS,
+    schema: CALL_SELLING_SCHEMA,
+    maxTokens: CALL_SELLING_MAX_TOKENS,
     plainJsonHint: ANSWER_JSON_ONLY,
     timeoutMs: ms,
     signal: AbortSignal.timeout(ms),
-    for: { tenantId, subjectId: ask.conversationId, promptHash: promptHashOf(system) },
+    for: { tenantId, subjectId: ask.conversationId, promptHash: promptHashOf(CALL_SELLING_RULES) },
   });
-  const brief = draftBriefOf(answered?.answer);
-  if (!brief) return said("not_drafted");
-  const words = [brief.opening, ...brief.points, brief.ask].join("\n");
-  if (moneyRefused(words, { rt, brain: brainConfig, at }, ask.instruction ?? null)) {
-    log.warn("policy_block_price", { conversation: ask.conversationId });
-    return said("named_money");
-  }
+  if (!answered) return said("not_drafted");
+  const selling = callSellingOf(answered.answer);
   log.info("reply_draft", { conversation: ask.conversationId, source: ask.source, drafted: true, kind: "brief" });
-  return { brief, used: usedOf(rt, "voice", thread.history.length, notes) };
+  return { selling, used: usedOf(rt, "voice", thread.history.length, false) };
 }
 
 /** The writer over this database. The tests give their own brain and clock. */

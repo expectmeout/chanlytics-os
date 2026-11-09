@@ -113,11 +113,11 @@ test("an old call's note says to mark it done, so Mark done leads and Call is th
   const [r] = rowsDrawn(draw(NeedYou)).filter((n) => testidOf(n) === "queue-older");
   r.props.onOpen();
   const open = again(() => W.React.createElement(NeedYou, {}));
-  const presses = all(open, (n) => n.props?.variant && ["Mark done", "Call"].includes(textOf(n)));
+  const presses = all(open, (n) => n.props?.variant && ["Mark done", "Call anyway"].includes(textOf(n)));
   assert.deepEqual(
     presses.map((n) => [textOf(n), n.props.variant === "quiet"]),
     [
-      ["Call", true],
+      ["Call anyway", true],
       ["Mark done", false],
     ],
     "REGRESSION: the note said mark it done over a coral Call, with Mark done under Not now",
