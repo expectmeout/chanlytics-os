@@ -184,7 +184,7 @@ opens the thread it names.
 
 Five kinds of head stood on one page: a small label outside the card on Need you's groups and a title inside the others, and at
 their right a pill under one card over a divider, a word and an arrow in another, a chevron in a third. Now every section, on a
-phone and a desk, has one head (`zones/zone-head.tsx`, `tz-head`): its name, one quiet fact, and at its right edge one press. A
+phone and a desk, has one head (`zones/section-door.tsx`, `tz-head`): its name, one quiet fact, and at its right edge one press. A
 word and › goes to a page; a chevron, with a word where it says more, opens here. On a phone each of Need you's groups keeps its
 own pane and holds its head inside it: the first holds `Inbox ›`, and one that could not hold all it has holds `See all ›`, so
 nothing stands under the list. How many were done today moves to the head's sentence there. The page's last line, "That's

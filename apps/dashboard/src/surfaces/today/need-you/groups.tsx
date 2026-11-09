@@ -32,7 +32,7 @@ export function NeedYouGroup({
   children: ReactNode;
 }) {
   const id = useId();
-  // On a phone it is a card, with the head every card has (zone-head.tsx); on a desk a small head over rows in one pane.
+  // On a phone it is a card, with the head every card has (section-door.tsx); on a desk a small head over rows in one pane.
   const head = bare ? null : (
     <div className={pane ? "ny-group-head tz-head" : "ny-group-head"}>
       <span className={pane ? "ny-group-title tz-name" : "ny-group-title"} id={id}>

@@ -34,7 +34,7 @@
   }
 }
 
-/* ---- One head for every section (zone-head.tsx): its name, one quiet fact, and at its right edge one press. 58px tall on a
+/* ---- One head for every section (section-door.tsx): its name, one quiet fact, and at its right edge one press. 58px tall on a
    desk, 44 on a phone. ---- */
 .dash-a-v2 .tz-head,
 .dash-a-v2 .today-queue .tq-head {

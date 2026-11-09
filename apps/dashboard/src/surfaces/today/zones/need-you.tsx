@@ -51,7 +51,7 @@ import { useTodayOnPhone } from "../phone";
 import { keptWith, keptWithout, withKept, type Kept } from "./kept";
 import { useToDoRows, type ToDoRows } from "./to-do";
 import { queueHoldsCoral, zoneDrawn } from "../queue-coral";
-import { zoneDoor } from "./zone-head";
+import { sectionDoor } from "./section-door";
 import { appNavigate, canDo, doorGlyph, surfaceFailed, useMoved, useToast, workspaceClock } from "../shell";
 import { useTodayWord } from "./day-vm";
 
@@ -171,7 +171,7 @@ function needYouHead(door: { to: string; label: string }, done: number) {
           {W.doneToday(done)}
         </span>
       ) : null}
-      {zoneDoor(door.to, door.label, "today-queue-door")}
+      {sectionDoor(door.to, door.label, "today-queue-door")}
     </div>
   );
 }
@@ -195,8 +195,8 @@ const groupEnds =
   (phone: boolean, first: GroupKey, door: { to: string; label: string }) =>
   (key: GroupKey, cut: number, to = "inbox"): ReactNode => {
     if (!phone) return null;
-    if (cut > 0) return zoneDoor(to, W.seeAll);
-    return key === first ? zoneDoor(door.to, door.label, "today-queue-door") : null;
+    if (cut > 0) return sectionDoor(to, W.seeAll);
+    return key === first ? sectionDoor(door.to, door.label, "today-queue-door") : null;
   };
 
 /** The old rows handed back this visit, kept for the visit with what they came to: the next read has none of them. */
@@ -215,9 +215,15 @@ const QUIET: VerbKind = () => "ghost";
  * once all are. Called, not drawn; a group with no rows is null.
  */
 function groupsAbove(
-  groups: NeedYouGroups<TodayQueueRowVM>,
-  drawn: Drawn,
-  runs: { drawn: readonly ReactElement[]; count: number; cut: number },
+  {
+    groups,
+    drawn,
+    runs,
+  }: {
+    groups: NeedYouGroups<TodayQueueRowVM>;
+    drawn: Drawn;
+    runs: { drawn: readonly ReactElement[]; count: number; cut: number };
+  },
   ctx: NeedYouRowsCtx,
   endOf: (key: GroupKey, cut: number) => ReactNode,
 ) {
@@ -443,7 +449,7 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   };
   const door = listDoorOf(groups.next.length + groups.waiting.length, runs.count);
   const endOf = groupEnds(phone, firstGroupOf(drawn, runs), door);
-  const above = groupsAbove(groups, drawn, runs, ctx, endOf);
+  const above = groupsAbove({ groups, drawn, runs }, ctx, endOf);
   // Every row above To do has asked for its act by now: whether one took the coral, which To do hears.
   const holds = coral.taken();
   const todo = useToDoRows({ cap: NEED_YOU_CAPS.todo, queueHolds: holds });

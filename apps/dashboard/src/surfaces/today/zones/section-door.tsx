@@ -9,7 +9,7 @@ import { routeDoor } from "../../frame-verbs";
 import { doorGlyph } from "../shell";
 
 /** The door at the right of a section's head. Called, not drawn. */
-export function zoneDoor(to: string, label: string, testid?: string) {
+export function sectionDoor(to: string, label: string, testid?: string) {
   return (
     <a className="tz-door" {...routeDoor(to)} data-testid={testid}>
       {label}

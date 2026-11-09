@@ -45,7 +45,7 @@ import { usePartShown, useSurface } from "../../use-surface";
 import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
 import { TODAY_HELPERS } from "../helpers";
 import { useTodayOnPhone } from "../phone";
-import { zoneDoor } from "./zone-head";
+import { sectionDoor } from "./section-door";
 import { borrowed, canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
 import { useDayVm } from "./day-vm";
 
@@ -362,7 +362,7 @@ function dayHead(title: string, note: string) {
           {note}
         </span>
       ) : null}
-      {zoneDoor("calendar", P.calendar)}
+      {sectionDoor("calendar", P.calendar)}
     </div>
   );
 }

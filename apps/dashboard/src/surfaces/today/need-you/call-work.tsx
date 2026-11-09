@@ -49,7 +49,7 @@ function howItWent(presses: { onReached: () => void; onNoAnswer: () => void; onD
  * quiet one beside it (8 Nov 2026: the note said mark it done over a coral Call, with Mark done under Not now). Called, not
  * drawn.
  */
-function callActs(p: {
+function callActs(acts: {
   row: TodayQueueRowVM;
   main: WorkProps["main"];
   foot: WorkProps["foot"];
@@ -57,10 +57,10 @@ function callActs(p: {
   mark: (() => void) | null;
   onCall: () => void;
 }) {
-  const { row, main, foot } = p;
+  const { row, main, foot } = acts;
   const press = (variant: WorkProps["main"] | "quiet") =>
     row.phone ? (
-      <Button variant={variant} href={`tel:${row.phone}`} onClick={p.onCall}>
+      <Button variant={variant} href={`tel:${row.phone}`} onClick={acts.onCall}>
         {W.call.call}
       </Button>
     ) : (
@@ -68,19 +68,19 @@ function callActs(p: {
         {W.open}
       </Button>
     );
-  if (p.mark && row.waitedMs >= NEED_YOU_OLD_MS)
+  if (acts.mark && row.waitedMs >= NEED_YOU_OLD_MS)
     return (
       <Acts
         foot={foot}
         start={press("quiet")}
         end={
-          <Button variant={main} onClick={p.mark}>
+          <Button variant={main} onClick={acts.mark}>
             {W.oldDone.yes}
           </Button>
         }
       />
     );
-  return <Acts foot={foot} start={p.notNow} end={press(main)} />;
+  return <Acts foot={foot} start={acts.notNow} end={press(main)} />;
 }
 
 /** One that has waited past a week says first it may be let go. Called, not drawn. */
