@@ -121,9 +121,9 @@ async function placeCanary(cfg: CanaryConfig): Promise<Response> {
     return refuse(503, "read_failed");
   }
   // Only a workspace of ours is ever rung: its owner's notices are the platform's, never a customer's.
-  if (!line.ours) return refuse(409, "voice_canary_unset", "the canary's workspace must be one of ours (tenants.ours)");
+  if (!line.ours) return refuse(503, "voice_canary_unset", "the canary's workspace must be one of ours (tenants.ours)");
   if (!line.e164)
-    return refuse(409, "voice_canary_unset", "the canary's workspace has no line its receptionist answers");
+    return refuse(503, "voice_canary_unset", "the canary's workspace has no line its receptionist answers");
   if (recent.call) return refuse(409, "voice_canary_too_soon", "a canary call was placed in the last half hour");
   const placed = await createPhoneCall(
     { apiKey: cfg.apiKey },

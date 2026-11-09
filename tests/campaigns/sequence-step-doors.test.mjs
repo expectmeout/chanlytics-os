@@ -133,7 +133,7 @@ const writesOf = (db) => db.seen.filter((q) => q.rpc === "sequence_step_save" ||
 async function refused(p, words) {
   await assert.rejects(p, (e) => {
     assert.equal(e.name, "AppError", e.message);
-    assert.deepEqual([e.code, e.status, e.message], ["validation", 422, words]);
+    assert.deepEqual([e.code, e.status, e.message], ["validation", 400, words]);
     return true;
   });
 }

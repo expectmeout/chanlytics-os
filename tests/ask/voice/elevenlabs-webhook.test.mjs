@@ -208,10 +208,7 @@ test("without the webhook's secret this edge has no such door (404), and with no
   const saved = process.env.ELEVENLABS_WEBHOOK_SECRET;
   delete process.env.ELEVENLABS_WEBHOOK_SECRET;
   try {
-    assert.deepEqual(await answer(await deliver(event(), { secret: saved })), [
-      404,
-      { ok: false, error: "no_provider_key" },
-    ]);
+    assert.deepEqual(await answer(await deliver(event(), { secret: saved })), [404, { ok: false, error: "not_found" }]);
   } finally {
     process.env.ELEVENLABS_WEBHOOK_SECRET = saved;
   }

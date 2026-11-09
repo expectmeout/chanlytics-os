@@ -31,7 +31,7 @@ import { isMissingDoor } from "@chanlytics/db/shared";
 import type { Member } from "@/server/shared/route";
 import { saveReachOutEmail } from "@/server/campaigns/reach-outs/reach-outs";
 import { serviceDb } from "@/server/shared/service-db";
-import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import { dbRefusal, type RouteContext, isFaultCode } from "@/server/shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -339,9 +339,9 @@ export async function fileStarterVersions(
       out.push({
         channel,
         status: "failed",
-        // The door's own words when it refused; a fault (which dbRefusal answers as "internal") is no one's to read.
+        // The door's own words when it refused; a fault (which dbRefusal answers as "unavailable") is no one's to read.
         detail:
-          error instanceof AppError && error.code !== "internal"
+          error instanceof AppError && !isFaultCode(error.code)
             ? error.message
             : "The version could not be saved. Add the set again to retry.",
       });

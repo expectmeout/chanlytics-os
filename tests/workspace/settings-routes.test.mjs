@@ -1053,7 +1053,7 @@ test("lines: searching, retrying and forwarding are the owner's; each body is ju
   );
   await refused(
     search.POST.run(send("POST", { area_code: 305 }, inB), ctxFor(tables, {}, rpcs)),
-    "internal",
+    "upstream_provider",
     502,
     "no_edge_credential",
   );

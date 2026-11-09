@@ -103,7 +103,7 @@ export async function saveBusinessRecord(ctx: RouteContext, req: Request, member
   if (answer.status === 503 && typeof result.error === "string" && result.error === "preview")
     throw new AppError("conflict", "Saving the business on record only works on the production dashboard.", 409);
   if (answer.status !== 200)
-    throw new AppError("internal", "The record could not be saved. Try again in a moment.", 502);
+    throw new AppError("upstream_provider", "The record could not be saved. Try again in a moment.");
   // What the save moved and what the carriers hold of it, from the edge's answer: null from an edge deployed before it
   // said (the wiring's second audit, X4-3).
   return { record: result.record ?? null, saved: recordSavedOf(result.record) };

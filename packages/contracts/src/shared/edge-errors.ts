@@ -121,6 +121,7 @@ export const EDGE_ERROR_CODES = [
   "not_rejected",
   "not_trialing",
   "nothing_to_answer",
+  "nothing_to_do",
   "number_ambiguous",
   "number_missing",
   "number_taken",

@@ -132,8 +132,8 @@ test("the key or nothing: a key made for another workspace, or none, is refused 
 
 test("a form with no way to reach them is refused, and one with a number nobody can dial is too", async () => {
   const [status, body] = await post({ ...REQUEST, phone: undefined });
-  assert.deepEqual([status, body.error], [422, "invalid"]);
-  assert.equal((await post({ ...REQUEST, phone: "12" }))[0], 422);
+  assert.deepEqual([status, body.error], [400, "invalid"]);
+  assert.equal((await post({ ...REQUEST, phone: "12" }))[0], 400);
   assert.equal(w.resolved.length, 0);
 });
 

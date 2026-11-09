@@ -44,7 +44,7 @@ const HISTORY_MAX = 12;
 /** The database the page's doors act through, or a refusal said as the page says a failure. */
 function dbOrFail() {
   const db = linkPageDb();
-  if (!db) throw new AppError("internal", W.failed, 503);
+  if (!db) throw new AppError("unavailable", W.failed);
   return db;
 }
 

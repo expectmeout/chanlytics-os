@@ -231,6 +231,6 @@ export async function askAgain(
     return json(200, { ok: true, asked: result.asked, why: result.asked ? null : result.why });
   } catch (e) {
     logger({ tenant_id: tenantId }).error("signup_confirm_failed", { step: "ask_again", error: errField(e) });
-    return refuse(502, "could_not_queue", "the confirmation could not be written");
+    return refuse(503, "could_not_queue", "the confirmation could not be written");
   }
 }

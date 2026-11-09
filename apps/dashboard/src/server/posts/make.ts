@@ -126,7 +126,7 @@ async function storeShapes(tenantId: TenantId, id: string, shapes: Record<PostSh
   if (!failed) return;
   log.error("file_post_store_failed", { tenant_id: tenantId, error: failed.error?.message ?? "" });
   await letShapesGo(tenantId, id);
-  throw new AppError("internal", W.notSaved, 503);
+  throw new AppError("unavailable", W.notSaved);
 }
 
 const letShapesGo = async (tenantId: TenantId, id: string): Promise<void> => {

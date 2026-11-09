@@ -195,7 +195,7 @@ function draftKept(answer: PersonDraftAnswer, known: DraftKnown, input: DraftInp
       ? [answer.opening, ...answer.points, answer.ask].join("\n")
       : `${answer.subject}\n${answer.text}`;
   const refused = unasked(sentence, given);
-  if (refused) throw new AppError("validation", NEW_CONVERSATION_WORDS.refusals[refused], 422);
+  if (refused) throw new AppError("validation", NEW_CONVERSATION_WORDS.refusals[refused]);
   const note = violatesNoPrices(answer.note) || namesMoney(answer.note) ? "" : answer.note.slice(0, PLAN_NOTE_MAX);
   return input.how === "call"
     ? {

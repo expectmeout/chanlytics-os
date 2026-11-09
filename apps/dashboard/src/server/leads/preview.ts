@@ -56,7 +56,7 @@ export async function makeLeadPreviewFor(ctx: Ctx, tenantId: TenantId, leadId: s
   if (answer.status !== 200) {
     const refused = MAKE_REFUSED[answer.status];
     const words = edgeRefusalWords(answer.body) ?? "Their preview couldn't be made just now.";
-    throw refused ? new AppError(refused.code, words, refused.status) : new AppError("internal", words, 503);
+    throw refused ? new AppError(refused.code, words, refused.status) : new AppError("unavailable", words);
   }
   return getLeadPreview(ctx, tenantId, leadId);
 }

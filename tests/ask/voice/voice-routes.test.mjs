@@ -281,7 +281,7 @@ test("the edge's no: a workspace that may not spend is 402 in the edge's words; 
   });
   await refused(voice.POST.run(send("POST", {}, inA), ctxFor(tables)), "upstream_voice", 503, "could not be reached");
   wired(() => json(200, { ok: true }));
-  await refused(voice.POST.run(send("POST", {}, inA), ctxFor(tables)), "upstream_voice", 502, "no token");
+  await refused(voice.POST.run(send("POST", {}, inA), ctxFor(tables)), "upstream_voice", 503, "no token");
   assert.deepEqual(
     [tables.ask_threads.length, tables.ask_voice_sessions.length],
     [0, 0],

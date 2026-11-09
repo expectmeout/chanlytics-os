@@ -150,7 +150,7 @@ test("takeRate, strict: the store's refusal is the route's 503; the chosen store
   try {
     setRateStore(failing);
     await assert.doesNotReject(() => takeRate("u1", "lines_buy", 5_000), "a plain take falls back and proceeds");
-    await assert.rejects(takeRate("u1", "lines_buy", 5_001, true), (e) => e.code === "internal" && e.status === 503);
+    await assert.rejects(takeRate("u1", "lines_buy", 5_001, true), (e) => e.code === "unavailable" && e.status === 503);
   } finally {
     setRateStore(null);
     log.restore();

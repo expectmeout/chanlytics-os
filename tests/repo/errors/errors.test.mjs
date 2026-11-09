@@ -5,8 +5,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import ts from "typescript";
+import { defaultStatuses, edgeRefusals, statusesOffTheirCode } from "../api/_api.mjs";
 import {
   across,
+  backendModules,
   droppedCausesIn,
   droppedCodesIn,
   quietCatchesIn,
@@ -145,6 +147,20 @@ test("no catch goes quiet without saying why", () => {
 
 test("no new error raised from a catch leaves the old one behind", () => {
   none(across(droppedCausesIn), "Keep it: throw causedBy(new AppError(...), e).");
+});
+
+test("every refusal answers its code's status, and every edge code one status", () => {
+  const defaults = defaultStatuses();
+  none(
+    across((sf) => statusesOffTheirCode(sf, defaults)),
+    "A code answers one status (contracts errors.ts DEFAULT_STATUS). A refusal that needs another status is another code.",
+  );
+  const edge = backendModules().filter((f) => f.startsWith("apps/edge/"));
+  assert.deepEqual(
+    [...edgeRefusals(edge)].filter(([, statuses]) => statuses.size > 1).map(([code]) => code),
+    [],
+    "One status for each edge code: the dashboard compares codes, and a code that means two statuses makes it read the status too.",
+  );
 });
 
 test("no reply's failure is raised without its code", () => {

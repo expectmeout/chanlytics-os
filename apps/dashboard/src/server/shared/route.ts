@@ -284,7 +284,7 @@ async function requestHashOf(req: Request, body: string): Promise<string> {
  * A write, answered once per key (decision 0035). A request that carries an Idempotency-Key claims it on
  * idempotency_keys before the write runs, under `req:` with the hash of the request, so the same request sent again
  * (a timeout pressed twice, a tab that retried) is given the first answer and changes nothing; the same key on another
- * request is refused, 422, since a client that reuses a key for a second intent would otherwise be told the first
+ * request is refused, 409, since a client that reuses a key for a second intent would otherwise be told the first
  * one's answer. An Ask card's write keeps its own prefix, `card:`, and no hash: a card approved from two tabs is one
  * write whatever each tab sent (the scorecard, 29 September: "a broadcast or playbook card approved in two tabs runs
  * twice"; bridge/ask commit.ts names the proposal id as the key and says it is Ask's). A request that arrives
@@ -314,11 +314,7 @@ async function onceForKey<O>(
   if (!claim.won) {
     const held = claim.held;
     if (held && (held.request_hash ?? "") !== requestHash) {
-      throw new AppError(
-        "conflict",
-        "This request's key was used for another request. Send it again as a new one.",
-        422,
-      );
+      throw new AppError("conflict", "This request's key was used for another request. Send it again as a new one.");
     }
     if (held?.response) return viaJson<O>(held.response);
     // Taken by the stamp it was read at, so of two requests that both read an abandoned claim exactly one takes it.

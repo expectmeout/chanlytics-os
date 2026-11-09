@@ -180,10 +180,10 @@ test("a refusal raised from a catch says in its line what went wrong underneath 
   const underneath = new Error(RAW);
   const a = await answer(
     withRoute(async () => {
-      throw causedBy(new AppError("internal", "Try again in a moment.", 503), underneath);
+      throw causedBy(new AppError("unavailable", "Try again in a moment."), underneath);
     }),
   );
-  assert.deepEqual(a.body.error, { code: "internal", message: "Try again in a moment." });
+  assert.deepEqual(a.body.error, { code: "unavailable", message: "Try again in a moment." });
   assert.equal(JSON.stringify(a.body).includes(RAW), false);
   assert.equal(a.lines.find((l) => l.event === "route_refused")?.cause, `Error: ${RAW}`);
 });
@@ -199,7 +199,7 @@ test("a bare raise (P0001) is answered as the route says, and only it", async ()
   assert.equal(denied.status, 403, "and who may not is forbidden");
 });
 
-test("anything else is a try-again: internal 503, the database's text in the log and never in the answer", async () => {
+test("anything else is a try-again: unavailable 503, the database's text in the log and never in the answer", async () => {
   for (const e of [
     { code: "57014", message: RAW },
     { code: "23514", message: 'new row for relation "contacts" violates check constraint "contacts_email_check"' },
@@ -208,7 +208,7 @@ test("anything else is a try-again: internal 503, the database's text in the log
   ]) {
     const a = await answer(throwing(e));
     assert.equal(a.status, 503, e.message);
-    assert.deepEqual(a.body.error, { code: "internal", message: "Something went wrong." }, e.message);
+    assert.deepEqual(a.body.error, { code: "unavailable", message: "Something went wrong." }, e.message);
     assert.equal(JSON.stringify(a.body).includes(e.message), false, "the raw text never reaches the browser");
     const logged = a.lines.find((l) => l.event === "db_failed");
     assert.ok(logged, `no db_failed line for ${e.message}`);
@@ -236,7 +236,7 @@ test("REGRESSION: one of the fifteen, whole: marking notifications seen through 
     });
   const a = await answer(notifications.PUT, { supabase, request: seen() });
   assert.equal(a.status, 503, JSON.stringify(a.body));
-  assert.deepEqual(a.body.error, { code: "internal", message: "Something went wrong." });
+  assert.deepEqual(a.body.error, { code: "unavailable", message: "Something went wrong." });
   assert.equal(a.lines.find((l) => l.event === "db_failed")?.error, RAW);
 
   const gone = fakeDb(

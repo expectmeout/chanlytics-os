@@ -229,7 +229,7 @@ test("a key it was not offered is never kept: who left for the owner, a first st
   assert.equal(out.who, null, "the owner picks who");
   assert.throws(
     () => draftKept(answer({ steps: [step({ message: "k9" })] }), KNOWN, LINE),
-    (e) => e.status === 422,
+    (e) => e.status === 400,
   );
   assert.throws(
     () => draftKept(answer({ steps: [], cannot: "Nothing here knows a birthday." }), KNOWN, LINE),
@@ -297,7 +297,7 @@ test("Ask writes a message where none fits: kept as the message door files it, u
   // A value New does not know is no message: the first step is refused.
   assert.throws(
     () => draftKept(answer({ steps: [step({ write: { ...write, whatsapp: "Hi {{pet name}}" } })] }), KNOWN, LINE),
-    (e) => e.status === 422,
+    (e) => e.status === 400,
   );
 });
 
@@ -323,7 +323,7 @@ test("a call or a note is the last step and never the first; one before a messag
   assert.ok(out.checks.some((c) => /Step 2 is yours/.test(c.words)));
   assert.throws(
     () => draftKept(answer({ steps: [step({ does: "note", words: "Send flowers" })] }), KNOWN, LINE),
-    (e) => e.status === 422,
+    (e) => e.status === 400,
   );
 });
 
@@ -1251,7 +1251,7 @@ test("words that break a cold email's rules are refused in words, never handed b
     answerWith(said);
     await assert.rejects(
       rewriteFrom(KNOWN, { ...FIRST, change: "Sharper" }, WHO),
-      (e) => e.status === 422 && e.message === LEAD_BUILD_WORDS.rewriteBroke,
+      (e) => e.status === 400 && e.message === LEAD_BUILD_WORDS.rewriteBroke,
       why,
     );
   }
@@ -1259,7 +1259,7 @@ test("words that break a cold email's rules are refused in words, never handed b
   answerWith({ subject: "", body: "", cannot: "Left out: “add a link”. A first email has no link." });
   await assert.rejects(
     rewriteFrom(KNOWN, { ...FIRST, change: "Add a link" }, WHO),
-    (e) => e.status === 422 && e.message === "Left out: “add a link”. A first email has no link.",
+    (e) => e.status === 400 && e.message === "Left out: “add a link”. A first email has no link.",
   );
 });
 
@@ -1267,7 +1267,7 @@ test("a first email keeps its opening: words that lost it are refused", async ()
   answerWith({ ...REWRITTEN, body: "We pick up every call. Worth a look?" });
   await assert.rejects(
     rewriteFrom(KNOWN, { ...FIRST, change: "Shorter" }, WHO),
-    (e) => e.status === 422 && e.message === LEAD_BUILD_WORDS.rewriteLostOpening,
+    (e) => e.status === 400 && e.message === LEAD_BUILD_WORDS.rewriteLostOpening,
   );
 });
 

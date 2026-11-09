@@ -179,7 +179,7 @@ test("GET lines/codes: an edge that could not read them is said in words, never 
   ]) {
     const w = edge(reply);
     try {
-      await refused(codes.GET.run(get(), ctxFor("owner")), "internal", 502, "could not be read");
+      await refused(codes.GET.run(get(), ctxFor("owner")), "upstream_provider", 502, "could not be read");
     } finally {
       w.restore();
     }

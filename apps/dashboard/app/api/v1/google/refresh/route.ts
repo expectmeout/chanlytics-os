@@ -21,11 +21,10 @@ export const POST = write({
     const read = body.read ?? null;
     if (answer.status !== 200 || body.ok !== true)
       throw new AppError(
-        "internal",
+        "upstream_provider",
         read?.error
           ? `Google could not be read: ${read.error}`
           : "Google could not be read. It will be tried again within the hour.",
-        502,
       );
     return { listing: body.listing ?? null, fresh: read?.fresh ?? 0, counted: read?.counted ?? 0 };
   },

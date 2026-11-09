@@ -152,7 +152,7 @@ export async function getPlatformWaitlistInvited(
     { act: "waitlist_invited", why: reason, tenantId: null, target: "waitlist", targetId: id },
     async () => {
       const { data, error } = await markWaitlistInvited(office.db, id, office.userId, new Date().toISOString());
-      if (error) throw new AppError("internal", NOT_RECORDED, 503);
+      if (error) throw new AppError("unavailable", NOT_RECORDED);
       return data && data.length > 0 ? ("marked" as const) : ("already" as const);
     },
     (out) => ({ outcome: "done", note: out === "already" ? "Someone had marked them already." : null }),
@@ -286,7 +286,7 @@ export async function runPlatformLineAct(
         by: office.userId,
         by_email: office.email,
       });
-      if (auditErr) throw new AppError("internal", NOT_RECORDED, 503);
+      if (auditErr) throw new AppError("unavailable", NOT_RECORDED);
       const answer = await callEdgeLines(EDGE_OP[action](tenantId, lineId), EDGE_LINES_TIMEOUT_MS);
       return { ok: answer.status === 200, status: answer.status, body: answer.body };
     },
@@ -332,7 +332,7 @@ function partnerVerbError(r: { code: string; message: string }): AppError {
   if (r.code === "22023") return new AppError("validation", r.message, 400);
   if (r.code === "P0002") return new AppError("not_found", r.message, 404);
   if (r.code === "42501") return new AppError("not_found", "No such page.", 404);
-  return new AppError("internal", NOT_RECORDED, 503);
+  return new AppError("unavailable", NOT_RECORDED);
 }
 
 /**
@@ -471,7 +471,7 @@ async function requeueOnce(
       by: office.userId,
       by_email: office.email,
     });
-    if (error) throw new AppError("internal", NOT_RECORDED, 503);
+    if (error) throw new AppError("unavailable", NOT_RECORDED);
   });
   switch (result.outcome) {
     case "requeued":

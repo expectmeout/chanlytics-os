@@ -182,9 +182,9 @@ function edgeRefusal(edgeAnswer: EdgeAnswer, doing: string): AppError {
   const detail = typeof body.detail === "string" && body.detail.trim() ? body.detail.trim() : null;
   switch (error) {
     case "preview":
-      return new AppError("upstream_email", "Mailboxes can't be connected or changed from a preview.", 503);
+      return new AppError("unavailable", "Mailboxes can't be connected or changed from a preview.");
     case "no_oauth_client" satisfies EdgeErrorCode:
-      return new AppError("upstream_email", "Connecting a mailbox isn't switched on here yet.", 503);
+      return new AppError("unavailable", "Connecting a mailbox isn't switched on here yet.");
     case "invalid" satisfies EdgeErrorCode:
       return new AppError("validation", (detail && SETTING_WORDS[detail]) || "That can't be saved.", 400);
     case "not_connected" satisfies EdgeErrorCode:
@@ -204,7 +204,7 @@ function edgeRefusal(edgeAnswer: EdgeAnswer, doing: string): AppError {
     case "not_found" satisfies EdgeErrorCode:
       return new AppError("not_found", "That mailbox isn't this workspace's.", 404);
     default:
-      return new AppError("internal", `The mailbox could not be ${doing}. Try again in a minute.`, 502);
+      return new AppError("upstream_provider", `The mailbox could not be ${doing}. Try again in a minute.`);
   }
 }
 
@@ -212,7 +212,7 @@ function edgeRefusal(edgeAnswer: EdgeAnswer, doing: string): AppError {
 function mailboxAnswered(a: MailboxAnswer, doing: string): MailboxConnectionDto {
   if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, doing);
   const m = a.body.mailbox;
-  if (!m) throw new AppError("internal", `The mailbox could not be ${doing}.`, 502);
+  if (!m) throw new AppError("upstream_provider", `The mailbox could not be ${doing}.`);
   return m;
 }
 

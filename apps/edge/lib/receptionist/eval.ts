@@ -212,7 +212,7 @@ export async function evaluateCases(
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const routed = await routedFor(db, tenantId);
-  if (routed === undefined) return refuse(500, "channel_read_failed");
+  if (routed === undefined) return refuse(503, "channel_read_failed");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
   // A lead's own receptionist nobody has made theirs answers only while previews are switched on (decision 0079): the

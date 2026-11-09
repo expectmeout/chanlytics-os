@@ -38,6 +38,11 @@ export const ERROR_CODES = [
   "upstream_auth",
   /** The voice agent's provider (ElevenLabs) could not be reached, refused, or is not set up on this deployment. */
   "upstream_voice",
+  /** A provider, or the edge asked on our behalf, refused or never answered; no provider named above says which. */
+  "upstream_provider",
+  /** It could not be done just now, and trying again may do it: a read or a write that failed, or what this deployment has not switched on. */
+  "unavailable",
+  /** Something failed that nothing here expected. */
   "internal",
 ] as const;
 
@@ -176,6 +181,8 @@ const DEFAULT_STATUS: Record<ErrorCode, number> = {
   upstream_email: 502,
   upstream_auth: 503,
   upstream_voice: 503,
+  upstream_provider: 502,
+  unavailable: 503,
   internal: 500,
 };
 

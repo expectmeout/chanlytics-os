@@ -228,7 +228,7 @@ test("storage that refuses the picture is said in the owner's words, and the doo
   const d = door(null);
   await refused(
     logo.PUT.run(send("PUT", { image: canvasPng().toString("base64") }), ctxFor({ memberships: membership() }, d.rpcs)),
-    "internal",
+    "unavailable",
     503,
     LOGO_WORDS.notSaved,
   );
@@ -353,7 +353,7 @@ test("an edge that did not answer, refused, or answered no look is said in the o
   ]) {
     const e = edge(answer);
     try {
-      await refused(look(), "internal", 502, LOGO_WORDS.lookFailed);
+      await refused(look(), "upstream_provider", 502, LOGO_WORDS.lookFailed);
     } finally {
       e.restore();
     }

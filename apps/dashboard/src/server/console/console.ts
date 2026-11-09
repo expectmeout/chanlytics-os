@@ -77,7 +77,7 @@ export async function readSide<T>(text: string, read: () => Promise<T>): Promise
 export async function claimConsole(office: BackOffice, tenantId: TenantId, take: boolean): Promise<ClaimDto | null> {
   if (!take) {
     const { error } = await letClaimGo(office.db, tenantId, office.userId);
-    if (error) throw new AppError("internal", "That could not be saved just now. Try again in a moment.", 503);
+    if (error) throw new AppError("unavailable", "That could not be saved just now. Try again in a moment.");
     return null;
   }
   const now = Date.now();
@@ -94,7 +94,7 @@ export async function claimConsole(office: BackOffice, tenantId: TenantId, take:
     throw new AppError("conflict", `${staffName(held.data?.email ?? null)} is on it already.`, 409);
   }
   if (error?.code === "23503") throw new AppError("not_found", "No such workspace.", 404);
-  if (error || !data) throw new AppError("internal", "That could not be saved just now. Try again in a moment.", 503);
+  if (error || !data) throw new AppError("unavailable", "That could not be saved just now. Try again in a moment.");
   return data;
 }
 
@@ -230,7 +230,7 @@ export async function findInConsole(office: BackOffice, query: string): Promise<
   const { data, error } = await findAcross(office.session, query);
   if (error) {
     if (error.code === "42501") throw new AppError("not_found", "No such page.", 404);
-    throw new AppError("internal", "Find could not search just now. Try again in a moment.", 503);
+    throw new AppError("unavailable", "Find could not search just now. Try again in a moment.");
   }
   return (data ?? [])
     .filter((r): r is typeof r & { kind: FindRowDto["kind"] } => isOneOf(FIND_KINDS, r.kind))

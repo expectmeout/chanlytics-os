@@ -225,14 +225,14 @@ test("a replay changes nothing: the id hits the primary key, the answer is 200, 
 test("an apply that fails gives the claim back, so Stripe's retry is not answered with its own half-finished attempt", async () => {
   // The dedupe row is written BEFORE the work it guards, which is what keeps
   // two concurrent deliveries of one event from both acting. It also meant a
-  // failed apply kept the claim: the 500 asked Stripe to try again, the retry
+  // failed apply kept the claim: the 503 asked Stripe to try again, the retry
   // read our own row and answered "duplicate", and the change — a pause, a
   // failed payment, a cancellation — was lost for good.
   const state = tables();
   const broken = fakeDb(state, { "billing_accounts.update": { message: "connection reset" } });
   setPg(broken);
   const failed = await deliver("customer.subscription.updated", sub({ status: "paused" }), "evt_retried");
-  assert.equal(failed.status, 500, "the write failed, so Stripe is asked to try again");
+  assert.equal(failed.status, 503, "the write failed, so Stripe is asked to try again");
   assert.deepEqual(state.billing_events, [], "and the claim is given back, not left standing");
   assert.ok(
     broken.seen.some((q) => q.table === "billing_events" && q.op === "delete"),
@@ -429,7 +429,7 @@ test("REGRESSION (S6-12): a pause whose bell could not be kept is not written: S
   setPg(db);
   subs.set("sub_1", sub({ status: "paused" }));
   const failed = await deliver("customer.subscription.paused", sub({ status: "paused" }), "evt_bell");
-  assert.equal(failed.status, 500, "the bell could not be kept, so Stripe is asked to try again");
+  assert.equal(failed.status, 503, "the bell could not be kept, so Stripe is asked to try again");
   assert.equal(state.billing_accounts[0].status, was, "and the row has not moved, so the retry plans the same change");
   assert.equal(state.tenants[0].status, "active");
   assert.deepEqual(state.billing_events, [], "the claim given back");
@@ -453,7 +453,7 @@ test("REGRESSION (S6-12): a declined card's bell that could not be kept is told 
   const faults = { "notifications.insert": { message: "connection reset" } };
   setPg(fakeDb(state, faults));
   const failed = await deliver("invoice.payment_failed", declined(), "evt_declined");
-  assert.equal(failed.status, 500, "REGRESSION: answered 200 with no bell, and Stripe never asked again");
+  assert.equal(failed.status, 503, "REGRESSION: answered 200 with no bell, and Stripe never asked again");
   assert.deepEqual(state.notifications, []);
   assert.deepEqual(state.events, [], "its event waits for the bell, so the retry writes neither twice");
   delete faults["notifications.insert"];
@@ -562,7 +562,7 @@ test("S6-11: a declined card is mailed once; a mail that failed is sent alone on
     const state = tables({ ...addressed(), billing_accounts: [row({ status: "past_due" })] });
     setPg(fakeDb(state));
     const failed = await deliver("invoice.payment_failed", declined(), "evt_declined_mail");
-    assert.equal(failed.status, 500, "the mail did not go, so Stripe is asked again");
+    assert.equal(failed.status, 503, "the mail did not go, so Stripe is asked again");
     assert.equal(state.notifications.length, 1, "the bell's row stays, its mail owed");
     assert.ok(state.notifications[0].mail_due_at);
     assert.deepEqual(state.events, [], "its event waits for the notice");
@@ -803,7 +803,7 @@ test("a delivery that failed before the amount gives its claim back and keeps no
   });
   setPg(broken);
   const failed = await deliver("invoice.paid", invoice({ amount_paid: 4900, currency: "usd" }), "evt_inv_retried");
-  assert.equal(failed.status, 500);
+  assert.equal(failed.status, 503);
   assert.deepEqual(door.kept, [], "the amount is the last statement: a delivery that did not get there kept none");
   assert.deepEqual(state.billing_events, [], "and the claim is given back");
 

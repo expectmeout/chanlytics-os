@@ -250,6 +250,6 @@ test("Undo goes to its own door and answers the opening the email stands with no
       email: "ada@example.com",
       params: { id: SEND },
     }),
-    (e) => e.code === "validation" && e.status === 422 && e.message === REACH_OUT_REFUSALS.nothingToUndo,
+    (e) => e.code === "validation" && e.status === 400 && e.message === REACH_OUT_REFUSALS.nothingToUndo,
   );
 });

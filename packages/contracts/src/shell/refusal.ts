@@ -88,6 +88,8 @@ const TITLES: ReadonlyMap<string, string> = new Map([
   ["upstream_email", "The email didn't go"],
   ["upstream_auth", "Couldn't check your sign-in"],
   ["internal", "Something went wrong"],
+  ["unavailable", "Something went wrong"],
+  ["upstream_provider", "Something went wrong"],
   ["network", "No connection"],
   ["timeout", "No answer in time"],
   ["client", "Not sent"],
@@ -199,6 +201,10 @@ export function sessionEnded(details: unknown): boolean {
   return !!details && typeof details === "object" && (details as { session_ended?: unknown }).session_ended === true;
 }
 
+/** The codes that say something failed and nothing a person wrote: each reads as `internal` reads. */
+const FAULTS: ReadonlySet<string> = new Set(["internal", "unavailable", "upstream_provider"]);
+const readAs = (code: string): string => (FAULTS.has(code) ? "internal" : code);
+
 export function refusalOf(input: RefusalInput): Refusal {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const sentence = typeof input.message === "string" ? input.message.trim() : "";
@@ -225,7 +231,7 @@ export function refusalOf(input: RefusalInput): Refusal {
     return refusal("internal", "Out of date", OUT_OF_DATE);
   }
 
-  switch (code) {
+  switch (readAs(code)) {
     case "unauthorized":
       return refusal(code, "Signed out", "Signed out.");
     case "network":

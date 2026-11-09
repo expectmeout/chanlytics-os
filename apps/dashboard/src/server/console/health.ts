@@ -271,7 +271,7 @@ export async function redriveHealth(
     async () => {
       const { data, error } = await redriveDeliveries(office.db, subscriber);
       if (error)
-        throw new AppError("internal", "Those deliveries could not be scheduled again. Try again in a moment.", 503);
+        throw new AppError("unavailable", "Those deliveries could not be scheduled again. Try again in a moment.");
       return { subscriber, scheduled: typeof data === "number" ? data : 0 };
     },
     (out) => ({
@@ -301,7 +301,7 @@ export async function requeueHealthKind(
       try {
         rows = await listFailedJobsOfKind(office.db, { kind, sinceIso, limit: HEALTH_ROWS.requeueKind });
       } catch (e) {
-        throw causedBy(new AppError("internal", "The failed jobs could not be read. Try again in a moment.", 503), e);
+        throw causedBy(new AppError("unavailable", "The failed jobs could not be read. Try again in a moment."), e);
       }
       let requeued = 0;
       let refused = 0;
@@ -350,7 +350,7 @@ export async function pauseHealthKind(
         : await resumeJobKind(office.db, kind);
       const answered = data && typeof data === "object" && !Array.isArray(data) ? data : null;
       if (error || !answered || typeof answered.error === "string")
-        throw new AppError("internal", "That kind could not be changed just now. Try again in a moment.", 503);
+        throw new AppError("unavailable", "That kind could not be changed just now. Try again in a moment.");
       return { kind, paused };
     },
     (out) => ({ outcome: "done", note: out.paused ? "Paused." : "Resumed." }),

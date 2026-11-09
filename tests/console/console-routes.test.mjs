@@ -101,7 +101,7 @@ test("who may open the Console: nobody but staff learns it is there, staff show 
       },
     },
   });
-  await refused(me.GET.run(get(), hiccup), "internal", 503);
+  await refused(me.GET.run(get(), hiccup), "unavailable", 503);
   assert.deepEqual(await me.GET.run(get(), ctxFor("support")), {
     user_id: ME,
     email: "alex@chanlytics.com",
@@ -144,7 +144,7 @@ test("an act whose log row cannot be written does not run", async () => {
   service({ waitlist }, { "platform_acts.insert": { message: "permission denied", code: "42501" } });
   await refused(
     invited.POST.run(post({ id: W1, why: WHY }), ctxFor("support")),
-    "internal",
+    "unavailable",
     503,
     "That could not be recorded, so it was not done.",
   );

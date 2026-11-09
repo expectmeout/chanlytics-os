@@ -51,11 +51,10 @@ export const GET = read({
     if (answer.status === 404) throw new AppError("not_found", REASON_WORDS.not_connected, 404);
     if (answer.status !== 200 || body.ok !== true)
       throw new AppError(
-        "internal",
+        "upstream_provider",
         typeof body.error === "string"
           ? (REASON_WORDS[body.error] ?? `Google could not be read: ${edgeRefusalWords(body)}`)
           : "Google could not be read. Try again in a moment.",
-        502,
       );
     return { locations: locations(body.locations) };
   },
@@ -85,7 +84,7 @@ export const POST = write({
     if (answer.status !== 200 || result.ok !== true) {
       const reason = typeof result.error === "string" ? result.error : "failed";
       throw new AppError(
-        answer.status === 404 ? "not_found" : "internal",
+        answer.status === 404 ? "not_found" : "upstream_provider",
         REASON_WORDS[reason] ?? `The location could not be chosen (${edgeRefusalWords(result) ?? reason}).`,
         answer.status === 404 ? 404 : 502,
       );

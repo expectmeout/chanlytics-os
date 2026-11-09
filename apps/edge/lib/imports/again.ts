@@ -46,7 +46,7 @@ export async function importAgain(
   if (!isOneOf(IMPORT_SOURCES, source))
     return refuse(400, "bad_request", "source is one of the imports ledger's sources");
   if (source !== "google_photos" && !THROUGH_A_MAILBOX.includes(source))
-    return refuse(409, "unavailable", "this source is brought in again where it was first brought in");
+    return refuse(400, "bad_request", "this source is brought in again where it was first brought in");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const log = logger({ tenant_id: tenantId });
@@ -83,10 +83,10 @@ export async function importAgain(
       });
       started++;
     }
-    if (!started) return refuse(409, "not_connected", "no mailbox is connected to read it through");
+    if (!started) return refuse(404, "not_connected", "no mailbox is connected to read it through");
     return json(200, { ok: true });
   } catch (e) {
     log.error("history_start_failed", { source, error: errField(e) });
-    return refuse(502, "could_not_queue", "it could not be started again");
+    return refuse(503, "could_not_queue", "it could not be started again");
   }
 }

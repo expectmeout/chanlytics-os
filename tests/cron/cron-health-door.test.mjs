@@ -382,7 +382,7 @@ test("messages that cannot be read page nobody: the clocks are still judged, and
 
 /* ------------------------------------------------------- cannot be read */
 
-test("a health function that cannot be read is a 500 with a slug, and nothing is mailed, stamped or paged", async () => {
+test("a health function that cannot be read is a 503 with a slug, and nothing is mailed, stamped or paged", async () => {
   const w = world(null, {
     sweep_health: () => {
       throw new Error("permission denied for schema cron");
@@ -390,7 +390,7 @@ test("a health function that cannot be read is a 500 with a slug, and nothing is
   });
   const line = wire();
   try {
-    assert.deepEqual(await answer(await w.tick()), [500, { ok: false, error: "query_failed" }]);
+    assert.deepEqual(await answer(await w.tick()), [503, { ok: false, error: "query_failed" }]);
     assert.deepEqual(line.mail(), []);
     assert.deepEqual(w.marks, []);
     assert.deepEqual(w.tables.operator_pages, []);

@@ -322,9 +322,8 @@ interface RateStore {
 /** The refusal when a strict count cannot be given: the verb is not run on a ceiling nobody can hold. */
 function uncountable(reason: string): AppError {
   return new AppError(
-    "internal",
+    "unavailable",
     `The shared count could not be read just now (${reason}) — try again in a moment.`,
-    503,
   );
 }
 

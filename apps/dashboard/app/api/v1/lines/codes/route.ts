@@ -18,7 +18,7 @@ export const GET = read({
   rate: "lines_codes",
   handle: async ({ ctx, member }) => {
     const r = await getLineCodes(member.tenantId, ctx.userId);
-    if (!r.ok) throw new AppError("internal", "The texts sent to your line could not be read just now.", 502);
+    if (!r.ok) throw new AppError("upstream_provider", "The texts sent to your line could not be read just now.");
     return { codes: r.codes };
   },
 });

@@ -41,7 +41,7 @@ export interface BackOffice {
  */
 async function staffState(ctx: RouteContext): Promise<StaffState> {
   const { data, error } = await getStaffState(ctx.supabase);
-  if (error) throw new AppError("internal", "Could not check that just now — try again in a moment.", 503);
+  if (error) throw new AppError("unavailable", "Could not check that just now — try again in a moment.");
   return isOneOf(STAFF_STATES, String(data)) ? (data as StaffState) : "none";
 }
 

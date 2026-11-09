@@ -145,6 +145,6 @@ export async function disconnectInstagram(ctx: RouteContext, member: Member, cha
   const body = answer.body ?? {};
   if (answer.status === 404) throw new AppError("not_found", "That Instagram account is not connected here.", 404);
   if (answer.status !== 200 || body.ok !== true)
-    throw new AppError("internal", "Instagram could not be disconnected just now. Try again.", 502);
+    throw new AppError("upstream_provider", "Instagram could not be disconnected just now. Try again.");
   return { ok: true };
 }

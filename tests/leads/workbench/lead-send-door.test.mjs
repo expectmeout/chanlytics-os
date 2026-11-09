@@ -314,7 +314,7 @@ test("a workspace that may not spend, or has written its month's cold email, sen
 });
 
 test("no business address: the foot the law asks for can't be written, so nothing is", async () => {
-  await refusedWith({ address: null }, LEAD_NO_ADDRESS, 422);
+  await refusedWith({ address: null }, LEAD_NO_ADDRESS, 400);
 });
 
 test("a second press while the first is on its way finds it", async () => {

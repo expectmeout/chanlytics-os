@@ -127,15 +127,12 @@ export async function askForJson<T>(call: ModelJsonCall, schema: ZodType<T>, oth
         );
       if (error.refusal.kind === "model_paused")
         throw causedBy(new AppError("payment_required", MODEL_PAUSED_WORDS.draft(otherText)), error);
-      throw causedBy(
-        new AppError("upstream_anthropic", `The ${otherText} is not available here right now.`, 503),
-        error,
-      );
+      throw causedBy(new AppError("unavailable", `The ${otherText} is not available here right now.`), error);
     }
     throw error;
   }
   const { text, stop } = answer;
-  if (stop === "refusal") throw new AppError("validation", `Claude would not write this ${otherText}.`, 422);
+  if (stop === "refusal") throw new AppError("validation", `Claude would not write this ${otherText}.`);
   let value: unknown;
   try {
     value = JSON.parse(text);

@@ -208,7 +208,7 @@ test("a database without the ledger's doors: the share is skipped and said, the 
   );
 });
 
-test("a door that fails for any other reason is a 500, and the delivery is given back so Stripe's retry is not a duplicate", async () => {
+test("a door that fails for any other reason is a 503, and the delivery is given back so Stripe's retry is not a duplicate", async () => {
   const d = doors({
     partner_earn: () => {
       throw Object.assign(new Error("deadlock detected"), { code: "40P01" });
@@ -217,7 +217,7 @@ test("a door that fails for any other reason is a 500, and the delivery is given
   const db = fakeDb(tables(true), {}, d.rpcs);
   setPg(db);
   const r = await deliver("invoice.paid", invoice());
-  assert.equal(r.status, 500);
+  assert.equal(r.status, 503);
   assert.ok(
     db.seen.some((s) => s.table === "billing_events" && s.op === "delete"),
     "the claim is forgotten",

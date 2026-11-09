@@ -76,5 +76,5 @@ export async function recordOpeningOfRecording(db: SupabaseClient<Database>, cal
     return;
   }
   log.error("recording_audit_unavailable", { call_id: callId, code: error.code ?? null, error: error.message });
-  throw new AppError("internal", "The recording could not be opened just now. Try again in a moment.", 503);
+  throw new AppError("unavailable", "The recording could not be opened just now. Try again in a moment.");
 }

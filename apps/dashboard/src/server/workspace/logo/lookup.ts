@@ -29,7 +29,7 @@ export async function lookupLogo(ctx: RouteContext, member: Member): Promise<Log
   const answer = edgeAnswered(result) ? logoLookupAnswerOf(result.body) : null;
   if (!answer) {
     log.warn("workspace_logo_lookup", { tenant_id: member.tenantId, outcome: "failed", status: result.status });
-    throw new AppError("internal", LOGO_WORDS.lookFailed, 502);
+    throw new AppError("upstream_provider", LOGO_WORDS.lookFailed);
   }
   log.info("workspace_logo_lookup", { tenant_id: member.tenantId, outcome: answer.outcome });
   return answer;

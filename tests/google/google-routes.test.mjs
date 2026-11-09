@@ -163,7 +163,7 @@ test("the way there is the owner's and, with no edge here, not available; discon
   await refused(connection.DELETE.run(send("DELETE", undefined, inA), ctxFor(tables)), "forbidden", 403);
   await refused(
     connection.DELETE.run(send("DELETE", undefined, inB), ctxFor(tables)),
-    "internal",
+    "upstream_provider",
     502,
     "no_edge_credential",
   );
@@ -180,16 +180,21 @@ test("the way there is the owner's and, with no edge here, not available; discon
   );
   await refused(
     link.POST.run(send("POST", { place_id: "ChIJN1t_tDeuEmsRUsoyG83frY4" }, inB), ctxFor(tables)),
-    "internal",
+    "upstream_provider",
     502,
     "The listing could not be linked (no_edge_credential).",
   );
   await refused(link.DELETE.run(send("DELETE", undefined, inA), ctxFor(tables)), "forbidden", 403);
-  await refused(link.DELETE.run(send("DELETE", undefined, inB), ctxFor(tables)), "internal", 502, "no_edge_credential");
+  await refused(
+    link.DELETE.run(send("DELETE", undefined, inB), ctxFor(tables)),
+    "upstream_provider",
+    502,
+    "no_edge_credential",
+  );
   await refused(locations.GET.run(get(inA), ctxFor(tables)), "forbidden", 403);
   await refused(
     locations.GET.run(get(inB), ctxFor(tables)),
-    "internal",
+    "upstream_provider",
     502,
     "Google could not be read: no_edge_credential",
   );
@@ -204,7 +209,7 @@ test("the way there is the owner's and, with no edge here, not available; discon
       send("POST", { account_name: "accounts/123", location_name: "locations/456" }, inB),
       ctxFor(tables),
     ),
-    "internal",
+    "upstream_provider",
     502,
     "The location could not be chosen (no_edge_credential).",
   );
@@ -220,7 +225,7 @@ test("a refresh, a draft and a reply are an operator's, each judged in its words
   );
   await refused(
     refresh.POST.run(send("POST", undefined, inB), ctxFor(tables)),
-    "internal",
+    "upstream_provider",
     502,
     "Google could not be read.",
   );
@@ -237,7 +242,7 @@ test("a refresh, a draft and a reply are an operator's, each judged in its words
   );
   await refused(
     draft.POST.run(send("POST", undefined, inB), ctxFor(tables, { id: R1 })),
-    "internal",
+    "upstream_provider",
     502,
     "No draft this time (no_edge_credential).",
   );
@@ -261,7 +266,7 @@ test("a refresh, a draft and a reply are an operator's, each judged in its words
   const edge = ctxFor(tables, { id: R1 });
   await refused(
     reply.POST.run(send("POST", { comment: "Thank you for coming in!" }, inB), edge),
-    "internal",
+    "upstream_provider",
     502,
     "The reply did not go through (no_edge_credential).",
   );
@@ -290,13 +295,13 @@ test("a search is the owner's: with no words of its own it uses the facts on rec
   tables.tenants[0].name = "Bayside Studio";
   await refused(
     search.POST.run(send("POST", {}, inB), ctxFor(tables)),
-    "internal",
+    "upstream_provider",
     502,
     "Google could not be searched just now",
   );
   await refused(
     search.POST.run(send("POST", { query: "Bayside Salon, Chicago" }, inB), ctxFor(tables)),
-    "internal",
+    "upstream_provider",
     502,
     "Google could not be searched just now",
   );

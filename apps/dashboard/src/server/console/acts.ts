@@ -89,7 +89,7 @@ export async function takeAct<T>(
     note: on.why.note,
     outcome: "running",
   });
-  if (started.error || !started.data) throw new AppError("internal", NOT_RECORDED, 503);
+  if (started.error || !started.data) throw new AppError("unavailable", NOT_RECORDED);
   const id = started.data.id;
   const finish = (verdict: ActVerdict) =>
     finishAct(office.db, id, verdict.outcome, verdict.note, new Date().toISOString()).then(
@@ -128,7 +128,7 @@ export async function listConsoleActs(
     ...(input.before ? { before: input.before } : {}),
     limit: input.csv ? LOG_CSV : ACT_LOG_PAGE,
   });
-  if (error) throw new AppError("internal", "The log could not be read just now. Try again in a moment.", 503);
+  if (error) throw new AppError("unavailable", "The log could not be read just now. Try again in a moment.");
   return (data ?? []).map((row) => ({
     id: row.id,
     at: row.at,

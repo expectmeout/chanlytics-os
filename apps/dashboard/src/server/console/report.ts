@@ -73,7 +73,7 @@ export async function fileProblemReport(
     words: input.words,
   });
   if (error || !data)
-    throw new AppError("internal", "Your report could not be kept just now. Try again in a moment.", 503);
+    throw new AppError("unavailable", "Your report could not be kept just now. Try again in a moment.");
   const code = reportCode(data.number);
 
   if (!deployment.providersLive || !edgeConfigured()) {

@@ -352,7 +352,7 @@ test("the door's refusal is said in contracts' words", async () => {
   await refused(
     stop.POST.run(post(), ctxFor(tables("operator"), { id: LEAD }, d.rpcs)),
     "validation",
-    422,
+    400,
     REACH_OUT_REFUSALS.nothingWritten,
   );
 });

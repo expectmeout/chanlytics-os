@@ -85,7 +85,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const { data, error } = await readSweepHealth(db);
   if (error) {
     L.error("sweep_health_query_failed", { error: error.message });
-    return refuse(500, "query_failed");
+    return refuse(503, "query_failed");
   }
   const rows = data ?? [];
   const plan = chooseSweepAlerts(rows, Date.now());

@@ -94,7 +94,7 @@ async function photoRead(file: FileMemberRow): Promise<Buffer> {
   const read = await bucket().download(path, { transform: { width: PHOTO_READ_WIDTH, resize: "contain" } });
   if (read.error || !read.data) {
     log.error("file_post_read_failed", { tenant_id: file.tenant_id, error: read.error?.message ?? "no bytes" });
-    throw new AppError("internal", W.failedRead, 503);
+    throw new AppError("unavailable", W.failedRead);
   }
   return Buffer.from(await read.data.arrayBuffer());
 }

@@ -143,7 +143,7 @@ test("the back office's door: the database says who may look across workspaces, 
       },
     },
   );
-  await refused(overview.GET.run(get(), hiccup), "internal", 503, "Could not check that just now");
+  await refused(overview.GET.run(get(), hiccup), "unavailable", 503, "Could not check that just now");
   const refusedAction = ctxFor(tables, {}, admin(false));
   await refused(refile.POST.run(send("POST", body), refusedAction), "not_found", 404);
   assert.equal(writes(refusedAction), 0, "nothing recorded for a person the database did not admit");

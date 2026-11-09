@@ -68,7 +68,7 @@ async function fileWritten(ctx: RouteContext, member: Member, newWrittenMessage:
     slots: newWrittenMessage.slots,
   });
   const found = filed.versions.find((x) => x.channel === "whatsapp" && x.state !== "rejected") ?? filed.versions[0];
-  if (!found) throw new AppError("validation", filed.refused?.words ?? NEW_WORDS.cannot.noMessage, 422);
+  if (!found) throw new AppError("validation", filed.refused?.words ?? NEW_WORDS.cannot.noMessage);
   return found.id;
 }
 
@@ -76,7 +76,7 @@ async function fileWritten(ctx: RouteContext, member: Member, newWrittenMessage:
 async function templateOf(ctx: RouteContext, member: Member, s: Step): Promise<string> {
   if (s.message?.template_id) return s.message.template_id;
   if (s.message?.written) return fileWritten(ctx, member, s.message.written);
-  throw new AppError("validation", NEW_WORDS.cannot.noMessage, 422);
+  throw new AppError("validation", NEW_WORDS.cannot.noMessage);
 }
 
 /**
@@ -109,13 +109,13 @@ function peopleStartOf(draftWho: DraftWho): Record<string, string> {
     return { trigger: "saved_list", list_key: draftWho.token.slice(4) };
   if (draftWho.kind === "list" && draftWho.token.startsWith("list:"))
     return { trigger: "saved_list", list_id: draftWho.token.slice(5) };
-  throw new AppError("validation", NEW_WORDS.cannot.nothingFits, 422);
+  throw new AppError("validation", NEW_WORDS.cannot.nothingFits);
 }
 
 /** A sequence to people: each message filed or named, then the one door, its first step judged as every campaign's. */
 async function makePeopleSequence(ctx: RouteContext, member: Member, newMake: NewMakeBody): Promise<NewMade> {
   const [first, ...rest] = newMake.steps;
-  if (!first || first.does !== "message") throw new AppError("validation", NEW_WORDS.cannot.noMessage, 422);
+  if (!first || first.does !== "message") throw new AppError("validation", NEW_WORDS.cannot.noMessage);
   const firstTemplate = await templateOf(ctx, member, first);
   const then = [];
   for (const error of rest) {
@@ -171,7 +171,7 @@ export function leadFirstOf(newMake: NewMakeBody): Record<string, unknown> {
       : newMake.who.kind === "leads"
         ? { lead_ids: newMake.who.ids }
         : null;
-  if (!from) throw new AppError("validation", NEW_WORDS.cannot.nothingFits, 422);
+  if (!from) throw new AppError("validation", NEW_WORDS.cannot.nothingFits);
   return {
     starts: "leads",
     name: newMake.name,
@@ -199,7 +199,7 @@ function onceAudienceOf(draftWho: DraftWho): { kind: "everyone" | "list" | "save
     return { kind: "list", id: draftWho.token.slice(4) };
   if (draftWho.kind === "list" && draftWho.token.startsWith("list:"))
     return { kind: "saved", id: draftWho.token.slice(5) };
-  throw new AppError("validation", NEW_WORDS.cannot.nothingFits, 422);
+  throw new AppError("validation", NEW_WORDS.cannot.nothingFits);
 }
 
 /**
@@ -210,7 +210,7 @@ function onceAudienceOf(draftWho: DraftWho): { kind: "everyone" | "list" | "save
  */
 async function makePeopleOnce(ctx: RouteContext, member: Member, newMake: NewMakeBody): Promise<NewMade> {
   const step = newMake.steps[0];
-  if (!step || step.does !== "message") throw new AppError("validation", NEW_WORDS.cannot.noMessage, 422);
+  if (!step || step.does !== "message") throw new AppError("validation", NEW_WORDS.cannot.noMessage);
   const audience = onceAudienceOf(newMake.who);
   if (!newMake.start) {
     const filed = step.message?.written

@@ -31,12 +31,12 @@ async function pictureForGoogle(ctx: RouteContext, member: Member, fileId: strin
   const stored = await bucket().upload(path, picture, { contentType: "image/jpeg", upsert: true });
   if (stored.error) {
     log.error("file_google_store_failed", { tenant_id: member.tenantId, error: stored.error.message });
-    throw new AppError("internal", ON_GOOGLE.notSent, 503);
+    throw new AppError("unavailable", ON_GOOGLE.notSent);
   }
   const signed = await bucket().createSignedUrl(path, PICTURE_LINK_S);
   if (signed.error || !signed.data) {
     log.error("file_google_store_failed", { tenant_id: member.tenantId, error: signed.error?.message ?? "no address" });
-    throw new AppError("internal", ON_GOOGLE.notSent, 503);
+    throw new AppError("unavailable", ON_GOOGLE.notSent);
   }
   return signed.data.signedUrl;
 }
@@ -49,9 +49,9 @@ function refusedBy(args: { status: number; body?: Record<string, unknown> | null
   if (reason === "not_found") return new AppError("not_found", FILE_WORDS.gone, 404);
   if (reason === "google_refused") {
     const detail = typeof args.body?.detail === "string" ? ` ${args.body.detail.slice(0, 200)}` : "";
-    return new AppError("internal", `${ON_GOOGLE.refused}${detail}`, 502);
+    return new AppError("upstream_provider", `${ON_GOOGLE.refused}${detail}`);
   }
-  return new AppError("internal", ON_GOOGLE.notSent, 502);
+  return new AppError("upstream_provider", ON_GOOGLE.notSent);
 }
 
 /** POST files/[id]/google: the post goes up. What it says is a person's, and goes as they typed it. */

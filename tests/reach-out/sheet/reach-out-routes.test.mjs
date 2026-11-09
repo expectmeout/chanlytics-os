@@ -378,7 +378,7 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
   await refused(
     chains.POST.run(send("POST", firstName), ctxFor(tables())),
     "validation",
-    422,
+    400,
     "{{nickname}} isn't one of the slots. Use one from the list.",
   );
   // A first email carries no link (decision 0056): the booking link is a nudge's.
@@ -386,7 +386,7 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
   await refused(
     chains.POST.run(send("POST", first), ctxFor(tables())),
     "validation",
-    422,
+    400,
     "Keep your first email free of links: put your booking link in the nudge.",
   );
   const link = CHAIN({
@@ -398,14 +398,14 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
   await refused(
     chains.POST.run(send("POST", link), ctxFor(tables("operator", { tenant_config: [] }))),
     "validation",
-    422,
+    400,
     "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.",
   );
   await refused(chains.POST.run(send("POST", CHAIN({ gap_minutes: 7 })), ctxFor(tables())), "validation", 400);
   assert.equal(asked.length, 0, "the door was never asked");
 });
 
-test("the door's refusals are said in contracts' words: a search with a chain is 409, a step out of its place 422 (R15)", async () => {
+test("the door's refusals are said in contracts' words: a search with a chain is 409, a step out of its place 400 (R15)", async () => {
   serviceSave(() => {
     throw pgError("23505", REACH_OUT_REFUSALS.exists);
   });
@@ -417,7 +417,7 @@ test("the door's refusals are said in contracts' words: a search with a chain is
   await refused(
     chain.PUT.run(send("PUT", CHAIN()), ctxFor(tables(), { id: ROOT_ID })),
     "validation",
-    422,
+    400,
     REACH_OUT_REFUSALS.outOfPlace,
   );
   assert.equal(asked[0].p_chain.root_id, ROOT_ID, "an edit names its chain");
@@ -428,7 +428,7 @@ test("the door's refusals are said in contracts' words: a search with a chain is
   await refused(
     chain.PUT.run(send("PUT", CHAIN()), ctxFor(tables(), { id: ROOT_ID })),
     "validation",
-    422,
+    400,
     REACH_OUT_REFUSALS.unsaved,
   );
 });
@@ -455,11 +455,11 @@ test("a chain ending in a call reaches the door with its hand, an email with non
   await refused(
     chain.PUT.run(send("PUT", empty), ctxFor(tables(), { id: ROOT_ID })),
     "validation",
-    422,
+    400,
     "Say what to do when they come up.",
   );
   const early = CHAIN({ steps: [{ subject: null, body: "", after_days: 5, hand }, CHAIN().steps[1]] });
-  await refused(chain.PUT.run(send("PUT", early), ctxFor(tables(), { id: ROOT_ID })), "validation", 422);
+  await refused(chain.PUT.run(send("PUT", early), ctxFor(tables(), { id: ROOT_ID })), "validation", 400);
   assert.equal(asked.length, 2, "the door was not asked for either");
   // The door's own, said as they are.
   serviceSave(() => {
@@ -468,7 +468,7 @@ test("a chain ending in a call reaches the door with its hand, an email with non
   await refused(
     chain.PUT.run(send("PUT", body), ctxFor(tables(), { id: ROOT_ID })),
     "validation",
-    422,
+    400,
     REACH_OUT_REFUSALS.handLast,
   );
   serviceSave(() => {
@@ -647,7 +647,7 @@ test("POST reach-out-sends/[id]/decide: the email is the row; each answer passes
       ),
     ),
     "validation",
-    422,
+    400,
     "This email waited two weeks for your answer and was given up.",
   );
   await refused(

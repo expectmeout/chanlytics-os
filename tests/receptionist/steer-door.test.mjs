@@ -957,7 +957,7 @@ test("a brain that fails is a 502 with nothing written; a draft that cannot be q
   const unqueued = world(v, { faults: { "messages.insert": { message: "connection reset" } } });
   assert.deepEqual(
     await answer(await knock({ message_id: v.M, text: OWNER_SAYS }, { workspace: v.T, brain: brain().port })),
-    [502, { ok: false, error: "could_not_queue" }],
+    [503, { ok: false, error: "could_not_queue" }],
   );
   assert.equal(
     unqueued.tables.messages.find((m) => m.id === v.M).status,

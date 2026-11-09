@@ -368,7 +368,7 @@ export async function markSupport(
 ): Promise<{ ok: true }> {
   const found =
     message.target === "report" ? await reportById(office.db, message.id) : await setupAskById(office.db, message.id);
-  if (found.error) throw new AppError("internal", "The queue could not be read just now. Try again in a moment.", 503);
+  if (found.error) throw new AppError("unavailable", "The queue could not be read just now. Try again in a moment.");
   if (!found.data) throw new AppError("not_found", NO_SUCH, 404);
   const code =
     message.target === "report" ? reportCode((found.data as { number: number }).number) : askCode(message.id);
@@ -398,7 +398,7 @@ const RESEND_TIMEOUT_MS = 8000;
  */
 export async function resendSupport(office: BackOffice, id: string): Promise<{ mailed: boolean }> {
   const found = await reportById(office.db, id);
-  if (found.error) throw new AppError("internal", "The report could not be read just now. Try again in a moment.", 503);
+  if (found.error) throw new AppError("unavailable", "The report could not be read just now. Try again in a moment.");
   const data = found.data;
   if (!data) throw new AppError("not_found", NO_SUCH, 404);
   return takeAct(
@@ -437,7 +437,7 @@ export async function resendSupport(office: BackOffice, id: string): Promise<{ m
 /** A report moved between Support and Health, as what the member needed: an act whose reason is its code. */
 export async function moveSupport(office: BackOffice, id: string, kind: ReportKind): Promise<{ kind: ReportKind }> {
   const found = await reportById(office.db, id);
-  if (found.error) throw new AppError("internal", "The report could not be read just now. Try again in a moment.", 503);
+  if (found.error) throw new AppError("unavailable", "The report could not be read just now. Try again in a moment.");
   const data = found.data;
   if (!data) throw new AppError("not_found", NO_SUCH, 404);
   return takeAct(
@@ -452,7 +452,7 @@ export async function moveSupport(office: BackOffice, id: string, kind: ReportKi
     async () => {
       const moved = await setReportKind(office.db, data.id, kind);
       if (moved.error || !moved.data)
-        throw new AppError("internal", "That could not be saved just now. Try again in a moment.", 503);
+        throw new AppError("unavailable", "That could not be saved just now. Try again in a moment.");
       return { kind };
     },
   );
