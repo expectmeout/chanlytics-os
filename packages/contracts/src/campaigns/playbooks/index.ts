@@ -98,6 +98,7 @@ export {
   MOMENTS_RETIRED,
   nextOpenMoment,
   nextRunLabel,
+  nextRunOf,
   planRun,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_CAP_CHOICES,

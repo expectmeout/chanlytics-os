@@ -341,7 +341,7 @@ test("a message sent once, pressed for now, goes ten minutes on with a Stop: eve
     scheduled_ahead: false,
     pressed_now: true,
   });
-  assert.equal(said, "Send “Saturday hours” — 3 people, goes in 10 minutes unless you stop it");
+  assert.equal(said, "Going to 3 people in 10 minutes.");
 });
 
 test("each sequence shows its evidence: what its batches did over 90 days, said once, summed under its class's Autonomy row, and never a suggestion (decision 0064, step 5)", async () => {

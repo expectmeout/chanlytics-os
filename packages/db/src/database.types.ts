@@ -355,6 +355,71 @@ export type Database = {
           },
         ]
       }
+      ask_actions: {
+        Row: {
+          at: string
+          by: string
+          code: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          made_id: string | null
+          made_kind: string | null
+          message_id: string | null
+          origin_by: string | null
+          proposal_id: string
+          reason: string | null
+          state: string
+          strangers: boolean
+          tenant_id: string
+          user_id: string | null
+        }
+        Insert: {
+          at?: string
+          by: string
+          code?: string | null
+          finished_at?: string | null
+          id?: string
+          kind: string
+          made_id?: string | null
+          made_kind?: string | null
+          message_id?: string | null
+          origin_by?: string | null
+          proposal_id: string
+          reason?: string | null
+          state?: string
+          strangers?: boolean
+          tenant_id: string
+          user_id?: string | null
+        }
+        Update: {
+          at?: string
+          by?: string
+          code?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          made_id?: string | null
+          made_kind?: string | null
+          message_id?: string | null
+          origin_by?: string | null
+          proposal_id?: string
+          reason?: string | null
+          state?: string
+          strangers?: boolean
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ask_actions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ask_journal_days: {
         Row: {
           day: string
@@ -528,6 +593,35 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ask_threads"
             referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      ask_notice_days: {
+        Row: {
+          day: string
+          key: string | null
+          tenant_id: string
+          told_at: string
+        }
+        Insert: {
+          day: string
+          key?: string | null
+          tenant_id: string
+          told_at?: string
+        }
+        Update: {
+          day?: string
+          key?: string | null
+          tenant_id?: string
+          told_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ask_notice_days_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -7667,6 +7761,39 @@ export type Database = {
         }
         Relationships: []
       }
+      web_push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          failed_at: string | null
+          id: string
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          failed_at?: string | null
+          id?: string
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          failed_at?: string | null
+          id?: string
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       workspace_notices_pending: {
         Row: {
           event: string
@@ -11738,6 +11865,10 @@ export type Database = {
       withdraw_queued: {
         Args: { p_message_ids: string[]; p_reason?: Json; p_tenant_id: string }
         Returns: string[]
+      }
+      words_seen: {
+        Args: { p_step_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       workspace_days: {
         Args: { p_from: string; p_tenant_id: string; p_to: string }

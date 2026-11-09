@@ -20,6 +20,9 @@ import {
   REACH_OUT_REFUSALS,
   VISIT_TRIGGERS,
   isPlaybookState,
+  localDate,
+  nextRunOf,
+  shiftKey,
   triggerOf,
   twinRunsWords,
   visitTwinWords,
@@ -27,11 +30,20 @@ import {
   recordOrNull,
   isOneOf,
   DbFailure,
+  wallClockAt,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, playbookNameAsked, findUntil } from "@chanlytics/core";
 import { emitEvent } from "@chanlytics/db/events";
 import { findPlaybookForChange, listRunningStepsOn, listRunningTwins } from "@chanlytics/db/campaigns";
-import { removePlaybook, startPlaybook, updatePlaybook, writePlaybookChange } from "@chanlytics/db/workspace";
+import {
+  findWorkspaceZoneStatus,
+  removePlaybook,
+  startPlaybook,
+  updatePlaybook,
+  wordsSeenByMember,
+  writePlaybookChange,
+} from "@chanlytics/db/workspace";
+import { logAndGoOn } from "@chanlytics/log";
 import { serviceDb } from "@/server/shared/service-db";
 import { readJsonBody } from "@/server/shared/request-guards";
 import { recordDecision, type playbookScope } from "@/server/shared/verbs";
@@ -225,13 +237,35 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
   });
   if (error) throw playbookWriteError(error);
   if (!made) throw new Error("playbook not created");
+  // The press of an Ask card that showed the words is the person's OK of them (D3 of the answers canvas): its first batch
+  // goes as its row says rather than waiting for a second yes. Where the door is not on this database yet, it waits as it did.
+  const wordsOk =
+    jsonBody?.words_shown === true && ctx.via === "ask" ? await markWordsOk(ctx, tenantId, made.id) : false;
+  const tz = await playbookTimezone(ctx, tenantId);
+  const next = nextRunOf({ run_hour: result.run_hour, last_run_for: null }, tz, now);
+  const day = next.day === "today" ? localDate(tz, now) : shiftKey(localDate(tz, now), 1);
   return {
     id: made.id,
     name: result.name,
     state: "running",
     decision_id: made.decisionId,
+    words_ok: wordsOk,
+    first_at: new Date(next.soon ? now.getTime() : wallClockAt(tz, day, next.hour, 0)).toISOString(),
+    at: now.toISOString(),
+    timezone: tz,
     ...(starter ? { starter } : {}),
   };
+}
+
+/** The business's clock, for when a new send's first batch goes; UTC where it could not be read, never a failed start. */
+async function playbookTimezone(ctx: RouteContext, tenantId: TenantId): Promise<string> {
+  const read = await findWorkspaceZoneStatus(ctx.supabase, tenantId);
+  return read.data?.timezone ?? "UTC";
+}
+
+/** Marks a new send's words as the person's OK (`words_seen`, 00573). False where the door is not there yet. */
+async function markWordsOk(ctx: RouteContext, tenantId: TenantId, playbookId: string): Promise<boolean> {
+  return wordsSeenByMember(ctx.supabase, tenantId, playbookId).catch(logAndGoOn("wordsSeenByMember", false));
 }
 
 /** PUT playbooks/:id's three bodies, each to its own verb: the whole playbook, its channels alone, or a change in place. */

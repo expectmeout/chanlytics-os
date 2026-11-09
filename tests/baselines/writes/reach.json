@@ -1,7 +1,7 @@
 {
-  "rows": 167,
+  "rows": 169,
   "same": 12,
-  "differ": 155,
+  "differ": 157,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -412,11 +412,45 @@
         "workspace": "every page"
       }
     },
+    "POST ask/alone": {
+      "changes": "tenant_config UPDATE",
+      "tells": "tenant_config",
+      "extra": {
+        "broadcasts": "clients/get-yes, inbox, today",
+        "people": "clients/person, today",
+        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
+      },
+      "missing": {
+        "person": "clients/person",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "today_pins": "today"
+      }
+    },
     "POST ask/memory": {
       "changes": "ask_memory_lines INSERT UPDATE"
     },
     "POST ask/messages/[id]/proposals/[pid]": {
       "changes": "ask_messages UPDATE"
+    },
+    "POST ask/stop": {
+      "changes": "tenant_config UPDATE",
+      "tells": "tenant_config",
+      "extra": {
+        "broadcasts": "clients/get-yes, inbox, today",
+        "people": "clients/person, today",
+        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
+      },
+      "missing": {
+        "person": "clients/person",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "today_pins": "today"
+      }
     },
     "POST billing/resume": {
       "changes": "",

@@ -1148,6 +1148,19 @@ const withThePlansWords = (frozen) =>
     .replace('"cannotSee":null,', "");
 
 /**
+ * 9 Nov 2026 (the answers canvas, D4): a card's undo says what follows in a person's words. The fixture stays as it was made.
+ */
+const withTheUndosWords = (frozen) =>
+  frozen
+    .replace(
+      '"undo":"Sends 15 seconds after you approve; cancel within them"',
+      '"undo":"Goes in 15 seconds. Undo stops it."',
+    )
+    .replace('"undo":"Delete it — nothing will run"', '"undo":"Delete it. Nothing goes out."')
+    // And a send's card says how many it leaves out (its receipt reads it).
+    .replace(/^(\{"kind":"broadcast".*?"count":\d+)\},"needs"/, '$1,"left_out":0},"needs"');
+
+/**
  * 10 Oct 2026 (the moment spec, decision 19): the line a read says while it runs is a person's, so campaigns.playbooks
  * said "Reading the campaigns" where these bytes say "Reading the playbooks"; since the operator (15 Oct 2026) the two
  * reads say the Sequences page's words: the moments, and the lists and messages a send may use. The actions keep their
@@ -1383,7 +1396,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 11 Oct 2026: a plan's sentence and its kind (withThePlansWords), in the result and in the card.
     const leadPlan = NAMES[old] === "propose_lead_search.find";
     if (leadPlan) result = withThePlansWords(result);
-    const card =
+    const worded =
       campaignsOwn && typeof want.proposal === "string"
         ? {
             proposal: playbookCard
@@ -1393,6 +1406,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         : leadPlan && typeof want.proposal === "string"
           ? { proposal: withThePlansWords(want.proposal) }
           : {};
+    // 9 Nov 2026: a card's undo in a person's words (withTheUndosWords).
+    const proposal = worded.proposal ?? want.proposal;
+    const card = typeof proposal === "string" ? { proposal: withTheUndosWords(proposal) } : worded;
     // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
     // before anything is read, as its builder refused it: the other change to these bytes.
     const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];

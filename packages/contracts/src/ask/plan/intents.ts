@@ -128,6 +128,8 @@ export interface PlanStep {
   why: string;
   /** The steps it waits for: every silent step, for a send. */
   after: number[];
+  /** What it does, in one sentence as the card says it (AskPlanStamp.does); a setup's steps have their own cards and say none. */
+  does?: string;
 }
 
 type StepKind = PlanStep["kind"];
@@ -289,10 +291,10 @@ export const SAY = PLAN_WORDS;
 /** Steps numbered as they are added; a send waits for every silent step before it. */
 export function planSteps() {
   const steps: PlanStep[] = [];
-  const add = (kind: StepKind, input: Record<string, unknown>, reason: string): number => {
+  const add = (kind: StepKind, input: Record<string, unknown>, reason: string, does: string): number => {
     const n = steps.length + 1;
     const after = SILENT[kind] ? [] : steps.filter((s) => s.silent).map((s) => s.n);
-    steps.push({ n, kind, silent: SILENT[kind], input, why: reason, after });
+    steps.push({ n, kind, silent: SILENT[kind], input, why: reason, after, does });
     return n;
   };
   return { steps, add };

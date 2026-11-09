@@ -24,6 +24,7 @@ export {
   holdRecipients,
   listPlaybookChannels,
   listQueuedRecipients,
+  listRunningPlaybookIds,
   listRunningTwins,
   recordCampaignMonthSent,
   runGoesByOthers,

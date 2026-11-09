@@ -1,7 +1,7 @@
+import { notToday, pacedRun } from "./paced";
 import { heldContactId } from "@chanlytics/contracts";
 import {
   batchModeOf,
-  campaignEnded,
   campaignMessageOf,
   clockWhen,
   localDate,
@@ -583,7 +583,9 @@ function batchWhen(p: PlaybookRow, freed: FreedTimeRun | null, runFor: string, c
  * nobody included. A run never throws: the sweep behind it must go on.
  */
 export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): Promise<RunOutcome> {
-  const { playbook: p, ctx, by } = cmd;
+  const { ctx, by } = cmd;
+  // A paced offer keeps to the book as it is today (D39 of the answers canvas).
+  const { playbook: p, full } = pacedRun(cmd.playbook, by.kind === "user", ctx.room);
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
   // Its sequence's mode, or ask while the step's words are new to the owner or the mode is none this build knows.
@@ -608,7 +610,8 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   };
   // A campaign past its last day (00416 `until`, the business's day) runs nothing more, whoever asks: said, and recorded
   // for the day, before anything is read.
-  if (campaignEnded(p, runFor)) return off("ended");
+  const closed = notToday(p, runFor, full);
+  if (closed) return off(closed);
 
   // Which of WhatsApp, text and email the playbook ticks: a playbook made before ticks WhatsApp alone.
   const channels = parseChannels(undefined, p.channels ?? null);

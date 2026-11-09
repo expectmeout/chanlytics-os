@@ -900,7 +900,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
   cells = [];
   frames.begin();
   let tree = AskCard({ p: made, messageId: "x", t, onNav() {} });
-  const undoButton = buttons(tree).find((b) => textOf(b).includes("Delete it"));
+  const undoButton = buttons(tree).find((b) => textOf(b) === t.undo);
   assert.ok(undoButton, "a fresh undo is offered");
   await undoButton.props.onClick();
   assert.deepEqual(undone, [], "REGRESSION: one click deleted the playbook");
@@ -915,7 +915,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
   assert.deepEqual(undone, ["playbook"]);
 });
 
-test("a deal card wears the deal word and Open goes to the person's page: a kind the card's maps did not know read as its key and opened inbox/th-undefined", async () => {
+test("a deal card's Open goes to the person's page: a kind the card's maps did not know read as its key and opened inbox/th-undefined", async () => {
   const { cardOpenRoute } = await import("@chanlytics/contracts");
   holdAsk({
     undoOpen: () => false,
@@ -947,12 +947,7 @@ test("a deal card wears the deal word and Open goes to the person's page: a kind
     cells = [];
     frames.begin();
     const tree = AskCard({ p, messageId: "x", t, onNav: (to) => went.push(to) });
-    let kind = null;
-    walk(tree, (n) => {
-      if (!kind && n.props?.className === "ask-card-kind") kind = n;
-    });
-    assert.ok(kind, `${lang}: the card names its kind`);
-    assert.equal(textOf(kind), t.kDeal, `${lang}: the kind word, not the key`);
+    assert.doesNotMatch(textOf(tree), /\bdeal\b/, `${lang}: no kind's key on the card, its title says what it is`);
     const open = buttons(tree).find((b) => textOf(b) === t.openIt);
     assert.ok(open, `${lang}: Open is offered on a deal card`);
     open.props.onClick();

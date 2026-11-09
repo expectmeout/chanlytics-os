@@ -31,8 +31,11 @@ export {
   freeWindows,
   hasHours,
   openAt,
+  ROOM_DAYS,
+  roomOf,
 } from "./availability";
 export type { BookingRulesLike, FreeWindowsInput, Opening } from "./availability";
+export type { BookRoom } from "./availability";
 export {
   appointmentKey,
   BOOKING_TOOL_IDS,

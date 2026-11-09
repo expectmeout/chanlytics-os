@@ -853,6 +853,7 @@ export const LOG_EVENTS = [
   "waba_event_write_failed",
   "waba_route_failed",
   "waba_unroutable",
+  "web_push_failed",
   "webhook_auth_event_failed",
   "webhook_delivery_event_failed",
   "website_form_failed",

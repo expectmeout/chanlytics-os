@@ -1,6 +1,13 @@
 import "server-only";
 import { z } from "zod";
-import { DAY_MS, followUpsOf, freedTimesUnoffered, parseTenantConfigResult, plural } from "@chanlytics/contracts";
+import {
+  DAY_MS,
+  followUpsOf,
+  freedTimesUnoffered,
+  parseTenantConfigResult,
+  plural,
+  type AskNoticeFacts,
+} from "@chanlytics/contracts";
 import { getCancellationsSince } from "@chanlytics/db/campaigns";
 import { load } from "../../../shared/reader";
 import { audiencePool } from "../../../readers/audience-pool";
@@ -24,8 +31,10 @@ import { unread } from "../context/tool-reads";
 /** Who counts as new: first heard from within this many days. */
 const NEW_DAYS = 30;
 
-interface Signal {
+export interface Signal {
   key: string;
+  /** Its numbers, which the home's sentence is written from (contracts noticeOf). */
+  facts?: AskNoticeFacts;
   /** What stands out, with its numbers, in a sentence. */
   says: string;
   /** The cards that fit it, by tool and action. */
@@ -35,7 +44,7 @@ interface Signal {
 }
 
 /** The workspace as the signals read it: each part as its page reads it, null where its read failed. */
-async function seeAll(toolContext: ToolContext) {
+export async function seeAll(toolContext: ToolContext) {
   const failed = (read: string) => unread(toolContext, "signals", read);
   const since = new Date(toolContext.now.getTime() - NEW_DAYS * DAY_MS).toISOString();
   const [pool, kept, seqs, pb, chains, finder, cfg, zone, views, cancellations] = await Promise.all([
@@ -69,6 +78,7 @@ const nothingSends: Spot = ({ pool, seqs, nowMs }) => {
   const fresh = people.filter((r) => r.first_contact_at && nowMs - Date.parse(r.first_contact_at) <= NEW_DAYS * DAY_MS);
   return {
     key: "nothing_sends_on_its_own",
+    facts: { people: people.length },
     says: `${plural(people.length, "person is", "people are")} in People (${fresh.length} new in the last ${NEW_DAYS} days) and nothing sends on its own.`,
     next: "propose_plan with action steps: lists that group them (propose_list make), then a sequence for the strongest group (propose_sequence make); or propose_plan with action offer, intent cover_journey",
     weight: 1,
@@ -84,6 +94,7 @@ const listsFeedNothing: Spot = ({ kept, pb }) => {
   const names = idle.slice(0, 4).map((l) => l.name);
   return {
     key: "lists_feed_nothing",
+    facts: { lists: idle.length, names },
     says: `${plural(idle.length, "list feeds", "lists feed")} no sequence: ${names.join(", ")}${idle.length > 4 ? "…" : ""}.`,
     next: "propose_sequence with action moment on the list (trigger saved_list), after sequences with action lists counts who it reaches",
     weight: 2,
@@ -101,6 +112,7 @@ const leadsNotWrittenTo: Spot = ({ finder, chains }) => {
   const named = unwritten.slice(0, 3).map((s) => `${s.name}: ${found(s)}`);
   return {
     key: "leads_not_written_to",
+    facts: { leads, searches: unwritten.length },
     says: `${plural(leads, "lead was", "leads were")} found in ${plural(unwritten.length, "search", "searches")} no cold email writes to (${named.join("; ")}).`,
     next: "leads with action leads (list ready) to pick the best, propose_leads with action list, then propose_sequence with action cold_email on it, in one propose_plan with action steps",
     weight: 1,
@@ -128,6 +140,7 @@ const repliesWaiting: Spot = ({ seqs }) => {
   if (!n) return null;
   return {
     key: "replies_waiting",
+    facts: { replies: n },
     says: `${plural(n, "reply waits", "replies wait")} in the sequences.`,
     next: "inbox with action list, then propose_reply for each; for a business that wrote back interested, propose_leads with action said and propose_deal",
     weight: 1,
@@ -139,6 +152,7 @@ const batchesWaiting: Spot = ({ seqs }) => {
   if (!n) return null;
   return {
     key: "batches_waiting",
+    facts: { sends: n },
     says: `${plural(n, "batch waits", "batches wait")} for an OK before it sends.`,
     next: "sequences with action sent, then propose_sequence with action batch (approve or skip)",
     weight: 1,
@@ -159,6 +173,7 @@ const offersNeverAsked: Spot = ({ pool }) => {
   const saidYes = people.filter((r) => r.marketing_consent === "opted_in").length;
   return {
     key: "offers_never_asked",
+    facts: { never },
     says: `${plural(never, "person on WhatsApp has", "people on WhatsApp have")} never been asked for the yes to offers (${saidYes} said yes so far).`,
     next: "never a message whose purpose is the ask: the receptionist asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and sequences after a booking to people with a messages yes (propose_sequence with action moment)",
     weight: 3,
@@ -172,6 +187,7 @@ const dealsWithoutAStep: Spot = ({ pool }) => {
   if (!count) return null;
   return {
     key: "deals_without_a_step",
+    facts: { deals: count },
     says: `${plural(count, "proposal is", "proposals are")} out with no next step.`,
     next: "people with action pipeline, then propose_deal with a next step for each",
     weight: 2,
@@ -189,7 +205,7 @@ const freedTimesNotOffered: Spot = ({ pb, cancellations, nowMs }) => {
     nowMs,
     days: NEW_DAYS,
   });
-  return freedTimes ? { key: "freed_times_unoffered", ...freedTimes, weight: 2 } : null;
+  return freedTimes ? { key: "freed_times_unoffered", facts: { times: 1 }, ...freedTimes, weight: 2 } : null;
 };
 
 /** Every spot, in no order of its own: each signal's weight orders them. */
@@ -204,6 +220,12 @@ const SPOTS: readonly Spot[] = [
   dealsWithoutAStep,
   freedTimesNotOffered,
 ];
+
+/** What stands out, by what was seen, most weight first. */
+export const spotsOf = (seen: Seen): Signal[] =>
+  SPOTS.map((spot) => spot(seen))
+    .filter((s): s is Signal => s !== null)
+    .sort((a, b) => a.weight - b.weight);
 
 /** The parts that could not be read, said beside the signals, never as nothing to notice. */
 const unreadOf = (s: Seen): string[] => [
@@ -228,9 +250,7 @@ async function readSignals(toolContext: ToolContext): Promise<unknown> {
     nowMs: seen.nowMs,
     zone: seen.zone ?? toolContext.timezone,
   });
-  const signals = SPOTS.map((spot) => spot(seen))
-    .filter((s): s is Signal => s !== null)
-    .sort((a, b) => a.weight - b.weight);
+  const signals = spotsOf(seen);
   const goal = goalOf(seen.cfg);
   const unreadParts = unreadOf(seen);
   return {

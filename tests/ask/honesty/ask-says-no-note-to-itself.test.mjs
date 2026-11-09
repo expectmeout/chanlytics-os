@@ -95,7 +95,7 @@ const refused = () => {
 
 test("words beside a card are never the answer, with the format taken", async () => {
   const { result, said } = await turnOf([noteBesideCard]);
-  assert.equal(result.answer.say.headline, "One card to review: A note on Robin.");
+  assert.equal(result.answer.say.headline, "Here it is: A note on Robin.");
   assert.ok(!said.includes(NOTE), "nor said while it is written");
 });
 
@@ -103,7 +103,7 @@ test("words beside a card are never the answer, with the format refused: the ans
   const { result, said, requests } = await turnOf([refused, noteBesideCard]);
   assert.equal(requests[1].output_config.format, undefined, "the same round, asked with no format");
   assert.equal(result.shape.format, false);
-  assert.equal(result.answer.say.headline, "One card to review: A note on Robin.");
+  assert.equal(result.answer.say.headline, "Here it is: A note on Robin.");
   assert.ok(!result.text.includes(NOTE), result.text);
   assert.ok(!said.includes(NOTE), "nor said while it is written");
 });

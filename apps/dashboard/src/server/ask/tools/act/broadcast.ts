@@ -312,8 +312,9 @@ function messageSaid(
   sent: { asked: AskedMessage } | { asked: null; step: number },
   params: readonly ParamSpec[],
   by: { channels: ConsentChannel[]; named: boolean },
+  room: number,
 ): { says: string } | { refusal: string } {
-  return sent.asked ? cardSays(sent.asked, params, by, 160) : { says: stepSays(sent.step, params) };
+  return sent.asked ? cardSays(sent.asked, params, by, room) : { says: stepSays(sent.step, params) };
 }
 
 async function proposeBroadcast(toolContext: ToolContext, input: BroadcastProposed): Promise<ProposalOutcome> {
@@ -346,9 +347,10 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
   // Who is left out is judged for the time it is set for, as the route judges it: within a week of it, either side.
   const reach = await broadcastCount(toolContext, { rows, label, purpose }, by, sendsAt);
   if ("refusal" in reach) return refuse(reach.refusal);
-  const { count, says, kept, byChannel, leftOutSaid } = reach;
+  const { count, says, kept, byChannel, leftOutSaid, leftOut } = reach;
   // A step's message is not filed yet: the card says which step makes it, and quotes the offer its values type.
-  const messageWords = messageSaid(sent, params, by);
+  // A plan's one card draws the message whole; a card on its own quotes it, its sheet holding the rest.
+  const messageWords = messageSaid(sent, params, by, toolContext.step === undefined ? 160 : 900);
   if ("refusal" in messageWords) return refuse(messageWords.refusal);
   // Named for the business's day and said by its clock, as the route names it and the pages say it; a step's message is
   // named by the route once it is filed.
@@ -388,6 +390,7 @@ async function proposeBroadcast(toolContext: ToolContext, input: BroadcastPropos
       scheduled_for: when,
       name,
       count,
+      left_out: leftOut,
       ...kept,
     },
   });

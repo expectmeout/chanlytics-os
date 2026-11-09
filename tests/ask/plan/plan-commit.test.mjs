@@ -169,12 +169,13 @@ const send = stamped("broadcast", 4, {
 
 const keys = (t) => t.sent.map((s) => [s.key, s.idem]);
 
-test("the plan's words: a step it waits for, an undone step and a stop are each said in the product's voice", () => {
+test("the plan's words: a step it waits for, an undone step and a stop are each said in the product's voice, and no step is named by its number", () => {
   assert.equal(typeof C.PROPOSAL_WORDS.planUndone, "string");
-  assert.match(C.PROPOSAL_WORDS.waitsForStep(2), /step 2\b/);
-  assert.match(C.PROPOSAL_WORDS.planStopped(2, "Someone saved the settings first."), /step 2\b/);
-  assert.ok(
-    C.PROPOSAL_WORDS.planStopped(2, "Someone saved the settings first.").includes("Someone saved the settings first."),
+  assert.doesNotMatch(C.PROPOSAL_WORDS.waitsForStep(), /step \d/);
+  assert.doesNotMatch(C.PROPOSAL_WORDS.stepMadeNothing(), /step \d/);
+  assert.equal(
+    C.PROPOSAL_WORDS.planStopped("Someone saved the settings first."),
+    "Stopped: Someone saved the settings first. Nothing went out.",
     "a stop says why, in the refusal's own words",
   );
 });
@@ -238,7 +239,7 @@ test("a step refused or failed stops the run there: later steps are not sent, st
   );
   assert.equal(
     run.results[1].result.message,
-    C.PROPOSAL_WORDS.planStopped(2, "Someone saved the settings first. Open Settings and try again."),
+    C.PROPOSAL_WORDS.planStopped("Someone saved the settings first. Open Settings and try again."),
   );
   assert.equal(run.results[1].result.status, 409, "the route's refusal is kept whole beneath the words");
 
@@ -246,14 +247,15 @@ test("a step refused or failed stops the run there: later steps are not sent, st
   const cold = tab();
   cold.win.__SETTINGS = null;
   const coldRun = await commit.commitPlan(cold.win, [message, note, pause], { client: cold.client, nowMs: NOW });
+  // It looks for them first: a read, and what it could not read is said by the card.
   assert.deepEqual(
     keys(cold).map(([k]) => k),
-    ["POST /api/v1/templates/message"],
+    ["POST /api/v1/templates/message", "GET /api/v1/settings"],
   );
   assert.equal(coldRun.stoppedAt, 2);
   assert.equal(
     coldRun.results[1].result.message,
-    C.PROPOSAL_WORDS.planStopped(2, "Settings are not loaded yet — open Settings once and try again."),
+    C.PROPOSAL_WORDS.planStopped("Settings are not loaded yet — open Settings once and try again."),
   );
 });
 
@@ -282,7 +284,7 @@ test("a silent step may name what an earlier silent step made: its token is fill
   assert.deepEqual(stopped.results[0].result.made, null);
   assert.deepEqual(stopped.made, { 1: { kind: "message", id: null } });
   assert.equal(stopped.stoppedAt, 2);
-  assert.equal(stopped.results[1].result.message, C.PROPOSAL_WORDS.planStopped(2, C.PROPOSAL_WORDS.stepMadeNothing(1)));
+  assert.equal(stopped.results[1].result.message, C.PROPOSAL_WORDS.planStopped(C.PROPOSAL_WORDS.stepMadeNothing(1)));
 });
 
 /** A card as the Line holds it once approved: its outcome recorded, with what it made (null: nothing a token names). */
@@ -377,10 +379,15 @@ test("what a step made survives a reload: the outcome a commit records keeps it 
     ]),
     {},
   );
-  // Pressed after the reload, on the turn's cards, another plan's among them: nothing is sent again.
+  // Pressed after the reload, on the turn's cards, another plan's among them: nothing made is sent again.
   const after = tab();
   const pressed = await commit.commitPlan(after.win, reloaded, { client: after.client, nowMs: NOW });
-  assert.deepEqual([after.sent, pressed.done], [[], [1, 2, 3]]);
+  assert.deepEqual(
+    after.sent.map((c) => c.key),
+    ["POST /api/v1/broadcasts"],
+    "only what is left: the send",
+  );
+  assert.deepEqual(pressed.done, [1, 2, 3]);
 });
 
 test("two presses that each know nothing was made (two tabs at once, a reload before an outcome was kept) send the same keys, and the routes answer the first press: nothing is filed twice", async () => {
@@ -454,7 +461,7 @@ test("a send whose step was undone is refused in words and sends nothing: never 
   const named = stamped("playbook_change", 2, { playbook_id: C.stepToken(1), state: "paused" });
   const run = await commit.commitPlan(t.win, [undoneAs(message), named], { client: t.client, nowMs: NOW });
   assert.deepEqual([run.undone, run.stoppedAt], [[1], 2]);
-  assert.equal(run.results[0].result.message, C.PROPOSAL_WORDS.planStopped(2, C.PROPOSAL_WORDS.planUndone));
+  assert.equal(run.results[0].result.message, C.PROPOSAL_WORDS.planStopped(C.PROPOSAL_WORDS.planUndone));
   assert.deepEqual(t.sent, []);
 });
 
@@ -544,8 +551,8 @@ test("a press reads what its cards became (planMadeOf), the one way it learns wh
   const run = await commit.commitPlan(t.win, [approved, note, pause, send], { client: t.client, nowMs: NOW });
   assert.deepEqual(
     keys(t).map(([k]) => k),
-    ["PUT /api/v1/settings", `PUT /api/v1/playbooks/${PB}`],
-    "the message approved before is not filed again",
+    ["PUT /api/v1/settings", `PUT /api/v1/playbooks/${PB}`, "POST /api/v1/broadcasts"],
+    "the message approved before is not filed again, and the press carries on to the send",
   );
   assert.deepEqual([run.done, run.made[1]], [[1], { kind: "message", id: V(1) }]);
 });

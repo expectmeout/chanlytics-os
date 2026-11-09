@@ -19,7 +19,7 @@ export const followUpSpec: ProposalSpec = {
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
   receipt: ({ payload: pl }) =>
-    pl.cleared === true ? "Done with it" : `I'll come back to it: ${asText(pl.said) || "when it happens"}`,
+    pl.cleared === true ? "Done with it." : `I'll come back to it: ${asText(pl.said) || "when it happens"}.`,
   undo: {
     label: () => "Undo",
     window: "ten_minutes",

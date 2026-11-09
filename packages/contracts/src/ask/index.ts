@@ -45,6 +45,8 @@ export type { AskContextRowKind, PageContext, PageContextRow } from "./context";
 export { LLM_DOOR } from "./edge-doors";
 export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./fast-paths";
 export type { AskIntent, FastCall } from "./fast-paths";
+export { ASK_ALONE_DAY_MAX, ASK_ALONE_UNDOS_MAX, FREEDOM_REASONS, freedomOf, rowOf } from "./freedom";
+export type { FreedomAnswer, FreedomReason, FreedomVerdict, FreedomWorld } from "./freedom";
 export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf } from "./language";
 export type { AskLanguage } from "./language";
 export {
@@ -81,22 +83,29 @@ export {
   askRoundCap,
 } from "./model";
 export type { AskModelProfile } from "./model";
+export { ASK_NOTICE_ORDER, noticeOf, noticeRestId, noticesInOrder, whoCanHearWords } from "./notice";
+export type { AskNotice, AskNoticeFacts } from "./notice";
 export {
   cardsTogether,
+  cardWithSteps,
   holdsAlike,
   openCardOf,
   planGroupOf,
+  planInReview,
   planMadeOf,
+  planPressOf,
   planWaits,
   resolveSteps,
   STEP_TOKEN,
   stepToken,
+  waitingCardsWords,
   wordsLessHolds,
 } from "./plan-steps";
 export type { PlanMade } from "./plan-steps";
 export { PLAN_WORDS } from "./plan/intents";
 export type { PlanIntent, PlanStep, PlanWorld } from "./plan/intents";
 export { planOf } from "./plan/plan";
+export type { PlanFigure, PlanHeadOf } from "./plan/plan";
 export { AskProposalOutcomeSchema } from "./schemas";
 export { AskSettingsChangeSchema, FixChangeSchema } from "./schemas";
 export { PageContextSchema } from "./schemas";
@@ -128,9 +137,12 @@ export {
   askCardLapsed,
 } from "./thread-words";
 export type {
+  AskActAnswer,
   AskAttached,
+  AskCardOrigin,
   AskCardSheet,
   AskMessageVM,
+  AskPlanHead,
   AskPlanStamp,
   AskProposal,
   AskProposalOutcome,

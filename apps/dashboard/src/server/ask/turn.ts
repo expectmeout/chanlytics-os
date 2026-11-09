@@ -36,6 +36,8 @@ import { askTurnText, type SearchAnswering } from "./prompt/prompt";
 import { workspaceFacts, type WorkspaceFacts } from "./prompt/stable-system";
 import { appendMessage, setProposalOutcome, touchThread } from "./store";
 import { keepRememberCards } from "./companion/remembered";
+import { runAlone } from "./act/world";
+import { logAndGoOn } from "@chanlytics/log";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -57,6 +59,10 @@ interface AskTurnAsk {
   context: PageContext | null;
   openedMs: number | null;
   answering: SearchAnswering | null;
+  /** A question that comes from a follow-up of the member's that came due (D33 of the answers canvas). */
+  following?: boolean;
+  /** The request, whose session a press from the server goes under (D10, D18). Absent, nothing runs from here. */
+  request?: Request;
   /** The person is listening, not reading (the spoken register, spec §3.4). */
   spoken?: boolean;
   /** The column the Line draws the answer in, as the tab measured it (contracts AskColumn); none from an older tab. */
@@ -296,7 +302,9 @@ export async function finishAskTurn(
     language,
     personLabel,
   } = preparedTurn;
-  const { text, surface, context, openedMs, answering } = ask;
+  const { text, surface, context, openedMs, answering, following } = ask;
+  // Cards of earlier turns this one pressed on a yes (D18 of the answers canvas).
+  const pressed: NonNullable<AskMessageVM["pressed"]> extends ReadonlyArray<infer R> ? R[] : never = [];
   emit({ t: "thread", id: turn.id, title: turn.title });
   const t0 = Date.now();
   // The Say as the person last read it: an empty one took the answer back (loop.ts unsay).
@@ -317,6 +325,10 @@ export async function finishAskTurn(
     surface,
     ...earlier,
     text: askTurnText(text, answering) || noWordsIn(language),
+    ...(following ? { following } : {}),
+    ...(ask.request
+      ? { request: ask.request, member, waitingOn: waitingOnThread(cards), onPressed: (r) => pressed.push(r) }
+      : {}),
     attached: preparedTurn.attached,
     openedMs,
     context,
@@ -369,6 +381,13 @@ export async function finishAskTurn(
   // A new search card sets aside the one still waiting above it (a change said to Ask): one search card in a thread
   // can be pressed, the newest. The Line sets the same cards aside as the answer lands (contracts withAnswerLanded).
   if (saved) await setAsideReplaced(ctx, cards, proposals, tenantId);
+  // What the rows let run with no press (D10 of the answers canvas): off until an owner turns it on.
+  const acted =
+    saved && ask.request
+      ? await runAlone(ctx, ask.request, member, saved.id, proposals, new Date()).catch(
+          logAndGoOn("run alone", proposals),
+        )
+      : proposals;
   const message: AskMessageVM = {
     id: saved?.id ?? `unsaved-${Date.now()}`,
     role: "assistant",
@@ -378,7 +397,8 @@ export async function finishAskTurn(
     citations: v1.citations,
     followups: v1.followups,
     navigate: v1.navigate,
-    proposals,
+    proposals: acted,
+    ...(pressed.length ? { pressed } : {}),
     language: result.answer.language,
     ungrounded: result.ungrounded,
     tools: result.tools,
@@ -407,6 +427,20 @@ export async function finishAskTurn(
   });
   emit({ t: "final", message });
   return { thread: { id: turn.id, title: turn.title }, result, message };
+}
+
+/** The cards waiting on this thread, by id, each with the turn it is on and the cards of that turn: what a yes may press. */
+function waitingOnThread(cards: ReadonlyArray<Pick<AskMessageVM, "id" | "proposals">>) {
+  return new Map(
+    cards.flatMap((m) =>
+      (m.proposals ?? [])
+        .filter((p) => !p.outcome)
+        .map((p): [string, { card: AskProposal; messageId: string; cards: readonly AskProposal[] }] => [
+          p.id,
+          { card: p, messageId: m.id, cards: m.proposals ?? [] },
+        ]),
+    ),
+  );
 }
 
 /** Both halves in a row, for a door with no stream to open between them (the voice door). */

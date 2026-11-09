@@ -23,6 +23,55 @@
       "rate": "ask",
       "spend": false
     },
+    "GET ask/notice": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST me/web-push": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "DELETE me/web-push": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST ask/act": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ask/act/undo": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ask/stop": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ask/alone": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "PATCH ask/memory/[id]": {
       "kind": "write",
       "scope": "workspace",

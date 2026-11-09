@@ -1,6 +1,8 @@
 /**
  * The ask domain: `@chanlytics/db/ask`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export { askAloneCounts, finishAskAction, listAskActions, markAskActionUndone, startAskAction } from "./actions";
+export type { AskActionStart } from "./actions";
 export {
   findMessageCard,
   findOpenEscalationOf,
@@ -8,6 +10,7 @@ export {
   findPersonReplyModeRow,
   findThreadCard,
   findThreadForReply,
+  findThreadSince,
   findWorkspaceRule,
   listDealsOfPerson,
 } from "./cards";
@@ -16,6 +19,14 @@ export type { AskJournalDueRow, JournalDecisionRow, JournalEventRow } from "./jo
 export { askJournalDays, askMemoryLines, changeAskMemory, forgetAskMemory, keepAskMemory, searchAsk } from "./memory";
 export type { AskMemoryDoor, AskRecallRow } from "./memory";
 export { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "./mornings";
+export {
+  countHeldReviewReplies,
+  insertAskNoticeDay,
+  keepNoticeAlert,
+  listAskNoticeKeysSince,
+  listBusinessesForMorning,
+  listOwnerSeats,
+} from "./notice-days";
 export {
   claimConversationDraft,
   dropConversationDraft,

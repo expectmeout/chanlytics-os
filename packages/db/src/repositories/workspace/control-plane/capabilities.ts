@@ -197,6 +197,20 @@ export type PlaybookToStart = Required<
 >;
 
 /**
+ * A new send's words taken as the member's OK (the words_seen door, 00573): they pressed a card that showed them, so its
+ * first batch goes as its row says (D3 of the answers canvas). False where the door is not on this database yet: that batch
+ * waits for an OK as it did, never a failed start. Other failures are raised, for the caller to say.
+ */
+export async function wordsSeenByMember(db: Db, tenantId: TenantId, stepId: string): Promise<boolean> {
+  const { data, error } = await db.rpc("words_seen", { p_tenant_id: tenantId, p_step_id: stepId });
+  if (error) {
+    if (isMissingDoor(error)) return false;
+    throw new DbFailure(error, "marking a new send's words as seen");
+  }
+  return data === true;
+}
+
+/**
  * Start a playbook with its line in the ledger (00357 start_playbook), on the member's own session: the row, running
  * and theirs, then the start_playbook decision, in one transaction. The door runs on the caller's rights, so the
  * table's policy, checks and unique indexes judge the row. Since 00416 it writes the last day the playbook names

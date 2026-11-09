@@ -1,5 +1,6 @@
 /** Context: tool defs. */
 
+import type { Member } from "@/server/shared/route";
 import "server-only";
 import type { z } from "zod";
 import {
@@ -8,6 +9,8 @@ import {
   type AskProposal,
   type AskReadSet,
   type MembershipRole,
+  type AskProposalOutcome,
+  type PlanFigure,
   type PlanLead,
   PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
@@ -78,6 +81,14 @@ export interface ToolContext {
   theirs?: string[];
   /** The person's earlier questions in this thread: what a post's words may rest on beside this one (act/post.ts). */
   askedEarlier?: string[];
+  /**
+   * What a press from the server needs (D18 of the answers canvas): the request whose session it goes under, the member, the
+   * cards waiting on this thread by id with the turn each is on, and where to say what it pressed. Absent outside a turn.
+   */
+  request?: Request;
+  member?: Member;
+  waitingOn?: ReadonlyMap<string, { card: AskProposal; messageId: string; cards: readonly AskProposal[] }>;
+  onPressed?: (r: { messageId: string; proposalId: string; outcome: AskProposalOutcome }) => void;
   /**
    * When the turn's own time runs out (loop.ts budgetOf, a typed turn's or a spoken one's, from its start), where a turn
    * runs the tool: a craft call made inside the turn ends before it. Absent outside a turn.
@@ -173,6 +184,10 @@ export interface ProposalOutcome {
   words?: string;
   /** What a setup's answer leads with where something comes first (contracts journey/plan.ts PlanLead): the round answers with it. */
   lead?: PlanLead;
+  /** An offer's one sentence, the reason it has this shape, where the model's round cannot say it (D1 of the answers canvas). */
+  why?: string;
+  /** The numbers that sentence rests on, as chips the answer draws from here, never from the model. */
+  figures?: PlanFigure[];
   /** Why nothing was proposed (refuse), as the model is told it: read by a plan of its step's refusal (act/plan.ts). */
   refusal?: string;
   /**

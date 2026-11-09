@@ -125,7 +125,18 @@ export const useArSlide = ({ open, composing, setComposing, slideFrom, stageRef,
 };
 
 /** What opening does: the route's scope, the threads and the surfaces the rows read, and the three coming in from the button. */
-export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, setThreads, setTick, faceRef }: Line) => {
+export const useArOpen = ({
+  lang,
+  open,
+  A,
+  route,
+  openedAt,
+  setScope,
+  threadsReady,
+  setThreads,
+  setTick,
+  faceRef,
+}: Line) => {
   // Open: the route's scope, the threads, and the surfaces the rows read (Right now reads Today's and Broadcasts').
   useEffect(() => {
     if (!open || !A) return;
@@ -137,6 +148,7 @@ export const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, se
       return list;
     });
     if (A.readFollowUps) void A.readFollowUps();
+    if (A.readNotices) void A.readNotices(lang ?? "en");
     const bump = () => setTick((n) => n + 1);
     const evs = [
       "surface:inbox",

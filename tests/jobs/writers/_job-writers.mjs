@@ -57,6 +57,9 @@ export const JOB_WRITERS = {
     provider: "answers 503, and the leads clock collects a run whose webhook was lost",
   },
   "apps/edge/lib/leads/pipeline.ts|*": { clock: "leads", why: "takes up a run whose start or lease was lost" },
+  "apps/dashboard/src/server/ask/notice/sweep.ts|push_send": {
+    lost: "one morning's buzz: the notice stands on the bell and in Ask, and the failure is logged",
+  },
   "apps/edge/lib/leads/sweep.ts|*": { clock: "leads", why: "the clock's own work" },
   "apps/edge/lib/leads/sweep.ts|lead_collect": { clock: "leads", why: "the clock's own work" },
   "apps/edge/lib/lines/admin.ts|*": { clock: "lines", why: "a line setting up past its deadline is resumed" },

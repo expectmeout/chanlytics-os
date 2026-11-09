@@ -502,6 +502,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // name renames the workspace (00439, X4-5): the sidebar and the switcher say it from the boot's own list, as they do the
   // logo, read last (the settings first, for the next save's version).
   "PUT settings": () => [...settingsWrite(), workspaceOverride],
+  // Ask's own section of the configuration, which Autonomy draws; a stop pauses what Campaigns draws too.
+  "POST ask/alone": () => settingsWrite(),
+  "POST ask/stop": () => settingsWrite(),
   // The first receptionist is a settings write too, from what is known (its profile carries the hours): the same surfaces read
   // again. It takes the workspace's name and renames nothing, so the workspace is not read again.
   "POST settings/receptionist": settingsWrite,
@@ -668,6 +671,11 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  // The door's answer names the calls it made, and the press re-reads each one's surfaces (bridge/ask/commit.ts tellDoorCalls).
+  "POST ask/act":
+    "a card acted on by the server: its answer names the calls it made, and the press reads again after each",
+  "POST ask/act/undo":
+    "a card taken back by the server: its answer names the calls it made, and the press reads again after each",
   "POST files/post/preview": "a post's picture is drawn for its card and kept nowhere",
   "POST files/[id]/google": "a post put on Google: its sheet says so from the answer, and the list holds nothing of it",
   "DELETE files/[id]/google":
@@ -757,6 +765,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST handovers/[id]/decline": "the handover leaves the screen asking, and the app opens as it would have",
   "DELETE me": "the account is gone and the tab goes to sign in",
   // Kept by the page that made them, or nothing a page shows.
+  "POST me/web-push": "this browser's own choice: Settings › Notifications says it from the browser",
+  "DELETE me/web-push": "this browser's own choice: Settings › Notifications says it from the browser",
   "PUT me/devices": "this device's push registration",
   "DELETE me/devices": "this device's push registration",
   "PUT me/alerts": "published from the answer (notifications/verbs.ts)",

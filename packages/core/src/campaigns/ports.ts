@@ -201,6 +201,11 @@ export interface FollowUpDue {
 
 /** The workspace as the run reads it once per tenant: the people, the number, the touches, the calendar. */
 export interface RunContext {
+  /**
+   * The book's room now, where a calendar can say it (contracts roomOf): a paced offer keeps to it, so it slows as slots fill
+   * (D39 of the answers canvas). Absent or null, every run keeps the cap it was given.
+   */
+  room?: { open: number; days: number } | null;
   tz: string;
   now: Date;
   people: PersonRowVM[];
@@ -265,6 +270,8 @@ export type RunOutcome =
         | "list_uncounted"
         /** A run for a day past the campaign's last (00416 `until`): it has ended, and sends nothing more. */
         | "ended"
+        /** A paced offer on a day the book has no open slot (D39 of the answers canvas): tomorrow it looks again. */
+        | "no_room"
         /** A step on a freed time run with none (decision 0082): it runs when an appointment frees one, never by the hour. */
         | "no_freed_time"
         /** A freed time handed to a step on another moment: only a freed time's step offers one. */

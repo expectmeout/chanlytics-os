@@ -20,7 +20,7 @@ const setup = rules.find((r) => r.startsWith("Setting up sequences is a few card
 test("what holds a card is the card's to say: the answer beside it leaves that out, the setup rule's last word", () => {
   assert.match(
     setup,
-    /never that anything is set up, started or running\. What holds a card back \(a channel that waits, a review, the month's allowance\) the card already says, so leave it out of the answer beside it\.$/,
+    /Never say that anything is set up, started or running\. What holds a card back \(a channel that waits, a review, the month's allowance\) the card already says, so leave it out of the answer beside it\.$/,
   );
   assert.equal(rules.filter((r) => r.includes("What holds a card back")).length, 1, "one rule says it");
 });

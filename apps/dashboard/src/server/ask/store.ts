@@ -319,7 +319,8 @@ export async function setProposalOutcome(
   const current = card.outcome;
   // An approved card is approved once, and after it only undone: a Not now or a failure sent by a page that drew the card
   // before it was approved (another tab, Today's morning read a while ago) would hide what was done and lose its Undo.
-  if (current && current.state === "done" && outcome.state !== "undone") {
+  const onlyPaused = current?.state === "done" && outcome.state === "done" && outcome.paused !== current.paused;
+  if (current && current.state === "done" && outcome.state !== "undone" && !onlyPaused) {
     throw new AppError("conflict", "That card was already approved.", 409);
   }
   const settled: AskProposal = { ...card, outcome };

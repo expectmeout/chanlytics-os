@@ -105,6 +105,7 @@ export {
   scheduleLine,
   runsWords,
   nextRunLabel,
+  nextRunOf,
 } from "./schedule";
 export type { RunPlan } from "./schedule";
 export {
