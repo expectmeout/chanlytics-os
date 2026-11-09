@@ -105,7 +105,7 @@ export const ASK_PAGES: JumpEntry[] = [
     sub: "the receptionist's voice, languages and notes",
     also: ["voice", "greeting", "languages"],
   },
-  // Cold email (decisions 0113, 0115): found by what it was called too, since a jump is three words at most (askJump).
+  // Cold email (decisions 0113, 0116): found by what it was called too, since a jump is three words at most (askJump).
   {
     label: "Cold email",
     to: "admin/outreach",

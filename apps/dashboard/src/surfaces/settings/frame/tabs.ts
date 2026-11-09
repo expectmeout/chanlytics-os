@@ -51,7 +51,7 @@ export const SET_TABS: readonly SetTab[] = [
   { id: "receptionist", label: "How it answers", icon: "chat", group: "Receptionist" },
   // What it may do without you, and every limit it keeps.
   { id: "autonomy", label: "Autonomy", icon: "shield", group: "Receptionist" },
-  // What Chanlytics says when it writes to businesses for you (decisions 0113, 0115): away from the receptionist, since
+  // What Chanlytics says when it writes to businesses for you (decisions 0113, 0116): away from the receptionist, since
   // it answers no one. Its route id stays `outreach`, as `workspace` does for Details: bells and Ask's answers name it.
   { id: "outreach", label: "Cold email", icon: "send", group: "Outreach" },
   { id: "team", label: "Team", icon: "users", group: "Workspace" },

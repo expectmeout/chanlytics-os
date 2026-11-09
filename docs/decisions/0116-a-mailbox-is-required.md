@@ -1,4 +1,4 @@
-# 0115 · Cold email: a mailbox is required, and the page says one answer
+# 0116 · Cold email: a mailbox is required, and the page says one answer
 
 **Status:** Accepted by Ruben, 9 November 2026 (the Cold email canvas, version 12, "i love it"; "Plan the build"; "Yes,
 start Stage A"). Stage A built: the page, its words, the first-email rule and the mailbox requirement, with no database
@@ -23,8 +23,8 @@ connect a mailbox as manually sending emails defeats the purpose of chanlytics".
 3. **A mailbox is required.** A new sequence to leads with no connected mailbox is refused, on New, on Ask's card and at
    the door, whichever the body says: the make marks one with none as sent by hand (00459). One already sent by hand goes
    on until the code goes (the plan's Stage E). A lead's own email sends from the mailbox, or says to connect one.
-4. **Only Google Workspace connects.** Microsoft stays halted, and "Tell us" counts who asks for something else: one line
-   of the log, nothing stored.
+4. **Only Google Workspace connects.** Microsoft stays halted, and "Tell us" keeps who asks for something else as an
+   event on the workspace's ledger (`mailbox_connection.provider_wanted`, its Activity row), so they can be told when it comes.
 5. **After a sequence's first run, first emails follow Before each batch** (0077 amended): the first run waits for an OK,
    since its words are new, and after it each batch holds for a stop or asks, as follow-ups already did. Cold email never
    just goes.

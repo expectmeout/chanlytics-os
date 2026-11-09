@@ -68,7 +68,7 @@ const providerWords = (providers: readonly string[]): string =>
     .join(" or ");
 
 /**
- * The mailboxes cold email goes from (decision 0056, 0115): the business's own, listed and connected under the row
+ * The mailboxes cold email goes from (decision 0056, 0116): the business's own, listed and connected under the row
  * (mailboxes-block.tsx). Later while this deployment offers no provider and the workspace has none, so the row is there,
  * greyed, saying what is coming. One held or signed out is the row's attention, said once, here.
  */
