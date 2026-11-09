@@ -23008,9 +23008,13 @@ CREATE FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_
   )
   select l.id, lower(btrim(l.email)), l.business_name, l.city, l.region, l.hours
     from members m
-    join public.reach_out_why_not(p_tenant_id, array(select lead_id from members), p_include_unconfirmed) w
-      on w.lead_id = m.lead_id and w.why is null
     join public.leads l on l.id = m.lead_id and l.tenant_id = p_tenant_id
+   -- A hash of who has a reason, whatever is guessed of it (00572). reach_out_why_not answers once for each lead it is asked
+   -- of, so leaving those out leaves whoever it lets go, and none of its leads is null: members' lead_id is not null.
+   where m.lead_id not in (
+     select w.lead_id
+       from public.reach_out_why_not(p_tenant_id, array(select lead_id from members), p_include_unconfirmed) w
+      where w.why is not null)
    -- The finder's fit, strongest first, then the longest found.
    order by case m.fit when 'strong' then 0 when 'look' then 1 when 'long' then 2 else 3 end, l.found_at
    limit greatest(p_limit, 0)
@@ -24269,8 +24273,9 @@ CREATE FUNCTION public.reach_out_people_of(p_tenant_id uuid, p_root_id uuid) RET
   )
   select r.lead_id,
          case when r.done then 'done' when (r.line->>'sent')::int > 0 then 'writing' else 'waiting' end,
-         r.line, r.ord, coalesce((select a.pos from aud a where a.lead_id = r.lead_id), 0)
+         r.line, r.ord, coalesce(a.pos, 0)
     from rl r
+    left join aud a on a.lead_id = r.lead_id
   union all
   select a.lead_id, 'waiting',
          jsonb_build_object('lead_id', a.lead_id, 'business_name', a.business_name, 'sent', 0, 'added_at', null),
@@ -25554,6 +25559,7 @@ COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_
 CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RETURNS TABLE(lead_id uuid, line jsonb, ord timestamp with time zone, done boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
+    SET work_mem TO '64MB'
     AS $$
   with sends as (
     -- left_at: when an email left (sent, or failed by a receipt after it left: email_left), else null.
@@ -25596,7 +25602,9 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
       join public.lead_searches q on q.id = r.lead_search_id and q.via in ('chosen', 'import') and q.removed_at is null
       join public.lead_search_members m on m.search_id = q.id and m.blanked_at is null and m.class = 'qualified' and m.counted
      where r.id = p_root_id and r.tenant_id = p_tenant_id
-       and not exists (select 1 from per p where p.lead_id = m.lead_id)
+       -- A hash of the walk, whatever is guessed of it (00572). Neither side is ever null: lead_id is not null on a member,
+       -- and sends leaves out a send with no lead.
+       and m.lead_id not in (select p.lead_id from per p)
   ),
   facts as (
     select x.*, l.business_name, l.stage, l.closed_reason, l.email_state, l.resume_at, l.booked_at, l.reach_out_stopped_at,

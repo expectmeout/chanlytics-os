@@ -73,6 +73,11 @@ of the three was among the quickest. The planner's guess of how many leads a lis
 low enough it read a list against everyone enrolled, pair by pair. One walk is now read against another by a hash of it, which no guess
 chooses (00568). The test seeds 30,000 other lists, so every run reads under that guess, and a read past the line prints the plan it got.
 
+A search for the same form on 9 Nov 2026 found three more in who is in a reach-out (00572): `reach_out_root_lines` and `reach_out_audience`, each
+a join a low guess made a loop, and `reach_out_people_of`, which read the whole audience again for each line whatever was guessed.
+`tests/leads/workbench/a-reach-out-at-volume.db.test.mjs` holds them by how many rows a plan walks, which is the same on any machine. A
+drawer at the ceiling still reads past a member's 8 s, most of it the address check `reach_out_why_not` asks of each lead in turn.
+
 ## What it costs
 
 A whole-view read of the queue reads every open place of the workspace, and a first page waits on counts that read the same. That is the 405
