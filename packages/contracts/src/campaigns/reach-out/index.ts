@@ -248,6 +248,8 @@ export {
   reachOutSignedByOf,
   reachOutToneOf,
 } from "./section";
+export { coldEmailSendingOf } from "./sending";
+export type { ColdEmailCheck, ColdEmailHealth, ColdEmailSending } from "./sending";
 export {
   REACH_OUT_SETTINGS_WORDS,
   reachOutRuleLines,
@@ -257,16 +259,6 @@ export {
   tryCheckLine,
   writesBackRows,
 } from "./settings";
-export { coldEmailSendingOf } from "./sending";
-export type { ColdEmailCheck, ColdEmailHealth, ColdEmailSending } from "./sending";
-export { COLD_EMAIL_NEEDS_MAILBOX, coldEmailNoteOf, coldEmailStandingOf, NO_SENDING_BY_HAND } from "./standing";
-export type {
-  ColdEmailRunning,
-  ColdEmailStanding,
-  ColdEmailStandingFacts,
-  ColdEmailStandingKind,
-  ColdEmailStep,
-} from "./standing";
 export type { ReachOutSettingsDto, ReachOutSettingsMailbox, ReachOutSettingsSequence, WritesBackRow } from "./settings";
 export {
   approvalWordsOf,
@@ -295,6 +287,14 @@ export {
   stepWhenWords,
 } from "./sheet/words";
 export type { RunPartVM } from "./sheet/words";
+export { COLD_EMAIL_NEEDS_MAILBOX, coldEmailNoteOf, coldEmailStandingOf, NO_SENDING_BY_HAND } from "./standing";
+export type {
+  ColdEmailRunning,
+  ColdEmailStanding,
+  ColdEmailStandingFacts,
+  ColdEmailStandingKind,
+  ColdEmailStep,
+} from "./standing";
 export { SEND_DAY_FRAME, SEND_WINDOW_MARGIN_MIN, sendWindowsOf, timetable, TIMETABLE_HORIZON_DAYS } from "./timetable";
 export type { Placed, TimetableInput, TimetableResult, TimetableSend, TimetableSender } from "./timetable";
 export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, toldShares, tryPartsOf } from "./told";

@@ -334,6 +334,21 @@ interface NewSequenceProps {
   kept?: string | null;
 }
 
+/** What the browser came back from Google with, said once as New opens: its word leaves the address as it is read. */
+function useCameFromGoogle(flash: Flash) {
+  const [came] = useState(() => connectedMailboxes.outcome());
+  useEffect(() => {
+    if (came) flash(came.ok ? { msg: came.words } : { tone: "danger", msg: came.words });
+  }, []);
+  return came;
+}
+
+/** Back from Google with a mailbox, the draft kept in the tab said none, and can start now. */
+function draftBackFromGoogle(draft: NewDraftDto | null, came: { ok: boolean } | null): NewDraftDto | null {
+  if (!draft || !came?.ok || draft.audience !== "leads" || !draft.mailbox) return draft;
+  return { ...draft, mailbox: { ...draft.mailbox, label: draft.mailbox.label || W.draft.yourMailbox } };
+}
+
 /** New, on the moment, for whom, or on the kept one-off its address names. */
 export function NewSequence({ moment = null, who = null, to = null, kept = null }: NewSequenceProps) {
   const reads = useNewReads(useSources());
@@ -344,18 +359,8 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const [back] = useState(() => tabDraft("new", here) as KeptHere | null);
   const [typed, setTyped] = useState<string | null>(back?.line ?? null);
   const line = typed ?? seed;
-  const [came] = useState(() => connectedMailboxes.outcome());
-  const [held, setDraft] = useState<NewDraftDto | null>(() => {
-    const draft = back?.draft ?? null;
-    // Back from Google with a mailbox: the draft kept in the tab said none, and can start now.
-    return draft && came?.ok && draft.audience === "leads" && draft.mailbox
-      ? { ...draft, mailbox: { ...draft.mailbox, label: draft.mailbox.label || W.draft.yourMailbox } }
-      : draft;
-  });
-  useEffect(() => {
-    if (came) flash(came.ok ? { msg: came.words } : { tone: "danger", msg: came.words });
-    // Once, as New opens: its word leaves the address as it is read.
-  }, []);
+  const came = useCameFromGoogle(flash);
+  const [held, setDraft] = useState<NewDraftDto | null>(() => draftBackFromGoogle(back?.draft ?? null, came));
   // The draft as Ask last answered it, never as it is being edited: what a make keeps beside the owner's words.
   const [drafted, setDrafted] = useState<NewDraftDto | null>(() => back?.drafted ?? null);
   const { opened, letGo } = useOpenedOn(who, kept, reads);

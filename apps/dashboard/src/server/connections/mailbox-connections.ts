@@ -285,6 +285,15 @@ export async function removeMailbox(tenantId: TenantId, userId: string, id: stri
 }
 
 /** Where the browser lands after the provider: Connections, with the outcome in a word the block reads once. */
+/** Where a connect came from, as its signed state names it; anywhere else goes back to Connections. */
+const CONNECT_CAME_FROM: Readonly<Record<string, string>> = {
+  start: "start/channels",
+  new: "campaigns/sequences/new:leads",
+  cold_email: "admin/outreach",
+};
+const pageItCameFrom = (back: string | null | undefined): string | null =>
+  back && Object.hasOwn(CONNECT_CAME_FROM, back) ? back : null;
+
 function afterMailbox(
   origin: string,
   outcome: string,
@@ -292,14 +301,7 @@ function afterMailbox(
   to: { slug?: string | null; backTo?: string | null } = {},
 ): string {
   // The first run's Where it answers asked (decision 0073): back to its tile, the outcome said there.
-  const page =
-    to.backTo === "start"
-      ? "start/channels"
-      : to.backTo === "new"
-        ? "campaigns/sequences/new:leads"
-        : to.backTo === "cold_email"
-          ? "admin/outreach"
-          : "admin/integrations";
+  const page = (to.backTo && CONNECT_CAME_FROM[to.backTo]) || "admin/integrations";
   return `${origin}${appLink(to.slug, page, { mailbox: outcome, why: reason || null })}`;
 }
 
@@ -389,8 +391,7 @@ export async function handleMailboxCallback(ctx: RouteContext, req: Request) {
   if (!secret) return back("error", "not_available");
   const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
   if (!proof.ok) return back("error", "failed");
-  backTo =
-    proof.state.b === "start" || proof.state.b === "new" || proof.state.b === "cold_email" ? proof.state.b : null;
+  backTo = pageItCameFrom(proof.state.b);
   if (proof.state.u !== ctx.userId || !isProvider(proof.state.p)) return back("error", "failed");
   const provider = proof.state.p;
 

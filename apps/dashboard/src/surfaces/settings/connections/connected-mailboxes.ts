@@ -44,12 +44,12 @@ interface ConnectedMailboxesApi {
    * To the provider's consent screen: the door is asked for the way there, and the browser leaves only when it gave
    * one, so a refusal comes back here to be said on the page. A Reconnect names its mailbox.
    */
-  /** `back: "start"` brings the owner back to the first run that asked (decision 0073), not to Connections. */
+  /** `back` brings the owner back to the first run (decision 0073), New or Cold email that asked, not to Connections. */
   /** `history` is what its owner chose of a new mailbox's history (decision 0086); absent, its last six months. */
   connect(
     provider: MailboxProvider,
     mailboxId?: string | null,
-    back?: "start",
+    back?: "start" | "new" | "cold_email",
     history?: MailboxHistory,
   ): Promise<ApiResult<unknown>>;
   /** The link a Microsoft 365 admin opens to approve Chanlytics for their organisation, once. */

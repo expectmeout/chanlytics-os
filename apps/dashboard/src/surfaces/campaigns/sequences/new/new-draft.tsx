@@ -322,7 +322,7 @@ function footLineOf(d: NewDraftDto, tz: string, at: M.FootReads): { lead: string
 const needsMailbox = (d: NewDraftDto): boolean => d.audience === "leads" && !!d.mailbox && !d.mailbox.label;
 
 /** To Google's consent and back to this draft, which is kept in the tab as it changes (new-page.tsx). */
-const connectForNew = () => connectedMailboxes.connect("google", null, "new", null);
+const connectForNew = () => connectedMailboxes.connect("google", null, "new");
 
 /** The one act a draft is set up for: Start a sequence, Send now or Schedule a one-off, Send one to leads. */
 function actOf(d: NewDraftDto, onMake: (start: boolean) => void, onSendNow: () => void) {

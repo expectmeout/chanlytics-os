@@ -21,7 +21,7 @@ const WORKSPACE_HELP = "https://workspace.google.com/";
 
 /** To Google's consent, and back to this page; a door that refuses says so. */
 const connectGoogle = (flash: (flash: FrameFlash) => void) => {
-  void connectedMailboxes.connect("google", null, "cold_email", null).then((r) => {
+  void connectedMailboxes.connect("google", null, "cold_email").then((r) => {
     if (!r.ok) flash({ tone: "danger", msg: r.message });
   });
 };
