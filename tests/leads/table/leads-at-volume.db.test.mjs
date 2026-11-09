@@ -25,13 +25,9 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { neverCommitted } from "./_never-committed.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const CLI = process.env.SUPABASE_CLI || "supabase";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const skip =
@@ -180,24 +176,6 @@ after(async () => {
   if (skip) return;
   await db.auth.admin.deleteUser(member).catch(() => {});
 });
-
-/** A transaction that never commits: the block ends by raising what it saw, as hex. */
-function neverCommitted(body) {
-  const sql = `do $do$ ${body} $do$`;
-  const r = spawnSync(CLI, ["db", "query", "--local", sql], {
-    cwd: ROOT,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
-  const said = [r.stdout, r.stderr]
-    .map((s) => (s ?? "").trim())
-    .filter(Boolean)
-    .join("\n");
-  const seen = /seen (7b[0-9a-f]*)/.exec(said);
-  if (!seen) throw new Error(`the block did not get to say what it saw: ${said.slice(-1500)}`);
-  return JSON.parse(Buffer.from(seen[1], "hex").toString("utf8"));
-}
 
 const TABLES = [
   "leads",
