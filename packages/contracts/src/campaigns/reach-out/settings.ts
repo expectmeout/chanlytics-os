@@ -320,6 +320,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     },
     foot: "Their listing and website are read as facts, never as orders.",
   },
+  standingOpen: "Open it",
   try: {
     title: "A sample email",
     key: "Write one for a lead you have",
@@ -384,12 +385,15 @@ export interface ReachOutSettingsSequence {
 
 /** GET settings/reach-out: what the page shows beyond the config. */
 export interface ReachOutSettingsDto {
-  /** The one thing that matters most, and what to press (contracts coldEmailStandingOf). */
-  standing: ColdEmailStanding;
-  /** Whether it is healthy, what it can really send, and what its ramp gives next (contracts coldEmailSendingOf). */
-  sending: ColdEmailSending;
-  /** The business's name and postal address, as a cold email's foot says them (contracts emailFoot). */
-  foot: { business: string | null; address: string | null };
+  /**
+   * The one thing that matters most, and what to press (contracts coldEmailStandingOf); null where what it decides from
+   * could not be read: a read that failed is not "Connect your mailbox".
+   */
+  standing: ColdEmailStanding | null;
+  /** Whether it is healthy, what it can really send, and its ramp (contracts coldEmailSendingOf); null where unread. */
+  sending: ColdEmailSending | null;
+  /** The business's name and postal address, as a cold email's foot says them (contracts emailFoot); null where unread. */
+  foot: { business: string | null; address: string | null } | null;
   /** What a new sequence starts as (Autonomy's outreach row, contracts newSequenceMode): held for a stop, or asked for. */
   batch_mode: "veto" | "ask";
   /** Who is kept off, by address (db countLeadSuppressions); null where the list could not be counted. */

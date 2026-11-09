@@ -4,7 +4,7 @@
  * is left before a first email, each with its own door. Someone who may only read is told, and offered no press.
  */
 import type { ColdEmailStanding, ColdEmailStep } from "@chanlytics/contracts";
-import { leadsRoute } from "@chanlytics/contracts";
+import { REACH_OUT_SETTINGS_WORDS, leadsRoute } from "@chanlytics/contracts";
 import { navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -25,7 +25,7 @@ const StepRow = ({ step, canEdit }: { step: ColdEmailStep; canEdit: boolean }) =
     </span>
     <span className="ro-step-words">
       {canEdit && !step.done ? (
-        <LinkButton size="inherit" onClick={stepDoor(step.id)} data-testid={`rec-step-${step.id}-door`}>
+        <LinkButton className="ro-step-door" onClick={stepDoor(step.id)} data-testid={`rec-step-${step.id}-door`}>
           {step.title}
         </LinkButton>
       ) : (
@@ -82,7 +82,7 @@ export function StandingCard({ standing, canEdit }: { standing: ColdEmailStandin
       {standing.kind === "sending" && standing.to ? (
         <span>
           <LinkButton onClick={() => navigate(standing.to ?? "")} data-testid="rec-standing-open">
-            Open it <Icon name="chevron" size={11} />
+            {REACH_OUT_SETTINGS_WORDS.standingOpen} <Icon name="chevron" size={11} />
           </LinkButton>
         </span>
       ) : null}

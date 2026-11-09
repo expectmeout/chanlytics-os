@@ -178,6 +178,8 @@ function SendingSheet(shared: OutreachShared) {
 /** Before each batch: what a new sequence starts as, through Autonomy's own verb. Cold email never just goes. */
 function BatchFold(shared: OutreachShared & { again: () => void }) {
   const mode = shared.read?.batch_mode ?? "ask";
+  // Not said until the read lands: a mode not read is no mode to state.
+  const said = shared.read ? SEND_WORDS.batchAt[mode] : "…";
   const saving = useRef(false);
   const door = {
     initial: mode as string,
@@ -205,7 +207,7 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
       light
       gate={gate("settings", "change what happens before each batch")}
       door={door}
-      row={{ value: SEND_WORDS.batchAt[mode] }}
+      row={{ value: said }}
       body={(fields) => (
         <>
           <p className="bt-fold-note">{SEND_WORDS.batchNote}</p>
@@ -249,7 +251,7 @@ export function SendingCard(shared: OutreachShared & { again: () => void }) {
         id="send_from"
         label={SEND_WORDS.from}
         value={sending?.from ? `${sending.from}${sending.more ? ` ${SEND_WORDS.more(sending.more)}` : ""}` : null}
-        empty={shared.read ? SEND_WORDS.none : "…"}
+        empty={sending ? SEND_WORDS.none : "…"}
         act={{ label: "Details", onClick: open }}
       />
       {sending?.pace ? (

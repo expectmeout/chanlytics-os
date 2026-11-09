@@ -252,3 +252,11 @@ test("emails held for an address are counted by that reason alone, in this works
   });
   assert.equal(await countHeldForAddress(db, T), 2);
 });
+
+test("a read that failed claims nothing: the one answer stands back, and never says to connect a mailbox", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const reader = await readFile("apps/dashboard/src/server/readers/settings.ts", "utf8");
+  assert.match(reader, /const decided = !!row && !!facts && !!mailboxes && !!chains;/);
+  assert.match(reader, /standing: decided\n/);
+  assert.match(reader, /sending: mailboxes \? coldEmailSendingOf/);
+});

@@ -98,12 +98,12 @@ function EndingBox({
 }
 
 /** The ending as it is sent, under the sheet's boxes, so a change is seen as it is typed. */
-const EndingPreview = ({ f, foot }: { f: BoxFields; foot: string | null }) => (
+const EndingPreview = ({ f, foot, missing }: { f: BoxFields; foot: string | null; missing: boolean }) => (
   <div className="ro-ending ro-ending-sheet" data-testid="rec-ending-preview">
     {linesOf(endingOf(f.draft)).map((line, n) => (
       <span key={n}>{line}</span>
     ))}
-    <small>{foot ?? ENDING_WORDS.noAddress}</small>
+    {foot || missing ? <small>{foot ?? ENDING_WORDS.noAddress}</small> : null}
   </div>
 );
 
@@ -121,8 +121,8 @@ export function EndingCard(shared: OutreachShared) {
   const shown = { ...stored, signed_by: named ?? fallback ?? "" };
   const lines = linesOf(shown);
   const foot = footOf(shared);
-  // Not said until the read lands: an address not yet read is not an address missing.
-  const noAddress = !!shared.read && !foot;
+  // Said only of a read that landed: an address not read is not an address missing.
+  const noAddress = !!shared.read?.foot && !foot;
   const editGate = gate("settings", "change how your emails end");
   return (
     <OutreachCard id="ending" title={ENDING_WORDS.title}>
@@ -197,7 +197,7 @@ export function EndingCard(shared: OutreachShared) {
               inputMode="tel"
               autoComplete="tel"
             />
-            <EndingPreview f={f} foot={foot} />
+            <EndingPreview f={f} foot={foot} missing={noAddress} />
             <p className="bt-fold-note" data-testid="rec-ending-note">
               {ENDING_WORDS.reach}{" "}
               <LinkButton onClick={() => navigate(settingsRowRoute("address"))} data-testid="rec-ending-address">

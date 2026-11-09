@@ -100,7 +100,8 @@ function whoWords(d: NewDraftDto): { lead: string; label: string; empty: boolean
 function WhoSentence({ draft, open }: { draft: NewDraftDto; open: (s: NewSheet) => void }) {
   const who = whoWords(draft);
   const channels = M.channelsSaidOf(draft.channels, " or ");
-  const from = draft.mailbox?.label || W.sheets.noMailbox;
+  // Built by hand, what it sends from is not known here: said plainly, and the door says if there is none.
+  const from = draft.mailbox ? draft.mailbox.label || W.sheets.noMailbox : W.draft.yourMailbox;
   return (
     <p className="sq-nw-sentence" data-testid="sq-nw-sentence">
       <WordPick big label={W.draft.kind[draft.kind]} onPick={() => open({ kind: "kind" })} testid="sq-nw-kind-pick" />{" "}

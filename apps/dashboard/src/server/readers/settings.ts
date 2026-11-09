@@ -401,10 +401,15 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
       await Promise.all([
         partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
         partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
-        partOrElse(listMailboxConnectionsWithDays(db, tenantId, rc.now), "mailboxes", tenantId, []),
+        partOrElse<MailboxConnectionDto[] | null>(
+          listMailboxConnectionsWithDays(db, tenantId, rc.now),
+          "mailboxes",
+          tenantId,
+          null,
+        ),
         readReachOutMonthOrNull(tenantId, rc.now),
         partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
-        partOrElse(listChains(rc.ctx, tenantId), "chains", tenantId, []),
+        partOrElse<ReachOutChainDto[] | null>(listChains(rc.ctx, tenantId), "chains", tenantId, null),
         partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
         partOrElse(findWorkspaceWords(db, tenantId), "about", tenantId, null),
         partOrElse<Record<string, string>>(getJournalMemberNames(db, [rc.ctx.userId]), "name", tenantId, {}),
@@ -414,10 +419,13 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
     const name = names[rc.ctx.userId]?.trim() || null;
     const parsed = parseTenantConfig(row?.data?.config);
     const claims = parsed?.reach_out?.proof ?? [];
+    const chainList = chains ?? [];
+    // What the one answer decides from, read: with any of it lost it says nothing, never "Connect your mailbox".
+    const decided = !!row && !!facts && !!mailboxes && !!chains;
     const hasAddress = hasFootAddress(facts?.data.name, parsed?.brain?.profile?.address);
-    const subject = standingChainOf(chains);
+    const subject = standingChainOf(chainList);
     const [counted, report, heldForAddress] = await Promise.all([
-      partOrElse(countSentByStep(db, tenantId, stepsCarrying(claims, chains)), "counts", tenantId, new Map()),
+      partOrElse(countSentByStep(db, tenantId, stepsCarrying(claims, chainList)), "counts", tenantId, new Map()),
       subject ? partOrElse(getChainReport(rc.ctx, tenantId, subject.root_id), "report", tenantId, null) : null,
       hasAddress ? 0 : partOrElse(countHeldForAddress(db, tenantId), "held_for_address", tenantId, null),
     ]);
@@ -425,31 +433,36 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
     const month = { sent, of: REACH_OUT_MONTH_EMAILS };
     return {
       data: {
-        standing: coldEmailStandingOf(
-          standingFactsOf({
-            chains,
-            report,
-            mailboxes,
-            hasAddress,
-            heldForAddress,
-            month,
-            hasSearch: newestSearch !== null,
-            whoFor: parsed?.reach_out?.who_for?.trim() || null,
-            nowMs: rc.now.getTime(),
-            tz,
-          }),
-        ),
-        sending: coldEmailSendingOf(mailboxes, month, rc.now.getTime()),
+        standing: decided
+          ? coldEmailStandingOf(
+              standingFactsOf({
+                chains: chainList,
+                report,
+                mailboxes: mailboxes ?? [],
+                hasAddress,
+                heldForAddress,
+                month,
+                hasSearch: newestSearch !== null,
+                whoFor: parsed?.reach_out?.who_for?.trim() || null,
+                nowMs: rc.now.getTime(),
+                tz,
+              }),
+            )
+          : null,
+        sending: mailboxes ? coldEmailSendingOf(mailboxes, month, rc.now.getTime()) : null,
         batch_mode:
           newSequenceMode(policies.find((p) => p.class === "outreach")?.mode, "leads") === "veto" ? "veto" : "ask",
         never,
-        foot: { business: facts?.data.name?.trim() || null, address: parsed?.brain?.profile?.address?.trim() || null },
-        mailbox: mailboxShown(mailboxes, rc.now.getTime(), tz),
+        foot:
+          row && facts
+            ? { business: facts.data.name?.trim() || null, address: parsed?.brain?.profile?.address?.trim() || null }
+            : null,
+        mailbox: mailboxShown(mailboxes ?? [], rc.now.getTime(), tz),
         month,
         by_hand_per_day: REACH_OUT_DRAFTS_PER_DAY,
-        claims: claimCounts(claims, chains, counted),
+        claims: claimCounts(claims, chainList, counted),
         voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),
-        sequence: newestLeadSequence(chains),
+        sequence: newestLeadSequence(chainList),
         reply_mode: policies.find((p) => p.class === "reply")?.mode ?? REPLY_MODE_UNSET,
         about: ownWords?.text ?? null,
         about_from: ownWords?.from ?? null,

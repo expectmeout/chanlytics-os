@@ -716,6 +716,8 @@ export function FromSheet(p: { open: boolean; draft: NewDraftDto; onConnect: () 
       <div className="sq-nw-rows">
         {box?.label ? (
           <Choice glyph="mail" name={W.sheets.yourMailbox} said={box.label} on testid="sq-nw-from-box" />
+        ) : !box ? (
+          <Choice glyph="mail" name={W.sheets.yourMailbox} said={W.sheets.connectSaid} on testid="sq-nw-from-box" />
         ) : (
           <Choice
             glyph="mail"

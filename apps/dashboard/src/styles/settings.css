@@ -1765,6 +1765,8 @@ html.frame-on .bt-link { position: relative; }
 .ro-check[data-ok="true"] .ro-check-mark { background: var(--ok-soft); border-color: transparent; }
 .ro-check[data-ok="false"] .ro-check-mark { background: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
 .ro-step-words { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+/* A step's door keeps a finger's height on a phone, and takes no more room than its line: what it overlaps is words. */
+@media (max-width: 899.98px) { .ro-step-door { margin-block: -12px; } }
 .ro-step-words > small { font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
 .ro-step[data-done="true"] .ro-step-words { color: var(--ink-dim); }
 /* Cold email's claims (decision 0113): one box a claim and its remove beside it, under the notes' rules. */

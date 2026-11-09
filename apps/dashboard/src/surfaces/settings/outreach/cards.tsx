@@ -50,7 +50,7 @@ export function OutreachCards({
           <p className="ro-sub" data-testid="rec-outreach-sub">
             {REACH_OUT_SETTINGS_WORDS.sub}
           </p>
-          <StandingCard standing={read?.standing ?? null} canEdit={canEdit} />
+          {read && !read.standing ? null : <StandingCard standing={read?.standing ?? null} canEdit={canEdit} />}
           {offerless ? (
             <p className="bt-gap" data-testid="rec-offer-gap">
               <span className="bt-gap-dot" aria-hidden="true" />

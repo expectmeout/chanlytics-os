@@ -499,6 +499,18 @@ test("nothing offers sending by hand", async () => {
   assert.doesNotMatch(words, /To send/);
 });
 
+test("a read that could not decide draws no answer, and no address is called missing", async () => {
+  const tree = await drawOnRead(
+    {},
+    { standing: null, sending: null, foot: null },
+    (t) => byTestId(t, "rec-standing") === null,
+  );
+  assert.equal(byTestId(tree, "rec-standing"), null);
+  assert.doesNotMatch(textOf(byTestId(tree, "rec-card-ending")), /No address yet/);
+  assert.equal(byTestId(tree, "rec-sending-pill"), null);
+  unmount();
+});
+
 test("where it stands is amber where it waits on the owner, quiet where it does not", async () => {
   const held = {
     kind: "held",

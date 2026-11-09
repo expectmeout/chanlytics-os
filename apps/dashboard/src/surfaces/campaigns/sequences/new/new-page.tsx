@@ -11,6 +11,7 @@
  * Campaigns counts: the playbooks read's moments, lists and pools,
  * the sequences that run, and the searches whose leads are ready (reach_out_sources).
  */
+import { connectedMailboxes } from "../../../settings/connections/connected-mailboxes";
 import { useEffect, useRef, useState } from "react";
 import {
   CONSENT_CHANNELS,
@@ -343,7 +344,18 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const [back] = useState(() => tabDraft("new", here) as KeptHere | null);
   const [typed, setTyped] = useState<string | null>(back?.line ?? null);
   const line = typed ?? seed;
-  const [held, setDraft] = useState<NewDraftDto | null>(back?.draft ?? null);
+  const [came] = useState(() => connectedMailboxes.outcome());
+  const [held, setDraft] = useState<NewDraftDto | null>(() => {
+    const draft = back?.draft ?? null;
+    // Back from Google with a mailbox: the draft kept in the tab said none, and can start now.
+    return draft && came?.ok && draft.audience === "leads" && draft.mailbox
+      ? { ...draft, mailbox: { ...draft.mailbox, label: draft.mailbox.label || W.draft.yourMailbox } }
+      : draft;
+  });
+  useEffect(() => {
+    if (came) flash(came.ok ? { msg: came.words } : { tone: "danger", msg: came.words });
+    // Once, as New opens: its word leaves the address as it is read.
+  }, []);
   // The draft as Ask last answered it, never as it is being edited: what a make keeps beside the owner's words.
   const [drafted, setDrafted] = useState<NewDraftDto | null>(() => back?.drafted ?? null);
   const { opened, letGo } = useOpenedOn(who, kept, reads);
