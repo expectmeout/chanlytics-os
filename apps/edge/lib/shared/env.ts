@@ -231,6 +231,16 @@ export const env = {
     return trimmedEnv(process.env.GRAPH_NOTIFY_SECRET);
   },
   // Push (Expo's push service)
+  /** The deployment's keys for telling browsers (D12 of the answers canvas): with none, no browser is told. */
+  get VAPID_PUBLIC_KEY() {
+    return trimmedEnv(process.env.VAPID_PUBLIC_KEY);
+  },
+  get VAPID_PRIVATE_KEY() {
+    return trimmedEnv(process.env.VAPID_PRIVATE_KEY);
+  },
+  get VAPID_SUBJECT() {
+    return trimmedEnv(process.env.VAPID_SUBJECT);
+  },
   get EXPO_ACCESS_TOKEN() {
     return trimmedEnv(process.env.EXPO_ACCESS_TOKEN);
   },

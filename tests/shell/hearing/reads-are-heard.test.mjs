@@ -515,6 +515,10 @@ test("the writes listed as untold are still untold, and each says why", () => {
 const NOT_READ = {
   "PUT lead-suggestions -> leads":
     "The ideas are kept through an object the trace does not follow (ideaStore.saveLine in server/leads/suggestions.ts); it writes lead_suggestions, which Leads reads for a new search's ideas (GET lead-suggestions).",
+  "POST ask/alone -> reports_campaigns":
+    "settingsWrite() names the Campaigns lens through channelChange() for the connected number's health; the switch writes tenant_config alone, which the lens does not read. Premature, as the receptionist's row below, and the row keeps every reader of Settings fresh by one name.",
+  "POST ask/stop -> reports_campaigns":
+    "Stop everything writes tenant_config here, and pauses each running sequence through the sequence's own route, whose row re-reads what it should. settingsWrite() names the lens for the number's health, which a stop does not move. Premature.",
   "POST settings/receptionist -> reports_campaigns":
     "channelChange() names the Campaigns lens for the connected number's health; the first receptionist writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "POST calendar/visits/[id] -> reports_people":

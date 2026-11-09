@@ -103,6 +103,21 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     error_message: byAge("ai_usage"),
     ...all(byAge("ai_usage"), "question", "primary_answer", "shadow_answer"),
   },
+  // What Ask told a business: a key and a day (00575).
+  ask_notice_days: { key: { kind: "not_personal" } },
+  // What Ask did: closed sets and ids alone, its words stay on the turn, which ask_scrub reaches (00574).
+  ask_actions: all(
+    { kind: "not_personal" },
+    "proposal_id",
+    "kind",
+    "made_kind",
+    "made_id",
+    "reason",
+    "code",
+    "by",
+    "origin_by",
+    "state",
+  ),
   // What Ask remembers (00470, decision 0070): a line a member told it, and a day of its journal, which may name a customer
   // as the team does; one that names them goes with their turns. Where each came from is a closed set.
   ask_journal_days: { text: scrubbedBy("ask_scrub") },

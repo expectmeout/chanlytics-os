@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-373 handlers in 57 domains.
+380 handlers in 57 domains.
 
 ## activity
 
@@ -40,6 +40,34 @@ Reads; for a member of the workspace the request names, owner or above; counts a
 Writes; for a member of the workspace the request names, viewer or above; counts against the `ask` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/route.ts`).
+
+### `POST /api/v1/ask/act`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `message_id` | string (uuid) | yes |  |
+| `proposal_id` | string | yes | at most 40 characters; matches `^p-[a-z0-9-]+$` |
+| `by` | string | no |  |
+
+### `POST /api/v1/ask/act/undo`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `message_id` | string (uuid) | yes |  |
+| `proposal_id` | string | yes | at most 40 characters; matches `^p-[a-z0-9-]+$` |
+| `by` | string | no |  |
+
+### `POST /api/v1/ask/alone`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `on` | boolean | yes |  |
 
 ### `GET /api/v1/ask/follow-ups`
 
@@ -95,6 +123,12 @@ Writes; for a member of the workspace the request names, operator or above; coun
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ask/morning/route.ts`).
 
+### `GET /api/v1/ask/notice`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/ask/notice/route.ts`).
+
 ### `GET /api/v1/ask/openings`
 
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
@@ -119,6 +153,14 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 | `text` | string | yes | at least 1 characters; at most 1500 characters |
 | `purpose` | one of `"brief"`, `"answer"` | yes |  |
 | `before` | string | no | at most 1500 characters |
+
+### `POST /api/v1/ask/stop`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `stopped` | boolean | no |  |
 
 ### `GET /api/v1/ask/threads`
 
@@ -1750,6 +1792,23 @@ Writes; for any signed-in person, for themselves; counts against the `device_reg
 Writes; for any signed-in person, for themselves; counts against the `invitation_accept` rate; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/me/invitations/accept/route.ts`).
+
+### `POST /api/v1/me/web-push`
+
+Writes; for any signed-in person, for themselves; no rate bucket; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `endpoint` | string | yes | at most 1000 characters; matches `^https:\/\/` |
+| `keys` | object | yes |  |
+
+### `DELETE /api/v1/me/web-push`
+
+Writes; for any signed-in person, for themselves; no rate bucket; spends nothing. Takes no `Idempotency-Key`: there is no workspace to keep it in.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `endpoint` | string | yes | at most 1000 characters |
 
 ## messages
 

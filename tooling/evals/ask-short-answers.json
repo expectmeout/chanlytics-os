@@ -1,0 +1,432 @@
+[
+  {
+    "id": "short_card_reply",
+    "text": "Tell the last person who wrote that Saturday at ten works.",
+    "surface": "inbox",
+    "expect": {
+      "proposals_any_or_says": ["reply"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_note",
+    "text": "Add a note on my last customer that they prefer mornings.",
+    "surface": "people",
+    "expect": {
+      "proposals_any_or_says": ["note"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_list",
+    "text": "Make a list of everyone who said yes to offers and has not booked in 90 days.",
+    "surface": "people",
+    "expect": {
+      "proposals_any_or_says": ["list"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_message",
+    "text": "Write a message for offers saying we have a free check-up this month, in English.",
+    "surface": "campaigns",
+    "expect": {
+      "proposals_any_or_says": ["message"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_pause",
+    "text": "Pause my monthly offer.",
+    "surface": "campaigns",
+    "expect": {
+      "proposals_any_or_says": ["playbook_change"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_search",
+    "text": "Find 50 gyms in Austin I could write to.",
+    "surface": "leads",
+    "expect": {
+      "proposals_any_or_says": ["lead_search"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_follow_up",
+    "text": "Remind me to look at the replies on Friday.",
+    "surface": "today",
+    "expect": {
+      "proposals_any_or_says": ["follow_up"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_settings",
+    "text": "Add a note for the receptionist that we are closed on Thanksgiving.",
+    "surface": "settings",
+    "expect": {
+      "proposals_any_or_says": ["settings"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_policy",
+    "text": "Set replies to hold each one for me first.",
+    "surface": "settings",
+    "expect": {
+      "proposals_any_or_says": ["policy"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_snooze",
+    "text": "Snooze the last conversation until Monday.",
+    "surface": "inbox",
+    "expect": {
+      "proposals_any_or_says": ["thread_verb"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "I proposed",
+        "press",
+        "approve"
+      ]
+    }
+  },
+  {
+    "id": "short_card_offer",
+    "text": "Offer a free check-up by email until the end of next month.",
+    "surface": "campaigns",
+    "expect": {
+      "proposals_any_or_says": ["broadcast", "playbook"],
+      "headline_words": 20,
+      "detail_empty": true,
+      "figures_min": 1,
+      "excludes": [
+        "silent step",
+        "step 2",
+        "playbook",
+        "template",
+        "batch",
+        " run ",
+        "to review",
+        "Writes a message",
+        "Tells the receptionist"
+      ]
+    }
+  },
+  {
+    "id": "short_card_offer_es",
+    "text": "Ofrece una revisión gratis por correo hasta fin del mes que viene.",
+    "surface": "campaigns",
+    "expect": {
+      "proposals_any_or_says": ["broadcast", "playbook"],
+      "headline_words": 24,
+      "detail_empty": true,
+      "language": "es",
+      "excludes": ["to review", "Writes a message"]
+    }
+  },
+  {
+    "id": "short_plain_open",
+    "text": "What time do we open on Saturday?",
+    "surface": "today",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_count",
+    "text": "How many people said yes to offers?",
+    "surface": "people",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_who",
+    "text": "Who needs me right now?",
+    "surface": "today",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_week",
+    "text": "How did the week go?",
+    "surface": "reports",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_cant",
+    "text": "Did the last customer pay their invoice?",
+    "surface": "people",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_calls",
+    "text": "How many calls did we miss this week?",
+    "surface": "reports",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_hours",
+    "text": "Are we open on Sundays?",
+    "surface": "settings",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_last",
+    "text": "Who wrote to us last?",
+    "surface": "inbox",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_reviews",
+    "text": "Do we have any reviews I have not answered?",
+    "surface": "reports",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_calendar",
+    "text": "What is on the calendar tomorrow?",
+    "surface": "calendar",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_leads",
+    "text": "How many leads have I written to?",
+    "surface": "leads",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_plain_es",
+    "text": "¿Cuántas personas dijeron que sí a las ofertas?",
+    "surface": "people",
+    "expect": {
+      "chars_max": 450,
+      "excludes": ["silent step", "step 2", "playbook", "template", "batch", " run "],
+      "no_write": true
+    }
+  },
+  {
+    "id": "short_long_table",
+    "text": "Compare my channels this week as a table.",
+    "surface": "reports",
+    "expect": {
+      "no_write": true,
+      "excludes": ["silent step"],
+      "detail_shape": ["table"]
+    }
+  },
+  {
+    "id": "short_long_steps",
+    "text": "How do I connect my calendar? Give me the steps.",
+    "surface": "settings",
+    "expect": {
+      "no_write": true,
+      "excludes": ["silent step"],
+      "detail_shape": ["list"]
+    }
+  },
+  {
+    "id": "short_long_why",
+    "text": "Why did replies fall on my follow-up? Explain it properly.",
+    "surface": "campaigns",
+    "expect": {
+      "no_write": true,
+      "excludes": ["silent step"]
+    }
+  },
+  {
+    "id": "short_long_summary",
+    "text": "Summarize the week for my partner in a few paragraphs.",
+    "surface": "reports",
+    "expect": {
+      "no_write": true,
+      "excludes": ["silent step"]
+    }
+  },
+  {
+    "id": "short_long_plan",
+    "text": "Give me a plan for getting 10 more customers this month.",
+    "surface": "today",
+    "expect": {
+      "no_write": true,
+      "excludes": ["silent step"]
+    }
+  },
+  {
+    "id": "short_long_compare",
+    "text": "Compare my last two offers, with what each one brought in.",
+    "surface": "reports",
+    "expect": {
+      "no_write": true,
+      "excludes": ["silent step"]
+    }
+  }
+]

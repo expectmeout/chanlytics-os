@@ -14,6 +14,8 @@ import {
   notesInForce,
   parseTenantConfigResult,
   planOf,
+  whoCanHearWords,
+  type AskPlanHead,
   type AskProposal,
   type PlanIntent,
   type PlanStep,
@@ -292,7 +294,28 @@ async function proposePlan(toolContext: ToolContext, planAsked: PlanAsked): Prom
   for (const [i, s] of planned.steps.entries()) {
     const card = created[i];
     if (!card || "refusal" in card) return refuse(`Step ${s.n} (${s.kind}): ${card?.refusal ?? "it made no card"}`);
-    cards.push(id ? { ...card, plan: { id, step: s.n, of, silent: s.silent, after: s.after } } : card);
+    cards.push(
+      id
+        ? {
+            ...card,
+            plan: { id, step: s.n, of, silent: s.silent, after: s.after, ...(s.does ? { does: s.does } : {}) },
+          }
+        : card,
+    );
+  }
+  // The plan's one card (D2 of the answers canvas) says the whole on its first step: what it is, how, and its message.
+  const leading = cards.at(0);
+  if (id && planned.head && leading?.plan) {
+    const send = cards.find((c) => c.kind === "broadcast");
+    const count = typeof send?.payload.count === "number" ? send.payload.count : 0;
+    const leftOut = typeof send?.payload.left_out === "number" ? send.payload.left_out : 0;
+    const hear = whoCanHearWords({ can: count, of: count + leftOut, leftOut, paused: null }, world.says);
+    leading.plan = {
+      ...leading.plan,
+      head: { ...planned.head, says: messageSaidOf(cards), ...(hear ? { hear } : {}) },
+    };
+    // The card shows the words whole, so its press is their OK (D3): the send's door takes it from here.
+    for (const c of cards) if (c.kind === "playbook") c.payload = { ...c.payload, words_shown: true };
   }
   // Each step as the model is told it: its card's title, and what holds that card (holdsSaid), which the answer leaves out.
   const steps = planned.steps.map((s, i) => ({
@@ -302,10 +325,25 @@ async function proposePlan(toolContext: ToolContext, planAsked: PlanAsked): Prom
     silent: s.silent,
     ...holdsSaid(cards[i]),
   }));
-  return proposeMany(cards, id ? { plan: id, steps } : { steps }, planned.words, planned.lead ?? null);
+  return proposeMany(cards, id ? { plan: id, steps } : { steps }, planned.words, planned.lead ?? null, {
+    ...(planned.why ? { why: planned.why } : {}),
+    ...(planned.figures?.length ? { figures: planned.figures } : {}),
+  });
 }
 
-/** An offer or a whole setup, made into its cards from one call: propose_plan's action offer. */
+/**
+ * The message a plan's one card draws, as the person reached reads it: each version the plan writes (its message step's
+ * rows), else the words its send quotes of the one it reuses (the send's sheet, whose Message row is that quote).
+ */
+function messageSaidOf(cards: readonly AskProposal[]): AskPlanHead["says"] {
+  const written = cards.find((c) => c.kind === "message")?.payload.said;
+  if (Array.isArray(written)) return written as AskPlanHead["says"];
+  const send = cards.find((c) => c.kind === "broadcast" || c.kind === "playbook");
+  const quoted = send?.sheet?.rows.find((r) => r.label === "Message")?.value;
+  return quoted ? [{ channel: "message", label: "", words: quoted }] : [];
+}
+
+/** An offer or a whole setup, as one card from one call: propose_plan's action offer. */
 const planAction = actAction({
   // The action makes cards of several kinds; this is what the role it is offered to is judged by (an operator's).
   kind: "playbook",
@@ -336,7 +374,7 @@ const planAction = actAction({
   ],
   label: "Making a plan",
   words:
-    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words, its days named as a customer reads them on its first day: “all November”, never “next month”; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing of the offer where they gave one, its days named as words names them, never the ask (“I want to offer”); or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, as the rule for a message's language says; left out, the business's). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, each send on its own after them; answer from the plan's words once they come back.",
+    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words, its days named as a customer reads them on its first day: “all November”, never “next month”; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing of the offer where they gave one, its days named as words names them, never the ask (“I want to offer”); or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, as the rule for a message's language says; left out, the business's). It comes back as one card with one press, the send included, with the plan's reason (why) and its steps: answer from them once they come back.",
   build: proposePlan,
 });
 
@@ -426,6 +464,7 @@ async function proposeSteps(
   }
   const id = `plan-${randomUUID()}`;
   const of = cards.length;
+  const said = input.words?.trim() || "";
   // Each step's place in the plan, in order: silent where it changes only what the workspace keeps and names no send's
   // result; else its own press, after every silent step before it and each step it names.
   const silentAt: boolean[] = [];
@@ -440,7 +479,22 @@ async function proposeSteps(
       : [...new Set([...silentAt.slice(0, cardIndex).flatMap((s, k) => (s ? [k + 1] : [])), ...named])].sort(
           (a, b) => a - b,
         );
-    return { ...card, plan: { id, step: next, of, silent, after: waits } };
+    // What the one card says of the plan (D2): its own sentence where it gave one, its first card's title where it did not.
+    const head =
+      cardIndex === 0
+        ? {
+            head: {
+              title: firstSentenceOf(said) || card.title,
+              sub: "",
+              press: "plan" as const,
+              says: messageSaidOf(cards),
+            },
+          }
+        : {};
+    return {
+      ...card,
+      plan: { id, step: next, of, silent, after: waits, does: card.line || card.title, ...head },
+    };
   });
   const steps = stamped.map((c) => ({
     n: c.plan.step,
@@ -449,11 +503,12 @@ async function proposeSteps(
     silent: c.plan.silent,
     ...holdsSaid(c),
   }));
-  const words =
-    input.words?.trim() ||
-    `${of} steps: ${stamped.filter((c) => c.plan.silent).length} that change only what you keep, approved together, then each send on its own.`;
+  const words = said || `${of} steps, on one card with one press.`;
   return proposeMany(stamped, { plan: id, steps }, words, null);
 }
+
+/** A plan's own sentence as its card's title: up to its first stop. */
+const firstSentenceOf = (words: string): string => words.split(/(?<=[.!?…])\s/)[0]?.replace(/[.!…]+$/, "") ?? "";
 
 const stepsAction = actAction({
   // The action makes cards of several kinds; this is what the role it is offered to is judged by (an operator's).
@@ -499,7 +554,7 @@ const stepsAction = actAction({
     },
   ],
   label: "Making a plan",
-  words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a sequence, a search). Steps that change only what the workspace keeps are approved together; each that sends, spends or posts is its own press after them. Call it when one ask takes several cards that build on each other (lists, then a cold email to a list of leads with a follow-up, a sequence and its first steps); for an offer or a whole setup of the journey, action offer.`,
+  words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a sequence, a search). They show as one card: its press does what keeps records and the first that sends, spends or posts; each later send is the next press. Call it when one ask takes several cards that build on each other (lists, then a cold email to a list of leads with a follow-up, a sequence and its first steps); for an offer or a whole setup of the journey, action offer.`,
   build: proposeSteps,
 });
 

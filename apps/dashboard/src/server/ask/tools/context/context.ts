@@ -111,17 +111,20 @@ export const proposeMany = (
   fields: Record<string, unknown>,
   words: string | null,
   lead: PlanLead | null,
+  said: Pick<ProposalOutcome, "why" | "figures"> = {},
 ): ProposalOutcome => ({
   proposal: null,
   proposals,
   isError: false,
   ...(words ? { words } : {}),
   ...(lead ? { lead } : {}),
+  ...said,
   result: JSON.stringify({
     proposed: true,
     ...fields,
     ...(lead ? { headline: lead.headline } : {}),
+    ...(said.why ? { why: said.why } : {}),
     ...(words ? { words } : {}),
-    note: "Nothing has happened yet. These are cards the person approves, edits or dismisses; a plan's steps that send nothing are one press, and each send its own after them. Say what you proposed; never say any of it is done.",
+    note: "Nothing has happened yet. A plan is one card with one press, which names what it does, the send included. Never say any of it is done.",
   }),
 });

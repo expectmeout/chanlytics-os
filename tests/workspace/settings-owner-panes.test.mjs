@@ -959,19 +959,12 @@ test("a phone names each dot with the same words -- it is a list there, and the 
 });
 
 test("a control says what it will do, in the words above it", () => {
-  const tree = autonomy([{ class: "reengage", mode: "veto", limits: {} }]);
-  const dots = all(
-    tree,
-    (n) => n.type === "button" && /^Re-engage quiet customers: /.test(n.props["aria-label"] || ""),
-  );
+  const tree = autonomy([{ class: "campaign", mode: "veto", limits: {} }]);
+  const dots = all(tree, (n) => n.type === "button" && /^Sends to many people: /.test(n.props["aria-label"] || ""));
   assert.deepEqual(
     dots.map((d) => d.props["aria-label"]),
-    [
-      "Re-engage quiet customers: Sends it",
-      "Re-engage quiet customers: Holds it",
-      "Re-engage quiet customers: Asks you",
-    ],
-    // How a new win-back sequence starts takes no Stays quiet: a sequence is paused on its page (decision 0064).
+    ["Sends to many people: Sends it", "Sends to many people: Holds it", "Sends to many people: Asks you"],
+    // How a new sequence starts takes no Stays quiet: a sequence is paused on its page (decision 0064).
     "REGRESSION: a screen reader heard the filing word",
   );
   assert.equal(
@@ -1139,8 +1132,10 @@ test("Replies says how many people are set differently, by mode, and each of the
 
 test("a class that cannot honour a mode still shows a dash there, and the rest still set", async () => {
   const put = [];
-  // Follow-ups take no Never (decision 0064: a sequence is paused on its page), where reviews take every mode now.
+  // What goes to many takes no Never (decision 0064: a sequence is paused on its page), where reviews take every mode now.
   const tree = autonomy([
+    { class: "campaign", mode: "auto", limits: {} },
+    { class: "reengage", mode: "auto", limits: {} },
     { class: "follow_up", mode: "auto", limits: {} },
     { class: "reviews", mode: "auto", limits: {} },
     { class: "reply", mode: "ask", limits: {} },
@@ -1149,12 +1144,21 @@ test("a class that cannot honour a mode still shows a dash there, and the rest s
     put.push([cls, mode]);
     return { ok: true };
   };
-  const followUps = find(tree, (n) => n.type === "tr" && /follow-up/i.test(textOf(n)));
+  const many = find(tree, (n) => n.type === "tr" && /Sends to many people/.test(textOf(n)));
   assert.equal(
-    all(followUps, (n) => n.props?.className === "pol-dash").length,
+    all(many, (n) => n.props?.className === "pol-dash").length,
     1,
-    "Stays quiet is not on offer for a follow-up",
+    "Stays quiet is not on offer for what goes to many",
   );
+  // One row for an offer, a win-back and a follow-up (D41 of the answers canvas): the classes it stands for move with it.
+  press(all(many, (n) => n.type === "button" && n.props["aria-label"] === "Sends to many people: Asks you")[0]);
+  await flush();
+  assert.deepEqual(put, [
+    ["campaign", "ask"],
+    ["reengage", "ask"],
+    ["follow_up", "ask"],
+  ]);
+  put.length = 0;
   const reviews = find(tree, (n) => n.type === "tr" && /Google reviews/.test(textOf(n)));
   assert.equal(all(reviews, (n) => n.props?.className === "pol-dash").length, 0, "a review's reply takes every mode");
   const asks = all(reviews, (n) => n.type === "button" && n.props["aria-label"] === "Google reviews: Asks you");

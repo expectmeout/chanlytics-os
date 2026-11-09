@@ -110,6 +110,11 @@ export const arActivate = ({ openThread, nav, setQuery, inputRef, submit }: Line
       nav(it.to as string);
       return;
     }
+    // What Ask noticed, where the thing to do is on a page: one step (D36 of the answers canvas).
+    if (it.rest && it.to) {
+      nav(it.to, { leave: true });
+      return;
+    }
     if (it.compose) {
       setQuery(it.q as string);
       setTimeout(() => inputRef.current && inputRef.current.focus(), 20);

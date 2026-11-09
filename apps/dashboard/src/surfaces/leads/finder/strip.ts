@@ -222,6 +222,7 @@ const ldStripOf = (s: LeadSearchDto | null, nearby: readonly string[]): StripVM 
       title: `Finding ${who} ${where}`,
       parts,
       progress,
+      count: { n: counted, of: r.target },
       actions: [{ id: "stop", label: "Stop" }],
     };
   }

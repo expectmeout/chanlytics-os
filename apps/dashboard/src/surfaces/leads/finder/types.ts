@@ -81,6 +81,8 @@ export interface StripVM {
   alert: boolean;
   title: string;
   parts: string[];
+  /** While it runs: how many of how many, the number a phone draws large (D9 of the answers canvas). */
+  count?: { n: number; of: number };
   progress: number | null;
   actions: StripAction[];
 }

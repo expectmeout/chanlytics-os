@@ -34,7 +34,20 @@ export { answerSaidOf } from "./people-verbs";
 export { PERSON_DETAIL_WORDS } from "./person";
 export { PROPOSAL_SPECS, proposalBelowNeeds } from "./proposals";
 export type { ProposalKindAboveOperator } from "./proposals";
-export { PROPOSAL_WORDS } from "./spec";
+export {
+  ASK_ALONE_MANY_MAX,
+  ASK_CARD_SHAPES,
+  ASK_KIND_TRAITS,
+  ASK_PRESS_WORDS,
+  ASK_PUBLIC_HOLD_MS,
+  ASK_REACHES,
+  askCardHasWords,
+  askPressCount,
+  askPressOf,
+  askTraitsOf,
+} from "./shapes";
+export type { AskAlone, AskCardShape, AskKindTraits, AskPressWord, AskReach } from "./shapes";
+export { CARD_MOVED_WORDS, errorMessageOf, failureDoorOf, PROPOSAL_WORDS } from "./spec";
 export { ASK_SENDS } from "./spec";
 export type {
   ProposalCall,

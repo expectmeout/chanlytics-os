@@ -133,23 +133,53 @@ export const PROPOSAL_WORDS = {
   planUndone:
     "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
   /** A plan's card naming a step that has made nothing yet: that step is approved first. */
-  waitsForStep: (n: number): string => `This waits for step ${n}: approve step ${n} first, then this one.`,
+  waitsForStep: (): string => "Something this builds on is not done yet. Press that first.",
   /**
    * A plan's card naming a step that was approved and made nothing it can use (a message whose every version was
    * refused): waiting would never help, so the plan is asked for again.
    */
-  stepMadeNothing: (n: number): string =>
-    `Step ${n} made nothing this one can use, so nothing is sent. Ask again and the plan is made from how things stand now.`,
+  stepMadeNothing: (): string =>
+    "What this builds on made nothing it can use, so nothing is sent. Ask again and it is made from how things stand now.",
   /**
    * A card of several requests stopped by a refusal after some went (`done` of `of`): what went stands, the rest did not
    * go, and the refusal says why in its own words.
    */
   batchStopped: (done: number, of: number, reason: string): string =>
     `${done} of ${of} parts went, then: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} The rest did not go.`,
-  /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
-  planStopped: (n: number, reason: string): string =>
-    `Stopped at step ${n}: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} The steps after it were not done.`,
+  /** A plan's press stopped by a refusal, in the refusal's own words: what is done stands, and nothing went out. */
+  planStopped: (reason: string): string =>
+    `Stopped: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} Nothing went out.`,
 } as const;
+
+/** Why a card stopped at the moment it was pressed, because what it was about has moved (D26, D35 of the answers canvas). */
+export const CARD_MOVED_WORDS = {
+  wroteAgain: (who: string): string =>
+    `${who} wrote again, so this may not fit now. Nothing went out. Ask me to write it again.`,
+  answered: (who: string): string => `Someone has already answered ${who}. Nothing went out.`,
+  teammateHas: "A teammate has this one. Nothing went out.",
+} as const;
+
+/** A door's refusal as one sentence: its own words, or, where it gave none, the plain one for its status. */
+export function errorMessageOf(error: Record<string, unknown>, status: number): string {
+  if (typeof error.message === "string" && error.message) return error.message;
+  return status >= 500
+    ? "That did not go through. Nothing went out. Try again."
+    : "That was refused. Nothing went out.";
+}
+
+/**
+ * The one way forward from a failure (D37): where what stopped it is fixed, where a sentence names something a page mends.
+ * Null where it names nothing, and the card's own Try again is all there is.
+ */
+export function failureDoorOf(code: string, message: string): { to: string } | null {
+  if (code === "lapsed" || code === "moved" || code === "waits") return null;
+  if (/mailbox|e-?mail|correo|campaigns domain|dominio/i.test(message)) return { to: "admin/connections" };
+  if (/whatsapp|number|número/i.test(message)) return { to: "admin/connections" };
+  if (/address|dirección/i.test(message)) return { to: "admin/workspace" };
+  if (/calendar|calendario/i.test(message)) return { to: "admin/hours" };
+  if (/google/i.test(message)) return { to: "admin/connections" };
+  return null;
+}
 
 /**
  * The kinds whose Approve reaches outside the workspace's own records -- a message to a customer, a post on Google, money

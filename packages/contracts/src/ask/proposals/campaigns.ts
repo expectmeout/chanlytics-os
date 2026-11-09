@@ -9,7 +9,7 @@ import { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, channelsWords, type ConsentCha
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../../campaigns/playbooks/lifecycle/words";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../../campaigns/playbooks/patch";
 import { SEND_ONCE_STOP_WORDS } from "../../campaigns/playbooks/triggers/notices";
-import { SENDING_NOW_WORDS, whenItGoes } from "../../campaigns/playbooks/triggers/kinds";
+import { PLAYBOOK_VETO_DELAY_MS, whenItGoes } from "../../campaigns/playbooks/triggers/kinds";
 import { SEQUENCES_ROUTE, newSequenceRoute, runRoute, sequenceRoute } from "../../campaigns/sequences/address";
 import { MESSAGES_ROUTE } from "../../shell/address";
 import { clockWhen } from "../../shared/clock";
@@ -177,7 +177,7 @@ const cancelCall = (u: Record<string, unknown>): ProposalCall => ({
 });
 /** What the cancel did, as the undo's receipt says it: stopped mid-send, or nothing will send. */
 const canceled = (data: unknown): string =>
-  rec(data).was === "sending" ? "Stopped — it ends after this batch" : "Canceled — nothing will send";
+  rec(data).was === "sending" ? "Stopped. Nothing more goes out." : "Undone. Nothing goes out.";
 
 export const broadcastSpec: ProposalSpec = {
   needs: "operator",
@@ -206,13 +206,14 @@ export const broadcastSpec: ProposalSpec = {
     // passed before it was approved went now. Who it left out hear from you within a week of the time it goes (leftOutBy).
     const ahead = result.scheduled_ahead === true;
     // Pressed for now, it goes ten minutes on unless stopped (decision 0064, step 3): its Undo is that Stop.
+    const people = `${count} ${count === 1 ? "person" : "people"}`;
     const goes = ahead
-      ? "scheduled"
+      ? `Set to go to ${people}.`
       : result.pressed_now === true
-        ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it`
-        : SENDING_NOW_WORDS;
+        ? `Going to ${people} in ${SEND_ONCE_STOP_WORDS}.`
+        : `Going to ${people} now.`;
     const sentence = heardWords(leftOut, true);
-    return `Send “${asText(result.name ?? pl.name)}” — ${count} ${count === 1 ? "person" : "people"}, ${goes}${sentence ? ` · ${sentence}` : ""}`;
+    return `${goes}${sentence ? ` ${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -223,6 +224,23 @@ export const broadcastSpec: ProposalSpec = {
   },
   open: () => SEQUENCES_ROUTE,
 };
+
+/**
+ * When a new send's first batch goes, as its receipt says it: the route's answer says when its next hour is and whether the
+ * press counted as the person's OK of its words (`words_ok`); until it does, that first batch waits for them.
+ */
+function firstSendsWords(pl: Record<string, unknown>, d: Record<string, unknown>): string {
+  // Under Asks you every batch waits, the first among them; under Holds it each waits its half hour.
+  if (d.words_ok !== true || pl.mode === "ask") return "Its first batch waits for your OK.";
+  const cap = Number(pl.cap_per_run);
+  const held = pl.mode === "veto" ? PLAYBOOK_VETO_DELAY_MS : 0;
+  const at = Date.parse(asText(d.first_at)) + held;
+  const when = Number.isFinite(at)
+    ? clockWhen(at, asText(d.timezone) || "UTC", Date.parse(asText(d.at)) || at).replace(/^(today|tomorrow) /, "$1 at ")
+    : null;
+  const first = Number.isFinite(cap) && cap > 0 ? `First ${cap}` : "The first";
+  return when ? `${first} go ${when}.` : `${first} go at its next hour.`;
+}
 
 export const playbookSpec: ProposalSpec = {
   needs: "operator",
@@ -245,21 +263,27 @@ export const playbookSpec: ProposalSpec = {
       ...channelsNamed(pl),
       // Its last day (00416), where the card named one: the route judges it again at its own clock.
       ...(typeof pl.until === "string" ? { until: pl.until } : {}),
+      // The press of a card that showed its words is the person's OK of them (D3 of the answers canvas): only a plan's card
+      // and a card with its message whole say so, and the door judges that it came from Ask.
+      ...(pl.words_shown === true ? { words_shown: true } : {}),
     },
   }),
-  // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
-  receipt: ({ payload: pl }, data) =>
-    `Campaign “${asText(rec(data).name ?? pl.name)}” is running — its next run is under Coming up in Campaigns${
-      rec(rec(data).starter).status === "submitted"
-        ? " · its starter's WhatsApp version is with WhatsApp for review"
-        : ""
-    }`,
+  // What a person wants to know: it is on, and when the first go. Where the press could not count as their OK of its first
+  // batch (an older door, a database before 00573), it says that batch waits for them; where WhatsApp reads the words first, so.
+  receipt: ({ payload: pl }, data) => {
+    const d = rec(data);
+    const offer = pl.trigger === "saved_list" && pl.policy_class === "campaign";
+    const on = offer ? "Offer on." : `“${asText(d.name ?? pl.name)}” is on.`;
+    const first = firstSendsWords(pl, d);
+    const review = rec(d.starter).status === "submitted" ? " WhatsApp reads its words first." : "";
+    return `${on} ${first}${review}`;
+  },
   undo: {
-    label: () => "Delete it — nothing will run",
+    label: () => "Delete it. Nothing goes out.",
     window: "ten_minutes",
     record: (_p, data) => ({ playbook_id: rec(data).id, decision_id: decisionOf(data) }),
     call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
-    receipt: () => "Deleted — nothing will run",
+    receipt: () => "Undone. Nothing goes out.",
   },
   // The new campaign's sequence once it is made (spec 2026-10-09 §4.6, one landing rule: `campaigns/moment:<id>` lands on
   // it), by the id its commit kept for the undo, as the list card opens the list it made; before then New sequence on its
@@ -523,16 +547,14 @@ export const playbookRunSpec: ProposalSpec = {
 /* ------------------------------------------------ a message written for the Library (the marketing manager, §5.2) */
 
 /**
- * Where a WhatsApp version the door filed stands, after "its WhatsApp version": approved, in review, or as WhatsApp
- * answered the filing at once (refused, say), with where it is seen. A state the set does not know is in review, as a
- * row's is (contracts metaStatusOf).
+ * What WhatsApp is doing with the words the door filed, after "WhatsApp": reading them, or as it answered the filing at once
+ * (refused, say), with where it is seen. A state the set does not know is being read, as a row's is (contracts metaStatusOf).
  */
 const whatsappFiledWords = (state: string): string => {
   const at = metaStatusOf(state);
   const where = `(see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library})`;
-  if (at === "approved") return "is approved";
-  if (at === "pending") return "is with WhatsApp for review";
-  return at === "rejected" ? `was refused by WhatsApp ${where}` : `is ${at} by WhatsApp ${where}`;
+  if (at === "pending") return "reads them first";
+  return at === "rejected" ? `refused them ${where}` : `has them as ${at} ${where}`;
 };
 /** "email version", "email and text versions" (each channel's word, contracts versionWord). */
 const versionsWords = (own: readonly OwnVersionChannel[]): string =>
@@ -588,14 +610,12 @@ export const MESSAGE_WORDS = {
     filed: readonly { channel: ConsentChannel; state: string }[],
     refused: { channel: ConsentChannel; words: string } | null,
   ): string => {
-    const versions = filed.map((v) =>
-      v.channel === "whatsapp"
-        ? `its WhatsApp version ${whatsappFiledWords(v.state)}`
-        : `its ${versionWord(v.channel)} version is ready`,
-    );
-    if (versions.length === 0) return `“${name}” was not filed${refused ? `: ${refused.words}` : ""}`;
-    const not = refused ? ` · its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
-    return `“${name}” is in ${CAMPAIGN_ROOMS.library} — ${versions.join("; ")}${not}`;
+    if (filed.length === 0) return refused ? `Not saved: ${refused.words}` : "Not saved.";
+    const whatsapp = filed.find((v) => v.channel === "whatsapp");
+    const said =
+      whatsapp && metaStatusOf(whatsapp.state) !== "approved" ? ` WhatsApp ${whatsappFiledWords(whatsapp.state)}.` : "";
+    const not = refused ? ` Its ${versionWord(refused.channel)} words were not saved: ${refused.words}` : "";
+    return `Words saved.${said}${not}`;
   },
   /** The undo's button: the email and text versions it deletes; none where the card writes none. */
   undo: (own: readonly OwnVersionChannel[]): string | null =>

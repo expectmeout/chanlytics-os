@@ -490,7 +490,7 @@ test("the card commits to POST lead-searches marked as Ask's, and its undo stops
   );
   assert.deepEqual(
     [done.ok, done.receipt, done.undo],
-    [true, "Finding 200 personal trainers. It carries on if you leave; Leads shows it.", { search_id: SEARCH }],
+    [true, "Finding 200 personal trainers. It keeps going if you leave.", { search_id: SEARCH }],
   );
   assert.equal(calls[0].headers["x-via"], "ask");
   assert.deepEqual(calls[0].body, PLAN, "the plan the owner approved is what is posted");
@@ -551,7 +551,7 @@ test("a card that amends posts the answer to the search that asked, with no undo
   );
   assert.deepEqual(
     [done.ok, done.receipt, done.undo],
-    [true, "Answered. Personal trainers in Austin carries on with your answer; Leads shows it.", null],
+    [true, "Answered. Personal trainers in Austin keeps going with it.", null],
   );
   assert.equal(calls[0].headers["x-via"], "ask");
   assert.deepEqual(

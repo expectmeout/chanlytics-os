@@ -53,7 +53,17 @@ export interface PushPort {
   receipts(ids: readonly string[]): Promise<Record<string, { status: "ok" | "error"; error?: string }>>;
 }
 
+/** What a browser is told (D12 of the answers canvas), and the subscriptions to tell. Answers those it has forgotten. */
+export interface WebPushPort {
+  send(
+    subscriptions: ReadonlyArray<{ endpoint: string; p256dh: string; auth: string }>,
+    message: { title: string; body: string; route: string | null; tenant_id: string; notification_id: string },
+  ): Promise<string[]>;
+}
+
 export interface JobContext {
+  /** Browsers, where this deployment holds its keys; absent otherwise. */
+  webPush?: WebPushPort | null;
   db: SupabaseClient<Database>;
   /**
    * A thread's draft (decision 0093), as the edge holds it: the writer is the receptionist's brain over the workspace's whole

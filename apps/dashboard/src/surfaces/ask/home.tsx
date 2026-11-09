@@ -38,6 +38,8 @@ export interface LineRow {
   th?: AskThreadVM;
   compose?: boolean;
   following?: string;
+  /** What Ask noticed, by its key: the row Not now rests a week. */
+  rest?: string;
   people?: number;
   runs?: number;
   searches?: number;
@@ -129,6 +131,22 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
       ],
     },
   ];
+  // What Ask noticed (D7 of the answers canvas): one thing, with its plan a press away. Ask speaks first here, never a list.
+  const notice = A.noticed ? A.noticed() : null;
+  if (notice)
+    sections.push({
+      key: "noticed",
+      items: [
+        {
+          type: "follow",
+          label: notice.says,
+          q: notice.ask ?? notice.fill ?? "",
+          ...(notice.fill && !notice.ask ? { compose: true } : {}),
+          ...(notice.to ? { to: notice.to } : {}),
+          rest: notice.key,
+        },
+      ],
+    });
   // What Ask said it would come back to, come due (bridge/ask/follow-ups.ts): its own line, and pressed, what it
   // said it would ask itself then, which clears it (the route's `following`).
   const due = A.followUpsDue ? A.followUpsDue() : [];
@@ -199,6 +217,7 @@ export const AskRows = ({
   setSel,
   onActivate,
   onDelete,
+  onRest,
   t,
   empty,
 }: {
@@ -207,6 +226,8 @@ export const AskRows = ({
   setSel: (i: number) => void;
   onActivate: (it: LineRow) => void;
   onDelete: (th: AskThreadVM) => void;
+  /** Not now, on what Ask noticed: it rests a week. */
+  onRest?: (key: string) => void;
   t: LineWords;
   empty?: string | null;
 }) => {
@@ -250,12 +271,26 @@ export const AskRows = ({
     return (
       <div key={i} {...shared} className={`ask-row ${it.type}${sel ? " sel" : ""}`}>
         {it.type === "thread" ? <Icon name="chat" size={13} className="ask-row-glyph" /> : null}
-        {it.type === "follow" ? <span className="subtab-dot" aria-hidden="true" /> : null}
+        {it.type === "follow" && !it.rest ? <span className="subtab-dot" aria-hidden="true" /> : null}
         <span className="ask-row-main">
           <span className="ask-row-label">{it.label}</span>
           {it.sub ? <span className="ask-row-sub">{it.sub}</span> : null}
         </span>
         {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
+        {it.rest ? (
+          <LinePress
+            kind="words"
+            className="ask-row-meta"
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (it.rest) onRest?.(it.rest);
+            }}
+            data-testid="ask-row-rest"
+          >
+            {t.notNow}
+          </LinePress>
+        ) : null}
         {it.type === "thread" ? (
           <LinePress
             kind="remove"
@@ -375,12 +410,15 @@ export const AskActs = ({
   speech,
   flash,
   t,
+  copy: offerCopy = true,
 }: {
   words: string;
   spoken: string;
   speech: ReturnType<typeof useAskSpeech>;
   flash: (flash: FrameFlash) => void;
   t: LineWords;
+  /** Copy, which goes under an answer with cards: what there is to copy is on the card (D14 of the answers canvas). */
+  copy?: boolean;
 }) => {
   const copy = async () => {
     try {
@@ -401,19 +439,21 @@ export const AskActs = ({
   // Each says its word beside its glyph on a desk, where two bare glyphs were missed (ask.css `.ask-act-word`).
   return (
     <span className="ask-acts" data-testid="ask-acts">
-      <LinePress
-        kind="act"
-        className="ask-act"
-        onClick={copy}
-        aria-label={t.copy}
-        title={t.copy}
-        data-testid="ask-copy"
-      >
-        <Icon name="copy" size={14} />
-        <span className="ask-act-word" aria-hidden="true">
-          {t.copyWord}
-        </span>
-      </LinePress>
+      {offerCopy ? (
+        <LinePress
+          kind="act"
+          className="ask-act"
+          onClick={copy}
+          aria-label={t.copy}
+          title={t.copy}
+          data-testid="ask-copy"
+        >
+          <Icon name="copy" size={14} />
+          <span className="ask-act-word" aria-hidden="true">
+            {t.copyWord}
+          </span>
+        </LinePress>
+      ) : null}
       {speech.canSpeak ? (
         <LinePress
           kind="act"

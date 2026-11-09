@@ -17,6 +17,7 @@ export {
   setWorkspaceLogo,
   startPlaybook,
   updatePlaybook,
+  wordsSeenByMember,
   writeLineForwarding,
   writePlaybookChange,
 } from "./control-plane/capabilities";

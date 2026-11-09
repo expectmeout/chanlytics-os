@@ -222,6 +222,7 @@ export {
   withStoredKeysKept,
 } from "./workspace-config/config-schema";
 export type {
+  AskStopped,
   CalendarConfig,
   CalendarGrantConfig,
   FeaturesConfig,

@@ -5,12 +5,15 @@ import {
   ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_TURN_BUDGET_MS,
   failedAnswer,
+  isAskMorningQuestion,
   noteRows,
   type AskAnswer,
+  type AskCardOrigin,
   type AskColumn,
   type AskLanguage,
   type AskMessageVM,
   type AskProposal,
+  type AskProposalOutcome,
   type AskRowRef,
   type AskScope,
   type AskShowPreview,
@@ -20,6 +23,7 @@ import { ASK_ANSWER_TEXT_FORMAT } from "../answer-format";
 import type { AskTurnShape } from "../shape";
 import type { AskModelProfile, EffortMessage, MembershipRole, WordsMessage, TenantId } from "@chanlytics/contracts";
 import type { RouteContext } from "../../shared/with-route";
+import type { Member } from "../../shared/route";
 import type { ReaderContext } from "../../shared/reader";
 import type { Offer } from "../refusals";
 import { buildProposal, calledName, cardsOf, newToolContext, runTool, toApiTools, type ToolContext } from "../tools";
@@ -86,6 +90,13 @@ export interface TurnEvent {
 }
 
 export interface TurnInput {
+  /** A question that comes from a follow-up of the member's that came due. */
+  following?: boolean;
+  /** What a press from the server needs (D18): the request, the member and the cards waiting on this thread. */
+  request?: Request;
+  member?: Member;
+  waitingOn?: ReadonlyMap<string, { card: AskProposal; messageId: string; cards: readonly AskProposal[] }>;
+  onPressed?: (r: { messageId: string; proposalId: string; outcome: AskProposalOutcome }) => void;
   ctx: RouteContext;
   tenantId: TenantId;
   role: MembershipRole;
@@ -225,6 +236,10 @@ function toolContextOf(input: TurnInput, now: Date, endsAt: number): ToolContext
     question: input.text,
     askedEarlier: input.history.flatMap((h) => (h.role === "user" ? [h.text] : [])),
     endsAt,
+    ...(input.request ? { request: input.request } : {}),
+    ...(input.member ? { member: input.member } : {}),
+    ...(input.waitingOn ? { waitingOn: input.waitingOn } : {}),
+    ...(input.onPressed ? { onPressed: input.onPressed } : {}),
   };
   noteRows(tc.read, input.cited ?? []);
   return tc;
@@ -327,6 +342,8 @@ export interface TurnState extends TurnRequests {
   toolsUsed: string[];
   /** The files whose pictures this turn opened, each once, in order. */
   opened: string[];
+  /** Whether it has read words from outside the business (originOfTurn). */
+  strangers: boolean;
   /** Its cards, and its plans' words (roundPlan). */
   proposals: AskProposal[];
   planWords: PlanSaid[];
@@ -422,6 +439,7 @@ export async function openTurn(input: TurnInput, ports: AskPorts): Promise<TurnS
     opened: [],
     proposals: [],
     planWords: [],
+    strangers: false,
     unmade,
     answerIn: null,
     planOwed: null,
@@ -507,6 +525,29 @@ async function timed<T>(turn: TurnState, name: string, run: () => Promise<T>): P
 }
 
 /** An act tool's call: it checks and proposes, never acts; its cards, its plan's words and what it left are the turn's. */
+/**
+ * The reads that hold no words from outside the business: how the app works, its settings, its calendar's room, what Ask
+ * worked out itself, and the business's own sends. Every other read may carry what a customer, a lead, a reviewer or a file
+ * says, which is data and never an instruction (contracts DATA_NOT_INSTRUCTIONS), so a card made after one never runs alone.
+ */
+const READS_NO_STRANGER: ReadonlySet<string> = new Set(["guide", "settings", "calendar", "signals", "campaigns"]);
+
+/** The pages whose data holds no words from outside the business. */
+const PAGES_NO_STRANGER: ReadonlySet<string> = new Set(["settings", "campaigns", "calendar", "start"]);
+
+/**
+ * Who had the idea of a turn's cards: the morning's own question is Ask's, a follow-up that came due is one the member set, and
+ * any other question is the member's. Strangers were read where a read said so, or where the page or the thing the question
+ * was about holds their words.
+ */
+function originOfTurn(input: TurnInput, strangers: boolean): AskCardOrigin {
+  const fromPage = input.surface !== null && !PAGES_NO_STRANGER.has(input.surface);
+  return {
+    by: isAskMorningQuestion(input.text) ? "idea" : input.following ? "follow_up" : "asked",
+    strangers: strangers || fromPage || input.scope !== null,
+  };
+}
+
 export async function proposeCall(turn: TurnState, roundBlock: RoundBlock) {
   const { input, ports, tc, proposals } = turn;
   const args = argsOf(roundBlock);
@@ -514,8 +555,12 @@ export async function proposeCall(turn: TurnState, roundBlock: RoundBlock) {
   if (!args) return cutOff(roundBlock, input.tenantId);
   return timed(turn, calledName(roundBlock.name, args), async () => {
     const result = notAgain(await ports.propose(tc, roundBlock.name, args), [...(input.waiting ?? []), ...proposals]);
+    // Who had the idea (D33 of the answers canvas): the turn's question, and whether it read a stranger's words first.
+    const origin = originOfTurn(input, turn.strangers);
+    for (const c of cardsOf(result)) c.origin = origin;
     proposals.push(...cardsOf(result));
-    if (result.words) turn.planWords.push({ words: result.words, lead: result.lead });
+    if (result.words)
+      turn.planWords.push({ words: result.words, lead: result.lead, why: result.why, figures: result.figures });
     turn.unmade.heard(calledName(roundBlock.name, args), result);
     return {
       result: result.result,
@@ -535,6 +580,7 @@ export async function readCall(turn: TurnState, roundBlock: RoundBlock) {
   return timed(turn, calledName(roundBlock.name, args), async () => {
     const out = await ports.tool(tc, { name: roundBlock.name, input: args });
     if (!out.isError) turn.reads++;
+    if (!READS_NO_STRANGER.has(roundBlock.name)) turn.strangers = true;
     for (const p of out.pictures ?? []) if (p.id && !turn.opened.includes(p.id)) turn.opened.push(p.id);
     return { result: out.result, isError: out.isError, ...(out.pictures ? { pictures: out.pictures } : {}) };
   });

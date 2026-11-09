@@ -14,6 +14,8 @@ const FAN_OUTS = {
   "apps/dashboard/src/server/ask/companion/findings.ts|found": "ASK_MORNING_CARDS_MAX",
   "apps/dashboard/src/server/ask/companion/remembered.ts|proposals": "what one model turn proposed",
   "apps/dashboard/src/server/ask/loop/loop.ts|calls": "one model turn's tool calls",
+  "apps/dashboard/src/server/ask/notice/sweep.ts|waiting.slice(at, at + AT_ONCE)":
+    "AT_ONCE, a few businesses at a time",
   "apps/dashboard/src/server/ask/tools/read/files.ts|shown": "VIEW_MAX, the tool's own input",
   "apps/dashboard/src/server/campaigns/reach-out-replies.ts|candidates": "one page of replies",
   "apps/dashboard/src/server/campaigns/sequences/doors.ts|input.then": "a sequence's steps, in the door's input",
@@ -37,6 +39,7 @@ const FAN_OUTS = {
   "packages/core/src/leads/runner/collect/batches.ts|rest": "no network: sites read before, kept in `sites`",
   "packages/core/src/leads/runner/rejudge.ts|batch": "no network: sites read before, kept in `sites`",
   "packages/db/src/repositories/campaigns/sequence-waiting.ts|ids": "the waiting reach-out batches of one page",
+  "apps/edge/lib/ops/web-push.ts|subscriptions": "BROWSERS_TOLD_MAX, in the job that reads them",
 };
 
 const TREES = [

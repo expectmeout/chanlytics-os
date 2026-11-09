@@ -11,7 +11,7 @@ import { usePPToast } from "../frame/flash";
 import type { FrameFlash } from "../frame-verbs";
 import { surfaceValue } from "../surface-values";
 
-export { canDo, gate } from "../frame/gate";
+export { canDo, gate, gateTitle } from "../frame/gate";
 export { navigate } from "../frame-doors";
 export { leaving } from "../kit/motion/leaving";
 export { touchSwipe } from "../kit/motion/swipe";
