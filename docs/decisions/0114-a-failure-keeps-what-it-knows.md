@@ -31,6 +31,8 @@ Most of it already failed well: `withRoute` answered every crash in plain words 
 7. **`only-throw-error` and `no-misused-promises` are errors.**
 8. **What a caller can be refused with is written down**, from the sets themselves: `docs/api.md`, "What a refusal answers".
 
+9. **One status per code, so a caller compares codes.** On the app plane a refusal takes its code's status, or is a code of its own: a try-again is `unavailable` (503), a provider that refused or never answered is `upstream_provider` (502), and `internal` is 500 alone. `validation` is 400 everywhere. A key reused for another request is `conflict` at 409, where decision 0035 said 422. On the edge each code answers one status. `isFaultCode` says which codes are nobody's words.
+
 `tests/repo/errors/errors.test.mjs` holds the backend to each of these at zero. They are tests, not ratchets: a `Debt:` line cannot argue past them.
 
 ## What this does not do
@@ -38,4 +40,3 @@ Most of it already failed well: `withRoute` answered every crash in plain words 
 - It does not change how anything retries. A job's retry rule is layer 10's, and a provider's outcomes and breaker are layer 12's.
 - It does not change where database code lives or how it queries (layer 8), nor the logger or alerts (layer 12). An alert on `door_failed` or `kept_going` is layer 12's.
 - It does not read the browser's own catches: those are the frontend pillar's.
-- One status per code (`codes-off-their-status`, `edge-codes-with-two-statuses`, layer 6's leftover) is its own change, since the screens read some of those statuses.
