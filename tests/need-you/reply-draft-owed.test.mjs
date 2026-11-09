@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DRAFT_WRITING_STALE_MS,
-  draftBriefOf,
+  callSellingOf,
   draftFailedWords,
   draftHeadroomSpent,
   draftUseOf,
@@ -183,15 +183,12 @@ test("what sets a thread aside, and what it says with nothing read of it", () =>
   assert.match(setAsideSentence(null), /program/);
 });
 
-test("a brief is what a call can use, or none", () => {
-  assert.deepEqual(draftBriefOf({ opening: " Hi ", points: ["One", 2, ""], avoid: [], ask: "When?" }), {
-    opening: "Hi",
-    points: ["One"],
-    avoid: [],
-    ask: "When?",
-  });
-  assert.equal(draftBriefOf({ opening: "", points: [], avoid: [], ask: "When?" }), null);
-  assert.equal(draftBriefOf(null), null);
+test("a call back's one read: what they are selling, or nothing, and nothing readable is nothing", () => {
+  assert.equal(callSellingOf({ selling: true, what: " Google listing fixes " }), "Google listing fixes");
+  assert.equal(callSellingOf({ selling: true, what: "" }), "someone selling to you");
+  assert.equal(callSellingOf({ selling: false, what: "A customer" }), null);
+  assert.equal(callSellingOf({ selling: "yes" }), null);
+  assert.equal(callSellingOf(null), null);
 });
 
 test("what a reply did with the draft: sent as written, changed, or written apart from it", () => {

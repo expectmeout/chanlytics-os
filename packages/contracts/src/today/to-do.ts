@@ -27,12 +27,20 @@ export interface TodayStepVM {
   /** "Due today", "Overdue since Mon". */
   when: string;
   due: StepDue;
+  /** Whose it is, where it is someone else's ("For Maria"): a step of your own says nothing (his read, 9 Nov 2026). */
+  /** Whose it is, where it is someone else's ("For Maria"): a step of your own says nothing (his read, 9 Nov 2026). */
   forWho: string | null;
   /** The member it is for, or null: Not now's move of its day sends it again (the edit sets it from what it is sent). */
   forUserId: string | null;
   /** The deal it moves, when it names one: what the next step is set against. */
   dealId: string | null;
 }
+
+/** Someone else's step as a row says it, by first name, never an address: "For Dana Ortiz" is "For Dana". */
+const forOther = (forWho: string): string => {
+  const name = forWho.replace(/^For\s+/i, "").trim();
+  return `For ${(name.split("@")[0] ?? name).split(/\s+/)[0] ?? name}`;
+};
 
 /** The steps due: the ones Today names (three at most), how many in all, and where the rest are. */
 export interface TodayStepsVM {
@@ -73,7 +81,7 @@ export function todaySteps(
       words: step.words,
       when: step.day.words,
       due: step.due,
-      forWho: step.forWho,
+      forWho: step.forMe || !step.forWho ? null : forOther(step.forWho),
       forUserId: step.forUserId,
       dealId: step.dealId,
     })),

@@ -46,6 +46,7 @@ import { propose_sequence } from "./act/sequence/sequence";
 import { propose_review } from "./act/review";
 import { propose_plan } from "./act/plan";
 import { propose_follow_up } from "./act/follow-up";
+import { press_card } from "./act/press";
 import { postAct } from "./act/files/post";
 import { rememberAct } from "./act/remember";
 
@@ -113,6 +114,7 @@ export const ACT_DEFS: readonly ActTool[] = [
   propose_follow_up,
   rememberAct,
   postAct,
+  press_card,
 ];
 
 /**
@@ -131,6 +133,7 @@ export const CORE_TOOLS: ReadonlySet<string> = new Set([
   propose_reply.name,
   propose_person.name,
   propose_plan.name,
+  press_card.name,
   recallTool.name,
   rememberAct.name,
 ]);

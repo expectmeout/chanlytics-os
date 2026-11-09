@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 174 | 174 |
+| door | 175 | 175 |
 | reader | 73 | 0 |
-| the server's | 315 | 271 |
+| the server's | 317 | 273 |
 | computed column | 3 | 0 |
 | trigger | 99 | 69 |
-| all | 664 | 514 |
+| all | 667 | 517 |
 
 ## Called by nothing
 
@@ -76,7 +76,8 @@ being read is dropped by a migration.
 | `booking_request_answer` | door | a signed-in person, the server | code `apps/dashboard/src/server/calendar/booking-requests.ts`, `packages/db/src/repositories/calendar/appointments/rows.ts` | The owner answers a booking the receptionist asked for (00443, decision 0061): |
 | `booking_request_open` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/rows.ts` | A booking the receptionist asks for (00443, decision 0061): |
 | `calendar_grant_note` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | The calendar read through a connected mailbox (decision 0073, R20): |
-| `calendars_due` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts` | The workspaces with a calendar to read (a feed's link, or a calendar read through a connected mailbox, 00478) never read or last read before p_before, never read first, then least recently read, each |
+| `calendars_due` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `calendars_hand_out` | The workspaces with a calendar to read (a feed's link, or a calendar read through a connected mailbox, 00478) never read or last read before p_before, never read first, then least recently read, each |
+| `calendars_hand_out` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts` | A calendar_read for each workspace whose calendar is due, judged by calendars_due (00569, decision 0115). |
 | `call_connected` | reader | a signed-in person, the server | SQL `contact_first_moments`, `metrics_summary` and 4 more; trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` |  |
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
@@ -208,14 +209,15 @@ being read is dropped by a migration.
 | `ingest_before` | the server's | the server | code `packages/db/src/repositories/imports/before.ts` | A message from before Chanlytics (decision 0073, R19 and R21): |
 | `ingest_call` | the server's | its owner | code `packages/db/src/repositories/voice/calls.ts`; script `tooling/scripts/ops/filler.mjs` |  |
 | `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/whatsapp.ts`, `packages/db/src/repositories/channels/ingest.ts` |  |
-| `is_acting_member` | reader | a signed-in person, the server | SQL `add_person`, `approve_broadcast` and 69 more; in `rule conversations_acting_member_update on conversations`, `rule decisions_acting_member_insert on decisions` and 15 more | True when the caller may COMMIT changes in this tenant: |
+| `is_acting_member` | reader | a signed-in person, the server | SQL `add_person`, `approve_broadcast` and 70 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
 | `job_dedupe_key_of` | the server's | the server | SQL `jobs_take_their_kind` | The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. |
 | `job_kind_pause` | the server's | the server | code `apps/dashboard/app/api/v1/platform/jobs/pause/route.ts`, `apps/dashboard/src/server/console/health.ts` and 2 more | Pauses a job kind (00526): |
 | `job_kind_resume` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Resumes a paused job kind (00526) and asks the tick for what waited. |
-| `jobs_backlog` | the server's | the server | code `apps/edge/lib/ops/health-sweep.ts`, `packages/db/src/repositories/console/health.ts` and 1 more | How many jobs the claim could take and has not for longer than p_wait (default two minutes): |
+| `jobs_backlog` | the server's | the server | code `apps/edge/lib/ops/health-sweep.ts`, `packages/db/src/repositories/console/health.ts` and 1 more; script `tooling/scripts/gen/capacity.mjs` | How many jobs the claim could take and has not for longer than p_wait (default two minutes): |
 | `jobs_guard` | trigger | a signed-in person, the server | code `packages/jobs/src/runner/ledger.ts`; trigger `jobs_guard on jobs` | scheduled -> fired \| canceled; |
+| `jobs_hand_out` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `calendars_hand_out`, `sequence_steps_hand_out` | One job of a kind per workspace named, each due within the spread by a hash of its workspace, unless one already waits or runs (00569, decision 0115). |
 | `jobs_ledger_now` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | What the Console's Health draws of the ledger now (00526): |
 | `jobs_take_their_kind` | trigger | the server | trigger `jobs_take_their_kind on jobs` |  |
 | `jobs_wake` | trigger | the server | trigger `jobs_wake on jobs` | After a statement writes jobs: |
@@ -362,7 +364,6 @@ being read is dropped by a migration.
 | `note_candidates` | the server's | the server | code `packages/db/src/repositories/people/notes.ts` | The note sweep's batch (0007): |
 | `note_for_you_notify` | the server's | the server | SQL `person_note_add`, `person_note_edit` and 1 more | Tell the member a note is for that it is there (0007): |
 | `note_page_vitals` | the server's | the server | code `packages/db/src/repositories/reports/page-vitals.ts` | Keeps one page load's reports ([{id, name, value, page?, part?, from?, warm?, detail?}]) with the device and the build; |
-| `note_sweep_backlog` | the server's | the server | code `packages/db/src/repositories/ops/sweeps.ts` | Records whether a sweep finished with work left, and returns how many ticks in a row that has now been true. |
 | `note_yes_on_channel` | the server's | the server | code `packages/db/src/repositories/channels/ingest.ts` | The edge's door, right after ingest_inbound for a START (One message, every channel, step 2): |
 | `notification_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `notifications_close_about` | the server's | the server | SQL `batch_closes_its_notices`, `escalation_closes_its_notices` and 4 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
@@ -619,9 +620,10 @@ being read is dropped by a migration.
 | `sequence_step_remove` | reader | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/server/ask/tools/act/sequence/sequence.ts` and 5 more | A customer's step after the first taken away (0060), with the steps after it; |
 | `sequence_step_save` | reader | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/doors.ts` | A customer's step after the first (D6, 0060), added at the end of its sequence or changed (p_step.id): |
 | `sequence_step_words` | reader | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/doors.ts` | A step's message changed (0060): |
-| `sequence_steps_due` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts` | The running steps of one kind due at p_at by their workspace's own clock, each with its sequence's mode (00462), a paused workspace's never, never run first, then least recently run, with due_total th |
+| `sequence_steps_due` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `sequence_steps_hand_out` | The running steps of one kind due at p_at by their workspace's own clock, each with its sequence's mode (00462), a paused workspace's never, never run first, then least recently run, with due_total th |
 | `sequence_steps_first_gone` | trigger | the server | trigger `sequence_steps_first_gone on sequence_steps` |  |
 | `sequence_steps_gone_ends_the_wait` | trigger | the server | trigger `sequence_steps_gone_ends_the_wait on sequence_steps` |  |
+| `sequence_steps_hand_out` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts` | A job for each workspace with a step of that kind due, judged by sequence_steps_due (00569, decision 0115). |
 | `sequence_steps_of` | reader | a signed-in person, the server | code `packages/contracts/src/campaigns/sequences/dto.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts` | A sequence's steps in their places (0060): |
 | `sequence_steps_place` | trigger | the server | trigger `sequence_steps_place on sequence_steps` |  |
 | `sequence_steps_say_sequence` | trigger | the server | trigger `sequence_steps_say_sequence on sequence_steps` |  |
@@ -703,6 +705,7 @@ being read is dropped by a migration.
 | `wear_found_look` | the server's | the server | code `packages/db/src/repositories/look/look.ts` | The website read's door (00490): |
 | `withdraw_ai_drafts` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `conversation_take_over`, `member_withdraw_drafts` | The receptionist's queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00387). |
 | `withdraw_queued` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `claim_reply_turn`, `member_withdraw_message` and 2 more | The one door a queued message is withdrawn by (00387): |
+| `words_seen` | door | a signed-in person, the server | code `apps/dashboard/src/server/campaigns/playbook-row.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | A member pressed a card of Ask's that showed this step's words: |
 | `workspace_days` | door | a signed-in person, the server | nothing at run time | A workspace's rolled days between two dates, oldest first, for a member of that workspace (K10): |
 | `workspace_notices_on_erase` | trigger | the server | trigger `contacts_erase_marks_its_notices on contacts` | Decision 0019 (00549): |
 | `workspace_notices_since` | reader | a signed-in person, the server | code `packages/db/src/realtime.ts` | Decision 0019 step 4 (00508): |

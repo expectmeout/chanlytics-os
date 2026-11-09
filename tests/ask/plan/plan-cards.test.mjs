@@ -403,8 +403,10 @@ function cardsAreSteps(r, intent, world) {
   cards.forEach((p, i) => {
     const s = planned.steps[i];
     assert.equal(p.kind, CARD_KIND[s.kind], `step ${s.n} is a ${s.kind}`);
+    // What the one card draws from its steps (its head, each step's line) has its own test below.
+    const { does: _does, head: _head, ...stamp } = p.plan ?? {};
     assert.deepEqual(
-      p.plan,
+      p.plan ? stamp : undefined,
       stamped ? { id, step: s.n, of: planned.steps.length, silent: s.silent, after: s.after } : undefined,
     );
   });
@@ -1046,10 +1048,12 @@ const planTurn = (
 };
 
 /** The plan's words a turn's tool result carried, which the model never reads where the plan is the round's one call. */
+/** What the plan's one card draws above its steps: on the first card that carries it. */
+const headOf = (r) => r.proposals.find((p) => p.plan?.head)?.plan.head;
 const planWordsOf = async (input, rows = tables(), role = "owner") =>
   said(await call({ action: "plan", ...input }, rows, role)).words;
 
-test("the loop keeps every card one call made: a plan's three cards are the turn's, counted as its steps, and the plan alone in its round answers with the plan's own words, which no card says (what it pauses and to resume it, what it leaves out and why)", async () => {
+test("the loop keeps every card one call made: a plan's three cards are the turn's, counted as its steps, and the plan alone in its round answers in one sentence, and what no step says stands on its card (what it leaves out and why)", async () => {
   const r = await planTurn([PLAN_CALL]);
   assert.equal(r.failed, false, JSON.stringify(r));
   assert.deepEqual(
@@ -1060,18 +1064,24 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
       ["broadcast", 3],
     ],
   );
-  assert.equal(r.answer.say.headline, "A plan of 3 steps to review: 2 send nothing, then 1 sends.");
+  assert.deepEqual(
+    [r.answer.say.headline, r.answer.say.detail],
+    [EN.why.plain, ""],
+    "one sentence: the card says the rest",
+  );
   readerCache.clear();
   const words = await planWordsOf(offer());
-  assert.equal(r.answer.say.detail, words, "the plan's words whole, in place of the press sentence");
   assert.ok(words.includes(EN.monthsOfferPaused("This month's offer", "Nov 30")), words);
   assert.ok(words.includes(EN.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), words);
-  assert.ok(r.answer.say.detail.length <= C.ASK_ANSWER_CAPS.plan);
+  // What no step says stays on the card, under How it runs, and what it pauses is its step's own line.
+  const head = headOf(r);
+  assert.ok(head.also.includes(EN.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), JSON.stringify(head));
+  assert.equal(r.proposals.find((p) => p.kind === "playbook_change").plan.does, EN.does.pauses("Nov 30"));
   // The offer's journey and Library ride in before round 1 (cross-page.ts OFFER_ASKED), then the plan.
   assert.deepEqual(r.tools, ["sequences.journey", "sequences.messages", "propose_plan.offer"]);
 });
 
-test("asked in Spanish, an offer's plan answers in Spanish throughout: the headline counts its steps, and the detail is the plan's own words in the question's language, what no card carries first (16 Oct 2026)", async () => {
+test("asked in Spanish, an offer's plan answers in Spanish throughout: its one sentence, and what no step says on its card, in the question's language (16 Oct 2026; the answers canvas, D2)", async () => {
   const ES = C.OFFER_PLAN_WORDS.es;
   const r = await planTurn([PLAN_CALL], {
     text: "Quiero ofrecer un 10% de descuento en todo noviembre",
@@ -1079,28 +1089,23 @@ test("asked in Spanish, an offer's plan answers in Spanish throughout: the headl
   });
   assert.equal(r.failed, false, JSON.stringify(r));
   // The message is the customers' (the person's language, where the business names none): a Spanish one is written.
-  assert.equal(r.answer.say.headline, "Un plan de 4 pasos para revisar: 3 no envían nada y luego 1 envía.");
+  assert.deepEqual([r.answer.say.headline, r.answer.say.detail], [ES.why.plain, ""]);
   assert.equal(r.proposals.find((p) => p.kind === "message")?.payload.language, "es");
-  const detail = r.answer.say.detail;
-  assert.ok(detail.startsWith(ES.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), detail);
-  assert.ok(detail.includes(ES.writeMessage("offer", ["email"])), detail);
-  assert.ok(detail.includes(ES.monthsOfferPaused("This month's offer", "30 de noviembre")), detail);
+  const also = headOf(r).also.join(" ");
+  assert.ok(also.startsWith(ES.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), also);
   // Past the names it quotes, no English word is said.
-  assert.doesNotMatch(detail.replace(/«[^»]*»/g, "«»"), /\b(?:the|and|goes|sends?|offer|approve|until)\b/i, detail);
+  assert.doesNotMatch(also.replace(/«[^»]*»/g, "«»"), /\b(?:the|and|goes|sends?|offer|approve|until)\b/i, also);
 });
 
 test("with a calendar, the plan alone in its round says when to ask for the reminder (its own question on the day), and an operator's plan says the receptionist is not told of the offer until an owner or a partner adds a note: words no card carries", async () => {
   const rows = () => withCalendar({ tenant_channels: [], templates: [tpl(OFFER_EMAIL)], playbooks: [pbRow(MONTHLY)] });
   const r = await planTurn([PLAN_CALL], { ctx: ctxOf(rows()) });
   assert.equal(r.failed, false, JSON.stringify(r));
-  const detail = r.answer.say.detail;
-  assert.ok(detail.includes(EN.monthsOfferPaused("This month's offer", "Nov 30")), detail);
-  assert.ok(detail.includes(EN.reminderAsk("Nov 20", "Can receive offers")), detail);
-  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.plan, `${detail.length}`);
+  assert.ok(headOf(r).also.includes(EN.reminderAsk("Nov 20", "Can receive offers")), JSON.stringify(headOf(r)));
   readerCache.clear();
   const op = await planTurn([PLAN_CALL], { role: "operator" });
   assert.equal(op.failed, false, JSON.stringify(op));
-  assert.ok(op.answer.say.detail.includes(EN.noteLeftOut), op.answer.say.detail);
+  assert.ok(headOf(op).also.includes(EN.noteLeftOut), JSON.stringify(headOf(op)));
 });
 
 /** Harbor with a calendar open one hour on Mondays (four slots in the next fourteen days), the month's offer running. */
@@ -1119,7 +1124,7 @@ const TEN = Array.from({ length: 10 }, (_, i) =>
 const ROOM_TIGHT = EN.roomTight({ open: 4, days: 14 }, 10, "Nov 1");
 const REMINDS = EN.reminderAsk("Nov 20", "Can receive offers");
 
-test("a US number, the month's offer running and a tight room for a later offer: the plan's words pass the answer's 700 characters, and the detail keeps whole what no card carries, the reminder last of it, losing only what the cards show (fix round of batch P)", async () => {
+test("a US number, the month's offer running and a tight room for a later offer: the plan's words pass the answer's 700 characters, and the card keeps whole what no step says, under How it runs (fix round of batch P; the answers canvas, D2)", async () => {
   const US = "+12125550123";
   const rows = () => tightRows({ tenant_channels: [waRow(US)] });
   const r = await planTurn([PLAN_CALL], { ctx: ctxOf(rows(), USER, TEN) });
@@ -1127,19 +1132,13 @@ test("a US number, the month's offer running and a tight room for a later offer:
   readerCache.clear();
   const words = said(await call({ action: "plan", ...offer() }, rows(), "owner", TEN)).words;
   assert.ok(words.length > C.ASK_ANSWER_CAPS.plan, `past the cap: ${words.length}`);
-  const detail = r.answer.say.detail;
-  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.plan, `${detail.length}`);
-  for (const unseen of [
-    EN.without("whatsapp", C.whatsappOffersOpen(US).why),
-    EN.monthsOfferPaused("This month's offer", "Nov 30"),
-    ROOM_TIGHT,
-    REMINDS,
-  ])
-    assert.ok(detail.includes(unseen), `whole: ${unseen}\nin: ${detail}`);
-  assert.ok(detail.indexOf(REMINDS) < detail.indexOf(EN.reuseMessage("this_months_offer")), detail);
+  assert.equal(r.answer.say.detail, "", "the card holds it");
+  const also = headOf(r).also;
+  for (const unseen of [EN.without("whatsapp", C.whatsappOffersOpen(US).why), ROOM_TIGHT, REMINDS])
+    assert.ok(also.includes(unseen), `whole: ${unseen}\nin: ${also}`);
 });
 
-test("an operator's offer with email not set up, a new WhatsApp message, the month's offer running and a tight later room: the detail keeps what no card carries whole, the note left out, the room and the reminder (fix round of batch P)", async () => {
+test("an operator's offer with email not set up, a new WhatsApp message, the month's offer running and a tight later room: the card keeps what no step says whole, the note left out, the room and the reminder (fix round of batch P; the answers canvas, D2)", async () => {
   const rows = () => tightRows({ mailboxes: [] });
   const op = await planTurn([PLAN_CALL], { role: "operator", ctx: ctxOf(rows(), "u2", TEN) });
   assert.equal(op.failed, false, JSON.stringify(op));
@@ -1150,13 +1149,12 @@ test("an operator's offer with email not set up, a new WhatsApp message, the mon
   readerCache.clear();
   const words = said(await call({ action: "plan", ...offer() }, rows(), "operator", TEN)).words;
   assert.ok(words.length > C.ASK_ANSWER_CAPS.plan, `past the cap: ${words.length}`);
-  const detail = op.answer.say.detail;
-  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.plan, `${detail.length}`);
+  const also = headOf(op).also;
   for (const unseen of [EN.noteLeftOut, ROOM_TIGHT, REMINDS])
-    assert.ok(detail.includes(unseen), `whole: ${unseen}\nin: ${detail}`);
+    assert.ok(also.includes(unseen), `whole: ${unseen}\nin: ${also}`);
 });
 
-test("a setup's plan alone in its round: its campaigns are plain cards (D3), so the answer counts them as cards, and the plan's words are its detail", async () => {
+test("a setup's plan alone in its round: its campaigns are plain cards (D3), so the answer says how many, and the plan's words are its detail", async () => {
   const setup = { ...PLAN_CALL, json: JSON.stringify({ action: "offer", intent: "cover_journey" }) };
   const r = await planTurn([setup], { text: "Set up my campaigns", ctx: ctxOf(withCalendar()) });
   assert.equal(r.failed, false, JSON.stringify(r));
@@ -1168,7 +1166,7 @@ test("a setup's plan alone in its round: its campaigns are plain cards (D3), so 
       ["playbook", undefined],
     ],
   );
-  assert.equal(r.answer.say.headline, "3 cards to review.");
+  assert.equal(r.answer.say.headline, "3 to look at.");
   assert.equal(
     r.answer.say.detail,
     "Starts 3 campaigns now, each its own card: a reminder the day before a booked time, a follow-up the day after a booked time and a win-back once they go quiet. The reminder, the follow-up and the win-back reach nobody today; each card says why.",
@@ -1239,23 +1237,15 @@ test("an offer's journey and Library read before round 1 are the plan's own read
   );
 });
 
-test("an answer written beside a plan's call was written before the plan's words came back: it is set aside, as one beside a read is, and the round answers with the plan's count and its own words, a claimed write and an honest answer alike", async () => {
-  const words = await planWordsOf(offer());
-  readerCache.clear();
+test("an answer written beside a plan's call was written before the plan's words came back: it is set aside, as one beside a read is, and the round answers with the plan's one sentence, a claimed write and an honest answer alike", async () => {
   const r = await planTurn([saidBeside("I've set up your November offer.", "It starts on Nov 1."), PLAN_CALL]);
   assert.equal(r.failed, false, JSON.stringify(r));
   assert.equal(r.proposals.length, 3);
-  assert.deepEqual(
-    [r.answer.say.headline, r.answer.say.detail],
-    ["A plan of 3 steps to review: 2 send nothing, then 1 sends.", words],
-  );
-  // An answer that claims nothing is set aside all the same: what the plan pauses and leaves out is the plan's to say.
+  assert.deepEqual([r.answer.say.headline, r.answer.say.detail], [EN.why.plain, ""]);
+  // An answer that claims nothing is set aside all the same: why the plan has this shape is the plan's to say.
   readerCache.clear();
   const honest = await planTurn([saidBeside("Here is a plan for your November offer.", ""), PLAN_CALL]);
-  assert.deepEqual(
-    [honest.answer.say.headline, honest.answer.say.detail],
-    ["A plan of 3 steps to review: 2 send nothing, then 1 sends.", words],
-  );
+  assert.deepEqual([honest.answer.say.headline, honest.answer.say.detail], [EN.why.plain, ""]);
 });
 
 /* ------------------------------------------------------------------ a campaign's last day */
@@ -1366,7 +1356,11 @@ test("a plan's answer is the model's, written from the plan's result in one more
     r.proposals.map((p) => p.kind),
     ["settings", "playbook_change", "broadcast"],
   );
-  assert.deepEqual([r.answer.say.headline, r.answer.say.detail], ["Um plano de 3 passos para revisar.", words]);
+  assert.deepEqual(
+    [r.answer.say.headline, r.answer.say.detail],
+    ["Um plano de 3 passos para revisar.", ""],
+    "one sentence, in its language: the card says the rest",
+  );
   assert.equal(planRequests.length, 2, "one more round, for the answer");
   assert.deepEqual(
     planRequests[1].tool_choice,
@@ -1377,16 +1371,14 @@ test("a plan's answer is the model's, written from the plan's result in one more
   readerCache.clear();
   const planWords = await planWordsOf(offer());
   assert.ok(told.includes(JSON.stringify(planWords).slice(1, 40)), "the plan's words reach it, in its result");
-  assert.ok(told.includes("Now write the answer, in the person's language, from its result alone"), told.slice(-400));
+  assert.ok(told.includes("Write one sentence from its result, in the person's language"), told.slice(-400));
 });
 
-test("a plan's answer round that writes nothing the format reads answers with the plan's own words, as before: its cards stand", async () => {
+test("a plan's answer round that writes nothing the format reads answers with the plan's own sentence: its cards stand", async () => {
   const garbled = { type: "text", id: "", name: "", json: "", text: "{not json" };
   const r = await planTurn([PLAN_CALL], { then: [garbled] });
   assert.equal(r.failed, false, JSON.stringify(r));
-  assert.equal(r.answer.say.headline, "A plan of 3 steps to review: 2 send nothing, then 1 sends.");
-  readerCache.clear();
-  assert.equal(r.answer.say.detail, await planWordsOf(offer()));
+  assert.deepEqual([r.answer.say.headline, r.answer.say.detail], [EN.why.plain, ""]);
 });
 
 test("a setup's answer the model writes in Portuguese keeps the door the setup waits on, and its own question next, in its language, over the lead's English one; the button keeps the lead's words where the model's Open went elsewhere", async () => {

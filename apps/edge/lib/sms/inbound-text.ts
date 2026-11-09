@@ -55,7 +55,7 @@ import { text } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { keepDelivery, signatureHeaders } from "../shared/keep-event.js";
 import { oneTimeCodeOf, smsInboundFrom, inboundFromSms, type SmsInbound } from "@chanlytics/channels/lines";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { IngestResult } from "@chanlytics/db/channels";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { smsSenderFor, type SmsSender } from "../lines/sms.js";
@@ -65,7 +65,7 @@ import { alertUnroutable } from "../whatsapp/alerts.js";
 import { IngestFailed } from "../whatsapp/persist.js";
 import { errField, logger } from "../shared/log.js";
 import { phoneTail } from "@chanlytics/contracts";
-import type { TenantId } from "@chanlytics/contracts";
+import type { JobPayload, TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -170,7 +170,11 @@ function textFields(form: Record<string, string>): Record<string, string> {
  * message, its thread and its person are named so an erasure cancels a job still waiting and scrubs one finished
  * (erase_contact, scrubErasedJobs).
  */
-function answerPayload(form: Record<string, string>, receivedAt: number, ing: IngestResult): Json {
+function answerPayload(
+  form: Record<string, string>,
+  receivedAt: number,
+  ing: IngestResult,
+): JobPayload<"inbound_answer"> {
   return {
     text: textFields(form),
     received_at: receivedAt,
@@ -189,7 +193,7 @@ function answerPayload(form: Record<string, string>, receivedAt: number, ing: In
 async function answerLater(
   db: Db,
   tenantId: TenantId,
-  payload: Json,
+  payload: JobPayload<"inbound_answer">,
   log: ReturnType<typeof logger>,
 ): Promise<"scheduled" | "refused" | "unknown"> {
   try {

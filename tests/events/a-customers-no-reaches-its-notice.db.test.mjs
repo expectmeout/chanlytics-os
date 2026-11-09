@@ -81,9 +81,7 @@ test(
     const event = ok(
       await db
         .from("events")
-        .select(
-          "id, tenant_id, kind, subject_type, subject_id, data, created_at, version, aggregate_version, causation_id",
-        )
+        .select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version")
         .eq("tenant_id", T)
         .eq("kind", "contact.consent_changed")
         .eq("subject_id", taken.contact_id)

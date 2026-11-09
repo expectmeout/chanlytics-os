@@ -130,9 +130,11 @@ packages/contracts/src/
   conversations/
   deals/
   email/
+  events/
   files/
   google/
   imports/
+  jobs/
   journey/
   leads/
   lines/

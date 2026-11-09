@@ -191,7 +191,7 @@ test("a reply: the words to the thread's reply route, marked as a card's; the re
   );
   assert.deepEqual(r, {
     ok: true,
-    receipt: "On its way to Rosa — sends in 15 seconds unless you cancel",
+    receipt: "Going to Rosa",
     undo: { message_id: "m-9", cancelable_until: "2026-09-12T10:00:15.000Z", decision_id: D(1) },
     made: null,
   });
@@ -243,13 +243,13 @@ test("a steer, a whisper and an invite: each to its route, each with a receipt a
   const t = tab();
   assert.deepEqual(await commitProposal(t.win, card("steer", { message_id: M1, instruction: "shorter" }), t.client), {
     ok: true,
-    receipt: "Rewritten — the new draft waits its turn",
+    receipt: "Rewritten. The new words wait their turn.",
     undo: null,
     made: null,
   });
   assert.deepEqual(await commitProposal(t.win, card("whisper", { call_id: K1, text: "Saturday is full" }), t.client), {
     ok: true,
-    receipt: "Whispered — the receptionist works it into its next answer",
+    receipt: "Whispered. It uses it when it fits.",
     undo: null,
     made: null,
   });
@@ -640,7 +640,7 @@ test("a settings change: applied to the loaded config and sent with its version;
     { ok: false, message: "Settings have changed since this card — change them in Settings." },
     "REGRESSION: the undo wrote the whole earlier config over a later save",
   );
-  assert.equal(t.sent.length, 1, "and nothing was sent");
+  assert.equal(t.sent.filter((c) => !c.key.startsWith("GET ")).length, 1, "and nothing was written");
   // Nobody saved since (the tab reads the version the card wrote): the undo restores.
   t.win.__SETTINGS.version = 4;
   const back = await undoProposal(
@@ -649,7 +649,7 @@ test("a settings change: applied to the loaded config and sent with its version;
     { state: "done", receipt: "", atMs: 1, undo: { config: before, version_after: 4 } },
     t.client,
   );
-  assert.deepEqual(back, { ok: true, receipt: "Previous settings are back", undo: null });
+  assert.deepEqual(back, { ok: true, receipt: "Put back.", undo: null });
   assert.deepEqual(t.sent.at(-1).body, { config: before, version: 4 });
   const cold = tab();
   cold.win.__SETTINGS = null;
@@ -666,7 +666,7 @@ test("a settings change: applied to the loaded config and sent with its version;
     ),
     { ok: false, message: "Settings are not loaded yet." },
   );
-  assert.equal(cold.sent.length, 0);
+  assert.equal(cold.sent.filter((c) => !c.key.startsWith("GET ")).length, 0, "it looks for them, and writes nothing");
 });
 
 test("a note's card with its last day: its Approve saves the note with until on it, and the rest of the config as it was", async () => {
@@ -699,7 +699,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
   );
   assert.deepEqual(b, {
     ok: true,
-    receipt: "Send “Friday offer” — 12 people, scheduled",
+    receipt: "Set to go to 12 people.",
     undo: { broadcast_id: B1, decision_id: D(9) },
     made: null,
   });
@@ -726,7 +726,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
   );
   assert.deepEqual(p, {
     ok: true,
-    receipt: "Campaign “Win-back” is running — its next run is under Coming up in Campaigns",
+    receipt: "“Win-back” is on. Its first batch waits for your OK.",
     undo: { playbook_id: PB1, decision_id: D(0) },
     made: null,
   });
@@ -752,7 +752,7 @@ test("an undo names the decision it reverses: the inverse call carries the commi
       o({ message_id: "m-9", cancelable_until: "x", decision_id: D(1) }),
       t.client,
     ),
-    { ok: true, receipt: "Canceled before it sent", undo: null },
+    { ok: true, receipt: "Not sent.", undo: null },
   );
   assert.deepEqual(
     await undoProposal(
@@ -784,11 +784,11 @@ test("an undo names the decision it reverses: the inverse call carries the commi
   );
   assert.deepEqual(
     await undoProposal(t.win, card("broadcast", {}), o({ broadcast_id: B1, decision_id: D(9) }), t.client),
-    { ok: true, receipt: "Canceled — nothing will send", undo: null },
+    { ok: true, receipt: "Undone. Nothing goes out.", undo: null },
   );
   assert.deepEqual(
     await undoProposal(t.win, card("playbook", {}), o({ playbook_id: PB1, decision_id: D(0) }), t.client),
-    { ok: true, receipt: "Deleted — nothing will run", undo: null },
+    { ok: true, receipt: "Undone. Nothing goes out.", undo: null },
   );
   assert.deepEqual(
     t.sent.map((s) => [s.key, s.undoOf, s.via]),
@@ -826,7 +826,7 @@ test("an undo names the decision it reverses: the inverse call carries the commi
   );
   assert.equal(
     (await undoProposal(mid.win, card("broadcast", {}), o({ broadcast_id: B1 }), mid.client)).receipt,
-    "Stopped — it ends after this batch",
+    "Stopped. Nothing more goes out.",
   );
 });
 
@@ -929,21 +929,23 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
       assert.equal(u.ok, true, `${p.kind} undo: ${u.message}`);
       undone.push(`${p.kind}${p.payload.verb ? `:${p.payload.verb}` : ""}`);
     }
+    // A settings card reads the settings first where the tab has none: a read, marked as nothing.
+    const wrote = t.sent.filter((s) => !s.key.startsWith("GET "));
     assert.ok(
-      t.sent.every((s) => s.via === "ask"),
+      wrote.every((s) => s.via === "ask"),
       `${p.kind}: every call marked as a card's`,
     );
     assert.deepEqual(
       t.events.filter((e) => e.startsWith("refresh:")).map((e) => e.slice("refresh:".length)),
-      t.sent.map((s) => keyOf(s.key)),
+      wrote.map((s) => keyOf(s.key)),
       `${p.kind}: each call re-reads what its own route's button would`,
     );
     if (p.kind === "lead_search")
       assert.deepEqual(
         [r.receipt, r.undo, t.sent[0].body],
         p.payload.amends
-          ? ["Answered. Dentists carries on with your answer; Leads shows it.", null, { answer: "include", plan }]
-          : ["Finding 50 dentists. It carries on if you leave; Leads shows it.", { search_id: S1 }, plan],
+          ? ["Answered. Dentists keeps going with it.", null, { answer: "include", plan }]
+          : ["Finding 50 dentists. It keeps going if you leave.", { search_id: S1 }, plan],
       );
     if (p.kind === "list")
       assert.deepEqual(

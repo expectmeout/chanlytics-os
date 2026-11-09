@@ -381,6 +381,9 @@ export function standingWithRuns<S extends TodayHead>(standing: S, runs: number)
  * parts' names and the day's lines.
  */
 export const TODAY_PHONE_WORDS = {
+  /** Two warnings about one thing, as one line. */
+  alertFold: (n: number, kind: string): string =>
+    `${n} things about ${kind === "number" ? "your WhatsApp number" : kind === "billing" ? "your subscription" : "reading your messages"}`,
   /** The day's card: its name, Now or Next and Then over its two visits, and its door. */
   day: "The day",
   now: "Now",
@@ -425,7 +428,12 @@ export const TODAY_PHONE_WORDS = {
     stop: "Stop your brief",
   },
   /** What cannot wait's one door: a line that is down is reconnected, a paused workspace is billing's. */
-  alertDoor: { reconnect: "Reconnect", billing: "Open billing" },
+  alertDoor: {
+    open: "Open",
+    see: "See",
+    reconnect: "Reconnect",
+    billing: "Open billing",
+  },
   /** The day with no calendar linked: its line, and the one row that links one. */
   link: {
     note: "No calendar linked",

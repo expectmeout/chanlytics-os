@@ -470,7 +470,8 @@ test("REGRESSION: with no line connected, Today does not say the receptionist is
     assert.ok(!said.includes("Queue clear — nothing needs you"), "nor that the queue was clear, as if all were well");
     assert.equal(buttonsSaying(setup, "Continue setting up").length, 1, "one door to the first run");
     const dot = find(setup, (n) => n.props?.className === "setup-card-dot");
-    assert.equal(dot.props["aria-label"], "Next: your business", "and the step it opens on, as its dot's name");
+    assert.equal(dot.props["aria-label"], "Not answering yet", "and the state it stands in, as its dot's name");
+    assert.ok(textOf(setup).includes("Your business"), "it names the very next step");
     assert.equal(dot.props["data-tone"], "warn");
     assert.equal(
       [hero, recap, queue, setup].reduce((n, t) => n + buttonsSaying(t, "Open Setup").length, 0),

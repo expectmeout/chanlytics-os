@@ -4,6 +4,16 @@
     "fresh": "Read once, before the shell starts, when the tab remembers no workspace.",
     "why": "It picks the workspace the tab opens on; from then on the workspace surface reads the same list and hears it (memberships, tenants)."
   },
+  "apps/dashboard/src/bridge/ask/commit.ts GET settings": {
+    "kind": "on-open",
+    "fresh": "Read as a settings card is pressed from the browser's own walk, the way down when the act door cannot reach a route.",
+    "why": "A settings card writes over the config it reads and sends its version with it, so it must read it at that moment: an old version is refused and says so."
+  },
+  "apps/dashboard/src/bridge/ask/notices.ts GET ask/notice": {
+    "kind": "on-open",
+    "fresh": "Read as Ask opens, at most every five minutes (READ_AGAIN_MS), and once more when the language it speaks changes.",
+    "why": "What Ask noticed moves over hours, and a line resting here is said by the browser's own record of it. A stale line costs one press that says the thing has moved, never a wrong send: the act door reads the card again."
+  },
   "apps/dashboard/src/bridge/zone.ts GET workspaces": {
     "kind": "boot",
     "fresh": "Read only when the tab knows no zone yet; the workspace surface's read holds it after.",
@@ -380,5 +390,20 @@
     "kind": "on-open",
     "fresh": "Read as the exact instructions open on a writer's tab, once for each opening; closing the sheet lets it go, so the next opening reads it again.",
     "why": "It is the prompt the writer would be given now, cut into its parts: a sheet looked at for a moment, which a save on this page changes, so each opening reads it afresh."
+  },
+  "apps/dashboard/src/surfaces/today/need-you/call-work.tsx GET calls/[id]/recording": {
+    "kind": "link",
+    "fresh": "A link the browser's own player reads as Play is pressed.",
+    "why": "It is the call's recording, which does not change once it is stored."
+  },
+  "apps/dashboard/src/surfaces/today/need-you/sheet/reads.ts GET ask/openings": {
+    "kind": "on-open",
+    "fresh": "Read each time Another time is pressed on a booking.",
+    "why": "What is open is asked as it is offered, and nothing goes to them until the owner has looked at it."
+  },
+  "apps/dashboard/src/surfaces/today/need-you/sheet/reads.ts GET conversations/[id]": {
+    "kind": "on-open",
+    "fresh": "Read once as a to-do's sheet opens on the person it is about.",
+    "why": "Their last words sit over what the owner says to write; a word that lands while the sheet is open is on the thread, one press away."
   }
 }

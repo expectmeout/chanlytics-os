@@ -57,6 +57,20 @@ interface OfferWords {
   whatsappReview: string;
   /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
   reminderAsk: (day: string, list: string) => string;
+  /** What the plan's one card says of each step (AskPlanStamp.does), and of the whole (AskPlanHead.sub). */
+  does: {
+    keeps: string;
+    tells: (until: string) => string;
+    pauses: (until: string) => string;
+    paced: (cap: number, at: string) => string;
+    once: (day: string, at: string) => string;
+    atPress: string;
+  };
+  sub: (on: readonly OfferChannel[], until: string) => string;
+  /** The one sentence an offer's answer says when the model's round cannot (the reason it has this shape). */
+  why: { paced: string; tight: string; plain: string };
+  /** The chips beside that sentence: the numbers it rests on. */
+  chips: { slots: (n: number) => string; said: string; pace: string; hear: string };
 }
 
 const reasonEn = (reason: string | null): string => reason ?? CHANNEL_WORDS.unchecked;
@@ -90,6 +104,27 @@ const EN: OfferWords = {
   whatsappReview:
     "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
   reminderAsk: (day, list) => `On ${day}, ask me to send a reminder to whoever on “${list}” has not booked by then.`,
+  does: {
+    keeps: "Keeps these words for your next offer.",
+    tells: (until) => `Tells your receptionist, until ${until}.`,
+    pauses: (until) => `Pauses your month's offer until ${until}, so nobody gets two.`,
+    paced: (cap, at) => `Sends ${cap} a day at ${at}, each person once.`,
+    once: (day, at) => `Goes to everyone on ${day} at ${at}, each person once.`,
+    atPress: "Goes to everyone when you press, each person once.",
+  },
+  sub: (on, until) =>
+    `${on.length === 1 && on[0] === "email" ? "By email" : on.length === 1 ? "On WhatsApp" : "On WhatsApp and by email"}, until ${until}`,
+  why: {
+    paced: "More people said yes than you have room for, so I paced it.",
+    tight: "More people said yes than you have room for, so it would be worth pacing.",
+    plain: "Everyone who said yes to offers can hear this.",
+  },
+  chips: {
+    slots: (n) => (n === 1 ? "open slot" : "open slots"),
+    said: "said yes",
+    pace: "a day",
+    hear: "can hear this",
+  },
 };
 
 /** channelChoices' reasons for an offer's two channels, in Spanish: every one contracts writes for them. */
@@ -157,6 +192,27 @@ const ES: OfferWords = {
     "Su versión de WhatsApp espera la revisión de WhatsApp, que puede seguir en el primer envío: quien la reciba por WhatsApp espera a que termine.",
   reminderAsk: (day, list) =>
     `El ${day}, pídeme que envíe un recordatorio a quien de «${list}» no haya reservado para entonces.`,
+  does: {
+    keeps: "Guarda este texto para tu próxima oferta.",
+    tells: (until) => `Avisa a tu recepcionista, hasta el ${until}.`,
+    pauses: (until) => `Pausa tu oferta del mes hasta el ${until}, para que nadie reciba dos.`,
+    paced: (cap, at) => `Envía ${cap} al día a las ${at}, a cada persona una vez.`,
+    once: (day, at) => `Va a todos el ${day} a las ${at}, a cada persona una vez.`,
+    atPress: "Va a todos cuando pulses, a cada persona una vez.",
+  },
+  sub: (on, until) =>
+    `${on.length === 1 && on[0] === "email" ? "Por correo" : on.length === 1 ? "Por WhatsApp" : "Por WhatsApp y correo"}, hasta el ${until}`,
+  why: {
+    paced: "Más gente dijo que sí de la que cabe en tu calendario, así que lo repartí.",
+    tight: "Más gente dijo que sí de la que cabe en tu calendario, así que convendría repartirlo.",
+    plain: "Todos los que dijeron que sí a las ofertas pueden recibirla.",
+  },
+  chips: {
+    slots: (n) => (n === 1 ? "hueco libre" : "huecos libres"),
+    said: "dijeron que sí",
+    pace: "al día",
+    hear: "pueden recibirla",
+  },
 };
 
 /** Letter-edged and in any case, as detectLanguage's hints are: "Monday" holds no "mon", "consultoría" no "a". */

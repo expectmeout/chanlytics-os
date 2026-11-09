@@ -117,6 +117,14 @@ const OTHER_STATES = {
     n: 1,
     why: "Which sequence's first email Try it shows and Signs as guesses from: the newest running chain, as its chain says, not whether a run goes today.",
   },
+  "apps/dashboard/src/surfaces/leads/scope/scope.tsx": {
+    n: 1,
+    why: "A lead search's strip, whose own state is running: whether new rows may land by themselves, and no campaign at all.",
+  },
+  "packages/contracts/src/ask/proposals/shapes.ts": {
+    n: 1,
+    why: "Which press a campaign's card shows: a pause says Pause, whatever the rule says of the day.",
+  },
   "packages/contracts/src/ask/proposals/campaigns.ts": {
     n: 2,
     why: "A pause or a resume a card asks for: the state it writes, and the toast that says which, not whether the campaign runs.",

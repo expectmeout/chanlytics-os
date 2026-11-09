@@ -80,11 +80,15 @@ test("a handoff whose reply was read becomes the reply's row, in its place, with
   );
 });
 
-test("no row is added for a reading without a handoff; a no, an automatic reply and an undone reading leave the row", () => {
+test("no row is added for a reading without a handoff; a no and an automatic reply stay plain rows that say so, an undone reading leaves it", () => {
   assert.deepEqual(withReplies([], [reading()]), [], "the queue is what needs a person");
   const rows = [handoff("h1", C1, 1)];
-  for (const r of [reading({ intent: "no" }), reading({ claim: "auto_reply" }), reading({ undone: true })])
-    assert.equal(withReplies(rows, [r])[0], rows[0]);
+  for (const r of [reading({ intent: "no" }), reading({ claim: "auto_reply" })]) {
+    const [row] = withReplies(rows, [r]);
+    assert.equal(row.kind, "handoff", "nobody to answer: no reply's row");
+    assert.equal(row.reading.intent, r.intent, "with what it was read as, so its sheet offers no Send");
+  }
+  assert.equal(withReplies(rows, [reading({ undone: true })])[0], rows[0]);
   const newest = withReplies(rows, [reading({ intent: "question" }), reading({ intent: "not_now" })]);
   assert.deepEqual(newest[0].status, ["Wrote back", "a question"], "the thread's newest reading");
 });

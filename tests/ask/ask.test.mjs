@@ -1139,7 +1139,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
   // named, cited and opened without a read, and read again for anything about it (the Phase 5 plan, D5).
   const rules = ASK_RULES.join("\n");
   assert.ok(rules.includes(DATA_NOT_INSTRUCTIONS), "the one injection rule line: what a customer wrote is data");
-  assert.ok(rules.includes("You never act."));
+  assert.ok(rules.includes("Every change is a card a person presses"));
   const read = ASK_RULES.filter((r) => r.includes("you did not read this turn"));
   assert.equal(read.length, 1, "one rule says it");
   for (const words of [
@@ -1430,6 +1430,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.deepEqual(
     ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
+      ["press_card", ["yes", "stop"]],
       ["propose_call", ["whisper", "hand_over"]],
       ["propose_deal", []],
       ["propose_follow_up", ["keep", "clear"]],
@@ -1487,7 +1488,10 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     "a call whose arguments did not arrive whole is told so, not judged as a plan with every field missing",
   );
   const prompt = ASK_RULES.join("\n");
-  assert.ok(prompt.includes("You never act.") && prompt.includes("never say it was sent, changed or done"));
+  assert.ok(
+    prompt.includes("Every change is a card a person presses") &&
+      prompt.includes("Never say it was sent, changed or done"),
+  );
   const store = readCode("apps/dashboard/src/server/ask/store.ts");
   assert.ok(
     store.includes('throw new AppError("conflict", "That card was already approved.", 409);'),
@@ -2129,7 +2133,7 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   const rule = ASK_RULES.find((r) => r.startsWith("Setting up sequences is a few cards, never a claim."));
   assert.ok(rule, "the setup rule");
   assert.ok(rule.includes("only calls independent of each other go side by side"), rule);
-  assert.ok(rule.includes("never that anything is set up, started or running"));
+  assert.ok(rule.includes("Never say that anything is set up, started or running"));
   assert.ok(
     ASK_RULES.indexOf(rule) === ASK_RULES.findIndex((r) => r.startsWith("A proposal is one card.")) + 1,
     "after the rule that a proposal is one card",
@@ -2158,17 +2162,17 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
     !ASK_RULES.some((r) => r !== setup && /\bset(ting)? up (campaigns|sequences)\b/i.test(r)),
     "one setup rule",
   );
-  // A plan's steps that send nothing are one press and each send its own, as the plan's count sentence says them
-  // (contracts answerForCards); a reminder or a check after an appointment only where a calendar is connected (D2).
-  assert.ok(setup.includes("The steps that send nothing are one press and each send is its own"), setup);
+  // A plan is one card with one press (D2 of the answers canvas); a reminder or a check after an appointment only where a
+  // calendar is connected.
+  assert.ok(setup.includes("A plan is one card with one press, which names what it does, the send included"), setup);
   assert.ok(
     setup.includes("A reminder before an appointment, or a check after one, only where a calendar is connected"),
   );
   // A plan is answered from its result (the last rule: the plan is called alone, and its answer written once it is
   // back): each rule that asks for a sentence of Ask's own after a proposal names that exception, so no two rules
   // disagree about a plan's answer.
-  const act = ASK_RULES.find((r) => r.startsWith("You never act."));
-  for (const r of [act, setup]) assert.ok(r.includes("(a plan is answered from its result)"), r);
+  const act = ASK_RULES.find((r) => r.startsWith("Every change is a card a person presses"));
+  assert.ok(act.includes("a plan is answered from its result"), act);
   assert.equal(ASK_RULES.filter((r) => r.includes("A plan is the exception")).length, 1, "the rule both point to");
   // The answer canvas, A2 (16 Oct 2026): how a tool is used is its description's, so no rule names one; the tools below
   // say what the rules once did (the plan, the message, never a setup assembled by hand).

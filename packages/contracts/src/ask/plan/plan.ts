@@ -7,6 +7,7 @@ import { journeyPlan, type PlanLead } from "../../journey/plan";
 import { campaignRunsOn } from "../../campaigns/playbooks/schedule";
 import { PLAYBOOK_NAME_MAX } from "../../campaigns/playbooks/triggers/notices";
 import { clip } from "../answer/shape";
+import type { AskPlanHead } from "../thread-words";
 import { sendWaitsForReview, stepToken } from "../plan-steps";
 import {
   REMINDER_AFTER_DAYS,
@@ -61,6 +62,9 @@ function reminderDay(world: PlanWorld, dates: OfferDates, paced: boolean): strin
   const day = nineteen <= dates.until ? nineteen : dates.until;
   return day > dates.from ? day : null;
 }
+
+/** What a plan says of its one card, before its message is read (the head's `says` is the cards', act/plan.ts). */
+export type PlanHeadOf = Omit<AskPlanHead, "says">;
 
 /** Everything an offer's plan is made of, read and judged before a step is numbered. */
 interface OfferRead {
@@ -175,13 +179,56 @@ function sendDay(r: OfferRead, words: Said): string[] {
   ];
 }
 
-function offerPlan(offerRead: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: string } {
+/** A chip beside a plan's sentence: a number it rests on, and where that number opens. */
+export interface PlanFigure {
+  value: string;
+  label: string;
+  /** A page (its route) or a list (its token); none is a chip with no door ("3 a day"). */
+  source: { kind: "page" | "list"; id: string; label: string } | null;
+}
+
+/** The numbers an offer's sentence rests on: the room, who said yes and the pace; or just who can hear it. */
+function offerFigures(r: OfferRead, world: PlanWorld): PlanFigure[] {
+  const chips = OFFER_PLAN_WORDS[world.says].chips;
+  const onList = { kind: "list", id: r.audience.token, label: r.audience.name } as const;
+  if (!r.tight)
+    return r.audience.count === null ? [] : [{ value: String(r.audience.count), label: chips.hear, source: onList }];
+  return [
+    {
+      value: String(r.tight.room.open),
+      label: chips.slots(r.tight.room.open),
+      source: { kind: "page", id: "calendar", label: "Calendar" },
+    },
+    { value: String(r.tight.audience), label: chips.said, source: onList },
+    ...(r.cap === null ? [] : [{ value: String(r.cap), label: chips.pace, source: null }]),
+  ];
+}
+
+/** The offer's one sentence: why it has this shape. */
+function offerWhy(r: OfferRead, world: PlanWorld): string {
+  const why = OFFER_PLAN_WORDS[world.says].why;
+  if (!r.tight) return why.plain;
+  return r.cap === null ? why.tight : why.paced;
+}
+
+/** The offer in its owner's words, as a card's title reads it: its first letter a capital, no stop at its end. */
+const offerTitle = (words: string): string => {
+  const said = words.trim().replace(/[.!…]+$/, "");
+  return `${said.charAt(0).toUpperCase()}${said.slice(1)}`;
+};
+
+function offerPlan(
+  offerRead: OfferRead,
+  world: PlanWorld,
+): { steps: PlanStep[]; words: string; head: PlanHeadOf; figures: PlanFigure[]; why: string } {
   const { steps, add } = planSteps();
+  const does = OFFER_PLAN_WORDS[world.says].does;
+  const hour = OFFER_PLAN_WORDS[world.says].hour(SEND_HOUR);
   const template_id = offerRead.message.made
-    ? stepToken(add("message", offerRead.message.input, SAY.why.message))
+    ? stepToken(add("message", offerRead.message.input, SAY.why.message, does.keeps))
     : offerRead.message.id;
-  if (offerRead.note.input) add("note", offerRead.note.input, SAY.why.note);
-  for (const p of offerRead.pauses) add("change", p.input, SAY.why.pause);
+  if (offerRead.note.input) add("note", offerRead.note.input, SAY.why.note, does.tells(offerRead.dates.untilSaid));
+  for (const p of offerRead.pauses) add("change", p.input, SAY.why.pause, does.pauses(offerRead.dates.untilSaid));
   const sends = { template_id, params: offerRead.message.params };
   const title = SAY.offerTitle(offerRead.offer.words);
   if (offerRead.cap !== null)
@@ -198,6 +245,7 @@ function offerPlan(offerRead: OfferRead, world: PlanWorld): { steps: PlanStep[];
         until: offerRead.dates.until,
       },
       SAY.why.paced,
+      does.paced(offerRead.cap, hour),
     );
   else
     add(
@@ -210,9 +258,15 @@ function offerPlan(offerRead: OfferRead, world: PlanWorld): { steps: PlanStep[];
         channels: offerRead.on,
       },
       SAY.why.first,
+      offerRead.dates.firstAt === null ? does.atPress : does.once(offerRead.dates.fromSaid, hour),
     );
   // What no card carries first, then what the cards show: the answer's detail, cut at 700 characters, keeps the first.
   const offerWords = OFFER_PLAN_WORDS[world.says];
+  const also = [
+    ...offerRead.onSaid,
+    ...(offerRead.note.input || offerRead.note.said === offerWords.noteKnown ? [] : [offerRead.note.said]),
+    ...sendUnseen(offerRead, world),
+  ];
   const words = [
     ...offerRead.onSaid,
     ...(offerRead.note.input ? [] : [offerRead.note.said]),
@@ -226,7 +280,18 @@ function offerPlan(offerRead: OfferRead, world: PlanWorld): { steps: PlanStep[];
     ...(offerRead.note.input ? [offerRead.note.said] : []),
     ...sendDay(offerRead, offerWords),
   ];
-  return { steps, words: words.join(" ") };
+  return {
+    steps,
+    words: words.join(" "),
+    head: {
+      title: offerTitle(offerRead.offer.words),
+      sub: offerWords.sub(offerRead.on, offerRead.dates.untilSaid),
+      press: "offer",
+      ...(also.length ? { also } : {}),
+    },
+    figures: offerFigures(offerRead, world),
+    why: offerWhy(offerRead, world),
+  };
 }
 
 /* ------------------------------------------------------------------ the plan */
@@ -238,7 +303,16 @@ function offerPlan(offerRead: OfferRead, world: PlanWorld): { steps: PlanStep[];
 export function planOf(
   intent: PlanIntent,
   world: PlanWorld,
-): { steps: PlanStep[]; words: string; lead?: PlanLead | null } | { refused: string } {
+):
+  | {
+      steps: PlanStep[];
+      words: string;
+      lead?: PlanLead | null;
+      head?: PlanHeadOf;
+      figures?: PlanFigure[];
+      why?: string;
+    }
+  | { refused: string } {
   if (intent.intent === "cover_journey") return journeyPlan(intent, world);
   const read = offerRead(intent.offer, intent.say, world);
   return "refused" in read ? read : offerPlan(read, world);

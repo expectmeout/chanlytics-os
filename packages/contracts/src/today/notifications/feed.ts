@@ -157,6 +157,11 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   file_purge: { stopped: "A removed photo could not be let go", to: "admin/files" },
   // A video's digest. Not sent (packages/jobs TOLD_ELSEWHERE): its tile says what it has, and the sweep tries the step again.
   video_digest: { stopped: "A video could not be made ready", to: "admin/files" },
+  // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
+  campaign_moments: { stopped: "A campaign could not run this hour", to: "today" },
+  reach_out_steps: { stopped: "A reach-out could not run this hour", to: "today" },
+  calendar_read: { stopped: "Your calendar could not be read this hour", to: "today" },
+  google_read: { stopped: "Your Google listing could not be read this hour", to: "today" },
   canary: { stopped: "The background work's own check did not finish", to: "today" },
 };
 

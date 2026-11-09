@@ -506,6 +506,7 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     "a viewer: the nine reads",
   );
   assert.deepEqual(acts("operator"), [
+    "press_card",
     "propose_call",
     "propose_deal",
     "propose_follow_up",
@@ -638,7 +639,7 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
   );
   const made = scripted([ROUND([prose("Adding Ada."), tool("propose_person", ADD_ADA)])]);
   const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(made.round));
-  assert.equal(r2.answer.say.headline, "One card to review: Add Ada to People.", "the card made is the answer");
+  assert.equal(r2.answer.say.headline, "Here it is: Add Ada to People.", "the card made is the answer");
 
   const claimed = answerJson("I proposed adding Ada.");
   const back = scripted([
@@ -675,7 +676,7 @@ test("an answer beside its cards that claims a write is said as the cards' own s
   );
   assert.deepEqual(
     [r.answer.say.headline, r.answer.say.detail, r.proposals.length, lines.length],
-    ["One card to review: Add Ada to People.", "She is in People now.", 1, 1],
+    ["Here it is: Add Ada to People.", "She is in People now.", 1, 1],
   );
   assert.deepEqual(JSON.parse(lines[0]), { cards: 1, tenant_id: A });
   const honest = scripted([ROUND([prose(answerJson("One card: Ada, for People.")), invite])]);
@@ -720,10 +721,7 @@ test("cards alone are the answer: every card made, no second round, the cards sa
   assert.equal(r.rounds, 1);
   assert.equal(r.proposals.length, 1);
   assert.deepEqual(r.answer, answerForCards(r.proposals, "en"));
-  assert.equal(
-    r.text,
-    "One card to review: Add Ada to People. Approve it, change it or dismiss it: nothing happens until you do.",
-  );
+  assert.equal(r.text, "Here it is: Add Ada to People.");
   assert.ok(
     events.some((e) => e.t === "say" && e.headline === r.answer.say.headline),
     "the cards' sentence is said as the answer",
@@ -3625,7 +3623,7 @@ test("the proposal builders run against the database in memory: each kind is a c
       playbook.proposal.payload.template_id,
       playbook.proposal.undo,
     ],
-    ["playbook", "quiet_30", TPL, "Delete it — nothing will run"],
+    ["playbook", "quiet_30", TPL, "Delete it. Nothing goes out."],
   );
   assert.match(
     (await p("propose_sequence", { action: "moment", trigger: "never" })).result,
@@ -7621,7 +7619,7 @@ test("a rule that described one tool is that tool's description now, and out of 
     assert.ok(said(name).includes(landed), `${name} says: ${landed}`);
   }
   for (const kept of [
-    "You never act.",
+    "Every change is a card a person presses",
     "Answer from it when it is enough, in one round.",
     "Read only for what it does not hold: a whole conversation or transcript, a person's profile",
     "a one-off send reaches only the people whose yes covers its message",
@@ -8908,22 +8906,26 @@ test("what happened since survives a refusal of the page's data (the Phase 5 pla
   assert.deepEqual(r.raw.told, ["p-1:done:1000"]);
 });
 
-test("an earlier card is the person's to press (the Phase 5 plan, D6, moved into PR 5.4 now that earlier cards reach the model in the replay): one rule, in system's cached rules after 'You never act.' -- name it by its title and say it is one press above, never say it was done, propose it again only when it was dismissed or failed", async () => {
+test("a card waiting in this thread is pressed by their yes (the answers canvas, D15; moved from the Phase 5 plan's D6): one rule, in system's cached rules after the rule that every change is a card a person presses -- call press_card with its id, say what its result says, ask which where several wait, propose it again only when it was dismissed or failed", async () => {
   const s = scripted([ROUND([answer("Fine.")])]);
   await runAskTurn(turn(ctxFor()).input, ports(s.round));
   const rules = s.requests[0].system[0].text;
-  const said = ASK_RULES.filter((r) => r.includes("one press above"));
+  const said = ASK_RULES.filter((r) => r.includes("call press_card"));
   assert.equal(said.length, 1, "one rule says it");
   const [rule] = said;
   for (const words of [
-    "A card from earlier in this thread is the person's to press",
-    "name it by its title",
-    "never say it was done",
-    "propose it again only when it was dismissed or failed",
+    "A card waiting in this thread is pressed by their yes",
+    "call press_card with its id",
+    "say what its result says",
+    "With several waiting and no way to tell which, ask which",
+    "Propose it again only when it was dismissed or failed",
   ])
     assert.ok(rule.includes(words), words);
   assert.ok(rules.includes(rule), "in the cached rules");
-  assert.ok(rules.indexOf(rule) > rules.indexOf("You never act."), "after the rule it follows from");
+  assert.ok(
+    rules.indexOf(rule) > rules.indexOf("Every change is a card a person presses"),
+    "after the rule it follows from",
+  );
 });
 
 test("Ask answers the question asked (the end-to-end review, 15 Oct: today's recap rode into every Today answer and its next questions): one rule, in system's cached rules after the page's data rule -- something unasked only when urgent and not said before in the thread, once, in a short clause; do.next never from what was not asked", async () => {

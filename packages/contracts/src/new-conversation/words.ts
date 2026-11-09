@@ -117,7 +117,7 @@ export const NEW_CONVERSATION_WORDS = {
     /** How a call went, as the note keeps it: dated in its own words, since a note has no end. */
     noteOf: (day: string, after: string) => `${day}: the team called them. ${after.trim()}`,
   },
-  brief: { know: "What we know", open: "Open with", say: "Say", avoid: "Leave out", ask: "Ask for" },
+  brief: { know: "What we know", say: "Say", avoid: "Leave out", ask: "Ask for" },
   personDoor: "Start a conversation",
   refusals: {
     priced: "The draft named a price you did not give, so it was not kept. Say it in your own words, or leave it out.",

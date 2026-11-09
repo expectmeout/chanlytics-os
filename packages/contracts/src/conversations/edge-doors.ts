@@ -10,6 +10,8 @@ export const DRAFT_DOOR = edgeDoor(
     /** A reply, or a brief; a reply when unsaid. */
     kind: z.string().optional(),
     instruction: z.string().optional(),
+    /** The words on the member's screen, which a change is asked of; the kept draft where the page says none. */
+    given: z.string().optional(),
   }),
   answerFields({ draft: z.unknown() }),
 );

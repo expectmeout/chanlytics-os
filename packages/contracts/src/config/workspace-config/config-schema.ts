@@ -130,7 +130,24 @@ export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
  * Ask's own section (the operator, 15 Oct 2026, D13): the owner's goal in one line ("twenty new salon clients a month"),
  * which Ask reads on every turn and weighs every signal and plan against. The receptionist never reads it.
  */
-const AskConfigSchema = z.object({ goal: z.string().max(ASK_GOAL_MAX).optional() }).strip();
+const AskConfigSchema = z
+  .object({
+    goal: z.string().max(ASK_GOAL_MAX).optional(),
+    // The switch (D10 of the answers canvas): Ask may act on its own, following the Autonomy rows. Off by default.
+    alone: z.boolean().optional(),
+    // Stop everything (D22): what it paused, so a resume puts back that and nothing a member paused by hand.
+    stopped: z
+      .object({
+        at: z.string(),
+        playbooks: z.array(z.string()).max(2000),
+        reply: z.string().nullable(),
+      })
+      .optional(),
+  })
+  .strip();
+
+/** What Stop everything keeps while it is on. */
+export type AskStopped = NonNullable<z.infer<typeof AskConfigSchema>["stopped"]>;
 
 export const TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),

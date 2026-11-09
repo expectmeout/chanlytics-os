@@ -120,6 +120,10 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "file_fetch",
       "file_purge",
       "video_digest",
+      "campaign_moments",
+      "reach_out_steps",
+      "calendar_read",
+      "google_read",
       "canary",
     ],
   );
@@ -141,7 +145,8 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
   // Something schedules each kind: a `schedule(...)` / `scheduleJob(...)` /
   // `ctx.schedule(...)` call, their once-per-subject forms (`scheduleOnce`,
   // `scheduleJobOnce`: a reply's reading), or the draft queue's row, naming it -- or a
-  // door in SQL that inserts the job itself (the lead finder's, 00140).
+  // door in SQL that inserts the job itself (the lead finder's, 00140), or a clock that hands it out
+  // (decision 0115: `jobKind` names it to its door, and a SQL door names it to jobs_hand_out).
   const src = sourceTree(["apps/edge", "apps/dashboard/app", "apps/dashboard/src", "packages/jobs/src"]);
   const migrations = path.join(ROOT, "supabase/migrations");
   const sql = fs
@@ -150,8 +155,8 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
     .map((f) => fs.readFileSync(path.join(migrations, f), "utf8"))
     .join("\n");
   for (const k of JOB_KINDS) {
-    const named = new RegExp(`(schedule(?:Job)?(?:Once)?\\([^;]*"${k}"|kind: "${k}")`, "s");
-    const inserted = new RegExp(`insert into (?:public\\.)?jobs\\b[^;]*'${k}'`, "s");
+    const named = new RegExp(`(schedule(?:Job)?(?:Once)?\\([^;]*"${k}"|(?:k|jobK)ind: "${k}")`, "s");
+    const inserted = new RegExp(`(insert into (?:public\\.)?jobs\\b[^;]*|jobs_hand_out\\(\\s*)'${k}'`, "s");
     assert.ok(named.test(src) || inserted.test(sql), `${k} is scheduled by something`);
   }
   // That the database's job_kinds rows agree is held by jobs/job-kinds.test.mjs (decision 0089).

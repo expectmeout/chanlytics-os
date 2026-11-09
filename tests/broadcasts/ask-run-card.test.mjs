@@ -620,7 +620,7 @@ test("a run card approved, walked end to end: Approve sends it through the run's
   );
   assert.ok(tab.events.includes("refresh POST broadcasts/[id]/approve"), "Broadcasts, Playbooks and Today read again");
   const undone = await undoProposal(tab.win, card, doneWith(done), tab.client);
-  assert.deepEqual(undone, { ok: true, receipt: "Canceled — nothing will send", undo: null });
+  assert.deepEqual(undone, { ok: true, receipt: "Undone. Nothing goes out.", undo: null });
   assert.equal(run().state, "canceled");
   assert.equal(job.state, "canceled", "the send withdrawn");
   const cancel = tables.decisions.find((d) => d.verb === "cancel_broadcast");

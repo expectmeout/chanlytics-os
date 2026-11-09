@@ -1,5 +1,5 @@
 import "server-only";
-import { waitingSearchWords, type AskReadSet } from "@chanlytics/contracts";
+import { waitingCardsWords, waitingSearchWords, type AskReadSet } from "@chanlytics/contracts";
 import type { BuiltContext, SearchResultBlock } from "../context";
 import { withSkillGuides } from "../cross-page";
 import { turnWords } from "../prompt/prompt";
@@ -45,6 +45,7 @@ export function wordsBlock(
   // The search card waiting in this thread for its press, said whole as find would take its plan (contracts
   // waitingSearchWords), so a change said to Ask is that plan changed only there, never planned again from its title.
   const searchCard = waitingSearchWords(input.waiting ?? []);
+  const waitingCards = waitingCardsWords(input.waiting ?? []);
   const closingBlock = (live: boolean, dataDropped: boolean) => ({
     type: "text" as const,
     text: [
@@ -57,6 +58,7 @@ export function wordsBlock(
         scopeRead: !dataDropped && !!rode.scopedRow,
       }),
       ...(searchCard ? [searchCard] : []),
+      ...(waitingCards ? [waitingCards] : []),
     ].join("\n"),
   });
   return withSkillGuides(closingBlock, input.text);

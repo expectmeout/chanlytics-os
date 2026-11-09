@@ -164,8 +164,13 @@ export async function stopHeldReply(id: string): Promise<{ ok: boolean; message:
 }
 
 /** The receptionist's draft of a reply, for the composer. Nothing is posted. Refused under Never, with the words for it. */
-export async function draftReply(id: string): Promise<{ ok: boolean; text: string; message: string }> {
-  const r = await api()("POST google/reviews/[id]/draft", { params: { id }, body: {}, once: true });
+export async function draftReply(
+  id: string,
+  instruction?: string,
+  given?: string,
+): Promise<{ ok: boolean; text: string; message: string }> {
+  const body = { ...(instruction ? { instruction } : {}), ...(instruction && given ? { given } : {}) };
+  const r = await api()("POST google/reviews/[id]/draft", { params: { id }, body, once: true });
   if (!r.ok) return { ok: false, text: "", message: r.message };
   return { ok: typeof r.data.text === "string", text: r.data.text ?? "", message: "" };
 }

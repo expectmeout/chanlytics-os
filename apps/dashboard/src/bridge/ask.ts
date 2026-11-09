@@ -20,6 +20,8 @@ import {
   answerSpoken,
   answerText,
   planGroupOf,
+  planInReview,
+  planPressOf,
   type AskAnswer,
   type AskProposal,
   type AskProposalOutcome,
@@ -34,9 +36,12 @@ import {
   commitCard,
   commitPlan,
   editReply,
-  undoProposal,
+  pauseSend,
+  undoPlan,
+  undoCard,
   type CommitResult,
   type PlanRun,
+  type PlanUndo,
   type UndoResult,
 } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
@@ -47,8 +52,11 @@ import { installVoice } from "./ask/voice";
 import { spokenTurns } from "./ask/spoken";
 import { pageContext, type ThreadMessage } from "./ask/context";
 import { askFollowUps } from "./ask/follow-ups";
+import { askNotices } from "./ask/notices";
 import { askColumn } from "./ask/column";
 import { holdAsk } from "@/surfaces/frame-verbs";
+import { navigate } from "@/surfaces/frame-doors";
+import { listenForAlertPresses } from "./ask/web-push";
 
 export type { SendEvent, CommitResult };
 export { jumpIndexFrom, surfaceFor, waitingFrom, quickAnswer } from "./ask/palette";
@@ -60,18 +68,30 @@ export type AskApi = ReturnType<typeof askPalette> &
   ReturnType<typeof askAloud> &
   ReturnType<typeof installVoice> &
   ReturnType<typeof spokenTurns> &
-  ReturnType<typeof askFollowUps> & {
+  ReturnType<typeof askFollowUps> &
+  ReturnType<typeof askNotices> & {
     /**
      * Approve a card: the verb's own route, then the surfaces refresh. A plan's card is judged by what the turn's other
      * cards of its plan became (`cards`, as the Line holds them: commit.ts commitCard), so a send fills its tokens.
      */
-    commit(p: AskProposal, cards?: readonly AskProposal[]): Promise<CommitResult>;
-    /** Approve a plan's steps that send nothing together (commit.ts commitPlan), what each became read from its cards. */
-    commitPlan(cards: readonly AskProposal[]): Promise<PlanRun>;
+    commit(p: AskProposal, cards?: readonly AskProposal[], messageId?: string | null): Promise<CommitResult>;
+    /** A plan's one press: what it keeps and its first send (commit.ts commitPlan), what each became read from its cards. */
+    commitPlan(cards: readonly AskProposal[], messageId?: string | null): Promise<PlanRun>;
+    /** A plan's one Undo: every step that can still be taken back, last first (commit.ts undoPlan). */
+    undoPlan(
+      cards: readonly AskProposal[],
+      open: (p: AskProposal, o: AskProposalOutcome) => boolean,
+      messageId?: string | null,
+    ): Promise<PlanUndo>;
+    /** A running send paused or resumed from its receipt (commit.ts pauseSend). */
+    pauseSend(p: AskProposal, paused: boolean): Promise<{ ok: true } | { ok: false; message: string }>;
     /** A turn's cards with each plan's together, and a plan's group as the Line draws it: contracts'. */
     planGroupOf: typeof planGroupOf;
+    /** What a plan's one press does now, and whether WhatsApp is still reading its words: contracts'. */
+    planPressOf: typeof planPressOf;
+    planInReview: typeof planInReview;
     /** Undo a committed card, where the verb has one. */
-    undo(p: AskProposal, outcome: AskProposalOutcome): Promise<UndoResult>;
+    undo(p: AskProposal, outcome: AskProposalOutcome, messageId?: string | null): Promise<UndoResult>;
     /** "Edit in the composer": open the thread with the words ready to change. */
     editReply(p: AskProposal): void;
     /** Whether a committed card's undo is still true to offer: contracts' askUndoOpen; false before the specs are in. */
@@ -211,10 +231,15 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     thread,
     sendSpoken,
     ...followUps,
-    commit: (p, cards = []) => keptOrCleared([p], commitCard(win, p, cards)),
-    commitPlan: (cards) => keptOrCleared(cards, commitPlan(win, cards)),
+    ...askNotices(win),
+    commit: (p, cards = [], messageId) => keptOrCleared([p], commitCard(win, p, cards, { messageId })),
+    commitPlan: (cards, messageId) => keptOrCleared(cards, commitPlan(win, cards, { messageId })),
+    undoPlan: (cards, open, messageId) => keptOrCleared(cards, undoPlan(win, cards, open, { messageId })),
+    pauseSend: (p, paused) => pauseSend(win, p, paused),
     planGroupOf,
-    undo: (p, o) => keptOrCleared([p], undoProposal(win, p, o)),
+    planPressOf,
+    planInReview,
+    undo: (p, o, messageId) => keptOrCleared([p], undoCard(win, p, o, { messageId })),
     editReply: (p) => editReply(win, p),
     undoOpen: (...a) => pageSpecs.now()?.askUndoOpen(...a) ?? false,
     quick: quickAnswer(palette, api.openings),
@@ -227,6 +252,8 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     context: (route, words, thread) => pageContext(win, route, words, thread),
   };
   holdAsk(ask);
+  // A press on a browser's alert opens where the bell does (D12 of the answers canvas).
+  if (typeof win.addEventListener === "function") listenForAlertPresses(win, (route) => navigate(route));
   // On the window only for what stands outside the bundle and has no import: the nightly's specs, which ask it what the
   // page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts). Nothing of the app reads it here.
   (win as Window & { __ask?: AskApi }).__ask = ask;

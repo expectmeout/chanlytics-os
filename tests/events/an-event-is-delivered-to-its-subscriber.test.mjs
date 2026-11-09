@@ -58,6 +58,14 @@ const READS = {
     data: { consent: "opted_out", source: "customer_message", channel: "sms", words: "STOP" },
     created_at: "2026-10-06T00:00:00Z",
   },
+  // A hold opened on a thread, which is owed a draft (00538): escalation.opened, as owner_notice reads it.
+  reply_draft: {
+    kind: "escalation.opened",
+    category: "message",
+    subject_type: "conversation",
+    subject_id: "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0",
+    data: { reason: "rate_cap" },
+  },
   // A booking tool's email kept on the record (00389's trigger writes it in the row's own transaction).
   visit_notice: {
     kind: "appointment.changed",
@@ -208,7 +216,7 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
   const kind = read.kind;
   const booked = [];
   const tables = {
-    ...(subscriber === "owner_notice" ? heldThread() : {}),
+    ...(subscriber === "owner_notice" || subscriber === "reply_draft" ? heldThread() : {}),
     ...(subscriber === "consent_notice" ? aPerson() : {}),
     ...(subscriber === "visit_notice" ? aBooking() : {}),
     ...(subscriber === "team_notice" ? anAcceptedInvitation() : {}),
@@ -232,10 +240,19 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
     ],
   };
   // The booking door over one appointment (00389): what it was asked, and one lead moved.
+  // A thread is owed a draft only while its reply window is open (contracts replyDraftOwed).
+  if (subscriber === "reply_draft") tables.conversations[0].last_inbound_on_whatsapp = new Date().toISOString();
+  // The row's claim is the once-only (00538): the first asker takes it, and a second run finds it taken.
+  let draftClaimed = false;
   const db = fakeDb(
     tables,
     {},
     {
+      conversation_draft_claim: () => {
+        const took = !draftClaimed;
+        draftClaimed = true;
+        return took;
+      },
       reach_out_booked_from: ({ p_tenant_id, p_appointment_id }) => {
         booked.push([p_tenant_id, p_appointment_id]);
         return 1;
@@ -370,6 +387,17 @@ test("the harness: every subscriber run twice on one delivery leaves the same ro
   for (const subscriber of EVENT_SUBSCRIBERS) {
     const w = world({ subscriber });
     assert.equal(await dispatchJob(w.ctx, w.job), "done");
+    // It did what it is for, or a second run proves nothing (reply_draft once ran over an event it does not read).
+    const acted = {
+      reach_out_booked: () => w.booked.length,
+      owner_notice: () => w.told.length,
+      consent_notice: () => w.told.length,
+      visit_notice: () => w.told.length,
+      team_notice: () => w.told.length,
+      freed_time_offer: () => w.offered.length,
+      reply_draft: () => (w.tables.jobs ?? []).filter((j) => j.kind === "reply_draft").length,
+    };
+    assert.ok(acted[subscriber]() > 0, `${subscriber}: the first run acted`);
     const once = JSON.stringify(w.tables);
     assert.equal(await dispatchJob(w.ctx, w.job), "done");
     const twice = JSON.parse(JSON.stringify(w.tables));
@@ -385,6 +413,20 @@ test("the harness: every subscriber run twice on one delivery leaves the same ro
         "the offer is asked each time, and is the edge's to keep once",
       );
   }
+});
+
+test("a delivered event its subscribers cannot read as its kind says still runs, and one line names the fields, not what they hold", async () => {
+  const w = world({ subscriber: "owner_notice" });
+  w.tables.events[0].data = { secret: "a customer's words" };
+  const { answer, lines } = await logged(() => dispatchJob(w.ctx, w.job));
+  assert.equal(answer, "done");
+  const said = lines.filter((l) => l.event === "event_data_unexpected");
+  assert.equal(said.length, 1);
+  assert.deepEqual(
+    [said[0].kind, said[0].subscriber, said[0].fields],
+    ["escalation.opened", "owner_notice", ["reason"]],
+  );
+  assert.ok(!JSON.stringify(lines).includes("a customer's words"));
 });
 
 test("reach_out_booked hands the booking door the appointment its event names, and only for a change that books", async () => {

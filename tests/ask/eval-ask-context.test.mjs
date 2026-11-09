@@ -496,7 +496,7 @@ const CARD = {
   kind: "settings",
   needs: "partner",
   title: "Remember this",
-  summary: "Note for the receptionist: “Parking”",
+  summary: "Your receptionist knows.",
   payload: { change: { op: "add_note", title: "Parking", text: "Parking is behind the building." } },
   undo: "Put the previous settings back",
 };
@@ -746,7 +746,7 @@ test("a settings note approved between the turns as the Line approves it, turn 2
   assert.deepEqual(d.state.calls[4].body, { config: SEED, version: 8 }, "the card's own undo, on the version it wrote");
   assert.deepEqual(d.state.outcomes[1], {
     state: "undone",
-    receipt: "Previous settings are back",
+    receipt: "Put back.",
     atMs: 1000,
     undo: null,
   });

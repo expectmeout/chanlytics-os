@@ -1,100 +1,55 @@
 /**
- * The playbooks sweep: every hour, every running playbook whose hour it is by the business's own clock runs once for
- * the day, and so does every reach-out step. Then each business whose 6 PM it is gets its reach-out numbers as a line
- * on its bell.
+ * The playbooks sweep: every hour, each workspace with a running moment or reach-out step whose hour it is, by the business's
+ * own clock, is handed a job, and the ledger runs it (decision 0115, 00569; the running is workspace-runs.ts). Then each
+ * business whose 6 PM it is gets its reach-out numbers as a line on its bell.
  *
- * The route is api/cron/playbooks.ts: sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and
- * checks the sweep key, then hands this its tick, so nothing below runs for a knock without the key.
+ * The route is api/cron/playbooks.ts: sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks the
+ * sweep key, then hands this its tick, so nothing below runs for a knock without the key.
  *
  * Called by pg_cron at :05 ('playbooks-sweep', 00048) through trigger_playbooks_sweep, which asks the edge every hour
- * whatever is due (request_sweep, 00086), with the Vault sweep key in x-cron-key (authorizeCron). The request is
- * recorded in sweep_status and sweep_health() judges the answer (registered in 00107).
+ * whatever is due (request_sweep, 00086), with the Vault sweep key in x-cron-key (authorizeCron). The request is recorded in
+ * sweep_status and sweep_health() judges the answer (registered in 00107).
  *
- * It works from two pages, each a bounded page (PLAYBOOKS_PER_TICK) of only what is DUE, judged in the database by each
- * workspace's own clock and least recently run first, with the zone each was judged in (00245 playbooks_due, through
- * lib/shared/sweep-rotation.ts; the history of why it is a page is there). A paused workspace's playbooks are not on it.
- *   - Moments (listPlaybooksDue). Each runs through runPlaybook (lib/campaigns/playbooks/playbooks.ts, shared with "Run now" on the page; the
- *     rules are core's campaigns/run-playbook.ts): a broadcast for the people who said yes, its send scheduled, held
- *     for a person or refused as the class's autonomy mode says (auto, veto, ask, never), recorded as a
- *     `playbook.run` event, the day remembered on the row so the next tick runs nothing. What the database calls due
- *     is asked again of runDueNow at the moment each runs, as "Run now" does. The tick stops starting them at
- *     MOMENTS_YIELD_AT_MS and counts what is left as remaining. A run or a context that failed pages the platform, and
- *     tells the owner once at the day's last chance (playbooks/failed.ts).
- *   - Reach-out steps (listReachOutsDue). Each runs through runReachOutStep (lib/campaigns/reach-out/run-step.ts, which the run-now
- *     door calls too). The tick stops starting them at REACH_OUT_YIELD_AT_MS and counts what is left as remaining.
- * A moment or step that could not run (its workspace paused since the page was read, its context unreadable, its run
- * failed, or a zone the page and the edge read apart) keeps its day open, so the next hour tries it again, but is
- * stamped tried (stampPlaybooksTried, stampReachOutStep) and moves to the back of the page: it never holds a place
- * something that can run is waiting for. Last, tellReachOutDays writes the day's line once per workspace, until
- * REACH_OUT_DAY_UNTIL_MS.
+ * WHY IT HANDS THEM OUT. This ran each moment and step itself, serially, inside a sixty-second function, so it had a ceiling:
+ * twenty-five moments and twenty-five steps an hour across every business, 600 a day of each, however many were due. The
+ * rotation made that fair and the alarm made it honest, and the campaigns past it still did not go out on their day. A
+ * job a workspace has no such ceiling: it waits its turn behind a customer's reply (lane 2), a workspace with nothing
+ * running goes first, a throw is tried again, and Health shows what failed. A workspace still due next hour because its job
+ * is still waiting writes no second one (the kind's key), and the ledger's own alarm says when the work outruns it.
  *
- * First of all, a missed day's run ends itself (endRunsWhoseDayPassed): a playbook's run still waiting for approval after
- * the day it was made for can only be skipped (the approve verb refuses it, contracts runApprovalRefusal), so the sweep
- * skips it through the cancel verb, as the system (a decision with no hand on it, reason `day_passed`), up to
- * DAY_PASSED_BATCH a tick and until DAY_PASSED_UNTIL_MS. A paused or ended workspace's are skipped too: the day passed
- * whatever the standing. Its "is ready" line on the bell reads as read (contracts notice-closes.ts), and the owner is
- * told it did not go (contracts skippedRunNotice, decision 0064: nothing is skipped in silence), on the bell and by mail
- * as the ready line was; its people are in line again (00453), but for a visit's, whom no later batch names: its notice
- * says it did not reach them. A read that fails is logged (runs_day_passed_read_failed)
- * and the moments still run (the wiring's second audit, S7-3).
+ * First of all, a missed day's run ends itself (endRunsWhoseDayPassed): a playbook's run still waiting for approval after the
+ * day it was made for can only be skipped (the approve verb refuses it, contracts runApprovalRefusal), so the sweep skips it
+ * through the cancel verb, as the system (a decision with no hand on it, reason `day_passed`), up to DAY_PASSED_BATCH a tick
+ * and until DAY_PASSED_UNTIL_MS. A paused or ended workspace's are skipped too: the day passed whatever the standing. Its "is
+ * ready" line on the bell reads as read (contracts notice-closes.ts), and the owner is told it did not go (contracts
+ * skippedRunNotice, decision 0064: nothing is skipped in silence), on the bell and by mail as the ready line was; its people
+ * are in line again (00453), but for a visit's, whom no later batch names: its notice says it did not reach them. A read that
+ * fails is logged (runs_day_passed_read_failed) and the hand-out still happens (the wiring's second audit, S7-3).
  *
- * `remaining` is what was due beyond the two pages plus the steps yielded before. noteBacklog (note_sweep_backlog,
- * 00089) counts the ticks in a row that left some; at BACKLOG_TICKS_BEFORE_ALARM the sweep still runs its page and
- * answers 503 (playbooks_backlog), which sweep_health() reads and the health sweep mails to the platform. Other
- * answers: 503 without a database, 401 or 503 at the door, and 500 when the moments' page cannot be read (an edge
- * deployed ahead of 00245 fails loudly, not quietly). A reach-out page that cannot be read is logged
- * (reach_outs_read_failed) and the moments still run. Its lines carry `sweep: "playbooks"` and, per workspace,
- * `tenant_id`; the tick ends in one playbooks_swept with the counts.
+ * Answers: 503 without a database, 401 or 503 at the door, and 500 when the moments cannot be handed out (an edge deployed
+ * ahead of 00569 fails loudly, not quietly). Steps that cannot be handed out are logged (reach_outs_read_failed) and the
+ * moments still are. Its lines carry `sweep: "playbooks"`; the tick ends in one playbooks_swept with the counts.
  */
 import { json } from "../../shared/http.js";
 import type { pg } from "../../shared/pg.js";
 import type { Logger } from "../../shared/log.js";
-import {
-  listPlaybooksDue,
-  listReachOutsDue,
-  noteBacklog,
-  PLAYBOOKS_PER_TICK,
-  type DuePage,
-  type DueStep,
-} from "../../shared/sweep-rotation.js";
-import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks/playbooks.js";
-import { tellPlaybookFailed } from "./playbook-failed.js";
-import { runReachOutStep } from "./run-step.js";
+import { HAND_OUT_SPREAD_SECONDS } from "../../shared/sweep-rotation.js";
 import { tellReachOutDays } from "./day-numbers.js";
-import {
-  cancelBroadcastFrom,
-  recordSystemDecision,
-  stampReachOutStep,
-  listWaitingPlaybookRuns,
-} from "@chanlytics/db/campaigns";
-import { stampPlaybooksTried } from "@chanlytics/db/jobs";
+import { cancelBroadcastFrom, recordSystemDecision, listWaitingPlaybookRuns } from "@chanlytics/db/campaigns";
+import { handOutStepsDue } from "@chanlytics/db/jobs";
 import { cancelBroadcast } from "@chanlytics/core";
 import {
   AppError,
   addressOf,
   audienceTrigger,
   clockNearWhen,
-  localDate,
   runDaysAt,
-  runDueNow,
   runTooLate,
   skippedRunNotice,
 } from "@chanlytics/contracts";
 import { notify } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
-import type { TenantId } from "@chanlytics/contracts";
-import { logAndGoOn } from "@chanlytics/log";
-
-/**
- * When the moments stop for the tick: what is not started stays due and runs next hour, as a moment is due all day from
- * its hour. Ten seconds before the reach-outs' own (below), so the tick's later work keeps a little of the function's
- * sixty seconds: the reach-out steps, the day's 6 PM lines, the backlog note and the closing line.
- */
-export const MOMENTS_YIELD_AT_MS = 30_000;
-
-/** When the reach-outs stop for the tick: what is left runs next hour, as a step is due all day from its hour. */
-export const REACH_OUT_YIELD_AT_MS = 40_000;
 
 /** When the day's reach-out lines at 6 PM stop being written for the tick: inside the function's sixty seconds. */
 const REACH_OUT_DAY_UNTIL_MS = 50_000;
@@ -102,13 +57,10 @@ const REACH_OUT_DAY_UNTIL_MS = 50_000;
 /** The runs waiting for approval read a tick, oldest day first: the rest are read on the hours after. */
 const DAY_PASSED_BATCH = 50;
 
-/** When the tick stops ending missed days' runs, so the moments keep their time: what is left ends next hour. */
+/** When the tick stops ending missed days' runs, so the hand-out keeps its time: what is left ends next hour. */
 const DAY_PASSED_UNTIL_MS = 5_000;
 
-type SweepCounts = Record<
-  "tenants" | "due" | "sent" | "held" | "empty" | "off" | "failed" | "remaining" | "told" | "ended",
-  number
->;
+type SweepCounts = Record<"moments" | "steps" | "told" | "ended", number>;
 
 /** One tick: its database, its moment, its log, what it has counted so far, and when it began. */
 interface Tick {
@@ -211,181 +163,33 @@ async function tellSkipped(
   }
 }
 
-/**
- * The moments on the page, a workspace at a time. The page's word is the database's (00245 playbooks_due, which
- * leaves a paused workspace out); the run keeps the same rule (runDueNow) at the moment it runs, as "Run now" does. A
- * due moment that could not run -- its workspace paused since the page was read, its context unreadable, its run
- * failed -- keeps its day open, so the next hour tries it again, but moves to the back of the page: it never holds a
- * place a moment that can run is waiting for. So does one the page called due and the edge's clock does not (a zone
- * the two read apart): nothing that is not run may keep the first places.
- *
- * A context that could not be read and a run that failed are told (playbooks/failed.ts): the platform is paged, and the
- * owner is told once, in the last hour the day's run is asked for. A workspace's playbooks run against one read of it,
- * and each run adds its people to that read's touches (core runPlaybook), so a second moment in the same hour keeps the
- * week's breath with the first one's people in it.
- *
- * The tick stops starting moments at MOMENTS_YIELD_AT_MS, as it does reach-out steps: what it did not start stays due and
- * runs next hour, is counted as remaining, and the sweep always reaches its backlog note and its closing line.
- */
-async function runMoments(tick: Tick, page: DuePage<DueStep>) {
-  const { db, now, L, out } = tick;
-  // By workspace, each with the zone the page judged it in: a workspace is read once for all its playbooks.
-  const byTenant = new Map<TenantId, { tz: string; rows: PlaybookRow[] }>();
-  for (const { step: playbook, timezone } of page.rows) {
-    const t = byTenant.get(playbook.tenant_id) ?? { tz: timezone, rows: [] };
-    t.rows.push(playbook as PlaybookRow);
-    byTenant.set(playbook.tenant_id, t);
-  }
-  // A stamp that fails leaves the moment where it was: the next tick tries it first again, and nothing is lost but
-  // its turn, which the log says.
-  const tried = async (tenantId: TenantId, rows: PlaybookRow[]) => {
-    await stampPlaybooksTried(db, tenantId, { ids: rows.map((p) => p.id), at: now }).catch((e: unknown) =>
-      L.error("playbooks_stamp_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) }),
-    );
-  };
-  const tenants = [...byTenant];
-  // Out of time for the tick: what is left is every moment not started, in this workspace (`own`) and in those after it.
-  const outOfTime = (after: number, own: number): boolean => {
-    if (Date.now() - tick.started <= MOMENTS_YIELD_AT_MS) return false;
-    const left = own + tenants.slice(after + 1).reduce((n, [, t]) => n + t.rows.length, 0);
-    L.info("playbooks_yielded", { left });
-    out.remaining += left;
-    return true;
-  };
-  for (const [i, [tenantId, { tz, rows }]] of tenants.entries()) {
-    if (outOfTime(i - 1, 0)) return;
-    const due = rows.filter((p) => runDueNow(p, tz, now));
-    const disputed = rows.filter((p) => !due.includes(p));
-    if (disputed.length > 0) {
-      L.warn("playbooks_page_not_due", { tenant_id: tenantId, tz, kind: "moment", count: disputed.length });
-      await tried(tenantId, disputed);
-    }
-    if (due.length === 0) continue;
-    out.tenants += 1;
-    out.due += due.length;
-    const runFor = localDate(tz, now);
-    const told = (playbooks: readonly PlaybookRow[], error: string) =>
-      tellPlaybookFailed({ db, L, tenantId, tz, now, runFor, playbooks, error });
-    const ctx = await loadTenantRunContext(db, tenantId, now);
-    if ("error" in ctx) {
-      if (ctx.error === CONTEXT_PAUSED) {
-        L.info("playbooks_skip_paused", { tenant_id: tenantId, due: due.length });
-        out.off += due.length;
-      } else {
-        L.error("playbooks_context_failed", { tenant_id: tenantId, error: ctx.error });
-        out.failed += due.length;
-        await told(due, ctx.error);
-      }
-      await tried(tenantId, due);
-      continue;
-    }
-    for (const [j, p] of due.entries()) {
-      if (outOfTime(i, due.length - j)) return;
-      const result = await runPlaybook(ctx, p, { runFor, by: { kind: "system" } });
-      if (result.outcome === "failed") {
-        // A failed run records nothing on the row, so untouched it would stand first again next hour.
-        L.error("playbook_run_failed", { playbook_id: p.id, error: result.error });
-        await tried(tenantId, [p]);
-        await told([p], result.error);
-      }
-      out[result.outcome] += 1;
-    }
-  }
-}
-
-/**
- * Reach-outs (Part 3): each step on its day and hour, as a moment is, through its own verb, in the zone the page judged
- * it in. A step that ran is stamped for the day. One that could not (its workspace paused, its chain broken, a read or
- * a write that failed, a zone the page and the edge read apart) keeps its day open, so the next hour tries it again,
- * but moves to the back of the page: it never holds a place a step that can run is waiting for. Steps the tick yields
- * before are left behind, and counted so. A chain's steps after the first run before first emails (the lead
- * workbench's call 10: follow-ups first), so a nudge takes its place in a mailbox's day, and in its owner's day's share
- * (00429), before new leads fill it; within each, the page's own order.
- */
-async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<DueStep>) {
-  const rows = [...reach.rows].sort(
-    (a, b) => Number(a.step.after_step_id === null) - Number(b.step.after_step_id === null),
-  );
-  for (const [i, { step: row, timezone: tz }] of rows.entries()) {
-    if (Date.now() - started > REACH_OUT_YIELD_AT_MS) {
-      L.info("reach_outs_yielded", { left: rows.length - i });
-      out.remaining += rows.length - i;
-      break;
-    }
-    if (!runDueNow(row, tz, now)) {
-      L.warn("playbooks_page_not_due", { tenant_id: row.tenant_id, tz, kind: "reach_out", count: 1 });
-      await stampReachOutStep(db, row.id, { at: now }).catch(logAndGoOn("stampReachOutStep"));
-      continue;
-    }
-    out.due += 1;
-    try {
-      const r = await runReachOutStep(db, row, now, tz, L);
-      if (r.outcome === "failed") L.error("reach_out_context_failed", { playbook_id: row.id, error: r.reason });
-      out[r.outcome] += 1;
-    } catch (e) {
-      L.error("reach_out_run_failed", { playbook_id: row.id, error: e instanceof Error ? e.message : String(e) });
-      out.failed += 1;
-      await stampReachOutStep(db, row.id, { at: now }).catch(logAndGoOn("stampReachOutStep"));
-    }
-  }
-}
 export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Response> {
   const now = new Date();
-  // A BOUNDED, ROTATING page OF WHAT IS DUE, least-recently-run first, judged
-  // in the database by each workspace's own clock (00245 playbooks_due). This
-  // once read every running playbook and iterated, serially, inside a
-  // sixty-second function -- and it SENDS, so running out of tick past a few
-  // hundred workspaces meant the ones at the end of an unchanging order never
-  // ran at all. Then it read a page of running playbooks and judged due-ness
-  // after, so a due one waited behind a page of ones that had run today, were
-  // hours from their hour or belonged to a paused workspace -- twenty-five of
-  // a paused workspace's held the page for every workspace on the platform --
-  // and what it said it could not reach counted those too. Now the page holds
-  // only what is due, and `remaining` only what is due beyond it.
-  let page: DuePage<DueStep>;
+  const out: SweepCounts = { moments: 0, steps: 0, told: 0, ended: 0 };
+  await endRunsWhoseDayPassed({ db, now, L, out, started });
   try {
-    page = await listPlaybooksDue(db, now, PLAYBOOKS_PER_TICK);
+    out.moments = await handOutStepsDue(db, {
+      kind: "moment",
+      jobKind: "campaign_moments",
+      at: now,
+      spreadSeconds: HAND_OUT_SPREAD_SECONDS,
+    });
   } catch (e) {
     L.error("playbooks_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(500, { ok: false });
   }
-  const out: SweepCounts = {
-    tenants: 0,
-    due: 0,
-    sent: 0,
-    held: 0,
-    empty: 0,
-    off: 0,
-    failed: 0,
-    remaining: page.remaining,
-    told: 0,
-    ended: 0,
-  };
-  const tick: Tick = { db, now, L, out, started };
-  await endRunsWhoseDayPassed(tick);
-  await runMoments(tick, page);
-
-  const reach = await listReachOutsDue(db, now, PLAYBOOKS_PER_TICK).catch((e: unknown): DuePage<DueStep> => {
+  try {
+    out.steps = await handOutStepsDue(db, {
+      kind: "reach_out",
+      jobKind: "reach_out_steps",
+      at: now,
+      spreadSeconds: HAND_OUT_SPREAD_SECONDS,
+    });
+  } catch (e) {
     L.error("reach_outs_read_failed", { error: e instanceof Error ? e.message : String(e) });
-    return { rows: [], remaining: 0 };
-  });
-  out.remaining += reach.remaining;
-  await runReachOuts(tick, reach);
+  }
   // The day's reach-out numbers at 6 PM in each business's zone (Reach out Part 6, H12): a line in the bell, once.
   out.told = await tellReachOutDays(db, now, L, started + REACH_OUT_DAY_UNTIL_MS);
-
-  // `remaining` counts what was DUE and beyond the two pages, judged in the
-  // database in each workspace's own zone (00245), and the reach-out steps a
-  // tick that ran long yielded before: a playbook that ran today, one whose
-  // hour has not come and a paused workspace's are not in it. So
-  // three ticks in a row with a remainder is a queue of due work the sweep is
-  // not draining, and nothing else -- the alarm it raises can be believed.
-  const backlog = await noteBacklog(db, "playbooks", out.remaining);
-  L.info("playbooks_swept", { ...out, backlog_ticks: backlog.ticks });
-  // Three consecutive ticks with playbooks left unread is a campaign nobody
-  // sent. sweep_health turns that red and mails the platform.
-  if (backlog.alarm) {
-    return json(503, { ok: false, error: "playbooks_backlog", backlog_ticks: backlog.ticks, ...out });
-  }
+  L.info("playbooks_swept", { ...out });
   return json(200, { ok: true, ...out });
 }

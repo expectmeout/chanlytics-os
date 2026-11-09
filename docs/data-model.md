@@ -20,10 +20,12 @@ what the script writes.
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
 | [`appointments`](#appointments) | `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`ask_actions`](#ask_actions) | `packages/db/src/repositories/ask/actions.ts` | on, 3 policies |
 | [`ask_journal_days`](#ask_journal_days) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
 | [`ask_memory_lines`](#ask_memory_lines) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
 | [`ask_messages`](#ask_messages) | `packages/db/src/repositories/ask/mornings.ts`, `packages/db/src/repositories/ask/threads.ts` | on, 4 policies |
 | [`ask_mornings`](#ask_mornings) | `packages/db/src/repositories/ask/mornings.ts` | on, 1 policy |
+| [`ask_notice_days`](#ask_notice_days) | `packages/db/src/repositories/ask/notice-days.ts` | on, 1 policy |
 | [`ask_threads`](#ask_threads) | `packages/db/src/repositories/ask/threads.ts` | on, 4 policies |
 | [`ask_voice_sessions`](#ask_voice_sessions) | `packages/db/src/repositories/ask/voice-session.ts` | on, 4 policies |
 | [`billing_accounts`](#billing_accounts) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/billing/ended.ts`, `packages/db/src/repositories/billing/plan.ts`, `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts` | on, 1 policy |
@@ -55,7 +57,7 @@ what the script writes.
 | [`google_connections`](#google_connections) | `packages/db/src/repositories/google/connection.ts` | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | `packages/db/src/repositories/google/listing.ts` | on, 1 policy |
 | [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/google/listing.ts`, `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
-| [`google_reviews`](#google_reviews) | `packages/db/src/repositories/google/reviews.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`google_reviews`](#google_reviews) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/google/reviews.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`idempotency_keys`](#idempotency_keys) | `packages/db/src/repositories/conversations/idempotency.ts` | on, 1 policy |
 | [`imports`](#imports) | `packages/db/src/repositories/imports/ledger.ts` | on, 1 policy |
 | [`invitations`](#invitations) | `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts` | on, 1 policy |
@@ -82,13 +84,13 @@ what the script writes.
 | [`mailbox_sender_reads`](#mailbox_sender_reads) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
 | [`mailbox_senders`](#mailbox_senders) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/intake.ts` | on, 1 policy |
-| [`memberships`](#memberships) | `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts` | on, 2 policies |
+| [`memberships`](#memberships) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts` | on, 2 policies |
 | [`messages`](#messages) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/broadcast-run.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/campaigns/templates/page.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/channels/send-door.ts`, `packages/db/src/repositories/channels/whatsapp.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/conversations/thread/messages.ts`, `packages/db/src/repositories/conversations/unfinished.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/intake.ts`, `packages/db/src/repositories/email/reconcile.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/email/sync.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/jobs/jobs.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/notices/since-you-looked.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 3 policies |
 | [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
 | [`model_turns`](#model_turns) | none | on, no policy, so only the service role reaches it |
 | [`notification_marks`](#notification_marks) | `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts` | on, 1 policy |
 | [`notification_reads`](#notification_reads) | `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/since-you-looked.ts` | on, 1 policy |
-| [`notifications`](#notifications) | `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts` | on, 1 policy |
+| [`notifications`](#notifications) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts` | on, 1 policy |
 | [`operator_pages`](#operator_pages) | `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/ops/pages.ts` | on, no policy, so only the service role reaches it |
 | [`page_vitals`](#page_vitals) | none | on, no policy, so only the service role reaches it |
 | [`partner_earnings`](#partner_earnings) | none | on, 1 policy |
@@ -129,9 +131,10 @@ what the script writes.
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/channels.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/channels/whatsapp.ts`, `packages/db/src/repositories/facts/rehearsals.ts`, `packages/db/src/repositories/jobs/sweeps.ts`, `packages/db/src/repositories/lines/routing.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/setup-rows.ts` | on, 1 policy |
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
-| [`tenants`](#tenants) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/ops.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/look/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 2 policies |
+| [`tenants`](#tenants) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/ops.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/look/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 2 policies |
 | [`voice_agents`](#voice_agents) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
 | [`waitlist`](#waitlist) | `packages/db/src/repositories/workspace/waitlist.ts` | on, no policy, so only the service role reaches it |
+| [`web_push_subscriptions`](#web_push_subscriptions) | `packages/db/src/repositories/notices/browsers.ts` | on, 1 policy |
 | [`workspace_notices_pending`](#workspace_notices_pending) | none | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | `packages/db/src/repositories/leads/workbench.ts` | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -294,6 +297,44 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `appointments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### ask_actions
+
+What Ask did and why it was allowed (the answers canvas, D16): closed sets and ids alone, the words stay on the turn.
+
+- Owned by: `packages/db/src/repositories/ask/actions.ts`
+- Primary key: `id`
+- Row-level security: on, 3 policies
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `user_id` | uuid | yes |  |  |
+| `message_id` | uuid | yes |  |  |
+| `proposal_id` | text | no |  |  |
+| `kind` | text | no |  |  |
+| `by` | text | no |  |  |
+| `origin_by` | text | yes |  |  |
+| `strangers` | boolean | no | `false` |  |
+| `reason` | text | yes |  |  |
+| `state` | text | no | `'running'::text` |  |
+| `made_kind` | text | yes |  |  |
+| `made_id` | text | yes |  |  |
+| `code` | text | yes |  |  |
+| `at` | timestamp with time zone | no | `now()` |  |
+| `finished_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `user_id` → `auth.users` (`id`), on delete set null
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ask_actions_acting_insert` | insert | authenticated |  | `((user_id = auth.uid()) AND is_acting_member(tenant_id))` |
+| `ask_actions_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+| `ask_actions_own_update` | update | authenticated | `((user_id = auth.uid()) AND is_acting_member(tenant_id))` | `((user_id = auth.uid()) AND is_acting_member(tenant_id))` |
+
 ### ask_journal_days
 
 Ask's journal (decision 0070): one entry for each day of a workspace something happened in, by its own clock, written by the note sweep from the day's two ledgers (what Settings › Activity reads) an hour after the day ends, money left out. The newest written days ride into an owner's turns. Owners read, as the Activity log is theirs; only the service writes.
@@ -406,6 +447,29 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `ask_mornings_own_select` | select | authenticated | `(user_id = auth.uid())` |  |
+
+### ask_notice_days
+
+One morning per business (the answers canvas, D20): Ask looked, and told this key, if any. Written by the sweep.
+
+- Owned by: `packages/db/src/repositories/ask/notice-days.ts`
+- Primary key: `tenant_id`, `day`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `day` | date | no |  |  |
+| `key` | text | yes |  |  |
+| `told_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ask_notice_days_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### ask_threads
 
@@ -1164,8 +1228,6 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `version` | smallint | no | `1` | The version of this kind's data (packages/db events.ts, 00264): raised when a kind's shape changes, so a reader can tell an old row from a new one. 1 for every kind to date. |
 | `request_id` | text | yes | `public.request_id_of_caller()` | The request this row was written in (00277): the name withRoute, an edge door or a job gave it, the one its log lines carry. Null for a row written outside a request. |
-| `aggregate_version` | integer | yes |  | The version of the record this event is about, as the door left it (decision 0032): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00334. |
-| `causation_id` | uuid | yes |  | The event this one was written in answer to, where a reaction wrote it (decision 0032). Null for a fact that arrived from outside, and for every row written before 00334. |
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
@@ -1376,7 +1438,7 @@ Foreign keys:
 
 Reviews of the workspace's listing as Google showed them, one row per review, kept from the first time it was seen. Members read; the edge writes.
 
-- Owned by: `packages/db/src/repositories/google/reviews.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/workspace/export.ts`
+- Owned by: `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/google/reviews.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/workspace/export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2285,7 +2347,7 @@ Foreign keys:
 
 ### memberships
 
-- Owned by: `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`
+- Owned by: `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -2444,7 +2506,7 @@ Foreign keys:
 
 What needed the workspace's attention, kept: each alert the edge raised, where to go, when. Members read; the edge writes.
 
-- Owned by: `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`
+- Owned by: `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/notices/notifications/bell.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3608,7 +3670,6 @@ One row per pg_cron -> pg_net sweep: the last request id (joins net._http_respon
 | `requested_at` | timestamp with time zone | yes |  |  |
 | `note` | text | yes |  | Set when the trigger could not send at all (missing Vault secret). Cleared by the next tick that either sends successfully or finds nothing to send. Distinct from a failed RESPONSE, which has no note and a status_code. |
 | `alerted_at` | timestamp with time zone | yes |  | Suppression stamp, set only after an alert was actually DELIVERED, cleared on recovery. |
-| `backlog_ticks` | integer | no | `0` | Consecutive ticks this sweep finished with work still queued. Reset to 0 the moment it drains. At 3 the sweep answers 503, which turns it red in sweep_health and mails the platform. |
 | `jobname` | text | yes |  | The cron.job this clock is. Null means unregistered, which sweep_health() reports as unhealthy. |
 | `max_silence` | interval | yes |  | How long the clock may go without speaking (a request enqueued, or a run that succeeded) before it is unhealthy. Null: silence is not a fault; only the last answer is judged. |
 | `judged_by` | text | no | `'request'::text` | request: judged on the HTTP request it enqueued and what the edge answered. run: judged on cron.job_run_details, for the jobs that never leave the database. |
@@ -3735,7 +3796,7 @@ Foreign keys:
 
 ### tenants
 
-- Owned by: `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/ops.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/look/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`, `packages/db/src/shared/tenant-db.type-test.ts`
+- Owned by: `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/ops.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/look/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`, `packages/db/src/shared/tenant-db.type-test.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -3800,6 +3861,33 @@ People who asked for a workspace while sign-up was closed. Service-role only: de
 Foreign keys:
 
 - `invited_by` → `auth.users` (`id`), on delete set null
+
+### web_push_subscriptions
+
+A member's browsers that said yes to being told (the answers canvas, D12), as push_devices is their phones.
+
+- Owned by: `packages/db/src/repositories/notices/browsers.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `user_id` | uuid | no |  |  |
+| `endpoint` | text | no |  |  |
+| `p256dh` | text | no |  |  |
+| `auth` | text | no |  |  |
+| `user_agent` | text | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `failed_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `user_id` → `auth.users` (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `web_push_subscriptions_own` | all | authenticated | `(user_id = auth.uid())` | `(user_id = auth.uid())` |
 
 ### workspace_notices_pending
 

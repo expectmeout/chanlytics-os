@@ -127,6 +127,8 @@ export const POST = write({
       context,
       openedMs,
       answering,
+      following: !!body?.following,
+      request: req,
       column: askColumnOf(body?.column),
       files,
       ...languageAsked(text, body?.language),

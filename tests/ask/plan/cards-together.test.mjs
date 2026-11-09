@@ -161,7 +161,8 @@ test("a hold only one card has stays on that card, and a card with no line says 
 
 test("deciding a card opens the next, leaves the card its head and what became of it, and the warning stands until none waits", async () => {
   door();
-  const cards = [card(1), card(2)];
+  // Not now is offered on Ask's own idea alone: what the person asked for has no need of it.
+  const cards = [card(1), card(2, { origin: { by: "idea", strangers: false } })];
   const redraw = () => again(() => group(cards));
   press(testid(draw(cards), "ask-card-approve")[0]);
   await until(() => /It runs/.test(textOf(redraw())), "what became of the first card");

@@ -123,7 +123,7 @@
 
 /* ---- Need you: its pane, its head with how many were done today by the door, its foot. ---- */
 .dash-a-v2 .tz-need {
-  padding-bottom: var(--space-2);
+  padding-bottom: var(--space-1);
 }
 .dash-a-v2 .tz-need .tq-foot {
   display: flex;
@@ -147,28 +147,48 @@
 .tz-alert {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
-  border-radius: var(--radius-bubble);
+  gap: 9px;
+  min-height: 40px;
+  padding: var(--space-2) 14px;
+  border-radius: var(--radius-3xl);
   background: var(--danger-soft);
-  outline: 1px solid var(--danger-soft);
-  outline-offset: -1px;
-  font-size: var(--text-title);
+  font-size: var(--text-base);
+  line-height: 1.33;
   font-weight: var(--weight-medium);
   color: var(--danger-ink);
 }
+.tz-alert:has(> a) {
+  cursor: pointer;
+}
+.tz-alert > i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
 .tz-alert[data-tone="warn"] {
   background: var(--warn-soft);
-  outline: none;
   color: var(--warn-ink);
 }
 .tz-alert > span {
   flex: 1 1 auto;
   min-width: 0;
 }
-.tz-alert > svg {
+.tz-alert > a {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-aside);
+  font-weight: var(--weight-semibold);
+  color: inherit;
+  text-decoration: none;
+}
+.tz-alert > a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* ---- Listen: the glass the bell wears. At rest a phone's circle, the bell's size (a thumb's 44 round it drawn nothing
@@ -228,27 +248,38 @@
    once pressed. ---- */
 .tz-since {
   display: inline-flex;
-  flex-wrap: wrap;
   align-items: center;
   align-self: flex-start;
-  gap: 7px;
+  gap: 6px;
+  max-width: 100%;
   min-height: 26px;
   padding: 0;
+  white-space: nowrap;
   font-size: var(--text-aside);
   font-weight: var(--weight-regular);
   color: var(--ink-dim);
   text-align: left;
 }
 .tz-since > b {
+  flex: none;
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
 }
-.tz-since > em {
+/* What came in, on the one line: cut at its end, and the chevron never falls off it (one row, 9 Nov 2026). */
+.tz-since-bits {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tz-since-bits > em {
   font-style: normal;
 }
-.tz-since > em + em::before {
+.tz-since-bits > em + em::before {
   content: "· ";
   color: var(--ink-faint);
+}
+.tz-since > svg {
+  flex: none;
 }
 .tz-since[aria-expanded="true"] > svg {
   rotate: 180deg;
@@ -399,6 +430,10 @@
 }
 .tpd-li[data-past] {
   opacity: 0.62;
+}
+/* The day with no calendar: its one row has no time to stand under, so its words have the width. */
+.tpd-li[data-kind="link"] {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 .tpd-tm {
   font-size: var(--text-aside);
@@ -704,67 +739,19 @@
   color: var(--ink-dim);
 }
 
-/* ==== On a phone: the same blocks in one column, each group of Need you a pane of its own. ==== */
+/* ==== On a phone: the same blocks in one column. ==== */
 .main-scroll > .dash-a-v2-glass.dash-a-v2-phone {
   display: flex;
   flex-direction: column;
 }
-/* Need you has no pane of its own on a phone: the head says what its name would, and each group is a pane under its name. */
-.dash-a-v2 .today-queue[data-phone] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-}
-.dash-a-v2 .today-queue[data-phone]::after {
-  display: none;
-}
-.today-queue[data-phone] .ny-groups {
-  gap: var(--space-3);
-}
-/* A group's head stands in its pane, as every other card's does. */
-.dash-a-v2 .today-queue[data-phone] .ny-pane {
-  padding: 0 var(--space-4) 2px;
-  border-radius: var(--radius-3xl);
-}
-.today-queue[data-phone] .ny-pane > .ny-group-head {
-  border-bottom: 1px solid var(--line);
-}
-.dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row {
-  position: relative;
-  min-height: 62px;
-  border-top: 0;
-}
-.today-queue[data-phone] .ny-pane .cl-attn-row + .cl-attn-row::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 48px;
-  height: 1px;
-  background: var(--line);
-}
-.today-queue[data-phone] .ny-pane .cl-attn-row:has(> .cl-attn-work)::before {
-  left: 0;
-}
-/* The card's words to four lines (Edit opens them whole, in the sheet). */
-.today-queue[data-phone] .cl-attn-work .ny-words,
-.today-queue[data-phone] .cl-attn-work .ny-said {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.today-queue[data-phone] .cl-attn-work .ny-notes > .ny-notes-part:nth-child(n + 2),
+/* Up next's words on a phone, two lines of what Ask has ready; the sheet holds the rest. */
 .today-queue[data-phone] .cl-attn-work .ny-signed {
   display: none;
 }
 @media (max-width: 720px) {
   .dash-a-v2 .tz-pane,
   .dash-a-v2 .tpd,
+  .dash-a-v2 .today-queue,
   .dash-a-v2 [data-testid="today-card"] {
     border-radius: var(--radius-3xl);
   }

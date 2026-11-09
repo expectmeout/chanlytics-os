@@ -59,6 +59,7 @@ const SCHEMA = {
   NEXT_PUBLIC_SUPABASE_URL: url,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalText,
   NEXT_PUBLIC_LEAD_MAP_BASE: optionalText,
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: optionalText,
   SUPABASE_SERVICE_ROLE_KEY: optionalText,
 
   // The edge: where it is, and the credentials a call to it carries.
@@ -82,6 +83,8 @@ const SCHEMA = {
   ASK_ANSWER_TOOL: optionalText,
   // Ask's morning on Today (decision 0070): on runs it; unset, Today offers none and nothing is spent.
   ASK_MORNINGS: oneOf(["on"]),
+  // The platform's clock, which knocks on Ask's morning sweep with it (D20 of the answers canvas); unset, the sweep does nothing.
+  CRON_SECRET: optionalText,
 
   // Ask spoken (docs/superpowers/specs/2026-10-03-ask-spoken-design.md): the key a voice session's access token is
   // sealed under at rest, and the secret the voice agent sends the brain door with every custom LLM request.
@@ -121,6 +124,7 @@ const READ: { readonly [K in Name]: () => string | undefined } = {
   NEXT_PUBLIC_SUPABASE_URL: () => publicEnv.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: () => publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   NEXT_PUBLIC_LEAD_MAP_BASE: () => publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE,
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: () => publicEnv.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   SUPABASE_SERVICE_ROLE_KEY: () => process.env.SUPABASE_SERVICE_ROLE_KEY,
   DIAG_KEY: () => process.env.DIAG_KEY,
   EDGE_URL: () => process.env.EDGE_URL,
@@ -137,6 +141,7 @@ const READ: { readonly [K in Name]: () => string | undefined } = {
   ASK_DRAFT_EFFORT: () => process.env.ASK_DRAFT_EFFORT,
   ASK_ANSWER_TOOL: () => process.env.ASK_ANSWER_TOOL,
   ASK_MORNINGS: () => process.env.ASK_MORNINGS,
+  CRON_SECRET: () => process.env.CRON_SECRET,
   ASK_VOICE_SECRET: () => process.env.ASK_VOICE_SECRET,
   ELEVENLABS_LLM_SECRET: () => process.env.ELEVENLABS_LLM_SECRET,
   CANONICAL_HOST: () => process.env.CANONICAL_HOST,

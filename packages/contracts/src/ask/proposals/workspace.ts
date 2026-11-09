@@ -54,7 +54,14 @@ export const settingsSpec: ProposalSpecAboveOperator = {
     const config = applySettingsChange(st.config, p.payload.change as Parameters<typeof applySettingsChange>[1]);
     return { route: "PUT settings", body: { config, version: st.version } };
   },
-  receipt: (p) => p.summary,
+  // A note for the receptionist says what it is for; any other change says itself, in its card's words.
+  receipt: (p) => {
+    const change = rec(p.payload.change);
+    if (change.op !== "add_note") return p.summary;
+    return typeof change.until === "string" && change.until
+      ? `Your receptionist knows, until ${change.until}.`
+      : "Your receptionist knows.";
+  },
   undo: {
     label: () => "Put the previous settings back",
     window: "version",
@@ -68,7 +75,7 @@ export const settingsSpec: ProposalSpecAboveOperator = {
         return refuseWith("Settings have changed since this card — change them in Settings.");
       return { route: "PUT settings", body: { config: u.config, version } };
     },
-    receipt: () => "Previous settings are back",
+    receipt: () => "Put back.",
   },
   // A change to How it answers opens there, on its row (the Settings wiring review, item 14); the rest on Details.
   open: (proposal) => {

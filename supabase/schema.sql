@@ -1573,6 +1573,29 @@ COMMENT ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_li
 
 
 --
+-- Name: calendars_hand_out(timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select public.jobs_hand_out(
+    'calendar_read',
+    array(select d.tenant_id from public.calendars_due(p_before, 2147483647) d),
+    p_spread_seconds
+  );
+$$;
+
+
+--
+-- Name: FUNCTION calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) IS 'A calendar_read for each workspace whose calendar is due, judged by calendars_due (00569, decision 0115). Answers how many it wrote.';
+
+
+--
 -- Name: call_connected(text, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4822,6 +4845,13 @@ begin
   delete from push_devices where user_id = v_user;
   delete from notification_marks where user_id = v_user;
   delete from notification_reads where user_id = v_user;
+  -- Each workspace they sat in hears of it (team_notice, 00437), in this transaction, so the news cannot be lost to a write
+  -- that fails after the seat has gone (00570).
+  insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+  select m.tenant_id, 'member.left', 'system', 'workspace', m.tenant_id,
+         jsonb_build_object('by', v_user, 'how', 'account_deleted')
+    from memberships m
+   where m.user_id = v_user;
   delete from memberships where user_id = v_user;
   delete from auth.users where id = v_user;
   return jsonb_build_object('deleted', true, 'workspaces_left_empty', v_orphaned, 'workspaces_emptied', to_jsonb(v_emptied));
@@ -8430,6 +8460,36 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.jobs_guard() IS 'scheduled -> fired | canceled; fired -> fired (a lease taken back) | done | failed | scheduled (a retry waiting, its attempts kept or one fewer, 00526); done, failed and canceled are final. A payload may still change on any row: an erasure scrubs finished ones.';
+
+
+--
+-- Name: jobs_hand_out(text, uuid[], integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_handed integer;
+begin
+  -- The kind's own key (job_kinds, the workspace) holds one per workspace while one waits or runs.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select t.id, p_kind,
+         now() + make_interval(secs => abs(hashtext(t.id::text)::bigint) % greatest(p_spread_seconds, 1)),
+         '{}'::jsonb
+    from unnest(p_tenants) as t(id)
+  on conflict do nothing;
+  get diagnostics v_handed = row_count;
+  return v_handed;
+end $$;
+
+
+--
+-- Name: FUNCTION jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) IS 'One job of a kind per workspace named, each due within the spread by a hash of its workspace, unless one already waits or runs (00569, decision 0115). Answers how many it wrote. The service role''s: a sweep hands out what it found due.';
 
 
 --
@@ -16287,35 +16347,6 @@ COMMENT ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_devic
 
 
 --
--- Name: note_sweep_backlog(text, integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) RETURNS integer
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_ticks integer;
-begin
-  update public.sweep_status
-     set backlog_ticks = case when p_remaining > 0 then backlog_ticks + 1 else 0 end
-   where sweep = p_sweep
-  returning backlog_ticks into v_ticks;
-  -- No row means the sweep is not registered with sweep_health, which is a
-  -- deployment mistake rather than a backlog. Say zero: never alert on the
-  -- absence of bookkeeping.
-  return coalesce(v_ticks, 0);
-end $$;
-
-
---
--- Name: FUNCTION note_sweep_backlog(p_sweep text, p_remaining integer); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) IS 'Records whether a sweep finished with work left, and returns how many ticks in a row that has now been true. Atomic, because an overlapping tick reading and writing this separately would undercount precisely when the backlog is real.';
-
-
---
 -- Name: note_yes_on_channel(uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -23008,9 +23039,13 @@ CREATE FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_
   )
   select l.id, lower(btrim(l.email)), l.business_name, l.city, l.region, l.hours
     from members m
-    join public.reach_out_why_not(p_tenant_id, array(select lead_id from members), p_include_unconfirmed) w
-      on w.lead_id = m.lead_id and w.why is null
     join public.leads l on l.id = m.lead_id and l.tenant_id = p_tenant_id
+   -- A hash of who has a reason, whatever is guessed of it (00572). reach_out_why_not answers once for each lead it is asked
+   -- of, so leaving those out leaves whoever it lets go, and none of its leads is null: members' lead_id is not null.
+   where m.lead_id not in (
+     select w.lead_id
+       from public.reach_out_why_not(p_tenant_id, array(select lead_id from members), p_include_unconfirmed) w
+      where w.why is not null)
    -- The finder's fit, strongest first, then the longest found.
    order by case m.fit when 'strong' then 0 when 'look' then 1 when 'long' then 2 else 3 end, l.found_at
    limit greatest(p_limit, 0)
@@ -24269,8 +24304,9 @@ CREATE FUNCTION public.reach_out_people_of(p_tenant_id uuid, p_root_id uuid) RET
   )
   select r.lead_id,
          case when r.done then 'done' when (r.line->>'sent')::int > 0 then 'writing' else 'waiting' end,
-         r.line, r.ord, coalesce((select a.pos from aud a where a.lead_id = r.lead_id), 0)
+         r.line, r.ord, coalesce(a.pos, 0)
     from rl r
+    left join aud a on a.lead_id = r.lead_id
   union all
   select a.lead_id, 'waiting',
          jsonb_build_object('lead_id', a.lead_id, 'business_name', a.business_name, 'sent', 0, 'added_at', null),
@@ -25554,6 +25590,7 @@ COMMENT ON FUNCTION public.reach_out_report(p_tenant_id uuid, p_days integer, p_
 CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RETURNS TABLE(lead_id uuid, line jsonb, ord timestamp with time zone, done boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
+    SET work_mem TO '64MB'
     AS $$
   with sends as (
     -- left_at: when an email left (sent, or failed by a receipt after it left: email_left), else null.
@@ -25596,7 +25633,9 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
       join public.lead_searches q on q.id = r.lead_search_id and q.via in ('chosen', 'import') and q.removed_at is null
       join public.lead_search_members m on m.search_id = q.id and m.blanked_at is null and m.class = 'qualified' and m.counted
      where r.id = p_root_id and r.tenant_id = p_tenant_id
-       and not exists (select 1 from per p where p.lead_id = m.lead_id)
+       -- A hash of the walk, whatever is guessed of it (00572). Neither side is ever null: lead_id is not null on a member,
+       -- and sends leaves out a send with no lead.
+       and m.lead_id not in (select p.lead_id from per p)
   ),
   facts as (
     select x.*, l.business_name, l.stage, l.closed_reason, l.email_state, l.resume_at, l.booked_at, l.reach_out_stopped_at,
@@ -31501,6 +31540,32 @@ end $$;
 
 
 --
+-- Name: sequence_steps_hand_out(text, text, timestamp with time zone, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select public.jobs_hand_out(
+    p_job_kind,
+    array(
+      select distinct (d.step ->> 'tenant_id')::uuid
+        from public.sequence_steps_due(p_kind, p_at, p_last_hour, 2147483647) d
+    ),
+    p_spread_seconds
+  );
+$$;
+
+
+--
+-- Name: FUNCTION sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) IS 'A job for each workspace with a step of that kind due, judged by sequence_steps_due (00569, decision 0115). Answers how many it wrote.';
+
+
+--
 -- Name: sequence_steps_of(uuid, uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -34831,6 +34896,38 @@ COMMENT ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[
 
 
 --
+-- Name: words_seen(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_set uuid;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'not a member who may act here' using errcode = '42501';
+  end if;
+  update public.sequence_steps
+     set words_ok_at = now()
+   where id = p_step_id
+     and tenant_id = p_tenant_id
+     and words_ok_at is null
+  returning id into v_set;
+  return v_set is not null;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION words_seen(p_tenant_id uuid, p_step_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) IS 'A member pressed a card of Ask''s that showed this step''s words: they are taken as seen (0064, the answers canvas D3).';
+
+
+--
 -- Name: workspace_days(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -35398,6 +35495,40 @@ COMMENT ON COLUMN public.appointments.conversation_id IS 'The thread a request t
 
 
 --
+-- Name: ask_actions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ask_actions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    user_id uuid,
+    message_id uuid,
+    proposal_id text NOT NULL,
+    kind text NOT NULL,
+    by text NOT NULL,
+    origin_by text,
+    strangers boolean DEFAULT false NOT NULL,
+    reason text,
+    state text DEFAULT 'running'::text NOT NULL,
+    made_kind text,
+    made_id text,
+    code text,
+    at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    CONSTRAINT ask_actions_by_check CHECK ((by = ANY (ARRAY['press'::text, 'yes'::text, 'row'::text, 'lock_screen'::text, 'mail'::text]))),
+    CONSTRAINT ask_actions_origin_check CHECK (((origin_by IS NULL) OR (origin_by = ANY (ARRAY['asked'::text, 'rule'::text, 'follow_up'::text, 'idea'::text])))),
+    CONSTRAINT ask_actions_state_check CHECK ((state = ANY (ARRAY['running'::text, 'done'::text, 'failed'::text, 'undone'::text])))
+);
+
+
+--
+-- Name: TABLE ask_actions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ask_actions IS 'What Ask did and why it was allowed (the answers canvas, D16): closed sets and ids alone, the words stay on the turn.';
+
+
+--
 -- Name: ask_journal_days; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -35493,6 +35624,25 @@ CREATE TABLE public.ask_mornings (
 --
 
 COMMENT ON TABLE public.ask_mornings IS 'The day''s first turn, which Ask asks itself when a member who acts arrives (decision 0070): one a member a day, its thread the member''s own, its cards waiting on Today. Written through ask_morning_write; the member reads their own.';
+
+
+--
+-- Name: ask_notice_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ask_notice_days (
+    tenant_id uuid NOT NULL,
+    day date NOT NULL,
+    key text,
+    told_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE ask_notice_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ask_notice_days IS 'One morning per business (the answers canvas, D20): Ask looked, and told this key, if any. Written by the sweep.';
 
 
 --
@@ -36300,9 +36450,7 @@ CREATE TABLE public.events (
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     version smallint DEFAULT 1 NOT NULL,
-    request_id text DEFAULT public.request_id_of_caller(),
-    aggregate_version integer,
-    causation_id uuid
+    request_id text DEFAULT public.request_id_of_caller()
 )
 PARTITION BY RANGE (created_at);
 
@@ -36322,20 +36470,6 @@ COMMENT ON COLUMN public.events.request_id IS 'The request this row was written 
 
 
 --
--- Name: COLUMN events.aggregate_version; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.events.aggregate_version IS 'The version of the record this event is about, as the door left it (decision 0032): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00334.';
-
-
---
--- Name: COLUMN events.causation_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.events.causation_id IS 'The event this one was written in answer to, where a reaction wrote it (decision 0032). Null for a fact that arrived from outside, and for every row written before 00334.';
-
-
---
 -- Name: events_default; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -36349,9 +36483,7 @@ CREATE TABLE public.events_default (
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     version smallint DEFAULT 1 NOT NULL,
-    request_id text DEFAULT public.request_id_of_caller(),
-    aggregate_version integer,
-    causation_id uuid
+    request_id text DEFAULT public.request_id_of_caller()
 );
 
 
@@ -39855,7 +39987,6 @@ CREATE TABLE public.sweep_status (
     requested_at timestamp with time zone,
     note text,
     alerted_at timestamp with time zone,
-    backlog_ticks integer DEFAULT 0 NOT NULL,
     jobname text,
     max_silence interval,
     judged_by text DEFAULT 'request'::text NOT NULL,
@@ -39885,13 +40016,6 @@ COMMENT ON COLUMN public.sweep_status.note IS 'Set when the trigger could not se
 --
 
 COMMENT ON COLUMN public.sweep_status.alerted_at IS 'Suppression stamp, set only after an alert was actually DELIVERED, cleared on recovery.';
-
-
---
--- Name: COLUMN sweep_status.backlog_ticks; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sweep_status.backlog_ticks IS 'Consecutive ticks this sweep finished with work still queued. Reset to 0 the moment it drains. At 3 the sweep answers 503, which turns it red in sweep_health and mails the platform.';
 
 
 --
@@ -40278,6 +40402,30 @@ COMMENT ON COLUMN public.waitlist.invited_at IS 'When an invite was sent. Null m
 
 
 --
+-- Name: web_push_subscriptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.web_push_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    user_agent text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    failed_at timestamp with time zone,
+    CONSTRAINT web_push_subscriptions_endpoint_len CHECK ((length(endpoint) <= 1000))
+);
+
+
+--
+-- Name: TABLE web_push_subscriptions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.web_push_subscriptions IS 'A member''s browsers that said yes to being told (the answers canvas, D12), as push_devices is their phones.';
+
+
+--
 -- Name: workspace_notices_pending; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -40366,6 +40514,22 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: ask_actions ask_actions_one_per_card; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_one_per_card UNIQUE (tenant_id, message_id, proposal_id);
+
+
+--
+-- Name: ask_actions ask_actions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ask_journal_days ask_journal_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -40395,6 +40559,14 @@ ALTER TABLE ONLY public.ask_messages
 
 ALTER TABLE ONLY public.ask_mornings
     ADD CONSTRAINT ask_mornings_pkey PRIMARY KEY (tenant_id, user_id, day);
+
+
+--
+-- Name: ask_notice_days ask_notice_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_notice_days
+    ADD CONSTRAINT ask_notice_days_pkey PRIMARY KEY (tenant_id, day);
 
 
 --
@@ -41654,6 +41826,22 @@ ALTER TABLE ONLY public.waitlist
 
 
 --
+-- Name: web_push_subscriptions web_push_subscriptions_one; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_one UNIQUE (user_id, endpoint);
+
+
+--
+-- Name: web_push_subscriptions web_push_subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: workspace_notices_pending workspace_notices_pending_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -41799,6 +41987,20 @@ CREATE UNIQUE INDEX appointments_source_uq ON public.appointments USING btree (t
 --
 
 CREATE INDEX appointments_tenant_start ON public.appointments USING btree (tenant_id, starts_at);
+
+
+--
+-- Name: ask_actions_recent; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_actions_recent ON public.ask_actions USING btree (tenant_id, at DESC);
+
+
+--
+-- Name: ask_actions_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_actions_user ON public.ask_actions USING btree (user_id);
 
 
 --
@@ -45852,6 +46054,22 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: ask_actions ask_actions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_actions ask_actions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: ask_journal_days ask_journal_days_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -45937,6 +46155,14 @@ ALTER TABLE ONLY public.ask_mornings
 
 ALTER TABLE ONLY public.ask_mornings
     ADD CONSTRAINT ask_mornings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_notice_days ask_notice_days_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_notice_days
+    ADD CONSTRAINT ask_notice_days_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -47708,6 +47934,14 @@ ALTER TABLE ONLY public.waitlist
 
 
 --
+-- Name: web_push_subscriptions web_push_subscriptions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: ai_usage; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -47756,6 +47990,35 @@ ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY appointments_member_select ON public.appointments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: ask_actions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ask_actions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ask_actions ask_actions_acting_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_actions_acting_insert ON public.ask_actions FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND public.is_acting_member(tenant_id)));
+
+
+--
+-- Name: ask_actions ask_actions_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_actions_member_select ON public.ask_actions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: ask_actions ask_actions_own_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_actions_own_update ON public.ask_actions FOR UPDATE TO authenticated USING (((user_id = ( SELECT auth.uid() AS uid)) AND public.is_acting_member(tenant_id))) WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND public.is_acting_member(tenant_id)));
 
 
 --
@@ -47837,6 +48100,21 @@ ALTER TABLE public.ask_mornings ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY ask_mornings_own_select ON public.ask_mornings FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: ask_notice_days; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ask_notice_days ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ask_notice_days ask_notice_days_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_notice_days_member_select ON public.ask_notice_days FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -49409,6 +49687,19 @@ ALTER TABLE public.voice_agents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: web_push_subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.web_push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: web_push_subscriptions web_push_subscriptions_own; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY web_push_subscriptions_own ON public.web_push_subscriptions TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
 -- Name: workspace_notices_pending; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -49686,6 +49977,14 @@ GRANT ALL ON FUNCTION public.calendar_grant_note(p_tenant_id uuid, p_mailbox_id 
 
 REVOKE ALL ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.calendars_due(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.calendars_hand_out(p_before timestamp with time zone, p_spread_seconds integer) TO service_role;
 
 
 --
@@ -50880,6 +51179,14 @@ GRANT ALL ON FUNCTION public.jobs_backlog(p_wait interval) TO service_role;
 REVOKE ALL ON FUNCTION public.jobs_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.jobs_guard() TO authenticated;
 GRANT ALL ON FUNCTION public.jobs_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.jobs_hand_out(p_kind text, p_tenants uuid[], p_spread_seconds integer) TO service_role;
 
 
 --
@@ -52159,14 +52466,6 @@ GRANT ALL ON FUNCTION public.note_for_you_notify(p_tenant_id uuid, p_contact_id 
 
 REVOKE ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) TO service_role;
-
-
---
--- Name: FUNCTION note_sweep_backlog(p_sweep text, p_remaining integer); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.note_sweep_backlog(p_sweep text, p_remaining integer) TO service_role;
 
 
 --
@@ -54400,6 +54699,14 @@ GRANT ALL ON FUNCTION public.sequence_steps_gone_ends_the_wait() TO service_role
 
 
 --
+-- Name: FUNCTION sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_steps_hand_out(p_kind text, p_job_kind text, p_at timestamp with time zone, p_last_hour integer, p_spread_seconds integer) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_steps_of(p_tenant_id uuid, p_sequence_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -55070,6 +55377,15 @@ GRANT ALL ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uui
 
 
 --
+-- Name: FUNCTION words_seen(p_tenant_id uuid, p_step_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION workspace_days(p_tenant_id uuid, p_from date, p_to date); Type: ACL; Schema: public; Owner: -
 --
 
@@ -55168,6 +55484,112 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointments TO service_role;
 
 
 --
+-- Name: TABLE ask_actions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.ask_actions TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_actions TO service_role;
+
+
+--
+-- Name: COLUMN ask_actions.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.message_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(message_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.proposal_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(proposal_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(kind) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(by) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.origin_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(origin_by) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.strangers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(strangers) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.reason; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(reason) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(state) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.made_kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(made_kind) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.made_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(made_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.code; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(code) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.finished_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(finished_at) ON TABLE public.ask_actions TO authenticated;
+
+
+--
 -- Name: TABLE ask_journal_days; Type: ACL; Schema: public; Owner: -
 --
 
@@ -55232,6 +55654,14 @@ GRANT INSERT(content),UPDATE(content) ON TABLE public.ask_messages TO authentica
 
 GRANT SELECT ON TABLE public.ask_mornings TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_mornings TO service_role;
+
+
+--
+-- Name: TABLE ask_notice_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.ask_notice_days TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_notice_days TO service_role;
 
 
 --
@@ -56978,6 +57408,49 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.voice_agents TO service_role;
 --
 
 GRANT ALL ON TABLE public.waitlist TO service_role;
+
+
+--
+-- Name: TABLE web_push_subscriptions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE ON TABLE public.web_push_subscriptions TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.web_push_subscriptions TO service_role;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.endpoint; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(endpoint) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.p256dh; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(p256dh) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.auth; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(auth) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.user_agent; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_agent) ON TABLE public.web_push_subscriptions TO authenticated;
 
 
 --

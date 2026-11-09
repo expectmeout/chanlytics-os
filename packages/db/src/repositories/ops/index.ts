@@ -12,4 +12,4 @@ export {
   readSweepHealth,
 } from "./health";
 export { findOperatorPage, listOperatorPages, saveOperatorPage, stampOperatorPage } from "./pages";
-export { getCronSweepKey, noteSweepBacklog } from "./sweeps";
+export { getCronSweepKey } from "./sweeps";

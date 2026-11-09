@@ -250,10 +250,14 @@ test("each frame carries the bar over every visit that stands, the card's cap le
 
 /* ------------------------------------------------ Change it with Ask */
 
-test("the draft door takes the member's words for a draft written again, at most 280 characters", () => {
+test("the draft door takes the member's words for a draft written again, long enough to be said aloud", () => {
   assert.ok(ReplyDraftAskSchema.safeParse({ kind: "reply" }).success, "without, as before");
   assert.ok(ReplyDraftAskSchema.safeParse({ kind: "reply", instruction: "Shorter" }).success);
-  assert.equal(REPLY_DRAFT_INSTRUCTION_MAX, 280);
-  assert.ok(!ReplyDraftAskSchema.safeParse({ kind: "reply", instruction: "x".repeat(281) }).success, "past the most");
+  assert.equal(REPLY_DRAFT_INSTRUCTION_MAX, 1000);
+  assert.ok(!ReplyDraftAskSchema.safeParse({ kind: "reply", instruction: "x".repeat(1001) }).success, "past the most");
+  assert.ok(
+    ReplyDraftAskSchema.safeParse({ kind: "reply", instruction: "Shorter", given: "The words on the screen" }).success,
+    "with the words on the screen, which a change is asked of",
+  );
   assert.ok(!ReplyDraftAskSchema.safeParse({ kind: "reply", instruction: "   " }).success, "nothing said is no change");
 });

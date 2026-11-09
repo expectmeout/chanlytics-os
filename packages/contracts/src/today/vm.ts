@@ -3,8 +3,10 @@
  * that builds it is today/brief.ts, over the facts (today/facts.ts) and the bands, rows and queue beside them.
  */
 import type { CallDto } from "../conversations/call-dto";
+import type { FailedWay } from "../conversations/message-words";
 import type { EscalationDto, HoldAct } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
+import type { GoogleReviewDto } from "../google/listing";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { LeadSearchDto } from "../leads/leads";
 import type { PreviewTriedDto } from "../previews/tried";
@@ -56,6 +58,25 @@ export interface TodaySentenceVM {
   to?: string;
 }
 
+/** What the reach-out read a reply as, on its row. */
+export interface RowReading {
+  intent: string;
+  claim: string;
+  /** The day a to-do was set for (YYYY-MM-DD), where one was. */
+  step_day: string | null;
+  /** Who they said to write to, where they said. */
+  refer_to: string | null;
+  /** When they are back, as an instant, where an automatic reply said. */
+  until_at: string | null;
+}
+
+/** One thing said on a row's thread: by them, by the business, or by the business and never delivered. */
+export interface TodayRowSaid {
+  from: "them" | "us" | "failed";
+  text: string;
+  at_ms: number;
+}
+
 /**
  * One row of the queue on Today, in the strip's grammar (people.ts
  * attentionRow): who, where and when, one sentence, one state line, one
@@ -83,7 +104,9 @@ export interface TodayQueueRowVM {
     | "visits"
     | "held"
     // A lead who tried their own receptionist (decision 0079): the team's to-do, a business and no person waiting.
-    | "tried";
+    | "tried"
+    // A Google review to answer: To do's row, in the walk as a step is, with nobody waiting (reviewRowOf).
+    | "review";
   /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
   conversationId: string | null;
   /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
@@ -101,7 +124,7 @@ export interface TodayQueueRowVM {
    *  not have held an email even if the code had tried to put one there.
    *  "Leads" is a search waiting on its owner (spec G6), the one row that is not a person. "Next step" is a step due: no
    *  wire at all, the kind of row. "Calendar" is a visit to mark, which the Calendar holds. */
-  channel: "WhatsApp" | "Phone" | "Text" | "Email" | "Instagram" | "Leads" | "Next step" | "Calendar";
+  channel: "WhatsApp" | "Phone" | "Text" | "Email" | "Instagram" | "Leads" | "Next step" | "Calendar" | "Google";
   /** What it came through, after the wire: a reply's reach-out (00426: "Email, Early gyms"), so it is never read alone. */
   via?: string | null;
   /** "waited 2h" · "closes 5:10 PM · in 40m" · "2:14 PM · 1:35"; empty on a step, whose day is the first word of its state line. */
@@ -138,7 +161,25 @@ export interface TodayQueueRowVM {
    * On a handoff whose hold is a time the customer picked by text (decision 0061): its thread, so the row's two buttons,
    * Booked it and Can't, answer it (POST conversations/[id]/booking-request). Its `cta.to` is the thread.
    */
-  request?: { conversationId: string };
+  request?: {
+    conversationId: string;
+    /** The time they picked, where the read holds it: its sheet draws it and what stands around it on the day. */
+    starts_at?: string;
+    ends_at?: string;
+    service?: string | null;
+    expires_at?: string | null;
+  };
+  /**
+   * The last of what was said on the thread, the earliest first, where the page read it: what a sheet shows in place of a
+   * box that repeats the row (one sheet, 9 Nov 2026), up to three at rest and all of these pulled up. Absent where no thread
+   * was read.
+   */
+  said?: readonly TodayRowSaid[];
+  /**
+   * On a call-back: the call itself, where the read holds it, to hear or to read. What the caller wanted is the row's
+   * sentence, and no model writes notes about it (his call D13, 9 Nov 2026).
+   */
+  call?: { id: string; at_ms: number; duration_ms: number | null; recorded: boolean };
   /**
    * On a row a reply or a call answers (a handoff, a call-back, a closing window, a reach-out's reply read, a held reply;
    * decision 0071): what Ask drafts it for and where it goes. `for_message_id` is their newest message, which a kept draft
@@ -158,6 +199,8 @@ export interface TodayQueueRowVM {
    * the server's deadline (contracts draftSendsAtMs).
    */
   held?: { message_id: string; text: string; sends_at_ms: number };
+  /** On a `review` only: the review to answer, whole, which its sheet draws and its draft and post are about. */
+  review?: GoogleReviewDto;
   /** On a call-back: the number to ring (tel:), from the thread or the call; null where neither holds one. */
   phone?: string | null;
   /**
@@ -195,7 +238,12 @@ export interface TodayQueueRowVM {
    * that failed, which Try again sends again as written, and why the wire refused them in a sentence (message-words.ts
    * sendFailureWords). Absent on every other row, and where the thread's failed message was not read.
    */
-  failed?: { text: string; said: string };
+  failed?: { text: string; said: string; way: FailedWay; plain: string };
+  /**
+   * What the reach-out read this reply as, where one was read, a no and an automatic reply among them: its sheet says what was
+   * already done about it and offers only what is left (its sheet's readingMomentOf).
+   */
+  reading?: RowReading | null;
 }
 
 /** What an empty queue MEANS for this workspace: the colour rides with a glyph and the words. */

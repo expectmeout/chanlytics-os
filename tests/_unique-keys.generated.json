@@ -178,6 +178,36 @@
       }
     },
     {
+      "table": "ask_actions",
+      "name": "ask_actions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ask_actions",
+      "name": "ask_actions_one_per_card",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "message_id"
+        },
+        {
+          "column": "proposal_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "ask_journal_days",
       "name": "ask_journal_days_pkey",
       "primary": true,
@@ -227,6 +257,21 @@
         },
         {
           "column": "user_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ask_notice_days",
+      "name": "ask_notice_days_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
         },
         {
           "column": "day"
@@ -3275,6 +3320,33 @@
           "lower": {
             "column": "email"
           }
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "web_push_subscriptions",
+      "name": "web_push_subscriptions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "web_push_subscriptions",
+      "name": "web_push_subscriptions_one",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "user_id"
+        },
+        {
+          "column": "endpoint"
         }
       ],
       "where": null

@@ -177,6 +177,18 @@ export async function findPlaybookForChange(
  * campaigns" proposed a twin win-back, which the week's breath then left reaching nobody. Each by its id and name. Throws
  * on a failed read.
  */
+/** Every sequence step running in the workspace, by its id: what Stop everything pauses, and later puts back. */
+export async function listRunningPlaybookIds(db: Db, tenantId: TenantId): Promise<string[]> {
+  const { data, error } = await db
+    .from("sequence_steps")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("state", "running")
+    .is("after_step_id", null);
+  if (error) throw new DbFailure(error, "sequence_steps");
+  return (data ?? []).map((r) => r.id);
+}
+
 export async function listRunningTwins(
   db: Db,
   tenantId: TenantId,

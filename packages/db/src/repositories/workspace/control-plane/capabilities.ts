@@ -127,13 +127,6 @@ export async function getMembershipCount(db: Db, userId: string): Promise<number
   return count ?? 0;
 }
 
-/** The workspaces this user belongs to, by id, read on the session client, which sees only its own rows. */
-export async function listWorkspaceIds(db: Db, userId: string): Promise<string[]> {
-  const { data, error } = await db.from("memberships").select("tenant_id").eq("user_id", userId);
-  if (error) throw new DbFailure(error, "memberships_of");
-  return (data ?? []).map((m) => m.tenant_id);
-}
-
 /** Call `create_workspace` once: its one row, or its error as the database raised it. */
 export async function createWorkspaceFn(db: Db, args: CreateWorkspaceArgs) {
   return db.rpc("create_workspace", args).single();
@@ -202,6 +195,20 @@ export type PlaybookToStart = Required<
     | "until"
   >
 >;
+
+/**
+ * A new send's words taken as the member's OK (the words_seen door, 00573): they pressed a card that showed them, so its
+ * first batch goes as its row says (D3 of the answers canvas). False where the door is not on this database yet: that batch
+ * waits for an OK as it did, never a failed start. Other failures are raised, for the caller to say.
+ */
+export async function wordsSeenByMember(db: Db, tenantId: TenantId, stepId: string): Promise<boolean> {
+  const { data, error } = await db.rpc("words_seen", { p_tenant_id: tenantId, p_step_id: stepId });
+  if (error) {
+    if (isMissingDoor(error)) return false;
+    throw new DbFailure(error, "marking a new send's words as seen");
+  }
+  return data === true;
+}
 
 /**
  * Start a playbook with its line in the ledger (00357 start_playbook), on the member's own session: the row, running

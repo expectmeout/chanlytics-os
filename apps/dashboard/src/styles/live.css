@@ -439,6 +439,8 @@ a.lm-head-door:active { opacity: 0.72; }
 .lm-summary-actions { display: flex; gap: 8px; margin-top: 2px; }
 .lm-spacer { flex: 1 1 auto; }
 
+/* A phone's hold (D8 of the answers canvas) is a phone's: a desk keeps its field. */
+.lm-hold-wrap { display: none; }
 /* The whisper: the one live control, under the transcript. A capsule field with Ask's round button at its end (the mic,
    held to talk, while nothing is typed; the arrow once there are words), and under it one line of who hears it, which
    opens to what the receptionist does with it. */
@@ -873,6 +875,55 @@ a.lm-head-door:active { opacity: 0.72; }
   .live-monitor .lm-whisper-row > input:focus {
     outline: none;
     box-shadow: none;
+  }
+  /* The call as a glance and a thumb (D8 of the answers canvas): the newest line large enough for arm's length, the older
+     ones small and fading, and the hold the page's one control. The field waits behind Type instead. */
+  .live-monitor[data-takeover] .lm-scroll .tl-msg:last-child .tl-msg-bubble {
+    font-size: var(--text-lg);
+    line-height: 1.35;
+  }
+  .live-monitor[data-takeover] .lm-scroll .tl-msg:not(:last-child) {
+    opacity: 0.55;
+    font-size: var(--text-sm);
+  }
+  .live-monitor .lm-hold-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .live-monitor .lm-hold {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 128px;
+    height: 128px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--ink);
+    color: var(--bg);
+    font: inherit;
+    font-size: var(--text-sm);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .live-monitor .lm-hold.on {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  .live-monitor .lm-hold-type {
+    border: 0;
+    background: none;
+    color: var(--ink-dim);
+    font: inherit;
+    font-size: var(--text-xs);
+  }
+  .live-monitor .lm-whisper:not([data-typing]) .lm-whisper-row {
+    display: none;
   }
   .live-monitor .lm-whisper-note {
     justify-self: center;

@@ -56,7 +56,7 @@ export interface ReplyDraftAsk {
 /** A reply written: the words, the subject its send would carry, what the model was handed (Why this?). */
 export type ReplyWritten = { text: string; subject: string; used: readonly string[] } | { why: ReplyDraftWhy };
 /** A brief for a call back written. */
-export type BriefWritten = { brief: CallBrief; used: readonly string[] } | { why: ReplyDraftWhy };
+export type BriefWritten = { selling: string | null; used: readonly string[] } | { why: ReplyDraftWhy };
 
 /** What a draft's job asks of the world. */
 export interface ReplyDraftPorts {
@@ -233,10 +233,13 @@ function askOf(
 function keptOf(
   kind: ReplyDraftKind,
   written: ReplyWritten | BriefWritten,
-): { state: "ready" | "failed"; words: Json; used?: readonly string[]; whyFailed?: string } {
+): { state: "ready" | "failed" | "pitch"; words: Json; used?: readonly string[]; whyFailed?: string } {
   if ("why" in written) return { state: "failed", words: wordsOf({}), whyFailed: written.why };
-  if (kind === "brief" && "brief" in written)
-    return { state: "ready", words: wordsOf({ brief: written.brief }), used: written.used };
+  // A call back: no notes, only whether it reads as someone selling, which its sheet says (his calls D13, D14).
+  if (kind === "brief" && "selling" in written)
+    return written.selling
+      ? { state: "pitch", words: wordsOf({ pitch: written.selling }), used: written.used }
+      : { state: "ready", words: wordsOf({}), used: written.used };
   const reply = written as Extract<ReplyWritten, { text: string }>;
   return { state: "ready", words: wordsOf({ text: reply.text, subject: reply.subject }), used: reply.used };
 }
@@ -320,6 +323,8 @@ export async function rewriteReplyDraft(
     conversationId: string;
     kind: ReplyDraftKind;
     instruction: string | null;
+    /** The words on the member's screen, which a change is asked of; the kept draft where the page says none. */
+    given?: string | null;
     by: string | null;
     now: Date;
     deadline: number;
@@ -350,7 +355,7 @@ export async function rewriteReplyDraft(
   const ask = askOf(conversationId, thread, thread.wire ?? "whatsapp", {
     source,
     instruction,
-    given: keptTextOf(mine),
+    given: (instruction ? cmd.given : null) ?? keptTextOf(mine),
     deadline: cmd.deadline,
   });
   const written = kind === "brief" ? await ports.write.brief(tenantId, ask) : await ports.write.reply(tenantId, ask);

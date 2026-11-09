@@ -23,6 +23,10 @@ export const publicEnv = {
   get NEXT_PUBLIC_SUPABASE_ANON_KEY(): string | undefined {
     return blankAsUnset(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   },
+  /** The public half of the keys browsers are told with (D12 of the answers canvas). Unset, the choice is not offered. */
+  get NEXT_PUBLIC_VAPID_PUBLIC_KEY(): string | undefined {
+    return blankAsUnset(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+  },
   /** Where the lead map's basemap bundle lives: an origin or a same-origin path. Unset, the map stays a plot. */
   get NEXT_PUBLIC_LEAD_MAP_BASE(): string | undefined {
     return blankAsUnset(process.env.NEXT_PUBLIC_LEAD_MAP_BASE);

@@ -683,6 +683,8 @@ export function shapeAskedFails(e, m) {
     "table_cols_max",
     "chart",
     "chart_none",
+    "chars_max",
+    "figures_min",
   ];
   if (!keys.some((k) => e[k] !== undefined)) return fails;
   if (!a || a.form !== "structured")
@@ -721,6 +723,12 @@ export function shapeAskedFails(e, m) {
     );
   if (e.detail_empty && a.say.detail)
     fails.push(`a detail where only the headline was asked: “${a.say.detail.slice(0, 80)}”`);
+  if (typeof e.chars_max === "number" && a.say.headline.length + (a.say.detail ?? "").length > e.chars_max)
+    fails.push(
+      `${a.say.headline.length + (a.say.detail ?? "").length} characters, where ${e.chars_max} fit on a phone`,
+    );
+  if (typeof e.figures_min === "number" && a.show.figures.length < e.figures_min)
+    fails.push(`${a.show.figures.length} figures, where its sentence rests on at least ${e.figures_min}`);
   if (e.all_caps) {
     const low = [a.say.headline, a.say.detail, ...entries].find((s) => /\p{Ll}/u.test(s));
     if (low) fails.push(`lower case where capitals were asked: “${low.slice(0, 80)}”`);

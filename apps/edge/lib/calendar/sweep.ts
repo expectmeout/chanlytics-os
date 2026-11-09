@@ -1,16 +1,14 @@
 /**
- * The calendar sweep: every hour, a bounded page of the workspaces with a calendar connected has the people its
- * appointments name put in People -- a phone in the event is the key, the name as the event gives it, consent
+ * The calendar sweep: every hour, each workspace with a calendar connected and due is handed a job (decision 0115, 00569),
+ * and that job has the people its appointments name put in People -- a phone in the event is the key, the name as the event gives it, consent
  * untouched.
  *
  * The route is api/cron/calendar.ts: sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks
  * the sweep key, then hands this its tick, so nothing below runs for a knock without the key.
  *
- * The page is only what is due, judged in the database (00245 calendars_due, through listCalendarsDue in
- * lib/shared/sweep-rotation.ts): CALENDAR_PER_TICK workspaces whose settings carry a feed address
+ * What is due is judged in the database (00245 calendars_due): a workspace whose settings carry a feed address
  * (config.calendar.ical_url) or a calendar read through a connected mailbox (config.calendar_grant, 00478, decision 0073
- * R20: contracts calendarFeedKeyOf, the grant first), the never-read first, then the least recently read, none read
- * again within listCalendarsDue's minAgeMs. Each read that works is noted on the imports ledger as the calendar's (the visits
+ * R20: contracts calendarFeedKeyOf, the grant first), none read again within CALENDAR_REST_MS. Each read that works is noted on the imports ledger as the calendar's (the visits
  * before today and those coming, how far back), which the first run's Bringing it in, Today and Connections say; a
  * mailbox connected with its calendar asks for one read at once (readOneCalendar, through its history import). Each feed is read as the receptionists read it (listFeedItems: one fetch per five minutes, parsed once) in
  * the workspace's own zone, and a pure extraction (peopleFromItems) picks the people. This sweep is the one path that adds
@@ -37,24 +35,19 @@
  * first read that works), and its owner is told once its failures are a day old; the read that works closes the notice
  * (calendar/notice.ts, the wiring's second audit, R11 S11-4).
  *
- * `remaining` is the due feeds beyond the page. noteBacklog (note_sweep_backlog, 00089) counts the ticks in a row that
- * left some; at BACKLOG_TICKS_BEFORE_ALARM the sweep still does its tick and answers 503 (calendar_backlog), which
- * sweep_health() reads and the health sweep mails to the platform: a queue growing faster than this drains it. A page
- * that cannot be read is a 500 (an edge deployed ahead of 00245 is loud, not quiet).
- *
  * Called by pg_cron at :23 ('calendar-people-sweep', 00053) through trigger_calendar_sweep (request_sweep, 00086),
  * with the Vault sweep key in x-cron-key (authorizeCron). The request is recorded in sweep_status and sweep_health()
- * judges the answer (registered in 00107). Its lines carry `sweep: "calendar"` and, per workspace, `tenant_id`; the
- * tick ends in one calendar_sweep with the counts.
+ * judges the answer (registered in 00107). Its lines carry `sweep: "calendar"`; the tick ends in one calendar_sweep with
+ * how many it handed out, and each job in one calendar_read with what it came to.
  */
 import { json } from "../shared/http.js";
 import {
   listCalendarsDue,
   markCalendarChecked,
-  noteBacklog,
-  CALENDAR_PER_TICK,
-  CALENDAR_SWEEP_BUDGET_MS,
+  CALENDAR_REST_MS,
+  HAND_OUT_SPREAD_SECONDS,
 } from "../shared/sweep-rotation.js";
+import { logger } from "../shared/log.js";
 import { listFeedItems } from "./availability.js";
 import { addPeopleFromCalendar } from "./people.js";
 import { markCalendarFeedKept } from "@chanlytics/db/workspace";
@@ -73,7 +66,7 @@ import {
   keysOf,
 } from "@chanlytics/contracts";
 import { noteImport } from "@chanlytics/db/imports";
-import type { DueCalendar } from "@chanlytics/db/jobs";
+import { handOutCalendarsDue, type DueCalendar } from "@chanlytics/db/jobs";
 import type { SweepTick } from "../ops/sweep-door.js";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
@@ -238,72 +231,58 @@ async function tellPeopleAdded(
   });
 }
 
+/**
+ * The hour's calendars handed out: a calendar_read job for each workspace whose calendar is due (00569 calendars_hand_out,
+ * judged by calendars_due). This read them itself, forty an hour and no more inside a sixty-second function, so at a
+ * thousand workspaces a calendar was read once a day and the receptionist offered times taken that morning. A hand-out that
+ * cannot be written is a 500 (an edge deployed ahead of 00569 is loud, not quiet).
+ */
 export async function sweepCalendar({ db, L }: SweepTick): Promise<Response> {
-  const now = new Date();
-  // A BOUNDED, ROTATING page OF WHAT IS DUE rather than every row, judged in
-  // the database (00245 calendars_due): a feed's address on the row, never
-  // read or not read this hour, the never-read first. This read every config
-  // and then fetched a feed per workspace, serially, inside a sixty-second
-  // function -- so past a few hundred tenants it ran out of tick part way
-  // through, and since the order never changed the same early workspaces were
-  // served every hour while the rest were never served at all. `remaining` is
-  // exactly the due feeds beyond the page, and nothing that is not a feed.
-  let page;
+  let handed: number;
   try {
-    page = await listCalendarsDue(db, now, CALENDAR_PER_TICK);
+    handed = await handOutCalendarsDue(db, {
+      before: new Date(Date.now() - CALENDAR_REST_MS),
+      spreadSeconds: HAND_OUT_SPREAD_SECONDS,
+    });
   } catch (e) {
     L.error("calendar_configs_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return json(500, { ok: false });
   }
-
-  const out = {
-    tenants: 0,
-    seen: 0,
-    added: 0,
-    named: 0,
-    emailed: 0,
-    booked: 0,
-    failed: 0,
-    remaining: page.remaining,
-  };
-  // What the reads kept as appointments, for the tick's log line: the answer stays the sweep's own counts.
-  const kept: Kept = { added: 0, moved: 0, back: 0, vanished: 0, seen: 0, stale: 0 };
-  const startedAt = Date.now();
-  for (const [i, row] of page.rows.entries()) {
-    // Out of time: the rest of the page is remaining, not read, and not stamped.
-    if (Date.now() - startedAt > CALENDAR_SWEEP_BUDGET_MS) {
-      out.remaining += page.rows.length - i;
-      L.warn("calendar_sweep_over_budget", { unread: page.rows.length - i });
-      break;
-    }
-    // A feed that could not be read, or a configuration that does not parse, is stamped as tried: retried the next
-    // hour (the page's own gap), behind the feeds that can be read. Unstamped it kept the first place every hour, and
-    // forty dead feeds held the page for every workspace (readOneCalendar).
-    try {
-      const oneCalendar = await readOneCalendar(db, row, now, L, kept);
-      if (oneCalendar.outcome === "none") continue;
-      out.tenants += 1;
-      if (oneCalendar.outcome === "failed") out.failed += 1;
-      out.seen += oneCalendar.seen;
-      out.added += oneCalendar.added;
-      out.named += oneCalendar.named;
-      out.emailed += oneCalendar.emailed;
-      out.booked += oneCalendar.booked;
-    } catch (e) {
-      out.tenants += 1;
-      out.failed += 1;
-      L.error("calendar_sweep_failed", { tenant_id: row.tenant_id, error: e instanceof Error ? e.message : String(e) });
-      await markCalendarChecked(db, row.tenant_id, now).catch(logAndGoOn("markCalendarChecked"));
-    }
-  }
-  const backlog = await noteBacklog(db, "calendar", out.remaining);
-  L.info("calendar_sweep", { ...out, appointments: kept, backlog_ticks: backlog.ticks });
-  // One tick with work left over is the cap doing its job. Three in a row is
-  // the queue growing faster than this sweep drains it, which sweep_health
-  // turns red and mails -- a capacity fact a person has to hear before a
-  // customer notices the receptionist offering times that are already taken.
-  if (backlog.alarm) {
-    return json(503, { ok: false, error: "calendar_backlog", backlog_ticks: backlog.ticks, ...out });
-  }
-  return json(200, { ok: true, ...out });
+  L.info("calendar_sweep", { handed });
+  return json(200, { ok: true, handed });
 }
+
+/**
+ * One workspace's calendar_read: what is due is asked again, of this workspace alone, when the job runs, since "Read now" may
+ * have read it since the sweep. A feed that could not be read, or a configuration that does not parse, is stamped as tried and
+ * read again next hour (readOneCalendar); a throw part way is stamped and said the same, so a dead feed never fails the job.
+ * Only a page that cannot be read throws, and the ledger tries that again.
+ */
+async function readWorkspaceCalendar(
+  db: SweepTick["db"],
+  tenantId: TenantId,
+  log: SweepTick["L"],
+): Promise<CalendarRead | null> {
+  const now = new Date();
+  const page = await listCalendarsDue(db, now, 1, tenantId);
+  const row = page.rows.at(0);
+  if (!row) return null;
+  const kept: Kept = { added: 0, moved: 0, back: 0, vanished: 0, seen: 0, stale: 0 };
+  try {
+    const read = await readOneCalendar(db, row, now, log, kept);
+    log.info("calendar_read", { tenant_id: tenantId, ...read, appointments: kept });
+    return read;
+  } catch (e) {
+    log.error("calendar_sweep_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+    await markCalendarChecked(db, tenantId, now).catch(logAndGoOn("markCalendarChecked"));
+    return { outcome: "failed", ...NOTHING_READ };
+  }
+}
+
+/** calendar_read as the job runner takes it. */
+export const calendarReader =
+  (db: SweepTick["db"]) =>
+  async (job: { tenant_id: TenantId }): Promise<{ read: CalendarRead } | { skipped: string }> => {
+    const read = await readWorkspaceCalendar(db, job.tenant_id, logger({ tenant_id: job.tenant_id }));
+    return read ? { read } : { skipped: "not due" };
+  };

@@ -189,7 +189,8 @@ async function proposePlaybook(toolContext: ToolContext, proposed: PlaybookPropo
   // A tick that cannot send yet stays on the playbook, and its run holds those people until it can: the card says so.
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
   const under = underMode(cls, policies);
-  const cardWords = cardSays(asked, specs, by, 140);
+  // A plan's one card draws the message whole; a card on its own quotes it.
+  const cardWords = cardSays(asked, specs, by, toolContext.step === undefined ? 140 : 900);
   if ("refusal" in cardWords) return refuse(cardWords.refusal);
   // The moment and its schedule in the workspace's word: read once the check has passed.
   const { word, moment } = await getWordedMoment(toolContext, trig);

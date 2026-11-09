@@ -119,7 +119,7 @@ export function searchCardView(askProposal: AskProposal): SearchCardView | null 
   return null;
 }
 
-/** What a card a newer one replaced says it became. */
+/** What a card a newer one replaced says it became (t.changedBelow on a card; this, on the turn). */
 export const SEARCH_CARD_REPLACED = "Changed below.";
 
 /** The outcome a replaced card is kept with: set aside, never pressed, its receipt the words above. */
@@ -139,12 +139,47 @@ export function searchCardsReplaced(
   earlier: ReadonlyArray<Pick<AskMessageVM, "id" | "proposals">>,
   created: ReadonlyArray<Pick<AskProposal, "kind" | "payload" | "plan">>,
 ): Array<{ messageId: string; proposalId: string }> {
-  if (!created.some(startsSearch)) return [];
+  const search = created.some(startsSearch);
+  const subjects = new Set(created.flatMap((p) => subjectOf(p) ?? []));
+  const newOffer = created.some((p) => p.plan?.head?.press === "offer");
+  // An offer's plan is one card: every step of one waiting above goes with it.
+  const offers = new Set(
+    newOffer
+      ? earlier.flatMap((m) => (m.proposals ?? []).flatMap((p) => (p.plan?.head?.press === "offer" ? [p.plan.id] : [])))
+      : [],
+  );
+  const ours = new Set(created.flatMap((p) => (p.plan ? [p.plan.id] : [])));
   return earlier.flatMap((m) =>
     (m.proposals ?? [])
-      .filter((p) => !p.outcome && startsSearch(p))
+      .filter((p) => {
+        if (p.outcome) return false;
+        if (search && startsSearch(p)) return true;
+        if (p.plan) return offers.has(p.plan.id) && !ours.has(p.plan.id);
+        const subject = subjectOf(p);
+        return subject !== null && subjects.has(subject);
+      })
       .map((p) => ({ messageId: m.id, proposalId: p.id })),
   );
+}
+
+/**
+ * What a card with words is about, where a newer card of the same kind about the same thing is that card changed ("Make it
+ * shorter", D25 of the answers canvas): a reply's thread, a first message's person, a review. Null for every other card,
+ * which a newer one never sets aside.
+ */
+function subjectOf(p: Pick<AskProposal, "kind" | "payload">): string | null {
+  const pl = rec(p.payload);
+  const id =
+    p.kind === "reply"
+      ? pl.conversation_id
+      : p.kind === "person_message"
+        ? (pl.contact_id ?? pl.person_id)
+        : p.kind === "review_reply"
+          ? pl.review_id
+          : p.kind === "message"
+            ? pl.name
+            : null;
+  return typeof id === "string" && id ? `${p.kind}:${id}` : null;
 }
 
 /**
@@ -173,13 +208,25 @@ export function withAnswerLanded<M extends Pick<AskMessageVM, "id" | "proposals"
   atMs: number,
 ): M[] {
   const gone = new Set(searchCardsReplaced(messages, landed.proposals ?? []).map((r) => r.proposalId));
-  const kept = gone.size
-    ? messages.map((m) =>
-        (m.proposals ?? []).some((p) => gone.has(p.id))
-          ? { ...m, proposals: m.proposals.map((p) => (gone.has(p.id) ? { ...p, outcome: replacedOutcome(atMs) } : p)) }
-          : m,
-      )
-    : [...messages];
+  // What this turn pressed on a yes (D18 of the answers canvas) is drawn on its own card, up the thread.
+  const pressed = new Map(
+    ((landed as { pressed?: AskMessageVM["pressed"] }).pressed ?? []).map((r) => [r.proposalId, r.outcome]),
+  );
+  const kept =
+    gone.size || pressed.size
+      ? messages.map((m) =>
+          (m.proposals ?? []).some((p) => gone.has(p.id) || pressed.has(p.id))
+            ? {
+                ...m,
+                proposals: m.proposals.map((p) => {
+                  const told = pressed.get(p.id);
+                  if (told) return { ...p, outcome: told };
+                  return gone.has(p.id) ? { ...p, outcome: replacedOutcome(atMs) } : p;
+                }),
+              }
+            : m,
+        )
+      : [...messages];
   return [...kept, landed];
 }
 
