@@ -45,7 +45,7 @@ export async function refuseTurningToHand(
  * justify the work, and the "We'll tell you when it's ready" the sheet says can be kept. Best effort, as an event is.
  */
 export function recordProviderWanted(tenantId: TenantId, userId: string, provider: string): Promise<void> {
-  return emitEvent(serviceDb(), tenantId, "cold_email.provider_wanted", "workspace", tenantId, {
+  return emitEvent(serviceDb(), tenantId, "mailbox_connection.provider_wanted", "workspace", tenantId, {
     provider,
     by: userId,
   });

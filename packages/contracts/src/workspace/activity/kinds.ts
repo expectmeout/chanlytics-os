@@ -270,6 +270,7 @@ export const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base:
   ["lead.emailed", leadEmailedWords],
   ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
   ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  ["mailbox_connection.provider_wanted", (p, base) => joinBits(base, [textAt(p, "provider")])],
   // A mailbox a business connected (decision 0056): its address, and a hold with why.
   ...[
     "mailbox_connection.connected",

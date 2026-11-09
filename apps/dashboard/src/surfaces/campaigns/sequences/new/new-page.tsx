@@ -394,7 +394,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     show(d);
   });
   const made = useMake(kept, flash, letGo, reads?.draft.timezone ?? "UTC", () =>
-    setDraft((d) => (d ? { ...d, mailbox: { ids: [], label: null } } : d)),
+    setDraft((d) => (d ? { ...d, mailbox: { ids: [], label: "" } } : d)),
   );
   const busy = made.busy;
   const make = async (d: NewDraftDto, start: boolean) => {

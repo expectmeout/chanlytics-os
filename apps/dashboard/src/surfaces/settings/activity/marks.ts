@@ -93,6 +93,7 @@ const KIND_MARK: Partial<Record<string, string>> = {
   "mailbox_connection.held": "mail",
   "mailbox_connection.resumed": "mail",
   "mailbox_connection.paused": "mail",
+  "mailbox_connection.provider_wanted": "mail",
   "file.added": "image",
   "file.changed": "image",
   "file.kept": "image",

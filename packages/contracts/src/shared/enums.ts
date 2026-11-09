@@ -398,6 +398,7 @@ export const EVENT_KINDS = [
   "mailbox_connection.held",
   "mailbox_connection.resumed",
   "mailbox_connection.paused",
+  "mailbox_connection.provider_wanted",
   "mailbox_connection.unpaused",
   "mailbox_connection.removed",
   "mailbox_connection.sender_sorted",

@@ -204,7 +204,7 @@ test("Tell us takes a name that says something, and keeps it on the ledger with 
   assert.deepEqual(EVENTS, [], "nothing said, nothing kept");
   assert.deepEqual(await ask("Microsoft 365"), { told: true });
   assert.equal(EVENTS.length, 1);
-  assert.equal(EVENTS[0].kind, "cold_email.provider_wanted");
+  assert.equal(EVENTS[0].kind, "mailbox_connection.provider_wanted");
   assert.equal(EVENTS[0].tenant_id, TENANT);
   assert.deepEqual(EVENTS[0].data, { provider: "Microsoft 365", by: "u1" });
 });
