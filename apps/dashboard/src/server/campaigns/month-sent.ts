@@ -41,7 +41,7 @@ async function countedOrNull<T>(tenantId: TenantId, count: (db: CountsDb) => Pro
 }
 
 /**
- * This calendar month's first cold emails (packages/db readMonthSent, 00187), which How it reaches out says against
+ * This calendar month's first cold emails (packages/db readMonthSent, 00187), which Cold email says against
  * their share (contracts REACH_OUT_MONTH_EMAILS); null where it could not be counted, and the page says nothing of the
  * month: read as the member, it was refused, and a zero stood in for it.
  */

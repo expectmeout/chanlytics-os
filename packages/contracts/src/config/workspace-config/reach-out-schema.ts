@@ -1,5 +1,5 @@
 /**
- * How it reaches out (decision 0113): what a cold email to a business a search found is written from, the config's
+ * Cold email (decision 0113): what a cold email to a business a search found is written from, the config's
  * `reach_out` section. What the business offers them, who it is for and what it fixes; the claims it may make about
  * itself, word for word; the tone of a cold email, apart from the receptionist's; how every email signs off; and what an
  * answer to a lead who wrote back offers. Never `outreach`: that is Autonomy's policy class. What each writer reads of it

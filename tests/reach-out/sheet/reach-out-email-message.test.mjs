@@ -408,12 +408,7 @@ test("Templates: a chain's emails are messages in the list, on the Email channel
   const line = standingSaid()?.sentence ?? null;
   assert.ok(textOf(line).includes("3 templates"), "the page counts both");
   const tip = find(line, (n) => n.props?.["data-testid"] === "messages-count").props["data-tip"];
-  assert.ok(
-    tip.endsWith(
-      "The count takes 2 emails of your sequences to leads too: their own words, sent by email, with no review.",
-    ),
-    tip,
-  );
+  assert.ok(tip.endsWith("The count takes 2 cold emails too: their own words, sent by email, with no review."), tip);
   const nudge = rows[1];
   assert.equal(textOf(byTestId(nudge, "template-channels")), "Email", "the channel a message's row says");
   assert.equal(textOf(byTestId(nudge, "template-users")), "Reach out · Personal trainers");

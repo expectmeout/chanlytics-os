@@ -71,6 +71,8 @@ export interface ColdEmailStanding {
 /** What refuses a new sequence to leads with no mailbox to send it, on New, on Ask's card and at the door. */
 export const COLD_EMAIL_NEEDS_MAILBOX =
   "Connect your mailbox first: a sequence to leads sends from your own address. Settings › Cold email has the way.";
+/** Ask's word where the mailboxes could not be read: nobody is told they have none on a read that failed. */
+export const COLD_EMAIL_MAILBOX_UNREAD = "Couldn't check your mailbox just now. Try again in a moment.";
 /** What a door says to a new sequence asking to be sent by hand. */
 export const NO_SENDING_BY_HAND =
   "Chanlytics sends cold email from your mailbox, so sending each by hand isn't offered.";

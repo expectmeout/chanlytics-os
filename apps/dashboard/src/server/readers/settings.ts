@@ -241,7 +241,7 @@ export const rehearsal: Reader<{ id: string }, RehearsalDto> = {
   },
 };
 
-/* ------------------------------------------------------------ How it reaches out (decision 0113) */
+/* ------------------------------------------------------------ Cold email (decision 0113) */
 
 /** A chain's first step where it is an email with words: what Try it writes, and what the drafter reads. */
 const openingEmailOf = (chain: ReachOutChainDto) => {
@@ -249,11 +249,13 @@ const openingEmailOf = (chain: ReachOutChainDto) => {
   return first && !first.hand && first.body.trim() ? first : null;
 };
 
+/** The sequences running to leads, newest first. */
+const runningNewestFirst = (chains: readonly ReachOutChainDto[]): ReachOutChainDto[] =>
+  chains.filter((c) => c.state === "running").sort((a, b) => b.created_at.localeCompare(a.created_at));
+
 /** The newest running sequence to leads whose first step is an email: Try it's words, and Signs as' first guess. */
 export function newestLeadSequence(chains: readonly ReachOutChainDto[]): ReachOutSettingsSequence | null {
-  const chain = chains
-    .filter((c) => c.state === "running" && openingEmailOf(c))
-    .reduce<ReachOutChainDto | null>((best, c) => (!best || c.created_at > best.created_at ? c : best), null);
+  const chain = runningNewestFirst(chains).find((c) => openingEmailOf(c)) ?? null;
   const first = chain ? openingEmailOf(chain) : null;
   if (!chain || !first) return null;
   const second = chain.steps.at(1);
@@ -320,10 +322,6 @@ export function mailboxShown(
   };
 }
 
-/** The sequences running to leads, newest first. */
-const runningNewestFirst = (chains: readonly ReachOutChainDto[]): ReachOutChainDto[] =>
-  chains.filter((c) => c.state === "running").sort((a, b) => b.created_at.localeCompare(a.created_at));
-
 /** The sequence the page's one answer speaks of: one waiting for an OK, else the newest running. */
 export function standingChainOf(chains: readonly ReachOutChainDto[]): ReachOutChainDto | null {
   const running = runningNewestFirst(chains);
@@ -388,7 +386,7 @@ async function partOrElse<T>(read: Promise<T>, part: string, tenantId: TenantId,
 }
 
 /**
- * GET settings/reach-out: what How it reaches out shows beyond the config. The mailbox as Connections says it, the month's
+ * GET settings/reach-out: what Cold email shows beyond the config. The mailbox as Connections says it, the month's
  * first emails against their share, the claims' counts, the lines Ask learned from how the owner writes, the newest
  * running sequence to leads, and Autonomy's reply mode, which a lead's drafted answer follows.
  */

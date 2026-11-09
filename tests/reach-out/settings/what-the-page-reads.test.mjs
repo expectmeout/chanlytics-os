@@ -1,5 +1,5 @@
 /**
- * What How it reaches out reads beyond the config (decision 0113, GET settings/reach-out): the newest running sequence
+ * What Cold email reads beyond the config (decision 0113, GET settings/reach-out): the newest running sequence
  * Try it writes from, the claims' counts from the steps whose words carry them, and the mailbox as Connections says it.
  * The pure parts of the reader, run on chains in the shape listChains answers.
  */

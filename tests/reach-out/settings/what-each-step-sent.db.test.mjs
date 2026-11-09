@@ -1,5 +1,5 @@
 /**
- * 00567 on the database: how many emails each step sent, in one read (decision 0113), what How it reaches out counts
+ * 00567 on the database: how many emails each step sent, in one read (decision 0113), what Cold email counts
  * beside a claim. Sent alone counts; a step that sent nothing is not in the answer; a member reads their own workspace's
  * and a stranger none of it, under sequence_sends' own policy; no one signed out may ask.
  *

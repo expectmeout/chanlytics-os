@@ -27,7 +27,7 @@ const SAVE_AFTER_MS = 700;
 export type ChainSaving = "saved" | "saving" | "failed";
 
 /**
- * The draft a chain opens as, where it names no one signed: the name How it reaches out signs with (decision 0113), else
+ * The draft a chain opens as, where it names no one signed: the name Cold email signs with (decision 0113), else
  * the member's first name, as before the page.
  */
 function chainDraftOf(chain: ReachOutChainDto): ReachOutDraft {

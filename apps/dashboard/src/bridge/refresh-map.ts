@@ -668,6 +668,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  "POST settings/reach-out/provider-wanted":
+    "which mailbox a workspace would use, counted for us: its sheet says so from the answer, and no page draws it",
   "POST files/post/preview": "a post's picture is drawn for its card and kept nowhere",
   "POST files/[id]/google": "a post put on Google: its sheet says so from the answer, and the list holds nothing of it",
   "DELETE files/[id]/google":

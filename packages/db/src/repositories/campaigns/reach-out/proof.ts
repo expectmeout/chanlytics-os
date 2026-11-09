@@ -1,5 +1,5 @@
 /**
- * How many emails each step sent (decision 0113): what How it reaches out counts beside a claim, as the emails whose
+ * How many emails each step sent (decision 0113): what Cold email counts beside a claim, as the emails whose
  * step's words carry it. Sent alone: a planned, held or skipped send never reached anyone. One read however many steps
  * (00567 sequence_sent_by_step), under the caller's row security; a step that sent nothing is not in the map.
  */

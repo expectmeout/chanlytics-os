@@ -63,7 +63,7 @@ import { BtBookingLinkRow, BtGoalCard, BtTransferNumberRow, BtWhoCard } from "./
 import { LearnedFromYou } from "../autonomy/learned";
 
 /**
- * How it reaches out's cards (decision 0113), a chunk of their own, fetched as that page is drawn: Settings' other pages
+ * Cold email's cards (decision 0113), a chunk of their own, fetched as that page is drawn: Settings' other pages
  * and the first run, which draw the business's rows, carry none of them or their words (bundle-budget.mjs, a page's line).
  */
 const outreachCode = codeOnce(() => import("../outreach/cards").then(({ OutreachCards }) => ({ OutreachCards })));
@@ -465,7 +465,7 @@ export const BusinessTab = ({
   const canEdit = canDo("settings");
   const outreach = useCode(outreachCode, parts.includes("outreach"));
   const Outreach = parts.includes("outreach") ? (outreach.loaded?.OutreachCards ?? null) : null;
-  // A row an address names is looked for once the page's rows are drawn: How it reaches out's, once their chunk is in.
+  // A row an address names is looked for once the page's rows are drawn: Cold email's, once their chunk is in.
   const rowsDrawn = !!(settings && config && brain) && (!parts.includes("outreach") || !!Outreach);
   useBtOpenRow(open, rowsDrawn, canEdit);
   if (!settings || !config || !brain) return null;
@@ -512,7 +512,7 @@ export const BusinessTab = ({
           <BtRehearse canEdit={canEdit} bookingLink={brain.booking_link ?? null} />
         </>
       ) : null}
-      {/* How it reaches out (decision 0113): what a cold email is written from, its own folder's cards. */}
+      {/* Cold email (decision 0113): what a cold email is written from, its own folder's cards. */}
       {Outreach ? <Outreach brain={brain} config={config} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {parts.includes("outreach") && outreach.failed ? (
         <FailedRead kind="card" what="Cold email" onRetry={outreach.retry} testid="rec-outreach-failed" />

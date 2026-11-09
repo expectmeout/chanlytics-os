@@ -597,11 +597,11 @@ test("the mailboxes sequences write from are a row of their own: Later and greye
     by(connectionRows({ ...base(), email: { ready: true, domain: "mail.chanlytics.com", mailbox, sending } }, NOW));
 
   // No provider offered and none connected (production until Google's and Microsoft's reviews): the row is there,
-  // Later, with nothing to press, and says what happens meanwhile.
+  // Later, with nothing to press, and says what is coming.
   const later = rowsWith({ providers: [], mailboxes: [] }).mailbox;
   assert.deepEqual([later.group, later.state, later.verb, later.body], ["later", "later", null, null]);
-  assert.match(later.sentence, /Google Workspace or Microsoft 365/);
-  assert.match(later.sentence, /handed to you to send/);
+  assert.match(later.sentence, /Google Workspace mailbox/);
+  assert.doesNotMatch(later.sentence, /handed to you/);
   assert.equal(rowsWith(null).mailbox.group, "later", "an unread list offers nothing either");
 
   // A provider offered: Available, its Connect buttons in the block under the row.

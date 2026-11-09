@@ -287,7 +287,13 @@ export {
   stepWhenWords,
 } from "./sheet/words";
 export type { RunPartVM } from "./sheet/words";
-export { COLD_EMAIL_NEEDS_MAILBOX, coldEmailNoteOf, coldEmailStandingOf, NO_SENDING_BY_HAND } from "./standing";
+export {
+  COLD_EMAIL_MAILBOX_UNREAD,
+  COLD_EMAIL_NEEDS_MAILBOX,
+  coldEmailNoteOf,
+  coldEmailStandingOf,
+  NO_SENDING_BY_HAND,
+} from "./standing";
 export type {
   ColdEmailRunning,
   ColdEmailStanding,

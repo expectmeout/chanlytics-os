@@ -1,5 +1,5 @@
 /**
- * How it reaches out's section of the config (decision 0113): what it keeps and refuses, and what each writer reads when
+ * Cold email's section of the config (decision 0113): what it keeps and refuses, and what each writer reads when
  * a field is absent, which is what it read before the page existed. Every claim here runs the contracts' own code.
  */
 import { test } from "node:test";

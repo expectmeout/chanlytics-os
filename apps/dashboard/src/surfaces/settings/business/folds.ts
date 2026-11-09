@@ -160,7 +160,7 @@ const btOpenRules = (p: Profile): RulesDraft => {
 
 /** What each fold opens with, from the stored profile, brain and config: as BusinessEditor set up its state. */
 const BT_DRAFT_OF: { [F in FoldName]: (p: Profile, brain: Brain, config: Config) => DraftOf[F] } = {
-  // How it reaches out's (decision 0113): each one key of the config's own section, read off the config alone.
+  // Cold email's (decision 0113): each one key of the config's own section, read off the config alone.
   ...REACH_OUT_FOLDS.draftOf,
   tone: (p) => p.tone || "",
   phone_greeting: greetingDraftOf,

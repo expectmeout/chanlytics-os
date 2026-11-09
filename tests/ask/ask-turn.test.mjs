@@ -2708,7 +2708,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
   const wrote = await salonReport(alone);
   assert.equal(
     wrote.campaigns.head,
-    "Nothing went out in this period. Your sequences to leads wrote 40 emails to 25 businesses.",
+    "Nothing went out in this period. Your cold email sequences wrote 40 emails to 25 businesses.",
   );
   assert.equal(wrote.reach_outs.businesses.rows[0], "Written to: 25");
 

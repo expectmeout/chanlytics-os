@@ -8,7 +8,7 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { COLD_EMAIL_NEEDS_MAILBOX } from "@chanlytics/contracts";
+import { COLD_EMAIL_MAILBOX_UNREAD, COLD_EMAIL_NEEDS_MAILBOX } from "@chanlytics/contracts";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { holdsAlike, wordsLessHolds } from "@chanlytics/contracts";
@@ -47,7 +47,7 @@ const INPUT = {
 };
 
 /** The workspace: the Austin search, and its mailboxes as given (none, or one connected). */
-const worldOf = (mailboxes) =>
+const worldOf = (mailboxes, faults = {}) =>
   fakeDb(
     {
       memberships: [
@@ -59,14 +59,14 @@ const worldOf = (mailboxes) =>
       mailbox_connections: mailboxes,
       profiles: [],
     },
-    {},
+    faults,
     {},
   );
 /** A mailbox connected and sending, every column as the table holds it. */
 const CONNECTED = rows.mailboxConnection({ tenant_id: A, state: "connected" });
-const contextOver = (mailboxes) =>
+const contextOver = (mailboxes, faults) =>
   newToolContext(
-    { supabase: worldOf(mailboxes), userId: USER, email: "owner@example.com", params: {} },
+    { supabase: worldOf(mailboxes, faults), userId: USER, email: "owner@example.com", params: {} },
     A,
     "operator",
     TZ,
@@ -88,6 +88,14 @@ test("with no mailbox connected there is no card: it says what to connect, in th
   assert.equal(out.proposal, null);
   assert.equal(out.isError, true);
   assert.equal(out.refusal, COLD_EMAIL_NEEDS_MAILBOX);
+});
+
+test("a read of the mailboxes that failed says so, and never that there is none", async () => {
+  const failed = contextOver([CONNECTED], { "mailbox_connections.select": { message: "the read failed" } });
+  const out = await buildProposal(failed, "propose_sequence", { action: "cold_email", ...INPUT });
+  assert.equal(out.proposal, null);
+  assert.equal(out.isError, true);
+  assert.equal(out.refusal, COLD_EMAIL_MAILBOX_UNREAD);
 });
 
 test("with a mailbox connected nothing holds it: the mailboxes send, a row under the pace", async () => {

@@ -6,6 +6,7 @@ import {
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_GAP_FIRST,
   REACH_OUT_STEPS_MAX,
+  COLD_EMAIL_MAILBOX_UNREAD,
   COLD_EMAIL_NEEDS_MAILBOX,
   ReachOutChainSchema,
   SEQUENCE_WORDS,
@@ -16,6 +17,7 @@ import {
   UUID,
 } from "@chanlytics/contracts";
 import { getJournalMemberNames } from "@chanlytics/db/ask";
+import { logAndGoOn } from "@chanlytics/log";
 import { getStoredConfig } from "../../../../workspace/config-row";
 import { listMailboxConnections } from "../../../../connections/mailbox-connections";
 import { searchRow } from "../../../../leads/leads";
@@ -63,12 +65,14 @@ export const COLD_STEP = z.object({
 });
 
 /**
- * Whether the workspace has a mailbox that sends now, as a new sequence's make reads it (00459: connected ones only); a
- * read that fails, none.
+ * Whether the workspace has a mailbox that sends now, as a new sequence's make reads it (00459: connected ones only);
+ * null where the read failed, which is no answer: telling an owner with a mailbox to connect one would send them the wrong way.
  */
-async function hasMailbox(t: ToolContext): Promise<boolean> {
-  const boxes = await listMailboxConnections(t.ctx.supabase, t.tenantId).catch(() => []);
-  return boxes.some((m) => m.state === "connected");
+async function hasMailbox(t: ToolContext): Promise<boolean | null> {
+  const boxes = await listMailboxConnections(t.ctx.supabase, t.tenantId).catch(
+    logAndGoOn("reading the mailboxes for a cold email's card", null),
+  );
+  return boxes && boxes.some((m) => m.state === "connected");
 }
 
 /**
@@ -83,7 +87,7 @@ async function signerOf(t: ToolContext): Promise<string | null> {
       .then(parseTenantConfig)
       .catch(() => null),
   ]);
-  // The name How it reaches out signs with (decision 0113), else the member's first name, as before the page.
+  // The name Cold email signs with (decision 0113), else the member's first name, as before the page.
   return reachOutSignedByOf(config, firstNameOf(names[t.ctx.userId] ?? null, null));
 }
 
@@ -99,7 +103,9 @@ export async function proposeColdEmail(
   },
 ): Promise<ProposalOutcome> {
   // A sequence to leads sends from a mailbox: with none, the card is the way to one, in the page's words.
-  if (!(await hasMailbox(toolContext))) return refuse(COLD_EMAIL_NEEDS_MAILBOX);
+  const mailbox = await hasMailbox(toolContext);
+  if (mailbox === null) return refuse(COLD_EMAIL_MAILBOX_UNREAD);
+  if (!mailbox) return refuse(COLD_EMAIL_NEEDS_MAILBOX);
   const searchId = str(input.search_id, 40);
   const token = stepNamed(toolContext, searchId);
   let fedBy = `the leads step ${token} keeps`;

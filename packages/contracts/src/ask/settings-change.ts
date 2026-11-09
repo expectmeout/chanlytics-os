@@ -43,7 +43,7 @@ export type AskSettingsChange =
   | { op: "set_booking_link"; link: string }
   | AskFixChange
   | AskAnswersChange
-  /** A row of How it reaches out (decision 0113): its reach_out section, as the page's folds write it. */
+  /** A row of Cold email (decision 0113): its reach_out section, as the page's folds write it. */
   | AskReachOutChange;
 
 /**
@@ -119,7 +119,7 @@ type Cfg = { brain?: { profile?: Record<string, unknown> } & Record<string, unkn
 
 /**
  * A change that writes a section of its own beside the brain, or null: the photo switch is a feature (What it can do's
- * switch writes it there), and How it reaches out's rows (decision 0113) write the config's reach_out section.
+ * switch writes it there), and Cold email's rows (decision 0113) write the config's reach_out section.
  */
 type SectionChange = Extract<AskSettingsChange, { op: "set_photos" }> | AskReachOutChange;
 const isSectionChange = (change: AskSettingsChange): change is SectionChange =>

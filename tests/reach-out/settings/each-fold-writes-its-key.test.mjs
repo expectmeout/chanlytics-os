@@ -1,5 +1,5 @@
 /**
- * How it reaches out's folds (decision 0113), through the business tab's own save: every fold the save file knows that
+ * Cold email's folds (decision 0113), through the business tab's own save: every fold the save file knows that
  * writes the config's reach_out section has a real change here, which lands on its one key and leaves the rest of the
  * config exactly as it was; an emptied box takes its key away, and the section with its last key; a fold opened and
  * saved with no change writes nothing. The receptionist's folds are held the same way in

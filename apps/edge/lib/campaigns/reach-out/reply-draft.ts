@@ -28,7 +28,7 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
       holdReason: null,
       holdDetails: null,
       instruction: null,
-      // An answer offers what How it reaches out says it does (decision 0113); a line of thanks offers nothing.
+      // An answer offers what Cold email says it does (decision 0113); a line of thanks offers nothing.
       answersLead: ask.kind === "answer",
       given: null,
       deadline: ask.deadline,

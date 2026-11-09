@@ -1,5 +1,5 @@
 /**
- * Ask changes How it reaches out by a card (decision 0113): each op judged by the one change schema, applied to the
+ * Ask changes Cold email by a card (decision 0113): each op judged by the one change schema, applied to the
  * config's reach_out section as the page's own folds write it, said in the card's one line, and opened on its row. The
  * card is proposed by propose_settings' answers action, each op's own field as the schema names it (8 Nov 2026: its
  * words rode as `text` while the owner's tools stood at their ceiling), run here through the real registry.
@@ -76,7 +76,7 @@ const { buildProposal, newToolContext } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/ask/tools/index.ts")).href
 );
 
-test("Ask's answers action carries a row of How it reaches out, each op's own field, to the change its card holds", async () => {
+test("Ask's answers action carries a row of Cold email, each op's own field, to the change its card holds", async () => {
   const t = newToolContext(
     { supabase: fakeDb({}, {}, {}), userId: "u1", email: "ada@example.com", params: {} },
     "11111111-1111-4111-8111-111111111111",
@@ -91,7 +91,7 @@ test("Ask's answers action carries a row of How it reaches out, each op's own fi
   };
   const claim = await card({ op: "add_claim", claim: "We clean 40 clinics across Austin today." });
   assert.deepEqual(claim.payload.change, { op: "add_claim", claim: "We clean 40 clinics across Austin today." });
-  assert.equal(claim.title, "A claim you stand behind");
+  assert.equal(claim.title, "A fact your emails can use");
   assert.equal(claim.summary, describeSettingsChange(claim.payload.change));
   assert.deepEqual((await card({ op: "set_reply_offer", offer: "call" })).payload.change, {
     op: "set_reply_offer",
@@ -120,7 +120,7 @@ test("Ask's answers action carries a row of How it reaches out, each op's own fi
     offer: "",
   });
   // What the schema refuses is refused in its words, naming the field, never proposed: a value it does not list, a row
-  // with its field left out, and a row's words sent as text, which no row of How it reaches out takes.
+  // with its field left out, and a row's words sent as text, which no row of Cold email takes.
   const refused = async (row) => {
     const out = await buildProposal(t, "propose_settings", { action: "answers", row });
     assert.equal(out.isError, true, out.result);

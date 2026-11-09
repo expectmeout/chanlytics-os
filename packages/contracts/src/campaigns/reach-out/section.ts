@@ -1,5 +1,5 @@
 /**
- * What each writer of a cold email reads of How it reaches out (decision 0113; the config's `reach_out` section,
+ * What each writer of a cold email reads of Cold email (decision 0113; the config's `reach_out` section,
  * config-schema.ts), with what it reads where nothing is set: the offer is what the business says of itself (db
  * findWorkspaceWords: business_records.about, else its Google profile's or its website's words) and then the owner's goal;
  * the tone is the receptionist's; the sign-off is what the caller already knew. So a workspace that never opens the page

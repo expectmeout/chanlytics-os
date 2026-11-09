@@ -124,7 +124,7 @@ export interface DraftKnown {
   goal?: string | null;
   /** What the business does, in its own words (business_records.about), as the check's writer reads it (0078). */
   about?: string | null;
-  /** What a cold email offers, who it is for and what it fixes: How it reaches out's own words, where set (0113). */
+  /** What a cold email offers, who it is for and what it fixes: Cold email's own words, where set (0113). */
   offer?: string | null;
   whoFor?: string | null;
   fixes?: string | null;

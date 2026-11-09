@@ -1,5 +1,5 @@
 /**
- * How it reaches out's rows as Ask may change them (decision 0113): a change a card proposes and the owner approves,
+ * Cold email's rows as Ask may change them (decision 0113): a change a card proposes and the owner approves,
  * applied to a parsed config's reach_out section by the one writer of a key of it (writeReachOutKey), which the page's own
  * folds write through too. Ask's change schema is ask/schemas.ts's, its one door settings-change.ts.
  */

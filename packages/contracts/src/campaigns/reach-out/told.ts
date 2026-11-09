@@ -1,5 +1,5 @@
 /**
- * What it's told (decision 0113, How it reaches out): each of the three writers of a cold email, its prompt cut into the
+ * What it's told (decision 0113, Cold email): each of the three writers of a cold email, its prompt cut into the
  * parts an owner can name, each with its share of the whole and a way back to the row that writes it, as How it answers'
  * prompt sheet cuts the receptionist's (config/prompt-blocks.ts). The parts are cut from the text the writer is given,
  * never written beside it: the drafter's are the drafter's own lines (drafts/sequence.ts draftAskedParts), and the
@@ -20,7 +20,7 @@ export interface ToldPart {
   note: string;
   /** The part's own words as the writer is given them; "" where they differ every time. */
   text: string;
-  /** The row of How it reaches out that writes it, or null. */
+  /** The row of Cold email that writes it, or null. */
   row: string | null;
   /** Another page that holds it (an address), or null. */
   door: string | null;

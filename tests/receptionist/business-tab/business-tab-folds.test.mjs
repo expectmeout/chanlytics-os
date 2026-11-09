@@ -140,7 +140,7 @@ const withoutPaths = (config, paths) => {
 /**
  * One real change per fold, the test's own: from the draft the fold opens with (draftOf) to a changed one, and where
  * the change must land. Every fold of the brain the save file knows has one (the first test holds the two lists
- * together), so a new fold cannot arrive without proving it writes. How it reaches out's folds write the config's
+ * together), so a new fold cannot arrive without proving it writes. Cold email's folds write the config's
  * reach_out section, not the brain, and tests/reach-out/settings/each-fold-writes-its-key.test.mjs holds them so.
  */
 const EDITS = {

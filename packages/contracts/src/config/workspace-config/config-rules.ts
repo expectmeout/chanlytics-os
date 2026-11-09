@@ -101,7 +101,7 @@ export const BOOKING_LINK_MAX = 500;
 export const ASK_GOAL_MAX = 200;
 
 /**
- * The most each row of How it reaches out holds (decision 0113): the page's refusals say them, and each is here for what
+ * The most each row of Cold email holds (decision 0113): the page's refusals say them, and each is here for what
  * it protects, never to make an owner shorten their own words.
  *   offer, whoFor, fixes, tone   told to the writers as data and never printed, so only a guard against a whole website
  *                                pasted in, which every prompt would then carry
