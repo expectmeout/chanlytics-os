@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { coldEmailStandingOf, hasFootAddress } from "@chanlytics/contracts";
+import { coldEmailNoteOf, coldEmailStandingOf, hasFootAddress } from "@chanlytics/contracts";
 
 const NOV_9 = Date.UTC(2026, 10, 9, 15);
 const CONNECTED = { state: "connected", held_why: null };
@@ -270,4 +270,27 @@ test("the send and the page hold one rule for an address: a business name and an
   assert.equal(hasFootAddress("Brightline", "   "), false);
   assert.equal(hasFootAddress("  ", "1 Main St"), false);
   assert.equal(hasFootAddress(null, null), false);
+});
+
+test("Today says the same headline, only where it waits on the owner, and opens where the answer does", () => {
+  const held = coldEmailStandingOf(facts({ mailboxes: [{ state: "held", held_why: "bounces" }] }));
+  assert.deepEqual(coldEmailNoteOf(held), {
+    headline: "Sending paused to protect your name",
+    act: "See what to fix",
+    to: "admin/integrations",
+  });
+  assert.equal(coldEmailNoteOf(coldEmailStandingOf(facts())), null, "sending: nothing to say");
+  assert.equal(
+    coldEmailNoteOf(coldEmailStandingOf(facts({ running: [], hadSequence: false }))),
+    null,
+    "ready: nor here",
+  );
+  const left = coldEmailNoteOf(coldEmailStandingOf(nothingStarted({ hasSearch: true })));
+  assert.deepEqual(left, { headline: "2 things before your first email", act: "Open", to: "admin/outreach" });
+});
+
+test("Today's note is the page's answer, and a workspace with no search reads nothing for it", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const note = await readFile("apps/dashboard/src/surfaces/today/zones/cold-email-note.tsx", "utf8");
+  assert.match(note, /if \(!started\) return;/, "asked for only once there is a search");
 });

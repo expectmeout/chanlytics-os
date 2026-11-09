@@ -515,7 +515,7 @@ export const BusinessTab = ({
       {/* How it reaches out (decision 0113): what a cold email is written from, its own folder's cards. */}
       {Outreach ? <Outreach brain={brain} config={config} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {parts.includes("outreach") && outreach.failed ? (
-        <FailedRead kind="card" what="How it reaches out" onRetry={outreach.retry} testid="rec-outreach-failed" />
+        <FailedRead kind="card" what="Cold email" onRetry={outreach.retry} testid="rec-outreach-failed" />
       ) : null}
       {/* The sheets, LAST, after every card, through one slot (BtSheetSlot says why). Whatever card comes next goes above
           this line, and whatever sheet comes next goes through the slot; a page test holds it last. */}

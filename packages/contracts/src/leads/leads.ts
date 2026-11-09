@@ -228,6 +228,8 @@ export type { LeadEmailState, LeadFit, LeadReachFilter, LeadStatusGroup }; // A'
  * things like Claude"): what the page does for the owner, never how it is built.
  */
 const LEAD_FIRST_DAY = {
+  /** The way on to what is said to the businesses found. */
+  coldEmail: "What your emails would say: Cold email",
   title: "Find your next customers",
   sub: "We'll find them, and how to reach each one.",
   ask: "Describe who you want",

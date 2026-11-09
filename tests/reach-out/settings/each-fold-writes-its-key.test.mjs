@@ -172,7 +172,7 @@ test("a claim's refusal is said under the row it was typed in, with an empty row
       Array.from({ length: 11 }, (_, i) => String(i)),
     ),
     {
-      proof: "Up to 10 claims.",
+      proof: "Up to 10 facts.",
     },
   );
 });

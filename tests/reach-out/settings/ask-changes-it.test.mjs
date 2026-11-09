@@ -61,7 +61,7 @@ test("the schema holds each op to the section's limits", () => {
 test("the card says what it changes in the page's words", () => {
   assert.equal(
     describeSettingsChange({ op: "set_offer", offer: "Evening cleaning" }),
-    "What you offer: “Evening cleaning”",
+    "What you sell: “Evening cleaning”",
   );
   assert.equal(
     describeSettingsChange({ op: "set_reply_offer", offer: "call" }),

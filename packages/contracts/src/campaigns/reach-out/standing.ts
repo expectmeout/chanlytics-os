@@ -275,6 +275,18 @@ function sendingAnswer(f: ColdEmailStandingFacts): NonNullable<Answer> {
   };
 }
 
+/** Where the note on Today opens: the answer's own door, else the page. */
+const COLD_EMAIL_ROUTE = "admin/outreach";
+
+/**
+ * What Today says of cold email, from the one answer: where it waits on the owner, and nothing otherwise. The caller asks
+ * only once a workspace has started cold email, so a business that writes none is never asked about it (decision 0113).
+ */
+export function coldEmailNoteOf(standing: ColdEmailStanding): { headline: string; act: string; to: string } | null {
+  if (!standing.needsYou) return null;
+  return { headline: standing.headline, act: standing.act ?? "Open", to: standing.to ?? COLD_EMAIL_ROUTE };
+}
+
 /** In the order they outrank each other: a thing that stops every email first, and a thing to do before a thing to read. */
 const RULES: readonly Rule[] = [
   heldAnswer,

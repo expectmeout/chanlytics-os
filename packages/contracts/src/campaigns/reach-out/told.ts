@@ -34,13 +34,13 @@ export interface ReachOutToldDto {
 const PART = {
   rules: { label: "The rules", note: "Chanlytics keeps these for every business", row: null, door: null },
   offer: {
-    label: "What you offer",
-    note: "Your offer, who it's for, what you fix, what you do",
+    label: "Your pitch",
+    note: "What you sell, who should hear from you, the problem you solve, what you do",
     row: "offer",
     door: null,
   },
-  proof: { label: "Your proof", note: "One per email, word for word", row: "proof", door: null },
-  writes: { label: "How you write", note: "Your tone, and the lines learned from you", row: "sound", door: null },
+  proof: { label: "Your facts", note: "One per email, word for word", row: "proof", door: null },
+  writes: { label: "How you sound", note: "Your tone, and the lines learned from you", row: "sound", door: null },
   examples: {
     label: "Emails you sent before",
     note: "What Ask drafted, what you changed, what wrote back",

@@ -727,6 +727,11 @@ export function FromSheet(p: { open: boolean; draft: NewDraftDto; onConnect: () 
         )}
       </div>
       <p className="sq-nw-note">{W.checks.pace(REACH_OUT_GAP_FIRST)}</p>
+      <p className="sq-nw-note">
+        <a className="sq-nw-door" {...routeDoor("admin/outreach")} data-testid="sq-nw-from-cold-email">
+          {W.sheets.coldEmail}
+        </a>
+      </p>
     </PickSheet>
   );
 }

@@ -259,7 +259,7 @@ export {
 } from "./settings";
 export { coldEmailSendingOf } from "./sending";
 export type { ColdEmailCheck, ColdEmailHealth, ColdEmailSending } from "./sending";
-export { COLD_EMAIL_NEEDS_MAILBOX, coldEmailStandingOf, NO_SENDING_BY_HAND } from "./standing";
+export { COLD_EMAIL_NEEDS_MAILBOX, coldEmailNoteOf, coldEmailStandingOf, NO_SENDING_BY_HAND } from "./standing";
 export type {
   ColdEmailRunning,
   ColdEmailStanding,

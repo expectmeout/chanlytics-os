@@ -106,15 +106,19 @@ const REPLY_OFFER_SAID: Record<ReplyOffer, string> = {
 export function describeReachOutChange(change: AskReachOutChange): string {
   switch (change.op) {
     case "set_offer":
-      return change.offer.trim() ? `What you offer: ${quoted(change.offer)}` : "What you offer, taken away";
+      return change.offer.trim() ? `What you sell: ${quoted(change.offer)}` : "What you sell, taken away";
     case "set_who_for":
-      return change.who_for.trim() ? `Who it's for: ${quoted(change.who_for)}` : "Who it's for, taken away";
+      return change.who_for.trim()
+        ? `Who should hear from you: ${quoted(change.who_for)}`
+        : "Who should hear from you, taken away";
     case "set_fixes":
-      return change.fixes.trim() ? `What you fix for them: ${quoted(change.fixes)}` : "What you fix, taken away";
+      return change.fixes.trim()
+        ? `The problem you solve: ${quoted(change.fixes)}`
+        : "The problem you solve, taken away";
     case "add_claim":
-      return `A claim you stand behind: ${quoted(change.claim)}`;
+      return `A fact your emails can use: ${quoted(change.claim)}`;
     case "remove_claim":
-      return `No longer a claim: ${quoted(change.claim)}`;
+      return `No longer a fact: ${quoted(change.claim)}`;
     case "set_cold_tone":
       return change.tone.trim()
         ? `Cold emails sound: ${quoted(change.tone)}`

@@ -793,13 +793,13 @@ test("while someone waits on you, what is left to set up stands under the queue,
   zoneDrawn("found", true);
   assert.deepEqual(
     work(),
-    ["today-setting-up", "NeedYou", "AskFound"],
+    ["today-setting-up", "NeedYou", "ColdEmailNote", "AskFound"],
     "nobody waits on a quiet day: the chores lead, and Ask found stands wide in the work's column",
   );
   zoneDrawn("found", false);
   assert.deepEqual(
     work(),
-    ["today-setting-up", "NeedYou", "AskFound", "DayZone"],
+    ["today-setting-up", "NeedYou", "ColdEmailNote", "AskFound", "DayZone"],
     "and where Ask found has nothing either, the day stands in the one column rather than beside an empty one",
   );
   const held = { ...conversation("cv5", "Rosa Díaz", [msg({ conversation_id: "cv5" })]), state: "needs_human" };
@@ -815,7 +815,7 @@ test("while someone waits on you, what is left to set up stands under the queue,
   // as the page's children only, so the test says it for it.
   setSurfaceValue("today", toTodayVM(metrics(), [held], [hold], [], NOW));
   zoneDrawn("need-you", true);
-  assert.deepEqual(work(), ["NeedYou", "today-setting-up"], "Rosa waits: the work leads");
+  assert.deepEqual(work(), ["NeedYou", "ColdEmailNote", "today-setting-up"], "Rosa waits: the work leads");
   // A run waiting for a word is someone waiting too: a one-off broadcast waits until it is decided.
   const oneOff = {
     id: "b-one",
@@ -833,7 +833,11 @@ test("while someone waits on you, what is left to set up stands under the queue,
   setSurfaceValue("today", toTodayVM(metrics(), [], [], [], NOW));
   setSurfaceValue("broadcasts", { rows: [oneOff] });
   try {
-    assert.deepEqual(work(), ["NeedYou", "today-setting-up"], "a run waits for your OK: the work leads");
+    assert.deepEqual(
+      work(),
+      ["NeedYou", "ColdEmailNote", "today-setting-up"],
+      "a run waits for your OK: the work leads",
+    );
   } finally {
     zoneDrawn("need-you", false);
     setSurfaceValue("broadcasts", undefined);

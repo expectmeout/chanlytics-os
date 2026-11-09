@@ -331,6 +331,7 @@ export const NEW_WORDS = {
     noMailbox: "No mailbox connected",
     connectSaid: "Emails go out from your own address, so replies come back to you",
     connect: "Connect your mailbox",
+    coldEmail: "What your emails say, and how they send: Cold email",
     message: (n: number) => `Step ${n}’s message`,
     messageSub: "Yours, or one Ask writes for this step",
     writeOne: "Write one yourself",

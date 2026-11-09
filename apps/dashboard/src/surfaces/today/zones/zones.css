@@ -856,3 +856,19 @@
   font-size: var(--text-aside);
   color: var(--ink-dim);
 }
+
+/* Cold email's one line on Today, in its amber: what it waits on, and the way there. */
+.tz-cold-email {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--warn-soft);
+}
+.tz-cold-email-words {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--warn-ink);
+  text-wrap: pretty;
+}
