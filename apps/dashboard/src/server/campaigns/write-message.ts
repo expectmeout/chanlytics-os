@@ -47,10 +47,9 @@ import { findHeldMessage, listMessageVersionRows } from "@chanlytics/db/campaign
 import { submitDraft } from "@/server/campaigns/template-submit";
 import { MESSAGE_VALUES_WORDS, fileWrittenVersion, refuseWrittenUtility } from "@/server/campaigns/template-versions";
 import { log } from "@/server/shared/log";
-import type { RouteContext } from "@/server/shared/with-route";
+import { isFaultCode, type RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
 import type { TenantId } from "@chanlytics/contracts";
-import { isFaultCode } from "@/server/shared/with-route";
 
 /**
  * A message as it is written whole: its name and language, its kind, a version per channel, and the values they fill.

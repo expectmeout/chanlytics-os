@@ -203,6 +203,7 @@ export function sessionEnded(details: unknown): boolean {
 
 /** The codes that say something failed and nothing a person wrote: each reads as `internal` reads. */
 const FAULTS: ReadonlySet<string> = new Set(["internal", "unavailable", "upstream_provider"]);
+const readAs = (code: string): string => (FAULTS.has(code) ? "internal" : code);
 
 export function refusalOf(input: RefusalInput): Refusal {
   const status = Number.isFinite(input.status) ? input.status : 0;
@@ -230,7 +231,7 @@ export function refusalOf(input: RefusalInput): Refusal {
     return refusal("internal", "Out of date", OUT_OF_DATE);
   }
 
-  switch (FAULTS.has(code) ? "internal" : code) {
+  switch (readAs(code)) {
     case "unauthorized":
       return refusal(code, "Signed out", "Signed out.");
     case "network":
