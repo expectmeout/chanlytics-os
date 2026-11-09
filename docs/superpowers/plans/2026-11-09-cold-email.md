@@ -234,7 +234,7 @@ export interface ColdEmailSampleDto { fingerprint: string; stale: boolean; to: {
 
 ## Task 15: The sample and the draft on the page
 
-**Files:** `settings/outreach/sample.tsx`, `pitch.tsx`, `standing.tsx`, `facts.tsx`; `apps/dashboard/src/server/campaigns/sequences/test-mail.ts`; test `the-page.test.mjs`.
+**Files:** `settings/outreach/email-preview.tsx`, `pitch.tsx`, `standing.tsx`, `facts.tsx`; `apps/dashboard/src/server/campaigns/sequences/test-mail.ts`; test `the-page.test.mjs`.
 
 - [ ] Test: Fresh's four phones, in order. A draft shows `We drafted your pitch from your website` and "Use this pitch" saves all its keys in one save; editing a draft row stays unsaved until then; with no website, "What does your business do?" drafts through Task 14, beside `Add your website so it can read it` and `Fill it in myself`. Facts shows found facts with Add, and with none saved takes the "No facts yet" sheet's words. The sample has First email / Follow-up tabs, marks and legend, `Checked: nothing guessed, no link, no price`, a held state; tapping a marked line opens what wrote it (`words` → the pitch, `proof` → facts, ending → `ending`), the line under it says Tap on a phone and Click at a desk, and "their listing" says it comes from their listing; "Email it to me" mails only the member; an example business says so. Auto-writes at most once per fingerprint, never past the day's budget.
 - [ ] Run. Expected: FAIL. Build it. Run. Expected: PASS. Walk on a phone. Commit.

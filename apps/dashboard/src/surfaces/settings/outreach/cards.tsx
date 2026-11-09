@@ -19,7 +19,7 @@ import { KeptCard } from "./kept";
 import { NeverCard } from "./never";
 import { PitchCard } from "./pitch";
 import { RepliesCard } from "./replies";
-import { SampleCard } from "./sample";
+import { SampleCard } from "./email-preview";
 import { SendingCard } from "./sending";
 import { SoundCard } from "./sound";
 import { StandingCard } from "./standing";
