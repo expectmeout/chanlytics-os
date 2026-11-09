@@ -340,7 +340,6 @@ export {
   REACH_OUT_GAP_MINUTES,
   REACH_OUT_NAME_MAX,
   REACH_OUT_STEPS_MAX,
-  REACH_OUT_WORDS_MAX,
   reachOutRules,
   reachOutSlotFault,
   shoutingLine,

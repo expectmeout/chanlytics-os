@@ -9,7 +9,7 @@ import { slotCountIn, slotFault, slotMentions, slotsOut } from "../../templates/
 import { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SUBJECT_MAX, type ReachOutSlot } from "./slots";
 
 /** The whole email as a business reads it, the opening counted at its most (§4.4). */
-export const REACH_OUT_WORDS_MAX = 120;
+const REACH_OUT_WORDS_MAX = 120;
 
 /** Ask's own words for a step to leads, shorter than the owner may write (drafts/sequence.ts LEAD_RULES): the first. */
 export const ASK_FIRST_WORDS_MAX = 80;

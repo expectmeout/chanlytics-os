@@ -12,6 +12,7 @@ import {
   hasFootAddress,
   reachOutSignatureOf,
   textOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { gate, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -26,10 +27,11 @@ import { OutreachCard, storedReachOut, type OutreachShared } from "./card";
 
 const ENDING_WORDS = REACH_OUT_SETTINGS_WORDS.ending;
 
-const endingOf = (draft: unknown): EndingDraft => {
-  const d = (draft ?? {}) as Partial<EndingDraft>;
-  return { signed_by: textOrEmpty(d.signed_by), signature: textOrEmpty(d.signature), phone: textOrEmpty(d.phone) };
-};
+const endingOf = (draft: unknown): EndingDraft => ({
+  signed_by: textOrEmpty(valueAt(draft, "signed_by")),
+  signature: textOrEmpty(valueAt(draft, "signature")),
+  phone: textOrEmpty(valueAt(draft, "phone")),
+});
 
 /** The lines an email ends with, as the send draws them: the name, then the signature's lines and the phone. */
 const linesOf = (ending: EndingDraft): string[] =>
@@ -99,7 +101,7 @@ function EndingBox({
 
 /** The ending as it is sent, under the sheet's boxes, so a change is seen as it is typed. */
 const EndingPreview = ({ f, foot, missing }: { f: BoxFields; foot: string | null; missing: boolean }) => (
-  <div className="ro-ending ro-ending-sheet" data-testid="rec-ending-preview">
+  <div className="ro-ending ro-ending-paper" data-testid="rec-ending-preview">
     {linesOf(endingOf(f.draft)).map((line, n) => (
       <span key={n}>{line}</span>
     ))}

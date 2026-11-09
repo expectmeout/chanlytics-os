@@ -46,7 +46,7 @@ test("a mailbox on the customer's domain tops out at 20, says so, and never prom
   const new1 = read([box({ customer_domain: true })]);
   assert.equal(new1.pace, "10 a day now, 20 after 7 more days of sending");
   assert.equal(new1.ceiling, "That's the most for a mailbox on your main domain.");
-  assert.equal(new1.customerHost, "brightlinecleaning.example");
+  assert.equal(new1.customer_host, "brightlinecleaning.example");
   const weekIn = read([box({ customer_domain: true, sent_days: 7 })]);
   assert.equal(weekIn.pace, "20 a day");
   assert.equal(weekIn.ceiling, "That's the most for a mailbox on your main domain.");

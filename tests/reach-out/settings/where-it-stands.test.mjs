@@ -36,7 +36,7 @@ const ROWS = [
     headline: "Sending paused to protect your name",
     act: "See what to fix",
     to: "admin/integrations",
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "a mailbox signed out",
@@ -45,7 +45,7 @@ const ROWS = [
     headline: "Your mailbox needs reconnecting",
     act: "Reconnect",
     to: "admin/integrations",
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "nothing started, three things left",
@@ -54,7 +54,7 @@ const ROWS = [
     headline: "3 things before your first email",
     act: null,
     to: null,
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "nothing started, one thing left that is not the mailbox",
@@ -63,7 +63,7 @@ const ROWS = [
     headline: "1 thing before your first email",
     act: null,
     to: null,
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "only the mailbox left",
@@ -72,7 +72,7 @@ const ROWS = [
     headline: "Connect your mailbox to start sending",
     act: "Connect Google",
     to: null,
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "no mailbox, with a sequence running",
@@ -81,7 +81,7 @@ const ROWS = [
     headline: "Connect your mailbox to start sending",
     act: "Connect Google",
     to: null,
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "no address, with emails held for it",
@@ -90,7 +90,7 @@ const ROWS = [
     headline: "12 emails are waiting for your address",
     act: "Add your address",
     to: "admin/workspace/address",
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "no address, with one email held for it",
@@ -99,7 +99,7 @@ const ROWS = [
     headline: "1 email is waiting for your address",
     act: "Add your address",
     to: "admin/workspace/address",
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "no address and a sequence running, none held yet or the count not read",
@@ -108,7 +108,7 @@ const ROWS = [
     headline: "Your emails need your address",
     act: "Add your address",
     to: "admin/workspace/address",
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "a first run waiting",
@@ -117,7 +117,7 @@ const ROWS = [
     headline: "Your first 10 emails are ready for your OK",
     act: "Read and approve",
     to: "runs/run-1",
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "a later run waiting",
@@ -126,7 +126,7 @@ const ROWS = [
     headline: "Your next 8 emails are ready for your OK",
     act: "Read and approve",
     to: "runs/run-2",
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "a run waiting whose size was not read",
@@ -135,7 +135,7 @@ const ROWS = [
     headline: "Your first emails are ready for your OK",
     act: "Read and approve",
     to: "runs/run-3",
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "the month's allowance used",
@@ -144,7 +144,7 @@ const ROWS = [
     headline: "Paused until December 1",
     act: null,
     to: null,
-    needsYou: false,
+    needs_you: false,
   },
   {
     name: "a sequence with no one new",
@@ -153,7 +153,7 @@ const ROWS = [
     headline: "Clinics · Austin has no one new to write to",
     act: "Find more businesses",
     to: "clients/leads",
-    needsYou: true,
+    needs_you: true,
   },
   {
     name: "every mailbox paused by its owner",
@@ -162,7 +162,7 @@ const ROWS = [
     headline: "Your mailbox is paused",
     act: "Open Connections",
     to: "admin/integrations",
-    needsYou: false,
+    needs_you: false,
   },
   {
     name: "ready, and never started",
@@ -171,7 +171,7 @@ const ROWS = [
     headline: "Ready for your first sequence",
     act: "Start a sequence",
     to: "campaigns/sequences/new:leads",
-    needsYou: false,
+    needs_you: false,
   },
   {
     name: "ready, with every sequence paused",
@@ -180,7 +180,7 @@ const ROWS = [
     headline: "No sequence is running",
     act: "Start a sequence",
     to: "campaigns/sequences/new:leads",
-    needsYou: false,
+    needs_you: false,
   },
   {
     name: "sending",
@@ -189,7 +189,7 @@ const ROWS = [
     headline: "Sending",
     act: null,
     to: "campaigns",
-    needsYou: false,
+    needs_you: false,
   },
 ];
 
@@ -199,7 +199,7 @@ for (const row of ROWS) {
     assert.equal(standing.kind, row.kind);
     assert.equal(standing.headline, row.headline);
     assert.equal(standing.act, row.act);
-    assert.equal(standing.needsYou, row.needsYou);
+    assert.equal(standing.needs_you, row.needs_you);
     if (row.to !== null) assert.match(standing.to, new RegExp(row.to.replace(":", ".*")));
     else assert.equal(standing.to, null);
   });

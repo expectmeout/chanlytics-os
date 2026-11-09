@@ -62,7 +62,7 @@ export function emailRow(connectionInputs: ConnectionInputs, { nowMs }: { nowMs:
 }
 
 /** Whose mailboxes connect here: only the providers this deployment offers. */
-const providerWords = (providers: readonly string[]): string =>
+const providersSaid = (providers: readonly string[]): string =>
   [providers.includes("google") && "Google Workspace", providers.includes("microsoft") && "Microsoft 365"]
     .filter(Boolean)
     .join(" or ");
@@ -99,7 +99,7 @@ export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft 
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence: `Connect your ${providerWords(sending.providers)} mailbox: email from people comes into your Inbox, and cold email goes from it.${note ? ` ${note}` : ""}`,
+      sentence: `Connect your ${providersSaid(sending.providers)} mailbox: email from people comes into your Inbox, and cold email goes from it.${note ? ` ${note}` : ""}`,
       verb: null,
       body: "mailboxes",
     };

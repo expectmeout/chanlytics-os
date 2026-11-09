@@ -45,7 +45,7 @@ const HEALTH_TONES: Record<ColdEmailHealth, string> = {
 /** One check of the sheet: passed, failed, or could not be read, which is neither. */
 const CheckLine = ({ check, n }: { check: ColdEmailCheck; n: number }) => (
   <li className="ro-check" data-ok={check.ok === null ? "unknown" : String(check.ok)} data-testid={`rec-check-${n}`}>
-    <span className="ro-check-mark" aria-hidden="true">
+    <span className="ro-check-dot" aria-hidden="true">
       {check.ok === true ? (
         <Icon name="check" size={12} />
       ) : check.ok === false ? (
@@ -133,7 +133,7 @@ function SendingSheet(shared: OutreachShared) {
           >
             {SEND_WORDS.connections}
           </Button>
-          {sending.customerHost ? (
+          {sending.customer_host ? (
             <Button
               size="sm"
               onClick={() => {
@@ -184,7 +184,7 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
   const said = shared.read ? SEND_WORDS.batchAt[mode] : "…";
   const saving = useRef(false);
   const door = {
-    initial: mode as string,
+    initial: mode,
     pending: () => saving.current,
     save: (next: string, done: () => void) => {
       saving.current = true;
@@ -274,7 +274,7 @@ export function SendingCard(shared: OutreachShared & { again: () => void }) {
       {sending?.month ? <RecordRow id="send_month" label={SEND_WORDS.month} value={sending.month} /> : null}
       <BatchFold {...shared} />
       <SendingSheet {...shared} />
-      <SendMoreSheet host={sending?.customerHost ?? null} />
+      <SendMoreSheet host={sending?.customer_host ?? null} />
     </OutreachCard>
   );
 }

@@ -36,7 +36,7 @@ export interface ColdEmailSending {
   today: { sent: number; cap: number } | null;
   month: string | null;
   /** The domain to name a second one after, where the mailbox shown is on the customer's own: what "Send more" offers. */
-  customerHost: string | null;
+  customer_host: string | null;
 }
 
 type Mailbox = Pick<
@@ -188,6 +188,6 @@ export function coldEmailSendingOf(
       month.sent === null
         ? null
         : `${month.sent.toLocaleString("en-US")} sent, of ${month.of.toLocaleString("en-US")} included`,
-    customerHost: shown?.customer_domain ? shown.host : null,
+    customer_host: shown?.customer_domain ? shown.host : null,
   };
 }

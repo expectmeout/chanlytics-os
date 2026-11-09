@@ -76,7 +76,7 @@ const READ = {
     detail: "Clinics · Austin: 34 sent, 5 replies, 2 interested",
     act: null,
     to: "campaigns/sequences/r",
-    needsYou: false,
+    needs_you: false,
     steps: [],
   },
   sending: {
@@ -88,7 +88,7 @@ const READ = {
     checks: [{ ok: true, title: "Your domain is set up to send", detail: "Its email records are in place" }],
     today: { sent: 7, cap: 10 },
     month: "34 sent, of 2,000 included",
-    customerHost: null,
+    customer_host: null,
   },
   batch_mode: "veto",
   mailbox: null,
@@ -520,7 +520,7 @@ test("where it stands is amber where it waits on the owner, quiet where it does 
     detail: "Fix it, then resume.",
     act: "See what to fix",
     to: "admin/integrations",
-    needsYou: true,
+    needs_you: true,
     steps: [],
   };
   let tree = await drawOnRead({}, {}, (t) => textOf(byTestId(t, "rec-standing-head")) === "Sending");
@@ -546,7 +546,7 @@ test("a new account's answer lists what is left, each with its own door", async 
     detail: null,
     act: null,
     to: null,
-    needsYou: true,
+    needs_you: true,
     steps,
   };
   const tree = await drawOnRead({}, { standing }, (t) => !!byTestId(t, "rec-steps"));
@@ -563,7 +563,7 @@ test("someone who can only read is told so, and offered no press", async () => {
     detail: null,
     act: "Connect Google",
     to: null,
-    needsYou: true,
+    needs_you: true,
     steps: [],
   };
   const tree = await drawOnRead({}, { standing }, (t) => !!byTestId(t, "rec-standing-head"));
@@ -601,7 +601,7 @@ test("each press shows to whoever may do it: an operator approves a batch, and c
     detail: null,
     act: "Read and approve",
     to: "sends/33333333-3333-4333-8333-333333333333",
-    needsYou: true,
+    needs_you: true,
     steps: [],
   };
   const mailbox = {
@@ -697,7 +697,7 @@ test("Sending's sheet shows what Healthy means, and Send more only for a mailbox
   const sending = {
     ...READ.sending,
     ceiling: "That's the most for a mailbox on your main domain.",
-    customerHost: "brightline.example",
+    customer_host: "brightline.example",
   };
   tree = await drawOnRead({}, { sending }, (t) => {
     press(byTestId(t, "rec-row-act-send_from"));
@@ -892,7 +892,7 @@ test("Sending names the one door to its details, and no mailbox opens the way to
       checks: [],
       today: null,
       month: null,
-      customerHost: null,
+      customer_host: null,
     },
   };
   let empty = await drawOnRead(GOAL, none, (t) => /Connect/.test(textOf(byTestId(t, "rec-row-act-send_from") ?? "")));

@@ -12,7 +12,7 @@ import { api } from "@/bridge/api";
 import type { ApiResult } from "@/client/api";
 
 /** The page that asked, where the owner comes back to (mailbox-connections.ts CONNECT_CAME_FROM); absent, Connections. */
-export type ConnectBack = "start" | "new" | "cold_email";
+type ConnectBack = "start" | "new" | "cold_email";
 
 /**
  * To the provider's consent screen: the door is asked for the way there, and the browser leaves only when it gave one, so

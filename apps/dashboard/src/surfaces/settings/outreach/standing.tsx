@@ -31,7 +31,7 @@ const STEP_NEEDS: Record<ColdEmailStep["id"], string> = { mailbox: "settings", a
 
 const StepRow = ({ step }: { step: ColdEmailStep }) => (
   <li className="ro-step" data-done={step.done ? "true" : "false"} data-testid={`rec-step-${step.id}`}>
-    <span className="ro-step-mark" aria-hidden="true">
+    <span className="ro-step-dot" aria-hidden="true">
       {step.done ? <Icon name="check" size={12} /> : null}
     </span>
     <span className="ro-step-words">
@@ -59,7 +59,7 @@ export function StandingCard({ standing }: { standing: ColdEmailStanding | null 
     <section
       className="rec-card ro-standing"
       data-testid="rec-standing"
-      data-needs={standing.needsYou ? "true" : "false"}
+      data-needs={standing.needs_you ? "true" : "false"}
       data-kind={standing.kind}
     >
       <h2 className="ro-standing-head" data-testid="rec-standing-head">
@@ -82,7 +82,7 @@ export function StandingCard({ standing }: { standing: ColdEmailStanding | null 
         <span>
           <Button
             size="sm"
-            variant={standing.needsYou ? "primary" : undefined}
+            variant={standing.needs_you ? "primary" : undefined}
             onClick={pressOf(standing)}
             data-testid="rec-standing-act"
           >

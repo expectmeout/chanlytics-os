@@ -5,6 +5,7 @@
  */
 import { mailboxHoldWords } from "../../email/mailbox-standing";
 import { leadsRoute } from "../../leads/plan";
+import { dayInZone, usableZone } from "../../shared/zone/math";
 import { newForLeadsRoute, runRoute, sequenceRoute } from "../sequences/address";
 
 export type ColdEmailStandingKind =
@@ -63,7 +64,7 @@ export interface ColdEmailStanding {
   /** Where its press goes, or null where the page opens something of its own (Connect, a step's own door). */
   to: string | null;
   /** Whether it waits on the owner: drawn amber, and what Today speaks up about. */
-  needsYou: boolean;
+  needs_you: boolean;
   /** What is left before a first email, in the order a person does it. */
   steps: ColdEmailStep[];
 }
@@ -91,7 +92,7 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
 const sentence = (clause: string): string => `${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`;
 
 /** What is left before a first email: said on a new account, and read by the one that has only one thing left. */
-function stepsOf(f: ColdEmailStandingFacts): ColdEmailStep[] {
+function stepsLeftOf(f: ColdEmailStandingFacts): ColdEmailStep[] {
   return [
     {
       id: "mailbox",
@@ -116,12 +117,8 @@ function stepsOf(f: ColdEmailStandingFacts): ColdEmailStep[] {
 
 /** The first of next month in the workspace's own calendar, as "December 1". */
 function nextMonthWords(nowMs: number, tz: string): string {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "numeric" }).formatToParts(
-    nowMs,
-  );
-  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value);
-  const next = new Date(Date.UTC(part("year"), part("month"), 1));
-  return next.toLocaleDateString("en-US", { timeZone: "UTC", month: "long", day: "numeric" });
+  const { y, m } = dayInZone(usableZone(tz), nowMs);
+  return new Date(Date.UTC(y, m, 1)).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", day: "numeric" });
 }
 
 /** A rule's answer, or null where it says nothing and the next one speaks. */
@@ -137,7 +134,7 @@ const heldAnswer: Rule = (f) => {
     detail: `${sentence(mailboxHoldWords(held.held_why))} Fix it, then resume.`,
     act: "See what to fix",
     to: CONNECTIONS_ROUTE,
-    needsYou: true,
+    needs_you: true,
   };
 };
 
@@ -149,7 +146,7 @@ const reconnectAnswer: Rule = (f) =>
         detail: "Google asked you to sign in again. Your emails are waiting, and they go on where they stopped.",
         act: "Reconnect",
         to: CONNECTIONS_ROUTE,
-        needsYou: true,
+        needs_you: true,
       }
     : null;
 
@@ -163,7 +160,7 @@ const notStartedAnswer: Rule = (f, left) => {
     detail: null,
     act: null,
     to: null,
-    needsYou: true,
+    needs_you: true,
   };
 };
 
@@ -175,7 +172,7 @@ const noMailboxAnswer: Rule = (f) =>
         detail: "Emails go out from your own address, so replies come back to you. Nothing can go out without one.",
         act: "Connect Google",
         to: null,
-        needsYou: true,
+        needs_you: true,
       }
     : null;
 
@@ -189,7 +186,7 @@ const noAddressAnswer: Rule = (f) => {
     detail: "The law asks for one in every cold email, so nothing goes out without it.",
     act: "Add your address",
     to: ADDRESS_ROUTE,
-    needsYou: true,
+    needs_you: true,
   };
 };
 
@@ -203,7 +200,7 @@ const waitingAnswer: Rule = (f) => {
     detail: `Written and checked for ${run.name}. Nothing goes out until you say so.`,
     act: "Read and approve",
     to: runRoute(run.id),
-    needsYou: true,
+    needs_you: true,
   };
 };
 
@@ -215,7 +212,7 @@ const monthAnswer: Rule = (f) =>
         detail: `You've sent this month's ${f.month.of.toLocaleString("en-US")} first emails. Follow-ups and replies keep going.`,
         act: null,
         to: null,
-        needsYou: false,
+        needs_you: false,
       }
     : null;
 
@@ -228,7 +225,7 @@ const noOneNewAnswer: Rule = (f) => {
         detail: "Its follow-ups keep going. Find more businesses, or try a nearby city.",
         act: "Find more businesses",
         to: leadsRoute({}),
-        needsYou: true,
+        needs_you: true,
       }
     : null;
 };
@@ -241,7 +238,7 @@ const pausedAnswer: Rule = (f) =>
         detail: "Nothing goes out until you resume it.",
         act: "Open Connections",
         to: CONNECTIONS_ROUTE,
-        needsYou: false,
+        needs_you: false,
       }
     : null;
 
@@ -255,7 +252,7 @@ const readyAnswer: Rule = (f) =>
           : "Pick who to write to, and Ask writes the emails from your pitch. You approve the first run before anything goes out.",
         act: "Start a sequence",
         to: newForLeadsRoute(),
-        needsYou: false,
+        needs_you: false,
       }
     : null;
 
@@ -280,7 +277,7 @@ function sendingAnswer(f: ColdEmailStandingFacts): NonNullable<Answer> {
     detail: named && more > 0 ? `${named}. And ${more} more running` : named,
     act: null,
     to: newest?.root_id ? sequenceRoute(newest.root_id) : "campaigns",
-    needsYou: false,
+    needs_you: false,
   };
 }
 
@@ -292,7 +289,7 @@ const COLD_EMAIL_ROUTE = "admin/outreach";
  * only once a workspace has started cold email, so a business that writes none is never asked about it (decision 0113).
  */
 export function coldEmailNoteOf(standing: ColdEmailStanding): ColdEmailNote | null {
-  if (!standing.needsYou) return null;
+  if (!standing.needs_you) return null;
   return { headline: standing.headline, act: standing.act ?? "Open", to: standing.to ?? COLD_EMAIL_ROUTE };
 }
 
@@ -312,7 +309,7 @@ const RULES: readonly Rule[] = [
 
 /** The one answer for where cold email stands, from what the reader found. */
 export function coldEmailStandingOf(f: ColdEmailStandingFacts): ColdEmailStanding {
-  const steps = stepsOf(f);
+  const steps = stepsLeftOf(f);
   const left = steps.filter((s) => !s.done);
   for (const rule of RULES) {
     const answer = rule(f, left);

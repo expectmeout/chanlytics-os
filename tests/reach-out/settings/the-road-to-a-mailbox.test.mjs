@@ -23,7 +23,7 @@ const STANDING = {
   detail: "Emails go out from your own address, so replies come back to you. Nothing can go out without one.",
   act: "Connect Google",
   to: null,
-  needsYou: true,
+  needs_you: true,
   steps: [],
 };
 const READ = {
@@ -37,7 +37,7 @@ const READ = {
     checks: [],
     today: null,
     month: null,
-    customerHost: null,
+    customer_host: null,
   },
   batch_mode: "ask",
   never: null,

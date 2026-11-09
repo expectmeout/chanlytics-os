@@ -3,7 +3,7 @@
 // into their tables, so the page's rows save through the tab's one saver as every row of the business does. Pure, and
 // no JSX.
 
-import { textOrEmpty, writeReachOutKey, type ReachOutConfig } from "@chanlytics/contracts";
+import { textOrEmpty, valueAt, writeReachOutKey, type ReachOutConfig } from "@chanlytics/contracts";
 import type { DraftOf, EndingDraft, FoldName } from "../business/fold-shapes";
 import { trimmed, type Config } from "../business/save";
 
@@ -72,8 +72,7 @@ const WRITE: { [F in ReachOutFoldName]: (next: Config, draft: unknown) => void }
   proof: writeFold("proof"),
   sound: writeFold("sound"),
   ending: (next, draft) => {
-    const ending = (draft ?? {}) as Partial<EndingDraft>;
-    for (const key of ENDING_KEYS) writeReachOutKey(next, key, textOrEmpty(ending[key]));
+    for (const key of ENDING_KEYS) writeReachOutKey(next, key, textOrEmpty(valueAt(draft, key)));
   },
   reply_offer: writeFold("reply_offer"),
 };

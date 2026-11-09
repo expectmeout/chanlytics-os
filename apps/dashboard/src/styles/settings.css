@@ -1755,19 +1755,19 @@ html.frame-on .bt-link { position: relative; }
 .ro-standing[data-needs="true"] { background: var(--warn-soft); }
 .ro-standing-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold, 600); color: var(--ink); text-wrap: pretty; }
 .ro-standing[data-needs="true"] .ro-standing-head { color: var(--warn-ink); }
-.ro-standing-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.ro-standing-dot { flex: none; width: 8px; height: 8px; border-radius: var(--radius-full); background: var(--ok); }
 .ro-standing-detail { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); text-wrap: pretty; }
 /* A list a line each: what is left before a first email, a sending check, what a reply sets off. */
 .ro-steps { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; width: 100%; }
 .ro-step, .ro-check { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
-.ro-step-mark, .ro-check-mark { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); color: var(--ok-ink); }
-.ro-step[data-done="true"] .ro-step-mark { background: var(--ok-soft); border-color: transparent; }
-.ro-check[data-ok="true"] .ro-check-mark { background: var(--ok-soft); border-color: transparent; }
-.ro-check[data-ok="false"] .ro-check-mark { background: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
+.ro-step-dot, .ro-check-dot { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: var(--radius-full); border: 1px solid var(--line); color: var(--ok-ink); }
+.ro-step[data-done="true"] .ro-step-dot { background: var(--ok-soft); border-color: transparent; }
+.ro-check[data-ok="true"] .ro-check-dot { background: var(--ok-soft); border-color: transparent; }
+.ro-check[data-ok="false"] .ro-check-dot { background: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
 .ro-step-words { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
 .ro-facts-add { display: block; padding-block: 8px; }
 /* A step's door keeps a finger's height on a phone, and takes no more room than its line: what it overlaps is words. */
-@media (max-width: 899.98px) { .ro-step-door { margin-block: -12px; } }
+@media (max-width: 900px) { .ro-step-door { margin-block: -12px; } }
 .ro-step-words > small { font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); }
 .ro-step[data-done="true"] .ro-step-words { color: var(--ink-dim); }
 /* Cold email's claims (decision 0113): one box a claim and its remove beside it, under the notes' rules. */
@@ -1782,8 +1782,8 @@ html.frame-on .bt-link { position: relative; }
 .ro-use-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* How an email ends, as it is sent: a line each, and in a sheet the foot under them in the small dim words. */
 .ro-ending { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
-.ro-ending-sheet { gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--line); font-size: var(--text-sm); }
-.ro-ending-sheet > small { margin-top: 8px; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); white-space: pre-line; }
+.ro-ending-paper { gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--line); font-size: var(--text-sm); }
+.ro-ending-paper > small { margin-top: 8px; font-size: var(--text-xs); line-height: var(--leading-normal); color: var(--ink-dim); white-space: pre-line; }
 /* What it learned from how the owner writes, in How you sound's sheet. */
 .ro-learned { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; font-size: var(--text-sm); color: var(--ink-muted); }
 .ro-learned-head { font-size: var(--text-xs); color: var(--ink-dim); }
