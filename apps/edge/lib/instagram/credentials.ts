@@ -15,7 +15,7 @@
  * or a read that failed (nothing sent and nothing failed: the job waits for a heartbeat that can read the Vault).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendInstagramText, type InstagramConfig } from "@chanlytics/channels/instagram";
+import { metaAppSecretProof, sendInstagramText, type InstagramConfig } from "@chanlytics/channels/instagram";
 import type { SendResult } from "@chanlytics/channels/whatsapp";
 import {
   listActiveChannelRows,
@@ -32,19 +32,50 @@ import {
   type Sender,
   type WireUnavailable,
 } from "@chanlytics/core";
+import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
-/** What the Vault keeps for an Instagram account: its 60-day token, the account it speaks for, and the token's clock. */
+/**
+ * What the Vault keeps for an Instagram account: its token, the account it speaks for, and the token's clock. Through
+ * Instagram's own login the token lives 60 days and the sweep refreshes it; through Meta (`login: "meta"`, the Meta link) it
+ * is the business's own and lasts until the business takes it back, so the sweep asks Meta about it instead.
+ */
 export interface InstagramSecret {
   access_token: string;
   account_id: string;
-  /** When the token lapses unless refreshed (Meta's expires_in, from the moment it was given). */
+  /** When the token lapses unless refreshed (Meta's expires_in, from the moment it was given); null for never. */
   expires_at: string | null;
   /** When it was given or last refreshed: Meta refreshes a token only once it is a day old. */
   refreshed_at: string;
+  /** Present for an account connected through Meta: its calls go to Facebook's host, each with the token's proof. */
+  login?: "meta";
+  /** The business portfolio the token belongs to (`/me`'s client_business_id), for an account connected through Meta. */
+  business_id?: string | null;
+  /** What the token was granted, as Meta named it when it was last asked. */
+  scopes?: string[];
+}
+
+/** The account as a send speaks for it: on Facebook's host with the proof where it came through Meta. */
+function configOf(c: Partial<InstagramSecret> & { access_token: string; account_id: string }): InstagramConfig {
+  if (c.login !== "meta") return { accessToken: c.access_token, accountId: c.account_id };
+  const secret = env.META_APP_SECRET;
+  return {
+    accessToken: c.access_token,
+    accountId: c.account_id,
+    graph: "facebook",
+    ...(secret ? { proof: metaAppSecretProof(c.access_token, secret) } : {}),
+  };
+}
+
+/**
+ * What the Vault keeps for an account, as kept: the one read of a secret every Instagram module takes (a send, the sweep,
+ * the Meta link's connect and disconnect). Null for nothing kept. A read that fails THROWS.
+ */
+export async function readKeptSecret(db: Db, channelId: string): Promise<Partial<InstagramSecret> | null> {
+  return (await readChannelSecret(db, channelId)) as Partial<InstagramSecret> | null;
 }
 
 /** The account's token as a send needs it, from its row's Vault reference; a row with no reference holds none. */
@@ -54,9 +85,9 @@ export async function getInstagramCredentials(
 ): Promise<CredentialsRead<InstagramConfig>> {
   if (!row.credentials_ref) return { outcome: "absent" };
   try {
-    const c = (await readChannelSecret(db, row.id)) as Partial<InstagramSecret> | null;
+    const c = await readKeptSecret(db, row.id);
     return c?.access_token && c.account_id
-      ? { outcome: "present", credentials: { accessToken: c.access_token, accountId: c.account_id } }
+      ? { outcome: "present", credentials: configOf({ ...c, access_token: c.access_token, account_id: c.account_id }) }
       : { outcome: "absent" };
   } catch (e) {
     logger().error("ig_credentials_unreadable", { channel_id: row.id, error: errField(e) });

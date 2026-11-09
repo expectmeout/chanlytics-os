@@ -239,6 +239,7 @@ export { answeredMedianMs, supportDue, supportPageOf, supportQueueOf, supportQui
 export { businessMsBetween, firstNameOfAddress, SUPPORT_KIND_FILTER_WORDS, SUPPORT_KIND_FILTERS, SUPPORT_PAGE, SUPPORT_READ_DAYS, SUPPORT_VIEW_WORDS, SUPPORT_VIEWS, SUPPORT_ZONE, supportDueAt, supportWaitOf } from "./console/support-queue/waits";
 export { askCode, askDoneOf, cameInOf, FIND_KINDS, FIND_LIMITS, findDigits, findGroups, inboxHomeUrl, inboxSearchUrl, SUPPORT_KIND_WORDS, SUPPORT_TOPICS, SUPPORT_WORDS, supportPathOf, supportTopicOf } from "./console/support/asks";
 export { pageWords, reportCode, reportOf, SETUP_ASK_WORDS, supportClusters } from "./console/support/reports";
+export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./content/lines";
 export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONNECTION_LABELS, MISSED_CALL_LINE, missedCall, neverConnected, reachedVoicemail, UNCONNECTED_DIAL_LINE } from "./conversations/call-dto";
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
 export { dockLineOf, DRAFTED_TODO, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdToDoOf, holdWaits, OPEN_HOLDS_READ_MAX, PITCH_TODO, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";

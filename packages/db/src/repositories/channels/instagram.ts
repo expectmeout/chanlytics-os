@@ -64,6 +64,26 @@ export async function findInstagramAccountHolder(
 }
 
 /**
+ * This workspace's own row for an Instagram account, as it stands: what a connect over it puts back when the new token
+ * could not be kept (the Meta link taking over a working account). Null for none. A read that fails THROWS.
+ */
+export async function findInstagramAccountRow(
+  db: Db,
+  tenantId: TenantId,
+  accountId: string,
+): Promise<{ id: string; status: string; config: Json; credentials_ref: string | null } | null> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("id, status, config, credentials_ref")
+    .eq("kind", "instagram")
+    .eq("external_id", accountId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "findInstagramAccountRow");
+  return data;
+}
+
+/**
  * An account's row, written for THIS workspace: an update of the row it holds, else an insert, written disabled (it
  * routes only once its token is in the Vault), that the unique (kind, external_id) refuses when another workspace raced
  * it there; this workspace's own row found that way is a double submit. Its id, `taken`, or `failed` with the words.
@@ -141,7 +161,14 @@ export async function noteInstagramToken(
   db: Db,
   channelId: string,
   config: Json,
-  note: { token_refreshed_at?: string; token_expires_at?: string | null; token_lapsed_at?: string | null },
+  note: {
+    token_refreshed_at?: string;
+    token_expires_at?: string | null;
+    token_lapsed_at?: string | null;
+    /** An account connected through Meta: when its token was last asked about, and what it may do (contracts metaLinesOf). */
+    token_checked_at?: string;
+    scopes?: string[];
+  },
 ): Promise<boolean> {
   const base = config && typeof config === "object" && !Array.isArray(config) ? config : {};
   const { data, error } = await db

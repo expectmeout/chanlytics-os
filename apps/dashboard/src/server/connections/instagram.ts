@@ -65,12 +65,39 @@ export async function readInstagram(member: Member): Promise<{ ready: boolean; c
   return { ready, can_connect: ready && !!ROLE_PERMS[member.role]?.settings };
 }
 
+/** What a login's return address carries (Instagram's own, or Meta's: meta.ts): the provider's refusal, the state, the code. */
+export function loginReturnOf(req: Request): {
+  origin: string;
+  refused: string | null;
+  state: string | null;
+  code: string;
+} {
+  const q = new URL(req.url);
+  return {
+    origin: q.origin,
+    refused: q.searchParams.get("error"),
+    state: q.searchParams.get("state"),
+    code: q.searchParams.get("code") ?? "",
+  };
+}
+
 /**
- * Where the browser lands after Instagram: Connections, with the outcome in a word the row reads once, on the workspace's
- * own address once the signed state has proved whose workspace it was (contracts appLink), else on the front door.
+ * The way back to Connections after a login, with the outcome in a word its row reads once (`instagram`, `meta`), on the
+ * workspace's own address once the signed state has proved whose workspace it was (contracts appLink), else on the front
+ * door. `slugOf` is asked as the redirect is made: the slug is known only once the state has proved itself.
  */
-function afterInstagram(origin: string, outcome: string, reason?: string, slug?: string | null): string {
-  return `${origin}${appLink(slug, "admin/integrations", { instagram: outcome, why: reason || null })}`;
+export function backToConnections(
+  key: "instagram" | "meta",
+  origin: string,
+  slugOf: () => string | null,
+): (outcome: string, reason?: string) => Response {
+  return (outcome, reason) =>
+    new Response(null, {
+      status: 302,
+      headers: {
+        location: `${origin}${appLink(slugOf(), "admin/integrations", { [key]: outcome, why: reason || null })}`,
+      },
+    });
 }
 
 /** `GET channels/instagram/connect`: a signed state naming the workspace and the person, then Instagram's consent screen. */
@@ -96,16 +123,15 @@ export async function startInstagramConnect(ctx: RouteContext, member: Member): 
  * it. Every outcome is a redirect to Connections with one word the row reads once.
  */
 export async function handleInstagramCallback(ctx: RouteContext, req: Request): Promise<Response> {
-  const url = new URL(req.url);
+  const loginReturn = loginReturnOf(req);
   let slug: string | null = null;
-  const back = (outcome: string, reason?: string) =>
-    new Response(null, { status: 302, headers: { location: afterInstagram(url.origin, outcome, reason, slug) } });
+  const back = backToConnections(PROVIDER, loginReturn.origin, () => slug);
   // A person who pressed Cancel on Instagram's screen comes back with error=access_denied.
-  const refused = url.searchParams.get("error");
+  const refused = loginReturn.refused;
   if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
-  const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
+  const proof = await verifyState(secret, loginReturn.state, Date.now());
   if (!proof.ok) return back("error", `state_${proof.reason}`);
   if (proof.state.p !== PROVIDER) return back("error", "state_malformed");
   if (proof.state.u !== ctx.userId) return back("error", "someone_else");
@@ -118,7 +144,7 @@ export async function handleInstagramCallback(ctx: RouteContext, req: Request): 
   } catch {
     return back("error", "no_workspace");
   }
-  const code = url.searchParams.get("code") ?? "";
+  const code = loginReturn.code;
   if (!code) return back("error", "no_code");
   const answer = await edgeInstagram({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
   const body = answer.body ?? {};

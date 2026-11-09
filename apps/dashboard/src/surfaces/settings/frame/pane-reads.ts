@@ -48,6 +48,8 @@ export const teamPartnerRead = keptRead("team-partner", () => api()("GET team/pa
 export const signupDoorRead = keptRead("whatsapp-door", () => api()("GET channels/whatsapp/signup"));
 /** Instagram's door: whether an account can be connected here, and by this member (connections/instagram.ts). */
 export const instagramDoorRead = keptRead("instagram-door", () => api()("GET channels/instagram"));
+/** The Meta link's door: whether this workspace may connect Meta, and this member may (connections/meta.ts). */
+export const metaDoorRead = keptRead("meta-door", () => api()("GET channels/meta"));
 /** The member's saved views, where Profile keeps how Ask answers them (profile/pane.tsx AnswerStyle). */
 export const savedViewsRead = keptRead("profile-views", () => api()("GET views"));
 /** What How it reaches out shows beyond the config: its mailbox, the month, the claims' counts, the voice (0113). */
@@ -68,8 +70,8 @@ interface PaneRead {
 const PANE_READS: Readonly<Record<string, PaneRead>> = {
   team: { held: () => teamPartnerRead.held() !== null, warm: () => teamPartnerRead.warm() },
   integrations: {
-    held: () => signupDoorRead.held() !== null && instagramDoorRead.held() !== null,
-    warm: () => settledAll([signupDoorRead.warm(), instagramDoorRead.warm()]),
+    held: () => signupDoorRead.held() !== null && instagramDoorRead.held() !== null && metaDoorRead.held() !== null,
+    warm: () => settledAll([signupDoorRead.warm(), instagramDoorRead.warm(), metaDoorRead.warm()]),
   },
   profile: { held: () => savedViewsRead.held() !== null, warm: () => savedViewsRead.warm() },
   outreach: { held: () => reachOutSettingsRead.held() !== null, warm: () => reachOutSettingsRead.warm() },
