@@ -67,7 +67,7 @@ export interface OpenClock {
 }
 
 /** What a call asks now: wait until a time, call, let it go, or (with no number) open the thread. */
-export type CallMoment =
+type CallMoment =
   { lead: "wait"; until: string; back: string } | { lead: "call" } | { lead: "mark" } | { lead: "open" };
 
 /** A time they said they are free from: "after 4 PM", "after 4", "after 4:30 pm". Morning hours need their AM. */
@@ -133,7 +133,7 @@ export const callWhoOf = (who: string): string => (/^[+\d(]/.test(who) ? "them" 
 /* ------------------------------------------------ a reply to a reach-out */
 
 /** What a reading's sheet says has already been done, and which presses are left. */
-export interface ReadingMoment {
+interface ReadingMoment {
   /** What was done, in a line with a green dot; for an automatic reply, what it is. */
   did: string;
   tone: "ok" | "plain";
@@ -202,7 +202,7 @@ export const staleRow = (row: Pick<TodayQueueRowVM, "waitedMs" | "kind">): boole
   row.kind !== "held" && row.waitedMs >= NEED_YOU_OLD_MS;
 
 /** One part of a day as a share of its working hours, for a booking's strip. */
-export interface DayStripPart {
+interface DayStripPart {
   from: number;
   width: number;
 }

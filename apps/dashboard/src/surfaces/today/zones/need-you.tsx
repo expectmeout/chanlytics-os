@@ -395,6 +395,35 @@ function useOldWalk(walkTo: (at: WalkAt) => void) {
   return { walkingOld, setWalkingOld, setWalk, endOf };
 }
 
+/**
+ * The phone's walk of the list. Whoever has waited past a week is no part of the morning (his call D7): their own walk starts from
+ * the Older row, or from the walk's end.
+ */
+function phoneWalk(p: {
+  groups: ReturnType<typeof needYouGroupsOf<TodayQueueRowVM>>;
+  drawn: Drawn;
+  order: readonly TodayQueueRowVM[];
+  at: WalkAt;
+  oldWalk: ReturnType<typeof useOldWalk>;
+  handed: (back: HandedBack) => void;
+  ctx: NeedYouRowsCtx;
+  todo: ReturnType<typeof useToDoRows>;
+}) {
+  const { groups, drawn, oldWalk, todo } = p;
+  const cut = groups.waiting.length - drawn.waiting.length;
+  return listWalk(
+    oldWalk.walkingOld ? groups.old : [...p.order, ...todo.walk.rows],
+    {
+      walk: p.at,
+      setWalk: oldWalk.setWalk,
+      more: cut > 0 ? { count: cut, to: "inbox" } : null,
+      older: oldWalk.walkingOld ? null : oldWalk.endOf(groups.old, p.handed),
+    },
+    p.ctx,
+    todo,
+  );
+}
+
 const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   // The runs (Sent's), the reviews and the people move the parts of the list; the replies to a reach-out move a row read
   // as that reply's (contracts withReplies). Today owns those reads, so this redraws and reads nothing.
@@ -407,7 +436,7 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   const [older, setOlder] = useState<OlderHanded | null>(null);
   const { phone, walk, setWalk: walkTo } = usePhoneWalk();
   const oldWalk = useOldWalk(walkTo);
-  const { walkingOld, setWalkingOld, setWalk } = oldWalk;
+  const { setWalkingOld, setWalk } = oldWalk;
   // The runs with an Approve or a Cancel on its way: their buttons wait for the server (S9-10).
   const acting = useRunsActing();
   const nav: Nav = (to) => appNavigate(to);
@@ -499,28 +528,20 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
       callsUnread={vm.callsRead === false}
       walk={
         phone
-          ? listWalk(
-              // Whoever has waited past a week is no part of the morning (his call D7): their own walk starts from the Older
-              // row, or from the walk's end.
-              walkingOld ? groups.old : [...order, ...todo.walk.rows],
-              {
-                walk,
-                setWalk,
-                more:
-                  groups.waiting.length > drawn.waiting.length
-                    ? { count: groups.waiting.length - drawn.waiting.length, to: "inbox" }
-                    : null,
-                older: walkingOld
-                  ? null
-                  : oldWalk.endOf(groups.old, (back) => {
-                      if (!back.done) return ppFlash({ tone: "danger", msg: <>{handedBackWords(back)}</> });
-                      setOlder({ rows: groups.old, handed: back });
-                      ppFlash({ tone: "ok", msg: <>{handedBackWords(back)}</> });
-                    }),
+          ? phoneWalk({
+              groups,
+              drawn,
+              order,
+              at: walk,
+              oldWalk,
+              handed: (back) => {
+                if (!back.done) return ppFlash({ tone: "danger", msg: <>{handedBackWords(back)}</> });
+                setOlder({ rows: groups.old, handed: back });
+                ppFlash({ tone: "ok", msg: <>{handedBackWords(back)}</> });
               },
               ctx,
               todo,
-            )
+            })
           : null
       }
       toasts={

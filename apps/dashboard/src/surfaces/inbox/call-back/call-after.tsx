@@ -6,13 +6,13 @@
 import { useState, useSyncExternalStore } from "react";
 import { NEED_YOU_WORDS as W, callDays } from "@chanlytics/contracts";
 import { commitVerb } from "@/bridge/verbs/commit";
-import { Button } from "../kit/button/button";
-import { Icon } from "../kit/icon/icon";
-import { Notice } from "../kit/notice/notice";
-import { callMomentOf } from "../today/need-you/sheet/moment";
-import { openClockOf } from "../today/need-you/sheet/reads";
-import { clockZone, gate, useToast } from "./shell";
-import type { Thread } from "./types";
+import { Button } from "../../kit/button/button";
+import { Icon } from "../../kit/icon/icon";
+import { Notice } from "../../kit/notice/notice";
+import { callMomentOf } from "../../today/need-you/sheet/moment";
+import { openClockOf } from "../../today/need-you/sheet/reads";
+import { clockZone, gate, useToast } from "../shell";
+import type { Thread } from "../types";
 
 const called = new Set<string>();
 const calledHearers = new Set<() => void>();

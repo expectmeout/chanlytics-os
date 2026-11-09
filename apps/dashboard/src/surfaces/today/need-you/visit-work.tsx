@@ -23,8 +23,6 @@ import { Acts, Done, Going, Note, State, Words, Writing, startKind, whoseWords, 
 import { useRowState } from "./row-state";
 import { sendWords, undoSend, useSend } from "./sends";
 
-const firstNameOf = shortName;
-
 /** The way a first message to a person can go with words of the member's own: theirs by default, else any that takes words. */
 function wordsWay(reach: PersonReachDto): PersonReachDto["ways"][number] | null {
   const takes = (w: PersonReachDto["ways"][number]) => w.ok && w.carries === "words";
@@ -167,7 +165,7 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
     );
   return (
     <>
-      <State>{W.visit.missedOffer(firstNameOf(row.who))}</State>
+      <State>{W.visit.missedOffer(shortName(row.who))}</State>
       {send?.state === "stopped" ? <Note>{W.canceled}</Note> : null}
       {written}
       <Acts
@@ -221,7 +219,7 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
   );
   return (
     <>
-      {p.whole ? <State>{W.visit.didCome(firstNameOf(row.who))}</State> : null}
+      {p.whole ? <State>{W.visit.didCome(shortName(row.who))}</State> : null}
       <Acts
         foot={p.foot}
         start={second ? press(second, startKind(p.foot)) : null}

@@ -197,6 +197,3 @@ export function callSellingOf(answer: unknown): string | null {
   const what = typeof a.what === "string" ? a.what.trim() : "";
   return what || "someone selling to you";
 }
-
-/** The most a draft may take. */
-export const DRAFT_MAX_TOKENS = 900;

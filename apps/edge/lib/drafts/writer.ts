@@ -251,6 +251,23 @@ const noWords = (r: { reason?: string; text: string }): boolean =>
 const instructionOf = (ask: ReplyDraftAsk, rt: TenantRuntime): string | null =>
   ask.answersLead ? replyOfferSteer(rt.replyOffer) : ask.instruction;
 
+/**
+ * What the brain is asked to change, and what it was given to say. Only the member's own words are theirs to give figures in, and
+ * only those get the open times: an answer to a lead steered by Settings stays a steer.
+ */
+async function changeAsked(
+  rt: TenantRuntime,
+  at: Date,
+  tenantId: TenantId,
+  ask: ReplyDraftAsk,
+): Promise<{ change: string | undefined; given: string | null }> {
+  const instruction = instructionOf(ask, rt);
+  if (!instruction) return { change: undefined, given: null };
+  const open = ask.instruction ? await openingsForChange(rt, at, tenantId) : null;
+  const frame = ask.instruction ? frameDraftChange(ask.instruction) : frameSteer(instruction);
+  return { change: changeOf(ask.given, frame, open), given: [instruction, ask.given ?? ""].join("\n") };
+}
+
 async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftAsk): Promise<ReplyWritten> {
   const { db, brain, now } = writing;
   const log = logger({ tenant_id: tenantId });
@@ -269,12 +286,7 @@ async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
   const at = new Date(now());
   const wire: PromptWire = ask.wire;
   const system = resolveSystemPrompt(brainConfig, wire, rt.timezone, at, rt.policy, rt.known, "draft");
-  const instruction = instructionOf(ask, rt);
-  // Only the member's own words are theirs to give figures in: an answer to a lead steered by Settings stays a steer.
-  const open = ask.instruction ? await openingsForChange(rt, at, tenantId) : null;
-  const frame = ask.instruction ? frameDraftChange(ask.instruction) : instruction ? frameSteer(instruction) : null;
-  const change = frame ? changeOf(ask.given, frame, open) : undefined;
-  const given = instruction ? [instruction, ask.given ?? ""].join("\n") : null;
+  const { change, given } = await changeAsked(rt, at, tenantId, ask);
   const askBrain = async (steer: string | undefined) => {
     const ms = ask.deadline - now();
     if (ms <= 0) throw new Error("reply_draft: no time left for the receptionist");

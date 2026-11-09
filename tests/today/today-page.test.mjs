@@ -1193,10 +1193,8 @@ test("a search waiting on you is a row of the queue like a person: its name, its
   );
   // Answered where it stands (his call D8, 9 Nov 2026), and its words still go to the search, open on its question.
   press(buttons(row, "Answer")[0]);
-  const open = byTestId(
-    again(() => W.React.createElement(NeedYou, {})),
-    "queue-search",
-  );
+  const list = again(() => W.React.createElement(NeedYou, {}));
+  const open = byTestId(list, "queue-search");
   assert.equal(buttons(open, "Keep going").length, 1);
   assert.equal(buttons(open, "Stop here").length, 1);
   find(open, (n) => classes(n).includes("cl-attn-body")).props.onClick();
@@ -1703,11 +1701,7 @@ test("a group's foot says only what is cut, with its door to the rest, and a row
   foot.props.onClick();
   assert.equal(went.at(-1), "inbox");
   assert.equal(all(queue, (n) => n.props?.["data-testid"] === "queue-snooze").length, 0, "one verb a row (E3)");
-  assert.equal(
-    all(queue, (n) => classes(n).includes("cl-attn-row")).length,
-    7,
-    "Up next, the five waiting, and the run",
-  );
+  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 7, "Up next, five waiting, the run");
   assert.equal(byTestId(queue, "today-queue-count"), null, "how many need you is the head's sentence, said once");
 });
 

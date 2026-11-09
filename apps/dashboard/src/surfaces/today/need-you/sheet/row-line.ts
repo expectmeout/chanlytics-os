@@ -46,7 +46,7 @@ export function reviewRowOf(review: GoogleReviewDto): TodayQueueRowVM {
 const lowered = (words: string): string => words.charAt(0).toLowerCase() + words.slice(1);
 
 /** What a row of Need you says on its two lines: who or what, what it is about, and what tone that second line takes. */
-export interface NeedYouLine {
+interface NeedYouLine {
   name: string;
   sentence: string;
   /** Their own words, set in quotes. */

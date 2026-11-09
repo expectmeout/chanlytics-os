@@ -20,7 +20,7 @@ import { Notice } from "../../kit/notice/notice";
 import { ixMoveOf } from "../rules";
 import { gate, navigate, useToast } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
-import { CallAfter, CallBackPress, callWaits } from "../call-after";
+import { CallAfter, CallBackPress, callWaits } from "../call-back/call-after";
 import { ixDockDials } from "./band";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
 import { IxWhy } from "./send-words";
