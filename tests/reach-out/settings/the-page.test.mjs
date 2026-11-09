@@ -597,7 +597,13 @@ test("what they do next says what it reaches today, and whether there is a booki
   assert.match(choice, /Answers to interested replies offer a call\./);
   assert.match(choice, /Book through your link/);
   assert.match(choice, /Just reply/);
-  assert.match(textOf(byTestId(tree, "rec-reply-offer-link")), /no booking link yet/);
+  // No link to offer, so it opens on what answers do now; choosing the link says there is none yet, and the way to add one.
+  assert.equal(byTestId(tree, "rec-reply-offer-link"), null);
+  find(
+    byTestId(tree, "rec-reply-offer-choice"),
+    (n) => n.props?.onClick && textOf(n).trim().startsWith("Book through"),
+  ).props.onClick();
+  assert.match(textOf(byTestId(redrawTab(), "rec-reply-offer-link")), /no booking link yet/);
   unmount();
   tree = drawTab({ part: "outreach", config: {}, brain: { booking_link: "https://book.example/maya" } });
   openFold(tree, "reply_offer");
@@ -807,5 +813,88 @@ test("the page reads again as a save changes its config, and as the owner comes 
   } finally {
     Date.now = realNow;
   }
+  unmount();
+});
+
+test("Sending names the one door to its details, and no mailbox opens the way to connect one", async () => {
+  const tree = await drawOnRead(GOAL, {}, (t) => byTestId(t, "rec-row-send_from"));
+  assert.ok(byTestId(tree, "rec-row-act-send_from"), "From carries the door");
+  assert.equal(
+    byTestId(tree, "rec-row-act-send_pace"),
+    null,
+    "the pace is a fact, not a second door to the same sheet",
+  );
+  assert.equal(byTestId(tree, "rec-row-act-send_month"), null, "nor the month");
+  unmount();
+  const none = {
+    standing: READ.standing,
+    sending: {
+      from: null,
+      more: 0,
+      health: "none",
+      pace: null,
+      ceiling: null,
+      checks: [],
+      today: null,
+      month: null,
+      customerHost: null,
+    },
+  };
+  let empty = await drawOnRead(GOAL, none, (t) => /Connect/.test(textOf(byTestId(t, "rec-row-act-send_from") ?? "")));
+  press(byTestId(empty, "rec-row-act-send_from"));
+  empty = redrawTab();
+  assert.ok(byTestId(empty, "rec-connect-sheet"), "the road to a mailbox, never an empty sheet of checks");
+  assert.equal(byTestId(empty, "rec-sending-sheet"), null);
+  unmount();
+});
+
+test("What they should do next says what is true: with no booking link there is nothing to book, so answers just reply", async () => {
+  const brainless = { reach_out: {} };
+  const tree = drawTab({ part: "outreach", config: brainless, brain: { booking_link: "" } });
+  assert.match(textOf(byTestId(tree, "rec-row-reply_offer")), /Just reply/);
+  unmount();
+  const linked = drawTab({ part: "outreach", config: brainless });
+  assert.match(textOf(byTestId(linked, "rec-row-reply_offer")), /Book through your link/);
+  unmount();
+});
+
+test("Add a fact is said once, and Who never hears from you's press says what it opens", async () => {
+  const tree = drawTab({ part: "outreach", config: { reach_out: { proof: ["We clean 40 clinics."] } } });
+  assert.equal(byTestId(tree, "rec-row-proof-add"), null, "no row whose label and act are the same words");
+  assert.match(textOf(byTestId(tree, "rec-row-act-proof-add")), /Add a fact/);
+  assert.match(textOf(byTestId(tree, "rec-row-act-never")), /See how/);
+  unmount();
+});
+
+test("Before each batch writes Autonomy's outreach row, and says where the rest of it lives", async () => {
+  const puts = [];
+  globalThis.window.fetch = (url, init) => {
+    const u = String(url);
+    if (u.includes("/policies") && init?.method === "PUT") puts.push(JSON.parse(init.body));
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ ok: true, data: u.includes("settings/reach-out") ? { ...READ, batch_mode: "veto" } : {} }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+  };
+  let tree;
+  await until(() => {
+    tree = drawTab({ part: "outreach", config: GOAL });
+    return /Held 30 minutes/.test(textOf(byTestId(tree, "rec-row-batch_mode") ?? ""));
+  }, "the mode as read");
+  press(byTestId(tree, "rec-row-act-batch_mode"));
+  tree = redrawTab();
+  assert.ok(byTestId(tree, "rec-batch-autonomy"), "a door to the page that holds every kind of message");
+  find(
+    byTestId(tree, "rec-batch-mode-choice"),
+    (n) => n.props?.onClick && textOf(n).trim().startsWith("Ask me"),
+  ).props.onClick();
+  press(byTestId(redrawTab(), "rec-inline-save-batch_mode") ?? byTestId(redrawTab(), "rec-fold-save-batch_mode"));
+  await until(() => puts.length === 1, "the write");
+  assert.deepEqual([puts[0].class, puts[0].mode], ["outreach", "ask"]);
   unmount();
 });

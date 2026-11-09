@@ -373,15 +373,19 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
             }
             testid="ld-runs-from"
             end={
-              <Picker
-                label={R.sendsFrom}
-                value={d.owner_sends ? "inbox" : "mailboxes"}
-                onValueChange={(v) => lc.edit((x) => ({ ...x, owner_sends: v === "inbox" }))}
-                groups={[{ options: sendsFrom }]}
-                chevron={cmChevron()}
-                inline
-                data-testid="ld-runs-from-pick"
-              />
+              sendsFrom.length > 1 ? (
+                <Picker
+                  label={R.sendsFrom}
+                  value={d.owner_sends ? "inbox" : "mailboxes"}
+                  onValueChange={(v) => lc.edit((x) => ({ ...x, owner_sends: v === "inbox" }))}
+                  groups={[{ options: sendsFrom }]}
+                  chevron={cmChevron()}
+                  inline
+                  data-testid="ld-runs-from-pick"
+                />
+              ) : (
+                <span data-testid="ld-runs-from-value">{sendsFrom[0]?.label}</span>
+              )
             }
           />
           {fromNote ? (

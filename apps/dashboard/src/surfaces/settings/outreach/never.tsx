@@ -28,7 +28,7 @@ export function NeverCard(shared: OutreachShared) {
             ? NEVER_WORDS.soFar(never.said_no + never.asked_to_stop)
             : null
         }
-        act={{ label: "See who", onClick: () => fold.request() }}
+        act={{ label: "See how", onClick: () => fold.request() }}
       />
       {fold.open ? (
         <RecordSheet id="never" title={NEVER_WORDS.title} onClose={fold.close} testid="rec-never-sheet">

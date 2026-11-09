@@ -1,7 +1,7 @@
 /**
  * The road to a mailbox on the Cold email page: the one thing a new account can't skip. The sheet says what connecting
  * gives, in the owner's words, and a refused account comes back to a sheet that says why and what to do. Only Google
- * Workspace connects; "Tell us" counts who asks for something else, and stores nothing.
+ * Workspace connects; "Tell us" keeps who asked for what on the ledger, so "We'll tell you when it's ready" can be kept.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -10,6 +10,10 @@ import { drawTab, redrawTab } from "../../_business-tab-harness.mjs";
 import { until } from "../../shared/_until.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { MAILBOX_HISTORY_WORDS } from "@chanlytics/contracts";
+
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+const { setServiceClient } = await import("../../../apps/dashboard/src/server/shared/service-db.ts");
 
 after(() => unmount());
 
@@ -64,18 +68,23 @@ globalThis.window.fetch = (url, init) => {
 };
 const page = () => drawTab({ part: "outreach", config: {} });
 /** A member the door admits, over the workspace in memory (its role is what route-policy pins). */
+const TENANT = "11111111-1111-4111-8111-111111111111";
+const EVENTS = [];
+const WORLD = fakeDb({
+  memberships: [
+    {
+      user_id: "u1",
+      tenant_id: TENANT,
+      role: "owner",
+      tenants: { slug: "harbor" },
+      created_at: "2026-01-01T00:00:00Z",
+    },
+  ],
+  events: EVENTS,
+});
+setServiceClient(WORLD);
 const CTX = {
-  supabase: fakeDb({
-    memberships: [
-      {
-        user_id: "u1",
-        tenant_id: "11111111-1111-4111-8111-111111111111",
-        role: "owner",
-        tenants: { slug: "harbor" },
-        created_at: "2026-01-01T00:00:00Z",
-      },
-    ],
-  }),
+  supabase: WORLD,
   userId: "u1",
   email: "owner@example.com",
   params: {},
@@ -176,18 +185,26 @@ test("an account refused comes back to a sheet that says why, in the owner's wor
   globalThis.window.location.search = "";
 });
 
-test("Tell us takes a name that says something, and stores nothing: one line of the log", async () => {
+test("Tell us takes a name that says something, and keeps it on the ledger with who asked", async () => {
   const { POST } = await import("../../../apps/dashboard/app/api/v1/settings/reach-out/provider-wanted/route.ts");
-  const handled = await POST.run(
-    new Request("http://x/api/v1/settings/reach-out/provider-wanted", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ provider: "   " }),
-    }),
-    CTX,
-  ).then(
+  const ask = (provider) =>
+    POST.run(
+      new Request("http://x/api/v1/settings/reach-out/provider-wanted", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider }),
+      }),
+      CTX,
+    );
+  const refused = await ask("   ").then(
     () => null,
     (e) => e,
   );
-  assert.match(String(handled?.message), /Say which you use/);
+  assert.match(String(refused?.message), /Say which you use/);
+  assert.deepEqual(EVENTS, [], "nothing said, nothing kept");
+  assert.deepEqual(await ask("Microsoft 365"), { told: true });
+  assert.equal(EVENTS.length, 1);
+  assert.equal(EVENTS[0].kind, "cold_email.provider_wanted");
+  assert.equal(EVENTS[0].tenant_id, TENANT);
+  assert.deepEqual(EVENTS[0].data, { provider: "Microsoft 365", by: "u1" });
 });

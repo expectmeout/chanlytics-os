@@ -612,6 +612,7 @@ test("Sends from says what is saved: the mailboxes kept in sight while chosen wi
     const tree = sheetOf(again(() => W.React.createElement(Runs, { rec })));
     return {
       pick: byTestId(tree, "ld-runs-from-pick"),
+      value: byTestId(tree, "ld-runs-from-value"),
       note: byTestId(tree, "ld-runs-from-note"),
       day: byTestId(tree, "ld-runs-day"),
       tree,
@@ -619,11 +620,8 @@ test("Sends from says what is saved: the mailboxes kept in sight while chosen wi
   };
   // Saved to send from the mailboxes, none connected: not shown as the inbox it is not; nothing goes, and it says so.
   const none = pickOf({ owner_sends: false, mailboxes: [] });
-  assert.equal(none.pick.props.value, "mailboxes");
-  assert.deepEqual(
-    none.pick.props.groups[0].options.map((o) => o.label),
-    ["Your mailboxes · none yet"],
-  );
+  assert.equal(none.pick, null, "one thing it can send from is a fact, not a picker of one");
+  assert.equal(textOf(none.value), "Your mailboxes · none yet");
   assert.match(textOf(none.note), /No mailbox sends now, so nothing goes/);
   assert.match(textOf(none.day), /None until a mailbox sends/);
   assert.doesNotMatch(textOf(none.day), /You send each/, "never the owner's pace for a chain they do not send");
@@ -634,10 +632,8 @@ test("Sends from says what is saved: the mailboxes kept in sight while chosen wi
   assert.match(textOf(switchable.note), /Your mailbox is connected: choose it to send these for you/);
   // The owner sends, with none connected: one choice, nothing to say.
   const plain = pickOf({ owner_sends: true, mailboxes: [] });
-  assert.deepEqual(
-    plain.pick.props.groups[0].options.map((o) => o.value),
-    ["inbox"],
-  );
+  assert.equal(plain.pick, null);
+  assert.match(textOf(plain.value), /inbox/i);
   assert.equal(plain.note ?? null, null);
 });
 

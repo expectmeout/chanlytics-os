@@ -2,7 +2,7 @@
  * Cold email: the road to a mailbox. A mailbox is required (Ruben, 9 Nov 2026), so this is the one thing a new account
  * can't skip: a sheet that says what connecting gives, and Google's consent, which comes back here. An account Google or
  * the edge refused comes back to a sheet that says why in the owner's words: a personal address, or no Workspace. Only
- * Google Workspace connects today (Microsoft is halted), and "Tell us" counts who asks for something else, storing nothing.
+ * Google Workspace connects today (Microsoft is halted), and "Tell us" keeps who asks for something else on the ledger.
  */
 import { useEffect, useState } from "react";
 import { REACH_OUT_SETTINGS_WORDS, type MailboxHistory } from "@chanlytics/contracts";

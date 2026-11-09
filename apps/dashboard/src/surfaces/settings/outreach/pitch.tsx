@@ -28,9 +28,10 @@ const isReplyOffer = (value: string): value is ReplyOffer => REPLY_OFFERS.some((
 /** What should they do next: three choices, each saying what it does, and whether there is a link to offer. */
 function NextStepFold(shared: OutreachShared) {
   const stored = textOrEmpty(shared.config.reach_out?.reply_offer);
-  // Nothing stored is the booking link, as it was before the page (contracts writeReachOutKey).
-  const chosen: ReplyOffer = isReplyOffer(stored) ? stored : "booking_link";
   const link = shared.brain.booking_link?.trim() || null;
+  // Nothing stored is the booking link, as it was before the page (contracts writeReachOutKey); with no link there is nothing
+  // to book through, and answers just reply, so that is what the row says and the sheet opens on.
+  const chosen: ReplyOffer = isReplyOffer(stored) ? stored : link ? "booking_link" : "answer";
   return (
     <BtFold
       canEdit={shared.canEdit}
@@ -43,7 +44,7 @@ function NextStepFold(shared: OutreachShared) {
       gate={gate("settings", "change what they should do next")}
       row={{ value: REPLY_OFFER_WORDS[chosen].choice }}
       body={(fields) => {
-        const draft = textOrEmpty(fields.draft) || "booking_link";
+        const draft = textOrEmpty(fields.draft) || chosen;
         return (
           <>
             <RecordToggleGroup<string>

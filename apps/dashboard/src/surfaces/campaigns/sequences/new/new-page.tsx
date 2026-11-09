@@ -17,6 +17,7 @@ import {
   CONSENT_CHANNELS,
   NEW_WORDS as W,
   SEQUENCES_ROUTE,
+  COLD_EMAIL_NEEDS_MAILBOX,
   UNKNOWN_AUDIENCE_WORDS,
   clockWhen,
   localHour,
@@ -236,7 +237,14 @@ function startedWords(d: NewDraftDto, start: boolean, tz: string): string {
  * Keep, Start, Schedule and Send: the draft made through the one door, then its record (with what it now is), Drafts for
  * a one-off kept, or Sequences with a one-off's Stop.
  */
-function useMake(keptId: string | null, flash: Flash, letGo: () => void, tz: string) {
+function useMake(
+  keptId: string | null,
+  flash: Flash,
+  letGo: () => void,
+  tz: string,
+  /** The door found no mailbox, which a draft written here by hand had no way to know: its foot becomes the way to one. */
+  onNoMailbox: () => void,
+) {
   const hosted = useCampaignsToast();
   const [busy, setBusy] = useState(false);
   const make = async (draft: NewDraftDto, start: boolean, drafted: NewDraftDto | null) => {
@@ -246,6 +254,7 @@ function useMake(keptId: string | null, flash: Flash, letGo: () => void, tz: str
     setBusy(false);
     if (!r.ok) {
       flash(refusalToast(r));
+      if (r.message === COLD_EMAIL_NEEDS_MAILBOX) onNoMailbox();
       return false;
     }
     const done = r.data as Output<"POST sequences/new">;
@@ -384,7 +393,9 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     setDrafted(d);
     show(d);
   });
-  const made = useMake(kept, flash, letGo, reads?.draft.timezone ?? "UTC");
+  const made = useMake(kept, flash, letGo, reads?.draft.timezone ?? "UTC", () =>
+    setDraft((d) => (d ? { ...d, mailbox: { ids: [], label: null } } : d)),
+  );
   const busy = made.busy;
   const make = async (d: NewDraftDto, start: boolean) => {
     if (await made.make(d, start, drafted)) work.done();

@@ -114,7 +114,6 @@ export const DASHBOARD_LOG_EVENTS = [
   "card_receipt_unkept",
   "client_error",
   "client_error_not_kept",
-  "cold_email_provider_wanted",
   "consent_qr_standing_failed",
   "cross_site_write_refused",
   "db_failed",

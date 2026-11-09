@@ -14,10 +14,12 @@ import {
   textOrEmpty,
   type ColdEmailCheck,
   type ColdEmailHealth,
+  type ColdEmailSending,
 } from "@chanlytics/contracts";
-import { gate, navigate } from "../../frame-verbs";
+import { gate, navigate, routeDoor } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordToggleGroup } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
@@ -227,11 +229,24 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
           <p className="bt-fold-note" data-testid="rec-batch-note">
             {SEND_WORDS.batchNew} {SEND_WORDS.batchWhich}
           </p>
+          <span>
+            <LinkButton {...routeDoor("admin/autonomy")} data-testid="rec-batch-autonomy">
+              {SEND_WORDS.batchAutonomy}
+            </LinkButton>
+          </span>
         </>
       )}
     />
   );
 }
+
+/** From's one act: its details, or with no mailbox the way to connect one; nothing until the read lands. */
+const fromAct = (sending: ColdEmailSending | null, open: () => void) => {
+  if (!sending) return null;
+  return sending.from
+    ? { label: SEND_WORDS.details, onClick: open }
+    : { label: SEND_WORDS.connect, onClick: () => recFolds.request("connect") };
+};
 
 /** Sending: healthy or not, from where, how fast, the month, and before each batch. */
 export function SendingCard(shared: OutreachShared & { again: () => void }) {
@@ -252,25 +267,11 @@ export function SendingCard(shared: OutreachShared & { again: () => void }) {
         label={SEND_WORDS.from}
         value={sending?.from ? `${sending.from}${sending.more ? ` ${SEND_WORDS.more(sending.more)}` : ""}` : null}
         empty={sending ? SEND_WORDS.none : "…"}
-        act={{ label: "Details", onClick: open }}
+        act={fromAct(sending, open)}
       />
-      {sending?.pace ? (
-        <RecordRow
-          id="send_pace"
-          label={SEND_WORDS.pace}
-          value={sending.pace}
-          act={{ label: "Details", onClick: open }}
-        />
-      ) : null}
+      {sending?.pace ? <RecordRow id="send_pace" label={SEND_WORDS.pace} value={sending.pace} /> : null}
       {/* A month that could not be counted is said nowhere, never as a month of nothing (campaigns/month-sent.ts). */}
-      {sending?.month ? (
-        <RecordRow
-          id="send_month"
-          label={SEND_WORDS.month}
-          value={sending.month}
-          act={{ label: "Details", onClick: open }}
-        />
-      ) : null}
+      {sending?.month ? <RecordRow id="send_month" label={SEND_WORDS.month} value={sending.month} /> : null}
       <BatchFold {...shared} />
       <SendingSheet {...shared} />
       <SendMoreSheet host={sending?.customerHost ?? null} />

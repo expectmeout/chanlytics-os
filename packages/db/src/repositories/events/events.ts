@@ -121,6 +121,8 @@ interface TableData {
   "line.texting_approved": TextingData;
   "line.texting_on": TextingData;
   "line.texting_rejected": TextingData;
+  /** A workspace that can't connect a mailbox says which it would use (Cold email's Tell us): told when it is built. */
+  "cold_email.provider_wanted": { provider: string; by: string };
   /** A mailbox the business writes from (00423, decision 0056): its address, never its token. */
   "mailbox_connection.connected": { address: string; provider: string; again: boolean; by: string | null };
   "mailbox_connection.signed_out": { address: string; provider: string };

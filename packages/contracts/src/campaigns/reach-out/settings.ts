@@ -233,6 +233,9 @@ export const REACH_OUT_SETTINGS_WORDS = {
     todayValue: (sent: number, cap: number) => `${sent} of ${cap}`,
     connections: "Open Connections",
     sendMore: "Send more",
+    details: "Details",
+    connect: "Connect",
+    batchAutonomy: "See this for every kind of message on Autonomy",
     batchNote:
       "You approve a sequence's first run. After that, this is what happens each day. Cold email never just goes.",
     batchNew: "New words always wait for your OK, whichever you pick.",

@@ -119,18 +119,20 @@ export function FactsCard(shared: OutreachShared) {
               />
             ))}
             {shared.canEdit && can && facts.length < REACH_OUT_LIMITS.claims ? (
-              <RecordRow
-                id={facts.length ? "proof-add" : "proof"}
-                label={FACT_WORDS.add}
-                act={{
-                  label: FACT_WORDS.add,
-                  icon: "plus",
-                  onClick: () => {
+              <span className="ro-facts-add">
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={() => {
                     setAdding(true);
                     request();
-                  },
-                }}
-              />
+                  }}
+                  data-rec-act="proof"
+                  data-testid={facts.length ? "rec-row-act-proof-add" : "rec-row-act-proof"}
+                >
+                  <Icon name="plus" size={12} /> {FACT_WORDS.add}
+                </Button>
+              </span>
             ) : null}
             <p className="bt-fold-note" data-testid="rec-proof-foot">
               {FACT_WORDS.foot}

@@ -375,3 +375,40 @@ test("Ask's cold email is signed as New signs it, by the member's first name, un
   // A member with no name of their own is never signed as their address: the step's sender then says so.
   assert.equal((await card([])).signed_by, null);
 });
+
+test("A sequence that sends from a mailbox can't be turned into one sent by hand at the door", async () => {
+  const { saveChain } = await import("../../apps/dashboard/src/server/campaigns/reach-outs/chain-acts.ts");
+  const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const ROOT = "5eed0000-0000-4000-8000-0000000000aa";
+  const supabase = fakeDb({
+    sequence_steps: [
+      {
+        id: ROOT,
+        sequence_id: ROOT,
+        tenant_id: A,
+        kind: "reach_out",
+        trigger: "lead_first",
+        name: "Plumbers",
+        state: "running",
+        owner_sends: false,
+        after_step_id: null,
+        mailbox_ids: [],
+      },
+    ],
+  });
+  const refused = await saveChain(
+    { supabase, userId: "u1", params: {} },
+    { tenantId: A, role: "owner" },
+    {
+      name: "Plumbers",
+      owner_sends: true,
+      mailbox_ids: [],
+      steps: [{ subject: "Hi", body: "{{opening}}", after_days: null }],
+    },
+    ROOT,
+  ).then(
+    () => null,
+    (e) => e,
+  );
+  assert.match(String(refused?.message), /sending each by hand isn't offered/);
+});
