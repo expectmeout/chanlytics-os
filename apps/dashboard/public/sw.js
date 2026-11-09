@@ -40,7 +40,7 @@ self.addEventListener("notificationclick", (event) => {
         tab.postMessage({ type: "open-route", route });
         return tab.focus();
       }
-      return self.clients.openWindow(`/?to=${encodeURIComponent(route)}`);
+      return self.clients.openWindow(`/#to=${encodeURIComponent(route)}`);
     }),
   );
 });

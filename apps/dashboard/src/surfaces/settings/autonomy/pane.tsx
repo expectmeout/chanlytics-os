@@ -24,9 +24,10 @@ import {
 import type { PolicyDials } from "@/bridge/inbox-verbs";
 import { modeLabel, uiRows, type UiRow } from "@/bridge/policy-store";
 import { Button } from "../../kit/button/button";
+import { Switch } from "../../kit/switch/switch";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
-import { gate, type FrameFlash } from "../../frame-verbs";
+import { canDo, gate, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
@@ -273,21 +274,18 @@ function AskOnItsOwn({
         label="Follow the rows below"
         hint="It says why under whatever it does, with a way to undo it."
         value={
-          <Button
-            size="sm"
-            variant="quiet"
-            onClick={toggle}
-            aria-disabled={busy || undefined}
-            {...gate("autonomy", "change this")}
+          <Switch
+            checked={alone}
+            onCheckedChange={() => void toggle()}
+            label="Ask follows the rows below"
+            readOnly={busy || !canDo("settings")}
             data-testid="aut-ask-alone-press"
-          >
-            {alone ? "On" : "Off"}
-          </Button>
+          />
         }
       />
       <RecordRow
         id="aut-stop-everything"
-        label={stopped ? "Everything is paused" : "Stop everything"}
+        label={stopped ? "Everything is paused" : "All sending"}
         hint={
           stopped
             ? `${stopped.playbooks.length} paused, and replies wait for you.`

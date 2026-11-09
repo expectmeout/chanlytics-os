@@ -25,6 +25,22 @@ const keyBytes = (base64: string): Uint8Array<ArrayBuffer> => {
   return out;
 };
 
+/**
+ * Where a press on a browser's alert goes: into a tab already open, or, where none was, by the address it opens with. The bell's own
+ * route, which the app's navigate takes.
+ */
+export function listenForAlertPresses(win: Window, go: (route: string) => void): void {
+  const fromHash = /^#to=(.*)$/.exec(win.location.hash);
+  if (fromHash?.[1]) {
+    win.history.replaceState(null, "", win.location.pathname + win.location.search);
+    go(decodeURIComponent(fromHash[1]));
+  }
+  if (!("serviceWorker" in win.navigator)) return;
+  win.navigator.serviceWorker.addEventListener("message", (e: MessageEvent<{ type?: string; route?: string }>) => {
+    if (e.data?.type === "open-route" && e.data.route) go(e.data.route);
+  });
+}
+
 /** Whether this browser is being told now. */
 export async function webPushOn(win: Window): Promise<boolean> {
   if (!("serviceWorker" in win.navigator)) return false;

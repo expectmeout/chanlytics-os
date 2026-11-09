@@ -582,8 +582,25 @@ function batchWhen(p: PlaybookRow, freed: FreedTimeRun | null, runFor: string, c
  * what was asked for. Every run is recorded as an event, a run that found
  * nobody included. A run never throws: the sweep behind it must go on.
  */
+/**
+ * The pace a paced offer keeps today: an offer on a list with a last day, as Ask's plan makes one, at no more than its cap and no
+ * more than the open slots a day ahead, as its plan worked it out (contracts capOf), so it slows as the book fills and the first
+ * people it told get the slots. A full book sends nothing today. Null for any other playbook, and where no calendar can say.
+ */
+function pacedTo(
+  p: { until?: string | null; trigger: string; policy_class: string; cap_per_run: number },
+  room: { open: number; days: number } | null,
+) {
+  if (!room || !p.until || p.trigger !== "saved_list" || p.policy_class !== "campaign") return null;
+  if (room.open <= 0) return { cap: p.cap_per_run, full: true };
+  return { cap: Math.min(p.cap_per_run, Math.ceil(room.open / Math.max(1, room.days))), full: false };
+}
+
 export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): Promise<RunOutcome> {
-  const { playbook: p, ctx, by } = cmd;
+  const { ctx, by } = cmd;
+  const room = by.kind === "user" ? null : pacedTo(cmd.playbook, ctx.room ?? null);
+  // A paced offer keeps to the book as it is today (D39 of the answers canvas): a person who asks for a run has decided.
+  const p = room ? { ...cmd.playbook, cap_per_run: room.cap } : cmd.playbook;
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
   // Its sequence's mode, or ask while the step's words are new to the owner or the mode is none this build knows.
@@ -609,6 +626,7 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   // A campaign past its last day (00416 `until`, the business's day) runs nothing more, whoever asks: said, and recorded
   // for the day, before anything is read.
   if (campaignEnded(p, runFor)) return off("ended");
+  if (room?.full) return off("no_room");
 
   // Which of WhatsApp, text and email the playbook ticks: a playbook made before ticks WhatsApp alone.
   const channels = parseChannels(undefined, p.channels ?? null);

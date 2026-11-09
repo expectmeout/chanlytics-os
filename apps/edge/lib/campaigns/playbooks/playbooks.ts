@@ -71,7 +71,7 @@ import {
   runRoute,
   DbFailure,
 } from "@chanlytics/contracts";
-import { listFeedItems } from "../../calendar/availability.js";
+import { bookRoomOf, listFeedItems } from "../../calendar/availability.js";
 import { findCampaignsDomainVerified } from "../../email/campaigns-domain.js";
 import { emailCanSend } from "../../email/email.js";
 import { findConfigRow, findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
@@ -324,6 +324,8 @@ export async function loadTenantRunContext(
   // months out had its visit playbooks reading a fortnight of calendar.
   const daysAhead = cfgParsed?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
   const profile = cfgParsed?.brain?.profile;
+  // The book's room now, which a paced offer keeps to (D39 of the answers canvas); no calendar is none, and no pacing.
+  const room = url ? await bookRoomOf(tenantId, { url, tz, now, daysAhead, profile: profile as never }) : null;
   const { calendar, visits } = await runVisits(db, tenantId, { url, tz, now, daysAhead, rows, cfg: cfgParsed });
   // Everyone as the pool reads them: no one looking (a run has no viewer), and their visits attached the one way
   // (withVisitsOf), as the People list and the Playbooks page attach them.
@@ -344,6 +346,7 @@ export async function loadTenantRunContext(
     ready,
   });
   return {
+    room,
     db,
     tenantId,
     tz,

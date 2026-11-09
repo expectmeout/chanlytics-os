@@ -291,13 +291,7 @@ export const AskNotNow = ({ t, busy, onDismiss }: { t: LineWords; busy: boolean;
 export const AskQuickChanges = ({ t, onFollow }: { t: LineWords; onFollow: (q: string) => unknown }) => (
   <div className="ask-card-quick" data-testid="ask-card-quick">
     {t.quickChanges.map((q) => (
-      <LinePress
-        key={q.label}
-        kind="next"
-        className="ask-next"
-        onClick={() => onFollow(q.asks)}
-        data-testid="ask-card-change"
-      >
+      <LinePress key={q.label} kind="chip" onClick={() => onFollow(q.asks)} data-testid="ask-card-change">
         <span>{q.label}</span>
       </LinePress>
     ))}

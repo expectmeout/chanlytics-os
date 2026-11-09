@@ -520,8 +520,8 @@ function planSaid(now: readonly AskProposal[], t: LineWords, inReview: boolean):
   const doneSends = now.filter((p) => !p.plan?.silent && p.outcome?.state === "done");
   const send = doneSends.at(-1)?.outcome;
   if (send) return { line: send.paused ? t.planPaused : send.receipt, ok: true };
-  if (now.some((p) => p.outcome?.state === "undone") && !now.some((p) => p.outcome?.state === "done"))
-    return { line: t.planUndone, ok: true };
+  // Its send taken back is what matters: a setting somebody saved over since stays as it is, and nothing goes out either way.
+  if (now.some((p) => p.outcome?.state === "undone")) return { line: t.planUndone, ok: true };
   if (inReview) return { line: t.planFiled, ok: true };
   if (now.every((p) => p.outcome?.state === "done")) return { line: t.planDone, ok: true };
   return null;

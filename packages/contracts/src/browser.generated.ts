@@ -64,7 +64,7 @@ export { ASK_CAPS, ASK_MAX_TOKENS, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_UNDO_MS
 export { rightNowCounts, rightNowLine } from "./ask/waiting";
 export { appointmentTitle, busyOfAppointments, daysWithAppointments, feedItemOfAppointment, feedMarksOf, feedWithRecord, itemOfAppointment, markOn, personOfAppointment, withoutVisitsRowsDraw } from "./calendar/appointment-item";
 export { appointmentKeyOf, calendarParamParts, recordIdOf, recordKeyOf, visitDoor, visitLinkWords, visitRoute } from "./calendar/appointment-key";
-export { BOOKING_DEFAULTS, closedOn, dayIntervals, describeOpenings, filterOpenings, freeWindows, hasHours, openAt } from "./calendar/availability";
+export { BOOKING_DEFAULTS, closedOn, dayIntervals, describeOpenings, filterOpenings, freeWindows, hasHours, openAt, ROOM_DAYS, roomOf } from "./calendar/availability";
 export { appointmentKey, BOOKING_TOOL_IDS, BOOKING_TOOL_STEPS, BOOKING_TRY_NOTE, bookingCopyTest, bookingNoticeOf, bookingToolCalendar, bookingToolName, bookingToolOfAddress, bookingToolOptions, clientKeyOf, forwardingConfirmationOf, GMAIL_FORWARD_NOTE, isBookingTool, isNoticeHold, NOTICE_DEFAULT_LENGTH_MS, NOTICE_HOLD_WORDS, NOTICE_READ_MAX_TOKENS, NOTICE_SCHEMA, noticeAnswerOf, noticePrompt, sameVisitOnRecord } from "./calendar/booking-notice";
 export { toCalendarVM } from "./calendar/calendar";
 export { parseIcs } from "./calendar/feed";

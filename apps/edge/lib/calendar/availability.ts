@@ -22,6 +22,7 @@ import {
   mailboxCalendarOf,
   parseIcs,
   freeWindows,
+  roomOf,
   describeOpenings,
   describeVisits,
   feedUrlOk,
@@ -208,6 +209,42 @@ export async function listFeedItems(
 ): Promise<FeedItem[] | null> {
   const parsed = await parsedFeedOf(tenantId, url, tz, daysAhead, now);
   return parsed ? parsed.items : null;
+}
+
+/**
+ * How much room the book has now, for a paced offer's run (D39 of the answers canvas), by the one count (contracts roomOf): null
+ * where it could not be read, and a run then keeps the pace it was given, never guessing a full book.
+ */
+export async function bookRoomOf(
+  tenantId: TenantId,
+  at: {
+    url: string;
+    tz: string;
+    now: Date;
+    daysAhead: number;
+    profile: { hours?: never; closures?: never; booking_rules?: never } | undefined;
+  },
+): Promise<{ open: number; days: number } | null> {
+  if (!at.profile) return null;
+  try {
+    const feed = await parsedFeedOf(tenantId, at.url, at.tz, at.daysAhead, at.now);
+    if (!feed) return null;
+    const free = {
+      hours: at.profile.hours,
+      closures: at.profile.closures,
+      tz: at.tz,
+      rules: at.profile.booking_rules ?? null,
+      now: at.now,
+    };
+    const openings = freeWindows({
+      ...free,
+      busy: [...feed.busy, ...(await recordBusy(tenantId, at.now, at.daysAhead, null))],
+    });
+    const room = roomOf(openings, free, at.daysAhead);
+    return { open: room.by_day.reduce((n, d) => n + d.open, 0), days: room.days };
+  } catch {
+    return null; // a run with no room said keeps its pace: the sweep is never failed for a calendar it could not read
+  }
 }
 
 /** The openings as data, for the phone tool that answers about one day. */

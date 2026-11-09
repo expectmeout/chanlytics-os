@@ -13,7 +13,7 @@ import {
 import { load } from "../../../shared/reader";
 import { calendar } from "../../../readers/calendar";
 import { openings } from "../../../readers/openings";
-import { ROOM_DAYS } from "../../../calendar/openings";
+import { ROOM_DAYS } from "@chanlytics/contracts";
 import { defineActions, readAction, type ToolContext } from "../context/tool-defs";
 import { noteRow, str } from "../context/tool-reads";
 

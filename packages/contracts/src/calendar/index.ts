@@ -31,6 +31,8 @@ export {
   freeWindows,
   hasHours,
   openAt,
+  ROOM_DAYS,
+  roomOf,
 } from "./availability";
 export type { BookingRulesLike, FreeWindowsInput, Opening } from "./availability";
 export {
@@ -247,3 +249,5 @@ export {
   visitStateOf,
 } from "./words/visit";
 export type { VisitLineInput, VisitLineVM, VisitStateTone, VisitStateVM } from "./words/visit";
+
+export type { BookRoom } from "./availability";

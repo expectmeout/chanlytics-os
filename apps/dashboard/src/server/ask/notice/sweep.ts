@@ -62,7 +62,7 @@ async function lookAt(
   const first = noticesInOrder(found, (key) => said.has(key)).at(0) ?? null;
   await insertAskNoticeDay(db, tenantId, dayInZone(timezone, now.getTime()).key, first?.key ?? null);
   if (first) {
-    const kept = await keepNoticeAlert(db, tenantId, { title: first.says, route: "ask" });
+    const kept = await keepNoticeAlert(db, tenantId, { title: first.says, route: "today" });
     if (kept) await scheduleJob(db, { tenantId, kind: "push_send", dueAt: now, payload: { notification_id: kept } });
   }
   return first?.key ?? null;

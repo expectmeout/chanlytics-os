@@ -271,7 +271,7 @@ export const AskRows = ({
     return (
       <div key={i} {...shared} className={`ask-row ${it.type}${sel ? " sel" : ""}`}>
         {it.type === "thread" ? <Icon name="chat" size={13} className="ask-row-glyph" /> : null}
-        {it.type === "follow" ? <span className="subtab-dot" aria-hidden="true" /> : null}
+        {it.type === "follow" && !it.rest ? <span className="subtab-dot" aria-hidden="true" /> : null}
         <span className="ask-row-main">
           <span className="ask-row-label">{it.label}</span>
           {it.sub ? <span className="ask-row-sub">{it.sub}</span> : null}

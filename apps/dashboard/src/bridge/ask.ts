@@ -55,6 +55,8 @@ import { askFollowUps } from "./ask/follow-ups";
 import { askNotices } from "./ask/notices";
 import { askColumn } from "./ask/column";
 import { holdAsk } from "@/surfaces/frame-verbs";
+import { navigate } from "@/surfaces/frame-doors";
+import { listenForAlertPresses } from "./web-push";
 
 export type { SendEvent, CommitResult };
 export { jumpIndexFrom, surfaceFor, waitingFrom, quickAnswer } from "./ask/palette";
@@ -250,6 +252,8 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     context: (route, words, thread) => pageContext(win, route, words, thread),
   };
   holdAsk(ask);
+  // A press on a browser's alert opens where the bell does (D12 of the answers canvas).
+  if (typeof win.addEventListener === "function") listenForAlertPresses(win, (route) => navigate(route));
   // On the window only for what stands outside the bundle and has no import: the nightly's specs, which ask it what the
   // page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts). Nothing of the app reads it here.
   (win as Window & { __ask?: AskApi }).__ask = ask;
