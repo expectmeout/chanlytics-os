@@ -11,7 +11,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { sweepCanary } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/sms/canary.ts")).href);
 
 /** The canary's words and its two waits, as canary.ts says them: held here so a change to them is a change seen. */

@@ -22,7 +22,7 @@ import { INBOUND_GATES } from "@chanlytics/core";
 import { world, runtime, text, FROM } from "./_world.mjs";
 import { linesOf } from "../_log-lines.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { LOG_EVENTS } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/log-events.ts")).href);
 const { OUT, gatesPage } = await import(pathToFileURL(path.join(ROOT, "tooling/scripts/gen/inbound-gates.mjs")).href);
 

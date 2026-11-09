@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { signTwilio } from "@chanlytics/channels/lines";
 import { fakeDb } from "../_fake-db.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { sweepUnheardTexts } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/sms/texts-sweep.ts")).href);
 
 /** How young a text the sweep leaves to the door, and the door it knocks on, as texts-sweep.ts says them. */

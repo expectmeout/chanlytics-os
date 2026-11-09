@@ -1179,7 +1179,7 @@ CREATE FUNCTION public.automated_send(p_meta jsonb) RETURNS boolean
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'public'
     AS $$
-  -- A send written as 'human' that no person made; it lists every source packages/core/src/deliver/deliver.ts treats as automated.
+  -- A send written as 'human' that no person made; it lists every source packages/core/src/deliver.ts treats as automated.
   select coalesce(p_meta->>'source', '') in ('broadcast', 'reach_out')
 $$;
 
@@ -2969,7 +2969,7 @@ CREATE TABLE public.jobs (
 -- Name: COLUMN jobs.lease_until; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.jobs.lease_until IS 'While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/runner/ledger.ts.';
+COMMENT ON COLUMN public.jobs.lease_until IS 'While in the future, a run holds this row. Once past, the run is presumed dead and claim_due_jobs() may take the row again with attempts + 1; whether that run goes ahead or gives up is verdictFor() in packages/jobs/src/ledger.ts.';
 
 
 --
@@ -5330,7 +5330,7 @@ begin
      messages and calls are gone, those subject_ids resolve to nothing and the
      only surviving link (subject_type='contact') resolves to a tombstone with
      no identifiers. Deleting them would destroy metering, not personal data.
-     tests/erasure.integration.test.mjs pins that. */
+     tooling/scripts/tests/erasure.integration.test.mjs pins that. */
 
   /* ---- The tombstone. */
   update contacts
@@ -15461,7 +15461,7 @@ CREATE FUNCTION public.message_carries_link(p_body text, p_link text) RETURNS bo
     AS $$
   -- The words hold the link without its scheme, as stored (case kept). One rule in several spellings, named by file and
   -- function: layerTwo in packages/core/src/inbound/steps.ts (the receptionist's own check, with the scheme),
-  -- writtenOutDetail in apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts (a written-out link), and the two
+  -- writtenOutDetail in packages/contracts/src/config/business-tab/fold-limits.ts (a written-out link), and the two
   -- senders that strip the scheme before they fill the slot: sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts
   -- (the voice tool) and queueReply in packages/core/src/conversations/reply.ts (the Inbox's template).
   -- A link that is null, empty, or nothing but a scheme or spaces carries nothing, never everything.
@@ -15474,7 +15474,7 @@ $$;
 -- Name: FUNCTION message_carries_link(p_body text, p_link text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.message_carries_link(p_body text, p_link text) IS 'Whether these words carry this link (K7): they hold the link without its scheme (^https?://), as stored, in the same case, anywhere in the words. False for no words, and for a link that is null, empty, or nothing but a scheme or spaces. The twins of this rule, by file and function: layerTwo in packages/core/src/inbound/steps.ts, writtenOutDetail in apps/dashboard/src/surfaces/settings/business/model/fold-limits.ts, and the scheme-stripping senders sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts and queueReply in packages/core/src/conversations/reply.ts.';
+COMMENT ON FUNCTION public.message_carries_link(p_body text, p_link text) IS 'Whether these words carry this link (K7): they hold the link without its scheme (^https?://), as stored, in the same case, anywhere in the words. False for no words, and for a link that is null, empty, or nothing but a scheme or spaces. The twins of this rule, by file and function: layerTwo in packages/core/src/inbound/steps.ts, writtenOutDetail in packages/contracts/src/config/business-tab/fold-limits.ts, and the scheme-stripping senders sendBookingLinkOnCall in apps/edge/lib/voice/call-booking-link.ts and queueReply in packages/core/src/conversations/reply.ts.';
 
 
 --
@@ -35390,7 +35390,7 @@ CREATE TABLE public.ai_usage (
 -- Name: TABLE ai_usage; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ai_usage IS 'One row per model call the platform made for a workspace (the model port, apps/edge/lib/ai/model.ts): its purpose, the model asked and the one that answered, input, output, cache read and cache write tokens, list-price dollars, and what became of it. Kept 400 days (ai_usage_purge).';
+COMMENT ON TABLE public.ai_usage IS 'One row per model call the platform made for a workspace (the model port, apps/edge/lib/model.ts): its purpose, the model asked and the one that answered, input, output, cache read and cache write tokens, list-price dollars, and what became of it. Kept 400 days (ai_usage_purge).';
 
 
 --

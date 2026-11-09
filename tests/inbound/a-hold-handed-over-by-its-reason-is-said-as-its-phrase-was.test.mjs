@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { HOLD_ACT_WORDS, holdActOf } from "@chanlytics/contracts";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { handoffMessage } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/inbound/alerts.ts")).href);
 
 const told = (reason) =>

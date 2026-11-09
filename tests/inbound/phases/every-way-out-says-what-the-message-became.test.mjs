@@ -32,7 +32,7 @@ import {
   overBudget,
 } from "./_fixtures.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { pgSink } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const { handoffMessage } = await import(at("apps/edge/lib/inbound/alerts.ts"));

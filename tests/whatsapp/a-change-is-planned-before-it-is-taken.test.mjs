@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { planWhatsappChange } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/whatsapp/delivery-plan.ts")).href
 );
