@@ -1,4 +1,4 @@
--- 00582 · A browser may be told, and Ask tells a business one thing a morning (the answers canvas, D12 and D20).
+-- 00575 · A browser may be told, and Ask tells a business one thing a morning (the answers canvas, D12 and D20).
 --
 --   web_push_subscriptions   A member's browsers that said yes to being told, by the address their browser gave. A person's own,
 --                            as push_devices is: read by user_id, written on their own session, read by the job with the service
@@ -12,7 +12,7 @@ set local lock_timeout = '3s';
 
 create table if not exists public.web_push_subscriptions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
+  user_id uuid not null references auth.users (id) on delete cascade,
   endpoint text not null,
   p256dh text not null,
   auth text not null,
@@ -24,7 +24,6 @@ create table if not exists public.web_push_subscriptions (
 );
 comment on table public.web_push_subscriptions is
   'A member''s browsers that said yes to being told (the answers canvas, D12), as push_devices is their phones.';
-create index if not exists web_push_subscriptions_user on public.web_push_subscriptions (user_id);
 
 alter table public.web_push_subscriptions enable row level security;
 drop policy if exists web_push_subscriptions_own on public.web_push_subscriptions;
@@ -43,7 +42,6 @@ create table if not exists public.ask_notice_days (
 );
 comment on table public.ask_notice_days is
   'One morning per business (the answers canvas, D20): Ask looked, and told this key, if any. Written by the sweep.';
-create index if not exists ask_notice_days_recent on public.ask_notice_days (tenant_id, day desc);
 
 alter table public.ask_notice_days enable row level security;
 drop policy if exists ask_notice_days_member_select on public.ask_notice_days;

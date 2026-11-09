@@ -765,6 +765,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST handovers/[id]/decline": "the handover leaves the screen asking, and the app opens as it would have",
   "DELETE me": "the account is gone and the tab goes to sign in",
   // Kept by the page that made them, or nothing a page shows.
+  "POST me/web-push": "this browser's own choice: Settings › Notifications says it from the browser",
+  "DELETE me/web-push": "this browser's own choice: Settings › Notifications says it from the browser",
   "PUT me/devices": "this device's push registration",
   "DELETE me/devices": "this device's push registration",
   "PUT me/alerts": "published from the answer (notifications/verbs.ts)",

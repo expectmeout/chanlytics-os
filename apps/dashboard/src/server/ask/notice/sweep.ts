@@ -53,9 +53,10 @@ async function lookAt(
   const ctx = { supabase: db, userId: ownerId } as unknown as RouteContext;
   const member = { tenantId, role } as unknown as Member;
   const rc = readerContext(ctx, member);
-  const t = { ...newToolContext(ctx, tenantId, role, timezone, now, rc), language: "en" } as Parameters<
-    typeof listNotices
-  >[0];
+  const t: Parameters<typeof listNotices>[0] = {
+    ...newToolContext(ctx, tenantId, role, timezone, now, rc),
+    language: "en",
+  };
   const since = dayInZone(timezone, now.getTime() - NOT_AGAIN_DAYS * DAY_MS).key;
   const said = new Set(await listAskNoticeKeysSince(db, tenantId, since));
   const found: AskNotice[] = await listNotices(t, "en", {});

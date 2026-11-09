@@ -1,4 +1,5 @@
 import { dayInZone } from "@chanlytics/contracts";
+import { logAndGoOn } from "@chanlytics/log";
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
 import { facts as factsReader } from "@/server/readers/facts";
@@ -18,13 +19,14 @@ export const GET = read({
       load(rc, factsReader, undefined).then((r) => r.data.timezone),
       load(rc, memberViews, undefined).then(
         (r) => r.data as Record<string, unknown> | null,
-        () => null,
+        logAndGoOn("ask notice views", null),
       ),
     ]);
     const language = new URL(req.url).searchParams.get("language") === "es" ? "es" : "en";
-    const t = { ...newToolContext(ctx, member.tenantId, member.role, zone, new Date(), rc), language } as Parameters<
-      typeof listNotices
-    >[0];
+    const t: Parameters<typeof listNotices>[0] = {
+      ...newToolContext(ctx, member.tenantId, member.role, zone, new Date(), rc),
+      language,
+    };
     const rested = restedOfViews(views);
     return {
       notices: (await listNotices(t, language, rested)).slice(0, 3),

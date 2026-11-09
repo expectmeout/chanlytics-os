@@ -60,6 +60,9 @@ export type CommitResult =
     }
   | { ok: false; message: string; moved?: boolean; kept?: boolean; forward?: { to: string } | null; redraft?: boolean };
 
+/** Where an undo is walked from: the tab's client, and the turn its card stands on, where the server can read it. */
+type UndoAt = { client?: Api; messageId?: string | null };
+
 /** What an undo did: its receipt, and nothing further to undo or to name. */
 export type UndoResult = { ok: true; receipt: string; undo: null; kept?: boolean } | { ok: false; message: string };
 
@@ -104,8 +107,12 @@ export async function commitProposal(
   client: Api = apiFor(win),
   at: CommitAt = {},
 ): Promise<CommitResult> {
-  // A card on a saved turn is acted on by the server, which reads it again and judges it there (D15 of the answers canvas).
-  if (at.messageId && UUID.test(at.messageId)) return actThroughDoor(win, client, "POST ask/act", at.messageId, p);
+  // A card on a saved turn is acted on by the server, which reads it again and judges it there (D15 of the answers canvas). A
+  // door that could not reach the verb's route, or could not answer, hands it back, and it goes the way it always went.
+  if (at.messageId && UUID.test(at.messageId)) {
+    const r = await actThroughDoor({ win, client, route: "POST ask/act" }, at.messageId, p);
+    if (r !== WALK_HERE) return r;
+  }
   const { spec, unreached } = await specOf(p.kind);
   if (unreached) return unreached;
   if (!spec) return { ok: false, message: PROPOSAL_WORDS.cannotApprove };
@@ -138,20 +145,24 @@ function tellDoorCalls(win: Window, answer: AskActAnswer): void {
   }
 }
 
+/** The door could not act, and nothing was sent: the press goes the way it went from a browser (AskActAnswer.walkHere). */
+const WALK_HERE = Symbol("walk here");
+
 /** The act door: a card pressed, or taken back, on the server. What it answers is what the turn now keeps. */
 async function actThroughDoor(
-  win: Window,
-  client: Api,
-  route: "POST ask/act" | "POST ask/act/undo",
+  { win, client, route }: { win: Window; client: Api; route: "POST ask/act" | "POST ask/act/undo" },
   messageId: string,
   p: AskProposal,
-): Promise<CommitResult> {
+): Promise<CommitResult | typeof WALK_HERE> {
   const r = await client(route, {
     body: { message_id: messageId, proposal_id: p.id, by: "press" } as never,
     once: true,
   });
+  // A door down or a server's fault: the verb's own key means the walk that follows can never act twice.
+  if (!r.ok && (r.status === 0 || r.status >= 500)) return WALK_HERE;
   if (!r.ok) return { ok: false, message: r.message, ...(r.status === 404 || r.status === 409 ? { moved: true } : {}) };
   const answer = r.data as unknown as AskActAnswer;
+  if (answer.walkHere) return WALK_HERE;
   tellDoorCalls(win, answer);
   if (!answer.ok)
     return {
@@ -273,8 +284,7 @@ export async function undoPlan(
   win: Window,
   cards: readonly AskProposal[],
   open: (p: AskProposal, o: AskProposalOutcome) => boolean,
-  client: Api = apiFor(win),
-  messageId?: string | null,
+  at: UndoAt = {},
 ): Promise<PlanUndo> {
   const made = cards
     .flatMap((p) =>
@@ -284,7 +294,7 @@ export async function undoPlan(
   const run: PlanUndo = { results: [], stoppedAt: null };
   for (const { p, o, step } of made) {
     if (!open(p, o)) continue;
-    const result = await undoProposal(win, p, o, client, messageId);
+    const result = await undoCard(win, p, o, at);
     run.results.push({ step, result });
     if (!result.ok && !p.plan?.silent) return { ...run, stoppedAt: step };
   }
@@ -313,19 +323,29 @@ export async function pauseSend(
   return r.ok ? { ok: true } : { ok: false, message: r.message };
 }
 
+/** A card on a saved turn is taken back by the server, as it was pressed; a door that could not act hands it back to the walk. */
+export async function undoCard(
+  win: Window,
+  p: AskProposal,
+  outcome: AskProposalOutcome,
+  { client = apiFor(win), messageId }: UndoAt = {},
+): Promise<UndoResult> {
+  if (outcome.undo && messageId && UUID.test(messageId)) {
+    const r = await actThroughDoor({ win, client, route: "POST ask/act/undo" }, messageId, p);
+    if (r !== WALK_HERE)
+      return r.ok ? { ok: true, receipt: r.receipt, undo: null, kept: true } : { ok: false, message: r.message };
+  }
+  return undoProposal(win, p, outcome, client);
+}
+
 export async function undoProposal(
   win: Window,
   p: AskProposal,
   outcome: AskProposalOutcome,
   client: Api = apiFor(win),
-  messageId?: string | null,
 ): Promise<UndoResult> {
   const record = outcome.undo ?? null;
   if (!record) return { ok: false, message: PROPOSAL_WORDS.noUndo };
-  if (messageId && UUID.test(messageId)) {
-    const r = await actThroughDoor(win, client, "POST ask/act/undo", messageId, p);
-    return r.ok ? { ok: true, receipt: r.receipt, undo: null, kept: true } : { ok: false, message: r.message };
-  }
   const { spec, unreached } = await specOf(p.kind);
   if (unreached) return unreached;
   if (!spec?.undo) return { ok: false, message: PROPOSAL_WORDS.noUndo };

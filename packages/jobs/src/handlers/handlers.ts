@@ -86,6 +86,9 @@ async function leadCheck(ctx: JobContext, job: ClaimedJob): Promise<void> {
  * The browsers of the people a notification is for. With no keys on this deployment (`ctx.webPush` absent), or a database before
  * the table, it does nothing. A browser that has forgotten its subscription is forgotten here too.
  */
+/** Far more than a business's owners have browsers: what one alert may ask of the push services at once. */
+const BROWSERS_TOLD_MAX = 50;
+
 async function tellBrowsers(
   ctx: JobContext,
   readers: readonly string[],
@@ -96,7 +99,8 @@ async function tellBrowsers(
     const { data } = await ctx.db
       .from("web_push_subscriptions")
       .select("endpoint, p256dh, auth")
-      .in("user_id", [...readers]);
+      .in("user_id", [...readers])
+      .limit(BROWSERS_TOLD_MAX);
     if (!data?.length) return;
     const gone = await ctx.webPush.send(data, {
       title: note.title,

@@ -34896,6 +34896,38 @@ COMMENT ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[
 
 
 --
+-- Name: words_seen(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare
+  v_set uuid;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'not a member who may act here' using errcode = '42501';
+  end if;
+  update public.sequence_steps
+     set words_ok_at = now()
+   where id = p_step_id
+     and tenant_id = p_tenant_id
+     and words_ok_at is null
+  returning id into v_set;
+  return v_set is not null;
+end;
+$$;
+
+
+--
+-- Name: FUNCTION words_seen(p_tenant_id uuid, p_step_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) IS 'A member pressed a card of Ask''s that showed this step''s words: they are taken as seen (0064, the answers canvas D3).';
+
+
+--
 -- Name: workspace_days(uuid, date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -35463,6 +35495,40 @@ COMMENT ON COLUMN public.appointments.conversation_id IS 'The thread a request t
 
 
 --
+-- Name: ask_actions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ask_actions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    user_id uuid,
+    message_id uuid,
+    proposal_id text NOT NULL,
+    kind text NOT NULL,
+    by text NOT NULL,
+    origin_by text,
+    strangers boolean DEFAULT false NOT NULL,
+    reason text,
+    state text DEFAULT 'running'::text NOT NULL,
+    made_kind text,
+    made_id text,
+    code text,
+    at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    CONSTRAINT ask_actions_by_check CHECK ((by = ANY (ARRAY['press'::text, 'yes'::text, 'row'::text, 'lock_screen'::text, 'mail'::text]))),
+    CONSTRAINT ask_actions_origin_check CHECK (((origin_by IS NULL) OR (origin_by = ANY (ARRAY['asked'::text, 'rule'::text, 'follow_up'::text, 'idea'::text])))),
+    CONSTRAINT ask_actions_state_check CHECK ((state = ANY (ARRAY['running'::text, 'done'::text, 'failed'::text, 'undone'::text])))
+);
+
+
+--
+-- Name: TABLE ask_actions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ask_actions IS 'What Ask did and why it was allowed (the answers canvas, D16): closed sets and ids alone, the words stay on the turn.';
+
+
+--
 -- Name: ask_journal_days; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -35558,6 +35624,25 @@ CREATE TABLE public.ask_mornings (
 --
 
 COMMENT ON TABLE public.ask_mornings IS 'The day''s first turn, which Ask asks itself when a member who acts arrives (decision 0070): one a member a day, its thread the member''s own, its cards waiting on Today. Written through ask_morning_write; the member reads their own.';
+
+
+--
+-- Name: ask_notice_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ask_notice_days (
+    tenant_id uuid NOT NULL,
+    day date NOT NULL,
+    key text,
+    told_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE ask_notice_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ask_notice_days IS 'One morning per business (the answers canvas, D20): Ask looked, and told this key, if any. Written by the sweep.';
 
 
 --
@@ -40317,6 +40402,30 @@ COMMENT ON COLUMN public.waitlist.invited_at IS 'When an invite was sent. Null m
 
 
 --
+-- Name: web_push_subscriptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.web_push_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    user_agent text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    failed_at timestamp with time zone,
+    CONSTRAINT web_push_subscriptions_endpoint_len CHECK ((length(endpoint) <= 1000))
+);
+
+
+--
+-- Name: TABLE web_push_subscriptions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.web_push_subscriptions IS 'A member''s browsers that said yes to being told (the answers canvas, D12), as push_devices is their phones.';
+
+
+--
 -- Name: workspace_notices_pending; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -40405,6 +40514,22 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: ask_actions ask_actions_one_per_card; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_one_per_card UNIQUE (tenant_id, message_id, proposal_id);
+
+
+--
+-- Name: ask_actions ask_actions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ask_journal_days ask_journal_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -40434,6 +40559,14 @@ ALTER TABLE ONLY public.ask_messages
 
 ALTER TABLE ONLY public.ask_mornings
     ADD CONSTRAINT ask_mornings_pkey PRIMARY KEY (tenant_id, user_id, day);
+
+
+--
+-- Name: ask_notice_days ask_notice_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_notice_days
+    ADD CONSTRAINT ask_notice_days_pkey PRIMARY KEY (tenant_id, day);
 
 
 --
@@ -41693,6 +41826,22 @@ ALTER TABLE ONLY public.waitlist
 
 
 --
+-- Name: web_push_subscriptions web_push_subscriptions_one; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_one UNIQUE (user_id, endpoint);
+
+
+--
+-- Name: web_push_subscriptions web_push_subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: workspace_notices_pending workspace_notices_pending_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -41838,6 +41987,20 @@ CREATE UNIQUE INDEX appointments_source_uq ON public.appointments USING btree (t
 --
 
 CREATE INDEX appointments_tenant_start ON public.appointments USING btree (tenant_id, starts_at);
+
+
+--
+-- Name: ask_actions_recent; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_actions_recent ON public.ask_actions USING btree (tenant_id, at DESC);
+
+
+--
+-- Name: ask_actions_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ask_actions_user ON public.ask_actions USING btree (user_id);
 
 
 --
@@ -45891,6 +46054,22 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: ask_actions ask_actions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_actions ask_actions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_actions
+    ADD CONSTRAINT ask_actions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: ask_journal_days ask_journal_days_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -45976,6 +46155,14 @@ ALTER TABLE ONLY public.ask_mornings
 
 ALTER TABLE ONLY public.ask_mornings
     ADD CONSTRAINT ask_mornings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ask_notice_days ask_notice_days_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ask_notice_days
+    ADD CONSTRAINT ask_notice_days_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -47747,6 +47934,14 @@ ALTER TABLE ONLY public.waitlist
 
 
 --
+-- Name: web_push_subscriptions web_push_subscriptions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: ai_usage; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -47795,6 +47990,35 @@ ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY appointments_member_select ON public.appointments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: ask_actions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ask_actions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ask_actions ask_actions_acting_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_actions_acting_insert ON public.ask_actions FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND public.is_acting_member(tenant_id)));
+
+
+--
+-- Name: ask_actions ask_actions_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_actions_member_select ON public.ask_actions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: ask_actions ask_actions_own_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_actions_own_update ON public.ask_actions FOR UPDATE TO authenticated USING (((user_id = ( SELECT auth.uid() AS uid)) AND public.is_acting_member(tenant_id))) WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND public.is_acting_member(tenant_id)));
 
 
 --
@@ -47876,6 +48100,21 @@ ALTER TABLE public.ask_mornings ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY ask_mornings_own_select ON public.ask_mornings FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: ask_notice_days; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ask_notice_days ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ask_notice_days ask_notice_days_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ask_notice_days_member_select ON public.ask_notice_days FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -49446,6 +49685,19 @@ ALTER TABLE public.voice_agents ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: web_push_subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.web_push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: web_push_subscriptions web_push_subscriptions_own; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY web_push_subscriptions_own ON public.web_push_subscriptions TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
 
 --
 -- Name: workspace_notices_pending; Type: ROW SECURITY; Schema: public; Owner: -
@@ -55125,6 +55377,15 @@ GRANT ALL ON FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uui
 
 
 --
+-- Name: FUNCTION words_seen(p_tenant_id uuid, p_step_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.words_seen(p_tenant_id uuid, p_step_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION workspace_days(p_tenant_id uuid, p_from date, p_to date); Type: ACL; Schema: public; Owner: -
 --
 
@@ -55223,6 +55484,112 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointments TO service_role;
 
 
 --
+-- Name: TABLE ask_actions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.ask_actions TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_actions TO service_role;
+
+
+--
+-- Name: COLUMN ask_actions.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.message_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(message_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.proposal_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(proposal_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(kind) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(by) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.origin_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(origin_by) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.strangers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(strangers) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.reason; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(reason) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(state) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.made_kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(made_kind) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.made_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(made_id) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.code; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(code) ON TABLE public.ask_actions TO authenticated;
+
+
+--
+-- Name: COLUMN ask_actions.finished_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(finished_at) ON TABLE public.ask_actions TO authenticated;
+
+
+--
 -- Name: TABLE ask_journal_days; Type: ACL; Schema: public; Owner: -
 --
 
@@ -55287,6 +55654,14 @@ GRANT INSERT(content),UPDATE(content) ON TABLE public.ask_messages TO authentica
 
 GRANT SELECT ON TABLE public.ask_mornings TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_mornings TO service_role;
+
+
+--
+-- Name: TABLE ask_notice_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.ask_notice_days TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ask_notice_days TO service_role;
 
 
 --
@@ -57033,6 +57408,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.voice_agents TO service_role;
 --
 
 GRANT ALL ON TABLE public.waitlist TO service_role;
+
+
+--
+-- Name: TABLE web_push_subscriptions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE ON TABLE public.web_push_subscriptions TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.web_push_subscriptions TO service_role;
 
 
 --

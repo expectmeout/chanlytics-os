@@ -262,6 +262,11 @@ function offerPlan(
     );
   // What no card carries first, then what the cards show: the answer's detail, cut at 700 characters, keeps the first.
   const offerWords = OFFER_PLAN_WORDS[world.says];
+  const also = [
+    ...offerRead.onSaid,
+    ...(offerRead.note.input || offerRead.note.said === offerWords.noteKnown ? [] : [offerRead.note.said]),
+    ...sendUnseen(offerRead, world),
+  ];
   const words = [
     ...offerRead.onSaid,
     ...(offerRead.note.input ? [] : [offerRead.note.said]),
@@ -282,6 +287,7 @@ function offerPlan(
       title: offerTitle(offerRead.offer.words),
       sub: offerWords.sub(offerRead.on, offerRead.dates.untilSaid),
       press: "offer",
+      ...(also.length ? { also } : {}),
     },
     figures: offerFigures(offerRead, world),
     why: offerWhy(offerRead, world),

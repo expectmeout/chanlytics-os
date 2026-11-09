@@ -2,7 +2,6 @@ import "server-only";
 import { roomOf, type BookRoom } from "@chanlytics/contracts";
 import {
   BOOKING_DEFAULTS,
-  MIN_MS,
   bookingToolName,
   calendarFeedKeyOf,
   describeOpenings,
@@ -21,7 +20,6 @@ import {
   type AskOpeningsView,
   type BusyBlock,
   type FeedFailure,
-  type FreeWindowsInput,
   type Opening,
   type TenantConfig,
   causedBy,

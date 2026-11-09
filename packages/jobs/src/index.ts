@@ -6,8 +6,8 @@ export type {
   EscalationOutcome,
   JobContext,
   PushPort,
-  WebPushPort,
   PushReceipt,
+  WebPushPort,
 } from "./handlers/handlers";
 export { incomingEmailOf } from "./handlers/incoming-email";
 export { askReplyDraftOf, replyDraftPortsOf } from "./handlers/reply-draft";

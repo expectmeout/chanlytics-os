@@ -3,11 +3,12 @@
  * offered at all, so nothing is shown that cannot be kept. On an iPhone a browser can only be told once the app is on the home
  * screen, which `reason` says. Nothing here prompts by itself: a person's press asks.
  */
+import { publicEnv } from "../lib/public-env";
 import { apiFor } from "./api";
 
 /** Whether this browser can be told, and why not. */
 export function webPushCan(win: Window): { can: boolean; reason: "no_key" | "no_support" | "home_screen" | null } {
-  const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const key = publicEnv.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   if (!key) return { can: false, reason: "no_key" };
   const nav = win.navigator as Navigator & { standalone?: boolean };
   const iPhone = /iPhone|iPad/.test(nav.userAgent);
@@ -50,7 +51,7 @@ export async function webPushOn(win: Window): Promise<boolean> {
 
 /** Say yes in this browser: its own permission prompt, then its subscription kept. */
 export async function webPushTurnOn(win: Window): Promise<{ ok: boolean; message: string }> {
-  const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const key = publicEnv.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   if (!key) return { ok: false, message: "Browser alerts are not available yet." };
   const permission = await Notification.requestPermission();
   if (permission !== "granted")

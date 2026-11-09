@@ -1,3 +1,4 @@
+import { z } from "zod";
 import "server-only";
 /**
  * A card acted on from the server (D15 of the answers canvas, the keystone): the card as the turn keeps it, read again and
@@ -86,7 +87,13 @@ async function callRoute(
     headers,
     ...(hasBody ? { body: JSON.stringify(call.body) } : {}),
     signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+  }).catch((e: unknown) => {
+    // Said in the log, and answered as no answer: the press is handed back to the browser (`UNREACHED`).
+    log.error("ask_act_unreached", { route: call.route, error: e });
+    return null;
   });
+  if (!res) return { ok: false, status: 0, data: null, code: "unreached", message: "" };
+  // A route's answer that is no JSON is an empty one: its status says the rest.
   const body = recordOrEmpty(await res.json().catch(() => null));
   if (res.ok && body.ok !== false) return { ok: true, status: res.status, data: body.data, code: "", message: "" };
   const error = recordOrEmpty(body.error);
@@ -98,6 +105,13 @@ async function callRoute(
     message: errorMessageOf(error, res.status),
   };
 }
+
+/**
+ * The door did not reach the route as this member at all: no answer, a session the route could not read, or a request it took for
+ * a stranger's. Nothing was sent, so the press goes the way it always went, under the same key.
+ */
+const wasUnreached = (r: Answered): boolean =>
+  r.status === 0 || r.status === 401 || (r.status === 403 && /did not come from the app/.test(r.message));
 
 /** A spec's several calls, in order, stopping at the first refused; a call's row gone is done, where its spec says so. */
 async function sendAll(
@@ -127,8 +141,8 @@ async function tabHere(ctx: RouteContext, member: Member, kind: string): Promise
 }
 
 const isRefusal = (c: object): c is ProposalRefusal => "refused" in c;
-const asCalls = (c: ProposalCall | readonly ProposalCall[]): readonly ProposalCall[] =>
-  Array.isArray(c) ? c : [c as ProposalCall];
+const isMany = (c: ProposalCall | readonly ProposalCall[]): c is readonly ProposalCall[] => Array.isArray(c);
+const asCalls = (c: ProposalCall | readonly ProposalCall[]): readonly ProposalCall[] => (isMany(c) ? c : [c]);
 
 /** The card as the turn keeps it, or a door's no in the person's words. */
 async function cardOnTurn(ctx: RouteContext, messageId: string, proposalId: string) {
@@ -173,6 +187,52 @@ async function failed(
   };
 }
 
+/** What stops a press before anything is sent, in the person's words. */
+type Stopped = { message: string; code: string; moved: boolean; redraft?: boolean };
+
+/** Too old, moved on, or a step still waiting: why this card is not pressed now. Else the card as it will be sent. */
+async function cardAsItStands(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  card: AskProposal,
+  proposals: readonly AskProposal[],
+): Promise<{ stopped: Stopped } | { filled: AskProposal }> {
+  // Too old to be anything but a guess, by the week a plan may wait.
+  if (askCardLapsed({ ...card, plan: card.plan ?? { id: "", step: 0, of: 0, silent: false, after: [] } }, Date.now()))
+    return {
+      stopped: {
+        message: "This is over a week old. Ask again and it is made from how things stand now.",
+        code: "lapsed",
+        moved: true,
+      },
+    };
+  // Is it still true? Who else is talking?
+  const moved = await cardMoved(ctx, tenantId, ctx.userId, card).catch(logAndGoOn("act recheck", null));
+  if (moved) return { stopped: { message: moved.says, code: "moved", moved: true, redraft: moved.redraft } };
+  // A plan's step: what its earlier steps made, in place of their tokens.
+  const filled = cardWithSteps(card, card.plan ? planMadeOf(card.plan.id, proposals) : {});
+  if (isRefusal(filled)) return { stopped: { message: filled.refused, code: "waits", moved: false } };
+  return { filled };
+}
+
+/** A deal's next step and its like: the second call stands or falls on its own, and the receipt says which. */
+async function sendThen(
+  req: Request,
+  spec: ProposalSpec,
+  card: AskProposal,
+  data: unknown,
+  key: string,
+): Promise<ProposalThen | undefined> {
+  const next = spec.then?.(card, data) ?? null;
+  if (!next) return undefined;
+  if (isRefusal(next)) return { ok: false, message: next.refused };
+  const r = await callRoute(req, next, { key: `${key}:then` });
+  return r.ok ? { ok: true, data: r.data } : { ok: false, message: r.message };
+}
+
+/** Nothing was sent and nothing is kept: the browser walks it the way it always went (AskActAnswer.walkHere). */
+const WALK_HERE: AskActAnswer = { ok: false, message: "", outcome: null, calls: [], forward: null, walkHere: true };
+
 /**
  * Act on a card (POST ask/act). The member's session reads the turn, so RLS is the door to whose turn it is; each verb's own
  * route then judges the role and the state as it always has.
@@ -190,21 +250,9 @@ export async function runAct(
   const spec = PROPOSAL_SPECS[card.kind] as ProposalSpec | undefined;
   if (!spec) throw new AppError("validation", "This card cannot be pressed from here.");
   const sides = { messageId: input.messageId, proposalId: input.proposalId, actionId: null as string | null };
-  // Too old to be anything but a guess, by the week a plan may wait.
-  if (askCardLapsed({ ...card, plan: card.plan ?? { id: "", step: 0, of: 0, silent: false, after: [] } }, Date.now()))
-    return failed(ctx, sides, {
-      message: "This is over a week old. Ask again and it is made from how things stand now.",
-      code: "lapsed",
-      moved: true,
-      card,
-    });
-  // Is it still true? Who else is talking?
-  const moved = await cardMoved(ctx, tenantId, ctx.userId, card).catch(logAndGoOn("act recheck", null));
-  if (moved)
-    return failed(ctx, sides, { message: moved.says, code: "moved", moved: true, redraft: moved.redraft, card });
-  // A plan's step: what its earlier steps made, in place of their tokens.
-  const filled = cardWithSteps(card, card.plan ? planMadeOf(card.plan.id, proposals) : {});
-  if (isRefusal(filled)) return failed(ctx, sides, { message: filled.refused, code: "waits", moved: false, card });
+  const stands = await cardAsItStands(ctx, tenantId, card, proposals);
+  if ("stopped" in stands) return failed(ctx, sides, { ...stands.stopped, card });
+  const { filled } = stands;
   const started = await startAskAction(ctx.supabase, {
     tenantId,
     userId: ctx.userId,
@@ -224,6 +272,7 @@ export async function runAct(
     return failed(ctx, sides, { message: (made as ProposalRefusal).refused, code: "refused", moved: false, card });
   const calls = asCalls(made as ProposalCall | readonly ProposalCall[]);
   const sent = await sendAll(req, calls, key);
+  if (!sent.ok && sent.landed === 0 && wasUnreached(sent.refused)) return WALK_HERE;
   if (!sent.ok)
     return failed(ctx, sides, {
       message: sent.refused.message,
@@ -233,16 +282,7 @@ export async function runAct(
     });
   const data =
     sent.answers.length === 1 ? sent.answers[0] : spec.gather ? spec.gather(sent.answers) : sent.answers.at(-1);
-  // A deal's next step and its like: the second call stands or falls on its own, and the receipt says which.
-  const next = spec.then?.(filled, data) ?? null;
-  let then: ProposalThen | undefined;
-  if (next) {
-    if (isRefusal(next)) then = { ok: false, message: next.refused };
-    else {
-      const r = await callRoute(req, next, { key: `${key}:then` });
-      then = r.ok ? { ok: true, data: r.data } : { ok: false, message: r.message };
-    }
-  }
+  const then = await sendThen(req, spec, filled, data, key);
   const madeId = spec.made?.(filled, data) ?? null;
   const outcome: AskProposalOutcome = {
     state: "done",
@@ -288,6 +328,7 @@ export async function undoAct(
   const calls = asCalls(made as ProposalCall | readonly ProposalCall[]);
   const undoOf = typeof record.decision_id === "string" && record.decision_id ? record.decision_id : null;
   const sent = await sendAll(req, calls, `undo:${card.id}`, undoOf);
+  if (!sent.ok && sent.landed === 0 && wasUnreached(sent.refused)) return WALK_HERE;
   if (!sent.ok) {
     const message = spec.undo.partial?.(record, sent.landed, sent.refused.message) ?? sent.refused.message;
     return { ok: false, message, outcome: card.outcome ?? null, calls: [], forward: null };
@@ -308,10 +349,18 @@ export async function undoAct(
 }
 
 /** The body the two doors read: which card, and how. */
-export function actBody(json: unknown): { messageId: string; proposalId: string; by: ActBy } {
-  const body = recordOrEmpty(json);
-  const messageId = typeof body.message_id === "string" ? body.message_id : "";
-  const proposalId = typeof body.proposal_id === "string" ? body.proposal_id.slice(0, 40) : "";
-  if (!messageId || !/^p-[a-z0-9-]+$/.test(proposalId)) throw new AppError("validation", "Which card?");
-  return { messageId, proposalId, by: isOneOf(ACT_BY, body.by) ? body.by : "press" };
-}
+export const ACT_INPUT = z.object({
+  message_id: z.uuid("Which turn?"),
+  proposal_id: z
+    .string()
+    .max(40)
+    .regex(/^p-[a-z0-9-]+$/, "Which card?"),
+  by: z.string().optional(),
+});
+
+/** A way of pressing this build does not know is a press. */
+export const actOf = (b: z.infer<typeof ACT_INPUT>): { messageId: string; proposalId: string; by: ActBy } => ({
+  messageId: b.message_id,
+  proposalId: b.proposal_id,
+  by: isOneOf(ACT_BY, b.by) ? b.by : "press",
+});

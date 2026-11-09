@@ -171,6 +171,33 @@ export const AskCardChange = ({
   );
 };
 
+/** A card of the one thing to fix first: its door, in the press's place. */
+const AskFixActs = ({
+  p,
+  t,
+  busy,
+  onDismiss,
+  onNav,
+}: {
+  p: AskProposal;
+  t: LineWords;
+  busy: boolean;
+  onDismiss: () => void;
+  onNav: (to: string) => void;
+}) => {
+  const pl = p.payload || {};
+  return (
+    <div className="ask-card-actions">
+      {typeof pl.to === "string" && pl.door ? (
+        <Button variant="primary" size="sm" onClick={() => onNav(pl.to as string)} data-testid="ask-card-door">
+          {pl.door as string}
+        </Button>
+      ) : null}
+      {p.origin?.by === "idea" ? <AskNotNow t={t} busy={busy} onDismiss={onDismiss} /> : null}
+    </div>
+  );
+};
+
 // Before the act (D14 of the answers canvas): one press that says what it does (contracts askPressOf, in the Line's language;
 // a search's and a post's say their own, `press`), the composer on a reply, Open where the answer does not already offer the
 // place (`hideOpen`, oneDoor; where it goes is the contract's cardOpenRoute), Details where the sheet keeps something aside,
@@ -212,17 +239,7 @@ export const AskCardActs = ({
   const openRoute = A && A.cardOpenRoute ? A.cardOpenRoute(p) : null;
   const aside = !!(onMore && p.sheet && p.sheet.rows.some((r) => r.aside));
   const idea = p.origin?.by === "idea";
-  if (p.kind === "fix")
-    return (
-      <div className="ask-card-actions">
-        {typeof pl.to === "string" && pl.door ? (
-          <Button variant="primary" size="sm" onClick={() => onNav(pl.to as string)} data-testid="ask-card-door">
-            {pl.door as string}
-          </Button>
-        ) : null}
-        {idea ? <AskNotNow t={t} busy={busy} onDismiss={onDismiss} /> : null}
-      </div>
-    );
+  if (p.kind === "fix") return <AskFixActs p={p} t={t} busy={busy} onDismiss={onDismiss} onNav={onNav} />;
   const mayPress = canDo(gateKey);
   return (
     <div className="ask-card-actions">
@@ -233,7 +250,7 @@ export const AskCardActs = ({
       ) : null}
       {!waits && !mayPress ? (
         <p className="ask-card-foot" data-testid="ask-card-cant">
-          {gateTitle(gateKey, p.title)}
+          {gateTitle(gateKey, "approve this card")}
         </p>
       ) : null}
       {waits || !mayPress ? null : (

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { env } from "@/server/shared/env";
 import { runMorningSweep } from "@/server/ask/notice/sweep";
 
 /**
@@ -7,7 +8,7 @@ import { runMorningSweep } from "@/server/ask/notice/sweep";
  * on. Only the businesses whose morning it is now are looked at, a few a run, so the clock's next tick carries on.
  */
 export async function GET(req: Request): Promise<Response> {
-  const secret = process.env.CRON_SECRET;
+  const secret = env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`)
     return NextResponse.json({ ok: false }, { status: 401 });
   return NextResponse.json({ ok: true, data: await runMorningSweep(new Date()) });

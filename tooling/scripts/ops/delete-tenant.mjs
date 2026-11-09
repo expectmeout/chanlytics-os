@@ -72,11 +72,14 @@ const TABLES = [
   "anthropic_profiles",
   "appointment_notices",
   "appointments",
+  // What Ask did (00574): closed sets and ids alone.
+  "ask_actions",
   // What Ask remembers, its journal and each member's mornings (00470, decision 0070).
   "ask_journal_days",
   "ask_memory_lines",
   "ask_messages",
   "ask_mornings",
+  "ask_notice_days",
   "ask_threads",
   "ask_voice_sessions",
   "billing_accounts",

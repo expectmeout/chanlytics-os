@@ -1,5 +1,5 @@
+import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
-import { recordOrEmpty } from "@chanlytics/contracts";
 import { setAskAlone } from "@/server/ask/act/stop";
 
 /**
@@ -11,8 +11,6 @@ export const POST = write({
   scope: workspace,
   role: "partner",
   rate: "settings",
-  handle: async ({ ctx, req, member }) => {
-    const body = recordOrEmpty(await req.json().catch(() => null));
-    return setAskAlone(ctx, member, body.on === true);
-  },
+  input: z.object({ on: z.boolean() }),
+  handle: ({ ctx, member, input }) => setAskAlone(ctx, member, input.on),
 });

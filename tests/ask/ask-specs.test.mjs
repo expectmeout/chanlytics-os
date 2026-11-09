@@ -992,8 +992,8 @@ test("a note (D8): the words and who reads them to the notes route, nothing else
     events: [saved],
   });
   assert.deepEqual(spec.commit(forTeam, TAB).body, { body: "Owes us a callback.", team_only: true });
-  assert.equal(spec.receipt(forReceptionist, WRITTEN), "Rosa · Note added");
-  assert.equal(spec.receipt(forTeam, WRITTEN), "Rosa · Note added · Team only");
+  assert.equal(spec.receipt(forReceptionist, WRITTEN), "Noted on Rosa.");
+  assert.equal(spec.receipt(forTeam, WRITTEN), "Noted on Rosa.");
   assert.equal(spec.undo.label(forReceptionist), "Delete it");
   const kept = spec.undo.record(forReceptionist, WRITTEN, TAB);
   assert.deepEqual(kept, { contact_id: P1, note_id: N1 });
@@ -1162,8 +1162,8 @@ test("a run (D11): approve and skip are the run's own doors, approve's undo is a
   assert.equal(spec.undo.record(skip, CANCELED("pending_approval"), TAB), null);
   assert.deepEqual(spec.undo.call(kept, TAB_AFTER), PROPOSAL_SPECS.broadcast.undo.call(kept, TAB_AFTER));
   assert.deepEqual(spec.undo.call(kept, TAB_AFTER), { route: "POST broadcasts/[id]/cancel", params: { id: RUN } });
-  assert.equal(spec.undo.receipt(CANCELED("scheduled")), "Canceled — nothing will send");
-  assert.equal(spec.undo.receipt(CANCELED("sending")), "Stopped — it ends after this batch");
+  assert.equal(spec.undo.receipt(CANCELED("scheduled")), "Undone. Nothing goes out.");
+  assert.equal(spec.undo.receipt(CANCELED("sending")), "Stopped. Nothing more goes out.");
   assert.equal(cardOpenRoute(approve), `campaigns/sequences/${RUN}/runs/${RUN}`, "the run's sheet");
   // No verb, or one it does not know, is no card to send: the verb has no default.
   for (const verb of [undefined, null, "", "cancel", "Approve"])
@@ -1259,10 +1259,10 @@ test("a playbook card (A0, the landing rule): a starter it names is committed in
   assert.equal(spec.open(onStarter, done({ playbook_id: "pb9", decision_id: "d1" })), "campaigns/sequences/pb9");
   assert.equal(spec.open(card("playbook", {}), null), "campaigns/sequences");
   // The receipt says the starter's WhatsApp version went for review, where the route says it did, naming the reviewer as
-  // every sentence a person reads does (WhatsApp, never Meta); and "Campaign", the word a person reads.
+  // every sentence a person reads does (WhatsApp, never Meta).
   const submitted = spec.receipt(onStarter, { name: "Win-back", starter: { status: "submitted" } });
-  assert.ok(submitted.endsWith(" · its starter's WhatsApp version is with WhatsApp for review"), submitted);
+  assert.ok(submitted.endsWith(" WhatsApp reads its words first."), submitted);
   assert.doesNotMatch(submitted, /Meta/);
-  assert.doesNotMatch(spec.receipt(onStarter, { name: "Win-back" }), /review/);
-  assert.match(spec.receipt(onStarter, { name: "Win-back" }), /^Campaign “Win-back” is running/);
+  assert.doesNotMatch(spec.receipt(onStarter, { name: "Win-back" }), /WhatsApp/);
+  assert.match(spec.receipt(onStarter, { name: "Win-back" }), /^“Win-back” is on\./);
 });

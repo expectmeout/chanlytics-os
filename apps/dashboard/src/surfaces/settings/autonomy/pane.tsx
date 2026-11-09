@@ -11,7 +11,7 @@
  * draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves; the mockup's
  * seeded twin (its own matrix, defaults and guardrails, kept in the browser) left with it.
  */
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type ComponentProps } from "react";
 import {
   MIN_MS,
   REPLY_DELAY_DEFAULT_MS,
@@ -225,6 +225,21 @@ const AUT_MANY_ROW = {
   note: "how a new offer, win-back or follow-up starts · each keeps its own on its page, and asks you before its first batch and after new words",
 };
 
+/** What else it may do without you, as a table at a desk and a list on a phone. */
+const AutMatrix = ({ phone, rows, put, busy, lines }: { phone: boolean } & ComponentProps<typeof PolicyTable>) => (
+  <section className="rec-card set-card">
+    <div className="rec-card-head">
+      <h2 className="rec-card-title">Policy matrix</h2>
+      <span className="rec-card-sub">What else it may do without you. Every row is one it consults before acting.</span>
+    </div>
+    {phone ? (
+      <PolPhoneRows rows={rows} put={put} busy={busy} lines={lines} />
+    ) : (
+      <PolicyTable rows={rows} put={put} busy={busy} lines={lines} />
+    )}
+  </section>
+);
+
 /**
  * Ask on its own (D10) and Stop everything (D22): the switch that lets what it proposes follow the rows below with no press,
  * off until an owner turns it on, and the one press that pauses all sending. What always waits for a person is said here,
@@ -392,19 +407,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
 
       <AskOnItsOwn alone={ask?.alone === true} stopped={ask?.stopped ?? null} flash={flash} />
 
-      <section className="rec-card set-card">
-        <div className="rec-card-head">
-          <h2 className="rec-card-title">Policy matrix</h2>
-          <span className="rec-card-sub">
-            What else it may do without you. Every row is one it consults before acting.
-          </span>
-        </div>
-        {phone ? (
-          <PolPhoneRows rows={matrix} put={putMode} busy={busy} lines={lines} />
-        ) : (
-          <PolicyTable rows={matrix} put={putMode} busy={busy} lines={lines} />
-        )}
-      </section>
+      <AutMatrix phone={phone} rows={matrix} put={putMode} busy={busy} lines={lines} />
 
       <section className="rec-card set-card">
         <div className="rec-card-head">

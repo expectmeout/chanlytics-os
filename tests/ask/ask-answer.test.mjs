@@ -1160,31 +1160,22 @@ test("Copy takes the answer's words, then what it showed: the whole in its parts
   assert.equal(answerCopy(bare.answer), answerText(bare.answer));
 });
 
-test("cards only: the cards are the Do, said in a sentence, in English and Spanish", () => {
+test("cards only: the cards are the Do, said in a sentence that counts nothing the card says, in English and Spanish (D1 of the answers canvas)", () => {
   const one = answerForCards([{ title: "Send Nora the Saturday times" }], "en", null);
   assert.equal(one.form, "structured");
-  assert.equal(one.say.headline, "One card to review: Send Nora the Saturday times.");
-  assert.equal(one.say.detail, "Approve it, change it or dismiss it: nothing happens until you do.");
+  assert.equal(one.say.headline, "Here it is: Send Nora the Saturday times.");
+  assert.equal(one.say.detail, "", "the card says what it does and that it waits");
   assert.deepEqual([one.show.items, one.show.figures, one.do.open, one.do.next], [[], [], null, []]);
   assert.equal(
     answerForCards([{ title: "Move Sam to Friday?" }], "en", null).say.headline,
-    "One card to review: Move Sam to Friday?",
+    "Here it is: Move Sam to Friday?",
   );
   const es = answerForCards([{ title: "a" }, { title: "b" }], "es", null);
-  assert.equal(es.say.headline, "2 tarjetas para revisar.");
-  // Several cards are several presses (the moment spec, A7): a setup's cards are each approved apart.
-  assert.equal(
-    es.say.detail,
-    "Cada una se aprueba por separado: apruébala, cámbiala o descártala; nada pasa hasta que lo hagas.",
-  );
-  assert.equal(
-    answerForCards([{ title: "a" }, { title: "b" }], "en", null).say.detail,
-    "Each is its own press: approve, change or dismiss each one; nothing happens until you do.",
-  );
-  assert.equal(es.language, "es");
+  assert.deepEqual([es.say.headline, es.say.detail, es.language], ["2 para mirar.", "", "es"]);
+  assert.equal(answerForCards([{ title: "a" }, { title: "b" }], "en", null).say.headline, "2 to look at.");
 });
 
-test("a plan's cards are said as a plan (the marketing manager's spec §5.8): every card a step, as each card's head counts them, and how many send nothing and how many send, in English and Spanish; cards of no one plan are counted as cards", () => {
+test("a plan is one card, so the sentence over it counts no steps and no sends: its own first sentence, or that here it is, in English and Spanish; cards of no one plan are counted as cards", () => {
   const stamp = (step, silent, id = "plan-1") => ({
     title: `Step ${step}`,
     kind: silent ? "list" : "broadcast",
@@ -1192,56 +1183,19 @@ test("a plan's cards are said as a plan (the marketing manager's spec §5.8): ev
   });
   const six = [1, 2, 3, 4].map((n) => stamp(n, true)).concat([stamp(5, false), stamp(6, false)]);
   const en = answerForCards(six, "en", null);
-  // "Step 6 of 6" on the last card, and six steps in the headline above it.
-  assert.equal(en.say.headline, "A plan of 6 steps to review: 4 send nothing, then 2 send.");
-  assert.equal(
-    en.say.detail,
-    "The steps that send nothing are approved with one press; each send is its own press once the steps it waits for are done. Nothing happens until you do.",
-  );
+  assert.deepEqual([en.say.headline, en.say.detail], ["Here is the plan.", ""]);
   const es = answerForCards(six, "es", null);
-  assert.equal(es.say.headline, "Un plan de 6 pasos para revisar: 4 no envían nada y luego 2 envían.");
+  assert.deepEqual([es.say.headline, es.say.detail], ["Aquí está el plan.", ""]);
   assert.equal(
-    es.say.detail,
-    "Los pasos que no envían nada se aprueban con un toque; cada envío se aprueba aparte cuando estén hechos los pasos que espera. Nada pasa hasta que lo hagas.",
-  );
-  assert.equal(
-    answerForCards([stamp(1, true), stamp(2, false)], "en", null).say.headline,
-    "A plan of 2 steps to review: 1 sends nothing, then 1 sends.",
-  );
-  assert.equal(
-    answerForCards([stamp(1, true), stamp(2, false)], "es", null).say.headline,
-    "Un plan de 2 pasos para revisar: 1 no envía nada y luego 1 envía.",
-  );
-  // Steps that all send (no plan stamps such cards since D3, but the count holds): no "send nothing" part, and each is
-  // its own press, as several cards are.
-  const sends = answerForCards([stamp(1, false), stamp(2, false), stamp(3, false)], "en", null);
-  assert.equal(sends.say.headline, "A plan of 3 steps to review: 3 send.");
-  assert.equal(sends.say.detail, answerForCards([{ title: "a" }, { title: "b" }], "en", null).say.detail);
-  // A plan of steps that send nothing alone says nothing of sends.
-  const quiet = [stamp(1, true), stamp(2, true)];
-  assert.deepEqual(
-    [answerForCards(quiet, "en", null).say.headline, answerForCards(quiet, "en", null).say.detail],
-    [
-      "A plan of 2 steps to review: 2 send nothing.",
-      "The steps that send nothing are approved with one press. Nothing happens until you do.",
-    ],
-  );
-  assert.deepEqual(
-    [answerForCards(quiet, "es", null).say.headline, answerForCards(quiet, "es", null).say.detail],
-    [
-      "Un plan de 2 pasos para revisar: 2 no envían nada.",
-      "Los pasos que no envían nada se aprueban con un toque. Nada pasa hasta que lo hagas.",
-    ],
+    answerForCards(six, "en", "It goes by email. It pauses the other one.").say.headline,
+    "It goes by email.",
   );
   // Not one plan's cards: a card of no plan beside it, or two plans, are cards.
-  assert.equal(answerForCards([...six, { title: "Reply to Nora" }], "en", null).say.headline, "7 cards to review.");
-  assert.equal(
-    answerForCards([stamp(1, true), stamp(2, false, "plan-2")], "en", null).say.headline,
-    "2 cards to review.",
-  );
+  assert.equal(answerForCards([...six, { title: "Reply to Nora" }], "en", null).say.headline, "7 to look at.");
+  assert.equal(answerForCards([stamp(1, true), stamp(2, false, "plan-2")], "en", null).say.headline, "2 to look at.");
 });
 
-test("REGRESSION: a step pressed after a send is not a send -- a lead search and the follow-up that waits for it read 'A plan of 2 steps to review: 2 send' (the operator stress run, 15 Oct 2026)", () => {
+test("REGRESSION: a sentence that counted a plan's sends could count them wrong -- a lead search and the follow-up that waits for it read 'A plan of 2 steps to review: 2 send' (the operator stress run, 15 Oct 2026): it counts nothing now", () => {
   // As act/plan.ts stamps them: the search a send, the follow-up naming its result and so pressed after it.
   const search = {
     title: "Find 100 plumbers",
@@ -1259,28 +1213,7 @@ test("REGRESSION: a step pressed after a send is not a send -- a lead search and
       answerForCards([search, later], "en", words).say.headline,
       answerForCards([search, later], "es", words).say.headline,
     ],
-    [
-      "A plan of 2 steps to review: 1 sends, then 1 waits for a send.",
-      "Un plan de 2 pasos para revisar: 1 envía y luego 1 espera un envío.",
-    ],
-  );
-  // A send that names a send's result is a send: a cold email to the leads a search found.
-  const email = {
-    title: "Cold email",
-    kind: "reach_out_make",
-    plan: { id: "p", step: 2, of: 2, silent: false, after: [1] },
-  };
-  assert.equal(answerForCards([search, email], "en", words).say.headline, "A plan of 2 steps to review: 2 send.");
-  // A silent step, a send, and a step after it.
-  const list = { title: "List", kind: "list", plan: { id: "q", step: 1, of: 3, silent: true, after: [] } };
-  const three = [
-    list,
-    { ...search, plan: { ...search.plan, id: "q", step: 2, of: 3, after: [1] } },
-    { ...later, plan: { ...later.plan, id: "q", step: 3, of: 3, after: [1, 2] } },
-  ];
-  assert.equal(
-    answerForCards(three, "en", words).say.headline,
-    "A plan of 3 steps to review: 1 sends nothing, then 1 sends, then 1 waits for a send.",
+    [words, words],
   );
 });
 
@@ -1292,34 +1225,29 @@ test("REGRESSION: an answer of cards alone is kept in the language its words are
   );
 });
 
-test("a round that made a plan answers with the plan's words as its detail, in place of the press sentence: stamped or not (a setup with no silent step, D3), in a Spanish answer the Spanish words the plan said (PlanWorld.says), cut on a whole word at the detail's cap", () => {
+test("a round that made a plan answers with one sentence, and the card holds the rest: an offer's why, in the language it is said in; a setup's campaigns, unstamped, are counted as cards with the plan's words their detail, cut on a whole word at the detail's cap", () => {
   const stamp = (step, silent) => ({
     title: `Step ${step}`,
     kind: silent ? "playbook_change" : "broadcast",
     plan: { id: "plan-1", step, of: 3, silent, after: silent ? [] : [1, 2] },
   });
-  const words =
-    "Pauses the month's offer, “This month's offer”, from when you approve it, so nobody gets two offers; resume it after Nov 30.";
-  const plan = answerForCards([stamp(1, true), stamp(2, true), stamp(3, false)], "en", words);
-  assert.deepEqual(
-    [plan.say.headline, plan.say.detail],
-    ["A plan of 3 steps to review: 2 send nothing, then 1 sends.", words],
-  );
+  const cards = [stamp(1, true), stamp(2, true), stamp(3, false)];
+  const words = "Pauses the month's offer so nobody gets two offers. It goes by email.";
+  const why = "More people said yes than you have room for, so it is paced.";
+  const plan = answerForCards(cards, "en", words, null, why);
+  assert.deepEqual([plan.say.headline, plan.say.detail, plan.language], [why, "", "en"]);
+  const es = answerForCards(cards, "es", words, null, "Más gente dijo que sí de la que cabe.");
+  assert.deepEqual([es.say.headline, es.say.detail, es.language], ["Más gente dijo que sí de la que cabe.", "", "es"]);
+  // No why: the plan's first sentence, and the card says the rest.
+  const said = answerForCards(cards, "en", words);
+  assert.deepEqual([said.say.headline, said.say.detail], ["Pauses the month's offer so nobody gets two offers.", ""]);
   // A setup's campaigns, unstamped: counted as cards, the plan's words their detail.
   const setup = answerForCards([{ title: "a" }, { title: "b" }, { title: "c" }], "en", "Starts 3 campaigns.");
-  assert.deepEqual([setup.say.headline, setup.say.detail], ["3 cards to review.", "Starts 3 campaigns."]);
-  // A Spanish answer counts in Spanish and carries the plan's words as the plan says them, in the question's language.
-  const palabras =
-    "Pausa la oferta del mes, «Oferta del mes», desde que apruebes el plan, para que nadie reciba dos ofertas; reanúdala después del 30 de noviembre.";
-  const es = answerForCards([stamp(1, true), stamp(2, true), stamp(3, false)], "es", palabras);
-  assert.deepEqual(
-    [es.say.headline, es.say.detail],
-    ["Un plan de 3 pasos para revisar: 2 no envían nada y luego 1 envía.", palabras],
-  );
+  assert.deepEqual([setup.say.headline, setup.say.detail], ["3 to look at.", "Starts 3 campaigns."]);
   // Words past the detail's cap end on a whole word, with an ellipsis, within it.
   const long = Array.from({ length: 600 }, (_, i) => `word${i}`).join(" ");
   assert.ok(long.length > ASK_ANSWER_CAPS.detail, "longer than the detail holds");
-  const cut = answerForCards([stamp(1, true), stamp(3, false)], "en", long).say.detail;
+  const cut = answerForCards([{ title: "a" }, { title: "b" }], "en", long).say.detail;
   assert.ok(cut.length <= ASK_ANSWER_CAPS.detail, `${cut.length}`);
   assert.ok(cut.endsWith("…") && long.startsWith(cut.slice(0, -1)), cut);
   assert.match(cut, /word\d+…$/, "cut after a whole word");

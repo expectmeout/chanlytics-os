@@ -133,6 +133,7 @@ export const CORE_TOOLS: ReadonlySet<string> = new Set([
   propose_reply.name,
   propose_person.name,
   propose_plan.name,
+  press_card.name,
   recallTool.name,
   rememberAct.name,
 ]);

@@ -231,6 +231,8 @@ export interface AskPlanHead {
   says: Array<{ channel: string; label: string; words: string }>;
   /** Who can hear it, where that is not everyone (contracts whoCanHearWords, D23). */
   hear?: string;
+  /** What no step says: a channel left out and why, a note left for an owner, the room, the reminder. Under How it runs. */
+  also?: string[];
 }
 
 /**
@@ -282,6 +284,11 @@ export interface AskActAnswer {
   calls: Array<{ route: string; events: Array<{ type: string; detail?: Record<string, unknown> }> }>;
   forward: { to: string } | null;
   redraft?: boolean;
+  /**
+   * The door could not reach the verb's own route at all, so nothing was sent and nothing is kept: the press goes the way it
+   * went from a browser, under the same key, so it can never act twice. A way down, should a deployment refuse its own calls.
+   */
+  walkHere?: boolean;
 }
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */

@@ -263,7 +263,7 @@ async function playbookTimezone(ctx: RouteContext, tenantId: TenantId): Promise<
   return read.data?.timezone ?? "UTC";
 }
 
-/** Marks a new send's words as the person's OK (`words_seen`, 00580). False where the door is not there yet. */
+/** Marks a new send's words as the person's OK (`words_seen`, 00573). False where the door is not there yet. */
 async function markWordsOk(ctx: RouteContext, tenantId: TenantId, playbookId: string): Promise<boolean> {
   return wordsSeenByMember(ctx.supabase, tenantId, playbookId).catch(logAndGoOn("wordsSeenByMember", false));
 }

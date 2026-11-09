@@ -1,11 +1,12 @@
--- 00581 · A record of each thing Ask did (the answers canvas, D16).
+-- 00574 · A record of each thing Ask did (the answers canvas, D16).
 --
 -- What a card became was kept only on the turn that proposed it, as text in its JSON. An action that may run with no press,
 -- from a lock screen or on a spoken yes needs a record of its own: who decided, how, why it was allowed, and how it ended.
 --
 --   ask_actions    One row per card acted on. It holds no person's words, only closed sets and ids: what the card said stays
 --                  on its turn, which an erasure already reaches (scrub_ask_for_contact, 00501), so a row here outlives a
---                  scrubbed turn as a bare record that something was done (message_id set null).
+--                  scrubbed or deleted turn as a bare record that something was done. It names that turn by id alone, with
+--                  no key: a turn gone is no reason to lose the record. A member who leaves leaves the row, without their name.
 --
 -- Written by the member's own session under RLS, at the act door (server/ask/act/run.ts). A row is unique per card, so a press
 -- sent twice acts once. Deploy order: this first; the door treats a missing table as no record, and a press still goes.
@@ -16,7 +17,7 @@ set local lock_timeout = '3s';
 create table if not exists public.ask_actions (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants (id) on delete cascade,
-  user_id uuid not null,
+  user_id uuid references auth.users (id) on delete set null,
   message_id uuid,
   proposal_id text not null,
   kind text not null,
@@ -38,12 +39,8 @@ create table if not exists public.ask_actions (
 comment on table public.ask_actions is
   'What Ask did and why it was allowed (the answers canvas, D16): closed sets and ids alone, the words stay on the turn.';
 
-alter table public.ask_actions drop constraint if exists ask_actions_message_same_workspace;
-alter table public.ask_actions add constraint ask_actions_message_same_workspace
-  foreign key (message_id) references public.ask_messages (id) on delete set null;
-
 create index if not exists ask_actions_recent on public.ask_actions (tenant_id, at desc);
-create index if not exists ask_actions_message on public.ask_actions (message_id);
+create index if not exists ask_actions_user on public.ask_actions (user_id);
 
 alter table public.ask_actions enable row level security;
 drop policy if exists ask_actions_member_select on public.ask_actions;

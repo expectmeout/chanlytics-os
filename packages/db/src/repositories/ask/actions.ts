@@ -1,11 +1,11 @@
 /**
- * What Ask did, and why it was allowed (ask_actions, 00581): one row per card acted on, written under the member's own
+ * What Ask did, and why it was allowed (ask_actions, 00574): one row per card acted on, written under the member's own
  * session. It holds closed sets and ids alone, the words stay on the turn. Every write here is said to the caller as what it
  * managed, never raised over a press: a press that went and whose record failed still went, and a database before the table
  * reads as no record (isMissingDoor).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DAY_MS, DbFailure, WEEK_MS, type TenantId } from "@chanlytics/contracts";
+import { DAY_MS, DbFailure, WEEK_MS, type SchemaSet, type TenantId } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { isMissingDoor } from "../../shared/missing-door";
 
@@ -21,8 +21,8 @@ export interface AskActionStart {
   messageId: string;
   proposalId: string;
   kind: string;
-  by: "press" | "yes" | "row" | "lock_screen" | "mail";
-  originBy: string | null;
+  by: SchemaSet<"ask_actions.by">;
+  originBy: SchemaSet<"ask_actions.origin_by"> | null;
   strangers: boolean;
   reason: string | null;
 }

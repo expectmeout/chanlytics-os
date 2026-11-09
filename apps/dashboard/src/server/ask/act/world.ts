@@ -57,6 +57,16 @@ export async function turnWorld(ctx: RouteContext, member: Member, now: Date): P
   };
 }
 
+/** Whether the switch is on (Settings › Autonomy). A read that fails is off: nothing runs on a guess. */
+async function aloneIsOn(ctx: RouteContext, member: Member): Promise<boolean> {
+  const row = await load(readerContext(ctx, member), configReader, undefined).then(
+    (r) => r.data,
+    logAndGoOn("alone config", null),
+  );
+  const parsed = parseTenantConfigResult(row?.config ?? null);
+  return parsed.ok && (parsed.config.ask as { alone?: boolean } | undefined)?.alone === true;
+}
+
 /** Whether the business is open now, by its own hours; with no hours set, whether it is the sending day (8 to 20). */
 function openHere(
   profile: { hours?: Record<string, never>; closures?: never[] } | undefined,
@@ -96,8 +106,9 @@ export async function runAlone(
   const out = [...cards];
   const candidates = cards.filter((p) => !p.plan && !p.outcome && p.kind !== "memory");
   if (candidates.length === 0) return out;
+  // Off for almost everyone: one read says so, and a turn pays for nothing more.
+  if (!(await aloneIsOn(ctx, member))) return out;
   const world = await turnWorld(ctx, member, now);
-  if (!world.alone) return out;
   for (const p of candidates) {
     const spec = PROPOSAL_SPECS[p.kind];
     const verdict = freedomOf(p, {

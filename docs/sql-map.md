@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 174 | 174 |
+| door | 175 | 175 |
 | reader | 73 | 0 |
 | the server's | 317 | 273 |
 | computed column | 3 | 0 |
 | trigger | 99 | 69 |
-| all | 666 | 516 |
+| all | 667 | 517 |
 
 ## Called by nothing
 
@@ -209,7 +209,7 @@ being read is dropped by a migration.
 | `ingest_before` | the server's | the server | code `packages/db/src/repositories/imports/before.ts` | A message from before Chanlytics (decision 0073, R19 and R21): |
 | `ingest_call` | the server's | its owner | code `packages/db/src/repositories/voice/calls.ts`; script `tooling/scripts/ops/filler.mjs` |  |
 | `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/whatsapp.ts`, `packages/db/src/repositories/channels/ingest.ts` |  |
-| `is_acting_member` | reader | a signed-in person, the server | SQL `add_person`, `approve_broadcast` and 69 more; in `rule conversations_acting_member_update on conversations`, `rule decisions_acting_member_insert on decisions` and 15 more | True when the caller may COMMIT changes in this tenant: |
+| `is_acting_member` | reader | a signed-in person, the server | SQL `add_person`, `approve_broadcast` and 70 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
 | `job_dedupe_key_of` | the server's | the server | SQL `jobs_take_their_kind` | The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. |
@@ -705,6 +705,7 @@ being read is dropped by a migration.
 | `wear_found_look` | the server's | the server | code `packages/db/src/repositories/look/look.ts` | The website read's door (00490): |
 | `withdraw_ai_drafts` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `conversation_take_over`, `member_withdraw_drafts` | The receptionist's queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00387). |
 | `withdraw_queued` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `claim_reply_turn`, `member_withdraw_message` and 2 more | The one door a queued message is withdrawn by (00387): |
+| `words_seen` | door | a signed-in person, the server | code `apps/dashboard/src/server/campaigns/playbook-row.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | A member pressed a card of Ask's that showed this step's words: |
 | `workspace_days` | door | a signed-in person, the server | nothing at run time | A workspace's rolled days between two dates, oldest first, for a member of that workspace (K10): |
 | `workspace_notices_on_erase` | trigger | the server | trigger `contacts_erase_marks_its_notices on contacts` | Decision 0019 (00549): |
 | `workspace_notices_since` | reader | a signed-in person, the server | code `packages/db/src/realtime.ts` | Decision 0019 step 4 (00508): |

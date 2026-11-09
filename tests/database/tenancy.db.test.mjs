@@ -730,6 +730,12 @@ const TENANT_TABLES = {
   files_let_go: ["none", () => ({ tenant_id: A, fingerprint: "a-strangers" })],
   ask_journal_days: ["owner", () => ({ tenant_id: A, day: "2026-10-19", state: "quiet" })],
   ask_mornings: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, day: "2026-10-20" })],
+  // What Ask did and what it told (00574, 00575): a member reads them, a member who may act writes the record.
+  ask_actions: [
+    "member",
+    () => ({ tenant_id: A, user_id: ctx.strangerId, proposal_id: "p-stranger", kind: "note", by: "press" }),
+  ],
+  ask_notice_days: ["member", () => ({ tenant_id: A, day: "2026-10-18" })],
   ask_messages: [
     "own",
     () => ({
@@ -1056,6 +1062,7 @@ const OTHER_TABLES = {
   tenants: "workspace", // read by membership on id; owners update their own
   notification_marks: "own",
   push_devices: "own", // a person's phones (00162): read by user_id; written only through the two definer doors
+  web_push_subscriptions: "own", // a person's browsers (00575): read and written by user_id, on their own session
   profiles: "people", // a person's own row, and the rows of people who share a workspace with them: not tenancy
   operator_pages: "none",
   client_errors: "none", // the errors pages hit (00469): no workspace, a hash of who; the service role's alone

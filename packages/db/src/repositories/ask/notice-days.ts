@@ -1,5 +1,5 @@
 /**
- * One morning per business (ask_notice_days, 00582): which businesses are due, what was said lately, and the line it leaves on the
+ * One morning per business (ask_notice_days, 00575): which businesses are due, what was said lately, and the line it leaves on the
  * bell. Read and written by the sweep with the service role. A database before the table reads as nothing said yet.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";

@@ -35,6 +35,7 @@ export {
   roomOf,
 } from "./availability";
 export type { BookingRulesLike, FreeWindowsInput, Opening } from "./availability";
+export type { BookRoom } from "./availability";
 export {
   appointmentKey,
   BOOKING_TOOL_IDS,
@@ -249,5 +250,3 @@ export {
   visitStateOf,
 } from "./words/visit";
 export type { VisitLineInput, VisitLineVM, VisitStateTone, VisitStateVM } from "./words/visit";
-
-export type { BookRoom } from "./availability";

@@ -1,5 +1,5 @@
+import { z } from "zod";
 import { write, workspace } from "@/server/shared/route";
-import { recordOrEmpty } from "@chanlytics/contracts";
 import { resumeEverything, stopEverything } from "@/server/ask/act/stop";
 
 /**
@@ -11,10 +11,9 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "settings",
-  handle: async ({ ctx, req, member }) => {
-    const body = recordOrEmpty(await req.json().catch(() => null));
-    return body.stopped === false ? resumeEverything(ctx, req, member) : stopEverything(ctx, req, member);
-  },
+  input: z.object({ stopped: z.boolean().optional() }),
+  handle: ({ ctx, req, member, input }) =>
+    input.stopped === false ? resumeEverything(ctx, req, member) : stopEverything(ctx, req, member),
 });
 
 export const maxDuration = 60;

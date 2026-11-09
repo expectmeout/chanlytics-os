@@ -269,7 +269,7 @@ export const playbookSpec: ProposalSpec = {
     },
   }),
   // What a person wants to know: it is on, and when the first go. Where the press could not count as their OK of its first
-  // batch (an older door, a database before 00580), it says that batch waits for them; where WhatsApp reads the words first, so.
+  // batch (an older door, a database before 00573), it says that batch waits for them; where WhatsApp reads the words first, so.
   receipt: ({ payload: pl }, data) => {
     const d = rec(data);
     const offer = pl.trigger === "saved_list" && pl.policy_class === "campaign";
@@ -610,7 +610,7 @@ export const MESSAGE_WORDS = {
     filed: readonly { channel: ConsentChannel; state: string }[],
     refused: { channel: ConsentChannel; words: string } | null,
   ): string => {
-    if (filed.length === 0) return `Not saved${refused ? `: ${refused.words}` : ""}.`;
+    if (filed.length === 0) return refused ? `Not saved: ${refused.words}` : "Not saved.";
     const whatsapp = filed.find((v) => v.channel === "whatsapp");
     const said =
       whatsapp && metaStatusOf(whatsapp.state) !== "approved" ? ` WhatsApp ${whatsappFiledWords(whatsapp.state)}.` : "";

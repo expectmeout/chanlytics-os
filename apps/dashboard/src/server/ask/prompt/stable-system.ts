@@ -93,16 +93,6 @@ const REPORTS = { kind: "page", id: "reports", label: "Reports, past 7 days" };
  * an id is given.
  */
 export const ASK_EXAMPLES = [
-  // An offer's answer: one sentence, the reason it has this shape; its chips are filled from the plan, and the card says the rest.
-  [
-    "Offer a free posture check by email until the 30th",
-    {
-      say: { headline: "More people said yes than you have room for, so I paced it.", detail: "" },
-      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, chart: NO_CHART, list: NO_LIST },
-      do: { open: { source: NOTHING, label: "", now: false }, next: [] },
-      language: "en",
-    },
-  ],
   [
     "How did the week go?",
     {
@@ -260,6 +250,16 @@ export const ASK_EXAMPLES = [
         open: { source: { kind: "page", id: "inbox", label: "Inbox" }, label: "Open the Inbox", now: false },
         next: ["Which facts was it missing?"],
       },
+      language: "en",
+    },
+  ],
+  // An offer's answer: one sentence, the reason it has this shape; its chips are filled from the plan, and the card says the rest.
+  [
+    "Offer a free posture check by email until the 30th",
+    {
+      say: { headline: "More people said yes than you have room for, so I paced it.", detail: "" },
+      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, chart: NO_CHART, list: NO_LIST },
+      do: { open: { source: NOTHING, label: "", now: false }, next: [] },
       language: "en",
     },
   ],

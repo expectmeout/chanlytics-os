@@ -1,4 +1,4 @@
--- 00580 · A press that showed the words is their OK (the answers canvas, D3).
+-- 00573 · A press that showed the words is their OK (the answers canvas, D3).
 --
 -- A new sequence's first batch waits for an OK of its words, whatever its mode (decision 0064). Pressing a card of Ask's that
 -- showed those words whole, and says it starts the offer, is that OK: a second yes for the same words is what Ruben's
