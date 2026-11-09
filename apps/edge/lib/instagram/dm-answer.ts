@@ -17,7 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inboundFromInstagram, type IgMessaging } from "@chanlytics/channels/instagram";
 import { resolveChannelDetailed, type RoutedChannel } from "@chanlytics/db/channels";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { errField, logger } from "../shared/log.js";
 import { recordDmInbound, resumeDmInbound } from "../whatsapp/inbound.js";
@@ -49,7 +49,7 @@ export async function recordThenAnswerDm(
   // The carrier of the account it was written to: nothing is sent at the door, so its token is not read here.
   const ing = await recordDmInbound(message, routed, instagramCarrier({ outcome: "absent" }));
   if (!ing) return;
-  const payload: Json = {
+  const payload = {
     ig: asKept({ account: routed.externalId, item, profile_name: profileName }),
     message_id: ing.message_id,
     conversation_id: ing.conversation_id,

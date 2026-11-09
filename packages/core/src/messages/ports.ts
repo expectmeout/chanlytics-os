@@ -133,7 +133,7 @@ export interface ProvisionLinePorts {
     deadline?: number,
   ): Promise<{ ok: boolean; step?: string; error?: string; more?: boolean }>;
   /** One more job of this kind, for the steps a run left at its deadline. */
-  next?(payload: Record<string, unknown>): Promise<void>;
+  next?(payload: { line_id: string; by: "owner" | "support" | "sweep" }): Promise<void>;
   /** Epoch ms: the run starts no provider call after it. */
   deadline?: number;
 }

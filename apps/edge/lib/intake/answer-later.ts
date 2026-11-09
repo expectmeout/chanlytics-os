@@ -23,7 +23,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inboundFromWhatsapp, type WaChangeValue, type WaRawMessage } from "@chanlytics/channels/whatsapp";
 import { resolveChannelDetailed, type RoutedChannel } from "@chanlytics/db/channels";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { phoneTail } from "@chanlytics/contracts";
 import { env } from "../shared/env.js";
@@ -94,7 +94,7 @@ async function recordThenAnswerLater(
 ): Promise<void> {
   const ing = await recordWhatsappInbound(inboundFromWhatsapp(waRawMessage, value), routed, isEnvDefault);
   if (!ing) return;
-  const payload: Json = {
+  const payload = {
     wa: asKept({ message: waRawMessage, value: envelopeOf(value) }),
     message_id: ing.message_id,
     conversation_id: ing.conversation_id,

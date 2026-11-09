@@ -38,13 +38,12 @@ export const deleteGoogleListing = async (db: Db, tenantId: TenantId) =>
   db.from("google_listings").delete().eq("tenant_id", tenantId);
 
 /** Listings not checked since `before` (never checked first), whichever workspace's: the sweep's page. */
-export const listGoogleListingsDue = async (db: Db, before: string, limit: number) =>
-  platformWide(db)
-    .from("google_listings")
-    .select("*")
-    .or(`checked_at.is.null,checked_at.lt.${before}`)
+export const listGoogleListingsDue = async (db: Db, before: string, limit: number, tenantId?: TenantId) => {
+  const due = platformWide(db).from("google_listings").select("*").or(`checked_at.is.null,checked_at.lt.${before}`);
+  return (tenantId ? due.eq("tenant_id", tenantId) : due)
     .order("checked_at", { ascending: true, nullsFirst: true })
     .limit(limit);
+};
 
 /** One day of the workspace's listing kept, one a day. */
 export const saveGoogleListingDay = async (db: Db, tenantId: TenantId, day: Omit<DayInsert, "tenant_id">) =>

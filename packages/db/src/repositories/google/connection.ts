@@ -37,14 +37,16 @@ export const deleteGoogleConnection = async (db: Db, tenantId: TenantId) =>
   db.from("google_connections").delete().eq("tenant_id", tenantId);
 
 /** Connections bound to a place and not synced since `before` (never synced first), whichever workspace's: the sweep's page. */
-export const listGoogleConnectionsDue = async (db: Db, before: string, limit: number) =>
-  platformWide(db)
+export const listGoogleConnectionsDue = async (db: Db, before: string, limit: number, tenantId?: TenantId) => {
+  const due = platformWide(db)
     .from("google_connections")
     .select("*")
     .not("location_name", "is", null)
-    .or(`last_synced_at.is.null,last_synced_at.lt.${before}`)
+    .or(`last_synced_at.is.null,last_synced_at.lt.${before}`);
+  return (tenantId ? due.eq("tenant_id", tenantId) : due)
     .order("last_synced_at", { ascending: true, nullsFirst: true })
     .limit(limit);
+};
 
 /**
  * The workspace's Google token kept in Vault (put_google_credentials). With `ifRefreshToken`, written only while the

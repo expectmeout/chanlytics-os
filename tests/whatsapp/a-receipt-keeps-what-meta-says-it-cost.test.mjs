@@ -205,3 +205,40 @@ test("with no database or no workspace nothing is written, and every receipt is 
   assert.deepEqual(events(lines), ["wa_status", "wa_status", "wa_status", "wa_status"]);
   assert.deepEqual([w.kept, w.tables.messages.map((m) => m.status)], [[], ["queued", "sent", "sent"]]);
 });
+
+test("a big send's receipts are written a few at a time: every one of them, and never a hundred writes in the air", async () => {
+  let inFlight = 0;
+  let most = 0;
+  const updates = [];
+  const chain = (table) =>
+    new Proxy(
+      {},
+      {
+        get: (_t, prop) => {
+          if (prop === "then")
+            return (resolve) => {
+              inFlight += 1;
+              most = Math.max(most, inFlight);
+              setImmediate(() => {
+                inFlight -= 1;
+                resolve({ data: [], error: null });
+              });
+            };
+          return (...args) => {
+            if (table === "messages" && prop === "update") updates.push(args[0]);
+            return chain(table);
+          };
+        },
+      },
+    );
+  const db = { from: chain, rpc: () => chain("rpc") };
+  const statuses = Array.from({ length: 95 }, (_, i) => ({
+    id: `wamid.${i}`,
+    status: "delivered",
+    recipient_id: "13055550142",
+    pricing: PRICING,
+  }));
+  assert.equal(await recordReceipts(db, T, statuses), 0);
+  assert.equal(updates.length, 95, "none is left out");
+  assert.ok(most <= 10, `${most} writes were in the air at once`);
+});

@@ -79,7 +79,9 @@ const { chooseAddressing, reachesTenant } = await import(
 const { planLeadSweep, QUESTION_WAIT_MS } = await import(
   pathToFileURL(path.join(here, "../../apps/edge/lib/leads/sweep-plan.ts")).href
 );
-const { sweepGoogle } = await import(pathToFileURL(path.join(here, "../../apps/edge/lib/google/sweep.ts")).href);
+const { googleReader, sweepGoogle } = await import(
+  pathToFileURL(path.join(here, "../../apps/edge/lib/google/sweep.ts")).href
+);
 const { listListingsDue, listConnectionsDue } = await import(
   pathToFileURL(path.join(here, "../../apps/edge/lib/google/listing-check.ts")).href
 );
@@ -950,16 +952,19 @@ test("the Google sweep reaches the seed only a day on, and then writes its failu
   wire.length = 0;
   const quiet = { info() {}, warn() {}, error() {}, debug() {} };
   const res = await sweepGoogle({ db: w.db, L: quiet, started: Date.now() });
-  assert.deepEqual(await res.json(), {
-    ok: true,
-    listings_due: 1,
-    listings_read: 0,
-    profiles_due: 1,
-    profiles_synced: 0,
-    fresh: 0,
-    counted: 0,
-    failed: 2,
-    remaining: 0,
+  assert.deepEqual(await res.json(), { ok: true, due: 1, handed: 1 }, "the clock hands the workspace its job");
+  assert.deepEqual(wire, [], "and asks Google nothing itself");
+  assert.deepEqual(await googleReader(w.db).read({ tenant_id: T }, Date.now() + 45_000), {
+    read: {
+      listings_due: 1,
+      listings_read: 0,
+      profiles_due: 1,
+      profiles_synced: 0,
+      fresh: 0,
+      counted: 0,
+      failed: 2,
+      left: 0,
+    },
   });
   assert.deepEqual(
     wire,

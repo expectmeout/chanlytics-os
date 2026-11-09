@@ -12,6 +12,8 @@ import {
   entryOf,
   recordOrEmpty,
   textOrEmpty,
+  payloadFieldsOff,
+  eventFieldsOff,
 } from "@chanlytics/contracts";
 import { requestIdShaped } from "@chanlytics/channels/tokens";
 import { logger, withRequestId, logAndGoOn } from "@chanlytics/log";
@@ -252,6 +254,15 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     }
     return;
   }
+  // What the event holds that its subscribers do not read as it says (contracts SUBSCRIBED_EVENTS): names only, and only said.
+  const off = eventFieldsOff(event.kind, event.data);
+  if (off.length > 0)
+    logger({ tenant_id: job.tenant_id }).warn("event_data_unexpected", {
+      event_id: event.id,
+      kind: event.kind,
+      subscriber: named.subscriber,
+      fields: off,
+    });
   // dispatchJob let the job through only for a subscriber this build knows.
   if (!subscriberNamed(named.subscriber)) throw new Error(`event_deliver: no subscriber named ${named.subscriber}`);
   const subscriber = SUBSCRIBERS[named.subscriber];
@@ -352,6 +363,32 @@ async function previewBuild(ctx: JobContext, job: ClaimedJob): Promise<void | { 
   return ctx.previews.build(job, ctx.deadline);
 }
 
+/** campaign_moments: a workspace's due moments, through what the edge injects (00569, decision 0115). payload {}. */
+async function campaignMoments(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.campaigns) throw new Error("campaign_moments: this runtime holds no campaign runner");
+  await ctx.campaigns.moments(job, ctx.deadline);
+}
+
+/** reach_out_steps: a workspace's due reach-out steps, through what the edge injects (00569, decision 0115). payload {}. */
+async function reachOutSteps(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.campaigns) throw new Error("reach_out_steps: this runtime holds no campaign runner");
+  await ctx.campaigns.steps(job, ctx.deadline);
+}
+
+/** calendar_read: a workspace's calendar read, through what the edge injects (00569, decision 0115). payload {}. */
+async function calendarRead(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.calendar?.read) throw new Error("calendar_read: this runtime holds no calendar reader");
+  const answer = await ctx.calendar.read(job);
+  return "skipped" in answer ? answer : undefined;
+}
+
+/** google_read: a workspace's Google listings and profile read, through what the edge injects (00569, decision 0115). */
+async function googleRead(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.google) throw new Error("google_read: this runtime holds no Google reader");
+  const answer = await ctx.google.read(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
 /**
  * canary: the ledger's own proof that it runs (00526, decision 0089). It does nothing: that a row scheduled by pg_cron was
  * claimed, run and completed is the whole of what it proves, and sweep_status judges it by its newest done row, so
@@ -390,6 +427,10 @@ const HANDLERS: Record<JobKind, Handler> = {
   file_fetch: fileFetch,
   file_purge: filePurge,
   video_digest: videoDigest,
+  campaign_moments: campaignMoments,
+  reach_out_steps: reachOutSteps,
+  calendar_read: calendarRead,
+  google_read: googleRead,
   canary,
 };
 
@@ -414,6 +455,14 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<Dis
       ?.catch(logAndGoOn("paging the platform"));
     throw new CertainFailure(`${job.kind}: ${refused}`, `it was never run: ${refused}`);
   }
+  // What the payload holds that its kind does not say (contracts JOB_PAYLOADS): names only, and only said for now.
+  const off = payloadFieldsOff(job.kind, job.payload);
+  if (off.length > 0)
+    logger({ tenant_id: job.tenant_id }).warn("job_payload_unexpected", {
+      job_id: job.id,
+      kind: job.kind,
+      fields: off,
+    });
   // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,
   // the send it queued and the send's own lines are one search in the log; a job the database scheduled (a clock)
   // has none and runs as itself, named by its row.

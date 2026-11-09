@@ -8,6 +8,5 @@
  */
 import { sweepDoor } from "../../lib/ops/sweep-door.js";
 import { sweepPlaybooks } from "../../lib/campaigns/reach-out/playbooks-sweep.js";
-export { MOMENTS_YIELD_AT_MS, REACH_OUT_YIELD_AT_MS } from "../../lib/campaigns/reach-out/playbooks-sweep.js";
 
 export const POST = sweepDoor({ sweep: "playbooks" }, sweepPlaybooks);
