@@ -6,7 +6,7 @@
  * - a reply the receptionist sends on its own leads as the open card, and the first row waiting is short with the coral
  *   (the canvas's shift moment), where two cards stood open and the coral sat in the second;
  * - the head named the held reply's own window, a day away, as the one thing that cannot wait;
- * - Older's Mark all done took the coral without telling the page, so the setup card was coral beside it;
+ * - Older's Mark all done took the coral (8 Nov 2026: and now never does, nobody counts it);
  * - Ask wrote drafts for every row past the five waiting, and the head counted them.
  */
 import { test } from "node:test";
@@ -65,23 +65,18 @@ test("the head's line names no window of a reply going on its own; another perso
   setSurfaceValue("today", undefined);
 });
 
-test("Older's Mark all done takes the coral only where nothing above it did, and tells the page it holds it", () => {
+test("Older's Mark all done never takes the coral, with nothing above it either: the setup card's act keeps it", () => {
   const old = (id, who) => row(id, who, { waitedMs: 9 * DAY });
   setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz"), old("o2", "Kai Moreno")]));
   const tree = draw(NeedYou);
   const older = rowsDrawn(tree).find((r) => testidOf(r) === "queue-older");
-  assert.equal(older.props.cta?.kind, "primary", "nothing above it: Older's press is the coral");
-  assert.equal(
-    again(() => useCoralHeld("queue")),
-    true,
-    "REGRESSION: Older took the coral without telling the page, so the setup card's act was coral beside it",
-  );
-  unmount();
+  assert.equal(older.props.cta?.kind, "ghost", "nobody counts it, and the head says nothing needs you");
   assert.equal(
     again(() => useCoralHeld("queue")),
     false,
-    "the list gone, the coral is handed on",
+    "REGRESSION: an old number left Finish setting up quiet",
   );
+  unmount();
   setSurfaceValue("today", undefined);
 });
 

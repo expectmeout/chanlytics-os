@@ -24,10 +24,12 @@ import {
   type ReachOutSettingsDto,
   type ReachOutSettingsMailbox,
   type ReachOutSettingsSequence,
+  firstNameOf,
 } from "@chanlytics/contracts";
 import { findRehearsalById } from "@chanlytics/db/facts";
-import { countSentByStep, findWorkspaceAbout, reviewLinkOf } from "@chanlytics/db/campaigns";
-import { askMemoryLines } from "@chanlytics/db/ask";
+import { countSentByStep, findWorkspaceWords, reviewLinkOf } from "@chanlytics/db/campaigns";
+import { findNewestSearchName } from "@chanlytics/db/leads";
+import { askMemoryLines, getJournalMemberNames } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
 import type { RouteContext } from "../shared/with-route";
 import { findPromptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
@@ -331,7 +333,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const tenantId = rc.tenantId;
-    const [row, facts, mailboxes, sent, memory, chains, policies, about] = await Promise.all([
+    const [row, facts, mailboxes, sent, memory, chains, policies, ownWords, names, newestSearch] = await Promise.all([
       partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
       partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
       partOrElse(listMailboxConnectionsWithDays(db, tenantId, rc.now), "mailboxes", tenantId, []),
@@ -339,8 +341,11 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
       partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
       partOrElse(listChains(rc.ctx, tenantId), "chains", tenantId, []),
       partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
-      partOrElse(findWorkspaceAbout(db, tenantId), "about", tenantId, null),
+      partOrElse(findWorkspaceWords(db, tenantId), "about", tenantId, null),
+      partOrElse<Record<string, string>>(getJournalMemberNames(db, [rc.ctx.userId]), "name", tenantId, {}),
+      partOrElse(findNewestSearchName(db, tenantId), "newest_search", tenantId, null),
     ]);
+    const name = names[rc.ctx.userId]?.trim() || null;
     const claims = parseTenantConfig(row?.data?.config)?.reach_out?.proof ?? [];
     const counted = await partOrElse(
       countSentByStep(db, tenantId, stepsCarrying(claims, chains)),
@@ -357,7 +362,9 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),
         sequence: newestLeadSequence(chains),
         reply_mode: policies.find((p) => p.class === "reply")?.mode ?? REPLY_MODE_UNSET,
-        about,
+        about: ownWords?.text ?? null,
+        about_from: ownWords?.from ?? null,
+        known: { name, first_name: firstNameOf(name, null), newest_search: newestSearch },
       },
       rows: [],
       stamp: readerStamp(),

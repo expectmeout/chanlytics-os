@@ -48,6 +48,8 @@ export interface AskFoundRowVM {
 
 export interface AskFoundVM {
   rows: AskFoundRowVM[];
+  /** The rows past the three, which "and 2 more" opens in place. */
+  rest: AskFoundRowVM[];
   /** How many more there are past the three: "and 2 more". */
   more: number;
   /** What came of an idea approved lately, in one line: "Birthday note: sent to 14, 3 replied, 1 booked." */
@@ -58,6 +60,7 @@ export interface AskFoundVM {
 export const ASK_FOUND_WORDS = {
   title: "Ask found",
   more: (n: number) => `and ${n} more`,
+  fewer: "Fewer",
   came: "What came of it.",
   notToday: "Not today",
   idea: "Ask's idea",
@@ -174,6 +177,7 @@ export function askFoundOf(input: {
   const [first] = input.lately;
   return {
     rows: all.slice(0, ASK_FOUND_SHOWN),
+    rest: all.slice(ASK_FOUND_SHOWN),
     more: Math.max(0, all.length - ASK_FOUND_SHOWN),
     came: first ? `${first.title}: ${first.said}` : null,
   };

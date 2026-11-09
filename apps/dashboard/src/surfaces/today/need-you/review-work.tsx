@@ -9,7 +9,7 @@ import { draftReply, replyToReview } from "@/bridge/google";
 import { Button } from "../../kit";
 import { gate } from "../shell";
 import { Acts, Done, Going, Note, Words, Writing, whoseWords, type WorkProps } from "./parts";
-import { reviewNotToday } from "./reviews";
+import { reviewRestKey, useRests } from "./rests";
 import { clearSend, holdReviewPost, undoSend, useSend } from "./sends";
 import { useRowState } from "./row-state";
 
@@ -33,6 +33,7 @@ export function ReviewWork(
   const [why, setWhy] = useRowState<string | null>(rowId, "why", null);
   const [postedHere, setPostedHere] = useState(false);
   const { s: send, seconds, share } = useSend(rowId);
+  const { rest } = useRests();
 
   const draft = async () => {
     setPhase("writing");
@@ -63,8 +64,8 @@ export function ReviewWork(
   };
   const aside = () => {
     p.keep();
-    reviewNotToday(review.id);
     setPhase("aside");
+    void rest({ key: reviewRestKey(review.id), flash, onUndone: () => setPhase("idle") });
   };
 
   if (send?.state === "going")

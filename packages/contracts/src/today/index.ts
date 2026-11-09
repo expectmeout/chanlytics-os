@@ -39,7 +39,7 @@ export type {
 export { todayBackOf, todayDayFoot, todayWentFoot, todayZoneDay } from "./day/zone";
 export type { TodayBackVM, TodayZoneCellVM, TodayZoneDayVM, TodayZoneLineVM } from "./day/zone";
 export { QUOTE_MAX } from "./facts";
-export { todayProof } from "./figures";
+export { figureDoorOf, todayProof } from "./figures";
 export { emailWires, TODAY_BOOKED_SHOWN } from "./metrics";
 export type { MetricsChannelDto, MetricsSummaryDto, TodayBookedDto, TodayBookingsDto } from "./metrics";
 export {

@@ -279,6 +279,50 @@ test("closing time is the business's hours on any grid: open nine to five turns 
   assert.equal(at(tue(23), empty).tomorrow, false, "no hours and no visits: nothing says the day is over");
 });
 
+test("a day the business is closed with nothing on it turns to tomorrow at once, whatever the hour, and keeps what is still today's", () => {
+  /** Tuesday closed, nothing on it, at this hour; Wednesday as the week has it, unless `over` says otherwise. */
+  const closedAt = (nowAt, over = {}, back = []) => {
+    const w = {
+      ...week(),
+      closures: [{ date: "2026-09-08", until: null, note: null }],
+      days: week().days.map((d) => (d.key === "2026-09-08" ? { ...d, items: [], windows: [] } : d)),
+      ...over,
+    };
+    const cal = toCalendarVM(w, nowAt);
+    return todayZoneDay(cal, todayDay(cal, null, null, Number.POSITIVE_INFINITY), back, nowAt.getTime());
+  };
+  const z = closedAt(tue(10));
+  assert.equal(z.tomorrow, true, 'REGRESSION: "Closed today" alone, with nothing an owner could use on their day off');
+  assert.equal(z.closedToday, true);
+  assert.equal(z.title, "Closed today");
+  assert.equal(z.note, "Tomorrow: 2 appointments");
+  assert.deepEqual(
+    z.cells.map((c) => [c.eyebrow, c.when]),
+    [
+      ["First", "9 AM"],
+      ["Then", "10:30 AM"],
+    ],
+  );
+  const empty = closedAt(tue(10), {
+    days: week().days.map((d) => (["2026-09-08", "2026-09-09"].includes(d.key) ? { ...d, items: [], windows: [] } : d)),
+  });
+  assert.equal(empty.note, "Tomorrow: nothing booked yet");
+  const shutToo = closedAt(tue(10), {
+    closures: [{ date: "2026-09-08", until: "2026-09-09", note: null }],
+    days: week().days.map((d) => (["2026-09-08", "2026-09-09"].includes(d.key) ? { ...d, items: [], windows: [] } : d)),
+  });
+  assert.equal(shutToo.note.startsWith("Next opening") || shutToo.note === "Closed tomorrow too", true, shutToo.note);
+  const holiday = closedAt(tue(10), { closures: [{ date: "2026-09-08", until: null, note: "Labor Day" }] });
+  assert.equal(holiday.note, "Labor Day · Tomorrow: 2 appointments", "why it is closed is still said");
+  const back = closedAt(tue(10), {}, [{ conversationId: "c1", who: "Dana Ruiz", until: tue(15).toISOString() }]);
+  assert.ok(
+    back.lines.some((l) => l.kind === "back"),
+    "someone coming back today from Not now still comes back on a closed day",
+  );
+  const withVisit = closedAt(tue(10), { days: week().days });
+  assert.equal(withVisit.closedToday, false, "closed with visits still on it: those are the day's to show");
+});
+
 test("the turned day's foot says how today went, and the head's line after closing says what was booked and answered", () => {
   const now = tue(18, 30);
   const cal = toCalendarVM(week(), now);

@@ -10,8 +10,9 @@
  *   someone waits, over it while nobody does           |
  *   the week and the pinned lists, one strip (foot.tsx)
  *
- * Where Need you draws no pane (nothing waits on you: the canvas's quiet day, "most owners, most days", whatever came in),
- * Ask found leads the work's column, wide, its rows three across, its first act the coral where setting up holds none;
+ * Where Need you draws no pane but Older, which nobody counts and which stands at the page's end (zones.css), or none at all
+ * (nothing waits on you: the canvas's quiet day, "most owners, most days", whatever came in), Ask found leads the work's
+ * column, wide, its rows three across, its first act the coral where setting up holds none;
  * where it finds nothing either, the day stands alone in one column. On a phone the same blocks in one column: Need you's
  * groups each a pane of their own, Ask found where it leads, the day, Ask found under it, Today so far (the four figures
  * and the week), the pins, what is left to set up, and the page says it is done. The head over it is the frame's
@@ -24,7 +25,7 @@ import { useTodayOnPhone } from "../phone";
 import { useZoneDrawn } from "../queue-coral";
 import { TodayAlertBand } from "./alert";
 import { DayZone } from "./day";
-import { DeskFoot, PhonePins, PhoneSoFar, TodayEnd } from "./foot";
+import { DeskFoot, PhoneNothingYet, PhonePins, PhoneSoFar, TodayEnd, useNothingSoFar } from "./foot";
 import { AskFound } from "./found";
 import { NeedYou } from "./need-you";
 import { TodayBroughtIn } from "./brought-in";
@@ -40,15 +41,17 @@ const settingUp = (lead: boolean) => (
 
 /** Today on a phone: the same blocks in one column, in the canvas's order. */
 function PhoneToday({ waiting, lead }: { waiting: boolean; lead: boolean }) {
+  // On a day nothing was counted the four zeros are one line under the day, and no card of their own.
+  const nothing = useNothingSoFar();
   return (
     <div className="dash-a-v2 dash-a-v2-glass dash-a-v2-phone tz tz-phone" data-testid="today-phone">
       <TodayAlertBand />
       {waiting ? null : settingUp(true)}
       <NeedYou />
       {lead ? <AskFound wide /> : null}
-      <DayZone />
+      <DayZone under={nothing ? <PhoneNothingYet /> : null} />
       {lead ? null : <AskFound wide={false} />}
-      <PhoneSoFar />
+      {nothing ? null : <PhoneSoFar />}
       <PhonePins />
       {waiting ? settingUp(false) : null}
       <TodayEnd />

@@ -34,6 +34,7 @@ import { useSurface } from "../../use-surface";
 import { todayGreetingNow } from "../chrome";
 import { TODAY_HELPERS } from "../helpers";
 import { useHeadSay } from "../need-you/head-say";
+import { useRests } from "../need-you/rests";
 import { reviewsToAnswer } from "../need-you/reviews";
 import { useTodayOnPhone } from "../phone";
 import { bell, borrowed, useMoved, workspaceClock } from "../shell";
@@ -43,12 +44,20 @@ import { listenButton, useBriefWords, useSpeech } from "./listen";
 
 /**
  * The head's sentence as drawn: what leads in bold (kit.css `.pg-sentence b`), the rest after it, then why Listen could not
- * speak. Called, not drawn, so the head's tree has no part of its own for it.
+ * speak. On a phone how many need you is a door to who they are (`door`): a phone draws no Open Inbox beside it. Called, not
+ * drawn, so the head's tree has no part of its own for it.
  */
-function headSentence(line: TodayHeadLineVM, why: string | null): ReactNode {
+function headSentence(line: TodayHeadLineVM, why: string | null, door: string | null): ReactNode {
+  const lead = <b data-testid="today-head-lead">{line.lead}</b>;
   return (
     <>
-      <b data-testid="today-head-lead">{line.lead}</b>
+      {door ? (
+        <a className="tz-lead" {...routeDoor(door)}>
+          {lead}
+        </a>
+      ) : (
+        lead
+      )}
       {line.rest ? ` ${line.rest}` : null}
       {why ? (
         <span className="today-listen-why" role="status" data-testid="today-listen-why">
@@ -121,6 +130,7 @@ function useSince(): TodaySinceVM | null {
   const vm = useSurface("today");
   // The reviews To do offers to answer: their news is To do's row, and Since you looked does not say it again.
   const google = useSurface("google");
+  const { rests } = useRests();
   const api = bell();
   if (!vm?.since) return null;
   const notes = api
@@ -138,7 +148,7 @@ function useSince(): TodaySinceVM | null {
     seenAt: vm.since.seen_at,
     answered: vm.since.answered,
     notes,
-    covered: reviewsToAnswer(google).map((r) => ({ id: r.id, reviewId: r.review_id })),
+    covered: reviewsToAnswer(google, rests).map((r) => ({ id: r.id, reviewId: r.review_id })),
     tz: workspaceClock()?.zone() ?? "UTC",
     nowMs: Date.now(),
   });
@@ -164,12 +174,13 @@ export function useZonesStanding(): void {
   const brief = words && words.sentences.length ? words.text : null;
   const speech = useSpeech(brief);
   const went = turned && vm ? todayWentLine(vm.figures) : null;
-  const line = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.quiet, went) : null;
-  const listen = speech.can && brief ? listenButton(speech, brief) : null;
+  const line = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, (vm.done_today ?? 0) > 0) : null;
+  // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefPlaying).
+  const listen = speech.can && brief && words?.news && speech.state !== "speaking" ? listenButton(speech, brief) : null;
   useStanding({
     stacked: true,
     title: todayGreetingNow(),
-    sentence: line ? headSentence(line, speech.why) : undefined,
+    sentence: line ? headSentence(line, speech.why, phone && count > 0 ? "inbox" : null) : undefined,
     beside: listen ?? undefined,
     after: since ? <SinceLine since={since} /> : undefined,
     // On a phone the date says the hour beside Listen and the bell (the canvas: "Tue, Nov 3 · 8:05 AM").

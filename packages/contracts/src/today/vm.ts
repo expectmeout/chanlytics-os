@@ -350,6 +350,8 @@ export interface TodayVM {
     parts: string[];
     empty: TodayQueueEmptyVM;
   };
+  /** What the head says with nobody waiting, on any day (bands.ts todayCalmHead): what is listening, and the last message. */
+  calm: { headline: string; sub: string };
   quiet: {
     headline: string;
     sub: string;

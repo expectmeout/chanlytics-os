@@ -34,7 +34,7 @@ export function OutreachCards({
   const { read, again } = useReachOutRead();
   const shared = { brain, config, canEdit, flash, saver, read };
   // Its own one line, on this page alone, where a cold email would have nothing to say of what the business offers:
-  // no offer here, nothing it does, no goal (contracts reachOutOfferOf). Never in the receptionist's gap line or the
+  // no offer here, nothing it or its website says it does, no goal (contracts reachOutOfferOf). Never in the receptionist's gap line or the
   // rail, where a business that writes no cold email would be asked for it on every page.
   const offerless = read !== null && reachOutOfferOf(config, read.about) === null;
   return (

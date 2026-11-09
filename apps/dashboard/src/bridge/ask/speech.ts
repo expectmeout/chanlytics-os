@@ -236,6 +236,10 @@ function onePlayer(w: SpeechWindow) {
 const clipRefusal = (e: unknown): string =>
   e instanceof Error && e.message ? e.message : "Ask's voice could not be reached just now.";
 
+/** What is being read, with anything going. */
+const readingWhile = (state: SpeechState, reading: SpeechPurpose | null): SpeechPurpose | null =>
+  state === "idle" ? null : reading;
+
 export function askSpeech(win: Window, deps: SpeechDeps) {
   const w = win as Window & SpeechWindow;
   /** The device's doors, or null where one is missing (a stand-in window, a browser without object URLs). */
@@ -252,6 +256,8 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
     state = next;
     for (const tell of watchers) tell();
   };
+  /** What is being read, while anything is: the frame's capsule is your brief's alone, and an answer has its own Stop. */
+  let reading: SpeechPurpose | null = null;
   /** Which press is the current one: a Stop, or a new read, moves it on, and a clip that lands late is let go of. */
   let generation = 0;
   const clipsOf = heldClips(deps.api);
@@ -261,6 +267,8 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
     canSpeak,
     /** What is happening now. */
     state: (): SpeechState => state,
+    /** What is being read, or null with nothing going. */
+    speakingFor: (): SpeechPurpose | null => readingWhile(state, reading),
     /** Hear every change of state; answers the stop. */
     watchSpeech(on: () => void): () => void {
       watchers.add(on);
@@ -280,6 +288,7 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
       const mine = ++generation;
       release();
       const a = unlock(d);
+      reading = purpose;
       move("loading");
       // The first clip, and the one behind it where the words are more than a sentence.
       const clips = clipsOf(text, purpose);

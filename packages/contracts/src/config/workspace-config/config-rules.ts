@@ -101,18 +101,25 @@ export const BOOKING_LINK_MAX = 500;
 export const ASK_GOAL_MAX = 200;
 
 /**
- * The most each row of How it reaches out holds (decision 0113): the config's `reach_out` section is built from these,
- * and the page's refusals say them. `signedBy` is the one a sequence's own sign-off is held to too (SIGNED_BY_MAX).
+ * The most each row of How it reaches out holds (decision 0113): the page's refusals say them, and each is here for what
+ * it protects, never to make an owner shorten their own words.
+ *   offer, whoFor, fixes, tone   told to the writers as data and never printed, so only a guard against a whole website
+ *                                pasted in, which every prompt would then carry
+ *   claim                        printed word for word in an email held to Ask's own word count, so it stays a sentence
+ *   claims                       how many a sheet stays readable with: one goes in an email
+ *   signedBy                     the one a sequence's own sign-off is held to too (SIGNED_BY_MAX, sequence_steps_root_settings)
+ *   signature, signatureLines    under every email: its lines are what a reader sees of it, its length a guard
+ *   phone                        what phoneAsWritten leaves room for: the shape is the rule
  */
 export const REACH_OUT_LIMITS = {
-  offer: 300,
-  whoFor: 120,
-  fixes: 200,
-  claim: 140,
-  claims: 5,
-  tone: 200,
+  offer: 2000,
+  whoFor: 2000,
+  fixes: 2000,
+  claim: 200,
+  claims: 10,
+  tone: 2000,
   signedBy: 60,
-  signature: 160,
+  signature: 300,
   signatureLines: 3,
   phone: 40,
 } as const;

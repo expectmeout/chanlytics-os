@@ -11,7 +11,7 @@
  * clip cannot be made the button says why, and nothing else speaks.
  */
 import { useRef, useSyncExternalStore } from "react";
-import { TO_SEND_ALL_WORDS, mmss, runTitleOf } from "@chanlytics/contracts";
+import { TODAY_PHONE_WORDS, TO_SEND_ALL_WORDS, mmss, runTitleOf } from "@chanlytics/contracts";
 import { WAIT_ROW_WORDS, waitRowsOf } from "@/surfaces/waits/rows";
 import type { TodayBriefRun, TodayBriefWords } from "../brief-words";
 import { Button } from "../../kit/button/button";
@@ -123,19 +123,23 @@ export function useSpeech(text: string | null): Speech {
 }
 
 /**
- * Listen, beside the greeting (the kit head's `beside`; beside the bell on a phone): the play glyph, the word and how long
- * it takes to hear, and Stop while it plays. The kit's quiet secondary button, placed by the frame's head.
+ * Listen, beside the greeting (the kit head's `beside`; beside the bell on a phone), the same size at rest and while it
+ * fetches the voice, so nothing beside it moves (8 Nov 2026: "Getting Ask's voice…" took it from 100px to 151, up to the
+ * date). On a phone a circle the bell's size, with its words for a reader alone; on a desk the words and how long it takes
+ * to hear. A press while it fetches lets go of it. Once it plays the header's capsule has it (frame/topbar BriefPlaying), and
+ * the head draws no button.
  */
 export function listenButton(speech: Speech, line: string) {
-  const busy = speech.state !== "idle";
-  const word = speech.state === "speaking" ? "Stop" : speech.state === "loading" ? "Getting Ask's voice…" : "Listen";
+  const words = TODAY_PHONE_WORDS.listen;
+  const length = spokenLength(line);
+  const fetching = speech.state === "loading";
   return (
     <Button
-      variant="secondary"
+      variant="glass"
       size="sm"
-      className="tb-listen today-listen"
-      aria-pressed={speech.state === "speaking"}
-      aria-busy={speech.state === "loading" || undefined}
+      className="today-listen"
+      aria-label={fetching ? words.getting : words.named(length)}
+      aria-busy={fetching || undefined}
       onClick={speech.toggle}
       onPointerDown={(e) => {
         if (e.pointerType === "mouse" && e.button === 0) speech.warm();
@@ -143,9 +147,11 @@ export function listenButton(speech: Speech, line: string) {
       data-state={speech.state}
       data-testid="today-listen"
     >
-      <Icon name={speech.state === "speaking" ? "stop" : "play"} size={11} />
-      {word}
-      {!busy && <span className="tb-listen-len tabular">{spokenLength(line)}</span>}
+      {fetching ? <span className="today-listen-ring" aria-hidden="true" /> : <Icon name="headphones" size={15} />}
+      <span className="today-listen-words">
+        {words.word}
+        <span className="today-listen-length tabular">{length}</span>
+      </span>
     </Button>
   );
 }

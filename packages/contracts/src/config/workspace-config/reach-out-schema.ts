@@ -33,7 +33,7 @@ export type ReachOutConfig = z.infer<typeof ReachOutConfigSchema>;
 
 /** The refusal a row says under its box, by the limit it went past. */
 export const REACH_OUT_REFUSAL_WORDS = {
-  tooLong: (max: number) => `Keep it under ${max} characters.`,
+  tooLong: (max: number) => `Keep it under ${max.toLocaleString("en-US")} characters.`,
   claims: `Up to ${L.claims} claims.`,
   signature: `${L.signatureLines} lines at most, with no link and no {{value}}.`,
   phone: "A phone number, as people write one: its digits, with spaces, dashes or brackets.",

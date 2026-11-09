@@ -1433,6 +1433,13 @@ const kitFieldWords = () =>
   `<textarea class="rec-input rec-input-words" rows="1" aria-label="Your reply to Ana" placeholder="Write to Ana…">` +
   `Friday at two works. See you then.</textarea></div></div>`;
 
+/** A box of sentences that grows with its words (RecordField `grows`), and a finger has no grip to drag. */
+const recFieldGrows = () =>
+  `<div class="rec-field"><label><span class="rec-field-label">Your offer</span>` +
+  `<textarea class="rec-input rec-input-grows" rows="3" placeholder="What you sell">` +
+  `Evening cleaning for clinics, so every morning starts spotless and nobody has to ask twice about the rooms that were missed.` +
+  `</textarea></label></div>`;
+
 /* ---- the families ---- */
 
 /** The kit's families and their entries. Every class in classes.json is drawn by at least one entry. */
@@ -2247,6 +2254,7 @@ export const FAMILIES = [
         id: "rec-field",
         html: recField("Booking link", "https://example.com/book", "Sent instead of booking a visit itself."),
       },
+      { id: "rec-field-grows", html: recFieldGrows() },
       {
         // The browser's own select in the box (kit.css, select.rec-input): for a form that can import no part of the kit.
         id: "rec-field-native-select",

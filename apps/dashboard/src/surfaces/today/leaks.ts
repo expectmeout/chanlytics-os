@@ -4,6 +4,7 @@
  */
 import {
   addressOf,
+  CALENDAR_SETTING_ROUTE,
   NO_CHANNEL_REACH,
   NO_NUMBER_REACH,
   eachOpenProposal,
@@ -167,6 +168,25 @@ function neverBookedLeak({ reports, list, step }: LeakFacts): TodayLeakVM | null
     return null;
   const { asked, booked } = booking;
   const never = list("asked_never_booked");
+  // Nobody in People on the calendar at all, whoever wrote: it says less of them than of the calendar, so the row asks
+  // that first, and its door is where the calendar is chosen (8 Nov 2026: "Not one of them is on the calendar" stood over
+  // a calendar with nothing on it).
+  if (booking.peopleOnCalendar === 0) {
+    const empty = `${asked} people wrote or called in the last ${reports.rangeLabel}, and nobody in People is on your calendar. Is it the one you book in?`;
+    return {
+      id: "never-booked",
+      tone: "warn",
+      tag: "Calendar",
+      icon: "calendar",
+      text: empty,
+      math: booking.headline,
+      people: [],
+      peopleLead: null,
+      ask: askWhy(empty, booking.headline),
+      cta: { label: "Check it", to: CALENDAR_SETTING_ROUTE },
+      also: null,
+    };
+  }
   const text =
     booked === 0
       ? `${asked} people wrote or called in the last ${reports.rangeLabel}. Not one of them is on the calendar.`

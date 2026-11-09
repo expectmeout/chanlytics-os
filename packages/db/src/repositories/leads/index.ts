@@ -74,6 +74,7 @@ export {
   findLeadScope,
   findLeadSuggestions,
   findNewestLeadOfPerson,
+  findNewestSearchName,
   findSearchCard,
   findSearchScope,
   importLeadList,

@@ -14,6 +14,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../frame-verbs";
+import { surfaceValue } from "../../surface-values";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { borrowed, useMoved } from "../shell";
@@ -109,6 +110,26 @@ export function PhoneSoFar() {
       <TodayFigures className="tz-sofar-figs" />
       <WeekLine />
     </section>
+  );
+}
+
+/**
+ * Whether nothing at all was counted today: every figure read, and zero, and no message for the answered to be "of". A
+ * count that could not be read is no zero, and keeps its dash in the row.
+ */
+export function useNothingSoFar(): boolean {
+  useMoved(["today"]);
+  const figures = surfaceValue("today")?.figures ?? null;
+  return !!figures?.length && figures.every((f) => f.value === 0 && !f.of);
+}
+
+/** Today so far on a day nothing was counted: one line, and the week under it, at the foot of the day's card. */
+export function PhoneNothingYet() {
+  return (
+    <div className="tz-nothing" data-testid="today-sofar-none">
+      <b {...SAYS_WHEN}>{P.soFarNothing}</b>
+      <WeekLine />
+    </div>
   );
 }
 

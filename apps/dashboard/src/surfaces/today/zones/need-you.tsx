@@ -30,7 +30,6 @@ import {
   type TodayQueueRowVM,
   type TodayVM,
 } from "@chanlytics/contracts";
-import { AttnRow } from "../../kit/attention/attn-row";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -41,9 +40,9 @@ import { broadcastsRead, runsPending, useRunsActing } from "../../waits/run-acts
 import { waitRows, type Nav, type VerbKind } from "../../waits/wait-rows";
 import { TODAY_HELPERS } from "../helpers";
 import { useDraftCounts, useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
-import { NeedYouGroup, handBackAll, handedBackWords, type HandedBack } from "../need-you/groups";
+import { NeedYouGroup, type HandedBack } from "../need-you/groups";
 import { tellHeadSay } from "../need-you/head-say";
-import { Done } from "../need-you/parts";
+import { OlderGroup } from "../need-you/older";
 import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
 import { draftWantOf, opensToWork, worksInPlace } from "../need-you/rows";
 import { clearRowStates } from "../need-you/row-state";
@@ -52,17 +51,7 @@ import { useTodayOnPhone } from "../phone";
 import { keptWith, keptWithout, withKept, type Kept } from "./kept";
 import { useToDoRows, type ToDoRows } from "./to-do";
 import { queueHoldsCoral, zoneDrawn } from "../queue-coral";
-import {
-  appNavigate,
-  canDo,
-  doorGlyph,
-  gate,
-  surfaceFailed,
-  useMoved,
-  useToast,
-  workspaceClock,
-  type Flash,
-} from "../shell";
+import { appNavigate, canDo, doorGlyph, surfaceFailed, useMoved, useToast, workspaceClock } from "../shell";
 import { useTodayWord } from "./day-vm";
 
 /** The list, once Today has been read: the page is READY when it is drawn (client/page-speed.ts). */
@@ -200,85 +189,6 @@ function needYouHead(door: { to: string; label: string }, done: number, nav: Nav
 /** The old rows handed back this visit, kept for the visit with what they came to: the next read has none of them. */
 type OlderHanded = { rows: readonly TodayQueueRowVM[]; handed: HandedBack };
 
-/** A second press's hand-back joined to the first's: what went in all, what the second refused, one Undo for both. */
-function handedBoth(first: HandedBack, then: HandedBack): HandedBack {
-  const undos = [first.undo, then.undo].filter((u): u is () => Promise<void> => !!u);
-  return {
-    done: first.done + then.done,
-    refused: then.refused,
-    undo: undos.length
-      ? async () => {
-          for (const u of undos) await u();
-        }
-      : null,
-  };
-}
-
-/**
- * Whoever has waited past a week, one row at the end (the canvas of 2 Nov 2026): how many, and who, with Mark all done,
- * which hands each back to the receptionist, says what it came to in place and keeps one Undo for all of them. Only for a
- * member who acts, and only where a row has a thread to hand back; never counted.
- */
-function OlderRow({
-  rows,
-  handed,
-  onHanded,
-  kind,
-  flash,
-}: {
-  rows: readonly TodayQueueRowVM[];
-  handed: HandedBack | null;
-  onHanded: (h: HandedBack | null) => void;
-  kind: "primary" | "ghost";
-  flash: (f: Flash) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const may = rows.some((r) => !!r.conversationId) && canDo("approve");
-  // Refused whole, it says why and the press stays to try again; refused in part, it says what went and offers the press
-  // again for the rest, whose Undo joins the first's.
-  const markAll = async () => {
-    setBusy(true);
-    const h = await handBackAll(rows);
-    setBusy(false);
-    if (!h.done) return flash({ tone: "danger", msg: <>{handedBackWords(h)}</> });
-    onHanded(handed ? handedBoth(handed, h) : h);
-  };
-  const undoAll = handed?.undo;
-  const undo = undoAll
-    ? async () => {
-        setBusy(true);
-        await undoAll();
-        setBusy(false);
-        onHanded(null);
-      }
-    : null;
-  return (
-    <AttnRow
-      glyph="clock"
-      initials=""
-      name={W.older.row(rows.length)}
-      via={{ glyph: "clock", words: W.group.old }}
-      sentence={rows.map((r) => r.who).join(", ")}
-      tone=""
-      testid="queue-older"
-      ctaTestid="today-old-done"
-      cta={
-        may && (!handed || handed.refused > 0)
-          ? { label: W.oldDone.act, kind, busy, onClick: () => void markAll(), gate: gate("approve", "mark them done") }
-          : null
-      }
-      work={
-        handed ? (
-          <Done
-            words={handedBackWords(handed)}
-            act={undo ? { label: "Undo", onPress: () => void undo(), busy } : null}
-          />
-        ) : null
-      }
-    />
-  );
-}
-
 /** The groups above To do, as drawn: Up next, the five waiting, and what waits for your OK with its runs. */
 type Drawn = Pick<NeedYouGroups<TodayQueueRowVM>, "next" | "waiting" | "ok">;
 
@@ -333,21 +243,30 @@ function todoGroup(todo: ToDoRows, pane: boolean) {
 /**
  * What the list could not hold, said with the door to it: the people past the five, what waits for your OK past its three,
  * the to-dos past theirs. See all opens the Inbox, or, where only to-dos were left out, where they are (To do's `door`).
- * Nothing where nothing was cut.
+ * On a phone, which draws no head, what a desk's head says stands here too: how many were done today and the door (`head`),
+ * 8 Nov 2026: a phone had no way to the Inbox from the list unless a row was cut, and no word of what was done. Nothing
+ * where there is nothing to say.
  */
-function listFoot(cut: { waiting: number; ok: number; todo: number }, todoDoor: string | null, nav: Nav) {
+function listFoot(
+  cut: { waiting: number; ok: number; todo: number },
+  todoDoor: string | null,
+  nav: Nav,
+  head: { done: number; door: { to: string; label: string } } | null,
+) {
   const parts = [
     cut.waiting > 0 ? W.cut.waiting(cut.waiting) : "",
     cut.ok > 0 ? W.cut.ok(cut.ok) : "",
     cut.todo > 0 ? W.cut.todo(cut.todo) : "",
+    head && head.done > 0 ? W.doneToday(head.done) : "",
   ].filter(Boolean);
-  if (!parts.length) return null;
-  const to = cut.waiting > 0 || cut.ok > 0 ? "inbox" : (todoDoor ?? "inbox");
+  const cutSome = cut.waiting > 0 || cut.ok > 0 || cut.todo > 0;
+  if (!cutSome && !head) return null;
+  const to = cutSome ? (cut.waiting > 0 || cut.ok > 0 ? "inbox" : (todoDoor ?? "inbox")) : (head?.door.to ?? "inbox");
   return (
     <div className="tq-foot" data-testid="today-queue-foot">
       <span>{parts.join(" · ")}</span>
       <Button variant="quiet" size="sm" className="tq-open" onClick={() => nav(to)}>
-        {W.seeAll}
+        {cutSome ? W.seeAll : (head?.door.label ?? W.door)}
         <Icon name={doorGlyph()} size={11} />
       </Button>
     </div>
@@ -422,6 +341,9 @@ function oneCoral(): { verbKind: VerbKind; taken: () => boolean } {
   };
 }
 
+/** A verb that never takes the coral, for a row nobody counts. */
+const OLDER_QUIET = { verbKind: QUIET, shortKind: QUIET };
+
 /** Whether Need you took the coral, told to To do, the setup card and Ask found as the list draws (queue-coral.ts). */
 function useCoralTold(holds: boolean) {
   useLayoutEffect(() => {
@@ -480,9 +402,10 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   // Whether the focus's own act takes the coral: a reply that goes on its own takes none (its press is Stop).
   const focusTakes = !!focusRow && !kept[focusRow.id] && focusRow.kind !== "held";
   const coral = oneCoral();
-  // Only the rows drawn are drafted (decision 0071): the five waiting, not those past them. Older's rows on a phone, whose
-  // walk steps into them; a desk draws Older as one row of names.
-  useDraftsAhead(draftWantsOf([...groups.next, ...drawn.waiting, ...(phone ? groups.old : [])]));
+  // Only the rows drawn are drafted (decision 0071): the five waiting, not those past them. Older's only as one is opened:
+  // nobody counts them, most are let go unread, and a draft is a model's turn.
+  const olderOpen = groups.old.filter((r) => r.id === walk || r.id === focus);
+  useDraftsAhead(draftWantsOf([...groups.next, ...drawn.waiting, ...olderOpen]));
   const ctx: NeedYouRowsCtx = {
     nav,
     verbKind: coral.verbKind,
@@ -503,34 +426,34 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   // Every row above To do has asked for its act by now: whether one took the coral, which To do hears.
   const holds = coral.taken();
   const todo = useToDoRows({ cap: NEED_YOU_CAPS.todo, queueHolds: holds });
-  // Older's Mark all done takes the coral where nothing above it did, and only while it is drawn to be pressed: told with
-  // the list's own, so the setup card and Ask found go quiet beside it (one coral on the page).
-  const olderRows = groups.old.length ? groups.old : (older?.rows ?? []);
-  const olderActs = olderRows.some((r) => !!r.conversationId) && may && (!older?.handed || older.handed.refused > 0);
-  const olderCoral = olderActs && !holds && !todo.drawn.length;
-  useCoralTold(holds || olderCoral);
+  // Older never takes the coral, and has no say in how the page is laid out: nobody counts it, and an old number in it left
+  // Finish setting up quiet and Ask found under an empty day (8 Nov 2026).
+  useCoralTold(holds);
   // Ask's line over the people still waiting and drawn; how many need you is the one count, which hears what was acted on
   // here.
   useTellHead(stillOpen([...groups.next, ...drawn.waiting], kept));
   useActedTold(kept);
+  const olderRows = groups.old.length ? groups.old : (older?.rows ?? []);
+  const workDrawn = [...above, todoGroup(todo, phone)];
+  const onlyOlder = !workDrawn.some(Boolean) && vm.callsRead !== false;
   const olderGroup = olderRows.length ? (
-    <NeedYouGroup key="old" title={W.group.old} count={null} pane={phone} testid="today-group-old">
-      <OlderRow
-        rows={olderRows}
-        handed={older?.handed ?? null}
-        onHanded={(h) => setOlder(h ? { rows: olderRows, handed: h } : null)}
-        kind={olderCoral ? "primary" : "ghost"}
-        flash={ppFlash}
-      />
-    </NeedYouGroup>
+    <OlderGroup
+      key="old"
+      rows={olderRows}
+      ctx={{ ...ctx, ...OLDER_QUIET }}
+      handed={older?.handed ?? null}
+      onHanded={(h) => setOlder(h ? { rows: olderRows, handed: h } : null)}
+      bare={onlyOlder}
+    />
   ) : null;
-  const groupsDrawn = [...above, todoGroup(todo, phone), olderGroup];
-  useDrawnTold(groupsDrawn.some(Boolean) || vm.callsRead === false);
+  useDrawnTold(!onlyOlder);
+  const door = listDoorOf(groups.next.length + groups.waiting.length, runs.count);
   return (
     <ListBody
       phone={phone}
-      groups={groupsDrawn}
-      head={needYouHead(listDoorOf(groups.next.length + groups.waiting.length, runs.count), vm.done_today ?? 0, nav)}
+      onlyOlder={onlyOlder}
+      groups={[...workDrawn, olderGroup]}
+      head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0, nav)}
       foot={
         <>
           {listFoot(
@@ -541,6 +464,7 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
             },
             todo.door,
             nav,
+            phone && !onlyOlder ? { done: vm.done_today ?? 0, door } : null,
           )}
           <SetAsideLine nav={nav} />
         </>
@@ -563,6 +487,7 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
  */
 function ListBody({
   phone,
+  onlyOlder,
   groups,
   head,
   foot,
@@ -571,8 +496,10 @@ function ListBody({
   toasts,
 }: {
   phone: boolean;
+  /** Nothing drawn but Older: no name over it, and it stands at the page's end, past the day (zones.css). */
+  onlyOlder: boolean;
   groups: ReadonlyArray<ReactElement | null>;
-  head: ReactElement;
+  head: ReactElement | null;
   foot: ReactElement | null;
   callsUnread: boolean;
   walk: ReactElement | null;
@@ -584,8 +511,9 @@ function ListBody({
       className="tq today-queue tz-need"
       data-testid="today-queue"
       data-phone={phone || undefined}
-      aria-labelledby={phone ? undefined : "today-queue-title"}
-      aria-label={phone ? "Need you" : undefined}
+      data-only-older={onlyOlder || undefined}
+      aria-labelledby={phone || onlyOlder ? undefined : "today-queue-title"}
+      aria-label={onlyOlder ? W.group.old : phone ? "Need you" : undefined}
     >
       {phone ? null : head}
       <div className="tq-list ny-groups">

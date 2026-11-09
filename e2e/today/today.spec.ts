@@ -37,13 +37,13 @@ test.describe("Today on a real workspace", () => {
       const rows = queue.locator(".tq-list .cl-attn-row");
       const n = await rows.count();
       // Need you's rows (decision 0071 as amended, need-you/people-rows.tsx): someone waiting on you says how long beside
-      // their name and no state line; Older is one row naming them, with Mark all done; anything else (a run, a search,
+      // their name and no state line; Older is one person's row, or one row naming them; anything else (a run, a search,
       // your own to-do) says where it stands. Every row offers a verb: its own, or its work's.
       const WAITING = ["queue-handoff", "queue-callback", "queue-window", "queue-reply", "queue-held"];
       for (const row of await rows.all()) {
         expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
         const id = (await row.getAttribute("data-testid")) ?? "";
-        if (id === "queue-older") await expect(row.locator(".cl-attn-who")).toHaveText(/^\d+ waiting over a week$/);
+        if (id === "queue-older") await expect(row.locator(".cl-attn-who")).not.toBeEmpty();
         else if (WAITING.includes(id)) {
           await expect(row.locator(".cl-attn-wait")).toHaveCount(1);
           await expect(row.locator(".cl-attn-status")).toHaveCount(0);

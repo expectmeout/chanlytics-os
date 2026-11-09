@@ -9,7 +9,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback } from "react";
 import type { AskApi } from "../bridge/ask";
 import { workspacePath } from "@chanlytics/contracts";
-import { askAbout, backFrom, navigate, openAsk } from "./frame-doors";
+import { askAbout, backFrom, navigate, openAsk, tellAskHeld } from "./frame-doors";
 import type { SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
 
 /** What a toast says, as the shell's one flash takes it (frame/flash.tsx `usePPToast`). */
@@ -148,6 +148,7 @@ let askHeld: AskApi | undefined;
 /** The calls a page reads by import from here on: the bridge's, or a test's stand-in. */
 export function holdAsk(calls: AskApi | undefined): void {
   askHeld = calls;
+  tellAskHeld();
 }
 
 /** Ask's calls; none before the bridge installs them, and none where there is no bridge. */

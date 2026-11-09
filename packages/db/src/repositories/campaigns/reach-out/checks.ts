@@ -2,8 +2,9 @@
 
 import { maySpend, type SpendKind, DbFailure } from "@chanlytics/contracts";
 import { recordEvent } from "../../events/events";
+import { findBusinessDescription } from "../../imports/business-reads";
 import type { Db, ReachOutSendRow } from "./reach-out";
-import type { TenantId } from "@chanlytics/contracts";
+import type { BusinessReadSource, TenantId } from "@chanlytics/contracts";
 
 /**
  * A lead written to by a reach-out's email: still being written to (ready becomes nurture; a later stage is kept),
@@ -87,4 +88,20 @@ export async function findWorkspaceAbout(db: Db, tenantId: TenantId): Promise<st
   const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new DbFailure(error, "cannot read the business record");
   return data?.about?.trim() || null;
+}
+
+/**
+ * What a writer of a cold email reads of what the business does, and where it came from (decision 0113): what the owner
+ * wrote of it, else what its Google profile or its website says of itself, so a business that filled in nothing is still
+ * written for from what is known of it. Those are others' words, so a prompt fences them. The mailbox's reader asks
+ * findWorkspaceAbout, which holds what the owner wrote alone: it is told this in its instructions.
+ */
+export async function findWorkspaceWords(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ text: string; from: "record" | BusinessReadSource } | null> {
+  const about = await findWorkspaceAbout(db, tenantId);
+  if (about) return { text: about, from: "record" };
+  const read = await findBusinessDescription(db, tenantId);
+  return read ? { text: read.text, from: read.source } : null;
 }

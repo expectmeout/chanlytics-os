@@ -220,6 +220,15 @@ function quietHead(wires: TodayFacts["wires"], last: string): { headline: string
   };
 }
 
+/**
+ * What the head says with nobody waiting, on any day (8 Nov 2026): what is listening, and when the last message came. It
+ * was the quiet day's alone, so one old row in Older, which nobody counts, took it away and left "That's everyone" over no
+ * one.
+ */
+export function todayCalmHead(todayFacts: TodayFacts, last: string): { headline: string; sub: string } {
+  return quietHead(todayFacts.wires, last);
+}
+
 /** The quiet day: prove we are listening, don't show a row of zeroes. `proof` is todayProof's sentence. */
 /** The quiet day's card, less its figures, which the brief adds (today/figures.ts quietFigures). */
 export function todayQuietDay(
@@ -392,10 +401,28 @@ export const TODAY_PHONE_WORDS = {
   figure: { booked: "booked", answered: "answered", calls: "calls", new: "new" },
   /** The day's figures on a phone, with the week under them: the card's name. */
   soFar: "Today so far",
+  /** Today so far on a day nothing was counted: one line under the day, in the four zeros' place. */
+  soFarNothing: "Nothing yet today",
   /** The day after closing (the canvas of 2 Nov 2026): tomorrow's name, its first visit, and what already happened. */
   tomorrow: "Tomorrow",
   first: "First",
   earlier: (n: number) => `${n} earlier`,
+  /** A day the business is closed with nothing on it: its name, and how tomorrow stands, or when it next opens. */
+  closedToday: "Closed today",
+  closedTomorrow: "Closed tomorrow too",
+  nextOpening: (at: string) => `Next opening ${at}`,
+  tomorrowHolds: (counted: string) => (counted ? `Tomorrow: ${counted}` : "Tomorrow: nothing booked yet"),
+  /**
+   * Listen: a circle beside the bell at rest, and while your brief plays a capsule in the date's place, on every page, whose
+   * press stops it (the frame's BriefPlaying). The words are what a reader hears, and on a desk what the button says.
+   */
+  listen: {
+    word: "Listen",
+    named: (length: string) => `Listen to your brief, ${length}`,
+    getting: "Getting Ask's voice",
+    brief: "Your brief",
+    stop: "Stop your brief",
+  },
   /** What cannot wait's one door: a line that is down is reconnected, a paused workspace is billing's. */
   alertDoor: { reconnect: "Reconnect", billing: "Open billing" },
   /** The day with no calendar linked: its line, and the one row that links one. */
@@ -447,43 +474,47 @@ export interface TodayHeadLineVM {
  * says as the page's name: what leads, then the rest, and it follows the rows. A line that is down leads, and how many need
  * you as well. Else how many need you, the one count (need-you/groups.ts needYouCountOf: every row above To do still
  * open), then what Ask prepared and the one thing that cannot wait (`say`: need-you/words.ts needYouSay), as the rows
- * still hold them; after closing, how today went instead (`went`: todayWentLine). With nobody waiting: on a day nothing
- * came in, what is listening (`quiet`: todayQuietDay); else "Nothing needs you." and how today went after closing, or that
- * that's everyone. One sentence, said once.
+ * still hold them; after closing, how today went instead (`went`: todayWentLine). With nobody waiting: how today went
+ * after closing; that that's everyone, once the member has cleared rows today (`cleared`), the only time those words are
+ * about anyone; else what is listening (`calm`: todayCalmHead). One sentence, said once.
  */
 export function todayHeadLine(
   standing: TodayHead,
   waiting: number,
   say: string | null,
-  /** A day nothing came in: its head (todayQuietDay), "Nothing needs you." and that the receptionist is on. */
-  quiet: { headline: string; sub: string } | null = null,
+  /** With nobody waiting: what is listening (todayCalmHead), "Nothing needs you." and that the receptionist is on. */
+  calm: { headline: string; sub: string } | null = null,
   /** After closing, the day turned to tomorrow (the canvas of 2 Nov 2026): how today went (todayWentLine). */
   sent: string | null = null,
+  /** Whether the member has cleared rows today: only then is "That's everyone" about anyone. */
+  cleared = false,
 ): TodayHeadLineVM {
   if (standing.tone === "alert")
     return { lead: standing.headline, rest: waiting > 0 ? NEED_YOU_WORDS.countAsWell(waiting) : null };
   if (waiting > 0) return { lead: NEED_YOU_WORDS.count(waiting), rest: sent ?? (say ? withStop(say) : null) };
-  if (quiet) return { lead: quiet.headline, rest: quiet.sub || null };
-  return { lead: "Nothing needs you.", rest: sent ?? NEED_YOU_WORDS.end };
+  if (sent) return { lead: "Nothing needs you.", rest: sent };
+  if (cleared || !calm) return { lead: "Nothing needs you.", rest: NEED_YOU_WORDS.end };
+  return { lead: calm.headline, rest: calm.sub || null };
 }
 
 /**
  * How today went, as the head says it once the day has turned to tomorrow (the canvas of 2 Nov 2026): what was booked,
  * then how many of the customer messages the receptionist answered. "Today: 4 booked, 31 of 34 answered by the
- * receptionist." Null where neither was counted.
+ * receptionist." Null where neither was counted, and where nothing was booked and nothing answered ("Today: 0 booked." is
+ * no news on a day nothing happened).
  */
 export function todayWentLine(
   figures: ReadonlyArray<{ id: string; value: number | null; of?: number }>,
 ): string | null {
   const booked = figures.find((f) => f.id === "booked")?.value ?? null;
   const answered = figures.find((f) => f.id === "answered");
-  const parts = [
-    booked !== null ? `${booked} booked` : "",
+  const heard =
     answered && answered.value !== null && answered.of
       ? `${answered.value} of ${answered.of} answered by the receptionist`
-      : "",
-  ].filter(Boolean);
-  return parts.length ? `Today: ${parts.join(", ")}.` : null;
+      : "";
+  if (!booked && !heard) return null;
+  const parts = [booked !== null ? `${booked} booked` : "", heard].filter(Boolean);
+  return `Today: ${parts.join(", ")}.`;
 }
 
 /** "1 draft on its way" beside the queue's parts: the replies counting down to send, which have no row; null for none. */

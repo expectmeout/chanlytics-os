@@ -166,3 +166,16 @@ of M, Calls, New people, each with its receipt) and the week under them; the pin
 someone waits; and the page saying it is done. The head says the greeting, one sentence, Listen beside the bell, and
 Since you looked under it. The chips, To do's line and Ask found's line at Need you's foot went, and the walk in a sheet
 stays.
+
+## Amended 8 November 2026 · Calm days, and every press goes somewhere
+
+Listen is a circle the bell's size beside it on a phone, only where the brief has news; while it plays a capsule stands in the
+date's place on every page, whose press stops it, and a call going on outranks and ends it (`BriefPlaying`). With nobody waiting
+the head says what is listening on any day, and "That's everyone" only once the member has cleared rows today. Older has no say
+in the page: no coral, no part in whether Ask found leads, and alone it stands at the page's end; one person is their own row,
+which opens, and a toll-free number says so. A folded setup card keeps its next step. A day the business is closed with nothing
+on it turns to tomorrow at once. Today so far on a phone is one line under the day where nothing was counted (always the four
+stands on a desk's head and wherever anything was), and each of a phone's four figures opens. Booking gap asks first whether
+anyone in People is on the calendar at all. Not today rests a row a week wherever Today says it, in the member's saved view, with
+the day it comes back and an Undo in its toast. Ask found's "and N more" opens in place, and Since you looked's answered row
+opens the thread it names.

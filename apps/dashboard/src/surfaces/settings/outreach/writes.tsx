@@ -7,12 +7,12 @@
  */
 import { useRef } from "react";
 import {
+  REACH_OUT_LIMITS,
   REACH_OUT_SETTINGS_WORDS,
   VOICE_PASTE_MIN,
   VOICE_WORDS,
   reachOutToneOf,
   textOrEmpty,
-  type ReachOutConfig,
 } from "@chanlytics/contracts";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { gate, navigate } from "../../frame-verbs";
@@ -21,52 +21,10 @@ import { RecordField } from "../../kit/record/field";
 import { RecordRow } from "../../kit/record/row";
 import { BtFold } from "../business/gestures/fold";
 import { settingsRowRoute } from "../frame/tabs";
+import { reachOutFold } from "./box";
 import { OutreachCard, storedReachOut, type OutreachShared } from "./card";
 
 const WRITES_CARDS = REACH_OUT_SETTINGS_WORDS;
-type Fields = Parameters<Parameters<typeof BtFold>[0]["body"]>[0];
-
-/** A box of words, named by its fold's label on screen. */
-const Box = ({ id, rows, placeholder, f }: { id: string; rows: number; placeholder: string; f: Fields }) => (
-  <RecordField
-    id={`ro-${id}`}
-    label={null}
-    aria-labelledby={`rec-fold-${id}-label`}
-    rows={rows}
-    value={textOrEmpty(f.draft)}
-    onChange={(v) => f.update(() => v, [id])}
-    problem={f.problems[id] || null}
-    placeholder={placeholder}
-    readOnly={f.readOnly || undefined}
-    testid={`rec-${id}-box`}
-  />
-);
-
-/** A fold of one key of the section: what is set, or what stands in its place and why, and its box. */
-const keyFold = (
-  shared: OutreachShared,
-  spec: {
-    id: string;
-    key: keyof ReachOutConfig;
-    label: string;
-    rows: number;
-    placeholder: string;
-    empty: string;
-    hint?: string | null;
-  },
-) => (
-  <BtFold
-    canEdit={shared.canEdit}
-    flash={shared.flash}
-    saver={shared.saver}
-    id={spec.id}
-    label={spec.label}
-    channel={null}
-    gate={gate("settings", `change ${spec.label.toLowerCase()}`)}
-    row={{ value: storedReachOut(shared, spec.key), empty: spec.empty, hint: spec.hint ?? null }}
-    body={(f) => <Box id={spec.id} rows={spec.rows} placeholder={spec.placeholder} f={f} />}
-  />
-);
 
 /** The pasted email, read once by Ask into lines about how its owner writes. */
 /** What the paste's body is handed: its box's words, its one change, its refusal and whether it may be typed in. */
@@ -120,14 +78,17 @@ export function WritesCard(shared: OutreachShared & { again: () => void }) {
   };
   return (
     <OutreachCard id="writes" title={WRITES_CARDS.writes.title} sub={WRITES_CARDS.writes.sub}>
-      {keyFold(shared, {
+      {reachOutFold(shared, {
         id: "cold_tone",
         key: "tone",
         label: WRITES_CARDS.writes.tone,
         rows: 2,
+        max: REACH_OUT_LIMITS.tone,
         placeholder: WRITES_CARDS.writes.tonePlaceholder,
-        empty: receptionist ?? WRITES_CARDS.offer.empty,
-        hint: receptionist ? WRITES_CARDS.writes.toneFrom : WRITES_CARDS.writes.toneHint,
+        empty: WRITES_CARDS.offer.empty,
+        hint: WRITES_CARDS.writes.toneHint,
+        fallback: receptionist,
+        from: WRITES_CARDS.writes.toneFrom,
       })}
       <BtFold
         canEdit={shared.canEdit}
@@ -169,35 +130,45 @@ export function WritesCard(shared: OutreachShared & { again: () => void }) {
 
 /** Sign-off: the name every email signs with, its signature and phone, and what code always adds under them. */
 export function SignOffCard(shared: OutreachShared) {
-  const named = storedReachOut(shared, "signed_by");
-  const fromSequence = named ? null : (shared.read?.sequence?.signed_by ?? null);
+  const known = shared.read?.known;
+  const business = shared.brain.business_name?.trim();
   return (
     <OutreachCard id="sign-off" title={WRITES_CARDS.signOff.title} sub={WRITES_CARDS.signOff.sub}>
-      {keyFold(shared, {
+      {reachOutFold(shared, {
         id: "signed_by",
         key: "signed_by",
         label: WRITES_CARDS.signOff.signedBy,
-        rows: 1,
+        max: REACH_OUT_LIMITS.signedBy,
+        autoComplete: "name",
         placeholder: WRITES_CARDS.signOff.placeholders.signedBy,
-        empty: fromSequence ?? WRITES_CARDS.offer.empty,
-        hint: fromSequence ? WRITES_CARDS.signOff.signedByFrom : WRITES_CARDS.signOff.signedByHint,
+        empty: WRITES_CARDS.offer.empty,
+        hint: WRITES_CARDS.signOff.signedByHint,
+        fallback: shared.read?.sequence?.signed_by,
+        from: WRITES_CARDS.signOff.signedByFrom,
+        known: known?.first_name,
       })}
-      {keyFold(shared, {
+      {reachOutFold(shared, {
         id: "signature",
         key: "signature",
         label: WRITES_CARDS.signOff.signature,
         rows: 3,
+        max: REACH_OUT_LIMITS.signature,
         placeholder: WRITES_CARDS.signOff.placeholders.signature,
         empty: WRITES_CARDS.signOff.signatureNone,
         hint: WRITES_CARDS.signOff.signatureHint,
+        rule: WRITES_CARDS.signOff.signatureRule,
+        known: known?.name && business ? `${known.name}, ${business}` : known?.name,
       })}
-      {keyFold(shared, {
+      {reachOutFold(shared, {
         id: "sign_phone",
         key: "phone",
         label: WRITES_CARDS.signOff.phone,
-        rows: 1,
+        max: REACH_OUT_LIMITS.phone,
+        inputMode: "tel",
+        autoComplete: "tel",
         placeholder: WRITES_CARDS.signOff.placeholders.phone,
         empty: WRITES_CARDS.signOff.phoneNone,
+        known: shared.brain.phone_display?.trim(),
       })}
       <RecordRow
         id="sign_foot"

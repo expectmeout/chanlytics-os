@@ -10,7 +10,12 @@
  * the draft is written again in its place (drafts.ts rewriteDraft). The receptionist's held reply keeps its own.
  */
 import { useEffect, useRef, useState } from "react";
-import { NEED_YOU_WORDS as W, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
+import {
+  NEED_YOU_OLD_MS,
+  NEED_YOU_WORDS as W,
+  type AppointmentWord,
+  type TodayQueueRowVM,
+} from "@chanlytics/contracts";
 import { Button, Field, Sheet } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
 import { touchSwipe } from "../../frame-verbs";
@@ -131,6 +136,22 @@ function LastSend({ row }: { row: TodayQueueRowVM }) {
   );
 }
 
+/** The line above the person. Past a week it is in no count, so "Need you" is not what to call it: the head said nothing does. */
+function walkWhere(row: TodayQueueRowVM, step: number, steps: number): string {
+  const past = row.kind !== "held" && row.waitedMs >= NEED_YOU_OLD_MS;
+  return [past ? W.group.old : W.walk.of(step, steps), row.channel, row.when].filter(Boolean).join(" · ");
+}
+
+/** What they wrote, in quotes, or what happened where nobody's words are held. Called, not drawn. */
+function whatCameOf(row: TodayQueueRowVM) {
+  if (!row.sentence) return null;
+  return row.quoted ? (
+    <Quote what={W.walk.their} text={`“${row.sentence}”`} />
+  ) : (
+    <Quote what={W.walk.happened} text={row.sentence} />
+  );
+}
+
 export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, onToDo }: WalkSheetProps) {
   const [footEl, setFootEl] = useState<HTMLElement | null>(null);
   // The row before the one in view, where the walk moved on from it: its send counts down at the top.
@@ -200,7 +221,7 @@ export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, o
       </Sheet>
     );
   }
-  const where = [W.walk.of(i + 1, steps.length), row.channel, row.when].filter(Boolean).join(" · ");
+  const where = walkWhere(row, i + 1, steps.length);
   return (
     <Sheet
       open
@@ -245,7 +266,7 @@ export function WalkSheet({ rows, at, onAt, kept, work, word, stepDone, todos, o
     >
       {lastRow && lastRow.id !== row.id ? <LastSend row={lastRow} /> : null}
       <div className="ny-walk-body" key={row.id} {...swipe}>
-        {row.sentence ? <Quote what={W.walk.their} text={row.quoted ? `“${row.sentence}”` : row.sentence} /> : null}
+        {whatCameOf(row)}
         {workOf(
           row,
           { ...work, main: "primary", foot: footEl },
