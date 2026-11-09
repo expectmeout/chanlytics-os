@@ -201,6 +201,9 @@ export function sessionEnded(details: unknown): boolean {
   return !!details && typeof details === "object" && (details as { session_ended?: unknown }).session_ended === true;
 }
 
+/** The codes that say something failed and nothing a person wrote: each reads as `internal` reads. */
+const FAULTS: ReadonlySet<string> = new Set(["internal", "unavailable", "upstream_provider"]);
+
 export function refusalOf(input: RefusalInput): Refusal {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const sentence = typeof input.message === "string" ? input.message.trim() : "";
@@ -227,7 +230,7 @@ export function refusalOf(input: RefusalInput): Refusal {
     return refusal("internal", "Out of date", OUT_OF_DATE);
   }
 
-  switch (code) {
+  switch (FAULTS.has(code) ? "internal" : code) {
     case "unauthorized":
       return refusal(code, "Signed out", "Signed out.");
     case "network":
@@ -235,8 +238,6 @@ export function refusalOf(input: RefusalInput): Refusal {
     case "timeout":
       return refusal(code, "No answer in time", input.write ? TIMEOUT_WRITE : TIMEOUT_READ);
     case "internal":
-    case "unavailable":
-    case "upstream_provider":
       return refusal(
         code,
         "Something went wrong",

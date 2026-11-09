@@ -450,7 +450,7 @@ export { EDGE_ERROR_CODES } from "./shared/edge-errors";
 export { addressInMessage, normalizeEmail, whyNotAnEmail } from "./shared/email-address";
 export { ACTOR_TYPES, CHANNEL_KINDS, CONSENT_STATES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_STATES, DECISION_SUBJECTS, DECISION_VERBS, EMAIL_STOP_PATTERN, EMAIL_UNSUBSCRIBE_PATTERN, ESCALATION_REASONS, ESCALATION_STATES, EVENT_KINDS, EVENT_SUBSCRIBERS, IDENTITY_ASSURANCES, JOB_KINDS, JOB_STATES, MARKETING_OPT_IN_PATTERN, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, OFFERS_OPT_IN_PHRASES, OPT_IN_PATTERN, OPT_OUT_PATTERN, optInPurposeOf, SMS_OPT_OUT_PATTERN, TEMPLATE_STATUSES, TENANT_STATUSES, WABA_FIELDS } from "./shared/enums";
 export { err, ok, SERVED_AT_HEADER } from "./shared/envelope";
-export { AppError, bodyRefusal, causedBy, DbFailure, ERROR_CODES, isFaultCode } from "./shared/errors";
+export { AppError, bodyRefusal, causedBy, DbFailure, ERROR_CODES } from "./shared/errors";
 export { escapeHtml, linkifyEscaped } from "./shared/html";
 export { asContactId, asTenantId, heldContactId, heldTenantId, isContactId, isTenantId, isUuid, SLUG, UUID } from "./shared/identity";
 export { linkHost, normalizeLink, publicObjectSrc, webAddressesIn, whyNotALink } from "./shared/link";

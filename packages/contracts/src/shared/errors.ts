@@ -48,10 +48,6 @@ export const ERROR_CODES = [
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
-/** A code that says something failed on our side or a provider's, and nothing a person wrote: its words are a try-again. */
-export const isFaultCode = (code: ErrorCode): boolean =>
-  code === "internal" || code === "unavailable" || code === "upstream_provider";
-
 /**
  * What a refusal carries beside its words, by its code: one shape for each thing a client acts on (decision 0109), read
  * by shell/refusal.ts. A code not named here carries none. They were `unknown`, in seven shapes nothing declared, so a

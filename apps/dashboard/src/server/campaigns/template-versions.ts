@@ -17,7 +17,6 @@ import {
   type OwnVersionChannel,
   type StarterTemplate,
   type VersionWords,
-  isFaultCode,
 } from "@chanlytics/contracts";
 import {
   createMessageVersion,
@@ -32,7 +31,7 @@ import { isMissingDoor } from "@chanlytics/db/shared";
 import type { Member } from "@/server/shared/route";
 import { saveReachOutEmail } from "@/server/campaigns/reach-outs/reach-outs";
 import { serviceDb } from "@/server/shared/service-db";
-import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
+import { dbRefusal, type RouteContext, isFaultCode } from "@/server/shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**

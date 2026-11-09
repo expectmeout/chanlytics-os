@@ -42,7 +42,6 @@ import {
   type OwnVersionChannel,
   type ParamSpec,
   type TemplateStatus,
-  isFaultCode,
 } from "@chanlytics/contracts";
 import { findHeldMessage, listMessageVersionRows } from "@chanlytics/db/campaigns";
 import { submitDraft } from "@/server/campaigns/template-submit";
@@ -51,6 +50,7 @@ import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
 import type { TenantId } from "@chanlytics/contracts";
+import { isFaultCode } from "@/server/shared/with-route";
 
 /**
  * A message as it is written whole: its name and language, its kind, a version per channel, and the values they fill.

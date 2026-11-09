@@ -465,6 +465,10 @@ export function requireRole(member: MemberContext, atLeast: Role): void {
   }
 }
 
+/** A code that says something failed on our side or a provider's, and nothing a person wrote: its words are a try-again. */
+export const isFaultCode = (code: ErrorCode): boolean =>
+  code === "internal" || code === "unavailable" || code === "upstream_provider";
+
 /**
  * The SQLSTATEs a definer door raises on purpose, each with the words it wrote for the person, and the answer each is:
  * a thing that is not there (P0002), a second of what only one may exist (23505), who may not (42501), and what it
