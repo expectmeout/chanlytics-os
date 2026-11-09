@@ -92,7 +92,12 @@ test("on a phone Need you is the people under the page's head, and To do is a gr
   set(twoWaiting());
   const queue = draw(NeedYou);
   assert.equal(byTestId(queue, "today-queue-count"), null, "the count is the page's head, not the list's");
-  assert.equal(byTestId(queue, "today-queue-door"), null, "and the Inbox is the tab bar's");
+  assert.equal(
+    textOf(byTestId(queue, "today-queue-door")),
+    "Inbox",
+    "its first group's head holds the way there, as the day's the Calendar's",
+  );
+  assert.equal(all(queue, (n) => n.props?.["data-testid"] === "today-queue-door").length, 1, "once");
   assert.equal(byTestId(queue, "today-queue-ask"), null, "each card says what Ask prepared: no line over them");
   assert.equal(byTestId(queue, "today-queue").props["data-phone"], true);
   const todo = byTestId(queue, "today-group-todo");
@@ -267,27 +272,50 @@ test("how long someone waited is said once, beside their name, on a phone and on
   phone = true;
 });
 
-test("on a phone the list says who it left out, with See all, and says nothing where it left nobody out", () => {
+test("how many were done today follows how many need you, where no list head says it; and the page's last line waits for nobody to", async () => {
+  const { useZonesStanding } = await import("../../../apps/dashboard/src/surfaces/today/zones/head.tsx");
+  const { TodayEnd } = await import("../../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
+  const { standingSaid } = await import("../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
+  const HeadProbe = () => {
+    useZonesStanding();
+    return null;
+  };
+  phone = true;
+  set({ ...twoWaiting(), done_today: 3 });
+  draw(HeadProbe);
+  assert.match(textOf(standingSaid()?.sentence ?? null), /need you\. 3 done today\.$/);
+  assert.equal(
+    byTestId(draw(TodayEnd), "today-end"),
+    null,
+    "REGRESSION: it said that was everything while someone waited",
+  );
+  set(nobodyWaiting());
+  assert.ok(byTestId(draw(TodayEnd), "today-end"), "nobody waiting: the page says it is done");
+});
+
+test("on a phone a group's head holds See all where it could not hold everyone, and nothing stands under the list", () => {
   phone = true;
   set(twoWaiting());
-  const plain = footOf(draw(NeedYou));
   assert.equal(
-    textOf(plain),
-    "Open Inbox",
-    "two people, both drawn: nothing to say of them, only the door a desk's head holds",
+    footOf(draw(NeedYou)),
+    null,
+    "REGRESSION: a pill under a divider, where every other card's door is in its head",
   );
-  // Up next and five waiting on you (contracts NEED_YOU_CAPS); past them the foot counts the rest.
+  // Up next and five waiting on you (contracts NEED_YOU_CAPS); past them the group's head is the way to the rest.
   set(manyWaiting(8));
   const queue = draw(NeedYou);
   assert.equal(rowsOf(queue, "handoff").length, 6, "Up next and the five waiting");
-  const foot = footOf(queue);
-  assert.ok(foot, "and says the rest");
-  assert.ok(textOf(foot).includes("2 more waiting"), textOf(foot));
-  const all_ = find(foot, (n) => n.type === "button" && textOf(n) === "See all");
-  assert.ok(all_, "with the door to them");
-  went.length = 0;
-  press(all_);
-  assert.deepEqual(went, ["inbox"]);
+  assert.equal(footOf(queue), null);
+  const waiting = byTestId(queue, "today-group-waiting");
+  const door = find(waiting, (n) => classes(n).includes("tz-door"));
+  assert.equal(textOf(door), "See all", "with the door to them");
+  assert.match(door.props.href, /\/inbox$/);
+  // A group's head is a card's head: it stands inside the pane, as the day's does.
+  const pane = find(waiting, (n) => classes(n).includes("ny-pane"));
+  assert.ok(
+    find(pane, (n) => classes(n).includes("tz-head")),
+    "REGRESSION: a small label outside the card",
+  );
 });
 
 test("on a phone a run waiting for your OK says so once, in its sentence, and opens with Review", () => {

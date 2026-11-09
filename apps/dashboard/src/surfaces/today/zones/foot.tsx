@@ -14,6 +14,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../frame-verbs";
+import { useNeedsYou } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
@@ -102,8 +103,8 @@ export function DeskFoot() {
 export function PhoneSoFar() {
   return (
     <section className="tz-pane tz-sofar" data-testid="today-card" aria-labelledby="today-sofar-title">
-      <div className="tz-sec">
-        <h2 className="tz-sec-title" id="today-sofar-title">
+      <div className="tz-head">
+        <h2 className="tz-name" id="today-sofar-title">
           {P.soFar}
         </h2>
       </div>
@@ -145,6 +146,9 @@ export function PhonePins() {
 
 /** The page says it is done: on a phone the last thing above the tab bar. */
 export function TodayEnd() {
+  // "That's everything" under "2 need you" read as all done: while anyone waits the page just ends.
+  const waiting = useNeedsYou() ?? 0;
+  if (waiting > 0) return null;
   return (
     <p className="tz-end" data-testid="today-end" {...SAYS_WHEN}>
       <Icon name="check" size={13} />

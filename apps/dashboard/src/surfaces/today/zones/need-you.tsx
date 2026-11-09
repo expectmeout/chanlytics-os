@@ -16,7 +16,7 @@
  * prepared it, and opens itself. On a desk Need you is one pane under its name; on a phone each group is a pane of its
  * own under its name, and the page's head says what the pane's would.
  */
-import { useEffect, useLayoutEffect, useState, type ReactElement } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactElement, type ReactNode } from "react";
 import {
   DEFAULT_TIMEZONE,
   NEED_YOU_CAPS,
@@ -51,6 +51,7 @@ import { useTodayOnPhone } from "../phone";
 import { keptWith, keptWithout, withKept, type Kept } from "./kept";
 import { useToDoRows, type ToDoRows } from "./to-do";
 import { queueHoldsCoral, zoneDrawn } from "../queue-coral";
+import { sectionDoor } from "./section-door";
 import { appNavigate, canDo, doorGlyph, surfaceFailed, useMoved, useToast, workspaceClock } from "../shell";
 import { useTodayWord } from "./day-vm";
 
@@ -159,32 +160,44 @@ function listDoorOf(people: number, runs: number): { to: string; label: string }
 }
 
 /** Need you's head on a desk: its name, how many the team dealt with today, and the door. Called, not drawn. */
-function needYouHead(door: { to: string; label: string }, done: number, nav: Nav) {
+function needYouHead(door: { to: string; label: string }, done: number) {
   return (
-    <div className="tq-head">
-      <h2 className="tq-title" id="today-queue-title">
+    <div className="tq-head tz-head">
+      <h2 className="tq-title tz-name" id="today-queue-title">
         Need you
       </h2>
-      <span className="tq-end">
-        {done > 0 ? (
-          <span className="tq-done" data-testid="today-done">
-            {W.doneToday(done)}
-          </span>
-        ) : null}
-        <Button
-          variant="quiet"
-          size="sm"
-          className="tq-open"
-          onClick={() => nav(door.to)}
-          data-testid="today-queue-door"
-        >
-          {door.label}
-          <Icon name={doorGlyph()} size={11} />
-        </Button>
-      </span>
+      {done > 0 ? (
+        <span className="tz-fact" data-testid="today-done">
+          {W.doneToday(done)}
+        </span>
+      ) : null}
+      {sectionDoor(door.to, door.label, "today-queue-door")}
     </div>
   );
 }
+
+/** A group on a phone, whose head holds what a desk's one head and foot say. */
+type GroupKey = "next" | "waiting" | "ok" | "todo";
+
+/** The first group drawn, whose head holds the way to the Inbox on a phone. */
+const firstGroupOf = (drawn: Drawn, runs: { drawn: readonly ReactElement[] }): GroupKey => {
+  if (drawn.next.length) return "next";
+  if (drawn.waiting.length) return "waiting";
+  return drawn.ok.length || runs.drawn.length ? "ok" : "todo";
+};
+
+/**
+ * What a group's head holds at its right on a phone, as the day's head holds the Calendar: See all where the group could not
+ * hold all it has, else, on the first group, the way to the Inbox. None on a desk, whose one head holds the door and whose
+ * foot says what was cut.
+ */
+const groupEnds =
+  (phone: boolean, first: GroupKey, door: { to: string; label: string }) =>
+  (key: GroupKey, cut: number, to = "inbox"): ReactNode => {
+    if (!phone) return null;
+    if (cut > 0) return sectionDoor(to, W.seeAll);
+    return key === first ? sectionDoor(door.to, door.label, "today-queue-door") : null;
+  };
 
 /** The old rows handed back this visit, kept for the visit with what they came to: the next read has none of them. */
 type OlderHanded = { rows: readonly TodayQueueRowVM[]; handed: HandedBack };
@@ -202,10 +215,17 @@ const QUIET: VerbKind = () => "ghost";
  * once all are. Called, not drawn; a group with no rows is null.
  */
 function groupsAbove(
-  groups: NeedYouGroups<TodayQueueRowVM>,
-  drawn: Drawn,
-  runs: { drawn: readonly ReactElement[]; count: number },
+  {
+    groups,
+    drawn,
+    runs,
+  }: {
+    groups: NeedYouGroups<TodayQueueRowVM>;
+    drawn: Drawn;
+    runs: { drawn: readonly ReactElement[]; count: number; cut: number };
+  },
   ctx: NeedYouRowsCtx,
+  endOf: (key: GroupKey, cut: number) => ReactNode,
 ) {
   const G = W.group;
   const pane = !!ctx.phone;
@@ -214,17 +234,31 @@ function groupsAbove(
   const ok = open(groups.ok) + runs.count;
   return [
     drawn.next.length ? (
-      <NeedYouGroup key="next" title={G.next} count={null} pane={pane} testid="today-group-next">
+      <NeedYouGroup key="next" title={G.next} count={null} pane={pane} end={endOf("next", 0)} testid="today-group-next">
         {needYouRows(drawn.next, { ...ctx, shortKind: QUIET })}
       </NeedYouGroup>
     ) : null,
     drawn.waiting.length ? (
-      <NeedYouGroup key="waiting" title={G.waiting} count={waiting || null} pane={pane} testid="today-group-waiting">
+      <NeedYouGroup
+        key="waiting"
+        title={G.waiting}
+        count={waiting || null}
+        pane={pane}
+        end={endOf("waiting", groups.waiting.length - drawn.waiting.length)}
+        testid="today-group-waiting"
+      >
         {needYouRows(drawn.waiting, ctx)}
       </NeedYouGroup>
     ) : null,
     drawn.ok.length || runs.drawn.length ? (
-      <NeedYouGroup key="ok" title={G.ok} count={ok || null} pane={pane} testid="today-group-ok">
+      <NeedYouGroup
+        key="ok"
+        title={G.ok}
+        count={ok || null}
+        pane={pane}
+        end={endOf("ok", groups.ok.length - drawn.ok.length + runs.cut)}
+        testid="today-group-ok"
+      >
         {[...needYouRows(drawn.ok, ctx), ...runs.drawn]}
       </NeedYouGroup>
     ) : null,
@@ -232,9 +266,9 @@ function groupsAbove(
 }
 
 /** To do's group: its rows, three at most, and how many there are; null with none. Called, not drawn. */
-function todoGroup(todo: ToDoRows, pane: boolean) {
+function todoGroup(todo: ToDoRows, pane: boolean, end: ReactNode) {
   return todo.drawn.length ? (
-    <NeedYouGroup key="todo" title={W.group.todo} count={todo.count} pane={pane} testid="today-group-todo">
+    <NeedYouGroup key="todo" title={W.group.todo} count={todo.count} pane={pane} end={end} testid="today-group-todo">
       {todo.drawn}
     </NeedYouGroup>
   ) : null;
@@ -243,31 +277,22 @@ function todoGroup(todo: ToDoRows, pane: boolean) {
 /**
  * What the list could not hold, said with the door to it: the people past the five, what waits for your OK past its three,
  * the to-dos past theirs. See all opens the Inbox, or, where only to-dos were left out, where they are (To do's `door`).
- * On a phone, which draws no head, what a desk's head says stands here too: how many were done today and the door (`head`),
- * 8 Nov 2026: a phone had no way to the Inbox from the list unless a row was cut, and no word of what was done. Nothing
- * where there is nothing to say.
+ * A desk's alone: on a phone each group's head holds its own See all (groupEnds). Nothing where nothing was cut.
  */
-function listFoot(
-  cut: { waiting: number; ok: number; todo: number },
-  todoDoor: string | null,
-  nav: Nav,
-  head: { done: number; door: { to: string; label: string } } | null,
-) {
+function listFoot(cut: { waiting: number; ok: number; todo: number }, todoDoor: string | null, nav: Nav) {
   const parts = [
     cut.waiting > 0 ? W.cut.waiting(cut.waiting) : "",
     cut.ok > 0 ? W.cut.ok(cut.ok) : "",
     cut.todo > 0 ? W.cut.todo(cut.todo) : "",
-    head && head.done > 0 ? W.doneToday(head.done) : "",
   ].filter(Boolean);
-  const cutSome = cut.waiting > 0 || cut.ok > 0 || cut.todo > 0;
-  if (!cutSome && !head) return null;
-  const to = cutSome ? (cut.waiting > 0 || cut.ok > 0 ? "inbox" : (todoDoor ?? "inbox")) : (head?.door.to ?? "inbox");
+  if (!parts.length) return null;
+  const to = cut.waiting > 0 || cut.ok > 0 ? "inbox" : (todoDoor ?? "inbox");
   return (
     <div className="tq-foot" data-testid="today-queue-foot">
       <span>{parts.join(" · ")}</span>
       <Button variant="quiet" size="sm" className="tq-open" onClick={() => nav(to)}>
-        {cutSome ? W.seeAll : (head?.door.label ?? W.door)}
-        <Icon name={doorGlyph()} size={11} />
+        {W.seeAll}
+        <Icon name={doorGlyph()} size={12} />
       </Button>
     </div>
   );
@@ -422,7 +447,9 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
     stepDone: () => undefined,
     phone: phone ? { walk: setWalk } : null,
   };
-  const above = groupsAbove(groups, drawn, runs, ctx);
+  const door = listDoorOf(groups.next.length + groups.waiting.length, runs.count);
+  const endOf = groupEnds(phone, firstGroupOf(drawn, runs), door);
+  const above = groupsAbove({ groups, drawn, runs }, ctx, endOf);
   // Every row above To do has asked for its act by now: whether one took the coral, which To do hears.
   const holds = coral.taken();
   const todo = useToDoRows({ cap: NEED_YOU_CAPS.todo, queueHolds: holds });
@@ -434,7 +461,7 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   useTellHead(stillOpen([...groups.next, ...drawn.waiting], kept));
   useActedTold(kept);
   const olderRows = groups.old.length ? groups.old : (older?.rows ?? []);
-  const workDrawn = [...above, todoGroup(todo, phone)];
+  const workDrawn = [...above, todoGroup(todo, phone, endOf("todo", todo.cut, todo.door ?? "inbox"))];
   const onlyOlder = !workDrawn.some(Boolean) && vm.callsRead !== false;
   const olderGroup = olderRows.length ? (
     <OlderGroup
@@ -447,25 +474,25 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
     />
   ) : null;
   useDrawnTold(!onlyOlder);
-  const door = listDoorOf(groups.next.length + groups.waiting.length, runs.count);
   return (
     <ListBody
       phone={phone}
       onlyOlder={onlyOlder}
       groups={[...workDrawn, olderGroup]}
-      head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0, nav)}
+      head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0)}
       foot={
         <>
-          {listFoot(
-            {
-              waiting: groups.waiting.length - drawn.waiting.length,
-              ok: groups.ok.length - drawn.ok.length + runs.cut,
-              todo: todo.cut,
-            },
-            todo.door,
-            nav,
-            phone && !onlyOlder ? { done: vm.done_today ?? 0, door } : null,
-          )}
+          {phone
+            ? null
+            : listFoot(
+                {
+                  waiting: groups.waiting.length - drawn.waiting.length,
+                  ok: groups.ok.length - drawn.ok.length + runs.cut,
+                  todo: todo.cut,
+                },
+                todo.door,
+                nav,
+              )}
           <SetAsideLine nav={nav} />
         </>
       }

@@ -307,6 +307,16 @@ test("a day the business is closed with nothing on it turns to tomorrow at once,
     days: week().days.map((d) => (["2026-09-08", "2026-09-09"].includes(d.key) ? { ...d, items: [], windows: [] } : d)),
   });
   assert.equal(empty.note, "Tomorrow: nothing booked yet");
+  // With an open hour its line says nothing is booked, and the head does not say it again (8 Nov 2026: twice in one card).
+  const openHour = closedAt(tue(10), {
+    days: week().days.map((d) => {
+      if (d.key === "2026-09-08") return { ...d, items: [], windows: [] };
+      if (d.key === "2026-09-09") return { ...d, items: [], windows: [{ start: iso(wed(9)), end: iso(wed(17)) }] };
+      return d;
+    }),
+  });
+  assert.equal(openHour.note, "Open tomorrow");
+  assert.equal(openHour.lines.filter((l) => l.open).length, 1);
   const shutToo = closedAt(tue(10), {
     closures: [{ date: "2026-09-08", until: "2026-09-09", note: null }],
     days: week().days.map((d) => (["2026-09-08", "2026-09-09"].includes(d.key) ? { ...d, items: [], windows: [] } : d)),

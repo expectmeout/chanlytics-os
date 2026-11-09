@@ -265,7 +265,7 @@ function useFoundTold(drawn: boolean) {
   useLayoutEffect(() => () => zoneDrawn("found", false), []);
 }
 
-/** "and 2 more", which opens them in place: it was a count with no door. Called, not drawn. */
+/** "2 more", which opens them in place: it was a count with no door. Called, not drawn. */
 function moreDoor(more: number, everyRow: boolean, turn: () => void) {
   if (!more) return null;
   return (
@@ -304,9 +304,8 @@ export function AskFound({ wide }: { wide: boolean }) {
       data-testid="today-ask-found"
       aria-labelledby="today-found-title"
     >
-      <div className="tz-sec">
-        <Icon name="three" size={14} />
-        <h2 className="tz-sec-title" id="today-found-title">
+      <div className="tz-head">
+        <h2 className="tz-name" id="today-found-title">
           {F.title}
         </h2>
         {moreDoor(found.more, everyRow, () => setEveryRow(!everyRow))}

@@ -34,36 +34,49 @@
   }
 }
 
-/* ---- A zone's head: its name, a quiet note, and its door at the right; 58px tall. ---- */
-.tz-sec,
-.dash-a-v2 .today-queue .tq-head,
-.tpd-head {
+/* ---- One head for every section (section-door.tsx): its name, one quiet fact, and at its right edge one press. 58px tall on a
+   desk, 44 on a phone. ---- */
+.dash-a-v2 .tz-head,
+.dash-a-v2 .today-queue .tq-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0 var(--space-2);
   min-height: 58px;
   min-width: 0;
   padding: 0;
 }
-.tz-sec-title,
-.tpd-title {
+.dash-a-v2 .tz-name {
+  display: inline-flex;
   flex: none;
+  align-items: baseline;
+  gap: var(--space-2);
   margin: 0;
+  font-family: inherit;
   font-size: var(--text-xl);
   line-height: 25px;
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink);
   white-space: nowrap;
 }
-.tz-note,
-.tpd-note {
+.dash-a-v2 .tz-fact {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
+  font-family: inherit;
   font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0;
   color: var(--ink-dim);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.dash-a-v2 .tz-fact::before {
+  content: "·\00a0";
+}
+.dash-a-v2 .tz-fact[data-long]::before {
+  content: none;
 }
 /* The day's note beside its name where they fit the line (day.tsx), a line of its own under them where they do not. */
 .tpd-head {
@@ -77,7 +90,8 @@
   line-height: 17px;
   white-space: normal;
 }
-.tpd-door {
+/* The door at a head's right: a word and ›, which goes to a page. Every head's right edge reads in this ink. */
+.tz-door {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -90,17 +104,17 @@
   white-space: nowrap;
 }
 @media (hover: hover) {
-  .tpd-door:hover {
+  .tz-door:hover {
     color: var(--ink);
   }
 }
 /* A thumb's 44 round the door's 28px line, drawn nothing larger (the phone pass, 3 Nov 2026), as the queue's doors take
    theirs (frame.css, the touch floor). */
 @media (pointer: coarse) {
-  .tpd-door {
+  .tz-door {
     position: relative;
   }
-  .tpd-door::after {
+  .tz-door::after {
     content: "";
     position: absolute;
     inset: -8px -6px;
@@ -110,17 +124,6 @@
 /* ---- Need you: its pane, its head with how many were done today by the door, its foot. ---- */
 .dash-a-v2 .tz-need {
   padding-bottom: var(--space-2);
-}
-.tq-end {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-left: auto;
-}
-.tq-done {
-  font-size: var(--text-sm);
-  color: var(--ok-ink);
-  white-space: nowrap;
 }
 .dash-a-v2 .tz-need .tq-foot {
   display: flex;
@@ -455,15 +458,12 @@
   flex-direction: column;
   padding: 0 18px var(--space-2);
 }
-.tz-found .tz-sec > svg {
-  margin-right: -2px;
-}
-/* "and 2 more": what is past the three, opened in place, at the head's right. */
+/* "2 more": what is past the three, opened in place, at the head's right. */
 .tz-found-more {
   gap: var(--space-1);
   margin-left: auto;
   font-size: var(--text-sm);
-  color: var(--ink-dim);
+  color: var(--ink-muted);
 }
 .tz-found-more[aria-expanded="true"] > svg,
 .tz-idea-s[aria-expanded="true"] svg {
@@ -653,9 +653,6 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.dash-a-v2 .today-brought[data-one-line] .today-brought-head {
-  padding-bottom: 14px;
-}
 /* The setup card's chevron on the same edge as Your history's: its 14px glyph sits 7px inside its 28px press. */
 .dash-a-v2 .today-setup [data-testid="today-setup-fold"] {
   margin-right: -7px;
@@ -685,6 +682,18 @@
 .dash-a-v2 .tps > .today-setup,
 .dash-a-v2 .tps :is(.today-brought-head, .today-brought-facts, .today-brought-foot) {
   padding-inline: 18px;
+}
+/* The setting-up card's heads hold their own height, as every head does; the name takes the room, so its presses stand at the
+   right edge. */
+.dash-a-v2 .tps > .today-setup {
+  padding-top: 0;
+}
+.dash-a-v2 .tps .today-brought-head {
+  padding-block: 0;
+}
+.dash-a-v2 .today-setup > .tz-head > .tz-name {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* ---- Why Listen could not speak, on a line of its own under the head's sentence. ---- */
@@ -716,21 +725,13 @@
 .today-queue[data-phone] .ny-groups {
   gap: var(--space-3);
 }
-.today-queue[data-phone] .ny-group-head {
-  padding: 0 2px 6px;
-}
-/* A group's name on a phone is a group label (the phone pass, 3 Nov 2026): the caption step at 500, sentence case, muted;
-   no mono and no capitals, which are the dateline's alone. A card's own name is its title (.tpd-title). */
-.today-queue[data-phone] .ny-group-title {
-  font-family: inherit;
-  font-size: var(--text-label);
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--ink-muted);
-}
+/* A group's head stands in its pane, as every other card's does. */
 .dash-a-v2 .today-queue[data-phone] .ny-pane {
-  padding: 2px 14px;
+  padding: 0 var(--space-4) 2px;
   border-radius: var(--radius-3xl);
+}
+.today-queue[data-phone] .ny-pane > .ny-group-head {
+  border-bottom: 1px solid var(--line);
 }
 .dash-a-v2 .today-queue[data-phone] .ny-pane .cl-attn-row {
   position: relative;
@@ -761,10 +762,6 @@
 .today-queue[data-phone] .cl-attn-work .ny-signed {
   display: none;
 }
-.dash-a-v2 .today-queue[data-phone] > .tq-foot {
-  display: flex;
-  padding: 0 2px;
-}
 @media (max-width: 720px) {
   .dash-a-v2 .tz-pane,
   .dash-a-v2 .tpd,
@@ -775,13 +772,18 @@
   .dash-a-v2 .tz-found {
     padding: 0 var(--space-4) 6px;
   }
-  .tpd-head {
-    min-height: 0;
-    padding: var(--space-3) 0 var(--space-2);
-  }
-  /* A zone's head on a phone: its name's line, and no more. */
-  .tz-sec {
+  /* A head on a phone: its name's line, and no more. The chevron's 44 for a thumb reaches over the head's own padding, so
+     its head stands as tall as one with no chevron. */
+  .dash-a-v2 .tz-head {
     min-height: 44px;
+    padding-block: var(--space-2);
+  }
+  .dash-a-v2 .today-setup > .tz-head [data-testid="today-setup-fold"] {
+    margin-block: calc(var(--space-2) * -1);
+  }
+  .dash-a-v2 .tps > .today-setup,
+  .dash-a-v2 .tps :is(.today-brought-head, .today-brought-facts, .today-brought-foot) {
+    padding-inline: var(--space-4);
   }
   .tz-found-wide .tz-ideas {
     display: flex;

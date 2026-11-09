@@ -1282,7 +1282,7 @@ test("Ask found ranks what the workspace's own counts say first: each row its ta
   assert.equal(rows.length, 3, "three drawn");
   // The rest: the rules past three, and the calls worth a listen the day holds, ranked after them.
   const calls = vm.queue.rows.filter((r) => r.kind === "call" || r.kind === "tried").length;
-  assert.match(textOf(pane), new RegExp(`and ${rules.length + calls - 3} more`), "the rest are said, never dropped");
+  assert.match(textOf(pane), new RegExp(`${rules.length + calls - 3} more`), "the rest are said, never dropped");
   for (const [i, row] of rows.entries()) {
     const l = ranked[i];
     assert.equal(row.props["data-testid"], "today-found-rule", `${l.id}: a rule's row`);

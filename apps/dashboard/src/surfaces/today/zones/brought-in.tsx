@@ -44,14 +44,14 @@ export const TodayBroughtIn = () => {
     >
       <button
         type="button"
-        className="today-brought-head"
+        className="today-brought-head tz-head"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls={sources}
         data-testid="today-brought-open"
       >
-        <span className="setup-card-title">{card.title}</span>
-        {oneLine && first ? <span className="today-brought-first">{first.text}</span> : null}
+        <span className="setup-card-title tz-name">{card.title}</span>
+        {oneLine && first ? <span className="today-brought-first tz-fact">{first.text}</span> : null}
         <span className="today-brought-state" data-tone={tone} data-testid="today-brought-state">
           {tone === "live" ? (
             <span className="fr-pulse" aria-hidden="true" />

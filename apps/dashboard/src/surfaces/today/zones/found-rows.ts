@@ -59,7 +59,7 @@ export interface AskFoundVM {
 /** The words of Ask found. */
 export const ASK_FOUND_WORDS = {
   title: "Ask found",
-  more: (n: number) => `and ${n} more`,
+  more: (n: number) => `${n} more`,
   fewer: "Fewer",
   came: "What came of it.",
   notToday: "Not today",

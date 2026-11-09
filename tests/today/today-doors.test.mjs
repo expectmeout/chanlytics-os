@@ -603,7 +603,7 @@ test("a press anywhere on the card's head folds it, and one on its own buttons s
   const pressHead = (inButton) =>
     find(
       again(() => TodaySetup()),
-      (n) => n.props?.className === "setup-card-head",
+      (n) => String(n.props?.className ?? "").includes("setup-card-head"),
     ).props.onClick({ target: new globalThis.Element(inButton) });
   try {
     mountSetup();
