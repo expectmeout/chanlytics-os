@@ -137,7 +137,7 @@ test("Try again finds the mailbox that reads it now: its own removed, the newest
   assert.equal(cal.tables.jobs[0].payload.connection_id, GRANT, "the calendar the workspace reads");
   world({ imports: [stopped("mailbox", OLD)], boxes: [box(OLD, { state: "removed" })] });
   assert.deepEqual(await ask({ source: "mailbox" }), [
-    409,
+    404,
     { ok: false, error: "not_connected", detail: "no mailbox is connected to read it through" },
   ]);
 });
@@ -169,8 +169,8 @@ test("Try again on a source two mailboxes brought (decision 0086): each one's st
 test("Try again refuses what it cannot start here: a source by another name, one brought in where it was first brought in, one never brought in, another workspace's", async () => {
   world();
   assert.equal((await ask({ source: "everything" }))[0], 400);
-  assert.deepEqual((await ask({ source: "clients_file" }))[0], 409, "the clients' file is added again from People");
-  assert.deepEqual((await ask({ source: "whatsapp_history" }))[0], 409, "what Meta offers once");
+  assert.deepEqual((await ask({ source: "clients_file" }))[0], 400, "the clients' file is added again from People");
+  assert.deepEqual((await ask({ source: "whatsapp_history" }))[0], 400, "what Meta offers once");
   assert.deepEqual(await ask({ source: "mailbox" }), [
     404,
     { ok: false, error: "not_found", detail: "nothing of this source was brought in" },
@@ -226,7 +226,7 @@ test("the dashboard's Try again: whoever may change the settings, in the setting
   const e = edge((b) =>
     b.source === "mailbox"
       ? [200, { ok: true }]
-      : [409, { ok: false, error: "not_connected", detail: "no mailbox is connected to read it through" }],
+      : [404, { ok: false, error: "not_connected", detail: "no mailbox is connected to read it through" }],
   );
   try {
     assert.deepEqual(await again.POST.run(send({ source: "mailbox" }), ctx()), { ok: true });

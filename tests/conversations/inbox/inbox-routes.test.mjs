@@ -515,7 +515,7 @@ test("a recording is served only once the ledger has it: a row that cannot be wr
     const refusedAudit = ctxFor(tables, { id: L3 }, { recording_opened: failing("42501", "permission denied") });
     await refused(
       recording.GET.run(get(), refusedAudit),
-      "internal",
+      "unavailable",
       503,
       "an unrecorded listen is not served: the redirect is never built",
     );

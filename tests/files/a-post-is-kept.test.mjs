@@ -324,7 +324,7 @@ test("a library that is full, a door that fails, or a shape that won't store eac
   assert.equal(broken.asked.removed.length, 3);
 
   const stuck = world({ uploadFails: "story.jpg" });
-  await assert.rejects(save.POST.run(post(PLAN), stuck.ctx), (e) => e.code === "internal");
+  await assert.rejects(save.POST.run(post(PLAN), stuck.ctx), (e) => e.code === "unavailable");
   assert.equal(stuck.asked.removed.length, 3);
   assert.equal(stuck.asked.made.length, 0, "no row for a post that did not arrive");
 });

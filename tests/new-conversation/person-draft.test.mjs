@@ -176,12 +176,12 @@ test("a price or an offer of money the member did not give is refused, and nothi
   answerWith({ ...EMPTY, text: "Hi Robin, the deep clean is $120 this week." });
   await assert.rejects(
     draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "follow up on the quote" }),
-    (e) => e.status === 422 && /named a price you did not give/.test(e.message),
+    (e) => e.status === 400 && /named a price you did not give/.test(e.message),
   );
   answerWith({ ...EMPTY, text: "Hi Robin, I can offer a discount if you book today." });
   await assert.rejects(
     draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "follow up on the quote" }),
-    (e) => e.status === 422 && /offered money you did not mention/.test(e.message),
+    (e) => e.status === 400 && /offered money you did not mention/.test(e.message),
   );
 });
 
@@ -214,7 +214,7 @@ test("a price is held to its figure: the member's own may be written any way, an
   answerWith({ ...EMPTY, text: "Hi Robin, the deep clean is $95 this week." });
   await assert.rejects(
     draftPersonFrom(KNOWN, { how: "message", wire: "sms", about: "tell them the deep clean is $120" }),
-    (e) => e.status === 422 && /named a price you did not give/.test(e.message),
+    (e) => e.status === 400 && /named a price you did not give/.test(e.message),
   );
 });
 

@@ -244,29 +244,29 @@ test("every word is checked by the one email check over the reach-out's rules, i
   const asked = serviceSave();
   const t = tables();
   const said = (problem, field = "body", slot) => wordsIssueWords({ field, problem, ...(slot ? { slot } : {}) });
-  await refused(post(t, write({ subject: "  " })), "validation", 422, said("subject_missing", "subject"));
+  await refused(post(t, write({ subject: "  " })), "validation", 400, said("subject_missing", "subject"));
   await refused(
     post(t, write({ subject: "Re: your studio" })),
     "validation",
-    422,
+    400,
     said("subject_poses_as_reply", "subject"),
   );
   await refused(
     post(t, write({ body: "Hi {{nickname}}" })),
     "validation",
-    422,
+    400,
     said("unknown_slot", "body", "nickname"),
   );
-  await refused(post(t, write({ body: "Hi {{{business}}}" })), "validation", 422, said("stray_brace"));
+  await refused(post(t, write({ body: "Hi {{{business}}}" })), "validation", 400, said("stray_brace"));
   await refused(
     post(t, write({ body: "A.\nhttps://a.example https://b.example" })),
     "validation",
-    422,
+    400,
     said("too_many_links"),
   );
-  await refused(post(t, write({ body: "SEE THIS NOW\n{{opening}}" })), "validation", 422, said("shouting"));
-  await refused(post(t, write({ body: "x".repeat(1201) })), "validation", 422, said("body_too_long"));
-  await refused(post(t, write({ body: "word ".repeat(121) })), "validation", 422, said("too_many_words"));
+  await refused(post(t, write({ body: "SEE THIS NOW\n{{opening}}" })), "validation", 400, said("shouting"));
+  await refused(post(t, write({ body: "x".repeat(1201) })), "validation", 400, said("body_too_long"));
+  await refused(post(t, write({ body: "word ".repeat(121) })), "validation", 400, said("too_many_words"));
   assert.deepEqual(asked, [], "nothing it refused reached the database");
 });
 
@@ -277,7 +277,7 @@ test("what only the chain knows is refused too: a name to sign with when the wor
   await refused(
     post(noSigner, write()),
     "validation",
-    422,
+    400,
     "Your words name {{your name}}. Say the name you sign with.",
   );
   const noLink = tables();
@@ -285,14 +285,14 @@ test("what only the chain knows is refused too: a name to sign with when the wor
   await refused(
     post(noLink, write({ name: NUDGE, body: "Bumping this: {{booking link}}\n\n{{your name}}" })),
     "validation",
-    422,
+    400,
     "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.",
   );
   // And a first email carries no link at all (decision 0056), whatever the workspace holds.
   await refused(
     post(tables(), write({ body: "{{opening}} {{booking link}}\n\n{{your name}}" })),
     "validation",
-    422,
+    400,
     "Keep your first email free of links: put your booking link in the nudge.",
   );
   assert.deepEqual(asked, []);
@@ -319,7 +319,7 @@ test("the door's own refusals come back in the person's words, as the sheet's sa
   serviceSave(() => {
     throw Object.assign(new Error(REACH_OUT_REFUSALS.outOfPlace), { code: "22023" });
   });
-  await refused(post(tables(), write()), "validation", 422, REACH_OUT_REFUSALS.outOfPlace);
+  await refused(post(tables(), write()), "validation", 400, REACH_OUT_REFUSALS.outOfPlace);
   serviceSave(() => {
     throw Object.assign(new Error(REACH_OUT_REFUSALS.workspaceNotFound), { code: "P0002" });
   });

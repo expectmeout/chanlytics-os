@@ -391,7 +391,7 @@ test("writing a version: the door's own refusals are answered in its words, and 
   w.refuse.save = doorError("A subject is at most 60 characters.", "22023");
   await refused(post(), "validation", 400, "A subject is at most 60 characters.");
   w.refuse.save = doorError("canceling statement due to statement timeout", "57014");
-  await refused(post(), "internal", 503, "Something went wrong.");
+  await refused(post(), "unavailable", 503, "Something went wrong.");
   w.refuse.save = undefined;
   assert.equal((await post()).template.channel, "email");
 });
@@ -434,7 +434,7 @@ test("removing a version: judged where it lives, only what the door says is a ve
   w.refuse.remove = doorError("A playbook or broadcast still uses this version.", "P0001");
   await refused(del(4), "conflict", 409, "A playbook or broadcast still uses this version.");
   w.refuse.remove = doorError("canceling statement due to statement timeout", "57014");
-  await refused(del(4), "internal", 503);
+  await refused(del(4), "unavailable", 503);
   assert.equal(tables.templates.length, 3);
 });
 
@@ -1055,7 +1055,7 @@ test("the door that begins a message answers in its own words, a missing door in
   w.refuse.create = doorError("Message not found.", "P0002");
   await refused(post(), "not_found", 404, "Message not found.");
   w.refuse.create = doorError("canceling statement due to statement timeout", "57014");
-  await refused(post(), "internal", 503, "Something went wrong.");
+  await refused(post(), "unavailable", 503, "Something went wrong.");
 
   // A database that has not applied 00343: PostgREST says its schema cache lacks the function (PGRST202), and Postgres
   // itself says undefined_function (42883) when the cache still lists one it has dropped.

@@ -855,7 +855,7 @@ test("the service-role client cannot be obtained without passing the check", () 
   }
   // A database that cannot answer is not a "no". Telling a real admin "No such
   // page" during a Postgres hiccup is the moment they opened this for.
-  assert.match(src, /if \(error\) throw new AppError\("internal", .*503\);/);
+  assert.match(src, /if \(error\) throw new AppError\("unavailable", /);
   // And the unbounded event payload does not go to the browser to be discarded: the read is packages/db's (decision 0111).
   const reads = readCode("packages/db/src/repositories/ops/console.ts");
   assert.match(src, /listWorkspaceEvents\(office\.db, tenantId, limit\)/);
@@ -1037,7 +1037,7 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   assert.ok(audit !== -1 && act !== -1 && audit < act, "recorded first, then done");
   assert.match(
     fn,
-    /if \(auditErr\)\s+throw new AppError\("internal", [^;]*503\);/,
+    /if \(auditErr\)\s+throw new AppError\("unavailable", [^;]*\);/,
     "and refused when it cannot be recorded",
   );
   assert.match(
@@ -1728,7 +1728,7 @@ test("the Console says every act is written down first, and the act helper does 
   const written = fn.indexOf("await startAct(office.db,");
   const ran = fn.indexOf("out = await run();");
   assert.ok(written !== -1 && ran !== -1 && written < ran, "the log's row first, then the act");
-  assert.match(fn, /if \(started\.error \|\| !started\.data\) throw new AppError\("internal", NOT_RECORDED, 503\);/);
+  assert.match(fn, /if \(started\.error \|\| !started\.data\) throw new AppError\("unavailable", NOT_RECORDED\);/);
   // The line acts write the workspace's own ledger too, before the edge is asked anything: "no cross-tenant action
   // happens that nobody can be held to", above.
 });

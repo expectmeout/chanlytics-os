@@ -534,15 +534,15 @@ test("what its owner chose rides the connect (decision 0086): from now on keeps 
   );
   assert.deepEqual(await ask({ op: "history_bring", mailbox_id: id }), [
     409,
-    { ok: false, error: "not_ready", detail: "Its last 6 months are already brought in." },
+    { ok: false, error: "nothing_to_do", detail: "Its last 6 months are already brought in." },
   ]);
   [s] = await ask({ op: "history_stop", mailbox_id: id });
   assert.equal(s, 200);
   assert.deepEqual([w.tables.imports[0].state, w.tables.imports[0].last_error], ["failed", IMPORT_STOPPED_WORDS.byYou]);
-  assert.deepEqual((await ask({ op: "history_stop", mailbox_id: id }))[1].error, "not_ready", "nothing coming in");
+  assert.deepEqual((await ask({ op: "history_stop", mailbox_id: id }))[1].error, "nothing_to_do", "nothing coming in");
   [s] = await ask({ op: "history_resume", mailbox_id: id });
   assert.deepEqual([s, w.tables.imports[0].state], [200, "queued"]);
-  assert.deepEqual((await ask({ op: "history_resume", mailbox_id: id }))[1].error, "not_ready", "nothing stopped");
+  assert.deepEqual((await ask({ op: "history_resume", mailbox_id: id }))[1].error, "nothing_to_do", "nothing stopped");
   assert.equal(
     (await ask({ op: "history_stop", mailbox_id: "22222222-2222-4222-8222-222222222222" }))[0],
     404,

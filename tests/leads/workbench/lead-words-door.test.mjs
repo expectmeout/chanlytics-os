@@ -228,12 +228,12 @@ test("the rules a step's words are held to, before the door is asked: a link in 
   await refused(
     press({ lead_id: LEAD, words: { subject: "Hi", body: "See https://example.com/page please." } }),
     "validation",
-    422,
+    400,
   );
   await refused(
     press({ lead_id: LEAD, words: { subject: "Hi", body: "You are in {{city}}." } }),
     "validation",
-    422,
+    400,
     "Fill in their city, or take it out.",
   );
   await refused(press({ lead_id: LEAD, words: { subject: "Hi", body: "   " } }), "validation", 400);
@@ -244,7 +244,7 @@ test("only an email of this sequence, for a lead of this workspace, and a viewer
   await refused(
     press({ lead_id: LEAD, words: TYPED }, { stepId: CALL }),
     "validation",
-    422,
+    400,
     REACH_OUT_REFUSALS.onlyEmailWords,
   );
   await refused(press({ lead_id: LEAD, words: TYPED }, { stepId: STRANGER }), "not_found", 404);
@@ -260,7 +260,7 @@ test("the door's refusals are said in its own words, and move nothing", async ()
     ["22023", REACH_OUT_REFUSALS.onlyEmailWords],
   ]) {
     refusal = pgError(code, words);
-    await refused(press({ lead_id: LEAD, words: TYPED }), "validation", 422, words);
+    await refused(press({ lead_id: LEAD, words: TYPED }), "validation", 400, words);
   }
   refusal = pgError("P0002", REACH_OUT_REFUSALS.stepGone);
   await refused(press({ lead_id: LEAD, words: TYPED }), "not_found", 404, REACH_OUT_REFUSALS.stepGone);

@@ -409,7 +409,7 @@ test("the workspace and the case set: a body naming another workspace than the t
 test("the workspace's world: a channel read that fails, no persona or a broken one -- each named, the model unasked, nothing written", async () => {
   for (const [expected, make] of [
     [
-      [500, "channel_read_failed"],
+      [503, "channel_read_failed"],
       (T) => world(T, { faults: { "tenant_channels.select": { message: "connection reset" } } }),
     ],
     [[409, "no_persona"], (T) => world(T, { config: {} })],

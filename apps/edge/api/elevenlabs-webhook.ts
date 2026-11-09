@@ -11,7 +11,7 @@ import {
 import { MAX_BODY_BYTES, parseEvent, timings } from "../lib/voice/post-call-event.js";
 
 export const POST = door(async function POST(request: Request): Promise<Response> {
-  if (!askVoiceWebhookConfigured()) return refuse(404, "no_provider_key");
+  if (!askVoiceWebhookConfigured()) return refuse(404, "not_found");
   const log = logger({ door: "elevenlabs-webhook" });
 
   const rawBody = await request.text();

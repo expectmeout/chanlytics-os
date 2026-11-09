@@ -363,13 +363,13 @@ test("a keyed write is answered once: the same request again is given the first 
   });
 });
 
-test("the same key on another request is refused, 422, in words, and runs nothing: another body, or another path", async () => {
+test("the same key on another request is refused, 409, in words, and runs nothing: another body, or another path", async () => {
   const { POST, runs } = counted();
   const tables = { memberships: only("operator"), idempotency_keys: [] };
   await POST.run(keyed("", { text: "hi" }, "k-1"), ctxFor(tables));
-  await refused(POST.run(keyed("", { text: "hello" }, "k-1"), ctxFor(tables)), "conflict", 422);
+  await refused(POST.run(keyed("", { text: "hello" }, "k-1"), ctxFor(tables)), "conflict", 409);
   await assert.rejects(POST.run(keyed("", { text: "hello" }, "k-1"), ctxFor(tables)), /used for another request/);
-  await refused(POST.run(keyed("", { text: "hi" }, "k-1", "/api/v1/y"), ctxFor(tables)), "conflict", 422);
+  await refused(POST.run(keyed("", { text: "hi" }, "k-1", "/api/v1/y"), ctxFor(tables)), "conflict", 409);
   assert.equal(runs.n, 1, "a reused key ran nothing");
 });
 
@@ -421,7 +421,7 @@ test("the once-rule per route kind (0035 step 3): a row's write is keyed in the 
   await refused(
     POST.run(keyed(`?workspace=${A}`, { text: "hello" }, "k-row"), ctxFor(tables, { params })),
     "conflict",
-    422,
+    409,
   );
   assert.equal(runs.n, 1, "another body under the row's key ran nothing");
 
@@ -448,6 +448,6 @@ test("a write with no schema is keyed by a copy of its body, and its handler sti
   const first = await POST.run(keyed("", { a: 1 }, "k-1"), ctxFor(tables));
   assert.deepEqual(first, { run: 1, read: '{"a":1}' });
   assert.deepEqual(await POST.run(keyed("", { a: 1 }, "k-1"), ctxFor(tables)), first);
-  await refused(POST.run(keyed("", { a: 2 }, "k-1"), ctxFor(tables)), "conflict", 422);
+  await refused(POST.run(keyed("", { a: 2 }, "k-1"), ctxFor(tables)), "conflict", 409);
   assert.equal(runs.n, 1);
 });

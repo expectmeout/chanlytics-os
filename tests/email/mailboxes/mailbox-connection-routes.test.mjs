@@ -339,7 +339,7 @@ test("each verb names its mailbox at the edge, and answers the page's row", asyn
 
 test("the edge's refusals become the owner's words", async () => {
   for (const [status, body, code, words] of [
-    [503, { ok: false, error: "no_oauth_client" }, "upstream_email", /isn't switched on here yet/],
+    [503, { ok: false, error: "no_oauth_client" }, "unavailable", /isn't switched on here yet/],
     [409, { ok: false, error: "not_held" }, "conflict", /isn't held/],
     [409, { ok: false, error: "provider_unauthorized" }, "conflict", /connect it again/],
     [400, { ok: false, error: "invalid", detail: "bad_cap" }, "validation", /between 1 and 40 a day/],
@@ -350,7 +350,7 @@ test("the edge's refusals become the owner's words", async () => {
       /Daily user sending limit/,
     ],
     [404, { ok: false, error: "not_found" }, "not_found", /isn't this workspace's/],
-    [500, { ok: false, error: "unavailable" }, "internal", /Try again in a minute/],
+    [500, { ok: false, error: "unavailable" }, "upstream_provider", /Try again in a minute/],
   ]) {
     const net = edge(() => [status, body]);
     try {

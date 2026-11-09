@@ -191,7 +191,7 @@ test("a record that cannot be written leaves nothing run: an act on somebody els
   const l = ledger({}, { faults: { "events.insert": { message: "connection reset" } } });
   await assert.rejects(
     requeuePlatformJob(l.office, A, J, WHY),
-    (e) => e.code === "internal" && e.status === 503 && e.message.includes("so it was not done"),
+    (e) => e.code === "unavailable" && e.status === 503 && e.message.includes("so it was not done"),
   );
   assert.equal(l.tables.jobs.length, 1, "no row was made");
 });
