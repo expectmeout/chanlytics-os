@@ -134,7 +134,7 @@ what the script writes.
 | [`tenants`](#tenants) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/ops.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/look/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 2 policies |
 | [`voice_agents`](#voice_agents) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
 | [`waitlist`](#waitlist) | `packages/db/src/repositories/workspace/waitlist.ts` | on, no policy, so only the service role reaches it |
-| [`web_push_subscriptions`](#web_push_subscriptions) | `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | on, 1 policy |
+| [`web_push_subscriptions`](#web_push_subscriptions) | none | on, 1 policy |
 | [`workspace_notices_pending`](#workspace_notices_pending) | none | on, no policy, so only the service role reaches it |
 | [`lead_searches_view`](#lead_searches_view) (view) | `packages/db/src/repositories/leads/workbench.ts` | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
@@ -3866,7 +3866,7 @@ Foreign keys:
 
 A member's browsers that said yes to being told (the answers canvas, D12), as push_devices is their phones.
 
-- Owned by: `packages/db/src/repositories/workspace/control-plane/capabilities.ts`
+- Owned by: none
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

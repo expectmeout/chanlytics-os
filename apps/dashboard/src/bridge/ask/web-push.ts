@@ -3,8 +3,8 @@
  * offered at all, so nothing is shown that cannot be kept. On an iPhone a browser can only be told once the app is on the home
  * screen, which `reason` says. Nothing here prompts by itself: a person's press asks.
  */
-import { publicEnv } from "../lib/public-env";
-import { apiFor } from "./api";
+import { publicEnv } from "../../lib/public-env";
+import { apiFor } from "../api";
 
 /** Whether this browser can be told, and why not. */
 export function webPushCan(win: Window): { can: boolean; reason: "no_key" | "no_support" | "home_screen" | null } {
@@ -59,7 +59,12 @@ export async function webPushTurnOn(win: Window): Promise<{ ok: boolean; message
   const reg = await win.navigator.serviceWorker.ready;
   const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
   const json = sub.toJSON();
-  const r = await apiFor(win)("POST me/web-push", { body: { endpoint: json.endpoint, keys: json.keys } as never });
+  const r = await apiFor(win)("POST me/web-push", {
+    body: {
+      endpoint: String(json.endpoint),
+      keys: { p256dh: String(json.keys?.p256dh), auth: String(json.keys?.auth) },
+    },
+  });
   return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
 }
 
@@ -68,7 +73,7 @@ export async function webPushTurnOff(win: Window): Promise<{ ok: boolean; messag
   const reg = await win.navigator.serviceWorker.getRegistration();
   const sub = await reg?.pushManager.getSubscription();
   if (sub) {
-    await apiFor(win)("DELETE me/web-push", { body: { endpoint: sub.endpoint } as never });
+    await apiFor(win)("DELETE me/web-push", { body: { endpoint: sub.endpoint } });
     await sub.unsubscribe();
   }
   return { ok: true, message: "" };

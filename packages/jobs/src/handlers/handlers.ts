@@ -36,6 +36,8 @@ import {
   findMemberEmail,
   wasNoticeKept,
   getUnreadOfReaders,
+  forgetGoneWebPush,
+  listWebPushOf,
 } from "@chanlytics/db/notices";
 import { findConversationOfEscalation } from "@chanlytics/db/ask";
 import { payloadRefusal } from "../runner/schedule";
@@ -96,20 +98,16 @@ async function tellBrowsers(
 ): Promise<void> {
   if (!ctx.webPush) return;
   try {
-    const { data } = await ctx.db
-      .from("web_push_subscriptions")
-      .select("endpoint, p256dh, auth")
-      .in("user_id", [...readers])
-      .limit(BROWSERS_TOLD_MAX);
-    if (!data?.length) return;
-    const gone = await ctx.webPush.send(data, {
+    const browsers = await listWebPushOf(ctx.db, readers, BROWSERS_TOLD_MAX);
+    if (!browsers.length) return;
+    const gone = await ctx.webPush.send(browsers, {
       title: note.title,
       body: note.body.split("\n").find((l) => l.trim()) ?? "",
       route: note.route,
       tenant_id: note.tenant_id,
       notification_id: note.id,
     });
-    if (gone.length) await ctx.db.from("web_push_subscriptions").delete().in("endpoint", gone);
+    if (gone.length) await forgetGoneWebPush(ctx.db, gone);
   } catch {
     // A browser not told is a miss the bell and the phone still cover: this job's retry would tell the phones twice.
   }

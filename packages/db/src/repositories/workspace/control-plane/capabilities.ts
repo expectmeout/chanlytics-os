@@ -196,25 +196,6 @@ export type PlaybookToStart = Required<
   >
 >;
 
-/** This browser said yes to being told (web_push_subscriptions, 00575): kept once, on the member's own session. */
-export async function keepWebPush(
-  db: Db,
-  s: { userId: string; endpoint: string; p256dh: string; auth: string; userAgent: string | null },
-): Promise<void> {
-  const { error } = await db.from("web_push_subscriptions").upsert(
-    { user_id: s.userId, endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth, user_agent: s.userAgent },
-    // A subscription's keys go with its address, so one kept already is this one: a session may not update these rows.
-    { onConflict: "user_id,endpoint", ignoreDuplicates: true },
-  );
-  if (error) throw new DbFailure(error, "keeping this browser's subscription");
-}
-
-/** This browser is told no more. */
-export async function forgetWebPush(db: Db, userId: string, endpoint: string): Promise<void> {
-  const { error } = await db.from("web_push_subscriptions").delete().eq("user_id", userId).eq("endpoint", endpoint);
-  if (error) throw new DbFailure(error, "forgetting this browser's subscription");
-}
-
 /**
  * A new send's words taken as the member's OK (the words_seen door, 00573): they pressed a card that showed them, so its
  * first batch goes as its row says (D3 of the answers canvas). False where the door is not on this database yet: that batch

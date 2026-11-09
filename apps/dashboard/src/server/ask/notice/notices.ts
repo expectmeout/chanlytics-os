@@ -5,6 +5,7 @@ import "server-only";
  * every read, so a notice closes itself when its facts move and costs nothing. One at a time reaches a person (D7).
  */
 import {
+  DAY_MS,
   ASK_FOUND_VIEW,
   channelChoices,
   dayInZone,
@@ -64,7 +65,7 @@ async function roomAndYes(t: ToolContext, language: string): Promise<AskNotice |
 
 /** D21: what came of the newest send Ask pressed, in the numbers its page shows. "Since", never "because". */
 async function offerResult(t: ToolContext, language: string): Promise<AskNotice | null> {
-  const since = new Date(t.now.getTime() - RESULT_DAYS * 24 * 3600_000).toISOString();
+  const since = new Date(t.now.getTime() - RESULT_DAYS * DAY_MS).toISOString();
   const acted = await listAskActions(t.ctx.supabase, t.tenantId as TenantId, since, 20).catch(
     logAndGoOn("notice actions", []),
   );

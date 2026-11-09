@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { ALERT_PANE_WORDS as W, alertGrid, bellLineFor, type EmailHeld } from "@chanlytics/contracts/alert-pane";
-import { webPushCan, webPushOn, webPushTurnOff, webPushTurnOn } from "@/bridge/web-push";
+import { webPushCan, webPushOn, webPushTurnOff, webPushTurnOn } from "@/bridge/ask/web-push";
 import { Button } from "../../kit/button/button";
 import { canDo, gate, meNow, type FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";

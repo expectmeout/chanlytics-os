@@ -56,7 +56,7 @@ import { askNotices } from "./ask/notices";
 import { askColumn } from "./ask/column";
 import { holdAsk } from "@/surfaces/frame-verbs";
 import { navigate } from "@/surfaces/frame-doors";
-import { listenForAlertPresses } from "./web-push";
+import { listenForAlertPresses } from "./ask/web-push";
 
 export type { SendEvent, CommitResult };
 export { jumpIndexFrom, surfaceFor, waitingFrom, quickAnswer } from "./ask/palette";

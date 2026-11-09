@@ -155,7 +155,7 @@ async function actThroughDoor(
   p: AskProposal,
 ): Promise<CommitResult | typeof WALK_HERE> {
   const r = await client(route, {
-    body: { message_id: messageId, proposal_id: p.id, by: "press" } as never,
+    body: { message_id: messageId, proposal_id: p.id, by: "press" },
     once: true,
   });
   // A door down or a server's fault: the verb's own key means the walk that follows can never act twice.

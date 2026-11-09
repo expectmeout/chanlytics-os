@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { forgetWebPush, keepWebPush } from "@chanlytics/db/workspace";
+import { forgetBrowser, keepBrowser } from "@/server/notices/bell";
 import { write, account } from "@/server/shared/route";
 
 /**
@@ -19,8 +19,7 @@ export const POST = write({
     keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(200) }),
   }),
   handle: async ({ ctx, req, input }) => {
-    await keepWebPush(ctx.supabase, {
-      userId: ctx.userId,
+    await keepBrowser(ctx, {
       endpoint: input.endpoint,
       p256dh: input.keys.p256dh,
       auth: input.keys.auth,
@@ -36,7 +35,7 @@ export const DELETE = write({
   rate: null,
   input: z.object({ endpoint: ENDPOINT }),
   handle: async ({ ctx, input }) => {
-    await forgetWebPush(ctx.supabase, ctx.userId, input.endpoint);
+    await forgetBrowser(ctx, input.endpoint);
     return { kept: false };
   },
 });

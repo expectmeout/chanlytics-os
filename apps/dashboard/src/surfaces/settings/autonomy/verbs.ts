@@ -21,13 +21,13 @@ async function answerFact(s: Pick<FactSuggestionDto, "id" | "title">, keep: bool
 
 /** The switch (D10 of the answers canvas): Ask may act on its own, following these rows. */
 async function setAskAlone(on: boolean): Promise<{ ok: boolean; message: string }> {
-  const r = await apiFor(window)("POST ask/alone", { body: { on } as never });
+  const r = await apiFor(window)("POST ask/alone", { body: { on } });
   return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
 }
 
 /** Stop everything, and its Resume (D22). */
 async function stopAll(stopped: boolean): Promise<{ ok: boolean; message: string }> {
-  const r = await apiFor(window)("POST ask/stop", { body: { stopped } as never });
+  const r = await apiFor(window)("POST ask/stop", { body: { stopped } });
   return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
 }
 

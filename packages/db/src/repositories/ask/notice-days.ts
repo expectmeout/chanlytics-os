@@ -3,7 +3,7 @@
  * bell. Read and written by the sweep with the service role. A database before the table reads as nothing said yet.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DbFailure, type TenantId } from "@chanlytics/contracts";
+import { DAY_MS, DbFailure, type TenantId } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
@@ -17,7 +17,7 @@ export async function listBusinessesForMorning(
   const rows = data ?? [];
   if (rows.length === 0) return [];
   // The newest day of each: a morning looks back no further than yesterday, wherever on earth it is.
-  const since = new Date(Date.now() - 2 * 24 * 3600_000).toISOString().slice(0, 10);
+  const since = new Date(Date.now() - 2 * DAY_MS).toISOString().slice(0, 10);
   const days = await db
     .from("ask_notice_days")
     .select("tenant_id, day")

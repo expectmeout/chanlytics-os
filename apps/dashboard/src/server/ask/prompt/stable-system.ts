@@ -257,7 +257,7 @@ export const ASK_EXAMPLES = [
   [
     "Offer a free posture check by email until the 30th",
     {
-      say: { headline: "More people said yes than you have room for, so I paced it.", detail: "" },
+      say: { headline: "More said yes than the calendar can take, so this goes a few a day.", detail: "" },
       show: { figures: [], items: [], breakdown: NO_BREAKDOWN, chart: NO_CHART, list: NO_LIST },
       do: { open: { source: NOTHING, label: "", now: false }, next: [] },
       language: "en",
