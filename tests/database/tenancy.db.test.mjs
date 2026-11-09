@@ -227,6 +227,9 @@ before(async () => {
   // Keyed by their workspace and day, so no id to pick.
   await seed("ask_journal_days", { tenant_id: A, day: "2026-10-20", state: "written", text: "A quiet day." }, null);
   await seed("ask_mornings", { tenant_id: A, user_id: ctx.viewerId, day: "2026-10-21" }, null);
+  // What Ask did and what it told (00574, 00575): a record every member reads, and a morning's key.
+  await seed("ask_actions", { tenant_id: A, user_id: ctx.ownerId, proposal_id: "p-seeded", kind: "note", by: "press" });
+  await seed("ask_notice_days", { tenant_id: A, day: "2026-10-22" }, null);
   // The viewer's own voice session on their thread (00287): a member reads their own, nobody else's.
   await seed("ask_voice_sessions", {
     id: (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, ""),
@@ -1382,5 +1385,90 @@ test(
     const back = await db.from("memberships").insert({ tenant_id: A, user_id: leaver.userId, role: "viewer" });
     assert.equal(back.error, null, back.error?.message);
     assert.deepEqual(await read(), [1, 1], "added back, they read them again");
+  },
+);
+
+test(
+  "a browser that says yes twice is one browser, on the person's own session, and another person's is out of reach (00575)",
+  { skip },
+  async () => {
+    const row = {
+      user_id: ctx.viewerId,
+      endpoint: "https://push.example.com/one",
+      p256dh: "k",
+      auth: "a",
+      user_agent: null,
+    };
+    const keep = () =>
+      viewer.client
+        .from("web_push_subscriptions")
+        .upsert(row, { onConflict: "user_id,endpoint", ignoreDuplicates: true });
+    assert.equal((await keep()).error, null, "said yes");
+    assert.equal((await keep()).error, null, "REGRESSION: a browser that said yes again was refused");
+    const mine = await viewer.client.from("web_push_subscriptions").select("endpoint").eq("user_id", ctx.viewerId);
+    assert.deepEqual(mine.data, [{ endpoint: row.endpoint }]);
+    const theirs = await stranger.client.from("web_push_subscriptions").select("endpoint").eq("user_id", ctx.viewerId);
+    assert.deepEqual(theirs.data, [], "another person reads none of them");
+    const forged = await stranger.client
+      .from("web_push_subscriptions")
+      .insert({ ...row, endpoint: "https://push.example.com/two" });
+    assert.ok(forged.error, "and keeps none in their name");
+    const gone = await viewer.client.from("web_push_subscriptions").delete().eq("endpoint", row.endpoint);
+    assert.equal(gone.error, null, "told no more");
+  },
+);
+
+test(
+  "the act door's record goes under the member's own session: one per card, finished by who started it; a viewer writes none (00574)",
+  { skip },
+  async () => {
+    const row = {
+      tenant_id: A,
+      message_id: crypto.randomUUID(),
+      proposal_id: "p-door",
+      kind: "note",
+      by: "press",
+      origin_by: "asked",
+      strangers: false,
+      reason: null,
+    };
+    const start = (who, user) =>
+      who.client
+        .from("ask_actions")
+        .insert({ ...row, user_id: user })
+        .select("id")
+        .maybeSingle();
+    const refused = await start(viewer, ctx.viewerId);
+    assert.ok(refused.error, "a viewer acts on no card");
+    const started = await start(owner, ctx.ownerId);
+    assert.equal(started.error, null, started.error?.message);
+    assert.equal((await start(owner, ctx.ownerId)).error?.code, "23505", "a press sent twice is one record");
+    const finish = (who) =>
+      who.client
+        .from("ask_actions")
+        .update({ state: "done", finished_at: new Date().toISOString() })
+        .eq("id", started.data.id)
+        .select("state");
+    assert.deepEqual((await finish(viewer)).data ?? [], [], "nobody else finishes it");
+    assert.deepEqual((await finish(owner)).data, [{ state: "done" }]);
+  },
+);
+
+test(
+  "a press that showed the words is their OK: an acting member's session sets it, once; a viewer and another workspace's owner set nothing (00573)",
+  { skip },
+  async () => {
+    const of = async () =>
+      (await db.from("sequence_steps").select("words_ok_at").eq("id", ctx.playbook).single()).data.words_ok_at;
+    const press = (who, tenant) => who.client.rpc("words_seen", { p_tenant_id: tenant, p_step_id: ctx.playbook });
+    assert.equal(await of(), null, "its words have no OK yet");
+    assert.ok((await press(viewer, A)).error, "a viewer may not");
+    assert.equal((await press(stranger, B)).data, false, "another workspace's owner finds no such step of theirs");
+    assert.equal(await of(), null);
+    assert.equal((await press(owner, A)).data, true);
+    const at = await of();
+    assert.ok(at, "the words are taken as seen");
+    assert.equal((await press(owner, A)).data, false, "a second press changes nothing");
+    assert.equal(await of(), at);
   },
 );

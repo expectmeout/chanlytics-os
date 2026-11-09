@@ -57414,8 +57414,43 @@ GRANT ALL ON TABLE public.waitlist TO service_role;
 -- Name: TABLE web_push_subscriptions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE ON TABLE public.web_push_subscriptions TO authenticated;
+GRANT SELECT,DELETE ON TABLE public.web_push_subscriptions TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.web_push_subscriptions TO service_role;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.user_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_id) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.endpoint; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(endpoint) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.p256dh; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(p256dh) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.auth; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(auth) ON TABLE public.web_push_subscriptions TO authenticated;
+
+
+--
+-- Name: COLUMN web_push_subscriptions.user_agent; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(user_agent) ON TABLE public.web_push_subscriptions TO authenticated;
 
 
 --

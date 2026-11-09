@@ -30,7 +30,8 @@ drop policy if exists web_push_subscriptions_own on public.web_push_subscription
 create policy web_push_subscriptions_own on public.web_push_subscriptions for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 revoke all on public.web_push_subscriptions from anon, authenticated;
-grant select, insert, delete on public.web_push_subscriptions to authenticated;
+grant select, delete on public.web_push_subscriptions to authenticated;
+grant insert (user_id, endpoint, p256dh, auth, user_agent) on public.web_push_subscriptions to authenticated;
 grant select, insert, update, delete on public.web_push_subscriptions to service_role;
 
 create table if not exists public.ask_notice_days (
