@@ -5,7 +5,7 @@
  * Google Workspace connects today (Microsoft is halted), and "Tell us" counts who asks for something else, storing nothing.
  */
 import { useEffect, useState } from "react";
-import { REACH_OUT_SETTINGS_WORDS } from "@chanlytics/contracts";
+import { REACH_OUT_SETTINGS_WORDS, type MailboxHistory } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import { gate, type FrameFlash } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -14,14 +14,15 @@ import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
-import { connectedMailboxes } from "../connections/connected-mailboxes";
+import { HistoryChoice } from "../connections/history-choice";
+import { connectMailbox, mailboxConnectOutcome } from "../connections/mailbox-connect";
 
 const CONNECT_WORDS = REACH_OUT_SETTINGS_WORDS.connect;
 const WORKSPACE_HELP = "https://workspace.google.com/";
 
-/** To Google's consent, and back to this page; a door that refuses says so. */
-const connectGoogle = (flash: (flash: FrameFlash) => void) => {
-  void connectedMailboxes.connect("google", null, "cold_email").then((r) => {
+/** To Google's consent with what the owner chose it brings in, and back to this page; a door that refuses says so. */
+const connectGoogle = (flash: (flash: FrameFlash) => void, history: MailboxHistory) => {
+  void connectMailbox("google", null, "cold_email", history).then((r) => {
     if (!r.ok) flash({ tone: "danger", msg: r.message });
   });
 };
@@ -36,6 +37,7 @@ const useRoadSheet = (id: string) => {
 /** Connect your mailbox: what it gives, and Google. */
 function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
   const fold = useRoadSheet("connect");
+  const [history, setHistory] = useState<MailboxHistory>("six_months");
   if (!fold.open) return null;
   return (
     <RecordSheet
@@ -50,7 +52,7 @@ function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
           <Button
             size="sm"
             variant="primary"
-            onClick={() => connectGoogle(flash)}
+            onClick={() => connectGoogle(flash, history)}
             data-testid="rec-connect-google"
             {...gate("settings", "connect a mailbox")}
           >
@@ -72,6 +74,7 @@ function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
             </li>
           ))}
         </ul>
+        <HistoryChoice value={history} onChange={setHistory} lineClass="bt-fold-note" />
         <span>
           <LinkButton
             onClick={() => {
@@ -91,6 +94,7 @@ function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
 /** That's a personal address: why it was refused, and what to do. */
 function FreeMailSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
   const fold = useRoadSheet("connect_free");
+  const [history, setHistory] = useState<MailboxHistory>("six_months");
   if (!fold.open) return null;
   return (
     <RecordSheet
@@ -105,7 +109,7 @@ function FreeMailSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
           <Button
             size="sm"
             variant="primary"
-            onClick={() => connectGoogle(flash)}
+            onClick={() => connectGoogle(flash, history)}
             data-testid="rec-connect-free-again"
             {...gate("settings", "connect a mailbox")}
           >
@@ -117,6 +121,7 @@ function FreeMailSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
     >
       <div className="bt-stack">
         <p className="bt-fold-note">{CONNECT_WORDS.free.why}</p>
+        <HistoryChoice value={history} onChange={setHistory} lineClass="bt-fold-note" />
         <span>
           <LinkButton
             href={WORKSPACE_HELP}
@@ -197,7 +202,7 @@ function OtherSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
 /** The road's sheets, and what the browser came back from Google with, said once. */
 export function ConnectSheets({ again, flash }: { again: () => void; flash: (flash: FrameFlash) => void }) {
   useEffect(() => {
-    const came = connectedMailboxes.outcome();
+    const came = mailboxConnectOutcome();
     if (!came) return;
     if (came.ok) {
       flash({ msg: came.words });

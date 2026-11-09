@@ -7,7 +7,7 @@
  * leaving a changed draft asks too (the page's). On a wide pane what Ask checked and how it runs stand beside the steps
  * (the canvas's desk board). Every word is contracts' (new-words.ts).
  */
-import { connectedMailboxes } from "../../../settings/connections/connected-mailboxes";
+import { connectMailbox } from "../../../settings/connections/mailbox-connect";
 import { useState, type ReactNode } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
@@ -19,6 +19,7 @@ import {
   sequenceRoute,
   zonedInputValue,
   type ConsentChannel,
+  type MailboxHistory,
   type NewAudience,
   type NewDraftDto,
   type NewKind,
@@ -321,8 +322,8 @@ function footLineOf(d: NewDraftDto, tz: string, at: M.FootReads): { lead: string
 /** A draft to leads with no mailbox to send it: the foot's one act is the way to one. */
 const needsMailbox = (d: NewDraftDto): boolean => d.audience === "leads" && !!d.mailbox && !d.mailbox.label;
 
-/** To Google's consent and back to this draft, which is kept in the tab as it changes (new-page.tsx). */
-const connectForNew = () => connectedMailboxes.connect("google", null, "new");
+/** To Google's consent with what the owner chose it brings in, and back to this draft, kept in the tab as it changes (new-page.tsx). */
+const connectForNew = (history: MailboxHistory) => connectMailbox("google", null, "new", history);
 
 /** The one act a draft is set up for: Start a sequence, Send now or Schedule a one-off, Send one to leads. */
 function actOf(d: NewDraftDto, onMake: (start: boolean) => void, onSendNow: () => void) {
@@ -347,6 +348,7 @@ function DraftFoot(p: {
   doing: string | null;
   onMake: (start: boolean) => void;
   onSendNow: () => void;
+  onConnect: () => void;
 }) {
   const { draft } = p;
   const busy = p.busy || !!p.doing;
@@ -367,7 +369,7 @@ function DraftFoot(p: {
         </Button>
       ) : null}
       {needsMailbox(draft) ? (
-        <Button variant="primary" onClick={() => void connectForNew()} disabled={busy} data-testid="sq-nw-connect">
+        <Button variant="primary" onClick={p.onConnect} disabled={busy} data-testid="sq-nw-connect">
           {W.sheets.connect}
         </Button>
       ) : (
@@ -526,7 +528,12 @@ function DraftSheets(p: {
         onClose={close}
       />
       <OkSheet open={sheet?.kind === "ok"} draft={draft} onMode={(m) => change(M.setMode(draft, m))} onClose={close} />
-      <FromSheet open={sheet?.kind === "from"} draft={draft} onConnect={() => void connectForNew()} onClose={close} />
+      <FromSheet
+        open={sheet?.kind === "from"}
+        draft={draft}
+        onConnect={(history) => void connectForNew(history)}
+        onClose={close}
+      />
     </>
   );
 }
@@ -709,6 +716,7 @@ export function DraftView(p: {
             doing={p.doing}
             onMake={acts.make}
             onSendNow={() => setConfirming(true)}
+            onConnect={() => setSheet({ kind: "from" })}
           />
         ))
       }

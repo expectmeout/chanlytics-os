@@ -12,6 +12,7 @@ export {
   waitingRunsDoor,
 } from "./approval";
 export type { ToSendRowVM } from "./approval";
+export { COLD_EMAIL_CONNECT_WORDS } from "./connect-words";
 export {
   chainFirstSender,
   previewLinesOf,

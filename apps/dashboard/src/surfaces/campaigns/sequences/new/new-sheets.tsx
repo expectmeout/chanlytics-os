@@ -9,6 +9,7 @@
 import { useState, type ReactNode } from "react";
 import {
   CHANNELS_DOOR,
+  COLD_EMAIL_CONNECT_WORDS,
   DAY_MS,
   FOLLOW_UP_CONDITIONS,
   SEQUENCE_EDIT_WORDS,
@@ -28,6 +29,7 @@ import {
   zonedInputValue,
   type ConsentChannel,
   type DraftWho,
+  type MailboxHistory,
   type NewAudience,
   type NewDraftDto,
   type NewKind,
@@ -45,6 +47,7 @@ import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
 import { keyPress, routeDoor } from "../../../frame-verbs";
 import { pageClock } from "@/bridge/zone";
+import { HistoryChoice } from "../../../settings/connections/history-choice";
 import { WhenDayTime } from "../../broadcasts/when";
 import * as M from "./new-model";
 import { AudienceToggle, CaseNote } from "./new-parts";
@@ -708,26 +711,54 @@ export function OkSheet(p: {
   );
 }
 
-/** Where a sequence to leads sends from: the workspace's mailbox, or the way to connect one. */
-export function FromSheet(p: { open: boolean; draft: NewDraftDto; onConnect: () => void; onClose: () => void }) {
+/**
+ * Where a sequence to leads sends from: the workspace's mailbox, or what connecting one gives and brings in, and the way
+ * to it (as Cold email's sheet says it).
+ */
+export function FromSheet(p: {
+  open: boolean;
+  draft: NewDraftDto;
+  onConnect: (history: MailboxHistory) => void;
+  onClose: () => void;
+}) {
   const box = p.draft.mailbox;
+  const needs = !!box && !box.label;
+  const [history, setHistory] = useState<MailboxHistory>("six_months");
   return (
-    <PickSheet open={p.open} title={W.sheets.from} sub={W.sheets.fromSub} onClose={p.onClose} testid="sq-nw-from-sheet">
-      <div className="sq-nw-rows">
-        {box?.label ? (
-          <Choice glyph="mail" name={W.sheets.yourMailbox} said={box.label} on testid="sq-nw-from-box" />
-        ) : !box ? (
-          <Choice glyph="mail" name={W.sheets.yourMailbox} said={W.sheets.connectSaid} on testid="sq-nw-from-box" />
-        ) : (
+    <PickSheet
+      open={p.open}
+      title={W.sheets.from}
+      sub={W.sheets.fromSub}
+      onClose={p.onClose}
+      testid="sq-nw-from-sheet"
+      foot={
+        needs ? (
+          <Button variant="primary" onClick={() => p.onConnect(history)} data-testid="sq-nw-from-connect">
+            {COLD_EMAIL_CONNECT_WORDS.google}
+          </Button>
+        ) : undefined
+      }
+    >
+      {needs ? (
+        <>
+          <div className="sq-nw-rows">
+            {COLD_EMAIL_CONNECT_WORDS.promises.map(([name, said]) => (
+              <Choice key={name} glyph="check" name={name} said={said} testid="sq-nw-from-promise" />
+            ))}
+          </div>
+          <HistoryChoice value={history} onChange={setHistory} lineClass="sq-nw-note" />
+        </>
+      ) : (
+        <div className="sq-nw-rows">
           <Choice
             glyph="mail"
-            name={W.sheets.connect}
-            said={W.sheets.connectSaid}
-            onPick={p.onConnect}
-            testid="sq-nw-from-connect"
+            name={W.sheets.yourMailbox}
+            said={box?.label ?? W.sheets.connectSaid}
+            on
+            testid="sq-nw-from-box"
           />
-        )}
-      </div>
+        </div>
+      )}
       <p className="sq-nw-note">{W.checks.pace(REACH_OUT_GAP_FIRST)}</p>
       <p className="sq-nw-note">
         <a className="sq-nw-door" {...routeDoor("admin/outreach")} data-testid="sq-nw-from-cold-email">

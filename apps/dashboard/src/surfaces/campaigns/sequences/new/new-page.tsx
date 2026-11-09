@@ -11,7 +11,7 @@
  * Campaigns counts: the playbooks read's moments, lists and pools,
  * the sequences that run, and the searches whose leads are ready (reach_out_sources).
  */
-import { connectedMailboxes } from "../../../settings/connections/connected-mailboxes";
+import { mailboxConnectOutcome } from "../../../settings/connections/mailbox-connect";
 import { useEffect, useRef, useState } from "react";
 import {
   CONSENT_CHANNELS,
@@ -336,7 +336,7 @@ interface NewSequenceProps {
 
 /** What the browser came back from Google with, said once as New opens: its word leaves the address as it is read. */
 function useCameFromGoogle(flash: Flash) {
-  const [came] = useState(() => connectedMailboxes.outcome());
+  const [came] = useState(() => mailboxConnectOutcome());
   useEffect(() => {
     if (came) flash(came.ok ? { msg: came.words } : { tone: "danger", msg: came.words });
   }, []);

@@ -9,6 +9,7 @@ import { unmount, find, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { drawTab, redrawTab } from "../../_business-tab-harness.mjs";
 import { until } from "../../shared/_until.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
+import { MAILBOX_HISTORY_WORDS } from "@chanlytics/contracts";
 
 after(() => unmount());
 
@@ -112,6 +113,32 @@ test("Connect Google asks for the way to Google's consent, and to come back to t
   assert.match(url, /provider=google/);
   assert.match(url, /back=cold_email/);
   unmount();
+});
+
+test("connecting says what it brings in, and the owner's choice rides the connect", async () => {
+  asked.length = 0;
+  let tree = await landed();
+  press(byTestId(tree, "rec-standing-act"));
+  tree = redrawTab();
+  assert.match(textOf(byTestId(tree, "mailbox-history-line")), /last 6 months/i, "said before anything leaves");
+  press(byTestId(tree, "mailbox-history-change"));
+  tree = redrawTab();
+  const ways = () => find(redrawTab(), (n) => n.props?.label === MAILBOX_HISTORY_WORDS.choose);
+  ways().props.onValueChange("from_now");
+  press(byTestId(redrawTab(), "rec-connect-google"));
+  await until(() => asked.some(([u]) => u.includes("mailbox-connections/connect")), "the connect door");
+  const [url] = asked.find(([u]) => u.includes("mailbox-connections/connect"));
+  assert.match(url, /history=from_now/);
+  unmount();
+});
+
+test("an account refused may try again, and is told what trying brings in too", async () => {
+  globalThis.window.location.search = "?mailbox=error&why=free_mail";
+  await landed();
+  const tree = redrawTab();
+  assert.ok(byTestId(byTestId(tree, "rec-connect-free-sheet"), "mailbox-history-line"));
+  unmount();
+  globalThis.window.location.search = "";
 });
 
 test("Not on Google Workspace says what works, and Tell us posts a name and says thanks", async () => {
