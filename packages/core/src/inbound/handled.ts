@@ -121,7 +121,7 @@ export interface HoldWords {
 }
 
 /** What a hand-over reaches of the message being answered: its sink, and the owner's notice. */
-export interface Telling {
+interface Telling {
   sink: InboundSink;
   tell: (asked: Promise<EscalateOutcome> | null, words: HoldWords) => Promise<void>;
 }
