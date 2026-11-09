@@ -569,6 +569,7 @@
     "00564_three_tables_each_read_by_one_rule.sql": "610804d125ada517e18265e1dfd4e15241f468881da57e008a150daf7564d21b",
     "00565_old_deliveries_go_with_the_old_evidence.sql": "8531febd1b0fe6f0bfaf41c831843cc86a995f6cf28678bdd8f62a085624b61e",
     "00566_the_status_read_starts_at_its_leads.sql": "f1a4d96fb735081180c8e2128ee76c702e5ddf94df0471a1bd038a9d8b09777a",
-    "00567_what_each_step_sent_is_one_read.sql": "15659ec06f01820adb1062e319e0071785cc92feceefd1c91d18b0869f163b85"
+    "00567_what_each_step_sent_is_one_read.sql": "15659ec06f01820adb1062e319e0071785cc92feceefd1c91d18b0869f163b85",
+    "00568_a_place_is_read_the_same_whatever_is_guessed.sql": "36e20a9004b50195cf4bddd875b66adffd31c5813dab65b42b492079898e3898"
   }
 }

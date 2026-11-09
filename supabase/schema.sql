@@ -30518,8 +30518,11 @@ CREATE FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid DEFA
 begin
   -- One text, planned with the values each call hands it, so a list of leads or a sequence is an index condition. A SQL
   -- function is planned without them: "p_lead_ids is null or ..." read every send of the workspace, whatever it was asked.
-  -- Each person is one column, so two of these walks join on who and in what order they already stand, whatever the planner
-  -- guesses of how many there are.
+  -- Each person is one column, so a walk is read against another by who, with `not in`: Postgres answers that from a hash of
+  -- the other walk, whatever it guesses of how many there are (00568). As a `not exists` it is a join, and the guess chooses
+  -- the join: too low, and it reads every pair, in memory, touching no more blocks. Neither side of a `not in` here is ever
+  -- null: a step's and an enrollment's sequence and a member's lead are not null columns, a placed send has a batch and so a
+  -- sequence (sequence_sends_own_is_a_leads), and a person is someone (_someone).
   return query execute $q$
   -- Each one's newest send in each sequence, picked from the sends alone, its batch read after by its key: joined before the
   -- pick, a read of a few leads could start from the workspace's batches and walk every send in each (00566). A send with
@@ -30572,8 +30575,7 @@ begin
   between as (
     select e.* from enrolled e
      where e.state = 'in'
-       and not exists (select 1 from placed p where p.grp is not null and p.sequence_id = e.sequence_id
-                         and p.person = e.person)
+       and (e.sequence_id, e.person) not in (select p.sequence_id, p.person from placed p where p.grp is not null)
   ),
   replied as (
     select distinct on (s.sequence_id, coalesce(r.lead_id, r.contact_id))
@@ -30598,11 +30600,10 @@ begin
        and ($2 is null or r.sequence_id = $2)
        and ($3 is null or m.lead_id = any ($3))
        and m.blanked_at is null and m.class = 'qualified' and m.counted
-       and not exists (select 1 from placed p where p.grp is not null and p.sequence_id = r.sequence_id
-                         and p.lead_id = m.lead_id)
+       and (r.sequence_id, m.lead_id) not in (select p.sequence_id, p.person from placed p where p.grp is not null)
        -- Never planned here, or moved out and back since (its place there left as moved, the list holding it again).
-       and not exists (select 1 from enrolled e where e.sequence_id = r.sequence_id and e.lead_id = m.lead_id
-                         and not (e.state = 'left' and e.why = 'moved'))
+       and (r.sequence_id, m.lead_id) not in (select e.sequence_id, e.person from enrolled e
+                                               where not (e.state = 'left' and e.why = 'moved'))
   ),
   rows_of as (
     select p.grp, p.sequence_id, p.contact_id, p.lead_id, null::uuid as enrollment_id, p.send_id, p.batch_id, p.place,
@@ -30632,7 +30633,7 @@ begin
     select case when e.state = 'done' then 'done' else 'left' end, e.sequence_id, e.contact_id, e.lead_id,
            e.enrollment_id, null, null, e.place, e.at, e.why, null, null::jsonb, null::jsonb
       from enrolled e where e.state in ('done', 'left') and not $4
-       and not exists (select 1 from listed l where l.sequence_id = e.sequence_id and l.lead_id = e.lead_id)
+       and (e.sequence_id, e.person) not in (select l.sequence_id, l.lead_id from listed l)
     union all
     select 'queued', l.sequence_id, null, l.lead_id, null, null, null, 1, l.created_at, null, null, null::jsonb,
            null::jsonb
@@ -30645,7 +30646,9 @@ begin
       -- Each is one row a person a sequence and already in that order: this walks the two side by side. What stands never asks.
       left join enrolled e on not $4 and e.state = 'in' and e.sequence_id = rp.sequence_id and e.person = rp.person
   )
-  -- Who wrote back shows there alone, not again where their place stands.
+  -- Who wrote back shows there alone, not again where their place stands. This stays a `not exists`: a reply to a lead's own
+  -- send has no sequence, and one null in a `not in` would hide everyone it might be. Under the `or` it is no join to choose,
+  -- and Postgres takes its hash at any guess: it runs for two rows at the least, and a walk of them costs more than the hash.
   select r.grp, r.sequence_id, r.contact_id, r.lead_id, r.enrollment_id, r.send_id, r.batch_id, r.place, r.at, r.why,
          r.hold_detail, r.draft, r.reply
     from rows_of r
@@ -30661,7 +30664,7 @@ $_$;
 -- Name: FUNCTION sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean) IS 'Where each person or lead stands in each sequence, the one reader of a place (00459). Planned with the values each call hands it (00554), so p_lead_ids and p_sequence_id are index conditions; p_standing_leads asks only what stands of a workspace''s leads, and walks their open sends. An email theirs to send says its words, read for those rows alone. Each one''s newest send is picked from the sends before its batch is read (00566), so a read of a few leads never walks a batch.';
+COMMENT ON FUNCTION public.sequence_places(p_tenant_id uuid, p_sequence_id uuid, p_lead_ids uuid[], p_standing_leads boolean) IS 'Where each person or lead stands in each sequence, the one reader of a place (00459). Planned with the values each call hands it (00554), so p_lead_ids and p_sequence_id are index conditions; p_standing_leads asks only what stands of a workspace''s leads, and walks their open sends. An email theirs to send says its words, read for those rows alone. Each one''s newest send is picked from the sends before its batch is read (00566), so a read of a few leads never walks a batch. One walk is read against another by a hash of it (00568), so how long this takes does not rest on what the planner guesses.';
 
 
 --

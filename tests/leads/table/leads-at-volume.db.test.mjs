@@ -1,9 +1,24 @@
 /**
  * Leads at full volume (decision 0103): one workspace with 50,000 leads, 60,000 memberships, 40,000 places in a sequence,
- * 150,000 lead sends, 100,000 customer sends and 2,000 replies, read as a signed-in member, in a transaction that never
- * commits. The gate is each read within 300 ms, which a person holds each read's logged time against; a test here fails well
- * past it, so a slow runner does not flake it. Blocks are the runner-proof number: a read that starts walking what it was not
- * asked for shows there. Time holds what blocks cannot: a read gone quadratic over a CTE took 5 s and touched no more of them.
+ * 150,000 lead sends, 100,000 customer sends and 2,000 replies, beside 30,000 other workspaces' lists, read as a signed-in
+ * member, in a transaction that never commits. The gate is each read within 300 ms, which a person holds each read's logged
+ * time against; a test here fails well past it.
+ *
+ * Two numbers hold a read, because each misses what the other sees. Blocks are the runner-proof number: a read that starts
+ * walking what it was not asked for shows there. Time holds what blocks cannot: a read gone quadratic over a CTE compares its
+ * pairs in memory, and touches no more of them.
+ *
+ * How the time line holds, from this test's own numbers in 44 attempts on 7-9 Nov 2026. A slow machine does not reach it: the
+ * slowest of them (a 37 s seed against the usual 12) read the queue in 968 ms. A bad plan does: 3 of the 44 read it in 5 to 8
+ * seconds, one on a 10 s seed, with the reads that never ask for a place as quick as ever and the blocks unchanged. Nothing
+ * lands between, so the line sits in the gap, and past it is a plan, not the runner. That rules out the ways to quiet a
+ * timing test. Warming a read does nothing: each is already read twice and its second kept, and both were slow. Keeping the
+ * better of two does nothing: a transaction plans every call from one set of statistics. Leaving it to the blocks would pass
+ * exactly this. So a read past its line fails, and says its plan.
+ *
+ * Why the other lists are there. Postgres guessed how many leads a list holds from how many lists there are, and the walk it
+ * chose over `sequence_places`' CTEs turned on that guess (00568). This test left the table that says so to whenever
+ * autovacuum last read it, so the bad plan came and went by the run. Seeded and analyzed, every run reads under the low guess.
  *
  * Local stack only. Rows are written with triggers off (session_replication_role), as they would stand: this measures the
  * reads, not the writes.
@@ -48,6 +63,102 @@ const BLOCK_BUDGET = {
   page_rated: 16_380,
   page_words: 15_081,
 };
+/** Other workspaces' reach-outs, each with a list of its own: enough that Postgres guesses one list holds next to nothing. */
+const OTHER_LISTS = 30_000;
+
+/** Every read against its budget and its line. Pure, so what fails here can be shown with no database. */
+function holdTheLine(seen) {
+  for (const name of Object.keys(BLOCK_BUDGET)) assert.ok(seen[name], `${name} has a budget and was not read`);
+  for (const [name, r] of Object.entries(seen)) {
+    if (typeof r?.ms !== "number") continue;
+    const budget = BLOCK_BUDGET[name];
+    if (budget) assert.ok(r.blocks <= budget, `${name} read ${r.blocks} blocks: its budget is ${budget}`);
+    const line = FAILS_AT_MS_OF[name] ?? FAILS_AT_MS;
+    assert.ok(
+      r.ms <= line,
+      `${name} took ${r.ms} ms over ${r.blocks} blocks: ${line} is the line this suite holds, the gate is 300. ` +
+        "With its blocks in budget that is a plan and not a slow machine, which has never come near the line: read the plans printed above",
+    );
+  }
+}
+
+/** #2206's second attempt as CI logged it (run 42553471519): every read on a good plan. */
+const A_RUN_THAT_HELD = {
+  door: { ms: 134, blocks: 4_059 },
+  counts: { ms: 423, blocks: 69_678 },
+  page_fit: { ms: 241, blocks: 10_066 },
+  page_next: { ms: 524, blocks: 75_178 },
+  page_found: { ms: 247, blocks: 10_066 },
+  page_queue: { ms: 552, blocks: 75_685 },
+  page_rated: { ms: 283, blocks: 10_933 },
+  page_words: { ms: 341, blocks: 10_066 },
+  door_status: { ms: 406, blocks: 69_678 },
+  places_whole: { ms: 179, blocks: 64_619 },
+  status_whole: { ms: 245, blocks: 65_619 },
+  page_business: { ms: 287, blocks: 10_066 },
+  page_one_search: { ms: 183, blocks: 17_302 },
+  places_everyone: { ms: 688, blocks: 22_863 },
+  places_of_a_page: { ms: 39, blocks: 5_098 },
+};
+/** The same commit's first attempt: as quick where no place is read, and 8 s and 24 s where one is, over the same blocks. */
+const A_RUN_ON_THE_BAD_PLAN = {
+  door: { ms: 107, blocks: 4_058 },
+  counts: { ms: 8_141, blocks: 69_783 },
+  page_fit: { ms: 187, blocks: 10_065 },
+  page_next: { ms: 8_271, blocks: 75_283 },
+  page_found: { ms: 193, blocks: 10_065 },
+  page_queue: { ms: 8_199, blocks: 75_790 },
+  page_rated: { ms: 215, blocks: 11_221 },
+  page_words: { ms: 257, blocks: 10_065 },
+  door_status: { ms: 8_111, blocks: 69_783 },
+  places_whole: { ms: 7_878, blocks: 64_625 },
+  status_whole: { ms: 8_100, blocks: 65_725 },
+  page_business: { ms: 221, blocks: 10_065 },
+  page_one_search: { ms: 141, blocks: 18_146 },
+  places_everyone: { ms: 24_118, blocks: 22_867 },
+  places_of_a_page: { ms: 27, blocks: 5_124 },
+};
+
+test("a run on good plans holds the line", () => {
+  holdTheLine(A_RUN_THAT_HELD);
+});
+
+test("a read past its block budget fails, however quick it is", () => {
+  for (const [name, budget] of Object.entries(BLOCK_BUDGET)) {
+    holdTheLine({ ...A_RUN_THAT_HELD, [name]: { ms: 1, blocks: budget } });
+    assert.throws(
+      () => holdTheLine({ ...A_RUN_THAT_HELD, [name]: { ms: 1, blocks: budget + 1 } }),
+      new RegExp(`${name} read ${budget + 1} blocks`),
+    );
+  }
+});
+
+test("a read on the bad plan fails on its time, its blocks being in budget", () => {
+  for (const [name, r] of Object.entries(A_RUN_ON_THE_BAD_PLAN)) {
+    assert.ok(r.blocks <= BLOCK_BUDGET[name], `${name}: the budget alone would have passed this run`);
+  }
+  for (const name of [
+    "counts",
+    "page_next",
+    "page_queue",
+    "door_status",
+    "places_whole",
+    "status_whole",
+    "places_everyone",
+  ]) {
+    const { ms } = A_RUN_ON_THE_BAD_PLAN[name];
+    assert.throws(
+      () => holdTheLine({ ...A_RUN_THAT_HELD, [name]: A_RUN_ON_THE_BAD_PLAN[name] }),
+      new RegExp(`${name} took ${ms} ms`),
+    );
+  }
+});
+
+test("a read that was asked for and not read fails", () => {
+  const { counts, ...rest } = A_RUN_THAT_HELD;
+  assert.ok(counts);
+  assert.throws(() => holdTheLine(rest), /counts has a budget and was not read/);
+});
 
 const stamp = Date.now().toString(36);
 let db;
@@ -113,6 +224,17 @@ const read = (name, sql) => `
     seen := seen || jsonb_build_object('${name}', jsonb_build_object('ms', took, 'blocks', ${blocks()} - mark));
   end loop;`;
 
+/**
+ * What sequence_places is planned as, asked of its own text with the values a call hands it, for a read past its line to say:
+ * no number here shows which plan a run got, and without it the same fault was put down to JIT and then to a slow machine.
+ */
+const planOfPlaces = (name, standing) => `
+  plan_lines := '{}';
+  for plan_line in execute 'explain ' || places_text using t, null::uuid, null::uuid[], ${standing} loop
+    plan_lines := plan_lines || plan_line;
+  end loop;
+  plans := plans || jsonb_build_object('${name}', to_jsonb(plan_lines));`;
+
 const SEED = (who) => `
   insert into public.tenants (slug, name) values ('volume-' || gen_random_uuid(), 'Volume') returning id into t;
   perform public.provision_tenant(t);
@@ -124,6 +246,10 @@ const SEED = (who) => `
   insert into public.sequence_steps (tenant_id, kind, name, trigger, policy_class, state, lead_search_id, gap_minutes, template_id, template_language, template_name)
     values (t, 'reach_out', 'Volume', 'lead_first', 'outreach', 'running', s_list, 12, tpl, 'en_US', 'fixture_volume') returning id, sequence_id into step, seq;
   execute 'set local session_replication_role = replica';
+
+  insert into public.sequence_steps (id, sequence_id, place, tenant_id, kind, name, trigger, policy_class, state, lead_search_id, gap_minutes, template_id, template_language, template_name)
+    select o.id, o.id, 1, gen_random_uuid(), 'reach_out', 'Another', 'lead_first', 'outreach', 'running', gen_random_uuid(), 12, tpl, 'en_US', 'fixture_volume'
+      from (select gen_random_uuid() as id, n from generate_series(1, ${OTHER_LISTS}) n) o;
 
   insert into public.leads (id, tenant_id, place_id, business_name, category, city, region, postal_code, street, email, email_state, website_host,
                             phone_e164, phone_sources, rating, reviews, stage, closed_reason, contacted_at, found_at, stage_at)
@@ -200,11 +326,10 @@ const SEED = (who) => `
      where v.i <= 2000;
 
   execute 'set local session_replication_role = origin';
-  -- Production runs with JIT off (its pg_settings, read 8 Nov 2026 on Postgres 17.6); the local image leaves it on. Run
-  -- after the rest of the suite, on tables it had grown, each whole-workspace read here spent about 8 s compiling its plan,
-  -- its blocks unchanged. What is measured is what production runs.
+  -- Production runs with JIT off (its pg_settings, read 8 Nov 2026 on Postgres 17.6); the local image leaves it on. What is
+  -- measured is what production runs.
   execute 'set local jit = off';
-  analyze public.leads, public.lead_search_members, public.sequence_sends, public.sequence_enrollments, public.sequence_replies, public.sequence_batches;`;
+  analyze public.leads, public.lead_search_members, public.sequence_sends, public.sequence_enrollments, public.sequence_replies, public.sequence_batches, public.sequence_steps;`;
 
 test("every read of a full workspace holds the line", { skip, timeout: 600_000 }, () => {
   const seen = neverCommitted(`
@@ -212,6 +337,7 @@ test("every read of a full workspace holds the line", { skip, timeout: 600_000 }
       t uuid; tpl uuid; s_found uuid; s_second uuid; s_list uuid; step uuid; seq uuid; seen jsonb := '{}';
       t0 timestamptz; took numeric; mark bigint; turn int; sowed timestamptz := clock_timestamp();
       rows_of int; counts jsonb; last_key text; last_id uuid; ids uuid[];
+      places_text text; plan_line text; plan_lines text[]; plans jsonb := '{}';
     begin
       ${SEED(member)}
       seen := seen || jsonb_build_object('seed_ms', round((extract(epoch from clock_timestamp() - sowed) * 1000)::numeric));
@@ -239,16 +365,23 @@ test("every read of a full workspace holds the line", { skip, timeout: 600_000 }
       ${read("places_everyone", "perform count(*) from public.sequence_places(t)")}
       counts := public.lead_view_counts(t, null, 'qualified', 'all', null);
       seen := seen || jsonb_build_object('counted', counts - 'excluded_by');
-      raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex');
+      -- The function's own work_mem, since a plan turns on it.
+      perform set_config('work_mem', '64MB', true);
+      select substring(p.prosrc from '\\$q\\$(.*)\\$q\\$') into places_text from pg_proc p
+       where p.oid = 'public.sequence_places(uuid, uuid, uuid[], boolean)'::regprocedure;
+      ${planOfPlaces("what stands", true)}
+      ${planOfPlaces("the whole workspace", false)}
+      raise exception 'seen %', encode(convert_to((seen || jsonb_build_object('plans', plans))::text, 'UTF8'), 'hex');
     end;`);
-  console.log(JSON.stringify(seen));
-  assert.equal(seen.first_page_rows, 500);
-  assert.equal(seen.counted.view, 50_000, "one row a lead, whatever holds it twice");
-  assert.deepEqual(seen.counted.status_groups, { needs: 9_000, in: 29_000, none: 12_000 });
-  for (const [name, r] of Object.entries(seen)) {
-    if (typeof r?.ms !== "number") continue;
-    const line = FAILS_AT_MS_OF[name] ?? FAILS_AT_MS;
-    assert.ok(r.ms <= line, `${name} took ${r.ms} ms: ${line} is the line this suite holds, the gate is 300`);
-    if (BLOCK_BUDGET[name]) assert.ok(r.blocks <= BLOCK_BUDGET[name], `${name} read ${r.blocks} blocks`);
+  const { plans, ...numbers } = seen;
+  console.log(JSON.stringify(numbers));
+  assert.equal(numbers.first_page_rows, 500);
+  assert.equal(numbers.counted.view, 50_000, "one row a lead, whatever holds it twice");
+  assert.deepEqual(numbers.counted.status_groups, { needs: 9_000, in: 29_000, none: 12_000 });
+  try {
+    holdTheLine(numbers);
+  } catch (failure) {
+    for (const [name, lines] of Object.entries(plans)) console.log(`sequence_places, ${name}:\n${lines.join("\n")}`);
+    throw failure;
   }
 });
