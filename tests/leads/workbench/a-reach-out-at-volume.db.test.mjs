@@ -24,7 +24,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { neverCommitted } from "../_never-committed.mjs";
+import { neverCommitted } from "../table/_never-committed.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const skip = !URL_
