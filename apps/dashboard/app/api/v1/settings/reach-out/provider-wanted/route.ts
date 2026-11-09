@@ -18,6 +18,6 @@ export const POST = write({
   input: Body,
   handle: ({ member, input }) => {
     log.info("cold_email_provider_wanted", { tenant_id: member.tenantId, provider: input.provider });
-    return { told: true };
+    return Promise.resolve({ told: true });
   },
 });
