@@ -439,6 +439,9 @@ export interface TodaySinceAnsweredDto {
   last: { who: string; text: string; at: string; conversation_id?: string | null } | null;
 }
 
+/** Where a row that names someone opens: the thread the last reply went on, where the read says it. */
+const threadDoorOf = (id: string | null | undefined) => (id ? addressOf({ kind: "conversation", id }) : null);
+
 /** One line of Since you looked, opened: its glyph, what happened, the receipt under it, and when it last did. */
 export interface TodaySinceRowVM {
   key: string;
@@ -552,8 +555,7 @@ export function todaySince(input: {
       title: `The receptionist answered ${answered.count}`,
       sub: last ? `Last, to ${last.who}: “${last.text}”` : "",
       at: Number.isFinite(lastMs) ? at(lastMs) : "",
-      // It names someone, so it opens them: the thread the last reply went on.
-      to: last?.conversation_id ? addressOf({ kind: "conversation", id: last.conversation_id }) : null,
+      to: threadDoorOf(last?.conversation_id),
     });
   }
   for (const [kind, k] of Object.entries(SINCE_KINDS)) {

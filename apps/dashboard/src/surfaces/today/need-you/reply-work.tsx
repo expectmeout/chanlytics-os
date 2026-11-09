@@ -103,11 +103,11 @@ function notAPersonOf(row: TodayQueueRowVM, wire: string): (() => void) | null {
  * reply read, a call back (8 Nov 2026: its note says to mark one done, and nothing there did): a closing window and a reply
  * counting down hold nothing to give back.
  */
-export function useMarkDone(p: WorkProps) {
-  const { row, flash, keep, unkeep } = p;
+export function useMarkDone(work: WorkProps) {
+  const { row, flash, keep, unkeep } = work;
   const [done, setDone] = useRowState<Record<string, unknown> | null>(row.id, "markedDone", null);
   const may =
-    p.may && !!row.conversationId && (row.kind === "handoff" || row.kind === "reply" || row.kind === "callback");
+    work.may && !!row.conversationId && (row.kind === "handoff" || row.kind === "reply" || row.kind === "callback");
   const mark = async () => {
     if (!row.conversationId) return;
     // Kept before the door is asked: its refresh drops the hold from the read, and the row must stay to say so.

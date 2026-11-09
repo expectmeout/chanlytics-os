@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { all, textOf, unmount } from "../../_stub-react.mjs";
 import { W, draw } from "./_world.mjs";
 
-const { BriefBar } = await import("../../../apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx");
+const { BriefPlaying } = await import("../../../apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx");
 const { holdAsk } = await import("../../../apps/dashboard/src/surfaces/frame-verbs.ts");
 const { listenButton } = await import("../../../apps/dashboard/src/surfaces/today/zones/listen.tsx");
 const { liveBar } = await import("@chanlytics/contracts");
@@ -43,7 +43,7 @@ function drawn(v, calls = 0) {
       checking: false,
     })),
   };
-  const tree = draw(BriefBar);
+  const tree = draw(BriefPlaying);
   return all(tree, (n) => n.props?.["data-testid"] === "brief-bar")[0] ?? null;
 }
 

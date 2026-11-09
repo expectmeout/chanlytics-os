@@ -50,7 +50,7 @@ export function dismissedOnTurn(messageId: string | null, card: AskMorningCard):
 }
 
 /** A Not today taken back, kept on its turn in the same way: the idea is offered again. */
-export function undismissedOnTurn(messageId: string | null, card: AskMorningCard): Promise<boolean> {
+export function restoreOnTurn(messageId: string | null, card: AskMorningCard): Promise<boolean> {
   return keptOnTurn(messageId, card, { state: "undone", receipt: W.undo, atMs: Date.now(), undo: null });
 }
 
@@ -129,7 +129,7 @@ export function useIdeaActs(p: IdeaPorts) {
     // Undo takes back both, and the row draws as it did.
     const back = () => {
       setSaid(null);
-      void undismissedOnTurn(messageId, card);
+      void restoreOnTurn(messageId, card);
     };
     await p.rest(back).catch(() => undefined);
     await dismissedOnTurn(messageId, card);

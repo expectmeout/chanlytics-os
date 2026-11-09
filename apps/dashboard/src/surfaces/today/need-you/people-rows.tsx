@@ -119,24 +119,24 @@ function answerWithin(): number {
  * "Did they come?"), which is what it says, and so does a search waiting for your OK, as the runs beside it do ("nothing is
  * spent while it waits").
  */
-export function rowWords(r: TodayQueueRowVM) {
-  const face = namesAPerson(r) ? { person: { name: r.who, initials: r.initials } } : { initials: r.initials };
-  const verb = needYouVerbOf(r);
+export function rowWords(row: TodayQueueRowVM) {
+  const face = namesAPerson(row) ? { person: { name: row.who, initials: row.initials } } : { initials: row.initials };
+  const verb = needYouVerbOf(row);
   const waits = verb === "reply" || verb === "call";
   return {
     ...face,
-    name: r.who,
-    trail: namesAPerson(r) ? businessTrailFor(r.person_id) : null,
+    name: row.who,
+    trail: namesAPerson(row) ? businessTrailFor(row.person_id) : null,
     // The wire is the glyph before what they want, and its name is the glyph's words for a screen reader.
-    via: { glyph: VIA_GLYPH[r.channel], words: [r.channel, r.via].filter(Boolean).join(", ") },
-    wait: needYouWaitOf(r, W.held.goesAlone, answerWithin()),
-    sentence: r.sentence,
-    quoted: r.quoted,
-    lead: r.lead,
-    status: waits ? [] : r.status,
+    via: { glyph: VIA_GLYPH[row.channel], words: [row.channel, row.via].filter(Boolean).join(", ") },
+    wait: needYouWaitOf(row, W.held.goesAlone, answerWithin()),
+    sentence: row.sentence,
+    quoted: row.quoted,
+    lead: row.lead,
+    status: waits ? [] : row.status,
     note: "",
-    tone: r.tone,
-    testid: `queue-${r.kind}`,
+    tone: row.tone,
+    testid: `queue-${row.kind}`,
   };
 }
 

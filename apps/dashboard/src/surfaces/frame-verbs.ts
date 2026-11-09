@@ -9,7 +9,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback } from "react";
 import type { AskApi } from "../bridge/ask";
 import { workspacePath } from "@chanlytics/contracts";
-import { askAbout, backFrom, navigate, openAsk } from "./frame-doors";
+import { askAbout, backFrom, navigate, openAsk, tellAskHeld } from "./frame-doors";
 import type { SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
 
 /** What a toast says, as the shell's one flash takes it (frame/flash.tsx `usePPToast`). */
@@ -145,20 +145,10 @@ export function hearPageMoves(fn: () => void): () => void {
 /** Ask's own calls, as installAsk made them (bridge/ask.ts): a turn sent, a card committed, the page as context. */
 let askHeld: AskApi | undefined;
 
-const askHearers = new Set<() => void>();
-
 /** The calls a page reads by import from here on: the bridge's, or a test's stand-in. */
 export function holdAsk(calls: AskApi | undefined): void {
   askHeld = calls;
-  askHearers.forEach((hear) => hear());
-}
-
-/** Hear Ask's calls arrive: what the frame draws before the bridge installs them, and watches once they are in. */
-export function hearAskHeld(hear: () => void): () => void {
-  askHearers.add(hear);
-  return () => {
-    askHearers.delete(hear);
-  };
+  tellAskHeld();
 }
 
 /** Ask's calls; none before the bridge installs them, and none where there is no bridge. */

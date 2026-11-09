@@ -126,11 +126,11 @@ export function useSpeech(text: string | null): Speech {
  * Listen, beside the greeting (the kit head's `beside`; beside the bell on a phone), the same size at rest and while it
  * fetches the voice, so nothing beside it moves (8 Nov 2026: "Getting Ask's voice…" took it from 100px to 151, up to the
  * date). On a phone a circle the bell's size, with its words for a reader alone; on a desk the words and how long it takes
- * to hear. A press while it fetches lets go of it. Once it plays the header's capsule has it (frame/topbar BriefBar), and
+ * to hear. A press while it fetches lets go of it. Once it plays the header's capsule has it (frame/topbar BriefPlaying), and
  * the head draws no button.
  */
 export function listenButton(speech: Speech, line: string) {
-  const L = TODAY_PHONE_WORDS.listen;
+  const words = TODAY_PHONE_WORDS.listen;
   const length = spokenLength(line);
   const fetching = speech.state === "loading";
   return (
@@ -138,7 +138,7 @@ export function listenButton(speech: Speech, line: string) {
       variant="glass"
       size="sm"
       className="today-listen"
-      aria-label={fetching ? L.getting : L.named(length)}
+      aria-label={fetching ? words.getting : words.named(length)}
       aria-busy={fetching || undefined}
       onClick={speech.toggle}
       onPointerDown={(e) => {
@@ -149,7 +149,7 @@ export function listenButton(speech: Speech, line: string) {
     >
       {fetching ? <span className="today-listen-ring" aria-hidden="true" /> : <Icon name="headphones" size={15} />}
       <span className="today-listen-words">
-        {L.word}
+        {words.word}
         <span className="today-listen-length tabular">{length}</span>
       </span>
     </Button>

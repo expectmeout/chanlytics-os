@@ -2283,7 +2283,7 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
    one door to Live, and a focus draws its ring over its depth.
    Yesterday's visits nobody has marked stand in the same place while no call is up (frame/topbar/status-bars.tsx
    UnmarkedVisitsBar; Ruben, 20 Oct 2026: off the Calendar's page, into the header, as the call is), and the call outranks
-   them. Your brief while it plays stands there too (frame/topbar/status-bars.tsx BriefBar, 8 Nov 2026), over the visits to
+   them. Your brief while it plays stands there too (frame/topbar/status-bars.tsx BriefPlaying, 8 Nov 2026), over the visits to
    mark and under a call. Where the place is, below, is said once for all of them. */
 :is(.live-bar, .unmarked-bar, .brief-bar) {
   position: absolute;

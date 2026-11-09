@@ -414,7 +414,7 @@ export const TODAY_PHONE_WORDS = {
   tomorrowHolds: (counted: string) => (counted ? `Tomorrow: ${counted}` : "Tomorrow: nothing booked yet"),
   /**
    * Listen: a circle beside the bell at rest, and while your brief plays a capsule in the date's place, on every page, whose
-   * press stops it (the frame's BriefBar). The words are what a reader hears, and on a desk what the button says.
+   * press stops it (the frame's BriefPlaying). The words are what a reader hears, and on a desk what the button says.
    */
   listen: {
     word: "Listen",

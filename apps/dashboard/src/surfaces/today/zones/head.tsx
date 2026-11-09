@@ -175,7 +175,7 @@ export function useZonesStanding(): void {
   const speech = useSpeech(brief);
   const went = turned && vm ? todayWentLine(vm.figures) : null;
   const line = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, (vm.done_today ?? 0) > 0) : null;
-  // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefBar).
+  // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefPlaying).
   const listen = speech.can && brief && words?.news && speech.state !== "speaking" ? listenButton(speech, brief) : null;
   useStanding({
     stacked: true,

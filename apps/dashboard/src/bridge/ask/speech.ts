@@ -236,6 +236,10 @@ function onePlayer(w: SpeechWindow) {
 const clipRefusal = (e: unknown): string =>
   e instanceof Error && e.message ? e.message : "Ask's voice could not be reached just now.";
 
+/** What is being read, with anything going. */
+const readingWhile = (state: SpeechState, reading: SpeechPurpose | null): SpeechPurpose | null =>
+  state === "idle" ? null : reading;
+
 export function askSpeech(win: Window, deps: SpeechDeps) {
   const w = win as Window & SpeechWindow;
   /** The device's doors, or null where one is missing (a stand-in window, a browser without object URLs). */
@@ -264,7 +268,7 @@ export function askSpeech(win: Window, deps: SpeechDeps) {
     /** What is happening now. */
     state: (): SpeechState => state,
     /** What is being read, or null with nothing going. */
-    speakingFor: (): SpeechPurpose | null => (state === "idle" ? null : reading),
+    speakingFor: (): SpeechPurpose | null => readingWhile(state, reading),
     /** Hear every change of state; answers the stop. */
     watchSpeech(on: () => void): () => void {
       watchers.add(on);

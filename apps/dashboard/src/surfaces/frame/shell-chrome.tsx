@@ -19,7 +19,7 @@ import { headSlotDrawn } from "../kit/head/frame-head";
 import type { viewDeck } from "../kit/motion/view-deck";
 import type { SurfaceViews } from "../routes";
 import { frameGlyph, fromGlobal, fromWindow } from "./frame-window";
-import { BriefBar, LiveCallBar, NextVisitBar, ShellStatusBar, UnmarkedVisitsBar } from "./topbar/status-bars";
+import { BriefPlaying, LiveCallBar, NextVisitBar, ShellStatusBar, UnmarkedVisitsBar } from "./topbar/status-bars";
 import { PhoneTabs } from "./phone-tabs";
 import { ReportHost } from "./report-problem";
 import { ShortcutsSheet } from "./shortcuts";
@@ -308,7 +308,7 @@ const frameTop = (s: ChromeAt, glass: boolean) => {
       <Live />
       <Status />
       {/* Your brief while it plays, in the call's place while no call is up (the call outranks it, and ends it). */}
-      <BriefBar />
+      <BriefPlaying />
       {/* Yesterday's visits to mark, in the call's place while no call is up (the call outranks it: components.css). */}
       <UnmarkedVisitsBar page={s.page} />
       {/* What is next on the day, beside the bell, while neither is up (both outrank it: components.css). */}

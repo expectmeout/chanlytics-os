@@ -23,7 +23,7 @@ import { usePartShown, useSurface, useSurfaceFailed, useWaitFor } from "../../us
 import { askMorningOverride } from "../ask-morning-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { Done } from "../need-you/parts";
-import { CardSheet, dismissedOnTurn, undismissedOnTurn, useIdeaActs } from "../need-you/idea-work";
+import { CardSheet, dismissedOnTurn, restoreOnTurn, useIdeaActs } from "../need-you/idea-work";
 import { useRests } from "../need-you/rests";
 import { useRowState } from "../need-you/row-state";
 import { useCoralAhead, zoneDrawn } from "../queue-coral";
@@ -198,7 +198,7 @@ function DoorRow(p: RowPorts & { turn: { card: AskMorningCard; messageId: string
         void p
           .rest(() => {
             setGone(false);
-            if (turn) void undismissedOnTurn(turn.messageId, turn.card);
+            if (turn) void restoreOnTurn(turn.messageId, turn.card);
           })
           .catch(() => undefined)
           .then(() => (turn ? dismissedOnTurn(turn.messageId, turn.card) : false));
@@ -265,6 +265,24 @@ function useFoundTold(drawn: boolean) {
   useLayoutEffect(() => () => zoneDrawn("found", false), []);
 }
 
+/** "and 2 more", which opens them in place: it was a count with no door. Called, not drawn. */
+function moreDoor(more: number, everyRow: boolean, turn: () => void) {
+  if (!more) return null;
+  return (
+    <Button
+      variant="quiet"
+      size="text"
+      className="tz-found-more"
+      aria-expanded={everyRow}
+      onClick={turn}
+      data-testid="today-found-more"
+    >
+      {everyRow ? F.fewer : F.more(more)}
+      <Icon name="chevron-down" size={12} />
+    </Button>
+  );
+}
+
 /**
  * Ask found's pane: its name and how many more there are, a read that failed, its three rows, and what came of an idea
  * lately. `wide` where it leads the page, its rows three across; its first act then takes the coral, where nothing
@@ -274,7 +292,6 @@ export function AskFound({ wide }: { wide: boolean }) {
   const { found, morning, rest, keep, broke } = useFoundRows();
   const [toastNode, flash] = useToast();
   const [open, setOpen] = useState<string | null>(null);
-  // "and 2 more" opens them in place: it was a count with no door.
   const [everyRow, setEveryRow] = useState(false);
   const ahead = useCoralAhead("found");
   useFoundTold(found.rows.length > 0 || !!broke);
@@ -292,19 +309,7 @@ export function AskFound({ wide }: { wide: boolean }) {
         <h2 className="tz-sec-title" id="today-found-title">
           {F.title}
         </h2>
-        {found.more ? (
-          <Button
-            variant="quiet"
-            size="text"
-            className="tz-found-more"
-            aria-expanded={everyRow}
-            onClick={() => setEveryRow(!everyRow)}
-            data-testid="today-found-more"
-          >
-            {everyRow ? F.fewer : F.more(found.more)}
-            <Icon name="chevron-down" size={12} />
-          </Button>
-        ) : null}
+        {moreDoor(found.more, everyRow, () => setEveryRow(!everyRow))}
       </div>
       {broke ? (
         <FailedRead

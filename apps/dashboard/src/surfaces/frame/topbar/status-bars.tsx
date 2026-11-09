@@ -15,7 +15,8 @@ import {
   todayVisitsSub,
   type CalendarLike,
 } from "@chanlytics/contracts";
-import { askCalls, hearAskHeld, routeDoor } from "../../frame-verbs";
+import { askCalls, routeDoor } from "../../frame-verbs";
+import { hearAskHeld } from "../../frame-doors";
 import { surfaceValue } from "../../surface-values";
 import { visitWordHere } from "../../workspace-word";
 import { frameChrome, frameGlyph, frameSurfaceHook } from "../frame-window";
@@ -129,7 +130,7 @@ const NOT_BRIEFING = () => "idle" as const;
  * call going on outranks it (the live bar has the place: components.css) and ends it: two things never talk at once, and
  * the call is the one that cannot wait.
  */
-export function BriefBar() {
+export function BriefPlaying() {
   const Glyph = frameGlyph();
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useLiveRead();
@@ -150,19 +151,19 @@ export function BriefBar() {
     return () => window.clearInterval(t);
   }, [speaking]);
   if (!speaking || callUp) return null;
-  const L = TODAY_PHONE_WORDS.listen;
+  const words = TODAY_PHONE_WORDS.listen;
   return (
     <button
       type="button"
       className="brief-bar"
       onClick={() => askCalls()?.stopSpeaking?.()}
-      aria-label={L.stop}
+      aria-label={words.stop}
       data-testid="brief-bar"
     >
       <span className="live-bar-wave" aria-hidden="true">
         {LIVE_WAVE}
       </span>
-      <span className="brief-bar-text">{L.brief}</span>
+      <span className="brief-bar-text">{words.brief}</span>
       <span className="brief-bar-clock tabular">{mmss(Math.max(0, Date.now() - startedAt.current))}</span>
       <Glyph name="stop" size={11} />
     </button>

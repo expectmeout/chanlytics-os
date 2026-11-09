@@ -170,7 +170,7 @@ stays.
 ## Amended 8 November 2026 · Calm days, and every press goes somewhere
 
 Listen is a circle the bell's size beside it on a phone, only where the brief has news; while it plays a capsule stands in the
-date's place on every page, whose press stops it, and a call going on outranks and ends it (`BriefBar`). With nobody waiting
+date's place on every page, whose press stops it, and a call going on outranks and ends it (`BriefPlaying`). With nobody waiting
 the head says what is listening on any day, and "That's everyone" only once the member has cleared rows today. Older has no say
 in the page: no coral, no part in whether Ask found leads, and alone it stands at the page's end; one person is their own row,
 which opens, and a toll-free number says so. A folded setup card keeps its next step. A day the business is closed with nothing

@@ -159,17 +159,21 @@ test("Mark done refused says why and the row stays to be pressed again", async (
 test("Ask is asked for an old row's draft only as it is opened: most are let go unread, and a draft is a model's turn", async () => {
   atWidth(true);
   setSurfaceValue("reply_drafts", undefined);
-  setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz", { prepared: null })]));
+  // One who waits now beside the old one: the ask this waits on names them alone.
+  const now = row("w1", "Rosa Diaz", { prepared: null, waitedMs: 3_600_000 });
+  setSurfaceValue("today", dayWith([now, old("o1", "Dana Ruiz", { prepared: null })]));
   wire.length = 0;
   draw(NeedYou);
-  await new Promise((r) => setImmediate(r));
-  assert.equal(
-    wire.filter((w) => w.path === "/api/v1/conversations/drafts").length,
-    0,
+  const drafts = () => wire.filter((w) => w.path === "/api/v1/conversations/drafts");
+  await until(() => drafts().length > 0, "the drafts asked for");
+  assert.deepEqual(
+    drafts().flatMap((w) => new URLSearchParams(w.query).get("ids")?.split(",") ?? []),
+    ["cv-w1"],
     "REGRESSION: a phone asked for a draft nobody could open",
   );
   atWidth(false);
   setSurfaceValue("today", undefined);
+  delete W.__REPLIES;
   unmount();
 });
 

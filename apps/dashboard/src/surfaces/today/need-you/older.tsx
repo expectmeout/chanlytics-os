@@ -30,14 +30,14 @@ function OlderPerson({ row, ctx }: { row: TodayQueueRowVM; ctx: NeedYouRowsCtx }
     setBusy(true);
     // Kept before the door is asked: its refresh drops the hold from the read, and the row must stay to say so.
     ctx.keep(row);
-    const h = await handBackAll([row]);
+    const back = await handBackAll([row]);
     setBusy(false);
-    if (!h.done) {
+    if (!back.done) {
       ctx.unkeep(row);
-      ctx.flash({ tone: "danger", msg: <>{handedBackWords(h)}</> });
+      ctx.flash({ tone: "danger", msg: <>{handedBackWords(back)}</> });
       return;
     }
-    setHanded(h);
+    setHanded(back);
   };
   const undoIt = handed?.undo;
   const undo = undoIt
@@ -114,10 +114,10 @@ function OlderSummary({
   const may = rows.some((r) => !!r.conversationId) && ctx.may;
   const markAll = async () => {
     setBusy(true);
-    const h = await handBackAll(rows);
+    const back = await handBackAll(rows);
     setBusy(false);
-    if (!h.done) return ctx.flash({ tone: "danger", msg: <>{handedBackWords(h)}</> });
-    onHanded(handed ? handedBoth(handed, h) : h);
+    if (!back.done) return ctx.flash({ tone: "danger", msg: <>{handedBackWords(back)}</> });
+    onHanded(handed ? handedBoth(handed, back) : back);
   };
   const undoAll = handed?.undo;
   const undo = undoAll

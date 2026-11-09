@@ -1785,7 +1785,7 @@ test("the head's Listen reads the brief's words in Ask's voice, says it is getti
     assert.equal(textOf(loading), textOf(listen), "its words as they were, so nothing beside it moves");
     s.land();
     await settled();
-    assert.equal(headListen(), null, "it plays: the header's capsule has it, whose press is the Stop (BriefBar)");
+    assert.equal(headListen(), null, "it plays: the header's capsule has it, whose press is the Stop (BriefPlaying)");
     s.stub.stopSpeaking();
     assert.ok(headListen(), "stopped, Listen is back");
     assert.equal(s.spoken.length, 1, "and asked for nothing more");

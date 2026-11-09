@@ -240,3 +240,19 @@ export const routeDoor = (to: string, go: ((to: string) => void) | null = null):
     onFocus: warm,
   };
 };
+
+/** Who hears Ask's calls arrive: the frame is drawn before the bridge installs them (holdAsk, frame-verbs.ts). */
+const askHearers = new Set<() => void>();
+
+/** Ask's calls are in, or gone: everyone hearing is told. */
+export function tellAskHeld(): void {
+  askHearers.forEach((hear) => hear());
+}
+
+/** Hear Ask's calls arrive, as a capsule that watches Ask's voice has nothing to watch until they are in; answers the stop. */
+export function hearAskHeld(hear: () => void): () => void {
+  askHearers.add(hear);
+  return () => {
+    askHearers.delete(hear);
+  };
+}

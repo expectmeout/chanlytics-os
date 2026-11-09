@@ -24,24 +24,27 @@ import { ReplyWork, useMarkDone, useNotNow, type Snoozed } from "./reply-work";
 import { useRowState } from "./row-state";
 
 /** How the call went, asked once it was made: reached them, no answer, or it was never made. Called, not drawn. */
-function howItWent(p: { onReached: () => void; onNoAnswer: () => void; onDidNot: () => void }) {
+function howItWent(presses: { onReached: () => void; onNoAnswer: () => void; onDidNot: () => void }) {
   return (
     <>
       <Note>{W.call.how}</Note>
       <div className="ny-picks">
-        <Button onClick={p.onReached} {...gate("approve", "hand the thread back")}>
+        <Button onClick={presses.onReached} {...gate("approve", "hand the thread back")}>
           {W.call.reached}
         </Button>
-        <Button onClick={p.onNoAnswer} {...gate("approve", "set a step")}>
+        <Button onClick={presses.onNoAnswer} {...gate("approve", "set a step")}>
           {W.call.noAnswer}
         </Button>
-        <Button variant="quiet" onClick={p.onDidNot}>
+        <Button variant="quiet" onClick={presses.onDidNot}>
           {W.call.didNot}
         </Button>
       </div>
     </>
   );
 }
+
+/** One that has waited past a week says first it may be let go. Called, not drawn. */
+const staleNote = (waitedMs: number) => (waitedMs >= NEED_YOU_OLD_MS ? <Note>{W.staleCall}</Note> : null);
 
 /** A call back: Ask's brief, Call, then how it went. One that has waited past a week says first it may be let go. */
 export function CallWork(p: WorkProps) {
@@ -149,7 +152,7 @@ export function CallWork(p: WorkProps) {
     });
   return (
     <>
-      {row.waitedMs >= NEED_YOU_OLD_MS ? <Note>{W.staleCall}</Note> : null}
+      {staleNote(row.waitedMs)}
       {draft?.state === "ready" && draft.draft.words.brief ? (
         <BriefBox brief={draft.draft.words.brief} onRead={p.read} />
       ) : draft?.state === "writing" ? (

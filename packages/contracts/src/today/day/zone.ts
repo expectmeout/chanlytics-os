@@ -266,6 +266,31 @@ function closedTodayNote(tomorrowClosed: boolean, counted: string, nextOpening: 
   return P.tomorrowHolds(counted);
 }
 
+/** The zone's name and what stands beside it: today's, tomorrow's, or a closed day's, which says what comes next. */
+function zoneHeadOf(
+  turned: {
+    today: TodayDayVM["frames"][number];
+    frame: TodayDayVM["frames"][number];
+    tomorrow: boolean;
+    closedToday: boolean;
+  },
+  day: TodayDayVM,
+  anOpenLine: boolean,
+): { title: string; note: string } {
+  const { today, frame, tomorrow, closedToday } = turned;
+  const words = appointmentWords(day.word);
+  const count = frame.items.length + frame.more - frame.missed;
+  const counted = count ? `${count} ${count === 1 ? words.one : words.many}` : "";
+  if (closedToday) {
+    const note = [today.closed.note, closedTodayNote(frame.closed.yes, counted, day.nextOpening)];
+    return { title: P.closedToday, note: note.filter(Boolean).join(" · ") };
+  }
+  // Tomorrow with nothing booked says so once, in its open hour's line ("Nothing booked yet"): its head said "No
+  // meetings" over it (the phone pass, 3 Nov 2026). A day with no open hour either keeps the head's words.
+  if (tomorrow) return { title: P.tomorrow, note: counted || (anOpenLine ? "" : `No ${words.many}`) };
+  return { title: P.day, note: todayDayNote(frame, day.nextOpening, day.word) };
+}
+
 /**
  * Today's second zone (Today in three zones, 2 Nov 2026): what's ahead first. The visit under way or next and the one
  * after, each with one fact of who is coming; the bar with now on it; then, at their times, the visits after them, who
@@ -304,17 +329,12 @@ export function todayZoneDay(
     ...(tomorrow && !closedToday ? [] : backLinesOf(back, tz, nowMs, todayFrame.key)),
     ...openLinesOf(raw, { now: cal.now, tomorrow, slot: cal.offer?.slot ?? 0 }, words, day.freedCandidates ?? null),
   ].sort((a, b) => a.at - b.at);
-  const count = frame.items.length + frame.more - frame.missed;
-  const counted = count ? `${count} ${count === 1 ? words.one : words.many}` : "";
   return {
-    title: closedToday ? P.closedToday : tomorrow ? P.tomorrow : P.day,
-    note: closedToday
-      ? [today.closed.note, closedTodayNote(frame.closed.yes, counted, day.nextOpening)].filter(Boolean).join(" · ")
-      : // Tomorrow with nothing booked says so once, in its open hour's line ("Nothing booked yet"): its head said "No
-        // meetings" over it (the phone pass, 3 Nov 2026). A day with no open hour either keeps the head's words.
-        tomorrow
-        ? counted || (lines.some((l) => l.open) ? "" : `No ${words.many}`)
-        : todayDayNote(frame, day.nextOpening, day.word),
+    ...zoneHeadOf(
+      { today, frame, tomorrow, closedToday },
+      day,
+      lines.some((l) => l.open),
+    ),
     tomorrow,
     closedToday,
     cells,
