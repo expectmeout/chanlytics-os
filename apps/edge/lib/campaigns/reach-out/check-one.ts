@@ -48,7 +48,7 @@ import {
   textOrEmpty,
   valueAt,
 } from "@chanlytics/contracts";
-import { findWorkspaceAbout, findWorkspaceNameAndConfig, type ReachOutRecordRow } from "@chanlytics/db/campaigns";
+import { findWorkspaceNameAndConfig, findWorkspaceWords, type ReachOutRecordRow } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { askJson, type JsonAnswer, type ModelCallFor } from "../../ai/model.js";
 import { siteWordsOf } from "@chanlytics/core";
@@ -413,12 +413,12 @@ export interface CheckWorkspace {
 }
 
 export async function checkWorkspaceOf(db: Db, tenantId: TenantId): Promise<CheckWorkspace> {
-  const [w, about] = await Promise.all([findWorkspaceNameAndConfig(db, tenantId), findWorkspaceAbout(db, tenantId)]);
+  const [w, ownWords] = await Promise.all([findWorkspaceNameAndConfig(db, tenantId), findWorkspaceWords(db, tenantId)]);
   const config = parseTenantConfig(w.config);
   const brain = config?.brain;
   const name = w.name?.trim() || null;
   return {
-    opening: openingWorkspaceOf(name ?? "", config, about),
+    opening: openingWorkspaceOf(name ?? "", config, ownWords?.text ?? null),
     businessName: name,
     address: brain?.profile?.address?.trim() || null,
     bookingLink: brain?.booking_link?.trim() || null,

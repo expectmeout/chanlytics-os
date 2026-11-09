@@ -12,6 +12,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { ownerSaid } = await import("../../../apps/dashboard/src/server/drafts/sequence.ts");
 const { checkWorkspaceOf } = await import("../../../apps/edge/lib/campaigns/reach-out/check-one.ts");
+const { writerLines } = await import("../../../apps/dashboard/src/server/leads/draft.ts");
 
 const T = "11111111-1111-4111-8111-111111111111";
 const said = (known) => ownerSaid(known).filter(Boolean);
@@ -66,6 +67,28 @@ test("the opening writer reads the offer where the owner wrote one, else what th
   assert.deepEqual(after.opening, { name: "Brightline Cleaning", what_we_do: "Evening cleaning", tone: "Direct" });
   const goal = await checkWorkspaceOf(workspaceDb({ brain: brainWith({}), ask: { goal: "Twenty clients" } }), T);
   assert.equal(goal.opening.what_we_do, null, "a goal is not what they do");
+});
+
+test("with nothing written, the opening writer reads what the first run's website read found", async () => {
+  const db = fakeDb({
+    tenants: [{ id: T, name: "Brightline Cleaning" }],
+    tenant_config: [{ tenant_id: T, config: { brain: brainWith({}) } }],
+    business_records: [],
+    business_reads: [
+      { tenant_id: T, source: "website", facts: { description: "Evening cleaning for clinics." }, error: null },
+    ],
+  });
+  assert.equal((await checkWorkspaceOf(db, T)).opening.what_we_do, "Evening cleaning for clinics.");
+});
+
+test("one lead's draft reads the owner's offer, else what the business says of itself, as data, and never both", () => {
+  assert.deepEqual(writerLines({}, "Evening cleaning for clinics."), [
+    "What the business does, in its own words: <record>Evening cleaning for clinics.</record>",
+  ]);
+  assert.deepEqual(writerLines({ reach_out: { offer: "We clean clinics." } }, "Evening cleaning for clinics."), [
+    "What it offers them: <record>We clean clinics.</record>",
+  ]);
+  assert.deepEqual(writerLines({}, null), []);
 });
 
 test("the sender's workspace carries Sign-off's signature with its phone, and none where the rows are empty", async () => {

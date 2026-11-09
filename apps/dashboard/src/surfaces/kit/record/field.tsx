@@ -17,8 +17,9 @@
  * chip, the app's own dark tooltip on a mark; RecordTipCard is the white card, for a tip that carries an act (named
  * apart from .rec-card, the card a page's rows sit in).
  */
-import { useId } from "react";
+import { useId, useRef } from "react";
 import type { ChangeEvent, ComponentPropsWithoutRef, KeyboardEvent, MouseEvent, ReactNode } from "react";
+import { useGrowAsTyped } from "../field/grow-as-typed";
 import { FieldError } from "../field-error/field-error";
 import { Icon } from "../icon/icon";
 import { can, pickAll } from "./dom";
@@ -40,6 +41,11 @@ interface RecordFieldProps extends BoxRest {
   hint?: ReactNode;
   problem?: ReactNode;
   rows?: number | null;
+  /**
+   * A box of `rows` that grows with its words (kit.css .rec-input-grows): what is written is all on screen, up to half
+   * of it, with no grip to drag, which a finger cannot.
+   */
+  grows?: boolean;
   testid?: string | null;
   /** A press inside the box's end, that acts on what was typed (Say it's Fill). */
   action?: ReactNode;
@@ -85,6 +91,7 @@ const REC_FIELD_OWN = new Set([
   "hint",
   "problem",
   "rows",
+  "grows",
   "testid",
   "action",
   "children",
@@ -97,6 +104,23 @@ function boxRest(props: object, own: Set<string>): Record<string, unknown> {
   return rest;
 }
 
+/** What a box that grows with its words asks of its field (`grows`): its ref and its class; nothing, for any other. */
+function useGrowingBox(grows: boolean, words: string | number | null | undefined) {
+  const box = useRef<HTMLTextAreaElement>(null);
+  useGrowAsTyped(box, grows ? String(words ?? "") : "");
+  return grows ? { ref: box, className: "rec-input-grows" } : { ref: undefined, className: null };
+}
+
+/** What stands under a box: what is wrong with it, which a hint gives way to. */
+function fieldUnder(o: { problem: ReactNode; problemId: string; hint: ReactNode; hintId: string }) {
+  if (o.problem) return <FieldError id={o.problemId} message={o.problem} />;
+  return o.hint ? (
+    <span className="rec-hint" id={o.hintId}>
+      {o.hint}
+    </span>
+  ) : null;
+}
+
 /**
  * A field: a label that holds its box, and under it a hint or what is wrong. With an `action` (Say it's Fill) the press
  * stands inside the box's end; the label then names the box by its id, since a label may hold no second control.
@@ -104,6 +128,7 @@ function boxRest(props: object, own: Set<string>): Record<string, unknown> {
 export function RecordField(props: RecordFieldProps) {
   const { id, label, value, onChange, unit = null, hint = null, problem = null, rows = null, testid = null } = props;
   const action = props.action ?? null;
+  const growing = useGrowingBox(!!props.grows && !!rows, value);
   const autoId = useId();
   const rest = boxRest(props, REC_FIELD_OWN);
   const fieldId = id || autoId;
@@ -112,7 +137,7 @@ export function RecordField(props: RecordFieldProps) {
   const describedBy = [problem ? problemId : hint ? hintId : null, rest["aria-describedby"]].filter(Boolean).join(" ");
   const box = {
     ...rest,
-    className: ["rec-input", rest.className].filter(Boolean).join(" "),
+    className: ["rec-input", growing.className, rest.className].filter(Boolean).join(" "),
     value: value == null ? "" : value,
     onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       if (onChange) onChange(e.target.value);
@@ -122,14 +147,8 @@ export function RecordField(props: RecordFieldProps) {
   };
   // The box takes the field's id only where a label beside it names it by that id (an `action`): elsewhere the label holds it.
   const named = action ? { ...box, id: fieldId } : box;
-  const control = rows ? <textarea rows={rows} {...named} /> : <input type="text" {...named} />;
-  const under = problem ? (
-    <FieldError id={problemId} message={problem} />
-  ) : hint ? (
-    <span className="rec-hint" id={hintId}>
-      {hint}
-    </span>
-  ) : null;
+  const control = rows ? <textarea rows={rows} ref={growing.ref} {...named} /> : <input type="text" {...named} />;
+  const under = fieldUnder({ problem, problemId, hint, hintId });
   if (action)
     return (
       <div className="rec-field" data-testid={testid || undefined}>

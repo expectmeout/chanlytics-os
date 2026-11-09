@@ -4,6 +4,7 @@
 export { getPeopleCount, importPerson, keepBefore, recordPersonBeforeNote } from "./before";
 export type { BeforeKept, BeforeMessage } from "./before";
 export {
+  findBusinessDescription,
   findLinkedPlace,
   findListingFactsStored,
   keepBusinessRead,

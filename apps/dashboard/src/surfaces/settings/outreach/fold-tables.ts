@@ -38,8 +38,9 @@ const textFold = (fold: ReachOutFoldName) => (_profile: unknown, _brain: unknown
   textOrEmpty(reachOutKey(config, fold));
 
 /**
- * What each opens with: what the section holds, never a fallback. A row at rest says what a writer reads where nothing
- * is set (contracts reachOutOfferOf and its kin); a fold that opened on the fallback would save it as the owner's own words.
+ * What each holds: what the section holds, never a fallback. A row at rest says what a writer reads where nothing is
+ * set (contracts reachOutOfferOf and its kin), and its box opens on those words (BtFold's `opensOn`, box.tsx), which a save
+ * stores only once they are changed: the save is judged against this, so an unchanged box is no change.
  */
 const DRAFT_OF: {
   [F in ReachOutFoldName]: (profile: unknown, brain: unknown, config: Config) => DraftOf[F];

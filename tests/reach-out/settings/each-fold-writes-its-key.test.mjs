@@ -99,9 +99,9 @@ test("the section goes with its last key, and the brain stays", () => {
   assert.deepEqual(next.brain, STORED.brain);
 });
 
-test("a fold opens on what the section holds, never on what a writer reads in its place", () => {
-  // The receptionist's tone is what a cold email reads with no tone of its own; opened on it, a save would store it as
-  // the owner's words for cold email.
+test("a fold's draft is what the section holds, never what a writer reads in its place", () => {
+  // The receptionist's tone is what a cold email reads with no tone of its own. The page's box opens on it (the-page.test),
+  // and the save is judged against this: it stores those words only once they are changed.
   const bare = { brain: STORED.brain };
   for (const fold of FOLDS) assert.deepEqual(S.draftOf(fold, bare), fold === "proof" ? [] : "", fold);
 });
@@ -112,12 +112,21 @@ test("a box refuses what the save refuses, under its own field, in the save's se
   });
   assert.deepEqual(S.saveProblems("sign_phone", {}, "(512) 555-0142"), {});
   assert.deepEqual(S.saveProblems("signature", {}, "Maya\nbrightline.example.com").signature !== undefined, true);
-  assert.deepEqual(S.saveProblems("offer", {}, "x".repeat(301)), { offer: "Keep it under 300 characters." });
+  assert.deepEqual(S.saveProblems("offer", {}, "x".repeat(2001)), { offer: "Keep it under 2,000 characters." });
 });
 
 test("a claim's refusal is said under the row it was typed in, with an empty row above it", () => {
-  assert.deepEqual(S.saveProblems("proof", {}, ["", "x".repeat(141)]), { "claim-1": "Keep it under 140 characters." });
-  assert.deepEqual(S.saveProblems("proof", {}, ["1", "2", "3", "4", "5", "6"]), { proof: "Up to 5 claims." });
+  assert.deepEqual(S.saveProblems("proof", {}, ["", "x".repeat(201)]), { "claim-1": "Keep it under 200 characters." });
+  assert.deepEqual(
+    S.saveProblems(
+      "proof",
+      {},
+      Array.from({ length: 11 }, (_, i) => String(i)),
+    ),
+    {
+      proof: "Up to 10 claims.",
+    },
+  );
 });
 
 test("a row saved on the page and the same change on Ask's card store one section", () => {

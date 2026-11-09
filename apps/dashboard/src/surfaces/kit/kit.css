@@ -3077,6 +3077,13 @@ textarea.rec-input {
   line-height: var(--leading-normal);
   resize: vertical;
 }
+/* A box of sentences that grows with its words (RecordField `grows`): what is written is all on screen, up to half of it,
+   with no grip to drag, which a finger cannot. Where the browser cannot size a box by its words, useGrowAsTyped does. */
+textarea.rec-input.rec-input-grows {
+  max-height: 50dvh;
+  resize: none;
+  field-sizing: content;
+}
 /* Sentences said in place (a reply drafted in its row, Today's Need you; the refined canvas, 31 Oct 2026): the words
    are the page's own, in its own type, and the box is the field's panel they stand in (.panel-field), so beginning to
    type moves nothing. No hairline, padding, fill or handle of its own, and as tall as its words: no scroll inside it.

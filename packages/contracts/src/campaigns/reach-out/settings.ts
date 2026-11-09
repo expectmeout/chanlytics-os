@@ -4,8 +4,9 @@
  * read are here, so the page and Ask say one thing. Apart, since a contracts module rides whole into every page that
  * imports it: a lead's card reads the signature, and needs none of the page's words.
  */
-import type { ReplyOffer } from "../../config/workspace-config/config-rules";
+import { REACH_OUT_LIMITS, type ReplyOffer } from "../../config/workspace-config/config-rules";
 import { MAILBOX_RAMP } from "../../email/mailbox-standing";
+import type { BusinessReadSource } from "../../imports/business-reads";
 import { mayDraftReply } from "./reply-draft";
 import { REACH_OUT_REPLY_DAYS } from "./replies/intents";
 import { SEND_DAY_FRAME } from "./timetable";
@@ -88,10 +89,18 @@ export function replyModeHint(mode: string): string | null {
   return mayDraftReply(mode) ? "Drafted while Autonomy › Replies is on. Only you send it." : null;
 }
 
-/** Every word the page says that is not a row's own value (the canvas, Version 3). */
+/**
+ * Every word the page says that is not a row's own value (the canvas, Version 3). What a box shows while it is empty
+ * says what to put there: never a made-up business's answer, which reads as if it were already filled in, and goes as
+ * the first key is pressed.
+ */
 export const REACH_OUT_SETTINGS_WORDS = {
   tab: "How it reaches out",
   gap: "Add what you offer, so cold emails have something to say",
+  /** A press that puts what is already known in an empty box. Never put there by itself: Save would store it. */
+  fillWith: (known: string) => `Use ${known}`,
+  /** How much of a box is used, said only as it nears its limit. */
+  room: (used: number, max: number) => `${used.toLocaleString("en-US")} of ${max.toLocaleString("en-US")}`,
   offer: {
     title: "What you offer",
     sub: "What every first email is about",
@@ -99,12 +108,17 @@ export const REACH_OUT_SETTINGS_WORDS = {
     whoFor: "Who it's for",
     fixes: "What you fix for them",
     empty: "Not set",
-    fromAbout: "Read from what your business does, until you write it here.",
-    fromGoal: "Read from your goal on Details, until you write it here.",
+    /** Where the words a row shows in place of the owner's came from (ReachOutSettingsDto.about_from, else the goal). */
+    from: {
+      record: "Read from what your business does, until you write it here.",
+      website: "Read from your website, until you write it here.",
+      google_profile: "Read from your Google profile, until you write it here.",
+      goal: "Read from your goal on Details, until you write it here.",
+    },
     placeholders: {
-      offer: "After-hours cleaning for dental offices, so every morning starts spotless.",
-      whoFor: "Dental and medical clinics in Austin",
-      fixes: "Cleaners who come in during opening hours, or miss rooms",
+      offer: "What you sell, and what a business gets from it",
+      whoFor: "The kind of business you want to reach, and where",
+      fixes: "The problem they have that you solve",
     },
   },
   proof: {
@@ -112,7 +126,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     sub: "The only claims it may make about you",
     add: "Add a claim",
     foot: "One per email, word for word. It never makes one up.",
-    placeholder: "We clean 40 clinics across Austin today.",
+    placeholder: "Something true you can back up: a result, a number, a client",
     claim: (n: number) => `Claim ${n}`,
     remove: (n: number) => `Remove claim ${n}`,
     count: (sends: number) => (sends > 0 ? `In ${sends} email${sends === 1 ? "" : "s"}` : "Not used yet"),
@@ -121,7 +135,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     title: "How it writes",
     sub: "Your voice in cold emails",
     tone: "Tone",
-    tonePlaceholder: "Direct and friendly, no small talk",
+    tonePlaceholder: "How your emails should sound, in a few words",
     toneHint: "Cold emails only. How it answers keeps its own.",
     toneFrom: "The receptionist's, until you set one for cold emails.",
     voice: "How you write",
@@ -139,7 +153,12 @@ export const REACH_OUT_SETTINGS_WORDS = {
     signatureNone: "Not added",
     signature: "Signature",
     signatureHint: "Under its name, in every email Chanlytics sends. One you send yourself gets your mail app's.",
-    placeholders: { signedBy: "Maya", signature: "Maya Ortiz, Owner, Brightline Cleaning", phone: "(512) 555-0148" },
+    signatureRule: `Up to ${REACH_OUT_LIMITS.signatureLines} lines, no links.`,
+    placeholders: {
+      signedBy: "The name at the end of the email",
+      signature: "Your name, your role, your business",
+      phone: "A number people can reach you on",
+    },
     phone: "Phone in the signature",
     phoneNone: "Not added",
     foot: "At the bottom",
@@ -260,6 +279,19 @@ export interface ReachOutSettingsDto {
   sequence: ReachOutSettingsSequence | null;
   /** Autonomy's reply mode, which a reach-out's draft follows (drafts/writer.ts gateOf). */
   reply_mode: string;
-  /** What the business does, in its own words (business_records.about): what a cold email offers until the owner says. */
+  /**
+   * What the business does, in its own words, as every writer of a cold email reads it (db findWorkspaceWords): what a
+   * cold email offers until the owner says, and where it came from: what they wrote of themselves, else what their
+   * Google profile or their website says.
+   */
   about: string | null;
+  about_from: "record" | BusinessReadSource | null;
+  /** What the page can put in an empty box with one press, each null where it is not known. */
+  known: {
+    /** The member's name as they gave it, and the first of it, as New signs a sequence with. */
+    name: string | null;
+    first_name: string | null;
+    /** The name of the workspace's newest search: who it has been looking for. */
+    newest_search: string | null;
+  };
 }

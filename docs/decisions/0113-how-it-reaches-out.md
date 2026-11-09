@@ -24,7 +24,7 @@ The name a sequence signs with was typed on each one. And a number about the own
 1. **One page, under Receptionist, beside How it answers:** `admin/outreach`, a fourth part of the business's record, so each row is a fold of the
    one record saved through Settings' one saver. Its cards: What you offer, Proof you stand behind, How it writes, Sign-off, Where it sends from,
    When a lead writes back, Rules it always keeps, What it's told, Try it on a lead.
-2. **One section of the config, `reach_out`** (never `outreach`, Autonomy's policy class): offer, who it's for, what it fixes, proof (up to five
+2. **One section of the config, `reach_out`** (never `outreach`, Autonomy's policy class): offer, who it's for, what it fixes, proof (up to ten
    claims), a cold email's tone, the name it signs with, a signature, a phone, and what an answer to a lead offers. One writer of a key of it
    (`writeReachOutKey`), which the page's folds and Ask's cards both write through. What it may hold is the save's rule alone (`reachOutProblems`
    in `TenantConfigWriteSchema`), so every door is held to it and each box says its sentence; the read takes any words, so a cold email's can
@@ -35,7 +35,7 @@ The name a sequence signs with was typed on each one. And a number about the own
    said not now. Sign-off's signature and phone go under the name of every email Chanlytics
    sends, through the one ending rule (`coldEndingOf`): a mailbox's own signature stands in its place where a sequence
    signs with the mailbox, and an email the owner sends from their own mail app carries none, since that app adds theirs.
-   A workspace that never opens the page is written for as before.
+   A workspace that never opens the page is written for from what is known of it (amended below).
 4. **A number Ask writes about the owner's business stands only in a claim** (or the business's name, or what it was asked from: `numberBacking`), word for word. The words the owner types
    are theirs and never judged: a step Ask drafts with an unbacked number is left for the owner to write, as a price is; a rewrite keeps the
    numbers the owner's email already said; the lead peek's draft asks once more, then refuses in words. A time claims nothing.
@@ -53,6 +53,13 @@ The name a sequence signs with was typed on each one. And a number about the own
 **The claims' counts (00567):** each claim's "In N emails" is one read of the sends, however many steps carry it (`sequence_sent_by_step`, under the
 caller's row security), where it was one count a step.
 
+**The boxes (amended 8 November 2026, Ruben's critique on a phone):** a row showed one thing and its box opened empty under a made-up business's answer.
+
+- A box opens on what its row shows (BtFold's `opensOn`): the words a writer reads where nothing is set, which are stored only once they are changed. Saved as they stand, or cleared, nothing is stored. A fold's draft stays what the section holds, and the save is judged against that.
+- An empty box says what to put there, never a made-up answer, and what is already known (the newest search, the member's name, the number on Details) is one press under it (`known` in `GET settings/reach-out`), never filled in by itself, since Save would then store it.
+- A limit is kept only for what it protects (`REACH_OUT_LIMITS`): words told to a writer as data, never printed, are guarded at 2,000 against a whole website pasted in; a claim, printed word for word, stays a sentence at 200; a signature keeps its three lines and no links, its length guarded at 300; ten claims. A box says how much of it is used only past 80% of its limit. The read has held no limit since the section began, so raising these touches nothing stored.
+- A fresh account's writers read what the first run's website read found (`findWorkspaceWords`): what the owner wrote of the business, else what its Google profile or website says of itself, then the goal. The row says where the words came from. Those are others' words, so the opening writer now fences them apart from the record, in a `<note>` on one line: never a second `<record>`, since it is told the lines inside that are the facts about the business it writes to. The mailbox's reader, which is told this in its instructions, keeps `findWorkspaceAbout`, what the owner wrote alone.
+
 ## Calls made, and how to undo them
 
 - Under Receptionist, beside How it answers. Undo: a group of its own, Outreach (one line in `settings/frame/tabs.ts`).
@@ -61,6 +68,7 @@ caller's row security), where it was one count a step.
 - The offer nudge is the page's own line, shown only where cold emails would have nothing to say of the offer; never the receptionist's gap
   line or the rail, where a business that sends no cold email would be asked on every page.
 - Their preview (decision 0079) stays the only Chanlytics-only row, on New, not here.
+- A fresh account's rows are not drafted by a model from the website read: its own description stands in, at no new cost. Undo: a one-time draft of the offer, who it is for, what it fixes and the tone, shown unsaved for the owner to take. Claims stay the owner's alone, since they go out word for word.
 
 ## Steps
 
