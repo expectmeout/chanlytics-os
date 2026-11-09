@@ -11,7 +11,6 @@ export {
   getMembershipCount,
   getTrialUse,
   listTrialingWorkspaceIds,
-  listWorkspaceIds,
   listWorkspacesWithANumberChosen,
   removePlaybook,
   setSetupChoices,

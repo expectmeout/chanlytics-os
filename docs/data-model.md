@@ -1164,8 +1164,6 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `version` | smallint | no | `1` | The version of this kind's data (packages/db events.ts, 00264): raised when a kind's shape changes, so a reader can tell an old row from a new one. 1 for every kind to date. |
 | `request_id` | text | yes | `public.request_id_of_caller()` | The request this row was written in (00277): the name withRoute, an edge door or a job gave it, the one its log lines carry. Null for a row written outside a request. |
-| `aggregate_version` | integer | yes |  | The version of the record this event is about, as the door left it (decision 0032): a projector applies a delivery only when it is newer than what it holds. Null for a kind about nothing mutable, and for every row written before 00334. |
-| `causation_id` | uuid | yes |  | The event this one was written in answer to, where a reaction wrote it (decision 0032). Null for a fact that arrived from outside, and for every row written before 00334. |
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
@@ -3608,7 +3606,6 @@ One row per pg_cron -> pg_net sweep: the last request id (joins net._http_respon
 | `requested_at` | timestamp with time zone | yes |  |  |
 | `note` | text | yes |  | Set when the trigger could not send at all (missing Vault secret). Cleared by the next tick that either sends successfully or finds nothing to send. Distinct from a failed RESPONSE, which has no note and a status_code. |
 | `alerted_at` | timestamp with time zone | yes |  | Suppression stamp, set only after an alert was actually DELIVERED, cleared on recovery. |
-| `backlog_ticks` | integer | no | `0` | Consecutive ticks this sweep finished with work still queued. Reset to 0 the moment it drains. At 3 the sweep answers 503, which turns it red in sweep_health and mails the platform. |
 | `jobname` | text | yes |  | The cron.job this clock is. Null means unregistered, which sweep_health() reports as unhealthy. |
 | `max_silence` | interval | yes |  | How long the clock may go without speaking (a request enqueued, or a run that succeeded) before it is unhealthy. Null: silence is not a fault; only the last answer is judged. |
 | `judged_by` | text | no | `'request'::text` | request: judged on the HTTP request it enqueued and what the edge answered. run: judged on cron.job_run_details, for the jobs that never leave the database. |

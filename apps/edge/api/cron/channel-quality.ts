@@ -25,9 +25,8 @@
  * cannot be read. Its lines carry `sweep: "channel_quality"`, and the tick ends in one channel_quality_swept.
  */
 import { json, refuse } from "../../lib/shared/http.js";
-import { authorizeCron } from "../../lib/shared/cron-auth.js";
-import { pg } from "../../lib/shared/pg.js";
-import { logger, errField, door } from "../../lib/shared/log.js";
+import { errField } from "../../lib/shared/log.js";
+import { sweepDoor } from "../../lib/ops/sweep-door.js";
 import { readNumberQualities } from "../../lib/whatsapp/number-quality.js";
 
 /**
@@ -36,26 +35,19 @@ import { readNumberQualities } from "../../lib/whatsapp/number-quality.js";
  */
 export const YIELD_AT_MS = 30_000;
 
-export const POST = door(async function POST(request: Request): Promise<Response> {
-  // The budget's clock, from the first line: the door's own reads and a cold start are inside the limit too.
-  const started = Date.now();
-  const log = logger({ sweep: "channel_quality" });
-  const db = pg();
-  if (!db) {
-    log.error("channel_quality_no_db");
-    return refuse(503, "no_database");
-  }
-  const denied = await authorizeCron(request, db, log);
-  if (denied) return denied;
-  try {
-    const out = await readNumberQualities({ db, log: log, now: Date.now, started, yieldAtMs: YIELD_AT_MS });
-    // The count the answer calls no_token is logged as `tokenless`: the logger redacts a key that ends in `token`.
-    const { no_token: tokenless, ...counts } = out;
-    log.info("channel_quality_swept", { ...counts, tokenless });
-    return json(200, { ok: true, ...out });
-  } catch (e) {
-    // The channels could not be read: nothing was asked of Meta, and sweep_health turns the 503 red.
-    log.error("channel_quality_unreadable", { error: errField(e) });
-    return refuse(503, "no_database");
-  }
-});
+export const POST = sweepDoor(
+  { sweep: "channel_quality", noDbEvent: "channel_quality_no_db" },
+  async ({ db, L: log, started }) => {
+    try {
+      const out = await readNumberQualities({ db, log, now: Date.now, started, yieldAtMs: YIELD_AT_MS });
+      // The count the answer calls no_token is logged as `tokenless`: the logger redacts a key that ends in `token`.
+      const { no_token: tokenless, ...counts } = out;
+      log.info("channel_quality_swept", { ...counts, tokenless });
+      return json(200, { ok: true, ...out });
+    } catch (e) {
+      // The channels could not be read: nothing was asked of Meta, and sweep_health turns the 503 red.
+      log.error("channel_quality_unreadable", { error: errField(e) });
+      return refuse(503, "no_database");
+    }
+  },
+);

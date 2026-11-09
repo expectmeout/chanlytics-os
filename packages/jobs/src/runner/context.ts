@@ -3,7 +3,16 @@
  * from handlers.ts (Reach out Part 2.5), which re-exports its public names.
  */
 import type { ReceivedEmail } from "@chanlytics/channels/email";
-import type { FeedNames, FreedTimeOffer, JobKind, JobNews, PushMessage, Unread, TenantId } from "@chanlytics/contracts";
+import type {
+  FeedNames,
+  FreedTimeOffer,
+  JobKind,
+  JobNews,
+  JobPayload,
+  PushMessage,
+  Unread,
+  TenantId,
+} from "@chanlytics/contracts";
 import type {
   BookingNoticePorts,
   EmailIngestPorts,
@@ -13,7 +22,7 @@ import type {
   ReplyReadPorts,
   Wire,
 } from "@chanlytics/core";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DbFailure } from "@chanlytics/contracts";
 
@@ -145,6 +154,8 @@ export interface JobContext {
      * ask. Throws when the feed cannot be read: a reminder for a calendar event waits for the next batch (core broadcast).
      */
     feedNames: (tenantId: TenantId, now: Date) => Promise<FeedNames | null>;
+    /** A workspace's calendar read and kept (00569, decision 0115): calendar_read. Throws when its page cannot be read. */
+    read?: (job: ClaimedJob) => Promise<{ read: unknown } | { skipped: string }>;
   };
   /**
    * The lead finder's pipeline (00140), as the edge holds it. INJECTED like
@@ -241,6 +252,19 @@ export interface JobContext {
    * model's key and the workspace's spend live there. INJECTED like the importer; a website_read job in a runtime
    * without it fails loudly.
    */
+  campaigns?: {
+    /** A workspace's due moments, read and run together; none started after `deadline`. Throws when its page cannot be read. */
+    moments: (job: ClaimedJob, deadline: number) => Promise<unknown>;
+    /** A workspace's due reach-out steps; none started after `deadline`. Throws when its page cannot be read. */
+    steps: (job: ClaimedJob, deadline: number) => Promise<unknown>;
+  };
+  /**
+   * A workspace's Google listings and connected profile read, as the edge holds the keys (00569, decision 0115). INJECTED; a
+   * google_read job in a runtime without it fails loudly.
+   */
+  google?: {
+    read: (job: ClaimedJob, deadline: number) => Promise<{ read: unknown } | { skipped: string }>;
+  };
   website?: {
     /** The site read and its facts kept (business_reads); no call starts after `deadline`. Throws on a failed read. */
     read: (job: ClaimedJob, deadline: number) => Promise<void>;
@@ -284,12 +308,16 @@ export interface JobContext {
    * Schedule a job of this tenant — how a broadcast continues itself, one
    * batch after another, through the same door the dashboard uses.
    */
-  schedule: (kind: JobKind, dueAt: Date, payload: Json) => Promise<void>;
+  schedule: <K extends JobKind>(kind: K, dueAt: Date, payload: JobPayload<K>) => Promise<void>;
   /**
    * Schedule a job of this tenant that the ledger holds at most one of per subject (scheduleJobOnce: a unique index on
    * its payload, as reply_read's jobs_reply_read_once). A second one is answered already_scheduled, never thrown.
    */
-  scheduleOnce: (kind: JobKind, dueAt: Date, payload: Json) => Promise<"scheduled" | "already_scheduled">;
+  scheduleOnce: <K extends JobKind>(
+    kind: K,
+    dueAt: Date,
+    payload: JobPayload<K>,
+  ) => Promise<"scheduled" | "already_scheduled">;
   /**
    * Epoch ms. A handler that loops over outward work starts no new send after
    * this and leaves the rest to a follow-up job through `schedule`. The runner

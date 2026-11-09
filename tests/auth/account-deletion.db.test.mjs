@@ -64,6 +64,43 @@ after(async () => {
   for (const id of made.users) await admin.auth.admin.deleteUser(id).catch(() => undefined);
 });
 
+test(
+  "each workspace the person sat in is told a member left, in the deletion's own transaction (00570)",
+  { skip },
+  async () => {
+    const leaving = await person("leaving");
+    const owner = await person("stays");
+    const first = await workspace("left-a");
+    const second = await workspace("left-b");
+    const other = await workspace("left-c");
+    await member(leaving.id, first, "operator");
+    await member(owner.id, first, "owner");
+    await member(leaving.id, second, "owner");
+    await member(owner.id, other, "owner");
+    const s = await sessionOf(leaving.email);
+    const { error } = await s.rpc("delete_my_account");
+    assert.equal(error, null, error?.message);
+    const { data } = await admin
+      .from("events")
+      .select("tenant_id, category, subject_type, subject_id, data")
+      .eq("kind", "member.left")
+      .in("tenant_id", [first, second, other]);
+    const said = (t) => ({
+      tenant_id: t,
+      category: "system",
+      subject_type: "workspace",
+      subject_id: t,
+      data: { by: leaving.id, how: "account_deleted" },
+    });
+    const byTenant = (a, b) => a.tenant_id.localeCompare(b.tenant_id);
+    assert.deepEqual(
+      [...data].sort(byTenant),
+      [said(first), said(second)].sort(byTenant),
+      "each of theirs, once, and no other",
+    );
+  },
+);
+
 test("the only owner of a workspace with other members is refused by name", { skip }, async () => {
   const owner = await person("sole");
   const staff = await person("staff");

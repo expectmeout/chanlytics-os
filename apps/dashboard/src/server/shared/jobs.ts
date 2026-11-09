@@ -1,14 +1,13 @@
 import "server-only";
 import { scheduleJob, cancelJobsFor } from "@chanlytics/jobs";
-import type { JobKind, TenantId } from "@chanlytics/contracts";
-import type { Json } from "@chanlytics/db/types";
+import type { JobKind, JobPayload, TenantId } from "@chanlytics/contracts";
 import { serviceDb } from "./service-db";
 
-export async function schedule(
+export async function schedule<K extends JobKind>(
   tenantId: TenantId,
-  kind: JobKind,
+  kind: K,
   dueAt: Date,
-  payload: Json,
+  payload: JobPayload<K>,
 ): Promise<{ jobId: string }> {
   const { jobId } = await scheduleJob(serviceDb(), { tenantId, kind, dueAt, payload });
   return { jobId };

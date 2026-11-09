@@ -4,6 +4,7 @@
  * `listConnectionsDue` are what the sweep (api/cron/google.ts) reads each tick.
  * A connected profile's own read is profile-sync.ts.
  */
+import type { TenantId } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { patchListing } from "@chanlytics/db/imports";
 import { planListingCheck, type PlaceDetails } from "@chanlytics/channels/google";
@@ -164,20 +165,21 @@ type DueRead<Row> = (
   db: Db,
   before: string,
   limit: number,
+  tenantId?: TenantId,
 ) => Promise<{ data: Row[] | null; error: { message: string } | null }>;
 
 /** The sweep's page of what is due this tick, every workspace's by design: never read first, then the oldest. */
-async function rowsDue<Row>(read: DueRead<Row>, db: Db, now: Date, limit: number): Promise<Row[]> {
+async function rowsDue<Row>(read: DueRead<Row>, db: Db, now: Date, limit: number, tenantId?: TenantId): Promise<Row[]> {
   const before = new Date(now.getTime() - CHECK_EVERY_MS).toISOString();
-  const { data, error } = await read(db, before, limit);
+  const { data, error } = await read(db, before, limit, tenantId);
   if (error) throw new DbFailure(error);
   return data ?? [];
 }
 
 /** The listings the sweep reads this tick. */
-export const listListingsDue = (db: Db, now: Date, limit: number): Promise<ListingRow[]> =>
-  rowsDue(listGoogleListingsDue, db, now, limit);
+export const listListingsDue = (db: Db, now: Date, limit: number, tenantId?: TenantId): Promise<ListingRow[]> =>
+  rowsDue(listGoogleListingsDue, db, now, limit, tenantId);
 
 /** The connected profiles the sweep syncs this tick: complete ones only. */
-export const listConnectionsDue = (db: Db, now: Date, limit: number): Promise<ConnectionRow[]> =>
-  rowsDue(listGoogleConnectionsDue, db, now, limit);
+export const listConnectionsDue = (db: Db, now: Date, limit: number, tenantId?: TenantId): Promise<ConnectionRow[]> =>
+  rowsDue(listGoogleConnectionsDue, db, now, limit, tenantId);

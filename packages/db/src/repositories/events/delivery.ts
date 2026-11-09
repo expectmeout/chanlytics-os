@@ -49,8 +49,6 @@ export interface DeliveredEvent {
   data: Json;
   created_at: string;
   version: number;
-  aggregate_version: number | null;
-  causation_id: string | null;
 }
 
 /** One delivery row as the relay left it (event_deliveries). */
@@ -73,7 +71,7 @@ export async function relayEvents(db: Db, limit: number): Promise<number> {
 export async function findEventOfDelivery(db: Db, tenantId: TenantId, eventId: string): Promise<DeliveredEvent | null> {
   const { data, error } = await db
     .from("events")
-    .select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version, aggregate_version, causation_id")
+    .select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version")
     .eq("tenant_id", tenantId)
     .eq("id", eventId)
     .maybeSingle();

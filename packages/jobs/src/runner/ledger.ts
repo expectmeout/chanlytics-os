@@ -27,6 +27,7 @@ import { TWILIO_TIMEOUT_MS } from "@chanlytics/channels/lines";
 import { WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels/whatsapp";
 import { collectPage, collectPageKey } from "./collect-page";
 import { deliveryPage, deliveryPageKey } from "./delivery-page";
+import { HANDED_OUT_KINDS, handedOutPage, handedOutPageKey } from "./handed-out-page";
 import { KIND_POLICY, kindPolicyOf, kindsWhere } from "./kinds";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -173,6 +174,10 @@ type PageOf = (
 export const PAGES_THE_PLATFORM: ReadonlyMap<string, PageOf> = new Map<string, PageOf>([
   ["event_deliver", (job, reason, wreckage) => ({ key: deliveryPageKey(job), ...deliveryPage(job, reason, wreckage) })],
   ["lead_collect", (job, reason, wreckage) => ({ key: collectPageKey(job), ...collectPage(job, reason, wreckage) })],
+  ...HANDED_OUT_KINDS.map((kind): [string, PageOf] => [
+    kind,
+    (job, reason, wreckage) => ({ key: handedOutPageKey(kind), ...handedOutPage(kind, job, reason, wreckage) }),
+  ]),
 ]);
 
 export const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";

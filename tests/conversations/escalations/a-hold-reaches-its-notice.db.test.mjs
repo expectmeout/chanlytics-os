@@ -98,9 +98,7 @@ test("a hold opened through its door is owed to owner_notice, and told once from
   const event = ok(
     await db
       .from("events")
-      .select(
-        "id, tenant_id, kind, subject_type, subject_id, data, created_at, version, aggregate_version, causation_id",
-      )
+      .select("id, tenant_id, kind, subject_type, subject_id, data, created_at, version")
       .eq("tenant_id", T)
       .eq("kind", "escalation.opened")
       .single(),

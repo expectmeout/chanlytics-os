@@ -1,9 +1,7 @@
-import { heldTenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { write, account } from "@/server/shared/route";
 import { AppError, cleanDisplayName, recordOrEmpty } from "@chanlytics/contracts";
 import { endEmptiedWorkspaces } from "@/server/workspace/billing";
-import { recordLeft, listSeats } from "@/server/workspace/team";
 import { log } from "@/server/shared/log";
 import { dbRefusal } from "@/server/shared/with-route";
 import { deleteOwnAccount, setOwnName } from "@/server/auth/account";
@@ -54,7 +52,6 @@ export const DELETE = write({
   role: null,
   rate: "profile_set",
   handle: async ({ ctx }) => {
-    const seats = await listSeats(ctx.supabase, ctx.userId);
     const { data, error } = await deleteOwnAccount(ctx);
     if (error) {
       const named = Object.entries(REFUSALS).find(([k]) => error.message.includes(k));
@@ -65,7 +62,6 @@ export const DELETE = write({
         "Your account could not be deleted. Nothing was changed. Try again, or write to us.",
       );
     }
-    await recordLeft(seats.map(heldTenantId), ctx.userId);
     await ctx.supabase.auth.signOut().catch(logAndGoOn("signOut"));
     const answer = recordOrEmpty(data);
     const left = Number(answer.workspaces_left_empty ?? 0);

@@ -16,17 +16,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
-import { readCode, readRaw } from "../_source.mjs";
 import {
   listCalendarsDue,
   listPlaybooksDue,
   listReachOutsDue,
   markCalendarChecked,
-  noteBacklog,
-  CALENDAR_PER_TICK,
-  PLAYBOOKS_PER_TICK,
-  BACKLOG_TICKS_BEFORE_ALARM,
 } from "../../apps/edge/lib/shared/sweep-rotation.ts";
+
+/** The size of a page these cases ask for: a job asks for its own workspace's, and the rules are the same. */
+const CALENDAR_PER_TICK = 40;
+const PLAYBOOKS_PER_TICK = 25;
 
 const NOW = new Date("2026-09-09T18:00:00Z");
 const ago = (min) => new Date(NOW.getTime() - min * 60_000).toISOString();
@@ -73,12 +72,7 @@ test("workspaces with no calendar are not the queue: they never sort first, and 
     calendar_checked_at: null,
   }));
   const rows = [...feedless, ...configs(3)];
-  let ticks = 0;
-  const db = fakeDb(
-    { tenant_config: rows },
-    {},
-    { note_sweep_backlog: ({ p_remaining }) => (ticks = p_remaining > 0 ? ticks + 1 : 0) },
-  );
+  const db = fakeDb({ tenant_config: rows });
 
   // Three ticks: under the old query each one was forty feedless rows and a
   // standing backlog, and the third called the sweep broken.
@@ -91,11 +85,6 @@ test("workspaces with no calendar are not the queue: they never sort first, and 
       "only the workspaces with a feed, and no feedless row ahead of them",
     );
     assert.equal(page.remaining, 0, "and nothing is left behind, so this is not a backlog");
-    assert.equal(
-      (await noteBacklog(db, "calendar", page.remaining)).alarm,
-      false,
-      "so the sweep never calls itself broken over work that does not exist",
-    );
   }
 
   // A workspace that connects one joins the queue, at the front, as any
@@ -247,64 +236,4 @@ test("what the playbooks page leaves behind is due playbooks only: twenty-six du
   assert.equal(page.remaining, 1, "the twenty-sixth due one, and none of the hundred");
   // A reach-out page over the same table has nothing: no reach-out is running.
   assert.deepEqual(await listReachOutsDue(db, NOW, PLAYBOOKS_PER_TICK), { rows: [], remaining: 0 });
-});
-
-test("three consecutive backlogged ticks is a fault; one is a busy hour", async () => {
-  let ticks = 0;
-  const db = fakeDb(
-    {},
-    {},
-    {
-      note_sweep_backlog: ({ p_remaining }) => (ticks = p_remaining > 0 ? ticks + 1 : 0),
-    },
-  );
-  assert.deepEqual(await noteBacklog(db, "calendar", 12), { ticks: 1, alarm: false });
-  assert.deepEqual(await noteBacklog(db, "calendar", 9), { ticks: 2, alarm: false });
-  assert.deepEqual(await noteBacklog(db, "calendar", 4), { ticks: 3, alarm: true }, "the third in a row is the alarm");
-  // Draining resets it: a queue that clears is not a fault, however deep it got.
-  assert.deepEqual(await noteBacklog(db, "calendar", 0), { ticks: 0, alarm: false });
-  assert.equal(BACKLOG_TICKS_BEFORE_ALARM, 3);
-});
-
-test("bookkeeping that fails never fails the sweep", async () => {
-  // A sweep that did its work must not report failure because it could not
-  // write its own counter.
-  const db = fakeDb(
-    {},
-    {},
-    {
-      note_sweep_backlog: () => {
-        throw new Error("boom");
-      },
-    },
-  );
-  const r = await noteBacklog(db, "calendar", 5).catch(() => "threw");
-  assert.notEqual(r, "threw", "it swallows its own bookkeeping failure");
-});
-
-test("both sweeps are wired to it, and answer 503 on the alarm", () => {
-  // The sweeps live in their domains' folders; api/cron/<name>.ts is the door that hands each its tick.
-  for (const [file, sweep, cap, module] of [
-    ["calendar", "calendar", "CALENDAR_PER_TICK", "apps/edge/lib/calendar/sweep.ts"],
-    ["playbooks", "playbooks", "PLAYBOOKS_PER_TICK", "apps/edge/lib/campaigns/reach-out/playbooks-sweep.ts"],
-  ]) {
-    const src = readCode(module);
-    assert.ok(src.includes(`${cap}`), `${file}: capped`);
-    assert.ok(src.includes(`noteBacklog(db, "${sweep}",`), `${file}: records the backlog`);
-    assert.ok(src.includes("if (backlog.alarm) {") && src.includes("json(503"), `${file}: 503 on the alarm`);
-    assert.ok(src.includes("remaining: page.remaining"), `${file}: reports what it could not reach`);
-    // The old unbounded read must not come back.
-    assert.ok(
-      !/from\("tenant_config"\)\s*\.select\("tenant_id, config"\)\s*;/.test(src),
-      `${file}: no unbounded select`,
-    );
-  }
-
-  // And something is watching for that 503.
-  const watch = readRaw("supabase/migrations/00086_watch_every_sweep.sql");
-  assert.ok(
-    watch.includes("('calendar',      'calendar-people-sweep'") &&
-      watch.includes("('playbooks',     'playbooks-sweep'"),
-    "sweep_health judges both, so the 503 reaches a person",
-  );
 });
