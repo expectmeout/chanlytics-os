@@ -112,33 +112,41 @@ function answerWithin(): number {
   return answerWithinMsOf(reply?.limits);
 }
 
+/**
+ * What a row says whatever it asks: who, the wire, how long, what they want. Someone waiting on you says no state line: how
+ * long is beside the name, and why it was handed over is said beside it once the row is open (row.why), never behind a mark
+ * nobody could read (the 10/10 read, 2 Nov 2026). Your own to-do keeps its line (a step's day and whom it is for, a visit's
+ * "Did they come?"), which is what it says, and so does a search waiting for your OK, as the runs beside it do ("nothing is
+ * spent while it waits").
+ */
+export function rowWords(row: TodayQueueRowVM) {
+  const face = namesAPerson(row) ? { person: { name: row.who, initials: row.initials } } : { initials: row.initials };
+  const verb = needYouVerbOf(row);
+  const waits = verb === "reply" || verb === "call";
+  return {
+    ...face,
+    name: row.who,
+    trail: namesAPerson(row) ? businessTrailFor(row.person_id) : null,
+    // The wire is the glyph before what they want, and its name is the glyph's words for a screen reader.
+    via: { glyph: VIA_GLYPH[row.channel], words: [row.channel, row.via].filter(Boolean).join(", ") },
+    wait: needYouWaitOf(row, W.held.goesAlone, answerWithin()),
+    sentence: row.sentence,
+    quoted: row.quoted,
+    lead: row.lead,
+    status: waits ? [] : row.status,
+    note: "",
+    tone: row.tone,
+    testid: `queue-${row.kind}`,
+  };
+}
+
 /** The queue's rows, worked in place where they are the focus, short where they are not. */
 export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx): ReactElement[] {
   const phone = c.phone ?? null;
-  const within = answerWithin();
   return rows.map((r) => {
-    const face = namesAPerson(r) ? { person: { name: r.who, initials: r.initials } } : { initials: r.initials };
-    // Someone waiting on you says no state line: how long is beside the name, and why it was handed over is said beside it
-    // once the row is open (row.why), never behind a mark nobody could read (the 10/10 read, 2 Nov 2026). Your own
-    // to-do keeps its line (a step's day and whom it is for, a visit's "Did they come?"), which is what it says, and so does
-    // a search waiting for your OK, as the runs beside it do ("nothing is spent while it waits").
     const verb = needYouVerbOf(r);
     const waits = verb === "reply" || verb === "call";
-    const common = {
-      ...face,
-      name: r.who,
-      trail: namesAPerson(r) ? businessTrailFor(r.person_id) : null,
-      // The wire is the glyph before what they want, and its name is the glyph's words for a screen reader.
-      via: { glyph: VIA_GLYPH[r.channel], words: [r.channel, r.via].filter(Boolean).join(", ") },
-      wait: needYouWaitOf(r, W.held.goesAlone, within),
-      sentence: r.sentence,
-      quoted: r.quoted,
-      lead: r.lead,
-      status: waits ? [] : r.status,
-      note: "",
-      tone: r.tone,
-      testid: `queue-${r.kind}`,
-    };
+    const common = rowWords(r);
     // A row of no work of its own keeps its one door: a call worth a listen, a search's question, a lead who tried.
     if (!worksInPlace(r)) {
       return (

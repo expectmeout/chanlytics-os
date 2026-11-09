@@ -113,6 +113,8 @@
      and grows its target, 34px tall and 44 with the margin around it, and so do the rows' Skip and the head's Hide,
      quiet words a floor stood 44px tall, and every row with them (21 Oct 2026). The queue's Open Inbox is a link in its
      head line, and the queue's row buttons keep their desktop size: each grows the same way. */
+  html.frame-on .today-listen,
+  html.frame-on .tz-since,
   html.frame-on .setup-card-btn,
   html.frame-on
     .today-setup
@@ -121,6 +123,16 @@
   html.frame-on :is(.today-queue, .today-going) .cl-attn-cta {
     position: relative;
     min-height: 0;
+  }
+  html.frame-on .today-listen::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+  html.frame-on .tz-since::after {
+    content: "";
+    position: absolute;
+    inset: -9px 0;
   }
   html.frame-on .setup-card-btn::after,
   html.frame-on .tq-open::after,

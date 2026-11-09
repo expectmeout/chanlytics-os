@@ -118,6 +118,8 @@ export const NEED_YOU_WORDS = {
   countAsWell: (n: number) => (n === 1 ? "1 needs you as well." : `${n} need you as well.`),
   /** How many rows were dealt with today, by the door: what clearing the list came to. */
   doneToday: (n: number) => `${n} done today`,
+  /** Not today pressed: said in the toast, with the day it comes back on, beside its Undo. */
+  restedUntil: (day: string) => `Not today. It comes back ${day}.`,
   /** Ends the head's sentence once nobody is left waiting on you (todayHeadLine). */
   end: "That's everyone.",
   /** A reply of yours that never reached them: what the row says, what its card is headed by, and its one press. */
@@ -129,8 +131,15 @@ export const NEED_YOU_WORDS = {
     kept: "kept",
     retry: "Try again",
   },
-  /** Whoever has waited past a week, as one row at the end: how many, and who ("2 over a week" left out what was). */
-  older: { row: (n: number) => `${n} waiting over a week` },
+  /**
+   * Whoever has waited past a week, at the end: a person by themself where there is one, how many and who where there
+   * are more ("2 over a week" left out what was); a toll-free number says so beside it.
+   */
+  older: {
+    row: (n: number) => `${n} waiting over a week`,
+    wait: "over a week",
+    tollFree: "toll-free",
+  },
   /**
    * Every row past a week marked done at once, with one Undo: they leave Need you until they write again. The words name
    * no list: "They leave Need you" named a head a phone never draws, and read as the Inbox's "Needs you" misspelt
@@ -233,6 +242,8 @@ export const NEED_YOU_WORDS = {
    */
   walk: {
     of: (at: number, n: number) => `Need you · ${at} of ${n}`,
+    /** Over what the row says where it is not their own words: a call's note is no quote of theirs. */
+    happened: "What happened",
     read: "Read",
     before: "The one before",
     next: "The next one",

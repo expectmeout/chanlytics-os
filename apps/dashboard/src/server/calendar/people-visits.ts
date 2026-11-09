@@ -286,7 +286,10 @@ export async function readBookingReport(
     count += 1;
     if (bookedSince(pv.visits.get(row.id), askedMs)) booked += 1;
   }
-  return { calendar: pv.calendar.state, days, asked: count, booked };
+  const report: BookingReportDto = { calendar: pv.calendar.state, days, asked: count, booked };
+  if (pv.calendar.state !== "ok") return report;
+  // Anyone at all on the calendar: where nobody is, a line of "none of them booked" says less about them than about it.
+  return { ...report, people_on_calendar: [...pv.visits.values()].filter((v) => v.next || v.last || v.missed).length };
 }
 
 /**

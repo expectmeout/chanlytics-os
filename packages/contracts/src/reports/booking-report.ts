@@ -18,6 +18,8 @@ export interface BookingReportDto {
   days: number;
   asked: number;
   booked: number;
+  /** How many in People the calendar holds a visit of, whenever they wrote; absent where it was not counted. */
+  people_on_calendar?: number;
 }
 
 /** Why the booking line is not counted for days that ended before today: it follows people as they stand now. */
@@ -43,6 +45,8 @@ export interface BookingReportVM {
   /** The share's other side, as a sentence of its own: "10 of the 26 who asked have nothing on the calendar yet",
    *  or the good news when everybody booked. Empty when there is nothing to count. */
   rest: string;
+  /** How many in People the calendar holds a visit of, whenever they wrote; absent where it was not counted. */
+  peopleOnCalendar?: number;
 }
 
 export function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM {
@@ -117,5 +121,6 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
       unbooked === 0
         ? `Everyone who asked in the last ${plural(dto.days, "day")} has booked.`
         : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`,
+    ...(dto.people_on_calendar === undefined ? {} : { peopleOnCalendar: dto.people_on_calendar }),
   };
 }

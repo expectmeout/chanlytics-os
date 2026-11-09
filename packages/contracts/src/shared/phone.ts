@@ -66,6 +66,18 @@ export function shortCode(raw: string | null | undefined): boolean {
   return digits.length >= 3 && digits.length <= 6;
 }
 
+/** North America's toll-free area codes. */
+const TOLL_FREE_AREAS: ReadonlySet<string> = new Set(["800", "833", "844", "855", "866", "877", "888"]);
+
+/**
+ * A number in one of North America's toll-free area codes: a business's or a call centre's line, rarely a customer's own
+ * phone. It says what the number is, and nothing of who called.
+ */
+export function tollFreeNumber(raw: string | null | undefined): boolean {
+  const e164 = normalizePhone(raw);
+  return !!e164 && e164.startsWith("+1") && e164.length === 12 && TOLL_FREE_AREAS.has(e164.slice(2, 5));
+}
+
 /**
  * A number someone could dial, as far as its digits can say (a lead's phone, decision 0010): E.164 by normalizePhone,
  * and in North America a real area code and exchange -- each starting 2 to 9, neither an N11 service code (211, 411,

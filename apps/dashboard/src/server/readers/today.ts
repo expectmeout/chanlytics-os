@@ -91,6 +91,7 @@ export async function getSinceYouLooked(rc: ReaderContext): Promise<TodayVM["sin
               who: personName ?? "a customer",
               text: clipAtWord(result.last.body.replace(/\s+/g, " "), QUOTE_MAX),
               at: result.last.created_at,
+              conversation_id: result.last.conversation_id,
             }
           : null,
       },

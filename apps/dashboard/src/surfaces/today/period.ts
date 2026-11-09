@@ -17,9 +17,9 @@ import type { ReportHeadlineVM } from "@chanlytics/contracts";
 export function todayPeriodLine(reportHeadline: ReportHeadlineVM | null): { text: string; to: "reports" } | null {
   if (!reportHeadline) return null;
   if (reportHeadline.empty) return { text: `${reportHeadline.lead}: nobody wrote or called.`, to: "reports" };
-  const parts = [
-    `${reportHeadline.messages.total} message${reportHeadline.messages.total === 1 ? "" : "s"}${reportHeadline.messages.compare ? ` (${reportHeadline.messages.compare})` : ""}`,
-  ];
+  // A zero says nothing on a line that has something else to say ("0 messages, 15 calls"): the calls alone, there.
+  const { total, compare } = reportHeadline.messages;
+  const parts = total || compare ? [`${total} message${total === 1 ? "" : "s"}${compare ? ` (${compare})` : ""}`] : [];
   if (reportHeadline.answered.share !== null)
     parts.push(`${Math.round(reportHeadline.answered.share * 100)}% answered by the receptionist`);
   if (reportHeadline.calls) parts.push(`${reportHeadline.calls} call${reportHeadline.calls === 1 ? "" : "s"}`);

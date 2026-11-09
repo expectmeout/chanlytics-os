@@ -65,6 +65,18 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* The day's note beside its name where they fit the line (day.tsx), a line of its own under them where they do not. */
+.tpd-head {
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 0 10px;
+}
+.tpd-note[data-long] {
+  order: 3;
+  flex: 0 0 100%;
+  line-height: 17px;
+  white-space: normal;
+}
 .tpd-door {
   display: inline-flex;
   flex: none;
@@ -156,7 +168,61 @@
   flex: none;
 }
 
-/* ---- Since you looked: one quiet line under the head's sentence, and its rows in a pane under it once pressed. ---- */
+/* ---- Listen: the glass the bell wears. At rest a phone's circle, the bell's size (a thumb's 44 round it drawn nothing
+   larger: frame.css), its words for a reader alone; a desk's the glyph, the word and how long it takes to hear. It holds
+   its size while it fetches the voice, its glyph a ring. ---- */
+.today-listen {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.today-listen-words {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.today-listen-length {
+  color: var(--ink-dim);
+}
+.today-listen-ring {
+  display: block;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--line);
+  border-top-color: var(--ink);
+  border-radius: var(--radius-circle);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .today-listen-ring {
+    animation: today-listen-turn 0.9s linear infinite;
+  }
+}
+@keyframes today-listen-turn {
+  to {
+    rotate: 1turn;
+  }
+}
+@media (max-width: 900px) {
+  .today-listen {
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: var(--radius-circle);
+  }
+  .today-listen-words {
+    display: none;
+  }
+}
+
+/* How many need you, a door on a phone: it reads as the sentence it stands in. */
+.tz-lead {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ---- Since you looked: one quiet line under the head's sentence, on the sentence's edge, and its rows in a pane under it
+   once pressed. ---- */
 .tz-since {
   display: inline-flex;
   flex-wrap: wrap;
@@ -164,6 +230,7 @@
   align-self: flex-start;
   gap: 7px;
   min-height: 26px;
+  padding: 0;
   font-size: var(--text-aside);
   font-weight: var(--weight-regular);
   color: var(--ink-dim);
@@ -391,6 +458,24 @@
 .tz-found .tz-sec > svg {
   margin-right: -2px;
 }
+/* "and 2 more": what is past the three, opened in place, at the head's right. */
+.tz-found-more {
+  gap: var(--space-1);
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.tz-found-more[aria-expanded="true"] > svg,
+.tz-idea-s[aria-expanded="true"] svg {
+  rotate: 180deg;
+}
+/* The sentence opens: a chevron at its end says so, on its last line. */
+.tz-idea-s svg {
+  display: inline;
+  margin-left: var(--space-1);
+  vertical-align: -1px;
+  color: var(--ink-dim);
+}
 .tz-ideas {
   display: flex;
   flex-direction: column;
@@ -489,10 +574,10 @@
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
 }
-/* On a quiet day Ask found leads the page: its rows three across. */
+/* On a quiet day Ask found leads the page: its rows side by side, three at most, and one row the pane's whole width. */
 .tz-found-wide .tz-ideas {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
   gap: 0 var(--space-6);
 }
 
@@ -534,6 +619,51 @@
 .tz-pin > b {
   font-weight: var(--weight-semibold);
   color: var(--ink);
+}
+
+/* ---- Nothing but Older drawn: nobody counts it, so it stands after everything the page has to say, on a desk and a phone. ---- */
+.today-queue[data-only-older] {
+  order: 1;
+}
+
+/* ---- Today so far on a day nothing was counted: one line, the week under it, at the foot of the day's card. ---- */
+.tz-nothing {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0 var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.tz-nothing > b {
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.tz-nothing .tz-week {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+/* ---- Your history, once all is in: one line, the people beside its state. ---- */
+.today-brought-first {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dash-a-v2 .today-brought[data-one-line] .today-brought-head {
+  padding-bottom: 14px;
+}
+/* The setup card's chevron on the same edge as Your history's: its 14px glyph sits 7px inside its 28px press. */
+.dash-a-v2 .today-setup [data-testid="today-setup-fold"] {
+  margin-right: -7px;
+}
+/* The head's whole line folds the card, as Your history's does (setup-card-body.tsx foldFromHead): the hand says so, and
+   Safari on an iPhone sends no click from a plain element without it. */
+.today-setup > [data-foldable] {
+  cursor: pointer;
 }
 
 /* ---- Setting up: what is left to set up and what was brought in, one pane, a hairline between; none while neither
@@ -646,16 +776,12 @@
     padding: 0 var(--space-4) 6px;
   }
   .tpd-head {
-    flex-wrap: wrap;
-    gap: 0 10px;
     min-height: 0;
     padding: var(--space-3) 0 var(--space-2);
   }
-  .tpd-note {
-    order: 3;
-    flex: 0 0 100%;
-    line-height: 17px;
-    white-space: normal;
+  /* A zone's head on a phone: its name's line, and no more. */
+  .tz-sec {
+    min-height: 44px;
   }
   .tz-found-wide .tz-ideas {
     display: flex;
@@ -690,8 +816,14 @@
   font-size: var(--text-2xl);
 }
 .tz-sofar-figs .tc-fig-w {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   font-size: var(--text-sm);
   color: var(--ink-dim);
+}
+.tz-sofar-figs .tc-fig.open .tc-fig-w > svg {
+  rotate: 180deg;
 }
 .tz-sofar-figs .tc-fig-m {
   display: none;
@@ -712,6 +844,7 @@
 }
 /* The end: the page says it is done, above the tab bar. */
 .tz-end {
+  order: 2;
   display: flex;
   align-items: center;
   justify-content: center;

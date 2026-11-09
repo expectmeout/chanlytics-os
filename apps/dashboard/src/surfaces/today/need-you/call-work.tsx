@@ -20,8 +20,31 @@ import { Button } from "../../kit";
 import { appNavigate, gate } from "../shell";
 import { useDraft } from "./drafts";
 import { Acts, BriefBox, Done, Note, NotNow, Writing, type WorkProps } from "./parts";
-import { ReplyWork, useNotNow, type Snoozed } from "./reply-work";
+import { ReplyWork, useMarkDone, useNotNow, type Snoozed } from "./reply-work";
 import { useRowState } from "./row-state";
+
+/** How the call went, asked once it was made: reached them, no answer, or it was never made. Called, not drawn. */
+function howItWent(presses: { onReached: () => void; onNoAnswer: () => void; onDidNot: () => void }) {
+  return (
+    <>
+      <Note>{W.call.how}</Note>
+      <div className="ny-picks">
+        <Button onClick={presses.onReached} {...gate("approve", "hand the thread back")}>
+          {W.call.reached}
+        </Button>
+        <Button onClick={presses.onNoAnswer} {...gate("approve", "set a step")}>
+          {W.call.noAnswer}
+        </Button>
+        <Button variant="quiet" onClick={presses.onDidNot}>
+          {W.call.didNot}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/** One that has waited past a week says first it may be let go. Called, not drawn. */
+const staleNote = (waitedMs: number) => (waitedMs >= NEED_YOU_OLD_MS ? <Note>{W.staleCall}</Note> : null);
 
 /** A call back: Ask's brief, Call, then how it went. One that has waited past a week says first it may be let go. */
 export function CallWork(p: WorkProps) {
@@ -42,6 +65,7 @@ export function CallWork(p: WorkProps) {
   const [undoOf, setUndoOf] = useRowState<Record<string, unknown> | null>(row.id, "undo", null);
   const [snoozed, setSnoozed] = useRowState<Snoozed | null>(row.id, "snoozed", null);
   const notNow = useNotNow(p, setSnoozed);
+  const marked = useMarkDone(p);
 
   // Reached: the call did what they asked, so the thread goes back to the receptionist and its hold resolves with it
   // (core handBack, one transaction); a resolve alone left the thread the team's, still counted as waiting on you.
@@ -89,6 +113,8 @@ export function CallWork(p: WorkProps) {
     unkeep(row);
   };
 
+  if (marked.done)
+    return <Done words={W.oldDone.done(1)} detail={W.oldDone.detail} act={{ label: W.undo, onPress: marked.undo }} />;
   if (snoozed)
     return (
       <Done
@@ -119,25 +145,14 @@ export function CallWork(p: WorkProps) {
       <Done tone="rest" words={W.call.again} act={undoOf ? { label: W.undo, onPress: () => void undoAgain() } : null} />
     );
   if (phase === "how")
-    return (
-      <>
-        <Note>{W.call.how}</Note>
-        <div className="ny-picks">
-          <Button onClick={() => void reached()} {...gate("approve", "hand the thread back")}>
-            {W.call.reached}
-          </Button>
-          <Button onClick={() => void again()} {...gate("approve", "set a step")}>
-            {W.call.noAnswer}
-          </Button>
-          <Button variant="quiet" onClick={() => setPhase("idle")}>
-            {W.call.didNot}
-          </Button>
-        </div>
-      </>
-    );
+    return howItWent({
+      onReached: () => void reached(),
+      onNoAnswer: () => void again(),
+      onDidNot: () => setPhase("idle"),
+    });
   return (
     <>
-      {row.waitedMs >= NEED_YOU_OLD_MS ? <Note>{W.staleCall}</Note> : null}
+      {staleNote(row.waitedMs)}
       {draft?.state === "ready" && draft.draft.words.brief ? (
         <BriefBox brief={draft.draft.words.brief} onRead={p.read} />
       ) : draft?.state === "writing" ? (
@@ -154,6 +169,7 @@ export function CallWork(p: WorkProps) {
               onOpen={notNow.fresh}
               onChoose={(i) => void notNow.choose(i)}
               busy={notNow.busy}
+              markDone={marked.mark}
             />
           ) : null
         }

@@ -4,16 +4,19 @@
  * frame-globals.ts) until the frame itself is TypeScript (step 7e). And yesterday's visits nobody has marked, in the
  * call's place while no call is up (`UnmarkedVisitsBar`), and what is next on the day while neither is (`NextVisitBar`).
  */
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import {
   MIN_MS,
+  TODAY_PHONE_WORDS,
   VISIT_ASK_WORDS,
+  mmss,
   todayDayNext,
   todayVisitsAsked,
   todayVisitsSub,
   type CalendarLike,
 } from "@chanlytics/contracts";
-import { routeDoor } from "../../frame-verbs";
+import { askCalls, routeDoor } from "../../frame-verbs";
+import { hearAskHeld } from "../../frame-doors";
 import { surfaceValue } from "../../surface-values";
 import { visitWordHere } from "../../workspace-word";
 import { frameChrome, frameGlyph, frameSurfaceHook } from "../frame-window";
@@ -94,6 +97,75 @@ export function LiveCallBar() {
         <span className="live-bar-act-words">{bar.act}</span>
         <Glyph name="chevron" size={11} />
       </span>
+    </button>
+  );
+}
+
+/** Hear Ask's voice move, from the moment the bridge has one: the frame is drawn before it is. */
+function watchBrief(on: () => void): () => void {
+  let off = askCalls()?.watchSpeech?.(on);
+  const stop = hearAskHeld(() => {
+    off?.();
+    off = askCalls()?.watchSpeech?.(on);
+    on();
+  });
+  return () => {
+    off?.();
+    stop();
+  };
+}
+
+/** Where your brief stands: being fetched, being read, or neither (anything else Ask reads aloud has its own Stop). */
+function briefNow(): "idle" | "loading" | "speaking" {
+  const ask = askCalls();
+  if (!ask?.speakingFor || ask.speakingFor() !== "brief") return "idle";
+  return ask.state();
+}
+const NOT_BRIEFING = () => "idle" as const;
+
+/**
+ * Your brief while it plays (8 Nov 2026): a capsule in the header's row, where a call stands, on every page, so what Listen
+ * started can always be stopped. It was Listen's own button, which stayed on Today: leaving the page, or a call taking the
+ * row, left a voice playing with no Stop on the screen. The whole of it is the Stop, and it says how long it has played. A
+ * call going on outranks it (the live bar has the place: components.css) and ends it: two things never talk at once, and
+ * the call is the one that cannot wait.
+ */
+export function BriefPlaying() {
+  const Glyph = frameGlyph();
+  const [, tick] = useReducer((n: number) => n + 1, 0);
+  useLiveRead();
+  const state = useSyncExternalStore(watchBrief, briefNow, NOT_BRIEFING);
+  const chrome = frameChrome();
+  const callUp = !!(chrome && chrome.liveBar && chrome.liveBar(window.__LIVE, Date.now()));
+  const going = state !== "idle";
+  useEffect(() => {
+    if (callUp && going) askCalls()?.stopSpeaking?.();
+  }, [callUp, going]);
+  const speaking = state === "speaking";
+  const startedAt = useRef(0);
+  useEffect(() => {
+    if (!speaking) return undefined;
+    startedAt.current = Date.now();
+    tick();
+    const t = window.setInterval(tick, CLOCK_SECOND_MS);
+    return () => window.clearInterval(t);
+  }, [speaking]);
+  if (!speaking || callUp) return null;
+  const words = TODAY_PHONE_WORDS.listen;
+  return (
+    <button
+      type="button"
+      className="brief-bar"
+      onClick={() => askCalls()?.stopSpeaking?.()}
+      aria-label={words.stop}
+      data-testid="brief-bar"
+    >
+      <span className="live-bar-wave" aria-hidden="true">
+        {LIVE_WAVE}
+      </span>
+      <span className="brief-bar-text">{words.brief}</span>
+      <span className="brief-bar-clock tabular">{mmss(Math.max(0, Date.now() - startedAt.current))}</span>
+      <Glyph name="stop" size={11} />
     </button>
   );
 }
