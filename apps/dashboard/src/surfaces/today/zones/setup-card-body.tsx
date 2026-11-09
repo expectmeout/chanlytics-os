@@ -339,14 +339,14 @@ export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
     <section className="tq today-setup" data-testid="today-setup">
       {/* The head's whole line folds it, as Your history's does; the chevron is the press a key and a reader reach. */}
       <div
-        className="setup-card-head"
+        className="setup-card-head tz-head"
         role="presentation"
         onClick={foldable ? foldFromHead(toggle) : undefined}
         data-foldable={foldable || undefined}
       >
-        <span className="setup-card-title">
+        <span className="setup-card-title tz-name">
           {card.title}
-          <span className="setup-card-left" data-testid="today-setup-left">
+          <span className="setup-card-left tz-fact" data-testid="today-setup-left">
             {card.left}
           </span>
         </span>

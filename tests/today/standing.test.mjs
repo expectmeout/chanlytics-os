@@ -151,7 +151,9 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
   const page = readCode("apps/dashboard/src/surfaces/today/zones/need-you.tsx");
   // The queue is named for what it holds, its groups for where each row stands (Today in three zones, 2 Nov 2026).
   assert.ok(
-    page.includes('className="tq-title"') && page.includes("Need you") && page.includes("needYouGroupsOf(rows)"),
+    page.includes('className="tq-title tz-name"') &&
+      page.includes("Need you") &&
+      page.includes("needYouGroupsOf(rows)"),
     "the queue says what it holds",
   );
   const band = readCode("apps/dashboard/src/surfaces/today/zones/alert.tsx");

@@ -411,6 +411,7 @@ export const TODAY_PHONE_WORDS = {
   closedToday: "Closed today",
   closedTomorrow: "Closed tomorrow too",
   nextOpening: (at: string) => `Next opening ${at}`,
+  openTomorrow: "Open tomorrow",
   tomorrowHolds: (counted: string) => (counted ? `Tomorrow: ${counted}` : "Tomorrow: nothing booked yet"),
   /**
    * Listen: a circle beside the bell at rest, and while your brief plays a capsule in the date's place, on every page, whose

@@ -45,6 +45,7 @@ import { usePartShown, useSurface } from "../../use-surface";
 import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
 import { TODAY_HELPERS } from "../helpers";
 import { useTodayOnPhone } from "../phone";
+import { zoneDoor } from "./zone-head";
 import { borrowed, canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
 import { useDayVm } from "./day-vm";
 
@@ -348,23 +349,20 @@ const HEAD_ONE_LINE_LETTERS = 26;
  */
 function dayHead(title: string, note: string) {
   return (
-    <div className="tpd-head">
-      <h2 className="tpd-title" id="today-day-title">
+    <div className="tpd-head tz-head">
+      <h2 className="tz-name" id="today-day-title">
         {title}
       </h2>
       {note ? (
         <span
-          className="tpd-note"
+          className="tpd-note tz-fact"
           data-long={title.length + note.length > HEAD_ONE_LINE_LETTERS || undefined}
           {...SAYS_WHEN}
         >
           {note}
         </span>
       ) : null}
-      <a className="tpd-door" {...routeDoor("calendar")}>
-        {P.calendar}
-        <Icon name="chevron" size={12} />
-      </a>
+      {zoneDoor("calendar", P.calendar)}
     </div>
   );
 }

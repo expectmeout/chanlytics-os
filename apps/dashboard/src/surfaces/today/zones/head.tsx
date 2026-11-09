@@ -15,6 +15,7 @@
  */
 import { useState, type ReactNode } from "react";
 import {
+  NEED_YOU_WORDS,
   todaySince,
   todayWentLine,
   todayZoneDay,
@@ -44,7 +45,7 @@ import { listenButton, useBriefWords, useSpeech } from "./listen";
 
 /**
  * The head's sentence as drawn: what leads in bold (kit.css `.pg-sentence b`), the rest after it, then why Listen could not
- * speak. On a phone how many need you is a door to who they are (`door`): a phone draws no Open Inbox beside it. Called, not
+ * speak. On a phone how many need you is a door to who they are (`door`). Called, not
  * drawn, so the head's tree has no part of its own for it.
  */
 function headSentence(line: TodayHeadLineVM, why: string | null, door: string | null): ReactNode {
@@ -67,6 +68,10 @@ function headSentence(line: TodayHeadLineVM, why: string | null, door: string | 
     </>
   );
 }
+
+/** On a phone, where no list head says it: how many were done today, after how many need you, where nothing else stands. */
+const withDoneToday = (line: TodayHeadLineVM, done: number): TodayHeadLineVM =>
+  line.rest || done <= 0 ? line : { ...line, rest: `${NEED_YOU_WORDS.doneToday(done)}.` };
 
 /** One of Since you looked's rows, opened: its glyph, what happened, the receipt under it, and when. */
 function sinceRow(r: TodaySinceVM["rows"][number]) {
@@ -174,7 +179,9 @@ export function useZonesStanding(): void {
   const brief = words && words.sentences.length ? words.text : null;
   const speech = useSpeech(brief);
   const went = turned && vm ? todayWentLine(vm.figures) : null;
-  const line = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, (vm.done_today ?? 0) > 0) : null;
+  const done = vm?.done_today ?? 0;
+  const said_ = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, done > 0) : null;
+  const line = said_ && phone && count > 0 ? withDoneToday(said_, done) : said_;
   // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefPlaying).
   const listen = speech.can && brief && words?.news && speech.state !== "speaking" ? listenButton(speech, brief) : null;
   useStanding({

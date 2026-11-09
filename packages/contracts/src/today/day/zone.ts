@@ -261,9 +261,15 @@ function dayCellsOf(items: readonly TodayDayItemVM[], tomorrow: boolean): { cell
 }
 
 /** What a day closed all day says beside its name: how tomorrow stands, or when it opens next where tomorrow is shut too. */
-function closedTodayNote(tomorrowClosed: boolean, counted: string, nextOpening: string | null): string {
+function closedTodayNote(
+  tomorrowClosed: boolean,
+  counted: string,
+  nextOpening: string | null,
+  anOpenLine: boolean,
+): string {
   if (tomorrowClosed) return nextOpening ? P.nextOpening(nextOpening) : P.closedTomorrow;
-  return P.tomorrowHolds(counted);
+  // Nothing booked is said once, in the open hour's line under it, as an ordinary tomorrow's is.
+  return !counted && anOpenLine ? P.openTomorrow : P.tomorrowHolds(counted);
 }
 
 /** The zone's name and what stands beside it: today's, tomorrow's, or a closed day's, which says what comes next. */
@@ -282,7 +288,7 @@ function zoneHeadOf(
   const count = frame.items.length + frame.more - frame.missed;
   const counted = count ? `${count} ${count === 1 ? words.one : words.many}` : "";
   if (closedToday) {
-    const note = [today.closed.note, closedTodayNote(frame.closed.yes, counted, day.nextOpening)];
+    const note = [today.closed.note, closedTodayNote(frame.closed.yes, counted, day.nextOpening, anOpenLine)];
     return { title: P.closedToday, note: note.filter(Boolean).join(" · ") };
   }
   // Tomorrow with nothing booked says so once, in its open hour's line ("Nothing booked yet"): its head said "No

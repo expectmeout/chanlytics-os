@@ -107,6 +107,25 @@ test("one person past a week is their own row: who, Mark done, and a press on it
   unmount();
 });
 
+test("an old call's note says to mark it done, so Mark done leads and Call is the quiet press beside it", () => {
+  const call = old("o1", "Dana Ruiz", { kind: "callback", phone: "+13055550142", prepared: null });
+  setSurfaceValue("today", dayWith([call]));
+  const [r] = rowsDrawn(draw(NeedYou)).filter((n) => testidOf(n) === "queue-older");
+  r.props.onOpen();
+  const open = again(() => W.React.createElement(NeedYou, {}));
+  const presses = all(open, (n) => n.props?.variant && ["Mark done", "Call"].includes(textOf(n)));
+  assert.deepEqual(
+    presses.map((n) => [textOf(n), n.props.variant === "quiet"]),
+    [
+      ["Call", true],
+      ["Mark done", false],
+    ],
+    "REGRESSION: the note said mark it done over a coral Call, with Mark done under Not now",
+  );
+  setSurfaceValue("today", undefined);
+  unmount();
+});
+
 test("a toll-free number says so; anyone else keeps the business they work at", () => {
   assert.equal(tollFreeNumber("+18666413860"), true);
   assert.equal(tollFreeNumber("+1 (800) 555-0100"), true);

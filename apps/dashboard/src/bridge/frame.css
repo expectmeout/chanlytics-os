@@ -111,7 +111,7 @@
   }
   /* Today's setup card on a phone is compact rows (canvas P9): each button keeps its small look beside the words
      and grows its target, 34px tall and 44 with the margin around it, and so do the rows' Skip and the head's Hide,
-     quiet words a floor stood 44px tall, and every row with them (21 Oct 2026). The queue's Open Inbox is a link in its
+     quiet words a floor stood 44px tall, and every row with them (21 Oct 2026). The queue's See all is a link in its
      head line, and the queue's row buttons keep their desktop size: each grows the same way. */
   html.frame-on .today-listen,
   html.frame-on .tz-since,
@@ -153,7 +153,7 @@
     inset: -13px -8px;
   }
   /* Today's other small presses, each the 44px floor round it and nothing new drawn (18 Oct 2026, measured at 375px):
-     Open Inbox is a 20px line of words (8px over and under made 36), and a card's door ("See the thread", "Open
+     See all is a 20px line of words (8px over and under made 36), and a card's door ("See the thread", "Open
      Reports") 36px. */
   html.frame-on .tq-open::after {
     inset: -12px -4px;

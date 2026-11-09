@@ -37,7 +37,7 @@ export const NOT_A_PERSON_WORDS = {
  * only you see these" over words that are read and never sent, which is why nothing there is typed in.
  */
 export const NEED_YOU_WORDS = {
-  door: "Open Inbox",
+  door: "Inbox",
   reply: "Reply",
   drafted: "Ask's draft",
   drafting: "Ask is drafting…",

@@ -5,7 +5,7 @@
  * text (Booked it, and the confirmation it drafts sent from the row); a step due (Done, or Not now, which moves its day).
  * Yesterday's visit is visit-work.tsx's.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   BOOKING_REQUEST_WORDS,
   NEED_YOU_OLD_MS,
@@ -13,6 +13,7 @@ import {
   NOTE_WORDS,
   callDays,
   stepDays,
+  type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { answerRequest } from "../../booking-request";
@@ -41,6 +42,45 @@ function howItWent(presses: { onReached: () => void; onNoAnswer: () => void; onD
       </div>
     </>
   );
+}
+
+/**
+ * A call's presses. Past a week its note says to let it go if it is nothing to you, so letting it go leads, and Call is the
+ * quiet one beside it (8 Nov 2026: the note said mark it done over a coral Call, with Mark done under Not now). Called, not
+ * drawn.
+ */
+function callActs(p: {
+  row: TodayQueueRowVM;
+  main: WorkProps["main"];
+  foot: WorkProps["foot"];
+  notNow: ReactNode;
+  mark: (() => void) | null;
+  onCall: () => void;
+}) {
+  const { row, main, foot } = p;
+  const press = (variant: WorkProps["main"] | "quiet") =>
+    row.phone ? (
+      <Button variant={variant} href={`tel:${row.phone}`} onClick={p.onCall}>
+        {W.call.call}
+      </Button>
+    ) : (
+      <Button variant={variant} onClick={() => appNavigate(row.cta.to)}>
+        {W.open}
+      </Button>
+    );
+  if (p.mark && row.waitedMs >= NEED_YOU_OLD_MS)
+    return (
+      <Acts
+        foot={foot}
+        start={press("quiet")}
+        end={
+          <Button variant={main} onClick={p.mark}>
+            {W.oldDone.yes}
+          </Button>
+        }
+      />
+    );
+  return <Acts foot={foot} start={p.notNow} end={press(main)} />;
 }
 
 /** One that has waited past a week says first it may be let go. Called, not drawn. */
@@ -158,9 +198,13 @@ export function CallWork(p: WorkProps) {
       ) : draft?.state === "writing" ? (
         <Writing />
       ) : null}
-      <Acts
-        foot={p.foot}
-        start={
+      {callActs({
+        row,
+        main,
+        foot: p.foot,
+        mark: marked.mark,
+        onCall: () => setPhase("how"),
+        notNow:
           row.conversationId && may ? (
             <NotNow
               who={row.who}
@@ -171,20 +215,8 @@ export function CallWork(p: WorkProps) {
               busy={notNow.busy}
               markDone={marked.mark}
             />
-          ) : null
-        }
-        end={
-          row.phone ? (
-            <Button variant={main} href={`tel:${row.phone}`} onClick={() => setPhase("how")}>
-              {W.call.call}
-            </Button>
-          ) : (
-            <Button variant={main} onClick={() => appNavigate(row.cta.to)}>
-              {W.open}
-            </Button>
-          )
-        }
-      />
+          ) : null,
+      })}
     </>
   );
 }
