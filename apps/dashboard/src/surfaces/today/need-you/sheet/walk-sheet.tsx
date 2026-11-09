@@ -8,15 +8,16 @@
  * closed, with its receipt and its undo.
  */
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { NEED_YOU_WORDS as W, sheetSubOf, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
-import { Button, Sheet } from "../../kit";
-import { Icon } from "../../kit/icon/icon";
-import type { SheetRest } from "../../kit/sheet/rests";
-import { routeDoor, touchSwipe } from "../../frame-verbs";
-import { appNavigate } from "../shell";
-import type { WorkProps } from "./parts";
-import { workOf } from "./rows";
-import { undoSend, useSend } from "./sends";
+import { NEED_YOU_WORDS as W, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
+import { Button, Sheet } from "../../../kit";
+import { Icon } from "../../../kit/icon/icon";
+import type { SheetRest } from "../../../kit/sheet/rests";
+import { routeDoor, touchSwipe } from "../../../frame-verbs";
+import { appNavigate } from "../../shell";
+import { sheetSubOf } from "./moment";
+import type { WorkProps } from "../parts";
+import { workOf } from "../rows";
+import { undoSend, useSend } from "../sends";
 
 /** How long the one acted on stays in view before the next comes: long enough to see that it took. */
 const NEXT_AFTER_MS = 700;
@@ -104,7 +105,7 @@ function pagerOf(step: number, steps: number, go: (by: number) => void) {
 }
 
 /** The walk's end: how many went, what is left of today's, and the older ones if there are any. Called, not drawn. */
-function endOf(p: WalkSheetProps, lastRow: TodayQueueRowVM | null, close: { label: string; glyph: ReactElement }) {
+function walkEndOf(p: WalkSheetProps, lastRow: TodayQueueRowVM | null, close: { label: string; glyph: ReactElement }) {
   const handled = p.rows.filter((r) => p.kept.has(r.id)).length;
   const { older, more, todos } = p;
   return (
@@ -135,7 +136,7 @@ function endOf(p: WalkSheetProps, lastRow: TodayQueueRowVM | null, close: { labe
     >
       {lastRow ? <LastSend row={lastRow} unkeep={p.work.unkeep} /> : null}
       <div className="ny-walk-end" data-testid="walk-clear">
-        <span className="ny-walk-end-mark">
+        <span className="ny-walk-end-tick">
           <Icon name="check" size={18} />
         </span>
         <b>{W.walk.doneCount(handled)}</b>
@@ -189,7 +190,7 @@ export function WalkSheet(p: WalkSheetProps) {
   });
   const lastRow = last ? (rows.find((r) => r.id === last) ?? null) : null;
   const close = { label: W.walk.close, glyph: <Icon name="x" size={13} /> };
-  if (!row) return endOf(p, lastRow, close);
+  if (!row) return walkEndOf(p, lastRow, close);
   const pulled = rest === "full";
   return (
     <Sheet

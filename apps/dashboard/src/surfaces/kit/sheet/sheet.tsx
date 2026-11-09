@@ -32,7 +32,7 @@
  */
 import { Dialog } from "@base-ui/react/dialog";
 import type { ReactElement, ReactNode, Ref, RefObject } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { onAPhone, touchSwipe } from "../../frame-verbs";
 import { useHeightGlide } from "../motion/use-height-glide";
 import { cx } from "../variants";
@@ -258,23 +258,18 @@ export function Sheet(props: SheetProps) {
     return self.current && at instanceof HTMLElement && self.current.contains(at) ? at : self.current;
   }, []);
   const glide = useHeightGlide();
-  const fitRest = useFitRest();
+  const fitRest = useFitRest(!!shown.rest?.fit);
   // The sheet as it is on the page, for its own focus, its height's glide, its first rest, and the page's ref.
   const place = useCallback(
     (el: HTMLElement | null) => {
       self.current = el;
       glide(el);
-      fitRest(el?.hasAttribute("data-rest-fit") ? el : null);
+      fitRest(el);
       if (typeof ref === "function") ref(el);
       else if (ref) ref.current = el;
     },
     [ref, glide, fitRest],
   );
-  // A sheet that goes on being drawn with another shape (a walk's end, and on into a row) fits from then on.
-  const fitted = !!shown.rest?.fit;
-  useEffect(() => {
-    if (self.current) fitRest(fitted ? self.current : null);
-  }, [fitted, fitRest]);
   return (
     <Dialog.Root
       open={open}

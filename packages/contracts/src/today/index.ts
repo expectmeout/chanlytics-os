@@ -138,6 +138,7 @@ export type { RunLike, TodayRunWordsVM } from "./runs";
 export { todaySteps, todayStepsSub, todayVisitsAsked, todayVisitsSub, withSteps, withVisitsAsked } from "./to-do";
 export type { TodayStepsVM, TodayStepVM, TodayVisitAskVM, TodayVisitsAskedVM } from "./to-do";
 export type {
+  RowReading,
   TodayCallRowVM,
   TodayFactVM,
   TodayFigureId,

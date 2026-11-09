@@ -6,9 +6,7 @@
  *
  * Pure: the page, the sheet and the tests read the same lines.
  */
-import { reviewRoute } from "../reports/lenses";
-import type { GoogleReviewDto } from "../google/listing";
-import type { TodayQueueRowVM } from "../today/vm";
+import { reviewRoute, type GoogleReviewDto, type TodayQueueRowVM } from "@chanlytics/contracts";
 
 /** Who wrote a review, as its row names them. */
 export const reviewerOf = (review: Pick<GoogleReviewDto, "author">): string =>

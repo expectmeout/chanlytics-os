@@ -376,12 +376,12 @@
     "fresh": "A link the browser's own player reads as Play is pressed.",
     "why": "It is the call's recording, which does not change once it is stored."
   },
-  "apps/dashboard/src/surfaces/today/need-you/reads.ts GET ask/openings": {
+  "apps/dashboard/src/surfaces/today/need-you/sheet/reads.ts GET ask/openings": {
     "kind": "on-open",
     "fresh": "Read each time Another time is pressed on a booking.",
     "why": "What is open is asked as it is offered, and nothing goes to them until the owner has looked at it."
   },
-  "apps/dashboard/src/surfaces/today/need-you/reads.ts GET conversations/[id]": {
+  "apps/dashboard/src/surfaces/today/need-you/sheet/reads.ts GET conversations/[id]": {
     "kind": "on-open",
     "fresh": "Read once as a to-do's sheet opens on the person it is about.",
     "why": "Their last words sit over what the owner says to write; a word that lands while the sheet is open is on the thread, one press away."

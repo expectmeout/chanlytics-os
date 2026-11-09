@@ -165,7 +165,7 @@ async function openingsForChange(rt: TenantRuntime, at: Date, tenantId: TenantId
     const open = await inTime(findOpenings(rt, "chat", at), OPENINGS_MS);
     return open ? `What is open on the business's calendar right now, if they ask you to offer times:\n${open}` : null;
   } catch (e) {
-    logger({ tenant_id: tenantId }).warn("reply_draft_openings_unavailable", { error: errField(e) });
+    logger({ tenant_id: tenantId }).warn("reply_draft", { openings: "unavailable", error: errField(e) });
     return null;
   }
 }

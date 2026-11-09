@@ -14,10 +14,8 @@ import {
   NOTE_WORDS,
   answerWithinMsOf,
   namesAPerson,
-  needYouLineOf,
   needYouVerbOf,
   needYouWaitOf,
-  reviewStars,
   type AppointmentWord,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
@@ -29,6 +27,7 @@ import type { Nav, VerbKind } from "../../waits/wait-rows";
 import { gate, type Flash } from "../shell";
 import { useDraft } from "./drafts";
 import { draftWantOf, opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
+import { needYouLineOf, reviewStars } from "./sheet/row-line";
 
 /** What the section hands its rows. */
 export interface NeedYouRowsCtx {
@@ -149,6 +148,36 @@ export function rowWords(row: TodayQueueRowVM) {
   };
 }
 
+/**
+ * A row drawn short. Its verb is the page's coral where the focus took none (a reply that goes on its own: Stop is no coral), else
+ * quiet (the canvas of 2 Nov 2026: Lea's reply going alone, and Try again on the first row waiting). A to-do's Done is the one short
+ * verb that acts where it stands, with its toast and Undo: there is nothing to see first.
+ */
+function shortRow(r: TodayQueueRowVM, c: NeedYouRowsCtx): ReactElement {
+  const open = () => c.open(r.id);
+  const kind = (c.shortKind ?? c.verbKind)();
+  return (
+    <AttnRow
+      key={r.id}
+      {...rowWords(r)}
+      note=""
+      cta={
+        r.kind === "step" && c.may
+          ? {
+              label: r.cta.label,
+              kind,
+              onClick: () => c.stepDone(r),
+              // Several rows say Done: a reader hears whose, as the thread header's does.
+              gate: { ...gate("approve", "mark a step done"), "aria-label": NOTE_WORDS.markDone(r.sentence) },
+            }
+          : { label: <VerbWords row={r} words={shortLabel(r)} />, kind, onClick: open }
+      }
+      also={null}
+      onOpen={open}
+    />
+  );
+}
+
 /** The queue's rows, worked in place where they are the focus, short where they are not. */
 export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx): ReactElement[] {
   const phone = c.phone ?? null;
@@ -169,35 +198,8 @@ export function needYouRows(rows: readonly TodayQueueRowVM[], c: NeedYouRowsCtx)
       );
     }
     const kept = c.kept.has(r.id);
-    // Short until opened: a row that opens to be worked and is not the focus, nor acted on this visit. Its verb is the
-    // page's coral where the focus took none (a reply that goes on its own: Stop is no coral), else quiet (the canvas of
-    // 2 Nov 2026: Lea's reply going alone, and Try again on the first row waiting).
-    if (opensToWork(r) && r.id !== c.focus && !kept) {
-      const open = () => c.open(r.id);
-      const kind = (c.shortKind ?? c.verbKind)();
-      // A to-do's Done is the one short verb that acts where it stands, with its toast and Undo: there is nothing to see first.
-      const done = r.kind === "step" && c.may;
-      return (
-        <AttnRow
-          key={r.id}
-          {...common}
-          note=""
-          cta={
-            done
-              ? {
-                  label: r.cta.label,
-                  kind,
-                  onClick: () => c.stepDone(r),
-                  // Several rows say Done: a reader hears whose, as the thread header's does.
-                  gate: { ...gate("approve", "mark a step done"), "aria-label": NOTE_WORDS.markDone(r.sentence) },
-                }
-              : { label: <VerbWords row={r} words={shortLabel(r)} />, kind, onClick: open }
-          }
-          also={null}
-          onOpen={open}
-        />
-      );
-    }
+    // Short until opened: a row that opens to be worked and is not the focus, nor acted on this visit.
+    if (opensToWork(r) && r.id !== c.focus && !kept) return shortRow(r, c);
     const kind = actKindOf(r, c);
     // The card on a phone: its words cut to two lines, Read and its own words open the sheet on it.
     const card = !!phone && !kept && opensToWork(r);

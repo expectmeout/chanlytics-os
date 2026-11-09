@@ -214,7 +214,7 @@ const draw = () => {
 const queueOf = (tree) => byTestId(tree, "today-queue");
 /** To do's group in Need you, or null where it holds nothing. */
 const todoOf = (tree) => byTestId(tree, "today-group-todo");
-const moreOf = (tree) => byTestId(queueOf(tree), "today-group-todo-more");
+const todoMore = (tree) => byTestId(queueOf(tree), "today-group-todo-more");
 const stepRowsOf = (tree) => all(queueOf(tree), (n) => n.props?.["data-testid"] === "queue-step");
 const whoOf = (row) => textOf(find(row, (n) => classes(n).includes("cl-attn-who")));
 const doneCalls = [];
@@ -285,7 +285,7 @@ test("To do holds the steps due in its group under the person waiting, each in t
   find(open, (n) => classes(n).includes("cl-attn-body")).props.onClick();
   assert.equal(went.at(-1), "clients/d");
   // The rest, at To do's foot: how many more, and, nothing else being left out, the door to People's Steps due.
-  const foot = moreOf(tree);
+  const foot = todoMore(tree);
   assert.equal(textOf(foot).trim(), "3 more to do");
   assert.match(foot.props.href, /people\/seg:steps_due$/, "the Inbox holds no step");
 });
@@ -298,7 +298,7 @@ test("with nobody waiting, To do is the list: its three, and its foot's door to 
   const tree = draw();
   assert.deepEqual(stepRowsOf(tree).map(whoOf), ["Call Di", "Call Hal", "Call Ana"]);
   assert.equal(byTestId(queueOf(tree), "today-group-waiting"), null, "nobody waits on you");
-  assert.match(moreOf(tree).props.href, /people\/seg:steps_due$/, "the rest's door goes to People's Steps due");
+  assert.match(todoMore(tree).props.href, /people\/seg:steps_due$/, "the rest's door goes to People's Steps due");
 });
 
 test("Done is the Inbox header's verb, press for press: the step's note, said done, answered in the one step toast with its Undo; a second press while the first is on its way waits", async () => {

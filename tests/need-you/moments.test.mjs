@@ -4,20 +4,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { NEED_YOU_OLD_MS, failedWayOf, frameDraftChange, otherTimeWords, slotNear } from "@chanlytics/contracts";
 import {
-  NEED_YOU_OLD_MS,
   callMomentOf,
   callWhoOf,
   dayStripOf,
-  failedWayOf,
-  frameDraftChange,
-  needYouLineOf,
-  otherTimeWords,
   readingMomentOf,
-  reviewRowOf,
   sheetSubOf,
-  slotNear,
-} from "@chanlytics/contracts";
+} from "../../apps/dashboard/src/surfaces/today/need-you/sheet/moment.ts";
+import { needYouLineOf, reviewRowOf } from "../../apps/dashboard/src/surfaces/today/need-you/sheet/row-line.ts";
 
 const TZ = "America/New_York";
 // Monday, 9 Nov 2026, in New York.

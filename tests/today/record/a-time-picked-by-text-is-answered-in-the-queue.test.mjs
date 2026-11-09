@@ -30,7 +30,7 @@ installStubReact({
 });
 const W = globalThis.window;
 const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
-const { RequestWork } = await import("../../../apps/dashboard/src/surfaces/today/need-you/request-work.tsx");
+const { RequestWork } = await import("../../../apps/dashboard/src/surfaces/today/need-you/sheet/request-work.tsx");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 // What a row came to is kept by the row for the visit (need-you/row-state.ts): each test here is a visit of its own.
 const { clearRowStates } = await import("../../../apps/dashboard/src/surfaces/today/need-you/row-state.ts");

@@ -512,7 +512,7 @@ test("on a phone's Up next two lines of Ask's reply stand with no box round them
     const queue = draw(NeedYou);
     const card = byTestId(rowsOf(queue, "handoff")[0], "queue-handoff-work");
     assert.ok(textOf(card).includes("Six of us is $540"), textOf(card));
-    const peek = find(card, (n) => classes(n).includes("ny-peek"));
+    const peek = find(card, (n) => classes(n).includes("ny-glimpse"));
     assert.ok(peek, "two lines of the words, no box in a box");
     assert.equal(
       find(card, (n) => n.type === "button" && textOf(n) === "Edit"),

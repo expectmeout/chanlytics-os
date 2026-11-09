@@ -6,12 +6,17 @@
  *
  * Pure: the page, the sheet and the tests read the same moments.
  */
-import { formatWaited } from "../conversations/thread-clock";
-import { formatPhoneDisplay } from "../shared/phone";
-import { clockInZone, dayPlusInZone, localToUtcMs } from "../shared/zone/math";
-import { shortName } from "../conversations/thread-contact";
-import type { TodayQueueRowVM } from "../today/vm";
-import { NEED_YOU_OLD_MS } from "./groups";
+import {
+  NEED_YOU_OLD_MS,
+  clockInZone,
+  dayPlusInZone,
+  formatPhoneDisplay,
+  formatWaited,
+  localToUtcMs,
+  shortName,
+  type RowReading,
+  type TodayQueueRowVM,
+} from "@chanlytics/contracts";
 
 /** The line under a sheet's name: how it came and how long it has waited, in what that row has. */
 export function sheetSubOf(
@@ -69,7 +74,7 @@ export type CallMoment =
 const AFTER_TIME = /\bafter\s+(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?m?\.?(?!\s*(?:day|hour|minute|week|month|year))\b/i;
 
 /** The hour on a 24-hour clock of what `AFTER_TIME` found; with no AM or PM, an afternoon's up to 7 and otherwise as said. */
-function hourOf(hour: number, half: string | undefined): number {
+function saidHour(hour: number, half: string | undefined): number {
   const h = hour % 12;
   if (half?.toLowerCase() === "a") return h;
   if (half?.toLowerCase() === "p") return h + 12;
@@ -102,7 +107,7 @@ export function callMomentOf(
   const { hh, mm } = clockInZone(when.tz, when.nowMs);
   const said = AFTER_TIME.exec(row.sentence);
   if (said) {
-    const hour = hourOf(Number(said[1]), said[3]);
+    const hour = saidHour(Number(said[1]), said[3]);
     const minute = said[2] ? Number(said[2]) : 0;
     if (hour < 24 && (hour > hh || (hour === hh && minute > mm)))
       return {
@@ -126,18 +131,6 @@ export function callMomentOf(
 export const callWhoOf = (who: string): string => (/^[+\d(]/.test(who) ? "them" : shortName(who));
 
 /* ------------------------------------------------ a reply to a reach-out */
-
-/** What the reach-out read a reply as, on its row. */
-export interface RowReading {
-  intent: string;
-  claim: string;
-  /** The day a to-do was set for (YYYY-MM-DD), where one was. */
-  step_day: string | null;
-  /** Who they said to write to, where they said. */
-  refer_to: string | null;
-  /** When they are back, as an instant, where an automatic reply said. */
-  until_at: string | null;
-}
 
 /** What a reading's sheet says has already been done, and which presses are left. */
 export interface ReadingMoment {
@@ -208,7 +201,7 @@ export function readingMomentOf(reading: RowReading | null | undefined): Reading
 export const staleRow = (row: Pick<TodayQueueRowVM, "waitedMs" | "kind">): boolean =>
   row.kind !== "held" && row.waitedMs >= NEED_YOU_OLD_MS;
 
-/** One day's span as a share of a working day, for a booking's strip. */
+/** One part of a day as a share of its working hours, for a booking's strip. */
 export interface DayStripPart {
   from: number;
   width: number;
@@ -216,21 +209,21 @@ export interface DayStripPart {
 
 /**
  * What stands on the day a booking asks for, on a strip of the business's hours: each thing booked as a share of the span, and
- * the time asked for. A part outside the span is cut to it.
+ * the time asked for. A part outside those hours is cut to them.
  */
 export function dayStripOf(
-  span: { start: number; end: number },
+  open: { start: number; end: number },
   blocks: readonly { t: number; dur: number }[],
   slot: { start: number; end: number },
 ): { busy: DayStripPart[]; slot: DayStripPart; hours: number[] } {
-  const whole = Math.max(1, span.end - span.start);
+  const whole = Math.max(1, open.end - open.start);
   const share = (from: number, to: number): DayStripPart => {
-    const a = Math.min(span.end, Math.max(span.start, from));
-    const b = Math.min(span.end, Math.max(span.start, to));
-    return { from: ((a - span.start) / whole) * 100, width: (Math.max(0, b - a) / whole) * 100 };
+    const a = Math.min(open.end, Math.max(open.start, from));
+    const b = Math.min(open.end, Math.max(open.start, to));
+    return { from: ((a - open.start) / whole) * 100, width: (Math.max(0, b - a) / whole) * 100 };
   };
   const hours: number[] = [];
-  for (let h = Math.ceil(span.start); h <= span.end; h += 3) hours.push(h);
+  for (let h = Math.ceil(open.start); h <= open.end; h += 3) hours.push(h);
   return {
     busy: blocks.map((b) => share(b.t, b.t + b.dur / 60)).filter((p) => p.width > 0),
     slot: share(slot.start, slot.end),
@@ -244,7 +237,7 @@ export const stripHour = (hour: number): string =>
 
 /** What stands after the time asked for, as the sheet says it: "Nothing else until 5 PM", "Next one is at 1 PM". */
 export function afterSlotWords(
-  span: { end: number },
+  open: { end: number },
   blocks: readonly { t: number }[],
   slotEnd: number,
   hasMoreToday: boolean,
@@ -257,5 +250,5 @@ export function afterSlotWords(
     const h = Math.floor(next);
     return `Next one is at ${clockWords(h, Math.round((next - h) * 60))}.`;
   }
-  return hasMoreToday ? `Nothing else until ${clockWords(Math.floor(span.end), 0)}.` : "";
+  return hasMoreToday ? `Nothing else until ${clockWords(Math.floor(open.end), 0)}.` : "";
 }

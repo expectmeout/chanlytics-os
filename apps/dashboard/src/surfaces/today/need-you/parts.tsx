@@ -113,7 +113,7 @@ export function whoseWords(
 function Peek({ text, onRead, who }: { text: string; onRead: () => void; who: string }) {
   return (
     <span
-      className="ny-peek"
+      className="ny-glimpse"
       role="button"
       tabIndex={0}
       aria-label={W.editDraft(who)}
@@ -121,7 +121,7 @@ function Peek({ text, onRead, who }: { text: string; onRead: () => void; who: st
       onKeyDown={pressKeys(onRead)}
     >
       <AskMark />
-      <span className="ny-peek-words">{text}</span>
+      <span className="ny-glimpse-words">{text}</span>
     </span>
   );
 }

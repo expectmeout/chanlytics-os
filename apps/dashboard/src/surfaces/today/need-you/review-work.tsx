@@ -4,12 +4,13 @@
  * place, and Post holds it for the reply's grace before it goes public (sends.ts), with Undo the whole of it.
  */
 import { useState } from "react";
-import { NEED_YOU_WORDS as W, reviewerOf, type GoogleReviewDto } from "@chanlytics/contracts";
+import { NEED_YOU_WORDS as W, type GoogleReviewDto } from "@chanlytics/contracts";
 import { draftReply, replyToReview } from "@/bridge/google";
 import { Button } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
 import { gate } from "../shell";
-import { AskLine } from "./ask-line";
+import { SayToAsk } from "./sheet/ask-line";
+import { reviewerOf } from "./sheet/row-line";
 import { Acts, Done, Going, Note, Words, Writing, startKind, whoseWords, type WorkProps } from "./parts";
 import { reviewRestKey, useRests } from "./rests";
 import { clearSend, holdReviewPost, undoSend, useSend } from "./sends";
@@ -169,7 +170,7 @@ export function ReviewWork(
         <Writing />
       ) : null}
       {p.whole && may ? (
-        <AskLine
+        <SayToAsk
           placeholder={text !== null ? W.say.tell : W.review.say}
           onSay={draft}
           busy={phase === "writing"}

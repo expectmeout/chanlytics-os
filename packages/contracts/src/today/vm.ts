@@ -4,7 +4,6 @@
  */
 import type { CallDto } from "../conversations/call-dto";
 import type { FailedWay } from "../conversations/message-words";
-import type { RowReading } from "../need-you/moment";
 import type { EscalationDto, HoldAct } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { GoogleReviewDto } from "../google/listing";
@@ -57,6 +56,18 @@ export interface TodaySentenceVM {
   warn?: boolean;
   /** The record the sentence is about, when the read holds it: the thread of the newest reply that failed. */
   to?: string;
+}
+
+/** What the reach-out read a reply as, on its row. */
+export interface RowReading {
+  intent: string;
+  claim: string;
+  /** The day a to-do was set for (YYYY-MM-DD), where one was. */
+  step_day: string | null;
+  /** Who they said to write to, where they said. */
+  refer_to: string | null;
+  /** When they are back, as an instant, where an automatic reply said. */
+  until_at: string | null;
 }
 
 /** One thing said on a row's thread: by them, by the business, or by the business and never delivered. */
@@ -230,7 +241,7 @@ export interface TodayQueueRowVM {
   failed?: { text: string; said: string; way: FailedWay; plain: string };
   /**
    * What the reach-out read this reply as, where one was read, a no and an automatic reply among them: its sheet says what was
-   * already done about it and offers only what is left (need-you/moment.ts readingMomentOf).
+   * already done about it and offers only what is left (its sheet's readingMomentOf).
    */
   reading?: RowReading | null;
 }

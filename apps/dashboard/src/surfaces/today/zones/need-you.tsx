@@ -45,7 +45,7 @@ import { OlderGroup } from "../need-you/older";
 import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
 import { draftWantOf, opensToWork, worksInPlace } from "../need-you/rows";
 import { clearRowStates } from "../need-you/row-state";
-import { WalkSheet, type WalkAt, type WalkOlder } from "../need-you/walk-sheet";
+import { WalkSheet, type WalkAt, type WalkOlder } from "../need-you/sheet/walk-sheet";
 import { useTodayOnPhone } from "../phone";
 import { keptWith, keptWithout, withKept, type Kept } from "./kept";
 import { useToDoRows, type ToDoRows } from "./to-do";
@@ -192,7 +192,7 @@ function needYouHead(door: { to: string; label: string }, done: number, toDo: nu
 }
 
 /** How many a group could not hold, as the press at its foot says them, and where they are; none where it held them all. */
-const moreOf = (say: (n: number) => string, cut: number, to = "inbox") => (cut > 0 ? { label: say(cut), to } : null);
+const cutDoor = (say: (n: number) => string, cut: number, to = "inbox") => (cut > 0 ? { label: say(cut), to } : null);
 
 /** The old rows handed back this visit, kept for the visit with what they came to: the next read has none of them. */
 type OlderHanded = { rows: readonly TodayQueueRowVM[]; handed: HandedBack };
@@ -236,7 +236,7 @@ function groupsAbove(
         key="waiting"
         title={G.waiting}
         count={waiting || null}
-        more={moreOf(W.cut.waiting, groups.waiting.length - drawn.waiting.length)}
+        more={cutDoor(W.cut.waiting, groups.waiting.length - drawn.waiting.length)}
         testid="today-group-waiting"
       >
         {needYouRows(drawn.waiting, ctx)}
@@ -247,7 +247,7 @@ function groupsAbove(
         key="ok"
         title={G.ok}
         count={ok || null}
-        more={moreOf(W.cut.ok, groups.ok.length - drawn.ok.length + runs.cut)}
+        more={cutDoor(W.cut.ok, groups.ok.length - drawn.ok.length + runs.cut)}
         testid="today-group-ok"
       >
         {[...needYouRows(drawn.ok, ctx), ...runs.drawn]}
@@ -264,7 +264,7 @@ function todoGroup(todo: ToDoRows, bare: boolean) {
       title={W.group.todo}
       count={todo.count}
       bare={bare}
-      more={moreOf(W.cut.todo, todo.cut, todo.door ?? "inbox")}
+      more={cutDoor(W.cut.todo, todo.cut, todo.door ?? "inbox")}
       testid="today-group-todo"
     >
       {todo.drawn}

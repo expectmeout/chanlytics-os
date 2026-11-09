@@ -306,6 +306,12 @@ function keptForYouOf(vm: SetupVM, setupCardWho: SetupCardWho | undefined): stri
 /** Go live's rows that wait on the owner once paid: the forwarding, the check of the line, WhatsApp. */
 const GOING_LIVE_ROWS = ["keep", "try", "whatsapp"] as const;
 
+/** What comes after the step it opens on: the head over it has already said nothing answers yet (9 Nov 2026). */
+const stepsAfter = (fr: ReturnType<typeof firstRunOf>): string[] =>
+  fr.steps
+    .filter((s) => s.state !== "done" && s.key !== fr.current)
+    .map((s) => firstRunStepDefOf(s.key).name.toLowerCase());
+
 /** Today's card: what is left to set up, or null when nothing is. */
 export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCardVM | null {
   const words = SETUP_CARD_WORDS;
@@ -329,17 +335,13 @@ export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCard
   if (!fr.complete && (fr.current !== "live" || !paid)) {
     const left = fr.steps.filter((s) => s.state !== "done").length;
     const def = firstRunStepDefOf(fr.current);
-    // Said by what comes next: the head over it has already said nothing answers yet (9 Nov 2026).
-    const after = fr.steps
-      .filter((s) => s.state !== "done" && s.key !== fr.current)
-      .map((s) => firstRunStepDefOf(s.key).name.toLowerCase());
     return {
       title: FINISH_SETTING_UP,
       left: `${left} ${left === 1 ? "step" : "steps"} left`,
       start: {
         // Said as it is: nothing answers yet; WhatsApp answers and calls do not; or calls are answered and a step is open.
         name: def.name,
-        sentence: words.then(after) ?? def.lead,
+        sentence: words.then(stepsAfter(fr)) ?? def.lead,
         status: !vm.readiness.answering
           ? words.notAnswering
           : vm.tryIt?.voice

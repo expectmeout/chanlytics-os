@@ -3330,6 +3330,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `conversation_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `kind` | string | no |  |
 | `instruction` | string | no |  |
+| `given` | string | no |  |
 
 ### `POST /api/admin/email/alert-test`
 
@@ -3418,6 +3419,8 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `account_name` | string | no |  |
 | `location_name` | string | no |  |
 | `id` | string | no |  |
+| `instruction` | string | no |  |
+| `given` | string | no |  |
 | `comment` | string | no |  |
 | `file_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `summary` | string | no |  |

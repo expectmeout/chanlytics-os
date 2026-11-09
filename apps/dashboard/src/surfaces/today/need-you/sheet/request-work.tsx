@@ -9,23 +9,22 @@ import { useState, type ReactNode } from "react";
 import {
   BOOKING_REQUEST_WORDS,
   NEED_YOU_WORDS as W,
-  afterSlotWords,
   bookingRequestCardOf,
-  dayStripOf,
+  clockInZone,
   otherTimeWords,
   slotNear,
-  stripHour,
 } from "@chanlytics/contracts";
+import { afterSlotWords, dayStripOf, stripHour } from "./moment";
 import { commitVerb } from "@/bridge/verbs/commit";
-import { answerRequest } from "../../booking-request";
-import { Button } from "../../kit";
-import { appNavigate, gate } from "../shell";
-import { AskLine } from "./ask-line";
-import { rewriteDraft } from "./drafts";
-import { Acts, Done, Going, Note, Words, startKind, type WorkProps } from "./parts";
+import { answerRequest } from "../../../booking-request";
+import { Button } from "../../../kit";
+import { appNavigate, gate } from "../../shell";
+import { SayToAsk } from "./ask-line";
+import { rewriteDraft } from "../drafts";
+import { Acts, Done, Going, Note, Words, startKind, type WorkProps } from "../parts";
 import { dayOfInstant, useOpenTimes, type OpenTime } from "./reads";
-import { useRowState } from "./row-state";
-import { holdAct, undoSend, useSend } from "./sends";
+import { useRowState } from "../row-state";
+import { holdAct, undoSend, useSend } from "../sends";
 
 /** How many times Another time offers. */
 const TIMES_OFFERED = 5;
@@ -34,14 +33,7 @@ const TIMES_PICKED = 2;
 
 /** The hours from midnight of an instant, in the zone. */
 const hourIn = (atMs: number, tz: string): number => {
-  const p = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hour: "numeric",
-    minute: "numeric",
-    hour12: false,
-  }).formatToParts(atMs);
-  const hh = Number(p.find((x) => x.type === "hour")?.value ?? 0) % 24;
-  const mm = Number(p.find((x) => x.type === "minute")?.value ?? 0);
+  const { hh, mm } = clockInZone(tz, atMs);
   return hh + mm / 60;
 };
 
@@ -88,7 +80,7 @@ const stripSpot = (from: number, width: number) => ({
 function Slot({ card }: { card: ReturnType<typeof bookingRequestCardOf> }) {
   return (
     <div className="ny-slot">
-      <span className="ny-tile">
+      <span className="ny-day-square">
         <small>{card.weekday}</small>
         <b>{card.date}</b>
       </span>
@@ -235,7 +227,7 @@ function OtherTimes(p: {
       {open && !open.times.length ? <Note>{W.booked.noneOpen}</Note> : null}
       <Words label={W.booked.theyGet} text={words} who={row.who} onChange={may ? setMine : null} busy={answer.asking} />
       {may ? (
-        <AskLine
+        <SayToAsk
           placeholder={mine !== null ? W.say.tellMore : W.say.tell}
           onSay={answer.say}
           busy={answer.asking}
@@ -404,7 +396,7 @@ export function RequestWork(p: WorkProps) {
         />
       ) : null}
       {says && may ? (
-        <AskLine
+        <SayToAsk
           placeholder={mine !== null ? W.say.tellMore : W.say.tell}
           onSay={answer.say}
           busy={answer.asking}

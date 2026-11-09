@@ -291,18 +291,18 @@
   overflow-wrap: anywhere;
 }
 /* Two lines of what Ask has ready, on a phone's Up next: no box, and a press opens the sheet. */
-.ny-peek {
+.ny-glimpse {
   display: flex;
   gap: 7px;
   align-items: flex-start;
   cursor: pointer;
   border-radius: var(--radius-sm);
 }
-.ny-peek:focus-visible {
+.ny-glimpse:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
-.ny-peek-words {
+.ny-glimpse-words {
   display: -webkit-box;
   min-width: 0;
   overflow: hidden;
@@ -353,7 +353,7 @@
 .ny-m[data-from="us"] {
   align-self: flex-end;
   border-bottom-right-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
+  border: 1px solid var(--line-strong);
   color: var(--ink-muted);
 }
 .ny-m[data-from="failed"] {
@@ -433,7 +433,7 @@
   align-items: center;
   gap: 12px;
 }
-.ny-tile {
+.ny-day-square {
   display: flex;
   flex: none;
   flex-direction: column;
@@ -445,13 +445,13 @@
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-.ny-tile > small {
+.ny-day-square > small {
   font-size: var(--text-xs);
   line-height: 1;
   letter-spacing: 0.04em;
   color: var(--ink-dim);
 }
-.ny-tile > b {
+.ny-day-square > b {
   font-size: var(--text-title);
   line-height: 1.25;
   font-weight: var(--weight-semibold);
@@ -838,7 +838,7 @@
   letter-spacing: -0.012em;
   color: var(--ink);
 }
-.ny-walk-end-mark {
+.ny-walk-end-tick {
   display: grid;
   place-items: center;
   width: 46px;

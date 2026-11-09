@@ -200,7 +200,7 @@ export const NEED_YOU_WORDS = {
     },
     onRecord: "On record",
     firstTime: "First time they have called.",
-    neverHere: "No visits yet.",
+    neverHere: "Nothing on record yet.",
     lastHere: (when: string) => `Last here ${when}.`,
     nextHere: (when: string) => `Next: ${when}.`,
     selling: "This looks like someone selling to you, not a customer.",

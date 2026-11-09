@@ -8,13 +8,7 @@
  * coral only where Need you holds none.
  */
 import { useLayoutEffect, useState, type ReactElement, type ReactNode } from "react";
-import {
-  DEFAULT_TIMEZONE,
-  lensRoute,
-  reviewRowOf,
-  type AppointmentWord,
-  type TodayQueueRowVM,
-} from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, lensRoute, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { useSurface } from "../../use-surface";
 import { holdsCoral, useCoralHeld } from "../queue-coral";
 import { TODAY_HELPERS } from "../helpers";
@@ -22,6 +16,7 @@ import { appNavigate, canDo, useMoved, useToast, workspaceClock } from "../shell
 import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
 import { useRests } from "../need-you/rests";
 import { reviewsToAnswer } from "../need-you/reviews";
+import { reviewRowOf } from "../need-you/sheet/row-line";
 import type { VerbKind } from "../../waits/wait-rows";
 import { useTodayWord } from "./day-vm";
 import { keptWith, keptWithout, withKept, type Kept } from "./kept";

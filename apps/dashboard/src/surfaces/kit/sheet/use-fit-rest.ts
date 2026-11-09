@@ -5,7 +5,7 @@
  * sheet already has. Worked out as what it holds changes, and as the sheet does (a keyboard rising): written on the element,
  * as the pull's own place is, so the rule moves it on the kit's ease.
  */
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 /** The height of everything in the sheet but its body, the foot's margins among it. */
 function chromeOf(sheet: HTMLElement, body: HTMLElement): number {
@@ -28,10 +28,14 @@ function heldBy(body: HTMLElement): number {
   return last.getBoundingClientRect().bottom - first.getBoundingClientRect().top + pad;
 }
 
-/** The ref that fits a sheet's first rest: hand it the sheet, and null to stop. */
-export function useFitRest(): (sheet: HTMLElement | null) => void {
+/**
+ * The ref that fits a sheet's first rest, where it has one that fits: hand it the sheet, and null as it goes. A sheet that goes on
+ * being drawn with another shape (a walk's end, and on into a row) fits from then on.
+ */
+export function useFitRest(fits: boolean): (sheet: HTMLElement | null) => void {
   const stop = useRef<(() => void) | null>(null);
-  return useCallback((sheet: HTMLElement | null) => {
+  const held = useRef<HTMLElement | null>(null);
+  const start = useCallback((sheet: HTMLElement | null) => {
     stop.current?.();
     stop.current = null;
     if (!sheet || typeof ResizeObserver === "undefined") return;
@@ -56,4 +60,12 @@ export function useFitRest(): (sheet: HTMLElement | null) => void {
       changes.disconnect();
     };
   }, []);
+  useEffect(() => start(fits ? held.current : null), [fits, start]);
+  return useCallback(
+    (sheet: HTMLElement | null) => {
+      held.current = sheet;
+      start(fits ? sheet : null);
+    },
+    [fits, start],
+  );
 }

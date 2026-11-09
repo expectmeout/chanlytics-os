@@ -109,11 +109,11 @@ const SAID_CHARS = 600;
  * What was said on a thread, the earliest first, as a sheet draws it: their words and the business's that went out, or
  * failed. Not what is held and may yet not go (a draft counting down, its own row), nor a call's note or the system's.
  */
-function saidOf(conv: ConversationDto | undefined): TodayQueueRowVM["said"] {
+function saidOnThread(conv: ConversationDto | undefined): TodayQueueRowVM["said"] {
   return conv ? saidOfMessages(conv.messages) : undefined;
 }
 
-/** What was said in these messages, as saidOf says it: a sheet reading a thread its row does not hold reads it the same way. */
+/** What was said in these messages, as saidOnThread says it: a sheet reading a thread its row does not hold reads it the same way. */
 export function saidOfMessages(messages: readonly MessageDto[]): TodayQueueRowVM["said"] {
   const said = messages
     .filter((x) => x.sender !== "system" && x.type !== "call_summary" && !isHeldDraft(x) && !!messageWords(x).trim())
@@ -167,7 +167,7 @@ function heldRow(conversation: ConversationDto, todayFacts: TodayFacts): TodayQu
     cta: { label: NEED_YOU_WORDS.openThread, to: addressOf({ kind: "conversation", id: conversation.id }) },
     also: null,
     writes: writesOf(conversation, todayFacts),
-    said: saidOf(conversation),
+    said: saidOnThread(conversation),
     held: { message_id: draft.id, text: messageText(draft), sends_at_ms: sendsAtMs },
     // Before everyone waiting: it goes on its own in seconds.
     waitedMs: Number.MAX_SAFE_INTEGER,
@@ -222,7 +222,7 @@ function callbackRow(escalation: EscalationRecord, todayFacts: TodayFacts): Toda
     },
     also: { label: "Done", verb: "resolve", conversationId: error.conversation_id, escalationId: error.id },
     writes: writesOf(escalation.conv, todayFacts),
-    said: saidOf(escalation.conv),
+    said: saidOnThread(escalation.conv),
     ...(escalation.call
       ? {
           call: {
@@ -330,7 +330,7 @@ function handoffOf(escalation: EscalationRecord, todayFacts: TodayFacts): TodayQ
     },
     also: { label: "Snooze", verb: "snooze", conversationId: error.conversation_id, escalationId: error.id },
     writes: writesOf(escalation.conv, todayFacts),
-    said: saidOf(escalation.conv),
+    said: saidOnThread(escalation.conv),
     // The hold's number, for a call that follows a failure or a reply the receptionist asked a person to make.
     phone: escalation.conv?.contact.phone_e164 ?? null,
     reason: reasonLabelOf(error.reason),
@@ -379,7 +379,7 @@ function windowRow(conversation: ConversationDto, todayFacts: TodayFacts): Today
     cta: { label: "Open thread", to: addressOf({ kind: "conversation", id: conversation.id }) },
     also: null,
     writes: writesOf(conversation, todayFacts),
-    said: saidOf(conversation),
+    said: saidOnThread(conversation),
     // After every escalation (which waited ≥ 0), the soonest to close first.
     waitedMs: -leftMs,
     clock_ms: leftMs,
@@ -410,7 +410,7 @@ function owedRow({ conv: c, move, who, waitedMs, word, quote }: OwedThread, toda
     cta: { label: HOLD_ACT_WORDS.reply.cta, to: addressOf({ kind: "conversation", id: c.id }) },
     also: null,
     writes: writesOf(c, todayFacts),
-    said: saidOf(c),
+    said: saidOnThread(c),
     phone: c.contact.phone_e164 ?? null,
     reason: word,
     waitedMs,

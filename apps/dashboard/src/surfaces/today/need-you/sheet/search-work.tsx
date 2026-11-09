@@ -5,12 +5,11 @@
  */
 import { useState } from "react";
 import { NEED_YOU_WORDS as W } from "@chanlytics/contracts";
-import { api } from "@/bridge/api";
-import { Button } from "../../kit";
-import { askAbout, gate } from "../shell";
-import { AskLine } from "./ask-line";
-import { Acts, Done, Note, State, startKind, type WorkProps } from "./parts";
-import { useRowState } from "./row-state";
+import { Button } from "../../../kit";
+import { askAbout, gate } from "../../shell";
+import { SayToAsk } from "./ask-line";
+import { Acts, Done, Note, State, startKind, type WorkProps } from "../parts";
+import { useRowState } from "../row-state";
 
 /** A search's own id on its row. */
 const searchIdOf = (rowId: string): string => rowId.replace(/^q-s-/, "");
@@ -22,10 +21,9 @@ export function SearchWork(p: WorkProps) {
   const answer = async (to: "keep" | "stop") => {
     setBusy(true);
     keep(row);
-    const r = await api()("POST lead-searches/[id]/answer", {
-      params: { id: searchIdOf(row.id) },
-      body: { answer: to },
-    }).catch(() => null);
+    // Leads' own door, its code read as it is pressed: most days nobody answers a search from here.
+    const { answerSearch } = await import("../../../leads/surface");
+    const r = await answerSearch(searchIdOf(row.id), to).catch(() => null);
     setBusy(false);
     if (!r || !r.ok) {
       unkeep(row);
@@ -62,7 +60,7 @@ export function SearchWork(p: WorkProps) {
     <>
       <State>{row.sentence}</State>
       {may ? (
-        <AskLine
+        <SayToAsk
           placeholder={W.search.change}
           onSay={(words) => {
             // A change to a search is Ask's to make into a card, which amends this search and is approved there.

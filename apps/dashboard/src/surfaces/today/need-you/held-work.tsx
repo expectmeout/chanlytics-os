@@ -10,7 +10,7 @@ import { commitVerb } from "@/bridge/verbs/commit";
 import { cancelSend } from "../../inbox/verbs";
 import { Button, Meter } from "../../kit";
 import { appNavigate } from "../shell";
-import { AskLine } from "./ask-line";
+import { SayToAsk } from "./sheet/ask-line";
 import { Acts, Done, Note, Words, useTick, type WorkProps } from "./parts";
 import { ReplyWork } from "./reply-work";
 import { useRowState } from "./row-state";
@@ -83,7 +83,7 @@ export function HeldWork(p: WorkProps) {
       <Words label={W.held.goesIn(seconds)} asks text={held.text} who={row.who} onChange={null} onRead={p.read} />
       {going}
       {p.whole && may ? (
-        <AskLine placeholder={W.say.tellHeld} onSay={rewriteIt} busy={rewrite === "busy"} why={why} />
+        <SayToAsk placeholder={W.say.tellHeld} onSay={rewriteIt} busy={rewrite === "busy"} why={why} />
       ) : null}
       {!may ? <Note>{W.viewer}</Note> : null}
       <Acts

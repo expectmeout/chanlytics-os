@@ -8,25 +8,18 @@
  * Which press is the coral follows the moment (his call D6): a reply that never reached them offers what can work, a reply to a
  * reach-out says what has already been done and offers only what is left, and one past a week may be let go.
  */
-import { useMemo, useState, type ReactNode } from "react";
-import {
-  NEED_YOU_WORDS as W,
-  THREAD_CHANNEL_WORDS,
-  addressOf,
-  callWhoOf,
-  notNowChoices,
-  readingMomentOf,
-  staleRow,
-  type TodayQueueRowVM,
-} from "@chanlytics/contracts";
+import { useState, type ReactNode } from "react";
+import { NEED_YOU_WORDS as W, THREAD_CHANNEL_WORDS, addressOf, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { carryNotAPerson, carryReply } from "../../inbox/carried-reply";
 import { Button } from "../../kit";
 import { Icon } from "../../kit/icon/icon";
 import { appNavigate, gate, mayAtLeast } from "../shell";
-import { AskLine } from "./ask-line";
+import { SayToAsk } from "./sheet/ask-line";
+import { callWhoOf, readingMomentOf, staleRow } from "./sheet/moment";
 import { rewriteDraft, useDraft, type DraftWant } from "./drafts";
 import { Acts, Done, Going, Note, NotNow, Words, Writing, startKind, whoseWords, type WorkProps } from "./parts";
+import { useMarkDone, useNotNow, type Snoozed } from "./row-verbs";
 import { clearSend, sendWords, undoSend, useSend } from "./sends";
 import { useRowState } from "./row-state";
 
@@ -50,49 +43,6 @@ export function replyWant(row: TodayQueueRowVM): DraftWant | null {
   };
 }
 
-/** A thread snoozed from its row, and the record its Wake sends. */
-export interface Snoozed {
-  back: string;
-  record: Record<string, unknown>;
-}
-
-/** Not now on a thread: the snooze's choices, and what choosing one does, or a time of the page's own (Back at 4 PM). */
-export function useNotNow(p: WorkProps, setSnoozed: (s: Snoozed) => void) {
-  const { row, tz, flash, keep, unkeep } = p;
-  // The times as they stand when the menu opens (`fresh`, its trigger's press): a Today left open all day never offers an
-  // hour, or an afternoon, already gone.
-  const [at, setAt] = useState(() => Date.now());
-  const choices = useMemo(() => notNowChoices(tz, at), [tz, at]);
-  const [busy, setBusy] = useState(false);
-  const until = async (when: string, back: string) => {
-    if (!row.conversationId) return;
-    setBusy(true);
-    // Kept before the door is asked: its refresh drops the thread from the read, and the row must stay to say so.
-    keep(row);
-    const r = await commitVerb("thread_verb", {
-      verb: "snooze",
-      conversation_id: row.conversationId,
-      until: when,
-      who: row.who,
-    });
-    setBusy(false);
-    if (!r.ok) {
-      unkeep(row);
-      flash({ tone: "danger", msg: <>{r.message}</> });
-      return;
-    }
-    setSnoozed({ back, record: r.undo ?? {} });
-  };
-  const choose = async (i: number) => {
-    // The time pressed, as it stands at the press: the menu may have been drawn a while before.
-    const c = notNowChoices(tz, Date.now()).find((x) => x.key === choices[i]?.key) ?? choices[i];
-    if (c) await until(c.until, c.back);
-  };
-  const closes = row.writes?.window_closes;
-  const caption = [W.backSooner(row.who), closes ? W.windowCloses(closes) : ""].filter(Boolean).join(" ");
-  return { choices, choose, until, busy, caption, fresh: () => setAt(Date.now()) };
-}
-
 /**
  * Not a person, on an email's row (decision 0080): a program's mail taken for a person is let go where the owner meets it,
  * and the sorting is taught (its address, or its domain, said to be automated, so its mail stays in the mailbox from now
@@ -106,43 +56,6 @@ function notAPersonOf(row: TodayQueueRowVM, wire: string): (() => void) | null {
     carryNotAPerson(id);
     appNavigate(addressOf({ kind: "person", id }));
   };
-}
-
-/**
- * Mark done on one row (2 Nov 2026: a row was let go only by Mark all done, once a week old): the hold resolved and the
- * thread the receptionist's again (core handBack, as Mark all done and a call back's Reached do), so it answers them if
- * they write; Undo takes the thread over again (the verb's own inverse). A hold's row alone, a handoff or a reach-out's
- * reply read, a call back (8 Nov 2026: its note says to mark one done, and nothing there did): a closing window and a reply
- * counting down hold nothing to give back.
- */
-export function useMarkDone(work: WorkProps) {
-  const { row, flash, keep, unkeep } = work;
-  const [done, setDone] = useRowState<Record<string, unknown> | null>(row.id, "markedDone", null);
-  const may =
-    work.may && !!row.conversationId && (row.kind === "handoff" || row.kind === "reply" || row.kind === "callback");
-  const mark = async () => {
-    if (!row.conversationId) return;
-    // Kept before the door is asked: its refresh drops the hold from the read, and the row must stay to say so.
-    keep(row);
-    const r = await commitVerb("thread_verb", {
-      verb: row.closes ?? "hand_back",
-      conversation_id: row.conversationId,
-      who: row.who,
-    });
-    if (!r.ok) {
-      unkeep(row);
-      return flash({ tone: "danger", msg: <>{r.message}</> });
-    }
-    setDone(r.undo ?? {});
-  };
-  const undo = async () => {
-    if (!done) return;
-    const r = await undoVerb("thread_verb", done);
-    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
-    setDone(null);
-    unkeep(row);
-  };
-  return { done: done !== null, mark: may ? () => void mark() : null, undo: () => void undo() };
 }
 
 /** Why a send was refused, and the address an email reply waits on a yes to, where the door asked. */
@@ -169,7 +82,7 @@ function useWords(row: TodayQueueRowVM, mine: string | null) {
  * place with an Undo beside them; refused, the words stay and it says why. The words said go to the model as they are, with
  * what is on the screen (a reply they typed, one that never reached them), never a draft they cannot see.
  */
-export function useAskChange(row: TodayQueueRowVM, words: string, setMine: (text: string | null) => void) {
+function useAskChange(row: TodayQueueRowVM, words: string, setMine: (text: string | null) => void) {
   const [busy, setBusy] = useState(false);
   const [why, setWhy] = useRowState<string | null>(row.id, "askWhy", null);
   // The words they had before Ask's last change, and what Ask last wrote, which is still Ask's though it stands as `mine`.
@@ -547,7 +460,7 @@ export function ReplyWork(p: WorkProps & { what?: string; by?: string; start?: R
         </span>
       ) : null}
       {stage.askable ? (
-        <AskLine
+        <SayToAsk
           placeholder={ask.changed ? W.say.tellMore : W.say.tell}
           onSay={ask.say}
           busy={ask.busy}

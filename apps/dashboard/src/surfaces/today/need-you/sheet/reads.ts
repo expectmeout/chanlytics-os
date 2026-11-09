@@ -4,17 +4,11 @@
  * until a sheet asks.
  */
 import { useEffect, useState } from "react";
-import {
-  dayInZone,
-  openDayWord,
-  type CalendarDayVM,
-  type OpenClock,
-  type TodayRowSaid,
-  saidOfMessages,
-} from "@chanlytics/contracts";
+import { dayInZone, type CalendarDayVM, type TodayRowSaid, saidOfMessages } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import type { CalendarSurface } from "@/surfaces/calendar/surface";
-import { borrowed } from "../shell";
+import { borrowed } from "../../shell";
+import { openDayWord, type OpenClock } from "./moment";
 
 /** When the business is open, from the Calendar the page holds; null where it holds none, and the clock says nothing then. */
 export function openClockOf(): OpenClock | null {
@@ -90,7 +84,7 @@ export function useOpenTimes(
         for (const d of openings.days)
           for (const w of d.windows)
             if (times.length < max)
-              times.push({ key: `${d.key}-${w}`, time: firstOf(w), day: openDayWord(d.key, tz, Date.now()) });
+              times.push({ key: `${d.key}-${w}`, time: windowStart(w), day: openDayWord(d.key, tz, Date.now()) });
         setRead({ times, state: openings.state });
       })
       .catch(() => live && setRead({ times: [], state: "unavailable" }));
@@ -102,7 +96,7 @@ export function useOpenTimes(
 }
 
 /** The first time of a window: "2:30 – 4 PM" is "2:30 PM", "9 AM – 12 PM" is "9 AM". */
-function firstOf(window: string): string {
+function windowStart(window: string): string {
   const [from = "", to = ""] = window.split(/\s*[–-]\s*/);
   if (/[ap]m/i.test(from)) return from.trim();
   const half = /[ap]m/i.exec(to)?.[0] ?? "";

@@ -59,6 +59,10 @@ function landing(rest: SheetRest, g: Grab): SheetRest | "close" | null {
   return null;
 }
 
+/** A press that holds its own finger (a mic held to talk) moves nothing: its finger may drift while it listens. */
+const holdsItsFinger = (target: EventTarget | null): boolean =>
+  target instanceof Element && !!target.closest("[data-own-drag]");
+
 /** The touch handlers for a two-rest sheet: where it is, what a landing does, and whether a thumb moves it at all. */
 export function restSwipe(o: {
   rest: SheetRest;
@@ -91,8 +95,7 @@ export function restSwipe(o: {
     const t = e.touches[0];
     const el = e.currentTarget;
     if (!t || !o.when()) return;
-    // A press that holds its own finger (a mic held to talk) moves nothing: its finger may drift while it listens.
-    if (e.target instanceof Element && e.target.closest("[data-own-drag]")) return;
+    if (holdsItsFinger(e.target)) return;
     const g: Grab = {
       el,
       y: t.clientY,
