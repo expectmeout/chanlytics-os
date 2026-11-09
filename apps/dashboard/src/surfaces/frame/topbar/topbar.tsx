@@ -313,12 +313,15 @@ const tbPresence = () => {
   );
 };
 
-/** The bell's words for a pointer: what needs you on a workspace, what agents did in the demo. */
+/**
+ * The bell's words for a pointer: what needs you on a workspace, what agents did in the demo. Nothing where nothing is new: a press
+ * of Later handed the keys back to it, and "Nothing needs you right now" popped up over the greeting (9 Nov 2026).
+ */
 const bellTip = (real: Bell | null, unread: number) =>
   real
     ? unread > 0
       ? `${unread} new — what needs you`
-      : "Nothing needs you right now"
+      : undefined
     : unread > 0
       ? `${unread} unread — what agents did while you weren't looking`
       : "What agents did while you weren't looking";

@@ -21,6 +21,7 @@
   "frame/sidebar": "workspace",
   "frame/topbar": "calendar live",
   "inbox": "broadcasts conversations inbox people reply_drafts settings",
+  "inbox/call-back": "",
   "inbox/model": "",
   "inbox/new-conversation": "people settings",
   "inbox/pages": "broadcasts conversations inbox",

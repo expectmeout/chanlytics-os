@@ -115,9 +115,11 @@ function SinceLine({ since }: { since: TodaySinceVM }) {
         data-testid="today-since"
       >
         <b {...SAYS_WHEN}>{since.when}</b>
-        {since.bits.map((b) => (
-          <em key={b}>{b}</em>
-        ))}
+        <span className="tz-since-bits">
+          {since.bits.map((b) => (
+            <em key={b}>{b}</em>
+          ))}
+        </span>
         <Icon name="chevron-down" size={12} />
       </Button>
       {open ? (

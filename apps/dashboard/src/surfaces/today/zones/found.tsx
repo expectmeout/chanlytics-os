@@ -142,10 +142,7 @@ function foundSentence(p: RowPorts, notToday: () => void, busy = false) {
         onClick={p.onToggle}
         data-testid="today-found-sentence"
       >
-        <span>
-          {p.row.sentence}
-          <Icon name="chevron-down" size={12} />
-        </span>
+        <span>{p.row.sentence}</span>
       </Button>
       {p.open ? (
         <div className="tz-idea-why">

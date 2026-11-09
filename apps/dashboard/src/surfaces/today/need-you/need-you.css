@@ -8,6 +8,9 @@
 .ny-groups {
   gap: var(--space-1);
 }
+.ny-group:first-child > .ny-group-head {
+  padding-top: 0;
+}
 .ny-group-head {
   display: flex;
   flex-wrap: wrap;
@@ -51,9 +54,22 @@
   font-weight: var(--weight-medium);
 }
 
-/* A row drawn short: no state line, its verb at its right as words in the accent's ink, with Ask's mark before it where
-   Ask prepared it. On a desk one line (who, what they want, how long, the verb); on a phone two (who and how long, then
-   what they want and the verb). Its words and its name are laid on the row's own grid. */
+/* A row drawn short: no state line, no face and no wire's glyph (his call D2, 9 Nov 2026), its verb in words with Ask's
+   mark before it where Ask prepared it. On a phone two lines: who, how long and the verb, then what it is about across the
+   whole row. On a desk one line: who, what it is about, how long, the verb. Its words and its name are laid on the row's own
+   grid. */
+.today-queue .cl-attn-via > svg {
+  display: none;
+}
+.today-queue .cl-attn-via {
+  margin: 0;
+}
+.today-queue .cl-attn-sentence[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+.today-queue .cl-attn-sentence[data-tone="danger"] {
+  color: var(--danger-ink);
+}
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-body,
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-name {
   display: contents;
@@ -64,18 +80,19 @@
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence {
   grid-area: said;
   min-width: 0;
-  overflow: hidden;
   font-size: var(--text-base);
-  line-height: 1.4;
+  line-height: 1.43;
   color: var(--ink-muted);
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
-/* What a run or a search says is what to do, never their words: it wraps whole, where a quote is cut at its line (the 10/10
-   read, 2 Nov 2026: "3 people. Waits for your O…" said nothing). */
-.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence:not(.quoted) {
-  white-space: normal;
-  text-overflow: clip;
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence.quoted {
+  font-style: normal;
+  color: var(--ink-muted);
+}
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence[data-tone="danger"] {
+  color: var(--danger-ink);
 }
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-who {
   grid-area: who;
@@ -85,16 +102,12 @@
 }
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-wait {
   grid-area: wait;
-  justify-self: end;
   margin-left: 0;
-}
-.today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > :first-child {
-  grid-area: face;
+  padding-left: 0;
 }
 /* What a run is, where a person's row says how long they waited ("Campaign · ready"): a desk's, in the dim ink. */
 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-meta {
   grid-area: wait;
-  justify-self: end;
   color: var(--ink-dim);
   white-space: nowrap;
 }
@@ -110,13 +123,15 @@
   gap: 5px;
   height: auto;
   min-height: 0;
-  padding: var(--space-1) var(--space-2);
+  padding: 0 var(--space-1);
+  margin-right: calc(var(--space-1) * -1);
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
   box-shadow: none;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+  line-height: 21px;
   color: var(--accent-ink);
   white-space: nowrap;
 }
@@ -137,38 +152,68 @@
 }
 @media (min-width: 721px) {
   .dash-a-v2 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) {
-    grid-template-columns: 34px minmax(7rem, min(30%, 18rem)) minmax(0, 1fr) auto auto;
-    grid-template-areas: "face who said wait acts";
+    grid-template-columns: minmax(7rem, 222px) minmax(0, 1fr) minmax(40px, max-content) minmax(86px, max-content);
+    grid-template-areas: "who said wait acts";
     align-items: center;
     column-gap: 14px;
-    min-height: 56px;
-    padding: 8px 0;
+    min-height: 48px;
+    padding: 7px 0;
   }
-  .dash-a-v2 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > :first-child {
-    width: 34px;
-    height: 34px;
-    font-size: var(--text-sm);
+  /* One line of what it is about: a desk's row opens in place for the rest. */
+  .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-sentence {
+    -webkit-line-clamp: 1;
+  }
+  .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-wait,
+  .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) .cl-attn-meta {
+    justify-self: end;
   }
 }
 @media (max-width: 720px) {
   .dash-a-v2 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, max-content) max-content minmax(0, 1fr) max-content;
     grid-template-areas:
-      "face who wait"
-      "face said acts";
-    align-items: center;
-    row-gap: 2px;
+      "who wait . acts"
+      "said said said said";
+    align-items: baseline;
+    column-gap: 7px;
+    row-gap: 1px;
   }
   /* One verb on a phone's short row: a run's second (See who's on it) is the run's own page, which the row opens. */
   .today-queue .cl-attn-row:not(:has(> .cl-attn-work)) > .cl-attn-acts > button:not(:last-child) {
     display: none;
   }
-  /* A row that says no wait (a run, a search) keeps its verb beside its name, so what it says has the row's width. */
-  .dash-a-v2 .today-queue .cl-attn-row:not(:has(> .cl-attn-work)):not(:has(.cl-attn-wait)) {
-    grid-template-areas:
-      "face who acts"
-      "face said said";
+}
+/* What a group could not hold: its press at the group's foot. */
+.ny-more {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 40px;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .ny-more:hover {
+    color: var(--ink);
   }
+}
+.ny-more:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* A row open in place on a desk is drawn whole: what was said stands in its work, so its one line goes. Up next on a phone keeps
+   its line, and its work stands close under it. */
+.today-queue:not([data-phone]) .cl-attn-row:has(> .cl-attn-work) .cl-attn-sentence {
+  display: none;
+}
+.dash-a-v2 .today-queue[data-phone] .cl-attn-work {
+  gap: var(--space-2);
+  padding-top: 6px;
+}
+.dash-a-v2 .today-queue:not([data-phone]) .cl-attn-work {
+  gap: 12px;
 }
 /* Why an open row was handed to you, beside the name in the dim ink ("asked for a person"), on a desk and a phone alike. */
 .dash-a-v2 .today-queue .cl-attn-row:has(> .cl-attn-work) .cl-attn-meta {
@@ -181,14 +226,10 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-/* The wire's glyph before what they want, in the dim ink. */
-.today-queue .cl-attn-via {
-  color: var(--ink-dim);
-}
-/* Ask's mark before a verb whose words Ask prepared, in the accent: Ask's own colour, as its mark wears it. */
+/* Ask's mark before a verb whose words Ask prepared, in the ink: Ask is quiet at rest. */
 .ny-ready {
   flex: none;
-  color: var(--accent);
+  color: var(--ink);
 }
 /* Ask's mark at the head of what it prepared: the ink at rest, the accent while it writes. */
 .ny-three {
@@ -208,21 +249,18 @@
   grid-column: 1 / -1;
 }
 
-/* What the row prepared (the refined canvas, 31 Oct 2026; the 23 Oct canvas's .wr-draft and .wr-brief): words that go to
-   them stand on the field's panel and are typed in where they stand; words that are read (a call's notes, their own
-   words, a reply that goes on its own) stand in the inset. The size says whose words they are: what passes between the
-   member and the person at the body's step, notes for the member a step under it, and every label, state and press at
-   the small step, the head over what was prepared among them, so what a box is never reads smaller than a time. */
+/* The answer (one sheet, 9 Nov 2026): a line saying whose words they are, and the field, because it is one. The words stand at
+   the size they are read at, so beginning to type moves nothing. */
 .ny-draft {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 6px;
   min-width: 0;
 }
 .ny-by {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 7px;
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
   color: var(--ink-dim);
@@ -231,25 +269,48 @@
   flex: 1 1 auto;
   min-width: 0;
 }
-/* What it is, before whose: "Reply · Ask's draft", "Call notes · only you see these". */
-.ny-by-words b {
-  font-weight: var(--weight-medium);
-  color: var(--ink-muted);
+/* A press beside the label keeps a thumb's height without pushing the words apart. */
+.ny-by > button {
+  margin-block: -14px;
+}
+.ny-draft-box[data-busy] {
+  opacity: 0.6;
 }
 .ny-words {
+  display: block;
   font-size: var(--text-md);
   line-height: var(--leading-normal);
   color: var(--ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* The words typed where they stand (the kit's Field said in place, which takes its type from here): the same step and
-   leading as the words read, so the first key moves nothing. */
 .ny-typed {
   font-size: var(--text-md);
   line-height: var(--leading-normal);
   color: var(--ink);
   overflow-wrap: anywhere;
+}
+/* Two lines of what Ask has ready, on a phone's Up next: no box, and a press opens the sheet. */
+.ny-glimpse {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.ny-glimpse:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.ny-glimpse-words {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--text-base);
+  line-height: 1.43;
+  color: var(--ink);
 }
 /* The signature an email reply leaves with, under its words, as the email carries it (00487; the mailbox canvas, 27 Oct
    2026): its lines in the quieter ink, and Change beside the first. What is sent is what is seen, typing or not. */
@@ -268,59 +329,263 @@
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
-/* A call's notes: each part on a key column, its key at the small step and what it says at the base step; a list one
-   thing to a line, its mark hung in the gutter so every line starts where a one-line part does. The words to open with
-   are said in quotes, in the darker ink: they are the ones said aloud. */
-.ny-notes {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
+/* What was said: the real words, in their own places, never in a box that repeats the row. */
+.ny-said {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
-.ny-notes-part {
-  display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: baseline;
-}
-.ny-notes-part dt {
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-  color: var(--ink-dim);
-}
-.ny-notes-part dd {
-  margin: 0;
+.ny-m {
+  max-width: 86%;
+  padding: var(--space-2) 12px;
+  border-radius: var(--radius-bubble);
   font-size: var(--text-base);
-  line-height: var(--leading-normal);
-  color: var(--ink-muted);
+  line-height: 1.4;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
-.ny-notes-said {
-  font-size: var(--text-base);
-  line-height: var(--leading-normal);
+.ny-m[data-from="them"] {
+  align-self: flex-start;
+  border-bottom-left-radius: var(--radius-sm);
+  background: var(--selected-fill);
   color: var(--ink);
 }
-/* A phone's card says the opening in its head's line: its key at a key's step, the words at the notes'. */
-.ny-notes-said > b {
+.ny-m[data-from="us"] {
+  align-self: flex-end;
+  border-bottom-right-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  color: var(--ink-muted);
+}
+.ny-m[data-from="failed"] {
+  align-self: flex-end;
+  border-bottom-right-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--ink);
+}
+.ny-m-why {
+  align-self: flex-end;
+  max-width: 86%;
   font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--danger-ink);
 }
-.ny-notes-list {
+/* The sentence a sheet stands on, where no words were said (a call back's, a search's, a to-do's). */
+.ny-state {
   margin: 0;
-  padding: 0;
-  list-style: none;
+  font-size: var(--text-lg);
+  line-height: 1.44;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.008em;
+  color: var(--ink);
 }
-.ny-notes-list li {
-  position: relative;
-  padding-left: var(--space-3);
+.ny-state small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0;
+  color: var(--ink-dim);
 }
-.ny-notes-list li::before {
-  content: "";
-  position: absolute;
-  left: 1px;
-  top: calc((1em * var(--leading-normal) - 4px) / 2);
-  width: 4px;
-  height: 4px;
+/* Their call: to hear, or to read; and what the record holds of them. Its press is a thumb's circle, never a button's capsule. */
+.ny-callrow > .ny-play {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
   border-radius: var(--radius-full);
-  background: var(--ink-faint);
+}
+.ny-callrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.ny-callrow-words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-dim);
+}
+.ny-callrow-words > b {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ny-record {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: var(--text-base);
+  line-height: 1.43;
+  color: var(--ink-muted);
+}
+.ny-record > span:first-child {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* A booking's time: its tile, its hours and what it is for; where it stands on the day; the times to offer instead. */
+.ny-slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ny-day-square {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+.ny-day-square > small {
+  font-size: var(--text-xs);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+.ny-day-square > b {
+  font-size: var(--text-title);
+  line-height: 1.25;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.ny-slot-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}
+.ny-slot-words > b {
+  font-size: var(--text-md);
+  line-height: 1.35;
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ny-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ny-strip-day {
+  position: relative;
+  height: 8px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in oklab, var(--line) 55%, transparent);
+  overflow: hidden;
+}
+.ny-strip-part {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--at, 0%);
+  width: var(--wide, 0%);
+  background: var(--line-strong);
+}
+.ny-strip-part[data-slot="open"] {
+  background: var(--ink);
+}
+.ny-strip-part[data-slot="gone"] {
+  background: var(--warn-ink);
+}
+.ny-strip-hours {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ny-times {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.ny-times > .ny-time {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 48px;
+  padding: 6px 4px;
+  border-radius: var(--radius-lg);
+  line-height: 1.25;
+}
+.ny-times > .ny-time[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--bg);
+}
+.ny-time > small {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  opacity: 0.72;
+}
+/* A review's stars. */
+.ny-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+.ny-star-on {
+  color: var(--ink);
+  fill: currentColor;
+}
+.ny-star-off {
+  color: var(--line-strong);
+}
+/* A door under the words, for what is left to try. */
+.ny-doorline {
+  display: flex;
+}
+.ny-doorline > button {
+  padding-inline: 0;
+}
+/* Ask's line: one field, type it or hold the mic and say it. */
+.ny-say {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ny-say-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 2px 6px 2px 12px;
+  border-radius: var(--radius-3xl);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+.ny-say-line[data-state="hold"] {
+  background: var(--field-bg, var(--surface-inset-fill));
+  box-shadow: var(--focus-field-edged);
+}
+.ny-say-line[data-state="busy"] .ny-say-in {
+  color: var(--ink-dim);
+}
+.ny-say-line > .ny-say-in {
+  min-height: 40px;
+  padding: 8px 0;
+  font-size: var(--text-base);
+  line-height: 24px;
+  letter-spacing: 0;
+}
+.ny-say-line > button {
+  flex: none;
+  touch-action: none;
+}
+.ny-say-hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--accent-ink);
+  text-align: center;
 }
 /* An email's subject before their words: the darker ink's middle weight, so it leads the sentence without standing as
    loud as the name over it. */
@@ -378,17 +643,37 @@
   min-width: 0;
 }
 
-/* A line about the row that is not words to send: amber what waits on you, red what was refused. */
+/* One line that says what the situation is: amber what waits on you, red what was refused, green what is already done. */
 .ny-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
   font-size: var(--text-sm);
-  line-height: var(--leading-snug);
+  line-height: 1.41;
   color: var(--ink-muted);
+}
+.ny-note > i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink-faint);
 }
 .ny-note[data-tone="warn"] {
   color: var(--warn-ink);
 }
+.ny-note[data-tone="warn"] > i {
+  background: var(--warn-ink);
+}
 .ny-note[data-tone="danger"] {
   color: var(--danger-ink);
+}
+.ny-note[data-tone="danger"] > i {
+  background: var(--danger-ink);
+}
+.ny-note[data-tone="ok"] > i {
+  background: var(--ok-ink);
 }
 
 /* The presses: Not now at the left, the act at the right. */
@@ -401,15 +686,10 @@
 .ny-room {
   flex: 1 1 auto;
 }
-/* The press at the left (Not today, Not now) is a quiet word: it hangs into the button's own 11px side (kit.css .btn), so
-   its words start where the row's do, as the answer's sentence over it does. They stood 12px in. */
-.ny-acts > :first-child:not(.ny-room) {
+/* The press at the left on the page (Not today, Not now) is a quiet word: it hangs into the button's own 11px side (kit.css
+   .btn), so its words start where the row's do. They stood 12px in. In a sheet's foot it is filled, and stands on the edge. */
+.cl-attn-work .ny-acts > :first-child:not(.ny-room) {
   margin-inline-start: -11px;
-}
-.ny-picks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 /* A send counting down: live, so the accent's own soft wash, the seconds in figures that do not jump, Undo at the right. */
@@ -433,10 +713,6 @@
   font-weight: var(--weight-medium);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-}
-.ny-going-sub {
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
 }
 
 /* What became of a row, in its place: the tick or the clock, the words, and its undo. */
@@ -465,42 +741,69 @@
   margin-left: auto;
 }
 
-/* The sheet that walks Need you on a phone (walk-sheet.tsx; the phone canvas, 28 Oct 2026): their words, then the row's
-   own work, its presses held still in the foot; where it stands among the rest as dots between the one before and the next;
-   a send from the row before still counting down at the top, with its Undo; and, at the end, who was answered. */
+/* The sheet that walks Need you on a phone (walk-sheet.tsx; one sheet, 9 Nov 2026): who, where it stands and the arrows in one
+   line; what was said; the answer; what to tell Ask; the presses held still in a flat foot, the quiet one sized by its word and
+   the act taking the rest of the width; and a send from the row before still counting down at the top, with its Undo. */
 .ny-walk-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding-bottom: var(--space-2);
+  gap: 12px;
+  padding: 2px 0 14px;
 }
 .ny-walk-foot {
   flex: 1 1 auto;
   min-width: 0;
 }
+.ny-walk-foot > .ny-acts {
+  flex-wrap: nowrap;
+}
+.ny-walk-foot > .ny-acts > .ny-room {
+  display: none;
+}
+.ny-walk-foot > .ny-acts > :last-child {
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 0;
+}
+.ny-walk-foot > .ny-acts > :first-child:not(:last-child):not(.ny-room) {
+  flex: none;
+}
+.ny-walk-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: var(--space-2);
+}
 .ny-walk-pager {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
+  gap: 0;
+  color: var(--ink-muted);
 }
-.ny-walk-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.ny-walk-dots > i {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: var(--line-strong);
-}
-.ny-walk-dots > i[data-on] {
-  width: 16px;
-  background: var(--ink);
+.ny-walk-of {
+  padding: 0 1px;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .ny-walk-back {
   transform: scaleX(-1);
+}
+.ny-walk-door {
+  margin-left: 3px;
+  color: var(--ink-dim);
+  vertical-align: -1px;
+}
+.ny-walk-whole {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 2px;
+  min-height: 32px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  text-decoration: none;
 }
 .ny-walk-last {
   display: flex;
@@ -517,31 +820,39 @@
   min-width: 0;
   font-variant-numeric: tabular-nums;
 }
-.ny-walk-done {
+.ny-walk-end {
   display: flex;
   flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.ny-walk-done > li {
-  display: flex;
   align-items: center;
-  gap: var(--space-2);
-  min-height: var(--control-h-md);
-  border-bottom: 1px solid var(--line);
+  gap: 4px;
+  padding: var(--space-3) 0 var(--space-2);
   font-size: var(--text-base);
+  line-height: 1.43;
+  text-align: center;
+  color: var(--ink-muted);
 }
-.ny-walk-done > li:last-child {
-  border-bottom: 0;
+.ny-walk-end > b {
+  font-size: var(--text-xl);
+  line-height: 1.4;
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.012em;
+  color: var(--ink);
 }
-.ny-walk-done > li > svg {
+.ny-walk-end-tick {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--ok-soft);
   color: var(--ok-ink);
 }
-/* Change it with Ask under Ask's draft: what Ask is doing, the asks made most, the field for the member's own words. */
-.ny-change {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-top: var(--space-1);
+.ny-walk-end-door {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  text-decoration: none;
 }

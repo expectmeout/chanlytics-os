@@ -148,7 +148,9 @@ export function PhonePins() {
 export function TodayEnd() {
   // "That's everything" under "2 need you" read as all done: while anyone waits the page just ends.
   const waiting = useNeedsYou() ?? 0;
-  if (waiting > 0) return null;
+  // Nor under "Nothing can come in yet": it is only true of a business that is answering (9 Nov 2026).
+  const answering = useSurface("setup")?.vm.readiness.answering ?? true;
+  if (waiting > 0 || !answering) return null;
   return (
     <p className="tz-end" data-testid="today-end" {...SAYS_WHEN}>
       <Icon name="check" size={13} />

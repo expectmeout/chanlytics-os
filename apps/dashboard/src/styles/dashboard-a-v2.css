@@ -1266,24 +1266,16 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    56px under the name (the 10/10 read, 2 Nov 2026). The strip keeps its room in need-you.css. */
 .dash-a-v2 .today-queue .tq-title { margin: 0; }
 
-/* Need you's rows as the canvas draws them (the redesign of 1 Nov 2026): the face in a disc beside who and the words, the
-   work of a row opened under its words across the row. A row drawn short is one line on its own grid (need-you.css). */
+/* Need you's rows (one row, 9 Nov 2026): no face (his call D2), so the words have the row's whole width, and the work of a
+   row opened stands under its words across it. A row drawn short is one line on its own grid (need-you.css). */
 .dash-a-v2 .today-queue .cl-attn-row {
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  gap: 5px 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1px 12px;
   align-items: start;
-  padding: 14px 0;
+  padding: 12px 0;
 }
-.dash-a-v2 .today-queue .cl-attn-row > :first-child {
-  display: flex;
-  width: 34px;
-  height: 34px;
-  border: 0;
-  background: var(--face-fill);
-  box-shadow: var(--surface-inset-depth);
-  color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+.dash-a-v2 .today-queue .cl-attn-work {
+  grid-column: 1 / -1;
 }
 .dash-a-v2 .tq .cl-attn-acts { grid-column: 3; grid-row: 1; justify-self: end; gap: 7px; padding-top: 0; }
 /* The row a desk has open, as the canvas sets it (1 Nov 2026): a soft card of its own inside the pane, a hairline round it,
@@ -1357,12 +1349,9 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   /* The dash keeps the boards' 12px from the screen's edges (E3's phone board: the strip and the panes at 12, the head
      at 16); the page's other phone capsules stand at 12 too. */
   .main-scroll > .dash-a-v2 { --gutter-page: 12px; }
-  /* A phone's queue ends with its last row (E3's phone board): what the card could not hold is the Inbox tab's. */
-  .dash-a-v2 .tq-foot { display: none; }
-  /* A phone's row with its work (the canvas's phone board): the face beside the name, the words under it, the work under
-     them across the row. A row drawn short is two lines, its verb at its right (need-you.css). */
-  .dash-a-v2 .today-queue .cl-attn-row { grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 3px 12px; padding: 12px 0; }
-  .dash-a-v2 .today-queue .cl-attn-row > :first-child { width: 36px; height: 36px; font-size: var(--text-sm); }
+  /* A phone's row with its work: the name, the words under it, the work under them across the row. A row drawn short is two
+     lines, its verb at the first's right (need-you.css). */
+  .dash-a-v2 .today-queue .cl-attn-row { padding: 10px 0 11px; }
   .dash-a-v2 .tq .cl-attn-meta { display: none; }
   .dash-a-v2 .tq .cl-attn-sentence { font-size: var(--text-base); line-height: 1.4; color: var(--ink-muted); white-space: normal; }
   /* The panes keep 16px inside on a phone (E3's phone board). */

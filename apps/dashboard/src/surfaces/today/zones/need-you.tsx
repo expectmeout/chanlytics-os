@@ -5,16 +5,15 @@
  * your OK, three drawn (a search's question, and the runs an approval can still send, the very rows the Inbox's Needs you
  * draws, surfaces/waits/wait-rows.tsx; a run too late to approve is the sweep's to skip); your own to-dos, three drawn
  * and never counted (to-do.tsx); and whoever has waited past a week, one row at the end with Mark all done, never
- * counted. What is past the caps is said at the foot with the door to the Inbox. How many need you is every row above To
- * do still open, the one count (needs-you.ts), told what was acted on here so it falls as the rows are worked; how many
- * the team dealt with today stands by the door.
+ * counted. What is past the caps is a press at its group's foot. How many need you is every row above To do still open, the
+ * one count (needs-you.ts), told what was acted on here so it falls as the rows are worked; how many the team dealt with
+ * today stands by the door.
  *
  * One row is the focus and draws its work in place: on a phone the card, the first row still open, whose words open the
  * sheet that walks the list; on a desk the one opened, Up next until another is. Its act is the page's one coral; where it
  * takes none (a reply that goes on its own, whose press is Stop), the first row waiting takes it, and where nothing above
  * To do took it, To do's first act. Every other row is drawn short, its verb at its right with Ask's mark where Ask
- * prepared it, and opens itself. On a desk Need you is one pane under its name; on a phone each group is a pane of its
- * own under its name, and the page's head says what the pane's would.
+ * prepared it, and opens itself. Need you is one pane under its name, on a desk and a phone alike.
  */
 import { useEffect, useLayoutEffect, useState, type ReactElement, type ReactNode } from "react";
 import {
@@ -40,13 +39,13 @@ import { broadcastsRead, runsPending, useRunsActing } from "../../waits/run-acts
 import { waitRows, type Nav, type VerbKind } from "../../waits/wait-rows";
 import { TODAY_HELPERS } from "../helpers";
 import { useDraftCounts, useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
-import { NeedYouGroup, type HandedBack } from "../need-you/groups";
+import { NeedYouGroup, handBackAll, handedBackWords, type HandedBack } from "../need-you/groups";
 import { tellHeadSay } from "../need-you/head-say";
 import { OlderGroup } from "../need-you/older";
 import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
 import { draftWantOf, opensToWork, worksInPlace } from "../need-you/rows";
 import { clearRowStates } from "../need-you/row-state";
-import { WalkSheet, type WalkAt } from "../need-you/walk-sheet";
+import { WalkSheet, type WalkAt, type WalkOlder } from "../need-you/sheet/walk-sheet";
 import { useTodayOnPhone } from "../phone";
 import { keptWith, keptWithout, withKept, type Kept } from "./kept";
 import { useToDoRows, type ToDoRows } from "./to-do";
@@ -63,7 +62,7 @@ export const NeedYou = () => {
   return vm ? <NeedYouList vm={vm} /> : null;
 };
 
-/** The drafts these rows read (rows.tsx draftWantOf): a reply, or a call back's brief. */
+/** The drafts these rows read (rows.tsx draftWantOf): a reply, or a call back's read. */
 const draftWantsOf = (rows: readonly TodayQueueRowVM[]) => rows.map(draftWantOf).filter((w): w is DraftWant => !!w);
 
 /** The drafts the drawn rows read, asked for once per set, where the page's first reads did not hold them. */
@@ -83,7 +82,9 @@ function useDraftsAhead(wants: readonly DraftWant[]) {
 function useTellHead(open: readonly TodayQueueRowVM[]) {
   // A reply outside WhatsApp's window goes only as a template: Ask's words for it are not said as ready (the 10/10 read,
   // 2 Nov 2026: "Ask drafted a reply" over a card whose one press was Choose a template).
-  const counts = useDraftCounts(draftWantsOf(open.filter((r) => r.writes?.window_open !== false)));
+  const counts = useDraftCounts(
+    draftWantsOf(open.filter((r) => r.writes?.window_open !== false && r.kind !== "callback")),
+  );
   const held = open.find((r) => r.kind === "held") ?? null;
   // The window that cannot wait is another person's: a held reply's own is said on its row, a day away, and the
   // receptionist is already answering them.
@@ -124,7 +125,17 @@ function usePhoneWalk() {
 /** The walk through the rows the card draws, on a phone: the sheet, and To do's to-dos for its end. Called, not drawn. */
 function listWalk(
   order: readonly TodayQueueRowVM[],
-  { walk, setWalk }: { walk: WalkAt; setWalk: (at: WalkAt) => void },
+  {
+    walk,
+    setWalk,
+    more,
+    older,
+  }: {
+    walk: WalkAt;
+    setWalk: (at: WalkAt) => void;
+    more: { count: number; to: string } | null;
+    older: WalkOlder | null;
+  },
   ctx: NeedYouRowsCtx,
   todo: ToDoRows,
 ) {
@@ -142,6 +153,8 @@ function listWalk(
       word={ctx.word}
       stepDone={todo.walk.stepDone}
       todos={todo.left}
+      more={more}
+      older={older}
       onToDo={() => {
         setWalk(null);
         document.querySelector('[data-testid="today-group-todo"]')?.scrollIntoView({ block: "start" });
@@ -159,14 +172,16 @@ function listDoorOf(people: number, runs: number): { to: string; label: string }
   return { to, label: to === "inbox" ? W.door : (verbForRoute(to) ?? W.door) };
 }
 
-/** Need you's head on a desk: its name, how many the team dealt with today, and the door. Called, not drawn. */
-function needYouHead(door: { to: string; label: string }, done: number) {
+/** Need you's head: its name, how many the team dealt with today, and the door. Called, not drawn. */
+function needYouHead(door: { to: string; label: string }, done: number, toDo: number | null) {
   return (
     <div className="tq-head tz-head">
       <h2 className="tq-title tz-name" id="today-queue-title">
-        Need you
+        {toDo !== null ? W.group.todo : "Need you"}
       </h2>
-      {done > 0 ? (
+      {toDo !== null ? (
+        <span className="tz-fact">{toDo}</span>
+      ) : done > 0 ? (
         <span className="tz-fact" data-testid="today-done">
           {W.doneToday(done)}
         </span>
@@ -176,28 +191,8 @@ function needYouHead(door: { to: string; label: string }, done: number) {
   );
 }
 
-/** A group on a phone, whose head holds what a desk's one head and foot say. */
-type GroupKey = "next" | "waiting" | "ok" | "todo";
-
-/** The first group drawn, whose head holds the way to the Inbox on a phone. */
-const firstGroupOf = (drawn: Drawn, runs: { drawn: readonly ReactElement[] }): GroupKey => {
-  if (drawn.next.length) return "next";
-  if (drawn.waiting.length) return "waiting";
-  return drawn.ok.length || runs.drawn.length ? "ok" : "todo";
-};
-
-/**
- * What a group's head holds at its right on a phone, as the day's head holds the Calendar: See all where the group could not
- * hold all it has, else, on the first group, the way to the Inbox. None on a desk, whose one head holds the door and whose
- * foot says what was cut.
- */
-const groupEnds =
-  (phone: boolean, first: GroupKey, door: { to: string; label: string }) =>
-  (key: GroupKey, cut: number, to = "inbox"): ReactNode => {
-    if (!phone) return null;
-    if (cut > 0) return sectionDoor(to, W.seeAll);
-    return key === first ? sectionDoor(door.to, door.label, "today-queue-door") : null;
-  };
+/** How many a group could not hold, as the press at its foot says them, and where they are; none where it held them all. */
+const cutDoor = (say: (n: number) => string, cut: number, to = "inbox") => (cut > 0 ? { label: say(cut), to } : null);
 
 /** The old rows handed back this visit, kept for the visit with what they came to: the next read has none of them. */
 type OlderHanded = { rows: readonly TodayQueueRowVM[]; handed: HandedBack };
@@ -225,16 +220,14 @@ function groupsAbove(
     runs: { drawn: readonly ReactElement[]; count: number; cut: number };
   },
   ctx: NeedYouRowsCtx,
-  endOf: (key: GroupKey, cut: number) => ReactNode,
 ) {
   const G = W.group;
-  const pane = !!ctx.phone;
   const open = (rows: readonly TodayQueueRowVM[]) => rows.filter((r) => !ctx.kept.has(r.id)).length;
   const waiting = open(groups.waiting);
   const ok = open(groups.ok) + runs.count;
   return [
     drawn.next.length ? (
-      <NeedYouGroup key="next" title={G.next} count={null} pane={pane} end={endOf("next", 0)} testid="today-group-next">
+      <NeedYouGroup key="next" title={G.next} count={null} testid="today-group-next">
         {needYouRows(drawn.next, { ...ctx, shortKind: QUIET })}
       </NeedYouGroup>
     ) : null,
@@ -243,8 +236,7 @@ function groupsAbove(
         key="waiting"
         title={G.waiting}
         count={waiting || null}
-        pane={pane}
-        end={endOf("waiting", groups.waiting.length - drawn.waiting.length)}
+        more={cutDoor(W.cut.waiting, groups.waiting.length - drawn.waiting.length)}
         testid="today-group-waiting"
       >
         {needYouRows(drawn.waiting, ctx)}
@@ -255,8 +247,7 @@ function groupsAbove(
         key="ok"
         title={G.ok}
         count={ok || null}
-        pane={pane}
-        end={endOf("ok", groups.ok.length - drawn.ok.length + runs.cut)}
+        more={cutDoor(W.cut.ok, groups.ok.length - drawn.ok.length + runs.cut)}
         testid="today-group-ok"
       >
         {[...needYouRows(drawn.ok, ctx), ...runs.drawn]}
@@ -265,37 +256,20 @@ function groupsAbove(
   ];
 }
 
-/** To do's group: its rows, three at most, and how many there are; null with none. Called, not drawn. */
-function todoGroup(todo: ToDoRows, pane: boolean, end: ReactNode) {
+/** To do's group: its rows, three at most, how many there are, and the press to the rest; null with none. Called, not drawn. */
+function todoGroup(todo: ToDoRows, bare: boolean) {
   return todo.drawn.length ? (
-    <NeedYouGroup key="todo" title={W.group.todo} count={todo.count} pane={pane} end={end} testid="today-group-todo">
+    <NeedYouGroup
+      key="todo"
+      title={W.group.todo}
+      count={todo.count}
+      bare={bare}
+      more={cutDoor(W.cut.todo, todo.cut, todo.door ?? "inbox")}
+      testid="today-group-todo"
+    >
       {todo.drawn}
     </NeedYouGroup>
   ) : null;
-}
-
-/**
- * What the list could not hold, said with the door to it: the people past the five, what waits for your OK past its three,
- * the to-dos past theirs. See all opens the Inbox, or, where only to-dos were left out, where they are (To do's `door`).
- * A desk's alone: on a phone each group's head holds its own See all (groupEnds). Nothing where nothing was cut.
- */
-function listFoot(cut: { waiting: number; ok: number; todo: number }, todoDoor: string | null, nav: Nav) {
-  const parts = [
-    cut.waiting > 0 ? W.cut.waiting(cut.waiting) : "",
-    cut.ok > 0 ? W.cut.ok(cut.ok) : "",
-    cut.todo > 0 ? W.cut.todo(cut.todo) : "",
-  ].filter(Boolean);
-  if (!parts.length) return null;
-  const to = cut.waiting > 0 || cut.ok > 0 ? "inbox" : (todoDoor ?? "inbox");
-  return (
-    <div className="tq-foot" data-testid="today-queue-foot">
-      <span>{parts.join(" · ")}</span>
-      <Button variant="quiet" size="sm" className="tq-open" onClick={() => nav(to)}>
-        {W.seeAll}
-        <Icon name={doorGlyph()} size={12} />
-      </Button>
-    </div>
-  );
 }
 
 /**
@@ -388,6 +362,68 @@ function useDrawnTold(drawn: boolean) {
 /** The rows of a group still open: the ones nobody acted on this visit. */
 const stillOpen = (rows: readonly TodayQueueRowVM[], kept: Kept) => rows.filter((r) => !kept[r.id]);
 
+/**
+ * The walk through Older (his call D7): no part of the morning's, it starts from its own row or the morning's end, and is over as
+ * the sheet closes. What the morning's end offers of it, and Mark all done's press.
+ */
+function useOldWalk(walkTo: (at: WalkAt) => void) {
+  const [walkingOld, setWalkingOld] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const setWalk = (at: WalkAt) => {
+    if (at === null) setWalkingOld(false);
+    walkTo(at);
+  };
+  const endOf = (rows: readonly TodayQueueRowVM[], said: (back: HandedBack) => void): WalkOlder | null =>
+    rows.length
+      ? {
+          count: rows.length,
+          busy: marking,
+          go: () => {
+            setWalkingOld(true);
+            setWalk(rows[0]?.id ?? null);
+          },
+          markAll: () => {
+            setMarking(true);
+            void handBackAll(rows).then((back) => {
+              setMarking(false);
+              if (back.done) setWalk(null);
+              said(back);
+            });
+          },
+        }
+      : null;
+  return { walkingOld, setWalkingOld, setWalk, endOf };
+}
+
+/**
+ * The phone's walk of the list. Whoever has waited past a week is no part of the morning (his call D7): their own walk starts from
+ * the Older row, or from the walk's end.
+ */
+function phoneWalk(p: {
+  groups: ReturnType<typeof needYouGroupsOf<TodayQueueRowVM>>;
+  drawn: Drawn;
+  order: readonly TodayQueueRowVM[];
+  at: WalkAt;
+  oldWalk: ReturnType<typeof useOldWalk>;
+  handed: (back: HandedBack) => void;
+  ctx: NeedYouRowsCtx;
+  todo: ReturnType<typeof useToDoRows>;
+}) {
+  const { groups, drawn, oldWalk, todo } = p;
+  const cut = groups.waiting.length - drawn.waiting.length;
+  return listWalk(
+    oldWalk.walkingOld ? groups.old : [...p.order, ...todo.walk.rows],
+    {
+      walk: p.at,
+      setWalk: oldWalk.setWalk,
+      more: cut > 0 ? { count: cut, to: "inbox" } : null,
+      older: oldWalk.walkingOld ? null : oldWalk.endOf(groups.old, p.handed),
+    },
+    p.ctx,
+    todo,
+  );
+}
+
 const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   // The runs (Sent's), the reviews and the people move the parts of the list; the replies to a reach-out move a row read
   // as that reply's (contracts withReplies). Today owns those reads, so this redraws and reads nothing.
@@ -398,7 +434,9 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   // The row a desk has open: Up next until the member opens another (undefined), or none where they closed it (null).
   const [opened, setOpened] = useState<string | null | undefined>(undefined);
   const [older, setOlder] = useState<OlderHanded | null>(null);
-  const { phone, walk, setWalk } = usePhoneWalk();
+  const { phone, walk, setWalk: walkTo } = usePhoneWalk();
+  const oldWalk = useOldWalk(walkTo);
+  const { setWalkingOld, setWalk } = oldWalk;
   // The runs with an Approve or a Cancel on its way: their buttons wait for the server (S9-10).
   const acting = useRunsActing();
   const nav: Nav = (to) => appNavigate(to);
@@ -442,17 +480,21 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
     unkeep: (row) => setKept((was) => keptWithout(was, row)),
     kept: new Set(Object.keys(kept)),
     focus,
-    open: (id) => (phone ? setWalk(id) : setOpened((was) => (was === id ? null : id))),
+    open: (id) => {
+      if (!phone) return setOpened((was) => (was === id ? null : id));
+      // A row of Older walks Older; any other walks the morning.
+      setWalkingOld(groups.old.some((r) => r.id === id));
+      walkTo(id);
+    },
     word,
     stepDone: () => undefined,
     phone: phone ? { walk: setWalk } : null,
   };
   const door = listDoorOf(groups.next.length + groups.waiting.length, runs.count);
-  const endOf = groupEnds(phone, firstGroupOf(drawn, runs), door);
-  const above = groupsAbove({ groups, drawn, runs }, ctx, endOf);
+  const above = groupsAbove({ groups, drawn, runs }, ctx);
   // Every row above To do has asked for its act by now: whether one took the coral, which To do hears.
   const holds = coral.taken();
-  const todo = useToDoRows({ cap: NEED_YOU_CAPS.todo, queueHolds: holds });
+  const todo = useToDoRows({ cap: NEED_YOU_CAPS.todo, queueHolds: holds, open: ctx.open, focus: phone ? null : focus });
   // Older never takes the coral, and has no say in how the page is laid out: nobody counts it, and an old number in it left
   // Finish setting up quiet and Ask found under an empty day (8 Nov 2026).
   useCoralTold(holds);
@@ -461,7 +503,9 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   useTellHead(stillOpen([...groups.next, ...drawn.waiting], kept));
   useActedTold(kept);
   const olderRows = groups.old.length ? groups.old : (older?.rows ?? []);
-  const workDrawn = [...above, todoGroup(todo, phone, endOf("todo", todo.cut, todo.door ?? "inbox"))];
+  // Nobody waiting, only your own to-dos: the pane is To do, under "Nothing needs you", where "Need you" over them read as wrong.
+  const onlyToDo = !above.some(Boolean) && todo.drawn.length > 0;
+  const workDrawn = [...above, todoGroup(todo, onlyToDo)];
   const onlyOlder = !workDrawn.some(Boolean) && vm.callsRead !== false;
   const olderGroup = olderRows.length ? (
     <OlderGroup
@@ -479,25 +523,27 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
       phone={phone}
       onlyOlder={onlyOlder}
       groups={[...workDrawn, olderGroup]}
-      head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0)}
-      foot={
-        <>
-          {phone
-            ? null
-            : listFoot(
-                {
-                  waiting: groups.waiting.length - drawn.waiting.length,
-                  ok: groups.ok.length - drawn.ok.length + runs.cut,
-                  todo: todo.cut,
-                },
-                todo.door,
-                nav,
-              )}
-          <SetAsideLine nav={nav} />
-        </>
-      }
+      head={onlyOlder ? null : needYouHead(door, vm.done_today ?? 0, onlyToDo ? todo.count : null)}
+      foot={<SetAsideLine nav={nav} />}
       callsUnread={vm.callsRead === false}
-      walk={phone ? listWalk([...order, ...todo.walk.rows, ...groups.old], { walk, setWalk }, ctx, todo) : null}
+      walk={
+        phone
+          ? phoneWalk({
+              groups,
+              drawn,
+              order,
+              at: walk,
+              oldWalk,
+              handed: (back) => {
+                if (!back.done) return ppFlash({ tone: "danger", msg: <>{handedBackWords(back)}</> });
+                setOlder({ rows: groups.old, handed: back });
+                ppFlash({ tone: "ok", msg: <>{handedBackWords(back)}</> });
+              },
+              ctx,
+              todo,
+            })
+          : null
+      }
       toasts={
         <>
           {todo.toast}
@@ -509,8 +555,8 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
 };
 
 /**
- * The list drawn: on a desk one pane under its head, its groups, the reads that failed and its foot; on a phone the groups
- * as panes of their own and the foot under them. Nothing to draw is no pane at all: the head has said so.
+ * The list drawn, one pane under its head on a desk and a phone alike: its groups, the reads that failed and its foot.
+ * Nothing to draw is no pane at all: the head has said so.
  */
 function ListBody({
   phone,
@@ -527,7 +573,7 @@ function ListBody({
   onlyOlder: boolean;
   groups: ReadonlyArray<ReactElement | null>;
   head: ReactElement | null;
-  foot: ReactElement | null;
+  foot: ReactNode;
   callsUnread: boolean;
   walk: ReactElement | null;
   toasts: ReactElement;
@@ -539,10 +585,10 @@ function ListBody({
       data-testid="today-queue"
       data-phone={phone || undefined}
       data-only-older={onlyOlder || undefined}
-      aria-labelledby={phone || onlyOlder ? undefined : "today-queue-title"}
-      aria-label={onlyOlder ? W.group.old : phone ? "Need you" : undefined}
+      aria-labelledby={onlyOlder ? undefined : "today-queue-title"}
+      aria-label={onlyOlder ? W.group.old : undefined}
     >
-      {phone ? null : head}
+      {head}
       <div className="tq-list ny-groups">
         {groups}
         {readsFailed(callsUnread)}

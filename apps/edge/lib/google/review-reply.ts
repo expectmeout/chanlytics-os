@@ -10,6 +10,8 @@
  */
 import {
   cleanDraft,
+  fenced,
+  frameDraftChange,
   MODEL_PAUSED_WORDS,
   reviewReplyPrompt,
   type ReviewReplyFacts,
@@ -32,8 +34,22 @@ export async function draftReviewReply(
   facts: ReviewReplyFacts,
   review: ReviewToAnswer,
   forWhom: ReviewDraftFor,
+  asked?: { instruction: string; given: string | null } | null,
 ): Promise<DraftResult> {
-  const result = reviewReplyPrompt(facts, review);
+  const prompt = reviewReplyPrompt(facts, review);
+  // What the owner said for this one reply, with what stands on their screen: theirs to give, a figure included.
+  const result = asked
+    ? {
+        system: prompt.system,
+        user: [
+          prompt.user,
+          asked.given ? `The reply so far:\n${fenced("reply", asked.given)}` : null,
+          frameDraftChange(asked.instruction),
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      }
+    : prompt;
   const modelAnswer = await callModel(
     {
       purpose: "review_reply",

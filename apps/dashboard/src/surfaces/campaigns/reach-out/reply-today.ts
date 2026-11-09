@@ -3,13 +3,22 @@
  * read, in place of the handoff the intake raised for it, and the bell's action for its notice. Pure, over the readings
  * the Inbox's surface holds (`__REPLIES`); every word is here.
  */
-import type { TodayQueueRowVM, ReachOutReplyDto } from "@chanlytics/contracts";
+import type { RowReading, TodayQueueRowVM, ReachOutReplyDto } from "@chanlytics/contracts";
 import { REPLY_INTENT_WORDS } from "@chanlytics/contracts";
 
 /** Whether a reading makes its thread's row a reply's: read, standing, from a person, and not a no (which asks nothing). */
 function rowWorthy(r: ReachOutReplyDto): boolean {
   return !r.undone && r.claim !== "auto_reply" && r.intent !== "no";
 }
+
+/** What a reading comes to, as the row carries it: its sheet says what was done and offers what is left. */
+const rowReadingOf = (r: ReachOutReplyDto): RowReading => ({
+  intent: r.intent,
+  claim: r.claim,
+  step_day: r.step_day,
+  refer_to: r.refer_to,
+  until_at: r.until_at,
+});
 
 /** Whether the receptionist's draft for a reading is written and waiting in the reply box. */
 const drafted = (r: ReachOutReplyDto): boolean => r.draft_state === "written" && !!r.draft;
@@ -34,6 +43,7 @@ export function replyRowOf(row: TodayQueueRowVM, reachOutReply: ReachOutReplyDto
     // The receptionist's draft for the reply, already written: Today's row offers it to send (decision 0071), and Ask
     // writes none of its own over it.
     prepared: drafted(reachOutReply) ? reachOutReply.draft : null,
+    reading: rowReadingOf(reachOutReply),
   };
 }
 
@@ -63,13 +73,16 @@ export function withoutWrongPerson<W extends { conversationId: string }>(
 /**
  * Today's queue with each handoff whose thread's newest reading is a reply worth a row swapped for that row, in the
  * same place: the queue's order is by wait, and a reading does not change how long they have waited. A reading with no
- * open handoff adds no row (the queue is what needs a person), and a no or an automatic reply leaves its row as it was.
+ * open handoff adds no row (the queue is what needs a person), and a no or an automatic reply keeps its row, with what it was
+ * read as beside it, so its sheet offers no Send.
  */
 export function withReplies(rows: TodayQueueRowVM[], readings: ReachOutReplyDto[]): TodayQueueRowVM[] {
   const newest = newestReadings(readings);
   return rows.map((row) => {
     const r = row.kind === "handoff" && row.conversationId ? newest.get(row.conversationId) : undefined;
-    return r && rowWorthy(r) ? replyRowOf(row, r) : row;
+    if (!r) return row;
+    if (rowWorthy(r)) return replyRowOf(row, r);
+    return r.undone ? row : { ...row, reading: rowReadingOf(r) };
   });
 }
 

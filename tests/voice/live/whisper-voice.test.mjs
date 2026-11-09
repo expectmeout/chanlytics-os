@@ -167,7 +167,7 @@ test("hold to talk: the words show as they come, and what was heard is sent as a
     ],
     "what was heard is sent when the recogniser finishes, as a whisper: no nudge to speak",
   );
-  assert.match(textOf(flashed[0].msg), /Whispered — the receptionist works it into its next answer/);
+  assert.match(textOf(flashed[0].msg), /^Whispered\. It uses it when it fits\.$/);
   tree = mount();
   assert.equal(box(tree).props.value, "", "the box is emptied once it is sent");
   assert.match(hint(tree), /Whispered: “tell them we close at seven”/);

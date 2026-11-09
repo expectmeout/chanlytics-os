@@ -437,6 +437,42 @@ function SheetKitJob() {
 }
 
 /** The sheet with two rests: a kicker's head over rows and a foot, standing at half, its handle a button to full. */
+function SheetKitFit() {
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<"half" | "full">("half");
+  return (
+    <Figure id="sheet-kit-fit" about="the kit's Sheet fitted to what it holds, with a flat foot">
+      <Button data-testid="sheet-fit-open" onClick={() => setOpen(true)}>
+        Reply to Chris
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Chris Webb"
+        sub="Text · waited 7h"
+        close={{ label: "Close", glyph: glyph("x", 13) }}
+        rest={{ at, onRest: setAt, turn: { up: "Pull up for the whole conversation", down: "Back down" }, fit: true }}
+        flatFoot
+        foot={
+          <div data-foot-pair="">
+            <Button variant="secondary">Not now</Button>
+            <Button variant="primary">Send</Button>
+          </div>
+        }
+      >
+        <div>
+          {SHEET_SERVICES.map(([name, long]) => (
+            <div key={name} className="rec-row" data-empty="false">
+              <span className="rec-row-key">{name}</span>
+              <div className="rec-row-val">{long}</div>
+            </div>
+          ))}
+        </div>
+      </Sheet>
+    </Figure>
+  );
+}
+
 function SheetKitRests() {
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState<"half" | "full">("half");
@@ -1172,6 +1208,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "sheet-kit-job", Draw: SheetKitJob, closed: false },
   { id: "sheet-kit-kicker", Draw: SheetKitKicker, closed: false },
   { id: "sheet-kit-rests", Draw: SheetKitRests, closed: false },
+  { id: "sheet-kit-fit", Draw: SheetKitFit, closed: false },
   { id: "sheet-kit-mark", Draw: SheetKitMark, closed: false },
   { id: "sheet-kit-opens", Draw: SheetKitOpens, closed: false },
   { id: "menu-kit", Draw: MenuKit, closed: false },

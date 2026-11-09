@@ -1142,8 +1142,8 @@ test("every person is a row of their group, the run waiting for a word in To dec
   }));
   set({ today: vm });
   const more = byTestId(draw(NeedYou), "today-queue");
-  assert.match(textOf(find(more, (n) => classes(n).includes("tq-foot"))), /^2 more waiting/);
-  assert.doesNotMatch(textOf(find(more, (n) => classes(n).includes("tq-foot"))), /more to decide/);
+  assert.match(textOf(byTestId(more, "today-group-waiting-more")), /^2 more waiting/);
+  assert.equal(byTestId(more, "today-group-ok-more"), null, "nothing to decide was left out");
 });
 
 test("a search waiting on you is a row of the queue like a person: its name, its wait, its question, one Answer that opens it", () => {
@@ -1191,8 +1191,14 @@ test("a search waiting on you is a row of the queue like a person: its name, its
     find(byTestId(queue, "today-group-ok"), (n) => n === row),
     "a question waits for your OK, as a run does",
   );
+  // Answered where it stands (his call D8, 9 Nov 2026), and its words still go to the search, open on its question.
   press(buttons(row, "Answer")[0]);
-  assert.equal(went.at(-1), leadQuestionRoute("s-wait"), "straight to the search, open on its question");
+  const list = again(() => W.React.createElement(NeedYou, {}));
+  const open = byTestId(list, "queue-search");
+  assert.equal(buttons(open, "Keep going").length, 1);
+  assert.equal(buttons(open, "Stop here").length, 1);
+  find(open, (n) => classes(n).includes("cl-attn-body")).props.onClick();
+  assert.equal(went.at(-1), leadQuestionRoute("s-wait"));
 });
 
 /* ------------------------------------ the day ------------------------------------ */
@@ -1672,7 +1678,7 @@ const emptyBell = () => ({
   older: () => 0,
 });
 
-test("the queue's foot says only what is cut, with its door to the rest, and a row carries its one verb", () => {
+test("a group's foot says only what is cut, with its door to the rest, and a row carries its one verb", () => {
   clear();
   // Ana's row asks a second thing of you (snooze): the row still carries one verb; the thread's acts are the Inbox's.
   const vm = busy();
@@ -1689,19 +1695,13 @@ test("the queue's foot says only what is cut, with its door to the rest, and a r
   ];
   set({ today: vm, __BROADCASTS: broadcasts() });
   const queue = byTestId(draw(NeedYou), "today-queue");
-  const foot = find(queue, (n) => classes(n).includes("tq-foot"));
-  assert.ok(foot, "one person past the five drawn: the foot says so");
+  const foot = byTestId(queue, "today-group-waiting-more");
+  assert.ok(foot, "one person past the five drawn: the group's foot says so");
   assert.match(textOf(foot), /^1 more waiting/);
-  const seeAll = buttons(foot, "See all");
-  assert.equal(seeAll.length, 1);
-  press(seeAll[0]);
+  foot.props.onClick();
   assert.equal(went.at(-1), "inbox");
   assert.equal(all(queue, (n) => n.props?.["data-testid"] === "queue-snooze").length, 0, "one verb a row (E3)");
-  assert.equal(
-    all(queue, (n) => classes(n).includes("cl-attn-row")).length,
-    7,
-    "Up next, the five waiting, and the run",
-  );
+  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 7, "Up next, five waiting, the run");
   assert.equal(byTestId(queue, "today-queue-count"), null, "how many need you is the head's sentence, said once");
 });
 

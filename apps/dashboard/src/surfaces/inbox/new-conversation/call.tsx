@@ -26,20 +26,13 @@ function briefLines(lead: string, lines: readonly string[]) {
   );
 }
 
-/** The brief: what is known, how to open, what to say, what to leave out, what to ask for. */
+/** The brief: what is known, what to say, what to ask for. The owner knows how to talk to people (9 Nov 2026). */
 function briefPart(brief: CallBrief, facts: readonly string[]) {
   const B = W.brief;
   return (
     <section className="ix-new-part" data-testid="ix-new-brief">
       {briefLines(B.know, facts)}
-      {brief.opening ? (
-        <>
-          <p className="ix-new-lead">{B.open}</p>
-          <p className="ix-new-quote">{brief.opening}</p>
-        </>
-      ) : null}
       {briefLines(B.say, brief.points)}
-      {briefLines(B.avoid, brief.avoid)}
       {brief.ask ? (
         <>
           <p className="ix-new-lead">{B.ask}</p>

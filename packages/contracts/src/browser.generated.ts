@@ -76,7 +76,7 @@ export { CALENDAR_RUN_SHEET_WORDS, CALENDAR_SHOW_WORDS, calendarRunMarksOf, runM
 export { foldName, matchService, needsConsultation, offerFor, offerLead, sameListed, serviceNamedIn } from "./calendar/service-offer";
 export { coversSpan, frameOf, spanForView, windowFor } from "./calendar/views";
 export { bookedAfterAsk } from "./calendar/visit/booked-after-ask";
-export { BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_SCHEMA_FIELDS, BOOKING_REQUEST_WORDS, bookingRequestCardOf, bookingRequestRefusalOf, requestedBookingOf, slotLong, slotShort, takesBookingRequests } from "./calendar/visit/booking-request";
+export { BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_SCHEMA_FIELDS, BOOKING_REQUEST_WORDS, bookingRequestCardOf, bookingRequestRefusalOf, otherTimeWords, requestedBookingOf, slotLong, slotNear, slotShort, takesBookingRequests } from "./calendar/visit/booking-request";
 export { calendarPersonFactsOf, calendarPersonOf } from "./calendar/visit/calendar-person-facts";
 export { changeFreesATime, FREED_TIME_REFUSALS, freedTimeOf, freedTimesUnoffered, freedTimeTaken, freedTimeWords } from "./calendar/visit/freed-time";
 export { visitTitleWithout } from "./calendar/visit/service";
@@ -248,7 +248,7 @@ export { conversationWaitsOnYou, HELD_BY_ID_MAX, heldDraftWaits, heldThreadIds, 
 export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageAuthor, messageVia, messageWhy, lastWordLine } from "./conversations/message-author";
 export { emailLeftOutOf, emailPartsOf, emailPreviewOf, emailSignatureLine, emailSignedLine, emailSubjectsOf, repairMojibake, splitQuotedReply, tidyEmailWords } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
-export { draftSendsAtMs, failureWordsOf, heldDraftOf, isHeldDraft, messageStatusLabel, messageText, messageWords, providerCodeOf, reachedCustomer, sendFailureWords, lastExchanged, sentFactsOf } from "./conversations/message-words";
+export { draftSendsAtMs, failedWayOf, failureWordsOf, heldDraftOf, isHeldDraft, messageStatusLabel, messageText, messageWords, providerCodeOf, reachedCustomer, sendFailureWords, lastExchanged, sentFactsOf } from "./conversations/message-words";
 export { CONVERSATION_MOVES, conversationMoveAllowed, conversationPatch } from "./conversations/moves";
 export { HELD_WORDS, heldPill, INBOX_BUCKET_WORDS, inboxBucketWord, isUnseen, NEEDS_YOU_LIST_END, NEEDS_YOU_WORD, readingOf, replyWaitsOnYou, seenBy, standingOf, standingOfThread } from "./conversations/standing";
 export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, THREAD_CHANNEL_WORDS, threadChannelOf, threadChannelWords, writtenChannelOf } from "./conversations/thread-channel";
@@ -355,8 +355,8 @@ export { APP_ROUTE_RE, parsePageMessage, parseShellMessage, PUSH_TOKEN_MAX } fro
 export { CALL_ACTIVITY_NAME, CALL_ACTIVITY_ROLES, CALL_ACTIVITY_STALE_MS, callActivityPropsOf, callActivityStart } from "./mobile/live-activity";
 export { parseTodayWidgetSnapshot } from "./mobile/widget";
 export { clockIsNear, NEED_YOU_CAPS, NEED_YOU_CLOCK_MS, NEED_YOU_DONE_VERBS, NEED_YOU_OLD_MS, needYouCountOf, needYouGroupsOf, needYouVerbOf, needYouWaitOf } from "./need-you/groups";
-export { DRAFT_BRIEF_RULES, DRAFT_BRIEF_SCHEMA, DRAFT_MAX_TOKENS, DRAFT_USED_WORDS, draftBriefOf, draftHeadroomSpent, draftUseOf, NO_FOLLOW_UP_TIME, pitchKept, promisesAFollowUpTime, replyDraftOwed, setAsideSentence, setsAside } from "./need-you/reply-draft-owed";
-export { DRAFT_WRITING_STALE_MS, draftFailedWords, draftHasWords, draftIsCurrent, draftViewOf, REPLY_DRAFT_KINDS, REPLY_DRAFT_RULES, REPLY_DRAFT_SOURCES, REPLY_DRAFT_STATES, REPLY_DRAFT_WORDS, REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX } from "./need-you/reply-drafts";
+export { CALL_SELLING_MAX_TOKENS, CALL_SELLING_RULES, CALL_SELLING_SCHEMA, callSellingOf, DRAFT_USED_WORDS, draftHeadroomSpent, draftUseOf, NO_FOLLOW_UP_TIME, pitchKept, promisesAFollowUpTime, replyDraftOwed, setAsideSentence, setsAside } from "./need-you/reply-draft-owed";
+export { DRAFT_CHANGE_NAMED_MONEY, DRAFT_WRITING_STALE_MS, draftFailedWords, draftHasWords, draftIsCurrent, draftViewOf, REPLY_DRAFT_KINDS, REPLY_DRAFT_RULES, REPLY_DRAFT_SOURCES, REPLY_DRAFT_STATES, REPLY_DRAFT_WORDS, REPLY_DRAFTS_IDS_MAX, REPLY_DRAFTS_NEWEST_MAX } from "./need-you/reply-drafts";
 export { NEED_YOU_WORDS, needYouSay, NOT_A_PERSON_WORDS, notNowChoices, sendCountdown } from "./need-you/words";
 export { DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_TONES, PERSON_DRAFT_JSON_SCHEMA, PLAN_NOTE_MAX } from "./new-conversation/person-draft";
 export { approvedWordsFor, NEW_CONVERSATION_WORDS, newConversationOf, planNoteOf, writeWayWords, writeWireName } from "./new-conversation/words";
@@ -493,7 +493,7 @@ export { ALERT_PANE_WORDS, ALERT_TOPICS, alertGrid, alertTestMail, BELL_LINE_KIN
 export { buildNotificationFeed, callOfKey, conversationOfNeedsKey, dedupeFeed, jobNewsWords, kindListDoor, nameKnownCustomers, noteWhose, noticeRoute, REACH_OUT_DAY_ROUTE, SERVER_KEY_PREFIX, serverNotificationRows, verbForRoute } from "./today/notifications/feed";
 export { agoLabel, ALERT_KINDS, applyReadState, bellCalls, EMPTY_READ_STATE, SERVER_NOTIFICATION_KINDS, unreadCount } from "./today/notifications/feed-input";
 export { firstLine, isPushKind, parseDevice, parseMemberAlerts, PUSH_KINDS, PUSH_PLATFORMS, pushesFor, pushFor, pushOffOf, BELL_LIST_ROWS, BELL_WINDOW_DAYS, isForReader, keptUnreadOf, olderUnreadOf, PUSH_RECEIPTS_AFTER_MS, unreadFor } from "./today/push";
-export { isHoldRow, isPersonRow, namesAPerson } from "./today/queue";
+export { isHoldRow, isPersonRow, namesAPerson, saidOfMessages } from "./today/queue";
 export { NO_REPLY_AFTER_MS } from "./today/rows";
 export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./today/runs";
 export { todaySteps, todayStepsSub, todayVisitsAsked, todayVisitsSub, withSteps, withVisitsAsked } from "./today/to-do";
@@ -506,7 +506,7 @@ export { deniesAutomated, GREETING_TEMPLATE, greetingNotes, greetingOf, spokenNa
 export { ANALYSIS_GRACE_MS, callsStillUp, fmtClock, LIVE_OVERLONG_MS, LIVE_STALE_MS, liveBar, liveStillUp, missedCallIsNews, RECENT_MAX, toLiveCallVM, toLiveVM } from "./voice/live";
 export { PHONE_PACE_WORDS, PHONE_PACES, phonePaceOf, phonePaceShown, phonePaceSpeed } from "./voice/phone-pace";
 export { PHONE_VOICE_DEFAULT, PHONE_VOICE_SAMPLES_ORIGIN, PHONE_VOICE_WORDS, PHONE_VOICES, PHONE_VOICES_NATIVE_TO, phoneVoiceOf, phoneVoiceShown } from "./voice/phone-voices";
-export { frameGuardrail, frameHandOver, frameSteer, frameWhisper, injectedTurn, whisperText } from "./voice/whisper";
+export { frameDraftChange, frameGuardrail, frameHandOver, frameSteer, frameWhisper, injectedTurn, whisperText } from "./voice/whisper";
 export { GOING_TODAY_WORDS, goingTodayOf } from "./waits/going-today";
 export { closeSettledNotices, kindsEndedBy, NOTHING_WAITS_KNOWN, NOTICE_ENDS, noticeStillWaits, settledNoticeIds } from "./waits/notice-closes";
 export { NOTICE_MENDS, warningsMendedBy } from "./waits/notice-mends";

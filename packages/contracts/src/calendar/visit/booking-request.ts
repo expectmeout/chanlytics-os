@@ -6,8 +6,8 @@
  */
 import type { Opening } from "../availability";
 import { visitRoute } from "../appointment-key";
-import { clockInZone, dayInZone, localToUtcMs } from "../../shared/zone/math";
-import { MIN_MS, dateFormat } from "../../shared/time";
+import { clockInZone, dayInZone, dayPlusInZone, localToUtcMs } from "../../shared/zone/math";
+import { DAY_MS, MIN_MS, dateFormat } from "../../shared/time";
 
 /** The two fields the receptionist writes beside its reply, empty when no time was picked. */
 export interface BookingRequestFields {
@@ -127,6 +127,34 @@ export function slotLong(atMs: number, tz: string): string {
   return `${day} at ${time}`;
 }
 
+/** The day of an instant from today, as a sentence says it: "today", "tomorrow", "Thursday", else its date. */
+function dayWordOf(atMs: number, tz: string, nowMs: number): string {
+  const key = dayInZone(tz, atMs).key;
+  if (key === dayInZone(tz, nowMs).key) return "today";
+  if (key === dayPlusInZone(tz, nowMs, 1).key) return "tomorrow";
+  const soon = atMs - nowMs < 6 * DAY_MS;
+  return dateFormat(
+    "en-US",
+    soon ? { timeZone: tz, weekday: "long" } : { timeZone: tz, month: "long", day: "numeric" },
+  ).format(new Date(atMs));
+}
+
+/** "tomorrow at 3:00 PM": a slot on the business's clock, as near as a person would say it. */
+export function slotNear(atMs: number, tz: string, nowMs: number): string {
+  const time = dateFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(atMs));
+  return `${dayWordOf(atMs, tz, nowMs)} at ${time}`;
+}
+
+/**
+ * The words Another time has ready (his call D5, 9 Nov 2026): that the time has gone, and the one or two they picked to offer.
+ * With none picked yet, it asks; they say more to Ask, or type over it.
+ */
+export function otherTimeWords(when: string, offered: readonly string[]): string {
+  const gone = `${when.charAt(0).toUpperCase()}${when.slice(1)} has gone, sorry.`;
+  if (!offered.length) return `${gone} What other time suits you?`;
+  return `${gone} Would ${offered.join(" or ")} work instead?`;
+}
+
 /** Every sentence a request is said in: the hold's line, the owner's two answers, and the reply Booked it drafts. */
 export const BOOKING_REQUEST_WORDS = {
   /** The hold's line (its details): what was asked for. */
@@ -162,6 +190,8 @@ export const BOOKING_REQUEST_WORDS = {
   },
 } as const;
 
+const capitalized = (words: string): string => words.charAt(0).toUpperCase() + words.slice(1);
+
 /** A booking request as the Inbox's card draws it (the thread canvas, 1 Nov 2026). */
 export interface BookingRequestCardVM {
   id: string;
@@ -172,6 +202,8 @@ export interface BookingRequestCardVM {
   dayLong: string;
   /** Its hours: "3:00 – 4:00 PM". */
   hours: string;
+  /** Its day and hours as the sheet heads them: "Tomorrow · 3:00 – 3:30 PM". */
+  when: string;
   service: string | null;
   /** Whether it still takes its time on the calendar (it expires an hour before the slot, or a day after it was asked). */
   holds: boolean;
@@ -204,6 +236,7 @@ export function bookingRequestCardOf(
     date: dateFormat("en-US", { timeZone: tz, day: "numeric" }).format(at),
     dayLong: dateFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(at),
     hours: requestHoursOf(startMs, endMs, tz),
+    when: `${capitalized(dayWordOf(startMs, tz, nowMs))} · ${requestHoursOf(startMs, endMs, tz)}`,
     service: row.service && row.service.trim() ? row.service.trim() : null,
     holds: !row.expires_at || Date.parse(row.expires_at) > nowMs,
     to: visitRoute(row.id, key),

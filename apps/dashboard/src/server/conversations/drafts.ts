@@ -4,6 +4,7 @@ import {
   REPLY_DRAFT_RULES,
   REPLY_DRAFTS_NEWEST_MAX,
   REPLY_DRAFT_STATES,
+  DRAFT_CHANGE_NAMED_MONEY,
   draftFailedWords,
   draftUseOf,
   type ReplyDraftDto,
@@ -123,7 +124,9 @@ export async function draftUseOfReply(
 }
 
 /** What a refusal of the edge's door says to the member, in the words their page has for why. */
-function refusalOf(reason: string, detail: string | null): AppError {
+function refusalOf(reason: string, detail: string | null, change: boolean): AppError {
+  const money = reason === "policy_block_price" || (reason === "draft_refused" && detail === "named_money");
+  if (money && change) return new AppError("validation", DRAFT_CHANGE_NAMED_MONEY);
   if (reason === "policy_block_price") return new AppError("validation", draftFailedWords("named_money").words);
   if (reason === "draft_refused") return new AppError("validation", draftFailedWords(detail).words);
   if (reason === "not_found") return new AppError("not_found", "Conversation not found.");
@@ -141,13 +144,13 @@ export async function draftForThread(
   ctx: RouteContext,
   member: Member,
   conv: VerbConversation & { contact_id: ContactId },
-  ask: { kind: ReplyDraftKind; instruction?: string | null },
+  ask: { kind: ReplyDraftKind; instruction?: string | null; given?: string | null },
 ): Promise<ReplyDraftDto> {
-  const { kind, instruction = null } = ask;
+  const { kind, instruction = null, given = null } = ask;
   const signed =
     kind === "reply" ? ((await getSignedByThread(ctx, conv.tenant_id, [conv.id])).get(conv.id) ?? null) : null;
   const done = await draftAtTheEdge(
-    { conversationId: conv.id, kind, instruction },
+    { conversationId: conv.id, kind, instruction, given },
     { workspace: member.tenantId, user: ctx.userId },
   );
   if (done.ok) return dtoOf(done.draft, signed);
@@ -158,5 +161,5 @@ export async function draftForThread(
     );
     if (kept && !instruction) return dtoOf(kept, signed);
   }
-  throw refusalOf(done.reason, done.detail);
+  throw refusalOf(done.reason, done.detail, !!instruction);
 }
