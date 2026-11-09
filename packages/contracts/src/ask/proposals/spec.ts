@@ -146,9 +146,9 @@ export const PROPOSAL_WORDS = {
    */
   batchStopped: (done: number, of: number, reason: string): string =>
     `${done} of ${of} parts went, then: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} The rest did not go.`,
-  /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
-  planStopped: (n: number, reason: string): string =>
-    `Stopped at step ${n}: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} The steps after it were not done.`,
+  /** A plan's press stopped by a refusal, in the refusal's own words: what is done stands, and nothing went out. */
+  planStopped: (reason: string): string =>
+    `Stopped: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} Nothing went out.`,
 } as const;
 
 /**

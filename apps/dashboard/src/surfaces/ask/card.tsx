@@ -1,10 +1,15 @@
 /**
- * A proposal the assistant made, as a card, and the cards of a turn as groups: a plan of Ask's, or cards side by side, one
- * open at a time. The parts are card-parts.tsx's; what a card may do is decided by its contract (askCalls(): the card's
+ * A proposal the assistant made, as a card, and the cards of a turn as groups: a plan of Ask's as one card, or cards side by
+ * side, one open at a time. The parts are card-parts.tsx's; what a card may do is decided by its contract (askCalls(): the card's
  * verb, its undo, the plan's group), and this file holds what became of it.
  */
 import { useEffect, useRef, useState } from "react";
 import {
+  ASK_PUBLIC_HOLD_MS,
+  askCardHasWords,
+  askPressCount,
+  askPressOf,
+  askTraitsOf,
   holdsAlike,
   openCardOf,
   searchCardView,
@@ -16,9 +21,20 @@ import {
 import type { AskApi, CommitResult } from "@/bridge/ask";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
 import { Button } from "../kit/button/button";
+import { Icon } from "../kit/icon/icon";
 import { AskPostCard, usePostCard } from "./card-post";
-import { AskCardActs, AskCardChange, AskCardHead, AskCardReceipt, AskSheet, type CardFold } from "./card-parts";
-import { askCalls, canDo, gate, settingsVersion } from "./shell";
+import {
+  AskCardActs,
+  AskCardChange,
+  AskCardHead,
+  AskCardReceipt,
+  AskNotNow,
+  AskRing,
+  AskQuickChanges,
+  AskSheet,
+  type CardFold,
+} from "./card-parts";
+import { askCalls, canDo, gate, gateTitle, settingsVersion } from "./shell";
 import type { LineWords } from "./words";
 
 /** Kept where the Line draws the card again. */
@@ -189,6 +205,7 @@ export const AskCard = ({
   onNav,
   hideOpen = false,
   onOutcome,
+  onQuick,
   step = AT_NO_STEP,
 }: {
   p: AskProposal;
@@ -198,6 +215,7 @@ export const AskCard = ({
   hideOpen?: boolean;
   onOutcome?: OnOutcome;
   onEdit?: (text?: string) => void;
+  onQuick?: (q: string) => unknown;
   step?: CardStep;
 }) => {
   const A = askCalls();
@@ -216,6 +234,9 @@ export const AskCard = ({
     step.saw(p.id, o);
     void atRecord({ A, messageId, onOutcome }, p.id, o);
   };
+  // A public reply goes on a clock in this tab (D24 of the answers canvas): a review's answer has no way back once it posts,
+  // so its press starts fifteen seconds, its end posts it and Undo clears it. A tab that closes first posts nothing.
+  const [posting, setPosting] = useState<{ from: number; until: number } | null>(null);
   const approveWith = async (proposal: AskProposal) => {
     if (held || !A) return;
     working(true);
@@ -260,6 +281,12 @@ export const AskCard = ({
       record({ state: "undone", receipt: r.receipt, atMs: Date.now(), undo: null });
     } else setErr(r.message);
   };
+  const onClock = () => {
+    if (held) return;
+    const from = Date.now();
+    land.current = "receipt";
+    setPosting({ from, until: from + ASK_PUBLIC_HOLD_MS });
+  };
   const idle = state === "idle";
   // A search's card (Ruben, 23 Oct 2026): what it finds as rows, read, never edited here -- a change is said to Ask, which
   // makes the card again -- its line under them, and one press, for what the month has room for (contracts
@@ -269,7 +296,7 @@ export const AskCard = ({
   const decided = !idle && !!step.fold;
   return (
     <div className={`ask-card ${state}${shut ? " ask-shut" : ""}`} data-testid="ask-card" data-kind={p.kind}>
-      <AskCardHead p={post ? post.card : p} t={t} fold={idle ? step.fold : null} />
+      <AskCardHead p={post ? post.card : p} fold={idle ? step.fold : null} />
       {shut || decided ? null : lead ? (
         <AskSearchCard lead={lead} t={t} alike={step.alike} />
       ) : post ? (
@@ -282,7 +309,34 @@ export const AskCard = ({
           {step.note}
         </p>
       ) : null}
-      {idle && !shut ? (
+      {idle && !shut && onQuick && askCardHasWords(p.kind) ? <AskQuickChanges t={t} onFollow={onQuick} /> : null}
+      {posting ? (
+        <div className="ask-told" role="status">
+          <div className="ask-card-receipt ask-landing" tabIndex={-1} ref={receiptRef} data-testid="ask-card-posting">
+            <AskRing
+              from={posting.from}
+              until={posting.until}
+              onDone={() => {
+                setPosting(null);
+                void approveWith(p);
+              }}
+            />
+            <span className="ask-card-said">{t.posting}</span>
+            <Button
+              variant="quiet"
+              size="sm"
+              className="ask-card-undo"
+              onClick={() => {
+                setPosting(null);
+                land.current = "approve";
+              }}
+            >
+              {t.undo}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {idle && !shut && !posting ? (
         <AskCardActs
           p={p}
           t={t}
@@ -290,7 +344,9 @@ export const AskCard = ({
           waits={step.waits}
           hideOpen={hideOpen || !!lead || !!post}
           press={lead ? lead.press : post ? post.press : null}
-          onApprove={() => approveWith(lead ? lead.commit : post ? post.card : p)}
+          onApprove={() =>
+            askTraitsOf(p.kind).reach === "public" ? onClock() : approveWith(lead ? lead.commit : post ? post.card : p)
+          }
           onDismiss={dismiss}
           onNav={onNav}
           more={more}
@@ -373,6 +429,7 @@ export const AskCards = ({
   onNav,
   onOutcome,
   onEdit,
+  onQuick,
   cardOpen,
 }: {
   cards: AskProposal[];
@@ -381,6 +438,7 @@ export const AskCards = ({
   onNav: (to: string) => void;
   onOutcome?: OnOutcome;
   onEdit?: (text?: string) => void;
+  onQuick?: (q: string) => unknown;
   cardOpen?: Record<string, boolean>;
 }) => {
   const group = useCardsTogether(cards);
@@ -393,6 +451,7 @@ export const AskCards = ({
       onNav={onNav}
       onOutcome={onOutcome}
       onEdit={onEdit}
+      onQuick={onQuick}
       hideOpen={!!cardOpen && cardOpen[p.id] === false}
       step={step}
     />
@@ -407,36 +466,49 @@ export const AskCards = ({
   );
 };
 
-// A plan's step's own words in the Line's language (words.ts; contracts planGroupOf hands their numbers): its head,
-// what it waits for in its Approve's place, and the line before its press: why it never goes (the refusal's own words,
-// as every refusal is said) or WhatsApp's review of the message a step writes.
-/** A plan's step as its group hands it (contracts planGroupOf). */
-type PlanStepDrawn = ReturnType<AskApi["planGroupOf"]>["steps"][number];
+/** A plan's cards as they stand, what its press and its Undo left them, each kept as a card's own press would keep it. */
+const usePlanCards = (cards: AskProposal[], record: (pid: string, o: AskProposalOutcome) => Promise<boolean>) => {
+  const [seen, setSeen] = useState<Record<string, AskProposalOutcome>>({});
+  const now = cards.map((p) => (seen[p.id] ? { ...p, outcome: seen[p.id] } : p));
+  return {
+    now,
+    /** Shown at once, and kept one after another: the store writes a turn whole, so two at once would lose one. */
+    keep: async (got: Record<string, AskProposalOutcome>) => {
+      setSeen((prev) => ({ ...prev, ...got }));
+      for (const [pid, outcome] of Object.entries(got)) await record(pid, outcome);
+    },
+  };
+};
 
-const atStepWords = (t: LineWords, s: PlanStepDrawn) => ({
-  head: t.stepOf(s.step, s.of),
-  waits: !s.wait ? null : "undone" in s.wait ? t.stepUndone(s.wait.undone) : t.waitingFor(s.wait.waits),
-  note: s.note || (s.review === null ? null : t.afterReview(s.review)),
-});
+/** What a plan's one card says after a press, read from what became of its steps. */
+function planSaid(now: readonly AskProposal[], t: LineWords, inReview: boolean): { line: string; ok: boolean } | null {
+  const failed = now.find((p) => p.outcome?.state === "failed");
+  if (failed?.outcome) return { line: failed.outcome.receipt, ok: false };
+  const doneSends = now.filter((p) => !p.plan?.silent && p.outcome?.state === "done");
+  const send = doneSends.at(-1)?.outcome;
+  if (send) return { line: send.paused ? t.planPaused : send.receipt, ok: true };
+  if (now.some((p) => p.outcome?.state === "undone") && !now.some((p) => p.outcome?.state === "done"))
+    return { line: t.planUndone, ok: true };
+  if (inReview) return { line: t.planFiled, ok: true };
+  if (now.every((p) => p.outcome?.state === "done")) return { line: t.planDone, ok: true };
+  return null;
+}
 
-// A plan of Ask's (the marketing manager's spec §5.4, §5.8): its cards one group in step order, each under its head
-// ("Step 1 of 6"), with one press above them for the steps that send nothing (commit.ts commitPlan, through
-// askCalls().commitPlan) and each send its own press once the steps it waits for are made. What the group is and what
-// each card waits for are contracts' (planGroupOf), read again on every draw from the cards as they stand: their
-// outcomes as the turn holds them, over what this group saw become of them since (`seen`); its words are the Line's own,
-// in its language (`t`, atStepWords). The press is held while any
-// of its cards is busy, records each step's outcome as that card's own press would (atDone, atFailed), one after another,
-// holding every card of the plan until the last is kept, and hands each card it decided that outcome to draw (`ran`); a
-// stop is the step it stopped at, failed in commitPlan's
-// own words (PROPOSAL_WORDS.planStopped, never wrapped again), and the rest stay pressable one by one.
+/**
+ * A plan of Ask's as one card (D2 of the answers canvas, which reverses the marketing manager's spec §5.4 on purpose): what it
+ * is and how, the message as a person reads it, what holds it, how it runs folded away, and one press that names what it
+ * does, the send included (contracts planPressOf says which steps it takes; a plan with a later send presses again for it).
+ * Under it, once pressed, what became of it and one way back: Undo while its steps can still be taken back (commit.ts
+ * undoPlan), Pause and Resume on a send that keeps running. A stop says why and nothing went out; the same press carries on
+ * from there, since a step made is never made twice (the step's own key, commit.ts).
+ */
 export const AskPlan = ({
   cards,
   messageId,
   t,
   onNav,
   onOutcome,
-  onEdit,
-  cardOpen,
+  onQuick,
 }: {
   cards: AskProposal[];
   messageId?: string | null;
@@ -444,29 +516,57 @@ export const AskPlan = ({
   onNav: (to: string) => void;
   onOutcome?: OnOutcome;
   onEdit?: (text?: string) => void;
+  onQuick?: (q: string) => unknown;
   cardOpen?: Record<string, boolean>;
 }) => {
   const A = askCalls() as AskApi; // a plan is drawn only from a turn the bridge read
-  const group = useCardsTogether(cards);
-  const [ran, setRan] = useState<Record<string, AskProposalOutcome>>({});
+  const { now, keep } = usePlanCards(cards, (pid, o) => atRecord({ A, messageId, onOutcome }, pid, o));
   const [busy, setBusy] = useState(false);
-  const [working, setWorking] = useState<Record<string, boolean>>({});
-  const { now } = group;
-  const g = A.planGroupOf(now);
-  const held = busy || Object.values(working).some(Boolean);
-  // The press goes with the last step it decides, and focus lands on what became of the first it decided.
-  const boxRef = useRef<HTMLDivElement>(null);
+  const [err, setErr] = useState("");
+  const landRef = useRef<HTMLDivElement>(null);
   const pressed = useRef(false);
+  const ordered = [...now].sort((a, b) => (a.plan?.step ?? 0) - (b.plan?.step ?? 0));
+  const first = ordered.at(0);
+  const head = ordered.find((p) => p.plan?.head)?.plan?.head ?? null;
+  const press = A.planPressOf(now);
+  const inReview = A.planInReview(now) && now.some((p) => p.outcome?.state === "done");
+  const said = planSaid(now, t, inReview);
+  const pressedOnce = now.some((p) => p.outcome);
   useEffect(() => {
     if (!pressed.current) return;
     pressed.current = false;
-    boxRef.current?.querySelector<HTMLElement>(".ask-card-receipt")?.focus({ preventScroll: true });
-  }, [ran]);
-  // Every card of the plan is held from the press until the last outcome is recorded: the store writes a turn whole, so
-  // a send or an Undo pressed while the group's outcomes are on their way would record over one of them.
-  const press = async () => {
-    if (held || !A.commitPlan) return;
+    landRef.current?.querySelector<HTMLElement>(".ask-card-receipt")?.focus({ preventScroll: true });
+  });
+  const sendCard = press.send === null ? null : (now.find((p) => p.plan?.step === press.send) ?? null);
+  const holds = [...new Set(now.filter((p) => !p.outcome).flatMap((p) => p.sheet?.holds ?? []))];
+  const says = head?.says ?? [];
+  const word = (() => {
+    if (press.review !== null) return t.pressReview;
+    if (head?.press === "offer" && sendCard) return t.pressOffer;
+    if (sendCard) return t.press(askPressOf(sendCard), askPressCount(sendCard));
+    return t.pressPlan;
+  })();
+  const gates = PROPOSAL_GATE;
+  const stepCards = press.steps.flatMap((n) => now.find((p) => p.plan?.step === n) ?? []);
+  const gateKey = stepCards.map((p) => gates[p.kind] || "approve").find((k) => !canDo(k)) ?? "approve";
+  const version = settingsVersion();
+  // Settings not read in this tab are read again by the undo itself, which refuses if anyone saved since (commit.ts).
+  const undoable = (p: AskProposal, o: AskProposalOutcome) =>
+    !!p.undo &&
+    !!o.undo &&
+    A.undoOpen(
+      p.kind,
+      o.undo,
+      o.atMs || 0,
+      Date.now(),
+      version ?? (o.undo.version_after as number | undefined) ?? null,
+    );
+  const canUndo = now.some((p) => p.outcome?.state === "done" && undoable(p, p.outcome));
+  const running = now.find((p) => p.kind === "playbook" && p.outcome?.state === "done" && p.outcome.undo?.playbook_id);
+  const goPress = async () => {
+    if (busy || !A.commitPlan) return;
     setBusy(true);
+    setErr("");
     try {
       const run = await A.commitPlan(now);
       const at = Date.now();
@@ -475,75 +575,173 @@ export const AskPlan = ({
         const p = now.find((c) => c.plan && c.plan.step === step);
         if (p) got[p.id] = result.ok ? atDone(result, at) : atFailed(result.message, at);
       }
-      group.sawAll(got);
       pressed.current = true;
-      setRan((prev) => ({ ...prev, ...got }));
-      for (const [pid, outcome] of Object.entries(got)) await atRecord({ A, messageId, onOutcome }, pid, outcome);
+      await keep(got);
     } finally {
       setBusy(false);
     }
   };
-  // The press is gated as the steps it approves are: the first whose gate the member's role is refused, else Approve's.
-  const gates = PROPOSAL_GATE;
-  const gateKey =
-    g.steps.map((s) => (s.card.plan?.silent ? gates[s.card.kind] || "approve" : null)).find((k) => k && !canDo(k)) ||
-    "approve";
+  const goUndo = async () => {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const run = await A.undoPlan(now, undoable);
+      const at = Date.now();
+      const got: Record<string, AskProposalOutcome> = {};
+      for (const { step, result } of run.results) {
+        const p = now.find((c) => c.plan && c.plan.step === step);
+        if (p && result.ok) got[p.id] = { state: "undone", receipt: result.receipt, atMs: at, undo: null };
+        else if (!result.ok) setErr(result.message);
+      }
+      pressed.current = true;
+      await keep(got);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const goPause = async (paused: boolean) => {
+    if (busy || !running?.outcome) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await A.pauseSend(running, paused);
+      if (r.ok) await keep({ [running.id]: { ...running.outcome, paused } });
+      else setErr(r.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const dismiss = () =>
+    void keep(
+      Object.fromEntries(
+        now
+          .filter((p) => !p.outcome)
+          .map((p): [string, AskProposalOutcome] => [
+            p.id,
+            { state: "dismissed", receipt: t.notNow, atMs: Date.now(), undo: null },
+          ]),
+      ),
+    );
+  const openTo = running ? A.cardOpenRoute(running) : null;
+  const lines = ordered.map((p) => ({
+    id: p.id,
+    line: p.plan?.does || p.line || p.title,
+    done: p.outcome?.state === "done",
+  }));
+  const dismissed = now.every((p) => p.outcome?.state === "dismissed");
   return (
-    <div className="ask-steps" ref={boxRef} data-testid="ask-plan">
-      <AskHoldsAlike holds={group.alike} of={cards.length} t={t} />
-      {g.left > 0 ? (
-        <div className="ask-steps-press">
-          <Button
-            variant="primary"
-            size="sm"
-            className="ask-press"
-            onClick={press}
-            aria-disabled={held || undefined}
-            aria-busy={held || undefined}
-            data-testid="ask-plan-approve"
-            {...gate(gateKey, "approve these steps")}
-          >
-            {busy ? t.working : t.approveSilent(g.left)}
-          </Button>
+    <div className={`ask-card ask-plan${dismissed ? " dismissed" : ""}`} ref={landRef} data-testid="ask-plan">
+      <div className="ask-card-head">
+        <span className="ask-card-name">
+          <span className="ask-card-title">{head?.title || first?.title}</span>
+          {head?.sub ? <span className="ask-card-sub">{head.sub}</span> : null}
+        </span>
+      </div>
+      {says.length && !pressedOnce ? (
+        <div className="ask-card-change" data-testid="ask-plan-says">
+          <div className="ask-card-said">
+            {says.map((v) => (
+              <p key={v.channel} className="ask-card-summary">
+                {says.length > 1 && v.label ? (
+                  <>
+                    <span className="ask-card-channel">{v.label}</span>
+                    {"\n"}
+                  </>
+                ) : null}
+                {v.words}
+              </p>
+            ))}
+          </div>
         </div>
       ) : null}
-      {g.steps.map((s) => {
-        const w = atStepWords(t, s);
-        const fold = cards.length > 1 ? group.foldOf(s.card.id) : null;
-        return (
-          <div key={s.card.id} className="ask-step" data-testid="ask-step">
-            <div className="ask-step-n">
-              <span className="rec-hint">{w.head}</span>
-              {/* What it waits for stands in its Approve's place: on a step folded, beside its head. */}
-              {w.waits && fold && !fold.open && !s.card.outcome ? (
-                <span className="pill" data-testid="ask-card-waits">
-                  {w.waits}
-                </span>
-              ) : null}
-            </div>
-            <AskCard
-              p={s.card}
-              messageId={messageId}
-              t={t}
-              onNav={onNav}
-              onOutcome={onOutcome}
-              onEdit={onEdit}
-              hideOpen={!!cardOpen && cardOpen[s.card.id] === false}
-              step={{
-                waits: w.waits,
-                note: w.note,
-                cards: now,
-                held: busy,
-                ran: ran[s.card.id] || null,
-                saw: group.saw,
-                onBusy: (b) => setWorking((prev) => ({ ...prev, [s.card.id]: b })),
-                fold,
-                alike: group.alike,
-              }}
-            />
+      {holds.map((h) => (
+        <p key={h} className="ask-spec-hold">
+          {h}
+        </p>
+      ))}
+      {lines.length > 1 ? (
+        <details className="ask-card-how" data-testid="ask-plan-how">
+          <summary>{t.howItRuns}</summary>
+          <ul>
+            {lines.map((l) => (
+              <li key={l.id}>
+                {l.done ? <Icon name="check" size={11} className="ok" /> : null}
+                {l.line}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+      {press.steps.length && !pressedOnce && onQuick && says.length ? (
+        <AskQuickChanges t={t} onFollow={onQuick} />
+      ) : null}
+      {press.review !== null ? (
+        <p className="ask-card-foot" data-testid="ask-step-note">
+          {t.reviewFirst}
+        </p>
+      ) : null}
+      {press.steps.length ? (
+        <div className="ask-card-actions">
+          {canDo(gateKey) ? (
+            <Button
+              variant="primary"
+              size="sm"
+              className="ask-press"
+              onClick={goPress}
+              aria-disabled={busy || undefined}
+              aria-busy={busy || undefined}
+              data-testid="ask-plan-approve"
+              {...gate(gateKey, "press this card")}
+            >
+              {busy ? t.working : word}
+            </Button>
+          ) : (
+            <p className="ask-card-foot" data-testid="ask-card-cant">
+              {gateTitle(gateKey, head?.title || first?.title)}
+            </p>
+          )}
+          {first?.origin?.by === "idea" && !pressedOnce ? <AskNotNow t={t} busy={busy} onDismiss={dismiss} /> : null}
+        </div>
+      ) : null}
+      <div className="ask-told" role="status">
+        {said ? (
+          <div className="ask-card-receipt ask-landing" tabIndex={-1} data-testid="ask-plan-receipt">
+            <Icon name={said.ok ? "check" : "alert"} size={11} className={said.ok ? "ok" : ""} />
+            <span className="ask-card-said">{said.line}</span>
+            {canUndo ? (
+              <Button
+                variant="quiet"
+                size="sm"
+                className="ask-card-undo"
+                onClick={goUndo}
+                aria-disabled={busy || undefined}
+                data-testid="ask-plan-undo"
+              >
+                {t.undo}
+              </Button>
+            ) : null}
+            {!canUndo && running?.outcome && running.outcome.state === "done" ? (
+              <Button
+                variant="quiet"
+                size="sm"
+                className="ask-card-undo"
+                onClick={() => goPause(!running.outcome?.paused)}
+                aria-disabled={busy || undefined}
+                data-testid="ask-plan-pause"
+              >
+                {running.outcome.paused ? t.resume : t.pause}
+              </Button>
+            ) : null}
+            {openTo && !canUndo ? (
+              <Button variant="quiet" size="sm" onClick={() => onNav(openTo)}>
+                {t.openIt}
+              </Button>
+            ) : null}
           </div>
-        );
-      })}
+        ) : null}
+      </div>
+      {err ? <div className="ask-card-note">{err}</div> : null}
     </div>
   );
 };

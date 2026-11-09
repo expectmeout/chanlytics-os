@@ -268,17 +268,54 @@ export function planGroupOf<P extends HeldCard>(
 }
 
 /**
- * The answer's sentences for a round's cards (ask/answer/normalize.ts answerForCards: the round that proposed and said nothing else,
- * and the headline an answer that claimed a write is said as, the marketing manager's spec §5.8). The headline counts a
- * plan's cards as steps, as each card's head does ("Step 6 of 6"), and says how many send nothing, how many send (a kind
- * of ASK_SENDS) and how many wait for a send, pressed after it though they send nothing themselves, as a follow-up after
- * a lead search ("A plan of 6 steps to review: 4 send nothing, then 2 send."), a part that is none left out: a lead search
- * and its follow-up read "2 send" while it called every step pressed on its own a send (the operator stress run, 15 Oct
- * 2026). Null where the cards are not every one a step of one plan, which are counted as cards. The detail is the plan's
- * own words where the round made a plan (`words`, its steps unstamped too, D3: what it pauses, leaves out and asks to be
- * asked again, said nowhere else), in the question's language as the plan says them (PlanWorld.says); else, for a plan
- * with steps that send nothing, how its cards are approved, the sends' own press said only where there is a send; else
- * null, each card its own press as several cards are.
+ * What a plan's one press does now (D2 of the answers canvas, which reverses the old rule on purpose: the card says the
+ * send, and the press names it). Walking its steps in order, it takes every step not made yet up to and including the
+ * first send; a send after that is the next press, since it may build on what that first one comes back with. Where the
+ * first send's message is written by this plan and WhatsApp must read it first (`review`, the step that writes it), the
+ * press stops short of the send: there is nothing it could do yet. A step the person undid stops any send that names it
+ * (`undone`). `steps` empty is a plan with nothing left to press.
+ */
+export function planPressOf<P extends HeldCard>(
+  cards: readonly P[],
+): { steps: number[]; send: number | null; review: number | null; undone: number | null } {
+  const group = planGroupOf(cards);
+  const made = planMadeOf(
+    group.id,
+    group.steps.map((s) => s.card),
+  );
+  const out = { steps: [] as number[], send: null as number | null, review: null as number | null };
+  for (const s of group.steps) {
+    if (made[s.step] || s.card.outcome?.state === "dismissed") continue;
+    if (s.card.plan?.silent) {
+      out.steps.push(s.step);
+      continue;
+    }
+    if (s.note) return { ...out, undone: s.wait && "undone" in s.wait ? s.wait.undone : null };
+    if (s.review !== null && !made[s.review]) {
+      // WhatsApp reads the words first: the press files them, and the send waits.
+      out.review = s.review;
+      return { ...out, undone: null };
+    }
+    out.steps.push(s.step);
+    out.send = s.step;
+    return { ...out, undone: null };
+  }
+  return { ...out, undone: null };
+}
+
+/**
+ * Whether WhatsApp is still reading the words a plan's send goes on: the step that wrote them is made, and the send is not.
+ * The card says so in its press's place of mind ("WhatsApp reads new words first"); its press tries, and the door says.
+ */
+export function planInReview<P extends HeldCard>(cards: readonly P[]): boolean {
+  return planGroupOf(cards).steps.some((s) => s.review !== null && !s.card.outcome && !s.wait);
+}
+
+/**
+ * The answer's sentences for a round's cards (ask/answer/normalize.ts answerForCards: the round that proposed and said nothing
+ * else, and the headline an answer that claimed a write is said as). A plan's is its own first sentence, where it gave one:
+ * it is one card, whose fold says its parts, so nothing here counts them (D1 of the answers canvas). Null where the cards
+ * are not every one a step of one plan, whose detail is the round's own words where it has any (a setup's).
  */
 export function planCountWords(
   cards: readonly Pick<AskProposal, "kind" | "plan">[],
@@ -289,31 +326,7 @@ export function planCountWords(
   const sentence = words || null;
   const id = cards[0]?.plan?.id;
   if (id === undefined || cards.some((p) => p.plan?.id !== id)) return { headline: null, detail: sentence };
-  const silent = cards.filter((p) => p.plan?.silent).length;
-  const sends = cards.filter((p) => !p.plan?.silent && ASK_SENDS.has(p.kind)).length;
-  const waiting = cards.length - silent - sends;
-  const es = language === "es";
-  const one = (n: number, singular: string, plural: string): string => `${n} ${n === 1 ? singular : plural}`;
-  const parts = [
-    ...(silent > 0
-      ? [es ? one(silent, "no envía nada", "no envían nada") : one(silent, "sends nothing", "send nothing")]
-      : []),
-    ...(sends > 0 ? [es ? one(sends, "envía", "envían") : one(sends, "sends", "send")] : []),
-    ...(waiting > 0
-      ? [es ? one(waiting, "espera un envío", "esperan un envío") : one(waiting, "waits for a send", "wait for a send")]
-      : []),
-  ];
-  const headline = es
-    ? `Un plan de ${one(cards.length, "paso", "pasos")} para revisar: ${parts.join(" y luego ")}.`
-    : `A plan of ${one(cards.length, "step", "steps")} to review: ${parts.join(", then ")}.`;
-  if (sentence !== null || silent === 0) return { headline, detail: sentence };
-  // The sends' half only where the plan has a send to say it of.
-  const together = es
-    ? "Los pasos que no envían nada se aprueban con un toque"
-    : "The steps that send nothing are approved with one press";
-  const apart = es
-    ? "; cada envío se aprueba aparte cuando estén hechos los pasos que espera"
-    : "; each send is its own press once the steps it waits for are done";
-  const after = es ? ". Nada pasa hasta que lo hagas." : ". Nothing happens until you do.";
-  return { headline, detail: `${together}${sends > 0 ? apart : ""}${after}` };
+  // A plan is one card, which says what it does: the sentence over it never counts its parts.
+  const first = sentence?.split(/(?<=[.!?…])\s/)[0] ?? null;
+  return { headline: first ?? (language === "es" ? "Aquí está el plan." : "Here is the plan."), detail: null };
 }

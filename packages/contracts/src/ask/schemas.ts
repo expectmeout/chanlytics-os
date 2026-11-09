@@ -47,6 +47,8 @@ export const AskProposalOutcomeSchema = z.object({
     .catch(null),
   // A press refused because what the card is about moved on (AskProposalOutcome.moved): it is not offered again.
   moved: z.boolean().optional().catch(undefined),
+  // A running send paused from its receipt (AskProposalOutcome.paused): the card offers Resume after a reload.
+  paused: z.boolean().optional().catch(undefined),
 });
 
 /** A calendar day, YYYY-MM-DD: a closure's first and last, and a note's last. Its shape alone; the save judges the rest. */

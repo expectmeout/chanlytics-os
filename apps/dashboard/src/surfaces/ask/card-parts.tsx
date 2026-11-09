@@ -1,16 +1,17 @@
 /**
- * A card's parts, as the Line draws them (the spec 2026-09-27-ask-chat-on-a-phone, D16): who or what it touches, the change
- * as it will land, what follows, then one act. AskCard (card.tsx) holds its state and its verbs.
+ * A card's parts, as the Line draws them (the spec 2026-09-27-ask-chat-on-a-phone, D16; the eight shapes of the answers
+ * canvas, D14): who or what it touches, the change as it will land, what follows, then one press that says what it does.
+ * AskCard (card.tsx) holds its state and its verbs.
  */
 import { useState, type RefObject } from "react";
 import type { AskCardSheet, AskProposal, AskProposalOutcome } from "@chanlytics/contracts";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
-import { SEARCH_CARD_REPLACED } from "@chanlytics/contracts";
+import { SEARCH_CARD_REPLACED, askPressCount, askPressOf, askTraitsOf } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
 import { Icon } from "../kit/icon/icon";
 import { LinePress } from "../kit/line/line";
-import { askCalls, gate } from "./shell";
+import { askCalls, canDo, gate, gateTitle } from "./shell";
 import type { LineWords } from "./words";
 
 // Each kind a source names (contracts ASK_CITATION_KINDS) as the mark before its row, the page's own glyph where its
@@ -41,159 +42,22 @@ export const askKindGlyph = (kind: string): string => AT_KIND_GLYPHS[kind] || "c
 // A card is who or what it touches, the change as it will land, what follows, then one act (the spec
 // 2026-09-27-ask-chat-on-a-phone, D16); these are its parts, and AskCard below holds its state and its verbs.
 
-// Each card's kind as the mark in its tile: a list's card and a run's card are marked as their rows are.
-const AT_CARD_ICONS: Record<string, string> = {
-  reply: "chat",
-  steer: "chat",
-  whisper: "phone",
-  call_hand_over: "phone",
-  invite: "users",
-  policy: "shield",
-  settings: "settings",
-  person_mode: "settings",
-  person_mode_many: "settings",
-  thread_verb: "inbox",
-  broadcast: "wave",
-  playbook: "bolt",
-  playbook_channels: "bolt",
-  playbook_change: "bolt",
-  sequence_make: "bolt",
-  sequence_step: "bolt",
-  sequence_step_remove: "bolt",
-  sequence_words: "bolt",
-  sequence_start: "bolt",
-  sequence_leave: "bolt",
-  sequence_send_decide: "wave",
-  sequence_send_said: "wave",
-  booking_request: "calendar",
-  fact_suggestion: "edit",
-  sequence_draft: "bolt",
-  sequence_discard: "bolt",
-  lead_search: "search",
-  people_search: "search",
-  lead_search_more: "search",
-  lead_stage: "search",
-  lead_mark: "search",
-  lead_later: "search",
-  leads_bulk: "search",
-  leads_check: "search",
-  lead_addressee: "search",
-  lead_list: "search",
-  reach_out_said: "search",
-  reach_out_add: "wave",
-  reach_out_make: "wave",
-  deal: "users",
-  note: "edit",
-  note_many: "edit",
-  follow_up: "edit",
-  answer_style: "settings",
-  person_details: "user",
-  person_add: "user",
-  person_merge: "users",
-  person_message: "chat",
-  answer: "shield",
-  answer_many: "shield",
-  review_reply: "chat",
-  list: askKindGlyph("list"),
-  list_member: askKindGlyph("list"),
-  list_change: askKindGlyph("list"),
-  list_delete: askKindGlyph("list"),
-  run: askKindGlyph("run"),
-  message: askKindGlyph("template"),
-  memory: "sparkle",
-  post: "image",
-  memory_change: "sparkle",
-  memory_forget: "sparkle",
-  fix: "alert",
-};
-
 /** A card of a group's way to open: whether it stands open, and the press that opens or folds it. */
 export interface CardFold {
   open: boolean;
   toggle: () => void;
 }
 
-// The card's head: the kind's mark in its tile, the title, and the kind's word under it. In a group of cards it is the
-// press that opens the card and folds it (`fold`, one element either way, so the press keeps its focus), and the kind's
-// word gives way: a card not reached says its one line there (AskProposal.line, else its summary, cut to two lines: a
-// folded card has no Approve, so nothing is pressed on those words), and the one open is the title alone.
-export const AskCardHead = ({ p, t, fold = null }: { p: AskProposal; t: LineWords; fold?: CardFold | null }) => {
-  const KIND: Record<string, string> = {
-    reply: t.kReply,
-    steer: t.kSteer,
-    thread_verb: t.kInbox,
-    person_mode: t.kPerson,
-    person_mode_many: t.kPerson,
-    policy: t.kAutonomy,
-    settings: t.kSettings,
-    whisper: t.kWhisper,
-    call_hand_over: t.kCall,
-    invite: t.kTeam,
-    broadcast: t.kBroadcast,
-    playbook: t.kPlaybook,
-    playbook_channels: t.kPlaybook,
-    playbook_change: t.kPlaybook,
-    sequence_make: t.kSequence,
-    sequence_step: t.kSequence,
-    sequence_step_remove: t.kSequence,
-    sequence_words: t.kSequence,
-    sequence_start: t.kSequence,
-    sequence_leave: t.kSequence,
-    sequence_send_decide: t.kColdEmail,
-    sequence_send_said: t.kColdEmail,
-    booking_request: t.kBooking,
-    sequence_draft: t.kSequence,
-    sequence_discard: t.kSequence,
-    lead_search: t.kLeads,
-    people_search: t.kLeads,
-    lead_search_more: t.kLeads,
-    lead_stage: t.kLeads,
-    lead_mark: t.kLeads,
-    lead_later: t.kLeads,
-    leads_bulk: t.kLeads,
-    leads_check: t.kLeads,
-    lead_addressee: t.kLeads,
-    lead_list: t.kLeads,
-    reach_out_said: t.kLeads,
-    reach_out_add: t.kColdEmail,
-    reach_out_make: t.kColdEmail,
-    deal: t.kDeal,
-    note: t.kNote,
-    note_many: t.kNote,
-    follow_up: t.kFollowUp,
-    answer_style: t.kStyle,
-    person_details: t.kDetails,
-    person_add: t.kPeople,
-    person_merge: t.kPeople,
-    person_message: t.kMessage,
-    answer: t.kAnswer,
-    answer_many: t.kAnswer,
-    review_reply: t.kReview,
-    list: t.kList,
-    list_member: t.kList,
-    list_change: t.kList,
-    list_delete: t.kList,
-    run: t.kRun,
-    message: t.kMessage,
-    memory: t.kMemory,
-    post: t.kPost,
-    memory_change: t.kMemory,
-    memory_forget: t.kMemory,
-    fix: t.kFix,
-  };
-  const mark = (
-    <span className="ask-card-mark">
-      <Icon name={AT_CARD_ICONS[p.kind] || "inbox"} size={15} />
-    </span>
-  );
-  const kind = <span className="ask-card-kind">{KIND[p.kind] || p.kind}</span>;
+// The card's head: its title and nothing else (D14 of the answers canvas: no tile, no kind's word, no step's number). In a
+// group of cards it is the press that opens the card and folds it (`fold`, one element either way, so the press keeps its
+// focus), and a card not reached says its one line under its title (AskProposal.line, else its summary, cut to two lines: a
+// folded card has no press, so nothing is pressed on those words).
+export const AskCardHead = ({ p, fold = null }: { p: AskProposal; fold?: CardFold | null }) => {
   if (!fold)
     return (
       <div className="ask-card-head">
-        {mark}
         <span className="ask-card-name">
           <span className="ask-card-title">{p.title}</span>
-          {kind}
         </span>
       </div>
     );
@@ -205,7 +69,6 @@ export const AskCardHead = ({ p, t, fold = null }: { p: AskProposal; t: LineWord
       onClick={fold.toggle}
       data-testid="ask-card-fold"
     >
-      {mark}
       <span className="ask-card-name">
         <span className="ask-card-title">{p.title}</span>
         {fold.open ? null : <span className="ask-fold-line">{p.line || p.summary}</span>}
@@ -278,6 +141,9 @@ export const AskCardChange = ({
   const reply = p.kind === "reply";
   const shut = pl.window_open === false;
   const written = p.kind === "message" && Array.isArray(pl.said) ? (pl.said as CardVersion[]) : null;
+  // A record: what it keeps, in a line, with no ground under it (the Keep shape).
+  if (askTraitsOf(p.kind).shape === "keep" && !written && !(p.sheet && p.sheet.rows && p.sheet.rows.length))
+    return <p className="ask-card-line">{p.line || p.summary}</p>;
   return (
     <>
       <div className={`ask-card-change${reply ? " bubble" : ""}`}>
@@ -285,7 +151,7 @@ export const AskCardChange = ({
           <div className="ask-card-said" data-testid="ask-card-versions">
             {written.map((v) => (
               <p key={v.channel} className="ask-card-summary">
-                <span className="ask-card-kind">{v.label}</span>
+                <span className="ask-card-channel">{v.label}</span>
                 {"\n"}
                 {v.words}
               </p>
@@ -305,15 +171,14 @@ export const AskCardChange = ({
   );
 };
 
-// Before the act: Approve (Send on a reply), Edit in the composer on a reply, Open where the answer does not already
-// offer the place (`hideOpen`, oneDoor; where it goes is the contract's cardOpenRoute), and Not now apart. The role gate
-// the card's spec names (contracts PROPOSAL_GATE) is drawn by the shell's rule (window.gate): a role that may not approve
-// the card still sees Approve, hears why at the control, and a press does nothing. The route re-checks. A plan's send
-// that waits for a step not made yet says so in the kit's state pill in Approve's place (`waits`, contracts planGroupOf).
-// A card of the one thing to fix before a campaign can reach anyone commits nothing: its door, named by the card, stands
-// in Approve's place and opens where it is fixed (the 30 Oct 2026 review, item 6). While a press runs Approve says so and
-// keeps its focus: `disabled` would drop it on the page, and the press itself is held by the card (`held`). Details
-// opens what the sheet keeps aside (`more`), where it has any, and Open waits behind it there: three acts fit a phone's row.
+// Before the act (D14 of the answers canvas): one press that says what it does (contracts askPressOf, in the Line's language;
+// a search's and a post's say their own, `press`), the composer on a reply, Open where the answer does not already offer the
+// place (`hideOpen`, oneDoor; where it goes is the contract's cardOpenRoute), Details where the sheet keeps something aside,
+// and Not now only on an idea of Ask's own: a card the member asked for is ignored, or changed by saying so. A role that may
+// not press it reads why in the press's place (contracts' words, through gateTitle); the route re-checks. A plan's send that
+// waits for a step says so in the kit's state pill in the press's place (`waits`). A card of the one thing to fix before a
+// campaign can reach anyone commits nothing: its door stands in the press's place. While a press runs the press says so and
+// keeps its focus: `disabled` would drop it on the page, and the press itself is held by the card (`held`).
 export const AskCardActs = ({
   p,
   t,
@@ -346,6 +211,7 @@ export const AskCardActs = ({
   const gateKey = PROPOSAL_GATE[p.kind] || "approve";
   const openRoute = A && A.cardOpenRoute ? A.cardOpenRoute(p) : null;
   const aside = !!(onMore && p.sheet && p.sheet.rows.some((r) => r.aside));
+  const idea = p.origin?.by === "idea";
   if (p.kind === "fix")
     return (
       <div className="ask-card-actions">
@@ -354,11 +220,10 @@ export const AskCardActs = ({
             {pl.door as string}
           </Button>
         ) : null}
-        <Button variant="quiet" size="sm" className="ask-card-not-now" onClick={onDismiss} disabled={busy}>
-          {t.notNow}
-        </Button>
+        {idea ? <AskNotNow t={t} busy={busy} onDismiss={onDismiss} /> : null}
       </div>
     );
+  const mayPress = canDo(gateKey);
   return (
     <div className="ask-card-actions">
       {waits ? (
@@ -366,7 +231,12 @@ export const AskCardActs = ({
           {waits}
         </span>
       ) : null}
-      {waits ? null : (
+      {!waits && !mayPress ? (
+        <p className="ask-card-foot" data-testid="ask-card-cant">
+          {gateTitle(gateKey, p.title)}
+        </p>
+      ) : null}
+      {waits || !mayPress ? null : (
         <Button
           ref={approveRef}
           variant="primary"
@@ -377,9 +247,9 @@ export const AskCardActs = ({
           aria-disabled={busy || undefined}
           aria-busy={busy || undefined}
           data-testid="ask-card-approve"
-          {...gate(gateKey, "approve this card")}
+          {...gate(gateKey, "press this card")}
         >
-          {busy ? t.working : press ? press.label : p.kind === "reply" ? t.send : t.approve}
+          {busy ? t.working : press ? press.label : t.press(askPressOf(p), askPressCount(p))}
         </Button>
       )}
       {p.kind === "reply" && pl.conversation_id ? (
@@ -404,18 +274,41 @@ export const AskCardActs = ({
           {t.details}
         </Button>
       ) : null}
-      <Button variant="quiet" size="sm" className="ask-card-not-now" onClick={onDismiss} disabled={busy}>
-        {t.notNow}
-      </Button>
+      {idea ? <AskNotNow t={t} busy={busy} onDismiss={onDismiss} /> : null}
     </div>
   );
 };
+
+/** Not now, on an idea of Ask's own: it rests it for a week. */
+export const AskNotNow = ({ t, busy, onDismiss }: { t: LineWords; busy: boolean; onDismiss: () => void }) => (
+  <Button variant="quiet" size="sm" className="ask-card-not-now" onClick={onDismiss} disabled={busy}>
+    {t.notNow}
+  </Button>
+);
+
+// Quick changes under a card with words (D25 of the answers canvas): each is a question the person could type, so the model
+// writes the card again and the newer card sets this one aside (contracts searchCardsReplaced). None on an earlier turn.
+export const AskQuickChanges = ({ t, onFollow }: { t: LineWords; onFollow: (q: string) => unknown }) => (
+  <div className="ask-card-quick" data-testid="ask-card-quick">
+    {t.quickChanges.map((q) => (
+      <LinePress
+        key={q.label}
+        kind="next"
+        className="ask-next"
+        onClick={() => onFollow(q.asks)}
+        data-testid="ask-card-change"
+      >
+        <span>{q.label}</span>
+      </LinePress>
+    ))}
+  </div>
+);
 
 // The take-back clock: a hairline ring emptying over a send's own window, drawn where the window stands (a card drawn
 // again mid-window starts part-empty) and running for what is left of it. Its end is the window's: `onDone` is the
 // animation's own end, which comes at the same moment under reduced motion, where the ring holds still (ask.css).
 const AT_RING = 40.84; // the ring's length, 2π × 6.5 (ask.css .ask-ring-arc)
-const AskRing = ({ from, until, onDone }: { from: number; until: number; onDone: () => void }) => {
+export const AskRing = ({ from, until, onDone }: { from: number; until: number; onDone: () => void }) => {
   const [at] = useState(() => Date.now());
   const gone = Math.min(1, Math.max(0, (at - from) / Math.max(1, until - from)));
   return (
@@ -509,9 +402,9 @@ export const AskCardReceipt = ({
           className="ask-card-undo"
           onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo}
           aria-disabled={busy || undefined}
-          title={clock ? (p.undo ?? undefined) : undefined}
+          title={p.undo ?? undefined}
         >
-          {clock ? t.undo : p.undo}
+          {t.undo}
         </Button>
       ) : null}
       {can && armed ? (

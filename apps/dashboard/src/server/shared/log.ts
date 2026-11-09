@@ -29,6 +29,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_answer_beside_read",
   "ask_answer_beside_refused_card",
   "ask_answer_claimed_write",
+  "ask_answer_long",
   "ask_answer_not_json",
   "ask_answer_tail",
   "ask_answer_unparsed",

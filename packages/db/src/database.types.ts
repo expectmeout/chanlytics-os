@@ -7873,6 +7873,10 @@ export type Database = {
       }
     }
     Functions: {
+      words_seen: {
+        Args: { p_step_id: string; p_tenant_id: string };
+        Returns: boolean;
+      };
       add_person: {
         Args: {
           p_display_name: string

@@ -12,6 +12,7 @@ import { questionIn, tellNext, type LastRound, withoutData } from "../memory";
 import {
   DROPPED_WORDS,
   PLAN_ANSWER_WORDS,
+  SETUP_ANSWER_WORDS,
   besideActs,
   cardsAnswer,
   planAnswerOwed,
@@ -231,7 +232,7 @@ async function roundOf(
     turn.messages.push({ role: "assistant", content: replayBlocks(blocks) });
     turn.messages.push({ role: "user", content: resultBlocks(ordered) });
     lookedHarder(turn, ordered);
-    tellNext(turn.messages, PLAN_ANSWER_WORDS);
+    tellNext(turn.messages, planned.why ? PLAN_ANSWER_WORDS : SETUP_ANSWER_WORDS);
     return "on";
   }
   if (alone === "answer") {

@@ -515,7 +515,8 @@ export async function proposeCall(turn: TurnState, roundBlock: RoundBlock) {
   return timed(turn, calledName(roundBlock.name, args), async () => {
     const result = notAgain(await ports.propose(tc, roundBlock.name, args), [...(input.waiting ?? []), ...proposals]);
     proposals.push(...cardsOf(result));
-    if (result.words) turn.planWords.push({ words: result.words, lead: result.lead });
+    if (result.words)
+      turn.planWords.push({ words: result.words, lead: result.lead, why: result.why, figures: result.figures });
     turn.unmade.heard(calledName(roundBlock.name, args), result);
     return {
       result: result.result,

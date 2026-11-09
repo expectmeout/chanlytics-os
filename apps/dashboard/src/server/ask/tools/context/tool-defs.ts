@@ -8,6 +8,7 @@ import {
   type AskProposal,
   type AskReadSet,
   type MembershipRole,
+  type PlanFigure,
   type PlanLead,
   PROPOSAL_SPECS,
 } from "@chanlytics/contracts";
@@ -173,6 +174,10 @@ export interface ProposalOutcome {
   words?: string;
   /** What a setup's answer leads with where something comes first (contracts journey/plan.ts PlanLead): the round answers with it. */
   lead?: PlanLead;
+  /** An offer's one sentence, the reason it has this shape, where the model's round cannot say it (D1 of the answers canvas). */
+  why?: string;
+  /** The numbers that sentence rests on, as chips the answer draws from here, never from the model. */
+  figures?: PlanFigure[];
   /** Why nothing was proposed (refuse), as the model is told it: read by a plan of its step's refusal (act/plan.ts). */
   refusal?: string;
   /**

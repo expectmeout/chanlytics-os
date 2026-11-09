@@ -35,12 +35,12 @@ export const leadSearchSpec: ProposalSpecAboveOperator = {
   },
   receipt: ({ payload: pl }) => {
     const am = amendsOf(pl);
-    if (am) return `Answered. ${asText(am.name) || "The search"} carries on with your answer; Leads shows it.`;
+    if (am) return `Answered. ${asText(am.name) || "The search"} keeps going with it.`;
     const plan = (pl.plan ?? {}) as Partial<LeadSearchPlan>;
     // Who it finds as the card said them ("law firms"), not the first word it is searched with ("law firm").
     const personName =
       plan.name && plan.area && plan.terms && plan.criteria ? planWho(plan as LeadSearchPlan) : plan.terms?.[0];
-    return `Finding ${plan.count ?? ""} ${personName ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
+    return `Finding ${plan.count ?? ""} ${personName ?? "businesses"}. It keeps going if you leave.`.replace(
       /\s+/g,
       " ",
     );
@@ -84,7 +84,7 @@ export const peopleSearchSpec: ProposalSpecAboveOperator = {
     const n = typeof plan.count === "number" ? plan.count : null;
     // The count is companies, as the card and the sheet say it.
     const subject = n === null ? "companies" : `${n} ${n === 1 ? "company" : "companies"}`;
-    return `Finding up to ${subject}${plan.name ? `: ${plan.name}` : ""}. Each lands on Leads once its address checks out.`;
+    return `Finding up to ${subject}. It keeps going if you leave.`;
   },
   undo: {
     label: () => "Stop the search",

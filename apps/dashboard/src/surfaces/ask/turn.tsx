@@ -83,56 +83,37 @@ export const freshNext = (A: AskApi, drawn: DrawnAnswer, turns: LineTurn[]): Dra
     ? drawn
     : { ...drawn, answer: { ...drawn.answer, do: { ...drawn.answer.do, next } } };
 };
-// A figure as one line: the value, what it counts, how it moved. Where it comes from is the value's tooltip, and a press
-// on the value opens it on a line of its own, with a door only where oneDoor left it one (spec S4). A pointer resting
-// on the line changes nothing on it, so the answer never shifts under the mouse (ask.css).
-const AskFigure = ({
-  f,
-  open,
-  onToggle,
-  t,
-  onNav,
-}: {
-  f: Figure;
-  open: boolean;
-  onToggle: () => void;
-  t: LineWords;
-  onNav: (to: string) => void;
-}) => (
-  <div className={`ask-tile${open ? " open" : ""}`} data-testid="ask-tile">
-    {f.source ? (
-      <LinePress
-        kind="figure"
-        aria-expanded={open}
-        onClick={onToggle}
-        title={`${t.from} ${f.source.label}`}
-        data-testid="ask-figure"
-      >
-        {f.value}
-      </LinePress>
-    ) : (
-      <span className="line-figure plain">{f.value}</span>
-    )}
-    <span className="ask-tile-label">{f.label}</span>
-    {f.note ? <span className="ask-tile-note">{f.note}</span> : null}
-    {f.source ? (
-      <span className="ask-tile-from" data-open={open ? "true" : "false"} data-testid="ask-tile-from">
-        {t.from} {f.source.label}
-        {f.source.door ? (
-          <LinePress
-            kind="door"
-            onClick={() => f.source && onNav(f.source.to)}
-            aria-label={t.open}
-            title={t.open}
-            data-testid="ask-tile-door"
-          >
-            <Icon name="arrow-right" size={11} />
-          </LinePress>
-        ) : null}
-      </span>
-    ) : null}
-  </div>
-);
+// A figure as a chip (D1 of the answers canvas): the value, what it counts and how it moved, on one line that opens where the
+// number came from. A figure with nowhere to open ("3 a day") is the same words, pressing nothing.
+const AskFigure = ({ f, t, onNav }: { f: Figure; t: LineWords; onNav: (to: string) => void }) => {
+  const words = (
+    <>
+      <strong>{f.value}</strong>
+      {f.label ? <span className="ask-tile-label">{f.label}</span> : null}
+      {f.note ? <span className="ask-tile-note">{f.note}</span> : null}
+    </>
+  );
+  const door = f.source?.door ? f.source : null;
+  return door ? (
+    <LinePress
+      kind="chip"
+      className="ask-tile"
+      onClick={() => onNav(door.to)}
+      title={`${t.from} ${door.label}`}
+      data-testid="ask-figure"
+    >
+      {words}
+    </LinePress>
+  ) : (
+    <span
+      className="ask-tile plain"
+      title={f.source ? `${t.from} ${f.source.label}` : undefined}
+      data-testid="ask-tile"
+    >
+      {words}
+    </span>
+  );
+};
 // Show: the list they asked for, the whole in its parts, the figures, the rows it names, each row a move the keys walk
 // (`itemMove`, its place in answerMoves' order, or -1 for a row drawn without a door). An answer stored before the list
 // part has none. A numbered list of rows is its items, numbered in their marks (the list's style with no entries).
@@ -149,7 +130,6 @@ const AskShow = ({
   t: LineWords;
   onNav: (to: string) => void;
 }) => {
-  const [receipt, setReceipt] = useState(-1);
   const list: AskList = a.show.list || { style: "bullets", entries: [] };
   const numbered = list.style === "numbers" && !list.entries.length;
   // A row's kind as the mark before it (askKindGlyph), or its place in a numbered list; a row that is a door ends in a chevron.
@@ -177,14 +157,7 @@ const AskShow = ({
         {a.show.figures.length ? (
           <div className="ask-figures">
             {a.show.figures.map((f, k) => (
-              <AskFigure
-                key={k}
-                f={f}
-                open={receipt === k}
-                onToggle={() => setReceipt(receipt === k ? -1 : k)}
-                t={t}
-                onNav={onNav}
-              />
+              <AskFigure key={k} f={f} t={t} onNav={onNav} />
             ))}
           </div>
         ) : null}
@@ -230,12 +203,14 @@ export const AskAnswer = ({
   walk = false,
   sel = -1,
   next = true,
+  latest = false,
   t,
   onNav,
   onFollow,
   onOutcome,
   onEdit,
 }: AnswerDoors & {
+  latest?: boolean;
   answer: Answer;
   cardOpen?: Record<string, boolean>;
   cards?: AskProposal[];
@@ -285,6 +260,7 @@ export const AskAnswer = ({
                   onNav={onNav}
                   onOutcome={onOutcome}
                   onEdit={onEdit}
+                  onQuick={latest ? onFollow : undefined}
                   cardOpen={cardOpen}
                 />
               ) : (
@@ -296,6 +272,7 @@ export const AskAnswer = ({
                   onNav={onNav}
                   onOutcome={onOutcome}
                   onEdit={onEdit}
+                  onQuick={latest ? onFollow : undefined}
                   cardOpen={cardOpen}
                 />
               ),
@@ -441,6 +418,7 @@ export const AskTurn = ({
         walk={walk}
         sel={sel}
         next={next}
+        latest={latest}
         t={t}
         onNav={onNav}
         onFollow={onFollow}

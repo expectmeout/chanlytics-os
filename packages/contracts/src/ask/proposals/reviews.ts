@@ -16,7 +16,7 @@ export const reviewReplySpec: ProposalSpec = {
           body: { comment: asText(pl.comment).trim() },
         }
       : refuseWith(PROPOSAL_WORDS.cannotApprove),
-  receipt: ({ payload: pl }) => `Replied to ${asText(pl.who) || "the review"} on Google`,
+  receipt: () => "Posted on Google.",
   open: () => "reports/reviews",
 };
 

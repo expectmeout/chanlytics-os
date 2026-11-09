@@ -163,7 +163,7 @@ export const noteSpec: ProposalSpec = {
     const step = typeof pl.due_on === "string" && !!pl.due_on;
     if (step) return `${asText(pl.who)} · ${STEP_SHEET_WORDS.done[pl.note_id ? "edit" : "add"]}`;
     if (pl.note_id) return `${asText(pl.who)} · ${NOTE_WORDS.saved}`;
-    return `${asText(pl.who)} · ${NOTE_WORDS.added}${pl.team_only === true ? ` · ${NOTE_WORDS.teamOnly}` : ""}`;
+    return `Noted on ${asText(pl.who)}.`;
   },
   undo: {
     label: () => "Delete it",

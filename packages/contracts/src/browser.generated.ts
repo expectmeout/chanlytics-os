@@ -44,7 +44,7 @@ export { ASK_LATELY_DAYS, dayAfterDays, ideasSeenOf, ideasWithResults, latelyRow
 export { ASK_JOURNAL_LIMITS, ASK_MEMORY_LIMITS, ASK_MEMORY_WORDS, memoryText, memoryTextProblem } from "./ask/memory/memory";
 export { ASK_MORNING_CARDS_MAX, ASK_MORNING_EDITED_QUESTION, ASK_MORNING_QUESTION, ASK_MORNING_WORDS, isAskMorningQuestion } from "./ask/memory/morning";
 export { ASK_DRAFT_EFFORT, ASK_DRAFT_MAX_TOKENS, ASK_EFFORT, ASK_MODEL, ASK_SPEED, askModelProfile, askRoundCap } from "./ask/model";
-export { cardsTogether, holdsAlike, openCardOf, planGroupOf, planMadeOf, planWaits, resolveSteps, STEP_TOKEN, stepToken, wordsLessHolds } from "./ask/plan-steps";
+export { cardsTogether, holdsAlike, openCardOf, planGroupOf, planInReview, planMadeOf, planPressOf, planWaits, resolveSteps, STEP_TOKEN, stepToken, wordsLessHolds } from "./ask/plan-steps";
 export { PLAN_WORDS } from "./ask/plan/intents";
 export { planOf } from "./ask/plan/plan";
 export { FIX_CARD_WORDS, MESSAGE_WORDS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, proposalChannelsWords, RUN_VERBS, stepOfferWords, twinRunsWords } from "./ask/proposals/campaigns";
@@ -53,6 +53,7 @@ export { ASK_THREAD_ROUTES } from "./ask/proposals/inbox";
 export { addProposalSpecs, askUndoOpen, cardOpenRoute, PROPOSAL_GATE, proposalSpec, verbSpec, PAGE_SPECS } from "./ask/proposals/page-specs";
 export { answerSaidOf } from "./ask/proposals/people-verbs";
 export { PERSON_DETAIL_WORDS } from "./ask/proposals/person";
+export { ASK_ALONE_MANY_MAX, ASK_CARD_SHAPES, ASK_KIND_TRAITS, ASK_PRESS_WORDS, ASK_PUBLIC_HOLD_MS, ASK_REACHES, askCardHasWords, askPressCount, askPressOf, askTraitsOf } from "./ask/proposals/shapes";
 export { PROPOSAL_WORDS, ASK_SENDS } from "./ask/proposals/spec";
 export { applySettingsChange, ASK_ANSWERS_PANE, ASK_ANSWERS_ROWS, describeSettingsChange, GUARDRAIL_RULE_WORDS, GUARDRAIL_RULES } from "./ask/settings-change";
 export { craftSystem, guideBlock, SKILL_CRAFT_MAX_TOKENS, SKILL_CRAFT_PURPOSES, SKILL_GUIDE_MAX } from "./ask/skills/skill";
@@ -107,7 +108,7 @@ export { FREED_TIME_NEEDS_WHEN, freedTimeFactsFor, LIST_PLAYBOOK_CLASSES, playbo
 export { enrolPurpose, MESSAGE_MOMENT_WORDS, messageAboutOfTrigger, messageFitsMoment, passesHandoverPause } from "./campaigns/playbooks/purpose";
 export { eligibleForPlaybook, PLAYBOOK_CLASS_LABEL, PLAYBOOK_REACH_WORDS, playbookNoNumberWords, playbookPoolKey, playbookReach, playbookReachDoor, playbookRunReach, theirVisitTest, touchesAfterRun, visitMomentDay, visitOnDay } from "./campaigns/playbooks/reach";
 export { heldBackOfOneRun, runReadingOf } from "./campaigns/playbooks/run-split";
-export { inLastSendingHour, localDate, localHour, nextOpenMoment, nextRunLabel, planRun, runDueNow, runsWords, scheduleLine, campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt } from "./campaigns/playbooks/schedule";
+export { inLastSendingHour, localDate, localHour, nextOpenMoment, nextRunOf, nextRunLabel, planRun, runDueNow, runsWords, scheduleLine, campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt } from "./campaigns/playbooks/schedule";
 export { PLAYBOOK_BREATH_MS } from "./campaigns/playbooks/time";
 export { FREED_TIME_DEFAULTS, isPlaybookState, MOMENT_TRIGGERS, PLAYBOOK_CAP_CHOICES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, sendsWaitWords, whenItGoes } from "./campaigns/playbooks/triggers/kinds";
 export { CAMPAIGN_NOT_FOUND, delayWords, freedTimeTakenNotice, isWinBack, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, PLAYBOOK_NAME_MAX, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, winBackWords } from "./campaigns/playbooks/triggers/notices";

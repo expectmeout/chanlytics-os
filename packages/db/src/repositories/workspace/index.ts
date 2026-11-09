@@ -17,6 +17,7 @@ export {
   setSetupChoices,
   setWorkspaceLogo,
   startPlaybook,
+  wordsSeenByMember,
   updatePlaybook,
   writeLineForwarding,
   writePlaybookChange,

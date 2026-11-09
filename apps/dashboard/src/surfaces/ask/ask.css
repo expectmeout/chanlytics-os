@@ -668,56 +668,37 @@ body.ask-open .tb-ask .tb-ask-face {
   gap: 14px;
   min-width: 0;
 }
+/* An answer's figures as chips (D1 of the answers canvas): a number, what it counts, on one line that opens where it came
+   from. One wrapping row at every width, so a sentence and its numbers read as one thought. The press is the kit's chip; a
+   figure with nowhere to open is the same words at rest. */
 .ask-figures {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .ask-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  padding: 10px 12px 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-inset);
-  background: var(--bg-raised);
-  transition:
-    background-color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
+  gap: 5px;
 }
-.ask-tile:has(:focus-visible),
-.ask-tile.open {
-  background: var(--bg-hover);
-  border-color: var(--line-strong);
+.ask-tile.plain {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.ask-tile strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .ask-tile-label {
-  font-size: var(--text-read);
   color: var(--ink-muted);
-  margin-left: 5px;
 }
 .ask-tile-note {
-  font-size: var(--text-read);
   color: var(--ink-dim);
-}
-.ask-tile-from {
-  display: none;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
-/* The keys' focus (the value is a button) or a press: where the figure comes from shows (S4). A pointer resting on it
-   changes nothing: the value's tooltip says it (surfaces/ask/turn.tsx AskFigure). The hover that swapped the note for the source
-   drew a band and ran the source into the label on the one-line figures ("todayFrom Today", Ruben's recording, 16 Oct
-   2026). */
-.ask-tile:has(:focus-visible) .ask-tile-from,
-.ask-tile-from[data-open="true"] {
-  display: inline-flex;
-}
-.ask-tile:has(:focus-visible) .ask-tile-note,
-.ask-tile.open .ask-tile-note {
-  display: none;
 }
 .ask-breakdown {
   display: flex;
@@ -852,18 +833,8 @@ body.ask-open .tb-ask .tb-ask-face {
 }
 .ask-card-head {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  column-gap: 11px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-}
-.ask-card-mark {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-mark);
-  background: var(--surface-inset-fill);
-  color: var(--ink-muted);
 }
 .ask-card-name {
   display: flex;
@@ -878,10 +849,52 @@ body.ask-open .tb-ask .tb-ask-face {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.ask-card-kind {
-  font-size: var(--text-label);
+.ask-card-sub {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+/* Which channel a version is for, where a message has more than one. */
+.ask-card-channel {
+  font-size: var(--text-xs);
   line-height: 1.35;
   color: var(--ink-dim);
+}
+/* A record: what it keeps in a line, with no ground under it (the Keep shape). */
+.ask-card-line {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* How a plan runs, folded: its sentences, a tick on each that is done. */
+.ask-card-how {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.ask-card-how summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.ask-card-how ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-muted);
+}
+.ask-card-how .ok {
+  margin-right: 5px;
+  color: var(--ok-ink);
+}
+/* Quick changes under a card with words: the kit's question chips, on one wrapping row. */
+.ask-card-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .ask-card-change {
   padding: 10px 12px;
@@ -1027,7 +1040,8 @@ body.ask-open .tb-ask .tb-ask-face {
   padding: 0 2px;
 }
 .ask-fold {
-  grid-template-columns: 32px minmax(0, 1fr) 12px;
+  grid-template-columns: minmax(0, 1fr) 12px;
+  column-gap: 11px;
 }
 .ask-fold-chev {
   color: var(--ink-faint);
@@ -1056,7 +1070,7 @@ body.ask-open .tb-ask .tb-ask-face {
 /* Why a step folded cannot go yet is said on it too, on the head's left edge. */
 .ask-shut > p {
   margin-top: -10px;
-  padding: 0 12px 11px 57px;
+  padding: 0 12px 11px 14px;
 }
 @media (hover: hover) {
   .ask-shut .ask-fold:hover {
@@ -1087,36 +1101,6 @@ body.ask-open .tb-ask .tb-ask-face {
     opacity: 1;
   }
 }
-/* A plan's cards as one group (surfaces/ask/turn.tsx AskPlan; the marketing manager's spec §5.8): its steps a column at the cards'
-   own gap, each step's head a quiet line over its card (.ask-step-n), and the one press for the steps that send nothing
-   on a line of its own above them (.ask-steps-press), so it keeps its own width. Layout alone: the head's words are the
-   kit's (.rec-hint), the press the kit's button, a send's wait the kit's state pill. */
-.ask-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-.ask-step {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.ask-step-n {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 0 2px;
-}
-.ask-steps-press {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
 /* ---- The Line's layout, a phone's screen and a desk's panel alike (the Stage's spec, section 5; Ruben, 16 Oct 2026:
    the desk's Line is the phone's, docked at the right). The phone's own (its screen, the keys, its ✦, its touch sizes)
    is the block after this one. ---- */
@@ -1468,33 +1452,6 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-items {
   margin: 0;
   gap: 8px;
-}
-.ask-figures {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.ask-tile,
-.ask-tile.open,
-.ask-tile:has(:focus-visible) {
-  display: block;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-.ask-tile-note,
-.ask-tile.open .ask-tile-note,
-.ask-tile:has(:focus-visible) .ask-tile-note {
-  display: inline;
-}
-.ask-tile-note::before {
-  content: " · ";
-}
-.ask-tile-from[data-open="true"],
-.ask-tile:has(:focus-visible) .ask-tile-from {
-  display: flex;
-  margin-top: 2px;
 }
 .ask-unverified {
   margin-left: 0;

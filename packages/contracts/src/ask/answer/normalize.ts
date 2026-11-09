@@ -225,10 +225,15 @@ export type AskAnswerRead =
  * its cap, and every source grounded in this turn's reads with its route derived (a route the model writes is never
  * taken). An item is its row, so an item whose row was not read goes; a figure or a breakdown keeps its words and loses
  * its receipt. A breakdown draws only when it says what the whole is and two to four parts add up exactly to its
- * total. Kind none, or a place not read, is no Open. With no headline it is no answer. `dropped` counts the sources that named a row not read.
+ * total. Kind none, or a place not read, is no Open. With no headline it is no answer, unless a card stands beside it. `dropped` counts the sources that named a row not read.
  * One door (oneDoor) runs after, with the turn's cards.
  */
-export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLanguage): AskAnswerRead {
+export function normalizeAnswer(
+  raw: unknown,
+  read: AskReadSet,
+  fallback: AskLanguage,
+  beside: { cards: number } = { cards: 0 },
+): AskAnswerRead {
   let json: unknown = raw;
   let ignored = "";
   if (typeof raw === "string") {
@@ -244,7 +249,8 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
   const root = recordOrEmpty(json);
   const sentence = sayAsDrawn(recordOrEmpty(root.say));
   const headline = sentence.headline;
-  if (!headline) return { ok: false, error: "no headline" };
+  // Beside a card the headline may be empty: the card says it all (the answers canvas, D1).
+  if (!headline && beside.cards === 0) return { ok: false, error: "no headline" };
   // English or Spanish as the model says; anything else is the turn's own (detectLanguage), as it was before the Line.
   const language: AskLanguage = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
@@ -365,8 +371,11 @@ export function answerForCards(
   language: AskLanguage,
   words: string | null,
   lead: PlanLead | null,
+  why: string | null = null,
 ): AskAnswer {
   const es = language === "es";
+  // An offer's plan answers with its one sentence, the card holding the rest (D1 of the answers canvas).
+  if (why) return structured(why, es ? "es" : "en");
   const length = cards.length;
   const plan = planCountWords(cards, language, words);
   const first = structured(
@@ -374,24 +383,14 @@ export function answerForCards(
       plan.headline ??
       (length === 1
         ? es
-          ? sentence(`Una tarjeta para revisar: ${cards[0]?.title ?? ""}`)
-          : sentence(`One card to review: ${cards[0]?.title ?? ""}`)
+          ? sentence(`Aquí está: ${cards[0]?.title ?? ""}`)
+          : sentence(`Here it is: ${cards[0]?.title ?? ""}`)
         : es
-          ? `${length} tarjetas para revisar.`
-          : `${length} cards to review.`),
+          ? `${length} para mirar.`
+          : `${length} to look at.`),
     es ? "es" : "en",
   );
-  first.say.detail = clip(
-    plan.detail ??
-      (length === 1
-        ? es
-          ? "Apruébala, cámbiala o descártala: nada pasa hasta que lo hagas."
-          : "Approve it, change it or dismiss it: nothing happens until you do."
-        : es
-          ? "Cada una se aprueba por separado: apruébala, cámbiala o descártala; nada pasa hasta que lo hagas."
-          : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
-    ASK_ANSWER_CAPS.plan,
-  );
+  first.say.detail = clip(plan.detail ?? "", ASK_ANSWER_CAPS.plan);
   // A setup that waits on something (journey/plan.ts PlanLead): Open goes where it is set, and the next question asks how.
   if (lead) {
     first.do.open = { ...lead.open, now: false };

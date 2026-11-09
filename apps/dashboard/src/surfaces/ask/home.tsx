@@ -375,12 +375,15 @@ export const AskActs = ({
   speech,
   flash,
   t,
+  copy: offerCopy = true,
 }: {
   words: string;
   spoken: string;
   speech: ReturnType<typeof useAskSpeech>;
   flash: (flash: FrameFlash) => void;
   t: LineWords;
+  /** Copy, which goes under an answer with cards: what there is to copy is on the card (D14 of the answers canvas). */
+  copy?: boolean;
 }) => {
   const copy = async () => {
     try {
@@ -401,19 +404,21 @@ export const AskActs = ({
   // Each says its word beside its glyph on a desk, where two bare glyphs were missed (ask.css `.ask-act-word`).
   return (
     <span className="ask-acts" data-testid="ask-acts">
-      <LinePress
-        kind="act"
-        className="ask-act"
-        onClick={copy}
-        aria-label={t.copy}
-        title={t.copy}
-        data-testid="ask-copy"
-      >
-        <Icon name="copy" size={14} />
-        <span className="ask-act-word" aria-hidden="true">
-          {t.copyWord}
-        </span>
-      </LinePress>
+      {offerCopy ? (
+        <LinePress
+          kind="act"
+          className="ask-act"
+          onClick={copy}
+          aria-label={t.copy}
+          title={t.copy}
+          data-testid="ask-copy"
+        >
+          <Icon name="copy" size={14} />
+          <span className="ask-act-word" aria-hidden="true">
+            {t.copyWord}
+          </span>
+        </LinePress>
+      ) : null}
       {speech.canSpeak ? (
         <LinePress
           kind="act"

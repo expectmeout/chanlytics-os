@@ -179,6 +179,8 @@ export interface AskProposal {
   plan?: AskPlanStamp;
   /** The change as a sheet (AskCardSheet), where its maker gives one; a card without one draws its summary. */
   sheet?: AskCardSheet;
+  /** Who had the idea (AskCardOrigin), absent on a card made before the stamp, which is drawn as asked and never runs alone. */
+  origin?: AskCardOrigin;
   /** Set once the person acted on the card. */
   outcome?: AskProposalOutcome | null;
 }
@@ -209,6 +211,36 @@ export interface AskPlanStamp {
   of: number;
   silent: boolean;
   after: number[];
+  /** What this step does, in one sentence as a person says it ("Tells your receptionist, until Nov 30."): the plan card's How it runs. */
+  does?: string;
+  /** What the plan's one card says of the whole, on its first step's stamp alone (AskPlanHead). */
+  head?: AskPlanHead;
+}
+
+/**
+ * What a plan's one card says over its steps (D2 of the answers canvas): what it is, how and until when, and the press. A
+ * plan with none draws its first card's title and the plain press.
+ */
+export interface AskPlanHead {
+  title: string;
+  /** "By email, until Nov 30". */
+  sub: string;
+  /** Which word its press says (surfaces/ask/words.ts): an offer's "Start the offer", any other plan's "Do it". */
+  press: "offer" | "plan";
+  /** The message as a person reads it, by channel. */
+  says: Array<{ channel: string; label: string; words: string }>;
+}
+
+/**
+ * Who had the idea of a card (D33 of the answers canvas), stamped by the turn that made it: `asked`, the member's own words
+ * this turn; `rule`, a rule of the business's written in code; `follow_up`, a follow-up the member set; `idea`, the model's
+ * own. `strangers` says the turn read words from outside the business (a customer, a lead, a reviewer, a website, a file, an
+ * outside tool) before it was made, so only a record may run alone. `from` names them, for the line that says why it waits.
+ */
+export interface AskCardOrigin {
+  by: "asked" | "rule" | "follow_up" | "idea";
+  strangers: boolean;
+  from?: string | null;
 }
 
 /** What became of a card, kept with the turn that proposed it. */
@@ -230,6 +262,8 @@ export interface AskProposalOutcome {
    * again, since no second press can do what the first could not. Absent on any other outcome.
    */
   moved?: boolean;
+  /** A running send paused after its press (the plan card's Pause), so the card offers Resume. Absent otherwise. */
+  paused?: boolean;
 }
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */

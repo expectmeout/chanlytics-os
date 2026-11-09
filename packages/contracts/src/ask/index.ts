@@ -86,7 +86,9 @@ export {
   holdsAlike,
   openCardOf,
   planGroupOf,
+  planInReview,
   planMadeOf,
+  planPressOf,
   planWaits,
   resolveSteps,
   STEP_TOKEN,
@@ -97,6 +99,7 @@ export type { PlanMade } from "./plan-steps";
 export { PLAN_WORDS } from "./plan/intents";
 export type { PlanIntent, PlanStep, PlanWorld } from "./plan/intents";
 export { planOf } from "./plan/plan";
+export type { PlanFigure, PlanHeadOf } from "./plan/plan";
 export { AskProposalOutcomeSchema } from "./schemas";
 export { AskSettingsChangeSchema, FixChangeSchema } from "./schemas";
 export { PageContextSchema } from "./schemas";
@@ -131,6 +134,8 @@ export type {
   AskAttached,
   AskCardSheet,
   AskMessageVM,
+  AskCardOrigin,
+  AskPlanHead,
   AskPlanStamp,
   AskProposal,
   AskProposalOutcome,

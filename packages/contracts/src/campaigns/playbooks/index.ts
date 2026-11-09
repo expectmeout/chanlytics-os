@@ -97,6 +97,7 @@ export {
   momentReadsCalendar,
   MOMENTS_RETIRED,
   nextOpenMoment,
+  nextRunOf,
   nextRunLabel,
   planRun,
   PLAYBOOK_BREATH_MS,

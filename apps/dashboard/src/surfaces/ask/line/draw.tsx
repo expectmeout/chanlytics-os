@@ -7,6 +7,7 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { AskFace } from "../../kit/face/ask-face";
 import { Icon } from "../../kit/icon/icon";
 import { LineField, LinePress } from "../../kit/line/line";
+import { askCardHasWords } from "@chanlytics/contracts";
 import { AskActs, AskNowPills, AskReads, AskRows } from "../home";
 import { ahPanelKeys, ahPinNow, ahSlideFrom } from "../hooks";
 import { leaving, touchSwipe } from "../shell";
@@ -339,7 +340,9 @@ const arStage = ({
             talk.listening
               ? t.listening
               : active
-                ? t.follow
+                ? active.messages?.at(-1)?.proposals?.some((p) => !p.outcome && askCardHasWords(p.kind))
+                  ? t.changeAnything
+                  : t.follow
                 : surface === "leads"
                   ? t.describeLeads
                   : // Campaigns' field asks for what should go out; on its Ads page, which sends nothing yet, it asks for nothing of the kind.
@@ -434,7 +437,14 @@ const arMiddle = ({
       {body}
       {thread && drawn && nextInThread ? <AskNextRow answer={drawn.answer} sel={move} onFollow={submit} /> : null}
       {thread && drawn && !(answerMsg && answerMsg.failed) ? (
-        <AskActs words={words} spoken={spoken} speech={speech} flash={flash} t={t} />
+        <AskActs
+          words={words}
+          spoken={spoken}
+          speech={speech}
+          flash={flash}
+          t={t}
+          copy={!answerMsg?.proposals?.length}
+        />
       ) : null}
     </div>
   </div>

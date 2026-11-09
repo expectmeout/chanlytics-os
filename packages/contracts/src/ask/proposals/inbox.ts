@@ -72,9 +72,9 @@ export const replySpec: ProposalSpec = {
     body: { text: asText(p.payload.text), ...(p.payload.email_to ? { email_to: asText(p.payload.email_to) } : {}) },
     idempotencyKey: p.id,
   }),
-  receipt: (p) => `On its way to ${asText(p.payload.who)} — sends in 15 seconds unless you cancel`,
+  receipt: (p) => `Going to ${asText(p.payload.who)}`,
   undo: {
-    label: () => "Sends 15 seconds after you approve; cancel within them",
+    label: () => "Goes in 15 seconds. Undo stops it.",
     window: "cancelable",
     record: (_p, data) => ({
       message_id: rec(data).message_id,
@@ -82,7 +82,7 @@ export const replySpec: ProposalSpec = {
       decision_id: decisionOf(data),
     }),
     call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
-    receipt: () => "Canceled before it sent",
+    receipt: () => "Not sent.",
   },
   open: () => null,
 };
@@ -95,7 +95,7 @@ export const steerSpec: ProposalSpec = {
     params: { id: asText(p.payload.message_id) },
     body: { text: asText(p.payload.instruction) },
   }),
-  receipt: () => "Rewritten — the new draft waits its turn",
+  receipt: () => "Rewritten. The new words wait their turn.",
   open: () => null,
 };
 
@@ -165,7 +165,7 @@ export const whisperSpec: ProposalSpec = {
     params: { id: asText(p.payload.call_id) },
     body: { text: asText(p.payload.text), trigger: false },
   }),
-  receipt: () => "Whispered — the receptionist works it into its next answer",
+  receipt: () => "Whispered. It uses it when it fits.",
   open: () => null,
 };
 
@@ -181,6 +181,6 @@ export const callHandOverSpec: ProposalSpec = {
     idIn(p.payload, "call_id")
       ? { route: "POST calls/[id]/hand-over", params: { id: asText(p.payload.call_id) } }
       : refuseWith(PROPOSAL_WORDS.cannotApprove),
-  receipt: (p) => `Handing ${asText(p.payload.who) || "the caller"} to your phone — it rings now`,
+  receipt: () => "Your phone rings now.",
   open: () => "live",
 };

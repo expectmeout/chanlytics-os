@@ -201,8 +201,7 @@ export const leadSearchMoreSpec: ProposalSpecAboveOperator = {
           body: { purpose: pl.purpose === "renew" ? "renew" : "topup", plan: pl.plan },
         }
       : refuseWith(PROPOSAL_WORDS.cannotApprove),
-  receipt: ({ payload: pl }) =>
-    `${asText(pl.name) || "The search"} finds more. It carries on if you leave; Leads shows it.`,
+  receipt: ({ payload: pl }) => `Finding more for ${asText(pl.name) || "that search"}. It keeps going if you leave.`,
   undo: {
     label: () => "Stop it",
     window: "ten_minutes",
@@ -231,8 +230,7 @@ export const reachOutMakeSpec: ProposalSpec = {
       ? { route: "POST reach-outs", body: chain }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: ({ payload: pl }) =>
-    `“${asText(rec(pl.chain).name)}” is saved. Its first batch is planned now, and waits for your OK before an email goes.`,
+  receipt: ({ payload: pl }) => `“${asText(rec(pl.chain).name)}” is saved. Nothing goes until you OK the first emails.`,
   made: (_p, data) => idIn(rec(data), "root_id"),
   open: (_p, outcome) => (outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE),
 };

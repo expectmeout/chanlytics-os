@@ -19,6 +19,7 @@ import {
   type AskProposal,
   type AskReadSet,
   type ModelSpeed,
+  type PlanFigure,
   type PlanLead,
 } from "@chanlytics/contracts";
 import { cacheHitOf, type AskTurnShape } from "./shape";
@@ -339,20 +340,40 @@ function withoutClaimedWrite(
   };
 }
 
-/** A plan's words as its call said them (ProposalOutcome), and what a setup's answer leads with (PlanLead). */
-export type PlanSaid = { words: string; lead?: PlanLead };
+/**
+ * A plan's words as its call said them (ProposalOutcome), what a setup's answer leads with (PlanLead), and an offer's one
+ * sentence and the numbers it rests on (D1 of the answers canvas).
+ */
+export type PlanSaid = { words: string; lead?: PlanLead; why?: string; figures?: PlanFigure[] };
 
-/** A round of cards alone, every one made, that made a plan: its words, its answer; a lone plan's lead leads it. */
-export const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, plans: PlanSaid[]): PlanSaid | null =>
-  acts.length === calls.length && !refused && plans.length > 0
-    ? { words: plans.map((s) => s.words).join(" "), lead: plans.length === 1 ? plans.at(0)?.lead : undefined }
-    : null;
+/** A round of cards alone, every one made, that made a plan: its words, its answer; a lone plan's lead, sentence and chips lead it. */
+export const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, plans: PlanSaid[]): PlanSaid | null => {
+  if (acts.length !== calls.length || refused || plans.length === 0) return null;
+  const only = plans.length === 1 ? plans.at(0) : undefined;
+  return { words: plans.map((s) => s.words).join(" "), lead: only?.lead, why: only?.why, figures: only?.figures };
+};
 
-/** The answer of cards alone: a plan's words and lead where it made one; messages alone ask for other languages. */
+/**
+ * The chips of a plan's answer, from the plan and never from the model: each number with where it opens. A list opens where
+ * People draws it, by its token; a page at its route; a chip with no source ("3 a day") opens nothing.
+ */
+const planFigures = (figures: readonly PlanFigure[] | undefined): AskAnswer["show"]["figures"] =>
+  (figures ?? []).map((f) => ({
+    value: f.value,
+    label: f.label,
+    note: "",
+    source: f.source
+      ? { ...f.source, to: f.source.kind === "list" ? `clients/${f.source.id}` : f.source.id, door: true }
+      : null,
+  }));
+
+/** The answer of cards alone: a plan's sentence or words and lead where it made one; messages alone ask for other languages. */
 export function cardsAnswer(cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid | null) {
-  const answer = answerForCards(cards, input.language, plan?.words ?? null, plan?.lead ?? null);
+  const answer = answerForCards(cards, input.language, plan?.words ?? null, plan?.lead ?? null, plan?.why ?? null);
+  const figures = planFigures(plan?.figures);
   const next = messageLanguagesNext(cards, input.facts.languages, input.language);
-  return next.length ? { ...answer, do: { ...answer.do, next } } : answer;
+  const shown = figures.length ? { ...answer, show: { ...answer.show, figures } } : answer;
+  return next.length ? { ...shown, do: { ...shown.do, next } } : shown;
 }
 
 /**
@@ -384,9 +405,18 @@ function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: 
   const own = answer.do.open;
   const languagesNext = messageLanguagesNext(cards, input.facts.languages, input.language);
   const next = languagesNext.length ? languagesNext : answer.do.next.length ? answer.do.next : (lead?.next ?? []);
-  if (!lead) return { ...answer, do: { open: own, next } };
+  // An offer's answer is its one sentence and its chips, whatever the round wrote beside them: the card says the rest.
+  const figures = planFigures(plan.figures);
+  const said: AskAnswer = plan.why
+    ? {
+        ...answer,
+        say: { ...answer.say, detail: "" },
+        show: { ...answer.show, figures: figures.length ? figures : answer.show.figures },
+      }
+    : answer;
+  if (!lead) return { ...said, do: { open: own, next } };
   const label = own?.to === lead.open.to ? own.label : lead.open.label;
-  return { ...answer, do: { open: { to: lead.open.to, label, now: false }, next } };
+  return { ...said, do: { open: { to: lead.open.to, label, now: false }, next } };
 }
 
 /**
@@ -394,7 +424,10 @@ function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: 
  * model's, in the person's language. The room a turn keeps for it: with less, the plan's own words answer.
  */
 export const PLAN_ANSWER_WORDS =
-  "The plan above is proposed as its cards, and no other card or read is needed now. Now write the answer, in the person's language, from its result alone: the headline says what the plan does, and the detail says first what no card carries (what must be connected or turned on first, a campaign paused, the room, the day a reminder goes) before anything the cards already show; where something must come first, the first question next asks how to do it. Never say any of it is done, sent or set up.";
+  "The plan above is proposed as one card, and no other card or read is needed now. Write one sentence from its result, in the person's language: the reason it has this shape (its `why`, said your way). say.detail stays empty, and show.figures is filled for you. What it pauses and what must come first are on the card, so leave them out. Never say any of it is done, sent or set up.";
+/** The same round after a setup of the journey, whose cards are each their own press and whose waits no card carries. */
+export const SETUP_ANSWER_WORDS =
+  "The plan above is proposed as its cards, and no other card or read is needed now. Now write the answer, in the person's language, from its result alone: one sentence on what it does, and in say.detail only what no card carries (what must be connected or turned on first). Where something must come first, the first question next asks how to do it. Never say any of it is done, sent or set up.";
 const PLAN_ANSWER_ROOM_MS = 12_000;
 
 /** A plan made, its answer owed by the round after it (PLAN_ANSWER_WORDS): its cards, its words, the round that made it. */
@@ -457,7 +490,7 @@ export function writtenAnswer(
     if (from.format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
     return { ok: true, answer: withoutClaimedWrite(proseAnswer(written, input.language), input, from.proposals) };
   }
-  const shaped = normalizeAnswer(written, from.read, input.language);
+  const shaped = normalizeAnswer(written, from.read, input.language, { cards: from.proposals.length });
   // What followed a whole answer (contracts firstJsonValue): set aside, and said, so what writes it can be found.
   if (shaped.ok && shaped.ignored)
     log.warn("ask_answer_tail", {
@@ -484,5 +517,14 @@ export function writtenAnswer(
   }
   if (shaped.dropped) log.warn("ask_sources_dropped", { dropped: shaped.dropped, tenant_id: input.tenantId });
   const answer = withoutClaimedWrite(shaped.answer, input, from.proposals);
+  // An answer past what a phone holds, with nothing asked of that length: counted, so the rule's effect can be read (D5).
+  if (answer.say.detail.length + answer.say.headline.length > LONG_ANSWER_CHARS)
+    log.info("ask_answer_long", {
+      chars: answer.say.detail.length + answer.say.headline.length,
+      tenant_id: input.tenantId,
+    });
   return { ok: true, answer: from.owed ? withPlanFacts(answer, from.owed.cards, input, from.owed.plan) : answer };
 }
+
+/** What six lines of a phone hold, twice over: an answer past it is long, whatever was asked. */
+const LONG_ANSWER_CHARS = 1056;
