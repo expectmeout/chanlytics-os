@@ -275,6 +275,8 @@ export interface ReachOutSettingsDto {
   standing: ColdEmailStanding;
   /** Whether it is healthy, what it can really send, and what its ramp gives next (contracts coldEmailSendingOf). */
   sending: ColdEmailSending;
+  /** Who is kept off, by address (db countLeadSuppressions); null where the list could not be counted. */
+  never: { said_no: number; asked_to_stop: number } | null;
   mailbox: ReachOutSettingsMailbox | null;
   /** The month's first emails against their share; sent is null where they could not be counted. */
   month: { sent: number | null; of: number };

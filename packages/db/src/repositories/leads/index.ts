@@ -16,6 +16,7 @@ export {
   listPlacesSuppressed,
   listRunsOfRound,
   listSearchMembers,
+  countLeadSuppressions,
 } from "./finder";
 export {
   askForIdeasAgain,

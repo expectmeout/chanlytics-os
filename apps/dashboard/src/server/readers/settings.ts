@@ -33,7 +33,7 @@ import {
 } from "@chanlytics/contracts";
 import { findRehearsalById } from "@chanlytics/db/facts";
 import { countHeldForAddress, countSentByStep, findWorkspaceWords, reviewLinkOf } from "@chanlytics/db/campaigns";
-import { findNewestSearchName } from "@chanlytics/db/leads";
+import { countLeadSuppressions, findNewestSearchName } from "@chanlytics/db/leads";
 import { askMemoryLines, getJournalMemberNames } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
 import type { RouteContext } from "../shared/with-route";
@@ -396,18 +396,20 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const tenantId = rc.tenantId;
-    const [row, facts, mailboxes, sent, memory, chains, policies, ownWords, names, newestSearch] = await Promise.all([
-      partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
-      partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
-      partOrElse(listMailboxConnectionsWithDays(db, tenantId, rc.now), "mailboxes", tenantId, []),
-      readReachOutMonthOrNull(tenantId, rc.now),
-      partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
-      partOrElse(listChains(rc.ctx, tenantId), "chains", tenantId, []),
-      partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
-      partOrElse(findWorkspaceWords(db, tenantId), "about", tenantId, null),
-      partOrElse<Record<string, string>>(getJournalMemberNames(db, [rc.ctx.userId]), "name", tenantId, {}),
-      partOrElse(findNewestSearchName(db, tenantId), "newest_search", tenantId, null),
-    ]);
+    const [row, facts, mailboxes, sent, memory, chains, policies, ownWords, names, newestSearch, never] =
+      await Promise.all([
+        partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
+        partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
+        partOrElse(listMailboxConnectionsWithDays(db, tenantId, rc.now), "mailboxes", tenantId, []),
+        readReachOutMonthOrNull(tenantId, rc.now),
+        partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
+        partOrElse(listChains(rc.ctx, tenantId), "chains", tenantId, []),
+        partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
+        partOrElse(findWorkspaceWords(db, tenantId), "about", tenantId, null),
+        partOrElse<Record<string, string>>(getJournalMemberNames(db, [rc.ctx.userId]), "name", tenantId, {}),
+        partOrElse(findNewestSearchName(db, tenantId), "newest_search", tenantId, null),
+        partOrElse(countLeadSuppressions(db, tenantId), "never", tenantId, null),
+      ]);
     const name = names[rc.ctx.userId]?.trim() || null;
     const parsed = parseTenantConfig(row?.data?.config);
     const claims = parsed?.reach_out?.proof ?? [];
@@ -437,6 +439,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
           }),
         ),
         sending: coldEmailSendingOf(mailboxes, month, rc.now.getTime()),
+        never,
         mailbox: mailboxShown(mailboxes, rc.now.getTime(), tz),
         month,
         by_hand_per_day: REACH_OUT_DRAFTS_PER_DAY,

@@ -7,7 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
-import type { TenantId } from "@chanlytics/contracts";
+import { DbFailure, type TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -61,6 +61,37 @@ export const listPeopleSharing = async (db: Db, tenantId: TenantId, by: "phone_e
 /** Which of these places' erasure digests the workspace was told no for. */
 export const listPlacesSuppressed = async (db: Db, tenantId: TenantId, hashes: string[]) =>
   db.from("lead_suppressions").select("hash").eq("tenant_id", tenantId).eq("kind", "place").in("hash", hashes);
+
+/** How many addresses on the never-again list are there for one reason. */
+async function countSuppressedAddresses(
+  db: Db,
+  tenantId: TenantId,
+  what: "said_no" | "email_opt_out",
+): Promise<number> {
+  const { count, error } = await db
+    .from("lead_suppressions")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("kind", "email")
+    .eq("what", what);
+  if (error) throw new DbFailure(error, "cannot count the never-again list");
+  return count ?? 0;
+}
+
+/**
+ * Who said no and who asked to stop, as the Cold email page says them. Its rows are scrambled, so it can say how many and
+ * never who, and it counts addresses: someone who said no leaves a row for their address and one for their company.
+ */
+export async function countLeadSuppressions(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ said_no: number; asked_to_stop: number }> {
+  const [said_no, asked_to_stop] = await Promise.all([
+    countSuppressedAddresses(db, tenantId, "said_no"),
+    countSuppressedAddresses(db, tenantId, "email_opt_out"),
+  ]);
+  return { said_no, asked_to_stop };
+}
 
 /** What a round's question is told with: its workspace, its search, its state and the question. */
 export const findRoundToTell = async (db: Db, roundId: string) =>
