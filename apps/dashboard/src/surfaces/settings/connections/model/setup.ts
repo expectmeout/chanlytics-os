@@ -162,10 +162,7 @@ export interface ConnectionInputs {
    * null or still asking (`undefined`) reads as not yet: the row says Later.
    */
   instagram?: { ready: boolean } | null;
-  /**
-   * Whether this workspace may connect Meta (the Meta link: the deployment holds the app's login, and the workspace's
-   * `content_preview` is on). Absent, null or still asking reads as no: the Instagram row says what it says without it.
-   */
+  /** Whether this workspace may connect Meta (decision 0117: the app's login held, `content_preview` on); absent is no. */
   meta?: { ready: boolean } | null;
 }
 

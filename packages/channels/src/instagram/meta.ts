@@ -51,7 +51,7 @@ export function metaAppSecretProof(token: string, appSecret: string): string {
 const query = (params: Record<string, string>): string => new URLSearchParams(params).toString();
 
 /** A token's own query: the token and its proof, which every call with the business's token carries. */
-const signed = (token: string, appSecret: string): Record<string, string> => ({
+const withProof = (token: string, appSecret: string): Record<string, string> => ({
   access_token: token,
   appsecret_proof: metaAppSecretProof(token, appSecret),
 });
@@ -94,7 +94,7 @@ export function metaDebugTokenRequest(
 /** The business the token belongs to: `/me` is its system user, and names the client's business portfolio. */
 export function metaBusinessRequest(token: string, appSecret: string): InstagramRequest {
   return {
-    url: `${META_GRAPH}/me?${query({ fields: "client_business_id", ...signed(token, appSecret) })}`,
+    url: `${META_GRAPH}/me?${query({ fields: "client_business_id", ...withProof(token, appSecret) })}`,
     method: "GET",
   };
 }
@@ -102,7 +102,7 @@ export function metaBusinessRequest(token: string, appSecret: string): Instagram
 /** The Instagram professional accounts the business shared with the app in the dialog. */
 export function metaAssignedAccountsRequest(token: string, appSecret: string): InstagramRequest {
   return {
-    url: `${META_GRAPH}/me/assigned_instagram_accounts?${query({ fields: "id,username", ...signed(token, appSecret) })}`,
+    url: `${META_GRAPH}/me/assigned_instagram_accounts?${query({ fields: "id,username", ...withProof(token, appSecret) })}`,
     method: "GET",
   };
 }
@@ -110,7 +110,7 @@ export function metaAssignedAccountsRequest(token: string, appSecret: string): I
 /** The account itself: its handle and name, for the row. */
 export function metaAccountRequest(token: string, appSecret: string, accountId: string): InstagramRequest {
   return {
-    url: `${META_GRAPH}/${encodeURIComponent(accountId)}?${query({ fields: "id,username,name", ...signed(token, appSecret) })}`,
+    url: `${META_GRAPH}/${encodeURIComponent(accountId)}?${query({ fields: "id,username,name", ...withProof(token, appSecret) })}`,
     method: "GET",
   };
 }
@@ -131,7 +131,7 @@ export function metaSubscribeRequest(
   return {
     url: `${META_GRAPH}/${encodeURIComponent(accountId)}/subscribed_apps?${query({
       subscribed_fields: fields.join(","),
-      ...signed(token, appSecret),
+      ...withProof(token, appSecret),
     })}`,
     method: "POST",
   };
@@ -140,21 +140,21 @@ export function metaSubscribeRequest(
 /** The account's events no longer sent to this app (a disconnect). */
 export function metaUnsubscribeRequest(token: string, appSecret: string, accountId: string): InstagramRequest {
   return {
-    url: `${META_GRAPH}/${encodeURIComponent(accountId)}/subscribed_apps?${query(signed(token, appSecret))}`,
+    url: `${META_GRAPH}/${encodeURIComponent(accountId)}/subscribed_apps?${query(withProof(token, appSecret))}`,
     method: "DELETE",
   };
 }
 
 /* -------------------------------------------------------------- answers */
 
-const asText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
+const metaText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
 const objectOf = (json: unknown): Record<string, unknown> | null =>
   json && typeof json === "object" ? recordOrEmpty(json) : null;
 
 /** The code exchange's answer: the business's token, and when it lapses (null when Meta says it does not). */
 export function parseMetaToken(json: unknown): { accessToken: string; expiresInS: number | null } {
   const o = objectOf(json);
-  const accessToken = asText(valueAt(o, "access_token"));
+  const accessToken = metaText(valueAt(o, "access_token"));
   if (!accessToken) throw new Error(instagramErrorOf(json)?.message ?? "Meta answered without a token");
   const s = valueAt(o, "expires_in");
   return { accessToken, expiresInS: typeof s === "number" && s > 0 ? s : null };
@@ -173,14 +173,14 @@ export function parseMetaDebugToken(json: unknown): MetaTokenFacts {
   const data = objectOf(valueAt(objectOf(json), "data"));
   if (!data) throw new Error(instagramErrorOf(json)?.message ?? "Meta did not describe the token");
   const scopesRaw = valueAt(data, "scopes");
-  const scopes = Array.isArray(scopesRaw) ? scopesRaw.map(asText).filter(Boolean) : [];
+  const scopes = Array.isArray(scopesRaw) ? scopesRaw.map(metaText).filter(Boolean) : [];
   const accountsByScope: Record<string, string[]> = {};
   const granular = valueAt(data, "granular_scopes");
   if (Array.isArray(granular))
     for (const g of granular) {
-      const scope = asText(valueAt(objectOf(g), "scope"));
+      const scope = metaText(valueAt(objectOf(g), "scope"));
       const ids = valueAt(objectOf(g), "target_ids");
-      if (scope && Array.isArray(ids)) accountsByScope[scope] = ids.map(asText).filter(Boolean);
+      if (scope && Array.isArray(ids)) accountsByScope[scope] = ids.map(metaText).filter(Boolean);
     }
   const exp = valueAt(data, "expires_at");
   return {
@@ -193,7 +193,7 @@ export function parseMetaDebugToken(json: unknown): MetaTokenFacts {
 
 /** The business portfolio `/me` names; null when it names none (an older token, or a person's token by mistake). */
 export function parseMetaBusiness(json: unknown): string | null {
-  return asText(valueAt(objectOf(json), "client_business_id")) || null;
+  return metaText(valueAt(objectOf(json), "client_business_id")) || null;
 }
 
 /** An Instagram account as Meta lists it: its id (the webhooks' `entry.id`) and its handle. */
@@ -208,15 +208,15 @@ export function parseMetaAssignedAccounts(json: unknown): MetaAccount[] {
   if (!Array.isArray(data)) throw new Error(instagramErrorOf(json)?.message ?? "Meta did not list the accounts");
   return data.flatMap((a) => {
     const o = objectOf(a);
-    const id = asText(valueAt(o, "id"));
-    return /^\d{5,32}$/.test(id) ? [{ id, username: asText(valueAt(o, "username")) || null }] : [];
+    const id = metaText(valueAt(o, "id"));
+    return /^\d{5,32}$/.test(id) ? [{ id, username: metaText(valueAt(o, "username")) || null }] : [];
   });
 }
 
 /** The account as the row keeps it. Throws when it names no account. */
 export function parseMetaAccount(json: unknown): { id: string; username: string | null; name: string | null } {
   const o = objectOf(json);
-  const id = asText(valueAt(o, "id"));
+  const id = metaText(valueAt(o, "id"));
   if (!/^\d{5,32}$/.test(id)) throw new Error(instagramErrorOf(json)?.message ?? "Meta did not name the account");
-  return { id, username: asText(valueAt(o, "username")) || null, name: asText(valueAt(o, "name")) || null };
+  return { id, username: metaText(valueAt(o, "username")) || null, name: metaText(valueAt(o, "name")) || null };
 }

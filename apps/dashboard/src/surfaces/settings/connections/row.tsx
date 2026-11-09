@@ -79,7 +79,7 @@ const NOT_A_MEND = new Set([
 ]);
 
 /** The verbs that disconnect, each asked about on its row first (rowAsk): Google's Business Profile, an Instagram account. */
-export const DISCONNECTS: ReadonlySet<string> = new Set([
+const DISCONNECTS: ReadonlySet<string> = new Set([
   "verb:google-disconnect",
   "verb:instagram-disconnect",
   "verb:meta-disconnect",
@@ -325,6 +325,19 @@ function rowButton(
   );
 }
 
+/** A joined row's second way on (an Instagram account moved to Meta's one connection), beside its own acts; null for none. */
+function alsoButton(r: Row, run: ConnectionRowProps["run"], busy: boolean): ReactNode {
+  if (!r.also) return null;
+  return verbButton({
+    r,
+    verb: r.also,
+    label: r.also.label,
+    variant: "secondary",
+    run: (row) => run({ ...row, verb: row.also ?? null }),
+    busy,
+  });
+}
+
 /**
  * What a row's Settings opens, in place under its name: what it is attached to, what it says about itself, and its
  * acts, its own verb by its own name and Disconnect last where Chanlytics can disconnect it (Google's two: the
@@ -350,17 +363,7 @@ function rowSettings(
           busy,
         })
       : null;
-  // A joined row's second way on (an Instagram account moved to Meta's one connection), beside its own acts.
-  const also = r.also
-    ? verbButton({
-        r,
-        verb: r.also,
-        label: r.also.label,
-        variant: "secondary",
-        run: (row) => run({ ...row, verb: row.also ?? null }),
-        busy,
-      })
-    : null;
+  const also = alsoButton(r, run, busy);
   return (
     <div className="set-int-open" id={panelId} data-testid={`connection-${r.kind}-about`}>
       {fixing ? (

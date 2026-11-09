@@ -30,7 +30,7 @@ const APP = {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const { runMetaOp } = await import(at("apps/edge/lib/instagram/meta-connect.ts"));
+const { contentPreviewOf, runMetaOp } = await import(at("apps/edge/lib/instagram/meta-connect.ts"));
 
 const T = "abababab-3333-4000-8000-000000000001";
 const OTHER = "abababab-3333-4000-8000-000000000002";
@@ -122,6 +122,12 @@ function world({ on = true, vaultFails = false, scopes = ALL } = {}) {
 }
 const heard = async (res) => [res.status, await res.json()];
 const proofOf = (token) => createHmac("sha256", APP.META_APP_SECRET).update(token).digest("hex");
+
+test("the switch is on only where the workspace's config says content_preview is true", () => {
+  assert.equal(contentPreviewOf({ features: { content_preview: true } }), true);
+  for (const off of [null, {}, { features: null }, { features: { content_preview: "true" } }])
+    assert.equal(contentPreviewOf(off), false, JSON.stringify(off));
+});
 
 test("status says whether the app's login is held here and whether this workspace's switch is on", async () => {
   world({ on: false });

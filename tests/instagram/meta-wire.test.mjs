@@ -1,7 +1,7 @@
 /**
  * The Meta link's wire and what reads it (decision 0117): the dialog and the requests built without a network, the
  * proof every call with the business's token carries, Meta's answers read defensively, the webhook fields a token's
- * permissions allow, the five lines made from the permissions by their one reader, the switch, and a DM sent and a name
+ * permissions allow, the five lines made from the permissions by their one reader, and a DM sent and a name
  * read on Facebook's host for an account connected through Meta, on Instagram's for one connected through Instagram's own
  * login. And the webhook: a `changes[]` delivery (a comment, a story's numbers) is its own kind, asked nothing of yet,
  * beside the DMs it may carry.
@@ -24,7 +24,7 @@ import {
   sendInstagramText,
 } from "@chanlytics/channels/instagram";
 import { resetBreakers } from "@chanlytics/channels/shared";
-import { contentPreviewOf, metaLinesOf } from "@chanlytics/contracts";
+import { metaLinesOf } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -117,9 +117,6 @@ test("the five lines are made from the permissions by their one reader; comments
     insights: false,
   });
   assert.deepEqual(metaLinesOf("instagram_manage_messages"), metaLinesOf([]), "anything but a list holds nothing");
-  assert.equal(contentPreviewOf({ features: { content_preview: true } }), true);
-  for (const off of [null, {}, { features: null }, { features: { content_preview: "true" } }])
-    assert.equal(contentPreviewOf(off), false, JSON.stringify(off));
 });
 
 /** A network that answers every call as `body` says and keeps what it was asked. */

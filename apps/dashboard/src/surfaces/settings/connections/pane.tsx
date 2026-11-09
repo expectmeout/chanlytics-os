@@ -34,7 +34,7 @@ import { GoogleChoose } from "./google-choose";
 import { useLineCodes, useSignupAhead, useStandingCheck } from "./live";
 import { ConnectedMailboxes, EmailCard } from "./mailboxes-block";
 import { BusinessRecordForm } from "./record-form";
-import { ConnectionRow, DISCONNECTS, type Arm } from "./row";
+import { ConnectionRow, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 import { igConnect, type InstagramDoor } from "./instagram";
 import { metaConnect, type MetaDoor } from "./meta";
@@ -105,14 +105,22 @@ function LoginNotes({ logins: { ig, meta } }: { logins: Logins }) {
   );
 }
 
+/** A disconnect, asked about on its row first (row.tsx rowAsk). */
+const armDisconnect = (r: Row, k: { setArm: (a: Arm | null) => void }) =>
+  k.setArm({ kind: r.kind, what: "disconnect" });
+
 /**
- * The verbs that leave for a provider's own screen (Google's consent, Instagram's, Meta's dialog), which sends the browser
- * back with a word its row reads once (connections/google, instagram.ts, meta.ts).
+ * The verbs run in one step: those that leave for a provider's own screen (Google's consent, Instagram's, Meta's dialog),
+ * which sends the browser back with a word its row reads once (connections/google, instagram.ts, meta.ts), and the
+ * disconnects, each asked about first.
  */
-const LEAVES: Readonly<Record<string, () => void>> = {
+const ONE_STEP_VERBS: Readonly<Record<string, (r: Row, k: { setArm: (a: Arm | null) => void }) => void>> = {
   "verb:google-connect": () => googleVerbs.connect(),
   "verb:instagram-connect": () => igConnect.start(),
   "verb:meta-connect": () => metaConnect.start(),
+  "verb:google-disconnect": armDisconnect,
+  "verb:instagram-disconnect": armDisconnect,
+  "verb:meta-disconnect": armDisconnect,
 };
 
 /**
@@ -215,14 +223,9 @@ async function runVerb(
 ): Promise<void> {
   const verb = r.verb;
   if (!verb) return;
-  const leave = LEAVES[verb.to];
-  if (leave) {
-    leave();
-    return;
-  }
-  // A disconnect is asked about on its row first (row.tsx rowAsk).
-  if (DISCONNECTS.has(verb.to)) {
-    k.setArm({ kind: r.kind, what: "disconnect" });
+  const oneStep = ONE_STEP_VERBS[verb.to];
+  if (oneStep) {
+    oneStep(r, k);
     return;
   }
   switch (verb.to) {

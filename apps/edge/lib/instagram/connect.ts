@@ -105,7 +105,12 @@ async function step<T>(
  * write that follows would otherwise move a live account, its token and its DMs between workspaces. A read that failed
  * says nothing about who holds it.
  */
-export async function heldElsewhere(db: Db, log: Log, tenantId: TenantId, accountId: string): Promise<Response | null> {
+export async function refuseIfHeldElsewhere(
+  db: Db,
+  log: Log,
+  tenantId: TenantId,
+  accountId: string,
+): Promise<Response | null> {
   let holder: { tenant_id: TenantId } | null;
   try {
     holder = await findInstagramAccountHolder(db, accountId);
@@ -146,7 +151,7 @@ async function connect(
   const me = await step(log, "account", callInstagram(instagramMeRequest(long.accessToken)), parseInstagramMe);
   if (isRefused(me)) return refuse(502, "instagram_account_unreadable", me.refused);
   log = logger({ tenant_id: tenantId, account: me.accountId });
-  const held = await heldElsewhere(db, log, tenantId, me.accountId);
+  const held = await refuseIfHeldElsewhere(db, log, tenantId, me.accountId);
   if (held) return held;
   // 3. Its DMs reach this app's webhook.
   const sub = await step(

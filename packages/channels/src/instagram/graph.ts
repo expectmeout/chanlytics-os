@@ -67,7 +67,7 @@ export interface InstagramConfig {
 const FACEBOOK_GRAPH = "https://graph.facebook.com/v27.0";
 
 /** Where an account's calls go, and the proof its token carries there. */
-const hostOf = (cfg: Pick<InstagramConfig, "graph">): string =>
+const graphHostOf = (cfg: Pick<InstagramConfig, "graph">): string =>
   cfg.graph === "facebook" ? FACEBOOK_GRAPH : INSTAGRAM_GRAPH;
 const proofOf = (cfg: Pick<InstagramConfig, "proof">): Record<string, string> =>
   cfg.proof ? { appsecret_proof: cfg.proof } : {};
@@ -154,7 +154,7 @@ export function instagramUnsubscribeRequest(token: string, accountId: string): I
 /** A person who wrote to the account, as they call themselves there (only once they have written: their consent). */
 function instagramProfileRequest(cfg: InstagramConfig, igsid: string): InstagramRequest {
   return {
-    url: `${hostOf(cfg)}/${encodeURIComponent(igsid)}?${query({ fields: "name,username", access_token: cfg.accessToken, ...proofOf(cfg) })}`,
+    url: `${graphHostOf(cfg)}/${encodeURIComponent(igsid)}?${query({ fields: "name,username", access_token: cfg.accessToken, ...proofOf(cfg) })}`,
     method: "GET",
   };
 }
@@ -163,7 +163,7 @@ function instagramProfileRequest(cfg: InstagramConfig, igsid: string): Instagram
 function instagramSendRequest(cfg: InstagramConfig, to: string, text: string): InstagramRequest {
   const proof = query(proofOf(cfg));
   return {
-    url: `${hostOf(cfg)}/${encodeURIComponent(cfg.accountId)}/messages${proof ? `?${proof}` : ""}`,
+    url: `${graphHostOf(cfg)}/${encodeURIComponent(cfg.accountId)}/messages${proof ? `?${proof}` : ""}`,
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ recipient: { id: to }, message: { text } }),

@@ -6,18 +6,16 @@
  */
 
 /** The permissions the Meta link asks for (Instagram API with Unified Login): no Facebook Page's, no ads' until the Ads lane. */
-export const META_PERMISSIONS = [
-  "instagram_basic",
-  "instagram_manage_messages",
-  "instagram_content_publish",
-  "instagram_manage_comments",
-  "instagram_manage_insights",
-] as const;
-export type MetaPermission = (typeof META_PERMISSIONS)[number];
+type MetaPermission =
+  | "instagram_basic"
+  | "instagram_manage_messages"
+  | "instagram_content_publish"
+  | "instagram_manage_comments"
+  | "instagram_manage_insights";
 
 /** The five lines, in the order the row says them. */
 export const META_LINES = ["messages", "publish", "sounds", "comments", "insights"] as const;
-export type MetaLine = (typeof META_LINES)[number];
+type MetaLine = (typeof META_LINES)[number];
 export type MetaLines = Readonly<Record<MetaLine, boolean>>;
 
 /** What each line needs of the token: every permission named. Trending sounds are the Audio API's, on publishing. */

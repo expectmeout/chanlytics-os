@@ -35,7 +35,6 @@ import {
   listActiveInstagramAccounts,
   noteInstagramToken,
   putChannelSecret,
-  readChannelSecret,
   type InstagramAccountRow,
 } from "@chanlytics/db/channels";
 import type { Database } from "@chanlytics/db/types";
@@ -46,7 +45,7 @@ import { notifyOnce } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { metaAppId } from "../whatsapp/meta-graph.js";
 import type { SweepTick } from "../ops/sweep-door.js";
-import type { InstagramSecret } from "./credentials.js";
+import { readKeptSecret, type InstagramSecret } from "./credentials.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -133,7 +132,6 @@ async function checkMeta(
     scopes: facts.scopes,
     token_lapsed_at: null,
   });
-  log.info("ig_token_checked", { channel_id: row.id, scopes: facts.scopes.length });
   return "checked";
 }
 
@@ -141,7 +139,7 @@ async function checkMeta(
 async function sweepOne(db: Db, row: InstagramAccountRow, now: number, log: Logger): Promise<Swept> {
   let secret: Partial<InstagramSecret> | null;
   try {
-    secret = row.credentials_ref ? ((await readChannelSecret(db, row.id)) as Partial<InstagramSecret> | null) : null;
+    secret = row.credentials_ref ? await readKeptSecret(db, row.id) : null;
   } catch (e) {
     log.error("ig_credentials_unreadable", { channel_id: row.id, error: errField(e) });
     return "unreadable";

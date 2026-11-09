@@ -50,7 +50,7 @@ const OUTCOME_WORDS: Readonly<Record<string, string>> = {
  * What the browser came back from a login with, under its word in the address (`instagram`, `meta`), in the row's words,
  * read once and taken off the address; null for nothing.
  */
-export function outcomeOf(key: string, words: Readonly<Record<string, string>>, provider: string): string | null {
+export function loginOutcomeOf(key: string, words: Readonly<Record<string, string>>, provider: string): string | null {
   try {
     const q = new URLSearchParams(window.location.search);
     const said = q.get(key);
@@ -71,7 +71,7 @@ export function outcomeOf(key: string, words: Readonly<Record<string, string>>, 
   }
 }
 
-const outcome = (): string | null => outcomeOf("instagram", OUTCOME_WORDS, "Instagram");
+const outcome = (): string | null => loginOutcomeOf("instagram", OUTCOME_WORDS, "Instagram");
 
 export const igConnect = {
   config: doorOf,

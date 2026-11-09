@@ -6,7 +6,7 @@
  * since a member may not read the config. The one secret used here is the dashboard's own key that signs the OAuth state
  * (Google's: the state names its provider, and each callback refuses another's).
  */
-import { AppError, appLink, ROLE_PERMS, type TenantId } from "@chanlytics/contracts";
+import { AppError, ROLE_PERMS, type TenantId } from "@chanlytics/contracts";
 import { metaDialogUrl } from "@chanlytics/channels/instagram";
 import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels/google";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
@@ -15,6 +15,7 @@ import { log } from "../shared/log";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
 import { stateSecret } from "./google";
+import { backToConnections, loginReturnOf } from "./instagram";
 
 /** The provider a state for Meta names (OAuthState.p): the Google, mailbox and Instagram callbacks refuse it. */
 const PROVIDER = "meta";
@@ -41,10 +42,10 @@ interface MetaReadiness {
 }
 const NOT_CONNECTABLE: MetaReadiness = { ready: false, app: null };
 /** The edge's word per workspace, kept READY_TTL_MS: Connections asks it on every open, and the switch is per workspace. */
-const readyCache = new Map<TenantId, { at: number; value: MetaReadiness }>();
+const metaReadyCache = new Map<TenantId, { at: number; value: MetaReadiness }>();
 
 async function metaReadiness(tenantId: TenantId, now = Date.now()): Promise<MetaReadiness> {
-  const kept = readyCache.get(tenantId);
+  const kept = metaReadyCache.get(tenantId);
   if (kept && now - kept.at < READY_TTL_MS) return kept.value;
   const answer = await edgeMeta({ op: "status", tenant_id: tenantId }, 4_000);
   const body = answer.body ?? {};
@@ -59,19 +60,14 @@ async function metaReadiness(tenantId: TenantId, now = Date.now()): Promise<Meta
     typeof app.redirect_uri === "string"
       ? { ready: true, app: { client_id: app.client_id, config_id: app.config_id, redirect_uri: app.redirect_uri } }
       : NOT_CONNECTABLE;
-  readyCache.set(tenantId, { at: now, value });
+  metaReadyCache.set(tenantId, { at: now, value });
   return value;
 }
 
 /** `GET channels/meta`: whether Connect Meta can be offered in this workspace, and to this member. */
 export async function readMeta(member: Member): Promise<{ ready: boolean; can_connect: boolean }> {
   const ready = (await metaReadiness(member.tenantId)).ready;
-  return { ready, can_connect: ready && !!ROLE_PERMS[member.role]?.settings };
-}
-
-/** Where the browser lands after Meta: Connections, with the outcome in a word the row reads once. */
-function afterMeta(origin: string, outcome: string, reason?: string, slug?: string | null): string {
-  return `${origin}${appLink(slug, "admin/integrations", { meta: outcome, why: reason || null })}`;
+  return { ready, can_connect: ready && ROLE_PERMS[member.role].settings };
 }
 
 /** `GET channels/meta/connect`: a signed state naming the workspace and the person, then Meta's dialog. */
@@ -100,16 +96,15 @@ export async function startMetaConnect(ctx: RouteContext, member: Member): Promi
  * one word the row reads once.
  */
 export async function handleMetaCallback(ctx: RouteContext, req: Request): Promise<Response> {
-  const url = new URL(req.url);
+  const came = loginReturnOf(req);
   let slug: string | null = null;
-  const back = (outcome: string, reason?: string) =>
-    new Response(null, { status: 302, headers: { location: afterMeta(url.origin, outcome, reason, slug) } });
+  const back = backToConnections(PROVIDER, came.origin, () => slug);
   // A person who pressed Cancel in Meta's dialog comes back with error=access_denied.
-  const refused = url.searchParams.get("error");
+  const refused = came.refused;
   if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
-  const proof = await verifyState(secret, url.searchParams.get("state"), Date.now());
+  const proof = await verifyState(secret, came.state, Date.now());
   if (!proof.ok) return back("error", `state_${proof.reason}`);
   if (proof.state.p !== PROVIDER) return back("error", "state_malformed");
   if (proof.state.u !== ctx.userId) return back("error", "someone_else");
@@ -117,12 +112,12 @@ export async function handleMetaCallback(ctx: RouteContext, req: Request): Promi
   try {
     const member = await getMemberContext(ctx, proof.state.t);
     slug = member.slug ?? null;
-    if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");
+    if (!ROLE_PERMS[member.role].settings) return back("error", "not_owner");
     tenantId = member.tenantId;
   } catch {
     return back("error", "no_workspace");
   }
-  const code = url.searchParams.get("code") ?? "";
+  const code = came.code;
   if (!code) return back("error", "no_code");
   const answer = await edgeMeta({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
   const body = answer.body ?? {};
@@ -136,7 +131,7 @@ export async function handleMetaCallback(ctx: RouteContext, req: Request): Promi
     return back("error", reason);
   }
   // The row says Connected from the channels read; the next status asks the edge again.
-  readyCache.delete(tenantId);
+  metaReadyCache.delete(tenantId);
   return back("connected");
 }
 
@@ -149,7 +144,7 @@ export async function disconnectMeta(ctx: RouteContext, member: Member, channelI
     channel_id: channelId,
   });
   const body = answer.body ?? {};
-  if (answer.status === 404) throw new AppError("not_found", "That Instagram account is not connected here.", 404);
+  if (answer.status === 404) throw new AppError("not_found", "No account is connected through Meta here.", 404);
   if (answer.status !== 200 || body.ok !== true)
     throw new AppError("upstream_provider", "Meta could not be disconnected just now. Try again.");
   return { ok: true };

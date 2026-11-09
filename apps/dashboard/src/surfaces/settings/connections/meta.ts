@@ -8,11 +8,11 @@
 import { unwrap } from "@/client/api";
 import { api } from "@/bridge/api";
 import { metaDoorRead } from "../frame/pane-reads";
-import { CONNECT_WORDS, outcomeOf } from "./instagram";
+import { CONNECT_WORDS, loginOutcomeOf } from "./instagram";
 
 /** Whether this workspace may connect Meta, and this member may: asked once as Connections opens, and kept in the tab. */
-const doorOf = async () => unwrap(await metaDoorRead.read());
-export type MetaDoor = Awaited<ReturnType<typeof doorOf>>;
+const metaDoorOf = async () => unwrap(await metaDoorRead.read());
+export type MetaDoor = Awaited<ReturnType<typeof metaDoorOf>>;
 
 /** The words the row says for what came back from Meta, by the outcome or its reason. */
 const OUTCOME_WORDS: Readonly<Record<string, string>> = {
@@ -37,10 +37,10 @@ const OUTCOME_WORDS: Readonly<Record<string, string>> = {
   not_available: "Connecting Meta is not available here yet.",
 };
 
-const outcome = (): string | null => outcomeOf("meta", OUTCOME_WORDS, "Meta");
+const outcome = (): string | null => loginOutcomeOf("meta", OUTCOME_WORDS, "Meta");
 
 export const metaConnect = {
-  config: doorOf,
+  config: metaDoorOf,
   /** The door as this tab last read it, or null: what the row draws in its first frame. */
   held: (): MetaDoor | null => metaDoorRead.held(),
   outcome,

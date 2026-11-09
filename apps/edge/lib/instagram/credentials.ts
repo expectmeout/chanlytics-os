@@ -70,6 +70,14 @@ function configOf(c: Partial<InstagramSecret> & { access_token: string; account_
   };
 }
 
+/**
+ * What the Vault keeps for an account, as kept: the one read of a secret every Instagram module takes (a send, the sweep,
+ * the Meta link's connect and disconnect). Null for nothing kept. A read that fails THROWS.
+ */
+export async function readKeptSecret(db: Db, channelId: string): Promise<Partial<InstagramSecret> | null> {
+  return (await readChannelSecret(db, channelId)) as Partial<InstagramSecret> | null;
+}
+
 /** The account's token as a send needs it, from its row's Vault reference; a row with no reference holds none. */
 export async function getInstagramCredentials(
   db: Db,
@@ -77,7 +85,7 @@ export async function getInstagramCredentials(
 ): Promise<CredentialsRead<InstagramConfig>> {
   if (!row.credentials_ref) return { outcome: "absent" };
   try {
-    const c = (await readChannelSecret(db, row.id)) as Partial<InstagramSecret> | null;
+    const c = await readKeptSecret(db, row.id);
     return c?.access_token && c.account_id
       ? { outcome: "present", credentials: configOf({ ...c, access_token: c.access_token, account_id: c.account_id }) }
       : { outcome: "absent" };
