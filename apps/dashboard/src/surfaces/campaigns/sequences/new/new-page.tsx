@@ -11,13 +11,11 @@
  * Campaigns counts: the playbooks read's moments, lists and pools,
  * the sequences that run, and the searches whose leads are ready (reach_out_sources).
  */
-import { mailboxConnectOutcome } from "../../../settings/connections/mailbox-connect";
 import { useEffect, useRef, useState } from "react";
 import {
   CONSENT_CHANNELS,
   NEW_WORDS as W,
   SEQUENCES_ROUTE,
-  COLD_EMAIL_NEEDS_MAILBOX,
   UNKNOWN_AUDIENCE_WORDS,
   clockWhen,
   localHour,
@@ -31,6 +29,7 @@ import {
   type NewKind,
   type NewWho,
   type ReachOutSourceDto,
+  refusalNeedsMailbox,
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { commitVerb } from "@/bridge/verbs/commit";
@@ -39,6 +38,7 @@ import { Button } from "../../../kit/button/button";
 import { keepTabDraft, tabDraft, useUnsavedWork } from "../../../kit/record/work";
 import { canDo, navigate, refusalToast, useFrameToast } from "../../../frame-verbs";
 import { useReadsHere, useSurface } from "../../../use-surface";
+import { mailboxConnectOutcome } from "../../../settings/connections/mailbox-connect";
 import { broadcasts } from "../../broadcasts/verbs";
 import { useCampaignsToast } from "../../home/route-toast";
 import { reachOuts } from "../../reach-out/surface";
@@ -260,7 +260,7 @@ function useMake({ keptId, flash, letGo, tz, onNoMailbox }: MakeOn) {
     setBusy(false);
     if (!r.ok) {
       flash(refusalToast(r));
-      if (r.message === COLD_EMAIL_NEEDS_MAILBOX) onNoMailbox();
+      if (refusalNeedsMailbox(r)) onNoMailbox();
       return false;
     }
     const done = r.data as Output<"POST sequences/new">;
@@ -409,7 +409,6 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const may = canDo("approve");
   // What Ask is drafting it again as, while it does: the draft stands in that shape, with Undo (F1).
   const [pending, setPending] = useState<{ kind: NewKind; audience: NewAudience } | null>(null);
-
   const redraft = (f: { kind?: NewKind; audience?: NewAudience }) => {
     if (!draft) return;
     const kind = f.kind ?? draft.kind;
@@ -491,6 +490,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
           discard,
           make: (start) => void make(draft, start),
           close,
+          refused: (r) => flash(refusalToast(r)),
         }}
       />
     ) : (

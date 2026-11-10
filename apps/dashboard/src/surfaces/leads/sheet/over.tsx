@@ -75,10 +75,6 @@ function overActs(vm: LeadPeekVM, flash: Flash): PeekActs {
     onTone: nothing,
     onWords: none,
     onSend: notKept,
-    onOpenMail: none,
-    onCopyDraft: nothing,
-    onSaidSent: notKept,
-    onNotYet: none,
     reachOut: null,
   };
 }

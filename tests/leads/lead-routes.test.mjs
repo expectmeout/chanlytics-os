@@ -58,7 +58,7 @@ const askIdea = await import(at("apps/dashboard/app/api/v1/ask/idea/route.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/shared/model-json.ts"));
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
 const { planFacts } = await import(at("apps/dashboard/src/server/leads/leads.ts"));
-// The lead's draft builds its mailto: with the reach-out's compose module (00429): one helper, not two.
+// A by-hand sequence's mailto: is the reach-out's compose module's (00429): one helper, not two.
 const { mailtoOf: leadMailto } = await import(at("packages/contracts/src/campaigns/reach-out/owner/compose.ts"));
 const { setSuggestionsWriter } = await import(at("apps/dashboard/src/server/leads/suggestions.ts"));
 const { load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
@@ -990,7 +990,7 @@ test("a draft needs the business's address, its foot is code's, and the model is
   const out = await draft.POST.run(req("POST", {}), ctxOf(world({ role: "operator" }), { id: LEAD }, doors()));
   assert.ok(out.body.endsWith('Not interested? Reply "no thanks" and I won\'t write again.'), out.body);
   assert.ok(out.body.includes("Zilker Strength · 1 Main St, Austin, TX 78704"), "the postal address the law asks for");
-  assert.equal(out.mailto.startsWith("mailto:hello%40travisheightscoaching.example?subject="), true);
+  assert.equal("mailto" in out, false, "no mail app's road: a mailbox sends it (decision 0116)");
   assert.deepEqual(
     [modelCalls.length, modelCalls[0].purpose, modelCalls[0].request.max_tokens],
     [1, "lead_draft", 600],

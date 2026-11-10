@@ -26,6 +26,7 @@ import {
   PARAM_SOURCES,
   SEQUENCE_FLOW_WORDS,
   SEQUENCE_MODES,
+  NO_SENDING_BY_HAND,
 } from "@chanlytics/contracts";
 
 /**
@@ -163,12 +164,18 @@ export const NEW_SEQUENCE_BODY = z.strictObject({
 export type NewSequenceBody = z.infer<typeof NEW_SEQUENCE_BODY>;
 
 /**
+ * Who sends a new sequence's emails: a mailbox, always (decision 0116). `false` is still taken from a page that says it,
+ * and `true` refused in the door's own words, never as a key it does not know.
+ */
+const NOT_BY_HAND = z.literal(false, { error: NO_SENDING_BY_HAND });
+
+/**
  * A sequence to leads, as POST sequences takes one (00459, `first.starts` 'leads'): its name, and how it starts: a copy of
  * another (`from`), the words Ask drafted (`steps`), or one email still to write; on a list there is (`list_id`), else on
  * one named for it holding the leads chosen (`lead_ids`); drawing from a search where one is named (`source_search_id`,
  * auto-add); and the search a pile works through, whose pick it becomes (`aim_search_id`). As New makes one (00465): the
  * search whose ready leads go on its list (`search_id`), how its batches are decided (`mode`; the door holds a sequence
- * to leads off auto), and whether the owner sends each email from their own inbox (`owner_sends`). Where its words are
+ * to leads off auto), and `owner_sends`, taken only as false (a mailbox sends it, decision 0116). Where its words are
  * Ask's draft, what Ask drafted (`as_drafted`, decision 0078 step 2), kept with the make's decision and never in a step.
  */
 export const LEAD_FIRST_BODY = z.strictObject({
@@ -182,7 +189,7 @@ export const LEAD_FIRST_BODY = z.strictObject({
   lead_ids: z.array(anId("Which lead?")).max(500, "At most 500 at once.").optional(),
   steps: z.array(ReachOutStepSchema).max(5, "At most five steps.").optional(),
   mode: z.enum(SEQUENCE_MODES).optional(),
-  owner_sends: z.boolean().optional(),
+  owner_sends: NOT_BY_HAND.optional(),
   as_drafted: AS_DRAFTED.optional(),
 });
 
@@ -313,7 +320,7 @@ export const NEW_MAKE_BODY = z.strictObject({
   channels: z.array(z.enum(CONSENT_CHANNELS)).max(3),
   mode: z.enum(SEQUENCE_MODES).nullable(),
   adds_new: z.boolean(),
-  owner_sends: z.boolean().optional(),
+  owner_sends: NOT_BY_HAND.optional(),
   draft_id: anId("Which draft?").optional(),
   /** A draft to leads from Ask: what Ask drafted, beside the steps as the owner left them (decision 0078 step 2). */
   as_drafted: AS_DRAFTED.optional(),

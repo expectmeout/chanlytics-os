@@ -1,11 +1,12 @@
 /**
  * Cold email: where it stands (contracts coldEmailStandingOf). The one thing that matters most, and what to press, at the
  * top of the page. Amber where it waits on the owner, quiet where it does not. A new account's answer is a list of what
- * is left before a first email, each with its own door. Someone who may only read is told, and offered no press.
+ * is left before a first email, each with its own door. A press or a step's door someone may not use stays on the card
+ * and says who can when pressed (the role gate), as every gated control does.
  */
 import type { ColdEmailStanding, ColdEmailStep } from "@chanlytics/contracts";
 import { REACH_OUT_SETTINGS_WORDS, leadsRoute } from "@chanlytics/contracts";
-import { canDo, navigate } from "../../frame-verbs";
+import { gate, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -19,15 +20,7 @@ const stepDoor = (id: ColdEmailStep["id"]) => {
   return () => navigate(id === "address" ? settingsRowRoute("address") : leadsRoute({}));
 };
 
-/**
- * What a press asks of the person, so it shows to whoever may do it (contracts ROLE_PERMS): an operator approves a batch and
- * starts a sequence without changing settings, and the lead finder is the owner's and the partner's. The rest change settings.
- */
-const PRESS_NEEDS: Partial<Record<ColdEmailStanding["kind"], string>> = {
-  waiting_ok: "approve",
-  ready: "approve",
-  no_one_new: "find",
-};
+/** What a step's door asks of the person (contracts ROLE_PERMS): the lead finder is the owner's and the partner's. */
 const STEP_NEEDS: Record<ColdEmailStep["id"], string> = {
   mailbox: "settings",
   address: "settings",
@@ -41,8 +34,13 @@ const StepRow = ({ step }: { step: ColdEmailStep }) => (
       {step.done ? <Icon name="check" size={12} /> : null}
     </span>
     <span className="ro-step-words">
-      {!step.done && canDo(STEP_NEEDS[step.id]) ? (
-        <LinkButton className="ro-step-door" onClick={stepDoor(step.id)} data-testid={`rec-step-${step.id}-door`}>
+      {!step.done ? (
+        <LinkButton
+          className="ro-step-door"
+          onClick={stepDoor(step.id)}
+          {...gate(STEP_NEEDS[step.id])}
+          data-testid={`rec-step-${step.id}-door`}
+        >
           {step.title}
         </LinkButton>
       ) : (
@@ -84,12 +82,13 @@ export function StandingCard({ standing }: { standing: ColdEmailStanding | null 
           ))}
         </ul>
       ) : null}
-      {standing.act && canDo(PRESS_NEEDS[standing.kind] ?? "settings") ? (
+      {standing.act ? (
         <span>
           <Button
             size="sm"
             variant={standing.needs_you ? "primary" : undefined}
             onClick={standingPressOf(standing)}
+            {...(standing.needs ? gate(standing.needs) : {})}
             data-testid="rec-standing-act"
           >
             {standing.act}

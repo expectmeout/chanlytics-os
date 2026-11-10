@@ -66,7 +66,7 @@ export const listPlacesSuppressed = async (db: Db, tenantId: TenantId, hashes: s
 async function countSuppressedAddresses(
   db: Db,
   tenantId: TenantId,
-  reason: "said_no" | "email_opt_out",
+  reason: "said_no" | "email_opt_out" | "customer",
 ): Promise<number> {
   const { count, error } = await db
     .from("lead_suppressions")
@@ -79,18 +79,20 @@ async function countSuppressedAddresses(
 }
 
 /**
- * Who said no and who asked to stop, as the Cold email page says them. Its rows are scrambled, so it can say how many and
- * never who, and it counts addresses: someone who said no leaves a row for their address and one for their company.
+ * Who said no, who asked to stop, and the customers kept off, as the Cold email page says them. Its rows are scrambled,
+ * so it can say how many and never who, and it counts addresses: someone who said no leaves a row for their address and
+ * one for their company.
  */
 export async function countLeadSuppressions(
   db: Db,
   tenantId: TenantId,
-): Promise<{ said_no: number; asked_to_stop: number }> {
-  const [saidNo, askedToStop] = await Promise.all([
+): Promise<{ said_no: number; asked_to_stop: number; customers: number }> {
+  const [saidNo, askedToStop, customers] = await Promise.all([
     countSuppressedAddresses(db, tenantId, "said_no"),
     countSuppressedAddresses(db, tenantId, "email_opt_out"),
+    countSuppressedAddresses(db, tenantId, "customer"),
   ]);
-  return { said_no: saidNo, asked_to_stop: askedToStop };
+  return { said_no: saidNo, asked_to_stop: askedToStop, customers };
 }
 
 /** What a round's question is told with: its workspace, its search, its state and the question. */

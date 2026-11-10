@@ -50,7 +50,7 @@ import type { RouteContext } from "../shared/with-route";
 import { linkHostOf } from "../../link-host";
 import { getWorkspaceOffer } from "./allowance";
 import type { LeadRow } from "./searches";
-import type { TenantId } from "@chanlytics/contracts";
+import type { LeadEmailWhy, TenantId } from "@chanlytics/contracts";
 
 type Ctx = Pick<RouteContext, "supabase" | "userId">;
 
@@ -77,14 +77,18 @@ async function roadOf(ctx: Ctx, lead: LeadRow, nowMs: number) {
   return leadEmailFromOf({ sequenceMailbox, userId: ctx.userId, mailboxes, nowMs });
 }
 
-/** What the write step says of the road: the address to send from and what goes under the words, or why the mail app. */
+/**
+ * What the write step says of the road: the address to send from and what goes under the words, or why it can't go, in
+ * words and, where it is the mailbox, by its code (`why`), which the page chooses its press by.
+ */
 export interface LeadEmailOffer {
   from: string | null;
+  why: LeadEmailWhy | null;
   why_not: string | null;
   foot: string | null;
 }
 
-const MAIL_APP: LeadEmailOffer = { from: null, why_not: null, foot: null };
+const NO_ROAD: LeadEmailOffer = { from: null, why: null, why_not: null, foot: null };
 
 /**
  * Why the workspace can't send a cold email now, as a sequence's run is held (its billing, its month's allowance), and
@@ -113,12 +117,12 @@ export async function getLeadEmailOffer(
   try {
     const now = Date.now();
     const road = await roadOf(ctx, lead, now);
-    if (!road.from) return { ...MAIL_APP, why_not: W.whyNot[road.why] };
+    if (!road.from) return { ...NO_ROAD, why: road.why, why_not: W.whyNot[road.why] };
     const held = await workspaceRefusal(lead.tenant_id, now);
-    if (held) return { ...MAIL_APP, why_not: held };
+    if (held) return { ...NO_ROAD, why_not: held };
     const db = serviceDb();
     const refused = draftRefusalOf(await draftFactsOf(db, lead.tenant_id, lead.id));
-    if (refused) return { ...MAIL_APP, why_not: leadEmailRefusalOf(refused) };
+    if (refused) return { ...NO_ROAD, why_not: leadEmailRefusalOf(refused) };
     const [slots, stored] = await Promise.all([
       findLeadSlots(db, lead.tenant_id, lead.id),
       getStoredConfig(ctx.supabase, lead.tenant_id),
@@ -137,10 +141,15 @@ export async function getLeadEmailOffer(
       own: reachOutSignatureOf(parseTenantConfig(stored ?? null)),
       unsubscribeUrl: null,
     });
-    return { from: road.from.address, why_not: null, foot: [laid.signature, laid.footer].filter(Boolean).join("\n\n") };
+    return {
+      from: road.from.address,
+      why: null,
+      why_not: null,
+      foot: [laid.signature, laid.footer].filter(Boolean).join("\n\n"),
+    };
   } catch (e) {
     log.error("lead_email_offer_unread", { tenant_id: lead.tenant_id, lead_id: lead.id, error: e });
-    return MAIL_APP;
+    return NO_ROAD;
   }
 }
 

@@ -147,6 +147,22 @@ test("a mailbox needing its owner speaks up over a running sequence", async () =
   assert.equal(note.headline, "Your mailbox needs reconnecting");
 });
 
+test("a workspace whose only sequence a list feeds, with no search, hears it too (a search or a sequence)", async () => {
+  const ctx = contextOf({
+    lead_searches: [],
+    mailbox_connections: [{ ...connected, state: "reconnect" }],
+    sequence_steps: [root({ lead_search_id: null })],
+  });
+  const { note } = await noteOf(ctx);
+  assert.equal(note.headline, "Your mailbox needs reconnecting");
+  assert.equal(note.needs, "settings");
+});
+
+test("a workspace that has started no cold email, no search and no sequence, is never asked about it", async () => {
+  const ctx = contextOf({ lead_searches: [], mailbox_connections: [{ ...connected, state: "reconnect" }] });
+  assert.deepEqual(await noteOf(ctx), { note: null });
+});
+
 test("before the first sequence, saying what you sell is one of the things Today counts", async () => {
   const { note } = await noteOf(contextOf({ mailbox_connections: [connected] }));
   assert.equal(note.headline, "1 thing before your first email");
@@ -182,7 +198,7 @@ test("a sequence with no one new is the page's news, not a line on Today every m
 });
 
 test("the note is asked once as Today lands, again as the day moves, and at most once a minute", async () => {
-  // Today keeps what it read before it makes the day of it: the note asks only whether that holds a search.
+  // The note asks its own read as it is drawn, whatever Today has read.
   await applyToday().catch(() => undefined);
   fresh();
   const draw = () => again(() => globalThis.React.createElement(ColdEmailNote));

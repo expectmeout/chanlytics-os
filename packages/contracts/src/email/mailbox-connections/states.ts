@@ -250,11 +250,15 @@ export function mailboxBouncesHold(counts: Pick<MailboxCounts, "sent" | "bounced
  */
 export function mailboxHoldOf(mailboxCounts: MailboxCounts | null): MailboxHold | null {
   if (!mailboxCounts) return null;
-  const of = Math.max(mailboxCounts.sent, MAILBOX_HOLD_COUNT_FLOOR);
   if (mailboxCounts.complained > 0) return "complaint";
   if (mailboxBouncesHold(mailboxCounts)) return "bounces";
-  if (mailboxCounts.unsubscribed * 100 > MAILBOX_HOLD_PERCENT * of) return "unsubscribes";
+  if (mailboxUnsubscribesHold(mailboxCounts)) return "unsubscribes";
   return null;
+}
+
+/** Whether the people who unsubscribed hold a mailbox: past 3% of what it sent, of the floor at least, as bounces are. */
+export function mailboxUnsubscribesHold(counts: Pick<MailboxCounts, "sent" | "unsubscribed">): boolean {
+  return counts.unsubscribed * 100 > MAILBOX_HOLD_PERCENT * Math.max(counts.sent, MAILBOX_HOLD_COUNT_FLOOR);
 }
 
 /* ------------------------------------------------------------------------------------------------- the words */

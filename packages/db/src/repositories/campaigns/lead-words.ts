@@ -7,19 +7,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { valueAt, type LeadEmailText, type LeadStepWordsDto, type TenantId, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
+import { idChunksOf as chunksOf } from "../../shared/id-chunks";
 import { readAllRows } from "../../shared/paged";
 import { answer, type DoorResult } from "./reach-out/leads";
 
 type Db = SupabaseClient<Database>;
-
-/** How many ids one `in` list carries: two hundred keep a request line under the gateway's 8 KiB (414). */
-const IDS_IN_CHUNK = 200;
-const chunksOf = (ids: readonly string[]): string[][] => {
-  const unique = [...new Set(ids)];
-  return Array.from({ length: Math.ceil(unique.length / IDS_IN_CHUNK) }, (_, i) =>
-    unique.slice(i * IDS_IN_CHUNK, (i + 1) * IDS_IN_CHUNK),
-  );
-};
 
 /** What the door answers: the send it held against a claim, where one stands, and the words that stood before, for Undo. */
 export interface LeadWordsAnswer {

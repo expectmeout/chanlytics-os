@@ -32,9 +32,12 @@ const KINDS: { value: ToldKind; label: string }[] = [
   { value: "reply", label: TOLD_CARD.kinds.reply },
 ];
 
-/** A part's parts, as the server composed them for this workspace, or the answer's, which no read composes. */
-function useToldParts(open: boolean, kind: ToldKind): ToldPart[] | null {
-  const [parts, setParts] = useState<Partial<Record<ToldKind, ToldPart[]>>>({});
+/**
+ * A part's parts, as the server composed them for this workspace, or the answer's, which no read composes; null while
+ * read, and "failed" where the read failed or was refused, which the sheet says, with Try again (`retry`).
+ */
+function useToldParts(open: boolean, kind: ToldKind): { parts: ToldPart[] | null | "failed"; retry: () => void } {
+  const [parts, setParts] = useState<Partial<Record<ToldKind, ToldPart[] | "failed">>>({});
   // Closed, it lets go of what it read: a save on the page changes the prompt, so the next opening reads it again.
   useEffect(() => {
     if (!open) setParts({});
@@ -42,17 +45,20 @@ function useToldParts(open: boolean, kind: ToldKind): ToldPart[] | null {
   useEffect(() => {
     if (!open || kind === "reply" || parts[kind]) return;
     let live = true;
-    api()("GET settings/reach-out/told", { query: { kind } }).then(
-      (r) => {
-        if (live && r.ok) setParts((was) => ({ ...was, [kind]: r.data.parts }));
-      },
-      () => {},
-    );
+    const failed = () => {
+      if (live) setParts((was) => ({ ...was, [kind]: "failed" }));
+    };
+    api()("GET settings/reach-out/told", { query: { kind } }).then((r) => {
+      if (!live) return;
+      if (r.ok) setParts((was) => ({ ...was, [kind]: r.data.parts }));
+      else failed();
+    }, failed);
     return () => {
       live = false;
     };
   }, [open, kind, parts]);
-  return kind === "reply" ? replyToldParts() : (parts[kind] ?? null);
+  const retry = () => setParts(({ [kind]: _gone, ...rest }) => rest);
+  return { parts: kind === "reply" ? replyToldParts() : (parts[kind] ?? null), retry };
 }
 
 /** A part's line: its name, whose words they are, and its share as one thin bar where one is true. */
@@ -117,8 +123,8 @@ export function ToldRow({ canEdit }: { canEdit: boolean }) {
   const fold = useRecordFold("told", { dirty: false });
   useEffect(() => recFolds.drawn("told"), []);
   const [kind, setKind] = useState<ToldKind>("words");
-  const parts = useToldParts(fold.open, kind);
-  const shares = parts ? toldShares(parts) : null;
+  const { parts, retry } = useToldParts(fold.open, kind);
+  const shares = parts && parts !== "failed" ? toldShares(parts) : null;
   return (
     <>
       <RecordRow
@@ -143,7 +149,7 @@ export function ToldRow({ canEdit }: { canEdit: boolean }) {
           foot={
             <span data-foot-pair>
               <Button size="sm" onClick={fold.close} data-testid="rec-told-done">
-                Done
+                {TOLD_CARD.done}
               </Button>
             </span>
           }
@@ -155,6 +161,13 @@ export function ToldRow({ canEdit }: { canEdit: boolean }) {
             </p>
             {parts === null ? (
               <p className="bt-fold-note">…</p>
+            ) : parts === "failed" ? (
+              <p className="bt-fold-note" data-testid="rec-told-unread">
+                {TOLD_CARD.unread}{" "}
+                <LinkButton onClick={retry} data-testid="rec-told-again">
+                  {TOLD_CARD.again}
+                </LinkButton>
+              </p>
             ) : (
               parts.map((p, i) => (
                 <RecordDisclosure

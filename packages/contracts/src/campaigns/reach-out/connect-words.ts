@@ -1,14 +1,18 @@
 /**
  * What connecting a mailbox says, on Cold email and on New, the two places a sequence to leads needs one. Apart from the
- * page's words, since a contracts module rides whole into every page that imports it.
+ * page's words, since a contracts module rides whole into every page that imports it. Its numbers are the ramp's.
  */
+import { MAILBOX_RAMP } from "../../email/mailbox-standing";
+
 export const COLD_EMAIL_CONNECT_WORDS = {
+  /** Where Google Workspace is got: a personal address's sheet and Not on Google Workspace? point there. */
+  helpUrl: "https://workspace.google.com/",
   title: "Connect your mailbox",
   sub: "Chanlytics sends your emails from your own address, so replies come straight back to you.",
   google: "Connect Google",
   cancel: "Cancel",
   promises: [
-    ["Starts at 10 a day", "And rises as it sends, so emails reach inboxes"],
+    [`Starts at ${MAILBOX_RAMP[0].perDay} a day`, "And rises as it sends, so emails reach inboxes"],
     ["Replies land in your Inbox here", "And you're told as they arrive"],
     ["You approve the first run", "Nothing goes out before that"],
   ],
