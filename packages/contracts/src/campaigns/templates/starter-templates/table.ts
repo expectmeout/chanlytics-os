@@ -1,4 +1,7 @@
-/** Starter templates: table. */
+/**
+ * Starter templates: table. The set in the order a composer opens on, then what it replaced. The starters about a
+ * person's own visit are visits.ts, and the retired ones retired.ts.
+ */
 
 import {
   BUSINESS,
@@ -13,16 +16,12 @@ import {
   OFFER_ES,
   PROPOSAL,
   PROPOSAL_ES,
-  REVIEW,
-  REVIEW_ES,
-  SERVICE,
-  SERVICE_ES,
   STOP_EN,
   STOP_ES,
-  WHEN,
-  WHEN_ES,
   type StarterTemplate,
 } from "./shapes";
+import { RETIRED_STARTERS } from "./retired";
+import { VISIT_STARTERS } from "./visits";
 
 export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
   /* ---- The set (2 Oct 2026), in the order a composer opens on ---- */
@@ -88,124 +87,46 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
       },
     },
   },
+  // About a person's own visit: visits.ts.
+  ...VISIT_STARTERS,
   {
-    key: "visit_reminder",
-    name: "visit_reminder",
-    title: "Visit reminder",
-    purpose: "for the day before an appointment",
+    // Someone sent the booking link who has not booked (decision 0119): one follow-up the day after, with the link
+    // again. About their own ask, with no offer and no price, so it is utility, as the proposal follow-up is. A week's
+    // rest keeps this message's own link from starting the next one (contracts ASK_REST_DAYS).
+    key: "booking_follow_up",
+    name: "booking_follow_up",
+    title: "Booking follow-up",
+    purpose: "for someone sent the booking link who has not booked",
     category: "utility",
-    trigger: "visit_tomorrow",
+    trigger: "asked_no_booking",
     texts: {
       en_US: {
-        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. If you need to change it, just reply here.",
+        body: "Hi {{1}}, it's {{2}}. Still want to book? Here's the link again: {{3}}. Or reply here and we'll help.",
         footer: null,
-        slots: [FIRST, BUSINESS, WHEN, SERVICE],
+        slots: [FIRST, BUSINESS, LINK],
       },
       es: {
-        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde aquí.",
+        body: "Hola {{1}}, te escribimos de {{2}}. ¿Todavía quieres reservar? Aquí está el enlace otra vez: {{3}}. O responde aquí y te ayudamos.",
         footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, WHEN_ES, SERVICE_ES],
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES],
       },
     },
     email: {
       en_US: {
-        subject: "Your appointment {{3}}",
-        body: "Hi {{1}},\n\nA reminder of your appointment at {{2}} {{3}} for {{4}}.\n\nIf you need to change it, just reply to this email.",
+        subject: "Still want to book with {{2}}?",
+        body: "Hi {{1}},\n\nStill want to book? Here's the link again: {{3}}\n\nOr reply to this email and we'll help.",
       },
       es: {
-        subject: "Tu cita {{3}}",
-        body: "Hola {{1}}:\n\nTe recordamos tu cita en {{2}} {{3}} para {{4}}.\n\nSi necesitas cambiarla, responde a este correo.",
+        subject: "¿Todavía quieres reservar con {{2}}?",
+        body: "Hola {{1}}:\n\n¿Todavía quieres reservar? Aquí está el enlace otra vez: {{3}}\n\nO responde a este correo y te ayudamos.",
       },
     },
     sms: {
       en_US: {
-        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. Reply here if you need to change it.",
+        body: "Hi {{1}}, it's {{2}}. Still want to book? Here's the link again: {{3}} Or reply here and we'll help.",
       },
       es: {
-        // Spanish texts keep to the letters the carriers send plainly (é, ñ, ¿ but not á, í, ó, ú), so each goes as one part.
-        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde a este mensaje.",
-      },
-    },
-  },
-  {
-    // About the visit they just had, and nothing else: no offer and no booking push, so it is utility and reaches a
-    // yes to texts. Their reply opens WhatsApp's 24 hours, inside which the receptionist may say anything.
-    key: "after_visit_check",
-    name: "after_visit_check",
-    title: "How did it go",
-    purpose: "for the day after a visit",
-    category: "utility",
-    trigger: "visited",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out.",
-        footer: null,
-        slots: [FIRST, BUSINESS],
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. ¿Qué tal fue todo? Si algo no está bien, responde aquí y lo solucionamos.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES],
-      },
-    },
-    email: {
-      en_US: {
-        subject: "How did everything go?",
-        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. How did everything go?\n\nIf anything isn't right, just reply to this email and we'll sort it out.",
-      },
-      es: {
-        subject: "¿Qué tal fue todo?",
-        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. ¿Qué tal fue todo?\n\nSi algo no está bien, responde a este correo y lo solucionamos.",
-      },
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out.",
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. ¿Qué tal fue todo? Si algo no te ha gustado, responde a este mensaje y lo solucionamos.",
-      },
-    },
-  },
-  {
-    // The day after's other message (10 Oct 2026): the thank-you with a review ask, the link the Google listing keeps.
-    // About the appointment they just had, with no offer and no booking push, so it is utility like How did it go. It is
-    // offered only where the listing keeps a review link (startersOffered), as its slot is filled from nothing else, and
-    // How did it go stays the moment's own: what a composer opens on, and what a campaign picks when nothing is picked.
-    key: "after_visit_review",
-    name: "after_visit_review",
-    title: "After the appointment, with a review ask",
-    purpose: "for the day after an appointment, asking for a review",
-    category: "utility",
-    trigger: "visited",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}. If anything wasn't right, reply here and we'll sort it out.",
-        footer: null,
-        slots: [FIRST, BUSINESS, REVIEW],
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Si tienes un minuto, tu reseña ayuda a otros a encontrarnos: {{3}}. Si algo no estuvo bien, responde aquí y lo solucionamos.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, REVIEW_ES],
-      },
-    },
-    email: {
-      en_US: {
-        subject: "Thanks for coming to {{2}}",
-        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}\n\nIf anything wasn't right, just reply to this email and we'll sort it out.",
-      },
-      es: {
-        subject: "Gracias por venir a {{2}}",
-        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. Si tienes un minuto, tu reseña ayuda a otros a encontrarnos: {{3}}\n\nSi algo no estuvo bien, responde a este correo y lo solucionamos.",
-      },
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. A review helps others find us: {{3}} If anything wasn't right, reply here.",
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Tu reseña ayuda a otros a encontrarnos: {{3}} Si algo no estuvo bien, responde a este mensaje.",
+        body: "Hola {{1}}, te escribimos de {{2}}. ¿Quieres reservar? Este es el enlace: {{3}} O responde a este mensaje y te ayudamos.",
       },
     },
   },
@@ -368,144 +289,6 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
     },
   },
 
-  /* ---- Retired (2 Oct 2026): never offered again, kept so a workspace that added one still reads it ---- */
-  {
-    key: "winback_offer",
-    name: "winback_offer",
-    // Called apart from the set's own Win-back, which a workspace that has this one sees listed beside it.
-    title: "Win-back (earlier)",
-    purpose: "for anyone quiet 30 days",
-    category: "marketing",
-    trigger: "quiet_30",
-    retired: { by: "winback_reply", why: "It sent people to a link; its place asks for a reply." },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back — pick a time that suits you here: {{3}} and we'll take care of the rest.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK],
-      },
-      es: {
-        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantaría volver a atenderte — elige la hora que mejor te venga aquí: {{3}} y nosotros nos ocupamos del resto.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES],
-      },
-    },
-  },
-  {
-    key: "welcome_new",
-    name: "welcome_new",
-    title: "Welcome",
-    purpose: "for anyone new this week",
-    category: "marketing",
-    trigger: "new_week",
-    retired: {
-      by: null,
-      why: "The receptionist answers a first contact itself; as an offer, a welcome reached nobody new.",
-    },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, welcome to {{2}}! This is our WhatsApp — message us here any time to book, move or ask about an appointment. Book whenever you're ready: {{3}} and we'll take it from there.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK],
-      },
-      es: {
-        body: "Hola {{1}}, ¡bienvenido/a a {{2}}! Este es nuestro WhatsApp — escríbenos aquí cuando quieras para reservar, cambiar o preguntar por una cita. Reserva cuando quieras: {{3}} y nosotros nos encargamos del resto.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES],
-      },
-    },
-  },
-  {
-    key: "save_our_number",
-    name: "save_our_number",
-    title: "Save our number",
-    purpose: "for anyone who only ever phoned",
-    category: "marketing",
-    trigger: "phoned_only",
-    retired: {
-      by: "call_text",
-      why: "Its people only ever phoned, so none could have said yes to offers; the call's text does its work during the call.",
-    },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thanks for calling {{2}}. Save this number — on WhatsApp you can book, reschedule or ask us anything in a message, and we answer fast. Book any time: {{3}} or just write to us here.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK],
-      },
-      es: {
-        body: "Hola {{1}}, gracias por llamar a {{2}}. Guarda este número — por WhatsApp puedes reservar, cambiar tu cita o preguntarnos lo que quieras, y respondemos rápido. Reserva cuando quieras: {{3}} o escríbenos aquí.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES],
-      },
-    },
-  },
-  {
-    key: "monthly_offer",
-    name: "monthly_offer",
-    title: "This month's offer (earlier)",
-    purpose: "for everyone who said yes, once a month",
-    category: "marketing",
-    trigger: "everyone_monthly",
-    retired: { by: "this_months_offer", why: "It promised that spaces were limited, which a business may not mean." },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} — spaces are limited.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, OFFER, LINK],
-      },
-      es: {
-        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aquí: {{4}} — las plazas son limitadas.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES],
-      },
-    },
-  },
-  {
-    key: "after_visit",
-    name: "after_visit",
-    title: "After the visit",
-    purpose: "for the day after a visit",
-    category: "marketing",
-    trigger: "visited",
-    retired: {
-      by: "after_visit_check",
-      why: "Asking them to book again made it an offer, which reached only a yes to offers; its place asks how it went.",
-    },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thank you for coming to {{2}} yesterday — we hope you love the result. When you're ready for your next appointment, pick a time here: {{3}}.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK],
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}} — esperamos que te encante el resultado. Cuando quieras tu próxima cita, elige la hora aquí: {{3}}.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES],
-      },
-    },
-  },
-  {
-    // The row this replaced was hand-written straight into one workspace's database, marked approved, with no
-    // meta_id: an approval Meta had never given, so every send of it failed, and it failed for every other workspace
-    // by not existing at all.
-    key: "booking_link",
-    name: "booking_link",
-    title: "Booking link",
-    purpose: "for a caller who asks to book",
-    category: "utility",
-    trigger: null,
-    retired: { by: "call_text", why: "The call's text sends the link and names the business's WhatsApp too." },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} — pick any time that suits you.",
-        footer: null,
-        slots: [FIRST, BUSINESS, LINK],
-      },
-      es: {
-        body: "Hola {{1}}, te escribimos de {{2}}. Aquí tienes el enlace para reservar tu cita: {{3}} — elige la hora que mejor te venga.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES],
-      },
-    },
-  },
+  /* ---- Retired (2 Oct 2026): retired.ts ---- */
+  ...RETIRED_STARTERS,
 ];

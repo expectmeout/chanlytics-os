@@ -137,13 +137,14 @@ const lessChannels = (schema) => {
 };
 /**
  * A new playbook's `starter` (12 Oct 2026): one optional key among the starters of the moments it may be proposed on,
- * none the set replaced, in the moments' order.
+ * none the set replaced, in the moments' order. Ask proposes on no moment an occasion starts yet (decision 0119), so
+ * their three starters are none of its choices: New and Messages offer them.
  */
 const STARTER = {
   type: "string",
   enum: [
     ...new Set(
-      MOMENT_TRIGGERS.filter((m) => !(m.id in MOMENTS_RETIRED)).flatMap((m) =>
+      MOMENT_TRIGGERS.filter((m) => !(m.id in MOMENTS_RETIRED) && m.kind !== "occasion").flatMap((m) =>
         startersForTrigger(m.id).flatMap((s) => (s.retired ? [] : [s.key])),
       ),
     ),
