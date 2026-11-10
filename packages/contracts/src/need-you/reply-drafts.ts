@@ -17,12 +17,27 @@ export const REPLY_DRAFT_KINDS = ["reply", "brief"] as const;
 export type ReplyDraftKind = (typeof REPLY_DRAFT_KINDS)[number];
 
 /**
+ * What a thread keeps (conversation_drafts.kind): those two, and the note a step on the person arrives with (decision
+ * 0120, D7: the check-back a not-now asked for, or a first note to whom a wrong person named). A step's note is the reply
+ * job's alone to write, and no reply box reads it as its own.
+ */
+export const KEPT_DRAFT_KINDS = [...REPLY_DRAFT_KINDS, "step"] as const;
+export type KeptDraftKind = (typeof KEPT_DRAFT_KINDS)[number];
+
+/**
  * The edition of what a draft is written by (the draft audience's rules in compose.ts, and the code's checks: edge
  * drafts/writer.ts). Kept on every draft: a draft from an earlier edition is no draft, and the sweep writes it again
  * within minutes. Moved with any change to them: #2081 changed the pitch's rule and left the edition alone, so the
  * sentences written before it stood. 5: the receptionist's brain writes every reply (decision 0093).
  */
 export const REPLY_DRAFT_RULES = 5;
+
+/**
+ * The edition a step's note is kept under (kind `step`, decision 0120): its own, so a page a deploy behind, which reads
+ * only drafts of REPLY_DRAFT_RULES and knows no third kind, leaves it out rather than read it as the thread's reply, and
+ * the hold drafts' sweep never takes one for its own to write again.
+ */
+export const STEP_NOTE_RULES = 1;
 
 /**
  * Where a draft stands (conversation_drafts.state, 00538): being written, ready to use, not a customer's so no reply was
@@ -103,12 +118,16 @@ export interface ReplyDraftWords {
    * written for it. Absent from a server a deploy behind, and from a draft kept before the rules said it.
    */
   pitch?: string;
+  /** A step's note (kind `step`, decision 0120): the step it was written for, as person_notes keeps it. */
+  step?: string;
+  /** And whom it is to, where that is not the thread's own: the address a wrong person named. */
+  to?: string;
 }
 
 /** A draft kept on a thread, as the read and the write answer it. */
 export interface ReplyDraftDto {
   conversation_id: string;
-  kind: ReplyDraftKind;
+  kind: KeptDraftKind;
   /** The customer's message it answers: a draft for an older one is written again, since they have said more. */
   for_message_id: string | null;
   words: ReplyDraftWords;

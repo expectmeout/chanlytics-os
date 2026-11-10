@@ -24,7 +24,7 @@ import {
   newConditionsOf,
   newListOf,
   peopleRoute,
-  sequenceModesFor,
+  sequenceStartModesFor,
   sequenceRoute,
   zonedInputValue,
   type ConsentChannel,
@@ -681,14 +681,14 @@ export function TimingSheet(p: {
   );
 }
 
-/** Your OK: how each batch after the first is decided; a sequence to leads never sends on its own. */
+/** Your OK: how each batch after the first is decided; a sequence to leads starts held or asked (decision 0120). */
 export function OkSheet(p: {
   open: boolean;
   draft: NewDraftDto;
   onMode: (m: SequenceMode) => void;
   onClose: () => void;
 }) {
-  const modes = sequenceModesFor(p.draft.audience === "leads" ? "leads" : null);
+  const modes = sequenceStartModesFor(p.draft.audience === "leads" ? "leads" : null);
   return (
     <PickSheet open={p.open} title={W.draft.yourOk} sub={W.sheets.okSub} onClose={p.onClose} testid="sq-nw-ok">
       <div className="sq-nw-rows">

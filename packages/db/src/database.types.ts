@@ -7132,6 +7132,7 @@ export type Database = {
           opening: string | null
           reason: string | null
           rewrite_asked: Json | null
+          round: number
           said_at: string | null
           said_by: string | null
           send_at: string | null
@@ -7171,6 +7172,7 @@ export type Database = {
           opening?: string | null
           reason?: string | null
           rewrite_asked?: Json | null
+          round?: number
           said_at?: string | null
           said_by?: string | null
           send_at?: string | null
@@ -7210,6 +7212,7 @@ export type Database = {
           opening?: string | null
           reason?: string | null
           rewrite_asked?: Json | null
+          round?: number
           said_at?: string | null
           said_by?: string | null
           send_at?: string | null
@@ -7284,6 +7287,7 @@ export type Database = {
         Row: {
           after_days: number | null
           after_step_id: string | null
+          again_after_days: number | null
           cadence_days: number
           cap_per_run: number
           channels: string[]
@@ -7329,6 +7333,7 @@ export type Database = {
         Insert: {
           after_days?: number | null
           after_step_id?: string | null
+          again_after_days?: number | null
           cadence_days?: number
           cap_per_run?: number
           channels?: string[]
@@ -7374,6 +7379,7 @@ export type Database = {
         Update: {
           after_days?: number | null
           after_step_id?: string | null
+          again_after_days?: number | null
           cadence_days?: number
           cap_per_run?: number
           channels?: string[]
@@ -10782,9 +10788,18 @@ export type Database = {
         Args: { p_dry?: boolean; p_lead_ids: string[]; p_root_id: string }
         Returns: Json
       }
+      reach_out_again_count: {
+        Args: { p_days?: number; p_root_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      reach_out_again_set: {
+        Args: { p_days?: number; p_root_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       reach_out_audience:
         | {
             Args: {
+              p_again_after?: number
               p_include_unconfirmed?: boolean
               p_limit: number
               p_search_id: string
@@ -10842,6 +10857,16 @@ export type Database = {
       reach_out_check_take: {
         Args: { p_at?: string; p_cap: number; p_tenant_id: string }
         Returns: boolean
+      }
+      reach_out_comes_back: {
+        Args: {
+          p_after_days: number
+          p_lead_ids: string[]
+          p_tenant_id: string
+        }
+        Returns: {
+          lead_id: string
+        }[]
       }
       reach_out_day_due: {
         Args: { p_limit: number; p_now: string }
@@ -11338,6 +11363,7 @@ export type Database = {
           opening: string | null
           reason: string | null
           rewrite_asked: Json | null
+          round: number
           said_at: string | null
           said_by: string | null
           send_at: string | null
@@ -11391,6 +11417,7 @@ export type Database = {
           opening: string | null
           reason: string | null
           rewrite_asked: Json | null
+          round: number
           said_at: string | null
           said_by: string | null
           send_at: string | null
@@ -11517,6 +11544,7 @@ export type Database = {
           opening: string | null
           reason: string | null
           rewrite_asked: Json | null
+          round: number
           said_at: string | null
           said_by: string | null
           send_at: string | null
@@ -11745,6 +11773,7 @@ export type Database = {
           opening: string | null
           reason: string | null
           rewrite_asked: Json | null
+          round: number
           said_at: string | null
           said_by: string | null
           send_at: string | null

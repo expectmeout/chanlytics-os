@@ -156,13 +156,13 @@ test("its end: a day on the business's clock, today or later, and null clears it
   assert.equal(W.untilDay, "An end is a day, written YYYY-MM-DD.");
 });
 
-test("its mode: one of the three a sequence takes, set where it differs; Send it is no mode for a sequence to leads; a mode it holds already is no change", async () => {
+test("its mode: one of the three a sequence takes, a sequence to leads too (0120), set where it differs; a mode it holds already is no change", async () => {
   assert.deepEqual(await judge({ mode: "ask" }), { set: { mode: "ask" }, was: { mode: "veto" } });
   assert.deepEqual(await judge({ mode: "veto" }), { set: {}, was: {} });
   for (const no of ["never", "sometimes", 1, ""]) await refusedWith(judge({ mode: no }), W.modeWhich);
   const leads = { ...ROW, name: "Movers in Austin", trigger: "lead_first" };
   assert.deepEqual(await judge({ mode: "ask" }, leads), { set: { mode: "ask" }, was: { mode: "veto" } });
-  await refusedWith(judge({ mode: "auto" }, leads), W.modeLeads);
+  assert.deepEqual(await judge({ mode: "auto" }, leads), { set: { mode: "auto" }, was: { mode: "veto" } });
 });
 
 test("an undo writes back the end and the mode the door recorded, the end past or not: nothing clears an end when it passes, so what a change held may be past by its undo; its shape is still judged, and a change that is no undo still names a day to come", async () => {

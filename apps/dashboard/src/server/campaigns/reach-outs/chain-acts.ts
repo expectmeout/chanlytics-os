@@ -42,6 +42,8 @@ import {
   sendSaid,
 } from "@chanlytics/db/campaigns";
 import { emitEvent } from "@chanlytics/db/events";
+import { wordsSeenByMember } from "@chanlytics/db/workspace";
+import { logAndGoOn } from "@chanlytics/log";
 import type { MailboxConnectionRow } from "@chanlytics/db/email";
 import { mailboxSignatureOf } from "@chanlytics/channels/email";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -183,8 +185,11 @@ export async function saveChain(
   member: Member,
   input: ReachOutChainInput,
   rootId: string | null,
-  /** A draft's record (00459): an email still to write (no words yet) is kept as it is, and Start asks for it. */
-  opts: { unwritten?: boolean } = {},
+  /**
+   * A draft's record (00459): an email still to write (no words yet) is kept as it is, and Start asks for it.
+   * `wordsShown`: the press that makes a new chain showed every email whole (a card of Ask's, decision 0120).
+   */
+  opts: { unwritten?: boolean; wordsShown?: boolean } = {},
 ): Promise<ReachOutSavedDto> {
   if (rootId === null) await refuseWithoutMailbox(ctx, member.tenantId, input.owner_sends);
   else await refuseTurningToHand(ctx, member.tenantId, rootId, input.owner_sends);
@@ -218,8 +223,27 @@ export async function saveChain(
     });
     return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked ?? 0, start: null };
   }
+  // The press of an Ask card that showed every email whole is the member's OK of those words (decision 0120, as D3 of
+  // the answers canvas is for a customer's sequence): each step's words are taken as seen before the first run is asked
+  // for, so it goes as Before each batch says and no second yes is asked for the same words. Where the door is not on
+  // this database, or a step could not be marked, that step's first run waits as it did.
+  const seen =
+    opts.wordsShown && ctx.via === "ask"
+      ? await Promise.all(
+          saved.step_ids.map((id) =>
+            wordsSeenByMember(ctx.supabase, member.tenantId, id).catch(logAndGoOn("wordsSeenByMember", false)),
+          ),
+        )
+      : [];
   const start = startOf(await runPlaybookNow(member.tenantId, saved.root_id, ctx.userId));
-  return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: 0, start };
+  const wordsOk = seen.length > 0 && seen.every(Boolean);
+  return {
+    root_id: saved.root_id,
+    step_ids: saved.step_ids,
+    rechecked: 0,
+    start,
+    ...(wordsOk ? { words_ok: true } : {}),
+  };
 }
 
 /**

@@ -4,11 +4,14 @@
  * (where from, and the mailboxes ticked under it, decision 0077; the most a day; every batch of first emails waiting for
  * an OK, and the follow-ups' own mode, decision 0064; the name it signs with and what its emails end with; the footer
  * every email carries). Each change is the chain's own save (use-chain.ts), the auto-add switch at once, and the mode
- * the campaign's own verb (playbook_change), with its receipt and undo.
+ * the campaign's own verb (playbook_change), with its receipt and undo. And when no one answers (decision 0120): written to
+ * once, or tried again after 90 days, saved at once, with who would come back and from when.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  againMonthOf,
   LEAD_BUILD_WORDS,
+  REACH_OUT_AGAIN_DAYS,
   REACH_OUT_DRAFTS_PER_DAY,
   REACH_OUT_LANGUAGE,
   addressOf,
@@ -24,6 +27,7 @@ import {
   SEQUENCE_MODE_WORDS,
   sequenceModesFor,
   whyFrom,
+  type SequenceAgainDto,
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
@@ -34,7 +38,7 @@ import { Picker } from "../../../kit/picker/picker";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
 import { focusAsDrawn, gate, navigate, routeDoor, type FrameFlash } from "../../../frame-verbs";
-import { pressed } from "../verbs";
+import { pressed, sequenceVerbs } from "../verbs";
 import { cmChevron } from "../../parts/picks";
 import { reachOuts } from "../../reach-out/surface";
 import { brainOf } from "../../templates/words";
@@ -70,6 +74,64 @@ function useHeldNow(listId: string | null): number | null {
     };
   }, [listId]);
   return reach ? Math.max(0, reach.with_unconfirmed - reach.ready) : null;
+}
+
+/**
+ * When no one answers (decision 0120, D6): written to once, or tried again after 90 days, with who would come back and from
+ * when, read as the sheet opens; the switch saves at once and says the door's refusal where there is one.
+ */
+function NoAnswer({ rec, flash }: { rec: SequenceRecordDto } & Pick<RunsSheetProps, "flash">) {
+  const id = rec.sequence.id;
+  const [again, setAgain] = useState<SequenceAgainDto | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void sequenceVerbs
+      .again(id)
+      // A read that fails leaves the switch as it is and the count unsaid, never a number it did not read.
+      .catch(() => null)
+      .then((r) => {
+        if (live && r?.ok) setAgain(r.data);
+      });
+    return () => {
+      live = false;
+    };
+  }, [id]);
+  const on = !!again?.again_after_days;
+  const set = async (want: boolean) => {
+    setBusy(true);
+    const r = await sequenceVerbs.setAgain(id, want ? REACH_OUT_AGAIN_DAYS : null);
+    setBusy(false);
+    if (r.ok) setAgain(r.data);
+    else flash({ tone: "danger", msg: <>{r.message}</> });
+  };
+  const month = againMonthOf(again?.first_at, rec.timezone);
+  return (
+    <section className="ld-runs-sec">
+      <p className="ld-runs-h">{R.noAnswer}</p>
+      <div className="ld-runs-box">
+        <RunsRow
+          k={R.again}
+          sub={
+            <>
+              {on ? `${R.againOn} ${R.againAsks}` : R.once}
+              {again ? <> {R.comeBack(again.count, month)}</> : null}
+            </>
+          }
+          testid="ld-runs-again"
+          end={
+            <Switch
+              checked={on}
+              onCheckedChange={(want) => void set(want)}
+              readOnly={!again || busy}
+              label={R.again}
+              data-testid="ld-runs-again-switch"
+            />
+          }
+        />
+      </div>
+    </section>
+  );
 }
 
 /** The search new ready leads join from: the one it adds from now, else the finder search most of its leads came from. */
@@ -152,8 +214,9 @@ function WhoJoins({ rec, lc }: { rec: SequenceRecordDto; lc: LeadChain }) {
 
 /**
  * Before each batch (decisions 0064 and 0077, amended 9 Nov 2026): one choice, for first emails and follow-ups alike,
- * the words the Cold email page says it in. Held for a stop or asked for, never sent on its own to leads, changed by the
- * campaign's own verb (playbook_change) with its receipt and undo; a batch of new words asks first, so a first run does.
+ * the words the Cold email page says it in. Held for a stop, asked for, or sent on its own once its owner picks that
+ * here (decision 0120: a new one starts held or asked), changed by the campaign's own verb (playbook_change) with its
+ * receipt and undo; a batch of new words asks first whatever is picked, so a first run does.
  */
 function BeforeEachBatch({ rec, flash, moved }: { rec: SequenceRecordDto } & Pick<RunsSheetProps, "flash" | "moved">) {
   return (
@@ -439,6 +502,7 @@ export function LeadRunsSheet({ open, rec, lc, flash, moved, onClose }: RunsShee
           {footer ? <FooterLines /> : null}
         </div>
       </section>
+      <NoAnswer rec={rec} flash={flash} />
       {offered === 0 ? (
         <p className="ld-note">
           <LinkButton onClick={() => navigate(addressOf({ kind: "channel" }))} {...gate("approve")}>

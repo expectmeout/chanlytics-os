@@ -3022,7 +3022,7 @@
     },
     {
       "table": "sequence_sends",
-      "name": "sequence_sends_one_first",
+      "name": "sequence_sends_own_once",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
@@ -3031,6 +3031,41 @@
         },
         {
           "column": "lead_id"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "isNull": {
+              "column": "sequence_id"
+            }
+          },
+          {
+            "cmp": "=",
+            "left": {
+              "column": "state"
+            },
+            "right": {
+              "value": "queued"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "sequence_sends",
+      "name": "sequence_sends_one_first_a_round",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "lead_id"
+        },
+        {
+          "column": "round"
         }
       ],
       "where": {
@@ -3072,38 +3107,6 @@
                   ]
                 }
               ]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "table": "sequence_sends",
-      "name": "sequence_sends_own_once",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "lead_id"
-        }
-      ],
-      "where": {
-        "and": [
-          {
-            "isNull": {
-              "column": "sequence_id"
-            }
-          },
-          {
-            "cmp": "=",
-            "left": {
-              "column": "state"
-            },
-            "right": {
-              "value": "queued"
             }
           }
         ]
@@ -3556,6 +3559,9 @@
     },
     "sequence_enrollments": {
       "state": "in"
+    },
+    "sequence_sends": {
+      "round": 1
     }
   },
   "unmodelled": []

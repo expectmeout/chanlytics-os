@@ -37,6 +37,7 @@ import type { pg } from "../../shared/pg.js";
 import type { Logger } from "../../shared/log.js";
 import { HAND_OUT_SPREAD_SECONDS } from "../../shared/sweep-rotation.js";
 import { tellReachOutDays } from "./day-numbers.js";
+import { remindColdEmailWaits } from "./waits-reminder.js";
 import { cancelBroadcastFrom, recordSystemDecision, listWaitingPlaybookRuns } from "@chanlytics/db/campaigns";
 import { handOutStepsDue } from "@chanlytics/db/jobs";
 import { cancelBroadcast } from "@chanlytics/core";
@@ -64,7 +65,7 @@ const DAY_PASSED_BATCH = 50;
 /** When the tick stops ending missed days' runs, so the hand-out keeps its time: what is left ends next hour. */
 const DAY_PASSED_UNTIL_MS = 5_000;
 
-type SweepCounts = Record<"moments" | "steps" | "told" | "ended", number>;
+type SweepCounts = Record<"moments" | "steps" | "told" | "ended" | "reminded", number>;
 
 /** One tick: its database, its moment, its log, what it has counted so far, and when it began. */
 interface Tick {
@@ -172,7 +173,7 @@ async function tellSkipped(
 
 export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Response> {
   const now = new Date();
-  const out: SweepCounts = { moments: 0, steps: 0, told: 0, ended: 0 };
+  const out: SweepCounts = { moments: 0, steps: 0, told: 0, ended: 0, reminded: 0 };
   await endRunsWhoseDayPassed({ db, now, L, out, started });
   try {
     out.moments = await handOutStepsDue(db, {
@@ -197,6 +198,8 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
   }
   // The day's reach-out numbers at 6 PM in each business's zone (Reach out Part 6, H12): a line in the bell, once.
   out.told = await tellReachOutDays(db, now, L, started + REACH_OUT_DAY_UNTIL_MS);
+  // Cold email that waits for an OK, reminded each morning by each business's own clock (decision 0120): a line, once.
+  out.reminded = await remindColdEmailWaits(db, now, L, started + REACH_OUT_DAY_UNTIL_MS);
   L.info("playbooks_swept", { ...out });
   return json(200, { ok: true, ...out });
 }

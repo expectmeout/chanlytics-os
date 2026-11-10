@@ -56,7 +56,7 @@ function ports(over = {}) {
       mode: "veto",
       maySpend: true,
       alreadyRan: async () => false,
-      chainWaits: async () => false,
+      waitingSteps: async () => new Set(),
       audience: async () => [lead("a"), lead("b", { region: "CA" })],
       followers: async () => [],
       passOver: async (rootId, leads) => (made.passed.push([rootId, leads]), leads.length),
@@ -277,7 +277,7 @@ test("a run its owner sends by hand is never said to go, and never held", async 
 
 test("nothing is assembled while a run of the chain waits, a chain is paused, or the workspace may not spend", async () => {
   const cases = [
-    [{ chainWaits: async () => true }, root(), { outcome: "held", reason: "waiting_for_you", planned: 0 }],
+    [{ waitingSteps: async () => new Set(["p1"]) }, root(), { outcome: "held", reason: "waiting_for_you", planned: 0 }],
     [{}, root({ state: "paused" }), { outcome: "off", reason: "paused", planned: 0 }],
     [{ maySpend: false }, root(), { outcome: "held", reason: "billing", planned: 0 }],
     [{ alreadyRan: async () => true }, root(), { outcome: "empty", reason: "already_ran", planned: 0 }],
@@ -298,6 +298,66 @@ test("nothing is assembled while a run of the chain waits, a chain is paused, or
     assert.deepEqual(await runReachOut(p, step, day), want, JSON.stringify(want));
     assert.deepEqual([made.runs, made.sends, made.told, made.recorded], [[], [], [], []], "nothing written");
   }
+});
+
+test("a sequence its owner set to send on its own goes at once, with no hold and no bell; its new words still wait (0120)", async () => {
+  const inHours = Date.parse("2026-09-28T15:00:00Z"); // 10 AM in Austin
+  const alone = ports({ mode: "auto", now: () => inHours, audience: async () => [lead("a")] });
+  const out = await runReachOut(alone.ports, root({ words_ok_at: SEEN }), day);
+  assert.deepEqual(out, { outcome: "sent", planned: 1 });
+  assert.equal(alone.made.runs[0].state, "scheduled");
+  assert.equal(alone.made.sends[0].send_at, "2026-09-28T15:00:00.000Z", "no thirty minutes: nobody is to stop it");
+  assert.deepEqual(alone.made.going, [], "nothing to be told of in time to stop");
+  assert.deepEqual(alone.made.told, [], "and nothing asked");
+  assert.deepEqual(alone.made.held, []);
+  assert.deepEqual(
+    alone.made.recorded,
+    [[alone.made.runs[0].id, "scheduled", { planned: 1, skipped: 0 }]],
+    "on the record, as the system's send",
+  );
+  // Its words new to its owner: the first batch of them waits, whatever the sequence says.
+  const fresh = ports({ mode: "auto", now: () => inHours, audience: async () => [lead("a")] });
+  const first = await runReachOut(fresh.ports, root({ words_ok_at: null }), day);
+  assert.deepEqual(first, { outcome: "held", reason: "waiting_for_you", planned: 1 });
+  assert.equal(fresh.made.runs[0].state, "pending_approval");
+});
+
+test("a run that waits holds new first emails and its own step, never the follow-ups to people already written to (0120)", async () => {
+  const inHours = Date.parse("2026-09-28T15:00:00Z");
+  const follower = {
+    ...lead("a"),
+    contact_id: "ka",
+    parent_message_id: "ma",
+    facts: { lead_stage: "ready", suppressed: false, wrote_back: false },
+    bounced: false,
+  };
+  const after = root({
+    id: "p2",
+    trigger: "after_step",
+    fed_by: "list",
+    lead_search_id: null,
+    after_playbook_id: "p1",
+    after_days: 3,
+    words_ok_at: SEEN,
+  });
+  const held = { outcome: "held", reason: "waiting_for_you", planned: 0 };
+  // A first email waits for its owner: no new business is written to, and the follow-up still goes.
+  const firstWaits = () =>
+    ports({ now: () => inHours, waitingSteps: async () => new Set(["p1"]), followers: async () => [follower] });
+  assert.deepEqual(await runReachOut(firstWaits().ports, root({ words_ok_at: SEEN }), day), held);
+  const goesOn = firstWaits();
+  assert.deepEqual(await runReachOut(goesOn.ports, after, day), { outcome: "sent", planned: 1 });
+  assert.equal(goesOn.made.runs.length, 1, "the people already written to are not left waiting behind it");
+  // A follow-up waits for its owner: its own step makes no second run, and no new business is written to either.
+  const nudgeWaits = () =>
+    ports({ now: () => inHours, waitingSteps: async () => new Set(["p2"]), followers: async () => [follower] });
+  const again = nudgeWaits();
+  assert.deepEqual(await runReachOut(again.ports, after, day), held, "under Ask me they never pile up");
+  assert.equal(again.made.runs.length, 0);
+  assert.deepEqual(await runReachOut(nudgeWaits().ports, root({ words_ok_at: SEEN }), day), held);
+  // Another follow-up step of the chain is held by neither.
+  const third = { ...after, id: "p3", after_playbook_id: "p2" };
+  assert.deepEqual(await runReachOut(nudgeWaits().ports, third, day), { outcome: "sent", planned: 1 });
 });
 
 test("leads with no hour to be written in, or no room in any mailbox, make no run; a run another tick made first plans nothing", async () => {

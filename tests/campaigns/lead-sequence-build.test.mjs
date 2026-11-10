@@ -795,7 +795,8 @@ test("How it runs draws the mailboxes' ticks, every batch of first emails waitin
   const follow = byTestId(tree, "ld-runs-approves-pick");
   assert.deepEqual(
     follow.props.groups[0].options.map((o) => o.label),
-    ["Hold it 30 minutes so I can stop it", "Ask me"],
+    // All three once it exists (decision 0120): a sequence to leads may be set to send on its own here.
+    ["Send it", "Hold it 30 minutes so I can stop it", "Ask me"],
   );
   // Ends with: the signature, saved with the chain.
   const ends = byTestId(tree, "ld-runs-ends-pick");

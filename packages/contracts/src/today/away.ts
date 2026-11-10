@@ -12,8 +12,10 @@
  * Earlier and can dismiss one, the card lists the unread ones alone, minus the queue's (task 5.2, D1-notice-two-drawings).
  */
 import { addressOf } from "../activity/record-address";
+import { sequenceRoute } from "../campaigns/sequences/address";
 import { reviewNoticeIsAbout } from "../google/google";
 import { HOUR_MS } from "../shared/time";
+import { plural } from "../shared/words";
 import { conversationOfNeedsKey, callOfKey, kindListDoor } from "./notifications/feed";
 import { unreadCount } from "./notifications/feed-input";
 
@@ -439,6 +441,26 @@ export interface TodaySinceAnsweredDto {
   last: { who: string; text: string; at: string; conversation_id?: string | null } | null;
 }
 
+/**
+ * What the workspace's sequences sent since the member last looked (decision 0120, D8): each sequence that sent, how
+ * many of its messages left and when the last did. A sequence set to send on its own tells nobody as it goes, so this
+ * line is where its owner sees that it did. Counted off what left, never what was planned. Null where it was not read.
+ */
+export interface TodaySinceSentDto {
+  sequences: Array<{
+    id: string;
+    name: string;
+    /** How many of its messages left since. */
+    sent: number;
+    /** When the last of them left, ISO. */
+    last_at: string;
+    /** A sequence to leads: its messages are cold emails to businesses, never to customers. */
+    leads: boolean;
+  }>;
+  /** More sequences sent than the read names (it reads the newest batches): the count is then "at least". */
+  more: boolean;
+}
+
 /** Where a row that names someone opens: the thread the last reply went on, where the read says it. */
 const threadDoorOf = (id: string | null | undefined) => (id ? addressOf({ kind: "conversation", id }) : null);
 
@@ -525,14 +547,38 @@ function sinceClock(atMs: number, tz: string, nowMs: number): string {
 }
 
 /**
+ * What the sequences sent since, as rows of Since you looked: one for each sequence that sent, the latest first, each
+ * opening its sequence, and one bit for them all ("12 sent"), pushed onto `bits`. None where nothing left.
+ */
+function sentRows(sent: TodaySinceSentDto | null, bits: string[], at: (ms: number) => string): TodaySinceRowVM[] {
+  const went = (sent?.sequences ?? []).filter((q) => q.sent > 0);
+  if (went.length === 0) return [];
+  const total = went.reduce((n, q) => n + q.sent, 0);
+  bits.push(`${total}${sent?.more ? "+" : ""} sent`);
+  return [...went]
+    .sort((a, b) => Date.parse(b.last_at) - Date.parse(a.last_at))
+    .map((q) => ({
+      key: `sent-${q.id}`,
+      glyph: "send",
+      title: `${q.name} sent ${q.sent}`,
+      sub: q.leads ? plural(q.sent, "cold email") : plural(q.sent, "message"),
+      at: at(Date.parse(q.last_at)),
+      to: sequenceRoute(q.id),
+    }));
+}
+
+/**
  * Since you looked (Today in three zones, 2 Nov 2026): one line under the head's sentence, since the member last opened
  * the bell or marked it read (the notifications' seen_at): what the receptionist answered, with the last of its words,
- * then what was booked, who asked to stop and a new review, each in a few words, and a line each once opened, with its
- * receipts and the time it last happened. Null where the member never looked, or nothing happened since.
+ * what the sequences sent, a row each (decision 0120), then what was booked, who asked to stop and a new review, each in
+ * a few words, and a line each once opened, with its receipts and the time it last happened. Null where the member never
+ * looked, or nothing happened since.
  */
 export function todaySince(input: {
   seenAt: string | null;
   answered: TodaySinceAnsweredDto | null;
+  /** What the sequences sent since (decision 0120); absent from a server before it, which says nothing of them. */
+  sent?: TodaySinceSentDto | null;
   notes: readonly SinceNoteLike[];
   /** The reviews To do offers to answer: their news is To do's row, never said here again (google.ts reviewNoticeIsAbout). */
   covered: ReadonlyArray<{ id: string; reviewId?: string | null }>;
@@ -558,6 +604,7 @@ export function todaySince(input: {
       to: threadDoorOf(last?.conversation_id),
     });
   }
+  rows.push(...sentRows(input.sent ?? null, bits, at));
   for (const [kind, k] of Object.entries(SINCE_KINDS)) {
     const notes = input.notes
       .filter((n) => n.kind === kind && typeof n.at === "number" && n.at > seen)

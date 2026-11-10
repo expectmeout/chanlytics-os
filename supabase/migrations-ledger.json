@@ -75,16 +75,11 @@
     "00589": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
     "00590": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
     "00591": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
-    "00600": "reserved for cm-cold-alone (cold email runs itself, #2227) (Claude Video/docs/migration-claims.md, 10 Nov 2026); not on main when 00605 was numbered above it",
-    "00601": "reserved for cm-cold-alone (cold email runs itself, #2227) (Claude Video/docs/migration-claims.md, 10 Nov 2026); not on main when 00605 was numbered above it",
-    "00602": "reserved for cm-cold-alone (cold email runs itself, #2227) (Claude Video/docs/migration-claims.md, 10 Nov 2026); not on main when 00605 was numbered above it",
-    "00603": "reserved for cm-cold-alone (cold email runs itself, #2227) (Claude Video/docs/migration-claims.md, 10 Nov 2026); not on main when 00605 was numbered above it",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227) (Claude Video/docs/migration-claims.md, 10 Nov 2026); not on main when 00605 was numbered above it",
-    "00606": "claimed by #2227 (cold email runs itself, decision 0120), open when 00611 landed; its files take these numbers when it lands",
-    "00607": "claimed by #2227 (cold email runs itself, decision 0120), open when 00611 landed; its files take these numbers when it lands",
-    "00608": "claimed by #2227 (cold email runs itself, decision 0120), open when 00611 landed; its files take these numbers when it lands",
-    "00609": "claimed by #2227 (cold email runs itself, decision 0120), open when 00611 landed; its files take these numbers when it lands",
-    "00610": "claimed by #2227 (cold email runs itself, decision 0120), open when 00611 landed; its files take these numbers when it lands"
+    "00600": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -613,6 +608,11 @@
     "00598_an_occasion_enrols_a_person.sql": "9cfa94dafb856473697e7c9d126833fe69ea8f6be2c09122af64907be0911cc8",
     "00599_occasions_are_handed_out.sql": "c4391d6988bdf5f642c497ed7076b57284d5ad7700b02f0d8a59fc66f10b0558",
     "00605_the_texts_sweep_hands_out_a_job_a_workspace.sql": "507b8d0ac3f82077101de0eccd8536e6f4c5c91446675a1f4bcec892cf3f85eb",
+    "00606_a_sequence_to_leads_may_send_on_its_own.sql": "7a108b0eb0780f93ef231543493f92e15ec52546e74cab7fd9f471aaa1f71f4b",
+    "00607_a_step_s_note_is_kept_on_its_thread.sql": "818b56d864755b19988684cd0d343b6d0744b2e68d84aa51a7de9c79826af40e",
+    "00608_a_business_that_never_answered_may_be_tried_again.sql": "b9839cfb5166ad29f5fb352992620d492284af454acb9aff22ec637796745f43",
+    "00609_one_first_email_a_lead_a_round.sql": "d37c6f66d0f76acbc71c28de068df03cd74ba468f74292d13ed233da0178421f",
+    "00610_the_first_round_s_index_goes.sql": "ea417eb33693239a6dda2a1216204f38f780b266d439b18682df8fb7f53ad80e",
     "00611_a_business_posts_what_it_made.sql": "e4a93b7e9771f5fb978c42ba6fe9fbb804dbfa7e27ae6e053114d1d43e7dabb1"
   }
 }

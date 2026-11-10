@@ -168,6 +168,8 @@ export const LOG_EVENTS = [
   "channel_quality_unreadable",
   "chosen_line_failed",
   "chosen_line_started",
+  "cold_email_waits_failed",
+  "cold_email_waits_reminded",
   "cron_key_unavailable",
   "db_answer_at_cap",
   "deadman_alert_undelivered",

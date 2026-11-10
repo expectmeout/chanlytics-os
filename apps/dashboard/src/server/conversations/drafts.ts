@@ -1,7 +1,9 @@
 import "server-only";
 import {
   AppError,
+  KEPT_DRAFT_KINDS,
   REPLY_DRAFT_RULES,
+  STEP_NOTE_RULES,
   REPLY_DRAFTS_NEWEST_MAX,
   REPLY_DRAFT_STATES,
   DRAFT_CHANGE_NAMED_MONEY,
@@ -50,6 +52,9 @@ function wordsFrom(json: Json): ReplyDraftWords {
       : null,
     asks: strings(value.asks),
     ...(typeof value.pitch === "string" && value.pitch.trim() ? { pitch: value.pitch } : {}),
+    // A step's note (decision 0120): the step it was written for, and whom it is to where that is not the thread's own.
+    ...(typeof value.step === "string" && value.step ? { step: value.step } : {}),
+    ...(typeof value.to === "string" && value.to ? { to: value.to } : {}),
   };
 }
 
@@ -57,7 +62,8 @@ function wordsFrom(json: Json): ReplyDraftWords {
  * Whether a kept draft was written under the rules drafts are written by now (REPLY_DRAFT_RULES): one from an earlier edition
  * is no draft, left out of the read, and the sweep writes it again within minutes.
  */
-const underTheRules = (r: ConversationDraftRow): boolean => r.rules === REPLY_DRAFT_RULES;
+const underTheRules = (r: ConversationDraftRow): boolean =>
+  r.rules === (r.kind === "step" ? STEP_NOTE_RULES : REPLY_DRAFT_RULES);
 
 const stateOf = (s: string | null): ReplyDraftState | undefined => (isOneOf(REPLY_DRAFT_STATES, s) ? s : undefined);
 
@@ -66,11 +72,11 @@ function dtoOf(conversationDraft: ConversationDraftRow, signed: string | null = 
   const state = stateOf(conversationDraft.state);
   return {
     conversation_id: conversationDraft.conversation_id,
-    kind: conversationDraft.kind === "brief" ? "brief" : "reply",
+    kind: isOneOf(KEPT_DRAFT_KINDS, conversationDraft.kind) ? conversationDraft.kind : "reply",
     for_message_id: conversationDraft.for_message_id,
     words: wordsFrom(conversationDraft.words),
     made_at: conversationDraft.made_at,
-    ...(signed && conversationDraft.kind !== "brief" ? { signed } : {}),
+    ...(signed && conversationDraft.kind === "reply" ? { signed } : {}),
     ...(state ? { state } : {}),
     used: conversationDraft.used ?? [],
     why_failed: conversationDraft.why_failed,
@@ -93,7 +99,7 @@ export async function listDraftsKept(ctx: RouteContext, member: Pick<Member, "te
   ]);
   const read = kept.filter(underTheRules);
   const rows = ids ? read : read.slice(0, REPLY_DRAFTS_NEWEST_MAX);
-  const replies = [...new Set(rows.filter((r) => r.kind !== "brief").map((r) => r.conversation_id))];
+  const replies = [...new Set(rows.filter((r) => r.kind === "reply").map((r) => r.conversation_id))];
   const signed = await getSignedByThread(ctx, member.tenantId, ids ?? replies);
   return {
     drafts: rows.map((r) => dtoOf(r, signed.get(r.conversation_id) ?? null)),

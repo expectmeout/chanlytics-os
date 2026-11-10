@@ -4,7 +4,7 @@
  * sequences/record-acts.tsx, since a run that went is read in Reports). Sent's list went to each
  * sequence's History (decision 0060, D3): a run is opened from there, or from a link, a bell row or Ask's card.
  */
-import { runTooLate, type BroadcastVM } from "@chanlytics/contracts";
+import { isReachOutRun, runTooLate, type BroadcastVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../../../surface-values";
 import { BC_LIVE, BC_NONE, BcRunVerbs, BroadcastDetail } from "../run";
 import { bcStopAsked } from "../run-sheet";
@@ -53,7 +53,12 @@ export function bcSheetOf({
     // Those an OK can still send: one whose day has passed waits on nobody (contracts runTooLate), and is neither counted
     // in "1 of N" nor opened next (the framework's rating, 19 Oct 2026).
     const days = approvalDaysNow();
-    const queue = openRows.filter((r) => r.state === "pending_approval" && !runTooLate(r, days));
+    // And those of its own kind: cold email's runs are one row of what waits and a customer campaign's another (decision
+    // 0120, the dashboard's waitRowsOf), so each row's walk is its own runs and ends where its row does.
+    const cold = isReachOutRun(row.audience);
+    const queue = openRows.filter(
+      (r) => r.state === "pending_approval" && !runTooLate(r, days) && isReachOutRun(r.audience) === cold,
+    );
     const at = queue.findIndex((r) => r.id === row.id);
     const rest = queue.filter((r) => r.id !== row.id);
     const next = rest[Math.min(Math.max(at, 0), rest.length - 1)] || null;

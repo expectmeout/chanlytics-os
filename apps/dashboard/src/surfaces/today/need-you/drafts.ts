@@ -13,6 +13,7 @@ import {
   REPLY_DRAFTS_IDS_MAX,
   draftViewOf,
   type ReplyDraftDto,
+  type KeptDraftKind,
   type ReplyDraftKind,
   type ReplyDraftView,
 } from "@chanlytics/contracts";
@@ -26,7 +27,7 @@ import { surfaceValue } from "../../surface-values";
  */
 export interface DraftWant {
   conversationId: string;
-  kind: ReplyDraftKind;
+  kind: KeptDraftKind;
   forMessageId: string | null;
   expected: boolean;
   askedAtMs: number | null;
@@ -79,7 +80,10 @@ export function draftViewNow(w: DraftWant): ReplyDraftView {
  * The call the drafts make (POST conversations/[id]/draft): a member's change, or their Try again, kept by the edge on the
  * row every page hears. The reads shared in flight are kept: nothing else a page reads moves with a draft.
  */
-const postDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction?: string, given?: string) =>
+/** A draft a member asks to be written: a reply or a call's brief, never a step's note, which only the reply's job writes. */
+type DraftAsked = { conversationId: string; kind: ReplyDraftKind };
+
+const postDraft = (w: DraftAsked, instruction?: string, given?: string) =>
   api()("POST conversations/[id]/draft", {
     params: { id: w.conversationId },
     body: { kind: w.kind, ...(instruction ? { instruction } : {}), ...(instruction && given?.trim() ? { given } : {}) },
@@ -92,10 +96,15 @@ const postDraft = (w: Pick<DraftWant, "conversationId" | "kind">, instruction?: 
  * the refusal is answered for the page to say.
  */
 async function askAgain(
-  w: Pick<DraftWant, "conversationId" | "kind">,
+  want: Pick<DraftWant, "conversationId" | "kind">,
   instruction?: string,
   given?: string,
 ): Promise<{ ok: true; words: string } | { ok: false; why: string }> {
+  // A step's note is the reply job's alone to write (decision 0120): a member changes it by hand, or says it to Ask as a
+  // reply on the thread.
+  const kind = want.kind;
+  if (kind === "step") return { ok: false, why: NEED_YOU_WORDS.couldNot };
+  const w: DraftAsked = { conversationId: want.conversationId, kind };
   const key = draftKeyOf(w);
   rewriting.add(key);
   tellDrafts();
@@ -113,6 +122,16 @@ export const rewriteDraft = (w: Pick<DraftWant, "conversationId" | "kind">, inst
 
 /** A draft that could not be written, asked for again. */
 export const tryDraftAgain = (w: Pick<DraftWant, "conversationId" | "kind">) => askAgain(w);
+
+/**
+ * The note a step arrives with (decision 0120, D7): its thread's kept draft of kind `step`, ready, written for this step.
+ * Null where none stands, and the step is the owner's to write, as before.
+ */
+export function stepNoteNow(conversationId: string | null, stepId: string | null | undefined): ReplyDraftDto | null {
+  if (!conversationId || !stepId) return null;
+  const kept = keptOf({ conversationId, kind: "step" });
+  return kept && kept.state === "ready" && kept.words.step === stepId && kept.words.text.trim() ? kept : null;
+}
 
 /**
  * The drafts these rows want, read where the workspace's newest did not hold them and were not all it keeps: one request,

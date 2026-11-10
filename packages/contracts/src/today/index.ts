@@ -11,6 +11,7 @@ export type {
   TodayAwayVM,
   TodaySinceAnsweredDto,
   TodaySinceRowVM,
+  TodaySinceSentDto,
   TodaySinceVM,
 } from "./away";
 export {

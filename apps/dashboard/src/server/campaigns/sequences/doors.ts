@@ -146,7 +146,8 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: TenantId, inp
         gap_days: result.gap_days,
         cadence_days: result.cadence_days,
         channels: result.channels,
-        // How its batches are decided, where New chose (decision 0064's modes; the door holds a leads sequence off auto).
+        // How its batches are decided, where New chose (decision 0064's modes; a leads sequence starts held or asked:
+        // contracts sequenceStartModesFor, and the door takes no other).
         ...(isSequenceMode(input.first.mode) ? { mode: input.first.mode } : {}),
       },
       then,

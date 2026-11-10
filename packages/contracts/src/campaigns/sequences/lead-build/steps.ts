@@ -10,6 +10,7 @@ import {
 } from "../../reach-out/rules";
 import { chainPaceOf } from "../../reach-out/sheet/chain";
 import { REACH_OUT_AFTER_DAYS, REACH_OUT_STEPS_MAX } from "../../reach-out/words/limits";
+import { dateFormat } from "../../../shared/time";
 import { REACH_OUT_SLOT_SET, type ReachOutSlot } from "../../reach-out/words/slots";
 import { plural } from "../../../shared/words";
 import { slotMentions } from "../../templates/slot-sets";
@@ -163,8 +164,29 @@ export const LEAD_BUILD_WORDS = {
     endsSignature: (address: string) => `${address}'s signature`,
     signatureHasLink: "Its link stays out of first emails, and of any that has a link already.",
     noName: "Write the name it ends with.",
+    /** When no one answers (decision 0120, D6): off unless its owner turns it on. */
+    noAnswer: "When no one answers",
+    again: "Try again after 90 days",
+    once: "Written to once. This stays off unless you turn it on.",
+    againOn:
+      "With new words, written from their listing as it is then. Never to anyone who said no, became a customer, or asked to be erased.",
+    againAsks: "The new words wait for your OK first, like any new words.",
+    /** Who would come back, and from when: "8 businesses would come back in February." */
+    comeBack: (n: number, month: string | null) =>
+      n === 0
+        ? "Nobody it wrote to would come back yet."
+        : `${n} ${n === 1 ? "business" : "businesses"} would come back${month ? ` in ${month}` : ""}.`,
   },
 } as const;
+
+/** How long a business that never answered waits before a sequence that tries again writes once more (decision 0120). */
+export const REACH_OUT_AGAIN_DAYS = 90;
+
+/** The month the first business tried again comes back in, by the business's clock: "February"; null with none. */
+export function againMonthOf(firstAt: string | null | undefined, tz: string): string | null {
+  const ms = firstAt ? Date.parse(firstAt) : Number.NaN;
+  return Number.isFinite(ms) ? dateFormat("en-US", { timeZone: tz, month: "long" }).format(new Date(ms)) : null;
+}
 
 /** A step's words cut into words and slots by name: a box's title and its lines, as the editor's chips name them. */
 export type LeadBuildPart = { kind: "text"; text: string } | { kind: "slot"; key: string; label: string };

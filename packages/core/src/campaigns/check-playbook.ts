@@ -351,14 +351,12 @@ export async function findUntil(
 }
 
 /**
- * The mode a change names (decision 0064): one of the three a sequence takes, and never Send it for a sequence to leads,
- * whose cold email waits for an OK or holds; undefined where the change names none.
+ * The mode a change names (decision 0064): one of the three a sequence takes, a sequence to leads among them since
+ * decision 0120 (Send it is its owner's choice on a sequence that exists); undefined where the change names none.
  */
-function patchMode(row: Pick<PlaybookPatchRow, "trigger">, v: unknown): SequenceMode | undefined {
+function patchMode(v: unknown): SequenceMode | undefined {
   if (v === undefined) return undefined;
   if (!isSequenceMode(v)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.modeWhich);
-  if (v === "auto" && triggerOf(row.trigger)?.kind === "reach_out")
-    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.modeLeads);
   return v;
 }
 
@@ -397,7 +395,7 @@ function holdsAlready(k: PlaybookPatchKey, to: unknown, held: unknown): boolean 
  * held to its bounds (PLAYBOOK_LIMITS; a name past PLAYBOOK_NAME_MAX is refused, never cut, so a card says exactly what
  * is stored), a cadence to the month's offer, a resume to a list that is not archived (by the port), its words to its
  * message's slots (patchParams), its end to a day today or later by the business's clock at `when.now`, its sequence's
- * mode to the three a sequence takes (patchMode, never Send it to leads), and a reach-out's step to its state, its mode
+ * mode to the three a sequence takes (patchMode), and a reach-out's step to its state, its mode
  * and, on its first step, its name (reachOutTakes; its record changes the rest). An undo (`when.undo`: PUT playbooks/:id naming the decision it undoes) writes
  * back what the door recorded, so its end is restored past or not, its shape still judged. It answers only what differs from the row as it stands,
  * `set`, and what each of those held, `was`; nothing that differs is `{ set: {}, was: {} }`, which the card refuses in
@@ -425,7 +423,7 @@ export async function checkPlaybookPatch(
     cadence_days: patchNumber("cadence_days", record.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, record.params),
     until: await findUntil(ports, record.until, when),
-    mode: patchMode(row, record.mode),
+    mode: patchMode(record.mode),
   };
   const held = patchHeldOf(row);
   const set: PlaybookPatch = {};

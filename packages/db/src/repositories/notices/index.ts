@@ -45,4 +45,5 @@ export {
   wasOptOutTold,
 } from "./notifications/kept";
 export type { KeptNotice } from "./notifications/kept";
-export { findAnsweredSince, findBellSeenAt, findContactName } from "./since-you-looked";
+export { findAnsweredSince, findBellSeenAt, findContactName, listSentSince } from "./since-you-looked";
+export type { SequenceSentSince } from "./since-you-looked";

@@ -973,6 +973,8 @@ body.ask-open .tb-ask .tb-ask-face {
   line-height: 1.45;
   color: var(--ink);
   overflow-wrap: anywhere;
+  /* A row may hold an email whole (a cold email's card): its paragraphs stay paragraphs. */
+  white-space: pre-line;
 }
 .ask-card-actions {
   display: flex;

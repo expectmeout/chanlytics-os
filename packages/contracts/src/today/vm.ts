@@ -13,7 +13,7 @@ import type { PreviewTriedDto } from "../previews/tried";
 import type { VisitWord } from "../shared/enums";
 import type { WaitingRun } from "../waits/waits";
 import type { MetricsSummaryDto } from "./metrics";
-import type { TodaySinceAnsweredDto } from "./away";
+import type { TodaySinceAnsweredDto, TodaySinceSentDto } from "./away";
 import type { TodayBackVM } from "./day/zone";
 
 export interface TodayNeedsRowVM {
@@ -371,7 +371,12 @@ export interface TodayVM {
    * what the receptionist answered since; the head's line folds the bell's news in beside it (today/away.ts todaySince).
    * Null where it was not read.
    */
-  since: { seen_at: string | null; answered: TodaySinceAnsweredDto | null } | null;
+  since: {
+    seen_at: string | null;
+    answered: TodaySinceAnsweredDto | null;
+    /** What the sequences sent since (decision 0120); absent from a server before it. */
+    sent?: TodaySinceSentDto | null;
+  } | null;
   /**
    * What the workspace calls an appointment (tenants.appointment_word, appointmentWordOf), as Today's own read says it:
    * the day, To do and Need you say it whether or not the playbooks are read, so a workspace with them off never reads a

@@ -24,8 +24,8 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   partner: "03a3b5059117a7f1",
   people: "3d3ed95dcd8b75f8",
   playbooks: null,
-  reach_outs: "59a505730fc25842",
-  reply_drafts: "6d9f07f975754283",
+  reach_outs: "2be2334e55e64b49",
+  reply_drafts: "af80977b5881c0c1",
   reports: "43d6fdb2d4f47f7d",
   reports_campaigns: "e2860e3713be5c03",
   reports_headline: "6186495ca6d7d2d8",
@@ -35,6 +35,6 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   sequences: "6b94b15e6e30a2a1",
   settings: "80422c8d1d3d6f75",
   setup: null,
-  today: "be03caae7342a6a7",
+  today: "5db3d5d032659841",
   today_pins: "d3fd87a670594687",
 };

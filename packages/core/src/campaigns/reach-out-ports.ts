@@ -22,6 +22,11 @@ export interface ReachOutStep {
   fed_by: "search" | "list";
   /** The chain's (its root's): its catch-all addresses are written to too, as its owner chose (Part 4, F9). */
   include_unconfirmed: boolean;
+  /**
+   * The chain's (its root's, decision 0120): after how many days a business that never answered is written to once more,
+   * or null, written to once. Absent from a row read before 00608.
+   */
+  again_after_days?: number | null;
   after_playbook_id: string | null;
   after_days: number | null;
   gap_minutes: number;
@@ -135,13 +140,20 @@ export interface ReachOutRunPorts {
   now(): number;
   /** The workspace's zone: a lead whose state has no zone keeps the business's hours. */
   workspaceZone: string;
-  /** Its sequence's mode (decision 0064): a sequence to leads holds each run for a stop (veto) or asks for each (ask). */
-  mode: "veto" | "ask";
+  /**
+   * Its sequence's mode (decision 0064): a sequence to leads holds each run for a stop (veto), asks for each (ask), or
+   * sends each on its own where its owner chose that on the sequence (auto, decision 0120).
+   */
+  mode: "veto" | "ask" | "auto";
   /** Whether the workspace may spend (contracts maySpend): cold email is a cost on the platform's account. */
   maySpend: boolean;
   alreadyRan(stepId: string, runFor: string): Promise<boolean>;
-  /** Whether a run of the chain waits for its owner: nothing more is made until they answer it. */
-  chainWaits(rootId: string): Promise<boolean>;
+  /**
+   * The steps of the chain with a run waiting for its owner's OK, by id (decision 0120): while any waits, no new
+   * business is written to, and a step makes no second run while one of its own waits; a follow-up to the people
+   * already written to is never held by a first email that waits.
+   */
+  waitingSteps(rootId: string): Promise<ReadonlySet<string>>;
   audience(step: ReachOutStep): Promise<ReachOutLead[]>;
   followers(step: FollowedStep): Promise<ReachOutFollower[]>;
   /**

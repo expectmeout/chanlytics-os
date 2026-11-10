@@ -1,4 +1,4 @@
-import { ReachOutChainSchema } from "@chanlytics/contracts";
+import { ReachOutMakeSchema } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/shared/route";
 import { saveChain } from "@/server/campaigns/reach-outs/chain-acts";
 import { load, readerContext } from "@/server/shared/reader";
@@ -12,7 +12,8 @@ import { reachOutChains } from "@/server/readers/playbooks";
  *      reachOutChains), so a tool of Ask's that will read the chains (none does yet) reads these.
  * POST /api/v1/reach-outs — a new chain over a search, saved whole by the service role after this route's role check
  *      and every word validated (R15), then its first run asked for now through the run-now door (R13); the answer
- *      says what that run did, with its reason (R14). Owner or operator.
+ *      says what that run did, with its reason (R14). A make that says its press showed every email whole
+ *      (`words_shown`, a card of Ask's) takes that press as the words' OK (decision 0120). Owner or operator.
  */
 export const GET = read({
   scope: workspace,
@@ -23,6 +24,7 @@ export const POST = write({
   scope: workspace,
   role: "operator",
   rate: "playbook",
-  input: ReachOutChainSchema,
-  handle: ({ ctx, member, input }) => saveChain(ctx, member, input, null),
+  input: ReachOutMakeSchema,
+  handle: ({ ctx, member, input: { words_shown: shown, ...chain } }) =>
+    saveChain(ctx, member, chain, null, { wordsShown: shown === true }),
 });

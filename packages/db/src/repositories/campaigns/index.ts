@@ -101,6 +101,8 @@ export {
   recordWhatsAppOffersStop,
 } from "./offers-answer";
 export type { LateCarrierStop } from "./offers-answer";
+export { findAheadOwed } from "./reach-out/ahead";
+export type { AheadAsked } from "./reach-out/ahead";
 export {
   readReachOutChainReport,
   readReachOutLines,
@@ -259,7 +261,14 @@ export type {
 } from "./reach-out/sheet";
 export { listSequenceMakes } from "./sequence-makes";
 export type { SequenceMake } from "./sequence-makes";
-export { aimSearchAt, cancelSequenceBatch, discardSequence, setChainSource } from "./sequences/batches";
+export {
+  aimSearchAt,
+  cancelSequenceBatch,
+  discardSequence,
+  findChainAgain,
+  setChainAgain,
+  setChainSource,
+} from "./sequences/batches";
 export {
   findSequencePlace,
   getPeopleHandRun,
@@ -338,11 +347,12 @@ export {
   listRunsGoingBetween,
   listRunsNamed,
   listStrandedRuns,
+  listWaitingLeadRuns,
   listWaitingPlaybookRuns,
   listWaitingRuns,
   recordSystemDecision,
 } from "./stranded-runs";
-export type { GoingRunRow, StrandedRun, WaitingPlaybookRun, WaitingRunRow } from "./stranded-runs";
+export type { GoingRunRow, StrandedRun, WaitingLeadRun, WaitingPlaybookRun, WaitingRunRow } from "./stranded-runs";
 export {
   countLiveRunsOfTemplate,
   findTemplateIn,

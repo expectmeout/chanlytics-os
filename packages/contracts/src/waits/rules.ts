@@ -17,7 +17,8 @@
  *   occasion_ask  a follow-up to someone sent the booking link waiting for an OK (0119): it names no day, so it waits
  *                 until answered
  *   batch_hold    a customer batch held for a stop: it goes at its time unless stopped
- *   leads_batch   a batch to leads waiting for an OK: it has no day to pass, so it waits until answered
+ *   leads_batch   a batch to leads waiting for an OK: it has no day to pass, so it waits until answered, and its owner is
+ *                 reminded each morning while it does (decision 0120); no new business is written to meanwhile
  *   held_email    an email the check held in a going reach-out run: it waits for the owner's say
  *   to_send       an email handed to its owner to send from their own inbox (00429)
  *   review_ask    a review's reply written and held for an Approve (step 6)
@@ -57,6 +58,8 @@ export interface WaitRule {
   ends: "at_its_time" | "end_of_its_day" | "end_of_sending_hours" | "end_of_its_time" | "never";
   /** The one act that answers it. */
   act: "stop" | "approve" | "answer" | "send";
+  /** Its owner is reminded each morning while it waits (decision 0120): a wait that never ends is never told only once. */
+  reminds?: true;
 }
 
 /** Each wait's rule, by what waits: the table every notice and row says its expiry from. */
@@ -69,7 +72,7 @@ export const WAIT_RULES: Record<WaitKind, WaitRule> = {
   soon_ask: { goes: "with_your_ok", ends: "end_of_its_time", act: "approve" },
   occasion_ask: { goes: "with_your_ok", ends: "never", act: "approve" },
   batch_hold: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
-  leads_batch: { goes: "with_your_ok", ends: "never", act: "approve" },
+  leads_batch: { goes: "with_your_ok", ends: "never", act: "approve", reminds: true },
   held_email: { goes: "by_you", ends: "never", act: "answer" },
   to_send: { goes: "by_you", ends: "never", act: "send" },
   review_ask: { goes: "with_your_ok", ends: "never", act: "approve" },
@@ -109,6 +112,8 @@ export function waitEndsWords(kind: WaitKind, at?: string | null): string {
     const before = at ? `before ${at} by your clock` : "before the day's sending hours end";
     return `Goes only if you approve it ${before}; after that it is skipped, and it does not reach them`;
   }
+  if (item.goes === "with_your_ok" && item.reminds)
+    return "Waits for your OK, and you are reminded each morning; no new business is written to until you give it";
   if (item.goes === "with_your_ok") return "Waits for your OK; nothing goes until you give it";
   if (item.act === "send") return "Waits for you to send it from your own inbox";
   return "Waits for you; nothing more goes until you answer";

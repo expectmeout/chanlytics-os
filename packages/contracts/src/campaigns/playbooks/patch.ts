@@ -71,8 +71,6 @@ export const PLAYBOOK_PATCH_WORDS = {
     `Before each batch: ${SEQUENCE_MODE_WORDS[to].choice}, where it was ${SEQUENCE_MODE_WORDS[was].choice}`,
   /** A mode that is none of the three (decision 0064). */
   modeWhich: "Before each batch is ask (Ask me), veto (Hold it for a stop) or auto (Send it).",
-  /** A mode a sequence to leads does not take: cold email never goes on its own. */
-  modeLeads: "A sequence to leads waits for your OK or holds each batch: it never sends on its own.",
   /** A mode a one-off does not take: pressing Send decided it. */
   modeOneOff: "A one-off goes as it was sent: it has no mode.",
   paused: "Nothing more runs until it is resumed",

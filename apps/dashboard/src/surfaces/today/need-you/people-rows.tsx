@@ -27,6 +27,7 @@ import type { Nav, VerbKind } from "../../waits/wait-rows";
 import { gate, type Flash } from "../shell";
 import { useDraft } from "./drafts";
 import { draftWantOf, opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
+import { stepNoteOf } from "./step-note";
 import { needYouLineOf, reviewStars } from "./sheet/row-line";
 
 /** What the section hands its rows. */
@@ -151,7 +152,8 @@ export function rowWords(row: TodayQueueRowVM) {
 /**
  * A row drawn short. Its verb is the page's coral where the focus took none (a reply that goes on its own: Stop is no coral), else
  * quiet (the canvas of 2 Nov 2026: Lea's reply going alone, and Try again on the first row waiting). A to-do's Done is the one short
- * verb that acts where it stands, with its toast and Undo: there is nothing to see first.
+ * verb that acts where it stands, with its toast and Undo: there is nothing to see first. A to-do that arrives with its note
+ * written opens instead, since its words are to be read before they go (decision 0120).
  */
 function shortRow(r: TodayQueueRowVM, c: NeedYouRowsCtx): ReactElement {
   const open = () => c.open(r.id);
@@ -162,7 +164,7 @@ function shortRow(r: TodayQueueRowVM, c: NeedYouRowsCtx): ReactElement {
       {...rowWords(r)}
       note=""
       cta={
-        r.kind === "step" && c.may
+        r.kind === "step" && c.may && !stepNoteOf(r)
           ? {
               label: r.cta.label,
               kind,

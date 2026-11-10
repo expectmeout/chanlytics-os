@@ -50,17 +50,30 @@ export const SEQUENCE_MODE_WORDS: Record<SequenceMode, { line: string; choice: s
 export const SEQUENCE_MODE_LABEL = "Before each batch";
 export const SEQUENCE_NEW_WORDS_ASK = "A batch of new words waits for your OK first, whatever this says.";
 
-/** The modes a sequence may take, by how it starts: one to leads never sends on its own (cold email waits or holds). */
-export function sequenceModesFor(starts: string | null | undefined): readonly SequenceMode[] {
+/**
+ * The modes a sequence that exists may take, by how it starts: every one of them. One to leads may send on its own
+ * since decision 0120, where its owner picks that on the sequence itself; until then cold email only waited or held.
+ * The one argument stays, so a page asks by the sequence it shows and a kind that takes fewer is one line here.
+ */
+export function sequenceModesFor(_starts: string | null | undefined): readonly SequenceMode[] {
+  return SEQUENCE_MODES;
+}
+
+/**
+ * The modes a NEW sequence may start as, by how it starts: one to leads starts held for a stop or asked for, never on
+ * its own (decision 0120: sending on its own is chosen for a sequence whose emails its owner has seen go, never as a
+ * default). What New's sheet and the Cold email page's row for new sequences offer.
+ */
+export function sequenceStartModesFor(starts: string | null | undefined): readonly SequenceMode[] {
   return starts === "leads" ? ["veto", "ask"] : SEQUENCE_MODES;
 }
 
 /**
  * What a new sequence starts as (decision 0064): its class's Autonomy row where that is a mode a sequence of its kind
- * takes, else ask. The database's sequence_mode_for (00462) says the same when it makes the sequence.
+ * starts as, else ask. The database's sequence_mode_for (00462) says the same when it makes the sequence.
  */
 export function newSequenceMode(classMode: string | null | undefined, starts: string | null | undefined): SequenceMode {
-  return isSequenceMode(classMode) && sequenceModesFor(starts).includes(classMode) ? classMode : "ask";
+  return isSequenceMode(classMode) && sequenceStartModesFor(starts).includes(classMode) ? classMode : "ask";
 }
 
 /**
@@ -77,8 +90,9 @@ export function batchModeOf(state: {
 }
 
 /**
- * Whether a cold email sequence's next batch waits for an OK: batchModeOf, where cold email never goes on its own, so
- * anything but a hold to stop asks. The one rule its pages, its leads' lines and its run say it by.
+ * Whether a cold email sequence's next batch waits for an OK: batchModeOf's ask (new words, or a sequence that asks for
+ * each). Held for a stop, or sent on its own where its owner set that on the sequence (decision 0120), it does not. The
+ * one rule its pages, its leads' lines and its run say it by.
  */
 export const coldBatchAsks = (state: { mode: string | null | undefined; words_ok_at: string | null | undefined }) =>
-  batchModeOf(state) !== "veto";
+  batchModeOf(state) === "ask";

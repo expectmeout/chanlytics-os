@@ -11,7 +11,7 @@ import {
   type PreviewTriedDto,
   type TodayVM,
 } from "@chanlytics/contracts";
-import { findAnsweredSince, findBellSeenAt, findContactName } from "@chanlytics/db/notices";
+import { findAnsweredSince, findBellSeenAt, findContactName, listSentSince } from "@chanlytics/db/notices";
 import { getTodayDoneCount } from "@chanlytics/db/people";
 import type { GoingRunRow, WaitingRunRow } from "@chanlytics/db/campaigns";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
@@ -76,12 +76,21 @@ export async function getSinceYouLooked(rc: ReaderContext): Promise<TodayVM["sin
     const db = rc.ctx.supabase;
     const seen = await findBellSeenAt(db, { tenantId: rc.tenantId, userId: rc.userId });
     if (!seen) return { seen_at: null, answered: null };
-    const result = await findAnsweredSince(db, { tenantId: rc.tenantId, since: seen });
+    // What the sequences sent since (decision 0120), read beside the answers: a read of it that fails is said in the log
+    // and leaves the line without it, never without the rest.
+    const [result, sent] = await Promise.all([
+      findAnsweredSince(db, { tenantId: rc.tenantId, since: seen }),
+      listSentSince(db, { tenantId: rc.tenantId, since: seen }).catch((err: unknown) => {
+        log.error("today_since_fetch_failed", { tenant_id: rc.tenantId, error: err });
+        return null;
+      }),
+    ]);
     const personName = result.last?.contact_id
       ? await findContactName(db, { tenantId: rc.tenantId, contactId: result.last.contact_id })
       : null;
     return {
       seen_at: seen,
+      sent,
       answered: {
         count: result.count,
         // One line, cut at a word under the quote's length, as every receipt is (contracts clipAtWord); a reply with no

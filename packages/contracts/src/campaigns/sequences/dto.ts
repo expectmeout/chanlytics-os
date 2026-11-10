@@ -371,6 +371,18 @@ export interface SequenceOneOffDto {
  * sequence on a moment or a list: who its next run reaches, counted as GET playbooks counts its first step's card (its
  * pool, for the channels it goes by), the most one run sends, and whether the workspace is paused (billing).
  */
+/**
+ * GET sequences/:id/again (decision 0120, D6): whether a sequence to leads writes once more to a business that never
+ * answered, after how many days (null: written to once), and who would come back if it did, and from when: the businesses
+ * its first email wrote to that the database's own rule lets back, the age aside (00608 reach_out_again_count).
+ */
+export interface SequenceAgainDto {
+  again_after_days: number | null;
+  count: number;
+  /** When the first of them comes back, at the days it is set to or would be; null with none. */
+  first_at: string | null;
+}
+
 export interface SequenceReachDto {
   /** Null where its moment could not be counted: the question then says when alone. */
   candidates: number | null;

@@ -2,13 +2,14 @@
  * Ask's cold email card (decision 0088 reached a campaign's card and not this one). The card is built by its own action's
  * handler (act/sequence/sequence.ts proposeColdEmail, its words act/leads/cold-email-card.ts), through the real registry
  * over a workspace in memory: with no mailbox connected there is no card, only what to connect (Ruben, 9 Nov 2026: a
- * mailbox is required); with one connected the mailboxes send, a row and no hold. The Line's rules for a card that does
- * hold (contracts holdsAlike, wordsLessHolds) stay held here, and the Line draws the sheet as it draws a campaign's,
- * EXECUTED on the stub React last.
+ * mailbox is required); with one connected the mailboxes send, a row and no hold. Every email is on the card whole, so
+ * its press is the OK of those words (decision 0120): the commit says so and the receipt says how the first run goes.
+ * The Line's rules for a card that does hold (contracts holdsAlike, wordsLessHolds) stay held here, and the Line draws
+ * the sheet as it draws a campaign's, EXECUTED on the stub React last.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { COLD_EMAIL_MAILBOX_UNREAD, COLD_EMAIL_NEEDS_MAILBOX } from "@chanlytics/contracts";
+import { COLD_EMAIL_MAILBOX_UNREAD, COLD_EMAIL_NEEDS_MAILBOX, PROPOSAL_SPECS } from "@chanlytics/contracts";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { holdsAlike, wordsLessHolds } from "@chanlytics/contracts";
@@ -31,7 +32,8 @@ const TZ = "America/New_York";
 const NOW = new Date("2026-11-03T01:05:00Z");
 const SEARCH = "64e5040f-ef56-4b74-9680-2d44026f4799";
 const HOLD = "Each email is handed to you to send from your own inbox.";
-const WAITS = "Its first run is planned once approved, and waits for your say before an email goes.";
+const PRESS_IS_OK =
+  "Approving is your OK of these emails: the first run is planned at once and goes as “Before each batch” says.";
 
 /** The 3 November turn's cold email, as the model asked for it: a first email, then one follow-up four days later. */
 const INPUT = {
@@ -122,9 +124,44 @@ test("with a mailbox connected nothing holds it: the mailboxes send, a row under
   assert.deepEqual(p.sheet.rows.map((r) => [r.label, r.value]).slice(3), [
     ["Pace", "One every 20 minutes"],
     ["From", "Your connected mailboxes"],
-    ["Sends", WAITS],
+    ["Sends", PRESS_IS_OK],
   ]);
   assert.match(p.summary, /, from your connected mailboxes, one every 20 minutes: /);
+});
+
+test("every email is on the card whole, so its press is the OK of those words: the commit says so, and the receipt how the first run goes", async () => {
+  const { card: p } = await card([CONNECTED]);
+  const shown = Object.fromEntries(p.sheet.rows.map((r) => [r.label, r.value]));
+  assert.equal(
+    shown["First email"],
+    `Subject: ${INPUT.steps[0].subject}\n\n${INPUT.steps[0].body}`,
+    "its subject and its words, as they will be sent",
+  );
+  assert.equal(shown["Email 2"], `After 4 days. A reply in the same thread\n\n${INPUT.steps[1].body}`);
+  assert.ok(
+    p.sheet.rows.every((r) => !r.aside),
+    "nothing is behind Details: the press turns on every row",
+  );
+  assert.equal(p.payload.words_shown, true);
+  const commit = PROPOSAL_SPECS.reach_out_make.commit(p, { settings: null });
+  assert.equal(commit.route, "POST reach-outs");
+  assert.equal(commit.body.words_shown, true, "the door is told the press showed the words");
+  assert.equal(commit.body.name, INPUT.name);
+  assert.equal(
+    PROPOSAL_SPECS.reach_out_make.receipt(p, { root_id: "r1", words_ok: true }),
+    "“Personal trainers · Austin” is saved, and its emails have your OK: its first run goes as “Before each batch” says.",
+  );
+  // A door that could not take the press as the OK (a database before it) says the first run waits, as it does.
+  assert.equal(
+    PROPOSAL_SPECS.reach_out_make.receipt(p, { root_id: "r1" }),
+    "“Personal trainers · Austin” is saved. Nothing goes until you OK the first emails. After that, each batch goes as Before each batch says on Cold email.",
+  );
+  // A card stored before this one says nothing of the words: its commit carries none, and its first run waits.
+  const { words_shown: _shown, ...older } = p.payload;
+  assert.equal(
+    "words_shown" in PROPOSAL_SPECS.reach_out_make.commit({ ...p, payload: older }, { settings: null }).body,
+    false,
+  );
 });
 
 test("asking to send them by hand changes nothing: the mailboxes send; one email alone has no Then", async () => {
@@ -169,9 +206,9 @@ test("the Line's rules see it: two such cards say the hold once over them, and t
 });
 
 // Last, since it puts a window on the global: the stub React draws the real card as the Line does (surfaces/ask/card.tsx).
-test("the Line draws it as it draws a campaign's: the rows, and Sends behind Details", async () => {
+test("the Line draws it as it draws a campaign's: the rows, with every email whole and nothing behind Details", async () => {
   const { card: p } = await card([CONNECTED]);
-  const { installStubReact, fresh, again, all, textOf, press, kitPages } = await import("../../_stub-react.mjs");
+  const { installStubReact, fresh, all, textOf, kitPages } = await import("../../_stub-react.mjs");
   installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
   Object.assign(globalThis.window, kitPages);
   Object.assign(globalThis, { canDo: () => true, gate: () => ({}) });
@@ -193,14 +230,16 @@ test("the Line draws it as it draws a campaign's: the rows, and Sends behind Det
   assert.deepEqual(all(tree, (n) => n.props?.className === "ask-spec-hold").map(textOf), [], "nothing holds it");
   const words = textOf(tree);
   assert.match(words, /To“Personal trainers · Austin”/);
-  assert.match(words, /First email“A quick question for \{business_name\}”/);
-  assert.match(words, /ThenAfter 4 days: a reply in the same thread/);
+  assert.match(words, /First emailSubject: A quick question for \{business_name\}/);
+  assert.match(words, /Would you be open to a short call this week or next\?/, "the first email's words, whole");
+  assert.match(words, /Email 2After 4 days\. A reply in the same thread/);
+  assert.match(words, /Just following up on my note below\./, "and the follow-up's");
   assert.match(words, /PaceOne every 20 minutes/);
-  assert.doesNotMatch(words, /Its first run is planned/, "Sends waits behind Details");
-  assert.doesNotMatch(words, /one every 20 minutes: /, "the summary is not drawn beside the sheet");
-  press(testid(tree, "ask-card-details")[0]);
   assert.match(
-    textOf(again(draw)),
-    /SendsIts first run is planned once approved, and waits for your say before an email goes\./,
+    words,
+    /SendsApproving is your OK of these emails/,
+    "what the press does is on the card, not behind Details",
   );
+  assert.doesNotMatch(words, /one every 20 minutes: /, "the summary is not drawn beside the sheet");
+  assert.equal(testid(tree, "ask-card-details").length, 0, "no row is aside, so there is nothing more to open");
 });

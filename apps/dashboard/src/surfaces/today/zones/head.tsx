@@ -154,6 +154,7 @@ function useSince(): TodaySinceVM | null {
   return todaySince({
     seenAt: vm.since.seen_at,
     answered: vm.since.answered,
+    sent: vm.since.sent ?? null,
     notes,
     covered: reviewsToAnswer(google, rests).map((r) => ({ id: r.id, reviewId: r.review_id })),
     tz: workspaceClock()?.zone() ?? "UTC",

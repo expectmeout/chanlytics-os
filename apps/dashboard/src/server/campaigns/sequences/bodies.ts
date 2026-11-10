@@ -201,6 +201,11 @@ export const LEAD_CHAIN_BODY = ReachOutChainSchema.omit({ search_id: true }).ext
   source_search_id: anId("Which search?").nullable().optional(),
 });
 
+/** POST sequences/:id/again: try a business that never answered again after these days, or never (decision 0120). */
+export const AGAIN_BODY = z.strictObject({
+  days: z.number().int().min(90, "After 90 days at the soonest.").max(365, "After a year at the latest.").nullable(),
+});
+
 /** POST sequences/:id/move: the lead that moves here, out of the sequence it stands in. */
 export const MOVE_BODY = z.strictObject({ lead_id: anId("Which lead?") });
 export type MoveBody = z.infer<typeof MOVE_BODY>;

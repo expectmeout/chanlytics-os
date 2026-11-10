@@ -424,6 +424,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // what waits in its runs back to the check.
   "POST sequences/[id]/leads": () => [reachOutsOverride, leadsOverride, sequencesOverride],
   "POST sequences/[id]/move": () => [...runsAndChains(), leadsOverride, sequencesOverride],
+  // Try again turned on or off (decision 0120): its first step's setting, and its words waiting for an OK once more, which
+  // its record and its row say.
+  "POST sequences/[id]/again": () => [sequencesOverride, reachOutsOverride],
   // Its save writes each step's words as a template, and its auto-add switch puts the search's ready leads in it.
   "PUT sequences/[id]/chain": () => [...runsAndChains(), sequencesOverride, leadsOverride, ...templates()],
   // A sequence to leads let go of (0072) takes its leads' places with it: Leads' "Where they stand" and its "Adds go to".

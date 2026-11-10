@@ -150,8 +150,15 @@ export {
   REPLY_UNREADS,
 } from "./replies/intents";
 export type { OwnerSaidIntent, ReplyIntent, ReplyReading, Unread } from "./replies/intents";
-export { ownedDomainOf, readingPlan, replyNoticeWords, replyStepWords, UNREAD_READING } from "./replies/reading";
-export type { ReadingPlan, ReplyClaim, ReplyContext, ReplyStep } from "./replies/reading";
+export {
+  addressNamedIn,
+  ownedDomainOf,
+  readingPlan,
+  replyNoticeWords,
+  replyStepWords,
+  UNREAD_READING,
+} from "./replies/reading";
+export type { ReadingPlan, ReplyAhead, ReplyAheadKind, ReplyClaim, ReplyContext, ReplyStep } from "./replies/reading";
 export {
   awayUntilOf,
   notNowDayOf,
@@ -187,7 +194,7 @@ export {
   REPLY_MODE_UNSET,
   replyOfferSteer,
 } from "./reply-draft";
-export type { DraftWhy } from "./reply-draft";
+export type { DraftWhy, LeadNoteKind } from "./reply-draft";
 export {
   isReplyUndoRefusal,
   REPLIES_PAGE,
@@ -228,7 +235,7 @@ export {
 export { REACH_OUT_CHECKS_AHEAD_PER_DAY, REACH_OUT_CHECKS_PER_DAY } from "./rules";
 export type { ColdEnding, DraftLeadFacts, OutreachLeadFacts, ReachOutSignsWith, SlotLead } from "./rules";
 export type { SlotWorkspace } from "./rules";
-export { ReachOutChainSchema, ReachOutStepSchema } from "./schemas";
+export { ReachOutChainSchema, ReachOutMakeSchema, ReachOutStepSchema } from "./schemas";
 export {
   ReachOutCheckSchema,
   ReachOutDecideSchema,
@@ -315,6 +322,8 @@ export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, told
 export type { ReachOutToldDto, ToldKind, ToldPart, ToldPartId, TryPart, TrySource } from "./told";
 export { US_STATE_ZONES, zoneOfRegion } from "./us-zones";
 export type { UsStateCode } from "./us-zones";
+export { coldWaitsNotice, coldWaitsReminderKey, coldWaitsReminderOf } from "./waiting";
+export type { WaitingColdRun } from "./waiting";
 export {
   CHAIN_MIN_LISTINGS,
   chainOf,

@@ -371,6 +371,7 @@ const NONE = {
   step: null,
   skipSends: null,
   draft: null,
+  ahead: null,
   tell: false,
 };
 
@@ -395,6 +396,8 @@ test("G6, a person: not now stops, sets resume_at, puts a step on its day and dr
     step: { dueOn: "2027-01-04", words: 'Write to Brightwater & Co. again: they said not now ("Try in January").' },
     skipSends: "outreach_wrote_back",
     draft: "thanks",
+    // The note they asked for, written the morning its step is due (decision 0120, D7).
+    ahead: { kind: "again", at: at9("2027-01-04"), to: null },
     tell: true,
   });
   assert.equal(plan.resumeAt, "2027-01-04T14:00:00.000Z", "9:00 in the business's zone");
@@ -421,6 +424,8 @@ test("G6: a wrong person stops with a step due today naming them; an automatic o
     stops: true,
     step: { dueOn: "2026-09-29", words: "Brightwater & Co. said to write to Dana at dana@owndomain.example instead." },
     skipSends: "outreach_wrote_back",
+    // A first note to whom they named, by address, written at once (decision 0120, D7).
+    ahead: { kind: "referral", at: new Date(ctx().readAt).toISOString(), to: "dana@owndomain.example" },
     tell: true,
   });
   const auto = readingPlan(r, ctx({ claim: "auto_reply" }));

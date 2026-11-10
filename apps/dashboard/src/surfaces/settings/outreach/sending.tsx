@@ -10,7 +10,7 @@ import {
   REACH_OUT_SETTINGS_WORDS,
   SEQUENCE_MODE_LABEL,
   SEQUENCE_MODE_WORDS,
-  sequenceModesFor,
+  sequenceStartModesFor,
   textOrEmpty,
   type ColdEmailCheck,
   type ColdEmailHealth,
@@ -186,7 +186,8 @@ function SendingSheet(shared: OutreachShared) {
 
 /**
  * Before each batch: what a new sequence starts as, through Autonomy's own verb, and gated as Autonomy gates it (an
- * operator may), so the two pages that change it agree on who may. Cold email never just goes.
+ * operator may), so the two pages that change it agree on who may. A new one starts held or asked; one that exists may
+ * be set to send on its own on its own page (decision 0120).
  */
 function BatchFold(shared: OutreachShared & { again: () => void }) {
   const mode = shared.read?.batch_mode ?? "ask";
@@ -227,7 +228,7 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
             id="ro-batch-mode"
             labelledBy="rec-fold-batch_mode-label"
             value={textOrEmpty(fields.draft) || mode}
-            options={sequenceModesFor("leads").map((m) => ({
+            options={sequenceStartModesFor("leads").map((m) => ({
               value: m,
               label: SEQUENCE_MODE_WORDS[m].choice,
               // Leads are never offered `auto` (sequenceModesFor), which says nothing of its own here.

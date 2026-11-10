@@ -261,7 +261,7 @@ export function nextRunWords(
   if (reachOutChain.next.waiting_run_id)
     return {
       tone: "warn",
-      text: "A run waits on you. Nothing more is planned until you answer it.",
+      text: "A run waits on you. No new business is written to until you answer it; follow-ups still go.",
       run_id: reachOutChain.next.waiting_run_id,
     };
   // A paused workspace is the chain's own line above (`may_spend`: held for billing), so the label is the moment's clock alone.

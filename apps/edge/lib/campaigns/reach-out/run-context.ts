@@ -71,6 +71,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
     lead_search_id: row.lead_search_id,
     fed_by: fedBy,
     include_unconfirmed: root.include_unconfirmed === true,
+    again_after_days: root.again_after_days ?? null,
     after_playbook_id: row.after_step_id,
     after_days: row.after_days,
     gap_minutes: row.gap_minutes ?? 0,
@@ -150,10 +151,10 @@ export async function getReachOutRunContext(
       (spend) => ({ spend, error: null }),
       (e: unknown) => ({ spend: false, error: e instanceof Error ? e.message : String(e) }),
     ),
-    // Its sequence's mode (decision 0064), the one reading the dashboard's chains take too. Cold email never sends on
-    // its own, so a mode it cannot take reads as ask.
+    // Its sequence's mode (decision 0064), the one reading the dashboard's chains take too: held, asked, or on its own
+    // where its owner chose that (0120). One that could not be read, or is none of them, reads as ask.
     getSequenceModes(db, row.tenant_id, [row.sequence_id]).then(
-      (modes) => ({ mode: modes.get(row.sequence_id) === "veto" ? ("veto" as const) : ("ask" as const), error: null }),
+      (modes) => ({ mode: modes.get(row.sequence_id) ?? ("ask" as const), error: null }),
       (e: unknown) => ({ mode: "ask" as const, error: e instanceof Error ? e.message : String(e) }),
     ),
     stepOf(db, row).then(
@@ -184,11 +185,11 @@ export async function getReachOutRunContext(
       if (error) throw new DbFailure(error, "cannot read the step's runs");
       return !!data;
     },
-    // A run waiting for its owner holds the chain, whichever run it is: under ask they would pile up unanswered.
-    chainWaits: async (rootId) => {
+    // The steps with a run waiting for its owner: new first emails wait behind any of them, a step behind its own (0120).
+    waitingSteps: async (rootId) => {
       const { data, error } = await findChainAwaitingApproval(db, tenantId, rootId);
       if (error) throw new DbFailure(error, "cannot read the chain's runs");
-      return (data ?? []).length > 0;
+      return new Set(data.flatMap((run) => (run.step_id ? [run.step_id] : [])));
     },
     // Twice the step's share: a lead the run skips (no open hour all week) leaves room for the next, not a short day.
     audience: (s) =>
@@ -197,6 +198,7 @@ export async function getReachOutRunContext(
         searchId: s.lead_search_id ?? "",
         limit: s.cap_per_run * 2,
         includeUnconfirmed: s.include_unconfirmed,
+        againAfter: s.again_after_days ?? null,
       }),
     ...laterStepPorts(db, tenantId),
     // The step's mailboxes and those its later leads keep, with their days (senders.ts, as the replan reads them).

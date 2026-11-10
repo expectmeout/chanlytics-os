@@ -58,7 +58,7 @@ export const SCHEMA_SETS = {
   "contacts.marketing_consent": ["unknown", "opted_in", "opted_out"],
   "contacts.name_source": ["typed", "import", "calendar", "signature", "wire", "lead"],
   "conversation_channel_state.channel": ["whatsapp", "sms", "email", "instagram"],
-  "conversation_drafts.kind": ["reply", "brief"],
+  "conversation_drafts.kind": ["reply", "brief", "step"],
   "conversation_drafts.source": ["hold", "reach_out", "rewrite"],
   "conversation_drafts.state": ["writing", "ready", "pitch", "asks", "failed"],
   "conversations.set_aside_why": ["pitch", "notice"],

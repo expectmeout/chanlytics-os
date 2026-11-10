@@ -1,7 +1,7 @@
 {
-  "rows": 170,
+  "rows": 171,
   "same": 12,
-  "differ": 158,
+  "differ": 159,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -2180,6 +2180,23 @@
         "settings": "every page",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page"
+      }
+    },
+    "POST sequences/[id]/again": {
+      "changes": "sequence_steps UPDATE · sequences UPDATE",
+      "missing": {
+        "ask_morning": "today",
+        "audiences": "broadcasts",
+        "calendar": "admin/hours, admin/workspace, calendar, today",
+        "calendar_runs": "calendar",
+        "leads": "clients/leads, leads",
+        "people": "clients, clients/get-yes, segments",
+        "person": "clients/person",
+        "playbooks": "every page",
+        "reach_out_replies": "inbox, today",
+        "reports_campaigns": "reports, reports/campaigns",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
+        "setup": "start, today"
       }
     },
     "POST sequences/[id]/leads": {

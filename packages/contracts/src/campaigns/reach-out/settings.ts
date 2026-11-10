@@ -246,7 +246,7 @@ export const REACH_OUT_SETTINGS_WORDS = {
     connect: "Connect",
     batchAutonomy: "See this for every kind of message on Autonomy",
     batchNote:
-      "You approve a sequence's first run. After that, this is what happens each day. Cold email never just goes.",
+      "You approve a sequence's first run. After that, this is what happens each day. A sequence sends on its own only where you set that on the sequence itself.",
     batchNew: "New words always wait for your OK, whichever you pick.",
     batchWhich: "For new sequences. Each sequence can change its own.",
     batchAt: { veto: "Held 30 minutes so you can stop it", ask: "Waits for your OK" },

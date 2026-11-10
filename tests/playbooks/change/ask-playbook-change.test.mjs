@@ -240,7 +240,10 @@ test("a sequence to leads takes its mode here as its state: held or asked, said 
   assert.deepEqual([held.proposal.payload.sequence_mode, held.proposal.payload.was], ["veto", { mode: "ask" }]);
   await sendTo(leads, PROPOSAL_SPECS.playbook_change.commit(held.proposal, { settings: null }));
   assert.equal(leads.sequences.find((q) => q.id === STEP).mode, "veto");
-  assert.equal(said(await change({ playbook_id: STEP, mode: "auto" }, leads)), PLAYBOOK_PATCH_WORDS.modeLeads);
+  // Send it is a sequence to leads' own choice since decision 0120: offered as a card, as any other mode is.
+  const alone = await change({ playbook_id: STEP, mode: "auto" }, leads);
+  assert.equal(alone.isError, false, alone.result);
+  assert.equal(alone.proposal.summary, PLAYBOOK_PATCH_WORDS.mode("auto", "veto"));
 });
 
 test("a change is refused in words before any card: not an id, not this workspace's, a sequence to leads past its state, a value out of bounds, a cadence off the month's offer, and nothing that would change", async () => {

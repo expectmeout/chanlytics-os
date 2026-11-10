@@ -32,6 +32,7 @@ export {
   draftHasWords,
   draftIsCurrent,
   draftViewOf,
+  KEPT_DRAFT_KINDS,
   REPLY_DRAFT_KINDS,
   REPLY_DRAFT_RULES,
   REPLY_DRAFT_SOURCES,
@@ -39,8 +40,10 @@ export {
   REPLY_DRAFT_WORDS,
   REPLY_DRAFTS_IDS_MAX,
   REPLY_DRAFTS_NEWEST_MAX,
+  STEP_NOTE_RULES,
 } from "./reply-drafts";
 export type {
+  KeptDraftKind,
   ReplyDraftDto,
   ReplyDraftKind,
   ReplyDraftSource,
