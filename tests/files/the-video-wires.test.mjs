@@ -190,6 +190,24 @@ test("a token is signed here, RS256 under the key's id, for one video, minutes t
   assert.equal(longClaims.downloadable, true);
 });
 
+test("whether a clip has a sound track is read off its playback list; a list that cannot be read says nothing", async () => {
+  const listed = (text, status = 200) => ({
+    fetch: async (url) => {
+      assert.equal(url, "https://customer-abc.cloudflarestream.com/tok/manifest/video.m3u8");
+      return new Response(text, { status, headers: { "content-type": "application/x-mpegURL" } });
+    },
+  });
+  const media =
+    '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="original",URI="a.m3u8"\n#EXT-X-STREAM-INF:CODECS="avc1.4d4028"\nv.m3u8';
+  const codec = '#EXTM3U\n#EXT-X-STREAM-INF:RESOLUTION=1080x1920,CODECS="avc1.4d4028,mp4a.40.2"\nv.m3u8';
+  const picture = '#EXTM3U\n#EXT-X-STREAM-INF:RESOLUTION=1174x480,CODECS="avc1.4d401f"\nv.m3u8';
+  assert.equal(await stream.readStreamSoundTrack("abc", "tok", listed(media)), true);
+  assert.equal(await stream.readStreamSoundTrack("abc", "tok", listed(codec)), true);
+  assert.equal(await stream.readStreamSoundTrack("abc", "tok", listed(picture)), false);
+  assert.equal(await stream.readStreamSoundTrack("abc", "tok", listed("not found", 404)), null);
+  assert.equal(await stream.readStreamSoundTrack("abc", "tok", listed("<html>oops</html>")), null, "no list, no word");
+});
+
 test("a frame's address, the audio's and the player's, each under a token on the account's own host", () => {
   assert.equal(
     stream.streamFrameUrl("abc", "tok", { at: 12.5, width: 368, height: 208 }),

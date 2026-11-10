@@ -349,6 +349,23 @@ switch goes on: the thumbnail's time precision, an iPhone clip, processing times
 ear's two models, the sheet at 2,576 against 1,568, and the words' shapes. The Gemini key is made on a billed project. The
 nightly's video journey (`e2e/settings/files.spec.ts`) runs where the e2e workspace takes videos.
 
+## What the first real clips proved
+
+Four clips went through production in the e2e workspace on 10 November 2026: one spoken in English and Spanish, one silent, one
+with music, one of a room with a spoken line. Each was playable at Stream about 20 seconds after its last byte, and its player,
+playback list and signed frames answered.
+
+- **Every frame was refused until #2220.** Stream's thumbnails take a width and a height that are each even and from 10 to 2,000
+  pixels, and answer a 400 to anything else; the sheet's tiles had an odd side and a moment was asked at 2,576. With that fixed,
+  a clip was seen, heard, named and shelved within 25 to 45 seconds of its last byte, its words written word for word in both
+  languages, for under a tenth of a cent a clip.
+- **A clip with no sound track never reached its look.** Stream answers its audio download with a 500, three tries of three,
+  never with "no audio". The audio step now reads the clip's playback list first, which names a sound track only where there is
+  one (`readStreamSoundTrack`); and a step that only hears a video and will not finish leaves the look to go ahead on the sheet
+  alone (the ledger's settle), as an ear that is held does.
+- **Ask, asked for a post from a clip,** opened it, chose a moment and drew the post from it in 15 seconds; it declined a
+  commercial whose every frame carried another brand, and it left off a time it had only heard said in the clip.
+
 ## A library of clips: what Ask reaches, and a post from one moment
 
 A read of the whole chain on 9 November 2026, against a business whose library is mostly clips, found what such a library would

@@ -317,6 +317,32 @@ export function streamFrameUrl(
   return `${streamHostOf(customerCode)}/${token}/thumbnails/thumbnail.jpg?${q}`;
 }
 
+/** The video's playback list (HLS), under a token: it names a sound track only where the video has one. */
+export const streamManifestUrl = (customerCode: string, token: string): string =>
+  `${streamHostOf(customerCode)}/${token}/manifest/video.m3u8`;
+
+/**
+ * Whether a video has a sound track, as its playback list says: an audio rendition (`#EXT-X-MEDIA` of TYPE=AUDIO), or an audio
+ * codec beside the picture's. Stream answers a 500 to the audio download of a clip with none (three tries of three, 10 Nov
+ * 2026), never "no audio", so this is what tells a silent clip from a moment's fault. Null where the list could not be read.
+ */
+export async function readStreamSoundTrack(
+  customerCode: string,
+  token: string,
+  deps: ModelDeps = {},
+): Promise<boolean | null> {
+  const reply = await fetchFromProvider(
+    "cloudflare",
+    streamManifestUrl(customerCode, token),
+    { method: "GET", timeoutMs: API_TRY_MS, idempotent: true, tries: 2, stream: true },
+    deps,
+  );
+  if (reply.outcome !== "ok" || !reply.body) return null;
+  const list = await new Response(reply.body).text().catch(() => null);
+  if (list === null || !list.includes("#EXTM3U")) return null;
+  return /^#EXT-X-MEDIA:.*TYPE=AUDIO/m.test(list) || /CODECS="[^"]*mp4a/i.test(list);
+}
+
 /** The video's sound as M4A, under a `downloadable` token. */
 export const streamAudioUrl = (customerCode: string, token: string): string =>
   `${streamHostOf(customerCode)}/${token}/downloads/audio.m4a`;
