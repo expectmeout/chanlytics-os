@@ -236,7 +236,7 @@ export async function addSequenceStep(ctx: RouteContext, seq: Sequence, input: N
   // A customer's sequence that takes none is a reminder; any other kind is the door's own to refuse, in its words.
   const customers = row?.starts === "moment" || row?.starts === "list";
   if (row && customers && !takesFollowUps(row))
-    throw new AppError("validation", SEQUENCE_FLOW_WORDS.noFollowUpOnReminder);
+    throw new AppError("validation", SEQUENCE_FLOW_WORDS.noFollowUpOnReminder(row.first?.trigger));
   // A call or a note closes it (00465): said here in the page's words, before the database refuses it in its own.
   const steps = await listSequenceSteps(ctx.supabase, seq.tenant_id, seq.id);
   const last = steps.reduce<(typeof steps)[number] | null>((a, s) => (!a || s.place > a.place ? s : a), null);
