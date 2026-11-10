@@ -260,7 +260,7 @@ function AddRow({ rec, onAdd }: { rec: SequenceRecordDto; onAdd: () => void }) {
   if (takesFollowUps(row) && last?.hand) return <RailNote words={SW.handLast(last.hand.kind)} testid="sq-hand-last" />;
   if (takesFollowUps(row)) return <RailAdd onAdd={onAdd} gateProps={gate("approve")} />;
   if (row.starts !== "moment") return null;
-  return <RailNote words={F.noFollowUpOnReminder} testid="sq-no-follow-up" />;
+  return <RailNote words={F.noFollowUpOnReminder(row.first?.trigger)} testid="sq-no-follow-up" />;
 }
 
 interface StepsProps {
