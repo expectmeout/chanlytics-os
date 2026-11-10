@@ -218,8 +218,9 @@ export const leadSearchMoreSpec: ProposalSpecAboveOperator = {
 /**
  * A cold email sequence (POST reach-outs, Reach out): emails written to the businesses of a search or of a list of chosen
  * leads, from the workspace's own mailboxes (0056), its steps and their waits, its pace and who signs it. Saved whole
- * after every word is checked by the door; its first run is planned at once, and a list's run waits for the owner's say
- * before any email goes. Its id is what a later step names.
+ * after every word is checked by the door; its first run is planned at once. A card that showed every email whole says
+ * so (`words_shown`), and its press is the OK of those words (decision 0120): the first run goes as Before each batch
+ * says. Any other waits for the owner's say before any email goes. Its id is what a later step names.
  */
 export const reachOutMakeSpec: ProposalSpec = {
   needs: "operator",
@@ -227,10 +228,15 @@ export const reachOutMakeSpec: ProposalSpec = {
   commit: ({ payload: pl }) => {
     const chain = rec(pl.chain);
     return asText(chain.name) && asText(chain.search_id) && Array.isArray(chain.steps) && chain.steps.length
-      ? { route: "POST reach-outs", body: chain }
+      ? { route: "POST reach-outs", body: pl.words_shown === true ? { ...chain, words_shown: true } : chain }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: ({ payload: pl }) => `“${asText(rec(pl.chain).name)}” is saved. Nothing goes until you OK the first emails.`,
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(rec(pl.chain).name);
+    return rec(data).words_ok === true
+      ? `“${name}” is saved, and its emails have your OK: its first run goes as “Before each batch” says.`
+      : `“${name}” is saved. Nothing goes until you OK the first emails.`;
+  },
   made: (_p, data) => idIn(rec(data), "root_id"),
   open: (_p, outcome) => (outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE),
 };

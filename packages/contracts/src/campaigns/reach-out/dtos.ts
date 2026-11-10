@@ -30,8 +30,11 @@ export interface ReachOutNextFacts {
   run_hour: number;
   /** The workspace's day the chain's first step last ran for. */
   last_run_for: string | null;
-  /** Its sequence's mode (decision 0064): a sequence to leads holds each run for a stop, or asks for each. */
-  mode: "ask" | "veto";
+  /**
+   * Its sequence's mode (decision 0064): a sequence to leads holds each run for a stop, asks for each, or, where its
+   * owner chose it on the sequence, sends on its own (decision 0120).
+   */
+  mode: "ask" | "veto" | "auto";
   /** Whether billing lets the workspace spend on reach-out (contracts maySpend). */
   may_spend: boolean;
   /** A run of the chain waiting for its owner's approval, when there is one. */
@@ -184,6 +187,11 @@ export interface ReachOutSavedDto {
   rechecked: number;
   /** A new chain's first run, asked for now; null for an edit. */
   start: ReachOutStartDto | null;
+  /**
+   * A new chain made by a press that showed every email whole (a card of Ask's, decision 0120): its words are the
+   * member's OK already, so its first run went as Before each batch says. Absent: its first run waits for an OK.
+   */
+  words_ok?: boolean;
 }
 
 /** The furthest business a preview pages to: a run's cap is 200 (F11). */

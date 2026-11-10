@@ -890,7 +890,10 @@ test("the sentences the queue and the card say about a playbook's run come from 
   // A reach-out's run writes to businesses, and says it is a reach-out (Reach out Part 5, PR 8).
   const reach = todayRunWords({ ...run, recipient_count: 44, audience: { kind: "reach_out", label: "Movers" } });
   // A reach-out's run has no day to pass: it waits until answered.
-  assert.equal(reach.waiting.sentence, "44 businesses. Waits for your OK; nothing goes until you give it.");
+  assert.equal(
+    reach.waiting.sentence,
+    "44 businesses. Waits for your OK, and you are reminded each morning; no new business is written to until you give it.",
+  );
   assert.equal(reach.waiting.meta, "Cold email · ready");
   assert.equal(reach.soon.meta, "Cold email · sends today 9:00 AM");
   assert.equal(todayRunWords({ ...run, recipient_count: 1, audience: { kind: "reach_out" } }).people, "1 business");

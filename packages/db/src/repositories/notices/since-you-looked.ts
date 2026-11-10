@@ -4,7 +4,7 @@
  * member's own session: RLS decides what it may read.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { personName, DbFailure } from "@chanlytics/contracts";
+import { DAY_MS, isReachOutRun, personName, runTitleOf, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { DELIVERED } from "../conversations/thread/history";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -57,6 +57,79 @@ export async function findAnsweredSince(
         }
       : null,
   };
+}
+
+/** The newest batches one read looks through for what left since: a member away for weeks is told of the latest. */
+const SENT_SINCE_BATCHES = 40;
+/** How far before `since` a batch may have been made and still have sent after it: a day's batch goes over hours. */
+const MADE_BEFORE_MS = 3 * DAY_MS;
+
+/** What one sequence sent since: how many of its messages left, and when the last did. */
+export interface SequenceSentSince {
+  id: string;
+  name: string;
+  sent: number;
+  last_at: string;
+  leads: boolean;
+}
+
+/**
+ * What the workspace's sequences sent since `since` (decision 0120): its newest batches that are going or gone, each
+ * counted by the sends that left after `since` (the batch's own index), folded by sequence. A sequence is named as its
+ * newest batch that sent is (contracts runTitleOf), and is to leads where that batch is a cold email's: the batches say
+ * both, so the page that hears a batch hears all this read draws. `more` when the batches read were as many as one read
+ * takes, so older ones may have sent too. On the member's own session.
+ */
+export async function listSentSince(
+  db: Db,
+  params: { tenantId: TenantId; since: string },
+): Promise<{ sequences: SequenceSentSince[]; more: boolean }> {
+  const madeFrom = new Date(Date.parse(params.since) - MADE_BEFORE_MS).toISOString();
+  const batches = await db
+    .from("sequence_batches")
+    .select("id, sequence_id, name, run_for, audience")
+    .eq("tenant_id", params.tenantId)
+    .in("state", ["sending", "sent"])
+    .gte("created_at", madeFrom)
+    .order("created_at", { ascending: false })
+    .limit(SENT_SINCE_BATCHES);
+  if (batches.error) throw new DbFailure(batches.error, "cannot read the batches that went");
+  const rows = batches.data;
+  if (rows.length === 0) return { sequences: [], more: false };
+  const bySequence = new Map<string, SequenceSentSince>();
+  // One batch at a time, the newest first: each is one count over its own index, and a workspace has a handful since a
+  // member looked.
+  for (const batch of rows) {
+    const left = await db
+      .from("sequence_sends")
+      .select("sent_at", { count: "exact" })
+      .eq("tenant_id", params.tenantId)
+      .eq("batch_id", batch.id)
+      .eq("state", "sent")
+      .gt("sent_at", params.since)
+      .order("sent_at", { ascending: false })
+      .limit(1);
+    if (left.error) throw new DbFailure(left.error, "cannot count what a batch sent");
+    const last = left.data[0]?.sent_at;
+    const sent = left.count ?? 0;
+    if (!last || sent === 0) continue;
+    const had = bySequence.get(batch.sequence_id);
+    bySequence.set(
+      batch.sequence_id,
+      had
+        ? { ...had, sent: had.sent + sent, last_at: had.last_at > last ? had.last_at : last }
+        : {
+            id: batch.sequence_id,
+            name: runTitleOf({ name: batch.name, run_for: batch.run_for }),
+            sent,
+            last_at: last,
+            leads: isReachOutRun(batch.audience),
+          },
+    );
+  }
+  // Nothing left since: no line, whatever older batches there are.
+  if (bySequence.size === 0) return { sequences: [], more: false };
+  return { sequences: [...bySequence.values()], more: rows.length === SENT_SINCE_BATCHES };
 }
 
 /**

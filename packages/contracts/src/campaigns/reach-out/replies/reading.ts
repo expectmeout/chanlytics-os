@@ -77,6 +77,20 @@ export interface ReplyStep {
   words: string;
 }
 
+/** What a step's note is: the check-back a not-now asked for, or a first note to the person a wrong person named. */
+export type ReplyAheadKind = "again" | "referral";
+
+/**
+ * The note a step arrives with (decision 0120, D7): written by the reply's own job at `at`, the morning of a not-now's
+ * day, or at once for a wrong person who named an address, and kept with the step, never sent by itself. `to` is the
+ * address a wrong person named, whom the note is to; null for a not-now, whose note goes on their own thread.
+ */
+export interface ReplyAhead {
+  kind: ReplyAheadKind;
+  at: string;
+  to: string | null;
+}
+
 export interface ReadingPlan {
   /** The chain stops for this lead. */
   stops: boolean;
@@ -97,6 +111,8 @@ export interface ReadingPlan {
   skipSends: "outreach_wrote_back" | "outreach_away" | null;
   /** What the receptionist drafts (PR 5): an answer, or a line of thanks. */
   draft: "answer" | "thanks" | null;
+  /** The note the step on Today arrives with, written on its day (decision 0120, D7); null for none. */
+  ahead: ReplyAhead | null;
   /** The owner is told (G16). */
   tell: boolean;
   /** The signer is taken as the writer's name without a press (0052, automatic naming: off until its evals pass). */
@@ -114,6 +130,7 @@ const NO_EFFECT: ReadingPlan = {
   step: null,
   skipSends: null,
   draft: null,
+  ahead: null,
   tell: false,
 };
 
@@ -124,6 +141,24 @@ export const UNREAD_READING: ReplyReading = { intent: "other", summary: "", day:
 function otherWriter(leadAddress: string | null, replyFrom: string | null): string | null {
   const from = normalizeEmail(replyFrom);
   return from && from !== normalizeEmail(leadAddress) ? from : null;
+}
+
+/** An address as it may stand in free text: a word with one @ and a dot after it. */
+const ADDRESS_IN_TEXT = /[^\s<>()[\],;:"'@]+@[^\s<>()[\],;:"'@]+\.[^\s<>()[\],;:"'@.]{2,}/;
+
+/**
+ * The address a wrong person named, as they wrote it ("write to Dana, dana@harbor.example.com"): the first one in their
+ * words that is an address and is neither the one we wrote to nor the one that answered (they named someone else).
+ * Null when they named nobody by address ("ask our office manager"), and the step is the owner's to work out.
+ */
+export function addressNamedIn(
+  referTo: string | null,
+  leadAddress: string | null,
+  replyFrom: string | null,
+): string | null {
+  const found = normalizeEmail((referTo ?? "").match(ADDRESS_IN_TEXT)?.[0]?.replace(/\.$/, ""));
+  if (!found) return null;
+  return found === normalizeEmail(leadAddress) || found === normalizeEmail(replyFrom) ? null : found;
 }
 
 /**
@@ -191,7 +226,10 @@ export function readingPlan(reading: ReplyReading | null, replyContext: ReplyCon
       return { ...stopped, convert: true, draft: drafts("answer") };
     case "not_now": {
       const day = notNowDayOf(item.day, today);
-      return { ...stopped, resumeAt: at9(day), step: step(stepDayFor(day)), draft: drafts("thanks") };
+      const due = stepDayFor(day);
+      // The note they asked for, written the morning its step is due (decision 0120, D7), for the owner to send or change.
+      const ahead: ReplyAhead = { kind: "again", at: at9(due), to: null };
+      return { ...stopped, resumeAt: at9(day), step: step(due), ahead, draft: drafts("thanks") };
     }
     case "no":
       return {
@@ -205,7 +243,12 @@ export function readingPlan(reading: ReplyReading | null, replyContext: ReplyCon
     case "wrong_person": {
       // Due the day it is read: a re-read days after the reply never makes a step already overdue.
       const readDay = zoneDayKey(replyContext.readAt, replyContext.tz);
-      return { ...stopped, step: step(readDay > today ? readDay : today) };
+      // Who they named, by address: a first note to them is written at once (decision 0120, D7). By name alone, nobody.
+      const to = addressNamedIn(item.referTo, replyContext.leadAddress, replyContext.replyFrom);
+      const ahead: ReplyAhead | null = to
+        ? { kind: "referral", at: new Date(replyContext.readAt).toISOString(), to }
+        : null;
+      return { ...stopped, step: step(readDay > today ? readDay : today), ahead };
     }
     case "away": {
       const day = backDayOf(item.day, today, BACK_MAX_DAYS);
@@ -233,7 +276,7 @@ function doneWords(intent: ReplyIntent): string {
     case "question":
       return "They are Talking now, and your sequence stops for them.";
     case "not_now":
-      return "Your sequence stops for them, and a step to write again is on Today for the day they named.";
+      return "Your sequence stops for them. On the day they named, a step to write again is on Today, its note written.";
     case "no":
       return "They are marked Said no: nothing more will be written to them.";
     case "wrong_person":

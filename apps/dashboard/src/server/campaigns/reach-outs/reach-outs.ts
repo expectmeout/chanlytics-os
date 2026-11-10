@@ -134,8 +134,9 @@ export async function listChains(ctx: RouteContext, tenantId: TenantId): Promise
       next: {
         run_hour: root.run_hour,
         last_run_for: root.last_run_for,
-        // Cold email never sends on its own: a mode it cannot take reads as ask, as its run reads it.
-        mode: modes.get(root.id) === "veto" ? "veto" : "ask",
+        // Held, asked, or on its own where its owner chose that (0120); unread or none of them reads as ask, as its
+        // run reads it.
+        mode: modes.get(root.id) ?? "ask",
         may_spend: spend,
         waiting_run_id: waitingOf.get(root.id) ?? null,
       },

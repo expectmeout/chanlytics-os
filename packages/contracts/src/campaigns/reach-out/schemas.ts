@@ -71,6 +71,13 @@ export const ReachOutChainSchema = z.object({
 
 export type ReachOutChainInput = z.infer<typeof ReachOutChainSchema>;
 
+/**
+ * A new chain as its route takes it: the chain, and whether the press that made it showed every email whole (a card of
+ * Ask's, decision 0120). Shown, and through Ask, the words are the member's OK already, so the first run goes as
+ * Before each batch says; any other make leaves its first run waiting for an OK, as before.
+ */
+export const ReachOutMakeSchema = ReachOutChainSchema.extend({ words_shown: z.boolean().optional() });
+
 /** What the sheet's preview asks: the n-th business of a search, with the first step's words as they stand. */
 export const ReachOutPreviewSchema = z.object({
   search_id: z.uuid(),

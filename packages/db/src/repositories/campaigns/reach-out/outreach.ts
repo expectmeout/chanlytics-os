@@ -257,6 +257,8 @@ export interface ReplyReadingRow {
   /** Who signed it, and what became of the name (0052): offered, adopted, declined or undone. */
   signer_name: string | null;
   signer_state: string | null;
+  /** Who a wrong person said to write to, as they wrote it (decision 0120: whom a step's note is to). */
+  refer_to: string | null;
 }
 
 /** The reading kept for this message, if any. A read that fails throws. */
@@ -267,7 +269,7 @@ export async function replyReadingOf(
   const { data, error } = await db
     .from("sequence_replies")
     .select(
-      "intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why, signer_name, signer_state",
+      "intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why, signer_name, signer_state, refer_to",
     )
     .eq("tenant_id", params.tenantId)
     .eq("message_id", params.messageId)

@@ -154,6 +154,11 @@
     "fresh": "Read as a sequence's People tab opens, painted from the last answer and read again behind; then each time the Sequences list is read, and after each press on it.",
     "why": "Where people stand moves with each batch and its sends; the list hears the batches, and a press on the tab reads it again."
   },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]/again": {
+    "kind": "on-open",
+    "fresh": "Read as a sequence to leads' How it runs opens, and answered again by the switch's own press, which says the setting and the count it made.",
+    "why": "Whether the sequence tries a business that never answered again, and who would come back and from when (decision 0120): a count over its written leads that only months move, read where the switch is drawn."
+  },
   "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]/reach": {
     "kind": "follows",
     "follows": "sequences",

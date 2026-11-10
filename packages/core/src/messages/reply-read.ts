@@ -17,6 +17,11 @@
  *     line of thanks) and it is kept on the reading, never as a message: nothing sends it but a person. It is tried
  *     once, after the apply and before the notice, so the notice carries it. A job with too little time left marks it
  *     waiting, hands it to a job of its own (stage "draft"), and tells without it; that job tells nobody.
+ *   - The note a step arrives with (decision 0120, D7): a not-now's check-back, written the morning its step is due, and
+ *     a first note to the person a wrong person named by address, written at once. The reading's plan says when
+ *     (`ahead`), and the applying stage hands it to a job of its own (stage "ahead"), which writes it only while the step
+ *     is still open, nothing newer came from them and the lead still stands, and keeps it with the step (a draft of
+ *     kind `step` on their thread). It is text: nothing sends it but a person, from the step.
  *   - The notice, in two phases (B2): the claim, then the telling, then the mark only once the owner was told. A
  *     telling that failed throws, so the ledger tries again once the claim has gone stale; told is never marked before.
  *   - What the intake opened, the reading closes (closeWhatTheIntakeOpened): the intake flags every reach-out reply
@@ -48,6 +53,8 @@ import {
   zoneDayKey,
   type DraftWhy,
   type ReadingPlan,
+  type ReplyAhead,
+  type LeadNoteKind,
   type ReplyClaim,
   type ReplyIntent,
   type ReplyReading,
@@ -102,6 +109,12 @@ export interface KeptReading {
   draftText: string | null;
   /** The reply's signer while their name is offered (0052, "Use this name"); null otherwise. */
   signerOffered: string | null;
+  /** The note its step arrives with (the plan's `ahead`, decision 0120); null for none. */
+  ahead: ReplyAhead | null;
+  /** The step the reading made on the lead's person (the plan's `changed.step`), once it made one. */
+  stepId: string | null;
+  /** Who a wrong person said to write to, as they wrote it. */
+  referTo: string | null;
 }
 
 /** reach_out_replies.draft_state. */
@@ -159,8 +172,28 @@ export interface ReplyReadPorts {
    */
   draft(
     tenantId: TenantId,
-    ask: { conversationId: string; text: string; note: string; deadline: number; kind: "answer" | "thanks" },
+    ask: { conversationId: string; text: string; note: string; deadline: number; kind: LeadNoteKind },
   ): Promise<{ text: string; used?: readonly string[] } | { why: DraftWhy }>;
+  /**
+   * Whether a step's note is still owed (decision 0120): its step open (not done, not gone), nothing newer from them on
+   * the thread since this reply, and the lead still there and not closed. Throws when it cannot be read.
+   */
+  aheadOwed(
+    tenantId: TenantId,
+    owed: { messageId: string; conversationId: string; stepId: string; receivedAt: number },
+  ): Promise<boolean>;
+  /** The note kept with its step: a draft of kind `step` on their thread, naming the step and whom it is to. */
+  keepAhead(
+    tenantId: TenantId,
+    note: {
+      conversationId: string;
+      messageId: string;
+      stepId: string;
+      text: string;
+      subject: string | null;
+      to: string | null;
+    },
+  ): Promise<void>;
   /**
    * The draft kept where every page reads a thread's draft (decision 0093, conversation_drafts). Absent, the reading alone
    * holds it. A failure costs the page its draft, never the reading.
@@ -198,10 +231,14 @@ export interface ReadReplyCommand {
   deadline: number;
 }
 
-export type ReadReplyOutcome = "not_a_reply" | "already_read" | "read" | "told" | "drafted";
+export type ReadReplyOutcome =
+  "not_a_reply" | "already_read" | "read" | "told" | "drafted" | "written" | "not_owed" | "not_written";
 
 /** The stage that drafts a reading's answer once a first job ran out of time for it. */
 const DRAFT_STAGE = "draft";
+
+/** The stage that writes the note a step arrives with, on its day (decision 0120). */
+const AHEAD_STAGE = "ahead";
 
 /** Which read a stage is: 0 for the first, n for "reread-<n>". */
 export function rereadOf(stage: unknown): number {
@@ -351,6 +388,58 @@ async function closeWhatTheIntakeOpened(
   if (intent === "no") await ports.archiveConversation(tenantId, conversationId);
 }
 
+/**
+ * The note a step arrives with (decision 0120, D7), on its day: written by the receptionist as the owner would send it,
+ * and kept with the step, while the step is still open, nothing newer came from them and the lead still stands. A note
+ * the receptionist would not write (no receptionist, drafts off, the day's budget) leaves the step as it was: the owner
+ * writes it there, as before. Tells nobody: the step is on Today on its day.
+ */
+async function writeAhead(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome> {
+  const facts = await ports.reply(cmd.tenantId, cmd.messageId);
+  if (!facts) return "not_a_reply";
+  const kept = await ports.reading(cmd.tenantId, cmd.messageId);
+  const ahead = kept?.ahead;
+  if (!kept || kept.undone || !ahead || !kept.stepId) return "not_owed";
+  const owed = await ports.aheadOwed(cmd.tenantId, {
+    messageId: cmd.messageId,
+    conversationId: facts.conversationId,
+    stepId: kept.stepId,
+    receivedAt: facts.receivedAt,
+  });
+  if (!owed) return "not_owed";
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS)
+    throw new Error("reply_read: no time left to write a step's note; the ledger tries again");
+  let out: { text: string; used?: readonly string[] } | { why: DraftWhy };
+  try {
+    out = await ports.draft(cmd.tenantId, {
+      conversationId: facts.conversationId,
+      text: replyTextOf(facts.text),
+      note: leadReplyNote({
+        business: facts.business,
+        answered: facts.answered,
+        kind: ahead.kind,
+        referTo: kept.referTo,
+      }),
+      deadline: cmd.deadline,
+      kind: ahead.kind,
+    });
+  } catch {
+    // A brain that failed or ran out of time writes nothing: the step stands as it always did.
+    out = { why: "not_drafted" };
+  }
+  const text = "text" in out ? out.text.trim() : "";
+  if (!text) return "not_written";
+  await ports.keepAhead(cmd.tenantId, {
+    conversationId: facts.conversationId,
+    messageId: cmd.messageId,
+    stepId: kept.stepId,
+    text,
+    subject: facts.subject,
+    to: ahead.to,
+  });
+  return "written";
+}
+
 /** The draft's own job: drafts a reading still waiting, and tells nobody (the first job told the owner without it). */
 async function draftLater(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome> {
   const facts = await ports.reply(cmd.tenantId, cmd.messageId);
@@ -366,6 +455,7 @@ async function draftLater(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise
 
 export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome> {
   if (cmd.stage === DRAFT_STAGE) return draftLater(ports, cmd);
+  if (cmd.stage === AHEAD_STAGE) return writeAhead(ports, cmd);
   const reread = rereadOf(cmd.stage);
   const { tenantId, messageId } = cmd;
   const facts = await ports.reply(tenantId, messageId);
@@ -424,6 +514,14 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
       intent: kept.intent,
       claim: facts.claim,
       second,
+    });
+
+  // The note its step arrives with (decision 0120), handed to its own job for the moment the plan names: once per
+  // message, whichever run of this stage gets here first.
+  if (kept.ahead && kept.stepId)
+    await ports.scheduleOnce(Math.max(Date.parse(kept.ahead.at), ports.now()), {
+      message_id: messageId,
+      stage: AHEAD_STAGE,
     });
 
   // Tried once, before the notice, so the notice carries it (G16). A re-read's plan never drafts.

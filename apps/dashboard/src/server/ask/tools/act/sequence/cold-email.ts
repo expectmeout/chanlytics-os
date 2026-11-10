@@ -25,6 +25,7 @@ import { stepNamed, str } from "../../context/tool-reads";
 import { propose, refuse } from "../../context/context";
 import type { ProposalOutcome, ToolContext } from "../../context/tool-defs";
 import { coldEmailCard } from "../leads/cold-email-card";
+import { sheetWords } from "../playbook-card";
 import { after, isRefusal, refusedAct, sequenceOnCard } from "./steps";
 
 /**
@@ -140,13 +141,15 @@ export async function proposeColdEmail(
   const checked = ReachOutChainSchema.safeParse(chain);
   if (!checked.success) return refuse(checked.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
   if (checked.data.steps.length > REACH_OUT_STEPS_MAX) return refuse(`at most ${REACH_OUT_STEPS_MAX} emails`);
-  // Each email as the card says it: its subject, or a reply in the first's thread; the ones after the first with their wait.
-  const says = (s: { subject: string | null }) => (s.subject ? `“${s.subject}”` : "a reply in the same thread");
-  const [first, ...rest] = checked.data.steps;
+  // Each email on the card whole, its subject and its words, the ones after the first with their wait: the press of a
+  // card that showed them is their OK (decision 0120), which the payload says so the door takes it from there.
   const card = coldEmailCard({
     to: fedBy,
-    first: first ? says(first) : "",
-    then: rest.map((s) => `${after(s.after_days ?? 0)}: ${says(s)}`),
+    emails: checked.data.steps.map((s, i) => ({
+      after: i === 0 ? null : sheetWords(after(s.after_days ?? 0)),
+      subject: s.subject,
+      body: s.body,
+    })),
     gap_minutes: checked.data.gap_minutes,
   });
   return propose({
@@ -155,6 +158,6 @@ export async function proposeColdEmail(
     summary: card.summary,
     sheet: card.sheet,
     // A plan step's token stays the token, for the commit to fill with the list that step made.
-    payload: { chain: { ...checked.data, search_id: searchId } },
+    payload: { chain: { ...checked.data, search_id: searchId }, words_shown: true },
   });
 }

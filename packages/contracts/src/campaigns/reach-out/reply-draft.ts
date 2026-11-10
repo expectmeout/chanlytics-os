@@ -57,13 +57,35 @@ export function draftRefusal(fields: {
   return null;
 }
 
+/**
+ * What a reply's job has the receptionist write: an answer, a line of thanks for a not-now, the note a not-now asked
+ * for on its day, or a first note to the person a wrong person named (decision 0120, D7). Only an answer offers what Cold
+ * email says it does (decision 0113).
+ */
+export type LeadNoteKind = "answer" | "thanks" | "again" | "referral";
+
+/** What the model is told to write, by what is asked. */
+const DRAFT_ASKED: Readonly<Record<LeadNoteKind, (referTo: string) => string>> = {
+  answer: () => "Answer what they asked or said from the business's own facts.",
+  thanks: () =>
+    "They said not now. Write one short line thanking them, and nothing else: no offer, no question, no follow-up.",
+  again: () =>
+    "They said not now, and the day they named has come. Write a short note checking back, as they asked: say in one " +
+    "line what you wrote to them about, and ask whether now is a better time. No offer, no link, no price.",
+  referral: (referTo) =>
+    `They said someone else is the one to ask: ${fencedInline("reply", referTo)}. Write a short first email to that ` +
+    "person, not to the business that answered: who suggested writing to them, in one line what you wrote about, and " +
+    "whether they are the right person to talk to. No link, no price.",
+};
+
 /** The reach-out's words or its signature on one line, clipped: an email is never a paragraph of the note. */
 const flatClip = (v: string | null | undefined, max: number): string => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
 
 /**
  * Who the receptionist is answering, as the brain's separate lead block (generateReply's leadNote): an email to a
  * business that wrote back to the owner's reach-out, what the reach-out said, the shape an email takes, and whom it is
- * signed by. For not now, one line of thanks and nothing else. Their own reply is the message it answers, not this.
+ * signed by. For not now, one line of thanks and nothing else; on the day they named, the note they asked for; for a
+ * wrong person, a first note to whom they named (decision 0120). Their own reply is the message it answers, not this.
  *
  * The business's name is theirs, not the owner's: the lead's listing, as the finder read it from Places. The note is a
  * system block (the brain's whoNote), so the name is one as a prompt may show one and fenced as the name they call
@@ -73,18 +95,18 @@ export function leadReplyNote(params: {
   business: string;
   /** The reach-out email they answered, its first words. */
   answered: string | null;
-  kind: "answer" | "thanks";
+  kind: LeadNoteKind;
+  /** Who a wrong person said to write to, as they wrote it: a referral's alone. */
+  referTo?: string | null;
 }): string {
   const name = promptSafeName(params.business);
   const business = name ? fencedInline("profile_name", name) : "a business";
   const answered = flatClip(params.answered, 600);
   return [
     `${business}, a business that wrote back by email to a reach-out this business sent them. You are drafting the email`,
-    `answer for the owner to read, change and send: it is not sent until they do.`,
+    `for the owner to read, change and send: it is not sent until they do.`,
     answered ? `The reach-out they answered said: "${answered}"` : null,
-    params.kind === "thanks"
-      ? `They said not now. Write one short line thanking them, and nothing else: no offer, no question, no follow-up.`
-      : `Answer what they asked or said from the business's own facts.`,
+    DRAFT_ASKED[params.kind](flatClip(params.referTo, 120)),
   ]
     .filter((l): l is string => l !== null)
     .join("\n");

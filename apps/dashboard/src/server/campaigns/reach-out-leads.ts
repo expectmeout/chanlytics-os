@@ -147,7 +147,11 @@ export async function sayReply(
     reread: false,
     readAt: now,
   });
-  const planJson: Json = { ...plan, step: plan.step ? { ...plan.step } : null };
+  const planJson: Json = {
+    ...plan,
+    step: plan.step ? { ...plan.step } : null,
+    ahead: plan.ahead ? { ...plan.ahead } : null,
+  };
   const result = await replySaid(serviceDb(), {
     tenantId: lead.tenant_id,
     userId: ctx.userId,

@@ -41,16 +41,19 @@ export const findRunFor = async (db: Db, tenantId: TenantId, stepId: string, run
     .eq("run_for", runFor)
     .maybeSingle();
 
-/** One run of a reach-out chain still waiting on the owner's yes, or none. */
+/**
+ * The runs of a reach-out chain still waiting on the owner's yes, each with its step: none where none waits. A chain has
+ * a handful of steps and a step one waiting run at a time (core runReachOut), so the page is the chain's whole.
+ */
 export const findChainAwaitingApproval = async (db: Db, tenantId: TenantId, rootId: string) =>
   db
     .from("sequence_batches")
-    .select("id")
+    .select("id, step_id")
     .eq("tenant_id", tenantId)
     .eq("audience->>kind", "reach_out")
     .eq("audience->>root_id", rootId)
     .eq("state", "pending_approval")
-    .limit(1);
+    .limit(50);
 
 /** A scheduled batch, whichever workspace's, moved to sending: only from scheduled. */
 export const startBatchSending = async (db: Db, batchId: string) =>

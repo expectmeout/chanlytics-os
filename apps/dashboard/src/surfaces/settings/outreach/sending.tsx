@@ -10,7 +10,7 @@ import {
   REACH_OUT_SETTINGS_WORDS,
   SEQUENCE_MODE_LABEL,
   SEQUENCE_MODE_WORDS,
-  sequenceModesFor,
+  sequenceStartModesFor,
   textOrEmpty,
   type ColdEmailCheck,
   type ColdEmailHealth,
@@ -177,7 +177,7 @@ function SendingSheet(shared: OutreachShared) {
   );
 }
 
-/** Before each batch: what a new sequence starts as, through Autonomy's own verb. Cold email never just goes. */
+/** Before each batch: what a new sequence starts as, through Autonomy's own verb: held or asked, never on its own. */
 function BatchFold(shared: OutreachShared & { again: () => void }) {
   const mode = shared.read?.batch_mode ?? "ask";
   // Not said until the read lands: a mode not read is no mode to state.
@@ -217,7 +217,7 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
             id="ro-batch-mode"
             labelledBy="rec-fold-batch_mode-label"
             value={textOrEmpty(fields.draft) || mode}
-            options={sequenceModesFor("leads").map((m) => ({
+            options={sequenceStartModesFor("leads").map((m) => ({
               value: m,
               label: SEQUENCE_MODE_WORDS[m].choice,
               hint: m === "veto" || m === "ask" ? SEND_WORDS.batchDoes[m] : undefined,

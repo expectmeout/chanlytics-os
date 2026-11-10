@@ -3,9 +3,10 @@
  * you are drawn by this one builder wherever they are drawn: the Inbox's Needs you, the whole list, and Today's queue, a
  * part of it. Each is the kit's attention row with the same act: Approve where an OK alone sends it, with its toast and
  * its Stop; Open where the run is answered on its screen (a reach-out's, one whose emails the check holds, one too late to
- * approve). Which runs are a row is contracts' (waitRowsOf): To send's one row, the runs waiting for an OK folded into one
- * where two or more do (the run review's item 5), and a row a run for the rest. The Inbox drew its own rows, which only
- * opened, and Today's were its own (queue-runs.tsx).
+ * approve). Which runs are a row is the list's (waitRowsOf): To send's one row, cold email's one row where two or more of
+ * its runs wait (decision 0120), the runs waiting for an OK folded into one where two or more do (the run review's item
+ * 5), and a row a run for the rest. The Inbox drew its own rows, which only opened, and Today's were its own
+ * (queue-runs.tsx).
  *
  * A row opens its run through the frame's move, so a run opens over the page it was pressed on (rule C): Today and the
  * Inbox stay under it, and Back closes it.
@@ -98,6 +99,33 @@ function toSendRow(t: Extract<WaitRowOf<BroadcastVM>, { kind: "to_send" }>, p: W
         testid="brief-to-send"
       />
     </Fragment>
+  );
+}
+
+/**
+ * Cold email's one row (decision 0120, D8): what is held for a look and what waits for an OK in all its runs, and the
+ * first opened, the held one first, whose screen walks the rest. Paused, it says so, as every run's row does.
+ */
+function coldEmailRow(c: Extract<WaitRowOf<BroadcastVM>, { kind: "cold_email" }>, p: WaitRowsPorts): ReactElement {
+  const W = WAIT_ROW_WORDS.cold;
+  const [first] = c.runs;
+  const open = () => (first ? p.nav(homeOf(first)) : undefined);
+  return (
+    <AttnRow
+      key="run-cold-email"
+      initials="▶"
+      glyph="bolt"
+      name={W.name}
+      meta={W.meta(c.from)}
+      // A held email is answered whether or not campaigns are paused; an OK is not asked for while they are.
+      sentence={campaignsPaused() && c.held === 0 ? CAMPAIGNS_PAUSED_WORDS : W.sentence(c)}
+      status={p.phone ? [] : W.status(c)}
+      tone="escalated"
+      cta={{ label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open }}
+      also={null}
+      onOpen={open}
+      testid="brief-cold-email"
+    />
   );
 }
 
@@ -194,6 +222,7 @@ export function waitRows(p: WaitRowsPorts, room: number = Infinity): WaitRowsDra
   const shown = rows.slice(0, Math.max(0, room));
   const drawn = shown.flatMap((row) => {
     if (row.kind === "to_send") return [toSendRow(row, p)];
+    if (row.kind === "cold_email") return [coldEmailRow(row, p)];
     if (row.kind === "run") return [runRow(row.run, row.late, p, acts)];
     const [first] = row.runs;
     return first ? [approvalsRow(first, row.runs, p)] : [];

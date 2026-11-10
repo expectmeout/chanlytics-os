@@ -61,6 +61,12 @@ export const sequenceVerbs = {
   /** What Turn on asks with beside the record: who its next run reaches, a run's most, the workspace's pause. */
   reach: (id: string) => reaches.through(id, () => api()("GET sequences/[id]/reach", { params: { id } })),
   peekReach: (id: string): ReachAnswer | null => reaches.peek(id),
+  /**
+   * Whether a sequence to leads tries a business that never answered again, and who would come back and from when
+   * (decision 0120), read as How it runs opens; and the switch that sets it, answering the same.
+   */
+  again: (id: string) => api()("GET sequences/[id]/again", { params: { id } }),
+  setAgain: (id: string, days: number | null) => api()("POST sequences/[id]/again", { params: { id }, body: { days } }),
   /** Every sequence of the workspace (the list's read): the picker's sequences to leads, one cached answer. */
   list: () => sequenceLists.through("all", () => api()("GET sequences")),
   peekList: (): ListAnswer | null => sequenceLists.peek("all"),

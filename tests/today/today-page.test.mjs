@@ -936,10 +936,7 @@ test("a reach-out's run waiting on Today is opened, never approved from the row 
   set({
     today: busy(),
     __BROADCASTS: {
-      rows: [
-        run("b-reach", "pending_approval", { audience: { kind: "reach_out", label: "Movers nearby" } }),
-        run("b-wait", "pending_approval"),
-      ],
+      rows: [run("b-wait", "pending_approval"), run("b-wait-2", "pending_approval")],
     },
     __broadcasts: {
       approve: async (id) => (approvals.push(id), { ok: true, data: { recipient_count: 3 } }),
@@ -947,17 +944,49 @@ test("a reach-out's run waiting on Today is opened, never approved from the row 
     },
     __nav: (to) => opened.push(to),
   });
-  // Both waiting for an OK are one row (the run review's item 5, the Campaigns wiring review's rule D): it opens the first,
-  // whose screen walks the rest, and approves nothing.
+  // Two of a customer campaign's waiting for an OK are one row (the run review's item 5, the Campaigns wiring review's
+  // rule D): it opens the first, whose screen walks the rest, and approves nothing.
   let queue = byTestId(draw(NeedYou), "today-queue");
   const folded = byTestId(queue, "brief-runs-row");
   assert.ok(folded, "two runs waiting for an OK are one row");
   assert.equal(all(queue, (n) => n.props?.["data-testid"] === "brief-run-row").length, 0, "and no row a run");
   assert.ok(textOf(folded).includes("2 runs wait for your OK"), textOf(folded));
-  assert.equal(buttons(folded, "Approve").length, 0, "no one-tap send of a reach-out from Today, folded or not");
+  assert.equal(buttons(folded, "Approve").length, 0, "the folded row opens, and sends nothing by itself");
   went.length = 0;
   press(buttons(folded, "Open")[0]);
-  assert.deepEqual(went, ["campaigns/sequences/b-reach/runs/b-reach"], "the first, at its home");
+  assert.deepEqual(went, ["campaigns/sequences/b-wait/runs/b-wait"], "the first, at its home");
+  // Cold email is one row of its own (decision 0120, D8): two of its runs waiting, one for an OK and one going with emails
+  // held for a look, say what waits in both and open the held one first. "N runs wait for your OK" says nothing of leads.
+  const cold = (id, state, over = {}) =>
+    run(id, state, { audience: { kind: "reach_out", label: "Movers nearby", root_id: "s-movers" }, ...over });
+  set({
+    __BROADCASTS: {
+      rows: [
+        cold("b-first", "pending_approval", { recipient_count: 12 }),
+        cold("b-nudge", "sending", { held: 2, recipient_count: 9 }),
+        run("b-wait", "pending_approval"),
+      ],
+    },
+  });
+  queue = byTestId(draw(NeedYou), "today-queue");
+  const coldRow = byTestId(queue, "brief-cold-email");
+  assert.ok(coldRow, "cold email's runs are one row");
+  assert.equal(byTestId(queue, "brief-runs-row"), null, "and the runs waiting for an OK are not counted with them");
+  assert.equal(
+    all(queue, (n) => n.props?.["data-testid"] === "brief-run-row").length,
+    1,
+    "the campaign's own row stands",
+  );
+  assert.ok(textOf(coldRow).includes("Cold email"), textOf(coldRow));
+  assert.ok(textOf(coldRow).includes("1 sequence"), "a first email and its nudge are one sequence");
+  assert.ok(
+    textOf(coldRow).includes("2 held for a look. 12 emails wait for your OK. Each one you answer opens the next."),
+    textOf(coldRow),
+  );
+  assert.equal(buttons(coldRow, "Approve").length, 0, "no one-tap send of a cold email from Today, folded or not");
+  went.length = 0;
+  press(buttons(coldRow, "Look")[0]);
+  assert.deepEqual(went, ["campaigns/sequences/b-nudge/runs/b-nudge"], "the held one first, at its home");
   // A reach-out's run alone is opened, never approved from the row (D6).
   set({
     __BROADCASTS: {

@@ -131,6 +131,7 @@ export const ROUTES = {
   "GET segments": { method: "GET", path: "/api/v1/segments" },
   "GET sequences": { method: "GET", path: "/api/v1/sequences" },
   "GET sequences/[id]": { method: "GET", path: "/api/v1/sequences/[id]" },
+  "GET sequences/[id]/again": { method: "GET", path: "/api/v1/sequences/[id]/again" },
   "GET sequences/[id]/history": { method: "GET", path: "/api/v1/sequences/[id]/history" },
   "GET sequences/[id]/people": { method: "GET", path: "/api/v1/sequences/[id]/people" },
   "GET sequences/[id]/reach": { method: "GET", path: "/api/v1/sequences/[id]/reach" },
@@ -328,6 +329,7 @@ export const ROUTES = {
   "POST segments": { method: "POST", path: "/api/v1/segments" },
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
   "POST sequences": { method: "POST", path: "/api/v1/sequences" },
+  "POST sequences/[id]/again": { method: "POST", path: "/api/v1/sequences/[id]/again" },
   "POST sequences/[id]/leads": { method: "POST", path: "/api/v1/sequences/[id]/leads" },
   "POST sequences/[id]/leads/check": { method: "POST", path: "/api/v1/sequences/[id]/leads/check" },
   "POST sequences/[id]/leave": { method: "POST", path: "/api/v1/sequences/[id]/leave" },
@@ -521,6 +523,7 @@ export type Routes = {
   "GET segments": typeof import("../../app/api/v1/segments/route").GET;
   "GET sequences": typeof import("../../app/api/v1/sequences/route").GET;
   "GET sequences/[id]": typeof import("../../app/api/v1/sequences/[id]/route").GET;
+  "GET sequences/[id]/again": typeof import("../../app/api/v1/sequences/[id]/again/route").GET;
   "GET sequences/[id]/history": typeof import("../../app/api/v1/sequences/[id]/history/route").GET;
   "GET sequences/[id]/people": typeof import("../../app/api/v1/sequences/[id]/people/route").GET;
   "GET sequences/[id]/reach": typeof import("../../app/api/v1/sequences/[id]/reach/route").GET;
@@ -718,6 +721,7 @@ export type Routes = {
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
   "POST sequences": typeof import("../../app/api/v1/sequences/route").POST;
+  "POST sequences/[id]/again": typeof import("../../app/api/v1/sequences/[id]/again/route").POST;
   "POST sequences/[id]/leads": typeof import("../../app/api/v1/sequences/[id]/leads/route").POST;
   "POST sequences/[id]/leads/check": typeof import("../../app/api/v1/sequences/[id]/leads/check/route").POST;
   "POST sequences/[id]/leave": typeof import("../../app/api/v1/sequences/[id]/leave/route").POST;

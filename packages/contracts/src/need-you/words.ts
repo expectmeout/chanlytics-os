@@ -267,6 +267,14 @@ export const NEED_YOU_WORDS = {
     moveFor: "Not now: move this step",
     write: (who: string) => `Say what to write to ${shortName(who)}`,
     sendDone: "Send, and it's done",
+    /** A step that arrives with its note written (decision 0120, D7): what its row opens it with. */
+    readNote: "Read the note",
+    /** A not-now's check-back, written the morning its day came. */
+    noteAgain: "The day they named has come, so the note is written.",
+    /** A first note to the person a wrong person named: it goes from the owner's own mail, to someone new. */
+    noteTo: (to: string) =>
+      `Written to ${to}, the person they named. It goes from your own mail, so press Done once it has.`,
+    openInMail: "Open in your mail",
   },
   review: {
     draft: "Draft a reply",

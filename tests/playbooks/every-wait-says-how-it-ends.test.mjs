@@ -50,8 +50,9 @@ test("every wait has a rule: what makes it go, when it ends unanswered, and the 
   assert.deepEqual(waitRuleOf("batch_ask"), { goes: "with_your_ok", ends: "end_of_its_day", act: "approve" });
   // A visit's batch names the day ("tomorrow at 2:00 PM"), so its wait ends sooner, with the day's sending hours.
   assert.deepEqual(waitRuleOf("visit_ask"), { goes: "with_your_ok", ends: "end_of_sending_hours", act: "approve" });
-  for (const k of ["leads_batch", "review_ask"])
-    assert.deepEqual(waitRuleOf(k), { goes: "with_your_ok", ends: "never", act: "approve" }, k);
+  assert.deepEqual(waitRuleOf("review_ask"), { goes: "with_your_ok", ends: "never", act: "approve" });
+  // A run to leads never ends by itself either, so its owner is reminded of it each morning (decision 0120).
+  assert.deepEqual(waitRuleOf("leads_batch"), { goes: "with_your_ok", ends: "never", act: "approve", reminds: true });
   assert.deepEqual(waitRuleOf("to_send").act, "send");
   assert.deepEqual([waitRuleOf("hold").act, waitRuleOf("held_email").act], ["answer", "answer"]);
 });
@@ -72,7 +73,11 @@ test("each rule ends in one sentence, the same wherever it is said", () => {
     "Goes only if you approve it before the day's sending hours end; after that it is skipped, and it does not reach them",
     "no hour known: never a made-up one",
   );
-  assert.equal(waitEndsWords("leads_batch"), "Waits for your OK; nothing goes until you give it");
+  assert.equal(
+    waitEndsWords("leads_batch"),
+    // A run to leads has no day to pass, so its owner is reminded each morning while it waits (decision 0120).
+    "Waits for your OK, and you are reminded each morning; no new business is written to until you give it",
+  );
   assert.equal(waitEndsWords("to_send"), "Waits for you to send it from your own inbox");
   assert.equal(waitEndsWords("hold"), "Waits for you; nothing more goes until you answer");
 });

@@ -1,22 +1,28 @@
 /**
  * reply_read (Reach out Part 5, 00222): core's readReply, over the rows the database keeps and the reader, the spend
  * the notice and the draft the edge injects (ctx.replies). payload: { message_id, stage? } -- no stage is the first
- * read, "reread-<n>" a re-read of a reply that could not be read, "draft" the draft a first read had no time for.
+ * read, "reread-<n>" a re-read of a reply that could not be read, "draft" the draft a first read had no time for,
+ * "ahead" the note a step arrives with on its day (decision 0120).
  */
 import {
   DEFAULT_TIMEZONE,
   REACH_OUT_REPLY_DAYS,
   REPLY_DRAFT_RULES,
+  STEP_NOTE_RULES,
   isReplyIntent,
   isUnread,
+  isUuid,
+  recordOrEmpty,
   replySubject,
   type ReadingPlan,
+  type ReplyAhead,
 } from "@chanlytics/contracts";
 import { readReply, type DraftMark, type DraftState, type KeptReading, type ReplyFacts } from "@chanlytics/core";
 import {
   applyReplyReading,
   archiveConversation,
   claimReplyTell,
+  findAheadOwed,
   markReplyDraft,
   markReplyTold,
   findReachOutReply,
@@ -34,7 +40,7 @@ import type { TenantId } from "@chanlytics/contracts";
 
 /** The plan as the door takes it: every field contracts' readingPlan answers, as JSON. */
 function planJson(plan: ReadingPlan): Json {
-  return { ...plan, step: plan.step ? { ...plan.step } : null };
+  return { ...plan, step: plan.step ? { ...plan.step } : null, ahead: plan.ahead ? { ...plan.ahead } : null };
 }
 
 /** The reply as the verb reads it. */
@@ -79,16 +85,70 @@ function keptReadingOf(row: ReplyReadingRow): KeptReading {
     draftState: row.draft_state as DraftState, // one of DRAFT_STATES, checked above
     signerOffered: row.signer_state === "offered" ? row.signer_name : null,
     draftText: row.draft,
+    ahead: aheadOf(plan),
+    stepId: stepIdOf(plan),
+    referTo: row.refer_to,
   };
 }
 
 const DRAFT_STATES: readonly DraftState[] = ["none", "waiting", "written", "not_written"];
+
+/** The plan's note ahead (contracts ReplyAhead), read back defensively: one that is not whole is none. */
+function aheadOf(plan: Record<string, unknown>): ReplyAhead | null {
+  const a = recordOrEmpty(plan.ahead);
+  const kind = a.kind === "again" || a.kind === "referral" ? a.kind : null;
+  const at = typeof a.at === "string" && Number.isFinite(Date.parse(a.at)) ? a.at : null;
+  if (!kind || !at) return null;
+  return { kind, at, to: typeof a.to === "string" && a.to ? a.to : null };
+}
+
+/** The step the reading made (the door's `changed.step`): its note's id, or none where it made none or said why not. */
+function stepIdOf(plan: Record<string, unknown>): string | null {
+  const step = recordOrEmpty(plan.changed).step;
+  return typeof step === "string" && isUuid(step) ? step : null;
+}
 
 /** A draft's mark as the door takes it. */
 function draftMarkOf(m: DraftMark): { state: DraftMark["state"]; draft: string | null; why: string | null } {
   if (m.state === "written") return { state: m.state, draft: m.draft, why: null };
   if (m.state === "not_written") return { state: m.state, draft: null, why: m.why };
   return { state: m.state, draft: null, why: null };
+}
+
+/**
+ * A step's note (decision 0120), kept on the thread as a draft of its own kind: the step it was written for and whom it
+ * is to are in its words, and its edition is STEP_NOTE_RULES, so no reply box reads it as the thread's reply.
+ */
+async function keepStepNote(
+  db: Db,
+  tenantId: TenantId,
+  note: {
+    conversationId: string;
+    messageId: string;
+    stepId: string;
+    text: string;
+    subject: string | null;
+    to: string | null;
+  },
+): Promise<void> {
+  const row = { tenantId, conversationId: note.conversationId, kind: "step", forMessageId: note.messageId };
+  const shared = { source: "reach_out", rules: STEP_NOTE_RULES };
+  await claimConversationDraft(db, { ...row, ...shared });
+  await writeConversationDraft(db, {
+    ...row,
+    ...shared,
+    state: "ready",
+    words: {
+      text: note.text,
+      // On their thread, the reply's subject; to someone new, the subject of what was written, with no "Re:".
+      subject: note.to ? (note.subject ?? "").replace(/^\s*re:\s*/i, "") : replySubject(note.subject),
+      brief: null,
+      asks: [],
+      step: note.stepId,
+      ...(note.to ? { to: note.to } : {}),
+    },
+    used: [],
+  });
 }
 
 /**
@@ -153,6 +213,15 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
       draft: (tenantId, ask) => replies.draft(tenantId, ask),
       markDraft: (tenantId, id, mark) => markReplyDraft(db, { ...where(tenantId, id), ...draftMarkOf(mark) }),
       keepDraft: (tenantId, d) => keepReachOutDraft(db, tenantId, d),
+      aheadOwed: (tenantId, owed) =>
+        findAheadOwed(db, {
+          tenantId,
+          messageId: owed.messageId,
+          conversationId: owed.conversationId,
+          stepId: owed.stepId,
+          receivedAt: new Date(owed.receivedAt).toISOString(),
+        }),
+      keepAhead: (tenantId, note) => keepStepNote(db, tenantId, note),
       told: (tenantId, id, claim) => markReplyTold(db, { ...where(tenantId, id), claim }),
       scheduleOnce: (at, payload) => ctx.scheduleOnce("reply_read", new Date(at), payload),
       // What the intake opened, the reading closes: the flag by its reason, the thread whole, on the service role (the

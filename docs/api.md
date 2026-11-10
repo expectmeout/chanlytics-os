@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-386 handlers in 57 domains.
+388 handlers in 57 domains.
 
 ## activity
 
@@ -2519,6 +2519,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `signed_by` | string or null | yes |  |
 | `signs_with` | one of `"name"`, `"mailbox"` | no |  |
 | `steps` | array of object | yes | at least 1; at most 5 |
+| `words_shown` | boolean | no |  |
 
 ### `GET /api/v1/reach-outs/[id]`
 
@@ -2854,6 +2855,20 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/route.ts`).
+
+### `GET /api/v1/sequences/[id]/again`
+
+Reads; for a member of the row's own workspace; counts against the `aggregate` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/again/route.ts`).
+
+### `POST /api/v1/sequences/[id]/again`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `days` | integer or null | yes |  |
 
 ### `PUT /api/v1/sequences/[id]/chain`
 

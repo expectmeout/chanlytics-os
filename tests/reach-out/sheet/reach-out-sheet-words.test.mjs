@@ -162,7 +162,7 @@ test("the next run says a paused chain, billing and a waiting run as they are, t
   );
   assert.deepEqual(nextRunWords(chain({}, { waiting_run_id: "b" }), TZ, at), {
     tone: "warn",
-    text: "A run waits on you. Nothing more is planned until you answer it.",
+    text: "A run waits on you. No new business is written to until you answer it; follow-ups still go.",
     run_id: "b",
   });
   assert.equal(nextRunWords(chain(), TZ, at).text, "Next run today 9:00 AM.");

@@ -2300,6 +2300,20 @@
       "rate": "lead_member",
       "spend": false
     },
+    "GET sequences/[id]/again": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "POST sequences/[id]/again": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "POST sequences/[id]/leave": {
       "kind": "write",
       "scope": "row",

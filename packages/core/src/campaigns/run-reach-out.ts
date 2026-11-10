@@ -1,8 +1,10 @@
 /**
  * One step of a reach-out, on its day (Reach out §4.1, §4.5): who it writes to, a run for them, and when each email
  * goes. A run of a step whose words are new to its owner waits for them (decision 0064: its first, and its first after
- * new words); any other gives thirty minutes to be stopped and tells its owner when it goes, or waits too when its
- * sequence asks for each (its mode, E7), and while any run of the chain waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
+ * new words); any other gives thirty minutes to be stopped and tells its owner when it goes, waits too when its
+ * sequence asks for each (its mode, E7), or goes at once where its owner set the sequence to send on its own (decision
+ * 0120). While a run of the chain waits, no new business is written to; a follow-up to the people already written to
+ * goes on, unless a run of its own step waits (0120). A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
  * chain bounced (C4), and one that keeps no open hour all week are skipped with why, so none of them heads the step's
  * page every day. What the timetable cannot place within its horizon waits for the next day's run. A reach-out its owner
  * sends (00429) plans no mailbox and no timetable: its day's share (REACH_OUT_DRAFTS_PER_DAY, less what the chain's runs
@@ -37,8 +39,8 @@ import type {
 const neverOpen = (week: WeekHours): boolean => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
 
 /**
- * A planned batch nobody asked to OK first. Before each batch promises "You're told it's ready": a batch nobody could be
- * told of does not go by itself, it waits for its owner's OK instead. A bell or a hold that fails is said by the door in
+ * A planned batch nobody asked to OK first, under a sequence that holds each one for a stop. Before each batch promises
+ * "You're told it's ready": a batch nobody could be told of does not go by itself, it waits for its owner's OK instead. A bell or a hold that fails is said by the door in
  * its own log; a batch that could be neither told of nor held is never lost, it goes at its time. A run its owner sends
  * by hand never goes without them, so there is nothing to say.
  */
@@ -69,11 +71,17 @@ export async function runReachOut(
   if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
   if (!ports.maySpend) return { outcome: "held", reason: "billing", planned: 0 };
   if (await ports.alreadyRan(step.id, cmd.runFor)) return { outcome: "empty", reason: "already_ran", planned: 0 };
-  // A run of the chain waits for its owner: nothing more is assembled until they have answered it.
-  if (await ports.chainWaits(step.root_id)) return { outcome: "held", reason: "waiting_for_you", planned: 0 };
+  // A run that waits for its owner holds what is behind it and no more (decision 0120): nothing new is written to a
+  // new business while any run of the chain waits, and a step makes no second run while one of its own waits, so under
+  // Ask me they never pile up. A first email that waits never holds the follow-ups to the people already written to.
+  const waiting = await ports.waitingSteps(step.root_id);
+  if (step.trigger === "lead_first" ? waiting.size > 0 : waiting.has(step.id))
+    return { outcome: "held", reason: "waiting_for_you", planned: 0 };
   // Its first run asks, because its words are new; after that its batches go as Before each batch says, first emails
-  // and follow-ups alike (decision 0077, amended 9 Nov 2026). Cold email never just goes: a sequence's mode is held or asked.
-  const asks = batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at }) === "ask";
+  // and follow-ups alike (decision 0077, amended 9 Nov 2026): held thirty minutes for a stop, asked for, or, where its
+  // owner set that on the sequence, sent on their own (0120).
+  const mode = batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at });
+  const asks = mode === "ask";
 
   // Who it may write to, and who it skips with why: a later step's leads the door would refuse, or whose email from the
   // chain bounced; any lead that keeps no open hour all week.
@@ -101,10 +109,10 @@ export async function runReachOut(
   leads = leads.filter((l) => !skipped.has(l.lead_id)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
 
-  // A run its owner approves goes from the moment they do (the clock plans a stale send again); one that is not asked
-  // gives its owner thirty minutes to stop it first.
+  // A run its owner approves goes from the moment they do (the clock plans a stale send again), and so does one of a
+  // sequence that sends on its own; one held for a stop gives its owner thirty minutes first.
   const now = ports.now();
-  const startMs = asks ? now : now + PLAYBOOK_VETO_DELAY_MS;
+  const startMs = mode === "veto" ? now + PLAYBOOK_VETO_DELAY_MS : now;
   let placed: Array<{ id: string; senderId: string | null; sendAtMs: number }>;
   if (step.owner_sends) {
     // Its owner sends (00429): the day's share left, and no more than their pile has room for, every email due as the
@@ -192,6 +200,12 @@ export async function runReachOut(
     await ports.recordRun(run, counts);
     await ports.notifyWaiting(run.id, placed.length, firstAt);
     return { outcome: "held", reason: "waiting_for_you", planned: placed.length };
+  }
+  // On its own (0120): nothing to stop and nobody to ask, so it is recorded as the system's send and goes. Today's
+  // "Since" line and the sequence's History say what went.
+  if (mode === "auto") {
+    await ports.recordRun(run, counts);
+    return { outcome: "sent", planned: placed.length };
   }
   return goesOrWaits(ports, step, run, { counts, firstAt });
 }

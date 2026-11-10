@@ -195,6 +195,49 @@ export async function listWaitingPlaybookRuns(db: Db, params: { limit: number })
   );
 }
 
+/** A run to leads waiting for its owner's OK, with its workspace's zone: what the morning's reminder reads. */
+export interface WaitingLeadRun {
+  id: string;
+  tenant_id: TenantId;
+  name: string;
+  /** How many emails it holds. */
+  emails: number;
+  /** When it began waiting, ISO. */
+  since: string;
+  timezone: string;
+}
+
+/**
+ * The runs to leads still waiting for approval across every workspace (the service role's client), longest-waiting
+ * first, at most `limit`, each with its workspace's zone (decision 0120: its owner is reminded each morning). They are
+ * the runs listWaitingPlaybookRuns leaves out: a reach-out's run has no day to pass. A read that fails THROWS.
+ */
+export async function listWaitingLeadRuns(db: Db, params: { limit: number }): Promise<WaitingLeadRun[]> {
+  const { data, error } = await db
+    .from("sequence_batches")
+    .select("id, tenant_id, name, recipient_count, created_at")
+    .eq("state", "pending_approval")
+    .eq("audience->>kind", "reach_out")
+    .order("created_at", { ascending: true })
+    .limit(params.limit);
+  if (error) throw new DbFailure(error, "waiting runs: cannot read the runs to leads waiting for approval");
+  if (!data.length) return [];
+  const zones = await db
+    .from("tenants")
+    .select("id, timezone")
+    .in("id", [...new Set(data.map((r) => r.tenant_id))]);
+  if (zones.error) throw new DbFailure(zones.error, "waiting runs: cannot read their workspaces' zones");
+  const zoneOf = new Map(zones.data.map((t) => [t.id, t.timezone]));
+  return data.map((run) => ({
+    id: run.id,
+    tenant_id: run.tenant_id,
+    name: run.name,
+    emails: run.recipient_count,
+    since: run.created_at,
+    timezone: zoneOf.get(run.tenant_id) || DEFAULT_TIMEZONE,
+  }));
+}
+
 /**
  * A run moved to `canceled`, only while it is still in `from`: true iff this call moved it (a run approved or skipped
  * since it was read is left as it is). The cancel verb's port for a run nobody's session asks for. Throws when it

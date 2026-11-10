@@ -965,7 +965,10 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
     waitingRun({ playbook_id: null, run_for: "2026-09-30", audience: { kind: "reach_out" }, recipient_count: 12 }),
   );
   assert.equal(reachOut.waiting, null);
-  assert.equal(reachOut.why, "12 businesses. Waits for your OK; nothing goes until you give it.");
+  assert.equal(
+    reachOut.why,
+    "12 businesses. Waits for your OK, and you are reminded each morning; no new business is written to until you give it.",
+  );
   assert.deepEqual(reachOut.act, { kind: "route", label: "Open", route: "campaigns/sequences/r-w/runs/r-w" });
   // A run whose playbook the page does not hold (it was deleted): nothing here says what it sends, so it is opened too.
   const orphan = row(waitingRun({ playbook_id: "pb-gone" }));

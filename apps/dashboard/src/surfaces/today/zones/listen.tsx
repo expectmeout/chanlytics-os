@@ -25,8 +25,8 @@ import { useDayVm } from "./day-vm";
 /**
  * Your brief's words, over what the page already holds: the day's view model, the day's own, and the runs waiting for a word
  * an approval can still send, said as the queue's rows say them (contracts waitRowsOf, the queue's and the Inbox's own):
- * the emails handed to you are one line, as two or more runs waiting for an OK are, each other run its own
- * (todayRunWords). A run whose day has passed waits on nobody: its row says so, and the brief says nothing of it (S7-3).
+ * the emails handed to you are one line, as cold email's runs and two or more runs waiting for an OK are, each other
+ * run its own (todayRunWords). A run whose day has passed waits on nobody: its row says so, and the brief says nothing of it (S7-3).
  * Listen reads them and Ask is handed them, on a desk and a phone alike.
  */
 export function useBriefWords(): TodayBriefWords | null {
@@ -36,9 +36,11 @@ export function useBriefWords(): TodayBriefWords | null {
   const runs: TodayBriefRun[] = waitRowsOf(runsPending().waiting).map((row) =>
     row.kind === "to_send"
       ? { ...TO_SEND_ALL_WORDS.brief(row.from), sentence: TO_SEND_ALL_WORDS.sentence(row.count, row.from) }
-      : row.kind === "approvals"
-        ? WAIT_ROW_WORDS.approvals.brief(row.runs.map(runTitleOf))
-        : { label: runTitleOf(row.run), ...TODAY_HELPERS.runs(row.run).brief },
+      : row.kind === "cold_email"
+        ? WAIT_ROW_WORDS.cold.brief(row)
+        : row.kind === "approvals"
+          ? WAIT_ROW_WORDS.approvals.brief(row.runs.map(runTitleOf))
+          : { label: runTitleOf(row.run), ...TODAY_HELPERS.runs(row.run).brief },
   );
   return vm ? TODAY_HELPERS.briefWords(vm, day, runs) : null;
 }

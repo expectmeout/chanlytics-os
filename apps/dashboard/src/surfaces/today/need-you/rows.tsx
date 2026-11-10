@@ -19,6 +19,7 @@ import { StepWork } from "./sheet/step-work";
 import { SearchWork } from "./sheet/search-work";
 import { VisitWork } from "./visit-work";
 import type { DraftWant } from "./drafts";
+import { stepNoteOf, stepNoteWantOf } from "./step-note";
 
 /** The kinds a reply is written for. */
 const REPLY_KINDS: ReadonlySet<TodayQueueRowVM["kind"]> = new Set(["handoff", "window", "reply"]);
@@ -52,7 +53,9 @@ export function opensToWork(r: TodayQueueRowVM): boolean {
 export function shortLabel(r: TodayQueueRowVM): string {
   if (r.request) return "Answer";
   if (r.kind === "callback") return "Call back";
-  if (r.kind === "step" || r.kind === "review" || r.kind === "search") return r.cta.label;
+  // A step that arrives with its note written opens to read it (decision 0120); else its own Done.
+  if (r.kind === "step") return stepNoteOf(r) ? W.step.readNote : r.cta.label;
+  if (r.kind === "review" || r.kind === "search") return r.cta.label;
   if (r.kind === "visit") return W.visit.asks;
   // A reply that never reached them says what can work; a reach-out's that needs nothing more, that it can be let go.
   if (r.failed?.way === "call" && r.phone) return W.call.callWho(callWhoOf(r.who));
@@ -77,6 +80,8 @@ export function draftWantOf(r: TodayQueueRowVM): DraftWant | null {
           askedAtMs: r.writes.for_message_at_ms ?? null,
         }
       : null;
+  // A step's note, kept on the person's thread (decision 0120).
+  if (r.kind === "step") return stepNoteWantOf(r);
   if (r.request || !REPLY_KINDS.has(r.kind)) return null;
   return replyWant(r);
 }

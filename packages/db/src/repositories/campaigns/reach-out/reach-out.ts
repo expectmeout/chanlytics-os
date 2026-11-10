@@ -48,17 +48,26 @@ export interface AudienceLead {
 
 /**
  * The leads a chain's first step may write to (00197 reach_out_audience), strongest fit first: never one any chain of
- * the workspace planned, held or wrote to, and a catch-all address only when the chain includes them.
+ * the workspace planned, held or wrote to, and a catch-all address only when the chain includes them. A chain that tries
+ * again (`againAfter` days, decision 0120) also gets, after the new ones, the businesses it wrote to that never answered
+ * and whose last email is that old, once. Named only when set: a database before 00589 knows no such argument.
  */
 export async function listReachOutAudience(
   db: Db,
-  params: { tenantId: TenantId; searchId: string; limit: number; includeUnconfirmed: boolean },
+  params: {
+    tenantId: TenantId;
+    searchId: string;
+    limit: number;
+    includeUnconfirmed: boolean;
+    againAfter?: number | null;
+  },
 ): Promise<AudienceLead[]> {
   const { data, error } = await db.rpc("reach_out_audience", {
     p_tenant_id: params.tenantId,
     p_search_id: params.searchId,
     p_limit: params.limit,
     p_include_unconfirmed: params.includeUnconfirmed,
+    ...(params.againAfter ? { p_again_after: params.againAfter } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read who a reach-out may write to");
   return data ?? [];

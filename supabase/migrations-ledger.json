@@ -64,7 +64,13 @@
     "00576": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
     "00577": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
     "00578": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
-    "00579": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it"
+    "00579": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
+    "00581": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) once 00580 had landed, open and not on main when cold email runs itself (decision 0120) took 00587 above its claims; it lands above or beside it",
+    "00582": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) once 00580 had landed, open and not on main when cold email runs itself (decision 0120) took 00587 above its claims; it lands above or beside it",
+    "00583": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) once 00580 had landed, open and not on main when cold email runs itself (decision 0120) took 00587 above its claims; it lands above or beside it",
+    "00584": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) once 00580 had landed, open and not on main when cold email runs itself (decision 0120) took 00587 above its claims; it lands above or beside it",
+    "00585": "claimed by cm-person-steps (sequences/a-time-for-each-person, an occasion enrols a person, decision 0119), built and not on main when cold email runs itself (decision 0120) took 00587 above its claims; it lands above or beside it",
+    "00586": "claimed by cm-person-steps (sequences/a-time-for-each-person, an occasion enrols a person, decision 0119), built and not on main when cold email runs itself (decision 0120) took 00587 above its claims; it lands above or beside it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -582,6 +588,11 @@
     "00573_a_press_that_showed_the_words_is_their_ok.sql": "c2548afadd3cb690702bc4abca4b89583e642feb163425e45268f4ed2bffdcb4",
     "00574_a_record_of_each_thing_ask_did.sql": "a258a8fef63ad6fba2b98ab4cf81310316e0b8e8f512edb4f25b7876d90ef975",
     "00575_web_push_and_what_ask_told.sql": "22b059fcdafef7559b6e4a7a4c59d3466efb5d85e8effc5ef4f176149225ff92",
-    "00580_a_late_booking_is_reminded.sql": "836e8d4d41a39945b2703ef0ef15a8a76e579742fb8607ac1c44f24094df22ef"
+    "00580_a_late_booking_is_reminded.sql": "836e8d4d41a39945b2703ef0ef15a8a76e579742fb8607ac1c44f24094df22ef",
+    "00587_a_sequence_to_leads_may_send_on_its_own.sql": "29b26f0a21bb4a1d3e131123f694e63d5afe60d43fba8885ecca5c2e5e9f49f1",
+    "00588_a_step_s_note_is_kept_on_its_thread.sql": "0bd54db2a3d0e0fd52ebd6cda41977f0630229c3c494dd8d819cd5955d74fadc",
+    "00589_a_business_that_never_answered_may_be_tried_again.sql": "21d427a7e1c7691b4214460804e9692ee4a9c2153259127426e5e163f2945d80",
+    "00590_one_first_email_a_lead_a_round.sql": "a358811a5367cf26b4ff0e0f2310e6422c5fda5a3813738b37f1b7db11563ed5",
+    "00591_the_first_round_s_index_goes.sql": "41c316ca0dc472554e95f2d6599bde9bd2fe48d421e88a2846cf2ae4d49a146c"
   }
 }

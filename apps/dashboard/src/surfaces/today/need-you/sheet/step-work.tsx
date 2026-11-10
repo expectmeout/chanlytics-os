@@ -1,14 +1,16 @@
 /**
  * A step due (one sheet, 9 Nov 2026): the job, what was last said to them, and what to write, which Ask makes into a message on
  * their thread and whose send finishes the job (his call D10); Done, with the page's toast and Undo, or Not now, which moves its day.
+ * A step a reply left arrives with its note written (decision 0120, D7): a not-now's check-back, sent on their thread; or a first
+ * note to the person a wrong person named, which goes from the owner's own mail, since it is to someone new.
  */
 import { useEffect, useRef, useState } from "react";
-import { NEED_YOU_WORDS as W, NOTE_WORDS, stepDays } from "@chanlytics/contracts";
+import { NEED_YOU_WORDS as W, NOTE_WORDS, mailtoOf, stepDays, type ReplyDraftDto } from "@chanlytics/contracts";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { Button } from "../../../kit";
-import type { PeopleSurface } from "../../../people/surface";
-import { borrowed, gate } from "../../shell";
-import { rewriteDraft } from "../drafts";
+import { gate } from "../../shell";
+import { rewriteDraft, useDraftsMoved } from "../drafts";
+import { stepNoteOf, stepThreadOf } from "../step-note";
 import { Acts, Done, Note, NotNow, State, Words, whoseWords, type WorkProps } from "../parts";
 import { useRowState } from "../row-state";
 import { sendWords, undoSend, useSend } from "../sends";
@@ -63,10 +65,15 @@ function useStepDay(p: WorkProps) {
   return { moved, refused, days, move, back, fresh: () => setAt(Date.now()) };
 }
 
-/** What to write for a step, as Ask makes it on this person's thread; its send finishes the job. */
-function useStepWords(p: WorkProps & { onDone: () => void }, threadId: string | null) {
+/**
+ * What to write for a step, as Ask makes it on this person's thread, or as its note was written ahead (decision 0120); its send
+ * finishes the job.
+ */
+function useStepWords(p: WorkProps & { onDone: () => void }, threadId: string | null, note: ReplyDraftDto | null) {
   const { row, flash, keep, unkeep } = p;
-  const [mine, setMine] = useRowState<string | null>(row.id, "mine", null);
+  const [own, setMine] = useRowState<string | null>(row.id, "mine", null);
+  // The words the member made their own stand; until then, the note it arrived with.
+  const mine = own ?? note?.words.text ?? null;
   const [why, setWhy] = useRowState<string | null>(row.id, "askWhy", null);
   const [writing, setWriting] = useState(false);
   const write = async (words: string) => {
@@ -113,12 +120,17 @@ function useStepWords(p: WorkProps & { onDone: () => void }, threadId: string | 
  * Done (the page's own, with its toast and Undo), or Not now, which moves its day.
  */
 export function StepWork(p: WorkProps & { onDone: () => void }) {
-  const { row, main, may, unkeep } = p;
+  const { row, may, unkeep } = p;
   const day = useStepDay(p);
-  const person = borrowed<PeopleSurface>("__PEOPLE")?.rows.find((r) => r.id === row.person_id);
-  const threadId = person?.threadId?.replace(/^th-/, "") ?? null;
-  const words = useStepWords(p, threadId);
+  // Drawn again as its note lands.
+  useDraftsMoved();
+  const note = stepNoteOf(row);
+  const threadId = note?.conversation_id ?? stepThreadOf(row);
+  const words = useStepWords(p, threadId, note);
   const { mine } = words;
+  // A note to someone new goes from the owner's own mail: once opened there, Done finishes the job.
+  const to = note?.words.to ?? null;
+  const [mailed, setMailed] = useRowState<boolean>(row.id, "mailed", false);
   if (day.moved)
     return (
       <Done
@@ -137,30 +149,11 @@ export function StepWork(p: WorkProps & { onDone: () => void }) {
         foot={p.foot}
       />
     );
-  const whoseMine = whoseWords(mine ?? "", mine, () => words.setMine(null));
   return (
     <>
       {p.whole ? <State>{row.sentence}</State> : null}
       {p.whole && threadId ? <ThreadLast conversationId={threadId} pulled={p.pulled} /> : null}
-      {mine !== null ? (
-        <Words
-          label={W.drafted}
-          asks
-          text={mine}
-          who={row.who}
-          onChange={may ? words.setMine : null}
-          onRestore={whoseMine.onRestore}
-          busy={words.writing}
-        />
-      ) : null}
-      {p.whole && may && threadId ? (
-        <SayToAsk
-          placeholder={mine !== null ? W.say.tell : W.step.write(row.who)}
-          onSay={words.write}
-          busy={words.writing}
-          why={words.why}
-        />
-      ) : null}
+      <StepWords p={p} words={words} noted={note !== null} to={to} threadId={threadId} />
       {day.refused ? <Note tone="danger">{day.refused}</Note> : null}
       <Acts
         foot={p.foot}
@@ -178,24 +171,104 @@ export function StepWork(p: WorkProps & { onDone: () => void }) {
           ) : null
         }
         end={
-          mine?.trim() ? (
-            <Button variant={main} onClick={() => void words.sendIt()} {...gate("approve", "send a reply")}>
-              {W.step.sendDone}
-            </Button>
-          ) : (
-            // Several rows say Done: a reader hears whose, as the thread header's does (NOTE_WORDS.markDone).
-            <Button
-              variant={main}
-              onClick={p.onDone}
-              {...gate("approve", "mark a step done")}
-              aria-label={NOTE_WORDS.markDone(row.sentence)}
-            >
-              {row.cta.label}
-            </Button>
-          )
+          <StepEnd
+            p={p}
+            mine={mine}
+            to={to}
+            subject={note?.words.subject ?? ""}
+            mailed={mailed}
+            onMailed={() => setMailed(true)}
+            onSend={() => void words.sendIt()}
+          />
         }
       />
     </>
+  );
+}
+
+/**
+ * What to write for a step: what its note is, where it arrived written (decision 0120); the words, to change by hand; and what
+ * is said to Ask about them, on their own thread, never about a note to someone new, which Ask's change would make a reply.
+ */
+function StepWords(s: {
+  p: WorkProps;
+  words: ReturnType<typeof useStepWords>;
+  noted: boolean;
+  to: string | null;
+  threadId: string | null;
+}) {
+  const { p, words, to } = s;
+  const { mine } = words;
+  const whoseMine = whoseWords(mine ?? "", mine, () => words.setMine(null));
+  const asks = p.whole && p.may && !!s.threadId && !to;
+  return (
+    <>
+      {s.noted ? <Note>{to ? W.step.noteTo(to) : W.step.noteAgain}</Note> : null}
+      {mine !== null ? (
+        <Words
+          label={W.drafted}
+          asks
+          text={mine}
+          who={p.row.who}
+          onChange={p.may ? words.setMine : null}
+          onRestore={whoseMine.onRestore}
+          busy={words.writing}
+        />
+      ) : null}
+      {asks ? (
+        <SayToAsk
+          placeholder={mine !== null ? W.say.tell : W.step.write(p.row.who)}
+          onSay={words.write}
+          busy={words.writing}
+          why={words.why}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * A step's one act: its note to someone new opened in the owner's own mail, until it has been; words to send on their thread,
+ * Send, which finishes the job; else Done.
+ */
+function StepEnd(e: {
+  p: WorkProps & { onDone: () => void };
+  mine: string | null;
+  to: string | null;
+  subject: string;
+  mailed: boolean;
+  onMailed: () => void;
+  onSend: () => void;
+}) {
+  const { p, mine, to } = e;
+  const words = mine?.trim() ? mine : null;
+  if (to && words && !e.mailed)
+    return (
+      <Button
+        variant={p.main}
+        href={mailtoOf(to, e.subject, words)}
+        onClick={e.onMailed}
+        {...gate("approve", "write to them")}
+      >
+        {W.step.openInMail}
+      </Button>
+    );
+  if (!to && words)
+    return (
+      <Button variant={p.main} onClick={e.onSend} {...gate("approve", "send a reply")}>
+        {W.step.sendDone}
+      </Button>
+    );
+  // Several rows say Done: a reader hears whose, as the thread header's does (NOTE_WORDS.markDone).
+  return (
+    <Button
+      variant={p.main}
+      onClick={p.onDone}
+      {...gate("approve", "mark a step done")}
+      aria-label={NOTE_WORDS.markDone(p.row.sentence)}
+    >
+      {p.row.cta.label}
+    </Button>
   );
 }
 

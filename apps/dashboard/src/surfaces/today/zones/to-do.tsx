@@ -7,13 +7,15 @@
  * group's foot says the rest. The same derivations, the same rows and presses (need-you/people-rows.tsx); it takes the page's
  * coral only where Need you holds none.
  */
-import { useLayoutEffect, useState, type ReactElement, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactElement, type ReactNode } from "react";
 import { DEFAULT_TIMEZONE, lensRoute, type AppointmentWord, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { useSurface } from "../../use-surface";
 import { holdsCoral, useCoralHeld } from "../queue-coral";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, canDo, useMoved, useToast, workspaceClock } from "../shell";
 import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
+import { useDraftsMoved, wantDrafts } from "../need-you/drafts";
+import { stepNoteWantOf } from "../need-you/step-note";
 import { useRests } from "../need-you/rests";
 import { reviewsToAnswer } from "../need-you/reviews";
 import { reviewRowOf } from "../need-you/sheet/row-line";
@@ -73,6 +75,8 @@ export function useToDoRows({
   // People's rows are the steps', the Calendar's blocks the visits', Google's the reviews' and the morning's the rests over
   // them: each moves this.
   useMoved(["people", "calendar", "google", "ask_morning"]);
+  // And the notes steps arrive with (decision 0120): kept on their threads, they land as the drafts do.
+  useDraftsMoved();
   const [toastNode, flash] = useToast();
   const [done, setDone] = useState<readonly string[]>([]);
   const [kept, setKept] = useState<Kept>({});
@@ -125,6 +129,13 @@ export function useToDoRows({
   };
   const drawn = needYouRows(rows, ctx);
   const holds = !taken && !primaryLeft;
+  // The steps' notes the workspace's newest drafts did not hold, read by their threads, once each.
+  const noteThreads = rows.flatMap((r) => stepNoteWantOf(r)?.conversationId ?? []).join(",");
+  useEffect(() => {
+    void wantDrafts(rows.flatMap((r) => stepNoteWantOf(r) ?? []));
+    // The threads stand for the rows: a new step, or one with another thread, reads again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteThreads]);
   useLayoutEffect(() => {
     holdsCoral("todo", holds);
   }, [holds]);
