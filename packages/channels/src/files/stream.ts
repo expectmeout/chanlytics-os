@@ -318,7 +318,7 @@ export function streamFrameUrl(
 }
 
 /** The video's playback list (HLS), under a token: it names a sound track only where the video has one. */
-export const streamManifestUrl = (customerCode: string, token: string): string =>
+const streamManifestUrl = (customerCode: string, token: string): string =>
   `${streamHostOf(customerCode)}/${token}/manifest/video.m3u8`;
 
 /**
