@@ -49,7 +49,7 @@ Each is owed to one person, for one thing that happened to them, at a time of th
 - **Marked missed at night, the message goes at nine.** The run moves any send outside the sending hours to the next morning, and its words then say "yesterday".
 - **An occasion is not counted before it happens.** The composer shows no "N people" for these moments: nobody is in one until something happens to them.
 - **Ask does not propose these moments yet.** Its tool lists and takes every moment but the three (`PROPOSABLE_TRIGGERS`): a sequence on one is made in New.
-- **Starter messages for the three moments are not written.** A sequence on one takes a message the owner picks or writes.
+- **Ask's chat does not propose the three moments.** Each has a starter message since 10 Nov 2026 (`two_hour_reminder`, `missed_visit`, `booking_follow_up`, on Ruben's yes to their words), offered in Messages and to New; Ask's `propose_sequence` still leaves the moments, and so their starters, out.
 
 ## Deploy order
 

@@ -47,8 +47,11 @@ const OFFERED = [
   "winback_reply",
   "this_months_offer",
   "visit_reminder",
+  "two_hour_reminder",
   "after_visit_check",
   "after_visit_review",
+  "missed_visit",
+  "booking_follow_up",
   "proposal_follow_up",
   "time_freed",
   "quick_note",
@@ -59,7 +62,7 @@ const RETIRED = ["winback_offer", "welcome_new", "save_our_number", "monthly_off
 /** A workspace's shape as the set is offered by it: deals on, and its Google listing keeping a review link. */
 const ALL = { reviewLink: true };
 
-test("nine starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
+test("twelve starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
   assert.deepEqual(
     startersOffered(ALL).map((s) => s.key),
     OFFERED,
@@ -161,8 +164,17 @@ test("every email and text version passes its channel's check with no warnings, 
     startersOffered(ALL)
       .filter((s) => s.email && s.sms)
       .map((s) => s.key),
-    ["visit_reminder", "after_visit_check", "after_visit_review", "proposal_follow_up", "time_freed"],
-    "the five about a person's own appointment, proposal or ask go by every channel",
+    [
+      "visit_reminder",
+      "two_hour_reminder",
+      "after_visit_check",
+      "after_visit_review",
+      "missed_visit",
+      "booking_follow_up",
+      "proposal_follow_up",
+      "time_freed",
+    ],
+    "the eight about a person's own appointment, proposal or ask go by every channel",
   );
 });
 
@@ -201,9 +213,7 @@ test("one starter per moment, one for any broadcast; titles for people, names fo
   for (const t of MOMENT_TRIGGERS) {
     const s = starterForTrigger(t.id);
     // One of the workspace's own lists sends what the owner picks; Lapsed sends the win-back, already about a visit.
-    // A moment an occasion starts (decision 0119: a visit two hours away, one marked missed, an ask with no booking) has
-    // none yet: its owner writes its first message until its own words are written and looked at.
-    if (t.kind === "saved" || t.kind === "occasion") {
+    if (t.kind === "saved") {
       assert.equal(s, null, `${t.id} has no starter of its own`);
       continue;
     }
@@ -218,7 +228,10 @@ test("one starter per moment, one for any broadcast; titles for people, names fo
         "lapsed",
         "everyone_monthly",
         "visit_tomorrow",
+        "visit_soon",
         "visited",
+        "visit_missed",
+        "asked_no_booking",
         "proposal_waiting",
         "slot_opened",
         "new_week",
@@ -230,7 +243,11 @@ test("one starter per moment, one for any broadcast; titles for people, names fo
       lapsed: "winback_reply",
       everyone_monthly: "this_months_offer",
       visit_tomorrow: "visit_reminder",
+      // The three an occasion starts (decision 0119), each with its own.
+      visit_soon: "two_hour_reminder",
       visited: "after_visit_check",
+      visit_missed: "missed_visit",
+      asked_no_booking: "booking_follow_up",
       proposal_waiting: "proposal_follow_up",
       slot_opened: "time_freed",
       new_week: "welcome_new",
@@ -711,6 +728,82 @@ test("the set a workspace is offered (0006): the proposal follow-up in every wor
       `${l.id}: no price, date or amount in its words`,
     );
   assert.equal(guessSlotKind("Proposal link"), "proposal_link", "a label that names the proposal is its link");
+});
+
+test("an occasion's three starters (0119): the reminder two hours before, the missed appointment, the booking follow-up; each a utility message about the person's own, in every version and both languages", () => {
+  const facts = (key) => {
+    const s = starterByKey(key);
+    return [
+      s.title,
+      s.category,
+      s.trigger,
+      s.texts.en_US.slots.map((x) => x.kind),
+      s.texts.en_US.slots.map((x) => x.example),
+    ];
+  };
+  assert.deepEqual(facts("two_hour_reminder"), [
+    "Two-hour reminder",
+    "utility",
+    "visit_soon",
+    ["first_name", "business_name", "visit_when", "visit_service"],
+    // The time as the day it goes reads it: a reminder two hours before says today.
+    ["Dani", "Luna Studio", "today at 2:00 PM", "a consultation"],
+  ]);
+  assert.deepEqual(facts("missed_visit"), [
+    "Missed appointment",
+    "utility",
+    "visit_missed",
+    ["first_name", "business_name", "visit_when"],
+    // A visit behind is said by its day alone.
+    ["Dani", "Luna Studio", "today"],
+  ]);
+  assert.deepEqual(facts("booking_follow_up"), [
+    "Booking follow-up",
+    "utility",
+    "asked_no_booking",
+    ["first_name", "business_name", "booking_link"],
+    ["Dani", "Luna Studio", "https://booksy.com/luna-studio"],
+  ]);
+  assert.equal(
+    starterPreview(starterByKey("two_hour_reminder"), "en_US", "Harbor Studio"),
+    "Hi Dani, it's Harbor Studio. See you today at 2:00 PM for a consultation. If something came up, just reply here.",
+  );
+  assert.equal(
+    starterPreview(starterByKey("missed_visit"), "en_US", "Harbor Studio"),
+    "Hi Dani, it's Harbor Studio. We missed you today. Want another time? Reply here and we'll find one.",
+  );
+  assert.equal(
+    starterPreview(starterByKey("booking_follow_up"), "en_US", "Harbor Studio", "https://book.example.com/harbor"),
+    "Hi Dani, it's Harbor Studio. Still want to book? Here's the link again: https://book.example.com/harbor. Or reply here and we'll help.",
+  );
+  assert.equal(
+    starterPreview(starterByKey("missed_visit"), "es", "Harbor Studio"),
+    "Hola Dani, te escribimos de Harbor Studio. No te vimos hoy. ¿Quieres otra hora? Responde aquí y la buscamos.",
+  );
+  for (const key of ["two_hour_reminder", "missed_visit", "booking_follow_up"]) {
+    const s = starterByKey(key);
+    assert.equal(s.retired, undefined, key);
+    for (const l of STARTER_LANGUAGES) {
+      // About their own appointment or ask and nothing else: no offer, no price, no footer to stop offers by.
+      assert.equal(s.texts[l.id].footer, null, `${key} ${l.id}: a utility message carries no footer`);
+      assert.ok(
+        !/[$€£%]|\d/.test(s.texts[l.id].body.replace(/\{\{\d\}\}/g, "")),
+        `${key} ${l.id}: no price, date or amount in its words`,
+      );
+      assert.ok(starterEmailText(s, l.id) && starterSmsText(s, l.id), `${key} ${l.id}: an email and a text version`);
+    }
+    // The visit's two say no link, and ask for a reply; the follow-up is the one that carries the booking link.
+    assert.equal(
+      s.texts.en_US.slots.some((x) => x.kind === "booking_link"),
+      key === "booking_follow_up",
+      `${key}: the booking link`,
+    );
+  }
+  // What a composer opens on for each moment, and what a sequence on it is offered.
+  assert.equal(
+    defaultTemplate([{ name: "missed_visit" }, { name: "quick_note" }], "visit_missed").name,
+    "missed_visit",
+  );
 });
 
 test("a freed time (0082): a utility message about a freed time, its third slot the time, asking for a reply and carrying no link, in every version and both languages", () => {
