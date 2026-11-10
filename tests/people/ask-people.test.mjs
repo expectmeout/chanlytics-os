@@ -1070,7 +1070,7 @@ test("a note card, walked end to end: the model's call makes it, Approve writes 
   const [written] = world.person_notes;
   assert.deepEqual(done, {
     ok: true,
-    receipt: "Rosa · Note added",
+    receipt: "Noted on Rosa.",
     undo: { contact_id: ROSA, note_id: written.id },
     made: null,
   });
@@ -1097,7 +1097,7 @@ test("a note card, walked end to end: the model's call makes it, Approve writes 
     body: { note_id: written.id },
     via: "ask",
   });
-  // For the team: the same route, team-only, and the receipt says so.
+  // For the team: the same route, team-only. The card said so before the press; its receipt is the same plain words (#2211).
   const team = tabOver(cardWorld());
   const teamCard = await buildProposal(team.t, "propose_person", {
     action: "note",
@@ -1106,7 +1106,7 @@ test("a note card, walked end to end: the model's call makes it, Approve writes 
     for: "team",
   });
   const r = await commitProposal(team.win, teamCard.proposal, team.client);
-  assert.equal(r.receipt, "Quinn W · Note added · Team only");
+  assert.equal(r.receipt, "Noted on Quinn W.");
   assert.deepEqual(team.sent[0].body, { body: "Owes us a callback.", team_only: true });
 });
 
