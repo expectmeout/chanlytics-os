@@ -572,103 +572,7 @@ test("the batch is judged before it is walked: a source that is not one of the f
   assert.equal(door[0].p_source, CONSENT_RESET_SOURCE);
 });
 
-test("until 00110 is applied, a YES OFFERS by text is still recorded: the door is asked again without its evidence, and once, with it, afterwards", async () => {
-  const { ingestInbound } = await import(at("packages/db/src/repositories/channels/ingest.ts"));
-  const inbound = {
-    tenantId: A,
-    channel: "whatsapp",
-    identityExternalId: "15550001",
-    phoneE164: "+15550001",
-    waProfileName: null,
-    messageExternalId: "wamid.1",
-    type: "text",
-    body: "YES OFFERS",
-    channelTs: "2026-09-12T00:00:00Z",
-    optInMarketing: true,
-  };
-  const result = {
-    message_id: "m1",
-    conversation_id: "c1",
-    contact_id: "p1",
-    is_new: true,
-    processed: false,
-    state: "open",
-    paused_until: null,
-    consent: "unknown",
-    dnc: false,
-  };
-  const old = [];
-  const before = {
-    ingest_inbound: () => result,
-    // PostgREST, on a schema without the parameter: PGRST202, naming what it could not match.
-    set_marketing_consent: (a) => {
-      old.push(a);
-      if ("p_evidence" in a)
-        throw new Error(
-          "Could not find the function public.set_marketing_consent(p_consent, p_contact_id, p_evidence, p_note, p_source, p_tenant_id) in the schema cache",
-        );
-      return {};
-    },
-  };
-  const out = await ingestInbound(fakeDb({}, {}, before), inbound);
-  assert.equal(out.contact_id, "p1", "the message itself was ingested");
-  assert.deepEqual(
-    old.map((a) => [a.p_contact_id, a.p_consent, a.p_source, a.p_evidence ?? null]),
-    [
-      [
-        "p1",
-        "opted_in",
-        "customer_message",
-        { channel: "whatsapp", message_external_id: "wamid.1", words: "YES OFFERS" },
-      ],
-      ["p1", "opted_in", "customer_message", null],
-    ],
-    "asked with the proof, refused by name, asked again without it",
-  );
-  const fresh = [];
-  await ingestInbound(
-    fakeDb(
-      {},
-      {},
-      {
-        ingest_inbound: () => result,
-        set_marketing_consent: (a) => {
-          fresh.push(a);
-          return {};
-        },
-      },
-    ),
-    inbound,
-  );
-  assert.equal(fresh.length, 1, "with 00110 in place, one call");
-  assert.deepEqual(fresh[0].p_evidence, { channel: "whatsapp", message_external_id: "wamid.1", words: "YES OFFERS" });
-  // Any other refusal is not retried: it is the door's own answer. It is raised, since nothing else repeats the yes (the
-  // customer's message is kept all the same), unless a job follows this visit and writes it (a text's door).
-  const other = [];
-  const refusing = () =>
-    fakeDb(
-      {},
-      {},
-      {
-        ingest_inbound: () => result,
-        set_marketing_consent: (a) => {
-          other.push(a);
-          throw new Error("a yes to offers must be in writing");
-        },
-      },
-    );
-  const { AnswerNotKept } = await import(at("packages/db/src/repositories/channels/ingest.ts"));
-  await assert.rejects(ingestInbound(refusing(), inbound), (e) => e instanceof AnswerNotKept);
-  assert.equal(other.length, 1);
-  assert.equal(
-    (await ingestInbound(refusing(), { ...inbound, jobFollows: true })).contact_id,
-    "p1",
-    "the door of a message a job answers next keeps it, and leaves the yes to that job",
-  );
-  assert.equal(other.length, 2);
-});
-
-test("a START is noted on the channel it came on, after the ingest and with its words; a failure is logged, and raised unless a job follows", async () => {
+test("the yeses a message carries are the ingest's own: one call keeps the message, a START's channel and a YES OFFERS (00592)", async () => {
   const { ingestInbound } = await import(at("packages/db/src/repositories/channels/ingest.ts"));
   const inbound = {
     tenantId: A,
@@ -676,13 +580,14 @@ test("a START is noted on the channel it came on, after the ingest and with its 
     identityExternalId: "15550002",
     phoneE164: "+15550002",
     waProfileName: null,
-    messageExternalId: "SM-start-1",
+    messageExternalId: "SM-yes-1",
     type: "text",
-    body: "START",
+    body: "START YES OFFERS",
     channelTs: "2026-09-12T00:00:00Z",
     optIn: true,
+    optInMarketing: true,
   };
-  const result = {
+  const result = (over = {}) => ({
     message_id: "m1",
     conversation_id: "c1",
     contact_id: "p1",
@@ -692,104 +597,58 @@ test("a START is noted on the channel it came on, after the ingest and with its 
     paused_until: null,
     consent: "opted_in",
     dnc: false,
-  };
-  const world = (noted) => {
-    const order = [];
-    return {
-      order,
-      db: fakeDb(
-        {},
-        {},
-        {
-          ingest_inbound: () => {
-            order.push("ingest_inbound");
-            return result;
-          },
-          note_yes_on_channel: (a) => {
-            order.push(["note_yes_on_channel", a]);
-            return noted(a);
-          },
+    ...over,
+  });
+  const world = (answer) => {
+    const calls = [];
+    const db = fakeDb(
+      {},
+      {},
+      {
+        ingest_inbound: (a) => {
+          calls.push(["ingest_inbound", a]);
+          return answer;
         },
-      ),
+      },
+    );
+    const rpc = db.rpc.bind(db);
+    db.rpc = (name, args) => {
+      if (name !== "ingest_inbound") calls.push([name, args]);
+      return rpc(name, args);
     };
+    return { calls, db };
   };
   const lines = [];
   const slot = Symbol.for("chanlytics.db.observer");
   globalThis[slot] = {
-    log: { info() {}, warn() {}, error: (event, fields) => lines.push([event, fields.error]) },
+    log: { info() {}, warn: (event, fields) => lines.push([event, fields.channel]), error() {} },
     requestId: () => null,
   };
   try {
-    // The keyword opt-in: asked once, after the ingest, with the contact it returned and what they wrote.
-    const first = world(() => true);
-    const out = await ingestInbound(first.db, inbound);
-    assert.equal(out.contact_id, "p1");
-    assert.deepEqual(first.order, [
-      "ingest_inbound",
-      [
-        "note_yes_on_channel",
-        {
-          p_tenant_id: A,
-          p_contact_id: "p1",
-          p_channel: "sms",
-          p_message_external_id: "SM-start-1",
-          p_words: "START",
-        },
-      ],
-    ]);
-    assert.deepEqual(lines, [], "nothing to say when it wrote");
-
-    // Not a START: not asked. A STOP, a YES OFFERS and an ordinary message are no yes to messages about a visit.
-    for (const flags of [
-      { optIn: false },
-      { optIn: undefined, optOut: true },
-      { optIn: false, optInMarketing: false },
-    ]) {
-      const quiet = world(() => true);
-      await ingestInbound(quiet.db, { ...inbound, ...flags });
-      assert.deepEqual(quiet.order, ["ingest_inbound"]);
-    }
-
-    // A database before 00297 has no such function, and PostgREST names it: nothing to repair, nothing logged.
-    const before = world(() => {
-      throw Object.assign(
-        new Error(
-          "Could not find the function public.note_yes_on_channel(p_channel, p_contact_id, p_message_external_id, p_tenant_id, p_words) in the schema cache",
-        ),
-        { code: "PGRST202" },
-      );
-    });
-    assert.equal((await ingestInbound(before.db, inbound)).contact_id, "p1");
+    // Both answers ride the one call that keeps the message, so the message and its yes are kept together or not at all:
+    // nothing is written after it, and nothing is owed to a later visit.
+    const kept = world(result());
+    assert.equal((await ingestInbound(kept.db, inbound)).contact_id, "p1");
+    assert.equal(kept.calls.length, 1, "one call, the ingest's");
+    const [, args] = kept.calls[0];
+    assert.equal(args.p_opt_in, true);
+    assert.equal(args.p_opt_in_marketing, true);
     assert.deepEqual(lines, []);
 
-    // Any other refusal is logged by name, and the message still stands when a job follows the visit and writes the yes.
-    const refused = world(() => {
-      throw new Error("permission denied for function note_yes_on_channel");
-    });
-    assert.equal(
-      (await ingestInbound(refused.db, { ...inbound, jobFollows: true })).contact_id,
-      "p1",
-      "the message itself was ingested",
-    );
-    assert.deepEqual(lines, [["consent_channel_write_failed", "permission denied for function note_yes_on_channel"]]);
+    // An ordinary message carries neither.
+    const plain = world(result());
+    await ingestInbound(plain.db, { ...inbound, body: "hi", optIn: false, optInMarketing: undefined });
+    assert.equal(plain.calls[0][1].p_opt_in, false);
+    assert.equal(plain.calls[0][1].p_opt_in_marketing, false);
 
-    // With no job to follow it is raised, after the log: a yes nothing repeats is not left to a log line.
-    lines.length = 0;
-    await assert.rejects(
-      ingestInbound(refused.db, inbound),
-      (e) => e.name === "AnswerNotKept" && /permission denied for function note_yes_on_channel/.test(e.message),
-    );
-    assert.deepEqual(lines, [["consent_channel_write_failed", "permission denied for function note_yes_on_channel"]]);
-
-    // The door is not modelled at all (a rejected call, not an error answer): the same.
-    lines.length = 0;
-    const broken = fakeDb({}, {}, { ingest_inbound: () => result });
-    const throwing = {
-      ...broken,
-      rpc: (name, args) => (name === "ingest_inbound" ? broken.rpc(name, args) : Promise.reject(new Error("boom"))),
-    };
-    assert.equal((await ingestInbound(throwing, { ...inbound, jobFollows: true })).contact_id, "p1");
-    assert.deepEqual(lines, [["consent_channel_write_failed", "boom"]]);
+    // A YES OFFERS under a stop that stands is not kept (the database's rule), and the visit that kept the message says so,
+    // once: a repeat of it says nothing new.
+    const stopped = world(result({ consent: "opted_out", dnc: true }));
+    await ingestInbound(stopped.db, { ...inbound, optIn: false });
+    assert.deepEqual(lines, [["offers_yes_while_stopped", "sms"]]);
+    const again = world(result({ consent: "opted_out", dnc: true, is_new: false }));
+    await ingestInbound(again.db, { ...inbound, optIn: false });
+    assert.equal(lines.length, 1, "a repeat delivery is not told again");
   } finally {
     delete globalThis[slot];
   }

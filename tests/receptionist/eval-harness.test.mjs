@@ -152,7 +152,7 @@ test("every reply leaves a quality signal on its usage event, and the diagnostic
     2,
     "the held path and the sent path",
   );
-  assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("usage: (u: Record<string, unknown>) =>"));
+  assert.ok(readCode("apps/edge/lib/inbound/persist.ts").includes("usage: (u: Record<string, unknown>) =>"));
   // The diagnostic reading the day back (getBrainSummary) is run in diag-door.test.mjs.
   // The read is packages/db's (decision 0111); the budget pages through it.
   const b = readCode("apps/edge/lib/ai/budget.ts");
@@ -171,7 +171,7 @@ test("the token budget: a policy limit, a check before the brain, a labelled rea
     wa.includes("const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);"),
     "the cap is handed to the read, which stops at it",
   );
-  assert.ok(/sink\.escalate\(\s*"budget",/.test(wa));
+  assert.ok(/handToAPerson\(at, \{\s*reason: "budget",/.test(wa));
   assert.ok(wa.includes('"(no reply sent — the day\'s model budget is used up)"'));
   const sql = readRaw("supabase/migrations/00039_budget_reason.sql");
   assert.ok(sql.includes("'budget'"), "the CHECK admits the reason");

@@ -28,13 +28,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { resolveChannelDetailed } from "@chanlytics/db/channels";
 import type { RoutedChannel } from "@chanlytics/db/channels";
-import {
-  verifyTwilioSignature,
-  smsBody,
-  oneTimeCodeOf,
-  SMS_HELD_REASON,
-  SMS_HELD_DETAILS,
-} from "@chanlytics/channels/lines";
+import { verifyTwilioSignature, smsBody, SMS_HELD_REASON, SMS_HELD_DETAILS } from "@chanlytics/channels/lines";
 import type { ProviderAccount, SmsInbound } from "@chanlytics/channels/lines";
 import { findLineByNumber, findLineAccount } from "../lines/sms.js";
 import type { SmsLine, SmsSender } from "../lines/sms.js";
@@ -42,6 +36,7 @@ import type { InboundCarrier } from "@chanlytics/core";
 import type { LogEvent } from "../shared/log.js";
 import type { TenantId } from "@chanlytics/contracts";
 import { logKeptGoing } from "@chanlytics/log";
+import { oneTimeCodeOf } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 

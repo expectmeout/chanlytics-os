@@ -1,4 +1,4 @@
--- 00586 · The team adds photos and videos (decision 0099; Ruben, 10 Nov 2026: "Staff can add").
+-- 00596 · The team adds photos and videos (decision 0099; Ruben, 10 Nov 2026: "Staff can add").
 --
 -- The people who film the work are the team, on their own phones. Adding a file took the settings permission, the owner's and
 -- the partner's, so an operator could see Files and add nothing. A permission of its own, add_files, is the owner's, the
@@ -45,7 +45,7 @@ as $$
 $$;
 
 comment on function public.has_permission(uuid, uuid, text) is
-  'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0012) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s. add_files (00586) is every role''s but a viewer''s.';
+  'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0012) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s. add_files (00596) is every role''s but a viewer''s.';
 
 create or replace function public.file_start(p_tenant_id uuid, p_id uuid)
 returns void
@@ -72,7 +72,7 @@ begin
 end $$;
 
 comment on function public.file_start(uuid, uuid) is
-  'A member''s upload begins (00551): the add_files permission (00586: an operator''s too), the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven.';
+  'A member''s upload begins (00551): the add_files permission (00596: an operator''s too), the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven.';
 
 create or replace function public.file_media_processing(p_tenant_id uuid, p_id uuid)
 returns void
@@ -95,4 +95,4 @@ begin
 end $$;
 
 comment on function public.file_media_processing(uuid, uuid) is
-  'A member''s video''s bytes have all gone (00556), with the add_files permission (00586: an operator''s too): the tile says it is being made ready. Only from uploading: the platform''s word may already have come.';
+  'A member''s video''s bytes have all gone (00556), with the add_files permission (00596: an operator''s too): the tile says it is being made ready. Only from uploading: the platform''s word may already have come.';

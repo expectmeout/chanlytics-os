@@ -155,6 +155,12 @@
           "api/cron/registrations.ts": {
             "maxDuration": 60
           },
+          "api/cron/text-canary.ts": {
+            "maxDuration": 30
+          },
+          "api/cron/texts.ts": {
+            "maxDuration": 60
+          },
           "api/inbound-sms.ts": {
             "maxDuration": 60
           },

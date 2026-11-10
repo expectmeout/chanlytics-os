@@ -4,7 +4,7 @@
  * The line a workspace was given (provisioned through a provider: Twilio, or the dry one on a preview) as the Connections
  * page's rows say it (the oldest that is not a number the business kept at its carrier), with what a read of its texts takes:
  * which line, its number, its provider and its subaccount. Nothing here reads the vault: the account's token is the edge's
- * own door (findLineAccount, apps/edge/lib/sms/sms.ts). A read that fails throws.
+ * own door (findLineAccount, apps/edge/lib/lines/sms.ts). A read that fails throws.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LINE_FILED_NAMES, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
@@ -33,6 +33,30 @@ export async function findOwnLine(
     .limit(1)
     .maybeSingle();
   if (error) throw new DbFailure(error, "cannot read the workspace's own line");
+  return data;
+}
+
+/**
+ * Every workspace's lines that can have texts, as ownLineOf reads one (not a number the business kept at its carrier, not
+ * one whose provisioning failed, and one with a number): what the texts sweep reads each line's record of received texts
+ * for (apps/edge/lib/sms/texts-sweep.ts). A read that fails throws.
+ */
+export async function findLinesThatText(
+  db: SupabaseClient<Database>,
+): Promise<
+  Pick<
+    Database["public"]["Tables"]["lines"]["Row"],
+    "id" | "tenant_id" | "e164" | "provider" | "subaccount_sid" | "messaging_service_sid" | "sms_state" | "voice_state"
+  >[]
+> {
+  const { data, error } = await db
+    .from("lines")
+    .select("id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state")
+    .neq("provider", "carrier")
+    .neq("voice_state", "failed")
+    .not("e164", "is", null)
+    .order("created_at", { ascending: true });
+  if (error) throw new DbFailure(error, "cannot read the lines that text");
   return data;
 }
 

@@ -392,7 +392,7 @@ first" cannot be said); and a failed video's fingerprint holding its twin out un
 (`file_video_begin`). The pictures a site or a listing showed before 00551 are brought by one `website_read` for the workspace:
 nothing reads them again by itself. Nothing here has met a real clip; the trial above still stands first.
 
-## The team adds photos and videos (00586)
+## The team adds photos and videos (00596)
 
 Ruben, 10 Nov 2026: "Staff can add". The people who film the work are the team, on their own phones, so adding a photo or a
 video is a permission of its own, `add_files`: the owner's, the partner's and the operator's, never a viewer's (contracts

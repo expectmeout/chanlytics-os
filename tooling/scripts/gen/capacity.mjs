@@ -129,6 +129,18 @@ export const CAPACITY = {
     bound: "None: one statement in the database, over rows whose time has come.",
     atFull: "Holds on its index.",
   },
+  text_canary: {
+    job: "text-canary",
+    bound: "None needed: one text to the platform's own line, and one read of what became of it.",
+    atFull: "The same two texts a day at any size. Holds.",
+  },
+  texts: {
+    job: "texts-sweep",
+    bound:
+      "Time: lines in order, oldest first, until forty seconds have gone (`TEXTS_YIELD_AT_MS`), one Twilio read each.",
+    atFull:
+      "TIGHT: about a hundred lines a tick at a few hundred milliseconds a read, so past that the newest lines are never read. The next clock to hand out a job a workspace.",
+  },
 };
 
 /** The schedule pg_cron holds for each job after every migration, in order. */

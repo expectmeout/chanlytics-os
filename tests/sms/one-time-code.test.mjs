@@ -1,5 +1,6 @@
 /**
- * A one-time code texted to a line (channels lines/sms.ts `oneTimeCodeOf`), over the bodies senders write: the two
+ * A one-time code texted to a line (contracts lines/one-time-code.ts `oneTimeCodeOf`, the one reader the texting door
+ * and the receptionist's verb both ask, so a WhatsApp message and a text are judged alike), over the bodies senders write: the two
  * Meta sent the Chanlytics workspace's own line on 6 October 2026 (the real bodies; the numbers they came from are
  * Meta's and are not in any test), the shapes other services use, and what a customer could write that must never be
  * taken for one -- a text taken for a code is never answered and never becomes a person, so every negative here is a
@@ -8,7 +9,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { oneTimeCodeOf, lineCodesFrom } from "@chanlytics/channels/lines";
+import { lineCodesFrom } from "@chanlytics/channels/lines";
+import { oneTimeCodeOf } from "@chanlytics/contracts";
 
 const CODES = [
   // The two Meta texts of 6 October (12:08 and 12:34 UTC): ordinary long numbers, no short code.
@@ -26,6 +28,10 @@ const CODES = [
   ["Your iCloud code is 4829. Don't share it.", { code: "4829", from: "iCloud" }],
   ["Use 482913 to verify your account. Do not share this code with anyone.", { code: "482913", from: null }],
   ["Your verification code is 123456. Don't share it with anyone.", { code: "123456", from: null }],
+  // The two the receptionist's own reader took before there was one reader (11 Oct 2026): a sender's kind with how long
+  // it lasts, and signing in to an account.
+  ["Your verification code is 482913. It expires in 10 minutes.", { code: "482913", from: null }],
+  ["Use 4829 to sign in to your account.", { code: "4829", from: null }],
   // What WhatsApp sends an Android phone: the retriever's mark, a link holding the code again, and the warning.
   [
     "<#> Your WhatsApp code: 788-963\nYou can also tap on this link to verify your phone: v.whatsapp.com/788963\nDon't share this code with others\n4sgLq1p5sV6",
@@ -72,6 +78,15 @@ const CUSTOMERS = [
   "Your Airbnb access code is 4512, don't share it",
   "Enter 4512 to confirm the gate opens, never share it",
   "Use 4512 to sign in at the front desk, don't share it",
+  // A door code that runs out is still a customer's, and the receptionist's own numbers (the review of 11 Oct 2026).
+  "Your door code is 4512, it expires in 30 minutes.",
+  "The gate code is 4829, see you Tuesday",
+  "My confirmation code is 482913, can I move it?",
+  "I need a one time deep clean for my 1200 sq ft apartment",
+  "one-time move, about 1800 sq ft",
+  "Can I pay a security deposit of 2500",
+  "I can't log in to your booking page, error 5003",
+  "Our building security closes at 5, I'm in apartment 1204",
 ];
 
 /** A sender's shape with no sign of a sender beside it (no kind of code named, no warning): a customer writes these too. */

@@ -33,7 +33,7 @@
  * line (lib/ai/model.ts keepTurn). An eval names no conversation and keeps its ledger row alone.
  */
 import { randomUUID } from "node:crypto";
-import type { ThreadTurn } from "@chanlytics/core";
+import type { BrainCall, ReplyAsk } from "@chanlytics/core";
 import {
   BRAIN_OUTPUT_JSON_SCHEMA,
   brainOutputSchemaFor,
@@ -78,20 +78,7 @@ export interface BrainReply {
  * Who an answer is for (core's BrainCall): the ledger's row and the stamp's settings version. A draft (decision 0017)
  * names its own purpose so its spend is told apart.
  */
-export interface BrainCall {
-  tenantId: TenantId | null;
-  /** The conversation it answers: the ledger's subject, and what the turn is kept under (decision 0039). */
-  subjectId?: string | null;
-  configVersion?: number | null;
-  purpose?: "receptionist" | "reply_draft";
-  /**
-   * The customer's own words, when this turn is one a second model may be put beside in shadow (decision 0023): the live
-   * inbound turn passes them; a draft, a steer and an eval do not, and are never shadowed.
-   */
-  shadowText?: string;
-  /** This turn takes booking requests (decision 0061): the schema carries the two fields, and the reply what they say. */
-  bookingRequests?: boolean;
-}
+export type { BrainCall };
 
 /**
  * Who a turn is for, as the ledger's row and the record's stamp take it (BrainCall): the workspace, what the answer is
@@ -159,44 +146,17 @@ function whoNote(leadNote: string): string {
 const unreadableRecord = (r: Extract<ModelReply, { outcome: "ok" }>): boolean =>
   r.message.stop_reason === "max_tokens" || (r.message.stop_reason !== "refusal" && !parseBrainOutput(r.text).ok);
 
-async function answerReply(
-  history: ThreadTurn[],
-  userText: string,
-  systemPrompt: string,
-  fallbackText: string,
-  /**
-   * Who the receptionist is talking to, in a line or two.
-   *
-   * The bot had the conversation but not the person: it would greet a
-   * customer of two years exactly as it greets a stranger, and could not use
-   * a name WhatsApp had already told us. Passed as a SEPARATE system block so
-   * the business profile above it stays byte-identical and keeps its prompt
-   * cache — this changes per contact, that does not.
-   */
-  leadNote?: string,
-  /**
-   * The current moment in the business's timezone.
-   *
-   * Also a separate block, and for a sharper version of the same reason: this
-   * changes every MINUTE. Folded into the prompt above it would evict the
-   * business profile from the cache on literally every message, and the
-   * receptionist would pay full price for its own clock.
-   */
-  nowNote?: string,
-  /**
-   * A photo the customer sent, when the workspace lets the receptionist look
-   * (features.vision). Goes BEFORE the words, as the API prefers; the words
-   * are built in vision.ts and restate the standing rules.
-   */
-  image?: { mime: string; base64: string },
-  /**
-   * The owner's instruction for a rewrite (contracts frameSteer): a separate,
-   * uncached system block, present only when a held draft is being steered.
-   */
-  steer?: string,
-  /** Who it is for: the usage ledger's row, and the settings' version on the record. */
-  call?: BrainCall,
-): Promise<BrainReply> {
+async function answerReply({
+  history,
+  userText,
+  systemPrompt,
+  fallbackText,
+  leadNote,
+  nowNote,
+  image,
+  steer,
+  call,
+}: ReplyAsk): Promise<BrainReply> {
   const purpose = call?.purpose ?? "receptionist";
   const stamp: BrainStamp = { promptHash: promptHashOf(systemPrompt), configVersion: call?.configVersion ?? null };
   const forWhom: ModelCallFor = {
@@ -232,7 +192,7 @@ async function answerReply(
     messages,
   };
   const ask = (): Promise<Asked> =>
-    askOnce(purpose, base, forWhom, stamp, fallbackText, call?.bookingRequests === true);
+    askOnce(purpose, base, forWhom, stamp, fallbackText, call?.bookingRequests === true, call?.endsAtMs);
 
   const conversationId = call?.subjectId ?? null;
   if (!call?.tenantId || !conversationId) return (await ask()).reply;
@@ -279,14 +239,19 @@ async function askOnce(
   stamp: BrainStamp,
   fallbackText: string,
   bookingRequests = false,
+  endsAtMs?: number,
 ): Promise<Asked> {
   const log = logger();
   let structured = true;
+  // What is left of the turn, asked again at each asking: the plain retry after a refused format gets only the rest.
+  const bound = (): { deadlineMs?: number } =>
+    endsAtMs === undefined ? {} : { deadlineMs: Math.max(1, endsAtMs - Date.now()) };
   // A turn that takes booking requests is sent the record with the two fields (decision 0061); every other, the record.
   const schema = bookingRequests ? brainOutputSchemaFor({ bookingRequests }) : BRAIN_OUTPUT_JSON_SCHEMA;
   let result = await callModel(
     {
       purpose,
+      ...bound(),
       body: {
         ...base,
         output_config: { effort: "low", format: { type: "json_schema", schema } },
@@ -297,7 +262,7 @@ async function askOnce(
   if (result && result.outcome !== "held" && formatRejected(result)) {
     log.error("brain_format_rejected", { error: result.error.slice(0, 200) });
     structured = false;
-    result = await callModel({ purpose, body: { ...base, output_config: { effort: "low" } } }, forWhom);
+    result = await callModel({ purpose, ...bound(), body: { ...base, output_config: { effort: "low" } } }, forWhom);
   }
   // No key, or a workspace that may not pay: the caller checked the key before asking, so this is a failure to answer.
   if (!result || result.outcome === "held") throw new Error("the receptionist had no model to ask");
@@ -359,8 +324,8 @@ async function askOnce(
  * customer's words are also put to it, in shadow, beside this call (lib/ai/shadow.ts): its answer is compared with the
  * record's intent and written to the ledger, and never changes the reply, which is answerReply's alone.
  */
-export async function generateReply(...args: Parameters<typeof answerReply>): Promise<BrainReply> {
-  const [, , , , , , , , call] = args;
+export async function generateReply(ask: ReplyAsk): Promise<BrainReply> {
+  const { call } = ask;
   const words = call?.shadowText;
   const shadow =
     words === undefined || !call
@@ -370,7 +335,7 @@ export async function generateReply(...args: Parameters<typeof answerReply>): Pr
         ]);
   let reply: BrainReply | undefined;
   try {
-    reply = await answerReply(...args);
+    reply = await answerReply(ask);
     return reply;
   } finally {
     await shadow?.settle(
