@@ -533,7 +533,7 @@ test("a read that could not be made says so with its Retry, and never holds the 
     assert.ok(textOf(byTestId(none, "ro-failed")).includes("Nothing else on this page could be read either."));
     assert.equal(byTestId(none, "campaigns-failed-stuck"), null);
     assert.deepEqual(present(none, [...TIME_IDS, "campaigns-stuck"]), no([...TIME_IDS, "campaigns-stuck"]));
-    assert.deepEqual(sectionsOf(none), ["Campaigns", "Sequences to leads"]);
+    assert.deepEqual(sectionsOf(none), ["Campaigns", "Cold email"]);
     assert.deepEqual(dimmed(none), [], "nothing is dimmed: a dimmed card takes no press, and the Retry is on it");
     assert.equal(standingSaid().sentence, undefined, "the head says nothing of a read that failed");
   } finally {
@@ -761,9 +761,9 @@ test("the five parts, in order, for a workspace that has everything", () => {
   ];
   assert.deepEqual(inOrder(cards), cards, "the sentence's strip and mix, the waits, what is stuck, and the reach-outs");
   assert.deepEqual(inOrder(sections), sections, "and the three parts that follow the lens, in order");
-  assert.deepEqual(sectionsOf(tree), ["Campaigns", "Time between steps", "Stuck now", "Sequences to leads"]);
+  assert.deepEqual(sectionsOf(tree), ["Campaigns", "Time between steps", "Stuck now", "Cold email"]);
   // The lens's own sections are bare (their tab says it); the reach-outs, a part of their own under it, name themselves.
-  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Sequences to leads"]);
+  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Cold email"]);
   // Every row of cards fills the twelve columns.
   assert.deepEqual(rowsOfSpans(tree), [[5, 7], [4, 4, 4], [6, 6], [12], [6, 6], [4, 4, 4], [5, 7], [12]]);
   assert.deepEqual(metricsOf(byTestId(tree, "campaigns-stuck-strip")), STUCK_METRICS);
@@ -924,7 +924,7 @@ test("a quiet period hides neither the stuck nor the reach-outs, and draws no wi
   assert.deepEqual(present(tree, RO_CARDS), yes(RO_CARDS));
   assert.deepEqual(present(tree, ORDER), no(ORDER), "no strip and none of the window's cards");
   assert.deepEqual(present(tree, TIME_IDS), no(TIME_IDS), "and no waits of an empty window");
-  assert.deepEqual(sectionsOf(tree), ["Campaigns", "Stuck now", "Sequences to leads"]);
+  assert.deepEqual(sectionsOf(tree), ["Campaigns", "Stuck now", "Cold email"]);
   assert.deepEqual(rowsOfSpans(tree), [[4, 4, 4], [5, 7], [12]]);
   assert.equal(
     standingSaid().sentence,
@@ -932,7 +932,7 @@ test("a quiet period hides neither the stuck nor the reach-outs, and draws no wi
   );
   assert.equal(
     standingSaid().sentence,
-    "Nothing went out in this period. Your sequences to leads wrote 40 emails to 25 businesses.",
+    "Nothing went out in this period. Your cold email sequences wrote 40 emails to 25 businesses.",
   );
   assert.doesNotMatch(textOf(tree), /NaN|Infinity/);
 });

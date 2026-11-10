@@ -71,7 +71,7 @@ export interface TenantRuntime {
   calendarGrant?: CalendarGrantConfig | null;
   /** Opt-in abilities (features.vision, …); null = none set. */
   features: FeaturesConfig | null;
-  /** What an answer to a lead offers, as How it reaches out says (decision 0113); none said is the booking link, as before. */
+  /** What an answer to a lead offers, as Cold email says (decision 0113); none said is the booking link, as before. */
   replyOffer?: ReplyOffer | null;
   /** Workspace-level policy modes, class → mode. Unexpected/missing → 'ask'. */
   policy: Record<string, { mode: string; limits: PolicyLimits }>;

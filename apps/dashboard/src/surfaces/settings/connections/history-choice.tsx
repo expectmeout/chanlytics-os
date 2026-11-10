@@ -1,16 +1,12 @@
 /**
- * What a mailbox brings in (decision 0086), drawn where it is chosen and where it is changed. Under Connect: one quiet
- * line of what connecting brings, and Change, which opens the two ways in place, each with its sentence (the kit's
- * Segmented); a reconnect never asks. On a mailbox's row: the one act its history offers (contracts
- * mailboxHistoryLine), Stop, Resume, Try again or Bring in the last 6 months, an owner's alone. A refusal is said in a
- * toast; Setup's re-read repaints the row (refresh-map.ts).
+ * What a mailbox brings in (decision 0086), drawn wherever one is connected: one quiet line of what connecting brings, and
+ * Change, which opens the two ways in place, each with its sentence (the kit's Segmented); a reconnect never asks. What a
+ * connected mailbox's row offers is history-act.tsx's.
  */
 import { useState } from "react";
-import { MAILBOX_HISTORY_WORDS, type MailboxHistory, type MailboxHistoryAct } from "@chanlytics/contracts";
+import { MAILBOX_HISTORY_WORDS, type MailboxHistory } from "@chanlytics/contracts";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Segmented } from "../../kit/segmented/segmented";
-import { refusalToast, type FrameFlash } from "../../frame-verbs";
-import { connectedMailboxes } from "./connected-mailboxes";
 
 const WAYS = ["six_months", "from_now"] as const satisfies readonly MailboxHistory[];
 
@@ -48,29 +44,5 @@ export function HistoryChoice({ value, onChange, lineClass }: HistoryChoiceProps
         }))}
       />
     </div>
-  );
-}
-
-interface HistoryActProps {
-  id: string;
-  address: string;
-  act: MailboxHistoryAct;
-  flash: (f: FrameFlash) => void;
-}
-
-/** A mailbox's history act on its row: pressed once, said in a toast where the door refused it. */
-export function HistoryAct({ id, address, act, flash }: HistoryActProps) {
-  const W = MAILBOX_HISTORY_WORDS;
-  const [busy, setBusy] = useState(false);
-  const go = async () => {
-    setBusy(true);
-    const r = await connectedMailboxes.history(id, act === "again" ? "resume" : act);
-    setBusy(false);
-    if (!r.ok) flash(refusalToast(r, W.refused[act]));
-  };
-  return (
-    <LinkButton onClick={() => void go()} disabled={busy} data-testid={`mailbox-history-${act}-${address}`}>
-      {W[act]}
-    </LinkButton>
   );
 }

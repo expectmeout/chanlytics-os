@@ -610,7 +610,7 @@ test("the day's reach-out numbers open Campaigns at its Reach-outs, whatever rou
     kept({
       id,
       kind: "reach_out_day",
-      title: "Today's reach-outs",
+      title: "Today's cold email",
       body: "1 bounced.",
       route,
       subject_type: "reach_out_day",

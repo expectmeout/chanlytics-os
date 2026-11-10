@@ -135,6 +135,8 @@ export interface ReachOutTimelineChainDto {
   name: string;
   state: string;
   fed_by?: ReachOutFedBy;
+  /** Whether its batches wait for an OK (its sequence's mode); absent where it was not read. */
+  asks?: boolean;
   run_hour?: number;
   last_run_for?: string | null;
   waiting_run_id?: string | null;

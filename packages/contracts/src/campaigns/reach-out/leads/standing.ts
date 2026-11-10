@@ -138,8 +138,7 @@ const standing = (words: string, tone: ReachOutStandingVM["tone"], stop: boolean
  * When a lead nothing was written to yet goes: with its sequence's batch for the day, never at a minute the batch has not
  * chosen (the timetable places each email in its business's hours). A batch that waits for its owner, a paused
  * sequence, today's batch still to come, the next hourly sweep (today's not made: an add after the hour is planned
- * then, 00426), or tomorrow's (today's made, or the day's last hour gone). A list-fed sequence's first email always
- * waits for its owner's OK first.
+ * then, 00426), or tomorrow's (today's made, or the day's last hour gone). A sequence whose batches ask says so.
  */
 export function reachOutWhenOf(timelineChain: ReachOutTimelineChainDto, nowMs: number, tz: string): string {
   if (timelineChain.waiting_run_id) return "waits for your OK";
@@ -147,7 +146,7 @@ export function reachOutWhenOf(timelineChain: ReachOutTimelineChainDto, nowMs: n
   const hour = timelineChain.run_hour ?? PLAYBOOK_HOURS.min;
   const now = new Date(nowMs);
   const result = localHour(tz, now);
-  const say = timelineChain.fed_by === "list" ? ", after your OK" : "";
+  const say = timelineChain.asks ? ", after your OK" : "";
   if (timelineChain.last_run_for === localDate(tz, now) || result > PLAYBOOK_HOURS.max)
     return `goes tomorrow from ${clockHour(hour)}${say}`;
   if (result < hour) return `goes today from ${clockHour(hour)}${say}`;

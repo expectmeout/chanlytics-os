@@ -92,7 +92,7 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
     if (!setup.channels.voice.active)
       missing.push("A phone line: no call reaches the receptionist (Setup › Your phone).");
     if (setup.email && !setup.email.sending?.mailboxes?.length)
-      missing.push("A mailbox to send from: no cold email can go from your own address (Settings › Connections).");
+      missing.push("A mailbox to send from: no cold email can go from your own address (Settings › Cold email).");
     if (setup.calendar.state === "unavailable")
       missing.push(
         `The calendar cannot be read: ${setup.calendar.problem ?? "its link or its emails stopped"} (Settings › Hours & booking).`,

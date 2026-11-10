@@ -8,6 +8,7 @@
  * leaving a changed draft asks too (the page's). On a wide pane what Ask checked and how it runs stand beside the steps
  * (the canvas's desk board). Every word is contracts' (new-words.ts).
  */
+import { connectMailbox } from "../../../settings/connections/mailbox-connect";
 import { useState, type ReactNode } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
@@ -19,6 +20,7 @@ import {
   sequenceRoute,
   zonedInputValue,
   type ConsentChannel,
+  type MailboxHistory,
   type NewAudience,
   type NewDraftDto,
   type NewKind,
@@ -100,7 +102,8 @@ function whoWords(d: NewDraftDto): { lead: string; label: string; empty: boolean
 function WhoSentence({ draft, open }: { draft: NewDraftDto; open: (s: NewSheet) => void }) {
   const who = whoWords(draft);
   const channels = M.channelsSaidOf(draft.channels, " or ");
-  const from = draft.mailbox?.owner_sends ? W.sheets.youSend : (draft.mailbox?.label ?? W.sheets.noMailbox);
+  // Built by hand, what it sends from is not known here: said plainly, and the door says if there is none.
+  const from = draft.mailbox ? draft.mailbox.label || W.sheets.noMailbox : W.draft.yourMailbox;
   return (
     <p className="sq-nw-sentence" data-testid="sq-nw-sentence">
       <WordPick big label={W.draft.kind[draft.kind]} onPick={() => open({ kind: "kind" })} testid="sq-nw-kind-pick" />{" "}
@@ -253,8 +256,7 @@ function DraftCases(p: {
 /** How a sequence runs: Your OK, as its sheet names the way picked. */
 function HowItRuns({ draft, open }: { draft: NewDraftDto; open: (s: NewSheet) => void }) {
   if (draft.kind === "once") return null;
-  const ok =
-    draft.audience === "leads" && draft.mode === "ask" ? W.okLeads : draft.mode ? W.okSaid[draft.mode] : W.okSaid.ask;
+  const ok = draft.mode ? W.okSaid[draft.mode] : W.okSaid.ask;
   return (
     <>
       <p className="sq-nw-cap">{W.draft.runs}</p>
@@ -318,6 +320,12 @@ function footLineOf(d: NewDraftDto, tz: string, at: M.FootReads): { lead: string
   return n === null ? { lead: when, sub: null, quiet: false } : { lead: W.draft.people(n), sub: when, quiet: false };
 }
 
+/** A draft to leads with no mailbox to send it: the foot's one act is the way to one. */
+const needsMailbox = (d: NewDraftDto): boolean => d.audience === "leads" && !!d.mailbox && !d.mailbox.label;
+
+/** To Google's consent with what the owner chose it brings in, and back to this draft, kept in the tab as it changes (new-page.tsx). */
+const connectForNew = (history: MailboxHistory) => connectMailbox("google", null, "new", history);
+
 /** The one act a draft is set up for: Start a sequence, Send now or Schedule a one-off, Send one to leads. */
 function actOf(d: NewDraftDto, onMake: (start: boolean) => void, onSendNow: () => void) {
   if (d.kind === "sequence")
@@ -341,6 +349,7 @@ function DraftFoot(p: {
   doing: string | null;
   onMake: (start: boolean) => void;
   onSendNow: () => void;
+  onConnect: () => void;
 }) {
   const { draft } = p;
   const busy = p.busy || !!p.doing;
@@ -360,16 +369,22 @@ function DraftFoot(p: {
           {W.draft.keep}
         </Button>
       ) : null}
-      <Button
-        variant="primary"
-        onClick={act.go}
-        disabled={busy || !!stop || (draft.kind === "sequence" && !!draft.twin)}
-        data-testid={act.testid}
-        {...gate("approve")}
-      >
-        {act.glyph ? <Icon name={act.glyph} size={13} /> : null}
-        {act.label}
-      </Button>
+      {needsMailbox(draft) ? (
+        <Button variant="primary" onClick={p.onConnect} disabled={busy} data-testid="sq-nw-connect">
+          {W.sheets.connect}
+        </Button>
+      ) : (
+        <Button
+          variant="primary"
+          onClick={act.go}
+          disabled={busy || !!stop || (draft.kind === "sequence" && !!draft.twin)}
+          data-testid={act.testid}
+          {...gate("approve")}
+        >
+          {act.glyph ? <Icon name={act.glyph} size={13} /> : null}
+          {act.label}
+        </Button>
+      )}
     </div>
   );
 }
@@ -485,7 +500,7 @@ function DraftSheets(p: {
       <FromSheet
         open={sheet?.kind === "from"}
         draft={draft}
-        onOwnerSends={(on) => change(M.setOwnerSends(draft, on))}
+        onConnect={(history) => void connectForNew(history)}
         onClose={close}
       />
     </>
@@ -670,6 +685,7 @@ export function DraftView(p: {
             doing={p.doing}
             onMake={acts.make}
             onSendNow={() => setConfirming(true)}
+            onConnect={() => setSheet({ kind: "from" })}
           />
         ))
       }

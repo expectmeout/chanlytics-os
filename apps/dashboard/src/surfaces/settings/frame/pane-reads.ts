@@ -52,7 +52,7 @@ export const instagramDoorRead = keptRead("instagram-door", () => api()("GET cha
 export const metaDoorRead = keptRead("meta-door", () => api()("GET channels/meta"));
 /** The member's saved views, where Profile keeps how Ask answers them (profile/pane.tsx AnswerStyle). */
 export const savedViewsRead = keptRead("profile-views", () => api()("GET views"));
-/** What How it reaches out shows beyond the config: its mailbox, the month, the claims' counts, the voice (0113). */
+/** What Cold email shows beyond the config: its mailbox, the month, the claims' counts, the voice (0113). */
 export const reachOutSettingsRead = keptRead("reach-out-settings", () => api()("GET settings/reach-out"));
 
 /** Reads begun together, settled once each has, landed or not; null when none was begun. */

@@ -591,6 +591,7 @@ test("on a phone the page is one column in the canvas's order: Ask found leads w
   assert.deepEqual(busy, [
     "TodayAlertBand",
     "NeedYou",
+    "ColdEmailNote",
     "DayZone",
     "AskFound",
     "PhoneSoFar",
@@ -604,6 +605,7 @@ test("on a phone the page is one column in the canvas's order: Ask found leads w
     "TodayAlertBand",
     "today-setting-up",
     "NeedYou",
+    "ColdEmailNote",
     "AskFound",
     "DayZone",
     "PhoneSoFar",

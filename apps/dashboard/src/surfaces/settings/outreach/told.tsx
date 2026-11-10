@@ -1,5 +1,5 @@
 /**
- * How it reaches out (decision 0113): What it's told. At rest a card of one row, Open; open, the kit's sheet, as How it
+ * Cold email (decision 0113): See the exact instructions. At rest one row, Open; open, the kit's sheet, as How it
  * answers' prompt sheet is (business/prompt.tsx): the three writers of a cold email by a toggle, each prompt cut into
  * the parts an owner can name, each a line that opens onto its words, with its share as one thin bar (never a number on
  * the glass) and its door back to the row that writes it. The words' and the opening's are composed by the server for
@@ -24,7 +24,6 @@ import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
 import { RecordRow } from "../../kit/record/row";
 import { RecordSheet } from "../../kit/record/sheet";
-import { OutreachCard } from "./card";
 
 const TOLD_CARD = REACH_OUT_SETTINGS_WORDS.told;
 const KINDS: { value: ToldKind; label: string }[] = [
@@ -114,18 +113,17 @@ function partBody(p: ToldPart, close: () => void, canEdit: boolean) {
 }
 
 /** What it's told: the card at rest, and its sheet while it is open. */
-export function ToldCard({ canEdit }: { canEdit: boolean }) {
+export function ToldRow({ canEdit }: { canEdit: boolean }) {
   const fold = useRecordFold("told", { dirty: false });
   useEffect(() => recFolds.drawn("told"), []);
   const [kind, setKind] = useState<ToldKind>("words");
   const parts = useToldParts(fold.open, kind);
   const shares = parts ? toldShares(parts) : null;
   return (
-    <OutreachCard id="told" title={TOLD_CARD.title} sub={TOLD_CARD.sub}>
+    <>
       <RecordRow
         id="told"
         label={TOLD_CARD.title}
-        value={TOLD_CARD.value}
         act={{ label: TOLD_CARD.open, icon: "chevron", onClick: () => fold.request() }}
       />
       {fold.open ? (
@@ -173,6 +171,6 @@ export function ToldCard({ canEdit }: { canEdit: boolean }) {
           </div>
         </RecordSheet>
       ) : null}
-    </OutreachCard>
+    </>
   );
 }

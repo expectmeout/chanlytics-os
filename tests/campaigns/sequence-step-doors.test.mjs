@@ -19,6 +19,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { NEW_WORDS, REACH_OUT_GAP_FIRST, SEQUENCE_FLOW_WORDS as F, handTitleOf } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { rows } from "../_rows.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -254,6 +255,33 @@ test("a call taken away is named by its kind on Ask's card, never as a message i
   assert.ok(message.summary.startsWith("Step 2 (come_back) and the 1 step after it go;"), message.summary);
 });
 
+test("Ask's cold email with no mailbox is no card: it says what to connect, in the page's words", async () => {
+  const SEARCH = "5eed0000-0000-4000-8000-000000000001";
+  const supabase = fakeDb(
+    {
+      memberships: [
+        { user_id: USER, tenant_id: A, role: "operator", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+      ],
+      tenants: [{ id: A, name: "Harbor", timezone: TZ, config: {} }],
+      policies: [],
+      lead_searches_view: [{ id: SEARCH, tenant_id: A, name: "Plumbers in Queens" }],
+      mailbox_connections: [],
+    },
+    {},
+    {},
+  );
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator");
+  const out = await buildProposal(t, "propose_sequence", {
+    action: "cold_email",
+    name: "Plumbers",
+    search_id: SEARCH,
+    steps: [{ subject: "Missed calls", body: "{{opening}}\n\nWorth a look?" }],
+  });
+  assert.equal(out.proposal, null, "no card");
+  assert.equal(out.isError, true);
+  assert.match(out.refusal, /Connect your mailbox first/);
+});
+
 test("Ask's cold email starts at the pace every new sequence starts at, one email every 20 minutes, unless it names one (0077, D7)", async () => {
   const SEARCH = "5eed0000-0000-4000-8000-000000000001";
   const card = async (more = {}) => {
@@ -265,7 +293,15 @@ test("Ask's cold email starts at the pace every new sequence starts at, one emai
         tenants: [{ id: A, name: "Harbor", timezone: TZ, config: {} }],
         policies: [],
         lead_searches_view: [{ id: SEARCH, tenant_id: A, name: "Plumbers in Queens" }],
-        mailbox_connections: [],
+        mailbox_connections: [
+          rows.mailboxConnection({
+            id: "m1",
+            tenant_id: A,
+            address: "ada@harbor.example",
+            host: "harbor.example",
+            provider_account: "acct-1",
+          }),
+        ],
       },
       {},
       {},
@@ -301,7 +337,15 @@ test("Ask's cold email is signed as New signs it, by the member's first name, un
         tenants: [{ id: A, name: "Harbor", timezone: TZ, config: {} }],
         policies: [],
         lead_searches_view: [{ id: SEARCH, tenant_id: A, name: "Plumbers in Queens" }],
-        mailbox_connections: [],
+        mailbox_connections: [
+          rows.mailboxConnection({
+            id: "m1",
+            tenant_id: A,
+            address: "ada@harbor.example",
+            host: "harbor.example",
+            provider_account: "acct-1",
+          }),
+        ],
         profiles,
       },
       {},
@@ -330,4 +374,41 @@ test("Ask's cold email is signed as New signs it, by the member's first name, un
   );
   // A member with no name of their own is never signed as their address: the step's sender then says so.
   assert.equal((await card([])).signed_by, null);
+});
+
+test("A sequence that sends from a mailbox can't be turned into one sent by hand at the door", async () => {
+  const { saveChain } = await import("../../apps/dashboard/src/server/campaigns/reach-outs/chain-acts.ts");
+  const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const ROOT = "5eed0000-0000-4000-8000-0000000000aa";
+  const supabase = fakeDb({
+    sequence_steps: [
+      {
+        id: ROOT,
+        sequence_id: ROOT,
+        tenant_id: A,
+        kind: "reach_out",
+        trigger: "lead_first",
+        name: "Plumbers",
+        state: "running",
+        owner_sends: false,
+        after_step_id: null,
+        mailbox_ids: [],
+      },
+    ],
+  });
+  const refused = await saveChain(
+    { supabase, userId: "u1", params: {} },
+    { tenantId: A, role: "owner" },
+    {
+      name: "Plumbers",
+      owner_sends: true,
+      mailbox_ids: [],
+      steps: [{ subject: "Hi", body: "{{opening}}", after_days: null }],
+    },
+    ROOT,
+  ).then(
+    () => null,
+    (e) => e,
+  );
+  assert.match(String(refused?.message), /sending each by hand isn't offered/);
 });

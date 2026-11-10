@@ -173,7 +173,7 @@ const lines = (title: string, rows: string[]) => (rows.length ? `${title}:\n${ro
 function ownerParts(known: OwnerKnown): Record<"offer" | "proof" | "writes" | "examples", Array<string | null>> {
   return {
     offer: [
-      // What an email to leads offers: How it reaches out's own words where the owner wrote them (0113), else the goal.
+      // What an email to leads offers: Cold email's own words where the owner wrote them (0113), else the goal.
       known.offer
         ? `What it offers the businesses it writes to, in its owner's words: ${fencedInline("record", known.offer)}`
         : known.goal
@@ -334,7 +334,7 @@ export async function getOwner(
   return {
     about: ownWords?.text ?? null,
     services: (profile?.services ?? []).slice(0, SERVICES_SAID).map((s) => s.name),
-    // A cold email's own tone where the owner set one on How it reaches out (0113), else the receptionist's.
+    // A cold email's own tone where the owner set one on Cold email (0113), else the receptionist's.
     tone: reachOutToneOf(config),
     offer: reachOut?.offer?.trim() || null,
     whoFor: reachOut?.who_for?.trim() || null,
@@ -345,7 +345,7 @@ export async function getOwner(
   };
 }
 
-/** What getOwner answers: the business's own words, How it reaches out's (0113), Ask's memory and the started first emails. */
+/** What getOwner answers: the business's own words, Cold email's (0113), Ask's memory and the started first emails. */
 type OwnerRead = Pick<
   DraftKnown,
   "about" | "services" | "tone" | "memory" | "examples" | "offer" | "whoFor" | "fixes" | "proof"

@@ -1,40 +1,74 @@
 /**
- * How it reaches out (decision 0113): Settings' page of what a cold email is written from. The section is the config's
- * (`reach_out`, config-schema.ts), and what each writer reads of it is section.ts; the page's words, its rules and its
- * read are here, so the page and Ask say one thing. Apart, since a contracts module rides whole into every page that
- * imports it: a lead's card reads the signature, and needs none of the page's words.
+ * Cold email (decisions 0113, 0116): Settings' page of what Chanlytics says when it writes to businesses for you. The
+ * section is the config's (`reach_out`, config-schema.ts), and what each writer reads of it is section.ts; the page's
+ * words, its rules and its read are here, so the page and Ask say one thing. Apart, since a contracts module rides whole
+ * into every page that imports it: a lead's card reads the signature, and needs none of the page's words.
  */
 import { REACH_OUT_LIMITS, type ReplyOffer } from "../../config/workspace-config/config-rules";
 import { MAILBOX_RAMP } from "../../email/mailbox-standing";
+import { COLD_EMAIL_CONNECT_WORDS } from "./connect-words";
 import type { BusinessReadSource } from "../../imports/business-reads";
 import { mayDraftReply } from "./reply-draft";
+import type { ColdEmailSending } from "./sending";
+import type { ColdEmailStanding } from "./standing";
 import { REACH_OUT_REPLY_DAYS } from "./replies/intents";
 import { SEND_DAY_FRAME } from "./timetable";
-import { ASK_FIRST_WORDS_MAX, ASK_LATER_WORDS_MAX, REACH_OUT_WORDS_MAX } from "./words/limits";
+import { REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED } from "./words/claims";
+import { ASK_FIRST_WORDS_MAX, ASK_LATER_WORDS_MAX } from "./words/limits";
 
 /** A whole hour of the day, from minutes past midnight, as a clock face says it: 9, 5. */
 const clockHour = (minutes: number): number => ((Math.floor(minutes / 60) + 11) % 12) + 1;
 
+/** The names the rules say a country by. A country with none is said by its code. */
+const COUNTRY_NAMES: Readonly<Record<string, string>> = {
+  US: "US",
+  CA: "Canada",
+  GB: "UK",
+  DE: "Germany",
+  AT: "Austria",
+};
+const countriesSaid = (codes: ReadonlySet<string>): string => {
+  const names = [...codes].map((code) => COUNTRY_NAMES[code] ?? code);
+  const last = names.pop() ?? "";
+  return names.length ? `${names.join(", ")} and ${last}` : last;
+};
+
 /** The rules every cold email keeps, as the page states them: read from the numbers the code keeps. */
 export function reachOutRuleLines(): string[] {
-  const [first, ...later] = MAILBOX_RAMP.map((s) => s.perDay);
-  const lastRise = later.pop();
+  const [first] = MAILBOX_RAMP.map((s) => s.perDay);
   return [
     "Says only what their listing or website shows, never a guess",
     "No prices, discounts or dates",
     "No link in the first email, one at most after",
-    `Under ${REACH_OUT_WORDS_MAX} words, no line in capitals. Ask keeps its own to ${ASK_FIRST_WORDS_MAX}, follow-ups to ${ASK_LATER_WORDS_MAX}`,
+    `Short: first emails under ${ASK_FIRST_WORDS_MAX} words, follow-ups under ${ASK_LATER_WORDS_MAX}`,
     `Arrives ${clockHour(SEND_DAY_FRAME.from)} to ${clockHour(SEND_DAY_FRAME.to)} their time, while they're open`,
-    `A new mailbox sends ${first} a day, then ${later.join(", ")} and ${lastRise}, a week apart`,
+    "Never to your customers, or anyone who said no",
+    `${countriesSaid(REACH_OUT_COUNTRIES_FREE)} freely. Elsewhere it asks you first, and never ${countriesSaid(REACH_OUT_COUNTRIES_REFUSED)}`,
+    `A new mailbox starts at ${first} a day, and rises a week at a time`,
     `Listens ${REACH_OUT_REPLY_DAYS} days for a reply, and stops the moment one comes`,
   ];
 }
 
-/** What the answer to an interested lead offers, as the row says it. */
-export const REPLY_OFFER_WORDS: Record<ReplyOffer, { choice: string; ends: string }> = {
-  booking_link: { choice: "Your booking link", ends: "offering your booking link" },
-  call: { choice: "A call with you", ends: "offering a call with you" },
-  answer: { choice: "Just the answer", ends: "answering what they asked, and nothing more" },
+/**
+ * What they should do next, as the pitch asks it: a choice, what it does, and what a drafted answer then does. Until the
+ * email's own ask reads this (the plan's Task 19), it says what it changes today: an answer to an interested reply.
+ */
+export const REPLY_OFFER_WORDS: Record<ReplyOffer, { choice: string; does: string; ends: string }> = {
+  call: {
+    choice: "Talk on a short call",
+    does: "Answers to interested replies offer a call.",
+    ends: "offers a call",
+  },
+  booking_link: {
+    choice: "Book through your link",
+    does: "Answers to interested replies offer your booking link.",
+    ends: "offers your booking link",
+  },
+  answer: {
+    choice: "Just reply",
+    does: "Answers stick to what they asked.",
+    ends: "sticks to what they asked",
+  },
 };
 
 export interface WritesBackRow {
@@ -45,39 +79,46 @@ export interface WritesBackRow {
   fixed: boolean;
 }
 
-/** What an answer offering the booking link ends with where How it answers has none: the answer, and no link. */
-const NO_BOOKING_LINK = "answering what they asked: there is no booking link to offer yet";
+/** What an answer offering the booking link does where How it answers has none: the answer, and no link. */
+const NO_BOOKING_LINK = "sticks to what they asked, since there is no booking link to offer yet";
 
 /**
  * What a reply from a lead sets off, by what it was read as (contracts readingPlan, replies/reading.ts): the one table
- * of effects, said as the page says it. Only what the answer offers is the owner's to choose. With Autonomy's Replies
- * quiet nothing is drafted (mayDraftReply), and the rows say so themselves: a phone hides a filled row's hint. The
- * booking link is offered only where the receptionist has one (drafts/writer.ts), so with none the row says so.
+ * of effects, said as the page says it. With Autonomy's Replies quiet nothing is drafted (mayDraftReply), and the rows
+ * say so themselves. The booking link is offered only where the receptionist has one (drafts/writer.ts), so with none
+ * the row says so.
  */
 export function writesBackRows(offer: ReplyOffer | undefined, mode: string, hasBookingLink: boolean): WritesBackRow[] {
   const chosen = offer ?? "booking_link";
   const ends = chosen === "booking_link" && !hasBookingLink ? NO_BOOKING_LINK : REPLY_OFFER_WORDS[chosen].ends;
   const drafted = mayDraftReply(mode);
-  const later = "A step on Today says to write again on the day they named";
+  const later = "you're reminded on the day they named.";
   return [
     {
       id: "reply_offer",
       label: "Interested, or a question",
       value: drafted
-        ? `Your sequence stops for them. An answer is drafted for you to send, ${ends}`
-        : "Your sequence stops for them. Nothing is drafted while Autonomy › Replies stays quiet",
+        ? `An answer is drafted that ${ends}. You send it.`
+        : "Nothing is drafted while Autonomy › Replies stays quiet.",
       fixed: false,
     },
-    { id: "not_now", label: "Not now", value: drafted ? `A thanks is drafted. ${later}` : later, fixed: true },
     {
-      id: "said_no",
-      label: "No",
-      value: "Marked Said no. Their address and their company are never written to again",
+      id: "not_now",
+      label: "Not now",
+      value: drafted ? `A thanks is drafted, and ${later}` : `Waits, and ${later}`,
       fixed: true,
     },
-    { id: "wrong_person", label: "Wrong person", value: "A step on Today names who to write to instead", fixed: true },
-    { id: "away", label: "Away", value: "Waits, and writes again the day they're back", fixed: true },
+    { id: "said_no", label: "No", value: "Never written to again, nor is their company.", fixed: true },
+    { id: "wrong_person", label: "Wrong person", value: "You're told who to write to instead.", fixed: true },
+    { id: "away", label: "Away", value: "Waits, and writes again the day they're back.", fixed: true },
   ];
+}
+
+/** The one line on the page for all of that, by whether an answer is drafted. */
+export function replyLineOf(mode: string): string {
+  return mayDraftReply(mode)
+    ? "Their emails stop, you're told right away, and an answer is drafted for you to send."
+    : "Their emails stop, and you're told right away.";
 }
 
 /**
@@ -95,18 +136,21 @@ export function replyModeHint(mode: string): string | null {
  * the first key is pressed.
  */
 export const REACH_OUT_SETTINGS_WORDS = {
-  tab: "How it reaches out",
-  gap: "Add what you offer, so cold emails have something to say",
+  tab: "Cold email",
+  sub: "What Chanlytics says when it writes to businesses for you.",
+  gap: "Say what you sell, so cold emails have something to say",
   /** A press that puts what is already known in an empty box. Never put there by itself: Save would store it. */
   fillWith: (known: string) => `Use ${known}`,
   /** How much of a box is used, said only as it nears its limit. */
   room: (used: number, max: number) => `${used.toLocaleString("en-US")} of ${max.toLocaleString("en-US")}`,
-  offer: {
-    title: "What you offer",
-    sub: "What every first email is about",
-    offer: "Your offer",
-    whoFor: "Who it's for",
-    fixes: "What you fix for them",
+  /** Whoever may only read the page. */
+  viewer: "Only an owner can change these, or connect a mailbox.",
+  pitch: {
+    title: "Your pitch",
+    sell: "What do you sell?",
+    whoFor: "Who should hear from you?",
+    fixes: "What problem do you solve?",
+    next: "What should they do next?",
     empty: "Not set",
     /** Where the words a row shows in place of the owner's came from (ReachOutSettingsDto.about_from, else the goal). */
     from: {
@@ -116,79 +160,132 @@ export const REACH_OUT_SETTINGS_WORDS = {
       goal: "Read from your goal on Details, until you write it here.",
     },
     placeholders: {
-      offer: "What you sell, and what a business gets from it",
+      sell: "What you sell, and what a business gets from it",
       whoFor: "The kind of business you want to reach, and where",
       fixes: "The problem they have that you solve",
     },
+    /** What a change reaches, said at the moment it matters: what is true of a running sequence today. */
+    reachSell: "New sequences use this. Running ones use it for their first line.",
+    reachWords: "New sequences use this. Running ones keep their words.",
+    whoForNote:
+      "This tells the writer who it's talking to. Who actually gets an email is the search you pick for each sequence.",
+    bookingOn: (link: string) => `Your booking link is on Hours & booking: ${link}`,
+    bookingNone: "You have no booking link yet. Add it on Hours & booking.",
   },
-  proof: {
-    title: "Proof you stand behind",
-    sub: "The only claims it may make about you",
-    add: "Add a claim",
-    foot: "One per email, word for word. It never makes one up.",
+  facts: {
+    title: "Facts your emails can use",
+    add: "Add a fact",
+    foot: "Emails can only use numbers and results listed here, one per email, exactly as written.",
+    reach: "New sequences use these. Running ones keep their words.",
     placeholder: "Something true you can back up: a result, a number, a client",
-    claim: (n: number) => `Claim ${n}`,
-    remove: (n: number) => `Remove claim ${n}`,
+    fact: (n: number) => `Fact ${n}`,
+    remove: (n: number) => `Remove fact ${n}`,
     count: (sends: number) => (sends > 0 ? `In ${sends} email${sends === 1 ? "" : "s"}` : "Not used yet"),
   },
-  writes: {
-    title: "How it writes",
-    sub: "Your voice in cold emails",
-    tone: "Tone",
+  sound: {
+    title: "How you sound",
     tonePlaceholder: "How your emails should sound, in a few words",
-    toneHint: "Cold emails only. How it answers keeps its own.",
     toneFrom: "The receptionist's, until you set one for cold emails.",
-    voice: "How you write",
-    voiceNone: "Nothing learned yet",
-    voiceFrom: "Learned from how you write",
+    empty: "Not set",
+    learned: "Learned from your emails",
+    learnedNone: "Nothing learned yet",
+    learnedCount: (n: number) => `Plus ${n} thing${n === 1 ? "" : "s"} learned from your emails`,
     memory: "Also in Memory",
-    paste: "Paste an email",
+    paste: "Paste an email you wrote",
+    note: "It also learns from what you change in its drafts. Your receptionist keeps its own voice.",
+    reach: "New sequences use this. Running ones use it for their first line.",
   },
-  signOff: {
-    title: "Sign-off",
-    sub: "Under every email",
-    signedBy: "Signs as",
-    signedByHint: "Or the name on the mailbox. A sequence can sign its own.",
-    signedByFrom: "From your newest sequence, until you set it here.",
-    signatureNone: "Not added",
-    signature: "Signature",
-    signatureHint: "Under its name, in every email Chanlytics sends. One you send yourself gets your mail app's.",
-    signatureRule: `Up to ${REACH_OUT_LIMITS.signatureLines} lines, no links.`,
+  ending: {
+    title: "How your emails end",
+    none: "Not set",
+    foot: "Then why they're hearing from you, your address, and a way to say no. The law asks for them.",
+    noAddress: "No address yet, and every email needs one.",
+    name: "Your name",
+    nameFrom: "From your newest sequence, until you set it here.",
+    under: "Under your name",
+    underRule: `Up to ${REACH_OUT_LIMITS.signatureLines} lines, no links.`,
+    phone: "Phone",
     placeholders: {
-      signedBy: "The name at the end of the email",
-      signature: "Your name, your role, your business",
+      name: "The name at the end of the email",
+      under: "Your name, your role, your business",
       phone: "A number people can reach you on",
     },
-    phone: "Phone in the signature",
-    phoneNone: "Not added",
-    foot: "At the bottom",
-    footValue: "Your address, and a way to say no",
-    footHint: "The law asks for both, so it's always added.",
-    footAct: "Address on Details",
+    reach: "New sequences sign with this name. Signature and phone reach every email as soon as you save.",
+    address: "Your address comes from Details.",
   },
-  sendsFrom: {
-    title: "Where it sends from",
-    sub: "Your own mailbox, never ours",
-    mailbox: "Mailbox",
-    none: "Not connected",
-    connections: "Connections",
+  sending: {
+    title: "Sending",
+    from: "From",
+    pace: "Pace",
     month: "This month",
-    monthValue: (sent: number, of: number) =>
-      `${sent.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} first emails`,
-    byHand: "Without a mailbox",
-    byHandValue: (perDay: number) => `To send hands you up to ${perDay} a day, and you send them`,
-    toSend: "To send",
+    batch: "Before each batch",
+    none: "Not connected",
+    /** The page's read came back without its mailboxes: not known, which is neither connected nor not. */
+    unread: "Couldn't check just now",
+    more: (n: number) => `and ${n} more`,
+    health: {
+      healthy: "Healthy",
+      attention: "Needs a look",
+      on_hold: "On hold",
+      reconnect: "Reconnect",
+      paused: "Paused",
+      none: "",
+    },
+    today: "Today",
+    todayValue: (sent: number, cap: number) => `${sent} of ${cap}`,
+    connections: "Open Connections",
+    sendMore: "Send more",
+    details: "Details",
+    connect: "Connect",
+    batchAutonomy: "See this for every kind of message on Autonomy",
+    batchNote:
+      "You approve a sequence's first run. After that, this is what happens each day. Cold email never just goes.",
+    batchNew: "New words always wait for your OK, whichever you pick.",
+    batchWhich: "For new sequences. Each sequence can change its own.",
+    batchAt: { veto: "Held 30 minutes so you can stop it", ask: "Waits for your OK" },
+    batchDoes: {
+      veto: "You're told it's ready. It goes unless you stop it.",
+      ask: "Each batch waits until you say OK.",
+    },
   },
-  writesBack: {
-    title: "When a lead writes back",
-    sub: "Read as it arrives. Nothing replies on its own.",
-    modeDoor: "Open Autonomy",
+  connect: COLD_EMAIL_CONNECT_WORDS,
+  sendMore: {
+    title: "Send more",
+    second: "Use a second domain",
+    secondLike: (host: string) => `Like get${host}, with a mailbox on Google Workspace`,
+    each: "Each one rises to 40 a day",
+    eachLimits: "Up to 3 mailboxes on a domain, 10 in all",
+    share: "Sequences share them out",
+    shareBack: "Replies still come back to your Inbox here",
+    stays: (host: string, perDay: number) =>
+      `Your customers write to ${host}, so this mailbox stays at ${perDay} a day, to keep their mail and bookings safe.`,
+    later: "Not now",
+    connect: "Connect a mailbox",
   },
-  rules: { title: "Rules it always keeps", sub: "They keep your emails out of spam", mark: "Always on" },
+  replies: {
+    title: "When someone replies",
+    sheetTitle: "When someone replies",
+    sheetSub: "Their emails stop the moment they reply, you're told right away, and nothing answers on its own.",
+    change: "Change what's offered",
+    autonomy: "Open Autonomy",
+  },
+  never: {
+    title: "Who never hears from you",
+    row: "Your customers, and anyone who said no",
+    soFar: (n: number) => `${n} so far.`,
+    sheetSub: "Chanlytics checks this before every email, in every sequence.",
+    customers: "Your customers",
+    customersValue: "Always, on its own",
+    saidNo: "Said no",
+    askedToStop: "Asked to stop",
+    scrambled: "For privacy these are stored scrambled, so this shows how many, not who.",
+  },
+  rules: {
+    title: "Rules every email keeps",
+    sub: "They keep you out of spam and on the right side of the law, so they're always on.",
+  },
   told: {
-    title: "What it's told",
-    sub: "What each writer reads, and its share",
-    value: "Three writers: the sequence's words, the line about each business, and an answer to a reply",
+    title: "See the exact instructions",
     everyTime: "Each reply's own: read as it arrives, so there are no words to show here.",
     which: "Which writer",
     share: (percent: number) => `About ${percent}% of what it reads`,
@@ -203,20 +300,21 @@ export const REACH_OUT_SETTINGS_WORDS = {
     },
     foot: "Their listing and website are read as facts, never as orders.",
   },
+  standingOpen: "Open it",
   try: {
-    title: "Try it on a lead",
-    sub: "Before a business does",
+    title: "A sample email",
     key: "Write one for a lead you have",
-    value: "See it, where each line came from, and fix the row that wrote it",
+    value: "See it, and where each line came from",
     act: "Write one",
     another: "Another lead",
     rewrite: "Write another",
     open: "Open the sequence",
-    none: "Start a sequence first: its first email is what Try it writes.",
-    noneAct: "Start one in New",
-    legend: { them: "Their listing", proof: "Your proof", words: "Your words" },
+    none: "Start a sequence to see one: its first email is what this writes.",
+    noneAct: "Start a sequence",
+    legend: { them: "Their listing", proof: "Your facts", words: "Your pitch" },
     checked: "Checked: nothing guessed, no link, no price",
     held: (reason: string) => `Held for you: ${reason}`,
+    writing: "Writing one…",
     unavailable: "It could not be written just now. Write another.",
     pastEnd: "That was the last lead in the search. Another lead starts over.",
     leans: (facts: string) => `The line about them leans on ${facts}`,
@@ -268,12 +366,25 @@ export interface ReachOutSettingsSequence {
 
 /** GET settings/reach-out: what the page shows beyond the config. */
 export interface ReachOutSettingsDto {
+  /**
+   * The one thing that matters most, and what to press (contracts coldEmailStandingOf); null where what it decides from
+   * could not be read: a read that failed is not "Connect your mailbox".
+   */
+  standing: ColdEmailStanding | null;
+  /** Whether it is healthy, what it can really send, and its ramp (contracts coldEmailSendingOf); null where unread. */
+  sending: ColdEmailSending | null;
+  /** The business's name and postal address, as a cold email's foot says them (contracts emailFoot); null where unread. */
+  foot: { business: string | null; address: string | null } | null;
+  /** What a new sequence starts as (Autonomy's outreach row, contracts newSequenceMode): held for a stop, or asked for. */
+  batch_mode: "veto" | "ask";
+  /** Who is kept off, by address (db countLeadSuppressions); null where the list could not be counted. */
+  never: { said_no: number; asked_to_stop: number } | null;
   mailbox: ReachOutSettingsMailbox | null;
   /** The month's first emails against their share; sent is null where they could not be counted. */
   month: { sent: number | null; of: number };
   by_hand_per_day: number;
-  /** Each claim on the page, with the emails sent from steps whose words carry it. */
-  claims: { text: string; sends: number }[];
+  /** Each claim on the page, with the emails sent from steps whose words carry it; null where they could not be counted. */
+  claims: { text: string; sends: number | null }[];
   /** The lines Ask learned from an email the owner pasted (Ask's memory, `learned`). */
   voice: { id: string; text: string }[];
   sequence: ReachOutSettingsSequence | null;

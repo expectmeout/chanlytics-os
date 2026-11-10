@@ -58,7 +58,7 @@ const chain = (n, first, search = { id: SEARCH, name: "Auto shops in Brooklyn" }
 test("a sequence to leads made from Ask's draft keeps what Ask drafted in its make decision, never in a step; one without carries none", async () => {
   const calls = [];
   const supabase = fakeDb(
-    {},
+    { mailbox_connections: [{ id: "m1", tenant_id: T, state: "connected" }] },
     {},
     {
       sequence_create: (args) => {

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-384 handlers in 57 domains.
+386 handlers in 57 domains.
 
 ## activity
 
@@ -1732,7 +1732,7 @@ Reads; for a member of the workspace the request names, partner or above; counts
 | `provider` | one of `"google"`, `"microsoft"` | yes |  |
 | `mailbox_id` | string (uuid) | no |  |
 | `admin` | one of `"1"` | no |  |
-| `back` | one of `"start"` | no |  |
+| `back` | one of `"start"`, `"new"`, `"cold_email"` | no |  |
 | `history` | one of `"six_months"`, `"from_now"` | no |  |
 
 ## mailbox-senders
@@ -3067,6 +3067,20 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/settings/reach-out/route.ts`).
+
+### `GET /api/v1/settings/reach-out/note`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/settings/reach-out/note/route.ts`).
+
+### `POST /api/v1/settings/reach-out/provider-wanted`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `provider` | string | yes | at least 1 characters; at most 60 characters |
 
 ### `GET /api/v1/settings/reach-out/told`
 

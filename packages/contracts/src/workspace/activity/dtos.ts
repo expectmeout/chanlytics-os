@@ -235,6 +235,7 @@ export const WORDS: Record<string, string> = {
   "mailbox_connection.held": "A mailbox to write from was held",
   "mailbox_connection.resumed": "A mailbox to write from was resumed",
   "mailbox_connection.paused": "A mailbox to write from was paused",
+  "mailbox_connection.provider_wanted": "Asked for a mailbox Chanlytics doesn't connect yet",
   "file.added": "A photo was added",
   "file.changed": "A photo was changed",
   "file.kept": "Photos were kept",

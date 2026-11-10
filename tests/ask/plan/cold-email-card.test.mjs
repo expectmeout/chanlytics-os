@@ -1,15 +1,14 @@
 /**
- * Ask's cold email card says what holds it on its sheet (decision 0088 reached a campaign's card and not this one: on
- * 3 November 2026 both real cold email turns said the hand-over line again beside a card that carried it in its summary
- * alone). The card is built by its own action's handler (act/sequence/sequence.ts proposeColdEmail, its words act/leads/cold-email-card.ts)
- * through the real registry over a workspace in memory: with no mailbox connected the owner sends each email, which is the
- * sheet's one hold; with one connected the mailboxes send, a row and no hold. The summary stays what it was, word for
- * word, for the turns stored before the sheet. The model is told the hold beside the card's title, alone and as a plan's
- * step, so the setup rule's last sentence has what to leave out. The Line's rules then see it (contracts holdsAlike,
- * wordsLessHolds), and the Line draws the sheet as it draws a campaign's, EXECUTED on the stub React last.
+ * Ask's cold email card (decision 0088 reached a campaign's card and not this one). The card is built by its own action's
+ * handler (act/sequence/sequence.ts proposeColdEmail, its words act/leads/cold-email-card.ts), through the real registry
+ * over a workspace in memory: with no mailbox connected there is no card, only what to connect (Ruben, 9 Nov 2026: a
+ * mailbox is required); with one connected the mailboxes send, a row and no hold. The Line's rules for a card that does
+ * hold (contracts holdsAlike, wordsLessHolds) stay held here, and the Line draws the sheet as it draws a campaign's,
+ * EXECUTED on the stub React last.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { COLD_EMAIL_MAILBOX_UNREAD, COLD_EMAIL_NEEDS_MAILBOX } from "@chanlytics/contracts";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { holdsAlike, wordsLessHolds } from "@chanlytics/contracts";
@@ -48,7 +47,7 @@ const INPUT = {
 };
 
 /** The workspace: the Austin search, and its mailboxes as given (none, or one connected). */
-const worldOf = (mailboxes) =>
+const worldOf = (mailboxes, faults = {}) =>
   fakeDb(
     {
       memberships: [
@@ -60,14 +59,14 @@ const worldOf = (mailboxes) =>
       mailbox_connections: mailboxes,
       profiles: [],
     },
-    {},
+    faults,
     {},
   );
 /** A mailbox connected and sending, every column as the table holds it. */
 const CONNECTED = rows.mailboxConnection({ tenant_id: A, state: "connected" });
-const contextOver = (mailboxes) =>
+const contextOver = (mailboxes, faults) =>
   newToolContext(
-    { supabase: worldOf(mailboxes), userId: USER, email: "owner@example.com", params: {} },
+    { supabase: worldOf(mailboxes, faults), userId: USER, email: "owner@example.com", params: {} },
     A,
     "operator",
     TZ,
@@ -84,25 +83,36 @@ async function card(mailboxes, more = {}) {
   return { card: out.proposal, told: JSON.parse(out.result) };
 }
 
-test("with no mailbox connected, the sheet holds the hand-over, read first, over the rows an owner checks; the summary stays what it was", async () => {
-  const { card: p } = await card([]);
-  assert.equal(p.kind, "reach_out_make");
-  assert.equal(p.payload.chain.owner_sends, true, "nobody else can send it");
-  assert.deepEqual(p.sheet, {
-    holds: [HOLD],
-    rows: [
-      { label: "To", value: "“Personal trainers · Austin”" },
-      { label: "First email", value: "“A quick question for {business_name}”" },
-      { label: "Then", value: "After 4 days: a reply in the same thread" },
-      { label: "Pace", value: "One every 20 minutes" },
-      { label: "Sends", value: WAITS, aside: true },
-    ],
-  });
-  assert.equal(
-    p.summary,
-    "To “Personal trainers · Austin”, each email handed to you to send from your own inbox, one every 20 minutes: first: “A quick question for {business_name}”; after 4 days: a reply in the same thread. Its first run is planned once approved, and waits for your say before an email goes.",
-    "the words a turn stored before the sheet draws, and Copy takes",
-  );
+test("with no mailbox connected there is no card: it says what to connect, in the page's words", async () => {
+  const out = await buildProposal(contextOver([]), "propose_sequence", { action: "cold_email", ...INPUT });
+  assert.equal(out.proposal, null);
+  assert.equal(out.isError, true);
+  assert.equal(out.refusal, COLD_EMAIL_NEEDS_MAILBOX);
+});
+
+test("a mailbox that is there and can't send has no card either: it says what is wrong, never to connect one", async () => {
+  const CANT_SEND = [
+    [{ state: "paused" }, /^Your mailbox is paused\. Resume it/],
+    [{ state: "held", held_why: "bounces" }, /paused to protect your name: more than 3% of its recent emails bounced/],
+    [{ state: "reconnect" }, /needs reconnecting/],
+  ];
+  for (const [over, said] of CANT_SEND) {
+    readerCache.clear();
+    const world = contextOver([rows.mailboxConnection({ tenant_id: A, ...over })]);
+    const out = await buildProposal(world, "propose_sequence", { action: "cold_email", ...INPUT });
+    assert.equal(out.proposal, null, over.state);
+    assert.equal(out.isError, true, over.state);
+    assert.match(out.refusal, said, over.state);
+    assert.notEqual(out.refusal, COLD_EMAIL_NEEDS_MAILBOX, over.state);
+  }
+});
+
+test("a read of the mailboxes that failed says so, and never that there is none", async () => {
+  const failed = contextOver([CONNECTED], { "mailbox_connections.select": { message: "the read failed" } });
+  const out = await buildProposal(failed, "propose_sequence", { action: "cold_email", ...INPUT });
+  assert.equal(out.proposal, null);
+  assert.equal(out.isError, true);
+  assert.equal(out.refusal, COLD_EMAIL_MAILBOX_UNREAD);
 });
 
 test("with a mailbox connected nothing holds it: the mailboxes send, a row under the pace", async () => {
@@ -117,38 +127,36 @@ test("with a mailbox connected nothing holds it: the mailboxes send, a row under
   assert.match(p.summary, /, from your connected mailboxes, one every 20 minutes: /);
 });
 
-test("the owner asked to send them: the hold stands whatever is connected; one email alone has no Then", async () => {
+test("asking to send them by hand changes nothing: the mailboxes send; one email alone has no Then", async () => {
   const { card: p } = await card([CONNECTED], { owner_sends: true, steps: INPUT.steps.slice(0, 1) });
-  assert.deepEqual(p.sheet.holds, [HOLD]);
+  assert.equal(p.payload.chain.owner_sends, false);
+  assert.deepEqual(p.sheet.holds, []);
   assert.deepEqual(
     p.sheet.rows.map((r) => r.label),
-    ["To", "First email", "Pace", "Sends"],
-    "who sends is said once on the card: as its hold",
+    ["To", "First email", "Pace", "From", "Sends"],
   );
 });
 
-test("the model is told what holds the card beside its title: alone, and as each step of a plan", async () => {
-  const { told } = await card([]);
-  assert.deepEqual([told.card, told.holds], ["Cold email: Personal trainers · Austin", [HOLD]]);
+test("the model is told nothing holds the card: alone, and as each step of a plan", async () => {
   assert.equal("holds" in (await card([CONNECTED])).told, false, "nothing holds it: nothing to leave out");
   const step = { tool: "propose_sequence", action: "cold_email", input: INPUT };
-  const plan = await buildProposal(contextOver([]), "propose_plan", {
+  const plan = await buildProposal(contextOver([CONNECTED]), "propose_plan", {
     action: "steps",
     steps: [step, { ...step, input: { ...INPUT, name: "Dentists · Austin" } }],
   });
   assert.equal(plan.proposals?.length, 2, plan.result);
   assert.deepEqual(
-    JSON.parse(plan.result).steps.map((s) => [s.n, s.card, s.holds]),
+    JSON.parse(plan.result).steps.map((s) => [s.n, s.card, "holds" in s]),
     [
-      [1, "Cold email: Personal trainers · Austin", [HOLD]],
-      [2, "Cold email: Dentists · Austin", [HOLD]],
+      [1, "Cold email: Personal trainers · Austin", false],
+      [2, "Cold email: Dentists · Austin", false],
     ],
   );
 });
 
 test("the Line's rules see it: two such cards say the hold once over them, and the answer's line that only repeats it is not drawn", async () => {
-  const { card: a } = await card([]);
-  const { card: b } = await card([], { name: "Dentists · Austin" });
+  const a = { sheet: { holds: [HOLD], rows: [] } };
+  const b = { sheet: { holds: [HOLD], rows: [] } };
   assert.deepEqual(holdsAlike([a, b]), [HOLD]);
   const own = "No mailbox is connected; to have them go from one, connect it under Settings.";
   assert.equal(wordsLessHolds(`${HOLD}\n${own}`, [a]), own);
@@ -161,8 +169,8 @@ test("the Line's rules see it: two such cards say the hold once over them, and t
 });
 
 // Last, since it puts a window on the global: the stub React draws the real card as the Line does (surfaces/ask/card.tsx).
-test("the Line draws it as it draws a campaign's: the hold first in its own tone, the rows, and Sends behind Details", async () => {
-  const { card: p } = await card([]);
+test("the Line draws it as it draws a campaign's: the rows, and Sends behind Details", async () => {
+  const { card: p } = await card([CONNECTED]);
   const { installStubReact, fresh, again, all, textOf, press, kitPages } = await import("../../_stub-react.mjs");
   installStubReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: () => false });
   Object.assign(globalThis.window, kitPages);
@@ -182,18 +190,14 @@ test("the Line draws it as it draws a campaign's: the hold first in its own tone
   const tree = draw();
   const testid = (t2, id) => all(t2, (n) => typeof n.type === "string" && n.props?.["data-testid"] === id);
   assert.ok(testid(tree, "ask-card-sheet")[0], "a sheet, not the summary");
-  assert.deepEqual(
-    all(tree, (n) => n.props?.className === "ask-spec-hold").map(textOf),
-    [HOLD],
-    "the hold, once, in the warn tone",
-  );
+  assert.deepEqual(all(tree, (n) => n.props?.className === "ask-spec-hold").map(textOf), [], "nothing holds it");
   const words = textOf(tree);
   assert.match(words, /To“Personal trainers · Austin”/);
   assert.match(words, /First email“A quick question for \{business_name\}”/);
   assert.match(words, /ThenAfter 4 days: a reply in the same thread/);
   assert.match(words, /PaceOne every 20 minutes/);
   assert.doesNotMatch(words, /Its first run is planned/, "Sends waits behind Details");
-  assert.equal(words.split("handed to you").length - 1, 1, "the summary is not drawn beside the sheet");
+  assert.doesNotMatch(words, /one every 20 minutes: /, "the summary is not drawn beside the sheet");
   press(testid(tree, "ask-card-details")[0]);
   assert.match(
     textOf(again(draw)),

@@ -1,10 +1,11 @@
 /**
- * How it reaches out (decision 0113): what every card of the page shares. A card is the record kit's, as How it answers'
+ * Cold email (decision 0113): what every card of the page shares. A card is the record kit's, as How it answers'
  * are (business/tab.tsx btaCard): its title and line over its rows. What the page reads beyond the config is the pane's
  * kept read (frame/pane-reads.ts), begun before the pane is drawn and read again behind it.
  */
-import { useEffect, useState, type ReactNode } from "react";
-import { textOrEmpty, type ReachOutConfig, type ReachOutSettingsDto } from "@chanlytics/contracts";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { MIN_MS, textOrEmpty, type ReachOutConfig, type ReachOutSettingsDto } from "@chanlytics/contracts";
+import { hearFront, pageHidden } from "@/bridge/hearing/front";
 import type { FrameFlash } from "../../frame-verbs";
 import type { BtSaver } from "../business/gestures/common";
 import type { Brain, Config } from "../business/save";
@@ -28,13 +29,13 @@ export const storedReachOut = (shared: OutreachShared, key: keyof ReachOutConfig
 export const OutreachCard = ({
   id,
   title,
-  sub,
+  sub = null,
   mark = null,
   children,
 }: {
   id: string;
   title: string;
-  sub: string;
+  sub?: string | null;
   mark?: ReactNode;
   children: ReactNode;
 }) => (
@@ -43,7 +44,7 @@ export const OutreachCard = ({
       <h2 className="rec-card-title" id={`ro-${id}-title`}>
         {title}
       </h2>
-      <span className="rec-card-sub">{sub}</span>
+      {sub ? <span className="rec-card-sub">{sub}</span> : null}
       {mark}
     </div>
     {children}
@@ -51,24 +52,48 @@ export const OutreachCard = ({
 );
 
 /**
- * What the page shows beyond the config: what the tab last held of it on the first frame, and the answer once it
- * lands. Read again after a change only this read shows (a voice pasted): `again`.
+ * What the page shows beyond the config: what the tab last held of it on the first frame, and the answer once it lands.
+ * Read again as a save brings the config back (an address added moves Where it stands), as the owner comes back to the tab
+ * (a record fixed on Connections or at their DNS host), at most once a minute, and after a change only this read shows (a
+ * voice pasted): `again`. `failed` is a read that did not land with nothing to draw in its place, which the page says
+ * and offers again; `reading` is one still out.
  */
-export function useReachOutRead(): { read: ReachOutSettingsDto | null; again: () => void } {
+export function useReachOutRead(config: unknown): {
+  read: ReachOutSettingsDto | null;
+  failed: boolean;
+  reading: boolean;
+  again: () => void;
+} {
   const [read, setRead] = useState(() => reachOutSettingsRead.held());
+  const [failed, setFailed] = useState(false);
+  const [reading, setReading] = useState(false);
   const [round, setRound] = useState(0);
+  const readAt = useRef(0);
+  useEffect(
+    () =>
+      hearFront(() => {
+        if (!pageHidden() && Date.now() - readAt.current >= MIN_MS) setRound((n) => n + 1);
+      }),
+    [],
+  );
   useEffect(() => {
     let live = true;
-    // A read that failed leaves what was drawn: each card says what it lacks ("…"), never the frame's error.
+    readAt.current = Date.now();
+    setReading(true);
+    // A read that failed leaves what was drawn, never the frame's error: the client has already said why it failed.
+    const landed = (answer: ReachOutSettingsDto | null) => {
+      if (!live) return;
+      if (answer) setRead(answer);
+      setFailed(!answer);
+      setReading(false);
+    };
     reachOutSettingsRead.read().then(
-      (r) => {
-        if (live && r.ok) setRead(r.data);
-      },
-      () => {},
+      (r) => landed(r.ok ? r.data : null),
+      () => landed(null),
     );
     return () => {
       live = false;
     };
-  }, [round]);
-  return { read, again: () => setRound((n) => n + 1) };
+  }, [round, config]);
+  return { read, failed: failed && !read, reading, again: () => setRound((n) => n + 1) };
 }

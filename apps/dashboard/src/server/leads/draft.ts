@@ -61,7 +61,7 @@ const UNBACKED_AGAIN =
   "Write it again with no number about the writer's business that its claims do not say word for word.";
 
 /**
- * What How it reaches out says of the writer (decision 0113), as data: each line only where the owner wrote it, and with
+ * What Cold email says of the writer (decision 0113), as data: each line only where the owner wrote it, and with
  * no offer of theirs what the business says it does (db findWorkspaceWords), so the email knows what it is about.
  */
 export function writerLines(config: ReturnType<typeof parseTenantConfig>, ownWords: string | null): string[] {

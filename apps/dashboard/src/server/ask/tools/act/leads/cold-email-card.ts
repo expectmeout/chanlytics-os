@@ -12,10 +12,8 @@ import "server-only";
 import type { AskCardSheet } from "@chanlytics/contracts";
 import { sheetWords } from "../playbook-card";
 
-/** Handed to the owner: the summary's phrase and the sheet's hold say it in the one set of words. */
-const HANDED_TO_YOU = "handed to you to send from your own inbox";
 const FROM_MAILBOXES = "your connected mailboxes";
-/** How its first run goes, whichever sends: planned at Approve, and held for the owner's say. */
+/** How its first run goes: planned at Approve, and held for the owner's say. */
 const FIRST_RUN_WAITS = "Its first run is planned once approved, and waits for your say before an email goes.";
 
 /** The pieces a cold email's card is made of, worded by its builder. */
@@ -27,12 +25,11 @@ interface ColdEmailSaid {
   /** Each email after it, with its wait: "after 4 days: a reply in the same thread". */
   then: readonly string[];
   gap_minutes: number;
-  owner_sends: boolean;
 }
 
 /** A cold email's card: its summary and its sheet, from the same pieces. */
 export function coldEmailCard(coldEmailSaid: ColdEmailSaid): { summary: string; sheet: AskCardSheet } {
-  const sends = coldEmailSaid.owner_sends ? `each email ${HANDED_TO_YOU}` : `from ${FROM_MAILBOXES}`;
+  const sends = `from ${FROM_MAILBOXES}`;
   const pace = `one every ${coldEmailSaid.gap_minutes} minutes`;
   const emails = [`first: ${coldEmailSaid.first}`, ...coldEmailSaid.then].join("; ");
   const rows = [
@@ -40,14 +37,13 @@ export function coldEmailCard(coldEmailSaid: ColdEmailSaid): { summary: string; 
     { label: "First email", value: coldEmailSaid.first },
     { label: "Then", value: coldEmailSaid.then.join("; ") },
     { label: "Pace", value: pace },
-    // Who sends, where it is not the hold: the owner's hand is said once, as what holds every send.
-    { label: "From", value: coldEmailSaid.owner_sends ? "" : FROM_MAILBOXES },
+    { label: "From", value: FROM_MAILBOXES },
     { label: "Sends", value: FIRST_RUN_WAITS, aside: true },
   ]
     .map((r) => ({ ...r, value: sheetWords(r.value) }))
     .filter((r) => r.value);
   return {
     summary: `To ${coldEmailSaid.to}, ${sends}, ${pace}: ${emails}. ${FIRST_RUN_WAITS}`,
-    sheet: { holds: coldEmailSaid.owner_sends ? [sheetWords(`each email is ${HANDED_TO_YOU}.`)] : [], rows },
+    sheet: { holds: [], rows },
   };
 }

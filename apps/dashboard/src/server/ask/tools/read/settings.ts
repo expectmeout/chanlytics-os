@@ -53,7 +53,7 @@ function howItAnswersOf(cfg: ReturnType<typeof parseTenantConfig>) {
 }
 
 /**
- * How it reaches out as it stands (decision 0113): what a card of propose_settings' reach_out changes, read first so a
+ * Cold email as it stands (decision 0113): what a card of propose_settings' reach_out changes, read first so a
  * claim added never repeats one there and one taken away is named as it is written. Null where a row is not set: each
  * writer then reads what it read before (the goal or what the business does, the receptionist's tone).
  */

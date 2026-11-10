@@ -6,6 +6,8 @@ import {
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_GAP_FIRST,
   REACH_OUT_STEPS_MAX,
+  COLD_EMAIL_MAILBOX_UNREAD,
+  coldEmailCannotSendWhy,
   ReachOutChainSchema,
   SEQUENCE_WORDS,
   firstNameOf,
@@ -15,6 +17,7 @@ import {
   UUID,
 } from "@chanlytics/contracts";
 import { getJournalMemberNames } from "@chanlytics/db/ask";
+import { logAndGoOn } from "@chanlytics/log";
 import { getStoredConfig } from "../../../../workspace/config-row";
 import { listMailboxConnections } from "../../../../connections/mailbox-connections";
 import { searchRow } from "../../../../leads/leads";
@@ -62,12 +65,15 @@ export const COLD_STEP = z.object({
 });
 
 /**
- * Whether the workspace has a mailbox that sends now, as a new sequence's make reads it (00459: connected ones only); a
- * read that fails, none.
+ * Why the workspace has no mailbox that sends now, as a new sequence's make reads it (00459: connected ones only), in
+ * the door's own words; `why` null where one sends. The whole answer is null where the read failed, which is no
+ * answer: telling an owner with a mailbox to connect one would send them the wrong way.
  */
-async function hasMailbox(t: ToolContext): Promise<boolean> {
-  const boxes = await listMailboxConnections(t.ctx.supabase, t.tenantId).catch(() => []);
-  return boxes.some((m) => m.state === "connected");
+async function mailboxStanding(t: ToolContext): Promise<{ why: string | null } | null> {
+  const boxes = await listMailboxConnections(t.ctx.supabase, t.tenantId).catch(
+    logAndGoOn("reading the mailboxes for a cold email's card", null),
+  );
+  return boxes && { why: coldEmailCannotSendWhy(boxes) };
 }
 
 /**
@@ -82,7 +88,7 @@ async function signerOf(t: ToolContext): Promise<string | null> {
       .then(parseTenantConfig)
       .catch(() => null),
   ]);
-  // The name How it reaches out signs with (decision 0113), else the member's first name, as before the page.
+  // The name Cold email signs with (decision 0113), else the member's first name, as before the page.
   return reachOutSignedByOf(config, firstNameOf(names[t.ctx.userId] ?? null, null));
 }
 
@@ -93,11 +99,14 @@ export async function proposeColdEmail(
     search_id: string;
     steps: z.output<typeof COLD_STEP>[];
     gap_minutes?: number;
-    owner_sends?: boolean;
     signed_by?: string;
     include_unconfirmed?: boolean;
   },
 ): Promise<ProposalOutcome> {
+  // A sequence to leads sends from a mailbox: with none that sends there is no card, and it says which it is.
+  const mailbox = await mailboxStanding(toolContext);
+  if (mailbox === null) return refuse(COLD_EMAIL_MAILBOX_UNREAD);
+  if (mailbox.why) return refuse(mailbox.why);
   const searchId = str(input.search_id, 40);
   const token = stepNamed(toolContext, searchId);
   let fedBy = `the leads step ${token} keeps`;
@@ -120,9 +129,7 @@ export async function proposeColdEmail(
     // Unsaid, the pace every new sequence starts at (decision 0077 D7), the one New makes it at.
     gap_minutes: input.gap_minutes ?? REACH_OUT_GAP_FIRST,
     mailbox_ids: [],
-    // Unsaid, it sends as a new sequence does (00459 sequence_create_leads): from the connected mailboxes while there
-    // is one, else handed to the owner to send, so a sequence never waits on a mailbox nobody connected.
-    owner_sends: input.owner_sends ?? !(await hasMailbox(toolContext)),
+    owner_sends: false,
     signed_by: input.signed_by?.trim() || (await signerOf(toolContext)),
     steps: input.steps.map((s, i) => ({
       subject: s.subject?.trim() || null,
@@ -141,7 +148,6 @@ export async function proposeColdEmail(
     first: first ? says(first) : "",
     then: rest.map((s) => `${after(s.after_days ?? 0)}: ${says(s)}`),
     gap_minutes: checked.data.gap_minutes,
-    owner_sends: checked.data.owner_sends,
   });
   return propose({
     kind: "reach_out_make",

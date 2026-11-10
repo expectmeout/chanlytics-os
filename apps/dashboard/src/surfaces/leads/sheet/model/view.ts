@@ -82,7 +82,6 @@ export const LEAD_SHEET_WORDS = {
   emailOnSite: "Email found on its contact page",
   /** Sequence, before one: the sequence Add goes to and the emails they'd get, or why none can have them. */
   ifAdded: "If you add them",
-  stops: "Their first email waits for your OK.",
   noPick: "Pick a sequence to see the emails they'd get.",
   noEmailToWrite: "No email to write to: no sequence can take them. Call them instead.",
   openSequence: (name: string) => `Open ${name}`,
@@ -111,10 +110,10 @@ export const LEAD_SHEET_WORDS = {
     write: "Write one email instead",
     writeLine: "Just this email, no sequence",
   },
-  /** Write to them: one email, written here (POST leads/:id/draft), sent from their own mail app where no mailbox can. */
+  /** Write to them: one email, written here (POST leads/:id/draft), sent from the workspace's mailbox. */
   write: {
     title: (name: string) => `Write to ${name}`,
-    sub: "Written for them. You send it from your own mail app.",
+    sub: "Written for them. It goes from your mailbox.",
   },
   /** Many at once, from the selection bar: the same picker and New, named by how many. */
   bulk: {

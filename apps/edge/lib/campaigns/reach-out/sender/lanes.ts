@@ -34,6 +34,7 @@ import {
   previewSlotOf,
   type LeadPreviewSlot,
   type SlotLead,
+  hasFootAddress,
 } from "@chanlytics/contracts";
 import { dashboardOrigin, unsubscribeOrigin } from "../../../shared/dashboard-origin.js";
 import { env } from "../../../shared/env.js";
@@ -158,7 +159,7 @@ export function tickReads(db: Db) {
           businessName,
           address,
           bookingLink: brain?.booking_link?.trim() || null,
-          missing: !businessName || !address ? "no_business_address" : null,
+          missing: hasFootAddress(businessName, address) ? null : "no_business_address",
           signature: reachOutSignatureOf(config),
         };
       }),

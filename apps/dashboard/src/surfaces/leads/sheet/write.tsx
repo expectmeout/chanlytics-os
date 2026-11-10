@@ -1,26 +1,18 @@
 /**
  * Write to them, a step of the same sheet (the review of 4 Nov 2026; decision 0094): one email, written for them by the
  * route (POST leads/:id/draft) and theirs to change. With a mailbox that can send it, Send leaves from there, through the
- * one send door, with Undo for its grace; the mail apps stay under its caret. With none, their mail app is the primary,
- * with Gmail, Outlook and Copy under its caret (contracts composeLinksOf, as To send opens one): opening or copying it
- * arms "Did you send it?", asked once they are back at the tab (peek/acts.tsx). A yes there marks them contacted, and
- * either way the email keeps a row in History. ‹ Back returns to the card.
+ * one send door, with Undo for its grace. With none, the one press is the way to connect one; a mailbox that can't send
+ * now says why (Ruben, 9 Nov 2026: a mailbox is required, and sending by hand defeats the purpose). ‹ Back returns to the
+ * card.
  *
  * Hookless.
  */
-import {
-  LEAD_OWN_EMAIL_WORDS as OW,
-  LEAD_WORDS as LW,
-  REACH_OUT_TO_SEND_LABELS as L,
-  composeLinksOf,
-  type LeadPeekVM,
-} from "@chanlytics/contracts";
+import { LEAD_OWN_EMAIL_WORDS as OW, LEAD_WORDS as LW, type LeadPeekVM } from "@chanlytics/contracts";
 import { LEAD_SHEET_WORDS as W } from "./model/view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { Menu } from "../../kit/menu/menu";
 import { Panel } from "../../kit/panel/panel";
-import { onAPhone } from "../../frame-verbs";
+import { navigate } from "../../frame-verbs";
 import type { DraftState, PeekActs } from "../peek/types";
 import { WordsBox } from "./email-box";
 import { stepHead } from "./picker";
@@ -32,24 +24,18 @@ interface WriteProps {
   on: PeekActs;
 }
 
-/** How many lines the box of words stands. */
-
-/** The doors into a mail client for the email as it now reads, once it is written (contracts composeLinksOf). */
-const linksOf = (vm: LeadPeekVM, d: DraftState) =>
-  d.body && d.subject && !d.busy
-    ? composeLinksOf({ to: d.to || vm.reach.email.address || "", subject: d.subject, text: d.body })
-    : null;
-
 /** The route said no before a word was written (no business address, they asked not to be written to): nothing to send. */
 const refusedOutright = (d: DraftState) => !!d.refusal && !d.body;
 
 /** What goes under the words, as the road it takes lays it. */
 const footWordsOf = (d: DraftState) => (d.from ? d.foot : d.mailFoot?.trim()) || null;
 
+/** No mailbox at all: the press is the way to one, on the page that says what it takes. */
+const needsMailbox = (d: DraftState) => !d.from && d.whyNot === OW.whyNot.no_mailbox;
+
 /**
  * The email, as it will go: to whom, its subject and its words to change, and what is added under them; "Writing it…"
- * while the route writes it. Why it goes from the mail app, where a mailbox can't send it. A link too long to carry the
- * words says that they are copied as it opens. Refused outright, why and the way back alone.
+ * while the route writes it. Why it can't go, where a mailbox can't send it. Refused outright, why and the way back alone.
  */
 export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
   const d: DraftState = draft || {};
@@ -66,7 +52,6 @@ export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
       </div>
     );
   const writing = !!d.busy;
-  const links = linksOf(vm, d);
   const foot = footWordsOf(d);
   return (
     <div className="lw-step" data-testid="lead-sheet-write">
@@ -137,110 +122,39 @@ export function SheetWrite({ vm, draft, busy, on }: WriteProps) {
           {d.whyNot}
         </p>
       ) : null}
-      {!d.from && links && !links.bodyInLinks ? (
-        <p className="lw-mail-n" data-testid="lead-sheet-write-paste">
-          {L.pasteNote}
-        </p>
-      ) : null}
     </div>
   );
 }
 
-/**
- * The foot while it is written. From a mailbox: Send, the primary, with their mail apps and Copy under its caret. From
- * their mail app: that, the primary, with Gmail, Outlook and Copy under its caret. A link too long to carry the words
- * leaves them to the clipboard, copied as it opens (the step above says so).
- */
-export function SheetWriteDock({ vm, draft, busy, on }: WriteProps) {
+/** The foot while it is written: Send, the primary; with no mailbox, the way to connect one. */
+export function SheetWriteDock({ draft, busy, on }: WriteProps) {
   const d: DraftState = draft || {};
   if (refusedOutright(d)) return null;
-  const links = linksOf(vm, d);
-  // Opening it is the moment they might send it: "Did you send it?" is armed, and words a link cannot carry are copied.
-  const opening = () => {
-    if (links && !links.bodyInLinks) void on.onCopyDraft();
-    else on.onOpenMail();
-  };
-  const onWeb = (url: string) => () => {
-    opening();
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
-  const words = (
-    <>
-      <Icon name={d.from ? "send" : "mail"} size={14} />
-      <span className="lw-dock-w">{d.from ? OW.send : L.app}</span>
-    </>
-  );
-  const appItem = links
-    ? [
-        {
-          label: L.app,
-          glyph: <Icon name="mail" size={13} />,
-          onSelect: () => {
-            opening();
-            window.location.assign(links.mailto);
-          },
-        },
-      ]
-    : [];
-  const canSend = !!(d.from && links && d.words?.trim() && !d.sending);
+  const canSend = !!(d.from && d.subject && d.body && !d.busy && d.words?.trim() && !d.sending);
   return (
     <div className="lw-dock" data-busy={busy || d.busy ? "true" : undefined} data-testid="lead-sheet-dock">
-      <span className="lw-split">
-        {d.from ? (
-          <Button
-            variant="primary"
-            className="lw-dock-b"
-            disabled={!canSend}
-            onClick={() => void on.onSend()}
-            data-testid="lead-sheet-write-send"
-          >
-            {words}
-          </Button>
-        ) : links ? (
-          <Button
-            variant="primary"
-            className="lw-dock-b"
-            href={links.mailto}
-            onClick={opening}
-            data-testid="peek-open-mail"
-          >
-            {words}
-          </Button>
-        ) : (
-          <Button variant="primary" className="lw-dock-b" disabled data-testid="peek-open-mail">
-            {words}
-          </Button>
-        )}
-        <Menu
-          label={L.more(vm.name)}
-          trigger={
-            <Button
-              variant="primary"
-              iconOnly
-              className="lw-split-more"
-              disabled={!links}
-              aria-label={L.more(vm.name)}
-              data-testid="lead-sheet-write-more"
-            >
-              <Icon name="chevron-down" size={13} />
-            </Button>
-          }
-          // A phone draws the menu as a sheet, headed by whose email it is (as To send's is).
-          groups={[
-            {
-              header: onAPhone() ? vm.name : undefined,
-              items: links
-                ? [
-                    ...(d.from ? appItem : []),
-                    { label: L.gmail, glyph: <Icon name="external" size={13} />, onSelect: onWeb(links.gmail) },
-                    { label: L.outlook, glyph: <Icon name="external" size={13} />, onSelect: onWeb(links.outlook) },
-                    { label: L.copy, glyph: <Icon name="copy" size={13} />, onSelect: () => void on.onCopyDraft() },
-                  ]
-                : [],
-            },
-          ]}
-        />
-      </span>
+      {needsMailbox(d) ? (
+        <Button
+          variant="primary"
+          className="lw-dock-b"
+          onClick={() => navigate("admin/outreach/connect")}
+          data-testid="lead-sheet-write-connect"
+        >
+          <Icon name="mail" size={14} />
+          <span className="lw-dock-w">{OW.connect}</span>
+        </Button>
+      ) : (
+        <Button
+          variant="primary"
+          className="lw-dock-b"
+          disabled={!canSend}
+          onClick={() => void on.onSend()}
+          data-testid="lead-sheet-write-send"
+        >
+          <Icon name="send" size={14} />
+          <span className="lw-dock-w">{OW.send}</span>
+        </Button>
+      )}
     </div>
   );
 }

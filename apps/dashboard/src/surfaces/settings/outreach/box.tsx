@@ -1,5 +1,5 @@
 /**
- * How it reaches out (decision 0113): a row of words and its box, one key of the config's reach_out section. A row with
+ * Cold email (decision 0113): a row of words and its box, one key of the config's reach_out section. A row with
  * nothing set says what the writers read in its place, in the dim ink of a fact not yet the owner's, and why; its box opens
  * on those same words, so what the row shows is at hand to change, and they become the owner's only once they change them
  * (BtFold's `opensOn`). An empty box says what to put there, and offers what is already known with one press, never

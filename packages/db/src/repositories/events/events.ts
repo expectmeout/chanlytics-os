@@ -128,6 +128,8 @@ interface TableData {
   "line.texting_approved": TextingData;
   "line.texting_on": TextingData;
   "line.texting_rejected": TextingData;
+  /** A workspace that can't connect a mailbox says which it would use (Cold email's Tell us): told when it is built. */
+  "mailbox_connection.provider_wanted": { provider: string; by: string };
   /** A mailbox the business writes from (00423, decision 0056): its address, never its token. */
   "mailbox_connection.connected": { address: string; provider: string; again: boolean; by: string | null };
   "mailbox_connection.signed_out": { address: string; provider: string };
@@ -247,6 +249,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "line.texting_approved": { category: "setup", version: 1 },
   "line.texting_on": { category: "setup", version: 1 },
   "line.texting_rejected": { category: "setup", version: 1 },
+  "mailbox_connection.provider_wanted": { category: "setup", version: 1 },
   "mailbox_connection.connected": { category: "setup", version: 1 },
   "mailbox_connection.signed_out": { category: "setup", version: 1 },
   "mailbox_connection.held": { category: "setup", version: 1 },

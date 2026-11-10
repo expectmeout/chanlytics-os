@@ -1,5 +1,6 @@
 /** Reach outs: chain acts. */
 
+import { refuseTurningToHand, refuseWithoutMailbox } from "./mailbox-needed";
 import "server-only";
 import {
   AppError,
@@ -185,6 +186,8 @@ export async function saveChain(
   /** A draft's record (00459): an email still to write (no words yet) is kept as it is, and Start asks for it. */
   opts: { unwritten?: boolean } = {},
 ): Promise<ReachOutSavedDto> {
+  if (rootId === null) await refuseWithoutMailbox(ctx, member.tenantId, input.owner_sends);
+  else await refuseTurningToHand(ctx, member.tenantId, rootId, input.owner_sends);
   const all = validateReachOutChain(input, { bookingLink: !!(await bookingLinkOf(ctx, member.tenantId)) });
   const blank = (i: number | null) => {
     const s = i === null ? null : input.steps[i];

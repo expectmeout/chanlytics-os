@@ -1,9 +1,8 @@
 /**
  * One step of a reach-out, on its day (Reach out §4.1, §4.5): who it writes to, a run for them, and when each email
  * goes. A run of a step whose words are new to its owner waits for them (decision 0064: its first, and its first after
- * new words), and so does every first-email run of a chain fed by a list (00426: each of its leads was added by hand, so
- * each run is a new say); any other gives thirty minutes to be stopped, or waits too when its sequence asks for each
- * (its mode, E7), and while any run of the chain waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
+ * new words); any other gives thirty minutes to be stopped and tells its owner when it goes, or waits too when its
+ * sequence asks for each (its mode, E7), and while any run of the chain waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
  * chain bounced (C4), and one that keeps no open hour all week are skipped with why, so none of them heads the step's
  * page every day. What the timetable cannot place within its horizon waits for the next day's run. A reach-out its owner
  * sends (00429) plans no mailbox and no timetable: its day's share (REACH_OUT_DRAFTS_PER_DAY, less what the chain's runs
@@ -25,10 +24,42 @@ import {
 } from "@chanlytics/contracts";
 import { getReachOutRunId, sendIdFor } from "./reach-out-ids";
 import { followerRefusalOf } from "./reach-out-ports";
-import type { PlannedSend, ReachOutLead, ReachOutRunOutcome, ReachOutRunPorts, ReachOutStep } from "./reach-out-ports";
+import type {
+  NewReachOutRun,
+  PlannedSend,
+  ReachOutLead,
+  ReachOutRunOutcome,
+  ReachOutRunPorts,
+  ReachOutStep,
+} from "./reach-out-ports";
 
 /** A week with no hour a cold email may arrive in (closed every day): never placeable, whatever the mailboxes' room. */
 const neverOpen = (week: WeekHours): boolean => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
+
+/**
+ * A planned batch nobody asked to OK first. Before each batch promises "You're told it's ready": a batch nobody could be
+ * told of does not go by itself, it waits for its owner's OK instead. A bell or a hold that fails is said by the door in
+ * its own log; a batch that could be neither told of nor held is never lost, it goes at its time. A run its owner sends
+ * by hand never goes without them, so there is nothing to say.
+ */
+async function goesOrWaits(
+  ports: ReachOutRunPorts,
+  step: ReachOutStep,
+  run: NewReachOutRun,
+  plan: { counts: { planned: number; skipped: number }; firstAt: number },
+): Promise<ReachOutRunOutcome> {
+  const planned = plan.counts.planned;
+  // The door writes its own failure down and answers false (run-context.ts); one that throws anyway reads the same
+  // here, as not told and not held, so no failure of either can lose the batch.
+  const ownerKnows = step.owner_sends || (await ports.notifyGoes(run.id, planned, plan.firstAt).catch(() => false));
+  const waits = !ownerKnows && (await ports.holdForOk(run.id).catch(() => false));
+  // On the record in the state it ends in: a run that waits is never recorded as the system's own send.
+  await ports.recordRun(waits ? { ...run, state: "pending_approval" } : run, plan.counts);
+  if (!waits) return { outcome: "sent", planned };
+  // It shows on Today and on the page's top card and never expires: a waiting bell that fails costs it nothing.
+  await ports.notifyWaiting(run.id, planned, plan.firstAt).catch(() => undefined);
+  return { outcome: "held", reason: "waiting_for_you", planned };
+}
 
 export async function runReachOut(
   ports: ReachOutRunPorts,
@@ -40,9 +71,9 @@ export async function runReachOut(
   if (await ports.alreadyRan(step.id, cmd.runFor)) return { outcome: "empty", reason: "already_ran", planned: 0 };
   // A run of the chain waits for its owner: nothing more is assembled until they have answered it.
   if (await ports.chainWaits(step.root_id)) return { outcome: "held", reason: "waiting_for_you", planned: 0 };
-  const asks =
-    batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at }) === "ask" ||
-    (step.trigger === "lead_first" && step.fed_by === "list");
+  // Its first run asks, because its words are new; after that its batches go as Before each batch says, first emails
+  // and follow-ups alike (decision 0077, amended 9 Nov 2026). Cold email never just goes: a sequence's mode is held or asked.
+  const asks = batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at }) === "ask";
 
   // Who it may write to, and who it skips with why: a later step's leads the door would refuse, or whose email from the
   // chain bounced; any lead that keeps no open hour all week.
@@ -156,10 +187,11 @@ export async function runReachOut(
     )),
   ];
   if ((await ports.planRun(run, sends)) === "exists") return { outcome: "empty", reason: "already_ran", planned: 0 };
-  await ports.recordRun(run, { planned: placed.length, skipped: skips.length });
+  const counts = { planned: placed.length, skipped: skips.length };
   if (asks) {
+    await ports.recordRun(run, counts);
     await ports.notifyWaiting(run.id, placed.length, firstAt);
     return { outcome: "held", reason: "waiting_for_you", planned: placed.length };
   }
-  return { outcome: "sent", planned: placed.length };
+  return goesOrWaits(ports, step, run, { counts, firstAt });
 }
