@@ -67,17 +67,17 @@ export async function listOccasionSteps(
     );
   if (on.error) throw new DbFailure(on.error, "occasions: which of their sequences are on");
   const running = new Map(on.data.map((q) => [q.id, q]));
-  return firsts.flatMap((s) => {
-    const sequence = running.get(s.sequence_id);
+  return firsts.flatMap((step) => {
+    const sequence = running.get(step.sequence_id);
     if (!sequence) return [];
     return [
       {
-        sequenceId: s.sequence_id,
-        trigger: s.trigger,
-        runHour: s.run_hour,
+        sequenceId: step.sequence_id,
+        trigger: step.trigger,
+        runHour: step.run_hour,
         name: sequence.name,
         mode: sequence.mode,
-        wordsOkAt: s.words_ok_at,
+        wordsOkAt: step.words_ok_at,
       },
     ];
   });

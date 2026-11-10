@@ -74,8 +74,12 @@ const sendBehindNotice: BehindNoticeSend = async (db, tenantId, msg) => {
 type LeftBehind = Map<string, { name: string; people: number }>;
 
 /** One more person of a step left out of time, where its words still have no OK: they waited behind its first batch. */
-function countBehind(behind: LeftBehind, step: { id: string; name: string; words_ok_at?: string | null }, why: string) {
-  if (step.words_ok_at || !OUT_OF_TIME.has(why)) return;
+function countBehind(
+  behind: LeftBehind,
+  step: { id: string; name: string; words_ok_at?: string | null } | null,
+  reason: string,
+) {
+  if (!step || step.words_ok_at || !OUT_OF_TIME.has(reason)) return;
   behind.set(step.id, { name: step.name, people: (behind.get(step.id)?.people ?? 0) + 1 });
 }
 
@@ -85,24 +89,22 @@ function countBehind(behind: LeftBehind, step: { id: string; name: string; words
  * its people were late for another reason, which the job's own lines say. A notice that fails is logged, never the job's.
  */
 async function tellLeftBehind(turn: OccasionsTurn, behind: LeftBehind, send: BehindNoticeSend): Promise<void> {
-  const { db, tenantId, log } = turn;
-  for (const [stepId, { name, people }] of behind) {
-    try {
-      const batchId = await findWaitingBatchOf(db, tenantId, stepId);
-      if (!batchId) continue;
-      const notice = leftBehindNotice(name, people);
-      await send(db, tenantId, {
-        kind: "playbook",
-        route: addressOf({ kind: "send", id: batchId }),
-        about: { type: "broadcast", id: batchId },
-        subject: notice.subject,
-        body: notice.body,
-        onceKey: `occasions-behind:${batchId}`,
-      });
-    } catch (e) {
-      log.error("occasions_behind_untold", { step_id: stepId, error: e instanceof Error ? e.message : String(e) });
-    }
-  }
+  const { db, tenantId } = turn;
+  const tellOf = async (stepId: string, name: string, people: number) => {
+    const batchId = await findWaitingBatchOf(db, tenantId, stepId);
+    if (!batchId) return;
+    const notice = leftBehindNotice(name, people);
+    await send(db, tenantId, {
+      kind: "playbook",
+      route: addressOf({ kind: "send", id: batchId }),
+      about: { type: "broadcast", id: batchId },
+      subject: notice.subject,
+      body: notice.body,
+      onceKey: `occasions-behind:${batchId}`,
+    });
+  };
+  for (const [stepId, { name, people }] of behind)
+    await tellOf(stepId, name, people).catch(logAndGoOn("tellLeftBehind"));
 }
 
 /** What a job came to, for its log line. */
@@ -211,6 +213,7 @@ export async function runDueOccasions(
   out.remaining = page.length - rows.length;
   const leave = async (row: DueOccasion, why: string) => {
     await settleOccasion(db, { tenantId, id: row.id, outcome: { state: "left", why }, now });
+    countBehind(behind, row.step, why);
     out.left += 1;
     log.info("occasion_left", { occasion_id: row.id, sequence_id: row.sequenceId, why });
   };
@@ -221,10 +224,8 @@ export async function runDueOccasions(
   const live: Live[] = [];
   for (const row of rows) {
     const read = liveOf(row, now.getTime());
-    if ("why" in read) {
-      await leave(row, read.why);
-      if (row.step) countBehind(behind, row.step, read.why);
-    } else live.push(read);
+    if ("why" in read) await leave(row, read.why);
+    else live.push(read);
   }
   if (live.length === 0) {
     await tellLeftBehind(turn, behind, tell);
@@ -264,7 +265,6 @@ export async function runDueOccasions(
     const { gone, appointment } = await standingOf(turn, item);
     if (gone) {
       await leave(row, gone);
-      countBehind(behind, step, gone);
       return "left";
     }
     if (await wordsWait(step)) {

@@ -469,7 +469,6 @@ export const LOG_EVENTS = [
   "occasion_enrolled",
   "occasion_left",
   "occasion_run_failed",
-  "occasions_behind_untold",
   "occasions_yielded",
   "offers_yes_while_stopped",
   "one_time_code_set_aside",

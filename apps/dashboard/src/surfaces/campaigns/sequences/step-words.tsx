@@ -131,11 +131,18 @@ export function HandTask({ kind, words, testid }: { kind: HandKind; words: strin
  * A step's words on its box in the schedule: two lines of the message as one person reads it, what varies by person marked
  * as the bubble marks it, cut where it runs on (its sheet holds it whole). Nothing where the message has no words here.
  */
-export function StepPreviewLine(p: { message: CmOffered | null; params: unknown; when?: string | null }) {
-  const { message, params } = p;
+export function StepPreviewLine({
+  message,
+  params,
+  when,
+}: {
+  message: CmOffered | null;
+  params: unknown;
+  when?: string | null;
+}) {
   const business = useBusinessName();
   if (!message?.body_preview) return null;
-  const values = exampleParams(parseParamSpecs(params), business, p.when);
+  const values = exampleParams(parseParamSpecs(params), business, when);
   return (
     <span className="sq-stepbox-pre">
       {mpParts(message.body_preview, values).map((p, i) =>

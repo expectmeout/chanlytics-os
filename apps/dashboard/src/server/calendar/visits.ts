@@ -105,7 +105,7 @@ export async function markVisitOf(
   const follows =
     item.appointment.status === "missed"
       ? await missedFollowUpOf(ctx, appointment.tenant_id, appointmentId, new Date()).catch(
-          logAndGoOn("what a missed visit sets going", null),
+          logAndGoOn("missedFollowUpOf", null),
         )
       : null;
   return {
