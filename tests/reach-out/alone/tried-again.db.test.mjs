@@ -72,7 +72,9 @@ async function runOn(at) {
  */
 async function writtenLead(name, daysAgo, over = {}) {
   const email = `${name}-${RUN}@example.com`;
-  const contact = await one(db.from("contacts").insert({ tenant_id: A, email }));
+  // Only a first email makes a person of them: one never written to has nobody in People holding its address, as
+  // anyone in People who did would make it a customer's (reach_out_why_not).
+  const contact = daysAgo === null ? null : await one(db.from("contacts").insert({ tenant_id: A, email }));
   const lead = await one(
     db.from("leads").insert({
       tenant_id: A,
