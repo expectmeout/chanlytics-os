@@ -18,17 +18,16 @@ import {
   PLAYBOOK_PATCH_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
-  VISIT_TRIGGERS,
   isPlaybookState,
   localDate,
   nextRunOf,
+  owedOncePerMoment,
   shiftKey,
   triggerOf,
   twinRunsWords,
   visitTwinWords,
   type PlaybookPatch,
   recordOrNull,
-  isOneOf,
   DbFailure,
   wallClockAt,
 } from "@chanlytics/contracts";
@@ -155,7 +154,8 @@ export async function findTwinRefusal(
  * A second sequence on a visit moment, refused where it would start or turn on (the phone review's B1, 16 Oct 2026): a
  * reminder the day before or a thank-you the day after is owed once per visit and skips the week's breath, so two running
  * on one moment would each send every person theirs, whatever their names or messages (findTwinRefusal's rule is for the
- * other moments, whose breath keeps a twin from reaching anyone twice). In the owner's words, by the one that runs; null
+ * other moments, whose breath keeps a twin from reaching anyone twice). So is one on a moment an occasion starts
+ * (decision 0119, contracts owedOncePerMoment): owed once for what happened, with no breath to hold a second back. In the owner's words, by the one that runs; null
  * for any other moment, and where nothing else runs on it. `id` is the step turning on, never its own twin.
  */
 export async function findVisitTwinRefusal(
@@ -163,8 +163,9 @@ export async function findVisitTwinRefusal(
   tenantId: TenantId,
   on: { id?: string | null; trigger: string },
 ): Promise<string | null> {
-  if (!isOneOf(VISIT_TRIGGERS, on.trigger)) return null;
-  const running = await listRunningStepsOn(ctx.supabase, tenantId, [on.trigger]);
+  const moment = triggerOf(on.trigger);
+  if (!moment || !owedOncePerMoment(moment.id)) return null;
+  const running = await listRunningStepsOn(ctx.supabase, tenantId, [moment.id]);
   const twin = running.find((s) => s.id !== (on.id ?? null));
   return twin ? visitTwinWords(twin.name) : null;
 }

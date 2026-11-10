@@ -6714,6 +6714,80 @@ export type Database = {
           },
         ]
       }
+      sequence_occasions: {
+        Row: {
+          batch_id: string | null
+          contact_id: string
+          created_at: string
+          due_at: string
+          id: string
+          occasion: string
+          sequence_id: string
+          settled_at: string | null
+          state: string
+          tenant_id: string
+          try_at: string
+          why: string | null
+        }
+        Insert: {
+          batch_id?: string | null
+          contact_id: string
+          created_at?: string
+          due_at: string
+          id?: string
+          occasion: string
+          sequence_id: string
+          settled_at?: string | null
+          state?: string
+          tenant_id: string
+          try_at: string
+          why?: string | null
+        }
+        Update: {
+          batch_id?: string | null
+          contact_id?: string
+          created_at?: string
+          due_at?: string
+          id?: string
+          occasion?: string
+          sequence_id?: string
+          settled_at?: string | null
+          state?: string
+          tenant_id?: string
+          try_at?: string
+          why?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_occasions_batch_id_same_workspace"
+            columns: ["tenant_id", "batch_id"]
+            isOneToOne: false
+            referencedRelation: "sequence_batches"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "sequence_occasions_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "sequence_occasions_sequence_id_same_workspace"
+            columns: ["tenant_id", "sequence_id"]
+            isOneToOne: false
+            referencedRelation: "sequences"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "sequence_occasions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sequence_replies: {
         Row: {
           answered_message_id: string | null
@@ -11283,6 +11357,45 @@ export type Database = {
           p_via?: string
         }
         Returns: Json
+      }
+      sequence_occasion_enrol: {
+        Args: {
+          p_contact_id: string
+          p_due_at: string
+          p_occasion: string
+          p_replaces?: string
+          p_rest_days?: number
+          p_sequence_id: string
+          p_single?: boolean
+          p_tenant_id: string
+        }
+        Returns: string
+      }
+      sequence_occasions_due: {
+        Args: { p_at: string; p_limit: number; p_tenant_id: string }
+        Returns: {
+          contact_id: string
+          created_at: string
+          due_at: string
+          id: string
+          occasion: string
+          runs: boolean
+          sequence_id: string
+          step: Json
+        }[]
+      }
+      sequence_occasions_hand_out: {
+        Args: { p_at: string; p_spread_seconds: number }
+        Returns: number
+      }
+      sequence_occasions_leave: {
+        Args: {
+          p_except?: string
+          p_starts_with: string
+          p_tenant_id: string
+          p_why: string
+        }
+        Returns: number
       }
       sequence_once_keep: {
         Args: {

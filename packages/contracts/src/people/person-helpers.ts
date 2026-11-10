@@ -3,7 +3,7 @@
  * Internal: index.ts never re-exports it (the person-words.ts / run-words.ts pattern). A day, a week, a call's length
  * and a capital letter are the shared modules' (shared/time.ts, shared/clock.ts, shared/words.ts).
  */
-import { clockDate } from "../shared/clock";
+import { clockDate, clockWhen } from "../shared/clock";
 import { DAY_MS } from "../shared/time";
 import type { PersonCampaignVM, PersonDetailDto, PersonSequenceVM } from "./person-dto";
 import type { PersonProposalVM } from "./person-reach";
@@ -196,12 +196,19 @@ export function campaignsOf(personDetail: PersonDetailDto, tz: string, nowMs: nu
   });
 }
 
-/** The sequences a person is in now (0060, S5), as their page says them, soonest next first (PersonSequenceVM). */
+/**
+ * The sequences a person is in now (0060, S5), as their page says them, soonest next first (PersonSequenceVM). A step
+ * that goes at a time of their own (an occasion's, 0119) says the hour: "step 1 · next today 2:00 PM".
+ */
 export function inSequencesOf(personDetail: PersonDetailDto, tz: string, nowMs: number): PersonSequenceVM[] {
+  const nextWords = (at: string, timed: boolean | undefined): string => {
+    const ms = Date.parse(at);
+    return timed ? clockWhen(ms, tz, nowMs) : clockDate(ms, tz, nowMs);
+  };
   return (personDetail.sequences ?? []).map((q) => ({
     id: q.id,
     name: q.name,
-    line: q.next_at ? `step ${q.place} · next ${clockDate(Date.parse(q.next_at), tz, nowMs)}` : `step ${q.place}`,
+    line: q.next_at ? `step ${q.place} · next ${nextWords(q.next_at, q.timed)}` : `step ${q.place}`,
     to: addressOf({ kind: "campaign", id: q.id }),
   }));
 }

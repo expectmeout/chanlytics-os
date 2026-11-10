@@ -1,9 +1,10 @@
 /** Words: flow. */
 
 import { appointmentWords, type AppointmentWord } from "../../../journey/appointment-word";
-import { triggerOf } from "../../playbooks/triggers/notices";
+import { isOccasionTrigger, occasionWords } from "../../playbooks/triggers/occasions";
+import { owedOncePerMoment } from "../../playbooks/triggers/notices";
 import { clockDate, clockNextSend, clockWhen } from "../../../shared/clock";
-import { plural } from "../../../shared/words";
+import { capitalize, plural } from "../../../shared/words";
 import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT } from "../../../shell/campaign-rooms";
 import { runWaitsOnYou, type RunDays } from "../../../waits/waits";
 import type { SequenceRowDto } from "../dto";
@@ -153,7 +154,8 @@ export const SEQUENCE_FLOW_WORDS = {
  */
 export function takesFollowUps(row: Pick<SequenceRowDto, "starts" | "first">): boolean {
   if (row.starts !== "moment" && row.starts !== "list") return false;
-  return row.first?.trigger !== "visit_tomorrow";
+  // Nor the reminder two hours before (decision 0119): it is said once, as the day-before one is.
+  return row.first?.trigger !== "visit_tomorrow" && row.first?.trigger !== "visit_soon";
 }
 
 /** A message's WhatsApp standing, as a step's line says it beside its words: the tone the kit's pill draws it in. */
@@ -197,7 +199,7 @@ export interface SequenceTwin {
  */
 export function sequenceTwinOf(rows: readonly SequenceRowDto[], row: SequenceRowDto): SequenceTwin | null {
   const trigger = row.first?.trigger ?? null;
-  if (row.starts !== "moment" || row.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
+  if (row.starts !== "moment" || row.state !== "on" || !trigger || !owedOncePerMoment(trigger)) return null;
   const created = Date.parse(row.created_at);
   const first = (r: SequenceRowDto) => {
     const at = Date.parse(r.created_at);
@@ -212,7 +214,7 @@ export function sequenceTwinOf(rows: readonly SequenceRowDto[], row: SequenceRow
 /** What two sequences on one moment send each person, in a line: a reminder twice, a thank-you twice. */
 export function twinLineOf(row: Pick<SequenceRowDto, "first">): string {
   const trigger = row.first?.trigger;
-  if (trigger === "visit_tomorrow") return "Two reminders go to each person";
+  if (trigger === "visit_tomorrow" || trigger === "visit_soon") return "Two reminders go to each person";
   if (trigger === "visited") return "Two thank-yous go to each person";
   return "Two messages go to each person";
 }
@@ -268,6 +270,7 @@ export function sequenceStartWords(row: SequenceRowDto, word: AppointmentWord): 
   if (row.starts === "date") return "On a date";
   if (row.starts === "leads") return first?.search_name ? `Leads · ${first.search_name}` : "Leads";
   if (row.starts === "list") return first?.list_name ? `Joins ${first.list_name}` : "Joins a list";
+  if (isOccasionTrigger(first?.trigger)) return capitalize(occasionWords(first.trigger, word).starts);
   switch (first?.trigger) {
     case "visit_tomorrow":
       return `Before ${words.a}`;
@@ -366,6 +369,11 @@ export function sequenceRowLine(
   }
   if (row.state === "paused") return row.in_it > 0 ? `${row.in_it} waiting` : "Paused";
   if (row.next) return clockNextSend(Date.parse(row.next.at), tz, nowMs);
+  // An occasion's sequence (decision 0119): the first person waiting, and how many wait with them.
+  if (row.coming && row.coming.people > 0) {
+    const first = clockNextSend(Date.parse(row.coming.at), tz, nowMs);
+    return row.coming.people === 1 ? `${first} · 1 person` : `${first} · ${row.coming.people} people waiting`;
+  }
   if (row.in_it > 0) return `${row.in_it} in it`;
   if (row.last)
     return `${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${row.last.sent} sent · ${row.last.replied} replied`;

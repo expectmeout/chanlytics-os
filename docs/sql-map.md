@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 175 | 175 |
 | reader | 73 | 0 |
-| the server's | 317 | 273 |
+| the server's | 321 | 277 |
 | computed column | 3 | 0 |
-| trigger | 99 | 69 |
-| all | 667 | 517 |
+| trigger | 100 | 70 |
+| all | 672 | 522 |
 
 ## Called by nothing
 
@@ -217,7 +217,7 @@ being read is dropped by a migration.
 | `job_kind_resume` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Resumes a paused job kind (00526) and asks the tick for what waited. |
 | `jobs_backlog` | the server's | the server | code `apps/edge/lib/ops/health-sweep.ts`, `packages/db/src/repositories/console/health.ts` and 1 more; script `tooling/scripts/gen/capacity.mjs` | How many jobs the claim could take and has not for longer than p_wait (default two minutes): |
 | `jobs_guard` | trigger | a signed-in person, the server | code `packages/jobs/src/runner/ledger.ts`; trigger `jobs_guard on jobs` | scheduled -> fired \| canceled; |
-| `jobs_hand_out` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `calendars_hand_out`, `sequence_steps_hand_out` | One job of a kind per workspace named, each due within the spread by a hash of its workspace, unless one already waits or runs (00569, decision 0115). |
+| `jobs_hand_out` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `calendars_hand_out`, `sequence_occasions_hand_out` and 1 more | One job of a kind per workspace named, each due within the spread by a hash of its workspace, unless one already waits or runs (00569, decision 0115). |
 | `jobs_ledger_now` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | What the Console's Health draws of the ledger now (00526): |
 | `jobs_take_their_kind` | trigger | the server | trigger `jobs_take_their_kind on jobs` |  |
 | `jobs_wake` | trigger | the server | trigger `jobs_wake on jobs` | After a statement writes jobs: |
@@ -600,6 +600,11 @@ being read is dropped by a migration.
 | `sequence_leave` | door | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/server/ask/tools/act/sequence/sequence.ts` and 8 more; SQL `sequence_move` | People taken out of a sequence by an acting member (0060): |
 | `sequence_mode_for` | the server's | the server | SQL `sequence_steps_place` | What a new sequence of p_class starts as in the workspace (0064): |
 | `sequence_move` | door | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/surfaces/leads/sheet/run.ts` and 2 more |  |
+| `sequence_occasion_enrol` | the server's | the server | code `packages/db/src/repositories/campaigns/occasions.ts` | Enrols a person in a sequence for an occasion, due at its own time (decision 0119): |
+| `sequence_occasions_due` | the server's | the server | code `packages/db/src/repositories/campaigns/occasions.ts` | A workspace's waiting occasions due at p_at, soonest first, each with when it began, its sequence's first step and mode as a run reads one, and whether that step runs now (the sequence on, the step ru |
+| `sequence_occasions_hand_out` | the server's | the server | SQL `trigger_sequences_clock` | A sequence_occasions job for each workspace with an occasion due at p_at (decision 0119), through jobs_hand_out (0115): |
+| `sequence_occasions_leave` | the server's | the server | code `packages/db/src/repositories/campaigns/occasions.ts` | A workspace's waiting occasions whose key starts with p_starts_with leave with why (decision 0119): |
+| `sequence_occasions_on_erase` | trigger | the server | trigger `contacts_erase_leaves_occasions on contacts` | When a person is erased, every occasion a sequence kept for them is deleted (decisions 0036, 0119): |
 | `sequence_once_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/doors.ts` | A message sent once, kept as a draft (00465, decision 0065; |
 | `sequence_overview` | reader | a signed-in person, the server | code `packages/contracts/src/campaigns/sequences/dto.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts` | The workspace's sequences (0060), or the one named: |
 | `sequence_people` | reader | a signed-in person, the server | code `apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts`, `packages/contracts/src/campaigns/sequences/dto.ts` and 1 more | Who is in a sequence (0060), by where they stand, each group's count whole and its first p_limit (1 to 200, 50) rows: |

@@ -22,6 +22,7 @@ import type {
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import { readAllRows } from "../../../shared/paged";
+import { listWaitingOccasions, withComing } from "../occasions";
 import { withReadyCounts } from "../sequence-waiting";
 import { dbLogAndGoOn } from "../../../shared/observe";
 
@@ -106,39 +107,53 @@ export async function wasSequenceReached(db: Db, tenantId: TenantId, sequenceId:
   return new Set(rows.flatMap((r) => (r.contact_id ? [r.contact_id] : [])));
 }
 
+/** How many of one person's places and occasions their page is told of. */
+const PERSON_SEQUENCES = 20;
+
 /**
  * The sequences one person is in now (decision 0060, S5: a person's page says them), soonest next first: each with its
- * name, the step they are at and when the next goes. Under the caller's row security.
+ * name, the step they are at and when the next goes. With them, what an occasion enrolled them for and has not sent yet
+ * (0119): the sequence's first step, at a time of their own (`timed`). Under the caller's row security.
  */
 export async function listSequencesOfPerson(
   db: Db,
   tenantId: TenantId,
   contactId: ContactId,
-): Promise<{ id: string; name: string; place: number; next_at: string | null }[]> {
-  const { data, error } = await db
-    .from("sequence_enrollments")
-    .select("sequence_id, place, next_at")
-    .eq("tenant_id", tenantId)
-    .eq("contact_id", contactId)
-    .eq("state", "in")
-    .order("next_at", { ascending: true, nullsFirst: false })
-    .limit(20);
-  if (error) throw new DbFailure(error, "cannot read the sequences they are in");
-  const rows = data ?? [];
+): Promise<{ id: string; name: string; place: number; next_at: string | null; timed?: boolean }[]> {
+  const [places, occasions] = await Promise.all([
+    db
+      .from("sequence_enrollments")
+      .select("sequence_id, place, next_at")
+      .eq("tenant_id", tenantId)
+      .eq("contact_id", contactId)
+      .eq("state", "in")
+      .order("next_at", { ascending: true, nullsFirst: false })
+      .limit(PERSON_SEQUENCES),
+    listWaitingOccasions(db, tenantId, { contactId, limit: PERSON_SEQUENCES }),
+  ]);
+  if (places.error) throw new DbFailure(places.error, "cannot read the sequences they are in");
+  const rows: { sequence_id: string; place: number; next_at: string | null; timed?: boolean }[] = [
+    ...places.data,
+    // An occasion waits for the sequence's first step.
+    ...occasions.map((o) => ({ sequence_id: o.sequenceId, place: 1, next_at: o.dueAt, timed: true })),
+  ];
   if (rows.length === 0) return [];
   const names = await db
     .from("sequences")
     .select("id, name")
-    .in(
-      "id",
-      rows.map((r) => r.sequence_id),
-    );
+    .in("id", [...new Set(rows.map((r) => r.sequence_id))]);
   if (names.error) throw new DbFailure(names.error, "cannot read the sequences they are in");
   const nameOf = new Map((names.data ?? []).map((q) => [q.id, q.name]));
-  return rows.flatMap((r) => {
-    const name = nameOf.get(r.sequence_id);
-    return name ? [{ id: r.sequence_id, name, place: r.place, next_at: r.next_at }] : [];
-  });
+  // Soonest next first, those with no time last, as the places alone were ordered.
+  const soonest = (at: string | null) => (at ? Date.parse(at) : Number.POSITIVE_INFINITY);
+  return rows
+    .sort((a, b) => soonest(a.next_at) - soonest(b.next_at))
+    .flatMap((r) => {
+      const name = nameOf.get(r.sequence_id);
+      if (!name) return [];
+      const entry = { id: r.sequence_id, name, place: r.place, next_at: r.next_at };
+      return [r.timed ? { ...entry, timed: true } : entry];
+    });
 }
 
 /* ---------------------------------------------------------------------------------- the page's reads (00442) -- */
@@ -230,7 +245,8 @@ export async function listSequenceOverview(db: Db, tenantId: TenantId, sequenceI
     ...(sequenceId ? { p_sequence_id: sequenceId } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the sequences");
-  return withReadyCounts(db, tenantId, readerRowsOf<SequenceRowDto>(data));
+  // And, for a sequence an occasion starts, who it reaches next: nobody is in a batch of it until their time comes.
+  return withComing(db, tenantId, await withReadyCounts(db, tenantId, readerRowsOf<SequenceRowDto>(data)));
 }
 
 /** A sequence running now, as what Ask notices reads it (decision 0087). */

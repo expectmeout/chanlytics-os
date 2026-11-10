@@ -189,7 +189,10 @@ export interface RunReach {
  */
 export type RunPlaybook = Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> & {
   message: RunMessage;
-  /** A visit moment's run about one person (a late booking's reminder, decision 0118): nobody else is named. */
+  /**
+   * A run about one person: a late booking's reminder on a visit moment (decision 0118), or the person an occasion
+   * enrolled (0119). Nobody else is named, and an occasion's moment names nobody without it.
+   */
   only?: string;
   /** The visit day such a run is about, where it is not the moment's own (visitMomentDay). */
   day?: string;
@@ -291,6 +294,35 @@ function visitNamed(
 }
 
 /**
+ * Who a moment names, before anyone is left out for a rule of the send: the one person an occasion enrolled (decision
+ * 0119: nobody, on a run no occasion asked for), a visit's people on its day, a list's members, each person with a
+ * proposal waiting, or the members of the moment's own list.
+ */
+function namedBy(
+  rows: PersonRowVM[],
+  run: RunPlaybook,
+  at: {
+    trigger: { kind: string; list: string | null };
+    nowMs: number;
+    pace: Pick<DealPaceVM, "waitDays"> | null;
+    listIds: ReadonlySet<string> | null;
+    hadOf: (id: string) => FollowUpsHad;
+  },
+): PersonRowVM[] {
+  const { trigger, nowMs } = at;
+  if (trigger.kind === "occasion") return rows.filter((r) => r.id === run.only);
+  // Whose a visit is, for a visit found by name alone: the run's one test (theirVisitTest), as its words read it.
+  if (trigger.kind === "visit") return visitNamed(rows, run, nowMs, theirVisitTest(rows));
+  if (trigger.kind === "saved") return audienceMembers(rows, "saved", null, at.listIds ?? new Set<string>());
+  if (trigger.kind === "deal")
+    return rows.flatMap((r) => {
+      const d = followUpDealOf(r, nowMs, at.pace, at.hadOf(r.id));
+      return d ? [{ ...r, deal: d }] : [];
+    });
+  return audienceMembers(rows, trigger.list ? "list" : "everyone", trigger.list ?? null, null);
+}
+
+/**
  * Who a run reaches first: the longest-unheard, as a win-back wants; for a freed time whoever asked most recently (0082),
  * since a time is taken by one person, and the one who asked yesterday is likeliest to want it.
  */
@@ -356,20 +388,8 @@ export function playbookRunReach(
     at: touches.followUps.get(id),
     keys: touches.followUpKeys.get(id),
   });
-  // Whose a visit is, for a visit found by name alone: the run's one test (theirVisitTest), as its words read it.
-  const theirs = theirVisitTest(trigger.kind === "visit" ? rows : []);
   // Who the moment names, before anyone is left out.
-  const named =
-    trigger.kind === "visit"
-      ? visitNamed(rows, run, nowMs, theirs)
-      : trigger.kind === "saved"
-        ? audienceMembers(rows, "saved", null, listIds ?? new Set<string>())
-        : trigger.kind === "deal"
-          ? rows.flatMap((r) => {
-              const d = followUpDealOf(r, nowMs, pace, hadOf(r.id));
-              return d ? [{ ...r, deal: d }] : [];
-            })
-          : audienceMembers(rows, trigger.list ? "list" : "everyone", trigger.list ?? null, null);
+  const named = namedBy(rows, run, { trigger, nowMs, pace, listIds, hadOf });
   reach.pool = named.length;
   const saidYes = named.filter((r) => saidYesOnAny(r, purpose, how)).length;
   // Who the run reaches, each on their channel, and the reach counted by channel.
@@ -400,6 +420,9 @@ export function playbookRunReach(
     else if (pick.held === "address_stopped") reach.address_stopped = (reach.address_stopped ?? 0) + 1;
     else reach.no_channel = (reach.no_channel ?? 0) + 1;
   }
+  // An occasion's message is owed for the occasion itself, which its row keeps once (decision 0119): no gap, no week's
+  // breath and no cap, as a visit's has none.
+  if (trigger.kind === "occasion") return done(allowed);
   if (trigger.kind === "visit") {
     // The calendar decides, one message per visit: the run is daily and a
     // visit is on one day, so the gap and the week's breath do not apply —
