@@ -1,5 +1,5 @@
 /**
- * The edge's model port (apps/edge/lib/model.ts) and the paths that ask through it, over a database in memory and a
+ * The edge's model port (apps/edge/lib/ai/model.ts) and the paths that ask through it, over a database in memory and a
  * scripted API: every call writes one row of the usage ledger (ai_usage, 00273) with the model asked, the model that
  * answered, its four kinds of tokens and its list-price dollars; a purpose a person asks for spends nothing for a
  * workspace paused, ended or unbilled; the receptionist's record is stamped with its prompt's hash, the settings'
@@ -234,21 +234,19 @@ test("the receptionist's record is stamped: its prompt's hash, the settings' ver
   const t = world();
   const api = model(status(529, "Overloaded"), json(record()));
   const system = "You are the receptionist for Example Studio.";
-  const r = await generateReply(
-    [],
-    "when do you open?",
-    system,
-    "Hold on.",
-    "Name on record: Ana.",
-    "It is Monday.",
-    undefined,
-    undefined,
-    {
+  const r = await generateReply({
+    history: [],
+    userText: "when do you open?",
+    systemPrompt: system,
+    fallbackText: "Hold on.",
+    leadNote: "Name on record: Ana.",
+    nowNote: "It is Monday.",
+    call: {
       tenantId: T,
       subjectId: C,
       configVersion: 7,
     },
-  );
+  });
   assert.equal(r.text, "We open at nine.");
   assert.equal(r.meta.model, MODEL_ROUTES.receptionist.fallback);
   assert.equal(r.meta.prompt_hash, promptHashOf(system));
@@ -269,21 +267,39 @@ test("the receptionist's record is stamped: its prompt's hash, the settings' ver
 test("an answer the receptionist cannot read is the holding reply, and the ledger says unreadable", async () => {
   const t = world();
   model(said("this is not the record"));
-  const r = await generateReply([], "hi", "System.", "Hold on.", undefined, undefined, undefined, undefined, {
-    tenantId: T,
+  const r = await generateReply({
+    history: [],
+    userText: "hi",
+    systemPrompt: "System.",
+    fallbackText: "Hold on.",
+    call: {
+      tenantId: T,
+    },
   });
   assert.deepEqual([r.text, r.escalate, r.reason, r.meta], ["Hold on.", true, "brain_error", undefined]);
   assert.equal(t.ai_usage[0].outcome, "unreadable");
   // A model that is never heard is thrown: the turn's catch sends the holding reply and hands the thread over.
   model(status(529), status(529));
   await assert.rejects(
-    generateReply([], "hi", "System.", "Hold on.", undefined, undefined, undefined, undefined, { tenantId: T }),
+    generateReply({
+      history: [],
+      userText: "hi",
+      systemPrompt: "System.",
+      fallbackText: "Hold on.",
+      call: { tenantId: T },
+    }),
   );
   // A draft (decision 0017) is written as a draft.
   model(json(record()));
-  await generateReply([], "hi", "System.", "", undefined, undefined, undefined, undefined, {
-    tenantId: T,
-    purpose: "reply_draft",
+  await generateReply({
+    history: [],
+    userText: "hi",
+    systemPrompt: "System.",
+    fallbackText: "",
+    call: {
+      tenantId: T,
+      purpose: "reply_draft",
+    },
   });
   assert.equal(t.ai_usage.at(-1).purpose, "reply_draft");
   assert.equal(t.ai_usage.at(-1).model_asked, MODEL_ROUTES.reply_draft.model);

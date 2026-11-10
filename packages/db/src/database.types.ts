@@ -8909,6 +8909,7 @@ export type Database = {
           p_message_external_id: string
           p_meta?: Json
           p_opt_in?: boolean
+          p_opt_in_marketing?: boolean
           p_opt_out?: boolean
           p_phone_e164: string
           p_tenant_id: string
@@ -9692,6 +9693,10 @@ export type Database = {
           p_vitals: Json
         }
         Returns: number
+      }
+      note_person_email: {
+        Args: { p_contact_id: string; p_email: string; p_tenant_id: string }
+        Returns: string
       }
       note_yes_on_channel: {
         Args: {
@@ -11728,6 +11733,8 @@ export type Database = {
         Returns: Json
       }
       slug_for_workspace: { Args: { p_name: string }; Returns: string }
+      sms_sweep_text_canary: { Args: never; Returns: number }
+      sms_sweep_texts: { Args: never; Returns: number }
       sole_proprietor_of: { Args: { p_tenant_id: string }; Returns: boolean }
       stamp_email_complaint: {
         Args: { p_at: string; p_message_id: string; p_tenant_id: string }

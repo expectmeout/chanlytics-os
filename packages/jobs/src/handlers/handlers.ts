@@ -361,13 +361,14 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
 }
 
 /**
- * inbound_answer: a text the SMS door recorded and acknowledged, answered through the receptionist the edge injects
- * (decision 0031, Phase 2). payload: { text, received_at, message_id, conversation_id, contact_id }. Run again after a
- * runner died mid-turn, it answers only while the message is unprocessed and no reply names it (core inbound/ingest.ts).
+ * inbound_answer: a customer's message its door recorded and acknowledged (a WhatsApp message, a text, a DM), answered
+ * through the receptionist the edge injects (decision 0031), its turn bounded by the job's deadline. payload: what its
+ * wire's door kept (`wa`, `ig` or `text`) and { message_id, conversation_id, contact_id }. Run again after a runner
+ * died mid-turn, it answers only while the message is unprocessed and no reply names it (core inbound/ingest.ts).
  */
 async function inboundAnswer(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.inbound) throw new Error("inbound_answer: this runtime holds no receptionist");
-  await ctx.inbound.answer(job);
+  await ctx.inbound.answer(job, ctx.deadline);
 }
 
 /**

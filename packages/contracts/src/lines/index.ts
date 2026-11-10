@@ -72,6 +72,7 @@ export {
 } from "./number-standing";
 export { standingNotes, standingRow } from "./number-standing";
 export type { NumberStanding } from "./number-standing";
+export { oneTimeCodeOf } from "./one-time-code";
 export {
   BUSINESS_PAGE_NOTE,
   changedRecordFields,

@@ -77,6 +77,8 @@ export const JOB_PAYLOADS = {
     ig: z.unknown().optional(),
     text: z.unknown().optional(),
     received_at: z.number().optional(),
+    /** The wire its door kept it on (whatsapp, sms, instagram): which door's job answers it (edge intake/answer-job.ts). */
+    wire: z.string().optional(),
   }),
   history_import: carrying({ source: z.string(), seq: z.string(), connection_id: z.string().optional() }),
   website_read: carrying({ url: z.string() }),

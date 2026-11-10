@@ -269,7 +269,16 @@ function brain(answers = ANSWERS) {
   return {
     asked,
     port: {
-      generateReply: async (history, userText, system, fallback, leadNote, nowNote, image, steer) => {
+      generateReply: async ({
+        history,
+        userText,
+        systemPrompt: system,
+        fallbackText: fallback,
+        leadNote,
+        nowNote,
+        image,
+        steer,
+      }) => {
         asked.push({ history, userText, system, fallback, leadNote, nowNote, image, steer });
         const a = Object.values(answers)[asked.length - 1] ?? Object.values(answers)[0];
         if (a instanceof Error) throw a;

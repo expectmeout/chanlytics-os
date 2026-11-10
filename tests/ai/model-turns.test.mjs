@@ -62,17 +62,17 @@ const answer = (over = {}) => ({
 });
 /** The door, asked about conversation C unless the call says otherwise. */
 const ask = (over = {}) =>
-  generateReply(
-    over.history ?? [],
-    over.text ?? "when do you open?",
-    over.system ?? SYSTEM,
-    "Hold on.",
-    over.who,
-    over.now,
-    over.photo,
-    over.steer,
-    over.call ?? { tenantId: T, subjectId: C, configVersion: 7 },
-  );
+  generateReply({
+    history: over.history ?? [],
+    userText: over.text ?? "when do you open?",
+    systemPrompt: over.system ?? SYSTEM,
+    fallbackText: "Hold on.",
+    leadNote: over.who,
+    nowNote: over.now,
+    image: over.photo,
+    steer: over.steer,
+    call: over.call ?? { tenantId: T, subjectId: C, configVersion: 7 },
+  });
 /** What the port logged as errors while `run` ran. */
 async function errorsOf(run) {
   const lines = [];

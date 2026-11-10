@@ -1,7 +1,7 @@
 /**
  * The SMS door, run: a text posted the way Twilio posts one, signed with the
  * line's own subaccount token, over a database in memory, with the
- * receptionist's world handed in through lib/whatsapp/ports.ts and every
+ * receptionist's world handed in through lib/inbound/ports.ts and every
  * request that leaves the process captured. Until 14 Sep 2026 this handler's
  * binding was held by two reads of its text and no test had ever called its
  * POST; what it decides was already run, in sms-ingress.test.mjs.
@@ -59,11 +59,12 @@ for (const k of [
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
-const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+const { setInboundPorts } = await import(at("apps/edge/lib/inbound/ports.ts"));
+const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const { smsSenderFor } = await import(at("apps/edge/lib/lines/sms.ts"));
 const { deliver } = await import(at("packages/core/dist/index.js"));
 const hook = await import(at("apps/edge/api/inbound-sms.ts"));
+const { sweepUnheardTexts } = await import(at("apps/edge/lib/sms/texts-sweep.ts"));
 const { answerText } = await import(at("apps/edge/lib/sms/inbound-text.ts"));
 const { dispatchJob } = await import(at("packages/jobs/dist/index.js"));
 
@@ -309,7 +310,7 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], textedBefore: f
 
 /**
  * The receptionist's world, handed in through setInboundPorts and recording
- * what crosses it: the shape inbound-executed.test.mjs runs handleInbound over,
+ * what crosses it: the shape inbound/phases/ runs handleInbound over,
  * whose model is never reached. The door passes handleInbound no ports, so this
  * is what realPorts() answers with. Its sink sends on the wire handleInbound
  * builds for the message, as the real sink's door does, so an answer on a text
@@ -997,30 +998,6 @@ test("the door answers Twilio before the text is answered: the text kept, its an
   assert.equal(seen.ingested.length, 1, "kept once: the job's ingest is a redelivery its resume goes on through");
 });
 
-test("a job the database will not take (one before 00347 refuses the kind): said, and the door answers the text itself, as before", async () => {
-  const w = world();
-  w.open({
-    "jobs.insert": {
-      code: "23514",
-      message: 'new row for relation "jobs" violates check constraint "jobs_kind_check"',
-    },
-  });
-  const seen = receptionist();
-  await listening(async (log) => {
-    assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN, { answer: false })), twiml(200));
-    assert.deepEqual(
-      log.said("sms_answer_unscheduled").map((l) => [l.stream, l.refused, /jobs_kind_check/.test(String(l.error))]),
-      [["warn", true, true]],
-    );
-  });
-  assert.equal(w.tables.jobs, undefined, "no job was written");
-  assert.deepEqual(
-    [w.left().texts.length, seen.sent.length, seen.ingested.length],
-    [1, 1, 1],
-    "answered in the door, taken up again as its job would have taken it up",
-  );
-});
-
 test("a job whose write may have landed (a timeout, a connection lost) is never answered in the door too: said, and left to the job or to the deadman sweep", async () => {
   const w = world();
   w.open({ "jobs.insert": { code: "57014", message: "canceling statement due to statement timeout" } });
@@ -1028,8 +1005,8 @@ test("a job whose write may have landed (a timeout, a connection lost) is never 
   await listening(async (log) => {
     assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN, { answer: false })), twiml(200));
     assert.deepEqual(
-      log.said("sms_answer_unscheduled").map((l) => [l.stream, l.refused]),
-      [["warn", false]],
+      log.said("sms_answer_unscheduled").map((l) => [l.stream, /statement timeout/.test(String(l.error))]),
+      [["warn", true]],
     );
   });
   assert.deepEqual(
@@ -1169,4 +1146,44 @@ test("a one-time code is never kept, whatever its verdict: one that comes to a l
       "a customer's text refused here is kept for the replay after a fix; a code is not: a replay of it would answer nothing",
     );
   });
+});
+
+/* ------------------------------------------- a text the door could not take in */
+
+test("a text Twilio could not hand the door is taken in by the texts sweep's knock: signed with the line's token, kept, and answered by its job as the late text it is", async () => {
+  const w = world();
+  const db = w.open();
+  const seen = receptionist();
+  const from = w.customer();
+  const fields = w.form(from);
+  // Twilio's own record of the line: the text arrived three hours ago, while the door answered 503.
+  const sentAt = Date.now() - 3 * 60 * 60 * 1000;
+  const record = [{ sid: fields.MessageSid, from, body: fields.Body, atMs: sentAt }];
+  const knocks = [];
+  const answer = await sweepUnheardTexts(
+    { db, L: { info() {}, warn() {}, error() {} }, started: Date.now() },
+    {
+      door: async (request) => {
+        knocks.push(request.url);
+        return hook.POST(request, event());
+      },
+      provider: { name: "twilio", provider: { recentTexts: async () => record } },
+      origin: "https://chanlytics-messaging.vercel.app",
+      now: Date.now,
+    },
+  );
+  assert.deepEqual(knocks, [DOOR], "the door Twilio posts to");
+  assert.deepEqual(await answer.json(), { ok: true, lines: 1, read: 1, unheard: 1, taken: 1, failed: 0 });
+  assert.equal(seen.ingested.length, 1, "its signature held, and the words are on record");
+  const [job] = w.tables.jobs ?? [];
+  assert.equal(job?.kind, "inbound_answer", "its answer is a job, as any text's is");
+  assert.equal(job.payload.received_at, sentAt, "it carries the time Twilio says it was sent");
+  await runAnswers();
+  assert.equal(job.state, "done");
+  assert.deepEqual(w.left().texts, [], "three hours late: nothing is said automatically");
+  assert.deepEqual(
+    seen.escalations.map((e) => e.reason),
+    ["stale"],
+    "it is held for a person as the late text it is",
+  );
 });

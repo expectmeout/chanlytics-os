@@ -111,10 +111,16 @@ async function turn({ api = jev(), env = ON, text = TEXT, faults } = {}) {
   shadowFetch = api.fetch;
   const { result, lines } = await logged(() =>
     withEnv(env, () =>
-      generateReply([], text, "System.", "Hold on.", undefined, undefined, undefined, undefined, {
-        tenantId: T,
-        subjectId: C,
-        shadowText: text,
+      generateReply({
+        history: [],
+        userText: text,
+        systemPrompt: "System.",
+        fallbackText: "Hold on.",
+        call: {
+          tenantId: T,
+          subjectId: C,
+          shadowText: text,
+        },
       }),
     ),
   );
@@ -158,7 +164,13 @@ test("nothing is sent while the switch is off or the key is not set: no call, no
   const api = jev();
   shadowFetch = api.fetch;
   await withEnv(ON, () =>
-    generateReply([], TEXT, "System.", "Hold on.", undefined, undefined, undefined, undefined, { tenantId: T }),
+    generateReply({
+      history: [],
+      userText: TEXT,
+      systemPrompt: "System.",
+      fallbackText: "Hold on.",
+      call: { tenantId: T },
+    }),
   );
   assert.equal(api.calls.length + shadowRows(tables).length, 0);
 });
@@ -505,10 +517,16 @@ test("a call is built only when the shadow is on, and one that cannot be built i
     // Words that are not text: building the shadow's call over them would throw.
     const { result, lines } = await logged(() =>
       withEnv(env, () =>
-        generateReply([], TEXT, "System.", "Hold on.", undefined, undefined, undefined, undefined, {
-          tenantId: T,
-          subjectId: C,
-          shadowText: 42,
+        generateReply({
+          history: [],
+          userText: TEXT,
+          systemPrompt: "System.",
+          fallbackText: "Hold on.",
+          call: {
+            tenantId: T,
+            subjectId: C,
+            shadowText: 42,
+          },
         }),
       ),
     );
@@ -536,10 +554,16 @@ test("a primary that fails while the shadow is on fails exactly as it does with 
     try {
       outcome = {
         returned: await withEnv(env, () =>
-          generateReply([], TEXT, "System.", "Hold on.", undefined, undefined, undefined, undefined, {
-            tenantId: T,
-            subjectId: C,
-            shadowText: TEXT,
+          generateReply({
+            history: [],
+            userText: TEXT,
+            systemPrompt: "System.",
+            fallbackText: "Hold on.",
+            call: {
+              tenantId: T,
+              subjectId: C,
+              shadowText: TEXT,
+            },
           }),
         ),
       };
@@ -712,10 +736,16 @@ test("a ledger write that hangs is left behind after its own bound, and the repl
   const t0 = Date.now();
   const { result } = await logged(() =>
     withEnv(ON, () =>
-      generateReply([], TEXT, "System.", "Hold on.", undefined, undefined, undefined, undefined, {
-        tenantId: T,
-        subjectId: C,
-        shadowText: TEXT,
+      generateReply({
+        history: [],
+        userText: TEXT,
+        systemPrompt: "System.",
+        fallbackText: "Hold on.",
+        call: {
+          tenantId: T,
+          subjectId: C,
+          shadowText: TEXT,
+        },
       }),
     ),
   );

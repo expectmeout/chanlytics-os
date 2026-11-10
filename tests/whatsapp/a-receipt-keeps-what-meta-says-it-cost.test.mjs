@@ -206,6 +206,28 @@ test("with no database or no workspace nothing is written, and every receipt is 
   assert.deepEqual([w.kept, w.tables.messages.map((m) => m.status)], [[], ["queued", "sent", "sent"]]);
 });
 
+test("a status the database did not keep is asked for again, and so is a failure that beat our own write while it is young", async () => {
+  // The write fails: until 3 Nov 2026 it was logged and the receipt acknowledged, and the row stood at "sent" for good.
+  const w = world();
+  const down = fakeDb(w.tables, { "messages.update": { message: "connection reset by peer" } });
+  const { result: again, lines } = await logged(() => recordReceipts(down, T, [receipt("wamid.2", "delivered")]));
+  assert.equal(again, 1, "Meta is answered 503 and sends it again");
+  assert.ok(events(lines).includes("pg_status_failed"), "and the loss is said");
+
+  // A failure about a send whose row does not carry Meta's id yet: asked for again while young, history once old.
+  const nowS = Math.floor(Date.now() / 1000);
+  const failed = (at) => receipt("wamid.404", "failed", { timestamp: String(at), errors: [{ code: 131026 }] });
+  const fresh = world();
+  assert.equal((await logged(() => recordReceipts(fresh.db, T, [failed(nowS)]))).result, 1, "a young one comes again");
+  const old = world();
+  assert.equal(
+    (await logged(() => recordReceipts(old.db, T, [failed(nowS - 3600)]))).result,
+    0,
+    "an old one is history",
+  );
+  assert.equal((await logged(() => recordReceipts(old.db, T, [failed(Number.NaN)]))).result, 0, "one with no time too");
+});
+
 test("a big send's receipts are written a few at a time: every one of them, and never a hundred writes in the air", async () => {
   let inFlight = 0;
   let most = 0;
