@@ -159,6 +159,11 @@ export const FILE_WORDS = {
   /** A video's words (decision 0099, stage B): drawn only where the workspace takes videos (video.ts videoPreviewOf). */
   video: {
     askAbout: "Ask about this video",
+    /** What Make a post asks of a video, as MAKE_POST_ASK does of a photo: Ask chooses the moment after looking. */
+    makePostAsk: {
+      en: "Make a post from the best moment of this video",
+      es: "Haz una publicación con el mejor momento de este video",
+    },
     add: "Add photos or videos",
     emptyTitle: "No photos or videos yet",
     emptyBody:

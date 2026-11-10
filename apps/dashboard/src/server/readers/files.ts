@@ -70,6 +70,7 @@ function fileForAskOf(fileMember: FileMemberRow): FileForAsk {
     quality: { sharp: qualityWord(quality?.sharp), light: qualityWord(quality?.light) },
     colors: lookWordsOf(look?.colors),
     subject: subject as FileForAsk["subject"],
+    stands_at: typeof look?.poster_at === "number" ? look.poster_at : null,
   };
 }
 

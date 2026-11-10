@@ -284,16 +284,34 @@ const streamHostOf = (customerCode: string): string => `https://customer-${custo
 /** Stream's time as it reads one: seconds with up to two decimals, `12.5s`. */
 const streamTimeOf = (seconds: number): string => `${Math.max(0, Math.round(seconds * 100) / 100)}s`;
 
-/** One frame of the video at a moment, the whole frame kept inside the size asked (`fit=clip`). */
+/**
+ * The largest side a frame is given at, and the smallest: Stream refuses a side outside them, and an odd one, with a 400 for
+ * every frame of the sheet (read against Stream on 10 Nov 2026: "height: attribute must be an even integer", "width: attribute
+ * must be between 10 and 2000"). Contracts' VIDEO_FRAME_SIDE is this largest side (the-video-wires and a-video-is-shown-and-heard
+ * hold both at 2,000), so the size a model is told a moment is shown at is a size Stream gives.
+ */
+const STREAM_FRAME_SIDE_MAX = 2000;
+const STREAM_FRAME_SIDE_MIN = 10;
+
+/** A size Stream takes for a frame: brought inside its largest side, its shape kept, each side even and at least its least. */
+function streamFrameSizeOf(width: number, height: number): [number, number] {
+  const k = Math.min(1, STREAM_FRAME_SIDE_MAX / Math.max(width, height, 1));
+  const even = (n: number) =>
+    Math.min(STREAM_FRAME_SIDE_MAX, Math.max(STREAM_FRAME_SIDE_MIN, 2 * Math.round((n * k) / 2)));
+  return [even(width), even(height)];
+}
+
+/** One frame of the video at a moment, the whole frame kept inside the size asked (`fit=clip`), held to a size Stream takes. */
 export function streamFrameUrl(
   customerCode: string,
   token: string,
   frame: { at: number; width: number; height: number },
 ): string {
+  const [width, height] = streamFrameSizeOf(frame.width, frame.height);
   const q = new URLSearchParams({
     time: streamTimeOf(frame.at),
-    width: String(Math.round(frame.width)),
-    height: String(Math.round(frame.height)),
+    width: String(width),
+    height: String(height),
     fit: "clip",
   });
   return `${streamHostOf(customerCode)}/${token}/thumbnails/thumbnail.jpg?${q}`;

@@ -192,13 +192,38 @@ test("a token is signed here, RS256 under the key's id, for one video, minutes t
 
 test("a frame's address, the audio's and the player's, each under a token on the account's own host", () => {
   assert.equal(
-    stream.streamFrameUrl("abc", "tok", { at: 12.5, width: 368, height: 207 }),
-    "https://customer-abc.cloudflarestream.com/tok/thumbnails/thumbnail.jpg?time=12.5s&width=368&height=207&fit=clip",
+    stream.streamFrameUrl("abc", "tok", { at: 12.5, width: 368, height: 208 }),
+    "https://customer-abc.cloudflarestream.com/tok/thumbnails/thumbnail.jpg?time=12.5s&width=368&height=208&fit=clip",
   );
   assert.equal(
     stream.streamAudioUrl("abc", "tok"),
     "https://customer-abc.cloudflarestream.com/tok/downloads/audio.m4a",
   );
+  // Stream refuses an odd side and one outside 10 to 2,000 pixels (a 400 for every frame of the first real clips, 10 Nov 2026).
+  const sizeIn = (url) => {
+    const q = new URL(url).searchParams;
+    return [Number(q.get("width")), Number(q.get("height"))];
+  };
+  assert.deepEqual(sizeIn(stream.streamFrameUrl("abc", "tok", { at: 1, width: 368, height: 207 })), [368, 208], "even");
+  assert.deepEqual(sizeIn(stream.streamFrameUrl("abc", "tok", { at: 1, width: 2576, height: 1449 })), [2000, 1126]);
+  assert.deepEqual(sizeIn(stream.streamFrameUrl("abc", "tok", { at: 1, width: 1449, height: 2576 })), [1126, 2000]);
+  assert.deepEqual(
+    sizeIn(stream.streamFrameUrl("abc", "tok", { at: 1, width: 4, height: 3 })),
+    [10, 10],
+    "at least ten",
+  );
+  for (const [w, h] of [
+    [368, 207],
+    [2576, 1449],
+    [1464, 598],
+    [3840, 2160],
+    [1080, 1920],
+    [1284, 2282],
+    [11, 2001],
+  ]) {
+    const [sw, sh] = sizeIn(stream.streamFrameUrl("abc", "tok", { at: 1, width: w, height: h }));
+    for (const side of [sw, sh]) assert.ok(side % 2 === 0 && side >= 10 && side <= 2000, `${w}x${h} -> ${sw}x${sh}`);
+  }
   const player = new URL(
     stream.streamPlayerUrl("abc", "tok", { poster: "https://storage.example/p.jpg?x=1", captions: "es" }),
   );

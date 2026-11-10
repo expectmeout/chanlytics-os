@@ -76,9 +76,15 @@ function videoAttached(file: AttachedFile, copy: FileCopy | undefined): AskedPic
       said: `The file ${file.name}, a video, is attached to this question, but the video platform could not read it. Say so, and do not guess what it shows.`,
       fileId: null,
     };
-  if (file.media_status !== "ready" || !copy)
+  if (file.media_status !== "ready")
     return {
       said: `The file ${file.name}, a video, is attached to this question and is still being prepared: its frames and its sound are not in yet. Say so, do not guess what it shows, and say you will look once it is ready.`,
+      fileId: null,
+    };
+  // Ready, and still no sheet to show: nothing more is on its way, so it is not said to be.
+  if (!copy)
+    return {
+      said: `The file ${file.name}, a video, is attached to this question, but could not be opened. Say so, and do not guess what it shows.`,
       fileId: null,
     };
   const size = copy.width && copy.height ? ` (${copy.width}×${copy.height})` : "";

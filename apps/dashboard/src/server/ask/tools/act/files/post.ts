@@ -10,10 +10,11 @@ import {
   fileSaidOf,
   isAskMorningQuestion,
   postWordsIn,
+  secondsOf,
   whoStandsOf,
   type PostPlan,
 } from "@chanlytics/contracts";
-import { postPhotoProblem, postPlanProblem } from "@/server/files/post-check";
+import { postMomentProblem, postPhotoProblem, postPlanProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
 import { filesForAsk } from "../../../../readers/files";
@@ -27,11 +28,12 @@ import { propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
 
 /**
- * A post from one of the business's photos (decision 0099, step 3). Code draws it, so it is free, and the card shows the real
- * picture: Ask chooses the photo after opening it, chooses the words from what the owner said, and the owner presses Save. The act
- * never acts. The words are held here, where it is known who said what: their questions in this thread and what they wrote in
- * Settings, never what a customer wrote, a page shows or a read returned. A price, a number or a promise that came from anywhere
- * else is refused back to the model, which uses their words or asks them.
+ * A post from one of the business's photos, or from one moment of one of its videos (decision 0099, step 3). Code draws it, so it
+ * is free, and the card shows the real picture: Ask chooses the photo, or the moment, after opening it, chooses the words from what
+ * the owner said, and the owner presses Save. A video's moment is kept as a still in its folder, so the post is a picture as any
+ * other. The act never acts. The words are held here, where it is known who said what: their questions in this thread and what
+ * they wrote in Settings, never what a customer wrote, a page shows or a read returned. A price, a number or a promise that came
+ * from anywhere else is refused back to the model, which uses their words or asks them.
  *
  * Ask looks at its own work before anyone else does (Ask's eyes): the first call draws the post and answers the picture, and the
  * card is made only by a second call that carries the key the drawing answered, which is the plan whole, so a plan changed since
@@ -59,7 +61,13 @@ const postInput = z.object({
     .string()
     .min(1)
     .max(120)
-    .describe("The photo's name, as files says it; open it with view first unless it came with the question."),
+    .describe(
+      "The photo's name, or the video's, as files says it; open it with view first unless it came with the question.",
+    ),
+  at: z
+    .union([z.number().min(0), z.string().max(12)])
+    .optional()
+    .describe("For a video only: the moment the post is drawn from, as M:SS or seconds, chosen after opening it."),
   line: z
     .string()
     .describe(
@@ -112,7 +120,9 @@ async function postShownFirst(
   let bytes: Buffer;
   try {
     const row = await getPhoto(toolContext.ctx, plan);
-    const material = await postMaterialFrom(toolContext.ctx, toolContext.tenantId, row, () => Promise.resolve(config));
+    const material = await postMaterialFrom(toolContext.ctx, toolContext.tenantId, { file: row, at: plan.at }, () =>
+      Promise.resolve(config),
+    );
     bytes = await postDrawn(plan, material, "portrait", true);
   } catch (e) {
     if (e instanceof AppError) return refuse(`${name}: ${e.message}`);
@@ -152,7 +162,9 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
   const { found } = filesNamed(files, [input.file]);
   const file = found.at(0);
   if (!file) return refuse(`no file named ${input.file}; names come from files with action list`);
-  const photoProblem = postPhotoProblem(file);
+  // A photo has no moment: one named for it is not read, and never reaches its plan.
+  const at = file.kind === "video" && input.at !== undefined ? secondsOf(input.at) : null;
+  const photoProblem = postPhotoProblem(file) ?? postMomentProblem(file, at);
   if (photoProblem) return refuse(`${input.file}: ${photoProblem}`);
   if (whoStandsOf(file).is === "ask" && !input.people_agreed)
     return refuse(
@@ -175,6 +187,7 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
     layout: input.layout ?? "over",
     language,
     people_agreed: input.people_agreed === true,
+    at: at === null ? null : Math.round(at * 100) / 100,
   };
   const key = postLookKeyOf(plan);
   if (input.looked !== key) {
@@ -196,7 +209,7 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
 export const postAct = defineAct({
   name: "propose_post",
   description:
-    "Make a post from one of the business's photos: a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo with files action view first, unless it came with the question, and choose where the words go after seeing it. The first call draws the post and shows it to you: look at it with the owner's eyes, change the plan if a word sits on a face or the sign, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message, since nothing written beside the look reaches them. Asked only for a post, propose one at once, with a short plain headline from the photo and what you know of the business, rather than asking what it should say: the owner changes the words, the type and the layout on the card itself, for nothing, so propose once and offer no alternatives. A price, a number or a promise they have not said is refused: leave those out, or use theirs. One photo a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+    "Make a post from one of the business's photos, or from one moment of one of its videos (at): a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo or the video with files action view first, unless it came with the question, and choose where the words go after seeing it. The first call draws the post and shows it to you: look at it with the owner's eyes, change the plan if a word sits on a face or the sign, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message, since nothing written beside the look reaches them. Asked only for a post, propose one at once, with a short plain headline from the photo and what you know of the business, rather than asking what it should say: the owner changes the words, the type and the layout on the card itself, for nothing, so propose once and offer no alternatives. A price, a number or a promise they have not said is refused: leave those out, or use theirs. One photo, or one moment, a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
   kind: "post",
   input: postInput,
   label: "Making a post",

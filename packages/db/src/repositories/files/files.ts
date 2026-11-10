@@ -134,6 +134,40 @@ export async function readFileSound(db: Db, id: string): Promise<FileRow["sound"
 }
 
 /**
+ * What was heard of each of the workspace's videos, under the caller's RLS: what a search of the library reads, so a clip is found
+ * by what is said in it. A workspace keeps an hour of video (FILE_VIDEO_MINUTES_MAX), so this is a few hundred KB at its most,
+ * and it is read only when a search asks.
+ */
+export async function listVideosHeard(db: Db, tenantId: TenantId): Promise<Pick<FileRow, "id" | "sound">[]> {
+  const { data, error } = await db
+    .from("files")
+    .select("id, sound")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "video")
+    .is("removed_at", null)
+    .or(ARRIVED)
+    .limit(FILES_MAX);
+  if (error) throw new DbFailure(error, "videos heard");
+  return data;
+}
+
+/**
+ * A video's length as the video platform says it, kept where the row had none: its webhook did not say, and the browser could
+ * not read the clip. Only where none is kept, so the platform's first word is never written over.
+ */
+export async function keepVideoSeconds(db: Db, tenantId: TenantId, id: string, seconds: number): Promise<void> {
+  const { error } = await db
+    .from("files")
+    .update({ seconds, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("id", id)
+    .eq("kind", "video")
+    .is("seconds", null)
+    .is("removed_at", null);
+  if (error) throw new DbFailure(error, "video seconds");
+}
+
+/**
  * The named files that are still there for the caller: what a question's turn says of the files it came with. A video's sound
  * rides with it whole, since the turn shows its sheet with what was heard after it.
  */

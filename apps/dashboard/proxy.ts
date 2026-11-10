@@ -45,11 +45,12 @@ const PUBLIC_PATHS = new Set([
   // here; the door itself checks the agent's secret and the session's id before it reads a byte, and runs the turn
   // as the member under RLS with the token the session row keeps. Three exact paths, since the vendor appends
   // /chat/completions to the address it is given.
-  // The platform's clock, with its own secret (app/api/ask/morning-sweep/route.ts).
-  "/api/ask/morning-sweep",
   "/api/ask/voice/llm",
   "/api/ask/voice/llm/chat/completions",
   "/api/ask/voice/llm/v1/chat/completions",
+  // The platform's clock, with its own secret (app/api/ask/morning-sweep/route.ts): no cookie, so no gate here; the route
+  // answers 401 to anything but the CRON_SECRET's bearer, and with no secret set it answers nothing at all.
+  "/api/ask/morning-sweep",
   "/manifest.webmanifest",
   "/signup",
   "/api/v1/signup",

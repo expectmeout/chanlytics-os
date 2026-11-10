@@ -1097,7 +1097,7 @@ test("a note card, walked end to end: the model's call makes it, Approve writes 
     body: { note_id: written.id },
     via: "ask",
   });
-  // For the team: the same route, team-only. The card said so before the press; its receipt is the same plain words (#2211).
+  // For the team: the same route, team-only; the receipt is the one sentence a note's is (#2211, ask-specs.test.mjs).
   const team = tabOver(cardWorld());
   const teamCard = await buildProposal(team.t, "propose_person", {
     action: "note",

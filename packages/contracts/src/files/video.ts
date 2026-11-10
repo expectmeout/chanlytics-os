@@ -20,8 +20,11 @@ export const VIDEO_SPAN_FRAMES = 24;
 const VIDEO_SPAN_STEP_MIN_S = 0.25;
 /** The shortest stretch a span is drawn for: a narrower one is widened around its middle. */
 const VIDEO_SPAN_MIN_S = 1;
-/** One moment, drawn whole: its long side. */
-export const VIDEO_FRAME_SIDE = 2576;
+/**
+ * One moment, drawn whole: its long side. The largest frame the video platform gives (channels stream.ts STREAM_FRAME_SIDE_MAX),
+ * inside what a model reads unchanged: a moment asked at 2,576 pixels was refused whole.
+ */
+export const VIDEO_FRAME_SIDE = 2000;
 /** The band each tile's time is written on, in pixels of the tile, and the shortest tile it is written on at all. */
 export const VIDEO_TILE_LABEL_PX = 22;
 
@@ -139,11 +142,15 @@ export function videoSpanPlanOf(video: {
   };
 }
 
-/** One moment drawn whole: its size, the long side VIDEO_FRAME_SIDE, the frame's own shape. */
+/**
+ * One moment drawn whole: its size, the long side VIDEO_FRAME_SIDE at most, the frame's own shape, each side even, as the video
+ * platform takes a frame's size. The size the edge asks for, so the pixels a box is named in are the pixels shown.
+ */
 export function videoFrameSizeOf(width?: number | null, height?: number | null): [number, number] {
   const [fw, fh] = frameShapeOf(width, height);
   const k = Math.min(1, VIDEO_FRAME_SIDE / Math.max(fw, fh));
-  return [Math.max(1, Math.round(fw * k)), Math.max(1, Math.round(fh * k))];
+  const even = (n: number) => Math.min(VIDEO_FRAME_SIDE, Math.max(2, 2 * Math.round((n * k) / 2)));
+  return [even(fw), even(fh)];
 }
 
 /** A moment as a person reads it: "0:24", "1:05", "10:00"; with a tenth where it has one and `tenths` asks ("0:12.5"). */
