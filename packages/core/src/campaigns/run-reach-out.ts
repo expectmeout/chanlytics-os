@@ -49,6 +49,8 @@ async function goesOrWaits(
   plan: { counts: { planned: number; skipped: number }; firstAt: number },
 ): Promise<ReachOutRunOutcome> {
   const planned = plan.counts.planned;
+  // The door writes its own failure down and answers false (run-context.ts); one that throws anyway reads the same
+  // here, as not told and not held, so no failure of either can lose the batch.
   const ownerKnows = step.owner_sends || (await ports.notifyGoes(run.id, planned, plan.firstAt).catch(() => false));
   const waits = !ownerKnows && (await ports.holdForOk(run.id).catch(() => false));
   // On the record in the state it ends in: a run that waits is never recorded as the system's own send.
