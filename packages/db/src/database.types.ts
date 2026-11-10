@@ -6126,11 +6126,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "posts_file_id_fkey"
-            columns: ["file_id"]
+            foreignKeyName: "posts_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
             isOneToOne: false
             referencedRelation: "files"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "posts_tenant_id_fkey"
@@ -6316,11 +6316,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "publish_attempts_post_id_fkey"
-            columns: ["post_id"]
+            foreignKeyName: "publish_attempts_post_id_same_workspace"
+            columns: ["tenant_id", "post_id"]
             isOneToOne: false
             referencedRelation: "posts"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "publish_attempts_tenant_id_fkey"

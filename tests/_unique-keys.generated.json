@@ -972,6 +972,21 @@
       }
     },
     {
+      "table": "files",
+      "name": "files_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "files_let_go",
       "name": "files_let_go_pkey",
       "primary": true,
@@ -2416,6 +2431,21 @@
       "primary": true,
       "nullsNotDistinct": false,
       "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "posts",
+      "name": "posts_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
         {
           "column": "id"
         }

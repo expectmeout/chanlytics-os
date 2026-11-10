@@ -3042,7 +3042,7 @@ One row per place a post goes (00611, decision 0121): the exact file approved, w
 Foreign keys:
 
 - `approved_by` → `auth.users` (`id`), on delete set null
-- `file_id` → [`files`](#files) (`id`), on delete cascade
+- `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
@@ -3153,7 +3153,7 @@ One row per send of a post (00611, decision 0121): the request as sent (never a 
 
 Foreign keys:
 
-- `post_id` → [`posts`](#posts) (`id`), on delete cascade
+- `tenant_id`, `post_id` → [`posts`](#posts) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |

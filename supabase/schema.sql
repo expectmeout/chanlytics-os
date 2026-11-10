@@ -41699,6 +41699,14 @@ ALTER TABLE ONLY public.files
 
 
 --
+-- Name: files files_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files
+    ADD CONSTRAINT files_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: google_connections google_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -42288,6 +42296,14 @@ ALTER TABLE ONLY public.policies
 
 ALTER TABLE ONLY public.posts
     ADD CONSTRAINT posts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: posts posts_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.posts
+    ADD CONSTRAINT posts_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -48291,11 +48307,11 @@ ALTER TABLE ONLY public.posts
 
 
 --
--- Name: posts posts_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: posts posts_file_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.posts
-    ADD CONSTRAINT posts_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id) ON DELETE CASCADE;
+    ADD CONSTRAINT posts_file_id_same_workspace FOREIGN KEY (tenant_id, file_id) REFERENCES public.files(tenant_id, id) ON DELETE CASCADE;
 
 
 --
@@ -48339,11 +48355,11 @@ ALTER TABLE ONLY public.provider_events
 
 
 --
--- Name: publish_attempts publish_attempts_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: publish_attempts publish_attempts_post_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.publish_attempts
-    ADD CONSTRAINT publish_attempts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+    ADD CONSTRAINT publish_attempts_post_id_same_workspace FOREIGN KEY (tenant_id, post_id) REFERENCES public.posts(tenant_id, id) ON DELETE CASCADE;
 
 
 --

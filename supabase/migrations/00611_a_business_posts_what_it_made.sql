@@ -27,11 +27,19 @@ set local lock_timeout = '3s';
 
 /* ---------------------------------------------------------------------------------------------------- 1. the posts -- */
 
+-- A row that names a file names one of its own workspace's (00279): the key it needs on the parent.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'files_tenant_id_id_key') then
+    alter table public.files add constraint files_tenant_id_id_key unique (tenant_id, id);
+  end if;
+end $$;
+
 create table if not exists public.posts (
   id             uuid primary key default gen_random_uuid(),
   tenant_id      uuid not null references public.tenants (id) on delete cascade,
-  -- The exact version approved: a new version of a post is a new file.
-  file_id        uuid not null references public.files (id) on delete cascade,
+  -- The exact version approved: a new version of a post is a new file. Its workspace's own (00279).
+  file_id        uuid not null,
   place          text not null,
   kind           text not null,
   -- What goes with it, as the owner left it. A story shows none.
@@ -54,7 +62,10 @@ create table if not exists public.posts (
   -- The newest send's refusal: { code, subcode, words }.
   error          jsonb,
   created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now()
+  updated_at     timestamptz not null default now(),
+  constraint posts_tenant_id_id_key unique (tenant_id, id),
+  constraint posts_file_id_same_workspace foreign key (tenant_id, file_id)
+    references public.files (tenant_id, id) on delete cascade
 );
 
 alter table public.posts drop constraint if exists posts_place_check;
@@ -110,7 +121,8 @@ grant select, insert, update, delete on public.posts to service_role;
 create table if not exists public.publish_attempts (
   id            uuid primary key default gen_random_uuid(),
   tenant_id     uuid not null references public.tenants (id) on delete cascade,
-  post_id       uuid not null references public.posts (id) on delete cascade,
+  -- Its workspace's own post (00279).
+  post_id       uuid not null,
   attempt_no    integer not null,
   step          text not null,
   started_at    timestamptz not null default now(),
@@ -124,7 +136,9 @@ create table if not exists public.publish_attempts (
   container_id  text,
   external_id   text,
   error         jsonb,
-  unique (post_id, attempt_no, step)
+  unique (post_id, attempt_no, step),
+  constraint publish_attempts_post_id_same_workspace foreign key (tenant_id, post_id)
+    references public.posts (tenant_id, id) on delete cascade
 );
 
 alter table public.publish_attempts drop constraint if exists publish_attempts_no_check;
