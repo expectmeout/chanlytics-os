@@ -13,7 +13,14 @@ import {
   runStopWords,
   runTitleOf,
 } from "@chanlytics/contracts";
-import type { ApprovalVM, BroadcastDetailDto, BroadcastDto, PreviewVersions, RunPersonVM } from "@chanlytics/contracts";
+import type {
+  ApprovalVM,
+  BroadcastDetailDto,
+  BroadcastDto,
+  BroadcastVM,
+  PreviewVersions,
+  RunPersonVM,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Face } from "../../kit/face/face";
@@ -26,6 +33,7 @@ import { mpParts } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import type { CmPreviewBy } from "../parts/preview-by";
 import type { PlaybookCardVM } from "../playbooks/surface";
+import { bcOpensOnItsSheet } from "./when-words";
 
 /**
  * A run waiting on you, as the page opens it (page/runs.tsx `sheetFor`): where it sits among the runs waiting (the
@@ -406,6 +414,7 @@ export function bcSheetDock({ b, avm, sheet }: BcSheetActsAsk) {
           busy={sheet.stopping}
           onYes={sheet.skip}
           onNo={() => sheet.onArm(false)}
+          docked
           testid="bc-sheet-skip"
         />
       </div>
@@ -443,6 +452,36 @@ export function bcSheetDock({ b, avm, sheet }: BcSheetActsAsk) {
     </div>
   );
 }
+
+/**
+ * Where the verbs of a run that can still change stand (run.tsx): at the pane's head (a going reach-out's: its dock), or,
+ * on a phone once its stop is asked, the question as the pane's dock, as Skip's is above. A phone's head is a capsule of
+ * one height, a line of name over a line of what it is (mobile.css --cm-head-h): the question stood 92px in its 52, over
+ * the report under it (9 Nov 2026). In the dock its answers are the kit's pair, each half the foot under a thumb. A desk's
+ * head grows to hold the question where the press was.
+ */
+export function bcVerbsPlace(
+  phone: boolean,
+  acts: ReactNode,
+  question: ReactNode,
+): { tools: ReactNode; foot?: ReactNode } {
+  if (!phone || !question) return { tools: acts };
+  return {
+    tools: null,
+    foot: (
+      <div className="bc-approval-foot" data-foot-pair="">
+        {question}
+      </div>
+    ),
+  };
+}
+
+/**
+ * Whether a run's verbs (run.tsx BcRunVerbs) are the question its stop asks: armed, by a member who may stop it, and
+ * never a run decided on its sheet, which draws no verbs. A phone asks it in the pane's dock (bcVerbsPlace).
+ */
+export const bcStopAsked = (row: BroadcastVM, canSend: boolean, armed: boolean): boolean =>
+  armed && canSend && !(row.state === "pending_approval" && bcOpensOnItsSheet(row));
 
 /** What Skip's menu reads of a waiting run's sheet: a campaign run's (BcSheetAsk) or a reach-out run's. */
 interface SkipAsk {

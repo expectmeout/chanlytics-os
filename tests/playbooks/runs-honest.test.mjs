@@ -35,6 +35,7 @@ import {
   press,
   settle,
 } from "../_stub-react.mjs";
+import { until } from "../shared/_until.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -267,6 +268,7 @@ const { DayZone } = await import(`${S}/surfaces/today/zones/day.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastRun } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { broadcasts } = await import(`${S}/surfaces/campaigns/broadcasts/verbs.ts`);
+const { bcSheetDock } = await import(`${S}/surfaces/campaigns/broadcasts/run-sheet.tsx`);
 const { playbooksOverride } = await import(`${S}/surfaces/campaigns/playbooks/surface.ts`);
 // The broadcasts surface's module declares where its value is mirrored (`window.__BROADCASTS`, which Today's queue reads);
 // the app loads it with every override, and no page this file draws imports it any more.
@@ -412,6 +414,97 @@ test("a run opened before opens at once from what the tab holds, and is read aga
   } finally {
     broadcasts.peekDetail = peekKept;
   }
+});
+
+test("a run's stop is asked where it can be read: at its head on a desk, where the press was, and in the pane's dock on a phone, whose head is one capsule the question stood out of, over the report", async () => {
+  // A run going out, in Sent's rows and on its own door: its Stop stands at its head (a run still to come has its Cancel
+  // there, the same act under its own words: contracts runStopWords).
+  setSurfaceValue("broadcasts", broadcastsSurface());
+  answers.set("b-sending", [{ ok: true, data: detailOf(SENDING) }]);
+  const stopped = [];
+  const keep = { cancel: broadcasts.cancel, media: globalThis.matchMedia, toast: globalThis.window.usePPToast };
+  broadcasts.cancel = async (id) => {
+    stopped.push(id);
+    return { ok: true, data: { was: "sending" } };
+  };
+  // The page's toast, kept here: the frame's own closes itself on a timer, after the test.
+  toasts.length = 0;
+  globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
+  const props = { initialRun: "b-sending" };
+  const part = (tree, tag) => find(byTestId(tree, "bc-run-solo"), (n) => n.type === tag);
+  // The run's page once its report is read, its Stop at its head.
+  const opened = async () => {
+    page(props);
+    await until(() => byTestId(again(props), "bc-stop"), "the run's Stop, with its report read");
+    return again(props);
+  };
+  try {
+    // A desk: the question takes the press's place in the head, which grows to hold it, and the pane has no foot.
+    let tree = await opened();
+    press(byTestId(part(tree, "header"), "bc-stop"));
+    tree = again(props);
+    assert.ok(byTestId(part(tree, "header"), "bc-stop-confirm"), "a desk asks at the head, where the press was");
+    assert.equal(part(tree, "footer"), null, "and draws no dock for it");
+    assert.equal(byTestId(tree, "bc-stop-no").props.autoFocus, true, "its No takes focus by itself, as it did");
+
+    // A phone: the head is a capsule of one height, a line of name over a line of what it is. The question is the
+    // pane's dock, as a waiting run's Skip is (bcSheetDock): the kit's pair, so its answers are each half the foot.
+    globalThis.matchMedia = (q) => ({
+      matches: q === "(max-width: 900px)",
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    tree = await opened();
+    assert.ok(byTestId(part(tree, "header"), "bc-stop"), "a phone's Stop is at the head, as a desk's is");
+    assert.equal(part(tree, "footer"), null, "with no dock until it asks");
+    press(byTestId(part(tree, "header"), "bc-stop"));
+    tree = again(props);
+    assert.equal(
+      byTestId(part(tree, "header"), "bc-stop-confirm"),
+      null,
+      "REGRESSION: the question in a phone's capsule, 92px in its 52, drawn over the report under it",
+    );
+    const dock = part(tree, "footer");
+    assert.ok(dock, "the question is the pane's dock");
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "bc-stop-confirm").length, 1, "asked once");
+    const pair = find(dock, (n) => n.props?.["data-foot-pair"] !== undefined);
+    assert.ok(byTestId(pair, "bc-stop-confirm"), "in the kit's pair, as every question a foot asks");
+    const said = textOf(byTestId(dock, "bc-stop-confirm"));
+    assert.ok(said.includes(`Stop ${SENDING.name}?`) && said.includes("the rest do not go"), said);
+    assert.equal(byTestId(tree, "bc-stop"), null, "while asked, the trigger is gone");
+    // Its No takes focus where it stands (the kit's Confirm, docked): a plain focus on a bar docked at a phone's foot
+    // moved the page to its end, and the report with it.
+    const no = byTestId(dock, "bc-stop-no");
+    const focused = [];
+    no.props.ref({ focus: (how) => focused.push(how) });
+    assert.deepEqual([no.props.autoFocus, focused], [false, [{ preventScroll: true }]]);
+    // No puts the question away and the Stop back; Yes stops the run from the dock.
+    press(byTestId(dock, "bc-stop-no"));
+    tree = again(props);
+    assert.equal(part(tree, "footer"), null, "No leaves no dock behind");
+    press(byTestId(part(tree, "header"), "bc-stop"));
+    tree = again(props);
+    await press(byTestId(part(tree, "footer"), "bc-stop-yes"));
+    assert.deepEqual(stopped, ["b-sending"]);
+    assert.match(textOf(toasts.at(-1).msg), / stops after this batch$/, "and the page says so, as it did");
+  } finally {
+    broadcasts.cancel = keep.cancel;
+    globalThis.matchMedia = keep.media;
+    globalThis.window.usePPToast = keep.toast;
+  }
+});
+
+test("a waiting run's Skip, asked in a phone's dock, takes focus where it stands: a plain focus there moved the page to its end", () => {
+  const waiting = dto({ id: "b-wait", state: "pending_approval", started_at: null, finished_at: null });
+  const sheet = { armed: true, canSend: true, stopping: false, skip() {}, onArm() {} };
+  const avm = { skip: "Skipping loses this run only.", approve: "Approve all 3", expired: null, goesLine: "Goes now" };
+  freshTree();
+  const dock = bcSheetDock({ b: waiting, avm, sheet });
+  assert.ok(dock.props["data-foot-pair"] !== undefined && byTestId(dock, "bc-sheet-skip-confirm"), "the dock asks");
+  const no = byTestId(dock, "bc-sheet-skip-no");
+  const focused = [];
+  no.props.ref?.({ focus: (how) => focused.push(how) });
+  assert.deepEqual([no.props.autoFocus, focused], [false, [{ preventScroll: true }]], "its No, where it stands");
 });
 
 test("REGRESSION (C23): a detail that could not be read says so with a Retry, and a link to a broadcast that is not here says that instead", async () => {
