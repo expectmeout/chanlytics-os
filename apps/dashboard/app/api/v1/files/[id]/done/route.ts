@@ -17,7 +17,7 @@ const CHOSEN_NAME_MAX = 255;
  */
 export const POST = write({
   scope: workspace,
-  role: "partner",
+  role: "operator",
   rate: "file_upload",
   input: z.object({
     name: z.string().max(CHOSEN_NAME_MAX),

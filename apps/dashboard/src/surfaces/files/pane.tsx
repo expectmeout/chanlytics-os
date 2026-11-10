@@ -6,8 +6,8 @@
  * comes a page at a time, and the server says how the whole library stands (surface.ts).
  *
  * Settings loads no Base UI popup, so the sheet and the shelf's list are the house's (kit/record/sheet, kit/more-menu): a page
- * that newly imports the kit's pays for it on every tab. A member who may not change a file reads it, with nothing dead to
- * press. The presses are verbs.ts's, which the doors check again; what is on its way is sending.ts's. The words are contracts'
+ * that newly imports the kit's pays for it on every tab. Whoever may add a photo or a video adds them, an operator too; a member
+ * who may not change a file reads it, with nothing dead to press. The presses are verbs.ts's, which the doors check again; what is on its way is sending.ts's. The words are contracts'
  * (FILE_WORDS), the parts the kit's. This module is the page; photo.tsx its tiles, file-sheet.tsx one file opened.
  *
  * With nothing here the page is the grid with nothing in it: empty tiles at the size a photo draws, what to do under them, and the first
@@ -203,6 +203,7 @@ function FilesLibrary({
   const heading = headingOf(tally, going, videos);
   const headingFades = useSwapMotion<HTMLHeadingElement>(heading);
   const may = canDo("settings");
+  const mayAdd = canDo("add_files");
   const here = pressed ?? shelf;
   const choose = (s: FileShelf) => {
     setPressed(s);
@@ -216,7 +217,7 @@ function FilesLibrary({
     if (here !== "all") choose("all");
     addPhotos(list, flash);
   };
-  const dropping = usePageTakesFiles(addAll, may);
+  const dropping = usePageTakesFiles(addAll, mayAdd);
   const more = useCallback(() => {
     if (gettingMore) return;
     setGettingMore(true);
@@ -257,7 +258,7 @@ function FilesLibrary({
         </h2>
         {/* Unseen on an empty page, whose one press stands under its tiles, but holding its place: the tiles don't move as it comes. */}
         <span className="files-head-act" data-away={emptyPage || undefined}>
-          <Button ref={addRef} size="sm" onClick={add} {...gate("settings", "add a photo")} data-testid="fl-add">
+          <Button ref={addRef} size="sm" onClick={add} {...gate("add_files")} data-testid="fl-add">
             {addWordsOf(dropping, left, sending.finished, videos)}
           </Button>
         </span>
@@ -302,7 +303,7 @@ function FilesLibrary({
           ))}
         </div>
         {/* A hand reaches for the empty squares. The press below is the same one, for a key and a screen reader. */}
-        {emptyPage && may && <Press className="files-open" tabIndex={-1} aria-hidden="true" onClick={add} />}
+        {emptyPage && mayAdd && <Press className="files-open" tabIndex={-1} aria-hidden="true" onClick={add} />}
         <div ref={grid} className="files-grid" data-testid="fl-grid" aria-busy={pressed !== null || undefined}>
           <PhotosOnTheirWay photos={going} flash={flash} onOpen={setOpenId} />
           {shown.map((f) => (
@@ -311,7 +312,7 @@ function FilesLibrary({
         </div>
       </div>
       {next && <MoreFiles more={more} busy={gettingMore} shown={files.length} />}
-      {emptyPage && <NothingYet may={may} dropping={dropping} add={add} videos={videos} />}
+      {emptyPage && <NothingYet may={mayAdd} dropping={dropping} add={add} videos={videos} />}
       {open && <FileSheet key={open.id} file={open} onClose={closeSheet} open={setOpenId} flash={flash} />}
     </section>
   );

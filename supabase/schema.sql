@@ -6669,7 +6669,7 @@ begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'add_files'), false) then
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
   update public.files f set media_status = 'processing', updated_at = now()
@@ -6682,7 +6682,7 @@ end $$;
 -- Name: FUNCTION file_media_processing(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) IS 'A member''s video''s bytes have all gone (00556), with the settings permission: the tile says it is being made ready. Only from uploading: the platform''s word may already have come.';
+COMMENT ON FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) IS 'A member''s video''s bytes have all gone (00556), with the add_files permission (00586: an operator''s too): the tile says it is being made ready. Only from uploading: the platform''s word may already have come.';
 
 
 --
@@ -6843,7 +6843,7 @@ begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
-  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'add_files'), false) then
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
   -- contracts FILES_MAX: the fair word before anything travels. file_found holds it for certain.
@@ -6860,7 +6860,7 @@ end $$;
 -- Name: FUNCTION file_start(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member''s upload begins (00551): the settings permission, the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven.';
+COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member''s upload begins (00551): the add_files permission (00586: an operator''s too), the workspace''s cap, and the file_purge that lets its bytes go a day on if they never become a file. No row until they are proven.';
 
 
 --
@@ -7343,6 +7343,7 @@ CREATE FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permissio
          when 'settings'   then array['owner', 'partner']
          when 'export'     then array['owner']
          when 'find'       then array['owner', 'partner']
+         when 'add_files'  then array['owner', 'operator', 'partner']
          else array[]::text[] end)
        -- A partner's seat, asked about the calling session, counts only once it showed its second factor (0013).
        and (m.role <> 'partner' or p_user is distinct from (select auth.uid()) or public.session_shows_second_factor())
@@ -7354,7 +7355,7 @@ $$;
 -- Name: FUNCTION has_permission(p_user uuid, p_tenant_id uuid, p_permission text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) IS 'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0012) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s.';
+COMMENT ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) IS 'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0012) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s. add_files (00586) is every role''s but a viewer''s.';
 
 
 --

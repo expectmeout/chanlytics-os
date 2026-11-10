@@ -180,7 +180,7 @@ being read is dropped by a migration.
 | `file_look_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What the look saw (00551), under the owner's word: |
 | `file_made` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What Ask made kept as a file, after the server stored its bytes (00553, decision 0099): |
 | `file_media_failed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The video platform could not read a video (00556): |
-| `file_media_processing` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's video's bytes have all gone (00556), with the settings permission: |
+| `file_media_processing` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's video's bytes have all gone (00556), with the add_files permission (00586: |
 | `file_media_ready` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The video platform says a video is playable (00556): |
 | `file_purged` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A removed file's bytes and Anthropic's copy are gone (00551), so its row goes. |
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551): |

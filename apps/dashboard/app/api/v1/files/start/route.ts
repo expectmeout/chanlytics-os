@@ -8,8 +8,8 @@ const CHOSEN_NAME_MAX = 255;
 
 /**
  * POST /api/v1/files/start — `{ mime, bytes }`, and for a video `{ name, seconds, fingerprint }` besides: a member's photo or
- * video about to be sent, and where to send it. Whoever may change the workspace's settings; the door asks too, and says when the
- * workspace is full. A photo is no file yet, and what is said here is only a claim: POST files/[id]/done proves it from the
+ * video about to be sent, and where to send it. Whoever may add photos and videos, an operator too (ROLE_PERMS add_files); the door
+ * asks too, and says when the workspace is full. A photo is no file yet, and what is said here is only a claim: POST files/[id]/done proves it from the
  * bytes. A video is sent to the video platform, which proves it: everything the browser knows goes now, so the platform's word
  * alone can finish it, and a clip already here is answered as one before a byte goes.
  *
@@ -17,7 +17,7 @@ const CHOSEN_NAME_MAX = 255;
  */
 export const POST = write({
   scope: workspace,
-  role: "partner",
+  role: "operator",
   rate: "file_upload",
   input: z.object({
     mime: z.enum(FILE_MIMES, { error: FILE_WORDS.wrongType }),
