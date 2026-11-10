@@ -58,9 +58,10 @@ const SETTINGS_TITLE: Record<Exclude<z.infer<typeof AskSettingsChangeSchema>["op
   set_fixes: "What problem you solve",
   add_claim: "A fact your emails can use",
   remove_claim: "A fact taken off",
-  set_cold_tone: "How cold emails sound",
-  set_signed_by: "Who cold emails sign as",
-  set_signature: "Your signature",
+  // Cold email's rows by the cards that hold them on its page (How you sound, How your emails end, Your pitch).
+  set_cold_tone: "How you sound in cold emails",
+  set_signed_by: "How your emails end: your name",
+  set_signature: "How your emails end: under your name",
   set_reply_offer: "What they should do next",
 };
 

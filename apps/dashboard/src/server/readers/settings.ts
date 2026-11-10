@@ -12,7 +12,6 @@ import {
   type RehearsalDto,
   recordOrEmpty,
   ASK_MEMORY_LIMITS,
-  REACH_OUT_DRAFTS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
   REPLY_MODE_UNSET,
   coldEmailSendingOf,
@@ -268,6 +267,7 @@ export function newestLeadSequence(chains: readonly ReachOutChainDto[]): ReachOu
     signed_by: chain.signed_by,
     signs_with: chain.signs_with,
     mailbox_id: chain.mailbox_ids[0] ?? null,
+    fed_by: chain.fed_by ?? null,
     first: { subject: first.subject, body: first.body },
     next:
       second && !second.hand && second.after_days !== null
@@ -347,6 +347,7 @@ export function standingFactsOf(input: {
     report ? report.steps.reduce((n, s) => n + (pick(s) ?? 0), 0) : null;
   const sent = total((s) => s.written);
   const waitingId = subject?.next.waiting_run_id ?? null;
+  const running = runningNewestFirst(chains);
   return {
     ...rest,
     mailboxes: input.mailboxes.filter(mailboxIsLive),
@@ -357,14 +358,20 @@ export function standingFactsOf(input: {
             id: waitingId,
             planned: report?.runs.find((r) => r.id === waitingId)?.planned ?? null,
             name: subject.search?.name || subject.name,
-            first: !sent,
+            // What it sent unread says neither first nor next.
+            first: sent === null ? null : sent === 0,
           }
         : null,
-    running: runningNewestFirst(chains).map((c) => {
+    othersWaiting: waitingId
+      ? running.filter((c) => c.next.waiting_run_id && c.root_id !== subject?.root_id).length
+      : 0,
+    running: running.map((c) => {
       const own = c.root_id === subject?.root_id;
       return {
         root_id: c.root_id,
         name: c.name,
+        fed_by: c.fed_by ?? null,
+        search_id: c.search?.id ?? null,
         sent: own ? sent : null,
         wroteBack: own ? total((s) => s.wrote_back) : null,
         interested: own ? total((s) => s.interested) : null,
@@ -443,7 +450,8 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
         ownWordsOrUnread(db, tenantId),
         ownNameOrNull(db, tenantId, rc.ctx.userId),
-        partOrElse(findNewestSearchName(db, tenantId), "newest_search", tenantId, null),
+        // Undefined is not read: a search that could not be read is never a step still to do.
+        partOrElse<string | null | undefined>(findNewestSearchName(db, tenantId), "newest_search", tenantId, undefined),
         partOrElse(countLeadSuppressions(db, tenantId), "never", tenantId, null),
       ]);
     const parsed = parseTenantConfig(row?.data?.config);
@@ -489,14 +497,13 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
             : null,
         mailbox: mailboxShown(mailboxes ?? [], rc.now.getTime(), tz),
         month,
-        by_hand_per_day: REACH_OUT_DRAFTS_PER_DAY,
         claims: claimCounts(claims, chainList, counted),
         voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),
         sequence: newestLeadSequence(chainList),
         reply_mode: policies.find((p) => p.class === "reply")?.mode ?? REPLY_MODE_UNSET,
         about: ownWords?.text ?? null,
         about_from: ownWords?.from ?? null,
-        known: { name, first_name: firstNameOf(name, null), newest_search: newestSearch },
+        known: { name, first_name: firstNameOf(name, null), newest_search: newestSearch || null },
       },
       rows: [],
       stamp: readerStamp(),

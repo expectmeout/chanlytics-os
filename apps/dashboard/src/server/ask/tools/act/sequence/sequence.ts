@@ -235,12 +235,6 @@ export const propose_sequence = defineActions({
           .int()
           .optional()
           .describe(`Minutes between two emails: one of ${REACH_OUT_GAP_MINUTES.join(", ")}.`),
-        owner_sends: z
-          .boolean()
-          .optional()
-          .describe(
-            "true hands each email to the owner to send from their own inbox; false sends from the connected mailboxes; left out, the mailboxes where one is connected, else the owner.",
-          ),
         signed_by: z.string().optional().describe("Who signs the emails."),
         include_unconfirmed: z
           .boolean()
@@ -259,7 +253,7 @@ export const propose_sequence = defineActions({
       ],
       label: "Preparing a cold email sequence",
       words:
-        "Action cold_email proposes a cold email sequence to the businesses of a search or a list of chosen leads (propose_leads with action list makes one): its emails, their waits and its pace, from the workspace's mailboxes or handed over to send by hand. Its first run is planned once approved and waits for their say before an email goes. Write like a person to one business; never claim a relationship that does not exist.",
+        "Action cold_email proposes a cold email sequence to the businesses of a search or a list of chosen leads (propose_leads with action list makes one): its emails, their waits and its pace, sent from the workspace's connected mailboxes: with none that can send, it is refused in words that say why (connect one in Settings › Cold email), and nothing is ever handed over to send by hand. Its first run is planned once approved and waits for their say before an email goes. Write like a person to one business; never claim a relationship that does not exist.",
       build: proposeColdEmail,
     }),
     leads: reachOutAddAction,

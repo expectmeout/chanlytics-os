@@ -72,6 +72,7 @@ test("every check passing is what Healthy means", () => {
   assert.deepEqual(s.checks, [
     { ok: true, title: "Your domain is set up to send", detail: "Its email records are in place" },
     { ok: true, title: "Few bounces: 0.4%", detail: "It pauses itself past 3%, so your name stays clean" },
+    { ok: true, title: "No one unsubscribed", detail: "It pauses itself past 3% of those it wrote to" },
     { ok: true, title: "No spam complaints", detail: "It pauses itself after one" },
   ]);
 });
@@ -127,7 +128,7 @@ test("Healthy answers for every mailbox that sends: another's failure is named b
   const second = (over) => box({ address: "sam@getbrightline.example", host: "getbrightline.example", ...over });
   const fine = read([box(), second()]);
   assert.equal(fine.health, "healthy");
-  assert.equal(fine.checks.length, 3, "the one shown says its three; a mailbox with nothing wrong adds no line");
+  assert.equal(fine.checks.length, 4, "the one shown says its four; a mailbox with nothing wrong adds no line");
   const failing = read([box(), second({ dns: { ...ALL_FOUND, dkim: "missing" } })]);
   assert.equal(failing.health, "attention");
   assert.equal(failing.from, "maya@brightlinecleaning.example", "the mailbox shown is still the first");

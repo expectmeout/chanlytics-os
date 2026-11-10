@@ -604,7 +604,7 @@ test("the mailboxes sequences write from are a row of their own: Later and greye
   // Later, with nothing to press, and says what is coming.
   const later = rowsWith({ providers: [], mailboxes: [] }).mailbox;
   assert.deepEqual([later.group, later.state, later.verb, later.body], ["later", "later", null, null]);
-  assert.match(later.sentence, /Google Workspace mailbox/);
+  assert.match(later.sentence, /your own mailbox/);
   assert.doesNotMatch(later.sentence, /handed to you/);
   assert.equal(rowsWith(null).mailbox.group, "later", "an unread list offers nothing either");
 

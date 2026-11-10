@@ -71,27 +71,25 @@ const draftStateOf = (d: DraftData, tone: string): DraftState => ({
   to: d.to,
   subject: d.subject,
   body: d.body,
-  mailto: d.mailto,
   refusal: null,
   words: d.words,
   mailFoot: d.mail_foot,
   from: d.from,
   foot: d.foot,
   whyNot: d.why_not,
+  whyCode: d.why ?? null,
 });
 
 /**
- * The draft (PRD 9.3), for LeadPeekActions: the route writes it and builds the mailto:, so the page encodes nothing. Shorter
- * and Warmer ask the route again with what is on screen. Opening the mail app or copying the words is the moment they
- * might send it, so those two arm "Did you send it?". Send leaves from the mailbox the route named (decision 0094), its
- * Undo the door's own while its grace lasts, which brings the words back to change.
+ * The draft (PRD 9.3), for LeadPeekActions: the route writes it, so the page encodes nothing. Shorter and Warmer ask the
+ * route again with what is on screen. Send leaves from the mailbox the route named (decision 0094; a mailbox is
+ * required, decision 0116), its Undo the door's own while its grace lasts, which brings the words back to change.
  */
 const leadDraftActs = (
   p: PeekPage,
   api: LeadCourier,
-  armFor: (kind: "sent" | "call") => void,
   refuse: Refuse,
-): Pick<PeekActs, "onDraft" | "onTone" | "onOpenMail" | "onCopyDraft" | "onWords" | "onSend"> => {
+): Pick<PeekActs, "onDraft" | "onTone" | "onWords" | "onSend"> => {
   const vm = p.vm;
   return {
     onDraft: async () => {
@@ -102,7 +100,6 @@ const leadDraftActs = (
         to: vm.reach.email.address,
         subject: "",
         body: "",
-        mailto: null,
         refusal: null,
       });
       const r = await api.__leadDraft(vm.id, { tone: "first" });
@@ -113,7 +110,6 @@ const leadDraftActs = (
           to: vm.reach.email.address,
           subject: "",
           body: "",
-          mailto: null,
           refusal: r.message,
         });
         return;
@@ -158,24 +154,6 @@ const leadDraftActs = (
       });
       return true;
     },
-    // Opening the mail app or copying the words is the moment they might send it; Draft alone is not.
-    onOpenMail: () => {
-      if (p.draft && p.draft.mailto) armFor("sent");
-    },
-    onCopyDraft: async () => {
-      const d: DraftState = p.draft || {};
-      if (!d.body) return;
-      // A clipboard the browser keeps shut copies nothing: said so, and nothing is asked about a send that cannot follow.
-      try {
-        if (window.navigator && window.navigator.clipboard)
-          await window.navigator.clipboard.writeText(`${d.subject}\n\n${d.body}`);
-      } catch {
-        p.flash({ tone: "warn", msg: W.copyRefused });
-        return;
-      }
-      armFor("sent");
-      p.flash({ msg: W.copiedDraft });
-    },
   };
 };
 
@@ -208,7 +186,7 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
     said(r.data);
     return r.data;
   };
-  const armFor = (kind: "sent" | "call") => p.setArmed({ kind, leadId: vm.id, asked: false, outcome: null, note: "" });
+  const armFor = (kind: "call") => p.setArmed({ kind, leadId: vm.id, asked: false, outcome: null, note: "" });
   // The owner's own phone and their own mail app: an href this page hands to the browser, never a call we place.
   const dial =
     p.dial ||
@@ -264,15 +242,7 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
         "Not recorded",
       );
     },
-    ...leadDraftActs(p, api, armFor, refuse),
-    onSaidSent: async () => {
-      p.setArmed(null);
-      // The words it went with, so it keeps a row in History (decision 0094); none where the email was not written here.
-      const d = p.draft;
-      const words = d && d.subject && d.words ? { subject: d.subject, body: d.words } : null;
-      return (await post({ kind: "emailed", ...(words ? { words } : {}) }, "Not marked")) !== null;
-    },
-    onNotYet: () => p.setArmed(null),
+    ...leadDraftActs(p, api, refuse),
     // A reach-out's story with this lead and its doors (Reach out Part 6, H9), drawn in the body under the fit.
     reachOut: null,
   };

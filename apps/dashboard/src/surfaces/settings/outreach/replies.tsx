@@ -7,11 +7,10 @@ import { useEffect } from "react";
 import {
   REACH_OUT_SETTINGS_WORDS,
   REPLY_MODE_UNSET,
-  REPLY_OFFERS,
+  isReplyOffer,
   replyLineOf,
   textOrEmpty,
   writesBackRows,
-  type ReplyOffer,
 } from "@chanlytics/contracts";
 import { navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -22,8 +21,6 @@ import { RecordSheet } from "../../kit/record/sheet";
 import { OutreachCard, type OutreachShared } from "./card";
 
 const REPLY_WORDS = REACH_OUT_SETTINGS_WORDS.replies;
-
-const isReplyOffer = (value: string): value is ReplyOffer => REPLY_OFFERS.some((o) => o === value);
 
 export function RepliesCard(shared: OutreachShared) {
   const fold = useRecordFold("replies", { dirty: false });
@@ -37,7 +34,7 @@ export function RepliesCard(shared: OutreachShared) {
         id="replies"
         stacked
         label={replyLineOf(mode)}
-        act={{ label: "See how", onClick: () => fold.request() }}
+        act={{ label: REACH_OUT_SETTINGS_WORDS.acts.seeHow, onClick: () => fold.request() }}
       />
       {fold.open ? (
         <RecordSheet

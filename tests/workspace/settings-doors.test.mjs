@@ -1443,7 +1443,7 @@ test("no provider offered and none connected: the row is there, Later and greyed
     // What is coming waits behind the row's quiet press, as every row's sentence does.
     press(byTestId(tree, "connection-mailbox-why"));
     tree = settle(Connections);
-    assert.match(textOf(byTestId(tree, "connection-mailbox-says")), /Google Workspace mailbox/);
+    assert.match(textOf(byTestId(tree, "connection-mailbox-says")), /your own mailbox/);
   }
   // Ten is the most: no Connect is offered past it.
   emailSeam({

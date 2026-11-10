@@ -1,6 +1,5 @@
 /** Reach outs: chain acts. */
 
-import { refuseTurningToHand, refuseWithoutMailbox } from "./mailbox-needed";
 import "server-only";
 import {
   AppError,
@@ -54,6 +53,7 @@ import { getStoredConfig } from "@/server/workspace/config-row";
 import { log } from "@/server/shared/log";
 import { getTenantFacts } from "@/server/shared/tenant";
 import type { TenantId } from "@chanlytics/contracts";
+import { refuseTurningToHand, refuseWithoutMailbox } from "./mailbox-needed";
 
 /** One email written by the model at the edge, whose door may take thirty seconds: a little over it. */
 export const PREVIEW_TIMEOUT_MS = 35_000;

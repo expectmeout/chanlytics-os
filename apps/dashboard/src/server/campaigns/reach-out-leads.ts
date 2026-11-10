@@ -8,6 +8,7 @@ import "server-only";
  * (reachOutRefusal).
  */
 import {
+  coldBatchAsks,
   REACH_OUT_SAID_WORDS,
   readingPlan,
   type OwnerSaidIntent,
@@ -20,6 +21,7 @@ import {
 import { emitEvent } from "@chanlytics/db/events";
 import {
   findLeadReplyFacts,
+  findReachOutRoot,
   getOwnerSendFacts,
   getSequenceModes,
   type OwnerSendFacts,
@@ -48,12 +50,10 @@ export async function getLeadLines(ctx: RouteContext, tenantId: TenantId, search
 }
 
 /**
- * One lead's story; null when the workspace does not hold the lead. Of a reach-out its owner sends (00429): an email
- * handed to them names the run it waits in, where they send it (the peek's Send it), and one that left from no mailbox
- * says whether it went on their word (from their own inbox, not a mailbox before 00424). Read beside the story, which
- * never fails for it.
+ * The story with whether its sequence's next batch asks, for the line that says when its email goes: by the rule its run
+ * plans by (contracts coldBatchAsks), so a first run whose words are new says "after your OK" whatever the mode. Unread,
+ * it says nothing.
  */
-/** The story with whether its sequence's batches ask, for the line that says when its email goes. Unread, it says nothing. */
 async function withBatchRule(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
@@ -61,12 +61,22 @@ async function withBatchRule(
 ): Promise<ReachOutLeadTimelineDto> {
   const chain = story.chain;
   if (!chain) return story;
-  const modes = await getSequenceModes(ctx.supabase, tenantId, [chain.root_id]).catch(
-    logAndGoOn("reading how a lead's sequence runs", null),
-  );
-  return modes ? { ...story, chain: { ...chain, asks: modes.get(chain.root_id) !== "veto" } } : story;
+  const read = await Promise.all([
+    getSequenceModes(ctx.supabase, tenantId, [chain.root_id]),
+    findReachOutRoot(ctx.supabase, chain.root_id),
+  ]).catch(logAndGoOn("reading how a lead's sequence runs", null));
+  if (!read) return story;
+  const [modes, root] = read;
+  const asks = coldBatchAsks({ mode: modes.get(chain.root_id), words_ok_at: root?.words_ok_at ?? null });
+  return { ...story, chain: { ...chain, asks } };
 }
 
+/**
+ * One lead's story; null when the workspace does not hold the lead. Of a reach-out its owner sends (00429): an email
+ * handed to them names the run it waits in, where they send it (the peek's Send it), and one that left from no mailbox
+ * says whether it went on their word (from their own inbox, not a mailbox before 00424). Read beside the story, which
+ * never fails for it.
+ */
 export async function findLeadTimeline(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,

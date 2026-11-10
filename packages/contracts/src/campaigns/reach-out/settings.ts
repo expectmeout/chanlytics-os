@@ -5,9 +5,10 @@
  * into every page that imports it: a lead's card reads the signature, and needs none of the page's words.
  */
 import { REACH_OUT_LIMITS, type ReplyOffer } from "../../config/workspace-config/config-rules";
+import { MAILBOX_CONNECTIONS_MAX, MAILBOXES_PER_DOMAIN_MAX } from "../../email/mailbox-connections/states";
 import { MAILBOX_RAMP } from "../../email/mailbox-standing";
-import { COLD_EMAIL_CONNECT_WORDS } from "./connect-words";
 import type { BusinessReadSource } from "../../imports/business-reads";
+import { COLD_EMAIL_CONNECT_WORDS } from "./connect-words";
 import { mayDraftReply } from "./reply-draft";
 import type { ColdEmailSending } from "./sending";
 import type { ColdEmailStanding } from "./standing";
@@ -141,6 +142,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
   gap: "Say what you sell, so cold emails have something to say",
   /** A press that puts what is already known in an empty box. Never put there by itself: Save would store it. */
   fillWith: (known: string) => `Use ${known}`,
+  /** The page's row and sheet presses, said alike on every card. */
+  acts: { change: "Change", seeHow: "See how", open: "Open", useIt: "Use it" },
   /** How much of a box is used, said only as it nears its limit. */
   room: (used: number, max: number) => `${used.toLocaleString("en-US")} of ${max.toLocaleString("en-US")}`,
   /** Whoever may only read the page. */
@@ -179,6 +182,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
     reach: "New sequences use these. Running ones keep their words.",
     placeholder: "Something true you can back up: a result, a number, a client",
     fact: (n: number) => `Fact ${n}`,
+    /** What a screen reader says of a fact's Change: which fact, since every one says the same word. */
+    changeNamed: (n: number) => `Change fact ${n}`,
     remove: (n: number) => `Remove fact ${n}`,
     count: (sends: number) => (sends > 0 ? `In ${sends} email${sends === 1 ? "" : "s"}` : "Not used yet"),
   },
@@ -234,6 +239,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
     today: "Today",
     todayValue: (sent: number, cap: number) => `${sent} of ${cap}`,
     connections: "Open Connections",
+    /** The sheet's press where a mailbox can't send, named by what fixes it, as the top card names it; on Connections. */
+    fixFor: { reconnect: "Reconnect", on_hold: "See what to fix", paused: "Open Connections" },
     sendMore: "Send more",
     details: "Details",
     connect: "Connect",
@@ -253,8 +260,9 @@ export const REACH_OUT_SETTINGS_WORDS = {
     title: "Send more",
     second: "Use a second domain",
     secondLike: (host: string) => `Like get${host}, with a mailbox on Google Workspace`,
-    each: "Each one rises to 40 a day",
-    eachLimits: "Up to 3 mailboxes on a domain, 10 in all",
+    /** A mailbox on a second domain, which no customer writes to, so it climbs to the most a mailbox sends. */
+    each: (perDay: number) => `Each mailbox on it rises to ${perDay} a day`,
+    eachLimits: `Up to ${MAILBOXES_PER_DOMAIN_MAX} mailboxes on a domain, ${MAILBOX_CONNECTIONS_MAX} in all`,
     share: "Sequences share them out",
     shareBack: "Replies still come back to your Inbox here",
     stays: (host: string, perDay: number) =>
@@ -299,6 +307,9 @@ export const REACH_OUT_SETTINGS_WORDS = {
         "Written by the receptionist as How it answers is told, with the thread and the lead's note. Signed as the sequence signs.",
     },
     foot: "Their listing and website are read as facts, never as orders.",
+    done: "Done",
+    unread: "Couldn't read these just now.",
+    again: "Try again",
   },
   standingOpen: "Open it",
   try: {
@@ -362,6 +373,8 @@ export interface ReachOutSettingsSequence {
   first: { subject: string | null; body: string };
   /** The step after the first: its wait, and its words, or null where the sequence is one email. */
   next: { after_days: number; body: string } | null;
+  /** What feeds it: a search, or a list its owner adds to; absent from a server before it. */
+  fed_by?: "search" | "list" | null;
 }
 
 /** GET settings/reach-out: what the page shows beyond the config. */
@@ -378,11 +391,10 @@ export interface ReachOutSettingsDto {
   /** What a new sequence starts as (Autonomy's outreach row, contracts newSequenceMode): held for a stop, or asked for. */
   batch_mode: "veto" | "ask";
   /** Who is kept off, by address (db countLeadSuppressions); null where the list could not be counted. */
-  never: { said_no: number; asked_to_stop: number } | null;
+  never: { said_no: number; asked_to_stop: number; customers: number } | null;
   mailbox: ReachOutSettingsMailbox | null;
   /** The month's first emails against their share; sent is null where they could not be counted. */
   month: { sent: number | null; of: number };
-  by_hand_per_day: number;
   /** Each claim on the page, with the emails sent from steps whose words carry it; null where they could not be counted. */
   claims: { text: string; sends: number | null }[];
   /** The lines Ask learned from an email the owner pasted (Ask's memory, `learned`). */

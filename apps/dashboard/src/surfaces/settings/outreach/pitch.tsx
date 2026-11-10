@@ -7,6 +7,7 @@
 import {
   REACH_OUT_LIMITS,
   REACH_OUT_SETTINGS_WORDS,
+  isReplyOffer,
   REPLY_OFFERS,
   REPLY_OFFER_WORDS,
   reachOutOfferOf,
@@ -22,8 +23,6 @@ import { reachOutFold } from "./box";
 import { OutreachCard, storedReachOut, type OutreachShared } from "./card";
 
 const PITCH_WORDS = REACH_OUT_SETTINGS_WORDS.pitch;
-
-const isReplyOffer = (value: string): value is ReplyOffer => REPLY_OFFERS.some((o) => o === value);
 
 /** What should they do next: three choices, each saying what it does, and whether there is a link to offer. */
 function NextStepFold(shared: OutreachShared) {

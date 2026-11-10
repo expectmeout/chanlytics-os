@@ -26,6 +26,10 @@ export type ColdEmailStandingKind =
 export interface ColdEmailRunning {
   root_id?: string;
   name: string;
+  /** What feeds it: a search the finder keeps current, or a list its owner adds to; null where it was not read. */
+  fed_by?: "search" | "list" | null;
+  /** The search it writes to, where it has one. */
+  search_id?: string | null;
   sent: number | null;
   wroteBack: number | null;
   interested: number | null;
@@ -38,7 +42,10 @@ export interface ColdEmailStandingFacts {
   hasAddress: boolean;
   /** Emails held for want of an address (`no_business_address`), or null where they could not be counted. */
   heldForAddress: number | null;
-  waitingRun: { id: string; planned: number | null; name: string; first: boolean } | null;
+  /** `first` is null where what its sequence sent could not be read: neither first nor next is said then. */
+  waitingRun: { id: string; planned: number | null; name: string; first: boolean | null } | null;
+  /** Other running sequences with a batch waiting for an OK, beside the one the answer names. */
+  othersWaiting?: number;
   month: { sent: number | null; of: number };
   running: readonly ColdEmailRunning[];
   /** A sequence to leads exists, running or not. */
@@ -68,15 +75,21 @@ export interface ColdEmailStanding {
   to: string | null;
   /** Whether it waits on the owner: drawn amber, and what Today speaks up about. */
   needs_you: boolean;
+  /** The permission its press needs (contracts ROLE_PERMISSIONS), so a page gates it; null where anyone may. */
+  needs: ColdEmailPressNeeds;
   /** What is left before a first email, in the order a person does it. */
   steps: ColdEmailStep[];
 }
 
-/** Today's one line on cold email: what waits, the press, and where it goes. */
+/** What a press of the one answer needs: approving a batch, a setting, the lead finder, or nothing. */
+export type ColdEmailPressNeeds = "approve" | "settings" | "find" | null;
+
+/** Today's one line on cold email: what waits, the press, where it goes, and what the press needs. */
 export interface ColdEmailNote {
   headline: string;
   act: string;
   to: string;
+  needs: ColdEmailPressNeeds;
 }
 
 /** What refuses a new sequence to leads with no mailbox to send it, on New, on Ask's card and at the door. */
@@ -84,11 +97,18 @@ export const COLD_EMAIL_NEEDS_MAILBOX =
   "Connect your mailbox first: a sequence to leads sends from your own address. Settings › Cold email has the way.";
 /** Ask's word where the mailboxes could not be read: nobody is told they have none on a read that failed. */
 export const COLD_EMAIL_MAILBOX_UNREAD = "Couldn't check your mailbox just now. Try again in a moment.";
+/** The address that opens Cold email's connect sheet: Today's line and a lead's Connect land on it. */
+export const COLD_EMAIL_CONNECT_ROUTE = "admin/outreach/connect";
+
+/** Whether a refusal says no mailbox is connected at all (shell/refusal.ts reads its door's `needs`), never by its words. */
+export const refusalNeedsMailbox = (r: { needsMailbox?: true }): boolean => r.needsMailbox === true;
+
 /** What a door says to a new sequence asking to be sent by hand. */
 export const NO_SENDING_BY_HAND =
   "Chanlytics sends cold email from your mailbox, so sending each by hand isn't offered.";
 
-const CONNECTIONS_PAGE = "admin/integrations";
+/** Settings › Connections, where a mailbox is reconnected, resumed or fixed. */
+export const CONNECTIONS_PAGE = "admin/integrations";
 /** Why a mailbox needs reconnecting: the top card and a refused sequence say it alike. */
 const SIGN_IN_ASKED = "Google asked you to sign in again.";
 const ADDRESS_ROUTE = "admin/workspace/address";
@@ -142,18 +162,21 @@ const othersSend = (senders: number): string =>
 
 /** A held mailbox asks even beside one that sends: the emails planned on it wait until it is fixed. */
 const heldAnswer: Rule = (f) => {
-  const held = f.mailboxes.find((m) => m.state === "held");
+  const allHeld = f.mailboxes.filter((m) => m.state === "held");
+  const held = allHeld[0];
   if (!held) return null;
   const holdReason = sentence(mailboxHoldWords(held.held_why));
   const senders = sendersOf(f);
+  const which = allHeld.length === 1 ? "One mailbox is" : `${allHeld.length} mailboxes are`;
   return {
     kind: "held",
-    headline: senders > 0 ? "One mailbox is paused to protect your name" : "Sending paused to protect your name",
+    headline: senders > 0 ? `${which} paused to protect your name` : "Sending paused to protect your name",
     detail:
       senders > 0 ? `${holdReason} ${othersSend(senders)} Fix it, then resume.` : `${holdReason} Fix it, then resume.`,
     act: "See what to fix",
     to: CONNECTIONS_PAGE,
     needs_you: true,
+    needs: "settings",
   };
 };
 
@@ -170,6 +193,7 @@ const reconnectAnswer: Rule = (f) => {
     act: "Reconnect",
     to: CONNECTIONS_PAGE,
     needs_you: true,
+    needs: "settings",
   };
 };
 
@@ -195,9 +219,12 @@ export function coldEmailCannotSendWhy(
   return COLD_EMAIL_NEEDS_MAILBOX;
 }
 
-/** Nothing running and things left: the list, unless the mailbox alone is left, which has an answer of its own. */
+/**
+ * Before a first sequence, the things left: the list, unless the mailbox alone is left, which has an answer of its own.
+ * A workspace that has had one hears each thing that stands in its way by its own answer, the address's with its count.
+ */
 const notStartedAnswer: Rule = (f, left) => {
-  if (f.running.length > 0 || left.length === 0) return null;
+  if (f.hadSequence || f.running.length > 0 || left.length === 0) return null;
   if (left.length === 1 && left[0]?.id === "mailbox") return null;
   return {
     kind: "not_started",
@@ -206,6 +233,7 @@ const notStartedAnswer: Rule = (f, left) => {
     act: null,
     to: null,
     needs_you: true,
+    needs: null,
   };
 };
 
@@ -214,10 +242,11 @@ const noMailboxAnswer: Rule = (f) =>
     ? {
         kind: "no_mailbox",
         headline: "Connect your mailbox to start sending",
-        detail: "Emails go out from your own address, so replies come back to you. Nothing can go out without one.",
+        detail: "Emails go out from your own address, so replies come back to you. A new sequence needs one.",
         act: "Connect Google",
         to: null,
         needs_you: true,
+        needs: "settings",
       }
     : null;
 
@@ -232,20 +261,33 @@ const noAddressAnswer: Rule = (f) => {
     act: "Add your address",
     to: ADDRESS_ROUTE,
     needs_you: true,
+    needs: "settings",
   };
 };
+
+/** "Your first 12 emails are ready", "Your next email is ready", or with neither known, "Emails are ready". */
+function readyForOkWords(planned: number | null, first: boolean | null): string {
+  const one = planned === 1;
+  const ready = one ? "is ready for your OK" : "are ready for your OK";
+  const what = one ? "email" : "emails";
+  if (first === null) return planned === null ? `Emails ${ready}` : `${planned} ${what} ${ready}`;
+  const size = planned === null || one ? "" : `${planned} `;
+  return `Your ${first ? "first" : "next"} ${size}${what} ${ready}`;
+}
 
 const waitingAnswer: Rule = (f) => {
   const run = f.waitingRun;
   if (!run) return null;
-  const size = run.planned === null ? "" : ` ${run.planned}`;
+  const more = f.othersWaiting ?? 0;
+  const others = more > 0 ? ` ${plural(more, "other sequence waits", "other sequences wait")} too.` : "";
   return {
     kind: "waiting_ok",
-    headline: `Your ${run.first ? "first" : "next"}${size} emails are ready for your OK`,
-    detail: `Written and checked for ${run.name}. Nothing goes out until you say so.`,
+    headline: readyForOkWords(run.planned, run.first),
+    detail: `Written and checked for ${run.name}. Nothing goes out until you say so.${others}`,
     act: "Read and approve",
     to: runRoute(run.id),
     needs_you: true,
+    needs: "approve",
   };
 };
 
@@ -258,21 +300,38 @@ const monthAnswer: Rule = (f) =>
         act: null,
         to: null,
         needs_you: false,
+        needs: null,
       }
     : null;
 
+/**
+ * A running sequence with nobody left to write to. One its search feeds asks for more businesses, on that search; one a
+ * list feeds has written to its whole list, which is news and nothing to fix: its own page adds people to it.
+ */
 const noOneNewAnswer: Rule = (f) => {
-  const dry = f.running.find((r) => r.waitingLeads === 0);
-  return dry
-    ? {
-        kind: "no_one_new",
-        headline: `${dry.name} has no one new to write to`,
-        detail: "Its follow-ups keep going. Find more businesses, or try a nearby city.",
-        act: "Find more businesses",
-        to: leadsRoute({}),
-        needs_you: true,
-      }
-    : null;
+  const dry = f.running.filter((r) => r.waitingLeads === 0);
+  const first = dry[0];
+  if (!first) return null;
+  const more = dry.length > 1 ? ` ${plural(dry.length - 1, "other sequence is", "other sequences are")} the same.` : "";
+  if (first.fed_by === "list")
+    return {
+      kind: "no_one_new",
+      headline: `${first.name} has written to everyone on its list`,
+      detail: `Its follow-ups keep going. Add people to its list to write to more.${more}`,
+      act: "Open the sequence",
+      to: first.root_id ? sequenceRoute(first.root_id) : "campaigns",
+      needs_you: false,
+      needs: null,
+    };
+  return {
+    kind: "no_one_new",
+    headline: `${first.name} has no one new to write to`,
+    detail: `Its follow-ups keep going. Find more businesses, or try a nearby city.${more}`,
+    act: "Find more businesses",
+    to: leadsRoute({ searchId: first.search_id ?? null }),
+    needs_you: true,
+    needs: "find",
+  };
 };
 
 /** Every mailbox paused by its owner. It outranks a batch that waits, since an OK alone would send nothing. */
@@ -288,6 +347,7 @@ const pausedAnswer: Rule = (f) => {
     act: "Open Connections",
     to: CONNECTIONS_PAGE,
     needs_you: run !== null,
+    needs: "settings",
   };
 };
 
@@ -302,6 +362,7 @@ const readyAnswer: Rule = (f) =>
         act: "Start a sequence",
         to: newForLeadsRoute(),
         needs_you: false,
+        needs: "approve",
       }
     : null;
 
@@ -327,6 +388,7 @@ function sendingAnswer(f: ColdEmailStandingFacts): NonNullable<Answer> {
     act: null,
     to: newest?.root_id ? sequenceRoute(newest.root_id) : "campaigns",
     needs_you: false,
+    needs: null,
   };
 }
 
@@ -339,7 +401,9 @@ const COLD_EMAIL_ROUTE = "admin/outreach";
  */
 export function coldEmailNoteOf(standing: ColdEmailStanding): ColdEmailNote | null {
   if (!standing.needs_you) return null;
-  return { headline: standing.headline, act: standing.act ?? "Open", to: standing.to ?? COLD_EMAIL_ROUTE };
+  // "Connect Google" opens the connect sheet itself, as the page's own press does.
+  const own = standing.kind === "no_mailbox" ? COLD_EMAIL_CONNECT_ROUTE : COLD_EMAIL_ROUTE;
+  return { headline: standing.headline, act: standing.act ?? "Open", to: standing.to ?? own, needs: standing.needs };
 }
 
 /**

@@ -316,3 +316,24 @@ test("either deploy order works: on a database before the change_playbook door, 
     "The hour must be a whole number from 9 to 20.",
   );
 });
+
+test("a sequence to leads is started or turned back on only while a mailbox can send it (decision 0116)", async () => {
+  const STEP = "99999999-9999-4999-8999-999999999994";
+  const nudge = row(STEP, B, {
+    kind: "reach_out",
+    trigger: "after_step",
+    policy_class: "outreach",
+    state: "paused",
+    name: "Gyms, a nudge",
+  });
+  const tables = world({ playbooks: [row(K1, A), row(K2, B), nudge], mailbox_connections: [] });
+  setServiceClient(fakeDb(tables));
+  await refused(put(tables, STEP, { state: "running" }), "validation", 400, "Connect your mailbox first");
+  assert.equal(tables.playbooks.find((x) => x.id === STEP).state, "paused", "nothing written");
+  // One that is there and can't send says which it is.
+  tables.mailbox_connections.push({ id: "m1", tenant_id: B, state: "reconnect", held_why: null });
+  await refused(put(tables, STEP, { state: "running" }), "validation", 400, "needs reconnecting");
+  tables.mailbox_connections[0].state = "connected";
+  const on = await put(tables, STEP, { state: "running" });
+  assert.equal(on.state, "running");
+});

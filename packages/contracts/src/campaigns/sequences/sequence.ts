@@ -75,3 +75,10 @@ export function batchModeOf(state: {
   if (!state.words_ok_at) return "ask";
   return isSequenceMode(state.mode) ? state.mode : "ask";
 }
+
+/**
+ * Whether a cold email sequence's next batch waits for an OK: batchModeOf, where cold email never goes on its own, so
+ * anything but a hold to stop asks. The one rule its pages, its leads' lines and its run say it by.
+ */
+export const coldBatchAsks = (state: { mode: string | null | undefined; words_ok_at: string | null | undefined }) =>
+  batchModeOf(state) !== "veto";

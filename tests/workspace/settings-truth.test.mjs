@@ -58,7 +58,7 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   const business = frame["workspace.tsx"];
   assert.ok(business.includes("if (settings && settings.broken) return <BrokenConfig"));
   assert.ok(
-    business.indexOf("if (settings && settings.broken)") < business.indexOf("if (real) return"),
+    business.indexOf("if (settings && settings.broken)") < business.indexOf("if (real ||"),
     "the broken branch wins over the record",
   );
   // Every notifications write is closed on a broken config, and says why: drawn, in settings-owner-panes.test.mjs ("F32:

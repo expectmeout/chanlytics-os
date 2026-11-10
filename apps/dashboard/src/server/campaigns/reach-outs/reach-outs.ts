@@ -8,6 +8,7 @@ import {
   isReachOutHold,
   draftRefusalOf,
   handOf,
+  coldBatchAsks,
   isLeadList,
   isReachOutRun,
   linkCount,
@@ -134,8 +135,8 @@ export async function listChains(ctx: RouteContext, tenantId: TenantId): Promise
       next: {
         run_hour: root.run_hour,
         last_run_for: root.last_run_for,
-        // Cold email never sends on its own: a mode it cannot take reads as ask, as its run reads it.
-        mode: modes.get(root.id) === "veto" ? "veto" : "ask",
+        // As its run plans it: a first run whose words are new asks whatever the mode (contracts coldBatchAsks).
+        mode: coldBatchAsks({ mode: modes.get(root.id), words_ok_at: root.words_ok_at }) ? "ask" : "veto",
         may_spend: spend,
         waiting_run_id: waitingOf.get(root.id) ?? null,
       },

@@ -179,6 +179,17 @@ const sendOf = async (batch, leadId) =>
   ok(await db.from("sequence_sends").select("id, state, reason").eq("batch_id", batch).eq("lead_id", leadId).single());
 
 const W = {};
+/** A connected mailbox: cold email sends from one, and a sequence to leads is refused with none (00585). */
+const connectMailbox = (tenant, label) =>
+  db.from("mailbox_connections").insert({
+    tenant_id: tenant,
+    provider: "google",
+    provider_account: `acct-${label}-${stamp}`,
+    address: `sam@${label}-${stamp}.example`,
+    host: `${label}-${stamp}.example`,
+    from_name: "Sam",
+  });
+
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
@@ -186,6 +197,7 @@ before(async () => {
     db.from("tenants").insert({ slug: `road-a-${stamp}`, name: "Harbor Books", timezone: "America/Los_Angeles" }),
   );
   ok(await db.rpc("provision_tenant", { p_tenant_id: A }));
+  ok(await connectMailbox(A, "road"));
   B = await one(db.from("tenants").insert({ slug: `road-b-${stamp}`, name: "Elsewhere Co" }));
   for (const role of ["owner", "operator", "viewer"]) as[role] = await person(role);
   as.stranger = await person("owner", B, "stranger");

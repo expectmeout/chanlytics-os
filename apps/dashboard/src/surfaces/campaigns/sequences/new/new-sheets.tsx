@@ -45,9 +45,9 @@ import { ListRow } from "../../../kit/list-row/list-row";
 import { Select } from "../../../kit/select/select";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
-import { keyPress, routeDoor } from "../../../frame-verbs";
+import { gate, keyPress, routeDoor } from "../../../frame-verbs";
 import { pageClock } from "@/bridge/zone";
-import { HistoryChoice } from "../../../settings/connections/history-choice";
+import { HistoryChoice, historyKept } from "../../../settings/connections/history-choice";
 import { WhenDayTime } from "../../broadcasts/when";
 import * as M from "./new-model";
 import { AudienceToggle, CaseNote } from "./new-parts";
@@ -723,7 +723,7 @@ export function FromSheet(p: {
 }) {
   const box = p.draft.mailbox;
   const needs = !!box && !box.label;
-  const [history, setHistory] = useState<MailboxHistory>("six_months");
+  const [history, setHistory] = useState<MailboxHistory>(historyKept);
   return (
     <PickSheet
       open={p.open}
@@ -733,7 +733,12 @@ export function FromSheet(p: {
       testid="sq-nw-from-sheet"
       foot={
         needs ? (
-          <Button variant="primary" onClick={() => p.onConnect(history)} data-testid="sq-nw-from-connect">
+          <Button
+            variant="primary"
+            onClick={() => p.onConnect(history)}
+            data-testid="sq-nw-from-connect"
+            {...gate("settings", "connect a mailbox")}
+          >
             {COLD_EMAIL_CONNECT_WORDS.google}
           </Button>
         ) : undefined

@@ -2,8 +2,9 @@
  * One step of a reach-out, on its day (Reach out §4.1, §4.5): who it writes to, a run for them, and when each email
  * goes. A run of a step whose words are new to its owner waits for them (decision 0064: its first, and its first after
  * new words); any other gives thirty minutes to be stopped and tells its owner when it goes, or waits too when its
- * sequence asks for each (its mode, E7), and while any run of the chain waits nothing more is made. A lead the door would refuse (outreachRefusalOf, the door's own mapping), one whose email from the
- * chain bounced (C4), and one that keeps no open hour all week are skipped with why, so none of them heads the step's
+ * sequence asks for each (its mode, E7), and while any run of the chain waits nothing more is made. A lead the door
+ * would refuse (outreachRefusalOf, the door's own mapping), one whose email from the chain bounced (C4), and one that
+ * keeps no open hour all week are skipped with why, so none of them heads the step's
  * page every day. What the timetable cannot place within its horizon waits for the next day's run. A reach-out its owner
  * sends (00429) plans no mailbox and no timetable: its day's share (REACH_OUT_DRAFTS_PER_DAY, less what the chain's runs
  * of the day already hold, so the steps after the first, planned first, are never crowded out), never past the pile its
@@ -72,7 +73,7 @@ export async function runReachOut(
   // A run of the chain waits for its owner: nothing more is assembled until they have answered it.
   if (await ports.chainWaits(step.root_id)) return { outcome: "held", reason: "waiting_for_you", planned: 0 };
   // Its first run asks, because its words are new; after that its batches go as Before each batch says, first emails
-  // and follow-ups alike (decision 0077, amended 9 Nov 2026). Cold email never just goes: a sequence's mode is held or asked.
+  // and follow-ups alike (decision 0077, amended 9 Nov 2026). Cold email never just goes: its mode is held or asked.
   const asks = batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at }) === "ask";
 
   // Who it may write to, and who it skips with why: a later step's leads the door would refuse, or whose email from the
@@ -190,7 +191,8 @@ export async function runReachOut(
   const counts = { planned: placed.length, skipped: skips.length };
   if (asks) {
     await ports.recordRun(run, counts);
-    await ports.notifyWaiting(run.id, placed.length, firstAt);
+    // Planned and recorded, it waits whether or not the bell rang: Today and the page show it, as the hold path's does.
+    await ports.notifyWaiting(run.id, placed.length, firstAt).catch(() => undefined);
     return { outcome: "held", reason: "waiting_for_you", planned: placed.length };
   }
   return goesOrWaits(ports, step, run, { counts, firstAt });

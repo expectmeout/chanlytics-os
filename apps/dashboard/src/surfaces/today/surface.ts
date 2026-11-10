@@ -37,9 +37,6 @@ function publishToday(h: TodayReadDto, now: Date): boolean {
   return true;
 }
 
-/** Whether the workspace has a search, from what the last read held: what Today's note on cold email asks first. */
-export const todayHasSearches = (): boolean => (lastHeld?.searches?.length ?? 0) > 0;
-
 /** The rows that come and go by the clock alone, made again from what the last read held (override.ts `rederive`). */
 export function rederiveToday(now: Date): boolean {
   return lastHeld ? publishToday(lastHeld, now) : false;

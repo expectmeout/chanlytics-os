@@ -328,9 +328,7 @@ export const LEAD_WORDS = {
     { id: "warmer", label: "Warmer" },
   ],
   draftWriting: "Writing it…",
-  copiedDraft: "Copied the email.",
   /** The browser kept the clipboard shut: nothing was copied, and the mail app still carries the email. */
-  copyRefused: "Couldn't copy it here. Open it in your mail app instead.",
   firstDay: LEAD_FIRST_DAY,
   about: "About",
   reachHeading: "Reach",
