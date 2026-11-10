@@ -656,6 +656,33 @@ test("a list finds a video by the words spoken in it, and one still being prepar
   assert.equal(byName.files.length, 1);
 });
 
+test("a list finds what is meant: part of a word, without its accents or its capitals, and never by a grammar", async () => {
+  const nails = row(1, {
+    name: "uñas-acrílicas-rosa",
+    look: { ...row(1).look, line: "A set of gel nails, freshly done.", text_seen: ["Salón Bella"] },
+  });
+  const files = [nails, row(2)];
+  const found = async (about) => JSON.parse((await tool(files, { action: "list", about })).result).files.length;
+  for (const about of ["nail", "NAILS", "unas acrilicas", "salon", "Salón", "fresh gel", "nails, gel!"])
+    assert.equal(await found(about), 1, about);
+  assert.equal(await found("nail dusk"), 0, "every word, in the one file");
+  assert.equal(await found("lashes or nails"), 0, "or is a word like any other, and no file says it");
+  assert.equal(await found("-nails"), 1, "a leading hyphen takes nothing away");
+  assert.equal(await found(" , "), 2, "no words, every file");
+});
+
+test("a file is opened by its name in any language: read, seen and zoomed by the words its owner gave it", async () => {
+  const named = row(1, { name: "uñas-acrílicas-rosa" });
+  const got = JSON.parse((await tool([named, row(2)], { action: "get", name: "uñas-acrílicas-rosa" })).result);
+  assert.equal(got.name, "uñas-acrílicas-rosa");
+  const said = JSON.parse((await tool([named, row(2)], { action: "get", name: "Uñas acrílicas rosa" })).result);
+  assert.equal(said.name, "uñas-acrílicas-rosa", "as a person says it, cleaned as a name is");
+  const other = JSON.parse((await tool([row(1, { name: "新年-店内" })], { action: "get", name: "新年-店内" })).result);
+  assert.equal(other.name, "新年-店内", "no script is left out");
+  const none = JSON.parse((await tool([named], { action: "get", name: "unas-acrilicas-rosa" })).result);
+  assert.match(none.error, /no file named/, "a name is its own letters: the list is what finds it without them");
+});
+
 test("a video says the moment its look chose to stand for it, where it is read and where it is opened", async () => {
   const got = JSON.parse((await tool([clip(1)], { action: "get", name: "salon-tour-1" })).result);
   assert.equal(got.stands_at, "0:04.3");

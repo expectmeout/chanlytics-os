@@ -11299,6 +11299,7 @@ export type Database = {
           thread_id: string
         }[]
       }
+      search_fold: { Args: { p_text: string }; Returns: string }
       search_messages: {
         Args: {
           p_limit: number
