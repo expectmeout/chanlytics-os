@@ -2,7 +2,8 @@
  * A business's files on a real database (00551, decision 0099), with real sessions: who may use each door (a viewer reads and
  * changes nothing, an owner both, a stranger finds nothing), the service's doors shut to a member, the copy's id and the
  * fingerprint out of a member's reach, a row only from its bytes proven until they are gone, one row a picture, a removed one not
- * brought back, the owner's word kept over the look's, a good look kept over a failed try, and the job each step leaves.
+ * brought back, the owner's word kept over the look's, a good look kept over a failed try, and the job each step leaves. And the
+ * library searched where it is kept (00596 files_found), in two workspaces of its own, so no other test's files are counted.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
  */
@@ -601,4 +602,153 @@ test("the bucket is private and takes only the kinds and the size we keep", { sk
   assert.equal(bucket.file_size_limit, 25_000_000);
   assert.ok(bucket.allowed_mime_types.includes("image/heic"));
   assert.ok(!bucket.allowed_mime_types.includes("image/svg+xml"));
+});
+
+/* ------------------------------------------------------------------------- the library searched where it is kept (00596) -- */
+
+let D;
+let E;
+const lib = {};
+
+/** A file row as the service role keeps one, the n-th minute of the day: a picture unless it says it is a video. */
+function libRow(key, tenant, minute, over = {}) {
+  lib[key] = randomUUID();
+  return {
+    id: lib[key],
+    tenant_id: tenant,
+    status: "filed",
+    source: "upload",
+    name: `${key}-${stamp}`,
+    mime: "image/jpeg",
+    bytes: 1000,
+    fingerprint: `fp-lib-${key}-${stamp}`,
+    look_status: "done",
+    created_at: `2026-11-10T10:${String(minute).padStart(2, "0")}:00Z`,
+    ...over,
+  };
+}
+const libClip = (ref) => ({ kind: "video", mime: "video/mp4", media_ref: `${ref}-${stamp}`, media_status: "ready" });
+
+/** What the member's session is answered: the page's files by their keys, and how many in all. */
+async function libFound(who, args, tenant = D) {
+  const answer = ok(
+    await as[who].client.rpc("files_found", { p_tenant_id: tenant, p_status: "filed", p_limit: 40, ...args }),
+    "files_found",
+  );
+  const keyOf = new Map(Object.entries(lib).map(([k, v]) => [v, k]));
+  return { keys: answer.ids.map((i) => keyOf.get(i) ?? i), total: answer.total };
+}
+
+before(async () => {
+  if (skip) return;
+  const tenants = ok(
+    await db
+      .from("tenants")
+      .insert([
+        { name: `Library D ${stamp}`, slug: `files-d-${stamp}` },
+        { name: `Library E ${stamp}`, slug: `files-e-${stamp}` },
+      ])
+      .select("id"),
+    "the library's workspaces",
+  );
+  D = tenants[0].id;
+  E = tenants[1].id;
+  as.libOwner = await member("lib-owner", D, "owner");
+  as.libStranger = await member("lib-stranger", E, "owner");
+  ok(
+    await db.from("files").insert([
+      libRow("storefront", D, 1, {
+        shows: "storefront",
+        look: { line: "A shop front at dusk.", text_seen: ["Open late"] },
+      }),
+      libRow("balayage", D, 2, {
+        ...libClip("balayage"),
+        shows: "work",
+        seconds: 24,
+        look: { line: "A colour from start to finish.", moments: [{ at: 21.5, what: "the finished colour" }] },
+        sound: { words: { language: "es", voices: 1, text: "Bienvenidos al salón", cues: [], events: [] } },
+        sound_said: "Spanish, music",
+      }),
+      libRow("waiting", D, 3, { status: "inbox", source: "website" }),
+      libRow("post", D, 4, { source: "made", shows: "graphic", look: { line: "A post." } }),
+      libRow("unsorted", D, 5, { look_status: "waiting" }),
+      libRow("half-sent", D, 6, { ...libClip("half"), media_status: "uploading", look_status: "waiting" }),
+      libRow("gone", D, 7, { removed_at: "2026-11-10T11:00:00Z", look: { line: "A shop front." } }),
+      libRow("theirs", E, 8, { shows: "storefront", look: { line: "A shop front at dusk." } }),
+    ]),
+    "the library's files",
+  );
+});
+
+after(async () => {
+  if (skip) return;
+  const all = [D, E];
+  await db.from("files").delete().in("tenant_id", all);
+  await db.from("memberships").delete().in("tenant_id", all);
+  await db.from("tenants").delete().in("id", all);
+});
+
+test(
+  "the library: everything kept, newest first, and nothing removed, on its way, waiting or another's",
+  { skip },
+  async () => {
+    assert.deepEqual(await libFound("libOwner", {}), {
+      keys: ["unsorted", "post", "balayage", "storefront"],
+      total: 4,
+    });
+    assert.deepEqual(await libFound("libOwner", { p_status: "inbox" }), { keys: ["waiting"], total: 1 });
+  },
+);
+
+test(
+  "the library finds a file by its name, its sentence, its words, a clip's moments, its sound and what is said",
+  { skip },
+  async () => {
+    for (const [words, keys] of [
+      ["storefront", ["storefront"]],
+      ["dusk", ["storefront"]],
+      ["open late", ["storefront"]],
+      ["finished colour", ["balayage"]],
+      ["spanish", ["balayage"]],
+      ["bienvenidos salón", ["balayage"]],
+      ["shop", ["storefront"]],
+    ])
+      assert.deepEqual((await libFound("libOwner", { p_words: words })).keys, keys, words);
+    assert.deepEqual(await libFound("libOwner", { p_words: "dusk bienvenidos" }), { keys: [], total: 0 }, "every word");
+    assert.equal((await libFound("libOwner", { p_words: "   " })).total, 4, "blank words find every file");
+    assert.deepEqual(
+      await libFound("libOwner", { p_words: "-dusk" }),
+      { keys: [], total: 0 },
+      "exclusions alone, none",
+    );
+  },
+);
+
+test(
+  "the library's shelf is shelfFilterOf's parts: what it shows, posts or not, the unsorted on other",
+  { skip },
+  async () => {
+    assert.deepEqual((await libFound("libOwner", { p_made: false, p_shows: ["storefront", "interior"] })).keys, [
+      "storefront",
+    ]);
+    assert.deepEqual((await libFound("libOwner", { p_made: true })).keys, ["post"]);
+    assert.deepEqual((await libFound("libOwner", { p_made: false, p_shows: ["other"], p_or_unsorted: true })).keys, [
+      "unsorted",
+    ]);
+    assert.deepEqual((await libFound("libOwner", { p_made: false, p_shows: ["other"] })).keys, [], "unsorted, unasked");
+  },
+);
+
+test("the library answers a page, and counts them all", { skip }, async () => {
+  assert.deepEqual(await libFound("libOwner", { p_limit: 2 }), { keys: ["unsorted", "post"], total: 4 });
+  assert.deepEqual(await libFound("libOwner", { p_limit: 2, p_offset: 2 }), {
+    keys: ["balayage", "storefront"],
+    total: 4,
+  });
+  assert.deepEqual(await libFound("libOwner", { p_limit: 2, p_offset: 4 }), { keys: [], total: 4 });
+});
+
+test("the library: another workspace's member finds nothing of this one, under row security", { skip }, async () => {
+  assert.deepEqual(await libFound("libStranger", { p_words: "dusk" }), { keys: [], total: 0 });
+  assert.deepEqual(await libFound("libStranger", { p_words: "dusk" }, E), { keys: ["theirs"], total: 1 });
 });

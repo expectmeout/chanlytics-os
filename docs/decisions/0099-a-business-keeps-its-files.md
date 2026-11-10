@@ -392,6 +392,28 @@ first" cannot be said); and a failed video's fingerprint holding its twin out un
 (`file_video_begin`). The pictures a site or a listing showed before 00551 are brought by one `website_read` for the workspace:
 nothing reads them again by itself. Nothing here has met a real clip; the trial above still stands first.
 
+## The library in the database, and a clip's moments (00596)
+
+The content backend's review (10 Nov 2026, R4) found Ask's reads of the library shaped for a few photos: whenever it touched a
+file it read every row with its look, up to 1,000, and a search read every video's sound again to find words in it. Choosing a few
+seconds across a business's clips is the core of every piece Ask will make, so the library is read the way the rest of the app
+searches.
+
+- **A search is the database's** (00596 `files_found`): one shelf (contracts `shelfFilterOf`, given as its parts), newest first,
+  found by its words in `file_search_words` (a file's name, its look's sentence, the words written in it, a video's moments, how
+  it sounds and what is said in it) with a search box's grammar and the 'simple' configuration, as Ask's and the message search
+  are (00219), on one index (`files_found_words`). It answers a page's ids and how many in all; the rows are read through the
+  member's own columns. `listVideosHeard` and the read of every row (`listFiles`, `filesForAsk`) are gone.
+- **A named file is read alone** (`filesNamedForAsk`, packages/db `listFilesByName`): get, view, compare, zoom, listen and a post
+  read the rows they name, by name or by id.
+- **A video's look names its moments** (`VIDEO_LOOK_EDITION` 2): up to five frames of its sheet worth using on their own, best
+  first, each with what is there in a few words, kept as `look.moments` (`{ at, what }`). Get and view say them beside `stands_at`,
+  and a post from a clip starts from them. The raised edition reads every video kept again, a few at a time (the sweep); a later
+  look renames nothing, so the names people use stay.
+
+Left: a clip's own date (its row holds only when it was added), which needs the date read out of a photo and a clip, each its
+own way, and a reading library weighed under decision 0054.
+
 ## Not here
 
 Making pictures with a model (step 4): Claude Video/docs/2026-11-06-ask-eyes-fundamentals.md says the order.

@@ -8645,6 +8645,15 @@ export type Database = {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      file_search_words: {
+        Args: {
+          p_look: Json
+          p_name: string
+          p_sound: Json
+          p_sound_said: string
+        }
+        Returns: string
+      }
       file_sound_keep: {
         Args: {
           p_by: Json
@@ -8675,6 +8684,19 @@ export type Database = {
           p_name: string
           p_seconds: number
           p_tenant_id: string
+        }
+        Returns: Json
+      }
+      files_found: {
+        Args: {
+          p_limit: number
+          p_made?: boolean
+          p_offset?: number
+          p_or_unsorted?: boolean
+          p_shows?: string[]
+          p_status: string
+          p_tenant_id: string
+          p_words?: string
         }
         Returns: Json
       }

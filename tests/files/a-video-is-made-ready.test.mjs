@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { generateKeyPairSync } from "node:crypto";
 import { resetBreakers } from "@chanlytics/channels/shared";
+import { VIDEO_LOOK_EDITION } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { at, ROOT } from "../_cron-doors-world.mjs";
 
@@ -371,7 +372,7 @@ test("a clip Stream makes no sound for keeps that it has none, and goes straight
   await fileJobs(w.db).digest(job("video_digest", { file_id: F, step: "look", edition: "1" }), SOON());
   assert.deepEqual(
     w.tables.jobs.map((j) => [j.kind, j.payload]),
-    [["file_look", { file_id: F, edition: "1" }]],
+    [["file_look", { file_id: F, edition: String(VIDEO_LOOK_EDITION) }]],
   );
 });
 

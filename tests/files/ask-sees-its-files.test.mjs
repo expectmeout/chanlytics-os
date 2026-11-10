@@ -668,3 +668,21 @@ test("a video says the moment its look chose to stand for it, where it is read a
   assert.equal(before.stands_at, undefined, "nothing before its look");
   assert.equal(JSON.parse((await tool([row(2)], { action: "get", name: "photo-2" })).result).stands_at, undefined);
 });
+
+test("a video says the moments its look named, best first, with their times, where it is read and where it is opened", async () => {
+  const moments = [
+    { at: 21.5, what: "the finished colour at the mirror" },
+    { at: 1, what: "the before, roots showing" },
+    { at: "soon", what: "not a time" },
+    { at: 9 },
+  ];
+  const looked = clip(1, { look: { ...clip(1).look, moments } });
+  const got = JSON.parse((await tool([looked], { action: "get", name: "salon-tour-1" })).result);
+  assert.deepEqual(got.moments, ["0:21.5 the finished colour at the mirror", "0:01 the before, roots showing"]);
+  edge = async ({ ids }) =>
+    json200({ ok: true, copies: ids.map((id) => ({ id, file_id: "file_sheet", width: 2576, height: 1449 })) });
+  const opened = JSON.parse((await tool([looked], { action: "view", names: ["salon-tour-1"] })).result);
+  assert.deepEqual(opened.shown[0].moments, got.moments);
+  const older = JSON.parse((await tool([clip(1)], { action: "get", name: "salon-tour-1" })).result);
+  assert.equal(older.moments, undefined, "a clip read by the first edition names none until it is read again");
+});

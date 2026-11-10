@@ -126,7 +126,16 @@ export type FileLook = {
   looks_like_stock: boolean;
   /** A video's: the moment its poster is cut at, in seconds, the frame the look chose to stand for the clip. */
   poster_at?: number | null;
+  /**
+   * A video's: the few moments worth using on their own, best first, each at a frame of its sheet (VIDEO_LOOK_EDITION 2): when,
+   * in seconds, and what is there, in a few words.
+   */
+  moments?: { at: number; what: string }[];
 };
+
+/** How many moments a video's look keeps, and how long the words of one are. */
+const MOMENTS_MAX = 5;
+const MOMENT_WHAT_CHARS = 120;
 
 /** What the door keeps of an answer: the look, and the two things it lifts onto the row. */
 export interface FileLookRead {
@@ -176,9 +185,10 @@ function subjectOf(box: unknown, width: number, height: number): FileLook["subje
 
 /**
  * The edition of a video's look (stage B), apart from a picture's: a change to one prompt never reads the other's files again.
- * A change to what the model is told of a video raises it.
+ * A change to what the model is told of a video raises it. 2: it names the clip's moments as well as its poster (10 Nov 2026),
+ * so every video kept is read again by the sweep, a few at a time.
  */
-export const VIDEO_LOOK_EDITION = 1;
+export const VIDEO_LOOK_EDITION = 2;
 
 /** A video's look answers the same catalog, but for the box: it names the frame of the sheet that best stands for the clip. */
 export const FILE_VIDEO_LOOK_SCHEMA = {
@@ -192,6 +202,7 @@ export const FILE_VIDEO_LOOK_SCHEMA = {
     "text_seen",
     "quality",
     "poster_frame",
+    "moments",
     "colors",
     "issues",
     "looks_like_stock",
@@ -204,6 +215,15 @@ export const FILE_VIDEO_LOOK_SCHEMA = {
     text_seen: FILE_LOOK_SCHEMA.properties.text_seen,
     quality: FILE_LOOK_SCHEMA.properties.quality,
     poster_frame: { type: "integer" },
+    moments: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["frame", "what"],
+        properties: { frame: { type: "integer" }, what: { type: "string" } },
+      },
+    },
     colors: FILE_LOOK_SCHEMA.properties.colors,
     issues: FILE_LOOK_SCHEMA.properties.issues,
     looks_like_stock: FILE_LOOK_SCHEMA.properties.looks_like_stock,
@@ -240,19 +260,45 @@ Read it as a whole first: its structure and beats, camera and framing, edits and
 - text_seen: the words readable in the frames, word for word, the most prominent first, at most 40 pieces, each under 12 words.
 - quality: sharp is whether the frames are in focus; light is whether they are well lit.
 - poster_frame: the number of the frame, counting from 1 at the top left, that best stands for the whole video as its still.
+- moments: up to ${MOMENTS_MAX} frames worth using on their own, best first, as a post's picture or a reel's opening: the finished work, a before beside an after, hands at work, a reaction. Each is its frame's number and what is there, in a few plain words. Leave out a frame that is blurred, mid-cut, or only on the way to another.
 - colors: 2 or 3 main colors as #rrggbb.
 - issues: anything that hurts its use, in short plain sentences (shaky, too dark, a stranger's face, music it may not own), empty if none.
 - looks_like_stock: whether it looks like stock footage and not the business's own.`;
 }
 
-/** A video's look, read: the catalog a picture's is, its poster's moment from the frame it chose. */
+/** The time of a frame of the sheet, counting from 1, as the model names it; null for a frame the sheet does not hold. */
+function frameTimeOf(frame: unknown, times: readonly number[]): number | null {
+  if (typeof frame !== "number" || !Number.isInteger(frame)) return null;
+  const at = times[frame - 1];
+  return typeof at === "number" ? at : null;
+}
+
+/** The moments a look named, read: each at a frame the sheet holds, with words, once a frame, at most MOMENTS_MAX. */
+function answerMomentsOf(answer: unknown, times: readonly number[]): NonNullable<FileLook["moments"]> {
+  const kept: NonNullable<FileLook["moments"]> = [];
+  for (const m of Array.isArray(answer) ? answer : []) {
+    const at = isObj(m) ? frameTimeOf(m.frame, times) : null;
+    const words = isObj(m) ? cutTo(m.what, MOMENT_WHAT_CHARS) : "";
+    if (at === null || !words || kept.some((k) => k.at === at)) continue;
+    kept.push({ at, what: words });
+    if (kept.length === MOMENTS_MAX) break;
+  }
+  return kept;
+}
+
+/** A video's look, read: the catalog a picture's is, its poster's moment from the frame it chose, and the moments it named. */
 export function fileVideoLookOf(answer: unknown, sheet: { times: readonly number[] }): FileLookRead | null {
   const read = fileLookOf(answer, { width: 0, height: 0 });
   if (!read || !isObj(answer)) return read;
-  const frame =
-    typeof answer.poster_frame === "number" && Number.isInteger(answer.poster_frame) ? answer.poster_frame : 0;
-  const at = sheet.times[frame - 1];
-  return { ...read, look: { ...read.look, subject: null, poster_at: typeof at === "number" ? at : null } };
+  return {
+    ...read,
+    look: {
+      ...read.look,
+      subject: null,
+      poster_at: frameTimeOf(answer.poster_frame, sheet.times),
+      moments: answerMomentsOf(answer.moments, sheet.times),
+    },
+  };
 }
 
 /** The model's answer, read: null where it says nothing a person could use (no sentence at all). */
