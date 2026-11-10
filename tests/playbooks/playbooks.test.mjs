@@ -170,6 +170,18 @@ test("ten moments: People's lists and a cadence, two the calendar makes possible
       "saved_list",
       "proposal_waiting",
       "slot_opened",
+      // And the three an occasion starts (decision 0119): each goes to one person, at a time of their own.
+      "visit_soon",
+      "visit_missed",
+      "asked_no_booking",
+    ],
+  );
+  assert.deepEqual(
+    ["visit_soon", "visit_missed", "asked_no_booking"].map((id) => [triggerOf(id).kind, triggerOf(id).cls]),
+    [
+      ["occasion", "booking"],
+      ["occasion", "booking"],
+      ["occasion", "follow_up"],
     ],
   );
   assert.deepEqual(
@@ -1005,6 +1017,9 @@ test("what a moment's message is about (decision D1): a visit's, a proposal's an
   // A time a cancellation freed, offered to people who asked for one (0082): about their own ask, as the follow-up is.
   for (const trigger of ["visit_tomorrow", "visited", "proposal_waiting", "slot_opened"])
     assert.equal(messageAboutOfTrigger(trigger), "theirs", trigger);
+  // What an occasion starts is about the person's own visit or their own ask (decision 0119).
+  for (const trigger of ["visit_soon", "visit_missed", "asked_no_booking"])
+    assert.equal(messageAboutOfTrigger(trigger), "theirs", trigger);
   // Everything else is news the business chose to send, by whatever list or cadence.
   for (const trigger of ["everyone_monthly", "lapsed", "saved_list", "quiet_30", "new_week", "phoned_only"])
     assert.equal(messageAboutOfTrigger(trigger), "ours", trigger);
@@ -1016,7 +1031,7 @@ test("what a moment's message is about (decision D1): a visit's, a proposal's an
   for (const t of PLAYBOOK_TRIGGERS)
     assert.equal(
       messageAboutOfTrigger(t.id),
-      t.kind === "visit" || t.kind === "deal" || t.kind === "freed" ? "theirs" : "ours",
+      t.kind === "visit" || t.kind === "deal" || t.kind === "freed" || t.kind === "occasion" ? "theirs" : "ours",
       `${t.id} (${t.kind})`,
     );
 });

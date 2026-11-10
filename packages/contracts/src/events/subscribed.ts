@@ -14,6 +14,8 @@ export const SUBSCRIBED_EVENTS = {
     by: z.string().nullable().optional(),
     was_at: z.string().nullable().optional(),
   }),
+  // The message that carried the link is the event's subject; nothing it carries is read (decision 0119).
+  "booking_link.sent": z.looseObject({}),
   "contact.consent_changed": z.looseObject({
     consent: z.string(),
     source: z.string().nullable().optional(),

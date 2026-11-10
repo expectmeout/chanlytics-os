@@ -1439,6 +1439,8 @@ const PERSON_READS = {
   "sequence_sends.select": 1,
   // The sequences they are in now (decision 0060, S5); with none, their names are never asked.
   "sequence_enrollments.select": 1,
+  // What an occasion enrolled them for and has not sent yet (decision 0119).
+  "sequence_occasions.select": 1,
   "person_doubts.select": 1,
   "person_notes.select": 1,
   // The signers of their replies (db listSigners, decision 0052, #1566).

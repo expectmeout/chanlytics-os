@@ -104,6 +104,7 @@ export const JOB_PAYLOADS = {
   calendar_read: CARRIES_NOTHING,
   google_read: CARRIES_NOTHING,
   texts_read: CARRIES_NOTHING,
+  sequence_occasions: CARRIES_NOTHING,
   canary: CARRIES_NOTHING,
 } satisfies Record<JobKind, z.ZodType>;
 

@@ -74,6 +74,8 @@ test("every act of the head is answered, in its More's order; the reasons are de
     rec({ state: "draft", ...asleep }),
     rec({ state: "ended", first: null }),
     rec({ first: first({ trigger: "slot_opened" }) }),
+    // One an occasion starts goes to each person at their own time (decision 0119): never by hand.
+    rec({ first: first({ trigger: "visit_soon" }) }),
     rec({ starts: "leads" }, { wrote: true }),
     rec({ starts: "leads", state: "draft", ...asleep }, { chain: { steps: [{ n: 0, body: "" }] } }),
     rec({ starts: "date", state: "draft", first: null, once: { channel: "email" } }),

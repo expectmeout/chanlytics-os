@@ -449,6 +449,11 @@ export async function triggerPools(
       pools[momentTrigger.id] = null;
       continue;
     }
+    // An occasion's moment (decision 0119) has no pool to count: each person comes to it when something happens to them.
+    if (momentTrigger.kind === "occasion") {
+      pools[momentTrigger.id] = null;
+      continue;
+    }
     // A proposal's moment is not counted where who already had a follow-up could not be read.
     if (momentTrigger.kind === "deal" && !followUps) {
       pools[momentTrigger.id] = null;

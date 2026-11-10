@@ -1,6 +1,7 @@
 /** Words: next. */
 
 import { appointmentWords, type AppointmentWord } from "../../../journey/appointment-word";
+import { occasionWords } from "../../playbooks/triggers/occasions";
 import { campaignRunsOn, nextRunOf } from "../../playbooks/schedule";
 import { triggerOf } from "../../playbooks/triggers/notices";
 import { clockAhead, clockDate, clockTime, clockWhen, wallClockAt, zoneDayKey } from "../../../shared/clock";
@@ -17,6 +18,11 @@ export interface SequenceNext {
   at: number;
   people: number | null;
   soon: boolean;
+  /**
+   * For a sequence an occasion starts (decision 0119): how many people wait for their own time, of whom `at` is the
+   * first's. Absent for a batch, which goes to its people together.
+   */
+  waiting?: number;
 }
 
 /**
@@ -36,10 +42,16 @@ export function sequenceNextOf(
   if (row.state !== "on" || row.starts === "date") return null;
   if (row.next)
     return { at: Date.parse(row.next.at), people: row.next.people > 0 ? row.next.people : null, soon: false };
+  // An occasion's sequence makes no batch ahead: the first person waiting is its next, each at a time of their own.
+  if (row.coming && row.coming.people > 0)
+    return { at: Date.parse(row.coming.at), people: null, soon: false, waiting: row.coming.people };
   return row.starts === "moment" || row.starts === "list" ? firstRunNext(row, lastRunFor, tz, nowMs) : null;
 }
 
-/** Its first step's next run by its hour (00462 sequence_steps_due); null where it cannot know, and a freed time's (0082). */
+/**
+ * Its first step's next run by its hour (00462 sequence_steps_due); null where it cannot know, for a freed time's (0082),
+ * and for one an occasion starts (0119): neither runs by the hour.
+ */
 function firstRunNext(
   row: SequenceRowDto,
   lastRunFor: string | null | undefined,
@@ -47,7 +59,8 @@ function firstRunNext(
   nowMs: number,
 ): SequenceNext | null {
   const first = row.first;
-  if (lastRunFor === undefined || !first || triggerOf(first.trigger)?.kind === "freed") return null;
+  const kind = first ? triggerOf(first.trigger)?.kind : null;
+  if (lastRunFor === undefined || !first || kind === "freed" || kind === "occasion") return null;
   const now = new Date(nowMs);
   if (!campaignRunsOn(first, { tz, now })) return null;
   const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
@@ -71,9 +84,13 @@ export function leadsPlannedWords(
   return next ? sequenceNextWords(next, tz, nowMs) : null;
 }
 
-/** The next batch in words, after "Next": "tomorrow 10:00 AM · 3 people", "within the hour", "now". */
+/**
+ * The next batch in words, after "Next": "tomorrow 10:00 AM · 3 people", "within the hour", "now". For a sequence an
+ * occasion starts, the first person's time and how many wait behind it: "today 2:00 PM · first of 5 people".
+ */
 export function sequenceNextWords(next: SequenceNext, tz: string, nowMs: number): string {
   const when = next.soon ? "within the hour" : clockAhead(next.at, tz, nowMs);
+  if (next.waiting) return next.waiting === 1 ? `${when} · 1 person` : `${when} · first of ${next.waiting} people`;
   return next.people ? `${when} · ${plural(next.people, "person", "people")}` : when;
 }
 
@@ -284,6 +301,10 @@ export function momentStartsSentence(trigger: string | null, hour: number | null
       return `When a proposal waits with nothing back${at}`;
     case "slot_opened":
       return "When a cancellation frees a time"; // never by the hour (decision 0082)
+    case "visit_soon":
+    case "visit_missed":
+    case "asked_no_booking":
+      return occasionWords(trigger, word).sentence(at); // each person's own time (decision 0119)
     default:
       return `At its moment${at}`;
   }

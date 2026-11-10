@@ -189,6 +189,11 @@ export const JOB_KINDS = [
   "calendar_read",
   "google_read",
   "texts_read",
+  /**
+   * A workspace's occasions whose time has come (00598, decision 0119), handed out by the sequences' clock each minute,
+   * one job a workspace while one waits or runs: each due person's step is run or left. Payload {}: it asks what is due.
+   */
+  "sequence_occasions",
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
@@ -201,7 +206,8 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * it (decision 0048, 00409); `visit_notice` tells it once on the bell when a booking arrived, from the appointment's
  * event whichever door wrote it (00410, S1-01); `team_notice` tells it once on the bell when a teammate joined, from
  * the seat's event (00410, S1-19); `freed_time_offer` offers a freed time to who asked and never booked (decision 0082);
- * `reply_draft` writes a held thread's reply ahead (0093, 00538); `visit_reminder` reminds a late booking (0118).
+ * `reply_draft` writes a held thread's reply ahead (0093, 00538); `visit_reminder` reminds a late booking (0118);
+ * `occasion_enrol` enrols a person in the sequences an occasion starts (0119, 00599).
  */
 export const EVENT_SUBSCRIBERS = [
   "reach_out_booked",
@@ -212,6 +218,7 @@ export const EVENT_SUBSCRIBERS = [
   "freed_time_offer",
   "reply_draft",
   "visit_reminder",
+  "occasion_enrol",
 ] as const;
 export type EventSubscriber = (typeof EVENT_SUBSCRIBERS)[number];
 

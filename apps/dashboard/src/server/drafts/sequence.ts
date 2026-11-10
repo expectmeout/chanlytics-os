@@ -35,6 +35,7 @@ import {
   momentOffered,
   newListOf,
   slotLabels,
+  momentNamesVisit,
   triggerWords,
   zonedInputValue,
   type CampaignMessage,
@@ -438,7 +439,8 @@ function momentsOf(
     trigger: item.id,
     ...triggerWords(item, word),
     cls: item.cls,
-    visits: item.kind === "visit",
+    // Whether its message may say a visit's time or day: a visit's own moments, and an occasion's about one (0119).
+    visits: momentNamesVisit(item.id),
     proposal: item.kind === "deal",
     freed: item.kind === "freed",
     count: pools?.[item.id]?.candidates ?? null,

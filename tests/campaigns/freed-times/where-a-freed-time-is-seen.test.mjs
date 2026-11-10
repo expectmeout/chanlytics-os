@@ -30,8 +30,20 @@ const sequenceOn = (trigger) => ({
 });
 
 test("Start's Change for a freed time: the people each time goes to and how far ahead, never an hour, a gap or a cadence", () => {
-  assert.deepEqual(scheduleSettingsOf(sequenceOn("slot_opened")), { gap: false, every: false, freed: true });
-  assert.deepEqual(scheduleSettingsOf(sequenceOn("quiet_30")), { gap: true, every: false, freed: false });
+  assert.deepEqual(scheduleSettingsOf(sequenceOn("slot_opened")), {
+    gap: false,
+    every: false,
+    freed: true,
+    hour: false,
+    cap: true,
+  });
+  assert.deepEqual(scheduleSettingsOf(sequenceOn("quiet_30")), {
+    gap: true,
+    every: false,
+    freed: false,
+    hour: true,
+    cap: true,
+  });
   const W = SCHEDULE_WORDS.settings;
   assert.equal(W.freedCap, "People per freed time");
   assert.equal(W.freedAhead(14), "Up to 14 days ahead");

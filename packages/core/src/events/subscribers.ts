@@ -46,6 +46,11 @@
  *                     visit_tomorrow for that one person at the time the one rule gives it (contracts lateReminderAt,
  *                     decision 0118). The door asks first whether this visit was reminded, so a second run makes nothing
  *                     new. Each booking says what came of it in one log line.
+ *   occasion_enrol    an appointment's change (appointment.changed) or the booking link sent (booking_link.sent) is
+ *                     handed to the edge's door, which enrols the person in each sequence that starts on it, at a time
+ *                     of their own (decision 0119, contracts occasions.ts): two hours before a visit, after a visit
+ *                     marked missed, the day after an ask. A row is kept once per sequence, person and occasion, so a
+ *                     second run enrols nobody twice. Nothing is sent here: the sequences' clock runs each at its time.
  */
 import { heldContactId } from "@chanlytics/contracts";
 import {
@@ -74,6 +79,9 @@ import {
   type JobNews,
   type LateReminder,
   type MemberJoined,
+  type OccasionEnrolment,
+  type OccasionEvent,
+  occasionEventOf,
   type OptOutPerson,
   recordOrEmpty,
 } from "@chanlytics/contracts";
@@ -162,6 +170,12 @@ export interface SubscriberPorts {
    * not be asked, so the delivery tries again.
    */
   remindBooking(tenantId: TenantId, appointmentId: string): Promise<LateReminder>;
+  /**
+   * The edge's enrolment for an occasion (decision 0119): the person an appointment's change or a booking link is about
+   * is taken into each sequence that starts on it, once, and what waited for a visit that is off leaves. Throws when it
+   * could not be asked, so the delivery tries again.
+   */
+  enrolOccasions(tenantId: TenantId, event: OccasionEvent): Promise<OccasionEnrolment>;
   /**
    * Whether the thread is owed a draft, and if so its row claimed and its job scheduled (decision 0093). Throws when it could
    * not be asked, so the delivery tries again.
@@ -405,5 +419,20 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     }
     const detail = reminder.detail ? { detail: reminder.detail } : {};
     logger().info("late_booking_not_reminded", { ...about, why: reminder.why, ...detail });
+  },
+  occasion_enrol: async (event, ports) => {
+    const happened = occasionEventOf(event);
+    if (!happened) return;
+    const came = await ports.enrolOccasions(event.tenant_id, happened);
+    // A workspace with no sequence on these moments says nothing: every appointment's change comes through here.
+    if (came.why === "no_step" && came.left === 0) return;
+    logger().info("occasion_enrolled", {
+      tenant_id: event.tenant_id,
+      event_id: event.id,
+      about: happened.about,
+      enrolled: came.enrolled,
+      left: came.left,
+      ...(came.why ? { why: came.why } : {}),
+    });
   },
 };

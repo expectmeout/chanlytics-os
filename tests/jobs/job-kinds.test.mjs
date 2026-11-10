@@ -80,7 +80,14 @@ test("who hears of a failure is said once: a kind told the platform is paged wit
 test("a workspace's hourly job that failed for good pages once for its kind, however many workspaces fail, and says where to look", () => {
   const job = (kind, tenant_id) => ({ id: "11111111-1111-4111-8111-111111111111", tenant_id, kind, payload: {} });
   const keys = new Set();
-  const handedOut = ["campaign_moments", "reach_out_steps", "calendar_read", "google_read", "texts_read"];
+  const handedOut = [
+    "campaign_moments",
+    "reach_out_steps",
+    "calendar_read",
+    "google_read",
+    "texts_read",
+    "sequence_occasions",
+  ];
   for (const kind of handedOut) {
     const page = PAGES_THE_PLATFORM.get(kind);
     const first = page(job(kind, "workspace-a"), "the database did not answer", null);

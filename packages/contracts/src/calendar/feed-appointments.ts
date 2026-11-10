@@ -142,6 +142,9 @@ export function appointmentHolds(rows: ReadonlyMap<string, AppointmentState>, fa
   const start = typeof facts.visit_start === "string" ? Date.parse(facts.visit_start) : NaN;
   const row = key ? rows.get(key) : undefined;
   if (!row || !Number.isFinite(start)) return true;
+  // A message about a visit marked missed (decision 0119) is owed while its row still says so: a member may take the
+  // word back, and then nothing of it goes.
+  if (facts.visit_was === "missed") return row.status === "missed";
   if (OFF.has(row.status)) return false;
   const read = typeof facts.appointment_read_at === "string" ? Date.parse(facts.appointment_read_at) : NaN;
   if (!Number.isFinite(read)) return true;
