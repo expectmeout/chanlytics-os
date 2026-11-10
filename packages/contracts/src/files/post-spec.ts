@@ -1,6 +1,7 @@
 /**
  * A post made from a photo, as a card (decision 0099, step 3). It shows the real picture and asks for one press: Save keeps it as a
- * file, in a shape each, with an Undo for ten minutes. Its door is the same a photo is added by, in who may press it.
+ * file, in a shape each, with an Undo for ten minutes. Whoever may delete a file may press it, since the Undo deletes it: an
+ * operator may add a photo, not this.
  */
 import { postPlanOf, postWordsIn, type PostLanguage } from "./post";
 import { asText, rec, type ProposalSpecAboveOperator } from "../ask/proposals/spec";

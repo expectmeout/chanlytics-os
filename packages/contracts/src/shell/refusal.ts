@@ -297,6 +297,7 @@ export const PERM_DOING: Readonly<Record<RolePerm, string>> = {
   settings: "change the business details",
   export: "export the customer list",
   find: "find businesses for you",
+  add_files: "add photos and videos",
 };
 
 /**

@@ -31,6 +31,7 @@ export const ROLE_PERMS: Record<
     settings: boolean;
     export: boolean;
     find: boolean;
+    add_files: boolean;
   }
 > = {
   // `settings` is the business details and who is alerted: PUT /settings is
@@ -48,6 +49,10 @@ export const ROLE_PERMS: Record<
   // takes, and nothing that touches the money, the team, or the customer list
   // as a file. `disconnect` is the channel permission both ways: a partner
   // gets the line and connects WhatsApp, and may disconnect them again.
+  // `add_files` is adding a photo or a video to Files (decision 0099): the
+  // team films the work on their own phones, so an operator adds too (Ruben,
+  // 10 Nov 2026). Naming, shelving, filing and deleting a file stay `settings`:
+  // who is in a picture is the owner's word.
   owner: {
     approve: true,
     autonomy: true,
@@ -57,6 +62,7 @@ export const ROLE_PERMS: Record<
     settings: true,
     export: true,
     find: true,
+    add_files: true,
   },
   operator: {
     approve: true,
@@ -67,6 +73,7 @@ export const ROLE_PERMS: Record<
     settings: false,
     export: false,
     find: false,
+    add_files: true,
   },
   partner: {
     approve: true,
@@ -77,6 +84,7 @@ export const ROLE_PERMS: Record<
     settings: true,
     export: false,
     find: true,
+    add_files: true,
   },
   viewer: {
     approve: false,
@@ -87,6 +95,7 @@ export const ROLE_PERMS: Record<
     settings: false,
     export: false,
     find: false,
+    add_files: false,
   },
 };
 
@@ -151,6 +160,7 @@ const ROLE_TABLE_LINES: readonly { perm: keyof (typeof ROLE_PERMS)[Role] | null;
   { perm: null, says: "See conversations, people and reports" },
   { perm: "approve", says: "Approve and send replies" },
   { perm: "autonomy", says: "Tune autonomy" },
+  { perm: "add_files", says: "Add photos and videos" },
   { perm: "settings", says: "Business details and who gets alerts" },
   { perm: "disconnect", says: "Connect and disconnect channels" },
   { perm: "find", says: "Find leads", note: "uses the month's allowance" },
