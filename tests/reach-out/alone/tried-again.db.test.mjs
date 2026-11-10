@@ -40,6 +40,32 @@ const ok = (res, what = "the read") => {
 };
 const one = async (q) => ok(await q.select("id").single(), "the write").id;
 
+/** The sequence's run of a day, made once: a step keeps one run a day (sequence_batches_step_run). */
+const runs = new Map();
+async function runOn(at) {
+  const day = at.slice(0, 10);
+  if (!runs.has(day))
+    runs.set(
+      day,
+      await one(
+        db.from("sequence_batches").insert({
+          tenant_id: A,
+          name: `Movers · ${day}`,
+          template_id: template,
+          template_name: "again_chain",
+          template_language: "en",
+          audience: { kind: "reach_out", root_id: root, step_id: root },
+          state: "sent",
+          scheduled_for: at,
+          step_id: root,
+          sequence_id: root,
+          run_for: day,
+        }),
+      ),
+    );
+  return runs.get(day);
+}
+
 /**
  * A lead of the search, written to by the sequence `daysAgo` days ago (or never), in nurture, with the person its first
  * email made holding its address: a written lead as the clock leaves it.
@@ -76,21 +102,7 @@ async function writtenLead(name, daysAgo, over = {}) {
   );
   if (daysAgo !== null) {
     const at = new Date(Date.now() - daysAgo * DAY).toISOString();
-    const batch = await one(
-      db.from("sequence_batches").insert({
-        tenant_id: A,
-        name: `Movers · ${name}`,
-        template_id: template,
-        template_name: "again_chain",
-        template_language: "en",
-        audience: { kind: "reach_out", root_id: root, step_id: root },
-        state: "sent",
-        scheduled_for: at,
-        step_id: root,
-        sequence_id: root,
-        run_for: new Date(Date.now() - daysAgo * DAY).toISOString().slice(0, 10),
-      }),
-    );
+    const batch = await runOn(at);
     ok(
       await db.from("sequence_sends").insert({
         id: crypto.randomUUID(),
