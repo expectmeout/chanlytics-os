@@ -1281,6 +1281,16 @@ function withHowItAnswers(frozen) {
  * it runs' words, Never gone (a sequence is paused on its page) and a batch of new words waiting first. Each playbook says
  * its own mode; this world has none. Nothing else moved.
  */
+/** The moments' note as it reads since an occasion's moments are among them (10 Nov 2026): what their mark means. */
+function withOccasionsNote(frozen) {
+  const said = JSON.parse(frozen);
+  if (typeof said.note !== "string") return frozen;
+  const before = "A null count means the page could not count it just now. ";
+  const marks =
+    "each_at_their_own_time marks a moment that names nobody ahead of time (two hours before a meeting, a meeting marked missed, the booking link sent and nothing booked): each person comes to it when that happens to them and its message goes then, so it has no count, and that is no fault. ";
+  return JSON.stringify({ ...said, note: said.note.replace(before, before + marks) });
+}
+
 function withEachSequencesMode(frozen) {
   const said = JSON.parse(frozen);
   if (!("modes" in said)) return frozen;
@@ -1381,6 +1391,10 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (old === "get_today") result = result.replace('"searches_waiting":', '"going_today":[],"searches_waiting":');
     if (old === "get_settings") result = withHowItAnswers(result);
     if (NAMES[old] === "sequences.moments") result = withEachSequencesMode(result);
+    // 10 Nov 2026 (decision 0119; Ruben: Ask proposes the three moments an occasion starts): the moments' note says what
+    // their mark means, a moment with no count because it names nobody ahead of time. This world has no calendar, so it
+    // is offered none of the three: the note is the one change to its bytes.
+    if (NAMES[old] === "sequences.moments") result = withOccasionsNote(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
     if (NAMES[old] === "sequences.lists")

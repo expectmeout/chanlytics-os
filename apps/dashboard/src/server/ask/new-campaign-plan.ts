@@ -20,6 +20,7 @@ import {
   type ConsentChannel,
   THREAD_CHANNEL_WORDS,
   appointmentWords,
+  capitalize,
   type AppointmentWord,
   GET_YES_ROUTE,
   saidYesTo,
@@ -31,6 +32,7 @@ import {
   messageWhyNot,
   enrolPurpose,
   messageAboutOfTrigger,
+  occasionWords,
   triggerOf,
 } from "@chanlytics/contracts";
 import type { AskedPurpose, MessageAbout, PersonRowVM, RunPlaybook } from "@chanlytics/contracts";
@@ -250,6 +252,21 @@ export function campaignFixCard(
  * reaches (playbookRunReach, uncapped); `goesBy` the channels it goes by now. Its cap, its week's limit, its message and
  * its mode are its sheet's, behind Details.
  */
+/**
+ * What a sequence an occasion starts does, and when (decision 0119), or null for any other moment. Nobody is named by one
+ * ahead of time, so each says what it does to whoever comes to it, at a time of their own: the reminder's is said in what
+ * it does, the missed visit's is minutes after the word (contracts missedFollowUpAt), and the ask's follow-up is the next
+ * day at the sequence's hour.
+ */
+function occasionLine(trigger: string, one: string, at: string): [does: string, when: string] | null {
+  if (trigger === "visit_soon") return [`Reminds each customer two hours before their ${one}`, ""];
+  if (trigger === "visit_missed")
+    return [`Offers another time to anyone whose ${one} you mark missed`, "a few minutes after"];
+  if (trigger === "asked_no_booking")
+    return ["Follows up with anyone sent your booking link who has not booked", `the next day at ${at}`];
+  return null;
+}
+
 export function campaignLine(context: {
   trigger: string;
   word: AppointmentWord;
@@ -261,6 +278,8 @@ export function campaignLine(context: {
   goesBy: readonly ConsentChannel[];
 }): string {
   const words = appointmentWords(context.word);
+  const occasion = occasionLine(context.trigger, words.one, clockHour(context.run_hour));
+  if (occasion) return [...occasion, channelsWords(context.goesBy)].filter(Boolean).join(", ");
   const will = context.will;
   // "4", or "2 of 4" where some the moment names cannot be reached.
   const of = will < context.pool ? `${will} of ${context.pool}` : `${will}`;
@@ -301,13 +320,11 @@ export function campaignLine(context: {
   const when =
     kind === "visit"
       ? at
-      : kind === "occasion"
-        ? "at each person's own time"
-        : context.trigger === "everyone_monthly"
-          ? `every ${context.cadence_days} days at ${at}`
-          : `daily at ${at}`;
+      : context.trigger === "everyone_monthly"
+        ? `every ${context.cadence_days} days at ${at}`
+        : `daily at ${at}`;
   const by = channelsWords(context.goesBy);
-  return `${does}, ${when}${by ? `, ${by}` : ""}`;
+  return [does, when, by].filter(Boolean).join(", ");
 }
 
 /**
@@ -329,6 +346,11 @@ export function nobodyNamedWords(trigger: string, word: AppointmentWord, list: s
       return `Nobody is on ${list ?? "the list"} yet`;
     case "proposal_waiting":
       return "No proposal is waiting on an answer";
+    // An occasion names nobody ahead of time (decision 0119): who it reaches as each comes to it, in the moment's words.
+    case "visit_soon":
+    case "visit_missed":
+    case "asked_no_booking":
+      return capitalize(occasionWords(trigger, word).who);
     default:
       return "Nobody to send to yet";
   }

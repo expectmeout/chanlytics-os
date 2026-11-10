@@ -88,13 +88,14 @@ export const UNNAMED_GOES_BY = NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? "every one" : 
  * are a role's, never a workspace's, so which of them THIS workspace is offered (contracts momentOffered, decision 0041:
  * the reminder the day before and the check after an appointment, and the win-back by appointments, only where a
  * calendar is connected, the win-back by silence only where none is) is
- * judged per proposal, by the route's own check (calendarRefusal, followUpRefusal, checkedPlaybook). Nor, yet, the
- * three an occasion starts (decision 0119): a sequence on one is made in New, and Ask proposes them once it can say what
- * each would do for this business, which nothing here tells it today.
+ * judged per proposal, by the route's own check (calendarRefusal, followUpRefusal, checkedPlaybook). The three an
+ * occasion starts (decision 0119) are among them since each has its starter (Ruben, 10 Nov 2026): a calendar's too, and
+ * no count of who they reach now, since each person comes to one when something happens to them.
  */
-export const PROPOSABLE_TRIGGERS = MOMENT_TRIGGERS.filter(
-  (t) => !(t.id in MOMENTS_RETIRED) && t.kind !== "occasion",
-).map((t) => t.id) as [string, ...string[]];
+export const PROPOSABLE_TRIGGERS = MOMENT_TRIGGERS.filter((t) => !(t.id in MOMENTS_RETIRED)).map((t) => t.id) as [
+  string,
+  ...string[],
+];
 
 /**
  * The starters a proposal may name by its key (`starter`): each such moment's own (contracts startersForTrigger), not one
