@@ -1,4 +1,4 @@
--- 00602 · A business that never answered may be tried again (decision 0120, D6).
+-- 00608 · A business that never answered may be tried again (decision 0120, D6).
 --
 -- A business was written to once, ever: reach_out_why_not's "written" held it, and sequence_sends_one_first (00427) refused
 -- a second first email at the row. A sequence to leads may now be set to try again after 90 days, off unless its owner
@@ -10,7 +10,7 @@
 -- (reach_out_followers follows a first round's email alone). Turned on, the sequence's words wait for an OK once more,
 -- as any new words do (reach_out_again_set).
 --
--- The first round's index is replaced by one a round in the next two files (00603 builds it, 00604 drops the old, each
+-- The first round's index is replaced by one a round in the next two files (00609 builds it, 00610 drops the old, each
 -- alone, as an index built or dropped concurrently must be): until both have run, a second first email is refused at the
 -- row, left out of its run as reach_out_plan_run leaves any, and nothing is written.
 --
@@ -34,7 +34,7 @@ CREATE OR REPLACE FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  -- Of these leads, each written to before, those that may be written to once more (00602, decision 0120). A lead written to
+  -- Of these leads, each written to before, those that may be written to once more (00608, decision 0120). A lead written to
   -- reads to reach_out_why_not as closed (it is in nurture), or as a customer (the person its first email made holds its
   -- address), as often as written, so each reason is asked here again, the lead's own person aside: still there, in
   -- ready or nurture with nothing closing it, nobody else in People holding its address or its number, not on the
@@ -84,7 +84,7 @@ CREATE OR REPLACE FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_
 $$;
 
 comment on function public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer) is
-  'Of leads written to before, those a sequence may write to once more (00602, decision 0120): every email p_after_days old or more and none on its way, none of a second round, none bounced, none answered, sharing with no other lead, and a checked, good address. Asked only of leads reach_out_why_not refuses as written, whose earlier reasons stand. Service role only.';
+  'Of leads written to before, those a sequence may write to once more (00608, decision 0120): every email p_after_days old or more and none on its way, none of a second round, none bounced, none answered, sharing with no other lead, and a checked, good address. Asked only of leads reach_out_why_not refuses as written, whose earlier reasons stand. Service role only.';
 
 revoke all on function public.reach_out_comes_back(uuid, uuid[], integer) from public, anon, authenticated;
 grant all on function public.reach_out_comes_back(uuid, uuid[], integer) to service_role;
@@ -118,7 +118,7 @@ CREATE FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_
      order by sm.lead_id, case sm.fit when 'strong' then 0 when 'look' then 1 when 'long' then 2 else 3 end
   ),
   -- Who has a reason, once (00572's hash), and of those refused as written to before (closed in nurture, a customer by
-  -- their own person, or written), the ones its sequence tries again after p_again_after days (00602, decision 0120): a
+  -- their own person, or written), the ones its sequence tries again after p_again_after days (00608, decision 0120): a
   -- business that never answered, once, never a third time, each reason asked again by reach_out_comes_back.
   refused as materialized (
     select w.lead_id, w.why
@@ -145,7 +145,7 @@ CREATE FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_
 $$;
 
 comment on function public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean, p_again_after integer) is
-  'Who a reach-out''s first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): the qualified, counted, unblanked members of its one search that reach_out_why_not lets go, strongest fit first, then the longest found; and, given p_again_after (00602), those refused only as written that reach_out_comes_back lets back, after the new ones. Service role only.';
+  'Who a reach-out''s first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): the qualified, counted, unblanked members of its one search that reach_out_why_not lets go, strongest fit first, then the longest found; and, given p_again_after (00608), those refused only as written that reach_out_comes_back lets back, after the new ones. Service role only.';
 
 revoke all on function public.reach_out_audience(uuid, uuid, integer, boolean, integer) from public, anon, authenticated;
 grant all on function public.reach_out_audience(uuid, uuid, integer, boolean, integer) to service_role;
@@ -179,7 +179,7 @@ begin
   exception when unique_violation then
     return jsonb_build_object('exists', true);
   end;
-  -- Who of these is written to a second time (00602, decision 0120): only where the sequence tries again, only by its
+  -- Who of these is written to a second time (00608, decision 0120): only where the sequence tries again, only by its
   -- first email, and only whom reach_out_comes_back lets back now. Everyone else is of the first round, so a lead another
   -- reach-out planned or wrote first is refused by the round's unique index below and left out, as before.
   if v_step = v_root then
@@ -249,7 +249,7 @@ CREATE OR REPLACE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_i
                                where e2.tenant_id = p_tenant_id and e2.sequence_id = s.sequence_id and e2.lead_id = l.id
                                  and e2.state = 'in' and e2.next_at <= now())))
          and s.contact_id is not null
-         -- A first round's email alone is followed up (00602): a business tried again gets that one email, and no more.
+         -- A first round's email alone is followed up (00608): a business tried again gets that one email, and no more.
          and s.round = 1
          -- Only someone whose place in the sequence still stands (00455): taken out, stopped or passed over is not
          -- followed up, even with nothing of theirs pending when they left.
@@ -304,7 +304,7 @@ begin
 end $$;
 
 comment on function public.reach_out_again_set(p_tenant_id uuid, p_root_id uuid, p_days integer) is
-  'Try again after p_days, or never (null) (00602, decision 0120): a member who may approve sets it on a sequence to leads (its first step''s again_after_days). Turned on, its words wait for an OK once more (words_ok_at cleared). Answers {root_id, again_after_days}.';
+  'Try again after p_days, or never (null) (00608, decision 0120): a member who may approve sets it on a sequence to leads (its first step''s again_after_days). Turned on, its words wait for an OK once more (words_ok_at cleared). Answers {root_id, again_after_days}.';
 
 revoke all on function public.reach_out_again_set(uuid, uuid, integer) from public, anon;
 grant all on function public.reach_out_again_set(uuid, uuid, integer) to authenticated;
@@ -314,7 +314,7 @@ CREATE OR REPLACE FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  -- Who this sequence would try again, and from when (00602, decision 0120): the businesses its first email wrote to that
+  -- Who this sequence would try again, and from when (00608, decision 0120): the businesses its first email wrote to that
   -- reach_out_comes_back would let back once their last email is p_days old (its rules, the age aside), and the moment
   -- the first of them comes back. {count, first_at}.
   with written as (
@@ -336,7 +336,7 @@ CREATE OR REPLACE FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root
 $$;
 
 comment on function public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) is
-  'Who a sequence to leads would try again after p_days, and from when (00602, decision 0120): {count, first_at}, the businesses its first email wrote to that reach_out_comes_back lets back, the age aside. Service role only; the route that asks it checks the caller.';
+  'Who a sequence to leads would try again after p_days, and from when (00608, decision 0120): {count, first_at}, the businesses its first email wrote to that reach_out_comes_back lets back, the age aside. Service role only; the route that asks it checks the caller.';
 
 revoke all on function public.reach_out_again_count(uuid, uuid, integer) from public, anon, authenticated;
 grant all on function public.reach_out_again_count(uuid, uuid, integer) to service_role;

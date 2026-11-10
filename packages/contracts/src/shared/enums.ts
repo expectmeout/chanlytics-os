@@ -540,7 +540,7 @@ export const EVENT_KINDS = [
   /** A sequence to leads set to add a search's new ready leads, or not ({ search_id, by }), on its first step (00459). */
   "reach_out.source_set",
   /** A sequence to leads set to try a business that never answered again after some days, or not ({ days, was, by }),
-   *  on its first step (00602, decision 0120). */
+   *  on its first step (00608, decision 0120). */
   "reach_out.again_set",
   /** Two records a doubt named, said to be two people ({ by }), on the person. */
   "contact.kept_apart",

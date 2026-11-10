@@ -1,4 +1,4 @@
--- 00601 · A step's note is kept on its thread (decision 0120, D7).
+-- 00607 · A step's note is kept on its thread (decision 0120, D7).
 --
 -- A reply read as "not now" leaves a step to write again on the day they named, and one read as "wrong person" a step to
 -- write to whom they named. The reply's own job now writes the note each step arrives with, on its day (contracts

@@ -745,7 +745,7 @@ const SOURCES = {
   reach_out_audience: [
     "00197",
     "create or replace function public.reach_out_audience(\n  p_tenant_id uuid,\n  p_search_id uuid,\n  p_limit int,",
-    // 00602 dropped the four-argument door for one with a fifth, p_again_after (decision 0120): the one the database runs.
+    // 00608 dropped the four-argument door for one with a fifth, p_again_after (decision 0120): the one the database runs.
     "public.reach_out_audience(uuid, uuid, int, boolean, int)",
   ],
   set_email_marketing: ["00177", "create or replace function public.set_email_marketing("],
@@ -779,10 +779,10 @@ const LATER = {
   // intake/a-delivery-taken-in-again-changes-no-consent.db.test.mjs proves it 00484's body but for those.
   ingest_inbound: "00592",
   // 00459 draws a sequence's leads from the search it draws from too (auto-add): one-road-to-a-sequence.db.test.mjs. 00572 leaves
-  // out who has a reason by a hash of them, the same leads: leads/workbench/a-reach-out-at-volume.db.test.mjs. 00602 makes
+  // out who has a reason by a hash of them, the same leads: leads/workbench/a-reach-out-at-volume.db.test.mjs. 00608 makes
   // it again with p_again_after, a business that never answered tried once more: reach-out/alone/tried-again.db.test.mjs.
   // Its header is pg_dump's, on one line.
-  reach_out_audience: ["00602", "CREATE FUNCTION public.reach_out_audience("],
+  reach_out_audience: ["00608", "CREATE FUNCTION public.reach_out_audience("],
   // A company's addressee is the person, by the name their source gave, and People is asked once (lead_address_in_people):
   // 00430's, whose behaviour leads/people-card.db.test.mjs holds.
   reach_out_person: "00430",

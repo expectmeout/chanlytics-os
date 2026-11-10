@@ -72,9 +72,9 @@ const bodyIn = (src, header) => {
   const open = at + /as \$\$/i.exec(src.slice(at)).index + "as $$".length;
   return src.slice(open, src.indexOf("$$", open));
 };
-/** The two lines 00602 adds to reach_out_followers' read of who is due: a first round's email alone is followed up. */
+/** The two lines 00608 adds to reach_out_followers' read of who is due: a first round's email alone is followed up. */
 const FIRST_ROUND_ALONE =
-  "         -- A first round's email alone is followed up (00602): a business tried again gets that one email, and no more.\n" +
+  "         -- A first round's email alone is followed up (00608): a business tried again gets that one email, and no more.\n" +
   "         and s.round = 1\n";
 const liveBody = (name) =>
   query(
@@ -725,14 +725,14 @@ test("each function re-created whole is its source's body but for the lines it m
   // 00459 follows a step its owner skipped as the email before it was (its thread, its mailbox), once its wait is up;
   // nothing else.
   const followers458 = bodyIn(migration("00459"), "create or replace function public.reach_out_followers(");
-  // 00602 follows a first round's email alone (decision 0120): a business tried again gets that one email; nothing else.
-  // The database runs 00602's.
-  const followers602 = bodyIn(migration("00602"), "CREATE OR REPLACE FUNCTION public.reach_out_followers(");
-  assert.equal(liveBody("reach_out_followers"), followers602, "reach_out_followers: the database runs 00602's");
+  // 00608 follows a first round's email alone (decision 0120): a business tried again gets that one email; nothing else.
+  // The database runs 00608's.
+  const followers602 = bodyIn(migration("00608"), "CREATE OR REPLACE FUNCTION public.reach_out_followers(");
+  assert.equal(liveBody("reach_out_followers"), followers602, "reach_out_followers: the database runs 00608's");
   assert.equal(
     followers602.replace(FIRST_ROUND_ALONE, ""),
     followers458,
-    "00602's is 00459's with a first round's email alone followed",
+    "00608's is 00459's with a first round's email alone followed",
   );
   // 00455's with a skipped step's thread, mailbox and wait read from the email before it, and nothing else.
   const due = (body) =>

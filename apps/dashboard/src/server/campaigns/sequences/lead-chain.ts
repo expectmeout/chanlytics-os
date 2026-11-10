@@ -67,7 +67,7 @@ export async function findLeadChainAgain(
 }
 
 /**
- * Try again after `days`, or never (null), through the member's own session (00602 reach_out_again_set: who may approve).
+ * Try again after `days`, or never (null), through the member's own session (00608 reach_out_again_set: who may approve).
  * Turned on, its words wait for an OK once more. Answers what the sheet then says.
  */
 export async function setLeadChainAgain(
