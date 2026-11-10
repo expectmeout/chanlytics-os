@@ -5,7 +5,7 @@
  * became: one of contracts' four `Handled` words. This is the one rule that picks the word, from the two facts a way out has, whether
  * a person was asked and what became of the receptionist's own reply. The twenty-two ways out call it, and none of them
  * words the rule itself: a second implementation, even one that agrees, is how a stamp comes to say `handoff` for a
- * message nobody was asked about. The executed test (tests/whatsapp/inbound-executed.test.mjs) holds
+ * message nobody was asked about. The executed test (tests/inbound/phases/) holds
  * the rule over every way out, in both directions.
  *
  * A handoff is an escalation that LANDED: the sink wrote one (opened, changed or refreshed it). A write the database
@@ -18,8 +18,8 @@
  * that escalation landed, because a person was asked, so `noteHandledAfter` stamps the word and writes nothing else:
  * the message stays unprocessed, and when the escalation was refused nobody was asked and nothing is stamped.
  */
-import type { BrainIntent, Handled } from "@chanlytics/contracts";
-import type { InboundSink } from "./ports";
+import type { BrainIntent, EscalationReason, Handled } from "@chanlytics/contracts";
+import type { EscalateOutcome, InboundSink } from "./ports";
 import { logAndGoOn } from "@chanlytics/log";
 
 /** What the sink answered to an escalation: how it landed (packages/jobs EscalationOutcome), or nothing when it failed. */
@@ -94,4 +94,55 @@ export async function noteHandledAfter(
 ): Promise<unknown> {
   const escalation = escalationOf(await request.catch(logAndGoOn("a hold's escalation")));
   return escalation === "landed" ? sink.noteHandled(handledOf({ escalation, reply }), intent) : undefined;
+}
+
+/** A message a person must answer, as a gate hands it over. */
+interface HandOver {
+  /** The hold's reason: the Inbox's words for it, and the owner's notice's (alerts.ts whyOf). */
+  reason: EscalationReason;
+  /** The hold's details, as the Inbox shows them. */
+  details: string;
+  /** What the customer sent, for the notice. */
+  said: string;
+  /** What was said back, or why nothing was, for the notice. */
+  answered: string;
+}
+
+/** What the owner's handoff notice says, when a branch tells it itself. */
+export interface HoldWords {
+  /** What the customer sent: their words, or what kind of message it was. */
+  said: string;
+  /** What the receptionist answered, or why nothing was. */
+  answered: string;
+  /** Why it is a person's, in the notice's words. */
+  why: string;
+  /** The hours this thread is paused for, when this branch paused it. */
+  pausedHours?: number | null;
+}
+
+/** What a hand-over reaches of the message being answered: its sink, and the owner's notice. */
+interface Telling {
+  sink: InboundSink;
+  tell: (asked: Promise<EscalateOutcome> | null, words: HoldWords) => Promise<void>;
+}
+
+/**
+ * A message a person must answer, and nothing said to the customer: the hold written with its reason, the owner told (from
+ * its event once it is written, else here, ./ingest.ts tell), and the message stamped a handoff when the hold landed. The
+ * one way every gate that stops a message hands it over, so none of them can ask a person and forget to say so, or say
+ * so and forget the stamp. `also` rides beside it (an attachment kept). Resolves to nothing: the message stops here.
+ */
+export async function handToAPerson(
+  at: Telling,
+  handOver: HandOver,
+  also: Promise<unknown>[] = [],
+): Promise<undefined> {
+  const escalation = at.sink.escalate(handOver.reason, handOver.details);
+  await Promise.all([
+    escalation,
+    at.tell(escalation, { said: handOver.said, answered: handOver.answered, why: handOver.reason }),
+    getProcessedAfter(at.sink, escalation, "none"),
+    ...also,
+  ]);
+  return undefined;
 }

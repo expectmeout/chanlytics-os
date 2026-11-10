@@ -163,11 +163,12 @@ test("the converted message-path lines carry the tenant", () => {
   // The logger is bound once in answerInbound, where the tenant becomes
   // known; if that binding is removed or the calls revert to bare console,
   // the tenant silently stops appearing. The factory is a port now (the verb
-  // may not import the edge), and the edge hands in this same logger.
+  // may not import the edge), and the edge hands in this same logger. The wire is bound beside it (`channel`), which
+  // tests/inbound/a-message-s-lines-say-its-wire.test.mjs holds by running the verb.
   const src = pathSrc();
   assert.match(
     src,
-    /const log = ports\.log\(\{ tenant_id: tenantId, wamid: n\.externalId, from_tail: phoneTail\(from\), type: n\.rawType \}\)/,
+    /const log = ports\.log\(\{\s*tenant_id: tenantId,\s*channel,\s*wamid: n\.externalId,\s*from_tail: phoneTail\(from\),\s*type: n\.rawType,?\s*\}\)/,
     "answerInbound must bind the tenant into its logger",
   );
   for (const call of ['L.info("wa_replied"', 'L.info("wa_skip_opt_out"', 'L.error("wa_state_unavailable"']) {

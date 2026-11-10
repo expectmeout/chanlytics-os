@@ -25,6 +25,7 @@ tests/edge/door-policy.json
 tests/source-scan-baseline.json
 tests/baselines/
 docs/api.md
+docs/inbound-gates.md
 
 # The ported shell keeps its own conventions (apps/dashboard/mockup/CLAUDE.md):
 # script-mode files with /* global */ headers, edited by several people at once.

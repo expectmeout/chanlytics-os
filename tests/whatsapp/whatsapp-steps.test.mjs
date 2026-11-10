@@ -189,12 +189,18 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
   const person = holdCopy({ brainCfg, personMode: "never", replyMode: "never", configBroken: false });
   assert.deepEqual(
     [person.personHold, person.reason, person.botText, person.why],
-    [true, "person_hold", "(held — you handle this person yourself)", "this person is set to never"],
+    [true, "person_hold", "(held — you handle this person yourself)", "this person is set to Stays quiet"],
   );
-  assert.match(person.details, /You set the receptionist to 'never' for this person/);
+  // The mode in the Autonomy pane's own words, never the stored token an owner never sees.
+  assert.match(person.details, /You set the receptionist to Stays quiet for this person/);
   const policy = holdCopy({ brainCfg, personMode: null, replyMode: "ask", configBroken: false });
-  assert.deepEqual([policy.personHold, policy.reason, policy.why], [false, "policy_block", "reply mode ask"]);
-  assert.match(policy.details, /Reply mode is 'ask'/);
+  assert.deepEqual(
+    [policy.personHold, policy.reason, policy.why],
+    [false, "policy_block", "replies are set to Asks you"],
+  );
+  assert.match(policy.details, /Replies are set to Asks you/);
+  for (const said of [person, policy])
+    assert.doesNotMatch(`${said.details} ${said.why}`, /'?\b(ask|never|veto|auto)\b'?/);
   const broken = holdCopy({ brainCfg: null, personMode: null, replyMode: "auto", configBroken: true });
   assert.deepEqual([broken.reason, broken.why], ["policy_block", "settings could not be read"]);
   assert.match(broken.details, /invalid field/);
@@ -205,9 +211,9 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
 
 test("the shape: the webhook, the message path, the bookkeeping, the alerts, the steps — each in its file, the path using the steps", () => {
   // The webhook's GET and POST are imported and run in whatsapp-door.test.mjs.
-  // The message path is a verb over ports now, and apps/edge/lib/whatsapp/inbound.ts
+  // The message path is a verb over ports now, and apps/edge/lib/inbound/arrival.ts
   // is its adapter: handleInbound takes the one inbound shape (decision 0001, step 3),
-  // which whatsapp-door.test.mjs and inbound-executed.test.mjs CALL rather than read.
+  // which whatsapp-door.test.mjs and the inbound phase tests (inbound/phases/) CALL rather than read.
   // The verb is answer.ts's order of phases, each declared in a module beside it
   // (decision 0001), in the order it calls them; what each one does is run there.
   const HOME = {
@@ -257,7 +263,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
     !inbound.includes("violatesNoPrices(") && !inbound.includes("policyAskClass("),
     "the words are checked in one place",
   );
-  const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
+  const persist = readCode("apps/edge/lib/inbound/persist.ts");
   for (const s of [
     "export async function runPgIngest(",
     "export async function runPgSafe<T>(",
@@ -266,7 +272,7 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
     "export async function readPgThread(",
   ])
     assert.ok(persist.includes(s), s);
-  const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
+  const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
   for (const s of ["export async function alertStaff(", "export async function alertUnroutable("])
     assert.ok(alerts.includes(s), s);
   assert.ok(!alerts.includes("sendText("), "the customer is not texted from the alerts module: the door does that");

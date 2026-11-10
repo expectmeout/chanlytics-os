@@ -155,9 +155,9 @@ function holdsTheEvalKeyAlone(y, variable, runnerFile) {
   return steps;
 }
 
-test("the nightly evals run on a clock once they are switched on and on demand, fail with no key, and hold no other secret: never the production key", () => {
+test("the receptionist's evals run weekly once they are switched on and on demand, fail with no key, and hold no other secret: never the production key", () => {
   const y = yamlCode(".github/workflows/nightly-evals.yml");
-  assert.match(y, /cron: "0 10 \* \* \*"/);
+  assert.match(y, /cron: "0 10 \* \* 1"/, "Mondays: the eval key spends the credit the receptionist answers with");
   // Its behaviour is nightly-evals.test.mjs's.
   holdsTheEvalKeyAlone(y, "NIGHTLY_EVALS", "tooling/scripts/evals/nightly.mjs");
 });
@@ -363,14 +363,14 @@ test("a log line on the message path carries a phone tail, never the number or t
     "apps/edge/lib/sms/inbound-text.ts",
     "apps/edge/lib/voice/inbound-call.ts",
     "apps/edge/lib/voice/call-start.ts",
-    "apps/edge/lib/whatsapp/inbound.ts",
+    "apps/edge/lib/inbound/arrival.ts",
     // The message path itself: a verb over ports, logging through the
     // factory the edge hands it. Same lines, same rule, new home: answer.ts's
     // order and the phase modules beside it.
     ...["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"].map(
       (m) => `packages/core/src/inbound/${m}.ts`,
     ),
-    "apps/edge/lib/whatsapp/persist.ts",
+    "apps/edge/lib/inbound/persist.ts",
     "apps/edge/lib/lines/sms.ts",
   ];
   const CALL = /(console\.(log|error|warn)\(|\bL\.(info|warn|error)\(|\blogger\(|ports\.log\(|\.child\()/g;

@@ -347,6 +347,7 @@ export { LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS, codeNotes } 
 export { lineDtoOf } from "./lines/dto";
 export { LINE_CREDENTIALS_SENTENCE, lineCredentialFailure } from "./lines/failure";
 export { nameDecisionWords, numberHealthOfConfig, numberHealthWithStanding, PAYMENT_HOLD_WORD, standingAfterNameDecision, standingAlertWords, standingFromConfig, standingNeedsRead, standingNotes, standingRow } from "./lines/number-standing";
+export { oneTimeCodeOf } from "./lines/one-time-code";
 export { BUSINESS_PAGE_NOTE, changedRecordFields, isPublishedFact, LINE_FILED_NAMES, PUBLIC_FIELD_MARK, publicPagePath, RECORD_REVIEW_CONFIRM, recordFilingOf, recordSavedOf, recordSavedWords, RENAME_WORDS, SERVICES_ON_PUBLIC_PAGE } from "./lines/published-facts";
 export { REGISTRATION_COST_WORDS, REGISTRATION_PATH_WORDS, REGISTRATION_PATHS, REGISTRATION_QUESTION, registrationPathOf, SOLE_PROP_LIMITS, soleProprietorLimits } from "./lines/registration-path";
 export { WHATSAPP_COST_WORDS, whatsappCostNotes } from "./lines/whatsapp-cost";

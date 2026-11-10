@@ -1,8 +1,8 @@
 /**
  * The platform's log names are two closed sets, the way the activity log's are EVENT_KINDS (event-kinds.test.mjs):
  * every name a line carries is declared, and every declared name is carried. The edge's, LOG_EVENTS
- * (apps/edge/lib/log-events.ts), holds the edge and the packages that run on it (core, jobs, channels, and db through
- * its port); the dashboard's server, DASHBOARD_LOG_EVENTS (apps/dashboard/src/server/log.ts), its own `log` lines.
+ * (apps/edge/lib/shared/log-events.ts), holds the edge and the packages that run on it (core, jobs, channels, and db through
+ * its port); the dashboard's server, DASHBOARD_LOG_EVENTS (apps/dashboard/src/server/shared/log.ts), its own `log` lines.
  *
  * Each app's logger takes its set's names, so tsc refuses a name outside the set wherever the logger is typed. This
  * holds what the types cannot: the packages' lines (their loggers take a string), a name that is not a literal, and a
@@ -47,9 +47,7 @@ const FORWARDED = {
   "apps/edge/lib/sms/inbound-text.ts": ["verdict.log", "verdict.log"], // planSmsIngress
   "apps/edge/lib/voice/call-webhook.ts": ["callStep.event"], // planCallEvent's log step (call-event.ts)
   // The one computed name: runPgSafe's step is a PgStep, so the family is a union tsc checks against the set.
-  "apps/edge/lib/whatsapp/persist.ts": ["`pg_${label}_failed`"],
-  // ingestInbound's attempt(...): the answer it could not write, a union of the two literal names it is called with.
-  "packages/db/src/repositories/channels/ingest.ts": ["event"],
+  "apps/edge/lib/inbound/persist.ts": ["`pg_${label}_failed`"],
 };
 
 /**

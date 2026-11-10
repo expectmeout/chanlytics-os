@@ -49,7 +49,7 @@ import { pg } from "../shared/pg.js";
 import { keepDelivery, signatureHeaders } from "../shared/keep-event.js";
 import { planCallStartWithin } from "./call-start.js";
 import { claimControl, CALL_CONTROL_S } from "@chanlytics/db/conversations";
-import { alertUnroutable } from "../whatsapp/alerts.js";
+import { alertUnroutable } from "../inbound/alerts.js";
 import { logger } from "../shared/log.js";
 import { keptUrl, keepKnock, voiceDoorAuth } from "../shared/door-auth.js";
 import { logAndGoOn } from "@chanlytics/log";

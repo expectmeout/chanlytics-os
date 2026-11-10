@@ -281,7 +281,7 @@ const scriptedAsk = async (system, user) => {
 };
 /** The scripted brain, in generateReply's shape: one draft, and its tokens. */
 const brainCalls = [];
-const scriptedBrain = async (history, text, system, fallback, note) => {
+const scriptedBrain = async ({ userText: text, fallbackText: fallback, leadNote: note }) => {
   brainCalls.push({ text, fallback, note });
   return { text: DRAFT, escalate: false, usage: { input_tokens: 90, output_tokens: 30 } };
 };

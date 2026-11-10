@@ -43,7 +43,8 @@ test("the frame quotes the owner, asks for a rewrite that keeps what was right, 
 
 test("the brain takes the instruction as one more system block and stops showing the model its last message twice", () => {
   const b = readCode("apps/edge/lib/ai/receptionist-brain.ts");
-  assert.ok(b.includes("steer?: string,"));
+  // The question to the receptionist names its parts (core ReplyAsk, the inbound review's C6), the steer among them.
+  assert.ok(/async function answerReply\(\{[^}]*\bsteer,[^}]*\}: ReplyAsk\)/.test(b));
   assert.ok(b.includes('...(steer ? [{ type: "text", text: steer }] : []),'));
   assert.ok(
     /const prior =\s*last && last\.role === "user" && last\.content\.trim\(\) === userText\.trim\(\) \? history\.slice\(0, -1\) : history;/.test(
@@ -60,7 +61,7 @@ test("one writer for a held draft, used by the handler and the steer", () => {
     q.includes("queueSend("),
     "the draft and its job in one statement (00527 queue_send): one never stands without the other",
   );
-  const wa = readCode("apps/edge/lib/whatsapp/persist.ts");
+  const wa = readCode("apps/edge/lib/inbound/persist.ts");
   assert.ok(wa.includes("const id = await queueDraft("));
   assert.ok(!wa.includes('status: "queued",'), "the handler no longer writes the draft row itself");
 });

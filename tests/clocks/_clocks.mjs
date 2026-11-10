@@ -27,6 +27,10 @@ export const CLOCKS = {
     why: "hands each workspace with a feed a job hourly, which parses it to add people and stamp booked leads (0115); appointment events from push sync replace it, the iCal read a fallback (0002)",
   },
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
+  text_canary: {
+    kind: "judge",
+    why: "judges the real wires once a day: a text to the platform's own line, taken in and answered, or a page (00595)",
+  },
   channel_quality: { kind: "reconcile", why: "reads each connected WhatsApp number's quality rating from Meta" },
   deadman: {
     kind: "reconcile",
@@ -124,4 +128,8 @@ export const CLOCKS = {
     fn: "wake_stale_snoozes",
   },
   sweep_voice_sessions: { kind: "keep", why: "retention: voice sessions a day past their token" },
+  texts: {
+    kind: "reconcile",
+    why: "reads each line's record of received texts from the provider and takes in every one the door could not (00594)",
+  },
 };
