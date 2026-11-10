@@ -78,7 +78,7 @@ async function proposeOnStep(
   const { drawn, reading, policies, listLabel, usable } = reach;
   const held = await getAllowanceHeld(toolContext, by.channels, reading, clock, purposeOfPlaybook(cls));
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
-  const under = underMode(cls, policies);
+  const under = underMode(cls, policies, trig.id);
   const name = playbookNameAsked(input.name) || null;
   const { word, moment } = await getWordedMoment(toolContext, trig);
   const named = { trigger: trig.id, word, list: listLabel };
@@ -189,7 +189,7 @@ async function proposePlaybook(toolContext: ToolContext, proposed: PlaybookPropo
   const held = await getAllowanceHeld(toolContext, by.channels, reading, checked, purposeOfPlaybook(cls));
   // A tick that cannot send yet stays on the playbook, and its run holds those people until it can: the card says so.
   const { goes, waiting } = playbookChannelsSaid(how, by, drawn.reach.by_channel, held);
-  const under = underMode(cls, policies);
+  const under = underMode(cls, policies, trig.id);
   // A plan's one card draws the message whole; a card on its own quotes it.
   const room = toolContext.step === undefined ? 140 : 900;
   const cardWords = cardSays(asked, specs, by, room, visitWhenExample(checked.trigger));

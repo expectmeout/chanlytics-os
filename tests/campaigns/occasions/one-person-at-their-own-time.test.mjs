@@ -7,7 +7,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelsReady, missedOccasion, numberHealth, toPersonRowVM, visitOccasion } from "@chanlytics/contracts";
+import {
+  PLAYBOOK_VETO_DELAY_MS,
+  channelsReady,
+  missedOccasion,
+  numberHealth,
+  toPersonRowVM,
+  visitOccasion,
+} from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
@@ -218,6 +225,18 @@ test("while a step's words are new its batch waits, and its owner is told it wai
   assert.equal(sendAt, null);
   const [, , body] = of("notify")[0];
   assert.match(body, /Goes only if you approve it before .*2:00 PM; after that it is skipped/);
+});
+
+test("its words seen going, a sequence whose row says ask is held for a stop and goes: nobody is asked one person at a time (decision 0119)", async () => {
+  const { ports, of } = fakes();
+  const r = await ask(ports, { playbook: step({ mode: "ask" }) });
+  assert.equal(r.outcome, "sent");
+  assert.equal(r.mode, "veto");
+  const [, row, , sendAt] = of("assemble")[0];
+  assert.notEqual(row.state, "pending_approval", "no approval of one person's reminder");
+  // Half an hour on, with a Stop: a reminder made at noon for 2:00 PM still goes ahead of its visit.
+  assert.equal(new Date(sendAt).getTime() - NOON.getTime(), PLAYBOOK_VETO_DELAY_MS);
+  assert.equal(r.scheduled_for, new Date(NOON.getTime() + PLAYBOOK_VETO_DELAY_MS).toISOString());
 });
 
 test("a missed visit's message says the day, is behind its visit, and is held to the row still saying missed", async () => {

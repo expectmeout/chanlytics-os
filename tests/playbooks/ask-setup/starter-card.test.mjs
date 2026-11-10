@@ -600,4 +600,20 @@ test("the three moments an occasion starts are proposed where a calendar is conn
   // The two about a visit carry no link, and need none.
   for (const trigger of ["visit_soon", "visit_missed"])
     assert.equal((await propose({ trigger }, { tenant_config: withCalendar() }).made).isError, false, trigger);
+  // Where the Bookings row asks, or there is none, the card says it holds each for a stop: one an occasion starts never
+  // asks for each message (contracts sequenceModesFor), and a card that said "Each batch waits for your OK" would
+  // promise an approval for every customer.
+  for (const policies of [modes("ask"), []]) {
+    const r = await propose({ trigger: "visit_soon" }, { tenant_config: withCalendar(), policies }).made;
+    assert.equal(r.isError, false, r.result);
+    assert.equal(r.proposal.payload.mode, "veto");
+    assert.ok(
+      r.proposal.summary.includes(`Its first batch waits for your OK; after that, ${SEQUENCE_MODE_WORDS.veto.does}`),
+      r.proposal.summary,
+    );
+    assert.ok(!r.proposal.summary.includes("Each batch waits for your OK"), r.proposal.summary);
+  }
+  const sends = await propose({ trigger: "visit_soon" }, { tenant_config: withCalendar(), policies: modes("auto") })
+    .made;
+  assert.equal(sends.proposal.payload.mode, "auto");
 });

@@ -489,7 +489,9 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
           : null,
         sending: mailboxes ? coldEmailSendingOf(mailboxes, month, rc.now.getTime()) : null,
         batch_mode:
-          newSequenceMode(policies.find((p) => p.class === "outreach")?.mode, "leads") === "veto" ? "veto" : "ask",
+          newSequenceMode(policies.find((p) => p.class === "outreach")?.mode, "leads", null) === "veto"
+            ? "veto"
+            : "ask",
         never,
         foot:
           row && facts

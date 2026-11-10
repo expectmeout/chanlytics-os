@@ -1118,10 +1118,11 @@ test("POST calendar/visits/:id: a Missed says what it sets going (decision 0119)
     { name: "Missed appointment", when: "today 2:10 PM", asks: false },
     "ten minutes on, by the business's clock: long enough to take the word back",
   );
-  // Its words are new, or its sequence asks: the message is made then, and waits for an OK.
+  // Its words are new: the message is made then, and waits for its first OK.
   assert.equal((await follows({ step: { words_ok_at: null } })).asks, true);
-  assert.equal((await follows({ sequence: { mode: "ask" } })).asks, true);
   assert.equal((await follows({ sequence: { mode: "veto" } })).asks, false, "held for a stop, it still goes");
+  // A row that says ask is read as held: one an occasion starts never asks for each (contracts sequenceModeOf).
+  assert.equal((await follows({ sequence: { mode: "ask" } })).asks, false);
 
   // Nothing follows: the sequence is off or its step paused, the visit is nobody's on record, or it began days ago.
   assert.equal(await follows({ sequence: { state: "off" } }), null);

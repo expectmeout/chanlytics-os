@@ -75,7 +75,7 @@ async function missedFollowUpOf(
   return {
     name: step.name,
     when: clockNearWhen(nextOpenMoment(tz, new Date(due)).at.getTime(), tz, now.getTime()),
-    asks: batchModeOf({ mode: step.mode, words_ok_at: step.wordsOkAt }) === "ask",
+    asks: batchModeOf({ mode: step.mode, words_ok_at: step.wordsOkAt, trigger: step.trigger }) === "ask",
   };
 }
 

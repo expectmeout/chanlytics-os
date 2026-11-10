@@ -688,7 +688,10 @@ export function OkSheet(p: {
   onMode: (m: SequenceMode) => void;
   onClose: () => void;
 }) {
-  const modes = sequenceStartModesFor(p.draft.audience === "leads" ? "leads" : null);
+  const modes = sequenceStartModesFor(
+    p.draft.audience === "leads" ? "leads" : null,
+    p.draft.who?.kind === "moment" ? p.draft.who.trigger : null,
+  );
   return (
     <PickSheet open={p.open} title={W.draft.yourOk} sub={W.sheets.okSub} onClose={p.onClose} testid="sq-nw-ok">
       <div className="sq-nw-rows">

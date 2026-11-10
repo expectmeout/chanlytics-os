@@ -80,7 +80,8 @@ export async function runReachOut(
   // Its first run asks, because its words are new; after that its batches go as Before each batch says, first emails
   // and follow-ups alike (decision 0077, amended 9 Nov 2026): held thirty minutes for a stop, asked for, or, where its
   // owner set that on the sequence, sent on their own (0120).
-  const mode = batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at });
+  // A sequence to leads starts at no moment: its mode is its own.
+  const mode = batchModeOf({ mode: ports.mode, words_ok_at: step.words_ok_at, trigger: null });
   const asks = mode === "ask";
 
   // Who it may write to, and who it skips with why: a later step's leads the door would refuse, or whose email from the

@@ -335,8 +335,13 @@ export async function getAllowanceHeld(
  * 30 minutes for you to stop it, then goes (Standing offers)." Under ask every batch waits, the first among them, so it
  * says that once: "Each batch waits for your OK (Re-engage)."
  */
-export function underMode(cls: PlaybookInput["policy_class"], policies: readonly { class: string; mode: string }[]) {
-  const mode = newSequenceMode(policies.find((r) => r.class === cls)?.mode, "moment");
+export function underMode(
+  cls: PlaybookInput["policy_class"],
+  policies: readonly { class: string; mode: string }[],
+  trigger: string,
+) {
+  // Read for its moment: one an occasion starts never asks for each, whatever its class's row says (sequenceModeOf).
+  const mode = newSequenceMode(policies.find((r) => r.class === cls)?.mode, "moment", trigger);
   const does = SEQUENCE_MODE_WORDS[mode].does;
   const batches =
     mode === "ask" ? sheetWords(does) : `${sheetWords(PLAYBOOK_CARD_WORDS.asksFirst)}; after that, ${does}`;

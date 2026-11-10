@@ -55,11 +55,11 @@ W.fetch = async (url, init = {}) => {
 
 let flashes = [];
 let closed = 0;
-const draw = () =>
+const draw = (rec = REC) =>
   again(() =>
     W.React.createElement(SettingsSheet, {
       open: true,
-      rec: REC,
+      rec,
       flash: (f) => flashes.push(f),
       moved: () => {},
       onClose: () => (closed += 1),
@@ -103,4 +103,24 @@ test("Before each batch, changed and saved, reaches the change door as the seque
   await said.undo();
   const back = wire.filter(([m]) => m === "PUT").at(-1);
   assert.deepEqual([back[1], back[2]], [`playbooks/${SEQ}`, { mode: "veto" }]);
+});
+
+test("a sequence an occasion starts offers Send it and Hold it and never Ask me (decision 0119), and opens on the mode it goes by where its row says ask", () => {
+  const choices = (tree) => byTestId(sheetOf(tree), "sq-settings-mode").props.options.map((o) => o.value);
+  // The two-hour reminder, made where the Bookings row asks: the database kept ask, and it goes held for a stop.
+  const soon = {
+    ...REC,
+    sequence: {
+      ...REC.sequence,
+      name: "Two-hour reminder",
+      mode: "ask",
+      first: { ...REC.sequence.first, policy_class: "booking", trigger: "visit_soon" },
+    },
+  };
+  assert.deepEqual(choices(draw(soon)), ["auto", "veto"]);
+  assert.equal(byTestId(sheetOf(draw(soon)), "sq-settings-mode").props.value, "veto");
+  // Every other moment keeps the three.
+  unmount();
+  fresh();
+  assert.deepEqual(choices(draw()), ["auto", "veto", "ask"]);
 });

@@ -107,8 +107,8 @@ export function sequencePausedDock(row: SequenceRowDto): { line: string; fact: s
 }
 
 /** Who approves a sequence's batches, under that item of its More, which opens How it runs: "Holds each batch for you to stop". */
-export function sequenceWhoApprovesHint(mode: string | null): string {
-  const how = sequenceApprovalWords(mode);
+export function sequenceWhoApprovesHint(mode: string | null, trigger: string | null | undefined): string {
+  const how = sequenceApprovalWords(mode, trigger);
   return how.charAt(0).toUpperCase() + how.slice(1);
 }
 

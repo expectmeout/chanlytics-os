@@ -8,7 +8,7 @@ import { capitalize, plural } from "../../../shared/words";
 import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT } from "../../../shell/campaign-rooms";
 import { runWaitsOnYou, type RunDays } from "../../../waits/waits";
 import type { SequenceRowDto } from "../dto";
-import { SEQUENCE_MODE_WORDS, isSequenceMode, type SequenceState } from "../sequence";
+import { SEQUENCE_MODE_WORDS, sequenceModeOf, type SequenceState } from "../sequence";
 import { needsCount, needsWords } from "../list";
 import type { ReachOutFedBy } from "../../reach-out/leads/lines";
 
@@ -80,12 +80,12 @@ export const SEQUENCE_WORDS = {
 } as const;
 
 /**
- * Who approves a sequence's batches, as its head line says it, by its own mode (decision 0064, the row's `mode`); a mode
- * it does not know is ask's (contracts batchModeOf, fail safe). Said once, in the line under its name, and in its More,
- * which opens How it runs, where it is changed.
+ * Who approves a sequence's batches, as its head line says it, by the mode it goes by (decision 0064: the row's `mode`,
+ * read for the moment its first step starts on, contracts sequenceModeOf); a mode it does not know is ask's (fail safe).
+ * Said once, in the line under its name, and in its More, which opens How it runs, where it is changed.
  */
-export const sequenceApprovalWords = (mode: string | null): string =>
-  SEQUENCE_MODE_WORDS[isSequenceMode(mode) ? mode : "ask"].line;
+export const sequenceApprovalWords = (mode: string | null, trigger: string | null | undefined): string =>
+  SEQUENCE_MODE_WORDS[sequenceModeOf(mode, trigger)].line;
 
 /** The flow's own words (the canvas's Steps board): its keys, the step's lines, and what each part of it says. */
 export const SEQUENCE_FLOW_WORDS = {
@@ -415,7 +415,7 @@ export function sequenceSubLine(
     // read 'Leads from "Local: your receptionist is built"' beneath itself).
     const search = row.first?.search_name?.trim() ?? "";
     const from = search && search.toLowerCase() !== row.name.trim().toLowerCase() ? `Leads from “${search}”` : "Leads";
-    return `${from} · ${row.first?.owner_sends ? "you send each one" : sequenceApprovalWords(row.mode)}`;
+    return `${from} · ${row.first?.owner_sends ? "you send each one" : sequenceApprovalWords(row.mode, null)}`;
   }
-  return `${sequenceStartWords(row, rec.word)} · ${sequenceApprovalWords(row.mode)}`;
+  return `${sequenceStartWords(row, rec.word)} · ${sequenceApprovalWords(row.mode, row.first?.trigger)}`;
 }

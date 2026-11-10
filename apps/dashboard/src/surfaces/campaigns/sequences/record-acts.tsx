@@ -310,7 +310,7 @@ function More({ a, phone, look }: { a: RecordActs; phone: boolean; look: "glyph"
     items.push({
       label: SEQUENCE_WORDS.whoApproves,
       glyph: <Icon name="shield" size={13} />,
-      hint: sequenceWhoApprovesHint(row.mode),
+      hint: sequenceWhoApprovesHint(row.mode, row.first?.trigger),
       onSelect: a.openHow,
     });
   if (!phone && a.acts.discard.ok && row.state !== "draft") items.push(discardItem(a));

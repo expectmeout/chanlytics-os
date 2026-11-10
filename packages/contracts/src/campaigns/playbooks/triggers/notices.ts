@@ -154,12 +154,15 @@ export function lateReminderSkippedNotice(
   trigger: string | null,
 ): { subject: string; body: string } {
   const subject = `“${name}” didn’t go: nobody approved it`;
-  const after = `it did not reach them, and no later batch sends it in its place. Open it to see who, and write to them yourself. The next “${name}” waits for your OK too: ${NEXT_BATCH_WAITS}.`;
+  const unsent =
+    "it did not reach them, and no later batch sends it in its place. Open it to see who, and write to them yourself.";
+  // An occasion's waits only while its words are new (contracts sequenceModesFor: it never asks for each).
   if (triggerOf(trigger ?? "")?.kind === "occasion")
     return {
       subject,
-      body: `The message made for ${plural(people, "person", "people")} waited for your OK until it was too late to send: ${after}`,
+      body: `The message made for ${plural(people, "person", "people")} waited for your OK until it was too late to send: ${unsent} The next “${name}” waits for your OK too, until you approve one.`,
     };
+  const after = `${unsent} The next “${name}” waits for your OK too: ${NEXT_BATCH_WAITS}.`;
   return {
     subject,
     body: `${plural(people, "person", "people")} booked after the day’s reminders went, and the reminder made for them waited for your OK until it was too late to send: ${after}`,

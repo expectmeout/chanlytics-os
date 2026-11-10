@@ -430,7 +430,14 @@ function howOf(
     mailbox: leads ? { ids: box?.ids ?? [], label: box?.label ?? "" } : null,
     adds_new: leads && params.who?.kind === "search",
     policy_class: policy,
-    mode: params.kind === "once" ? null : newSequenceMode(known.classModes[policy] ?? null, leads ? "leads" : null),
+    mode:
+      params.kind === "once"
+        ? null
+        : newSequenceMode(
+            known.classModes[policy] ?? null,
+            leads ? "leads" : null,
+            params.who?.kind === "moment" ? params.who.trigger : null,
+          ),
   };
 }
 

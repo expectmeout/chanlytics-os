@@ -71,6 +71,12 @@ export const PLAYBOOK_PATCH_WORDS = {
     `Before each batch: ${SEQUENCE_MODE_WORDS[to].choice}, where it was ${SEQUENCE_MODE_WORDS[was].choice}`,
   /** A mode that is none of the three (decision 0064). */
   modeWhich: "Before each batch is ask (Ask me), veto (Hold it for a stop) or auto (Send it).",
+  /**
+   * Ask me on a sequence an occasion starts (decision 0119, contracts sequenceModesFor): it writes to one person at a
+   * time of their own, so each would wait for an OK of their own, and a reminder's would run out when its visit began.
+   */
+  modeOwnTime:
+    "This one writes to each person at a time of their own, so it sends each message (Send it) or holds it for a stop (Hold it): asked for each, a message would wait past its moment.",
   /** A mode a one-off does not take: pressing Send decided it. */
   modeOneOff: "A one-off goes as it was sent: it has no mode.",
   paused: "Nothing more runs until it is resumed",

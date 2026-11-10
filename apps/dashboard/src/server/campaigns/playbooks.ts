@@ -223,7 +223,11 @@ export async function followUpFacts(
     getSequenceModes(ctx.supabase, tenantId, [data.sequence_id]),
   ]);
   // Whether its next batch waits for an OK (contracts batchModeOf: its sequence's mode, or ask while its words are new).
-  const mode = batchModeOf({ mode: modes.get(data.sequence_id), words_ok_at: data.words_ok_at });
+  const mode = batchModeOf({
+    mode: modes.get(data.sequence_id),
+    words_ok_at: data.words_ok_at,
+    trigger: "proposal_waiting",
+  });
   const message = campaignMessageOf(rows, data.template_name, data.template_language);
   if (whatsappStops(channels, number, message?.versions.whatsapp?.status ?? null)) return null;
   // Who heard, or is due a message, is the breath's one read (packages/db getRecentTouches), as every other page and the
