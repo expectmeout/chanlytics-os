@@ -10562,7 +10562,11 @@ export type Database = {
         Returns: boolean
       }
       reach_out_comes_back: {
-        Args: { p_after_days: number; p_lead_ids: string[]; p_tenant_id: string }
+        Args: {
+          p_after_days: number
+          p_lead_ids: string[]
+          p_tenant_id: string
+        }
         Returns: {
           lead_id: string
         }[]
