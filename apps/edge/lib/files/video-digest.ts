@@ -47,7 +47,7 @@ import {
   streamAudioUrl,
   streamTokenOf,
 } from "@chanlytics/channels/files";
-import { findFileForWork, filesBucket, keepFileSound, type FileRow } from "@chanlytics/db/files";
+import { findFileForWork, filesBucket, keepFileSound, keepVideoSeconds, type FileRow } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../shared/log.js";
@@ -299,6 +299,8 @@ export async function digestVideo(db: Db, job: ClaimedJob, deadline: number): Pr
     const read = keys ? await readStreamVideo(keys.account, row.media_ref) : null;
     if (!read?.ok || !read.video.seconds) throw new Error("video_digest: the video's length is not known yet");
     row.seconds = read.video.seconds;
+    // Kept on the row: known to this run alone, the page said no length and Ask's every closer look was refused as past the clip's end.
+    await keepVideoSeconds(db, row.tenant_id, row.id, read.video.seconds);
   }
   const digest: Digest = {
     db,

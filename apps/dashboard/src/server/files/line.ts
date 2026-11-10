@@ -23,6 +23,8 @@ export interface FileForAsk extends FileDto {
   colors: string[];
   /** The main subject, as a share of the picture: [x1, y1, x2, y2]. */
   subject: [number, number, number, number] | null;
+  /** A video's: the moment the look chose to stand for the whole clip, in seconds; null for a picture, or before its look. */
+  stands_at: number | null;
 }
 
 /** The word Ask and a person use for a shelf: what is on it, in lower case. */

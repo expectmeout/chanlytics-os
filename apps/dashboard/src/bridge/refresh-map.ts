@@ -603,6 +603,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST channels/whatsapp/standing": () => [channelsOverride, ...reportsCampaigns()],
   // An Instagram account turned off: Connections' row (the channels read) and the Setup row that says what answers.
   "POST channels/instagram/disconnect": () => [channelsOverride, setupOverride],
+  // The same account connected through Meta, turned off (decision 0117): its row is the same channel, so the same two.
+  "POST channels/meta/disconnect": () => [channelsOverride, setupOverride],
   // The bell's press also moves when this member last looked, which Today's Since you looked says (GET today's `since`).
   "PUT notifications": () => [notificationsOverride, todayOverride],
   // Setup, lines, billing, Google.

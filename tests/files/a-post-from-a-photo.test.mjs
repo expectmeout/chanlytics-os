@@ -519,11 +519,29 @@ function askedOnce(input, { file = {}, question = OWNER, earlier = [], phone = "
 /** The edge's door as the act knocks it: the drawn post is decoded, so it must be a real JPEG, and comes back as a copy at its size. */
 const doorKnocks = [];
 let doorHolds = true;
+/** And as a video's moment is asked of it: whether it cuts one, and whether one has been cut into the folder. */
+const frameKnocks = [];
+let frameCuts = true;
+let frameCut = false;
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
   const url = String(input instanceof Request ? input.url : input);
   if (!url.includes("/api/admin/files/copies")) return realFetch(input, init);
   const body = JSON.parse(init.body);
+  if (body.frames) {
+    frameKnocks.push({ tenant_id: body.tenant_id, frames: body.frames });
+    frameCut = frameCuts;
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        copies: [],
+        frames: body.frames.map((f) =>
+          frameCuts ? { key: f.key, kept: true, width: 1080, height: 1920 } : { key: f.key, kept: false, wont: "no" },
+        ),
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }
   const pictures = [];
   for (const p of body.pictures ?? []) {
     const meta = await sharp(Buffer.from(p.bytes, "base64")).metadata();
@@ -584,6 +602,7 @@ test("a card from the owner's words: the photo by its id, and the plan its Save 
     layout: "over",
     language: "en",
     people_agreed: false,
+    at: null,
   });
 });
 
@@ -622,6 +641,74 @@ test("someone recognizable waits for the owner's word, and that word goes with t
   assert.equal(agreed.proposal?.kind, "post", "already said");
 });
 
+/* ------------------------------------------------------------------- from a video */
+
+const VIDEO = {
+  name: "salon-tour",
+  mime: "video/mp4",
+  kind: "video",
+  width: 1080,
+  height: 1920,
+  seconds: 24,
+  media_status: "ready",
+  shows: "interior",
+  look: { line: "A walk through the salon.", people: { count: 0, recognizable: 0 }, poster_at: 4.25 },
+};
+const fromVideo = (input, file = {}) => asked({ file: "salon-tour", ...input }, { file: { ...VIDEO, ...file } });
+/** Storage as a video's folder stands: no still of the moment until the edge has cut one. */
+function frameNotCutYet() {
+  const service = fakeDb({ files: [] }, {}, {});
+  const read = [];
+  service.storage = {
+    from: () => ({
+      download: async (p) => {
+        read.push(p);
+        return frameCut
+          ? { data: new Blob([await storedOf()]), error: null }
+          : { data: null, error: { message: "no" } };
+      },
+    }),
+  };
+  setServiceClient(service);
+  return read;
+}
+
+test("a post from a video is drawn from one moment of it: the act asks which, holds it inside the clip, and the card's plan carries it", async () => {
+  assert.match((await fromVideo({})).refusal, /^salon-tour: it is a video, and a post is drawn from one moment of it/);
+  assert.match((await fromVideo({ at: "0:40" })).refusal, /inside the clip/);
+  assert.match((await fromVideo({ at: "soon" })).refusal, /call again with at set to that moment/);
+  assert.match((await fromVideo({ at: 3 }, { media_status: "processing" })).refusal, /still being made ready/);
+  const out = await fromVideo({ at: "0:12.5" });
+  assert.equal(out.proposal?.kind, "post", out.result);
+  assert.equal(postPlanOf(out.proposal.payload).at, 12.5);
+  assert.equal(postPlanOf(out.proposal.payload).file_id, FILE);
+  const photo = await asked({ at: "0:03" });
+  assert.equal(postPlanOf(photo.proposal.payload).at, null, "a photo has no moment, whatever is named for it");
+});
+
+test("the moment is read from the video's own folder, and cut by the edge only where it is not there yet", async () => {
+  frameKnocks.length = 0;
+  frameCut = false;
+  doorKnocks.length = 0;
+  const read = frameNotCutYet();
+  const first = await askedOnce({ file: "salon-tour", at: 12.5 }, { file: VIDEO });
+  assert.equal(first.isError, false, first.result);
+  assert.equal(JSON.parse(first.result).drawn, true);
+  assert.deepEqual(frameKnocks, [{ tenant_id: A, frames: [{ key: "one", id: FILE, at: 12.5 }] }]);
+  assert.deepEqual(read, [`${A}/${FILE}/frame-1250.jpg`, `${A}/${FILE}/frame-1250.jpg`], "asked for, cut, read");
+  assert.equal(doorKnocks.at(-1).name, "salon-tour-post.jpg", "and the post drawn from it is shown to Ask");
+  frameCut = false;
+  frameCuts = false;
+  try {
+    frameNotCutYet();
+    const other = await askedOnce({ file: "salon-tour", at: 20 }, { file: VIDEO });
+    assert.match(other.refusal ?? other.result, /salon-tour/);
+    assert.equal(other.proposal, null, "a moment that could not be cut makes no card");
+  } finally {
+    frameCuts = true;
+  }
+});
+
 /* ------------------------------------------------------------------------- the card */
 
 const CARD = {
@@ -641,6 +728,7 @@ test("a card's plan reads back the same, and what it does not hold it does not i
     layout: "over",
     language: "es",
     people_agreed: false,
+    at: null,
   });
 });
 
