@@ -279,6 +279,13 @@ const MODE_WORDS = {
 };
 
 /**
+ * What a moment's row says in place of counts where it has none of its own: a list's (sequences.lists has each list's),
+ * or an occasion's (decision 0119), which names nobody ahead of time. Null where the page's pools count it.
+ */
+const markInPlaceOfCounts = (kind: string): { counted_per_list: true } | { each_at_their_own_time: true } | null =>
+  kind === "saved" ? { counted_per_list: true } : kind === "occasion" ? { each_at_their_own_time: true } : null;
+
+/**
  * The playbooks as the page shows them — the same rows, the same last 30
  * days, the same next-run words, the same end, each with its sequence's own
  * mode — and the triggers with the counts the page's chips carry: the Playbooks
@@ -413,11 +420,7 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
         when: triggerWords(x, shape.word).hint,
         policy_class: x.cls,
         // On a list, the counts are the list's: sequences.lists has each list's. An occasion's moment has none to give.
-        ...(x.kind === "saved"
-          ? { counted_per_list: true }
-          : x.kind === "occasion"
-            ? { each_at_their_own_time: true }
-            : counted(x.id)),
+        ...(markInPlaceOfCounts(x.kind) ?? counted(x.id)),
         starter_template: starterForTrigger(x.id)?.title ?? null,
       })),
     note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${words.a} and a check the day after go one per ${words.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now. each_at_their_own_time marks a moment that names nobody ahead of time (two hours before ${words.a}, ${words.a} marked missed, the booking link sent and nothing booked): each person comes to it when that happens to them and its message goes then, so it has no count, and that is no fault. The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs.`,

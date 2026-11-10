@@ -252,6 +252,21 @@ export function campaignFixCard(
  * reaches (playbookRunReach, uncapped); `goesBy` the channels it goes by now. Its cap, its week's limit, its message and
  * its mode are its sheet's, behind Details.
  */
+/**
+ * What a sequence an occasion starts does, and when (decision 0119), or null for any other moment. Nobody is named by one
+ * ahead of time, so each says what it does to whoever comes to it, at a time of their own: the reminder's is said in what
+ * it does, the missed visit's is minutes after the word (contracts missedFollowUpAt), and the ask's follow-up is the next
+ * day at the sequence's hour.
+ */
+function occasionLine(trigger: string, one: string, at: string): [does: string, when: string] | null {
+  if (trigger === "visit_soon") return [`Reminds each customer two hours before their ${one}`, ""];
+  if (trigger === "visit_missed")
+    return [`Offers another time to anyone whose ${one} you mark missed`, "a few minutes after"];
+  if (trigger === "asked_no_booking")
+    return ["Follows up with anyone sent your booking link who has not booked", `the next day at ${at}`];
+  return null;
+}
+
 export function campaignLine(context: {
   trigger: string;
   word: AppointmentWord;
@@ -263,6 +278,8 @@ export function campaignLine(context: {
   goesBy: readonly ConsentChannel[];
 }): string {
   const words = appointmentWords(context.word);
+  const occasion = occasionLine(context.trigger, words.one, clockHour(context.run_hour));
+  if (occasion) return [...occasion, channelsWords(context.goesBy)].filter(Boolean).join(", ");
   const will = context.will;
   // "4", or "2 of 4" where some the moment names cannot be reached.
   const of = will < context.pool ? `${will} of ${context.pool}` : `${will}`;
@@ -294,35 +311,18 @@ export function campaignLine(context: {
         return will > 0
           ? `Follows up ${of} ${(will < context.pool ? context.pool : will) === 1 ? "proposal" : "proposals"} waiting on an answer`
           : "Follows up each proposal left waiting on an answer";
-      // An occasion's three (decision 0119): nobody is named ahead of time, so each says what it does to whoever comes.
-      case "visit_soon":
-        return `Reminds each customer two hours before their ${words.one}`;
-      case "visit_missed":
-        return `Offers another time to anyone whose ${words.one} you mark missed`;
-      case "asked_no_booking":
-        return "Follows up with anyone sent your booking link who has not booked";
       default:
         return `${triggerOf(context.trigger)?.label ?? "Sends"} to ${people}`;
     }
   })();
   const at = clockHour(context.run_hour);
   const kind = triggerOf(context.trigger)?.kind;
-  // An occasion's time is each person's own: the reminder's is said in what it does, the missed visit's is minutes after
-  // the word (contracts missedFollowUpAt), and the ask's follow-up is the next day at the sequence's hour.
-  const ownTime =
-    context.trigger === "visit_soon"
-      ? ""
-      : context.trigger === "visit_missed"
-        ? "a few minutes after"
-        : `the next day at ${at}`;
   const when =
     kind === "visit"
       ? at
-      : kind === "occasion"
-        ? ownTime
-        : context.trigger === "everyone_monthly"
-          ? `every ${context.cadence_days} days at ${at}`
-          : `daily at ${at}`;
+      : context.trigger === "everyone_monthly"
+        ? `every ${context.cadence_days} days at ${at}`
+        : `daily at ${at}`;
   const by = channelsWords(context.goesBy);
   return [does, when, by].filter(Boolean).join(", ");
 }
