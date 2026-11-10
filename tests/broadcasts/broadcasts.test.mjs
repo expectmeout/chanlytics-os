@@ -37,6 +37,8 @@ import {
   whyNotReceive,
   offersNote,
   runCountsOf,
+  heldNoticeWords,
+  vetoRunNotice,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
@@ -540,6 +542,65 @@ test('the job carries WhatsApp\'s "not now" through: the person back in the queu
     wait >= BROADCAST_THROTTLE_WAITS_MS[2] && wait < BROADCAST_THROTTLE_WAITS_MS[2] * 1.2 + 5_000,
     `the third wait, drawn up to a fifth longer, ${wait} ms`,
   );
+});
+
+test("a run the job starts closes the row that said it goes unless stopped, for every device: the run's other rows stay", async (t) => {
+  // As above: a June weekday at 14:00 UTC, inside the hours, and WhatsApp's "not now" keeps the run sending, so nothing
+  // but its start can have closed a row.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-06-10T14:00:00Z") });
+  const w = world();
+  w.tenants[0].timezone = "UTC";
+  w.conversations = [
+    {
+      id: "c1",
+      tenant_id: TID,
+      contact_id: "k1",
+      paused_until: null,
+      contacts: { consent: "opted_in", dnc: false, marketing_consent: "opted_in", erased_at: null },
+      tenants: { status: "active" },
+    },
+  ];
+  const kept = (id, title) => ({
+    id,
+    tenant_id: TID,
+    kind: "playbook",
+    title,
+    body: "x",
+    route: null,
+    subject_type: "broadcast",
+    subject_id: "b1",
+    created_at: new Date(Date.now() - 60_000).toISOString(),
+    closed_at: null,
+  });
+  // The row core kept when the run was made (run-playbook.ts), and another row about the run, closed by its title alone.
+  const stop = kept("eeeeeeee-0000-4000-8000-000000000001", vetoRunNotice("Spring offer", 1, "today 2:00 PM").subject);
+  const other = kept(
+    "eeeeeeee-0000-4000-8000-000000000002",
+    heldNoticeWords({ name: "Spring offer", held: 1, reasons: [] }).subject,
+  );
+  w.notifications = [stop, other];
+  await dispatchJob(
+    {
+      db: fakeDb(w),
+      wire: {
+        whatsapp: async () => ({
+          ok: false,
+          wamid: null,
+          status: 400,
+          errorBody: '{"error":{"code":130429}}',
+          code: 130429,
+        }),
+      },
+      alert: async () => {},
+      schedule: async () => {},
+      deadline: Date.now() + 60_000,
+    },
+    { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } },
+  );
+  const closedAt = (row) => w.notifications.find((n) => n.id === row.id).closed_at ?? null;
+  assert.equal(w.broadcasts[0].state, "sending", "the job started the run");
+  assert.ok(closedAt(stop), "its stop row asks no more, on the phone's icon and every tab");
+  assert.equal(closedAt(other), null, "a row the run's start does not end stays");
 });
 
 test("a wire that could not be bound claims nobody: the run stays as it was, its people stay queued, nobody is told to reconnect, and the batch is tried again a while on", async () => {

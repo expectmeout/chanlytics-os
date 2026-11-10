@@ -7,6 +7,7 @@ export {
   NOTHING_WAITS_KNOWN,
   NOTICE_ENDS,
   noticeStillWaits,
+  RUN_START_ENDS,
   settledNoticeIds,
 } from "./notice-closes";
 export type { HeldRun, NoticeEnd, WaitSource, WhatWaits } from "./notice-closes";

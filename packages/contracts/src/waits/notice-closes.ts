@@ -107,6 +107,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   call: { ends: "hold", server: "hold_resolved" },
   // A run approved, skipped or skipped by the night's sweep, or ended, closes its rows on the server (00461
   // batch_closes_its_notices): a browser that held the run among Sent's alone closed them, and the phone's icon never.
+  // A run that starts sending closes its stop row too (RUN_START_ENDS).
   playbook: { ends: "run", server: "run_decided" },
   booking_notice: { ends: "email" },
   review: { ends: "review" },
@@ -182,6 +183,17 @@ const RUN_WAITS_TITLE = /^(?:(?:Campaign|Playbook) “.*” is ready\b|A reach-o
 const RUN_GOES_TITLE = /^(?:Campaign|Playbook) “.*” sends /u;
 /** The check held some of a going reach-out run's emails for its owner's say (contracts heldNoticeWords). */
 const RUN_HELD_TITLE = /^The check held \d+ emails? in /u;
+
+/**
+ * The rows a run's start ends for good, closed on the server as it starts sending (the cold email writer and the send job,
+ * through packages/db closeRunStartNotices), so the phone's icon and every tab agree with the judge below: its stop
+ * window's row, by the title judgeRun reads. A run never goes back to scheduled. Its held emails still ask while it
+ * sends, and its other rows close as it is decided or ends (00461 batch_closes_its_notices). Titles are matched in
+ * TypeScript, never in SQL, so the rule stays here.
+ */
+export const RUN_START_ENDS: ReadonlyArray<{ kind: ServerNotificationKind; title: RegExp }> = [
+  { kind: "playbook", title: RUN_GOES_TITLE },
+];
 
 const isGoing = (state: string): boolean => isOneOf(RUN_GOING_STATES, state);
 
