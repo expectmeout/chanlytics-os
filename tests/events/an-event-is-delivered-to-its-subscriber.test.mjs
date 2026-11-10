@@ -93,6 +93,15 @@ const READS = {
     data: { change: "cancelled", source: "booking_email", by: "service" },
     created_at: "2026-10-06T00:00:00Z",
   },
+  // A booking that landed, handed to the reminder's door, which says whether the day's look still names it (decision 0118).
+  visit_reminder: {
+    kind: "appointment.changed",
+    category: "appointment",
+    subject_type: "appointment",
+    subject_id: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+    data: { change: "added", source: "booking_email", starts_at: "2999-10-12T15:00:00Z" },
+    created_at: "2026-10-06T00:00:00Z",
+  },
 };
 
 const CONV = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
@@ -265,6 +274,8 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
   const told = [];
   // The edge's offer of a freed time, recorded: it makes its batch once per appointment, so a second ask answers it.
   const offered = [];
+  // The edge's reminder of a late booking, recorded: its door asks first whether the visit was reminded (decision 0118).
+  const reminded = [];
   const ctx = {
     db,
     wire: { whatsapp: null, sms: null },
@@ -292,6 +303,12 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
         return { offered: true, people: 2, waits: false };
       },
     },
+    reminders: {
+      remind: async (tenantId, appointmentId) => {
+        reminded.push([tenantId, appointmentId]);
+        return { reminded: true, at: "2999-10-12T01:00:00.000Z", waits: false };
+      },
+    },
   };
   const job = {
     id: "j-1",
@@ -299,7 +316,7 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
     kind: "event_deliver",
     payload: { event_id: E, subscriber, kind, lane: "2" },
   };
-  return { tables, ctx, job, pages, booked, told, offered, delivery: () => tables.event_deliveries[0] };
+  return { tables, ctx, job, pages, booked, told, offered, reminded, delivery: () => tables.event_deliveries[0] };
 }
 
 test("a subscriber runs and the delivery is done, counted once", async () => {
@@ -396,6 +413,7 @@ test("the harness: every subscriber run twice on one delivery leaves the same ro
       team_notice: () => w.told.length,
       freed_time_offer: () => w.offered.length,
       reply_draft: () => (w.tables.jobs ?? []).filter((j) => j.kind === "reply_draft").length,
+      visit_reminder: () => w.reminded.length,
     };
     assert.ok(acted[subscriber]() > 0, `${subscriber}: the first run acted`);
     const once = JSON.stringify(w.tables);

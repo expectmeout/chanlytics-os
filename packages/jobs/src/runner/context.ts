@@ -8,6 +8,7 @@ import type {
   FreedTimeOffer,
   JobKind,
   JobNews,
+  LateReminder,
   JobPayload,
   PushMessage,
   Unread,
@@ -301,6 +302,15 @@ export interface JobContext {
   freedTimes?: {
     /** The workspace's running step runs for the freed time, once per appointment. Throws when it could not be asked. */
     offer: (tenantId: TenantId, freed: { from: string; start: number; end: number }) => Promise<FreedTimeOffer>;
+  };
+  /**
+   * A late booking reminded (decision 0118), as the edge holds it: the workspace's run context and its step on
+   * `visit_tomorrow` live there. INJECTED like the freed time's offer; a delivery to `visit_reminder` in a runtime without
+   * it fails loudly.
+   */
+  reminders?: {
+    /** The workspace's running step runs for the one person the appointment is for, once per visit. Throws when it could not be asked. */
+    remind: (tenantId: TenantId, appointmentId: string) => Promise<LateReminder>;
   };
   /**
    * A lead's own receptionist built (00497, decision 0079), as the edge holds it: the website read and the model's key

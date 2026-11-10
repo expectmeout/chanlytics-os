@@ -189,6 +189,10 @@ export interface RunReach {
  */
 export type RunPlaybook = Pick<PlaybookDto, "trigger" | "cap_per_run" | "gap_days" | "cadence_days"> & {
   message: RunMessage;
+  /** A visit moment's run about one person (a late booking's reminder, decision 0118): nobody else is named. */
+  only?: string;
+  /** The visit day such a run is about, where it is not the moment's own (visitMomentDay). */
+  day?: string;
 } & Omit<CampaignHow, "about">;
 
 /** The name a person is saved under, as the calendar matches it (calendar-people.ts personLikeOf): the one a human gave, else their WhatsApp name. */
@@ -265,6 +269,28 @@ function visitIsTheirs(
 }
 
 /**
+ * Who a visit's moment names, before anyone is left out (playbookRunReach): everyone with a visit ON the moment's day that
+ * is surely theirs (visitIsTheirs). The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a
+ * visit on the day, of any near today: not the next visit, which for a person with one later today is today's. A thank-you
+ * names nobody who has booked again. A late booking's run (decision 0118) names its one person, on the day it says.
+ */
+function visitNamed(
+  rows: readonly PersonRowVM[],
+  run: Pick<RunPlaybook, "trigger" | "only" | "day">,
+  nowMs: number,
+  theirs: ReturnType<typeof theirVisitTest>,
+): PersonRowVM[] {
+  return rows.filter((r) => {
+    if (run.only && r.id !== run.only) return false;
+    if (!r.calendarTz) return false;
+    const day = run.day ?? visitMomentDay(run.trigger, r.calendarTz, nowMs);
+    const onDay = r.visitDays.some((d) => d.date === day && theirs(r, d.via));
+    if (run.trigger === "visit_tomorrow") return onDay;
+    return onDay && !r.booked;
+  });
+}
+
+/**
  * Who a run reaches first: the longest-unheard, as a win-back wants; for a freed time whoever asked most recently (0082),
  * since a time is taken by one person, and the one who asked yesterday is likeliest to want it.
  */
@@ -335,16 +361,7 @@ export function playbookRunReach(
   // Who the moment names, before anyone is left out.
   const named =
     trigger.kind === "visit"
-      ? // The calendar's own day, never hours: eleven at night tomorrow is still tomorrow. And a visit that is surely
-        // theirs (visitIsTheirs).
-        rows.filter((r) => {
-          if (!r.calendarTz) return false;
-          // A visit ON the day, of any near today: not the next visit, which for a person with one later today is today's.
-          const day = visitMomentDay(run.trigger, r.calendarTz, nowMs);
-          const onDay = r.visitDays.some((d) => d.date === day && theirs(r, d.via));
-          if (run.trigger === "visit_tomorrow") return onDay;
-          return onDay && !r.booked;
-        })
+      ? visitNamed(rows, run, nowMs, theirs)
       : trigger.kind === "saved"
         ? audienceMembers(rows, "saved", null, listIds ?? new Set<string>())
         : trigger.kind === "deal"
