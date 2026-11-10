@@ -114,8 +114,8 @@ interface PostFrom {
  */
 async function frameRead(ctx: RouteContext, tenantId: TenantId, file: FileMemberRow, at: number): Promise<Buffer> {
   const path = fileFramePathOf(tenantId, file.id, at);
-  const unread = (why: string): never => {
-    log.error("file_post_read_failed", { tenant_id: tenantId, error: why });
+  const unread = (reason: string): never => {
+    log.error("file_post_read_failed", { tenant_id: tenantId, error: reason });
     throw new AppError("unavailable", W.failedRead);
   };
   const kept = await bucket().download(path);

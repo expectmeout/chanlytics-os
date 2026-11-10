@@ -94,7 +94,7 @@ export function filesNamed(files: readonly FileForAsk[], names: readonly string[
  * What is said in the videos among these files, by file: read only when a list is searched, so a clip is found by its words as a
  * photo is by its sign. A read that fails finds by the rest.
  */
-async function saidIn(turn: ToolContext, files: readonly FileForAsk[]): Promise<ReadonlyMap<string, string>> {
+async function spokenIn(turn: ToolContext, files: readonly FileForAsk[]): Promise<ReadonlyMap<string, string>> {
   if (!files.some((f) => isVideo(f) && f.media_status === "ready")) return new Map();
   const heard = await listVideosHeard(turn.ctx.supabase, turn.tenantId).catch(
     logAndGoOn<Pick<FileRow, "id" | "sound">[]>("listVideosHeard", []),
@@ -111,9 +111,9 @@ async function saidIn(turn: ToolContext, files: readonly FileForAsk[]): Promise<
 async function filesAbout(turn: ToolContext, files: readonly FileForAsk[], about: string | undefined) {
   const words = about?.toLowerCase().split(/\s+/).filter(Boolean) ?? [];
   if (!words.length) return files;
-  const said = await saidIn(turn, files);
+  const spoken = await spokenIn(turn, files);
   return files.filter((f) => {
-    const hay = [f.name, f.line ?? "", f.sound_said ?? "", ...f.text_seen, said.get(f.id) ?? ""]
+    const hay = [f.name, f.line ?? "", f.sound_said ?? "", ...f.text_seen, spoken.get(f.id) ?? ""]
       .join(" ")
       .toLowerCase();
     return words.every((w) => hay.includes(w));

@@ -89,7 +89,9 @@ test("a moment as a person says it and as a model names it", () => {
 });
 
 test("a frame's own size where Stream said it, its long side 2,576 at most, and a landscape guess where it did not", () => {
-  assert.deepEqual(video.videoFrameSizeOf(3840, 2160), [2576, 1449]);
+  assert.deepEqual(video.videoFrameSizeOf(3840, 2160), [2000, 1126]);
+  assert.deepEqual(video.videoFrameSizeOf(1284, 2282), [1126, 2000], "a phone's tall clip, its sides even");
+  assert.equal(video.VIDEO_FRAME_SIDE, 2000, "the largest frame the video platform gives");
   assert.deepEqual(video.videoFrameSizeOf(720, 1280), [720, 1280]);
   assert.deepEqual(video.videoFrameSizeOf(-1, -1), [1920, 1080]);
 });

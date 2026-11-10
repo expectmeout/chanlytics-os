@@ -86,6 +86,9 @@ function FileFrom({ file, made, open }: { file: FileDto; made: FileMade | null; 
   );
 }
 
+/** What Make a post asks Ask: a photo's own sentence, or a video's, whose post is drawn from the moment Ask chooses. */
+const postAskOf = (file: FileDto) => (file.kind === "video" ? W.video.makePostAsk : MAKE_POST_ASK);
+
 /** The sheet's foot: where it stands in the pile, its original, and Delete behind a question. A reader has the original alone. */
 function FileActs({
   file,
@@ -248,10 +251,8 @@ function FileSheet({
   // The sheet goes as Ask comes, "this photo" the one it held: the picture is in the turn, and the chip says which.
   const about = { kind: "file", id: file.id, label: said } as const;
   const ask = () => afterSheetCloses(onClose, () => askAbout({ about }));
-  // A conversation of its own, so a post costs only what a post reads, whatever Ask was last asked. A video's is drawn from one
-  // moment of it, which Ask chooses after looking.
-  const postAsk = file.kind === "video" ? W.video.makePostAsk : MAKE_POST_ASK;
-  const makePost = () => afterSheetCloses(onClose, () => askAbout({ about, prompts: postAsk, fresh: true }));
+  // A conversation of its own, so a post costs only what a post reads, whatever Ask was last asked.
+  const makePost = () => afterSheetCloses(onClose, () => askAbout({ about, prompts: postAskOf(file), fresh: true }));
   return (
     <RecordSheet
       id="file"

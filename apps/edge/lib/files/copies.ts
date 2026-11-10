@@ -203,15 +203,15 @@ async function frameKept(db: SupabaseClient<Database>, tenantId: TenantId, frame
     frame.at,
   );
   if (!drawn) return none("Stream gave no frame at that moment just now");
-  const stored = await filesBucket(db).upload(fileFramePathOf(tenantId, row.id, frame.at), drawn.bytes, {
+  const upload = await filesBucket(db).upload(fileFramePathOf(tenantId, row.id, frame.at), drawn.bytes, {
     contentType: "image/jpeg",
     upsert: true,
   });
-  if (stored.error) {
+  if (upload.error) {
     logger({ tenant_id: tenantId }).warn("file_copy_failed", {
       file: row.id,
       why: "frame",
-      error: stored.error.message,
+      error: upload.error.message,
     });
     return none("it could not be kept just now");
   }
