@@ -1,4 +1,3 @@
-import { refuseWithoutMailbox } from "../reach-outs/mailbox-needed";
 import "server-only";
 import {
   AppError,
@@ -41,6 +40,7 @@ import {
   type StepWordsBody,
 } from "./bodies";
 import type { TenantId } from "@chanlytics/contracts";
+import { refuseWithoutMailbox } from "../reach-outs/mailbox-needed";
 
 /**
  * A sequence's doors (decision 0060, 00442), as the routes under sequences press them: a new sequence made whole and one

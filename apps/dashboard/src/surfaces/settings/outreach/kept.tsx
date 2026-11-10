@@ -18,7 +18,11 @@ function RulesRow() {
   useEffect(() => recFolds.drawn("rules"), []);
   return (
     <>
-      <RecordRow id="rules" label={RULE_WORDS.title} act={{ label: "Open", onClick: () => fold.request() }} />
+      <RecordRow
+        id="rules"
+        label={RULE_WORDS.title}
+        act={{ label: REACH_OUT_SETTINGS_WORDS.acts.open, onClick: () => fold.request() }}
+      />
       {fold.open ? (
         <RecordSheet id="rules" title={RULE_WORDS.title} onClose={fold.close} testid="rec-rules-sheet">
           <div className="bt-stack">

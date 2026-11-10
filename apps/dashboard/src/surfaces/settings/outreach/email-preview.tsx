@@ -189,7 +189,12 @@ const TryNone = () => (
     </p>
     {/* Held to its own width: the stack would stretch it across the sheet. */}
     <span>
-      <Button size="sm" onClick={() => navigate(newForLeadsRoute())} data-testid="rec-try-new">
+      <Button
+        size="sm"
+        onClick={() => navigate(newForLeadsRoute())}
+        data-testid="rec-try-new"
+        {...gate("approve", "start a sequence")}
+      >
         {TRY_CARD.noneAct}
       </Button>
     </span>

@@ -284,7 +284,6 @@ export async function removeMailbox(tenantId: TenantId, userId: string, id: stri
   if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "removed");
 }
 
-/** Where the browser lands after the provider: Connections, with the outcome in a word the block reads once. */
 /** Where a connect came from, as its signed state names it; anywhere else goes back to Connections. */
 const CONNECT_CAME_FROM: Readonly<Record<string, string>> = {
   start: "start/channels",

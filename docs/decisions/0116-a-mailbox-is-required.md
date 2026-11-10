@@ -28,7 +28,8 @@ connect a mailbox as manually sending emails defeats the purpose of chanlytics".
 5. **After a sequence's first run, first emails follow Before each batch** (0077 amended): the first run waits for an OK,
    since its words are new, and after it each batch holds for a stop or asks, as follow-ups already did. Cold email never
    just goes.
-6. **"Healthy" means every check passed** (contracts `coldEmailSendingOf`): the domain's records, bounces and complaints.
+6. **"Healthy" means every check passed** (contracts `coldEmailSendingOf`): the domain's records, bounces, who
+   unsubscribed (held past the same 3% as bounces) and complaints.
    The pace says days of sending, never a date, since the ramp counts the days a mailbox really sent.
 7. **Each sheet says what a change reaches**, as it stands today: until a sequence remembers what wrote it (the plan's
    Stage C), running sequences keep their words, and the sheet says so.
@@ -37,5 +38,10 @@ connect a mailbox as manually sending emails defeats the purpose of chanlytics".
 
 - `REACH_OUT_REFUSALS` keep the word "reach-out": the database raises those sentences (00211), so they change with a
   migration, in Stage B.
-- The by-hand road's code stays until Stage E: `owner_sends`, To send, the "Did you send it?" ask. Nothing new reaches it.
+- The by-hand road's code stays until Stage E: `owner_sends`, To send. Nothing new reaches it: the maker refuses a new
+  sequence to leads with no connected mailbox or asked to be sent by hand, and a copy of a by-hand one sends from the
+  mailboxes (00585); Start and Turn back on refuse with no mailbox that sends, by-hand ones too. A lead's own email lost
+  its "Did you send it?" ask with its mail-app doors.
+- A refusal for no mailbox at all carries `needs: "mailbox"` (contracts `ErrorDetailsByCode`), which New reads, never
+  its sentence.
 - Moving the page out from under Receptionist reverses 0113's placement, which its note said was one line to undo.

@@ -10,6 +10,7 @@ import {
   reachOutRootOf,
   type ColdEmailNote,
   type ColdEmailStandingFacts,
+  type TenantId,
 } from "@chanlytics/contracts";
 import {
   countHeldForAddress,
@@ -21,6 +22,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
 import { findNewestSearchName } from "@chanlytics/db/leads";
+import { logAndGoOn } from "@chanlytics/log";
 import { chainOf } from "../campaigns/reach-outs/chain-acts";
 import { load, readerStamp, type Reader } from "../shared/reader";
 import * as readers from "./facts";
@@ -48,7 +50,7 @@ export function coldEmailNoteFactsOf(input: {
   /** Something says what the business sells (contracts reachOutPitchSaid). */
   hasPitch: boolean;
   whoFor: string | null;
-  /** What the waiting run's sequence has sent, which says first from next; null where nothing waits. */
+  /** What the waiting run's sequence has sent, which says first from next; null where nothing waits or it was unread. */
   sent: number | null;
   /** The name of the search the waiting run's sequence writes to. */
   searchName: string | null;
@@ -57,6 +59,7 @@ export function coldEmailNoteFactsOf(input: {
 }): ColdEmailStandingFacts {
   const running = runningNewestFirst(input.roots);
   const run = waitingRunOf(running, input.waiting);
+  const waits = running.filter((r) => input.waiting.some((w) => reachOutRootOf(w.audience) === r.id)).length;
   return {
     mailboxes: input.mailboxes.filter((m) => mailboxIsLive(m)),
     hasAddress: input.hasAddress,
@@ -66,9 +69,10 @@ export function coldEmailNoteFactsOf(input: {
           id: run.id,
           planned: run.recipient_count,
           name: input.searchName || run.root.name,
-          first: !input.sent,
+          first: input.sent === null ? null : input.sent === 0,
         }
       : null,
+    othersWaiting: Math.max(0, waits - 1),
     month: { sent: null, of: REACH_OUT_MONTH_EMAILS },
     running: running.map((r) => ({ name: r.name, sent: null, wroteBack: null, interested: null, waitingLeads: null })),
     hadSequence: input.roots.length > 0,
@@ -92,27 +96,36 @@ function waitingRunOf<R extends { id: string }>(
   return null;
 }
 
+/** The newest search's name; undefined where it could not be read, which counts as one (never a step still to do). */
+const newestSearchOrUnread = (db: Parameters<typeof findNewestSearchName>[0], tenantId: TenantId) =>
+  findNewestSearchName(db, tenantId).catch(logAndGoOn("cold_email_note_search", undefined));
+
 /**
  * GET settings/reach-out/note: Cold email's one line on Today, through the page's one answer (contracts coldEmailStandingOf),
- * or none. Today opens all day, so this reads only what can make it speak. Its report's numbers, its counts of who is left
- * and the page's other cards are the page's read (reachOutSettings). A read that fails fails the note, which says nothing.
+ * or none. Today opens all day, so this reads only what can make it speak. A workspace that has started no cold email, no
+ * search and no sequence, is never asked about it (decision 0113): two reads say so, and nothing else is read. Its report's
+ * numbers, its counts of who is left and the page's other cards are the page's read (reachOutSettings). A read that fails
+ * fails the note, which says nothing.
  */
 export const coldEmailNote: Reader<undefined, { note: ColdEmailNote | null }> = {
   name: "cold_email_note",
   async read(rc) {
     const db = rc.ctx.supabase;
     const tenantId = rc.tenantId;
-    const [row, facts, mailboxes, steps, waiting, newestSearch] = await Promise.all([
+    const [steps, newestSearch] = await Promise.all([
+      listReachOutSteps(db, tenantId),
+      newestSearchOrUnread(db, tenantId),
+    ]);
+    const roots = steps.filter((s) => s.trigger === "lead_first");
+    if (roots.length === 0 && newestSearch === null) return { data: { note: null }, rows: [], stamp: readerStamp() };
+    const [row, facts, mailboxes, waiting] = await Promise.all([
       load(rc, readers.config, undefined),
       load(rc, readers.facts, undefined),
       listMailboxConnectionsOf(db, tenantId),
-      listReachOutSteps(db, tenantId),
       listRunsWaiting(db, tenantId),
-      findNewestSearchName(db, tenantId),
     ]);
     const parsed = parseTenantConfig(row.data?.config);
     const hasAddress = hasFootAddress(facts.data.name, parsed?.brain?.profile?.address);
-    const roots = steps.filter((s) => s.trigger === "lead_first");
     const running = runningNewestFirst(roots);
     const subject = waitingRunOf(running, waiting)?.root ?? null;
     const pitchSaid = reachOutPitchSaid(parsed, null);

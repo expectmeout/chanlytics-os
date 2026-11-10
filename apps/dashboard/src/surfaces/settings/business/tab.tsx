@@ -78,6 +78,13 @@ type Flash = (flash: FrameFlash) => void;
  */
 export type BusinessPart = "workspace" | "hours" | "receptionist" | "outreach";
 
+/** The record of a workspace with no receptionist set up yet, which Cold email alone is drawn over. */
+const NO_BRAIN: Brain = {};
+
+/** The record a page draws from: the receptionist's, else, for Cold email alone, which needs none, an empty one. */
+const pageBrainOf = (config: Config | null, parts: readonly BusinessPart[]): Brain | null =>
+  (config && config.brain) || (parts.length === 1 && parts[0] === "outreach" ? NO_BRAIN : null);
+
 /**
  * A door that opens a row of the business by its id, from a page that draws the business's pages `here`: in place where
  * the row is on one of them (the fold registry, as the row's own act would), else on the page that holds it, open (the
@@ -428,12 +435,18 @@ const useBtOpenRow = (row: string | null, drawn: boolean, canEdit: boolean) => {
   useEffect(() => {
     if (!row || !drawn || opened.current === row) return;
     const key = document.getElementById(`rec-row-${row}-key`);
-    if (!key) return;
+    if (!key && !SHEETS_WITHOUT_A_ROW.has(row)) return;
     opened.current = row;
-    btRowIntoView(key);
+    if (key) btRowIntoView(key);
     if (canEdit) btOpenRow(row);
   }, [row, drawn, canEdit]);
 };
+
+/**
+ * Sheets an address opens that stand under no row of their own: Cold email's connect sheet
+ * (contracts COLD_EMAIL_CONNECT_ROUTE), which Today's line and a lead's Connect land on.
+ */
+const SHEETS_WITHOUT_A_ROW: ReadonlySet<string> = new Set(["connect"]);
 
 /**
  * A page of the business, drawn from the settings read: the part Settings names (frame/page.tsx draws one), or several
@@ -461,7 +474,7 @@ export const BusinessTab = ({
   const prompt = useBtPromptSheet();
   const settings = settingsNow() || null;
   const config = settings && (settings.config as Config | null);
-  const brain = (config && config.brain) || null;
+  const brain = pageBrainOf(config, parts);
   const canEdit = canDo("settings");
   const outreach = useCode(outreachCode, parts.includes("outreach"));
   const Outreach = parts.includes("outreach") ? (outreach.loaded?.OutreachCards ?? null) : null;

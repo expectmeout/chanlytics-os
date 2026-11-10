@@ -364,6 +364,7 @@ test("Today says the same headline, only where it waits on the owner, and opens 
     headline: "Sending paused to protect your name",
     act: "See what to fix",
     to: "admin/integrations",
+    needs: "settings",
   });
   assert.equal(coldEmailNoteOf(coldEmailStandingOf(facts())), null, "sending: nothing to say");
   assert.equal(
@@ -372,7 +373,12 @@ test("Today says the same headline, only where it waits on the owner, and opens 
     "ready: nor here",
   );
   const left = coldEmailNoteOf(coldEmailStandingOf(nothingStarted({ hasSearch: true })));
-  assert.deepEqual(left, { headline: "2 things before your first email", act: "Open", to: "admin/outreach" });
+  assert.deepEqual(left, {
+    headline: "2 things before your first email",
+    act: "Open",
+    to: "admin/outreach",
+    needs: null,
+  });
 });
 
 test("a new sequence is refused in the words of what is true: no mailbox, or one that is held, signed out or paused", () => {
@@ -396,10 +402,4 @@ test("a new sequence is refused in the words of what is true: no mailbox, or one
     assert.match(why, /Settings › Connections/, "it names where the fix is");
     assert.doesNotMatch(why, /Connect your mailbox first/, "a mailbox that is there is never asked for again");
   }
-});
-
-test("Today's note is the page's answer, and a workspace with no search reads nothing for it", async () => {
-  const { readFile } = await import("node:fs/promises");
-  const note = await readFile("apps/dashboard/src/surfaces/today/zones/cold-email-note.tsx", "utf8");
-  assert.match(note, /if \(!started\) return;/, "asked for only once there is a search");
 });

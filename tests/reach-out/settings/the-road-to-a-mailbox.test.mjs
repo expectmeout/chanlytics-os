@@ -44,7 +44,6 @@ const READ = {
   foot: { business: null, address: null },
   mailbox: null,
   month: { sent: 0, of: 2000 },
-  by_hand_per_day: 30,
   claims: [],
   voice: [],
   sequence: null,

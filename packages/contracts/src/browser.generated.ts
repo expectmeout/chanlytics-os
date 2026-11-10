@@ -138,7 +138,7 @@ export { coldEmailSendingOf } from "./campaigns/reach-out/sending";
 export { REACH_OUT_SETTINGS_WORDS, reachOutRuleLines, REPLY_OFFER_WORDS, replyLineOf, replyModeHint, tryCheckLine, writesBackRows } from "./campaigns/reach-out/settings";
 export { approvalWordsOf, chainHintOf, chainPaceOf, chainPathWords, chainReportWordsOf, EMAIL_TEMPLATE_LIST_WORDS, emailRowWrittenOf, emailTemplateRowsOf, emailTemplateWords, REACH_OUT_ROW_WORDS } from "./campaigns/reach-out/sheet/chain";
 export { isReachOutRefusal, nextRunWords, ownerPaceWords, paceWords, REACH_OUT_REFUSALS, REACH_OUT_SHEET_WORDS, reachLineOf, sheetFootWords, startWords, stepLabel, stepLabelOf, stepWhenWords } from "./campaigns/reach-out/sheet/words";
-export { COLD_EMAIL_MAILBOX_UNREAD, COLD_EMAIL_NEEDS_MAILBOX, coldEmailCannotSendWhy, coldEmailNoteOf, coldEmailStandingOf, NO_SENDING_BY_HAND } from "./campaigns/reach-out/standing";
+export { COLD_EMAIL_CONNECT_ROUTE, COLD_EMAIL_MAILBOX_UNREAD, COLD_EMAIL_NEEDS_MAILBOX, coldEmailCannotSendWhy, coldEmailNoteOf, coldEmailStandingOf, CONNECTIONS_PAGE, NO_SENDING_BY_HAND, refusalNeedsMailbox } from "./campaigns/reach-out/standing";
 export { SEND_DAY_FRAME, SEND_WINDOW_MARGIN_MIN, sendWindowsOf, timetable, TIMETABLE_HORIZON_DAYS } from "./campaigns/reach-out/timetable";
 export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, toldShares, tryPartsOf } from "./campaigns/reach-out/told";
 export { US_STATE_ZONES, zoneOfRegion } from "./campaigns/reach-out/us-zones";
@@ -161,7 +161,7 @@ export { leadChainStepOf, NEW_AUDIENCES, NEW_KINDS, NEW_ONCE_AHEAD_DAYS, NEW_STE
 export { handTitleOf, NEW_WORDS } from "./campaigns/sequences/new-words";
 export { PLACE_RAIL_WORDS, PLACE_WORDS, placeLineWriting, placeRailOf, placeSpanOf, placeStands, placeToneOf, placeWordOf, PLACE_NOT_PLANNED_WORD, placeLeftWord, placeNotPlannedOf } from "./campaigns/sequences/place";
 export { SCHEDULE_WORDS, scheduleChannels, scheduleDays, scheduleEnd, scheduleInLine, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleStepFacts, scheduleStepState, scheduleStepSub, scheduleWait } from "./campaigns/sequences/schedule";
-export { batchModeOf, isSequenceMode, newSequenceMode, SEQUENCE_MODE_LABEL, SEQUENCE_MODE_WORDS, SEQUENCE_MODES, SEQUENCE_NEW_WORDS_ASK, SEQUENCE_STARTS, SEQUENCE_STATES, sequenceModesFor } from "./campaigns/sequences/sequence";
+export { batchModeOf, coldBatchAsks, isSequenceMode, newSequenceMode, SEQUENCE_MODE_LABEL, SEQUENCE_MODE_WORDS, SEQUENCE_MODES, SEQUENCE_NEW_WORDS_ASK, SEQUENCE_STARTS, SEQUENCE_STATES, sequenceModesFor } from "./campaigns/sequences/sequence";
 export { batchWent, historyCovers, historyDays, historyDayWords, historyFigures, historyIn, historySince, historyStamp, historyUpcomingWords, peopleNeedsOf, personWhenWords, SEQUENCE_EDIT_WORDS, SEQUENCE_HISTORY_PERIODS, SEQUENCE_HISTORY_WORDS, SEQUENCE_NEEDS_WORDS, SEQUENCE_PEOPLE_WORDS, SEQUENCE_REPLIES_WORDS, waitingEmailsOf } from "./campaigns/sequences/tab-words";
 export { leadStepTestMail, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./campaigns/sequences/test";
 export { leadStepStand, SEQUENCE_FLOW_WORDS, SEQUENCE_GROUPS, SEQUENCE_WORDS, sequenceGroupOf, sequenceHeadLine, sequenceRowLine, sequenceRowState, sequenceStartWords, sequenceStateTone, sequenceStateWords, sequenceSubLine, sequenceTwinOf, sequenceWaitsNow, stepApprovalOf, takesFollowUps, visitTwinWords } from "./campaigns/sequences/words/flow";
@@ -209,7 +209,7 @@ export { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, ALERT_REFUSED_WORDS, alertAdd
 export { CONVERSATION_GAP_MS, CONVERSATION_UNDER_WAY, disclosureFacts } from "./config/workspace-config/assistant-disclosure";
 export { isBaselinePrompt, newReceptionistDefaults } from "./config/workspace-config/brain-config";
 export { composeSystemPrompt, describeNow, noteAsTold, notesInForce, PROMPT_OPENINGS } from "./config/workspace-config/compose";
-export { ASK_GOAL_MAX, DAY_NAMES, dayProblems, DAYS, GUARDRAIL_KEYS, guardrailsInForce, INSTRUCTIONS_MAX, isE164, isRealDate, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, PROFILE_LIMITS, REACH_OUT_LIMITS, REPLY_OFFERS, BOOKING_RULE_BOUNDS } from "./config/workspace-config/config-rules";
+export { ASK_GOAL_MAX, DAY_NAMES, dayProblems, DAYS, GUARDRAIL_KEYS, guardrailsInForce, INSTRUCTIONS_MAX, isE164, isRealDate, isReplyOffer, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, PROFILE_LIMITS, REACH_OUT_LIMITS, REPLY_OFFERS, BOOKING_RULE_BOUNDS } from "./config/workspace-config/config-rules";
 export { EARLIER_FALLBACK_DEFAULTS, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FALLBACK_ROWS, fallbackMessages, isProductFallback, unknownDetails } from "./config/workspace-config/fallbacks";
 export { offersAfterStart, offersFacts } from "./config/workspace-config/offers-ask";
 export { bookingHeld, HELD_DRAFTS_DAYS, heldDraftsByClass, heldDraftsLine, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_CLASSES, POLICY_COVERS, POLICY_MODE_WORDS, POLICY_MODES, policyAskClass, policyClassLabel, policyClassOfIntent, policyClassQuestion, policyModeOffered, policyModeRefusal, policyRules } from "./config/workspace-config/policy-classes";

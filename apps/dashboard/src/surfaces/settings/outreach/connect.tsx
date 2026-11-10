@@ -14,14 +14,15 @@ import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
-import { HistoryChoice } from "../connections/history-choice";
+import { HistoryChoice, historyKept, keepHistory } from "../connections/history-choice";
 import { connectMailbox, mailboxConnectOutcome } from "../connections/mailbox-connect";
 
 const CONNECT_SHEET = REACH_OUT_SETTINGS_WORDS.connect;
-const WORKSPACE_HELP = "https://workspace.google.com/";
+const WORKSPACE_HELP = CONNECT_SHEET.helpUrl;
 
 /** To Google's consent with what the owner chose it brings in, and back to this page; a door that refuses says so. */
 const connectGoogle = (flash: (flash: FrameFlash) => void, history: MailboxHistory) => {
+  keepHistory(history);
   void connectMailbox("google", null, "cold_email", history).then((r) => {
     if (!r.ok) flash({ tone: "danger", msg: r.message });
   });
@@ -37,7 +38,7 @@ const useRoadSheet = (id: string) => {
 /** Connect your mailbox: what it gives, and Google. */
 function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
   const fold = useRoadSheet("connect");
-  const [history, setHistory] = useState<MailboxHistory>("six_months");
+  const [history, setHistory] = useState<MailboxHistory>(historyKept);
   if (!fold.open) return null;
   return (
     <RecordSheet
@@ -94,7 +95,7 @@ function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
 /** That's a personal address: why it was refused, and what to do. */
 function FreeMailSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
   const fold = useRoadSheet("connect_free");
-  const [history, setHistory] = useState<MailboxHistory>("six_months");
+  const [history, setHistory] = useState<MailboxHistory>(historyKept);
   if (!fold.open) return null;
   return (
     <RecordSheet
@@ -188,7 +189,13 @@ function OtherSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
               testid="rec-provider-box"
             />
             <span>
-              <Button size="sm" onClick={tell} disabled={!provider.trim()} data-testid="rec-provider-send">
+              <Button
+                size="sm"
+                onClick={tell}
+                disabled={!provider.trim()}
+                data-testid="rec-provider-send"
+                {...gate("settings", "tell us which mailbox you use")}
+              >
                 {CONNECT_SHEET.other.tell}
               </Button>
             </span>
