@@ -267,7 +267,7 @@ test("words that can't be drawn are refused whoever sent them; a person's press 
   assert.ok(kept.file_id, "Ask's check is where it is known who said what; a member pressing Save has said it");
 });
 
-test("who may: whoever may add a photo", async () => {
+test("who may: whoever may delete a file, as the card's Undo does; an operator adds photos, not posts", async () => {
   for (const route of [preview, save]) {
     const { ctx } = world({ role: "operator" });
     await assert.rejects(route.POST.run(post(PLAN), ctx), (e) => e.code === "forbidden");

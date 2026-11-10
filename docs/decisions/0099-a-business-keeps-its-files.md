@@ -392,6 +392,19 @@ first" cannot be said); and a failed video's fingerprint holding its twin out un
 (`file_video_begin`). The pictures a site or a listing showed before 00551 are brought by one `website_read` for the workspace:
 nothing reads them again by itself. Nothing here has met a real clip; the trial above still stands first.
 
+## The team adds photos and videos (00596)
+
+Ruben, 10 Nov 2026: "Staff can add". The people who film the work are the team, on their own phones, so adding a photo or a
+video is a permission of its own, `add_files`: the owner's, the partner's and the operator's, never a viewer's (contracts
+`ROLE_PERMS`, `has_permission` in SQL, held together by `lead-engine.db.test.mjs`). Team's roles compared gains its line, "Add
+photos and videos". `POST files/start` and `POST files/[id]/done` take an operator, and so do their doors, `file_start` and
+`file_media_processing`; the Files page's Add, its empty page's press and a drop on the page are an operator's too.
+
+Everything else said of a file keeps the settings permission: its name, its shelf, who is in it, filed or set aside, deleted,
+and a post saved from it (a post's card offers an Undo, which deletes it). Who is in a picture is the owner's word, so an
+operator's photo of a person waits for it before Ask makes a post from it. Left: a clip's own date and a failed video's twin,
+each a change of its own.
+
 ## Not here
 
 Making pictures with a model (step 4): Claude Video/docs/2026-11-06-ask-eyes-fundamentals.md says the order.

@@ -856,7 +856,7 @@
     "POST files/[id]/done": {
       "kind": "write",
       "scope": "workspace",
-      "role": "partner",
+      "role": "operator",
       "rate": "file_upload",
       "spend": false
     },
@@ -940,7 +940,7 @@
     "POST files/start": {
       "kind": "write",
       "scope": "workspace",
-      "role": "partner",
+      "role": "operator",
       "rate": "file_upload",
       "spend": false
     },
