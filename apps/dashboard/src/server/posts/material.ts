@@ -1,8 +1,9 @@
 /**
- * What a post is drawn from (decision 0099, step 3): the photo, what the look found, and the business's colour, mark and number,
- * read afresh but for what can't change under it. A person changing a post's words draws the same photo again and again, and most of a
- * picture's time was reading it, so this process holds the last few a while: a file's bytes never change (its folder is its own
- * uuid), and each is reached only after the caller's row was read under RLS, so a file removed is never drawn from memory.
+ * What a post is drawn from (decision 0099, step 3): the photo, or one moment of a video kept as a still in its folder, what the
+ * look found, and the business's colour, mark and number, read afresh but for what can't change under it. A person changing a
+ * post's words draws the same photo again and again, and most of a picture's time was reading it, so this process holds the last
+ * few a while: a file's bytes never change (its folder is its own uuid), and each is reached only after the caller's row was read
+ * under RLS, so a file removed is never drawn from memory.
  */
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -11,6 +12,7 @@ import {
   FILE_WORDS as W,
   MIN_MS,
   WORKSPACE_LOGOS_BUCKET,
+  fileFramePathOf,
   filePathOf,
   recordOrNull,
 } from "@chanlytics/contracts";
@@ -23,6 +25,7 @@ import * as readers from "@/server/readers/facts";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
+import { keepVideoFrame } from "../files/copies";
 import { bucket } from "../files/file";
 import { asPng } from "./compose";
 import { postPhoneOf } from "./phone";
@@ -99,15 +102,42 @@ async function photoRead(file: FileMemberRow): Promise<Buffer> {
   return Buffer.from(await read.data.arrayBuffer());
 }
 
+/** What a post's photo is read from: a photo, or one moment of a video (`at`, in seconds from its start). */
+export interface PostFrom {
+  file: FileMemberRow;
+  at: number | null;
+}
+
+/**
+ * One moment of a video, as the still its folder keeps of it. Where it is not there yet the edge cuts it, since Stream's keys are
+ * the edge's, and it is read again: once kept, every later drawing of the post reads Storage alone.
+ */
+async function frameRead(ctx: RouteContext, tenantId: TenantId, file: FileMemberRow, at: number): Promise<Buffer> {
+  const path = fileFramePathOf(tenantId, file.id, at);
+  const unread = (why: string): never => {
+    log.error("file_post_read_failed", { tenant_id: tenantId, error: why });
+    throw new AppError("unavailable", W.failedRead);
+  };
+  const kept = await bucket().download(path);
+  if (!kept.error) return Buffer.from(await kept.data.arrayBuffer());
+  const cut = await keepVideoFrame({ tenantId, userId: ctx.userId }, { id: file.id, at });
+  if ("wont" in cut) return unread(cut.wont);
+  const read = await bucket().download(path);
+  if (read.error) return unread(read.error.message);
+  return Buffer.from(await read.data.arrayBuffer());
+}
+
 /** What a post is drawn from, for whoever holds the workspace's settings: a route by its member, Ask's act by its turn's read. */
 export async function postMaterialFrom(
   ctx: RouteContext,
   tenantId: TenantId,
-  file: FileMemberRow,
+  { file, at }: PostFrom,
   configOf: () => Promise<unknown>,
 ): Promise<PostMaterial> {
   const [photo, look, config] = await Promise.all([
-    heldRead(`photo:${file.id}`, PHOTO_HELD_MS, () => photoRead(file)),
+    heldRead(`photo:${file.id}:${at ?? ""}`, PHOTO_HELD_MS, () =>
+      file.kind === "video" && at !== null ? frameRead(ctx, tenantId, file, at) : photoRead(file),
+    ),
     findWorkspaceLook(ctx.supabase, tenantId),
     configOf(),
   ]);
@@ -119,7 +149,7 @@ export async function postMaterialFrom(
   return { photo, subject: asFour(recordOrNull(file.look)?.subject), accent: look?.accent ?? null, logo, phone };
 }
 
-export const getMaterial = (ctx: RouteContext, member: Member, file: FileMemberRow): Promise<PostMaterial> =>
-  postMaterialFrom(ctx, member.tenantId, file, () =>
+export const getMaterial = (ctx: RouteContext, member: Member, from: PostFrom): Promise<PostMaterial> =>
+  postMaterialFrom(ctx, member.tenantId, from, () =>
     load(readerContext(ctx, member), readers.config, undefined).then((r) => r.data?.config ?? null),
   );

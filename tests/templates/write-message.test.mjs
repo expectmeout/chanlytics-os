@@ -385,10 +385,7 @@ test("(c2) WhatsApp refusing the version in its answer to the filing is filed as
   assert.deepEqual(r.versions.at(-1), { channel: "whatsapp", id: wa.id, state: "rejected" });
   assert.equal(r.refused, undefined, "filed, and refused by WhatsApp: no version the door could not file");
   const said = PROPOSAL_SPECS.message.receipt({ kind: "message", payload: { name: "spring_colour" } }, r);
-  assert.equal(
-    said,
-    `“spring_colour” is in Messages — its email version is ready; its WhatsApp version was refused by WhatsApp (see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library})`,
-  );
+  assert.equal(said, `Words saved. WhatsApp refused them (see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}).`);
   assert.doesNotMatch(said, /for review/);
 });
 

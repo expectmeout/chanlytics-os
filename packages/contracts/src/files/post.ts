@@ -42,6 +42,8 @@ export type PostPlan = {
   language: PostLanguage;
   /** The owner said in this thread that the people in the photo agreed: their word, kept on the photo as it is saved. */
   people_agreed: boolean;
+  /** Where the photo is a moment of a video: that moment, in seconds from its start. Null for a photo. */
+  at: number | null;
 };
 
 /** The plan a card carries, read back: a card's payload is JSON, and a page's reading of it is never a second shape. */
@@ -58,6 +60,7 @@ export function postPlanOf(payload: Record<string, unknown>): PostPlan {
     layout: POST_LAYOUTS.find((l) => l === payload.layout) ?? "over",
     language: payload.language === "es" ? "es" : "en",
     people_agreed: payload.people_agreed === true,
+    at: typeof payload.at === "number" && Number.isFinite(payload.at) && payload.at >= 0 ? payload.at : null,
   };
 }
 
@@ -70,24 +73,40 @@ export function postPlanTidied(plan: PostPlan): PostPlan {
 export type PostUndrawable = "long" | "character" | "contact" | "number";
 
 /** Why a file can't be a post's photo. Like the words, each is said to the model and to a person in their own words. */
-export type PostPhotoWont = "made" | "unkept" | "design" | "video";
+export type PostPhotoWont = "made" | "unkept" | "design" | "video" | "moment";
 
 /**
- * Why this file can't be a post's photo, or null: it is a video (a post is drawn from a still), a post already, or it isn't
- * kept yet, or it has a design of its own that more words would clash with. Here, with nothing behind it, so a page can ask
- * before it offers the press.
+ * Why this file can't be a post's photo, or null: it is a video not ready yet (a post is drawn from one moment of it, which
+ * only a ready one gives), a post already, or it isn't kept yet, or it has a design of its own that more words would clash
+ * with. Here, with nothing behind it, so a page can ask before it offers the press.
  */
 export function postPhotoWont(fields: {
   status: string;
   source: string;
   shows: string | null;
   kind?: string | undefined;
+  media_status?: string | null | undefined;
 }): PostPhotoWont | null {
-  if (fields.kind === "video") return "video";
+  if (fields.kind === "video" && fields.media_status !== "ready") return "video";
   if (fields.source === "made") return "made";
   if (fields.status !== "filed") return "unkept";
   if (fields.shows === "graphic" || fields.shows === "logo") return "design";
   return null;
+}
+
+/** How far past a clip's end a moment may be named and still be its last frame: a length read to the hundredth is not the frame's. */
+const MOMENT_SLACK_S = 0.05;
+
+/**
+ * Why this moment can't be a post's photo, or null: a video's post is drawn from one moment of it, named and inside the clip. A
+ * photo has no moment, so any named for one is no problem of its own: it is not read.
+ */
+export function postMomentWont(
+  fields: { kind?: string | undefined; seconds?: number | null | undefined },
+  at: number | null,
+): PostPhotoWont | null {
+  if (fields.kind !== "video") return null;
+  return at === null || at > (fields.seconds ?? 0) + MOMENT_SLACK_S ? "moment" : null;
 }
 
 /** What a post says to a person, in the post's own language. */
@@ -171,7 +190,8 @@ export const POST_WORDS = {
     made: "That's a post already. Use the photo it came from.",
     unkept: "Keep this photo in Files first.",
     design: "This picture already has words or a design on it, so more would clash.",
-    video: "A post is made from a photo, not a video.",
+    video: "This video is still being made ready. A post can use it once it is.",
+    moment: "Choose the moment of the video the post is made from.",
   },
 } as const satisfies PostWords;
 
@@ -217,7 +237,8 @@ const POST_WORDS_ES: PostWords = {
     made: "Eso ya es una publicación. Usa la foto de la que salió.",
     unkept: "Guarda primero esta foto en Archivos.",
     design: "Esta imagen ya tiene texto o un diseño, y más texto chocaría.",
-    video: "Una publicación se hace con una foto, no con un video.",
+    video: "Este video todavía se está preparando. Una publicación puede usarlo cuando esté listo.",
+    moment: "Elige el momento del video con el que se hace la publicación.",
   },
 };
 

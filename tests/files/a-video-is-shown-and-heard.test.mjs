@@ -383,13 +383,34 @@ test("a video's look names the frame that stands for it, and its edition is its 
   );
 });
 
-test("a video makes no post, said to a person in their language and to the model", () => {
-  const v = { status: "filed", source: "upload", shows: "interior", kind: "video" };
-  assert.equal(post.postPhotoWont(v), "video");
-  assert.match(post.postWordsIn("en").photoWont.video, /photo, not a video/);
-  assert.match(post.postWordsIn("es").photoWont.video, /foto, no con un video/);
-  assert.match(postCheck.postPhotoProblem(v), /it is a video/);
-  assert.equal(post.postPhotoWont({ status: "filed", source: "upload", shows: "interior" }), null, "a photo still may");
+test("a video makes a post from one moment of it once it is ready, said to a person in their language and to the model", () => {
+  const v = { status: "filed", source: "upload", shows: "interior", kind: "video", seconds: 24 };
+  assert.equal(post.postPhotoWont({ ...v, media_status: "ready" }), null, "a ready one may");
+  for (const media_status of ["processing", "failed", undefined])
+    assert.equal(post.postPhotoWont({ ...v, media_status }), "video", `not one that is ${media_status}`);
+  assert.match(post.postWordsIn("en").photoWont.video, /still being made ready/);
+  assert.match(post.postWordsIn("es").photoWont.video, /todavía se está preparando/);
+  assert.match(postCheck.postPhotoProblem(v), /still being made ready/);
+  assert.equal(post.postMomentWont(v, null), "moment", "its moment is named");
+  assert.equal(post.postMomentWont(v, 24.04), null, "its last frame, as a length read to the hundredth names it");
+  assert.equal(post.postMomentWont(v, 24.2), "moment", "and inside the clip");
+  assert.equal(post.postMomentWont(v, 0), null);
+  assert.equal(
+    post.postMomentWont({ ...v, seconds: null }, 1),
+    "moment",
+    "a clip of no known length holds no moment yet",
+  );
+  assert.match(postCheck.postMomentProblem(v, null), /call again with at set to that moment/);
+  assert.ok(post.postWordsIn("en").photoWont.moment);
+  assert.notEqual(post.postWordsIn("es").photoWont.moment, post.postWordsIn("en").photoWont.moment);
+  const photo = { status: "filed", source: "upload", shows: "interior" };
+  assert.equal(post.postPhotoWont(photo), null, "a photo still may");
+  assert.equal(post.postMomentWont(photo, null), null, "and has no moment to name");
+  assert.equal(post.postMomentWont(photo, 5), null);
+  assert.equal(files.fileFramePathOf("t", "f", 12.5), "t/f/frame-1250.jpg");
+  assert.equal(post.postPlanOf({ at: 12.5 }).at, 12.5);
+  assert.equal(post.postPlanOf({ at: -1 }).at, null);
+  assert.equal(post.postPlanOf({}).at, null, "a card made before names none");
 });
 
 test("an upload's name before the look: what the file was called, else a photo or a video", () => {
