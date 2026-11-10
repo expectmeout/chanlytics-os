@@ -1,5 +1,5 @@
 /**
- * A business that never answered may be tried again (00589-00591, decision 0120, D6), on a real Postgres. Off unless the
+ * A business that never answered may be tried again (00601-00603, decision 0120, D6), on a real Postgres. Off unless the
  * sequence says so; once, after its last email is the days old the sequence says, never a third time; never to anyone who
  * said no, became a customer or was stopped; its second first email a round of its own, which the first round's rule no
  * longer refuses; and the count the switch says. A written lead reads to reach_out_why_not as closed (nurture) or a

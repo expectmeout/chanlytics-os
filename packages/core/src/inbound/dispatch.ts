@@ -3,7 +3,7 @@
  * draft, the hold that could not be written, and the send, told apart by what the wire answered.
  */
 import type { Json } from "@chanlytics/db/types";
-import { reasonLabelOf } from "@chanlytics/contracts";
+import { causeOf } from "../deliver/cause";
 import { holdPlan } from "./steps";
 import { GO, type Answering } from "./context";
 import { handledOf, noteHandledAfter, getProcessedAfter, SET_ASIDE, type Asked } from "./handled";
@@ -100,8 +100,7 @@ function turnHold(at: Answering, turn: Turn, details: string): Asked {
 }
 
 /** What the people told of a handoff read as its cause. */
-const handoffWhy = (turn: Turn, otherwise: string): string =>
-  turn.bookingRequest ? reasonLabelOf("booking_request") : otherwise;
+const handoffWhy = (turn: Turn, otherwise: string): string => (turn.bookingRequest ? "booking_request" : otherwise);
 
 /** A veto window that did not happen is recorded; a hold that could not be written keeps the words; a draft waits. */
 export async function holdOrKeep(
@@ -147,7 +146,7 @@ export async function holdOrKeep(
       tell(escalate, {
         said: bodyText,
         answered: replyText,
-        why: "held for low confidence; the hold could not be scheduled, so nothing was sent",
+        why: "low confidence, not held",
         pausedHours: pauseHours,
       }),
     );
@@ -196,7 +195,7 @@ export async function holdOrKeep(
 
 /** The reply goes out now, and what the wire answered decides what follows. */
 export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: string): Promise<void> {
-  const { send, sink, pauseMs, tell, pauseHours, L, ingestMs } = at;
+  const { send, sink, pauseMs, tell, pauseHours, L, ingestMs, channel } = at;
   const { replyText, fallback, brainMeta, usage, escalate } = turn;
   const { replyQuality } = hold;
   const sent = await send(replyText, fallback ? fallback.meta : (brainMeta as Record<string, Json> | undefined));
@@ -241,17 +240,17 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
     // The door wrote the failed row and its event; the people are told here.
     // A person IS asked when the escalation lands, so the message says so
     // (handoff) without being marked processed: the deadman sweep still finishes it.
+    // Why, in the words a queued reply's failure says it (deliver/cause.ts causeOf): a number with no credentials is
+    // "not connected", never "HTTP 503".
     const request = sink.escalate(
       "send_failed",
-      sent.reason === "wire_unreadable"
-        ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer."
-        : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`,
+      `Auto-reply could not be sent (${causeOf(sent, channel)}). Customer got no answer.`,
     );
     await Promise.all([
       tell(request, {
         said: bodyText,
         answered: "(send failed — the customer received no reply)",
-        why: "wa_send_failed",
+        why: "send_failed",
       }),
       request,
     ]);

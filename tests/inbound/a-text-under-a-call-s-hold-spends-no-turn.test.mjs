@@ -2,7 +2,7 @@
  * A text that arrives while a call (or a person) holds the thread (00132) is set aside before the model is asked: the
  * send door's own question (core deliver/hold.ts heldByThread), asked in the gates (reply-gates.ts heldByTheLiveHold)
  * with the door's own answer, so no turn is spent on words the wire would refuse. The handler runs for real over the
- * world of ./_world.mjs, as whatsapp/inbound-executed.test.mjs runs it; the memory's hold comes from the world.
+ * world of ./_world.mjs, as inbound/phases/ runs it; the memory's hold comes from the world.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

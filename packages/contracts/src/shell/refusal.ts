@@ -21,7 +21,7 @@
 
 import { ROLE_PERMS, ROLES, type Role } from "../config/workspace-config/role-perms";
 import { UUID } from "../shared/identity";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, valueAt } from "../shared/unknown";
 
 /** The title of a no, by the least role the door wanted: the gate says it before the press (roleGate), the refusal after it. */
 export const NEEDS_TITLE: Readonly<Record<"owner" | "operator", string>> = {
@@ -69,6 +69,11 @@ export interface Refusal {
    * Present on that 404 and no other.
    */
   movedTo?: string;
+  /**
+   * No mailbox is connected at all, so nothing can make a sequence to leads (contracts COLD_EMAIL_NEEDS_MAILBOX): New takes
+   * its mailbox off for it. Present on that refusal and no other.
+   */
+  needsMailbox?: true;
 }
 
 const TITLES: ReadonlyMap<string, string> = new Map([
@@ -189,11 +194,16 @@ function movedToOf(details: unknown): string | null {
   return typeof to === "string" && UUID.test(to) ? to : null;
 }
 
-/** What one refusal alone says beside its words: the address a held reply goes to, the record a person became. */
-function asideOf(details: unknown, status: number): Pick<Refusal, "confirmEmailTo" | "movedTo"> {
+/** What one refusal alone says beside its words: where a held reply goes, who a person became, no mailbox. */
+function asideOf(details: unknown, status: number): Pick<Refusal, "confirmEmailTo" | "movedTo" | "needsMailbox"> {
   const confirmEmailTo = confirmEmailToOf(details);
   const movedTo = status === 404 ? movedToOf(details) : null;
-  return { ...(confirmEmailTo ? { confirmEmailTo } : {}), ...(movedTo ? { movedTo } : {}) };
+  const needsMailbox = status === 400 && valueAt(details, "needs") === "mailbox";
+  return {
+    ...(confirmEmailTo ? { confirmEmailTo } : {}),
+    ...(movedTo ? { movedTo } : {}),
+    ...(needsMailbox ? { needsMailbox: true as const } : {}),
+  };
 }
 
 /** Whether a refusal's details say the session ended (SESSION_ENDED). */

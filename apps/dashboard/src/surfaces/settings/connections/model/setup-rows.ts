@@ -56,7 +56,8 @@ export function emailRow(connectionInputs: ConnectionInputs, { nowMs }: { nowMs:
       detail: null,
       state: "later",
       stateWords: "Later",
-      sentence: "Email from customers will come in through your own Google Workspace or Microsoft 365 mailbox.",
+      // Said of no provider: none is offered here yet, so none is promised.
+      sentence: "Email from customers will come in through your own mailbox.",
       verb: null,
     };
   return {
@@ -92,7 +93,7 @@ export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft 
       detail: one ? (boxes[0]?.address ?? null) : `${boxes.length} mailboxes`,
       state: needs ? "attention" : "connected",
       stateWords: needs ? `${needs} to look at` : "On",
-      sentence: `Email people write to ${one ? "it" : "them"} comes into your Inbox, and sequences to leads write from ${one ? "it" : "them"}.`,
+      sentence: `Email people write to ${one ? "it" : "them"} comes into your Inbox, and cold email goes from ${one ? "it" : "them"}.`,
       verb: null,
       body: "mailboxes",
     };
@@ -117,7 +118,7 @@ export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft 
     detail: null,
     state: "later",
     stateWords: "Later",
-    sentence: "Cold email will go from your own Google Workspace mailbox.",
+    sentence: "Cold email will go from your own mailbox.",
     verb: null,
   };
 }

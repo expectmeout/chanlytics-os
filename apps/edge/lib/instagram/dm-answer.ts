@@ -18,11 +18,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { inboundFromInstagram, type IgMessaging } from "@chanlytics/channels/instagram";
 import { resolveChannelDetailed, type RoutedChannel } from "@chanlytics/db/channels";
 import type { Database } from "@chanlytics/db/types";
-import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
-import { errField, logger } from "../shared/log.js";
-import { recordDmInbound, resumeDmInbound } from "../whatsapp/inbound.js";
-import { instagramCarrier, getInstagramCredentials } from "./credentials.js";
+import { markSpoke, type ClaimedJob } from "@chanlytics/jobs";
+import { logger } from "../shared/log.js";
 import { jsonCopyOf } from "@chanlytics/db/shared";
+import { answerArrival, recordThenSchedule } from "../inbound/arrival.js";
+import { instagramCarrier, getInstagramCredentials } from "./credentials.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -47,32 +47,19 @@ export async function recordThenAnswerDm(
   const message = inboundFromInstagram(item, profileName);
   if (!message) return;
   // The carrier of the account it was written to: nothing is sent at the door, so its token is not read here.
-  const ing = await recordDmInbound(message, routed, instagramCarrier({ outcome: "absent" }));
-  if (!ing) return;
-  const payload = {
+  await recordThenSchedule(db, { inbound: message, carrier: instagramCarrier({ outcome: "absent" }) }, routed, {
     ig: asKept({ account: routed.externalId, item, profile_name: profileName }),
-    message_id: ing.message_id,
-    conversation_id: ing.conversation_id,
-    contact_id: ing.contact_id,
-  };
-  try {
-    await scheduleJobOnce(db, { tenantId: routed.tenantId, kind: "inbound_answer", dueAt: new Date(), payload });
-  } catch (e) {
-    logger({ tenant_id: routed.tenantId }).warn("ig_answer_unscheduled", {
-      id: message.externalId,
-      error: errField(e),
-    });
-  }
+  });
 }
 
 /**
- * The job's half (inbound_answer with `ig`, bound by lib/intake/answer-later.ts answerInboundJob): the DM its door
+ * The job's half (inbound_answer with `ig`, bound by lib/intake/answer-job.ts answerInboundJob): the DM its door
  * recorded, answered. The account's routing is read again and must still be the job's workspace, its token read from the
  * Vault, and the whole inbound phase runs with `resume`. Throws when the payload names no DM, the account is another
  * workspace's now, or a read failed: the ledger tries again until the job has spoken, and after that the sweep hands the
  * DM to a person.
  */
-export async function answerDm(db: Db, job: ClaimedJob): Promise<void> {
+export async function answerDm(db: Db, job: ClaimedJob, deadline?: number): Promise<void> {
   const ig = job.payload.ig as { account?: unknown; item?: IgMessaging; profile_name?: unknown } | null | undefined;
   const account = typeof ig?.account === "string" ? ig.account : "";
   if (!account || !ig?.item) throw new Error("inbound_answer: the payload names no Instagram DM");
@@ -86,9 +73,10 @@ export async function answerDm(db: Db, job: ClaimedJob): Promise<void> {
   if (read.outcome === "unavailable")
     throw new Error(`inbound_answer: the account's token could not be read: ${read.error}`);
   logger({ tenant_id: job.tenant_id }).info("ig_answer_taken_up", { id: message.externalId });
-  await resumeDmInbound(
-    message,
+  await answerArrival(
+    { inbound: message, carrier: instagramCarrier(read, () => markSpoke(db, job)) },
     routed,
-    instagramCarrier(read, () => markSpoke(db, job)),
+    undefined,
+    deadline,
   );
 }

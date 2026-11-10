@@ -8,6 +8,7 @@ import {
   isReachOutHold,
   draftRefusalOf,
   handOf,
+  batchModeOf,
   isLeadList,
   isReachOutRun,
   linkCount,
@@ -134,9 +135,9 @@ export async function listChains(ctx: RouteContext, tenantId: TenantId): Promise
       next: {
         run_hour: root.run_hour,
         last_run_for: root.last_run_for,
-        // Held, asked, or on its own where its owner chose that (0120); unread or none of them reads as ask, as its
-        // run reads it.
-        mode: modes.get(root.id) ?? "ask",
+        // As its run plans it (contracts batchModeOf): a first run whose words are new asks whatever the mode; then held,
+        // asked, or on its own where its owner chose that (0120).
+        mode: batchModeOf({ mode: modes.get(root.id), words_ok_at: root.words_ok_at }),
         may_spend: spend,
         waiting_run_id: waitingOf.get(root.id) ?? null,
       },

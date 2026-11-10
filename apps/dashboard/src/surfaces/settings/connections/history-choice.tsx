@@ -6,9 +6,22 @@
 import { useState } from "react";
 import { MAILBOX_HISTORY_WORDS, type MailboxHistory } from "@chanlytics/contracts";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { keepTabDraft, tabDraft } from "../../kit/record/work";
 import { Segmented } from "../../kit/segmented/segmented";
 
 const WAYS = ["six_months", "from_now"] as const satisfies readonly MailboxHistory[];
+
+/** Where the tab keeps the choice made before Google's consent, so a sheet after it opens on the same one. */
+const KEPT_HISTORY = "mailbox_history";
+
+/** The choice made before the last connect in this tab, else six months, the way in that brings the most. */
+export function historyKept(): MailboxHistory {
+  const kept = tabDraft(KEPT_HISTORY);
+  return WAYS.find((w) => w === kept) ?? "six_months";
+}
+
+/** Kept as a connect leaves for Google: a personal address's sheet, after it, asks again with the same choice. */
+export const keepHistory = (history: MailboxHistory): void => keepTabDraft(KEPT_HISTORY, history);
 
 interface HistoryChoiceProps {
   value: MailboxHistory;

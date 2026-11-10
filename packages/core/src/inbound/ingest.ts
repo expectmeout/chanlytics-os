@@ -3,20 +3,20 @@
  * out bound, before any gate decides whether the receptionist may speak (decision 0001).
  *
  * ingestMessage takes the InboundContext that openInbound bound and returns Ingested (./context.ts), or nothing when
- * the message stops here. A short code (a sender nothing can be sent back to) is recorded and not answered, and so is a
- * sender off the pilot allowlist, which binds only the environment's own WhatsApp number and is compared as digits on
- * both sides. A redelivery stops at the replay gate, the ingest's own new-or-seen claim; processed-state is not
- * consulted, because a missed auto-reply beats a double text. Every other message is persisted before anything can
+ * the message stops here. A short code (a sender nothing can be sent back to) is recorded and not answered, and so are a
+ * one-time code a service sent (contracts oneTimeCodeOf, the reader every wire shares) and a sender off the pilot
+ * allowlist, which binds only the environment's own WhatsApp number and is compared as digits on both sides. A redelivery stops at the replay gate, the ingest's own new-or-seen claim, once it is processed or a reply
+ * names it, because a missed auto-reply beats a double text. Every other message is persisted before anything can
  * fail, its memory is read back through the persist port (a thread that cannot be read comes back UNKNOWN, and
  * ./gates.ts hands it to a person), an address the customer gives in their own typed or tapped words is kept where none
  * is on file, and the three ways out that every later phase speaks through are bound here, where the credentials are:
  * wire shapes the words for the carrier (the texting footer on a first reply), send goes through the sink's one door,
  * which re-reads consent, the pause and the workspace's status, and tell is the owner's handoff mail.
  *
- * A text is answered after its acknowledgement (decision 0031, Phase 2): its door records it (recordMessage, which sets
- * aside a short code and a sender off the allowlist as the whole phase does) and answers Twilio, and a job takes it up
- * again through the whole phase with `resume`. Its ingest is then a redelivery by construction, so the replay gate lets
- * it through while the message is unprocessed and nothing has answered it yet (the persist port's `answered`, which
+ * Every message is answered after its acknowledgement (decision 0031), on every wire: its door records it (recordMessage,
+ * which sets aside what the whole phase sets aside) and answers the provider, and a job takes it
+ * up again through the whole phase. Its ingest is then a redelivery by construction, so the replay gate lets it through
+ * while the message is unprocessed and nothing has answered it yet (the persist port's `answered`, which
  * reads the reply that names it): a job taken up again after a runner died mid-turn still answers, and one whose turn
  * already reached a reply says nothing twice and leaves the stamp to the deadman sweep.
  *
@@ -25,7 +25,7 @@
  * handoff mail; the WhatsApp door counts it into a 503, so Meta redelivers, and the SMS door refuses with a 503 and
  * alerts the platform on the same signal.
  */
-import { shortCode, addressInMessage } from "@chanlytics/contracts";
+import { shortCode, addressInMessage, oneTimeCodeOf } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
 import type { IngestResult } from "@chanlytics/db/channels";
 import type { Json } from "@chanlytics/db/types";
@@ -35,30 +35,21 @@ import { toldFromItsEvent } from "../events/subscribers";
 import { handledOf, SET_ASIDE } from "./handled";
 import type { ThreadState } from "./thread";
 import { errField } from "@chanlytics/log";
-import type { HoldWords, InboundContext, Ingested } from "./context";
+import type { InboundContext, Ingested } from "./context";
+import type { HoldWords } from "./handled";
 
 // Persist first, or say so. An ingest write that fails is the one loss the
 // provider can undo: the customer's words go to the workspace mailbox as a
 // copy, and IngestFailed travels up to the webhook, which answers 503 so
 // Meta redelivers (the ingest's is_new gate makes that idempotent). Twilio
 // retries nothing, so the SMS ingress alerts the platform on the same signal.
-async function ingestOrSay(cx: InboundContext, jobFollows = false): Promise<IngestResult | null> {
+async function ingestOrSay(cx: InboundContext): Promise<IngestResult> {
   const { ports, db, tenantId, n, from, notifyTarget, L, channel } = cx;
   try {
-    // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3). A door
-    // that schedules the message's answer says so (jobFollows): a yes the message carried that fails to land here is
-    // the job's to write, and it raises if it cannot (db ingestInbound).
-    return await ports.persist.ingest(
-      db,
-      tenantId,
-      n,
-      cx.routed?.channelId ?? null,
-      jobFollows ? { jobFollows } : undefined,
-    );
+    // The line it came in on (the routed channel) travels with the message: the person it makes keeps it (K3).
+    return await ports.persist.ingest(db, tenantId, n, cx.routed?.channelId ?? null);
   } catch (error) {
-    // A message that IS kept, whose yes did not land (kept), loses no words: no copy goes to the mailbox saying it was
-    // not recorded. The throw still travels: the provider sends it again, or the job is tried again.
-    if (error instanceof IngestFailed && !error.kept) {
+    if (error instanceof IngestFailed) {
       // The copy is best effort: a mailbox that cannot be reached must not mask the loss.
       try {
         await ports.alertStaff(
@@ -74,29 +65,6 @@ async function ingestOrSay(cx: InboundContext, jobFollows = false): Promise<Inge
     }
     throw error;
   }
-}
-
-/**
- * A one-time code, as services word one: four to eight digits (a letter prefix allowed, "G-123456") with the word for a
- * code beside them -- "verification code is 482913", "482913 is your login code", "use 4829 to sign in" -- or the line
- * asking it never be shared. A code word is required, so a person's own numbers are theirs: a one-time clean of 1,200
- * sq ft, a security deposit of 2,500, a log-in error 5003, a gate code, a confirmation code (the review of 11 Oct 2026
- * found the first draft took all of those). A long message is a person's.
- */
-const KIND_OF_CODE = String.raw`(?:verification|security|one[- ]time|log ?in|sign[- ]in|authentication|2fa|otp)`;
-const A_CODE = String.raw`(?:[A-Z]{1,3}-)?\d{4,8}`;
-const ONE_TIME_CODE = new RegExp(
-  [
-    String.raw`\b${KIND_OF_CODE}\s+(?:code|pin|passcode)\b[^\n]{0,20}?\b${A_CODE}\b`,
-    String.raw`\b${A_CODE}\s+is\s+your\b[^\n]{0,40}?\b(?:code|pin|passcode)\b`,
-    String.raw`\buse\s+${A_CODE}\s+to\s+(?:sign in|log in|login|verify|confirm)\b`,
-    String.raw`\b(?:do not|don'?t|never) share (?:this|the|your) code\b`,
-  ].join("|"),
-  "i",
-);
-function oneTimeCode(body: string | null | undefined): boolean {
-  const t = (body ?? "").trim();
-  return t.length > 0 && t.length <= 320 && ONE_TIME_CODE.test(t);
 }
 
 /**
@@ -131,6 +99,7 @@ async function setAside(cx: InboundContext): Promise<boolean> {
   if (shortCode(from)) {
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    cx.L.info("short_code_set_aside");
     await sink.unreachableSender();
     await sink.processed(handledOf(SET_ASIDE));
     return true;
@@ -138,7 +107,9 @@ async function setAside(cx: InboundContext): Promise<boolean> {
 
   // A one-time code a service sent from an ordinary number reads like a person's text to everything else, and was
   // answered with a sales reply (the engine review's second pass, 11 Oct 2026). Recorded for the owner, not answered.
-  if (oneTimeCode(cx.n.body)) {
+  // Read by the one reader every wire's door asks (contracts oneTimeCodeOf), so a WhatsApp message and a text are judged
+  // alike, and a customer who mentions a code of their own ("Hi! Your security code is 4512.") is answered.
+  if (oneTimeCodeOf((cx.n.body ?? "").trim())) {
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
     cx.L.info("one_time_code_set_aside");
@@ -158,6 +129,7 @@ async function setAside(cx: InboundContext): Promise<boolean> {
     // §4 delta (deliberate): allowlist gates the REPLY, not the persist.
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
+    cx.L.info("wa_skip_allowlist");
     await sink.allowlistSkip();
     await sink.processed(handledOf(SET_ASIDE));
     return true;
@@ -170,12 +142,12 @@ async function setAside(cx: InboundContext): Promise<boolean> {
  * message waits for its answer, nothing when it was set aside or is a redelivery; IngestFailed when the write failed,
  * which the door answers with a 503 so the provider sends it again.
  */
-export async function recordMessage(cx: InboundContext): Promise<IngestResult | null | undefined> {
+export async function recordMessage(cx: InboundContext): Promise<IngestResult | undefined> {
   if (await setAside(cx)) return undefined;
-  // The door that calls this schedules the message's answer next (a text's, a WhatsApp message answered later), and that
-  // job takes the message in again: a yes it carried that does not land now is written there, or the job is tried again.
-  const ing = await ingestOrSay(cx, true);
-  return ing && !ing.is_new ? undefined : ing;
+  // The door that calls this schedules the message's answer next, and that job takes the message in again. The yeses it
+  // carries are kept with it here, in the ingest's own transaction (00592), so nothing is left for the job to write.
+  const ing = await ingestOrSay(cx);
+  return ing.is_new ? ing : undefined;
 }
 
 /**
@@ -194,10 +166,10 @@ async function answeredBefore(cx: InboundContext, ing: IngestResult): Promise<bo
 
 /**
  * The message recorded and its memory read, with the three ways out bound; nothing when it stops here: a short
- * code, a sender off the pilot allowlist, or a redelivery. `resume` is the job that answers a text after its
- * acknowledgement: its own redelivery goes on while the message is unprocessed and unanswered.
+ * code, a sender off the pilot allowlist, or a redelivery already answered. Its job's own visit is a redelivery, and
+ * goes on while the message is unprocessed and unanswered.
  */
-export async function ingestMessage(cx: InboundContext, resume = false): Promise<Ingested | undefined> {
+export async function ingestMessage(cx: InboundContext): Promise<Ingested | undefined> {
   const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
   const recordOrSay = () => ingestOrSay(cx);
   if (await setAside(cx)) return;
@@ -206,7 +178,18 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
   // failure. Then the memory, which is the same rows the dashboard reads and
   // writes; a read that cannot be made comes back UNKNOWN and is handed to a
   // person below.
-  const ing: IngestResult | null = await recordOrSay();
+  const ing: IngestResult = await recordOrSay();
+
+  // Atomic concurrent-redelivery gate, asked before anything more is read: a message already handled stops here, and
+  // the memory and the ways out below are never read or bound for it. ingest_inbound's is_new claim IS the dedupe (a
+  // unique index two concurrent lambdas cannot both miss). The job that answers a message after its acknowledgement
+  // always meets a redelivery, so it goes on while the message is unprocessed and no reply names it yet: a missed
+  // auto-reply beats a double text.
+  if (!ing.is_new && (ing.processed || (await answeredBefore(cx, ing)))) {
+    L.info("wa_skip_pg_dupe");
+    return;
+  }
+
   // Bound once, and never rebound. The closures below hold this memory and
   // read it after awaits, which is only sound while the binding itself cannot
   // change under them.
@@ -225,7 +208,7 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
   // that is an address and nothing else, or a few words with one address that is theirs (contracts addressInMessage).
   // Their words are the typed or tapped ones (kind), never a caption, a location or a card that happens to carry one.
   // Only where none is on file; the sink says nothing when it is taken (Part 0 of the campaigns-on-every-channel spec).
-  if (ing && n.kind === "text") {
+  if (n.kind === "text") {
     const given = addressInMessage(n.body);
     if (given) await sink.noteEmail(given);
   }
@@ -267,21 +250,11 @@ export async function ingestMessage(cx: InboundContext, resume = false): Promise
       target: notifyTarget,
       channel,
       pausedHours,
-      route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",
+      route: `inbox/th-${ing.conversation_id}`,
       who: n.profileName ?? null,
-      about: ing ? { type: "conversation", id: ing.conversation_id } : null,
+      about: { type: "conversation", id: ing.conversation_id },
     });
   };
 
-  // Atomic concurrent-redelivery gate. ingest_inbound's is_new claim IS the
-  // dedupe, and it is stronger than the `seen` array the retired store kept (a
-  // unique index two concurrent lambdas cannot both miss).
-  // A missed auto-reply beats a double text, so processed-state is deliberately
-  // not consulted -- but by the job that answers a text after its acknowledgement, whose ingest is always a
-  // redelivery: it goes on while the message is unprocessed and no reply names it yet.
-  if (ing && !ing.is_new && !(resume && !ing.processed && !(await answeredBefore(cx, ing)))) {
-    L.info("wa_skip_pg_dupe");
-    return;
-  }
   return { ing, thread, ingestMs, sink, wire, send, tell };
 }

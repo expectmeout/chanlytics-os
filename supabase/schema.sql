@@ -2685,7 +2685,7 @@ begin
     raise exception 'Playbook not found.' using errcode = 'P0002';
   end if;
   -- The sequence's mode as it stands, locked too, on the caller's rights (the sequences' update policy). A one-off has
-  -- none: pressing Send decided it. A sequence to leads takes any of the three since 00587 (decision 0120).
+  -- none: pressing Send decided it. A sequence to leads takes any of the three since 00599 (decision 0120).
   if v_mode is not null then
     select q.mode into v_mode_was
       from public.sequences q
@@ -8063,10 +8063,10 @@ end $$;
 
 
 --
--- Name: ingest_inbound(uuid, text, text, text, text, text, text, text, timestamp with time zone, jsonb, jsonb, boolean, boolean); Type: FUNCTION; Schema: public; Owner: -
+-- Name: ingest_inbound(uuid, text, text, text, text, text, text, text, timestamp with time zone, jsonb, jsonb, boolean, boolean, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb DEFAULT NULL::jsonb, p_meta jsonb DEFAULT '{}'::jsonb, p_opt_out boolean DEFAULT false, p_opt_in boolean DEFAULT false) RETURNS jsonb
+CREATE FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb DEFAULT NULL::jsonb, p_meta jsonb DEFAULT '{}'::jsonb, p_opt_out boolean DEFAULT false, p_opt_in boolean DEFAULT false, p_opt_in_marketing boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -8095,9 +8095,13 @@ begin
     p_wa_profile_name, 'observed', 'inbound', '{}'::jsonb, now());
   v_contact_id := (v_person->>'contact_id')::uuid;
 
-  -- A STOP or a START is written below, once the message is known to be new (00361). The person's row is locked
-  -- here, where that write used to be, so the person, the thread and the message are still locked in that order.
-  if p_opt_out or p_opt_in then
+  -- A STOP or a START is written below, once the message is known to be new (00361), and so are the yeses a message
+  -- carries (00592). The person's row is locked here, where that write used to be, so the person, the thread and the
+  -- message are still locked in that order. A START's channel is noted under note_yes_on_channel's own lock, taken
+  -- here at its full strength so it is never raised later in the transaction.
+  if p_opt_in then
+    perform 1 from contacts where id = v_contact_id for update;
+  elsif p_opt_out or p_opt_in_marketing then
     perform 1 from contacts where id = v_contact_id for no key update;
   end if;
 
@@ -8167,6 +8171,26 @@ begin
   -- Read back AFTER the update above, so a STOP arriving in this very batch is
   -- already reflected in what the caller is told.
   select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;
+
+  -- The yeses this message carries, kept with it (00592): written here or not at all, and a repeat of the message,
+  -- returned above, writes neither (its answer was written when it was kept).
+  --
+  -- A START is a yes on the channel it came on (contracts consent-channels.ts). The event above is written only when
+  -- the answer changed, so a START by text from someone already opted in on WhatsApp is noted here (00297): the event
+  -- that adds the channel, written only where their list lacks it.
+  if p_opt_in then
+    perform public.note_yes_on_channel(p_tenant_id, v_contact_id, p_channel, p_message_external_id, p_body);
+  end if;
+  -- YES OFFERS, the other answer (contracts consent.ts): its own column and its own ledger line, as the customer's own
+  -- message, with what they wrote beside it (00110). Never under a stop that stands after this message: the way back
+  -- from a STOP is START, and a yes kept under it would be one no later stop could end (00323). A refusal is the
+  -- message's: nothing is kept, and the provider sends it again.
+  if p_opt_in_marketing and v_consent is distinct from 'opted_out' and v_dnc is not true then
+    perform public.set_marketing_consent(
+      p_tenant_id, v_contact_id, 'opted_in', 'customer_message', null,
+      jsonb_build_object('channel', p_channel, 'message_external_id', p_message_external_id,
+                         'words', nullif(left(coalesce(p_body, ''), 80), '')));
+  end if;
 
   -- a new customer message reopens a closed thread (never overrides a human)
   if v_state in ('archived', 'snoozed') then
@@ -16343,6 +16367,43 @@ COMMENT ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_devic
 
 
 --
+-- Name: note_person_email(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_email text;
+begin
+  select c.email into v_email
+    from contacts c
+   where c.id = p_contact_id and c.tenant_id = p_tenant_id and c.erased_at is null
+     for no key update;
+  if not found then
+    return 'not_found';
+  end if;
+  if v_email is not null then
+    return 'had_one';
+  end if;
+  begin
+    perform public.set_person_email(p_contact_id, p_email);
+  exception when unique_violation then
+    return 'taken';
+  end;
+  return 'kept';
+end $$;
+
+
+--
+-- Name: FUNCTION note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) IS 'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00593): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';
+
+
+--
 -- Name: note_yes_on_channel(uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -16389,7 +16450,7 @@ end $$;
 -- Name: FUNCTION note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'The edge''s door, right after ingest_inbound for a START (One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
+COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'Called by ingest_inbound for a START, in the transaction that keeps the message (00592; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
 
 
 --
@@ -23014,7 +23075,7 @@ CREATE FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  -- Who this sequence would try again, and from when (00589, decision 0120): the businesses its first email wrote to that
+  -- Who this sequence would try again, and from when (00601, decision 0120): the businesses its first email wrote to that
   -- reach_out_comes_back would let back once their last email is p_days old (its rules, the age aside), and the moment
   -- the first of them comes back. {count, first_at}.
   with written as (
@@ -23039,7 +23100,7 @@ $$;
 -- Name: FUNCTION reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Who a sequence to leads would try again after p_days, and from when (00589, decision 0120): {count, first_at}, the businesses its first email wrote to that reach_out_comes_back lets back, the age aside. Service role only; the route that asks it checks the caller.';
+COMMENT ON FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Who a sequence to leads would try again after p_days, and from when (00601, decision 0120): {count, first_at}, the businesses its first email wrote to that reach_out_comes_back lets back, the age aside. Service role only; the route that asks it checks the caller.';
 
 
 --
@@ -23084,7 +23145,7 @@ end $$;
 -- Name: FUNCTION reach_out_again_set(p_tenant_id uuid, p_root_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_again_set(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Try again after p_days, or never (null) (00589, decision 0120): a member who may approve sets it on a sequence to leads (its first step''s again_after_days). Turned on, its words wait for an OK once more (words_ok_at cleared). Answers {root_id, again_after_days}.';
+COMMENT ON FUNCTION public.reach_out_again_set(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Try again after p_days, or never (null) (00601, decision 0120): a member who may approve sets it on a sequence to leads (its first step''s again_after_days). Turned on, its words wait for an OK once more (words_ok_at cleared). Answers {root_id, again_after_days}.';
 
 
 --
@@ -23128,7 +23189,7 @@ CREATE FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_
      order by sm.lead_id, case sm.fit when 'strong' then 0 when 'look' then 1 when 'long' then 2 else 3 end
   ),
   -- Who has a reason, once (00572's hash), and of those refused as written to before (closed in nurture, a customer by
-  -- their own person, or written), the ones its sequence tries again after p_again_after days (00589, decision 0120): a
+  -- their own person, or written), the ones its sequence tries again after p_again_after days (00601, decision 0120): a
   -- business that never answered, once, never a third time, each reason asked again by reach_out_comes_back.
   refused as materialized (
     select w.lead_id, w.why
@@ -23158,7 +23219,7 @@ $$;
 -- Name: FUNCTION reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean, p_again_after integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean, p_again_after integer) IS 'Who a reach-out''s first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): the qualified, counted, unblanked members of its one search that reach_out_why_not lets go, strongest fit first, then the longest found; and, given p_again_after (00589), those refused only as written that reach_out_comes_back lets back, after the new ones. Service role only.';
+COMMENT ON FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean, p_again_after integer) IS 'Who a reach-out''s first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): the qualified, counted, unblanked members of its one search that reach_out_why_not lets go, strongest fit first, then the longest found; and, given p_again_after (00601), those refused only as written that reach_out_comes_back lets back, after the new ones. Service role only.';
 
 
 --
@@ -23622,7 +23683,7 @@ CREATE FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[],
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  -- Of these leads, each written to before, those that may be written to once more (00589, decision 0120). A lead written to
+  -- Of these leads, each written to before, those that may be written to once more (00601, decision 0120). A lead written to
   -- reads to reach_out_why_not as closed (it is in nurture), or as a customer (the person its first email made holds its
   -- address), as often as written, so each reason is asked here again, the lead's own person aside: still there, in
   -- ready or nurture with nothing closing it, nobody else in People holding its address or its number, not on the
@@ -23675,7 +23736,7 @@ $$;
 -- Name: FUNCTION reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer) IS 'Of leads written to before, those a sequence may write to once more (00589, decision 0120): every email p_after_days old or more and none on its way, none of a second round, none bounced, none answered, sharing with no other lead, and a checked, good address. Asked only of leads reach_out_why_not refuses as written, whose earlier reasons stand. Service role only.';
+COMMENT ON FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer) IS 'Of leads written to before, those a sequence may write to once more (00601, decision 0120): every email p_after_days old or more and none on its way, none of a second round, none bounced, none answered, sharing with no other lead, and a checked, good address. Asked only of leads reach_out_why_not refuses as written, whose earlier reasons stand. Service role only.';
 
 
 --
@@ -23906,7 +23967,7 @@ CREATE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_p
                                where e2.tenant_id = p_tenant_id and e2.sequence_id = s.sequence_id and e2.lead_id = l.id
                                  and e2.state = 'in' and e2.next_at <= now())))
          and s.contact_id is not null
-         -- A first round's email alone is followed up (00589): a business tried again gets that one email, and no more.
+         -- A first round's email alone is followed up (00601): a business tried again gets that one email, and no more.
          and s.round = 1
          -- Only someone whose place in the sequence still stands (00455): taken out, stopped or passed over is not
          -- followed up, even with nothing of theirs pending when they left.
@@ -24603,7 +24664,7 @@ begin
                                       send_at, state, reason, round)
   select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.mailbox_id, x.send_at,
          coalesce(x.state, 'planned'), x.reason,
-         -- A first email's round (00589): one more than the lead's last first email of any sequence, so a business tried
+         -- A first email's round (00601): one more than the lead's last first email of any sequence, so a business tried
          -- again after it never answered has its second; a later step's email is of its first round.
          case when v_step = v_root
               then 1 + coalesce((select max(p.round) from public.sequence_sends p
@@ -29658,26 +29719,41 @@ begin
   if v_source is not null and exists (select 1 from public.sequence_steps r where r.source_search_id = v_source) then
     raise exception 'Another sequence adds from that search already.' using errcode = '23505';
   end if;
+  -- Cold email sends from a mailbox (00585, decision 0116): never handed to the owner to send by hand, and never made
+  -- with none connected, whichever way in. The app says why first, in the words of what is true (contracts
+  -- coldEmailCannotSendWhy); these are its words for none at all.
+  if coalesce((p_first->>'owner_sends')::boolean, false) then
+    raise exception 'Chanlytics sends cold email from your mailbox, so sending each by hand isn''t offered.'
+      using errcode = '22023';
+  end if;
+  -- Sent from the workspace's connected mailboxes whose SPF and DKIM are not missing (00492, decision 0077), else from
+  -- every connected one.
+  select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
+    from public.mailbox_connections c
+   where c.tenant_id = p_tenant_id and c.state = 'connected'
+     and coalesce(c.dns->>'spf', '') <> 'missing' and coalesce(c.dns->>'dkim', '') <> 'missing';
+  if cardinality(v_boxes) = 0 then
+    select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
+      from public.mailbox_connections c where c.tenant_id = p_tenant_id and c.state = 'connected';
+  end if;
+  if cardinality(v_boxes) = 0 then
+    raise exception 'Connect your mailbox first: a sequence to leads sends from your own address. Settings › Cold email has the way.'
+      using errcode = '22023';
+  end if;
   if v_from is not null then
     v_chain := public.reach_out_chain_of(p_tenant_id, v_from);
     if v_chain is null then
       raise exception 'Sequence not found.' using errcode = 'P0002';
     end if;
-  else
-    -- Sent from the workspace's connected mailboxes whose SPF and DKIM are not missing (00492, decision 0077), else from
-    -- every connected one; with none, or where New said so, handed to the owner to send from their own inbox (00465).
-    select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
-      from public.mailbox_connections c
-     where c.tenant_id = p_tenant_id and c.state = 'connected'
-       and coalesce(c.dns->>'spf', '') <> 'missing' and coalesce(c.dns->>'dkim', '') <> 'missing';
-    if cardinality(v_boxes) = 0 then
-      select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
-        from public.mailbox_connections c where c.tenant_id = p_tenant_id and c.state = 'connected';
+    -- A copy of one its owner sent by hand sends from the mailboxes, as every new one does.
+    if coalesce((v_chain->>'owner_sends')::boolean, false) then
+      v_chain := v_chain || jsonb_build_object('owner_sends', false, 'mailbox_ids', to_jsonb(v_boxes));
     end if;
+  else
     v_chain := jsonb_build_object(
       'gap_minutes', 20,
       'mailbox_ids', to_jsonb(v_boxes),
-      'owner_sends', cardinality(v_boxes) = 0 or coalesce((p_first->>'owner_sends')::boolean, false),
+      'owner_sends', false,
       'steps', case when jsonb_typeof(p_first->'steps') = 'array' and jsonb_array_length(p_first->'steps') > 0
                     then p_first->'steps'
                     else jsonb_build_array(jsonb_build_object('subject', '', 'body', '')) end);
@@ -33046,6 +33122,54 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.slug_for_workspace(p_name text) IS 'A workspace''s slug from its name (create_workspace_for''s rule since 00021, lifted out in 00497 for a preview''s claim): lowercase ASCII, single dashes, at most 40, the first free of -1 to -50, then a random tail. Definer doors only.';
+
+
+--
+-- Name: sms_sweep_text_canary(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sms_sweep_text_canary() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  return public.request_sweep('text_canary', '/api/cron/text-canary');
+end $$;
+
+
+--
+-- Name: FUNCTION sms_sweep_text_canary(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sms_sweep_text_canary() IS 'The daily text canary''s clock (00595): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
+
+
+--
+-- Name: sms_sweep_texts(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sms_sweep_texts() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (
+    select 1 from public.lines l
+     where l.provider <> 'carrier' and l.voice_state <> 'failed' and l.e164 is not null
+  ) then
+    return public.request_sweep('texts', '/api/cron/texts');
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('texts', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sms_sweep_texts(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sms_sweep_texts() IS 'The texts sweep''s clock (00594): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
 
 
 --
@@ -51280,11 +51404,11 @@ GRANT ALL ON FUNCTION public.ingest_call(p_tenant_id uuid, p_retell_call_id text
 
 
 --
--- Name: FUNCTION ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean, p_opt_in_marketing boolean); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean, p_opt_in_marketing boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean, p_opt_in_marketing boolean) TO service_role;
 
 
 --
@@ -52640,6 +52764,14 @@ GRANT ALL ON FUNCTION public.note_for_you_notify(p_tenant_id uuid, p_contact_id 
 
 REVOKE ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.note_page_vitals(p_page text, p_vitals jsonb, p_device text, p_build text) TO service_role;
+
+
+--
+-- Name: FUNCTION note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) TO service_role;
 
 
 --
@@ -55102,6 +55234,22 @@ GRANT ALL ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) TO ser
 
 REVOKE ALL ON FUNCTION public.slug_for_workspace(p_name text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.slug_for_workspace(p_name text) TO service_role;
+
+
+--
+-- Name: FUNCTION sms_sweep_text_canary(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sms_sweep_text_canary() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sms_sweep_text_canary() TO service_role;
+
+
+--
+-- Name: FUNCTION sms_sweep_texts(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sms_sweep_texts() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sms_sweep_texts() TO service_role;
 
 
 --

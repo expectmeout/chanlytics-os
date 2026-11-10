@@ -27,11 +27,11 @@ import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "@c
 import {
   clockWhen,
   coldBatchGoesNotice,
+  DbFailure,
   DEFAULT_TIMEZONE,
   handOf,
-  waitEndsWords,
   runRoute,
-  DbFailure,
+  waitEndsWords,
 } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
 import { notify, notifyOnceAs } from "../../shared/alerts/notify.js";
@@ -44,12 +44,6 @@ import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
-
-/** When the first email of a run goes, in the workspace's words: "Monday 9:30 AM". */
-const firstWords = (tz: string, atMs: number): string =>
-  new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" }).format(
-    new Date(atMs),
-  );
 
 /**
  * The step as the verb reads it: its sequence's first step (the root, whose id is the sequence's, 00440), the chain's
@@ -261,8 +255,9 @@ export async function getReachOutRunContext(
           // Its sequence's name first, in the words every run waiting says (the Campaigns wiring review's lane 7: it said
           // "A reach-out waits for you: X", a noun that left the copy).
           subject: `${row.name} waits for your OK`,
-          // How its wait ends is the wait rule's (contracts waitEndsWords, leads_batch): it has no day to pass.
-          body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them, or skip the run. ${waitEndsWords("leads_batch")}.`,
+          // How its wait ends is the wait rule's (contracts waitEndsWords, leads_batch): it has no day to pass. Said of any
+          // batch alike, first emails or follow-ups, from a search or a list; its when as every batch's (contracts clockWhen).
+          body: `${planned} ${planned === 1 ? "email" : "emails"}, the first ${clockWhen(firstAt, tz, now.getTime())}. Approve them, or skip the run. ${waitEndsWords("leads_batch")}.`,
         },
       );
     },

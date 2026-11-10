@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 176 | 176 |
 | reader | 73 | 0 |
-| the server's | 319 | 275 |
+| the server's | 322 | 278 |
 | computed column | 3 | 0 |
 | trigger | 99 | 69 |
-| all | 670 | 520 |
+| all | 673 | 523 |
 
 ## Called by nothing
 
@@ -208,7 +208,7 @@ being read is dropped by a migration.
 | `import_person` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/contacts/import/route.ts`, `apps/dashboard/src/server/people/import-people.ts` and 1 more | One line of an imported client list, through resolve_person (00342): |
 | `ingest_before` | the server's | the server | code `packages/db/src/repositories/imports/before.ts` | A message from before Chanlytics (decision 0073, R19 and R21): |
 | `ingest_call` | the server's | its owner | code `packages/db/src/repositories/voice/calls.ts`; script `tooling/scripts/ops/filler.mjs` |  |
-| `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/whatsapp.ts`, `packages/db/src/repositories/channels/ingest.ts` |  |
+| `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/whatsapp.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
 | `is_acting_member` | reader | a signed-in person, the server | SQL `add_person`, `approve_broadcast` and 70 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
@@ -364,7 +364,8 @@ being read is dropped by a migration.
 | `note_candidates` | the server's | the server | code `packages/db/src/repositories/people/notes.ts` | The note sweep's batch (0007): |
 | `note_for_you_notify` | the server's | the server | SQL `person_note_add`, `person_note_edit` and 1 more | Tell the member a note is for that it is there (0007): |
 | `note_page_vitals` | the server's | the server | code `packages/db/src/repositories/reports/page-vitals.ts` | Keeps one page load's reports ([{id, name, value, page?, part?, from?, warm?, detail?}]) with the device and the build; |
-| `note_yes_on_channel` | the server's | the server | code `packages/db/src/repositories/channels/ingest.ts` | The edge's door, right after ingest_inbound for a START (One message, every channel, step 2): |
+| `note_person_email` | the server's | the server | code `packages/db/src/repositories/people/email.ts` | An address a customer wrote in their own message, kept on their row only where none is on file, under the row's lock (00593): |
+| `note_yes_on_channel` | the server's | the server | SQL `ingest_inbound` | Called by ingest_inbound for a START, in the transaction that keeps the message (00592; |
 | `notification_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `notifications_close_about` | the server's | the server | SQL `batch_closes_its_notices`, `escalation_closes_its_notices` and 4 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
 | `notifications_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
@@ -492,8 +493,8 @@ being read is dropped by a migration.
 | `put_mailbox_credentials` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | Service-role only: stores a connected mailbox's token in Vault under mailbox-creds-<id> and points credentials_ref at it. |
 | `queue_send` | the server's | the server | code `packages/db/src/repositories/jobs/jobs.ts` | A queued reply and its outbound_send job, written together or not at all (00527): |
 | `reach_out_add` | door | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/server/ask/tools/act/leads/search.ts` and 2 more; SQL `sequence_move` | An acting member adds leads (1 to lead_cap('list_rows')) to a list-fed reach-out (00426): |
-| `reach_out_again_count` | the server's | the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Who a sequence to leads would try again after p_days, and from when (00589, decision 0120): |
-| `reach_out_again_set` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Try again after p_days, or never (null) (00589, decision 0120): |
+| `reach_out_again_count` | the server's | the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Who a sequence to leads would try again after p_days, and from when (00601, decision 0120): |
+| `reach_out_again_set` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Try again after p_days, or never (null) (00601, decision 0120): |
 | `reach_out_audience` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`; SQL `reach_out_add`, `reach_out_people_of` and 2 more | Who a reach-out's first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): |
 | `reach_out_booked` | the server's | the server | code `packages/contracts/src/shared/enums.ts`, `packages/db/src/repositories/campaigns/sequences/runs.ts`; SQL `reach_out_booked_from` | The calendar sweep's door (Reach out Part 5, G19, N3): |
 | `reach_out_booked_from` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts` | The booking door (reach_out_booked) over one appointment of the record (00389), booked or kept and not vanished: |
@@ -502,7 +503,7 @@ being read is dropped by a migration.
 | `reach_out_chain_report` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/chain-doors.ts` |  |
 | `reach_out_chain_totals` | door | a signed-in person, the server | code `packages/contracts/src/reports/reach-out-report.ts`, `packages/db/src/repositories/reports/series.ts` | Every chain of the workspace (a reach-out's first step), by its id, for a member (may_read_workspace): |
 | `reach_out_check_take` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/check.ts` |  |
-| `reach_out_comes_back` | the server's | the server | SQL `reach_out_again_count`, `reach_out_audience` | Of leads written to before, those a sequence may write to once more (00589, decision 0120): |
+| `reach_out_comes_back` | the server's | the server | SQL `reach_out_again_count`, `reach_out_audience` | Of leads written to before, those a sequence may write to once more (00601, decision 0120): |
 | `reach_out_day_due` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts` | The 6 PM line (Reach out Part 6, H12): |
 | `reach_out_draft_facts` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/drafts.ts`; SQL `reach_out_drafts_waiting` | A draft's lead as the send door judges it (00429): |
 | `reach_out_drafts_waiting` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/drafts.ts` | The drafts waiting for their owners (00429), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed |
@@ -561,7 +562,7 @@ being read is dropped by a migration.
 | `reply_was_typed` | the server's | the server | SQL `conversation_echo_settles`, `deadman_candidates` | Whether a person's reply on a thread at p_at was typed (00438): |
 | `report_series` | reader | a signed-in person, the server | code `apps/dashboard/app/api/v1/reports/headline/route.ts`, `apps/dashboard/src/server/readers/report.ts` and 4 more; SQL `metrics_summary`, `receptionist_series` | Reports: the receptionist's numbers day by day over p_days and the same number of days before them (customer messages, who answered and how fast, calls, the people who needed a person, new people), wi |
 | `request_id_of_caller` | reader | a signed-in person, the server | SQL `finish_broadcast`; in `CREATE TABLE public.events`, `CREATE TABLE public.events_default` | The request the calling statement serves (00277): |
-| `request_sweep` | the server's | the server | code `packages/db/src/repositories/email/reconcile.ts`; SQL `ask_for_tick`, `trigger_calendar_sweep` and 16 more | Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. |
+| `request_sweep` | the server's | the server | code `packages/db/src/repositories/email/reconcile.ts`; SQL `ask_for_tick`, `sms_sweep_text_canary` and 18 more | Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. |
 | `resolve_person` | the server's | the server | code `packages/db/src/repositories/people/people.ts`; SQL `add_person`, `create_person` and 6 more | The one door a person is resolved by (decision 0034): |
 | `resume_email_offers` | the server's | the server | nothing at run time | The back office's: turns a workspace's offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it), writes a mailbox.offers_resu |
 | `reviews_ledger` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | Reports › Reviews: the profile's reviews from the period before's first day (each on its day in the workspace's zone, with whether it has a reply, how long the reply took, and who wrote it: |
@@ -639,8 +640,8 @@ being read is dropped by a migration.
 | `set_contact_consent` | door | a signed-in person, the server | SQL `record_consent` | Owner or operator records a customer's answer about messages on their own visit (not offers, which are set_marketing_consent's since 00095): |
 | `set_email_marketing` | the server's | the server | code `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email/email.ts`; SQL `reach_out_reply_apply`, `reach_out_reply_undo` and 1 more | The door a no from email goes through: |
 | `set_email_offers_yes` | the server's | the server | code `packages/db/src/repositories/campaigns/email-offers.ts` | The email yes: a person who asked for offers by email in writing (YES OFFERS in their own message, a form they signed, or a website sign-up they confirmed from its email, 00489) is opted_in to them (c |
-| `set_marketing_consent` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts`, `packages/db/src/repositories/channels/ingest.ts`; SQL `record_consent` | Records a person's answer about OFFERS, separately from their answer about conversation and appointments. |
-| `set_person_email` | door | a signed-in person, the server | code `packages/db/src/repositories/people/email.ts`; SQL `resolve_person` | Set or clear a person's email address: |
+| `set_marketing_consent` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts`; SQL `ingest_inbound`, `record_consent` | Records a person's answer about OFFERS, separately from their answer about conversation and appointments. |
+| `set_person_email` | door | a signed-in person, the server | code `packages/db/src/repositories/people/email.ts`; SQL `note_person_email`, `resolve_person` | Set or clear a person's email address: |
 | `set_person_name` | door | a signed-in person, the server | code `packages/db/src/repositories/people/member-reads.ts` | Owner or operator names a person; |
 | `set_person_notes` | door | a signed-in person, the server | code `packages/db/src/repositories/people/member-reads.ts` | Superseded by person_note_add (0007). |
 | `set_person_proposal` | door | a signed-in person, the server | code `packages/db/src/repositories/people/member-reads.ts` | Owner or operator sets a person's proposal link; |
@@ -651,6 +652,8 @@ being read is dropped by a migration.
 | `setup_choice_set` | door | a signed-in person, the server | code `apps/dashboard/src/server/setup/setup.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | A member with the settings permission (an owner, or the partner who brought it) keeps what the first run chose for the workspace (00513, decision 0091): |
 | `setup_request` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/setup/request/route.ts`, `packages/db/src/repositories/workspace/setup.ts` | Setup: the owner asks a person at Chanlytics for something the product cannot do by itself -- a phone line, bringing a number over, setting up forwarding in an office phone system, repairing a configu |
 | `slug_for_workspace` | the server's | the server | SQL `create_workspace_for`, `preview_claim` | A workspace's slug from its name (create_workspace_for's rule since 00021, lifted out in 00497 for a preview's claim): |
+| `sms_sweep_text_canary` | the server's | the server | the clock, `text-canary` | The daily text canary's clock (00595): |
+| `sms_sweep_texts` | the server's | the server | the clock, `texts-sweep` | The texts sweep's clock (00594): |
 | `sole_proprietor_of` | the server's | the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | Whether a workspace's business on record has no tax id: |
 | `stamp_email_complaint` | the server's | the server | code `packages/db/src/repositories/email/email.ts` |  |
 | `stamp_email_from_mailbox` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | An email sent from a connected mailbox, stamped (00424): |

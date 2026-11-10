@@ -11,6 +11,7 @@ import {
   mailboxBouncesHold,
   mailboxIsLive,
   mailboxSendsNow,
+  mailboxUnsubscribesHold,
   type MailboxConnectionDto,
 } from "../../email/mailbox-connections/states";
 
@@ -116,11 +117,38 @@ function bounceCheck(c: NonNullable<Mailbox["counts"]>): ColdEmailCheck {
       title: `${bad === 0 ? "No bounces" : `${bad} bounce${bad === 1 ? "" : "s"}`} in ${c.sent} email${c.sent === 1 ? "" : "s"}`,
       detail: `It pauses itself at ${HOLD_AT_FIRST} while it's new, so your name stays clean`,
     };
-  const percent = Math.round((bad / c.sent) * 1000) / 10;
   return {
     ok,
-    title: ok ? `Few bounces: ${percent}%` : `Bounces: ${percent}%`,
+    title: shareTitle(bad, c.sent, ok, { none: "No bounces", few: "Few bounces", many: "Bounces" }),
     detail: `It pauses itself past ${MAILBOX_HOLD_PERCENT}%, so your name stays clean`,
+  };
+}
+
+/**
+ * A share of what it sent, as a check's title: none said as none, and a share past the hold's that rounds down to it said
+ * as past it, so a held mailbox never reads "3%" beside "past 3%".
+ */
+function shareTitle(n: number, sent: number, ok: boolean, words: { none: string; few: string; many: string }): string {
+  if (n === 0) return words.none;
+  const percent = Math.round((n / sent) * 1000) / 10;
+  if (ok) return `${words.few}: ${percent}%`;
+  return percent > MAILBOX_HOLD_PERCENT ? `${words.many}: ${percent}%` : `${words.many}: over ${MAILBOX_HOLD_PERCENT}%`;
+}
+
+/** Who unsubscribed, read as the hold reads them: a count while it is new, a share once it has sent past the floor. */
+function unsubscribeCheck(c: NonNullable<Mailbox["counts"]>): ColdEmailCheck {
+  const ok = !mailboxUnsubscribesHold(c);
+  const detail = `It pauses itself past ${MAILBOX_HOLD_PERCENT}% of those it wrote to`;
+  if (c.sent < MAILBOX_HOLD_COUNT_FLOOR)
+    return { ok, title: c.unsubscribed === 0 ? "No one unsubscribed" : `${c.unsubscribed} unsubscribed`, detail };
+  return {
+    ok,
+    title: shareTitle(c.unsubscribed, c.sent, ok, {
+      none: "No one unsubscribed",
+      few: "Unsubscribed",
+      many: "Unsubscribed",
+    }),
+    detail,
   };
 }
 
@@ -130,6 +158,7 @@ function mailChecks(m: Mailbox): ColdEmailCheck[] {
   if (!c || !c.sent) return [];
   return [
     bounceCheck(c),
+    unsubscribeCheck(c),
     c.complained > 0
       ? {
           ok: false,

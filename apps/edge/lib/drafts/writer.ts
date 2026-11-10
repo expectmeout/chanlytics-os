@@ -291,19 +291,18 @@ async function writeReply(writing: Writing, tenantId: TenantId, ask: ReplyDraftA
     const ms = ask.deadline - now();
     if (ms <= 0) throw new Error("reply_draft: no time left for the receptionist");
     const timed = await inTime(
-      brain(
-        thread.history,
-        theirs,
-        system,
+      brain({
+        history: thread.history,
+        userText: theirs,
+        systemPrompt: system,
         // No holding words: an answer the brain could not give is not drafted, never drafted as the fallback.
-        "",
-        note,
-        describeNow(rt.timezone, at, brainConfig.profile?.closures),
-        undefined,
+        fallbackText: "",
+        leadNote: note,
+        nowNote: describeNow(rt.timezone, at, brainConfig.profile?.closures),
         steer,
         // The usage ledger's row: a draft's spend told apart from the receptionist's answers.
-        brainCallOf(tenantId, rt, { subjectId: ask.conversationId, purpose: "reply_draft" }),
-      ),
+        call: brainCallOf(tenantId, rt, { subjectId: ask.conversationId, purpose: "reply_draft" }),
+      }),
       ms,
     );
     if (timed.usage) {

@@ -238,13 +238,16 @@ export interface JobContext {
     ) => Promise<void>;
   };
   /**
-   * A text answered after its acknowledgement (decision 0031, Phase 2), as the edge holds it: the line, its sender and
-   * the receptionist's ports live there. INJECTED like email's intake. Optional so a test context need not supply one;
-   * an inbound_answer job in a runtime without it fails loudly rather than guessing.
+   * A customer's message answered after its acknowledgement (decision 0031: a WhatsApp message, a text, a DM), as the edge
+   * holds it: the wire, its sender and the receptionist's ports live there. INJECTED like email's intake. Optional so a
+   * test context need not supply one; an inbound_answer job in a runtime without it fails loudly rather than guessing.
    */
   inbound?: {
-    /** The job's text taken up again through the whole inbound phase; throws when it could not be, and the ledger retries. */
-    answer: (job: ClaimedJob) => Promise<void>;
+    /**
+     * The job's message taken up again through the whole inbound phase, its turn answered by `deadline` (the job's: the
+     * model is asked for no longer than is left); throws when it could not be, and the ledger retries.
+     */
+    answer: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
    * A connection's history brought in a part at a time (00478, decision 0073, R19 to R21), as the edge holds it: the

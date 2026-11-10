@@ -368,7 +368,7 @@ export interface SequenceOneOffDto {
 /**
  * GET sequences/:id/again (decision 0120, D6): whether a sequence to leads writes once more to a business that never
  * answered, after how many days (null: written to once), and who would come back if it did, and from when: the businesses
- * its first email wrote to that the database's own rule lets back, the age aside (00589 reach_out_again_count).
+ * its first email wrote to that the database's own rule lets back, the age aside (00601 reach_out_again_count).
  */
 export interface SequenceAgainDto {
   again_after_days: number | null;

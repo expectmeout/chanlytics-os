@@ -15,8 +15,10 @@ import {
   type ColdEmailCheck,
   type ColdEmailHealth,
   type ColdEmailSending,
+  MAILBOX_DAILY_CAP_MAX,
+  CONNECTIONS_PAGE,
 } from "@chanlytics/contracts";
-import { gate, navigate, routeDoor } from "../../frame-verbs";
+import { canDo, gate, navigate, routeDoor } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -94,7 +96,7 @@ function SendMoreSheet({ host }: { host: string | null }) {
         <ul className="ro-steps">
           {[
             [MORE_WORDS.second, MORE_WORDS.secondLike(host)],
-            [MORE_WORDS.each, MORE_WORDS.eachLimits],
+            [MORE_WORDS.each(MAILBOX_DAILY_CAP_MAX), MORE_WORDS.eachLimits],
             [MORE_WORDS.share, MORE_WORDS.shareBack],
           ].map(([title, detail]) => (
             <li className="ro-step" key={title}>
@@ -116,6 +118,9 @@ function SendingSheet(shared: OutreachShared) {
   useEffect(() => recFolds.drawn("sending"), []);
   const sending = shared.read?.sending;
   if (!fold.open || !sending) return null;
+  // A mailbox that can't send makes Connections the press, named by what fixes it there.
+  const health = sending.health;
+  const fix = health === "reconnect" || health === "on_hold" || health === "paused" ? SEND_WORDS.fixFor[health] : null;
   return (
     <RecordSheet
       id="sending"
@@ -125,13 +130,15 @@ function SendingSheet(shared: OutreachShared) {
         <span data-foot-pair>
           <Button
             size="sm"
+            variant={fix ? "primary" : undefined}
             onClick={() => {
               fold.close();
-              navigate("admin/integrations");
+              navigate(CONNECTIONS_PAGE);
             }}
+            {...(fix ? gate("settings", "fix a mailbox") : {})}
             data-testid="rec-sending-connections"
           >
-            {SEND_WORDS.connections}
+            {fix ?? SEND_WORDS.connections}
           </Button>
           {sending.customer_host ? (
             <Button
@@ -177,7 +184,11 @@ function SendingSheet(shared: OutreachShared) {
   );
 }
 
-/** Before each batch: what a new sequence starts as, through Autonomy's own verb: held or asked, never on its own. */
+/**
+ * Before each batch: what a new sequence starts as, through Autonomy's own verb, and gated as Autonomy gates it (an
+ * operator may), so the two pages that change it agree on who may. A new one starts held or asked; one that exists may
+ * be set to send on its own on its own page (decision 0120).
+ */
 function BatchFold(shared: OutreachShared & { again: () => void }) {
   const mode = shared.read?.batch_mode ?? "ask";
   // Not said until the read lands: a mode not read is no mode to state.
@@ -201,13 +212,13 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
   };
   return (
     <BtFold<string>
-      canEdit={shared.canEdit}
+      canEdit={canDo("autonomy")}
       flash={shared.flash}
       id="batch_mode"
       label={SEQUENCE_MODE_LABEL}
       channel={null}
       light
-      gate={gate("settings", "change what happens before each batch")}
+      gate={gate("autonomy", "change what happens before each batch")}
       door={door}
       row={{ value: said }}
       body={(fields) => (
@@ -220,7 +231,8 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
             options={sequenceStartModesFor("leads").map((m) => ({
               value: m,
               label: SEQUENCE_MODE_WORDS[m].choice,
-              hint: m === "veto" || m === "ask" ? SEND_WORDS.batchDoes[m] : undefined,
+              // Leads are never offered `auto` (sequenceModesFor), which says nothing of its own here.
+              hint: m === "auto" ? undefined : SEND_WORDS.batchDoes[m],
             }))}
             onChange={(v) => fields.update(() => v, ["batch_mode"])}
             readOnly={fields.readOnly}

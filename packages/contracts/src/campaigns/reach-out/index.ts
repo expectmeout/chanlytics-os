@@ -297,15 +297,19 @@ export {
 } from "./sheet/words";
 export type { RunPartVM } from "./sheet/words";
 export {
+  COLD_EMAIL_CONNECT_ROUTE,
   COLD_EMAIL_MAILBOX_UNREAD,
   COLD_EMAIL_NEEDS_MAILBOX,
   coldEmailCannotSendWhy,
   coldEmailNoteOf,
   coldEmailStandingOf,
+  CONNECTIONS_PAGE,
   NO_SENDING_BY_HAND,
+  refusalNeedsMailbox,
 } from "./standing";
 export type {
   ColdEmailNote,
+  ColdEmailPressNeeds,
   ColdEmailRunning,
   ColdEmailStanding,
   ColdEmailStandingFacts,

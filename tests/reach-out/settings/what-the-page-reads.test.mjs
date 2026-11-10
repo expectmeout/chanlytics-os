@@ -220,7 +220,7 @@ test("the numbers come from that sequence's report, added across its steps, newe
   );
 });
 
-test("a report that could not be read leaves the numbers out, and a run's first until known", () => {
+test("a report that could not be read leaves the numbers out, and says neither first nor next of its run", () => {
   const b = chain("b", "2026-11-05T00:00:00Z", [step("b0", 0, "Words")], {
     next: { waiting_run_id: "run-b" },
     people: null,
@@ -231,12 +231,14 @@ test("a report that could not be read leaves the numbers out, and a run's first 
   assert.deepEqual(facts.running[0], {
     root_id: "b",
     name: "Clinics b",
+    fed_by: null,
+    search_id: "s-b",
     sent: null,
     wroteBack: null,
     interested: null,
     waitingLeads: null,
   });
-  assert.deepEqual(facts.waitingRun, { id: "run-b", planned: null, name: "Clinics", first: true });
+  assert.deepEqual(facts.waitingRun, { id: "run-b", planned: null, name: "Clinics", first: null });
 });
 
 test("a waiting run's size is the report's, and it is the first only while nothing has gone", () => {

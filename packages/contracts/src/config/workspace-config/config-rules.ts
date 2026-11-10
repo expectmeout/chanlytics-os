@@ -127,6 +127,8 @@ export const REACH_OUT_LIMITS = {
 /** What an answer to a lead who wrote back offers (decision 0113): your booking link, a call with you, or the answer alone. */
 export const REPLY_OFFERS = ["booking_link", "call", "answer"] as const;
 export type ReplyOffer = (typeof REPLY_OFFERS)[number];
+/** Whether a stored value is one of the three: the pitch's row and the replies card read it alike. */
+export const isReplyOffer = (value: unknown): value is ReplyOffer => REPLY_OFFERS.some((o) => o === value);
 
 /** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` (business-tab/fold-limits.ts) says what each one refuses in. */
 export type ProfileLimitKey =

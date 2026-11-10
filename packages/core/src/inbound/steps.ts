@@ -13,13 +13,31 @@ import {
   heldLine,
   policyAskClass,
   resolveFacts,
+  POLICY_MODE_WORDS,
+  POLICY_MODES,
+  isOneOf,
+  SECOND_MS,
 } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits } from "@chanlytics/contracts";
 import { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS } from "../shared/reply-horizon";
 
+/**
+ * A reply mode as an owner reads it, the Autonomy pane's own head for it ("Asks you", "Stays quiet"): what a hold's
+ * details and its notice say, never the stored token ('ask', 'never'). A token nobody named is said as it is.
+ */
+export function modeSaid(mode: string): string {
+  return isOneOf(POLICY_MODES, mode) ? POLICY_MODE_WORDS[mode].head : mode;
+}
+
 export { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS };
 
 export const MAX_REPLIES_PER_DAY = 20; // per thread
+/**
+ * The longest a reply turn may take from its start to the model's answer: the job's function stops at sixty seconds
+ * (apps/edge/vercel.json, api/jobs/tick.ts), and the send, the hold and the stamp come after the answer. The ledger's own
+ * deadline is usually sooner (jobs ledger.ts YIELD_AT_MS from the tick's start), and the turn is held to whichever is first.
+ */
+export const TURN_BUDGET_MS = 40 * SECOND_MS;
 /**
  * How long the reply waits before it goes out, and why.
  *
@@ -162,8 +180,8 @@ export function holdCopy(input: {
   const personHold = !!input.brainCfg && !!input.personMode;
   const details = input.brainCfg
     ? personHold
-      ? `You set the receptionist to '${input.replyMode}' for this person — it stays out of the thread; answer them yourself.`
-      : `Reply mode is '${input.replyMode}' — the receptionist holds everything for a human.`
+      ? `You set the receptionist to ${modeSaid(input.replyMode)} for this person — it stays out of the thread; answer them yourself.`
+      : `Replies are set to ${modeSaid(input.replyMode)} — the receptionist holds every message for a person.`
     : input.configBroken
       ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field."
       : input.loadFailed
@@ -172,8 +190,8 @@ export function holdCopy(input: {
   const botText = personHold ? "(held — you handle this person yourself)" : "(held — no auto-reply for this workspace)";
   const reason = input.brainCfg
     ? personHold
-      ? `this person is set to ${input.replyMode}`
-      : `reply mode ${input.replyMode}`
+      ? `this person is set to ${modeSaid(input.replyMode)}`
+      : `replies are set to ${modeSaid(input.replyMode)}`
     : input.configBroken
       ? "settings could not be read"
       : input.loadFailed

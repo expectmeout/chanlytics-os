@@ -35,6 +35,7 @@ import { whatsappSender, type InboundPorts as CoreInboundPorts } from "@chanlyti
 import { logger } from "../shared/log.js";
 import { env } from "../shared/env.js";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { sendTypingIndicator } from "@chanlytics/channels/whatsapp";
 
 export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "leads" | "filing"> {
   /** The database, or null when this deployment persists nothing. */
@@ -138,6 +139,7 @@ export function realPorts(): InboundPorts {
     alertStaff,
     page: pageOperator,
     sender: whatsappSender,
+    typing: async (cfg, messageId) => (cfg ? sendTypingIndicator(cfg, messageId) : false),
     brain: () => import("../ai/receptionist-brain.js"),
     env: {
       allowlist: env.WHATSAPP_TEST_ALLOWLIST || "",

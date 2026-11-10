@@ -25,7 +25,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const EDGE = path.join(here, "../../apps/edge");
-const { readPgThread } = await import(pathToFileURL(path.join(EDGE, "lib/whatsapp/persist.ts")).href);
+const { readPgThread } = await import(pathToFileURL(path.join(EDGE, "lib/inbound/persist.ts")).href);
 
 const TENANT_A = "11111111-1111-1111-1111-111111111111";
 const TENANT_B = "22222222-2222-2222-2222-222222222222";

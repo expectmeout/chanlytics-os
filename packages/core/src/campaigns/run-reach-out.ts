@@ -198,7 +198,8 @@ export async function runReachOut(
   const counts = { planned: placed.length, skipped: skips.length };
   if (asks) {
     await ports.recordRun(run, counts);
-    await ports.notifyWaiting(run.id, placed.length, firstAt);
+    // Planned and recorded, it waits whether or not the bell rang: Today and the page show it, as the hold path's does.
+    await ports.notifyWaiting(run.id, placed.length, firstAt).catch(() => undefined);
     return { outcome: "held", reason: "waiting_for_you", planned: placed.length };
   }
   // On its own (0120): nothing to stop and nobody to ask, so it is recorded as the system's send and goes. Today's

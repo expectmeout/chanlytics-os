@@ -1,6 +1,7 @@
 /**
  * Who never hears from you: the stop list, counted. Its rows are scrambled, so the page can say how many and never who.
- * A person who said no leaves one row for their address and one for their company, so people are counted by address.
+ * A person who said no leaves one row for their address and one for their company, so people are counted by address,
+ * and so are the customers kept off (the plan's Task 4: the three counts).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -21,10 +22,10 @@ test("said no and asked to stop are counted by address, one person each", async 
       row(T, "email", "email_opt_out", "c"),
     ],
   });
-  assert.deepEqual(await countLeadSuppressions(db, T), { said_no: 2, asked_to_stop: 1 });
+  assert.deepEqual(await countLeadSuppressions(db, T), { said_no: 2, asked_to_stop: 1, customers: 0 });
 });
 
-test("an erasure and a customer are not said here: one is a promise to forget, the other always holds", async () => {
+test("a customer is counted by address, and an erasure never: it is a promise to forget", async () => {
   const db = fakeDb({
     lead_suppressions: [
       row(T, "email", "erased", "a"),
@@ -32,10 +33,10 @@ test("an erasure and a customer are not said here: one is a promise to forget, t
       row(T, "place", "customer", "c"),
     ],
   });
-  assert.deepEqual(await countLeadSuppressions(db, T), { said_no: 0, asked_to_stop: 0 });
+  assert.deepEqual(await countLeadSuppressions(db, T), { said_no: 0, asked_to_stop: 0, customers: 1 });
 });
 
 test("another workspace's list is never counted", async () => {
   const db = fakeDb({ lead_suppressions: [row(OTHER, "email", "said_no", "a")] });
-  assert.deepEqual(await countLeadSuppressions(db, T), { said_no: 0, asked_to_stop: 0 });
+  assert.deepEqual(await countLeadSuppressions(db, T), { said_no: 0, asked_to_stop: 0, customers: 0 });
 });

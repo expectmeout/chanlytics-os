@@ -1,7 +1,7 @@
 /**
  * The intake ledger (provider_events, 00336; decision 0032): every verified delivery a provider made to a door, kept a
  * week under the provider's own id, as it came. The one place the table is typed. Written by the edge's doors before
- * their verdict (apps/edge/lib/intake/keep.ts), read by the replay door, scrubbed by an erasure.
+ * their verdict (apps/edge/lib/shared/keep-event.ts), read by the replay door, scrubbed by an erasure.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SCHEMA_SETS, TenantId } from "@chanlytics/contracts";
@@ -46,6 +46,32 @@ export async function keepProviderEvent(db: Db, keptDelivery: KeptDelivery): Pro
       { onConflict: "provider,provider_event_id", ignoreDuplicates: true },
     );
   return { error: error?.message ?? null };
+}
+
+/**
+ * Which of these texts (Twilio's message ids) the database has heard: a message holds the id, or a delivery was kept
+ * under it (a text refused after its signature held: a switched-off line, a routing that could not be read). The texts
+ * sweep knocks on the door again for the rest (apps/edge/lib/sms/texts-sweep.ts). A read that fails throws.
+ */
+export async function findTextsAlreadyHeard(db: Db, sids: readonly string[]): Promise<Set<string>> {
+  if (sids.length === 0) return new Set();
+  const [messages, kept] = await Promise.all([
+    db
+      .from("messages")
+      .select("external_id")
+      .in("external_id", [...sids]),
+    db
+      .from("provider_events")
+      .select("provider_event_id")
+      .eq("provider", "twilio")
+      .in("provider_event_id", [...sids]),
+  ]);
+  if (messages.error) throw new DbFailure(messages.error, "texts heard");
+  if (kept.error) throw new DbFailure(kept.error, "texts kept");
+  return new Set([
+    ...messages.data.flatMap((r) => (r.external_id ? [r.external_id] : [])),
+    ...kept.data.map((r) => r.provider_event_id),
+  ]);
 }
 
 /** A kept delivery by its key; null when none, or when it has been purged. */

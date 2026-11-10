@@ -58,7 +58,7 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   const business = frame["workspace.tsx"];
   assert.ok(business.includes("if (settings && settings.broken) return <BrokenConfig"));
   assert.ok(
-    business.indexOf("if (settings && settings.broken)") < business.indexOf("if (real) return"),
+    business.indexOf("if (settings && settings.broken)") < business.indexOf("if (real ||"),
     "the broken branch wins over the record",
   );
   // Every notifications write is closed on a broken config, and says why: drawn, in settings-owner-panes.test.mjs ("F32:
@@ -96,7 +96,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   const inbound = ["unreadable", "dispatch", "ingest"]
     .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
     .join("\n");
-  const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
+  const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
   // The WhatsApp-app echo pausing for the workspace's own pause_hours, and for
   // the default day when none is set, is run in whatsapp-door.test.mjs.
   assert.ok(
@@ -110,7 +110,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   // The notice's words are named (tell(asked, { said, answered, why, pausedHours }), #1547), so each branch's pause is
   // read by its name.
   assert.ok(
-    /why: "non-text message",\s*pausedHours: pausedUntil \? pauseHours : null,/.test(inbound),
+    /why: "non_text",\s*pausedHours: pausedUntil \? pauseHours : null,/.test(inbound),
     "the acknowledgement states it only when it actually acknowledged",
   );
   assert.equal(

@@ -20,7 +20,7 @@ export async function setChainSource(
 }
 
 /**
- * Try a business that never answered again after `days`, or never (null) (00589 reach_out_again_set, decision 0120): a
+ * Try a business that never answered again after `days`, or never (null) (00601 reach_out_again_set, decision 0120): a
  * member who may approve, on the member's own session. Turned on, its words wait for an OK once more.
  */
 export async function setChainAgain(
@@ -36,7 +36,7 @@ export async function setChainAgain(
 }
 
 /**
- * Whether a sequence to leads tries again, after how many days, and who would come back at `days` and from when (00589
+ * Whether a sequence to leads tries again, after how many days, and who would come back at `days` and from when (00601
  * reach_out_again_count), on the service role once the route has checked the member. A read that fails throws.
  */
 export async function findChainAgain(

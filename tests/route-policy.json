@@ -2465,7 +2465,7 @@
       "kind": "read",
       "scope": "workspace",
       "role": null,
-      "rate": null,
+      "rate": "aggregate",
       "spend": false
     },
     "GET settings/reach-out/told": {

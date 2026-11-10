@@ -8,7 +8,7 @@
  * member is real: made with the admin API and signed in through the anon key, so the grants judge them as the
  * dashboard's client would be judged.
  *
- * And the two halves joined: the receptionist's real door (apps/edge/lib/receptionist/brain.ts), over a scripted model,
+ * And the two halves joined: the receptionist's real door (apps/edge/lib/ai/receptionist-brain.ts), over a scripted model,
  * writing through the real port to this database, so the write is proved as the edge sends it and not only as this
  * file spells it.
  */
@@ -456,20 +456,18 @@ test(
     const { generateReply } = await import(at("apps/edge/lib/ai/receptionist-brain.ts"));
     const system = `${PROMPT} Closed on public holidays. (${stamp})`;
     const ask = (conversation) =>
-      generateReply(
-        [
+      generateReply({
+        history: [
           { role: "user", content: "hello" },
           { role: "assistant", content: "Hi Ana, how can I help?" },
         ],
-        "when do you open?",
-        system,
-        "Hold on.",
-        "Name on record: Ana.",
-        "It is Monday, 10:02.",
-        undefined,
-        undefined,
-        { tenantId: A, subjectId: conversation, configVersion: 1 },
-      );
+        userText: "when do you open?",
+        systemPrompt: system,
+        fallbackText: "Hold on.",
+        leadNote: "Name on record: Ana.",
+        nowNote: "It is Monday, 10:02.",
+        call: { tenantId: A, subjectId: conversation, configVersion: 1 },
+      });
     setPg(db);
     setModelFetch(scripted(json(RESPONSE.record)).fetch);
     const lines = [];

@@ -40,36 +40,10 @@ export interface IngestInboundParams {
   optOut?: boolean;
   optIn?: boolean;
   /**
-   * The customer texted the OFFERS keyword specifically.
-   *
-   * A second, separate answer -- see contracts/consent.ts. It is recorded after
-   * the ingest rather than inside it: `ingest_inbound` is the hot path for every
-   * inbound message in the product, and adding a parameter to it means
-   * recreating a hundred-and-sixty-line function to write one column. Because it
-   * is a second write, it is OWED until it lands (see ingestInbound): written by
-   * the call that kept the message, and again by any later visit of a message
-   * that is still unhandled, once at most (the ledger names the message).
+   * The customer texted the OFFERS keyword specifically: a second, separate answer (contracts consent.ts), kept by
+   * ingest_inbound with the message, in its transaction (00592), and never under a stop that stands after it.
    */
   optInMarketing?: boolean;
-  /**
-   * A job answers this message next and takes it in again (core recordMessage: a text's door, and a WhatsApp message
-   * answered later). A yes that does not land on this visit is then logged and left owed, since the job's visit writes it
-   * and raises if it cannot. Without it a failed yes raises AnswerNotKept at once: the caller has no later visit of its own
-   * but the provider's redelivery.
-   */
-  jobFollows?: boolean;
-}
-
-/**
- * The message is kept and the yes it carried is not (a START's channel, YES OFFERS): thrown by ingestInbound when the
- * write failed on a visit nothing else will repeat. Not a lost message: the provider's redelivery, or the job's retry,
- * takes the message in again, finds it unhandled, and writes the yes (every write it makes is keyed by the message).
- */
-export class AnswerNotKept extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "AnswerNotKept";
-  }
 }
 
 export interface IngestResult {
@@ -80,12 +54,10 @@ export interface IngestResult {
   processed: boolean;
   state: string;
   paused_until: string | null;
-  /** The contact's consent AFTER this message was applied, so a STOP earlier in
-   *  the same webhook batch is already reflected. Optional because a database
-   *  still on a pre-00013 schema omits both — readers must treat absence as
-   *  "nothing on record", never as a block. */
-  consent?: string | null;
-  dnc?: boolean | null;
+  /** The contact's consent AFTER this message was applied, so a STOP earlier in the same webhook batch is already
+   *  reflected. */
+  consent: string | null;
+  dnc: boolean | null;
 }
 
 /** What ingest_inbound answers, as IngestResult says it. */
@@ -97,8 +69,8 @@ const IngestAnswer: z.ZodType<IngestResult> = z.object({
   processed: z.boolean(),
   state: z.string(),
   paused_until: z.string().nullable(),
-  consent: z.string().nullable().optional(),
-  dnc: z.boolean().nullable().optional(),
+  consent: z.string().nullable(),
+  dnc: z.boolean().nullable(),
 });
 
 /**
@@ -127,135 +99,46 @@ export async function ingestInbound(db: Db, inboundParams: IngestInboundParams):
     p_meta: inboundParams.meta ?? {},
     p_opt_out: inboundParams.optOut ?? false,
     p_opt_in: inboundParams.optIn ?? false,
+    p_opt_in_marketing: inboundParams.optInMarketing ?? false,
   });
   if (error) throw new DbFailure(error, "ingest_inbound");
   const out = readAnswer("ingest_inbound", IngestAnswer, data);
-
-  if (!out?.contact_id) return out;
-
-  // The answers this message carries (a START's yes on the channel it came on, YES OFFERS) are OWED until they are
-  // written, and written once. The call that kept the message writes them. A message that is still unhandled is taken in
-  // again by design (a text's door, then the job that answers it; Meta's redelivery; an operator's replay; a job's
-  // retry), and that visit writes the ones that did not land: each is keyed by the message (answerKept asks the ledger),
-  // so a yes that did land is not written again, and a retry never stands over a no given since (stoppedNow; 00361 holds
-  // ingest_inbound's own STOP and START to the call that keeps the message). A message that was handled has had its
-  // visits: whatever it carried was written or raised, and a redelivery of it says nothing new, as the email door's own
-  // check says it (email.ts).
-  if (!out.is_new && out.processed) return out;
-
-  // Both are attempted, then the failure is told: a channel note that fails must not cost the offers yes its try. A
-  // failure is logged by name on every visit and RAISED unless a job follows this visit (jobFollows): a yes that nothing
-  // repeats is a yes nobody keeps, and the owner would never know they asked.
-  const failed: string[] = [];
-  const attempt = async (
-    event: "consent_channel_write_failed" | "marketing_consent_write_failed",
-    write: () => Promise<void>,
-  ) => {
-    try {
-      await write();
-    } catch (e) {
-      const error = e instanceof Error ? e.message : String(e);
-      dbLog().error(event, { tenant_id: inboundParams.tenantId, contact_id: out.contact_id, error });
-      failed.push(`${event}: ${error}`);
-    }
-  };
-  // A START is a yes on the channel it came on (contracts consent/channels.ts): see keepYesOnChannel. After the ingest,
-  // using the contact it returned.
-  if (inboundParams.optIn)
-    await attempt("consent_channel_write_failed", () => keepYesOnChannel(db, inboundParams, out));
-  if (inboundParams.optInMarketing)
-    await attempt("marketing_consent_write_failed", () => keepOffersYes(db, inboundParams, out));
-  if (failed.length > 0 && !inboundParams.jobFollows) throw new AnswerNotKept(failed.join("; "));
-  return out;
-}
-
-/**
- * Whether the ledger already holds this message's answer: a contact.consent_changed line naming the message
- * (`message_external_id`, which ingest_inbound's own START, note_yes_on_channel and set_marketing_consent all write), for
- * the question it answers (offers carry `purpose: marketing`; a visit's answer carries no purpose). What lets a later visit
- * of an unhandled message repeat a yes that did not land and write nothing for one that did, so the same message never
- * writes its yes twice and a retry never stands over a no, or over another channel's yes, given since. A read that fails
- * throws, and is a write that did not land.
- */
-async function answerKept(
-  db: Db,
-  inboundParams: IngestInboundParams,
-  contactId: ContactId,
-  purpose: "conversational" | "marketing",
-): Promise<boolean> {
-  const request = db
-    .from("events")
-    .select("id")
-    .eq("tenant_id", inboundParams.tenantId)
-    .eq("kind", "contact.consent_changed")
-    .eq("subject_id", contactId)
-    .eq("data->>message_external_id", inboundParams.messageExternalId);
-  const { data, error } = await (
-    purpose === "marketing" ? request.eq("data->>purpose", "marketing") : request.is("data->>purpose", null)
-  ).limit(1);
-  if (error) throw new DbFailure(error, "answer_kept");
-  return (data ?? []).length > 0;
-}
-
-/**
- * A START is a yes on the channel it came on, and ingest_inbound writes its consent event only when the answer
- * changes: a START by text from someone already opted in on WhatsApp left no event and covered no text. This door
- * (00297) writes the event when their list lacks the channel, and the database adds it to the list. A repeat finds the
- * channel held and writes nothing, and a visit after the one that kept the message asks the ledger first (answerKept), so
- * the yes is written once and can be written again by the visit that finds it missing. A write that fails THROWS:
- * ingestInbound decides what that costs.
- */
-async function keepYesOnChannel(db: Db, inboundParams: IngestInboundParams, out: IngestResult): Promise<void> {
-  if (!out.is_new && (await answerKept(db, inboundParams, out.contact_id, "conversational"))) return;
-  const { error } = await db.rpc("note_yes_on_channel", {
-    p_tenant_id: inboundParams.tenantId,
-    p_contact_id: out.contact_id,
-    p_channel: inboundParams.channel,
-    p_message_external_id: inboundParams.messageExternalId,
-    p_words: (inboundParams.body ?? "").slice(0, 80),
-  });
-  // A database that has not been given 00297 has no such function, and PostgREST refuses the call by naming it:
-  // nothing is kept per channel there yet, so there is nothing to repair.
-  const missing =
-    error?.code === "PGRST202" || /Could not find the function public\.note_yes_on_channel/.test(error?.message ?? "");
-  if (error && !missing) throw new DbFailure(error);
-}
-
-/**
- * The OTHER answer, if that is what arrived. Separate call, separate column, separate ledger entry -- which is the whole
- * point: the carriers refused a campaign because one message gave one yes that covered both (error 30913). They have said
- * stop and it stands: no yes is recorded under it (stoppedNow). A visit after the one that kept the message asks the ledger
- * first (answerKept). A write that fails THROWS: ingestInbound decides what that costs.
- */
-async function keepOffersYes(db: Db, inboundParams: IngestInboundParams, out: IngestResult): Promise<void> {
-  if (stoppedNow(out)) {
+  // The yes a message carries is kept with it (00592), and a yes to offers under a stop is not: said, once, by the visit
+  // that kept the message, so "I wrote YES OFFERS and nothing happened" has an answer.
+  if (inboundParams.optInMarketing && out.is_new && stoppedNow(out))
     dbLog().warn("offers_yes_while_stopped", {
       tenant_id: inboundParams.tenantId,
       contact_id: out.contact_id,
       channel: inboundParams.channel,
     });
-    return;
-  }
-  if (!out.is_new && (await answerKept(db, inboundParams, out.contact_id, "marketing"))) return;
-  const args = {
-    p_tenant_id: inboundParams.tenantId,
-    p_contact_id: out.contact_id,
-    p_consent: "opted_in",
-    p_source: "customer_message",
-    p_note: null,
-  };
-  // The proof (00110): where it came from, which message, what they wrote.
-  const evidence = {
-    channel: inboundParams.channel,
-    message_external_id: inboundParams.messageExternalId,
-    words: (inboundParams.body ?? "").slice(0, 80) || null,
-  };
-  let { error } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence });
-  // A database that has not been given 00110 yet has no p_evidence, and PostgREST refuses the call by naming the
-  // parameters it could not match. The answer is recorded without its proof rather than not at all; any other refusal is
-  // the caller's.
-  if (error && /p_evidence/.test(error.message)) ({ error } = await db.rpc("set_marketing_consent", args));
-  if (error) throw new DbFailure(error);
+  return out;
+}
+
+/**
+ * What became of one inbound message, by its provider's id: whether a message holds it, and the status of the newest reply
+ * that names it (meta.reply_to), or null when none does. The daily canary's check (apps/edge/lib/sms/canary.ts). A read
+ * that fails throws.
+ */
+export async function answerOfMessage(db: Db, externalId: string): Promise<{ kept: boolean; reply: string | null }> {
+  const { data: message, error } = await db
+    .from("messages")
+    .select("id, tenant_id")
+    .eq("external_id", externalId)
+    .eq("direction", "inbound")
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "answer_of_message");
+  if (!message) return { kept: false, reply: null };
+  const { data: reply, error: unread } = await db
+    .from("messages")
+    .select("status")
+    .eq("tenant_id", message.tenant_id)
+    .eq("direction", "outbound")
+    .eq("meta->>reply_to", message.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (unread) throw new DbFailure(unread, "answer_of_message");
+  return { kept: true, reply: reply?.status ?? null };
 }
 
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
@@ -622,21 +505,35 @@ export async function linkSentOnCall(
   return (count ?? 0) > 0;
 }
 
-/** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
+/**
+ * Delivery receipts: the message the provider's id names moves to the status; the monotone rank is enforced by trigger.
+ * Whether a row carries the id: false for a receipt about history we never wrote, or about a send whose row has not been
+ * given the provider's id yet (its receipt can beat our own write). A move the guard refuses (a receipt arriving after a
+ * later one: monotone, terminal) is a receipt already applied, and true. Any other failure THROWS, so the door does not
+ * acknowledge a status it did not keep: logged, until 3 Nov 2026, and the receipt acknowledged, which left an Inbox row
+ * at "sent" for good.
+ */
 export async function recordStatusByExternalId(
   db: Db,
   tenantId: TenantId,
   externalId: string,
   status: "sent" | "delivered" | "read" | "failed",
   errorDetail?: Json,
-): Promise<void> {
+): Promise<boolean> {
   const patch: { status: typeof status; error?: Json } = { status };
   if (errorDetail) patch.error = errorDetail;
-  const { error } = await db.from("messages").update(patch).eq("tenant_id", tenantId).eq("external_id", externalId);
-  // Unknown wamid (pre-dual-write history) or monotone/terminal rejection: log-and-continue.
-  if (error && !/monotone|terminal/.test(error.message)) {
+  const { data, error } = await db
+    .from("messages")
+    .update(patch)
+    .eq("tenant_id", tenantId)
+    .eq("external_id", externalId)
+    .select("id");
+  if (error && /monotone|terminal/.test(error.message)) return true;
+  if (error) {
     dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
+    throw new DbFailure(error, "record_status");
   }
+  return (data ?? []).length > 0;
 }
 
 /**

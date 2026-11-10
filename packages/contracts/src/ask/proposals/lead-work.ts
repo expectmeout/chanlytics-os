@@ -231,11 +231,13 @@ export const reachOutMakeSpec: ProposalSpec = {
       ? { route: "POST reach-outs", body: pl.words_shown === true ? { ...chain, words_shown: true } : chain }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
+  // Its first batch waits for an OK whatever the mode, unless the card that made it showed every email whole (decision
+  // 0120: its press is their OK); every one after goes by Before each batch (contracts batchModeOf).
   receipt: ({ payload: pl }, data) => {
     const name = asText(rec(pl.chain).name);
     return rec(data).words_ok === true
       ? `“${name}” is saved, and its emails have your OK: its first run goes as “Before each batch” says.`
-      : `“${name}” is saved. Nothing goes until you OK the first emails.`;
+      : `“${name}” is saved. Nothing goes until you OK the first emails. After that, each batch goes as Before each batch says on Cold email.`;
   },
   made: (_p, data) => idIn(rec(data), "root_id"),
   open: (_p, outcome) => (outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE),

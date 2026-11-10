@@ -1,8 +1,8 @@
 /**
- * A lead's own email (decision 0094): one email a member writes to one lead, sent from a connected mailbox or said sent
- * from their own mail app. Every word and rule of it the sheet, its door and History share.
+ * A lead's own email (decision 0094): one email a member writes to one lead, sent from a connected mailbox, which it
+ * needs (decision 0116). Every word and rule of it the sheet, its door and History share.
  *
- *   leadEmailFromOf   the mailbox it leaves from, or why it goes from the mail app
+ *   leadEmailFromOf   the mailbox it leaves from, or why none can send it
  *   leadEmailLineOf   how one reads in History
  */
 import { mailboxSendsNow } from "../../email/mailbox-connections/states";
@@ -13,6 +13,8 @@ import { sequenceLeftWords } from "../../campaigns/sequences/words/next";
 export const LEAD_OWN_EMAIL_WORDS = {
   send: "Send",
   connect: "Connect your mailbox",
+  /** The press where a mailbox is there and can't send: Connections says why, and fixes it. */
+  fix: "Open Connections",
   from: (address: string) => `From ${address}`,
   sending: (address: string) => `Sending from ${address}`,
   /** Why it can't go now: said under the email, and by the door when a press finds the same. */
