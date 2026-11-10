@@ -38,9 +38,11 @@ export function cardSays(
   specs: readonly ParamSpec[],
   by: { channels: ConsentChannel[]; named: boolean },
   limit: number,
+  /** The visit's time as the sequence's moment would say it (contracts visitWhenExample); unsaid for a one-off. */
+  when?: string | null,
 ): { says: string } | { refusal: string } {
   const { message, rows } = askedMessage;
-  const values = exampleParams(specs, EXAMPLE_BUSINESS);
+  const values = exampleParams(specs, EXAMPLE_BUSINESS, when);
   const row = rows.find((r) => r.id === message.versions.whatsapp?.id);
   const whatsapp = row ? renderTemplate(row.body_preview, values) : null;
   const missing = (reason: string) => ({

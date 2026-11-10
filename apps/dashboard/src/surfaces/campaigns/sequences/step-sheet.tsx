@@ -21,6 +21,7 @@ import {
   scheduleDays,
   scheduleStepFacts,
   scheduleStepSub,
+  visitWhenExample,
   type HandKind,
   type NewStepDoes,
   type SequenceRecordDto,
@@ -97,6 +98,7 @@ function StepBody(p: {
         message={message}
         read={read}
         params={step.params}
+        when={visitWhenExample(step.trigger)}
         gone={
           <Button size="sm" onClick={onEdit} data-testid={`sq-step-pick-${step.place}`} {...gate("approve")}>
             {F.pickMessage}

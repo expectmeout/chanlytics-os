@@ -315,6 +315,79 @@ test("the door's refusal is its own sentence and the row still asks; Missed goes
   assert.deepEqual(doors, [["POST", "/api/v1/calendar/visits/r-a", { status: "missed" }]]);
 });
 
+test("a Missed that a sequence answers (decision 0119) says who writes to them and when, and offers no rebook of its own: two messages offering another time would reach one person", async () => {
+  reset();
+  const gets = [];
+  const fetchWas = W.fetch;
+  W.fetch = (url, init = {}) => {
+    if ((init.method ?? "GET") === "GET") gets.push(String(url));
+    return fetchWas(url, init);
+  };
+  try {
+    const answers = (follows) => () => ({ status: 200, body: { ok: true, data: { ok: true, follows } } });
+    doorSays = answers({ name: "Missed appointment", when: "today 2:10 PM", asks: false });
+    press(buttons(work(), "Missed")[0]);
+    await until(
+      () =>
+        buttons(
+          again(() => work()),
+          "Change",
+        ).length === 1,
+      "Missed is said in the row, with Change",
+    );
+    const row = again(() => work());
+    assert.ok(textOf(row).includes("Missed"), textOf(row));
+    assert.ok(textOf(row).includes("“Missed appointment” offers them another time today 2:10 PM."), textOf(row));
+    assert.equal(buttons(row, "Send").length, 0, "no second message is offered from the row");
+    assert.deepEqual(gets, [], "and none is drafted: nothing asks how they can be written to");
+
+    // One that waits for an OK says so: the owner is asked before it goes.
+    reset();
+    doorSays = answers({ name: "Missed appointment", when: "tomorrow 9:00 AM", asks: true });
+    press(buttons(work(), "Missed")[0]);
+    await until(
+      () =>
+        buttons(
+          again(() => work()),
+          "Change",
+        ).length === 1,
+      "Missed is said in the row",
+    );
+    assert.ok(
+      textOf(again(() => work())).includes(
+        "“Missed appointment” has a message for them tomorrow 9:00 AM, and asks you before it goes.",
+      ),
+    );
+
+    // Kept after a Change says nothing of a message: the word is the row's alone.
+    press(
+      buttons(
+        again(() => work()),
+        "Change",
+      )[0],
+    );
+    doorSays = answers(null);
+    press(
+      buttons(
+        again(() => work()),
+        "Kept",
+      )[0],
+    );
+    await until(() => doors.length === 2, "Kept was said");
+    await until(
+      () =>
+        buttons(
+          again(() => work()),
+          "Change",
+        ).length === 1,
+      "Kept is said in the row",
+    );
+    assert.ok(!textOf(again(() => work())).includes("has a message for them"));
+  } finally {
+    W.fetch = fetchWas;
+  }
+});
+
 test("REGRESSION: a visit marked keeps its place in To do's three, with its word and Change, once the read leaves it; the foot says what is left, with its door", async () => {
   reset();
   clear();

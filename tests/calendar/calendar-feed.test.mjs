@@ -1028,7 +1028,14 @@ test("POST calendar/visits/:id: an operator's word reaches the door with what th
   };
   const said = { appointment: { id: V, status: "missed" }, from: "booked", decision_id: "dec-1" };
   const out = await visitRoute.POST.run(post({ status: "missed" }), world("operator", said));
-  assert.deepEqual(out, { visit: { id: V, status: "missed" }, from: "booked", decision_id: "dec-1", unchanged: false });
+  assert.deepEqual(out, {
+    visit: { id: V, status: "missed" },
+    from: "booked",
+    decision_id: "dec-1",
+    unchanged: false,
+    // No sequence runs on a missed visit here: nothing follows the word, and the row that asked makes its own offer.
+    follows: null,
+  });
   assert.deepEqual(doors, [{ p_appointment_id: V, p_status: "missed" }]);
 
   doors.length = 0;
@@ -1056,6 +1063,85 @@ test("POST calendar/visits/:id: an operator's word reaches the door with what th
       assert.match(e.message, /hasn't begun yet/);
       return true;
     },
+  );
+});
+
+test("POST calendar/visits/:id: a Missed says what it sets going (decision 0119): the sequence on a missed visit by name, when its message is due by the business's clock, and whether it waits for an OK; nothing where none runs, the visit is nobody's, it began too long ago, or the word was Kept", async (t) => {
+  const V = "dddddddd-0000-4000-8000-00000000d011";
+  const S = "eeeeeeee-0000-4000-8000-00000000e011";
+  const P = "cccccccc-0000-4000-8000-00000000c011";
+  // Tuesday 2:00 PM in New York: ten minutes on is inside the sending hours.
+  const at = Date.parse("2026-09-08T18:00:00.000Z");
+  t.mock.timers.enable({ apis: ["Date"], now: at });
+  const visit = (over = {}) => ({
+    id: V,
+    tenant_id: T,
+    contact_id: P,
+    status: "missed",
+    starts_at: new Date(at - 3_600_000).toISOString(),
+    vanished_at: null,
+    title: "Colour",
+    service: null,
+    all_day: false,
+    source: "booking",
+    external_id: null,
+    ...over,
+  });
+  const world = ({ appointment = visit(), step = {}, sequence = {}, status = "missed" } = {}) => ({
+    ...ctxFor(
+      {
+        ...tables(null, "operator"),
+        appointments: [appointment],
+        decisions: [],
+        sequences: [{ id: S, tenant_id: T, name: "Missed appointment", state: "on", mode: "auto", ...sequence }],
+        sequence_steps: [
+          {
+            id: S,
+            sequence_id: S,
+            tenant_id: T,
+            trigger: "visit_missed",
+            run_hour: 10,
+            state: "running",
+            words_ok_at: "2026-09-01T00:00:00Z",
+            ...step,
+          },
+        ],
+      },
+      { mark_visit: () => ({ appointment: { id: V, status }, from: "booked", decision_id: "dec-1" }) },
+    ),
+    params: { id: V },
+  });
+  const follows = async (over) => (await visitRoute.POST.run(post({ status: "missed" }), world(over))).follows;
+
+  assert.deepEqual(
+    await follows(),
+    { name: "Missed appointment", when: "today 2:10 PM", asks: false },
+    "ten minutes on, by the business's clock: long enough to take the word back",
+  );
+  // Its words are new, or its sequence asks: the message is made then, and waits for an OK.
+  assert.equal((await follows({ step: { words_ok_at: null } })).asks, true);
+  assert.equal((await follows({ sequence: { mode: "ask" } })).asks, true);
+  assert.equal((await follows({ sequence: { mode: "veto" } })).asks, false, "held for a stop, it still goes");
+
+  // Nothing follows: the sequence is off or its step paused, the visit is nobody's on record, or it began days ago.
+  assert.equal(await follows({ sequence: { state: "off" } }), null);
+  assert.equal(await follows({ step: { state: "paused" } }), null);
+  assert.equal(await follows({ step: { trigger: "visit_soon" } }), null, "another moment's sequence is not this one");
+  assert.equal(await follows({ appointment: visit({ contact_id: null }) }), null);
+  assert.equal(
+    await follows({ appointment: visit({ starts_at: new Date(at - 4 * 86_400_000).toISOString() }) }),
+    null,
+    "marked days later, a member is tidying the record",
+  );
+  // Kept says nothing of it.
+  const kept = await visitRoute.POST.run(post({ status: "kept" }), world({ status: "kept" }));
+  assert.equal(kept.follows, null);
+
+  // Marked at night, the message is the morning's: the run moves a send outside the sending hours to nine.
+  t.mock.timers.setTime(Date.parse("2026-09-09T02:30:00.000Z")); // Tuesday 10:30 PM in New York
+  assert.equal(
+    (await follows({ appointment: visit({ starts_at: "2026-09-08T18:00:00.000Z" }) })).when,
+    "tomorrow 9:00 AM",
   );
 });
 

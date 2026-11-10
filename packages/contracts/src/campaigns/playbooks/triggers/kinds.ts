@@ -123,7 +123,7 @@ export const PLAYBOOK_TRIGGERS = [
   },
   {
     id: "asked_no_booking",
-    label: "Follow-up",
+    label: "Booking follow-up",
     list: null,
     cls: "follow_up",
     kind: "occasion",

@@ -197,20 +197,27 @@ export function resolveParams(specs: readonly ParamSpec[], paramFacts: ParamFact
   });
 }
 
-/** What an example fills the slots that are not a person's own with. */
-const exampleFacts = (businessName: string) => ({
+/** A visit's time as an example says it where nobody says which moment the message goes at: the day before's. */
+const VISIT_WHEN_EXAMPLE = "tomorrow at 2:00 PM";
+
+/**
+ * What an example fills the slots that are not a person's own with. `visitWhen` is the visit's time as the message's
+ * own moment would say it (contracts visitWhenExample: "today at 2:00 PM" two hours before, "yesterday" the day
+ * after); unsaid, the day before's.
+ */
+const exampleFacts = (businessName: string, visitWhen?: string | null) => ({
   businessName,
   bookingLink: "your booking link",
   reviewLink: "your review link",
-  visitWhen: "tomorrow at 2:00 PM",
+  visitWhen: visitWhen || VISIT_WHEN_EXAMPLE,
   visitService: "a consultation",
   proposalLink: "their proposal's link",
   freedWhen: "tomorrow at 2:00 PM",
 });
 
 /** Example words for a preview: what a real person would see. */
-export function exampleParams(specs: readonly ParamSpec[], businessName: string): string[] {
-  return resolveParams(specs, { firstName: "Dani", ...exampleFacts(businessName) });
+export function exampleParams(specs: readonly ParamSpec[], businessName: string, visitWhen?: string | null): string[] {
+  return resolveParams(specs, { firstName: "Dani", ...exampleFacts(businessName, visitWhen) });
 }
 
 /**
@@ -221,8 +228,9 @@ export function exampleParamsFor(
   specs: readonly ParamSpec[],
   businessName: string,
   firstName: string | null,
+  visitWhen?: string | null,
 ): string[] {
-  return resolveParams(specs, { firstName, ...exampleFacts(businessName) });
+  return resolveParams(specs, { firstName, ...exampleFacts(businessName, visitWhen) });
 }
 
 /** The words a person's row keeps for the slots that take them (core wordsKeptOnRow), by the slot facts they fill. */

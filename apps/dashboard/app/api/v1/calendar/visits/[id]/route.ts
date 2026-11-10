@@ -16,5 +16,5 @@ export const POST = write({
   role: "operator",
   rate: "person_edit",
   input: z.object({ status: z.enum(["kept", "missed", "cancelled"]) }).strict(),
-  handle: ({ ctx, row: appointment, input }) => markVisitOf(ctx, appointment.id, input.status),
+  handle: ({ ctx, row: appointment, input }) => markVisitOf(ctx, appointment, input.status),
 });

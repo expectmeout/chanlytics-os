@@ -259,6 +259,14 @@ export const NEED_YOU_WORDS = {
     rebookAbout: (word: string, when: string) =>
       `They missed their ${word} ${when}. Say sorry we missed them, and ask whether they would like another time. Use the booking link where one helps.`,
     rebookSent: "Missed · rebook sent",
+    /**
+     * A Missed that a sequence answers (decision 0119): which one writes to them and when, so the row offers no second
+     * message of its own. Change takes the word back, and the message with it.
+     */
+    follows: (name: string, when: string, asks: boolean) =>
+      asks
+        ? `“${name}” has a message for them ${when}, and asks you before it goes.`
+        : `“${name}” offers them another time ${when}.`,
     noWay: (reason: string) => `Nothing to send a rebook by. ${reason}`,
     change: "Change",
   },

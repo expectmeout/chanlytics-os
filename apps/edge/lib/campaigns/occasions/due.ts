@@ -13,7 +13,9 @@
  *            core's run-playbook), as the system's decision under its sequence's mode: it goes, or it waits for an OK.
  *   put off  while a step's words are new its first batch waits for the owner's OK, and the people behind it wait ten
  *            minutes at a time rather than each become an approval of their own; so does one whose run failed. Its time
- *            (`due_at`) never moves, so a day of waiting still ends it.
+ *            (`due_at`) never moves, so a day of waiting still ends it. One who runs out of time behind that batch (their
+ *            visit began, or the day went by) is left, and the owner is told once a waiting batch that the wait is costing
+ *            people (contracts leftBehindNotice).
  *
  * The workspace is read narrow, for the people due and nobody else (loadOccasionRunContext). A workspace that could not
  * be read throws, so the failure is counted and paged as any handed-out job's is; its people are put off ten minutes
@@ -23,7 +25,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   MIN_MS,
   OCCASION_LATE_MS,
+  addressOf,
   isOccasionTrigger,
+  leftBehindNotice,
   occasionAppointment,
   occasionGone,
   type OccasionTrigger,
@@ -42,7 +46,9 @@ import {
 } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { logAndGoOn } from "@chanlytics/log";
+import { notifyOnce, type NotifyMessage } from "../../shared/alerts/notify.js";
 import { logger, type Logger } from "../../shared/log.js";
+import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { CONTEXT_PAUSED, loadOccasionRunContext, runPlaybook, type PlaybookRow } from "../playbooks/playbooks.js";
 
 type Db = SupabaseClient<Database>;
@@ -52,6 +58,54 @@ const OCCASIONS_A_JOB = 40;
 
 /** How long a step is put off while its words wait for their first OK, or after its run failed. */
 const PUT_OFF_MS = 10 * MIN_MS;
+
+/** Why someone who waited ran out of time: their visit began before the message could go, or a day went by. */
+const OUT_OF_TIME: ReadonlySet<string> = new Set(["visit_begun", "too_late"]);
+
+/** Tells a workspace's owner once (shared/alerts/notify.ts notifyOnce): the tests give their own mail and database. */
+export type BehindNoticeSend = (db: Db, tenantId: TenantId, msg: NotifyMessage) => Promise<boolean>;
+
+const sendBehindNotice: BehindNoticeSend = async (db, tenantId, msg) => {
+  const target = await loadTenantNotifications(db, tenantId);
+  return notifyOnce({ tenantId, ...target }, msg, { db });
+};
+
+/** The steps whose people ran out of time this turn while their words had no OK yet: each step's name, and how many. */
+type LeftBehind = Map<string, { name: string; people: number }>;
+
+/** One more person of a step left out of time, where its words still have no OK: they waited behind its first batch. */
+function countBehind(
+  behind: LeftBehind,
+  step: { id: string; name: string; words_ok_at?: string | null } | null,
+  reason: string,
+) {
+  if (!step || step.words_ok_at || !OUT_OF_TIME.has(reason)) return;
+  behind.set(step.id, { name: step.name, people: (behind.get(step.id)?.people ?? 0) + 1 });
+}
+
+/**
+ * The owner told that a waiting OK is costing people (contracts leftBehindNotice): once per batch that waits, under its
+ * own name, so the minutes after tell nobody again; the row opens that batch. Nothing where no batch of the step waits:
+ * its people were late for another reason, which the job's own lines say. A notice that fails is logged, never the job's.
+ */
+async function tellLeftBehind(turn: OccasionsTurn, behind: LeftBehind, send: BehindNoticeSend): Promise<void> {
+  const { db, tenantId } = turn;
+  const tellOf = async (stepId: string, name: string, people: number) => {
+    const batchId = await findWaitingBatchOf(db, tenantId, stepId);
+    if (!batchId) return;
+    const notice = leftBehindNotice(name, people);
+    await send(db, tenantId, {
+      kind: "playbook",
+      route: addressOf({ kind: "send", id: batchId }),
+      about: { type: "broadcast", id: batchId },
+      subject: notice.subject,
+      body: notice.body,
+      onceKey: `occasions-behind:${batchId}`,
+    });
+  };
+  for (const [stepId, { name, people }] of behind)
+    await tellOf(stepId, name, people).catch(logAndGoOn("tellLeftBehind"));
+}
 
 /** What a job came to, for its log line. */
 type OccasionCounts = Record<"due" | "sent" | "held" | "left" | "put_off" | "failed" | "remaining", number>;
@@ -142,21 +196,24 @@ async function standingOf(
 }
 
 /**
- * A workspace's due occasions, each run or left. `load` is the workspace's narrow run context, the edge's own unless a
- * caller hands another.
+ * A workspace's due occasions, each run or left. `load` is the workspace's narrow run context and `tell` the notice's
+ * door, the edge's own unless a caller hands another.
  */
 export async function runDueOccasions(
   turn: OccasionsTurn,
   load: typeof loadOccasionRunContext = loadOccasionRunContext,
+  tell: BehindNoticeSend = sendBehindNotice,
 ): Promise<OccasionCounts> {
   const { db, tenantId, now, log } = turn;
   const out = noCounts();
+  const behind: LeftBehind = new Map();
   const page = await listOccasionsDue(db, tenantId, now, OCCASIONS_A_JOB + 1);
   const rows = page.slice(0, OCCASIONS_A_JOB);
   out.due = rows.length;
   out.remaining = page.length - rows.length;
   const leave = async (row: DueOccasion, why: string) => {
     await settleOccasion(db, { tenantId, id: row.id, outcome: { state: "left", why }, now });
+    countBehind(behind, row.step, why);
     out.left += 1;
     log.info("occasion_left", { occasion_id: row.id, sequence_id: row.sequenceId, why });
   };
@@ -170,7 +227,10 @@ export async function runDueOccasions(
     if ("why" in read) await leave(row, read.why);
     else live.push(read);
   }
-  if (live.length === 0) return out;
+  if (live.length === 0) {
+    await tellLeftBehind(turn, behind, tell);
+    return out;
+  }
 
   const ctx = await load(
     db,
@@ -195,7 +255,7 @@ export async function runDueOccasions(
     if (step.words_ok_at) return false;
     const known = waits.get(step.id);
     if (known !== undefined) return known;
-    const waiting = await findWaitingBatchOf(db, tenantId, step.id);
+    const waiting = (await findWaitingBatchOf(db, tenantId, step.id)) !== null;
     waits.set(step.id, waiting);
     return waiting;
   };
@@ -255,6 +315,7 @@ export async function runDueOccasions(
       await putOff(item.row).catch(logAndGoOn("deferOccasion"));
     }
   }
+  await tellLeftBehind(turn, behind, tell);
   return out;
 }
 

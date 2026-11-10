@@ -83,7 +83,7 @@ export async function getTemplateValues(
       if ((spec.kind === "visit_when" || spec.kind === "visit_service") && !cmd.visits) {
         throw new AppError(
           "validation",
-          "Only a reminder the day before or the check the day after can fill in the booked time or service.",
+          "Only a message about one booking can fill in the booked time or service: a reminder before it, the check the day after, or the message after a missed one.",
         );
       }
       // A proposal's link exists only on the follow-up's run, one proposal at a time (0006).

@@ -18,6 +18,17 @@ export interface VisitMark {
 }
 
 /**
+ * What a visit marked missed sets going (decision 0119), as the door that took the word answers it: the sequence on
+ * that moment by name, when its message to the person is due in the business's words ("today 3:55 PM"; a mark at
+ * night is the morning's), and whether that message waits for an OK first (its words are new, or its sequence asks).
+ */
+export interface MissedFollowUp {
+  name: string;
+  when: string;
+  asks: boolean;
+}
+
+/**
  * What the record holds of one person's visits from before the season a read of the feed covers (decision 0002, R7):
  * disjoint from PersonVisitsDto.all, so a visit is counted once. Each instant an ISO start.
  */

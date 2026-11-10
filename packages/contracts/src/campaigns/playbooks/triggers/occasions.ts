@@ -33,6 +33,19 @@ export function visitSideOf(trigger: string | null | undefined): "ahead" | "behi
   return trigger === "visited" || trigger === "visit_missed" ? "behind" : null;
 }
 
+/**
+ * A visit's time as an example of a moment's message says it, the way its run would (playbooks visitWords): with its
+ * time where the visit is ahead (tomorrow's the day before, today's two hours before), by its day alone where it is
+ * behind (yesterday's the day after; today's for one marked missed, which is written to minutes later). Null for a
+ * moment that names no visit, where an example keeps its own.
+ */
+export function visitWhenExample(trigger: string | null | undefined): string | null {
+  const side = visitSideOf(trigger);
+  if (side === "ahead") return trigger === "visit_soon" ? "today at 2:00 PM" : "tomorrow at 2:00 PM";
+  if (side === "behind") return trigger === "visit_missed" ? "today" : "yesterday";
+  return null;
+}
+
 /** Whether a moment's message may say a visit's time or day: the slots a visit fills (templates `visit_when`, `visit_service`). */
 export function momentNamesVisit(trigger: string | null | undefined): boolean {
   return visitSideOf(trigger) !== null;

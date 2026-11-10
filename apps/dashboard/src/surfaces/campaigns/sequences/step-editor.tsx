@@ -31,6 +31,7 @@ import {
   messageAboutOfClass,
   slotLabels,
   stepApprovalOf,
+  visitWhenExample,
   type ConsentChannel,
   type FollowUpCondition,
   type HandKind,
@@ -144,6 +145,8 @@ const EXAMPLE = "example";
 function StepPreview(p: {
   picked: CmOffered;
   params: ParamSpec[];
+  /** The visit's time as the step's moment would say it (contracts visitWhenExample). */
+  when: string | null;
   policyClass: string;
   batchId: string | null;
   /** Opens the message's own pane in place of the preview; null where no pane is handed down. */
@@ -161,8 +164,8 @@ function StepPreview(p: {
   const wanted = person?.channel && channels.includes(person.channel) ? person.channel : on;
   const channel = channels.includes(wanted) ? wanted : (channels[0] ?? "whatsapp");
   const values = person
-    ? exampleParamsFor(params, business.businessName, person.firstName)
-    : exampleParams(params, business.businessName);
+    ? exampleParamsFor(params, business.businessName, person.firstName, p.when)
+    : exampleParams(params, business.businessName, p.when);
   const preview = cmPreviewBy(
     {
       body: picked.body_preview,
@@ -248,6 +251,7 @@ function MessageFrom({ picked }: { picked: CmOffered }) {
 function EditorRight(p: {
   picked: CmOffered;
   params: ParamSpec[];
+  when: string | null;
   policyClass: string;
   batchId: string | null;
   writing: boolean;
@@ -268,6 +272,7 @@ function EditorRight(p: {
     <StepPreview
       picked={p.picked}
       params={p.params}
+      when={p.when}
       policyClass={p.policyClass}
       batchId={p.batchId}
       onEdit={Pane ? () => p.setWriting(true) : null}
@@ -374,6 +379,7 @@ export function StepEditor({
   const settings = useSurface("settings");
   const offered = useMemo(() => cmOfferedFrom(settings) ?? [], [settings]);
   const first = step?.place === 1;
+  const when = visitWhenExample(step?.trigger);
   const [days, setDays] = useState(String(step?.after_days ?? 3));
   const [hold, setHold] = useState<Hold>(stepHoldOf(step?.only_if ?? ["no_booking"]));
   const [message, setMessage] = useState<string>(() => pickedOf(offered, step));
@@ -465,7 +471,9 @@ export function StepEditor({
           )}
           {picked ? <MessageFrom picked={picked} /> : null}
         </div>
-        {picked ? <EditorRight {...{ picked, params, policyClass, batchId, writing, setWriting, flash }} /> : null}
+        {picked ? (
+          <EditorRight {...{ picked, params, when, policyClass, batchId, writing, setWriting, flash }} />
+        ) : null}
       </div>
       <EditorFoot
         reaches={E.reaches(first)}

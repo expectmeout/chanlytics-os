@@ -108,6 +108,7 @@ export {
   isPlaybookState,
   isWinBack,
   lateReminderSkippedNotice,
+  leftBehindNotice,
   LIST_PLAYBOOK_CLASSES,
   localDate,
   localHour,
@@ -203,5 +204,11 @@ export type { RunMessage } from "./purpose";
 export { heldBackOfOneRun, runReadingOf } from "./run-split";
 export type { RunReading, RunSplit } from "./run-split";
 export { campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt } from "./schedule";
-export { isOccasionTrigger, momentNamesVisit, occasionIsSingle, occasionWords } from "./triggers/occasions";
+export {
+  isOccasionTrigger,
+  momentNamesVisit,
+  occasionIsSingle,
+  occasionWords,
+  visitWhenExample,
+} from "./triggers/occasions";
 export type { OccasionTrigger } from "./triggers/occasions";
