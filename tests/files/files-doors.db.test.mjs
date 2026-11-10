@@ -618,6 +618,8 @@ function libRow(key, tenant, minute, over = {}) {
     tenant_id: tenant,
     status: "filed",
     source: "upload",
+    // Every column one row names is sent for every row, as null where it is left out, so the default is said here.
+    kind: "image",
     name: `${key}-${stamp}`,
     mime: "image/jpeg",
     bytes: 1000,

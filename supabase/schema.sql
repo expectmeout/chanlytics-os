@@ -6802,12 +6802,12 @@ COMMENT ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) IS 'A person
 CREATE FUNCTION public.file_search_words(p_name text, p_look jsonb, p_sound_said text, p_sound jsonb) RETURNS text
     LANGUAGE sql IMMUTABLE PARALLEL SAFE
     SET search_path TO ''
-    AS $$
+    AS $_$
   select coalesce(p_name, '') || ' ' || coalesce(p_look ->> 'line', '') || ' '
       || coalesce(jsonb_path_query_array(p_look, '$.text_seen[*]')::text, '') || ' '
       || coalesce(jsonb_path_query_array(p_look, '$.moments[*].what')::text, '') || ' '
       || coalesce(p_sound_said, '') || ' ' || coalesce(p_sound -> 'words' ->> 'text', '')
-$$;
+$_$;
 
 
 --
