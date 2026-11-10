@@ -12,6 +12,7 @@ import {
   POST_PULLABLE,
   SECOND_MS,
   postCaptionProblem,
+  postSentencesOf,
   type FileRecordDto,
   type InstagramPostKind,
   type PostDto,
@@ -25,18 +26,18 @@ import { PostFrame } from "../post-frame";
 import { postShapeAddress } from "../post-shapes";
 import { fileVerbs } from "../verbs";
 
-/** How often a post on its way is read again, and for how long: it goes up within a couple of minutes. */
+/**
+ * How often a post on its way is read again, and for how long. It goes up within a couple of minutes, so it is read every
+ * five seconds for two; one Instagram never answered is settled some minutes later (asked two minutes on, then one more
+ * try), so it is read on every fifteen for seven more.
+ */
 const POST_READ_AGAIN_MS = 5 * SECOND_MS;
-const READS_AT_MOST = 36;
+const POST_READ_SLOWER_MS = 15 * SECOND_MS;
+const READS_QUICK = 24;
+const READS_AT_MOST = READS_QUICK + 28;
 
 /** What goes with the post to begin with: what the picture says, as sentences a person can change. */
-const captionToBeginWith = (plan: PostPlan | null): string =>
-  plan
-    ? [plan.line, plan.under]
-        .filter((w): w is string => !!w)
-        .map((w) => (/[.!?]$/.test(w) ? w : `${w}.`))
-        .join(" ")
-    : "";
+const captionToBeginWith = (plan: PostPlan | null): string => (plan ? postSentencesOf([plan.line, plan.under]) : "");
 
 /** The draft of a post on its way to Instagram, for the sheet: its body and its foot both draw from it. */
 export function usePostInstagram(id: string, plan: PostPlan | null, sent: () => void, flash: (f: FrameFlash) => void) {
@@ -144,18 +145,26 @@ export function useSheetInstagram(
   return { draft, newest, free };
 }
 
-/** A post on its way is read again until it settles, so the sheet says it went up without a reload. */
+/**
+ * A post on its way is read again until it settles, so the sheet says it went up without a reload. The count is the post's
+ * own: the next post on its way starts from none, however long the one before it took.
+ */
 export function useReadWhileOnItsWay(post: PostDto | null, reread: () => void): void {
   const onItsWay = post !== null && POST_ON_ITS_WAY.includes(post.status);
-  const [reads, setReads] = useState(0);
+  const postId = post?.id ?? null;
+  const [read, setRead] = useState<{ of: string | null; times: number }>({ of: postId, times: 0 });
+  const times = read.of === postId ? read.times : 0;
   useEffect(() => {
-    if (!onItsWay || reads >= READS_AT_MOST) return undefined;
-    const timer = setTimeout(() => {
-      setReads((n) => n + 1);
-      reread();
-    }, POST_READ_AGAIN_MS);
+    if (!onItsWay || times >= READS_AT_MOST) return undefined;
+    const timer = setTimeout(
+      () => {
+        setRead({ of: postId, times: times + 1 });
+        reread();
+      },
+      times < READS_QUICK ? POST_READ_AGAIN_MS : POST_READ_SLOWER_MS,
+    );
     return () => clearTimeout(timer);
-  }, [onItsWay, reads, reread]);
+  }, [onItsWay, postId, times, reread]);
 }
 
 /** Where the newest post to Instagram stands: on its way, up (with where to see it), held or not posted, and why. */

@@ -6,8 +6,10 @@
  * removed, and Instagram is still connected with posting allowed. Anything moved holds the post in words and sends nothing,
  * up to the moment of sending. Then the job says it is about to speak (ledger markSpoke), and Instagram is asked to publish.
  * A refusal fails the post in the owner's words; no answer leaves it Checking, and two minutes on the reconcile asks
- * Instagram what it has: the container's status and the account's newest posts. Found, it is up. Not found, it was not
- * sent, and one fresh attempt begins, never a third.
+ * Instagram what it has: the container's status and the account's newest posts. Up when Instagram says the container was
+ * published, or the account shows a post with the caption this one was sent with; one found by its time alone (a story
+ * carries no caption) is where the post is, never proof that it went up. Not up, one more attempt begins, never a third
+ * (post-ready.ts: it asks after the first container again before it makes anything).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ON_INSTAGRAM } from "@chanlytics/contracts";
@@ -15,21 +17,17 @@ import {
   callInstagram,
   metaContainerStatusRequest,
   metaMediaReadRequest,
-  metaMediaSentBy,
-  metaNewestMediaRequest,
   metaPublishRequest,
   parseMetaContainerStatus,
   parseMetaCreatedId,
   parseMetaMedia,
-  parseMetaMediaList,
-  type MetaMedia,
+  type InstagramAnswer,
   type MetaPoster,
 } from "@chanlytics/channels/instagram";
 import {
   closePostAttempt,
   findFileForWork,
   findPostForWork,
-  listPostAttempts,
   markPostUnanswered,
   mayStillPost,
   movePost,
@@ -44,8 +42,10 @@ import { logger } from "../shared/log.js";
 import {
   POST_CALL_MS,
   beginSecondAttempt,
+  findOnTheAccount,
   holdPost,
   instagramKindOf,
+  keepPublished,
   postJobOf,
   findPoster,
   preparePost,
@@ -65,19 +65,54 @@ async function recheck(db: Db, post: PostRow): Promise<{ poster: MetaPoster } | 
   return findPoster(db, post.tenant_id);
 }
 
-/** The post is up: its id, its address and its time kept where they are known, and the line that says so. */
-async function keepPublished(db: Db, post: PostRow, media: Partial<MetaMedia> | null): Promise<void> {
-  await movePost(db, {
-    postId: post.id,
-    from: ["publishing", "checking"],
-    to: "published",
-    patch: {
-      external_id: media?.id || null,
-      permalink: media?.permalink ?? null,
-      published_at: media?.timestamp ?? null,
-    },
+/** One send in hand: the post, who posts it, which attempt, and the row the send is kept on. */
+interface Sending {
+  post: PostRow;
+  poster: MetaPoster;
+  attempt: 1 | 2;
+  attemptId: string;
+  containerId: string;
+}
+
+/**
+ * Instagram refused the send. A second send may be of a container that went up through the first after all, which
+ * Instagram may refuse to publish again (Meta's pages do not say; seen on no real account yet). So its status is asked:
+ * published, the post is up. Any other refusal took nothing: the post did not go up, in the owner's words.
+ */
+async function refusedSend(db: Db, at: Sending, sent: InstagramAnswer, deps: PostDeps): Promise<void> {
+  const { post } = at;
+  if (at.attempt === 2) {
+    const read = await callInstagram(
+      metaContainerStatusRequest(at.poster, at.containerId),
+      { timeoutMs: POST_CALL_MS },
+      deps,
+    );
+    if (read.outcome === "ok" && parseMetaContainerStatus(read.json).code === "PUBLISHED") {
+      const found = await findOnTheAccount(db, { post, poster: at.poster }, deps).catch(
+        logAndGoOn("post's address after a second send found it up", null),
+      );
+      await closePostAttempt(db, {
+        attemptId: at.attemptId,
+        outcome: "refused",
+        httpStatus: sent.status,
+        answer: sent.json,
+        externalId: found?.id ?? null,
+      });
+      await keepPublished(db, post, ["publishing"], found);
+      return;
+    }
+  }
+  const error = refusalKept(sent);
+  await closePostAttempt(db, {
+    attemptId: at.attemptId,
+    outcome: "refused",
+    httpStatus: sent.status,
+    answer: sent.json,
+    error,
   });
-  logger({ tenant_id: post.tenant_id }).info("post_published", { post_id: post.id, place: post.place });
+  await movePost(db, { postId: post.id, from: ["publishing"], to: "failed", patch: { error } });
+  const refused = postRefusalOf(sent, `post ${post.id}`);
+  throw new CertainFailure(refused.message, error.words);
 }
 
 /** post_publish: the recheck, then the one send. */
@@ -102,20 +137,13 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
     { timeoutMs: POST_CALL_MS },
     deps,
   );
-  if (sent.outcome === "refused") {
-    // Instagram answered, and took nothing: the post did not go up.
-    const error = refusalKept(sent);
-    await closePostAttempt(db, {
-      attemptId: opened.id,
-      outcome: "refused",
-      httpStatus: sent.status,
-      answer: sent.json,
-      error,
-    });
-    await movePost(db, { postId: post.id, from: ["publishing"], to: "failed", patch: { error } });
-    const refused = postRefusalOf(sent, `post ${post.id}`);
-    throw new CertainFailure(refused.message, error.words);
-  }
+  if (sent.outcome === "refused")
+    return refusedSend(
+      db,
+      { post, poster: posting.poster, attempt, attemptId: opened.id, containerId: post.container_id },
+      sent,
+      deps,
+    );
   if (sent.outcome !== "ok") {
     // No answer proves nothing: Checking, and Instagram is asked what it has before anything is sent again.
     await closePostAttempt(db, {
@@ -138,25 +166,8 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
   });
   // Its address, for the sheet's See it: a read that fails leaves the post up without one.
   const read = await callInstagram(metaMediaReadRequest(posting.poster, mediaId), { timeoutMs: POST_CALL_MS }, deps);
-  await keepPublished(db, post, (read.outcome === "ok" ? parseMetaMedia(read.json) : null) ?? { id: mediaId });
-}
-
-/** Of the account's newest, the one this post's send made; null when none is, or none could be read. */
-async function foundOnTheAccount(
-  db: Db,
-  at: { post: PostRow; poster: MetaPoster; attempt: 1 | 2 },
-  deps: PostDeps,
-): Promise<MetaMedia | null> {
-  const sends = await listPostAttempts(db, at.post.tenant_id, at.post.id);
-  const send = sends.find((a) => a.step === "publish" && a.attempt_no === at.attempt);
-  if (!send) return null;
-  const listed = await callInstagram(
-    metaNewestMediaRequest(at.poster, instagramKindOf(at.post)),
-    { timeoutMs: POST_CALL_MS },
-    deps,
-  );
-  if (listed.outcome !== "ok") throw new Error(`post ${at.post.id}: the account's posts could not be read`);
-  return metaMediaSentBy(parseMetaMediaList(listed.json), { at: send.started_at, caption: at.post.caption });
+  const media = (read.outcome === "ok" ? parseMetaMedia(read.json) : null) ?? { id: mediaId };
+  await keepPublished(db, post, ["publishing"], media);
 }
 
 /** post_reconcile: what Instagram has, read before anything could be sent again. */
@@ -182,12 +193,14 @@ export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}
     request: { container_id: post.container_id },
   });
   // Published, the account's list is only for its address: one that cannot be read leaves the post up without it.
-  const looking = foundOnTheAccount(db, { post, poster: posting.poster, attempt }, deps);
+  const looking = findOnTheAccount(db, { post, poster: posting.poster }, deps);
   const found =
     status.code === "PUBLISHED"
       ? await looking.catch(logAndGoOn("post's address after a send with no answer", null))
       : await looking;
-  if (found || status.code === "PUBLISHED") {
+  // Up when Instagram says so of the container, or the account shows it with the caption it was sent with. One found by
+  // its time alone is not proof: the owner may have put a story up by hand in the same minute.
+  if (status.code === "PUBLISHED" || (found !== null && post.caption !== null)) {
     await closePostAttempt(db, {
       attemptId: opened.id,
       outcome: "ok",
@@ -195,7 +208,7 @@ export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}
       answer: read.json,
       externalId: found?.id ?? null,
     });
-    await keepPublished(db, post, found);
+    await keepPublished(db, post, ["checking"], found);
     return;
   }
   // Not up: the send never landed. One fresh attempt, and never a third.

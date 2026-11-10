@@ -4,13 +4,19 @@
  * schedules the send once the container is ready; a second run asks after the same container. Publish rechecks right before
  * the send and holds in words when anything moved, says it is about to speak before the one call, and keeps what came
  * back. A send with no answer is Checking, never sent again blind: the reconcile reads what the account has, finds it up, or
- * begins one fresh attempt, and never a third. Each refusal is the owner's sentence.
+ * begins one more attempt, and never a third. Each refusal is the owner's sentence.
+ *
+ * The second attempt asks after the first container before it makes anything: up, the post is up and nothing is sent; still
+ * ready, it is the one sent again; only one that lapsed is made afresh. A post found on the account by its time alone is
+ * where the post is, never proof it went up, and one another placement keeps is never it. No post is left on its way for
+ * good: a run that died after keeping the container moves on, and a send that never began is said as not posted.
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resetBreakers } from "@chanlytics/channels/shared";
+import { metaMediaSentBy } from "@chanlytics/channels/instagram";
 import { ON_INSTAGRAM } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -30,6 +36,7 @@ const POST = "dddd4444-4444-4000-8000-000000000004";
 const ROW = "eeee5555-4444-4000-8000-000000000005";
 const ACCOUNT = "17841400000000001";
 const CONTAINER = "18000000000000001";
+const SECOND_CONTAINER = "18000000000000002";
 const MEDIA = "17900000000000001";
 const NOW = Date.now();
 const ALL = ["instagram_basic", "instagram_manage_messages", "instagram_content_publish"];
@@ -78,10 +85,11 @@ function world({
   caption = "Open late on Fridays.",
   attempts = [],
   may = true,
+  made = null,
 } = {}) {
   const tables = {
     tenants: [{ id: T }],
-    files: [{ id: FILE, tenant_id: T, source: "made", status: "filed", removed_at: null }],
+    files: [{ id: FILE, tenant_id: T, source: "made", status: "filed", removed_at: null, made }],
     tenant_channels: [
       {
         id: ROW,
@@ -286,6 +294,27 @@ test("a story is sent as one, from its story shape, with no caption", async () =
   assert.match(made.body.image_url, /\/story\.jpg\?/);
 });
 
+test("a post's picture goes with what it says, for someone who cannot see it; a story takes none", async () => {
+  const made = { plan: { over: "This week", line: "Open late on Fridays", under: "Until nine!" } };
+  const w = world({ made });
+  await postJobs(w.db, quick).prepare(job("post_prepare"), SOON());
+  assert.equal(sent(`POST /${ACCOUNT}/media`)[0].body.alt_text, "This week. Open late on Fridays. Until nine!");
+  assert.equal(w.tables.publish_attempts[0].request.alt_text, "This week. Open late on Fridays. Until nine!");
+  calls.length = 0;
+  const story = world({ kind: "story", made });
+  await postJobs(story.db, quick).prepare(job("post_prepare"), SOON());
+  assert.equal(sent(`POST /${ACCOUNT}/media`)[0].body.alt_text, undefined);
+});
+
+test("a run that died right after keeping the container left the post queued: the next run moves it on", async () => {
+  const w = world({ attempts: [...READY] });
+  assert.equal(w.post().status, "queued");
+  await postJobs(w.db, quick).prepare(job("post_prepare"), SOON());
+  assert.equal(sent(`POST /${ACCOUNT}/media`).length, 0, "the container kept is the one asked after");
+  assert.equal(w.post().status, "preparing", "its send finds a post to send");
+  assert.deepEqual(scheduled(w), [["post_publish", "1"]]);
+});
+
 test("at the day's limit nothing is made, and the owner hears why", async () => {
   const w = world();
   meta[`GET /${ACCOUNT}/content_publishing_limit`] = [
@@ -364,6 +393,84 @@ const READY = [
     error: null,
   },
 ];
+
+/** The first attempt, sent with no answer and found not up two minutes on: where a second attempt starts from. */
+const TRIED = () => [
+  ...READY,
+  { ...SENT(1) },
+  { ...SENT(1), id: "asked-1", step: "reconcile", request: { container_id: CONTAINER }, outcome: "failed" },
+];
+const UP = {
+  id: MEDIA,
+  caption: "Open late on Fridays.",
+  timestamp: new Date(NOW - 120_000).toISOString(),
+  permalink: "https://www.instagram.com/p/abc/",
+};
+
+test("a second attempt finds the first send landed after all: the post is up, and nothing is made or sent", async () => {
+  const w = world({ attempts: TRIED() });
+  meta[`GET /${CONTAINER}`] = [200, { status_code: "PUBLISHED", status: "Published" }];
+  meta[`GET /${ACCOUNT}/media`] = [200, { data: [UP] }];
+  assert.deepEqual(await postJobs(w.db, quick).prepare(job("post_prepare", "2"), SOON()), { skipped: "landed" });
+  assert.equal(w.post().status, "published");
+  assert.equal(w.post().external_id, MEDIA);
+  assert.equal(w.post().permalink, "https://www.instagram.com/p/abc/");
+  assert.equal(sent(`POST /${ACCOUNT}/media`).length, 0, "no second container");
+  assert.equal(sent(`POST /${ACCOUNT}/media_publish`).length, 0, "no second send");
+  assert.deepEqual(scheduled(w), []);
+  const learned = w.tables.publish_attempts.find((a) => a.attempt_no === 2 && a.step === "reconcile");
+  assert.equal(learned.outcome, "ok", "how it was learned is kept");
+});
+
+test("a second attempt sends the first container again while it is still ready, never a second post", async () => {
+  const w = world({ attempts: TRIED() });
+  await postJobs(w.db, quick).prepare(job("post_prepare", "2"), SOON());
+  assert.equal(sent(`POST /${ACCOUNT}/media`).length, 0, "nothing new is made");
+  const again = w.tables.publish_attempts.find((a) => a.attempt_no === 2 && a.step === "container");
+  assert.equal(again.container_id, CONTAINER);
+  assert.deepEqual(again.request, { container_id: CONTAINER });
+  assert.equal(w.post().status, "preparing");
+  assert.equal(w.post().container_id, CONTAINER);
+  assert.deepEqual(scheduled(w), [["post_publish", "2"]]);
+});
+
+test("a second attempt makes a fresh container only when the first lapsed", async () => {
+  const w = world({ attempts: TRIED() });
+  meta[`GET /${CONTAINER}`] = [200, { status_code: "EXPIRED", status: "Expired" }];
+  meta[`POST /${ACCOUNT}/media`] = [200, { id: SECOND_CONTAINER }];
+  meta[`GET /${SECOND_CONTAINER}`] = [200, { status_code: "FINISHED", status: "Finished" }];
+  await postJobs(w.db, quick).prepare(job("post_prepare", "2"), SOON());
+  assert.equal(sent(`POST /${ACCOUNT}/media`).length, 1);
+  assert.equal(w.post().container_id, SECOND_CONTAINER);
+  assert.deepEqual(scheduled(w), [["post_publish", "2"]]);
+});
+
+test("a second attempt that cannot ask after the first container makes nothing, and comes back", async () => {
+  const w = world({ attempts: TRIED() });
+  meta[`GET /${CONTAINER}`] = [503, { error: { message: "unavailable", code: 2 } }];
+  await assert.rejects(postJobs(w.db, quick).prepare(job("post_prepare", "2"), SOON()), /could not be read/);
+  assert.equal(sent(`POST /${ACCOUNT}/media`).length, 0);
+  assert.equal(w.post().status, "queued");
+});
+
+test("a second send Instagram refuses because the first had landed is a post that is up", async () => {
+  const again = { ...READY[0], id: "att-again", attempt_no: 2, request: { container_id: CONTAINER } };
+  const w = world({ status: "preparing", attempts: [...TRIED(), again] });
+  meta[`POST /${ACCOUNT}/media_publish`] = [400, { error: { message: "Media ID is not available", code: 9007 } }];
+  meta[`GET /${CONTAINER}`] = [200, { status_code: "PUBLISHED", status: "Published" }];
+  meta[`GET /${ACCOUNT}/media`] = [200, { data: [UP] }];
+  await postJobs(w.db, quick).publish(fired(w, "post_publish", "2"));
+  assert.equal(w.post().status, "published");
+  assert.equal(w.post().external_id, MEDIA);
+  assert.equal(w.post().error, null, "no refusal is said of a post that is up");
+  const refused = world({ status: "preparing", attempts: [...TRIED(), again] });
+  meta[`GET /${CONTAINER}`] = [200, { status_code: "FINISHED", status: "Finished" }];
+  await assert.rejects(
+    postJobs(refused.db, quick).publish(fired(refused, "post_publish", "2")),
+    (e) => e.why === ON_INSTAGRAM.refused.other,
+  );
+  assert.equal(refused.post().status, "failed");
+});
 
 test("the recheck holds the post, sending nothing, when its approver can no longer post", async () => {
   const w = world({ status: "preparing", attempts: [...READY], may: false });
@@ -452,6 +559,52 @@ test("the reconcile finds the post up on the account and keeps it", async () => 
   assert.equal(sent(`POST /${ACCOUNT}/media_publish`).length, 0, "nothing sent again");
 });
 
+test("a story found by its time alone is not proof it went up: the container's status is", async () => {
+  const story = { id: MEDIA, timestamp: new Date(NOW - 120_000).toISOString(), permalink: null };
+  const w = world({ kind: "story", status: "checking", attempts: [...READY, SENT(1)] });
+  meta[`GET /${ACCOUNT}/stories`] = [200, { data: [story] }];
+  await postJobs(w.db, quick).reconcile(job("post_reconcile"));
+  assert.equal(w.post().status, "queued", "one the owner may have put up by hand settles nothing");
+  assert.equal(w.post().external_id, null);
+  assert.deepEqual(scheduled(w), [["post_prepare", "2"]]);
+  const up = world({ kind: "story", status: "checking", attempts: [...READY, SENT(1)] });
+  meta[`GET /${CONTAINER}`] = [200, { status_code: "PUBLISHED", status: "Published" }];
+  await postJobs(up.db, quick).reconcile(job("post_reconcile"));
+  assert.equal(up.post().status, "published");
+  assert.equal(up.post().external_id, MEDIA, "published, the one story since the send is where it is");
+});
+
+test("of the account's newest, the post is the only one that fits, and never one another placement keeps", async () => {
+  const sentAt = { at: new Date(NOW - 180_000).toISOString(), caption: "Open late on Fridays." };
+  assert.equal(metaMediaSentBy([UP], sentAt)?.id, MEDIA);
+  assert.equal(metaMediaSentBy([UP, { ...UP, id: "17900000000000002" }], sentAt), null, "two fit: nothing says which");
+  assert.equal(metaMediaSentBy([{ ...UP, caption: "Something else." }], sentAt), null);
+  assert.equal(metaMediaSentBy([{ ...UP, timestamp: new Date(NOW - 600_000).toISOString() }], sentAt), null);
+  const w = world({ status: "checking", attempts: [...READY, SENT(1)] });
+  w.tables.posts.push({
+    ...w.post(),
+    id: "dddd4444-4444-4000-8000-000000000099",
+    status: "published",
+    external_id: MEDIA,
+  });
+  meta[`GET /${CONTAINER}`] = [200, { status_code: "PUBLISHED", status: "Published" }];
+  meta[`GET /${ACCOUNT}/media`] = [200, { data: [UP] }];
+  await postJobs(w.db, quick).reconcile(job("post_reconcile"));
+  assert.equal(w.post().status, "published");
+  assert.equal(w.post().external_id, null, "another post's is not taken for this one's");
+});
+
+test("after a second send, the post is looked for since its first: it may have gone up through that one", async () => {
+  const again = { ...READY[0], id: "att-again", attempt_no: 2, request: { container_id: CONTAINER } };
+  const second = { ...SENT(2), started_at: new Date(NOW - 10_000).toISOString() };
+  const w = world({ status: "checking", attempts: [...TRIED(), again, second] });
+  // Up two minutes ago: after the first send, and before the second was made.
+  meta[`GET /${ACCOUNT}/media`] = [200, { data: [UP] }];
+  await postJobs(w.db, quick).reconcile(job("post_reconcile", "2"));
+  assert.equal(w.post().status, "published", "its caption on the account is proof, whichever send put it there");
+  assert.equal(w.post().external_id, MEDIA);
+});
+
 test("a send that never landed begins one fresh attempt, and a second that never landed is told", async () => {
   const w = world({ status: "checking", attempts: [...READY, SENT(1)] });
   await postJobs(w.db, quick).reconcile(job("post_reconcile"));
@@ -484,4 +637,16 @@ test("the ledger settles a send whose run died as Checking, and a prepare that g
   );
   assert.equal(p.post().status, "failed");
   assert.equal(p.post().error.words, ON_INSTAGRAM.refused.limit);
+});
+
+test("a send's job that ended before anything was sent does not leave the post getting ready for good", async () => {
+  const w = world({ status: "preparing", attempts: [...READY] });
+  await settleJob(
+    w.db,
+    { id: "j", kind: "post_publish", tenant_id: T, payload: { post_id: POST, attempt: "1" } },
+    false,
+  );
+  assert.equal(w.post().status, "failed", "nothing was sent, so it is said as not posted, and a new press is free");
+  assert.equal(w.post().error.words, ON_INSTAGRAM.notSent);
+  assert.deepEqual(scheduled(w), [], "nothing to ask Instagram about");
 });
