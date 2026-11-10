@@ -75,6 +75,8 @@ interface StepWordsProps {
   /** Whether the messages are read at all (useStepMessageRead): one not read yet is never said to be gone. */
   read: boolean;
   params: unknown;
+  /** The visit's time as this step's moment would say it (contracts visitWhenExample); unsaid for a step of no moment. */
+  when?: string | null;
   /** Where its message is gone: the act that picks another (the step's editor). */
   gone?: ReactNode;
   testid: string;
@@ -86,7 +88,7 @@ interface StepWordsProps {
  * later (the Campaigns load review, 28 Oct 2026). A sequence's page waits for the settings read (ROUTE_WAITS), so this is a
  * read past its wait.
  */
-export function StepWords({ name, message, read, params, gone = null, testid }: StepWordsProps) {
+export function StepWords({ name, message, read, params, when, gone = null, testid }: StepWordsProps) {
   const business = useBusinessName();
   if (!message && !read) return null;
   if (!message)
@@ -98,7 +100,7 @@ export function StepWords({ name, message, read, params, gone = null, testid }: 
     );
   // A message with no words to draw here (none in its anchor's language) is named on the step's line alone.
   if (!message.body_preview) return null;
-  const values = exampleParams(parseParamSpecs(params), business);
+  const values = exampleParams(parseParamSpecs(params), business, when);
   return (
     <div className="sq-msg" data-testid={testid}>
       <MessagePreview compact plain from={business} body={message.body_preview} values={values} />
@@ -129,10 +131,11 @@ export function HandTask({ kind, words, testid }: { kind: HandKind; words: strin
  * A step's words on its box in the schedule: two lines of the message as one person reads it, what varies by person marked
  * as the bubble marks it, cut where it runs on (its sheet holds it whole). Nothing where the message has no words here.
  */
-export function StepPreviewLine({ message, params }: { message: CmOffered | null; params: unknown }) {
+export function StepPreviewLine(p: { message: CmOffered | null; params: unknown; when?: string | null }) {
+  const { message, params } = p;
   const business = useBusinessName();
   if (!message?.body_preview) return null;
-  const values = exampleParams(parseParamSpecs(params), business);
+  const values = exampleParams(parseParamSpecs(params), business, p.when);
   return (
     <span className="sq-stepbox-pre">
       {mpParts(message.body_preview, values).map((p, i) =>

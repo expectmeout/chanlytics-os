@@ -167,6 +167,20 @@ export function lateReminderSkippedNotice(
 }
 
 /**
+ * What the owner is told when someone behind a step's first OK ran out of time (decision 0119). While a step's words wait
+ * for their first OK one batch waits, and the people after it wait behind it rather than each become an approval of their
+ * own; one whose own time passes meanwhile (a reminder's visit began, or a day went by) is left with nothing sent. Told
+ * once per waiting batch, when the first is left, so the wait is never silent about who it costs; its row opens the
+ * batch that waits.
+ */
+export function leftBehindNotice(name: string, people: number): { subject: string; body: string } {
+  return {
+    subject: `“${name}” is skipping people while it waits for your OK`,
+    body: `${plural(people, "person’s message", "people’s messages")} did not go: “${name}” still waits for your first OK of its words, and their time passed while it waited. Nothing later sends it in its place. Each person after them is skipped the same way until you approve or skip the one that waits, from your Inbox or Today.`,
+  };
+}
+
+/**
  * A freed time's batch stopped before it went because the time was booked since it was offered (decision 0082), told once,
  * as a stopped run is. `at` is the time in the business's words ("Tue 3:00 PM").
  */

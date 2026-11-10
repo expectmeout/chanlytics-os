@@ -31,6 +31,7 @@ import {
   scheduleWait,
   sequenceActsOf,
   takesFollowUps,
+  visitWhenExample,
   type NewStepDoes,
   type ScheduleCtx,
   type SequencePeopleDto,
@@ -159,7 +160,7 @@ function StepPre({ step, message, gone }: { step: SequenceStepDto; message: CmOf
   // A call's words are the step's own words, drawn in their ink; a gone message is said in its place, quieter.
   if (step.hand) return <span className="sq-stepbox-pre">{step.hand.words}</span>;
   if (gone) return <span className="sq-stepbox-pre is-said">{SW.gone}</span>;
-  return <StepPreviewLine message={message} params={step.params} />;
+  return <StepPreviewLine message={message} params={step.params} when={visitWhenExample(step.trigger)} />;
 }
 
 /** A step on its day: one box, the whole of it the press that opens its sheet. */

@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import {
   NEW_WORDS as W,
   exampleParams,
+  visitWhenExample,
   type NewAudience,
   type NewCheck,
   type NewDraftDto,
@@ -189,7 +190,13 @@ function EmailWords({ subject, body, empty }: { subject: string | null; body: st
 }
 
 /** A step as one person or business reads it: its message's bubble or email, or the task it hands over. */
-export function StepWords({ step, draft }: { step: NewStep; draft: Pick<NewDraftDto, "business" | "audience"> }) {
+export function StepWords(p: {
+  step: NewStep;
+  /** Whether it is the sequence's first step: the one a moment starts. */
+  first: boolean;
+  draft: Pick<NewDraftDto, "business" | "audience" | "who">;
+}) {
+  const { step, draft } = p;
   if (step.does !== "message")
     return (
       <p className="sq-nw-task">
@@ -201,7 +208,9 @@ export function StepWords({ step, draft }: { step: NewStep; draft: Pick<NewDraft
     return <EmailWords subject={step.email?.subject ?? null} body={step.email?.body ?? ""} empty={W.draft.toWrite} />;
   const m = step.message;
   if (!m) return <p className="sq-nw-mail-body is-blank">{W.draft.pickMessage}</p>;
-  const values = exampleParams(m.params, draft.business);
+  // Only the step a moment starts fills a visit's words, and says its time as that moment would.
+  const moment = p.first && draft.who?.kind === "moment" ? draft.who.trigger : null;
+  const values = exampleParams(m.params, draft.business, visitWhenExample(moment));
   // A message Ask wrote for email alone reads as the email it is, its values filled as one person's are.
   const email = m.written && !m.written.versions.whatsapp && !m.written.versions.sms ? m.written.versions.email : null;
   if (email)

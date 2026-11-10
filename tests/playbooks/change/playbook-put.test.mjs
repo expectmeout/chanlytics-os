@@ -198,7 +198,7 @@ test("its words, its end and its mode are refused in the product's words before 
   const tables = world();
   setServiceClient(fakeDb(tables));
   await refused(put(tables, K2, { params: [] }), "validation", 400, "This template takes 1 value.");
-  await refused(put(tables, K2, { params: ["@visit_when"] }), "validation", 400, "Only a reminder the day before");
+  await refused(put(tables, K2, { params: ["@visit_when"] }), "validation", 400, "Only a message about one booking");
   await refused(put(tables, K2, { until: "2020-01-01" }), "validation", 400, "An end is today or later");
   await refused(put(tables, K2, { until: "next month" }), "validation", 400, PLAYBOOK_PATCH_WORDS.untilDay);
   await refused(put(tables, K2, { mode: "never" }), "validation", 400, PLAYBOOK_PATCH_WORDS.modeWhich);

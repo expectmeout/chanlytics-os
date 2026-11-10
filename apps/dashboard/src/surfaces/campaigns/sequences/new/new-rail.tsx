@@ -194,7 +194,7 @@ function StepBox(p: { draft: NewDraftDto; i: number; acts: RailActs }) {
       by={byOf(step, draft, i)}
       pre={
         <div className="sq-nw-step">
-          <StepWords step={step} draft={draft} />
+          <StepWords step={step} first={i === 0} draft={draft} />
           {parts}
           {i > 0 ? (
             <Button

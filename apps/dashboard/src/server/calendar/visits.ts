@@ -6,8 +6,24 @@
  * (contracts appointmentHolds).
  */
 import "server-only";
-import { AppError, VISIT_REFUSALS, type VisitMark, type VisitWord, APPOINTMENT_STATUSES } from "@chanlytics/contracts";
+import {
+  APPOINTMENT_STATUSES,
+  AppError,
+  DEFAULT_TIMEZONE,
+  VISIT_REFUSALS,
+  batchModeOf,
+  clockNearWhen,
+  missedFollowUpAt,
+  nextOpenMoment,
+  type MissedFollowUp,
+  type TenantId,
+  type VisitMark,
+  type VisitWord,
+} from "@chanlytics/contracts";
 import { markVisit } from "@chanlytics/db/calendar";
+import { findOccasionAppointment, listOccasionSteps } from "@chanlytics/db/campaigns";
+import { findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
+import { logAndGoOn } from "@chanlytics/log";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
 import { log } from "@/server/shared/log";
 import { z } from "zod";
@@ -30,13 +46,45 @@ interface VisitMarked {
   from: string;
   decision_id: string | null;
   unchanged: boolean;
+  /** Marked missed where a sequence on that moment owes the person its message: which, and when (missedFollowUpOf). */
+  follows: MissedFollowUp | null;
+}
+
+/**
+ * What a visit marked missed sets going (decision 0119), read by the rules the edge's enrolment goes by (the sequences
+ * on the moment: listOccasionSteps; whether a message is owed and when: missedFollowUpAt, moved into the sending hours
+ * as the run moves it), so the row that asked says who writes to the person and offers no second message of its own.
+ * Null where no sequence runs on a missed visit, the visit is nobody's on record, or it began too long ago to be owed
+ * one. It promises nothing: the run still leaves someone who booked again, who cannot be reached, or whose mark was
+ * taken back. A read that fails is logged and answers null: the word was said, and the row falls back to its own offer.
+ */
+async function missedFollowUpOf(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  appointmentId: string,
+  now: Date,
+): Promise<MissedFollowUp | null> {
+  const [step] = await listOccasionSteps(ctx.supabase, tenantId, ["visit_missed"]);
+  if (!step) return null;
+  const visit = await findOccasionAppointment(ctx.supabase, tenantId, appointmentId);
+  if (!visit?.contactId) return null;
+  const due = missedFollowUpAt({ markedAt: now.getTime(), startsAt: Date.parse(visit.startsAt) });
+  if (due === null) return null;
+  const zone = await findWorkspaceZoneStatus(ctx.supabase, tenantId);
+  const tz = zone.data?.timezone || DEFAULT_TIMEZONE;
+  return {
+    name: step.name,
+    when: clockNearWhen(nextOpenMoment(tz, new Date(due)).at.getTime(), tz, now.getTime()),
+    asks: batchModeOf({ mode: step.mode, words_ok_at: step.wordsOkAt }) === "ask",
+  };
 }
 
 export async function markVisitOf(
   ctx: Pick<RouteContext, "supabase" | "via" | "undoOf">,
-  appointmentId: string,
+  appointment: { id: string; tenant_id: TenantId },
   status: VisitWord,
 ): Promise<VisitMarked> {
+  const appointmentId = appointment.id;
   const { data, error } = await markVisit(ctx.supabase, {
     appointmentId,
     status,
@@ -54,10 +102,17 @@ export async function markVisitOf(
   }
   if (!item.unchanged && typeof item.decision_id !== "string")
     throw new Error("mark_visit: the door answered without its decision");
+  const follows =
+    item.appointment.status === "missed"
+      ? await missedFollowUpOf(ctx, appointment.tenant_id, appointmentId, new Date()).catch(
+          logAndGoOn("what a missed visit sets going", null),
+        )
+      : null;
   return {
     visit: item.appointment,
     from: item.from ?? item.appointment.status,
     decision_id: item.decision_id ?? null,
     unchanged: !!item.unchanged,
+    follows,
   };
 }

@@ -12,6 +12,7 @@ import {
   shortName,
   writeWireName,
   type AppointmentWord,
+  type MissedFollowUp,
   type PersonReachDto,
   type VisitWord,
 } from "@chanlytics/contracts";
@@ -186,6 +187,8 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
   const { row, main, may, flash, keep, unkeep } = p;
   // Kept by the row, not by this part: the walk's sheet and the page's row say the same (row-state.ts).
   const [mark, setMark] = useRowState<VisitWord | "rebook" | null>(row.id, "mark", null);
+  // A Missed that a sequence answers (decision 0119): the row says who writes to them, and offers no rebook of its own.
+  const [follows, setFollows] = useRowState<MissedFollowUp | null>(row.id, "follows", null);
   const [busy, setBusy] = useState(false);
   const say = async (status: VisitWord) => {
     if (!row.visit) return;
@@ -197,12 +200,20 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
       unkeep(row);
       return flash({ tone: "danger", msg: <>{r.message}</> });
     }
-    setMark(status === "missed" && row.person_id && may ? "rebook" : status);
+    setFollows(r.follows);
+    setMark(status === "missed" && !r.follows && row.person_id && may ? "rebook" : status);
   };
 
   if (mark === "rebook")
     return <RebookWork {...p} onDontSend={() => setMark("missed")} onChange={() => setMark(null)} />;
-  if (mark) return <Done words={VISIT_WORDS[mark]} act={{ label: W.visit.change, onPress: () => setMark(null) }} />;
+  if (mark)
+    return (
+      <Done
+        words={VISIT_WORDS[mark]}
+        detail={mark === "missed" && follows ? W.visit.follows(follows.name, follows.when, follows.asks) : undefined}
+        act={{ label: W.visit.change, onPress: () => setMark(null) }}
+      />
+    );
   // Its two words as the row is asked them (visitLineOf's `asks`): the first its act, the second the quiet one.
   const [first, second] = row.visit?.asks ?? [];
   const press = (status: VisitWord, variant: "primary" | "secondary" | "quiet") => (

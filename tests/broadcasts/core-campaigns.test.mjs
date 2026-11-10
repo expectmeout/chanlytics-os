@@ -336,7 +336,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     }),
     "validation",
     400,
-    "Only a reminder the day before or the check the day after can fill in the booked time or service.",
+    "Only a message about one booking can fill in the booked time or service: a reminder before it, the check the day after, or the message after a missed one.",
   );
   await refused(
     make(fakes({ message: messageOf({ whatsapp: template({ variables: ["1"] }) }) }), {
@@ -346,7 +346,7 @@ test("a broadcast is refused in the person's words, in order, before anything is
     }),
     "validation",
     400,
-    "Only a reminder the day before or the check the day after can fill in the booked time or service.",
+    "Only a message about one booking can fill in the booked time or service: a reminder before it, the check the day after, or the message after a missed one.",
   );
   assert.deepEqual(f.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
 });
@@ -1451,7 +1451,7 @@ test("the playbook's check: the trigger first, then the template through the one
     }),
     "validation",
     400,
-    "Only a reminder the day before or the check the day after can fill in the booked time or service.",
+    "Only a message about one booking can fill in the booked time or service: a reminder before it, the check the day after, or the message after a missed one.",
   );
   for (const trigger of ["visit_tomorrow", "visited"]) {
     // 2 Oct 2026: both visit moments run under Bookings, so their message is about the visit (utility), not an offer.

@@ -124,7 +124,7 @@ test("its words: as many values as its message takes, each judged as a new campa
   );
   await refusedWith(
     judge({ params: [{ kind: "first_name" }, { kind: "visit_when" }] }),
-    "Only a reminder the day before or the check the day after can fill in the booked time or service.",
+    "Only a message about one booking can fill in the booked time or service: a reminder before it, the check the day after, or the message after a missed one.",
   );
   await refusedWith(
     judge({ params: [{ kind: "first_name" }, { kind: "booking_link" }] }),
