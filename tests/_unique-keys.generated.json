@@ -2787,6 +2787,51 @@
       "where": null
     },
     {
+      "table": "sequence_occasions",
+      "name": "sequence_occasions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_occasions",
+      "name": "sequence_occasions_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "sequence_id"
+        },
+        {
+          "column": "contact_id"
+        },
+        {
+          "column": "occasion"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_occasions",
+      "name": "sequence_occasions_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "sequence_replies",
       "name": "sequence_replies_pkey",
       "primary": true,

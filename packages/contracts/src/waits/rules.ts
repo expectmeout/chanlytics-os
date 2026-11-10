@@ -12,6 +12,10 @@
  *                 hours end, then it is skipped and reaches nobody (contracts runApprovalRefusal)
  *   freed_ask   a freed time's batch waiting for an OK (0082): it offers a time, so it waits only until that time comes,
  *                 then it is skipped (contracts runApprovalRefusal)
+ *   soon_ask      a reminder two hours before a visit waiting for an OK (0119): it waits only until that visit begins,
+ *                 then it is skipped (contracts runApprovalRefusal)
+ *   occasion_ask  a follow-up to someone sent the booking link waiting for an OK (0119): it names no day, so it waits
+ *                 until answered
  *   batch_hold    a customer batch held for a stop: it goes at its time unless stopped
  *   leads_batch   a batch to leads waiting for an OK: it has no day to pass, so it waits until answered, and its owner is
  *                 reminded each morning while it does (decision 0120); no new business is written to meanwhile
@@ -31,6 +35,8 @@ export const WAIT_KINDS = [
   "batch_ask",
   "visit_ask",
   "freed_ask",
+  "soon_ask",
+  "occasion_ask",
   "batch_hold",
   "leads_batch",
   "held_email",
@@ -63,6 +69,8 @@ export const WAIT_RULES: Record<WaitKind, WaitRule> = {
   batch_ask: { goes: "with_your_ok", ends: "end_of_its_day", act: "approve" },
   visit_ask: { goes: "with_your_ok", ends: "end_of_sending_hours", act: "approve" },
   freed_ask: { goes: "with_your_ok", ends: "end_of_its_time", act: "approve" },
+  soon_ask: { goes: "with_your_ok", ends: "end_of_its_time", act: "approve" },
+  occasion_ask: { goes: "with_your_ok", ends: "never", act: "approve" },
   batch_hold: { goes: "on_its_own", ends: "at_its_time", act: "stop" },
   leads_batch: { goes: "with_your_ok", ends: "never", act: "approve", reminds: true },
   held_email: { goes: "by_you", ends: "never", act: "answer" },

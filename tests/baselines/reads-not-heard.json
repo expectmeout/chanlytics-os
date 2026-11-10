@@ -1161,6 +1161,26 @@
           "conversation_drafts"
         ]
       }
+    },
+    {
+      "kind": "unfed",
+      "why": "Who an occasion waits for, and when (decision 0119): the Sequences list's \"next\" and a person's page's waiting step read sequence_occasions, which the feed does not tell. A row is written when an appointment changes or a booking link goes, and settled when its job runs it into a batch, which each page hears and reads it again with.",
+      "reads": {
+        "sequences": [
+          "sequence_occasions"
+        ],
+        "person": [
+          "sequence_occasions"
+        ]
+      },
+      "heardWith": {
+        "sequences": [
+          "sequence_batches"
+        ],
+        "person": [
+          "sequence_batches"
+        ]
+      }
     }
   ]
 }

@@ -39,17 +39,22 @@ export const SEND_ONCE_STOP_WORDS = delayWords(SEND_ONCE_STOP_MS);
  * (batchWaitWords) and of its skip (skippedRunNotice), so a notice says 21:00 for exactly the batches refused then.
  */
 export function approvalEndsWithSendingHours(trigger: string | null | undefined): boolean {
-  return triggerOf(trigger ?? "")?.kind === "visit";
+  // A visit's own two, and the message after one marked missed (decision 0119), whose words name the day as theirs do.
+  return triggerOf(trigger ?? "")?.kind === "visit" || trigger === "visit_missed";
 }
 
 /**
  * How a customer's batch waiting for an OK ends, by its wait rule (contracts waitEndsWords): a visit's with the day's
  * sending hours, after which it reaches nobody (visit_ask), a freed time's with the time it offers (freed_ask, 0082: `at`
- * says the time where the caller has it), any other's with its day (batch_ask). The ready notice and Today's row
- * (contracts todayRunWords) both say it from here.
+ * says the time where the caller has it), any other's with its day (batch_ask). An occasion's (decision 0119) by what
+ * it is about: two hours before a visit, until that visit begins (soon_ask); after a visit marked missed, with the day's
+ * sending hours, since its words name the day (visit_ask); after the booking link, it has no day to pass (occasion_ask).
+ * The ready notice and Today's row (contracts todayRunWords) both say it from here.
  */
 export function batchWaitWords(trigger: string | null | undefined, at?: string | null): string {
   if (triggerOf(trigger ?? "")?.kind === "freed") return waitEndsWords("freed_ask", at);
+  if (trigger === "visit_soon") return waitEndsWords("soon_ask", at ?? "the appointment begins");
+  if (trigger === "asked_no_booking") return waitEndsWords("occasion_ask");
   return approvalEndsWithSendingHours(trigger)
     ? waitEndsWords("visit_ask", SENDING_HOURS_WORDS.end)
     : waitEndsWords("batch_ask");
@@ -138,14 +143,26 @@ export function skippedRunNotice(
 }
 
 /**
- * What the owner is told when the sweep skips a late booking's reminder that waited for an OK (decision 0118): it did not
- * go, and nothing later sends it, since the day's own batch was made before the booking. Its wait ended with the sending
- * hours of the day its words named, or when the appointment began, so it says neither hour.
+ * What the owner is told when the sweep skips a message about one visit that waited for an OK: it did not go, and nothing
+ * later sends it. A late booking's reminder (decision 0118: the day's own batch was made before the booking), or an
+ * occasion's step (0119: `trigger`, its batch's moment), which says only that its time passed. Its wait ended with the
+ * sending hours of the day its words named, or when the appointment began, so it says neither hour.
  */
-export function lateReminderSkippedNotice(name: string, people: number): { subject: string; body: string } {
+export function lateReminderSkippedNotice(
+  name: string,
+  people: number,
+  trigger: string | null,
+): { subject: string; body: string } {
+  const subject = `“${name}” didn’t go: nobody approved it`;
+  const after = `it did not reach them, and no later batch sends it in its place. Open it to see who, and write to them yourself. The next “${name}” waits for your OK too: ${NEXT_BATCH_WAITS}.`;
+  if (triggerOf(trigger ?? "")?.kind === "occasion")
+    return {
+      subject,
+      body: `The message made for ${plural(people, "person", "people")} waited for your OK until it was too late to send: ${after}`,
+    };
   return {
-    subject: `“${name}” didn’t go: nobody approved it`,
-    body: `${plural(people, "person", "people")} booked after the day’s reminders went, and the reminder made for them waited for your OK until it was too late to send: it did not reach them, and no later batch sends it in its place. Open it to see who, and write to them yourself. The next “${name}” waits for your OK too: ${NEXT_BATCH_WAITS}.`,
+    subject,
+    body: `${plural(people, "person", "people")} booked after the day’s reminders went, and the reminder made for them waited for your OK until it was too late to send: ${after}`,
   };
 }
 
@@ -179,6 +196,16 @@ export function triggerOf(id: string): (typeof PLAYBOOK_TRIGGERS)[number] | null
 export const VISIT_TRIGGERS: readonly (typeof PLAYBOOK_TRIGGERS)[number]["id"][] = PLAYBOOK_TRIGGERS.filter(
   (t) => t.kind === "visit",
 ).map((t) => t.id);
+
+/**
+ * Whether a moment's message is owed once for a person's own occasion, so no two sequences run on it: a visit's two
+ * moments, and an occasion's three (decision 0119). The routes that start a sequence refuse a second on one, and the
+ * list names the later of two as the twin (sequences/words/flow.ts).
+ */
+export function owedOncePerMoment(trigger: string): boolean {
+  const kind = triggerOf(trigger)?.kind;
+  return kind === "visit" || kind === "occasion";
+}
 
 /**
  * Whether a moment is offered in a workspace (0006): every one, a proposal's too, since every workspace has deals
@@ -223,6 +250,8 @@ export function triggerWords(
   const words = appointmentWords(word);
   if (target.id === "visit_tomorrow") return { label: words.before.name, hint: words.before.hint };
   if (target.id === "visited") return { label: words.after.caps, hint: words.after.hint };
+  if (target.id === "visit_soon") return { label: words.soon.name, hint: words.soon.hint };
+  if (target.id === "visit_missed") return { label: words.missed.name, hint: words.missed.hint };
   if (target.id === "lapsed") return { label: target.label, hint: words.lapsedHint };
   return { label: target.label, hint: target.hint };
 }
@@ -240,11 +269,13 @@ export function winBackWords(word: AppointmentWord): { quiet_30: string; lapsed:
 /**
  * Whether a new campaign on a moment is offered by whether a calendar is connected here: the two win-backs (by visits
  * only with one, by silence only without), the appointment moments and a freed time (only with one: a time is freed on the
- * calendar, decision 0082). The calendar set, declared once: momentOffered reads it, and so does the check that makes a
+ * calendar, decision 0082) and an occasion's (0119). The calendar set, declared once: momentOffered reads it, and so does the check that makes a
  * campaign, which asks for the calendar only here and says why a moment of it is refused.
  */
 export function momentReadsCalendar(target: { id: string; kind: string }): boolean {
-  return isWinBack(target.id) || target.kind === "visit" || target.kind === "freed";
+  // An occasion's moments too (decision 0119): a visit in two hours and one missed are read off the record, and whether
+  // someone booked since they asked is known only where bookings are.
+  return isWinBack(target.id) || target.kind === "visit" || target.kind === "freed" || target.kind === "occasion";
 }
 
 /**

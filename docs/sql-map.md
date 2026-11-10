@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 176 | 176 |
-| reader | 73 | 0 |
-| the server's | 322 | 278 |
+| door | 175 | 175 |
+| reader | 75 | 0 |
+| the server's | 324 | 280 |
 | computed column | 3 | 0 |
-| trigger | 99 | 69 |
-| all | 673 | 523 |
+| trigger | 100 | 70 |
+| all | 677 | 525 |
 
 ## Called by nothing
 
@@ -184,10 +184,12 @@ being read is dropped by a migration.
 | `file_media_ready` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The video platform says a video is playable (00556): |
 | `file_purged` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A removed file's bytes and Anthropic's copy are gone (00551), so its row goes. |
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551): |
+| `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
 | `file_upload_lapsed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A video whose bytes never arrived, a day on (00556): |
 | `file_video_begin` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A member's video on its way (00556), once the video platform holds its reservation: |
+| `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597): |
 | `finish_broadcast` | the server's | the server | code `packages/db/src/repositories/events/delivery.ts` | A run that sent its last batch: |
 | `first_replies` | reader | a signed-in person, the server | code `apps/dashboard/src/server/metrics/metrics.ts`, `packages/contracts/src/today/metrics.ts` and 1 more; SQL `metrics_summary`, `platform_metrics_roll` and 2 more |  |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |
@@ -199,7 +201,7 @@ being read is dropped by a migration.
 | `handover_accept` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: |
 | `handover_decline` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The addressee of a handover (0016) says no. |
 | `handovers_mine` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The open handovers (0016) addressed to the caller's confirmed email: |
-| `has_permission` | the server's | the server | SQL `caller_has_permission`, `capability_activate` and 26 more | Whether this user may do this in this workspace, by role: |
+| `has_permission` | the server's | the server | SQL `caller_has_permission`, `capability_activate` and 25 more | Whether this user may do this in this workspace, by role: |
 | `has_relationship` | computed column | a signed-in person, the server | code `packages/contracts/src/consent/asks.ts`, `packages/contracts/src/consent/consent.ts` and 9 more; SQL `offers_email_reach` | Whether a person has a relationship with the business on record (spec 4.1): |
 | `held_draft_outcome` | reader | a signed-in person, the server | SQL `held_drafts_by_intent` | What became of one of the receptionist's held drafts (decision 0063), from its status and its error: |
 | `held_drafts_by_intent` | reader | a signed-in person, the server | code `packages/db/src/repositories/facts/held-drafts.ts` | The Autonomy pane's evidence (decision 0063): |
@@ -217,14 +219,14 @@ being read is dropped by a migration.
 | `job_kind_resume` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Resumes a paused job kind (00526) and asks the tick for what waited. |
 | `jobs_backlog` | the server's | the server | code `apps/edge/lib/ops/health-sweep.ts`, `packages/db/src/repositories/console/health.ts` and 1 more; script `tooling/scripts/gen/capacity.mjs` | How many jobs the claim could take and has not for longer than p_wait (default two minutes): |
 | `jobs_guard` | trigger | a signed-in person, the server | code `packages/jobs/src/runner/ledger.ts`; trigger `jobs_guard on jobs` | scheduled -> fired \| canceled; |
-| `jobs_hand_out` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `calendars_hand_out`, `sequence_steps_hand_out` | One job of a kind per workspace named, each due within the spread by a hash of its workspace, unless one already waits or runs (00569, decision 0115). |
+| `jobs_hand_out` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `calendars_hand_out`, `sequence_occasions_hand_out` and 1 more | One job of a kind per workspace named, each due within the spread by a hash of its workspace, unless one already waits or runs (00569, decision 0115). |
 | `jobs_ledger_now` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | What the Console's Health draws of the ledger now (00526): |
 | `jobs_take_their_kind` | trigger | the server | trigger `jobs_take_their_kind on jobs` |  |
 | `jobs_wake` | trigger | the server | trigger `jobs_wake on jobs` | After a statement writes jobs: |
 | `last_inbound_on_instagram` | computed column | a signed-in person, the server | code `apps/dashboard/src/server/conversations/dto.ts`, `packages/contracts/src/conversations/thread-dto.ts` and 5 more | When a thread's person last wrote by Instagram DM (decision 0001, step 8): |
 | `last_inbound_on_whatsapp` | computed column | a signed-in person, the server | code `apps/dashboard/src/server/conversations/dto.ts`; SQL `people_list` | When a thread's person last wrote on WhatsApp (decision 0001, step 5): |
 | `lead_address_in_people` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 2 more | Whether a person in People holds the address (lower-cased and trimmed), as theirs or as one they wrote from (00429): |
-| `lead_address_suppressed` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 5 more | Whether one address is on the never-again list: |
+| `lead_address_suppressed` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 4 more | Whether one address is on the never-again list: |
 | `lead_addressee_choose` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | The owner's choice (permission find) of who a company lead's reach-out writes to (00430, 0057's call 8): |
 | `lead_addresses_suppressed` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts`; SQL `lead_address_suppressed` | The never-again list for addresses (Reach out Part 5, G9): |
 | `lead_allowance` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts`; SQL `lead_check_commit`, `lead_member_move` and 2 more | The leads a workspace may count this month (00512, decision 0090): |
@@ -303,7 +305,7 @@ being read is dropped by a migration.
 | `lead_status_groups` | reader | a signed-in person, the server | SQL `lead_view_rows` | Where each lead stands in the queue Leads works from (00552, 00554): |
 | `lead_suggest_history` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | What a workspace's finder searches of the last 180 days asked for and found, and what came of the leads each kept (contacted and when last, interested, booked, customers, said no, not a fit and why, r |
 | `lead_suggestions_write` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | The one writer of lead_suggestions (00400, 00470, 00473), by act: |
-| `lead_suppression_hash` | the server's | the server | SQL `email_marketing_on_erase`, `lead_addresses_suppressed` and 12 more | The erasure digest (00263 erasure_digest): |
+| `lead_suppression_hash` | the server's | the server | SQL `email_marketing_on_erase`, `lead_addresses_suppressed` and 11 more | The erasure digest (00263 erasure_digest): |
 | `lead_tells_its_person` | trigger | the server | trigger `leads_tell_their_person on leads` | Decision 0052: a lead that names a person (leads.contact_id: |
 | `lead_undo` | door | a signed-in person, the server | code `packages/contracts/src/ask/proposals/lead-work.ts`, `packages/db/src/repositories/leads/search-acts.ts` | Undoes one operation by its id and the version the client saw: |
 | `lead_view_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | What a view of Leads holds (lead_view_rows, each lead once as the page draws it and lead_bulk acts on it): |
@@ -493,8 +495,6 @@ being read is dropped by a migration.
 | `put_mailbox_credentials` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | Service-role only: stores a connected mailbox's token in Vault under mailbox-creds-<id> and points credentials_ref at it. |
 | `queue_send` | the server's | the server | code `packages/db/src/repositories/jobs/jobs.ts` | A queued reply and its outbound_send job, written together or not at all (00527): |
 | `reach_out_add` | door | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/server/ask/tools/act/leads/search.ts` and 2 more; SQL `sequence_move` | An acting member adds leads (1 to lead_cap('list_rows')) to a list-fed reach-out (00426): |
-| `reach_out_again_count` | the server's | the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Who a sequence to leads would try again after p_days, and from when (00602, decision 0120): |
-| `reach_out_again_set` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Try again after p_days, or never (null) (00602, decision 0120): |
 | `reach_out_audience` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`; SQL `reach_out_add`, `reach_out_people_of` and 2 more | Who a reach-out's first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): |
 | `reach_out_booked` | the server's | the server | code `packages/contracts/src/shared/enums.ts`, `packages/db/src/repositories/campaigns/sequences/runs.ts`; SQL `reach_out_booked_from` | The calendar sweep's door (Reach out Part 5, G19, N3): |
 | `reach_out_booked_from` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts` | The booking door (reach_out_booked) over one appointment of the record (00389), booked or kept and not vanished: |
@@ -503,7 +503,6 @@ being read is dropped by a migration.
 | `reach_out_chain_report` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/chain-doors.ts` |  |
 | `reach_out_chain_totals` | door | a signed-in person, the server | code `packages/contracts/src/reports/reach-out-report.ts`, `packages/db/src/repositories/reports/series.ts` | Every chain of the workspace (a reach-out's first step), by its id, for a member (may_read_workspace): |
 | `reach_out_check_take` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/check.ts` |  |
-| `reach_out_comes_back` | the server's | the server | SQL `reach_out_again_count`, `reach_out_audience` and 1 more | Of leads written to before, those a sequence may write to once more (00602, decision 0120): |
 | `reach_out_day_due` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts` | The 6 PM line (Reach out Part 6, H12): |
 | `reach_out_draft_facts` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/drafts.ts`; SQL `reach_out_drafts_waiting` | A draft's lead as the send door judges it (00429): |
 | `reach_out_drafts_waiting` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/drafts.ts` | The drafts waiting for their owners (00429), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed |
@@ -604,6 +603,11 @@ being read is dropped by a migration.
 | `sequence_leave` | door | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/server/ask/tools/act/sequence/sequence.ts` and 8 more; SQL `sequence_move` | People taken out of a sequence by an acting member (0060): |
 | `sequence_mode_for` | the server's | the server | SQL `sequence_steps_place` | What a new sequence of p_class starts as in the workspace (0064): |
 | `sequence_move` | door | a signed-in person, the server | code `apps/dashboard/src/server/ask/proposals/guide.ts`, `apps/dashboard/src/surfaces/leads/sheet/run.ts` and 2 more |  |
+| `sequence_occasion_enrol` | the server's | the server | code `packages/db/src/repositories/campaigns/occasions.ts` | Enrols a person in a sequence for an occasion, due at its own time (decision 0119): |
+| `sequence_occasions_due` | the server's | the server | code `packages/db/src/repositories/campaigns/occasions.ts` | A workspace's waiting occasions due at p_at, soonest first, each with when it began, its sequence's first step and mode as a run reads one, and whether that step runs now (the sequence on, the step ru |
+| `sequence_occasions_hand_out` | the server's | the server | SQL `trigger_sequences_clock` | A sequence_occasions job for each workspace with an occasion due at p_at (decision 0119), through jobs_hand_out (0115): |
+| `sequence_occasions_leave` | the server's | the server | code `packages/db/src/repositories/campaigns/occasions.ts` | A workspace's waiting occasions whose key starts with p_starts_with leave with why (decision 0119): |
+| `sequence_occasions_on_erase` | trigger | the server | trigger `contacts_erase_leaves_occasions on contacts` | When a person is erased, every occasion a sequence kept for them is deleted (decisions 0036, 0119): |
 | `sequence_once_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/doors.ts` | A message sent once, kept as a draft (00465, decision 0065; |
 | `sequence_overview` | reader | a signed-in person, the server | code `packages/contracts/src/campaigns/sequences/dto.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts` | The workspace's sequences (0060), or the one named: |
 | `sequence_people` | reader | a signed-in person, the server | code `apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts`, `packages/contracts/src/campaigns/sequences/dto.ts` and 1 more | Who is in a sequence (0060), by where they stand, each group's count whole and its first p_limit (1 to 200, 50) rows: |

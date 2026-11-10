@@ -293,13 +293,60 @@ test("Twilio: the texts that arrived on a number are the account's Messages to i
   assert.deepEqual([call.acct, call.method, call.form], ["ACsub", "GET", undefined]);
   const url = new URL(call.url);
   assert.equal(url.pathname, "/2010-04-01/Accounts/ACsub/Messages.json", "the account's own Messages");
-  assert.deepEqual([url.searchParams.get("To"), url.searchParams.get("PageSize")], ["+16465550100", "20"]);
+  assert.deepEqual([url.searchParams.get("To"), url.searchParams.get("PageSize")], ["+16465550100", "50"]);
   assert.deepEqual(await over({ status: 200, body: {} }).provider.recentTexts(acct, "+16465550100", 0), []);
   await assert.rejects(
     over({ status: 401, body: { code: 20003, message: "Authenticate" } }).provider.recentTexts(acct, "+16465550100", 0),
     (e) => e instanceof TwilioError && e.status === 401 && /list received texts/.test(e.message),
     "a read that fails is a failure, never an empty list",
   );
+});
+
+test("Twilio: a number's texts are read back page by page until a page reaches past the moment, and no further than five", async () => {
+  const at = (iso) => new Date(iso).toUTCString().replace("GMT", "+0000");
+  const text = (sid, iso) => ({ sid, direction: "inbound", from: "+15555550101", body: sid, date_sent: at(iso) });
+  const pages = {
+    1: {
+      messages: [text("SM4", "2026-10-06T14:58:00Z"), text("SM3", "2026-10-06T14:50:00Z")],
+      next_page_uri: "/2010-04-01/Accounts/ACsub/Messages.json?To=%2B16465550100&PageSize=50&Page=1&PageToken=PA2",
+    },
+    2: {
+      messages: [text("SM2", "2026-10-06T14:46:00Z"), text("SM1", "2026-10-06T14:30:00Z")],
+      next_page_uri: "/2010-04-01/Accounts/ACsub/Messages.json?To=%2B16465550100&PageSize=50&Page=2&PageToken=PA3",
+    },
+    3: { messages: [text("SM0", "2026-10-06T14:10:00Z")], next_page_uri: null },
+  };
+  const pageOf = (url) =>
+    new URL(url).searchParams.get("PageToken") === "PA2"
+      ? 2
+      : new URL(url).searchParams.get("PageToken") === "PA3"
+        ? 3
+        : 1;
+  const { provider, calls } = over((_method, url) => ({ status: 200, body: pages[pageOf(url)] }));
+  const since = Date.parse("2026-10-06T14:45:00Z");
+  assert.deepEqual(
+    (await provider.recentTexts(acct, "+16465550100", since)).map((t) => t.sid),
+    ["SM4", "SM3", "SM2"],
+    "every text since the moment, across the pages",
+  );
+  assert.deepEqual(
+    calls.map((c) => pageOf(c.url)),
+    [1, 2],
+    "the page that reached past the moment is the last asked",
+  );
+  assert.equal(new URL(calls[1].url).origin, "https://api.twilio.com", "the next page on Twilio's own host");
+
+  // A line whose every page is inside the moment is read five pages back, and no more.
+  let page = 1;
+  const endless = over(() => ({
+    status: 200,
+    body: {
+      messages: [text("SMx", "2026-10-06T14:59:00Z")],
+      next_page_uri: `/2010-04-01/Accounts/ACsub/Messages.json?Page=${++page}`,
+    },
+  }));
+  await endless.provider.recentTexts(acct, "+16465550100", since);
+  assert.equal(endless.calls.length, 5);
 });
 
 test("the dry provider answers the texts a test planted for a number, newest first and since a moment, and records what it was asked", async () => {

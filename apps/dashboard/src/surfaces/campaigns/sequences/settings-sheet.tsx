@@ -114,7 +114,7 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
           />
         }
       />
-      {takes.freed ? null : (
+      {!takes.hour ? null : (
         <Field
           label={HOW_IT_RUNS.hour}
           control={
@@ -128,18 +128,20 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
           }
         />
       )}
-      <Field
-        label={takes.freed ? HOW_IT_RUNS.freedCap : HOW_IT_RUNS.cap}
-        control={
-          <Select
-            value={v.cap_per_run}
-            onValueChange={(x) => set("cap_per_run", x)}
-            options={optionsOf(takes.freed ? FREED_CAPS : CAPS, Number(v.cap_per_run), HOW_IT_RUNS.people)}
-            chevron={chevron}
-            data-testid="sq-settings-cap"
-          />
-        }
-      />
+      {!takes.cap ? null : (
+        <Field
+          label={takes.freed ? HOW_IT_RUNS.freedCap : HOW_IT_RUNS.cap}
+          control={
+            <Select
+              value={v.cap_per_run}
+              onValueChange={(x) => set("cap_per_run", x)}
+              options={optionsOf(takes.freed ? FREED_CAPS : CAPS, Number(v.cap_per_run), HOW_IT_RUNS.people)}
+              chevron={chevron}
+              data-testid="sq-settings-cap"
+            />
+          }
+        />
+      )}
       {takes.freed && rec.settings?.days_ahead !== undefined ? (
         <p className="sq-settings-note" data-testid="sq-settings-ahead">
           {HOW_IT_RUNS.freedAhead(rec.settings.days_ahead)}. {HOW_IT_RUNS.freedAheadHint}

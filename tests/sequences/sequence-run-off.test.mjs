@@ -89,21 +89,20 @@ test("an ended sequence sits under Ended, folded at the list's foot; a paused on
 });
 
 test("Start's Change offers the gap to a moment over a group of people, the cadence to the month's offer, neither else", () => {
-  assert.deepEqual(scheduleSettingsOf(row()), { gap: true, every: false, freed: false });
-  assert.deepEqual(scheduleSettingsOf(row({ first: { ...row().first, trigger: "everyone_monthly" } })), {
-    gap: false,
-    every: true,
-    freed: false,
-  });
-  assert.deepEqual(scheduleSettingsOf(row({ first: { ...row().first, trigger: "visit_tomorrow" } })), {
-    gap: false,
-    every: false,
-    freed: false,
-  });
-  assert.deepEqual(scheduleSettingsOf(row({ first: { ...row().first, trigger: "saved_list" } })), {
-    gap: false,
-    every: false,
-    freed: false,
-  });
-  assert.deepEqual(scheduleSettingsOf(row({ first: null })), { gap: false, every: false, freed: false });
+  const on = (trigger) => scheduleSettingsOf(row({ first: { ...row().first, trigger } }));
+  // Every sequence that runs by the hour keeps its hour and its most-each-day.
+  const hourly = { freed: false, hour: true, cap: true };
+  assert.deepEqual(scheduleSettingsOf(row()), { gap: true, every: false, ...hourly });
+  assert.deepEqual(on("everyone_monthly"), { gap: false, every: true, ...hourly });
+  assert.deepEqual(on("visit_tomorrow"), { gap: false, every: false, ...hourly });
+  assert.deepEqual(on("saved_list"), { gap: false, every: false, ...hourly });
+  assert.deepEqual(scheduleSettingsOf(row({ first: null })), { gap: false, every: false, ...hourly });
+});
+
+test("a sequence an occasion starts goes to one person at a time: no most-each-day, and an hour only for the day after an ask (0119)", () => {
+  const on = (trigger) => scheduleSettingsOf(row({ first: { ...row().first, trigger } }));
+  const none = { gap: false, every: false, freed: false, cap: false };
+  assert.deepEqual(on("visit_soon"), { ...none, hour: false }, "it goes by the visit's own time");
+  assert.deepEqual(on("visit_missed"), { ...none, hour: false }, "it goes when the visit is marked");
+  assert.deepEqual(on("asked_no_booking"), { ...none, hour: true }, "the next day, at the sequence's hour");
 });

@@ -111,6 +111,12 @@ export interface SequenceRowDto {
   needs: SequenceNeedsDto;
   /** The batch to come: waiting for an OK, scheduled or going out. */
   next: { id: string; at: string; people: number; state: string; place: number | null } | null;
+  /**
+   * Who a sequence an occasion starts reaches next (decision 0119): when the first of the people waiting is due their
+   * step, and how many wait. No batch is made for them yet, so `next` is null until one is. Null where nobody waits;
+   * absent for every other sequence, and from a server before it.
+   */
+  coming?: { at: string; people: number } | null;
   /** The last batch that went, with what it sent and drew back. */
   last: { id: string; at: string; sent: number; replied: number } | null;
   /**

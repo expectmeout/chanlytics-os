@@ -6,7 +6,15 @@
  * read leaves it out, and the tile that sends it draws it from the browser's own state.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { FILES_MAX, FILES_BUCKET, type FileKind, type FileShelfFilter, DbFailure } from "@chanlytics/contracts";
+import {
+  FILES_MAX,
+  FILES_BUCKET,
+  type FileKind,
+  type FileShelfFilter,
+  DbFailure,
+  isUuid,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -49,18 +57,70 @@ export type FileMemberRow = Pick<
   | "sound_said"
 >;
 
-/** What the workspace keeps, newest first. */
-export async function listFiles(db: Db, tenantId: TenantId): Promise<FileMemberRow[]> {
+/**
+ * The files named, by the name a person and Ask both say or by the row's id (a turn's scope names its file by id): only those
+ * rows, so a question about one file reads one. A name is one a file can have (00551 files_name_shape: lower-case letters,
+ * digits and hyphens), and an id a uuid; anything else names nothing.
+ */
+export async function listFilesByName(
+  db: Db,
+  tenantId: TenantId,
+  named: { names: readonly string[]; ids: readonly string[] },
+): Promise<FileMemberRow[]> {
+  const names = named.names.filter((n) => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(n));
+  const ids = named.ids.filter((id) => isUuid(id));
+  const by = [
+    ...(names.length ? [`name.in.(${names.join(",")})`] : []),
+    ...(ids.length ? [`id.in.(${ids.join(",")})`] : []),
+  ];
+  if (!by.length) return [];
   const { data, error } = await db
     .from("files")
     .select(MEMBER_COLUMNS)
     .eq("tenant_id", tenantId)
     .is("removed_at", null)
     .or(ARRIVED)
-    .order("created_at", { ascending: false })
+    .or(by.join(","))
     .limit(FILES_MAX);
-  if (error) throw new DbFailure(error, "files");
-  return data ?? [];
+  if (error) throw new DbFailure(error, "files by name");
+  return data;
+}
+
+/**
+ * One page of one shelf, newest first, found by its words where words are given (00597 files_found), and how many stand there in
+ * all: the search answers the page's ids, and their rows are read through the member's own columns, in the search's order.
+ */
+export async function listFilesFound(
+  db: Db,
+  tenantId: TenantId,
+  shelf: FileShelfFilter,
+  page: { words?: string | undefined; offset: number; limit: number },
+): Promise<{ rows: FileMemberRow[]; total: number }> {
+  const { data, error } = await db.rpc("files_found", {
+    p_tenant_id: tenantId,
+    p_status: shelf.status,
+    p_limit: page.limit,
+    p_offset: page.offset,
+    ...(shelf.made === undefined ? {} : { p_made: shelf.made }),
+    ...(shelf.shows ? { p_shows: [...shelf.shows] } : {}),
+    ...(shelf.orUnsorted ? { p_or_unsorted: true } : {}),
+    ...(page.words?.trim() ? { p_words: page.words } : {}),
+  });
+  if (error) throw new DbFailure(error, "files found");
+  const found = recordOrEmpty(data);
+  const ids = Array.isArray(found.ids) ? found.ids.filter((id): id is string => typeof id === "string") : [];
+  const total = typeof found.total === "number" ? found.total : ids.length;
+  if (!ids.length) return { rows: [], total };
+  const read = await db
+    .from("files")
+    .select(MEMBER_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .in("id", ids)
+    .is("removed_at", null)
+    .or(ARRIVED);
+  if (read.error) throw new DbFailure(read.error, "files found, read");
+  const byId = new Map(read.data.map((r) => [r.id, r]));
+  return { rows: ids.flatMap((id) => byId.get(id) ?? []), total };
 }
 
 /** What each file says of itself and no more, for what counts them: a workspace at its cap is a few KB this way, and a megabyte with its looks. */
@@ -131,24 +191,6 @@ export async function readFileSound(db: Db, id: string): Promise<FileRow["sound"
   const { data, error } = await db.from("files").select("sound").eq("id", id).is("removed_at", null).maybeSingle();
   if (error) throw new DbFailure(error, "file sound");
   return data?.sound ?? null;
-}
-
-/**
- * What was heard of each of the workspace's videos, under the caller's RLS: what a search of the library reads, so a clip is found
- * by what is said in it. A workspace keeps an hour of video (FILE_VIDEO_MINUTES_MAX), so this is a few hundred KB at its most,
- * and it is read only when a search asks.
- */
-export async function listVideosHeard(db: Db, tenantId: TenantId): Promise<Pick<FileRow, "id" | "sound">[]> {
-  const { data, error } = await db
-    .from("files")
-    .select("id, sound")
-    .eq("tenant_id", tenantId)
-    .eq("kind", "video")
-    .is("removed_at", null)
-    .or(ARRIVED)
-    .limit(FILES_MAX);
-  if (error) throw new DbFailure(error, "videos heard");
-  return data;
 }
 
 /**

@@ -13,6 +13,7 @@ import { runTick } from "../../packages/jobs/src/runner/tick.ts";
 import { MAX_ATTEMPTS, UNKNOWN_KIND_GIVE_UP_MS } from "../../packages/jobs/src/runner/ledger.ts";
 import { settleJob } from "../../packages/jobs/src/runner/settle.ts";
 import { KIND_POLICY } from "../../packages/jobs/src/runner/kinds.ts";
+import { VIDEO_LOOK_EDITION } from "../../packages/contracts/src/files/look.ts";
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const OPTS = { claimForMs: 20_000, yieldAtMs: 45_000, leaseSeconds: 90 };
@@ -92,7 +93,7 @@ test("a video's digest that will not hear it goes on to its look; one that will 
     assert.deepEqual(out, [{ what: "file", changed: true }]);
     assert.deepEqual(
       tables.jobs.map((j) => [j.kind, j.payload]),
-      [["file_look", { file_id: F, edition: "1" }]],
+      [["file_look", { file_id: F, edition: String(VIDEO_LOOK_EDITION) }]],
       `${step}: the look goes ahead on the sheet alone`,
     );
     assert.deepEqual(kept, [], `${step}: and the row is not said to have failed`);

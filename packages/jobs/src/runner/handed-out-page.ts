@@ -1,6 +1,7 @@
 /**
- * The platform's page for a workspace's hourly job that failed for good (ledger PAGES_THE_PLATFORM, tick.ts conclude): the
- * job a clock handed it for its campaigns, its reach-out steps, its calendar or its Google read (decision 0115). Such a job
+ * The platform's page for a workspace's handed-out job that failed for good (ledger PAGES_THE_PLATFORM, tick.ts conclude): the
+ * job a clock handed it for its campaigns, its reach-out steps, its calendar or its Google read (decision 0115), or for the
+ * steps due to one person each (0119). Such a job
  * throws only when it cannot read what is due, or what it runs on: a database or a provider, nothing an owner can act on. The
  * work stays due and the next hour's clock hands out another job, so it is late, not lost.
  *
@@ -15,6 +16,8 @@ export const HANDED_OUT_KINDS = [
   "reach_out_steps",
   "calendar_read",
   "google_read",
+  "texts_read",
+  "sequence_occasions",
 ] as const satisfies readonly JobKind[];
 
 type HandedOutKind = (typeof HANDED_OUT_KINDS)[number];
@@ -24,6 +27,8 @@ const HANDED_OUT_WORDS: Record<HandedOutKind, string> = {
   reach_out_steps: "reach-out steps",
   calendar_read: "calendar read",
   google_read: "Google read",
+  texts_read: "texts read",
+  sequence_occasions: "steps due to one person",
 };
 
 /** The pager's condition key: one page per window for every workspace whose job of this kind failed for good. */
@@ -43,7 +48,7 @@ export function handedOutPage(
     body: [
       `The ${HANDED_OUT_WORDS[kind]} of workspace ${job.tenant_id} failed for good: ${reason}.`,
       wreckage,
-      "What was due is still due, and the next hour's clock hands the workspace another job, so it is late, not lost. " +
+      "What was due is still due, and the clock's next turn hands the workspace another job, so it is late, not lost. " +
         "The owner was not told: it is nothing they can mend. This page is sent once however many workspaces fail, " +
         "so see how many did. Newest first:\n\n" +
         "  select id, tenant_id, attempts, last_error, updated_at from jobs " +

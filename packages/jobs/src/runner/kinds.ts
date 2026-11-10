@@ -344,6 +344,19 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: [],
     never: [],
   },
+  // A workspace's occasions whose time has come, handed out each minute by the sequences' clock (00598, decision 0119).
+  // Nothing here puts words on a wire: a person's step schedules its send. Each row is settled as it is run, so a second
+  // try runs only what the first did not, and what is left waiting is handed out again the next minute anyway.
+  sequence_occasions: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 10 * SECOND_MS,
+    ids: [],
+    never: [],
+  },
   calendar_read: {
     speaks: false,
     retryWaitsMs: TWICE,
@@ -361,6 +374,18 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     settles: "nothing",
     wires: false,
     longestCallMs: 10 * SECOND_MS,
+    ids: [],
+    never: [],
+  },
+  // A workspace's lines' texts read from the provider every ten minutes (00605): each one the door never heard is knocked on
+  // the door again, whose replay gate keeps a second knock a no-op, so a run that died is run again; the answer is its own job.
+  texts_read: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 15 * SECOND_MS,
     ids: [],
     never: [],
   },

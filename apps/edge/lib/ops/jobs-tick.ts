@@ -43,9 +43,12 @@ import { bookingReader } from "../calendar/booking-read.js";
 import { calendarReader } from "../calendar/sweep.js";
 import { campaignRuns } from "../campaigns/reach-out/workspace-runs.js";
 import { googleReader } from "../google/sweep.js";
+import { textsReader } from "../sms/texts-sweep.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../campaigns/freed-time-offer.js";
 import { remindLateBooking } from "../campaigns/late-reminder.js";
+import { occasionRuns } from "../campaigns/occasions/due.js";
+import { enrolOccasions } from "../campaigns/occasions/enrol.js";
 import { answerInboundJob } from "../intake/answer-job.js";
 import {
   runTick,
@@ -262,9 +265,11 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               bookings: bookingReader(db),
               // A reminder asks the owner's calendar beside the record; a workspace's calendar_read reads it (0115).
               calendar: { feedNames: feedNamesFor(db), read: calendarReader(db) },
-              // What a clock handed out (decision 0115): a workspace's campaigns, and its Google listings.
-              campaigns: campaignRuns(db),
+              // What a clock handed out (decision 0115): a workspace's campaigns, its Google listings, and its lines' texts.
+              // And a workspace's occasions whose time has come (decision 0119), each person's step run or left.
+              campaigns: { ...campaignRuns(db), occasions: occasionRuns(db) },
               google: googleReader(db),
+              texts: textsReader(db),
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
               inbound: { answer: (claimed, deadline) => answerInboundJob(db, claimed, deadline) },
@@ -274,6 +279,9 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               // A booking that landed after the reminder's daily look (decision 0118): the workspace's step on
               // visit_tomorrow runs for that one person, through the same run.
               reminders: { remind: (tenantId, appointmentId) => remindLateBooking(db, tenantId, appointmentId) },
+              // What happened to one person (decision 0119): the sequences that start on it take them in, at a time of
+              // their own.
+              occasions: { enrol: (tenantId, event) => enrolOccasions(db, tenantId, event) },
               ...broughtIn(db),
               // A job that continues itself (a broadcast's next batch) is one
               // more row, as this job's tenant.

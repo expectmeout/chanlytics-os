@@ -14,6 +14,7 @@ import { CAMPAIGNS_PAUSED_WORDS } from "../../workspace/billing/plans";
 import { runApproveWords } from "../../shell/campaign-rooms";
 import { isReachOutRun } from "../reach-out/rules";
 import { capitalize } from "../../shared/words";
+import { isOccasionTrigger, occasionWords } from "./triggers/occasions";
 import { messageAboutOfTrigger } from "./purpose";
 import type { RunReach } from "./reach";
 import { approvalEndsWithSendingHours, triggerOf } from "./triggers/notices";
@@ -93,6 +94,7 @@ export function poolWords(trigger: string, word: AppointmentWord): string {
     return trigger === "visit_tomorrow" ? words.withTomorrow : words.whoYesterday;
   }
   if (t.kind === "deal") return "with a proposal waiting";
+  if (isOccasionTrigger(t.id)) return occasionWords(t.id, word).pool;
   return t.list || t.kind === "saved" ? "on the list" : "in People";
 }
 
@@ -299,17 +301,23 @@ function visitRunTooLate(run: { run_for?: string | null; audience?: unknown }, d
   return approvalEndsWithSendingHours(audienceTrigger(run.audience)) && !!run.run_for && days.sendsOn > run.run_for;
 }
 
-/** Why a late booking's reminder is refused (0118): an approval now would send it too late to be one. */
+/** Why a message about a visit ahead is refused (0118, 0119): an approval now would send it too late to be a reminder. */
 const LATE_REMINDER_PASSED_WORDS =
   "It is too late for this reminder: approved now it would arrive on a later day than its words say, or after the appointment has begun. Skip it; nothing later sends it in its place.";
 
+/** Why a message about a visit behind is refused (0119, one marked missed): its words name the day. */
+const DAY_OF_WORDS_PASSED =
+  "It is too late for this message: approved now it would arrive on a later day than its words say. Skip it; nothing later sends it in its place.";
+
 /**
- * Whether an approval now comes too late for a late booking's reminder (0118). Its batch has no day of its own, so it is
- * read by what its audience keeps: it would go on a later day than the one its words were written for (a visit's rule,
- * visitRunTooLate), or its visit has begun by the moment it would go.
+ * Whether an approval now comes too late for a message about one visit (a late booking's reminder, 0118; an occasion's
+ * step, 0119). Its batch has no day of its own, so it is read by what its audience keeps: it would go on a later day than
+ * the one its words were written for (a visit's rule, visitRunTooLate), or its visit, where it was still ahead when the
+ * words were written, has begun by the moment it would go.
  */
-function lateReminderPassed(late: { start: string; day: string }, days: ApprovalDays): boolean {
+function lateReminderPassed(late: { start: string; day: string; behind?: true }, days: ApprovalDays): boolean {
   if (days.sendsOn > late.day) return true;
+  if (late.behind) return false;
   return days.sendsAt !== undefined && Date.parse(late.start) <= days.sendsAt;
 }
 
@@ -331,7 +339,10 @@ export function runApprovalRefusal(
   if (Number.isFinite(offered) && days.sendsAt !== undefined && offered <= days.sendsAt) return FREED_TIME_PASSED_WORDS;
   // Nor has a late booking's reminder (0118): the day its words name and its visit's start are its audience's.
   const late = audienceLate(run.audience);
-  if (late) return lateReminderPassed(late, days) ? LATE_REMINDER_PASSED_WORDS : null;
+  if (late) {
+    if (!lateReminderPassed(late, days)) return null;
+    return late.behind ? DAY_OF_WORDS_PASSED : LATE_REMINDER_PASSED_WORDS;
+  }
   const day =
     dayHasPassed(run, days.today) ??
     (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
@@ -422,6 +433,9 @@ export function toApprovalVM(
     if (item.kind === "visit") {
       const words = appointmentWords(opts.playbook.word);
       rules.push(opts.playbook.trigger === "visit_tomorrow" ? words.eachTomorrow : words.eachYesterday);
+    } else if (isOccasionTrigger(item.id)) {
+      // An occasion's message is owed once for the occasion (decision 0119): no gap, no week's breath, no cap.
+      rules.push(occasionWords(item.id, opts.playbook.word).each);
     } else if (item.kind === "deal") {
       // One follow-up per proposal, with its link (0006).
       rules.push(

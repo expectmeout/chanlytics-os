@@ -37,25 +37,29 @@ export async function findOwnLine(
 }
 
 /**
- * Every workspace's lines that can have texts, as ownLineOf reads one (not a number the business kept at its carrier, not
- * one whose provisioning failed, and one with a number): what the texts sweep reads each line's record of received texts
- * for (apps/edge/lib/sms/texts-sweep.ts). A read that fails throws.
+ * The lines that can have texts, as ownLineOf reads one (not a number the business kept at its carrier, not one whose
+ * provisioning failed, and one with a number), of every workspace or of one: the texts sweep's clock hands each workspace
+ * with one a job, and that job reads each of its lines' record of received texts (apps/edge/lib/sms/texts-sweep.ts). A
+ * read that fails throws.
  */
 export async function findLinesThatText(
   db: SupabaseClient<Database>,
+  tenantId?: TenantId,
 ): Promise<
   Pick<
     Database["public"]["Tables"]["lines"]["Row"],
     "id" | "tenant_id" | "e164" | "provider" | "subaccount_sid" | "messaging_service_sid" | "sms_state" | "voice_state"
   >[]
 > {
-  const { data, error } = await db
+  const lines = db
     .from("lines")
     .select("id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state")
     .neq("provider", "carrier")
     .neq("voice_state", "failed")
-    .not("e164", "is", null)
-    .order("created_at", { ascending: true });
+    .not("e164", "is", null);
+  const { data, error } = await (tenantId ? lines.eq("tenant_id", tenantId) : lines).order("created_at", {
+    ascending: true,
+  });
   if (error) throw new DbFailure(error, "cannot read the lines that text");
   return data;
 }

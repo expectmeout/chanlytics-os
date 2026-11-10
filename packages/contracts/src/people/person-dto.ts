@@ -309,9 +309,10 @@ export interface PersonDetailDto {
   campaigns?: PersonCampaignDto[];
   /**
    * The sequences they are in now (decision 0060, S5), soonest next first: each with the step they are at and when the
-   * next goes. Absent from a server before it.
+   * next goes. One an occasion enrolled them in (0119) is among them from the moment it did, before anything is sent:
+   * its step goes at a time of their own (`timed`), so their page says the hour too. Absent from a server before it.
    */
-  sequences?: { id: string; name: string; place: number; next_at: string | null }[];
+  sequences?: { id: string; name: string; place: number; next_at: string | null; timed?: boolean }[];
   /** The lead this person was found as, when they were one (leads.contact_id). */
   lead?: PersonLeadDto | null;
   /** The open doubts naming this person (0034 step 4, 00344): another record one identity could belong to, each. Absent from a server before the table. */

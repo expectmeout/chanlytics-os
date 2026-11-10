@@ -80,6 +80,21 @@ export {
 } from "./lead-words";
 export type { LeadWordsAnswer } from "./lead-words";
 export {
+  deferOccasion,
+  enrolOccasion,
+  findBookedSince,
+  findMessageSentTo,
+  findOccasionAppointment,
+  findWaitingBatchOf,
+  leaveOccasions,
+  listOccasionsDue,
+  listOccasionSteps,
+  listWaitingOccasions,
+  settleOccasion,
+  withComing,
+} from "./occasions";
+export type { DueOccasion, OccasionAppointment, OccasionEnrolled, OccasionStep, WaitingOccasion } from "./occasions";
+export {
   findOffersAnswer,
   recordCarrierOptOut,
   recordLateCarrierOptOut,

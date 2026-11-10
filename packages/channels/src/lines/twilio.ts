@@ -455,26 +455,43 @@ async function sendSms(
   };
 }
 
-/** How many of a number's latest texts one read asks for: Twilio lists them newest first. */
-const RECENT_TEXTS_PAGE = "20";
+/** How many of a number's latest texts one page asks for: Twilio lists them newest first. */
+const RECENT_TEXTS_PAGE = "50";
+/**
+ * The most pages one read follows back towards its moment: two hundred and fifty texts, more than a day of a busy line.
+ * Past it the oldest are not read: bounded, so one line's record never holds a job past its deadline.
+ */
+const RECENT_TEXTS_PAGES = 5;
+
+/** One row of a number's Messages as a text it received, or none: an inbound one with a sid, a sender and a time. */
+function receivedTextOf(m: Record<string, unknown>): ReceivedText[] {
+  const sid = str(m, "sid");
+  const from = str(m, "from");
+  const body = str(m, "body");
+  const atMs = Date.parse(str(m, "date_sent") ?? "");
+  if (str(m, "direction") !== "inbound" || !sid || !from || body === null || Number.isNaN(atMs)) return [];
+  return [{ sid, from, body, atMs }];
+}
 
 /**
  * The texts that arrived on a number (Twilio's Messages, filtered by `To`), since a moment: the inbound ones with a sid, a
  * sender and a time (`date_sent`, RFC 2822). The filter by date is ours: Twilio's own takes a day, and a code is wanted
- * within minutes.
+ * within minutes. Twilio pages them newest first, so a read follows `next_page_uri` until a page reaches past the moment,
+ * there is none, or RECENT_TEXTS_PAGES are read: a line that took more than one page in an outage is read back whole.
  */
 async function recentTexts(http: TwilioHttp, acct: ProviderAccount, to: string, sinceMs: number) {
-  const url = `${twilioUrls.messages(acct.sid)}?${new URLSearchParams({ To: to, PageSize: RECENT_TEXTS_PAGE })}`;
-  const reply = need(await http(acct, "GET", url), "list received texts");
-  return rowsOf(reply, "messages").flatMap((m): ReceivedText[] => {
-    const sid = str(m, "sid");
-    const from = str(m, "from");
-    const body = str(m, "body");
-    const atMs = Date.parse(str(m, "date_sent") ?? "");
-    if (str(m, "direction") !== "inbound" || !sid || !from || body === null || Number.isNaN(atMs) || atMs < sinceMs)
-      return [];
-    return [{ sid, from, body, atMs }];
-  });
+  const texts: ReceivedText[] = [];
+  let url: string | null =
+    `${twilioUrls.messages(acct.sid)}?${new URLSearchParams({ To: to, PageSize: RECENT_TEXTS_PAGE })}`;
+  for (let page = 0; url && page < RECENT_TEXTS_PAGES; page += 1) {
+    const reply = need(await http(acct, "GET", url), "list received texts");
+    const rows = rowsOf(reply, "messages");
+    texts.push(...rows.flatMap(receivedTextOf).filter((text) => text.atMs >= sinceMs));
+    const oldestMs = Date.parse(str(rows.at(-1) ?? null, "date_sent") ?? "");
+    const nextPage = str(reply, "next_page_uri");
+    url = nextPage && !(oldestMs < sinceMs) ? new URL(nextPage, API).toString() : null;
+  }
+  return texts;
 }
 
 export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {

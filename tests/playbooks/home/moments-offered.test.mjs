@@ -51,6 +51,10 @@ test("which moments a new playbook may start from: none retired, the proposal's 
     "saved_list",
     "proposal_waiting",
     "slot_opened",
+    // The three an occasion starts (decision 0119): read off the record, so offered where a calendar is.
+    "visit_soon",
+    "visit_missed",
+    "asked_no_booking",
   ]);
   for (const calendarOn of [false, true]) {
     const here = OFFERED(calendarOn);
@@ -95,7 +99,16 @@ test("an appointment moment is offered only where a calendar is connected: witho
 test("the moments a calendar decides are one set: the two win-backs, the appointment moments and a freed time, and no other moment's offer turns on it", () => {
   assert.deepEqual(
     PLAYBOOK_TRIGGERS.filter(momentReadsCalendar).map((t) => t.id),
-    ["quiet_30", "visit_tomorrow", "visited", "lapsed", "slot_opened"],
+    [
+      "quiet_30",
+      "visit_tomorrow",
+      "visited",
+      "lapsed",
+      "slot_opened",
+      "visit_soon",
+      "visit_missed",
+      "asked_no_booking",
+    ],
   );
   const outside = (calendarOn) => OFFERED(calendarOn).filter((id) => !momentReadsCalendar(triggerOf(id)));
   assert.deepEqual(outside(false), outside(true), "the calendar changes nothing else");
@@ -256,7 +269,13 @@ const inOrder = (ids) => [...ids].sort((a, b) => IDS.indexOf(a) - IDS.indexOf(b)
  * and the proposal follow-up is a line of the journey once a deal is on file (its proposal stage, journeyOf).
  */
 const ONHOME = (calendarOn, hasDeals = false) =>
-  OFFERED(calendarOn).filter((id) => id !== "saved_list" && (hasDeals || id !== "proposal_waiting"));
+  OFFERED(calendarOn).filter(
+    (id) =>
+      id !== "saved_list" &&
+      (hasDeals || id !== "proposal_waiting") &&
+      // A sequence an occasion starts is made in New (decision 0119): the home's journey has no line for one yet.
+      triggerOf(id).kind !== "occasion",
+  );
 
 test("the surface says which moments a new playbook may start from, by the workspace's calendar: connected counts whether or not its feed reads just now; every moment that may run stays, so a card can read its own", async () => {
   for (const [calendar, on] of [
@@ -682,6 +701,9 @@ test("the home's input from GET playbooks is the one reading it was: the shape, 
       "saved_list",
       "proposal_waiting",
       "slot_opened",
+      "visit_soon",
+      "visit_missed",
+      "asked_no_booking",
     ],
     number: true,
   });
