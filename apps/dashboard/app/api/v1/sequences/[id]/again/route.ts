@@ -7,7 +7,7 @@ import { findLeadChainAgain, setLeadChainAgain } from "@/server/campaigns/sequen
  * GET /api/v1/sequences/:id/again — whether a sequence to leads tries a business that never answered again, after how
  * many days, and who would come back and from when (decision 0120, D6), read as How it runs opens. Any member.
  * POST /api/v1/sequences/:id/again — { days }: try again after 90 to 365 days, or never (null), through the member's own
- * session (00601 reach_out_again_set, which asks that they may approve). Turned on, its words wait for an OK once more.
+ * session (00602 reach_out_again_set, which asks that they may approve). Turned on, its words wait for an OK once more.
  * Owner or operator. Both answer what the sheet says.
  */
 export const GET = read({

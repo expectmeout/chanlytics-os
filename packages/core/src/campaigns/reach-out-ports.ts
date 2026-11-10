@@ -24,7 +24,7 @@ export interface ReachOutStep {
   include_unconfirmed: boolean;
   /**
    * The chain's (its root's, decision 0120): after how many days a business that never answered is written to once more,
-   * or null, written to once. Absent from a row read before 00601.
+   * or null, written to once. Absent from a row read before 00602.
    */
   again_after_days?: number | null;
   after_playbook_id: string | null;

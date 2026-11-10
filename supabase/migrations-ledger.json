@@ -75,9 +75,10 @@
     "00589": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
     "00590": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
     "00591": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
-    "00596": "claimed by cm-content-library (files/the-library-in-the-database, a library is searched where it is kept), open and not on main when cold email runs itself (decision 0120) took 00599 above them; it lands above or beside it",
-    "00597": "claimed by cm-person-steps (sequences/a-time-for-each-person, an occasion enrols a person, decision 0119), open and not on main when cold email runs itself (decision 0120) took 00599 above them; it lands before it",
-    "00598": "claimed by cm-person-steps (sequences/a-time-for-each-person, an occasion enrols a person, decision 0119), open and not on main when cold email runs itself (decision 0120) took 00599 above them; it lands before it"
+    "00596": "claimed by cm-content-pieces (content/pieces-and-moments, the team adds photos and videos), open and not on main when cold email runs itself (decision 0120) took 00600 above them; it lands above or beside it",
+    "00597": "claimed by cm-content-library (files/the-library-in-the-database, a library is searched where it is kept), open and not on main when cold email runs itself (decision 0120) took 00600 above them; it lands above or beside it",
+    "00598": "claimed by cm-person-steps (sequences/a-time-for-each-person, an occasion enrols a person, decision 0119), open and not on main when cold email runs itself (decision 0120) took 00600 above them; it lands before it",
+    "00599": "claimed by cm-person-steps (sequences/a-time-for-each-person, an occasion enrols a person, decision 0119), open and not on main when cold email runs itself (decision 0120) took 00600 above them; it lands before it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -601,10 +602,10 @@
     "00593_an_address_a_customer_gives_is_kept_where_none_is.sql": "7aba12cf4e92693015b96c692138ccdfc9311409f0ffc729a6d5c935f0055f1b",
     "00594_a_text_twilio_could_not_hand_us_is_taken_in.sql": "205272c407569eb819b742e78b5b58f828d592f61d146b7aa49c13accdf8e8ef",
     "00595_the_wires_are_proved_once_a_day.sql": "8f895248eaa2003b1e8d3e55068b93bda5de896d53fed6ccf95323ce573e9744",
-    "00599_a_sequence_to_leads_may_send_on_its_own.sql": "813631c2ddfbd4329f190091bf79f45f3bd13fe675d7f6edd4d4221b57e9df7f",
-    "00600_a_step_s_note_is_kept_on_its_thread.sql": "1d6224df26e7fe59812c908eeb3339e550022322936bf50a83733240edb89527",
-    "00601_a_business_that_never_answered_may_be_tried_again.sql": "89bf8d98e25f354a9c812ccb8632c6cbc0c65f1b95d44cdf31ec624b61267435",
-    "00602_one_first_email_a_lead_a_round.sql": "412c86f8ad6f329fd51d32cd6e70d5ebb9a5f9cadd11c88345ecc35f8b692a6d",
-    "00603_the_first_round_s_index_goes.sql": "2a4919abd6dc91a892b7a2ee86a24b5c1f0d4f94cf0c1ea347650c70ea5de058"
+    "00600_a_sequence_to_leads_may_send_on_its_own.sql": "73f379d30ed5cf9991049d768ff94b9c10aa811788dbd7069a11fbcb75cb1bd9",
+    "00601_a_step_s_note_is_kept_on_its_thread.sql": "fa1cce033a48eeac12c030a276db5f69baad180cd1b7ff992359748814dfc524",
+    "00602_a_business_that_never_answered_may_be_tried_again.sql": "e6ed90c2c0a4633099360f4c9b9f40289784a73084a969942618032700d5da9a",
+    "00603_one_first_email_a_lead_a_round.sql": "dec22bdea38d1162a48f1ecb0b07b7a5928a111140729096f7005749c5580775",
+    "00604_the_first_round_s_index_goes.sql": "bbc22a5d64024c6d15f5698dfa1f3e9e74046ac0262dce5158cf259b60639b32"
   }
 }

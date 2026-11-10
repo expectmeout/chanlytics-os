@@ -2685,7 +2685,7 @@ begin
     raise exception 'Playbook not found.' using errcode = 'P0002';
   end if;
   -- The sequence's mode as it stands, locked too, on the caller's rights (the sequences' update policy). A one-off has
-  -- none: pressing Send decided it. A sequence to leads takes any of the three since 00599 (decision 0120).
+  -- none: pressing Send decided it. A sequence to leads takes any of the three since 00600 (decision 0120).
   if v_mode is not null then
     select q.mode into v_mode_was
       from public.sequences q
@@ -23075,7 +23075,7 @@ CREATE FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  -- Who this sequence would try again, and from when (00601, decision 0120): the businesses its first email wrote to that
+  -- Who this sequence would try again, and from when (00602, decision 0120): the businesses its first email wrote to that
   -- reach_out_comes_back would let back once their last email is p_days old (its rules, the age aside), and the moment
   -- the first of them comes back. {count, first_at}.
   with written as (
@@ -23100,7 +23100,7 @@ $$;
 -- Name: FUNCTION reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Who a sequence to leads would try again after p_days, and from when (00601, decision 0120): {count, first_at}, the businesses its first email wrote to that reach_out_comes_back lets back, the age aside. Service role only; the route that asks it checks the caller.';
+COMMENT ON FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Who a sequence to leads would try again after p_days, and from when (00602, decision 0120): {count, first_at}, the businesses its first email wrote to that reach_out_comes_back lets back, the age aside. Service role only; the route that asks it checks the caller.';
 
 
 --
@@ -23145,7 +23145,7 @@ end $$;
 -- Name: FUNCTION reach_out_again_set(p_tenant_id uuid, p_root_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_again_set(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Try again after p_days, or never (null) (00601, decision 0120): a member who may approve sets it on a sequence to leads (its first step''s again_after_days). Turned on, its words wait for an OK once more (words_ok_at cleared). Answers {root_id, again_after_days}.';
+COMMENT ON FUNCTION public.reach_out_again_set(p_tenant_id uuid, p_root_id uuid, p_days integer) IS 'Try again after p_days, or never (null) (00602, decision 0120): a member who may approve sets it on a sequence to leads (its first step''s again_after_days). Turned on, its words wait for an OK once more (words_ok_at cleared). Answers {root_id, again_after_days}.';
 
 
 --
@@ -23189,7 +23189,7 @@ CREATE FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_
      order by sm.lead_id, case sm.fit when 'strong' then 0 when 'look' then 1 when 'long' then 2 else 3 end
   ),
   -- Who has a reason, once (00572's hash), and of those refused as written to before (closed in nurture, a customer by
-  -- their own person, or written), the ones its sequence tries again after p_again_after days (00601, decision 0120): a
+  -- their own person, or written), the ones its sequence tries again after p_again_after days (00602, decision 0120): a
   -- business that never answered, once, never a third time, each reason asked again by reach_out_comes_back.
   refused as materialized (
     select w.lead_id, w.why
@@ -23219,7 +23219,7 @@ $$;
 -- Name: FUNCTION reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean, p_again_after integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean, p_again_after integer) IS 'Who a reach-out''s first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): the qualified, counted, unblanked members of its one search that reach_out_why_not lets go, strongest fit first, then the longest found; and, given p_again_after (00601), those refused only as written that reach_out_comes_back lets back, after the new ones. Service role only.';
+COMMENT ON FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean, p_again_after integer) IS 'Who a reach-out''s first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): the qualified, counted, unblanked members of its one search that reach_out_why_not lets go, strongest fit first, then the longest found; and, given p_again_after (00602), those refused only as written that reach_out_comes_back lets back, after the new ones. Service role only.';
 
 
 --
@@ -23683,7 +23683,7 @@ CREATE FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[],
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  -- Of these leads, each written to before, those that may be written to once more (00601, decision 0120). A lead written to
+  -- Of these leads, each written to before, those that may be written to once more (00602, decision 0120). A lead written to
   -- reads to reach_out_why_not as closed (it is in nurture), or as a customer (the person its first email made holds its
   -- address), as often as written, so each reason is asked here again, the lead's own person aside: still there, in
   -- ready or nurture with nothing closing it, nobody else in People holding its address or its number, not on the
@@ -23736,7 +23736,7 @@ $$;
 -- Name: FUNCTION reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer) IS 'Of leads written to before, those a sequence may write to once more (00601, decision 0120): every email p_after_days old or more and none on its way, none of a second round, none bounced, none answered, sharing with no other lead, and a checked, good address. Asked only of leads reach_out_why_not refuses as written, whose earlier reasons stand. Service role only.';
+COMMENT ON FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer) IS 'Of leads written to before, those a sequence may write to once more (00602, decision 0120): every email p_after_days old or more and none on its way, none of a second round, none bounced, none answered, sharing with no other lead, and a checked, good address. Asked only of leads reach_out_why_not refuses as written, whose earlier reasons stand. Service role only.';
 
 
 --
@@ -23967,7 +23967,7 @@ CREATE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_p
                                where e2.tenant_id = p_tenant_id and e2.sequence_id = s.sequence_id and e2.lead_id = l.id
                                  and e2.state = 'in' and e2.next_at <= now())))
          and s.contact_id is not null
-         -- A first round's email alone is followed up (00601): a business tried again gets that one email, and no more.
+         -- A first round's email alone is followed up (00602): a business tried again gets that one email, and no more.
          and s.round = 1
          -- Only someone whose place in the sequence still stands (00455): taken out, stopped or passed over is not
          -- followed up, even with nothing of theirs pending when they left.
@@ -24664,7 +24664,7 @@ begin
                                       send_at, state, reason, round)
   select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.mailbox_id, x.send_at,
          coalesce(x.state, 'planned'), x.reason,
-         -- A first email's round (00601): one more than the lead's last first email of any sequence, so a business tried
+         -- A first email's round (00602): one more than the lead's last first email of any sequence, so a business tried
          -- again after it never answered has its second; a later step's email is of its first round.
          case when v_step = v_root
               then 1 + coalesce((select max(p.round) from public.sequence_sends p

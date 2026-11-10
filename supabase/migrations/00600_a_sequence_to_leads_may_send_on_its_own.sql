@@ -1,4 +1,4 @@
--- 00599 · A sequence to leads may send on its own (decision 0120, stage 3 of "one timeline per person").
+-- 00600 · A sequence to leads may send on its own (decision 0120, stage 3 of "one timeline per person").
 --
 -- Cold email only ever waited for an OK or held each batch thirty minutes: change_playbook refused Send it for a sequence
 -- to leads (00462). Its owner may now choose it, on a sequence that exists and whose emails they have seen go.
@@ -81,7 +81,7 @@ begin
     raise exception 'Playbook not found.' using errcode = 'P0002';
   end if;
   -- The sequence's mode as it stands, locked too, on the caller's rights (the sequences' update policy). A one-off has
-  -- none: pressing Send decided it. A sequence to leads takes any of the three since 00599 (decision 0120).
+  -- none: pressing Send decided it. A sequence to leads takes any of the three since 00600 (decision 0120).
   if v_mode is not null then
     select q.mode into v_mode_was
       from public.sequences q
