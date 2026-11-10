@@ -290,6 +290,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-15",
   },
   {
+    name: "content_preview",
+    mechanism: "workspace_feature",
+    does: "Connect Meta offered in this workspace (decision 0117): one connection for its Instagram account's DMs, posts, sounds, comments and numbers, through Meta's Unified Login. Off, Connections shows the Instagram row as before and the edge refuses the Meta door. On for Chanlytics' own workspace until Meta's App Review passes.",
+    owner: "Ruben",
+    sunset: "2027-01-31",
+  },
+  {
     name: "ads_preview",
     mechanism: "workspace_feature",
     does: "Campaigns › Ads (its page, its Reports lens, Ad accounts in Connections) drawn in this workspace before the Ads read is wired (0049): it opens on what is true, nothing connected and its own counts, and its sample is a press away.",

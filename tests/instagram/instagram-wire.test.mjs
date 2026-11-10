@@ -159,13 +159,14 @@ test("each answer is read as Meta gives it, and a refusal throws Meta's own word
 test("a person's name is read once they wrote, and a profile that cannot be read costs the message nothing", async () => {
   resetBreakers();
   const ok = network({ status: 200, json: { name: "Dana Ruiz", username: "dana", id: "6000" } });
-  assert.equal(await readInstagramName("long", "6000", { fetch: ok.fetch }), "Dana Ruiz");
+  const account = { accessToken: "long", accountId: "17841400000000009" };
+  assert.equal(await readInstagramName(account, "6000", { fetch: ok.fetch }), "Dana Ruiz");
   assert.match(ok.asked[0].url, /\/v26\.0\/6000\?fields=name%2Cusername&access_token=long$/);
   const refused = network({
     status: 400,
     json: { error: { message: "User consent is required to access user profile", code: 230 } },
   });
-  assert.equal(await readInstagramName("long", "6000", { fetch: refused.fetch }), null);
+  assert.equal(await readInstagramName(account, "6000", { fetch: refused.fetch }), null);
 });
 
 test("a reply that fits is one DM; a longer one is cut at a paragraph, a sentence or a word, never inside a character", () => {

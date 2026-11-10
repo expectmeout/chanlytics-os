@@ -2,7 +2,7 @@
  * The approval a run waits on: its view model, the pool it drew from and the lines that say who it reaches. Moved
  * whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
-import { audienceTrigger } from "../broadcasts/audience";
+import { audienceLate, audienceTrigger } from "../broadcasts/audience";
 import type { BroadcastDto, BroadcastRecipientDto } from "../broadcasts/broadcasts";
 import { BREATH_WHY } from "../broadcasts/run-words";
 import { purposeOfPlaybook } from "../../consent/consent";
@@ -299,6 +299,20 @@ function visitRunTooLate(run: { run_for?: string | null; audience?: unknown }, d
   return approvalEndsWithSendingHours(audienceTrigger(run.audience)) && !!run.run_for && days.sendsOn > run.run_for;
 }
 
+/** Why a late booking's reminder is refused (0118): an approval now would send it too late to be one. */
+const LATE_REMINDER_PASSED_WORDS =
+  "It is too late for this reminder: approved now it would arrive on a later day than its words say, or after the appointment has begun. Skip it; nothing later sends it in its place.";
+
+/**
+ * Whether an approval now comes too late for a late booking's reminder (0118). Its batch has no day of its own, so it is
+ * read by what its audience keeps: it would go on a later day than the one its words were written for (a visit's rule,
+ * visitRunTooLate), or its visit has begun by the moment it would go.
+ */
+function lateReminderPassed(late: { start: string; day: string }, days: ApprovalDays): boolean {
+  if (days.sendsOn > late.day) return true;
+  return days.sendsAt !== undefined && Date.parse(late.start) <= days.sendsAt;
+}
+
 /**
  * Why a waiting playbook's run cannot be approved now, in one sentence, or null: its day has passed (dayHasPassed), or it
  * is a visit's run that an approval now would send on a later day than the one it was made for (visitRunTooLate). THE
@@ -315,6 +329,9 @@ export function runApprovalRefusal(
   // A freed time's batch has no day of its own (0082): it is refused once the time it offers has come by its send.
   const offered = run.offered_start ? Date.parse(run.offered_start) : Number.NaN;
   if (Number.isFinite(offered) && days.sendsAt !== undefined && offered <= days.sendsAt) return FREED_TIME_PASSED_WORDS;
+  // Nor has a late booking's reminder (0118): the day its words name and its visit's start are its audience's.
+  const late = audienceLate(run.audience);
+  if (late) return lateReminderPassed(late, days) ? LATE_REMINDER_PASSED_WORDS : null;
   const day =
     dayHasPassed(run, days.today) ??
     (run.playbook_id && run.run_for && visitRunTooLate(run, days) ? run.run_for : null);
@@ -443,7 +460,8 @@ export function toApprovalVM(
   // later day than it was made for. A paused workspace is refused first, as approveRun refuses it first.
   const late = runApprovalRefusal(broadcast, { today: opts.today, sendsOn: opts.open.on, say: opts.day });
   const refusal = opts.paused ? CAMPAIGNS_PAUSED_WORDS : late;
-  const runFor = broadcast.run_for ?? "";
+  // A late booking's reminder has no day of its own (0118): the day its words were written for is its audience's.
+  const runFor = broadcast.run_for ?? audienceLate(broadcast.audience)?.day ?? "";
   const goes = late
     ? `made for ${opts.day(runFor)}`
     : opts.paused

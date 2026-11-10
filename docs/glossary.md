@@ -211,6 +211,7 @@ One name for one thing, in every tree: a folder directly under a package's `src`
 | `connections`      | Connecting the lines, mailboxes and accounts a workspace uses                 |
 | `consent`          | Who has said yes to what                                                      |
 | `console`          | The back office: platform staff's view of every workspace                     |
+| `content`          | What a business posts, and the Meta connection its Instagram posting rides on |
 | `conversations`    | Threads, messages and holds                                                   |
 | `deals`            | A person's deals and the pipeline                                             |
 | `deliver`          | The one door a message leaves through                                         |

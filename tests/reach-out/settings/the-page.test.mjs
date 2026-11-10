@@ -975,7 +975,10 @@ test("Before each batch writes Autonomy's outreach row, and says where the rest 
     if (u.includes("/policies") && init?.method === "PUT") puts.push(JSON.parse(init.body));
     return Promise.resolve(
       new Response(
-        JSON.stringify({ ok: true, data: u.includes("settings/reach-out") ? { ...READ, batch_mode: "veto" } : {} }),
+        JSON.stringify({
+          ok: true,
+          data: u.includes("settings/reach-out") ? { ...READ, batch_mode: puts.length ? "ask" : "veto" } : {},
+        }),
         {
           status: 200,
           headers: { "content-type": "application/json" },
@@ -998,6 +1001,12 @@ test("Before each batch writes Autonomy's outreach row, and says where the rest 
   press(byTestId(redrawTab(), "rec-inline-save-batch_mode") ?? byTestId(redrawTab(), "rec-fold-save-batch_mode"));
   await until(() => puts.length === 1, "the write");
   assert.deepEqual([puts[0].class, puts[0].mode], ["outreach", "ask"]);
+  // The page reads again once its write lands, and the row says what was saved. The test stays until it does: a write
+  // left in the air lands in the next test, where this page's read-again would be taken for that page's own.
+  await until(
+    () => /Waits for your OK/.test(textOf(byTestId(redrawTab(), "rec-row-batch_mode") ?? "")),
+    "the saved mode, read again and said",
+  );
   unmount();
 });
 
@@ -1019,8 +1028,9 @@ test("a first read that fails says so and offers a retry, and the retry draws th
   let tree = drawTab({ part: "outreach", config: { reach_out: REACH_OUT } });
   await until(() => {
     tree = redrawTab();
-    return byTestId(tree, "rec-outreach-read-failed");
-  }, "the failed read, said");
+    const retry = byTestId(tree, "rec-outreach-read-retry");
+    return byTestId(tree, "rec-outreach-read-failed") && retry && !retry.props.disabled;
+  }, "the failed read, said, with a retry free to press");
   assert.match(textOf(byTestId(tree, "rec-outreach-read-failed")), /Couldn't read Cold email/);
   assert.equal(byTestId(tree, "rec-standing"), null, "no empty card where the answer would be");
   down = false;

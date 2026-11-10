@@ -41,6 +41,7 @@ export {
 } from "./email-offers";
 export type { OffersYesOutcome, Unsubscribed } from "./email-offers";
 export { findFreedTimeBatch, findFreedTimeFacts, findFreedTimeStep, getCancellationsSince } from "./freed-times";
+export { findBookingForReminder, findReminderOfVisit, findReminderStep } from "./late-reminders";
 export {
   claimPreview,
   doesMakePreviews,

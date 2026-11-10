@@ -75,7 +75,14 @@ interface TableData {
         verified_name: string | null;
         by: string | null;
       }
-    | { kind: "instagram"; account_id: string; username: string | null; by: string | null };
+    | {
+        kind: "instagram";
+        account_id: string;
+        username: string | null;
+        by: string | null;
+        /** Present where it was connected through Meta (the Meta link); absent through Instagram's own login. */
+        login?: "meta";
+      };
   /** Three kinds have SQL writers too: their one shape and version are contracts' (workspace/event-data.ts). */
   "contact.added": ContactAddedData;
   "contact.consent_changed": ContactConsentChangedData;

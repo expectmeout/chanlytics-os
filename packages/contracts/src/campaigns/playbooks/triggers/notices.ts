@@ -138,6 +138,18 @@ export function skippedRunNotice(
 }
 
 /**
+ * What the owner is told when the sweep skips a late booking's reminder that waited for an OK (decision 0118): it did not
+ * go, and nothing later sends it, since the day's own batch was made before the booking. Its wait ended with the sending
+ * hours of the day its words named, or when the appointment began, so it says neither hour.
+ */
+export function lateReminderSkippedNotice(name: string, people: number): { subject: string; body: string } {
+  return {
+    subject: `“${name}” didn’t go: nobody approved it`,
+    body: `${plural(people, "person", "people")} booked after the day’s reminders went, and the reminder made for them waited for your OK until it was too late to send: it did not reach them, and no later batch sends it in its place. Open it to see who, and write to them yourself. The next “${name}” waits for your OK too: ${NEXT_BATCH_WAITS}.`,
+  };
+}
+
+/**
  * A freed time's batch stopped before it went because the time was booked since it was offered (decision 0082), told once,
  * as a stopped run is. `at` is the time in the business's words ("Tue 3:00 PM").
  */

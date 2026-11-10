@@ -23,8 +23,10 @@
  * and until DAY_PASSED_UNTIL_MS. A paused or ended workspace's are skipped too: the day passed whatever the standing. Its "is
  * ready" line on the bell reads as read (contracts notice-closes.ts), and the owner is told it did not go (contracts
  * skippedRunNotice, decision 0064: nothing is skipped in silence), on the bell and by mail as the ready line was; its people
- * are in line again (00453), but for a visit's, whom no later batch names: its notice says it did not reach them. A read that
- * fails is logged (runs_day_passed_read_failed) and the hand-out still happens (the wiring's second audit, S7-3).
+ * are in line again (00453), but for a visit's, whom no later batch names: its notice says it did not reach them. A late
+ * booking's reminder (decision 0118) has no day: it ends once an approval would send it on a later day than its words name,
+ * or after its visit began, and its notice says so. A read that fails is logged (runs_day_passed_read_failed) and the
+ * hand-out still happens (the wiring's second audit, S7-3).
  *
  * Answers: 503 without a database, 401 or 503 at the door, and 500 when the moments cannot be handed out (an edge deployed
  * ahead of 00569 fails loudly, not quietly). Steps that cannot be handed out are logged (reach_outs_read_failed) and the
@@ -41,8 +43,10 @@ import { cancelBroadcast } from "@chanlytics/core";
 import {
   AppError,
   addressOf,
+  audienceLate,
   audienceTrigger,
   clockNearWhen,
+  lateReminderSkippedNotice,
   runDaysAt,
   runTooLate,
   skippedRunNotice,
@@ -134,14 +138,17 @@ async function tellSkipped(
   now: Date,
 ) {
   const about = row.audience && typeof row.audience === "object" ? (row.audience as { label?: unknown }).label : null;
+  const name = typeof about === "string" && about ? about : row.name;
   // Its moment, as the run kept it: a visit's people are not in line for a later batch, and the notice says so; a freed
-  // time's says the time it offered.
-  const notice = skippedRunNotice(
-    typeof about === "string" && about ? about : row.name,
-    row.recipient_count,
-    audienceTrigger(row.audience),
-    row.offered_start ? clockNearWhen(Date.parse(row.offered_start), row.timezone, now.getTime()) : null,
-  );
+  // time's says the time it offered; a late booking's reminder says nothing later sends it (0118).
+  const notice = audienceLate(row.audience)
+    ? lateReminderSkippedNotice(name, row.recipient_count)
+    : skippedRunNotice(
+        name,
+        row.recipient_count,
+        audienceTrigger(row.audience),
+        row.offered_start ? clockNearWhen(Date.parse(row.offered_start), row.timezone, now.getTime()) : null,
+      );
   try {
     const target = await loadTenantNotifications(db, row.tenant_id);
     await notify(

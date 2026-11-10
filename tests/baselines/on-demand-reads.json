@@ -240,6 +240,16 @@
     "fresh": "The address the browser is sent to, to sign in with Instagram.",
     "why": "A step away to Instagram's own consent screen, not a read the page draws; the account it connects is told by the feed (tenant_channels)."
   },
+  "apps/dashboard/src/surfaces/settings/frame/pane-reads.ts GET channels/meta": {
+    "kind": "on-open",
+    "fresh": "Read each time Settings › Connections opens and as its row is reached for; the tab keeps the last answer to draw the row first; the edge's answer is kept five minutes per workspace (READY_TTL_MS).",
+    "why": "It says whether this workspace may connect Meta and whether this member may: the app's login as configured on the edge and the workspace's content_preview switch, which change with a deploy or Ruben's word, not with a record; the account it connects is told by the feed (tenant_channels)."
+  },
+  "apps/dashboard/src/surfaces/settings/connections/meta.ts GET channels/meta/connect": {
+    "kind": "link",
+    "fresh": "The address the browser is sent to, to sign in through Meta.",
+    "why": "A step away to Meta's own dialog, not a read the page draws; the account it connects is told by the feed (tenant_channels)."
+  },
   "apps/dashboard/src/surfaces/settings/connections/record.ts GET business-record": {
     "kind": "on-open",
     "fresh": "Read as the business record's sheet opens.",

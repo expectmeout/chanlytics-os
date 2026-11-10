@@ -167,6 +167,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "mailbox_connect_failed",
   "member_joined_not_recorded",
   "message_version_not_filed",
+  "meta_connect_failed",
   "native_sign_in_failed",
   "native_sign_in_rate_limited",
   "native_sign_in_refused",

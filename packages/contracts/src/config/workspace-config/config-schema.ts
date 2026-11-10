@@ -117,6 +117,8 @@ export const FeaturesConfigSchema = z
     ads_preview: z.boolean().optional(),
     /** A business's videos taken in this workspace (decision 0099, stage B; contracts files/video.ts videoPreviewOf). */
     video_preview: z.boolean().optional(),
+    /** Connect Meta offered in this workspace (decision 0117; the edge's lib/instagram/meta-connect.ts contentPreviewOf). */
+    content_preview: z.boolean().optional(),
     /**
      * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
      * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.

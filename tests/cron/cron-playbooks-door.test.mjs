@@ -1112,6 +1112,38 @@ test("a freed time that has come is ended behind a page of the day's runs still 
   assert.equal(w.tables.broadcasts.filter((b) => b.state === "pending_approval").length, 60);
 });
 
+test("a late booking's reminder nobody approved ends when its visit begins (0118), told that nothing later sends it; one still in time waits on", async () => {
+  const NY = "America/New_York";
+  const w = world();
+  workspace(w.tables, A, NY, "ask");
+  // It has neither a day nor a time it offers: its visit, and the day its words were written for, are its audience's.
+  const late = (id, startMs, dayMs) => ({
+    ...{ id, tenant_id: A, playbook_id: `pb-${id}`, name: "Appointment reminder · a visit" },
+    ...{ state: "pending_approval", run_for: null, recipient_count: 1, created_at: iso(3 * H) },
+    audience: {
+      ...{ kind: "playbook", id: `pb-${id}`, label: "Appointment reminder", trigger: "visit_tomorrow" },
+      late: { appointment: `appt-${id}`, start: new Date(startMs).toISOString(), day: localDate(NY, new Date(dayMs)) },
+    },
+  });
+  w.tables.broadcasts.push(
+    late("run-begun", Date.now() - H, Date.now()),
+    late("run-ahead", Date.now() + 3 * D, Date.now() + 2 * D),
+  );
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.equal(body.ended, 1, "the one whose visit began, as the system");
+  assert.deepEqual(
+    w.tables.broadcasts.map((b) => [b.id, b.state]),
+    [
+      ["run-begun", "canceled"],
+      ["run-ahead", "pending_approval"],
+    ],
+  );
+  const [told] = bellOf(w, A).filter((n) => n.subject_id === "run-begun");
+  assert.equal(told.title, "“Appointment reminder” didn’t go: nobody approved it");
+  assert.match(told.body, /^1 person booked after the day’s reminders went, .+ no later batch sends it in its place\./);
+});
+
 test("two playbooks due in the same hour keep the week's breath between them: the second leaves out whoever the first just enrolled, and keeps whoever it did not (P1 3)", async () => {
   // The first reaches one person (its cap); the second would reach all three, and is left with the two the first did not.
   let w = world({ people: { [A]: [person("c1"), person("c2"), person("c3")] } });

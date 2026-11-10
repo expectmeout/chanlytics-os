@@ -127,6 +127,7 @@ packages/contracts/src/
   config/
   consent/
   console/
+  content/
   conversations/
   deals/
   email/

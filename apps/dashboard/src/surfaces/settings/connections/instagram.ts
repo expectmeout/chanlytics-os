@@ -16,39 +16,47 @@ import { instagramDoorRead } from "../frame/pane-reads";
 const doorOf = async () => unwrap(await instagramDoorRead.read());
 export type InstagramDoor = Awaited<ReturnType<typeof doorOf>>;
 
+/** What a row says alike for what came back from either login (Instagram's own, or Meta's: meta.ts), by the reason. */
+export const CONNECT_WORDS: Readonly<Record<string, string>> = {
+  someone_else: "That connection was started by a different account. Start it again from here.",
+  no_workspace: "The workspace the connection was started for is not one of yours.",
+  instagram_account_taken: "That Instagram account is already connected to another workspace.",
+  credentials_failed: "The connection could not be saved safely, so it was not kept. Try again.",
+  channel_write_failed: "The connection could not be saved. Try again.",
+  preview: "Connecting only works on the production dashboard.",
+};
+
 /** The words the row says for what came back from Instagram, by the outcome or its reason. */
 const OUTCOME_WORDS: Readonly<Record<string, string>> = {
+  ...CONNECT_WORDS,
   connected: "Instagram is connected — the receptionist answers its DMs now.",
   declined: "Instagram did not connect: the sign-in was declined.",
   state_expired: "The way back from Instagram took too long. Start the connection again.",
   state_signature: "The way back from Instagram could not be verified. Start the connection again.",
   state_missing: "The way back from Instagram was incomplete. Start the connection again.",
   state_malformed: "The way back from Instagram was incomplete. Start the connection again.",
-  someone_else: "That connection was started by a different account. Start it again from here.",
   not_owner: "Only an owner or a manager can connect Instagram.",
-  no_workspace: "The workspace the connection was started for is not one of yours.",
   no_code: "Instagram sent nothing back. Start the connection again.",
   exchange_failed: "Instagram did not accept the sign-in. Start the connection again.",
   instagram_messages_not_granted:
     "Instagram connected without its messages. Start again and allow Chanlytics to manage them.",
   instagram_account_unreadable:
     "Instagram did not say which account signed in. Use your professional (business or creator) account and try again.",
-  instagram_account_taken: "That Instagram account is already connected to another workspace.",
   subscribe_failed: "Chanlytics could not subscribe to the account's DMs. Try again in a moment.",
-  credentials_failed: "The connection could not be saved safely, so it was not kept. Try again.",
-  channel_write_failed: "The connection could not be saved. Try again.",
   not_available: "Connecting Instagram is not available here yet.",
-  preview: "Connecting only works on the production dashboard.",
 };
 
-/** What the browser came back from Instagram with, in words, read once and taken off the address; null for nothing. */
-function outcome(): string | null {
+/**
+ * What the browser came back from a login with, under its word in the address (`instagram`, `meta`), in the row's words,
+ * read once and taken off the address; null for nothing.
+ */
+export function loginOutcomeOf(key: string, words: Readonly<Record<string, string>>, provider: string): string | null {
   try {
     const q = new URLSearchParams(window.location.search);
-    const said = q.get("instagram");
+    const said = q.get(key);
     if (!said) return null;
     const why = q.get("why");
-    q.delete("instagram");
+    q.delete(key);
     q.delete("why");
     const rest = q.toString();
     window.history.replaceState(
@@ -56,12 +64,14 @@ function outcome(): string | null {
       "",
       `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`,
     );
-    if (said === "connected") return OUTCOME_WORDS.connected ?? null;
-    return (why && OUTCOME_WORDS[why]) || `Instagram did not connect (${why || "unknown"}).`;
+    if (said === "connected") return words.connected ?? null;
+    return (why && words[why]) || `${provider} did not connect (${why || "unknown"}).`;
   } catch {
     return null;
   }
 }
+
+const outcome = (): string | null => loginOutcomeOf("instagram", OUTCOME_WORDS, "Instagram");
 
 export const igConnect = {
   config: doorOf,
