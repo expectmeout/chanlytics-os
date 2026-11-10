@@ -64,7 +64,7 @@ const { IngestFailed } = await import(at("apps/edge/lib/inbound/persist.ts"));
 const { smsSenderFor } = await import(at("apps/edge/lib/lines/sms.ts"));
 const { deliver } = await import(at("packages/core/dist/index.js"));
 const hook = await import(at("apps/edge/api/inbound-sms.ts"));
-const { sweepUnheardTexts } = await import(at("apps/edge/lib/sms/texts-sweep.ts"));
+const { textsReader } = await import(at("apps/edge/lib/sms/texts-sweep.ts"));
 const { answerText } = await import(at("apps/edge/lib/sms/inbound-text.ts"));
 const { dispatchJob } = await import(at("packages/jobs/dist/index.js"));
 
@@ -1150,7 +1150,7 @@ test("a one-time code is never kept, whatever its verdict: one that comes to a l
 
 /* ------------------------------------------- a text the door could not take in */
 
-test("a text Twilio could not hand the door is taken in by the texts sweep's knock: signed with the line's token, kept, and answered by its job as the late text it is", async () => {
+test("a text Twilio could not hand the door is taken in by its workspace's texts_read knock: signed with the line's token, kept, and answered by its job as the late text it is", async () => {
   const w = world();
   const db = w.open();
   const seen = receptionist();
@@ -1160,20 +1160,17 @@ test("a text Twilio could not hand the door is taken in by the texts sweep's kno
   const sentAt = Date.now() - 3 * 60 * 60 * 1000;
   const record = [{ sid: fields.MessageSid, from, body: fields.Body, atMs: sentAt }];
   const knocks = [];
-  const answer = await sweepUnheardTexts(
-    { db, L: { info() {}, warn() {}, error() {} }, started: Date.now() },
-    {
-      door: async (request) => {
-        knocks.push(request.url);
-        return hook.POST(request, event());
-      },
-      provider: { name: "twilio", provider: { recentTexts: async () => record } },
-      origin: "https://chanlytics-messaging.vercel.app",
-      now: Date.now,
+  const answer = await textsReader(db, {
+    door: async (request) => {
+      knocks.push(request.url);
+      return hook.POST(request, event());
     },
-  );
+    provider: { name: "twilio", provider: { recentTexts: async () => record } },
+    origin: "https://chanlytics-messaging.vercel.app",
+    now: Date.now,
+  }).read({ tenant_id: w.T }, Date.now() + 45_000);
   assert.deepEqual(knocks, [DOOR], "the door Twilio posts to");
-  assert.deepEqual(await answer.json(), { ok: true, lines: 1, read: 1, unheard: 1, taken: 1, failed: 0 });
+  assert.deepEqual(answer, { read: { lines: 1, read: 1, unheard: 1, taken: 1, failed: 0, left: 0 } });
   assert.equal(seen.ingested.length, 1, "its signature held, and the words are on record");
   const [job] = w.tables.jobs ?? [];
   assert.equal(job?.kind, "inbound_answer", "its answer is a job, as any text's is");

@@ -5,7 +5,7 @@
  * is amber, one only coming is quiet. Pure: the clock, the workspace's word for an appointment and what the page has read
  * (who is in line, whether a step's message is still offered) are arguments.
  */
-import type { AppointmentWord } from "../../journey/appointment-word";
+import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
 import { triggerOf } from "../playbooks/triggers/notices";
 import { clockAhead, clockDate, clockTime } from "../../shared/clock";
 import { plural } from "../../shared/words";
@@ -83,15 +83,26 @@ const hourWords = (h: number): string => clockTime(Date.UTC(2026, 0, 1, h), "UTC
  * for a moment over a group of people (gone quiet, lapsed: its kind `list`); the days between runs, for the month's offer
  * (`cadence`). A visit's, a proposal's and a list's sequence have neither: each visit, each proposal, once each. A freed
  * time's (`freed`, decision 0082) runs when a cancellation frees a time, never at an hour: it offers how many people each
- * time goes to, and says how far ahead it offers.
+ * time goes to, and says how far ahead it offers. One an occasion starts (0119) goes to one person at a time, so it keeps
+ * no most-each-day (`cap`), and only the follow-up to an ask keeps an hour (`hour`: the next day's); the two about a
+ * visit go by the visit's own time.
  */
 export function scheduleSettingsOf(row: Pick<SequenceRowDto, "first">): {
   gap: boolean;
   every: boolean;
   freed: boolean;
+  hour: boolean;
+  cap: boolean;
 } {
   const kind = row.first ? triggerOf(row.first.trigger)?.kind : null;
-  return { gap: kind === "list", every: kind === "cadence", freed: kind === "freed" };
+  const occasion = kind === "occasion";
+  return {
+    gap: kind === "list",
+    every: kind === "cadence",
+    freed: kind === "freed",
+    hour: kind !== "freed" && (!occasion || row.first?.trigger === "asked_no_booking"),
+    cap: !occasion,
+  };
 }
 
 /** Each step's day on the rail: the first on day 1, each after it on the day its wait lands. */
@@ -177,8 +188,10 @@ export function scheduleStart(
       name: first?.list_name ?? "the list",
       sub: at ? `Once each · ${at.charAt(0).toLowerCase()}${at.slice(1)}` : "Once each",
     };
-  // A freed time's runs when a cancellation frees one (decision 0082): no hour, and the people it goes to instead.
-  const sub = scheduleSettingsOf(row).freed ? SCHEDULE_WORDS.freedTo : at;
+  // A freed time's runs when a cancellation frees one (decision 0082): no hour, and the people it goes to instead. One
+  // an occasion starts about a visit (0119) goes by that visit's time: once for each, and no hour either.
+  const takes = scheduleSettingsOf(row);
+  const sub = takes.freed ? SCHEDULE_WORDS.freedTo : takes.hour ? at : `Once for each ${appointmentWords(word).one}`;
   return { lead: momentStartsSentence(first?.trigger ?? null, null, word), name: null, sub };
 }
 

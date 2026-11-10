@@ -14,9 +14,9 @@ import {
   jittered,
   messageAboutOfTrigger,
   messageHolds,
+  momentNamesVisit,
   nextOpenMoment,
   resolveParams,
-  triggerOf,
   versionsOf,
   whatsappStoppedRunWords,
   wireFailure,
@@ -343,9 +343,9 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
  * The rest of an evening run WAITS for the open moment, as the pages promise ("Sends wait for 9:00–20:59"): the next batch
  * is placed at nine by the business's clock, the run stays `sending`, and nobody it reached is reached again. Ending it was
  * worse than late: the owner was told to send it again, and that reaches the whole list, those it reached included
- * (broadcastFailureFix). Two runs END (`after_hours`) instead. A visit's, whose words name the day ("tomorrow at 2:00 PM",
- * "yesterday"): at nine the next morning they would be wrong, which is why a late approval of one is refused
- * (contracts runDayPassed). And one that waited (a throttle, a stall) and woke past the hours, as backOff and stall already
+ * (broadcastFailureFix). Two runs END (`after_hours`) instead. One about a visit, a visit's own moment or an occasion's
+ * (contracts momentNamesVisit), whose words name the day ("tomorrow at 2:00 PM", "yesterday"): at nine the next morning
+ * they would be wrong, which is why a late approval of one is refused (contracts runDayPassed). And one that waited (a throttle, a stall) and woke past the hours, as backOff and stall already
  * end it: that wait is the run's own trouble, said as such.
  */
 async function outsideTheHours(
@@ -357,7 +357,7 @@ async function outsideTheHours(
   const open = nextOpenMoment(timezone, new Date(ports.now()));
   if (!open.moved) return false;
   const waited = (cmd.waits ?? 0) > 0 || (cmd.stalls ?? 0) > 0;
-  const dayBound = triggerOf(audienceTrigger(broadcast.audience) ?? "")?.kind === "visit";
+  const dayBound = momentNamesVisit(audienceTrigger(broadcast.audience));
   if (waited || dayBound) await stopAfterHours(ports, broadcast, waited);
   else await ports.scheduleNext(broadcast.id, open.at);
   return true;

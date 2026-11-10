@@ -31,6 +31,7 @@ export type {
   ListCount,
   NewBroadcast,
   NewRecipient,
+  OccasionRun,
   PlaybookRow,
   RunBy,
   RunContext,

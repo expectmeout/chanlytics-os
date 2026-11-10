@@ -289,15 +289,20 @@ export async function runHanded(db: Db, params: { tenantId: TenantId; id: string
   if (error) throw new DbFailure(error, "cannot mark the run handed over");
 }
 
-/** A run whose first email is written: scheduled becomes sending, through its guard's own move. */
-export async function runSending(db: Db, params: { tenantId: TenantId; id: string }): Promise<void> {
-  const { error } = await db
+/**
+ * A run whose first email is written: scheduled becomes sending, through its guard's own move. Answers whether this move
+ * started it: a later email's finds it sending already.
+ */
+export async function runSending(db: Db, params: { tenantId: TenantId; id: string }): Promise<boolean> {
+  const { data, error } = await db
     .from("sequence_batches")
     .update({ state: "sending" })
     .eq("tenant_id", params.tenantId)
     .eq("id", params.id)
-    .eq("state", "scheduled");
+    .eq("state", "scheduled")
+    .select("id");
   if (error) throw new DbFailure(error, "cannot start the run");
+  return data.length > 0;
 }
 
 /** The email a step's send answers (D19): the lead's email on the step before, as its receipt stamped it. */

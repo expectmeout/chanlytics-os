@@ -7,6 +7,7 @@ import { usableZone, zoneParts } from "../../shared/zone/math";
 import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, SENDING_HOURS_END } from "./triggers/kinds";
 import { triggerOf } from "./triggers/notices";
+import { isOccasionTrigger, occasionWords } from "./triggers/occasions";
 import type { PlaybookDto } from "./playbooks";
 import { clockDate, clockHour } from "../../shared/clock";
 import { HOUR_MS } from "../../shared/time";
@@ -140,6 +141,8 @@ export function scheduleLine(
   word: AppointmentWord,
 ): string {
   const at = clockHour(playbook.run_hour);
+  // An occasion's moment keeps no daily hour (decision 0119): each person's message goes at their own time.
+  if (isOccasionTrigger(playbook.trigger)) return occasionWords(playbook.trigger, word).schedule(` at ${at}`);
   if (triggerOf(playbook.trigger)?.kind === "visit") {
     const words = appointmentWords(word);
     return `Daily ${at} · ${playbook.trigger === "visit_tomorrow" ? words.tomorrowWho : words.yesterdayWho} · up to ${playbook.cap_per_run}`;

@@ -29,6 +29,7 @@ import {
   parseParamSpecs,
   playbookName,
   ruleNeeds,
+  momentNamesVisit,
   triggerOf,
   triggerWords,
   UUID,
@@ -128,7 +129,8 @@ async function defaultLabel(
   listName: string | null,
 ): Promise<string> {
   if (listName) return listName;
-  return trig.kind === "visit" ? triggerWords(trig, await ports.appointmentWord()).label : trig.label;
+  // A moment about an appointment, a visit's own or an occasion's (decision 0119), is named in the workspace's word.
+  return momentNamesVisit(trig.id) ? triggerWords(trig, await ports.appointmentWord()).label : trig.label;
 }
 
 /**
@@ -309,7 +311,7 @@ async function patchParams(
   const { specs } = await getTemplateValues(ports, {
     templateId: row.template_id ?? "",
     params: value,
-    visits: trig?.kind === "visit",
+    visits: momentNamesVisit(trig?.id),
     proposal: trig?.kind === "deal",
     freed: trig?.kind === "freed",
   });
@@ -495,7 +497,7 @@ export async function checkPlaybook(
   const { message, specs } = await getTemplateValues(ports, {
     templateId,
     params: body?.params,
-    visits: trig.kind === "visit",
+    visits: momentNamesVisit(trig.id),
     proposal: trig.kind === "deal",
     freed: trig.kind === "freed",
   });

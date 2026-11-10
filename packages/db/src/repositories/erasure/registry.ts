@@ -540,6 +540,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   ),
   // Someone in a sequence: why they left is a send's code or a door's word, never theirs.
   sequence_enrollments: { why: NOT_PERSONAL },
+  // What a sequence owes someone for an occasion (0119): a key of ids and a closed code for why it left, never their
+  // words; the rows are deleted with the person (sequence_occasions_on_erase).
+  sequence_occasions: { occasion: NOT_PERSONAL, why: NOT_PERSONAL },
   // A reply to a sequence's send hangs on the replier's message and thread, and goes with them.
   sequence_replies: {
     ...all(withPerson("erase_contact"), "draft", "draft_why", "plan", "refer_to", "summary"),

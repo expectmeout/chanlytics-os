@@ -6,6 +6,7 @@ import {
   FILE_WORDS as W,
   ROLE_PERMS,
   fileCursorOf,
+  fileNameOf,
   fileShelfOpening,
   filesTallyOf,
   recordOrNull,
@@ -17,7 +18,13 @@ import {
   UUID,
 } from "@chanlytics/contracts";
 import type { FileForAsk } from "@/server/files/line";
-import { listFiles, listFilesOnShelf, listFilesTallied, type FileMemberRow } from "@chanlytics/db/files";
+import {
+  listFilesByName,
+  listFilesFound,
+  listFilesOnShelf,
+  listFilesTallied,
+  type FileMemberRow,
+} from "@chanlytics/db/files";
 import { load, readerStamp, type Reader } from "../shared/reader";
 
 /** Who the look counted, as the row keeps it; null until it has, or where it could not say. */
@@ -59,6 +66,17 @@ const lookWordsOf = (raw: unknown): string[] =>
 const qualityWord = (raw: unknown): FileForAsk["quality"]["sharp"] =>
   raw === "good" || raw === "ok" || raw === "poor" ? raw : null;
 
+/** The moments a video's look kept (contracts fileVideoLookOf wrote them): each a time and its words, or none. */
+const lookMomentsOf = (raw: unknown): FileForAsk["moments"] =>
+  Array.isArray(raw)
+    ? raw.flatMap((m) => {
+        const moment = recordOrNull(m);
+        return typeof moment?.at === "number" && typeof moment.what === "string"
+          ? [{ at: moment.at, what: moment.what }]
+          : [];
+      })
+    : [];
+
 /** A row as Ask reads it: what the page does, and the rest of what the look saw. */
 function fileForAskOf(fileMember: FileMemberRow): FileForAsk {
   const look = recordOrNull(fileMember.look);
@@ -71,15 +89,41 @@ function fileForAskOf(fileMember: FileMemberRow): FileForAsk {
     colors: lookWordsOf(look?.colors),
     subject: subject as FileForAsk["subject"],
     stands_at: typeof look?.poster_at === "number" ? look.poster_at : null,
+    moments: lookMomentsOf(look?.moments),
   };
 }
 
-/** What Ask reads of the workspace's files, its line in the facts and its catalog alike. */
-export const filesForAsk: Reader<undefined, { files: FileForAsk[] }> = {
-  name: "filesForAsk",
-  async read(rc) {
-    const rows = await listFiles(rc.ctx.supabase, rc.tenantId);
+/**
+ * The files Ask names, by the name it and the owner both say (cleaned as a name is) or by the row's id, which a turn's scope names
+ * its file by: those rows alone, so a question about one file reads one.
+ */
+export const filesNamedForAsk: Reader<{ names: readonly string[] }, { files: FileForAsk[] }> = {
+  name: "filesNamedForAsk",
+  async read(rc, request) {
+    const rows = await listFilesByName(rc.ctx.supabase, rc.tenantId, {
+      names: request.names.map((n) => fileNameOf(n)),
+      ids: request.names,
+    });
     return { data: { files: rows.map(fileForAskOf) }, rows: [], stamp: readerStamp() };
+  },
+};
+
+/**
+ * A page of one shelf as Ask lists it, newest first, found by its words where it gives them (00597 files_found: what a file is
+ * named, what its look saw, how a video sounds and what is said in it), and how many stand there in all.
+ */
+export const filesFoundForAsk: Reader<
+  { shelf: FileShelf; about?: string | undefined; offset: number; limit: number },
+  { files: FileForAsk[]; total: number }
+> = {
+  name: "filesFoundForAsk",
+  async read(rc, request) {
+    const { rows, total } = await listFilesFound(rc.ctx.supabase, rc.tenantId, shelfFilterOf(request.shelf), {
+      words: request.about,
+      offset: request.offset,
+      limit: request.limit,
+    });
+    return { data: { files: rows.map(fileForAskOf), total }, rows: [], stamp: readerStamp() };
   },
 };
 

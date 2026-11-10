@@ -7,7 +7,7 @@
  * link that stopped working and works again (R11 S11-4). The good news was kept and the warning
  * beside it stayed unread and amber for ever. Each pair is said here once: the warning by its kind and title, and what mends
  * it (a kind and title the edge keeps after it, or a change the edge records). The edge closes the warning when its mend is
- * kept (notify.ts mendWarnings, through packages/db closeMendedNotices), and the offers pause is closed in SQL by the resume
+ * kept (notify.ts mendWarnings, through packages/db closeNoticesByTitle), and the offers pause is closed in SQL by the resume
  * (00421), listed here so a test holds the SQL's title to these words.
  *
  * Titles are matched here, never in SQL, so the rule stays in one place.

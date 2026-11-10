@@ -47,6 +47,7 @@ import {
   starterSmsText,
   starterText,
   templateComponents,
+  momentNamesVisit,
   triggerWords,
   validateTemplateDraft,
   type AskedPurpose,
@@ -325,7 +326,7 @@ const NUMBERS = ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const
 
 /** A moment's name as a refusal says it: an appointment moment's in the workspace's own word (readers/facts.ts). */
 async function momentLabel(ctx: RouteContext, tenantId: TenantId, trig: Trigger): Promise<string> {
-  return trig.kind === "visit" ? triggerWords(trig, await getAppointmentWord(ctx, tenantId)).label : trig.label;
+  return momentNamesVisit(trig.id) ? triggerWords(trig, await getAppointmentWord(ctx, tenantId)).label : trig.label;
 }
 
 /**

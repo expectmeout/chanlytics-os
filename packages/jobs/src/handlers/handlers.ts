@@ -254,6 +254,14 @@ const remindThrough =
     return ctx.reminders.remind(tenantId, appointmentId);
   };
 
+/** The edge's enrolment for an occasion as the subscriber asks it; a runtime that holds none fails loudly. */
+const enrolThrough =
+  (ctx: JobContext): SubscriberPorts["enrolOccasions"] =>
+  (tenantId, event) => {
+    if (!ctx.occasions) throw new Error("occasion_enrol: this runtime holds no enrolment for an occasion");
+    return ctx.occasions.enrol(tenantId, event);
+  };
+
 async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const named = deliveryNamed(job.payload);
   if (!named) throw new Error("event_deliver: the payload names no event, subscriber and kind");
@@ -330,6 +338,8 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     },
     // The edge's reminder of a late booking (decision 0118): its run lives with the edge's run context too.
     remindBooking: remindThrough(ctx),
+    // The edge's enrolment for an occasion (decision 0119): the record and the sequences it starts live there too.
+    enrolOccasions: enrolThrough(ctx),
     // A thread's draft asked for: the row claimed and the job scheduled here, so a runtime with no writer can still ask.
     askReplyDraft: async (tenantId, ref) => {
       const conversationId =
@@ -431,6 +441,12 @@ async function campaignMoments(ctx: JobContext, job: ClaimedJob): Promise<void> 
   await ctx.campaigns.moments(job, ctx.deadline);
 }
 
+/** sequence_occasions: a workspace's occasions whose time has come, through what the edge injects (00598, decision 0119). payload {}. */
+async function sequenceOccasions(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.campaigns) throw new Error("sequence_occasions: this runtime holds no campaign runner");
+  await ctx.campaigns.occasions(job, ctx.deadline);
+}
+
 /** reach_out_steps: a workspace's due reach-out steps, through what the edge injects (00569, decision 0115). payload {}. */
 async function reachOutSteps(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.campaigns) throw new Error("reach_out_steps: this runtime holds no campaign runner");
@@ -448,6 +464,13 @@ async function calendarRead(ctx: JobContext, job: ClaimedJob): Promise<void | { 
 async function googleRead(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.google) throw new Error("google_read: this runtime holds no Google reader");
   const answer = await ctx.google.read(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
+/** texts_read: a workspace's lines' texts taken in where the door missed them, through what the edge injects (00605). */
+async function textsRead(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.texts) throw new Error("texts_read: this runtime holds no texts reader");
+  const answer = await ctx.texts.read(job, ctx.deadline);
   return "skipped" in answer ? answer : undefined;
 }
 
@@ -496,6 +519,8 @@ const HANDLERS: Record<JobKind, Handler> = {
   reach_out_steps: reachOutSteps,
   calendar_read: calendarRead,
   google_read: googleRead,
+  texts_read: textsRead,
+  sequence_occasions: sequenceOccasions,
   canary,
 };
 

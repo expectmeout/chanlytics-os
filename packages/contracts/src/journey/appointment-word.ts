@@ -102,6 +102,10 @@ export interface AppointmentPhrases {
   before: { caps: string; name: string; hint: string };
   /** The day after: the moment's caption, which is also a new campaign's name on it, and the trigger's hint. */
   after: { caps: string; hint: string };
+  /** Two hours before (decision 0119): a new sequence's name on it, and the trigger's hint. */
+  soon: { name: string; hint: string };
+  /** One marked missed (0119): a new sequence's name on it, and the trigger's hint. */
+  missed: { name: string; hint: string };
   /** The win-back by appointments' hint. */
   lapsedHint: string;
   /** A schedule's who: "everyone with an appointment tomorrow", "everyone who had an appointment yesterday". */
@@ -154,6 +158,11 @@ export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
     today: (n) => `${n} ${n === 1 ? word : many} today`,
     before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${seen.a} on the calendar` },
     after: { caps: `After the ${word}`, hint: `The day after ${seen.a}, when nothing is booked next` },
+    soon: { name: `${Title} reminder, 2 hours before`, hint: `Two hours before ${seen.a} on the calendar` },
+    missed: {
+      name: `Missed ${word}`,
+      hint: `When you mark ${seen.a} missed, with a way to pick another time`,
+    },
     lapsedHint: `No ${word} in 45 days, and nothing booked`,
     tomorrowWho: `everyone with ${seen.a} tomorrow`,
     yesterdayWho: `everyone who ${seen.had} yesterday`,

@@ -101,6 +101,34 @@ export const PLAYBOOK_TRIGGERS = [
     kind: "freed",
     hint: "A time a cancellation freed, offered to the people who asked and never booked",
   },
+  // The moments an occasion starts (decision 0119): something happened to one person, and their step is due at a time
+  // of their own, never at the sequence's hour. Run by the occasion that enrolled them (playbooks/occasions.ts), one
+  // person at a time, never by the hour. Each is about the person's own visit or their own ask, so a yes to texts is
+  // enough and an email asks none (playbooks/purpose.ts).
+  {
+    id: "visit_soon",
+    label: "Reminder, 2 hours before",
+    list: null,
+    cls: "booking",
+    kind: "occasion",
+    hint: "Two hours before an appointment on the calendar",
+  },
+  {
+    id: "visit_missed",
+    label: "Missed appointment",
+    list: null,
+    cls: "booking",
+    kind: "occasion",
+    hint: "When you mark an appointment missed, with a way to pick another time",
+  },
+  {
+    id: "asked_no_booking",
+    label: "Follow-up",
+    list: null,
+    cls: "follow_up",
+    kind: "occasion",
+    hint: "The day after someone is sent your booking link and does not book",
+  },
   // Reach out (Part 3): a chain's first email, over a lead search, and a step days after the one before it. Made by
   // the reach-out sheet (Part 4), never offered among the moments (triggerOffered).
   {

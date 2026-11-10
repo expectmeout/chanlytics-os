@@ -1453,8 +1453,9 @@ yeses it carries), schedules its answer as one `inbound_answer` job and answers 
 up again through the whole order ([inbound-gates.md](inbound-gates.md)) and answers it by its deadline
 (`TURN_BUDGET_MS`, forty seconds of a sixty-second function). Two messages from one person in one delivery are two jobs,
 and the newer one answers both (the reply turn, 00284). A message the door could not record is a 503: Meta sends it again for up to seven days; Twilio retries nothing, so the
-texts sweep reads each line's own record from Twilio every ten minutes and knocks on the door again for every text the
-database never heard (`texts-sweep`, 00594, `apps/edge/lib/sms/texts-sweep.ts`). One whose job could not be written
+texts sweep hands each workspace with a line that texts a `texts_read` job every ten minutes, which reads its lines' own
+record from Twilio and knocks on the door again for every text the database never heard (`texts-sweep`, 00594, 00605,
+`apps/edge/lib/sms/texts-sweep.ts`). One whose job could not be written
 is the deadman sweep's.
 
 ## Turn on the daily text canary

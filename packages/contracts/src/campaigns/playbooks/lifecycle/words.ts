@@ -23,6 +23,7 @@ import { joinWords, plural } from "../../../shared/words";
 import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions/channels";
 import { WORKSPACE_PAUSED_FACT } from "../../../workspace/billing/plans";
 import { SENDING_HOURS_WORDS } from "../triggers/kinds";
+import { isOccasionTrigger, occasionWords } from "../triggers/occasions";
 import { triggerOf } from "../triggers/notices";
 import type { LifecyclePlaybook } from "./types/reads";
 import type { LifecycleRowResults, LifecycleSentence, LifecycleTone } from "./types/tiles";
@@ -131,6 +132,7 @@ export const LIFECYCLE_WORDS = {
         if (trigger === "new_week") return "everyone new this week";
         if (trigger === "phoned_only") return "everyone who only ever phoned";
         if (trigger === "saved_list") return "everyone on a list";
+        if (isOccasionTrigger(trigger)) return occasionWords(trigger, word).who;
         return (triggerOf(trigger)?.label ?? "").toLowerCase();
       },
       /** Who it reaches now: "All 6 can hear it", "2 of 6 can hear it"; "2 can hear it" where nobody counted the pool. */

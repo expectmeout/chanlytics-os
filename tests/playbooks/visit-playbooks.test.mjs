@@ -124,11 +124,29 @@ test("the moments: People's lists and a cadence, two the calendar makes possible
       "saved_list",
       "proposal_waiting",
       "slot_opened",
+      "visit_soon",
+      "visit_missed",
+      "asked_no_booking",
     ],
   );
   assert.deepEqual(
     MOMENT_TRIGGERS.map((t) => t.kind),
-    ["list", "list", "list", "cadence", "visit", "visit", "list", "saved", "deal", "freed"],
+    // The last three are an occasion's (decision 0119): one person, at a time of their own.
+    [
+      "list",
+      "list",
+      "list",
+      "cadence",
+      "visit",
+      "visit",
+      "list",
+      "saved",
+      "deal",
+      "freed",
+      "occasion",
+      "occasion",
+      "occasion",
+    ],
   );
   assert.equal(
     triggerOf("visit_tomorrow").cls,

@@ -2148,7 +2148,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -2168,7 +2168,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 

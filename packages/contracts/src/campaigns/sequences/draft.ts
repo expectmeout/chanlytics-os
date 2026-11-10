@@ -4,6 +4,7 @@
  * new-draft.ts). No zod here: the page reads these in the browser.
  */
 import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
+import { occasionWords } from "../playbooks/triggers/occasions";
 
 /** How many steps may follow a customer's first, as Ask's card and POST sequences take them. */
 export const SEQUENCE_DRAFT_THEN_MAX = 3;
@@ -38,6 +39,10 @@ export function newSequenceLine(trigger: string, word: AppointmentWord): string 
       return "Send everyone this month’s offer";
     case "proposal_waiting":
       return "Follow up on a proposal they haven’t answered";
+    case "visit_soon":
+    case "visit_missed":
+    case "asked_no_booking":
+      return occasionWords(trigger, word).line;
     default:
       return null;
   }

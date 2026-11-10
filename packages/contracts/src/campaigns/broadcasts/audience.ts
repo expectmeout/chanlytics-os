@@ -50,19 +50,22 @@ export interface Audience {
    */
   trigger?: string;
   /**
-   * A late booking's reminder (decision 0118): the appointment it reminds of, that visit's start, ISO, and the business's
-   * day its words were written for ("2026-11-09": "tomorrow at 9:00 AM" is that day's). The batch that keeps it has no day
-   * of its own, so one still waiting for its owner is too late by these (contracts runApprovalRefusal). Absent on every
-   * other run.
+   * A message about one visit, made at a time of its own: a late booking's reminder (decision 0118), or an occasion's
+   * step that names a visit (0119: two hours before it, or after it was marked missed). The appointment it is about, that
+   * visit's start, ISO, and the business's day its words were written for ("2026-11-09": "tomorrow at 9:00 AM" is that
+   * day's). The batch that keeps it has no day of its own, so one still waiting for its owner is too late by these
+   * (contracts runApprovalRefusal). Absent on every other run.
    */
   late?: LateVisit;
 }
 
-/** The visit a late booking's reminder is about, as its batch keeps it (`Audience.late`). */
+/** The visit a message with a time of its own is about, as its batch keeps it (`Audience.late`). */
 interface LateVisit {
   appointment: string;
   start: string;
   day: string;
+  /** The visit had begun when the words were written (one marked missed, 0119): only the day can make it too late. */
+  behind?: true;
 }
 
 /** The moment a run's audience names, or null for a broadcast and a run that kept none (`Audience.trigger`). */
@@ -71,12 +74,14 @@ export function audienceTrigger(audience: unknown): string | null {
   return typeof t === "string" ? t : null;
 }
 
-/** The late booking a run's audience names (`Audience.late`), or null: every run but a late booking's reminder. */
+/**
+ * The one visit a run's audience names (`Audience.late`), or null: every run but a late booking's reminder and an
+ * occasion's step about a visit.
+ */
 export function audienceLate(audience: unknown): LateVisit | null {
-  const { appointment, start, day } = recordOrEmpty(recordOrEmpty(audience).late);
-  return typeof appointment === "string" && typeof start === "string" && typeof day === "string"
-    ? { appointment, start, day }
-    : null;
+  const { appointment, start, day, behind } = recordOrEmpty(recordOrEmpty(audience).late);
+  if (typeof appointment !== "string" || typeof start !== "string" || typeof day !== "string") return null;
+  return behind === true ? { appointment, start, day, behind } : { appointment, start, day };
 }
 
 /**

@@ -201,7 +201,9 @@ test("one starter per moment, one for any broadcast; titles for people, names fo
   for (const t of MOMENT_TRIGGERS) {
     const s = starterForTrigger(t.id);
     // One of the workspace's own lists sends what the owner picks; Lapsed sends the win-back, already about a visit.
-    if (t.kind === "saved") {
+    // A moment an occasion starts (decision 0119: a visit two hours away, one marked missed, an ask with no booking) has
+    // none yet: its owner writes its first message until its own words are written and looked at.
+    if (t.kind === "saved" || t.kind === "occasion") {
       assert.equal(s, null, `${t.id} has no starter of its own`);
       continue;
     }

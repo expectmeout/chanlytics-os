@@ -68,6 +68,7 @@ export const SEQUENCE_ACT_REASONS = [
   "not_scheduled",
   "not_sent",
   "freed_time",
+  "occasion",
 ] as const;
 export type SequenceActReason = (typeof SEQUENCE_ACT_REASONS)[number];
 
@@ -90,6 +91,7 @@ export const SEQUENCE_ACT_WHY: Record<SequenceActReason, string> = {
   not_scheduled: "It is not waiting for its day any more.",
   not_sent: "It has not gone yet.",
   freed_time: "It runs when a cancellation frees a time, never by hand.",
+  occasion: "It goes to each person at their own time, never by hand.",
 };
 
 /** An act offered, or not, with why and the act offered in its place. */
@@ -109,6 +111,18 @@ export type SequenceActsInput = Pick<SequenceRecordDto, "sequence" | "chain" | "
  */
 function runsToday(row: Pick<SequenceRowDto, "first">, at: { tz: string; nowMs: number }): boolean {
   return !!row.first && campaignRunsOn(row.first, { tz: at.tz, now: new Date(at.nowMs) });
+}
+
+/**
+ * Run now for a customer's sequence: never for one a cancellation starts (0082) or an occasion does (0119), neither of
+ * which runs by the hour; never while a batch of it waits; else where its first step runs today.
+ */
+function runNowOf(row: Pick<SequenceRowDto, "first" | "needs">, at: { tz: string; nowMs: number }): SequenceOffer {
+  const kind = row.first ? triggerOf(row.first.trigger)?.kind : null;
+  if (kind === "freed") return no("freed_time");
+  if (kind === "occasion") return no("occasion");
+  if (row.needs.waiting > 0) return no("batch_waiting");
+  return runsToday(row, at) ? OK : no("not_today");
 }
 
 /**
@@ -186,15 +200,7 @@ export function sequenceActsOf(rec: SequenceActsInput, at: { tz: string; nowMs: 
     // One that never ran goes whole either way (its first step's trigger): it is offered as Discard, not End.
     end: leads ? no("to_leads", "pause") : ran === false ? no("never_ran", "discard") : OK,
     discard,
-    run_now: leads
-      ? no("to_leads")
-      : row.first && triggerOf(row.first.trigger)?.kind === "freed"
-        ? no("freed_time")
-        : row.needs.waiting > 0
-          ? no("batch_waiting")
-          : runsToday(row, at)
-            ? OK
-            : no("not_today"),
+    run_now: leads ? no("to_leads") : runNowOf(row, at),
     rename: OK,
     cancel_send: notOnce,
     send_again: notOnce,

@@ -369,7 +369,7 @@ test("a video's look names the frame that stands for it, and its edition is its 
     "a frame not on the sheet",
   );
   assert.ok(!("subject_box" in look.FILE_VIDEO_LOOK_SCHEMA.properties), "no box asked of a video");
-  assert.equal(look.VIDEO_LOOK_EDITION, 1);
+  assert.equal(look.VIDEO_LOOK_EDITION, 2, "2: it names the clip's moments, so every video is read again");
   assert.match(
     look.fileVideoLookAsked({
       seconds: 24,
@@ -381,8 +381,48 @@ test("a video's look names the frame that stands for it, and its edition is its 
       services: [],
       sound: "It has no sound.",
     }),
-    /a sheet of 48 frames from a video of 24 seconds[\s\S]*It has no sound\.[\s\S]*poster_frame/,
+    /a sheet of 48 frames from a video of 24 seconds[\s\S]*It has no sound\.[\s\S]*poster_frame[\s\S]*moments: up to 5 frames/,
   );
+});
+
+test("a video's look keeps its best moments: each at a frame the sheet holds, with words, once a frame, five at most", () => {
+  const plan = video.videoSheetPlanOf({ seconds: 24, width: 1920, height: 1080 });
+  const at = (frame) => plan.times[frame - 1];
+  const read = look.fileVideoLookOf(
+    {
+      line: "A balayage from start to finish.",
+      poster_frame: 40,
+      moments: [
+        { frame: 40, what: "  the finished colour at the mirror  " },
+        { frame: 2, what: "the before, roots showing" },
+        { frame: 40, what: "the same frame again" },
+        { frame: 99, what: "a frame the sheet does not hold" },
+        { frame: 12, what: "" },
+        { frame: 1.5, what: "not a frame" },
+        "not a moment",
+        { frame: 20, what: "foils going in" },
+        { frame: 25, what: "the wash" },
+        { frame: 30, what: "drying" },
+        { frame: 35, what: "one more than it keeps" },
+      ],
+    },
+    plan,
+  );
+  assert.deepEqual(read.look.moments, [
+    { at: at(40), what: "the finished colour at the mirror" },
+    { at: at(2), what: "the before, roots showing" },
+    { at: at(20), what: "foils going in" },
+    { at: at(25), what: "the wash" },
+    { at: at(30), what: "drying" },
+  ]);
+  assert.equal(read.look.poster_at, at(40), "the poster is its own word");
+  assert.deepEqual(look.fileVideoLookOf({ line: "x" }, plan).look.moments, [], "none named, none kept");
+  assert.equal(
+    look.fileVideoLookOf({ line: "x", moments: [{ frame: 3, what: "w".repeat(300) }] }, plan).look.moments[0].what
+      .length,
+    120,
+  );
+  assert.ok(look.FILE_VIDEO_LOOK_SCHEMA.required.includes("moments"), "asked every time");
 });
 
 test("a video makes a post from one moment of it once it is ready, said to a person in their language and to the model", () => {

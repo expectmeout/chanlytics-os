@@ -24,7 +24,9 @@ import {
   type WrittenEmail,
 } from "@chanlytics/db/campaigns";
 import { findMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
+import { closeRunStartNotices } from "@chanlytics/db/notices";
 import type { Database, Json } from "@chanlytics/db/types";
+import { logAndGoOn } from "@chanlytics/log";
 import { scheduleJob } from "@chanlytics/jobs";
 import {
   draftRefusalOf,
@@ -367,6 +369,26 @@ export async function handOver(
 }
 
 /**
+ * The run's word only: its email is written and queued, so a scheduled run starts sending (the clock's finish moves one
+ * itself). Its first email's start closes the row that said it goes unless stopped, on any device (contracts
+ * RUN_START_ENDS); a later email's finds it sending and closes nothing. Neither costs the email: a failure is logged.
+ */
+async function startRun(tick: Tick, reachOutSend: ReachOutSendRow): Promise<void> {
+  const run = { tenantId: reachOutSend.tenant_id, id: reachOutSend.batch_id };
+  const started = await runSending(tick.db, run).catch((e: unknown) => {
+    tick.log.warn("reach_out_run_unstarted", {
+      broadcast_id: run.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return false;
+  });
+  if (started)
+    await closeRunStartNotices(tick.db, { tenantId: run.tenantId, runId: run.id, nowMs: tick.now.getTime() }).catch(
+      logAndGoOn("closing a started run's stop row", 0),
+    );
+}
+
+/**
  * A mailbox's send (decision 0056): its mailbox now, the email before it stamped, its words, the person (made once), the
  * frozen request, the row and the job, then its move to queued and its run sending.
  */
@@ -482,13 +504,7 @@ export async function sendFromMailbox(
     await withdrawEmail(db, { tenantId: reachOutSend.tenant_id, id: messageId, reason: "send_moved" });
     return "lost";
   }
-  // The run's word only: its email is written and queued, and the clock's finish moves a scheduled run itself.
-  await runSending(db, { tenantId: reachOutSend.tenant_id, id: reachOutSend.batch_id }).catch((e: unknown) =>
-    tick.log.warn("reach_out_run_unstarted", {
-      broadcast_id: reachOutSend.batch_id,
-      error: e instanceof Error ? e.message : String(e),
-    }),
-  );
+  await startRun(tick, reachOutSend);
   // Their preview went with it (decision 0079): its thirty days start at the first email that carries it.
   if (match.previewId)
     await recordPreviewSent(db, match.previewId).catch((e: unknown) =>

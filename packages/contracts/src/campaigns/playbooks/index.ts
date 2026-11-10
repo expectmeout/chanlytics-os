@@ -69,6 +69,21 @@ export {
 } from "./lifecycle/words";
 export { tallyWords } from "./lifecycle/words";
 export type { LifecycleState } from "./lifecycle/words";
+export {
+  ASK_REST_DAYS,
+  askFollowUpAt,
+  askOccasion,
+  missedFollowUpAt,
+  missedOccasion,
+  OCCASION_LATE_MS,
+  occasionAppointment,
+  occasionEventOf,
+  occasionGone,
+  visitOccasion,
+  visitOccasionsOf,
+  visitSoonAt,
+} from "./occasions";
+export type { OccasionEnrolment, OccasionEvent, OccasionFacts, OccasionGone, OccasionOutcome } from "./occasions";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./patch";
 export type { PlaybookPatch, PlaybookPatchKey } from "./patch";
 export {
@@ -103,6 +118,7 @@ export {
   nextOpenMoment,
   nextRunLabel,
   nextRunOf,
+  owedOncePerMoment,
   planRun,
   PLAYBOOK_BREATH_MS,
   PLAYBOOK_CAP_CHOICES,
@@ -187,3 +203,5 @@ export type { RunMessage } from "./purpose";
 export { heldBackOfOneRun, runReadingOf } from "./run-split";
 export type { RunReading, RunSplit } from "./run-split";
 export { campaignDayWords, campaignEnded, campaignRunsOn, sendingEndsAt } from "./schedule";
+export { isOccasionTrigger, momentNamesVisit, occasionIsSingle, occasionWords } from "./triggers/occasions";
+export type { OccasionTrigger } from "./triggers/occasions";
