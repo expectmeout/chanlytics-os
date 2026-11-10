@@ -338,6 +338,7 @@ export async function readStreamSoundTrack(
     deps,
   );
   if (reply.outcome !== "ok" || !reply.body) return null;
+  // A body that will not read is a list not read: null below, and the sound is asked for as before.
   const list = await new Response(reply.body).text().catch(() => null);
   if (list === null || !list.includes("#EXTM3U")) return null;
   return /^#EXT-X-MEDIA:.*TYPE=AUDIO/m.test(list) || /CODECS="[^"]*mp4a/i.test(list);
