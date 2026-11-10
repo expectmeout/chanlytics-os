@@ -11,6 +11,7 @@ import {
   whoStandsOf,
   type FileDto,
   type FileKind,
+  type FileLook,
   type FileQuality,
   type FileShelf,
   type FileSound,
@@ -25,6 +26,8 @@ export interface FileForAsk extends FileDto {
   subject: [number, number, number, number] | null;
   /** A video's: the moment the look chose to stand for the whole clip, in seconds; null for a picture, or before its look. */
   stands_at: number | null;
+  /** A video's: the moments its look named as worth using on their own, best first; none for a picture, or before its look. */
+  moments: NonNullable<FileLook["moments"]>;
 }
 
 /** The word Ask and a person use for a shelf: what is on it, in lower case. */

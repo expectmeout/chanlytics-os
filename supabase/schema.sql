@@ -6796,6 +6796,28 @@ COMMENT ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) IS 'A person
 
 
 --
+-- Name: file_search_words(text, jsonb, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_search_words(p_name text, p_look jsonb, p_sound_said text, p_sound jsonb) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    SET search_path TO ''
+    AS $_$
+  select coalesce(p_name, '') || ' ' || coalesce(p_look ->> 'line', '') || ' '
+      || coalesce(jsonb_path_query_array(p_look, '$.text_seen[*]')::text, '') || ' '
+      || coalesce(jsonb_path_query_array(p_look, '$.moments[*].what')::text, '') || ' '
+      || coalesce(p_sound_said, '') || ' ' || coalesce(p_sound -> 'words' ->> 'text', '')
+$_$;
+
+
+--
+-- Name: FUNCTION file_search_words(p_name text, p_look jsonb, p_sound_said text, p_sound jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_search_words(p_name text, p_look jsonb, p_sound_said text, p_sound jsonb) IS 'The words a file is found by, as one text (00597): its name, its look''s sentence, the words written in it and a video''s moments, how a video sounds and what is said in it. Immutable: files_found_words is an index of it.';
+
+
+--
 -- Name: file_sound_keep(uuid, uuid, text, jsonb, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6948,6 +6970,52 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) IS 'A member''s video on its way (00556), once the video platform holds its reservation: the row, uploading, with every fact the browser gave, so the platform''s word alone can finish it. Answers {fate: kept, here, full or minutes, file_id}. The service role''s.';
+
+
+--
+-- Name: files_found(uuid, text, integer, integer, boolean, text[], boolean, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer DEFAULT 0, p_made boolean DEFAULT NULL::boolean, p_shows text[] DEFAULT NULL::text[], p_or_unsorted boolean DEFAULT false, p_words text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with matched as (
+    select f.id, f.created_at
+      from public.files f
+     where f.tenant_id = p_tenant_id
+       and f.removed_at is null
+       -- A video whose bytes are still on their way is no file yet (00556), as every member read says.
+       and (f.media_status is null or f.media_status <> 'uploading')
+       and f.status = p_status
+       and (p_made is null or (f.source = 'made') = p_made)
+       and (p_shows is null or f.shows = any (p_shows) or (coalesce(p_or_unsorted, false) and f.shows is null))
+       and (
+         nullif(btrim(coalesce(p_words, '')), '') is null
+         or (querytree(websearch_to_tsquery('simple', p_words)) not in ('', 'T')
+             and to_tsvector('simple', public.file_search_words(f.name, f.look, f.sound_said, f.sound))
+                 @@ (select websearch_to_tsquery('simple', p_words)))
+       )
+  ),
+  page as (
+    select m.id, m.created_at
+      from matched m
+     order by m.created_at desc, m.id desc
+     offset greatest(coalesce(p_offset, 0), 0)
+     limit least(greatest(coalesce(p_limit, 1), 1), 1000)
+  )
+  select jsonb_build_object(
+    'ids', coalesce((select jsonb_agg(p.id order by p.created_at desc, p.id desc) from page p), '[]'::jsonb),
+    'total', (select count(*) from matched)
+  )
+$$;
+
+
+--
+-- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) IS 'One page of one shelf of a workspace''s files, newest first, and how many in all (00597): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, shows, or unsorted). Words (websearch_to_tsquery, the ''simple'' configuration) are found in file_search_words; left out or blank, every file on the shelf; words that could match nothing, or only by what is not there, none. At most 1,000 a page. Under the caller''s row security.';
 
 
 --
@@ -42957,6 +43025,13 @@ CREATE INDEX files_created_by ON public.files USING btree (created_by) WHERE (cr
 
 
 --
+-- Name: files_found_words; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_found_words ON public.files USING gin (to_tsvector('simple'::regconfig, public.file_search_words(name, look, sound_said, sound))) WHERE (removed_at IS NULL);
+
+
+--
 -- Name: files_look_again; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -51335,6 +51410,15 @@ GRANT ALL ON FUNCTION public.file_remove(p_tenant_id uuid, p_id uuid) TO service
 
 
 --
+-- Name: FUNCTION file_search_words(p_name text, p_look jsonb, p_sound_said text, p_sound jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_search_words(p_name text, p_look jsonb, p_sound_said text, p_sound jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_search_words(p_name text, p_look jsonb, p_sound_said text, p_sound jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.file_search_words(p_name text, p_look jsonb, p_sound_said text, p_sound jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION file_sound_keep(p_tenant_id uuid, p_id uuid, p_part text, p_value jsonb, p_by jsonb, p_said text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -51365,6 +51449,15 @@ GRANT ALL ON FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) TO 
 
 REVOKE ALL ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) TO authenticated;
+GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) TO service_role;
 
 
 --
