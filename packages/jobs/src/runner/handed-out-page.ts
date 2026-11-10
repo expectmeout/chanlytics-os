@@ -16,6 +16,7 @@ export const HANDED_OUT_KINDS = [
   "reach_out_steps",
   "calendar_read",
   "google_read",
+  "texts_read",
   "sequence_occasions",
 ] as const satisfies readonly JobKind[];
 
@@ -26,6 +27,7 @@ const HANDED_OUT_WORDS: Record<HandedOutKind, string> = {
   reach_out_steps: "reach-out steps",
   calendar_read: "calendar read",
   google_read: "Google read",
+  texts_read: "texts read",
   sequence_occasions: "steps due to one person",
 };
 

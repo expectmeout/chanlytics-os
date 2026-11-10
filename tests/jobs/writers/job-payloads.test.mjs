@@ -95,6 +95,7 @@ test("the shapes writers hand over are what their kind says", () => {
     reach_out_steps: {},
     calendar_read: {},
     google_read: {},
+    texts_read: {},
     sequence_occasions: {},
     canary: {},
   };
