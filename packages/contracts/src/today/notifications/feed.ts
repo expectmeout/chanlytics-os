@@ -162,6 +162,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   reach_out_steps: { stopped: "A reach-out could not run this hour", to: "today" },
   calendar_read: { stopped: "Your calendar could not be read this hour", to: "today" },
   google_read: { stopped: "Your Google listing could not be read this hour", to: "today" },
+  texts_read: { stopped: "Texts that arrived while we were away could not be checked just now", to: "inbox" },
   // A workspace's occasions (00598). Not sent (kinds.ts: the platform's to mend), and the next minute tries again.
   sequence_occasions: { stopped: "A message due to one person could not be made", to: "today" },
   canary: { stopped: "The background work's own check did not finish", to: "today" },

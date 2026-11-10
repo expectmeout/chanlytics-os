@@ -207,7 +207,7 @@ test("the codes of the last fifteen minutes, newest first, from the line's own r
   assert.equal(w.seen.length, 1, "one read");
   const url = new URL(w.seen[0].url);
   assert.equal(`${url.origin}${url.pathname}`, MESSAGES, "the line's own subaccount's messages");
-  assert.deepEqual([url.searchParams.get("To"), url.searchParams.get("PageSize")], [LINE, "20"]);
+  assert.deepEqual([url.searchParams.get("To"), url.searchParams.get("PageSize")], [LINE, "50"]);
   assert.equal(
     w.seen[0].init.headers.Authorization,
     `Basic ${Buffer.from(`${SUB}:${LINE_TOKEN}`).toString("base64")}`,

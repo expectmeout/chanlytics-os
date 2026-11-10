@@ -103,6 +103,7 @@ export const JOB_PAYLOADS = {
   reach_out_steps: CARRIES_NOTHING,
   calendar_read: CARRIES_NOTHING,
   google_read: CARRIES_NOTHING,
+  texts_read: CARRIES_NOTHING,
   sequence_occasions: CARRIES_NOTHING,
   canary: CARRIES_NOTHING,
 } satisfies Record<JobKind, z.ZodType>;

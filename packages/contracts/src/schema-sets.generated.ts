@@ -117,7 +117,7 @@ export const SCHEMA_SETS = {
     "erasure_finish", "event_deliver", "file_fetch", "file_look", "file_purge", "google_read",
     "history_import", "inbound_answer", "lead_check", "lead_collect", "lead_round_start",
     "line_provision", "outbound_send", "preview_build", "push_receipts", "push_send", "reach_out_steps",
-    "reply_draft", "reply_read", "sequence_occasions", "video_digest", "website_read",
+    "reply_draft", "reply_read", "sequence_occasions", "texts_read", "video_digest", "website_read",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],

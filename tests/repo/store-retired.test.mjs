@@ -124,6 +124,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "reach_out_steps",
       "calendar_read",
       "google_read",
+      "texts_read",
       "sequence_occasions",
       "canary",
     ],
