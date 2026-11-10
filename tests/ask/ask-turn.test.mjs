@@ -6451,7 +6451,17 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
   // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing. And the
   // proposal follow-up's moment, every workspace's (0008, amended 18 Oct 2026). A calendar frees times too (0082).
   const SILENCE = ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"];
-  const VISITS = ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", ...SILENCE.slice(2), "slot_opened"];
+  // And starts a sequence for one person at a time of their own (decision 0119; Ask proposes them since 10 Nov 2026).
+  const OCCASIONS = ["visit_soon", "visit_missed", "asked_no_booking"];
+  const VISITS = [
+    "everyone_monthly",
+    "visit_tomorrow",
+    "visited",
+    "lapsed",
+    ...SILENCE.slice(2),
+    "slot_opened",
+    ...OCCASIONS,
+  ];
   const feed = (status) => async () => new Response(status === 200 ? ICS : "down", { status });
   const fetchWas = globalThis.fetch;
   try {
@@ -6467,7 +6477,30 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
     // A calendar on file whose feed reads: the win-back by visits.
     globalThis.fetch = feed(200);
     forgetFeeds();
-    assert.deepEqual(offered(await listed(connected())), VISITS, "a calendar: Win-back goes by visits");
+    const withCalendar = await listed(connected());
+    assert.deepEqual(offered(withCalendar), VISITS, "a calendar: Win-back goes by visits");
+    // An occasion's three, each with its starter and no count: nobody is named by one ahead of time, and the read says
+    // so by its mark, never by a count of nobody.
+    assert.deepEqual(
+      withCalendar.triggers
+        .filter((x) => OCCASIONS.includes(x.trigger))
+        .map((x) => [
+          x.trigger,
+          x.starter_template,
+          x.each_at_their_own_time,
+          "said_yes_now" in x || "can_be_sent_now" in x,
+        ]),
+      [
+        ["visit_soon", "Two-hour reminder", true, false],
+        ["visit_missed", "Missed appointment", true, false],
+        ["asked_no_booking", "Booking follow-up", true, false],
+      ],
+    );
+    assert.match(withCalendar.note, /each_at_their_own_time marks a moment that names nobody ahead of time/);
+    assert.ok(
+      none.triggers.every((x) => !("each_at_their_own_time" in x)),
+      "and with no calendar none of the three is offered",
+    );
     // One on file whose feed cannot be read just now is still connected: the offer does not swap back to silence.
     globalThis.fetch = feed(500);
     forgetFeeds();

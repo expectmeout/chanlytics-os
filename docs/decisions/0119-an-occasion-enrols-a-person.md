@@ -48,8 +48,7 @@ Each is owed to one person, for one thing that happened to them, at a time of th
 - **One waiting approval at a time means the people behind it can run out of time.** While a step's words wait for their first OK, a two-hour reminder behind it is put off, and is left once its visit begins. The owner is told of the first; nothing tells them others were skipped behind it.
 - **Marked missed at night, the message goes at nine.** The run moves any send outside the sending hours to the next morning, and its words then say "yesterday".
 - **An occasion is not counted before it happens.** The composer shows no "N people" for these moments: nobody is in one until something happens to them.
-- **Ask does not propose these moments yet.** Its tool lists and takes every moment but the three (`PROPOSABLE_TRIGGERS`): a sequence on one is made in New.
-- **Ask's chat does not propose the three moments.** Each has a starter message since 10 Nov 2026 (`two_hour_reminder`, `missed_visit`, `booking_follow_up`, on Ruben's yes to their words), offered in Messages and to New; Ask's `propose_sequence` still leaves the moments, and so their starters, out.
+- **Ask proposes them with no count.** Since 10 Nov 2026 (Ruben's "Yes, add them") each has a starter message (`two_hour_reminder`, `missed_visit`, `booking_follow_up`) and Ask's `propose_sequence` takes the three where a calendar is connected. Its card says who each reaches as it happens and counts nobody, and the moments read marks them `each_at_their_own_time`; Ask cannot say how many people one will reach in a week.
 
 ## Deploy order
 

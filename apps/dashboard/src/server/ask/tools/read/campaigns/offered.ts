@@ -403,19 +403,23 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
         : null,
     })),
     // The moments offered for a new playbook here: every moment, a proposal's too (0006), and of the two win-backs
-    // the one this workspace can read (momentOffered; a connected calendar's feed need not be readable just now). Not
-    // the three an occasion starts (decision 0119): Ask proposes none of them yet (PROPOSABLE_TRIGGERS), so it lists none.
+    // the one this workspace can read (momentOffered; a connected calendar's feed need not be readable just now). The
+    // three an occasion starts (decision 0119) are among them, each with no count: nobody is named by one ahead of time.
     triggers: answer.moments
-      .filter((x) => x.offered && x.trigger.kind !== "occasion")
+      .filter((x) => x.offered)
       .map(({ trigger: x }) => ({
         trigger: x.id,
         label: triggerWords(x, shape.word).label,
         when: triggerWords(x, shape.word).hint,
         policy_class: x.cls,
-        // On a list, the counts are the list's: sequences.lists has each list's.
-        ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
+        // On a list, the counts are the list's: sequences.lists has each list's. An occasion's moment has none to give.
+        ...(x.kind === "saved"
+          ? { counted_per_list: true }
+          : x.kind === "occasion"
+            ? { each_at_their_own_time: true }
+            : counted(x.id)),
         starter_template: starterForTrigger(x.id)?.title ?? null,
       })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${words.a} and a check the day after go one per ${words.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now. The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs.`,
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${words.a} and a check the day after go one per ${words.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now. each_at_their_own_time marks a moment that names nobody ahead of time (two hours before ${words.a}, ${words.a} marked missed, the booking link sent and nothing booked): each person comes to it when that happens to them and its message goes then, so it has no count, and that is no fault. The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs.`,
   };
 }

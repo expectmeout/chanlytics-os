@@ -544,3 +544,60 @@ test("what no press turns on is aside (decision 0088): how later batches go and 
     ["Where", "Runs", "Last day", "Goes", "Reaches", "Message"],
   );
 });
+
+test("the three moments an occasion starts are proposed where a calendar is connected (decision 0119): each a card on its own starter that counts nobody and says who it reaches as it happens; the booking follow-up needs the booking link on file", async () => {
+  const withLink = () => {
+    const [row] = withCalendar();
+    const brain = { ...row.config.brain, booking_link: "https://book.example.com/harbor" };
+    return [{ ...row, config: { ...row.config, brain } }];
+  };
+  const reaches = (p) => p.sheet.rows.find((r) => r.label === "Reaches")?.value;
+  const cases = [
+    {
+      trigger: "visit_soon",
+      starter: "two_hour_reminder",
+      line: "Reminds each customer two hours before their meeting",
+      reaches: "Everyone with a meeting in two hours",
+    },
+    {
+      trigger: "visit_missed",
+      starter: "missed_visit",
+      line: "Offers another time to anyone whose meeting you mark missed, a few minutes after",
+      reaches: "Everyone whose meeting you mark missed",
+    },
+    {
+      trigger: "asked_no_booking",
+      starter: "booking_follow_up",
+      line: "Follows up with anyone sent your booking link who has not booked, the next day at 10:00 AM",
+      reaches: "Everyone sent your booking link who has not booked",
+    },
+  ];
+  for (const c of cases) {
+    const { made, rows } = propose({ trigger: c.trigger }, { tenant_config: withLink() });
+    const r = await made;
+    assert.equal(r.isError, false, `${c.trigger}: ${r.result}`);
+    const p = r.proposal;
+    assert.deepEqual([p.kind, p.payload.trigger, p.payload.starter_key], ["playbook", c.trigger, c.starter]);
+    // What it does to whoever comes to it, then the channels it goes by now: never a count, and never "to 0 people".
+    assert.ok(p.line.startsWith(`${c.line}, by `), `${c.trigger}: ${p.line}`);
+    assert.ok(!/\d+ (person|people)/.test(p.line), `${c.trigger}: its line counts nobody: ${p.line}`);
+    assert.equal(reaches(p), c.reaches, `${c.trigger}: who it reaches, as it happens`);
+    assert.ok(!p.summary.includes("Nobody to send to yet"), `${c.trigger}: ${p.summary}`);
+    // One person's message about their own appointment or ask is not held to the week's breath.
+    assert.ok(p.summary.includes(PLAYBOOK_CARD_WORDS.appointmentBreath), `${c.trigger}: ${p.summary}`);
+    assert.deepEqual([rows.templates, rows.playbooks], [[], []], `${c.trigger}: nothing is filed at the card`);
+  }
+  // No calendar: refused in the check's own words, as an appointment's moment is.
+  const needs = appointmentWords(appointmentWordOf("meeting")).needsCalendar;
+  for (const c of cases) assert.equal(said(await propose({ trigger: c.trigger }).made), needs, c.trigger);
+  // The booking follow-up's starter carries the booking link: with none on file it is refused before anything is filed.
+  const noLink = propose({ trigger: "asked_no_booking" }, { tenant_config: withCalendar() });
+  assert.equal(
+    said(await noLink.made),
+    "This message takes the booking link, and none is on file. Add it in Settings › Hours & booking first.",
+  );
+  assert.deepEqual([noLink.rows.templates, noLink.rows.playbooks], [[], []]);
+  // The two about a visit carry no link, and need none.
+  for (const trigger of ["visit_soon", "visit_missed"])
+    assert.equal((await propose({ trigger }, { tenant_config: withCalendar() }).made).isError, false, trigger);
+});

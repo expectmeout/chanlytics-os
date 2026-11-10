@@ -20,6 +20,7 @@ import {
   type ConsentChannel,
   THREAD_CHANNEL_WORDS,
   appointmentWords,
+  capitalize,
   type AppointmentWord,
   GET_YES_ROUTE,
   saidYesTo,
@@ -31,6 +32,7 @@ import {
   messageWhyNot,
   enrolPurpose,
   messageAboutOfTrigger,
+  occasionWords,
   triggerOf,
 } from "@chanlytics/contracts";
 import type { AskedPurpose, MessageAbout, PersonRowVM, RunPlaybook } from "@chanlytics/contracts";
@@ -292,22 +294,37 @@ export function campaignLine(context: {
         return will > 0
           ? `Follows up ${of} ${(will < context.pool ? context.pool : will) === 1 ? "proposal" : "proposals"} waiting on an answer`
           : "Follows up each proposal left waiting on an answer";
+      // An occasion's three (decision 0119): nobody is named ahead of time, so each says what it does to whoever comes.
+      case "visit_soon":
+        return `Reminds each customer two hours before their ${words.one}`;
+      case "visit_missed":
+        return `Offers another time to anyone whose ${words.one} you mark missed`;
+      case "asked_no_booking":
+        return "Follows up with anyone sent your booking link who has not booked";
       default:
         return `${triggerOf(context.trigger)?.label ?? "Sends"} to ${people}`;
     }
   })();
   const at = clockHour(context.run_hour);
   const kind = triggerOf(context.trigger)?.kind;
+  // An occasion's time is each person's own: the reminder's is said in what it does, the missed visit's is minutes after
+  // the word (contracts missedFollowUpAt), and the ask's follow-up is the next day at the sequence's hour.
+  const ownTime =
+    context.trigger === "visit_soon"
+      ? ""
+      : context.trigger === "visit_missed"
+        ? "a few minutes after"
+        : `the next day at ${at}`;
   const when =
     kind === "visit"
       ? at
       : kind === "occasion"
-        ? "at each person's own time"
+        ? ownTime
         : context.trigger === "everyone_monthly"
           ? `every ${context.cadence_days} days at ${at}`
           : `daily at ${at}`;
   const by = channelsWords(context.goesBy);
-  return `${does}, ${when}${by ? `, ${by}` : ""}`;
+  return [does, when, by].filter(Boolean).join(", ");
 }
 
 /**
@@ -329,6 +346,11 @@ export function nobodyNamedWords(trigger: string, word: AppointmentWord, list: s
       return `Nobody is on ${list ?? "the list"} yet`;
     case "proposal_waiting":
       return "No proposal is waiting on an answer";
+    // An occasion names nobody ahead of time (decision 0119): who it reaches as each comes to it, in the moment's words.
+    case "visit_soon":
+    case "visit_missed":
+    case "asked_no_booking":
+      return capitalize(occasionWords(trigger, word).who);
     default:
       return "Nobody to send to yet";
   }
