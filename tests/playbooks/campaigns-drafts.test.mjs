@@ -465,6 +465,16 @@ test("a send the server took keeps nothing: New closes, its toast says when it g
   // Send now asks first; its yes sends it through New's one door, as it stands.
   press(hostOf(tree, "sq-nw-send-now"));
   tree = redraw(page);
+  // The question is the foot (parts/split.tsx cmFootAsk): the kit's pair, which a phone draws as its words over two
+  // half-width answers, the capsule rounded round its rows (campaigns.css). As a bare question in a pill, its first and
+  // last lines stood under the pill's round ends. Its Yes takes focus where it stands: a plain focus on a phone's docked
+  // foot moved the page to its end (9 Nov 2026).
+  const pair = find(tree, (n) => n.props?.["data-foot-pair"] !== undefined && !!byTestId(n, "sq-nw-send-confirm"));
+  assert.equal(pair?.props.className, "cm-foot-ask", "REGRESSION: the question bare in the foot's pill");
+  const yes = hostOf(tree, "sq-nw-send-yes");
+  const focused = [];
+  yes.props.ref?.({ focus: (how) => focused.push(how) });
+  assert.deepEqual([yes.props.autoFocus, focused], [false, [{ preventScroll: true }]], "focus where it stands");
   press(hostOf(tree, "sq-nw-send-yes"));
   await landed(() => went.length > 0);
   const made = posted.filter((p) => p.at === "/api/v1/sequences/new");

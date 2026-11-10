@@ -3,7 +3,8 @@
  * press, who it reaches, its steps on the rail, what Ask checked, how it runs, and the one act it is set up for. What
  * stops or bends it is a card over the sentence (a part left out, a twin, no one to hear it, a WhatsApp version still with
  * Meta). A change Ask need not make again is made here (new-model.ts); a change of kind or audience is Ask's, drafted again
- * from the same line (`redraft`), the draft standing in its new shape with Undo while Ask writes it. Send now asks first;
+ * from the same line (`redraft`), the draft standing in its new shape with Undo while Ask writes it. Send now asks first
+ * (send-now.tsx);
  * leaving a changed draft asks too (the page's). On a wide pane what Ask checked and how it runs stand beside the steps
  * (the canvas's desk board). Every word is contracts' (new-words.ts).
  */
@@ -23,7 +24,6 @@ import {
   type NewKind,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
-import { Confirm } from "../../../kit/confirm/confirm";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Switch } from "../../../kit/switch/switch";
@@ -35,6 +35,7 @@ import { AudienceToggle, CaseNote, ChecksList, ReachLine, SaidLine, WhoCaption, 
 import { DraftRail, OnceMessage, type RailActs } from "./new-rail";
 import { AddStepSheet } from "./add-step";
 import { DraftVoice } from "./new-voice";
+import { ConfirmSend } from "./send-now";
 import {
   ChannelsSheet,
   Choice,
@@ -370,38 +371,6 @@ function DraftFoot(p: {
         {act.label}
       </Button>
     </div>
-  );
-}
-
-/** Who a one-off sent now reaches on each channel ("180 by WhatsApp, 34 by email"), where the workspace counted it. */
-function byWords(d: NewDraftDto): string {
-  // With WhatsApp's version still at Meta it goes by the others alone, which the question's count already says.
-  if (M.reviewOf(d)) return "";
-  const by = d.reach?.by ?? {};
-  return d.channels
-    .flatMap((c) => ((by[c] ?? 0) > 0 ? [W.reach.byChannel(by[c] ?? 0, M.channelsSaidOf([c], ""))] : []))
-    .join(", ");
-}
-
-/** Send now asks first, where it was pressed: who and how, when it goes with its Stop, and that delivered is delivered. */
-function ConfirmSend(p: { draft: NewDraftDto; tz: string; busy: boolean; onYes: () => void; onNo: () => void }) {
-  const review = M.reviewOf(p.draft);
-  // Who it reaches where the workspace counted it; asked without a number where nothing counts it (news to a list).
-  const n = review ? review.can : (p.draft.reach?.can ?? null);
-  const goes = M.sendsAt(p.tz, Date.now());
-  const when = goes.moved ? W.confirm.opens(goes.time) : W.confirm.at(goes.time);
-  const detail = [byWords(p.draft), when, W.confirm.after].filter(Boolean).join(". ");
-  return (
-    <Confirm
-      question={n === null ? W.confirm.titleNow(p.draft.name) : W.confirm.title(p.draft.name, n)}
-      detail={`${detail}.`}
-      yes={W.confirm.yes}
-      no={W.confirm.no}
-      busy={p.busy}
-      onYes={p.onYes}
-      onNo={p.onNo}
-      testid="sq-nw-send"
-    />
   );
 }
 
