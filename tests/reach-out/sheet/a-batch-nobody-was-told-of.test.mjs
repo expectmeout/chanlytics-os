@@ -8,10 +8,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fakeDb } from "../_fake-db.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 import { holdBatchForOk } from "@chanlytics/db/campaigns";
 
-const { getReachOutRunContext } = await import("../../apps/edge/lib/campaigns/reach-out/run-context.ts");
+const { getReachOutRunContext } = await import("../../../apps/edge/lib/campaigns/reach-out/run-context.ts");
 
 const T = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";

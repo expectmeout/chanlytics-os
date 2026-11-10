@@ -42,6 +42,7 @@
   "get",
   "head",
   "health",
+  "host",
   "hours",
   "how",
   "ids",

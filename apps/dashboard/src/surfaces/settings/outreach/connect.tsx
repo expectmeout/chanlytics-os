@@ -17,7 +17,7 @@ import { RecordSheet } from "../../kit/record/sheet";
 import { HistoryChoice } from "../connections/history-choice";
 import { connectMailbox, mailboxConnectOutcome } from "../connections/mailbox-connect";
 
-const CONNECT_WORDS = REACH_OUT_SETTINGS_WORDS.connect;
+const CONNECT_SHEET = REACH_OUT_SETTINGS_WORDS.connect;
 const WORKSPACE_HELP = "https://workspace.google.com/";
 
 /** To Google's consent with what the owner chose it brings in, and back to this page; a door that refuses says so. */
@@ -42,12 +42,12 @@ function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
   return (
     <RecordSheet
       id="connect"
-      title={CONNECT_WORDS.title}
+      title={CONNECT_SHEET.title}
       onClose={fold.close}
       foot={
         <span data-foot-pair>
           <Button size="sm" onClick={fold.close} data-testid="rec-connect-cancel">
-            {CONNECT_WORDS.cancel}
+            {CONNECT_SHEET.cancel}
           </Button>
           <Button
             size="sm"
@@ -56,16 +56,16 @@ function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
             data-testid="rec-connect-google"
             {...gate("settings", "connect a mailbox")}
           >
-            {CONNECT_WORDS.google}
+            {CONNECT_SHEET.google}
           </Button>
         </span>
       }
       testid="rec-connect-sheet"
     >
       <div className="bt-stack">
-        <p className="bt-fold-note">{CONNECT_WORDS.sub}</p>
+        <p className="bt-fold-note">{CONNECT_SHEET.sub}</p>
         <ul className="ro-steps">
-          {CONNECT_WORDS.promises.map(([title, detail]) => (
+          {CONNECT_SHEET.promises.map(([title, detail]) => (
             <li className="ro-step" key={title}>
               <span className="ro-step-words">
                 <span>{title}</span>
@@ -83,7 +83,7 @@ function ConnectSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
             }}
             data-testid="rec-connect-other"
           >
-            {CONNECT_WORDS.other.title}
+            {CONNECT_SHEET.other.title}
           </LinkButton>
         </span>
       </div>
@@ -99,12 +99,12 @@ function FreeMailSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
   return (
     <RecordSheet
       id="connect_free"
-      title={CONNECT_WORDS.free.title}
+      title={CONNECT_SHEET.free.title}
       onClose={fold.close}
       foot={
         <span data-foot-pair>
           <Button size="sm" onClick={fold.close} data-testid="rec-connect-free-later">
-            {CONNECT_WORDS.free.later}
+            {CONNECT_SHEET.free.later}
           </Button>
           <Button
             size="sm"
@@ -113,14 +113,14 @@ function FreeMailSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
             data-testid="rec-connect-free-again"
             {...gate("settings", "connect a mailbox")}
           >
-            {CONNECT_WORDS.free.again}
+            {CONNECT_SHEET.free.again}
           </Button>
         </span>
       }
       testid="rec-connect-free-sheet"
     >
       <div className="bt-stack">
-        <p className="bt-fold-note">{CONNECT_WORDS.free.why}</p>
+        <p className="bt-fold-note">{CONNECT_SHEET.free.why}</p>
         <HistoryChoice value={history} onChange={setHistory} lineClass="bt-fold-note" />
         <span>
           <LinkButton
@@ -129,7 +129,7 @@ function FreeMailSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
             rel="noopener noreferrer"
             data-testid="rec-connect-free-help"
           >
-            {CONNECT_WORDS.free.help}
+            {CONNECT_SHEET.free.help}
           </LinkButton>
         </span>
       </div>
@@ -157,12 +157,12 @@ function OtherSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
   return (
     <RecordSheet
       id="connect_other"
-      title={CONNECT_WORDS.other.title}
+      title={CONNECT_SHEET.other.title}
       onClose={fold.close}
       testid="rec-connect-other-sheet"
     >
       <div className="bt-stack">
-        <p className="bt-fold-note">{CONNECT_WORDS.other.what}</p>
+        <p className="bt-fold-note">{CONNECT_SHEET.other.what}</p>
         <span>
           <LinkButton
             href={WORKSPACE_HELP}
@@ -170,26 +170,26 @@ function OtherSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
             rel="noopener noreferrer"
             data-testid="rec-connect-other-help"
           >
-            {CONNECT_WORDS.other.help}
+            {CONNECT_SHEET.other.help}
           </LinkButton>
         </span>
         {told ? (
           <p className="bt-fold-note" data-testid="rec-provider-told">
-            {CONNECT_WORDS.other.thanks}
+            {CONNECT_SHEET.other.thanks}
           </p>
         ) : (
           <>
             <RecordField
               id="ro-provider"
-              label={CONNECT_WORDS.other.tellLabel}
+              label={CONNECT_SHEET.other.tellLabel}
               value={provider}
               onChange={setProvider}
-              placeholder={CONNECT_WORDS.other.placeholder}
+              placeholder={CONNECT_SHEET.other.placeholder}
               testid="rec-provider-box"
             />
             <span>
               <Button size="sm" onClick={tell} disabled={!provider.trim()} data-testid="rec-provider-send">
-                {CONNECT_WORDS.other.tell}
+                {CONNECT_SHEET.other.tell}
               </Button>
             </span>
           </>

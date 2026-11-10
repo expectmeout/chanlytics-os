@@ -66,14 +66,14 @@ export const listPlacesSuppressed = async (db: Db, tenantId: TenantId, hashes: s
 async function countSuppressedAddresses(
   db: Db,
   tenantId: TenantId,
-  what: "said_no" | "email_opt_out",
+  reason: "said_no" | "email_opt_out",
 ): Promise<number> {
   const { count, error } = await db
     .from("lead_suppressions")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
     .eq("kind", "email")
-    .eq("what", what);
+    .eq("what", reason);
   if (error) throw new DbFailure(error, "cannot count the never-again list");
   return count ?? 0;
 }
