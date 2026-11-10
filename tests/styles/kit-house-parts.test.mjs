@@ -41,6 +41,36 @@ test("a Confirm asks a question, says what happens, and takes its test ids from 
   assert.equal(byTestId(tree, "gd-no").props.autoFocus, true, "the No does: Enter out of habit keeps what is there");
 });
 
+test("a Confirm asked on a docked bar takes focus where it stands: a plain focus there moved a phone's page to its end", () => {
+  // What the element is asked as it is drawn: a focus, and how.
+  const taken = (node) => {
+    const how = [];
+    node.props.ref({ focus: (opts) => how.push(opts) });
+    node.props.ref(null);
+    return how;
+  };
+  const docked = (props) => draw(Confirm, { question: "Cancel it?", testid: "d", docked: true, ...props });
+  // The same answer takes it as undocked (the No where the Yes destroys, else the Yes), never by itself: an autoFocus
+  // is a plain focus, which scrolls the window to bring into view an answer already on the screen.
+  const danger = docked({ danger: true });
+  assert.equal(byTestId(danger, "d-no").props.autoFocus, false);
+  assert.deepEqual(taken(byTestId(danger, "d-no")), [{ preventScroll: true }]);
+  assert.equal(byTestId(danger, "d-yes").props.autoFocus, false);
+  assert.equal(byTestId(danger, "d-yes").props.ref, undefined, "one answer takes focus, not both");
+  const plain = docked({});
+  assert.deepEqual(taken(byTestId(plain, "d-yes")), [{ preventScroll: true }]);
+  assert.equal(byTestId(plain, "d-no").props.ref, undefined);
+  // A name to type first takes it, under a mouse, and neither answer does.
+  const typed = docked({ typed: "Acme", danger: true });
+  assert.equal(byTestId(typed, "d-typed").props.autoFocus, false);
+  assert.deepEqual(taken(byTestId(typed, "d-typed")), [{ preventScroll: true }]);
+  assert.equal(byTestId(typed, "d-no").props.ref, undefined);
+  // Undocked, nothing changed: the answer takes focus by itself, and the page comes to it where it is out of sight.
+  const inline = draw(Confirm, { question: "Cancel it?", danger: true, testid: "d" });
+  assert.equal(byTestId(inline, "d-no").props.autoFocus, true);
+  assert.equal(byTestId(inline, "d-no").props.ref, undefined);
+});
+
 test("Escape is No, and it is not said while the answer is on its way", () => {
   const asked = [];
   const tree = draw(Confirm, {

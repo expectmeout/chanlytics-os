@@ -21,11 +21,38 @@
  * and only where something kept is destroyed.
  * The Yes takes focus as the question appears, unless it destroys something or throws work away (`danger`, `discard`):
  * there the No does, so an Enter pressed out of habit keeps what is there, as a destructive alert's default is its
- * Cancel (19 Oct 2026). Escape is No.
+ * Cancel (19 Oct 2026). Escape is No. `docked` is the question asked on a bar docked at the screen's edge (a phone's
+ * dock): what takes focus takes it where it stands, and the page is not moved to it (focusInPlace).
  * Testids from `testid`: `${testid}-confirm` on the group, -yes, -no, -typed.
  */
 import type { KeyboardEvent, ReactNode } from "react";
 import { editorBox, focusAsDrawn } from "../../frame-verbs";
+
+/**
+ * Focus as it is drawn, the page left where it is. A docked bar stands in the room the window keeps clear at its foot for
+ * what it brings into view (mobile.css, scroll-padding-bottom), so a plain focus there moved a phone's page to its end to
+ * show an answer already on the screen (9 Nov 2026). One function, so React asks it once, as the answer is drawn.
+ */
+const focusInPlace = (el: HTMLElement | null): void => {
+  el?.focus({ preventScroll: true });
+};
+
+/**
+ * The part of a question that takes focus as it appears: the name to type, under a mouse (on a touch screen its field
+ * waits for a tap), else one answer, the one that keeps what is there where the Yes would destroy something or throw
+ * work away.
+ */
+const focusedPart = (typed: string | null, safeFirst: boolean): "typed" | "yes" | "no" | null => {
+  if (typed != null) return focusAsDrawn() ? "typed" : null;
+  return safeFirst ? "no" : "yes";
+};
+
+/**
+ * A part's focus, as its element's props: taken by itself as it is drawn (autoFocus, kept as the JSX drew it: the typed
+ * name and the answers take focus as the question appears), or in place where the bar is docked (focusInPlace).
+ */
+const focusProps = (on: boolean, docked: boolean) =>
+  on && docked ? { autoFocus: false, ref: focusInPlace } : { autoFocus: on };
 
 interface ConfirmProps {
   question: ReactNode;
@@ -47,6 +74,8 @@ interface ConfirmProps {
   ready?: boolean | null;
   error?: ReactNode;
   block?: boolean;
+  /** Asked on a bar docked at the screen's edge (a phone's dock): focus is taken in place, the page not moved to it. */
+  docked?: boolean;
   className?: string;
   testid?: string | null;
 }
@@ -77,6 +106,7 @@ export function Confirm({
   ready = null,
   error = null,
   block = false,
+  docked = false,
   className = "",
   testid = null,
 }: ConfirmProps) {
@@ -85,6 +115,7 @@ export function Confirm({
   const tone = toneOf(discard, danger);
   // The answer that keeps what is there takes focus where the Yes would destroy something or throw work away.
   const safeFirst = danger || discard;
+  const focused = focusedPart(typed, safeFirst);
   const onKey = (e: KeyboardEvent<HTMLSpanElement>) => {
     if (e.key === "Escape" && !busy && onNo) {
       e.stopPropagation();
@@ -113,8 +144,7 @@ export function Confirm({
           onChange={(e) => onType && onType(e.target.value)}
           placeholder={String(typed)}
           aria-label={`Type ${typed} to confirm`}
-          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- kept as the JSX drew it: the typed name takes focus as the question appears, under a mouse
-          autoFocus={focusAsDrawn()}
+          {...focusProps(focused === "typed", docked)}
           disabled={busy}
           data-testid={id("typed")}
         />
@@ -130,7 +160,7 @@ export function Confirm({
           className={`btn btn-sm${tone.yes}`}
           disabled={busy || !ok}
           onClick={onYes}
-          autoFocus={typed == null && !safeFirst}
+          {...focusProps(focused === "yes", docked)}
           data-testid={id("yes")}
         >
           {busy ? busyLabel : yes}
@@ -140,7 +170,7 @@ export function Confirm({
           className={`btn btn-sm${tone.no}`}
           disabled={busy}
           onClick={onNo}
-          autoFocus={typed == null && safeFirst}
+          {...focusProps(focused === "no", docked)}
           data-testid={id("no")}
         >
           {no}

@@ -7,6 +7,7 @@
 import { runTooLate, type BroadcastVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../../../surface-values";
 import { BC_LIVE, BC_NONE, BcRunVerbs, BroadcastDetail } from "../run";
+import { bcStopAsked } from "../run-sheet";
 import type { BcApproving, BcBase, BcRunActs, BcRunsOf, BcSheet, BcV } from "./types";
 import { approvalDaysNow } from "../when-words";
 
@@ -113,6 +114,22 @@ export function bcRunSolo({
   cancel,
   sheetFor,
 }: SoloIn) {
+  // The run while it can still change, whose verbs these are: at the pane's head, or as its dock draws them.
+  const live = openRow && BC_LIVE.has(openRow.state) ? openRow : null;
+  const armed = !!live && armId === live.id;
+  const verbs = (row: BroadcastVM, docked: boolean) => (
+    <BcRunVerbs
+      row={row}
+      canSend={canSend}
+      armed={armed}
+      onArm={(on) => setArmId(on ? row.id : null)}
+      stopping={stopping === row.id}
+      approving={approving === row.id}
+      approve={approve}
+      cancel={cancel}
+      docked={docked}
+    />
+  );
   return (
     <BroadcastDetail
       // One run's filter and expanded rows are state of that run: keyed by it, the next run opens fresh.
@@ -120,20 +137,9 @@ export function bcRunSolo({
       id={openId}
       name={openRow ? openRow.name : null}
       onClose={() => openRun(null)}
-      acts={
-        openRow && BC_LIVE.has(openRow.state) ? (
-          <BcRunVerbs
-            row={openRow}
-            canSend={canSend}
-            armed={armId === openRow.id}
-            onArm={(on) => setArmId(on ? openRow.id : null)}
-            stopping={stopping === openRow.id}
-            approving={approving === openRow.id}
-            approve={approve}
-            cancel={cancel}
-          />
-        ) : null
-      }
+      acts={live ? verbs(live, false) : null}
+      // The stop's question, while it is asked: a phone asks it in the pane's dock, not its head's capsule (run.tsx).
+      question={live && bcStopAsked(live, canSend, armed) ? verbs(live, true) : null}
       sheet={sheetFor(openRow)}
       flash={flash}
     />
