@@ -104,6 +104,9 @@ const TABLES = [
   // A business's files (00551): the rows here, and their bytes in the files bucket below.
   "files",
   "files_let_go",
+  // Where each post went, and each send of it (00611, decision 0121).
+  "posts",
+  "publish_attempts",
   "sequence_lead_words",
   // The notes an owner's corrections suggest keeping (00448, decision 0063).
   "fact_suggestions",

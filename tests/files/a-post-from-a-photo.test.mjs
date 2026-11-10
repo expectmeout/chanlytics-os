@@ -23,9 +23,10 @@ const { POST_SIZES, SCRIM_UNDER_WORDS, postCrop, postLayout, postPhotoBox, words
 );
 const { composePost } = await import(at("apps/dashboard/src/server/posts/compose.ts"));
 const { MAKE_POST_ASK, buildAskSuggestions } = await import(at("packages/contracts/src/ask/suggestions.ts"));
-const { postPathOf, postPhotoProblem, postPlanProblem, postUndrawable, postWordsProblem } = await import(
+const { postPhotoProblem, postPlanProblem, postUndrawable, postWordsProblem } = await import(
   at("apps/dashboard/src/server/files/post-check.ts")
 );
+const { postPathOf } = await import(at("packages/contracts/src/files/views.ts"));
 const { POST_LAYOUTS, POST_LIMITS, POST_SHAPES, POST_WORDS, postPhotoWont, postPlanOf, postPlanTidied, postWordsIn } =
   await import(at("packages/contracts/src/files/post.ts"));
 const { postSpec } = await import(at("packages/contracts/src/files/post-spec.ts"));

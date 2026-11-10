@@ -246,6 +246,7 @@ export { businessMsBetween, firstNameOfAddress, SUPPORT_KIND_FILTER_WORDS, SUPPO
 export { askCode, askDoneOf, cameInOf, FIND_KINDS, FIND_LIMITS, findDigits, findGroups, inboxHomeUrl, inboxSearchUrl, SUPPORT_KIND_WORDS, SUPPORT_TOPICS, SUPPORT_WORDS, supportPathOf, supportTopicOf } from "./console/support/asks";
 export { pageWords, reportCode, reportOf, SETUP_ASK_WORDS, supportClusters } from "./console/support/reports";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./content/lines";
+export { INSTAGRAM_POST_KINDS, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_KINDS, POST_ON_ITS_WAY, POST_PLACES, POST_PULLABLE, POST_STATUSES, POST_VIAS, postCaptionProblem } from "./content/posts";
 export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONNECTION_LABELS, MISSED_CALL_LINE, missedCall, neverConnected, reachedVoicemail, UNCONNECTED_DIAL_LINE } from "./conversations/call-dto";
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
 export { dockLineOf, DRAFTED_TODO, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdToDoOf, holdWaits, OPEN_HOLDS_READ_MAX, PITCH_TODO, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
@@ -294,7 +295,7 @@ export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HI
 export { POST_LAYOUTS, POST_LIMITS, POST_NO_PHONE, POST_PICTURES, POST_SHAPES, POST_VOICES, POST_WORDS, postMomentWont, postPhotoWont, postPlanOf, postPlanTidied, postWordsIn } from "./files/post";
 export { cuesSaidOf, earWordsOf, fileSoundOf, languageCodeOf, languageNameOf, noteSaidOf, scribeWordsOf, soundNoteOf, soundSaidOf, soundTurnSaidOf, VIDEO_EAR_SCHEMA, VIDEO_EAR_SYSTEM, VIDEO_EAR_WORDS_SCHEMA, videoEarAsked, videoListenAsked, videoSheetAfterOf, vttOf } from "./files/sound";
 export { clockOf, isDigestStep, nextDigestStepOf, secondsOf, VIDEO_DIGEST_STEPS, VIDEO_FRAME_SIDE, VIDEO_SHEET_FRAMES, VIDEO_SHEET_PIXELS, VIDEO_SHEET_SIDE, VIDEO_SPAN_FRAMES, VIDEO_TILE_LABEL_PX, videoFrameSizeOf, videoFramesSaidOf, videoFrameWhatOf, videoPreviewOf, videoSheetPlanOf, videoSheetSaidOf, videoSheetWhatOf, videoSpanPlanOf, videoSpanWhatOf } from "./files/video";
-export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaidOf, fileShelfOpening, filesTallyOf, fileViewOf, inboxCleanOf, postNameOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/views";
+export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaidOf, fileShelfOpening, filesTallyOf, fileViewOf, inboxCleanOf, postNameOf, postPathOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/views";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";

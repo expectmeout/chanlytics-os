@@ -54,3 +54,20 @@ export {
   parseMetaToken,
 } from "./meta";
 export type { MetaAccount, MetaApp, MetaTokenFacts } from "./meta";
+export {
+  metaContainerFields,
+  metaContainerRequest,
+  metaContainerStatusRequest,
+  metaMediaReadRequest,
+  metaMediaSentBy,
+  metaNewestMediaRequest,
+  metaPostLimitRequest,
+  metaPostRefusalOf,
+  metaPublishRequest,
+  parseMetaContainerStatus,
+  parseMetaCreatedId,
+  parseMetaMedia,
+  parseMetaMediaList,
+  parseMetaPostLimit,
+} from "./meta-publish";
+export type { MetaContainerStatus, MetaMedia, MetaPoster, MetaPostRefusal } from "./meta-publish";

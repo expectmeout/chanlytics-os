@@ -64,6 +64,11 @@ async function metaReadiness(tenantId: TenantId, now = Date.now()): Promise<Meta
   return value;
 }
 
+/** Whether the Meta link is switched on for this workspace (the edge's word, kept a while): a post goes to Instagram only then. */
+export async function readMetaSwitch(tenantId: TenantId): Promise<boolean> {
+  return (await metaReadiness(tenantId)).ready;
+}
+
 /** `GET channels/meta`: whether Connect Meta can be offered in this workspace, and to this member. */
 export async function readMeta(member: Member): Promise<{ ready: boolean; can_connect: boolean }> {
   const ready = (await metaReadiness(member.tenantId)).ready;

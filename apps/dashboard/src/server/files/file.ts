@@ -15,9 +15,9 @@ import {
   fileMadePathOf,
   fileNameOf,
   filePathOf,
+  postPathOf,
   type FileShows,
 } from "@chanlytics/contracts";
-import { postPathOf } from "./post-check";
 import {
   updateFileRow,
   keepManyFiles,

@@ -20,6 +20,7 @@ import {
   type FileMime,
   type FileShows,
   type FileVideoMime,
+  type InstagramPostKind,
   type PostPicture,
   type PostPlan,
   type PostShapeName,
@@ -227,6 +228,10 @@ export const fileVerbs = {
   savePost: (plan: PostPlan) => api()("POST files/post", { body: plan }),
   postToGoogle: (id: string, summary: string) => api()("POST files/[id]/google", { params: { id }, body: { summary } }),
   takeOffGoogle: (id: string, name: string) => api()("DELETE files/[id]/google", { params: { id }, body: { name } }),
+  postToInstagram: (id: string, as: InstagramPostKind, caption: string) =>
+    api()("POST files/[id]/instagram", { params: { id }, body: as === "story" ? { as } : { as, caption } }),
+  pullFromInstagram: (id: string, postId: string) =>
+    api()("DELETE files/[id]/instagram", { params: { id }, body: { post_id: postId } }),
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   keepMany: (ids: readonly string[]) => api()("POST files/keep", { body: { ids: [...ids] } }),
   remove: (id: string) => api()("DELETE files/[id]", { params: { id } }),

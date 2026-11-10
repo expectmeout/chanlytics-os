@@ -5,13 +5,13 @@
  */
 import { useState } from "react";
 import { FILE_GOOGLE_WORDS_MAX, FILE_WORDS, type FilePosted, type PostPlan } from "@chanlytics/contracts";
-import { Button } from "../kit/button/button";
-import { Confirm } from "../kit/confirm/confirm";
-import { LineField } from "../kit/line/line";
-import type { FrameFlash } from "../frame-verbs";
-import { usePostDraft } from "./post-draft";
-import { PostFrame } from "./post-frame";
-import { fileVerbs } from "./verbs";
+import { Button } from "../../kit/button/button";
+import { Confirm } from "../../kit/confirm/confirm";
+import { LineField } from "../../kit/line/line";
+import type { FrameFlash } from "../../frame-verbs";
+import { usePostDraft } from "../post-draft";
+import { PostFrame } from "../post-frame";
+import { fileVerbs } from "../verbs";
 
 const ON_GOOGLE = FILE_WORDS.google;
 

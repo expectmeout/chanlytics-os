@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-386 handlers in 57 domains.
+388 handlers in 57 domains.
 
 ## activity
 
@@ -1042,6 +1042,24 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `name` | string | yes | at least 1 characters; at most 300 characters |
+
+### `POST /api/v1/files/[id]/instagram`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_instagram` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `as` | one of `"picture"`, `"story"` | yes |  |
+| `caption` | string | no | at most 2200 characters |
+| `when` | string (date-time) | no |  |
+
+### `DELETE /api/v1/files/[id]/instagram`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `file_instagram` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `post_id` | string (uuid) | yes |  |
 
 ### `GET /api/v1/files/[id]/play`
 
@@ -2130,7 +2148,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -2150,7 +2168,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 
