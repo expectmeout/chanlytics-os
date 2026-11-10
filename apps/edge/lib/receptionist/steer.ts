@@ -289,17 +289,16 @@ export async function steerHeldDraft(
   const now = new Date(); // the rewrite's one clock: its prompt, its price check (steerAllowance) and its timing
   let item: Awaited<ReturnType<typeof generateReply>>;
   try {
-    item = await ask(
-      thread.history,
-      lastUser.content,
-      resolveSystemPrompt(rt.brain, channel, rt.timezone, now, rt.policy, rt.known),
-      fallbackMessages(rt.brain, rt.known).error,
+    item = await ask({
+      history: thread.history,
+      userText: lastUser.content,
+      systemPrompt: resolveSystemPrompt(rt.brain, channel, rt.timezone, now, rt.policy, rt.known),
+      fallbackText: fallbackMessages(rt.brain, rt.known).error,
       leadNote,
-      describeNow(rt.timezone, now, rt.brain.profile?.closures),
-      undefined,
-      frameSteer(text),
-      brainCallOf(m.tenant_id, rt, { subjectId: m.conversation_id }),
-    );
+      nowNote: describeNow(rt.timezone, now, rt.brain.profile?.closures),
+      steer: frameSteer(text),
+      call: brainCallOf(m.tenant_id, rt, { subjectId: m.conversation_id }),
+    });
   } catch (e) {
     steerLog.error("steer_brain_failed", { error: errField(e) });
     return refuse(502, "brain_failed");

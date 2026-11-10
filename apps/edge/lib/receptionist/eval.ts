@@ -228,17 +228,14 @@ export async function evaluateCases(
   for (const otherCase of cases) {
     const t0 = Date.now();
     try {
-      const result = await ask(
-        otherCase.history ?? [],
-        otherCase.text,
-        system,
-        holding,
-        undefined,
+      const result = await ask({
+        history: otherCase.history ?? [],
+        userText: otherCase.text,
+        systemPrompt: system,
+        fallbackText: holding,
         nowNote,
-        undefined,
-        undefined,
         call,
-      );
+      });
       results.push({
         id: otherCase.id,
         ok: true,

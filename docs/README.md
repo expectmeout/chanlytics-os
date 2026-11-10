@@ -14,6 +14,7 @@ them without checking the code.
 | [runbook.md](runbook.md)                     | Run it, test it, deploy it, roll it back                                                                           |
 | [system-prd.md](system-prd.md)               | The as-built reference, sheet by sheet                                                                             |
 | [conversation-flow.md](conversation-flow.md) | What happens to a message, step by step                                                                            |
+| [inbound-gates.md](inbound-gates.md)         | The order every message is taken through, gate by gate (generated: `corepack pnpm gen:inbound-gates`)              |
 | [data-flow.md](data-flow.md)                 | The paths data takes, hop by hop, and where a request's name reaches                                               |
 | [lead-finder.md](lead-finder.md)             | How the lead finder works                                                                                          |
 | [voice.md](voice.md)                         | How a call works                                                                                                   |

@@ -1,4 +1,4 @@
--- 00596 · A library is searched where it is kept (decision 0099; the content backend review's R4).
+-- 00597 · A library is searched where it is kept (decision 0099; the content backend review's R4).
 --
 -- Ask read every row of a workspace's files, with its look, whenever it touched them, up to 1,000, and found a file by its
 -- words in memory, reading every video's sound again to do it. The search moves to the database, the way Ask's own search
@@ -33,7 +33,7 @@ as $$
 $$;
 
 comment on function public.file_search_words(text, jsonb, text, jsonb) is
-  'The words a file is found by, as one text (00596): its name, its look''s sentence, the words written in it and a video''s moments, how a video sounds and what is said in it. Immutable: files_found_words is an index of it.';
+  'The words a file is found by, as one text (00597): its name, its look''s sentence, the words written in it and a video''s moments, how a video sounds and what is said in it. Immutable: files_found_words is an index of it.';
 
 revoke all on function public.file_search_words(text, jsonb, text, jsonb) from public, anon;
 grant execute on function public.file_search_words(text, jsonb, text, jsonb) to authenticated, service_role;
@@ -88,7 +88,7 @@ as $$
 $$;
 
 comment on function public.files_found(uuid, text, integer, integer, boolean, text[], boolean, text) is
-  'One page of one shelf of a workspace''s files, newest first, and how many in all (00596): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, shows, or unsorted). Words (websearch_to_tsquery, the ''simple'' configuration) are found in file_search_words; left out or blank, every file on the shelf; words that could match nothing, or only by what is not there, none. At most 1,000 a page. Under the caller''s row security.';
+  'One page of one shelf of a workspace''s files, newest first, and how many in all (00597): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, shows, or unsorted). Words (websearch_to_tsquery, the ''simple'' configuration) are found in file_search_words; left out or blank, every file on the shelf; words that could match nothing, or only by what is not there, none. At most 1,000 a page. Under the caller''s row security.';
 
 revoke all on function public.files_found(uuid, text, integer, integer, boolean, text[], boolean, text) from public, anon;
 grant execute on function public.files_found(uuid, text, integer, integer, boolean, text[], boolean, text) to authenticated, service_role;

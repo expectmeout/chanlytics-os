@@ -3,7 +3,7 @@
  */
 export { recordEchoAndPause } from "./echoes";
 export {
-  AnswerNotKept,
+  answerOfMessage,
   countSentToday,
   findMessageByExternalId,
   findWireRow,

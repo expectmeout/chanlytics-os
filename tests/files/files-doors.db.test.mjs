@@ -3,7 +3,7 @@
  * changes nothing, an owner both, a stranger finds nothing), the service's doors shut to a member, the copy's id and the
  * fingerprint out of a member's reach, a row only from its bytes proven until they are gone, one row a picture, a removed one not
  * brought back, the owner's word kept over the look's, a good look kept over a failed try, and the job each step leaves. And the
- * library searched where it is kept (00596 files_found), in two workspaces of its own, so no other test's files are counted.
+ * library searched where it is kept (00597 files_found), in two workspaces of its own, so no other test's files are counted.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
  */
@@ -604,7 +604,7 @@ test("the bucket is private and takes only the kinds and the size we keep", { sk
   assert.ok(!bucket.allowed_mime_types.includes("image/svg+xml"));
 });
 
-/* ------------------------------------------------------------------------- the library searched where it is kept (00596) -- */
+/* ------------------------------------------------------------------------- the library searched where it is kept (00597) -- */
 
 let D;
 let E;

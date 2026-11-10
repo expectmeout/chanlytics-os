@@ -453,7 +453,7 @@ function searchMessagesIn(tables, { p_tenant, p_words, p_since, p_limit }) {
   return hits.map(({ said, ...h }) => ({ ...h, snippet: headline(said, q) }));
 }
 
-/** 00596 file_search_words: the words a file is found by, as one text, as jsonb_path_query_array and ::text write them. */
+/** 00597 file_search_words: the words a file is found by, as one text, as jsonb_path_query_array and ::text write them. */
 function fileSearchWordsOf(f) {
   const look = f.look && typeof f.look === "object" ? f.look : null;
   const list = (v) => (look ? JSON.stringify(Array.isArray(v) ? v : []) : "");
@@ -470,7 +470,7 @@ function fileSearchWordsOf(f) {
 }
 
 /**
- * `files_found` (00596), answered out of the files a fixture holds: one shelf of one workspace (contracts shelfFilterOf as its
+ * `files_found` (00597), answered out of the files a fixture holds: one shelf of one workspace (contracts shelfFilterOf as its
  * parts), not removed and not a video still on its way, found by the words in file_search_words where words are given, newest
  * first with the id breaking ties, at most least(greatest(p_limit, 1), 1000) from p_offset: `{ ids, total }`. Blank words find
  * every file on the shelf; words that could match nothing, or only by exclusions, none. No RLS: the double holds one member's view.
@@ -1712,7 +1712,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
-    // The library's search (00596), from the files the fixture holds: Ask's list reads through it.
+    // The library's search (00597), from the files the fixture holds: Ask's list reads through it.
     files_found: (args) => filesFoundIn(tables, args),
     // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of
     // "<tenant>:<value>", in order, null for null (contracts' hashLegacyErasedPhone is the same bytes).

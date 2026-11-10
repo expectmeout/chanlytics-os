@@ -72,7 +72,6 @@ export {
   inboundFromSms,
   lineCodesFrom,
   mergeConsent,
-  oneTimeCodeOf,
   sameSignature,
   signTwilio,
   SMS_FOOTER,

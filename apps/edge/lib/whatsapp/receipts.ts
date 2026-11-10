@@ -18,10 +18,10 @@ import { waPricingOf, waStoppedMarketing, type WaChangeValue } from "@chanlytics
 import { keepMessageCost, recordStatusByExternalId } from "@chanlytics/db/channels";
 import { recordWhatsAppOffersStop } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
-import { phoneTail } from "@chanlytics/contracts";
+import { MIN_MS, phoneTail } from "@chanlytics/contracts";
 import { logger, type Logger } from "../shared/log.js";
 import { flagLateFailure } from "../shared/late-failure.js";
-import { runPgSafe } from "./persist.js";
+import { runPgSafe } from "../inbound/persist.js";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -56,6 +56,19 @@ async function keepCost(
   await runPgSafe("cost", () => keepMessageCost(db, tenantId, id, pricing));
 }
 
+/**
+ * How long a failure receipt for a message we cannot find is asked for again: long enough for the send's own write of
+ * Meta's id to land (a second or two), short of Meta's redelivery schedule turning a receipt about history into days of
+ * retries.
+ */
+const RECEIPT_RACE_MS = 10 * MIN_MS;
+
+/** Whether Meta sent this receipt within RECEIPT_RACE_MS (its own `timestamp`, in seconds); one with no time is not. */
+function youngReceipt(s: Receipt, nowMs = Date.now()): boolean {
+  const at = Number(s.timestamp) * 1000;
+  return Number.isFinite(at) && at > 0 && nowMs - at < RECEIPT_RACE_MS;
+}
+
 /** How many receipts the database would not take, which must come again (0 when every one was recorded). */
 /** One receipt's writes. True when it must be delivered again: a flag that could not be written leaves the row as it was. */
 async function recordOneReceipt(
@@ -88,8 +101,14 @@ async function recordOneReceipt(
     if (flagged === undefined) {
       return true;
     }
+    // A failure about a send whose row does not carry Meta's id YET (its receipt beat our own write): asked for again
+    // while it is young, so the owner hears of it once the row has its id; past that it is history we never wrote.
+    if (flagged === "not_ours" && youngReceipt(statusEntry)) return true;
   }
-  await runPgSafe("status", () => recordStatusByExternalId(db, tenantId, id, status, error));
+  // A status the database did not keep is asked for again (the write throws: pg_status_failed): acknowledged, the
+  // row stood at "sent" for good. Applying it twice is safe (the guard keeps the rank monotone).
+  if ((await runPgSafe("status", () => recordStatusByExternalId(db, tenantId, id, status, error))) === undefined)
+    return true;
   await keepCost(log, db, tenantId, id, statusEntry);
   if (stopped) {
     const recorded = await runPgSafe("offers_stop", () => recordWhatsAppOffersStop(db, { tenantId, externalId: id }));

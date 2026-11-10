@@ -49,7 +49,7 @@ test("the clock names the day when it is not today", () => {
 });
 
 test("the wiring: words on the edge, a bounded reply on both sides, the layout fixes, and nothing of the workshop on a customer's screen", () => {
-  const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
+  const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
   assert.ok(
     alerts.includes("subject: `${name} needs a person — ${reasonWords}`") &&
       alerts.includes("about: ctx.about ?? null,") &&
@@ -68,7 +68,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   // and the ingest's copy of words the database did not keep.
   assert.ok(
     inbound.includes("who: n.profileName ?? null,") &&
-      inbound.includes('about: ing ? { type: "conversation", id: ing.conversation_id } : null,'),
+      inbound.includes('about: { type: "conversation", id: ing.conversation_id },'),
     "every handoff carries the name and the thread",
   );
   assert.equal(

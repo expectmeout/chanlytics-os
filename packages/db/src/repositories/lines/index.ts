@@ -3,7 +3,14 @@
  */
 export { getLineCredentials, putLineCredentials } from "./credentials";
 export { testLineForwarding } from "./forwarding";
-export { dropLineCredentials, findBusinessOnRecord, findFiledNames, findOwnLine, saveBusinessOnRecord } from "./lines";
+export {
+  dropLineCredentials,
+  findBusinessOnRecord,
+  findFiledNames,
+  findLinesThatText,
+  findOwnLine,
+  saveBusinessOnRecord,
+} from "./lines";
 export {
   findOtherLineOnRow,
   findRoutingRowByKey,

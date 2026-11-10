@@ -363,7 +363,7 @@ export const filesTool = defineActions({
       async run(turn, input) {
         const page = input.page ?? 1;
         const from = (page - 1) * LIST_MAX;
-        // The database finds and counts them (00596 files_found): only the page is read.
+        // The database finds and counts them (00597 files_found): only the page is read.
         const { files, total } = (
           await load(turn.rc, filesFoundForAsk, {
             shelf: input.shelf ?? "all",

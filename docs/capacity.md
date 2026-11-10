@@ -27,3 +27,5 @@ A clock's hourly work once ran inside its own sixty-second function, so it had a
 | reach_out_check | `* * * * *` | `CHECK_PER_TICK` = 40 | 2,400 | 2,400 emails checked an hour. Holds beside the sender's row. |
 | registration | `23 * * * *` | `REGISTRATIONS_PER_TICK` = 20 | 20 | Only registrations in progress. Holds. |
 | snoozes | `10 seconds` | None: one statement in the database, over rows whose time has come. | No ceiling | Holds on its index. |
+| text_canary | `0,15 14 * * *` | None needed: one text to the platform's own line, and one read of what became of it. | No ceiling | The same two texts a day at any size. Holds. |
+| texts | `*/10 * * * *` | Time: lines in order, oldest first, until forty seconds have gone (`TEXTS_YIELD_AT_MS`), one Twilio read each. | No ceiling | TIGHT: about a hundred lines a tick at a few hundred milliseconds a read, so past that the newest lines are never read. The next clock to hand out a job a workspace. |

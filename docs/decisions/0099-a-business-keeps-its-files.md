@@ -392,14 +392,14 @@ first" cannot be said); and a failed video's fingerprint holding its twin out un
 (`file_video_begin`). The pictures a site or a listing showed before 00551 are brought by one `website_read` for the workspace:
 nothing reads them again by itself. Nothing here has met a real clip; the trial above still stands first.
 
-## The library in the database, and a clip's moments (00596)
+## The library in the database, and a clip's moments (00597)
 
 The content backend's review (10 Nov 2026, R4) found Ask's reads of the library shaped for a few photos: whenever it touched a
 file it read every row with its look, up to 1,000, and a search read every video's sound again to find words in it. Choosing a few
 seconds across a business's clips is the core of every piece Ask will make, so the library is read the way the rest of the app
 searches.
 
-- **A search is the database's** (00596 `files_found`): one shelf (contracts `shelfFilterOf`, given as its parts), newest first,
+- **A search is the database's** (00597 `files_found`): one shelf (contracts `shelfFilterOf`, given as its parts), newest first,
   found by its words in `file_search_words` (a file's name, its look's sentence, the words written in it, a video's moments, how
   it sounds and what is said in it) with a search box's grammar and the 'simple' configuration, as Ask's and the message search
   are (00219), on one index (`files_found_words`). It answers a page's ids and how many in all; the rows are read through the

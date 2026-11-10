@@ -58,7 +58,15 @@ export interface WaChangeValue {
   metadata?: { phone_number_id?: string; display_phone_number?: string };
   contacts?: Array<{ wa_id?: string; profile?: { name?: string } }>;
   messages?: WaRawMessage[];
-  statuses?: Array<{ id?: string; status?: string; recipient_id?: string; errors?: unknown; pricing?: unknown }>;
+  /** Receipts for what we sent: `timestamp` is when Meta says the status happened, in seconds, as a string. */
+  statuses?: Array<{
+    id?: string;
+    status?: string;
+    timestamp?: string;
+    recipient_id?: string;
+    errors?: unknown;
+    pricing?: unknown;
+  }>;
   message_echoes?: Array<{ to?: string; id?: string; text?: { body?: string } }>;
   /** A chunk of the chat history the business shared as its app was kept (coexistence, the `history` field). */
   history?: WaHistoryChunk[];
@@ -634,6 +642,30 @@ export async function sendTemplate(
         : [],
     },
   });
+}
+
+/** How long the typing indicator is waited for: a courtesy, so never long. */
+const TYPING_TIMEOUT_MS = 3_000;
+
+/**
+ * The customer's message marked read with the typing indicator beside it, while the receptionist writes its answer:
+ * WhatsApp shows "typing..." until the reply arrives or twenty-five seconds pass (Cloud API, a status update carrying
+ * `typing_indicator`). A courtesy and never a send: it puts no words in front of anyone, so an open breaker holds it,
+ * and what it answers is only whether Graph took it.
+ */
+export async function sendTypingIndicator(cfg: WaConfig, messageId: string): Promise<boolean> {
+  const answer = await fetchFromProvider("meta", `${GRAPH}/${cfg.phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      status: "read",
+      message_id: messageId,
+      typing_indicator: { type: "text" },
+    }),
+    timeoutMs: TYPING_TIMEOUT_MS,
+  });
+  return answer.outcome === "ok";
 }
 
 /* -------------------------------- media -------------------------------- */

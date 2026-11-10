@@ -1,17 +1,39 @@
 /**
- * A person's address as a message gave it (decision 0111): the address on file, and the door that keeps a new one
- * (set_person_email, 00171), which writes the event and refuses one another person holds (23505). Each answer is the
- * database's as it came; the caller says a failure in its words.
+ * A person's address as a message gave it (decision 0111): kept where none is on file, under the row's lock
+ * (note_person_email, 00593), and the door a member's own edit goes through (set_person_email, 00171), which writes the
+ * event and refuses one another person holds (23505).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import { DbFailure } from "@chanlytics/contracts";
+import { readAnswer } from "../../shared/read-json";
 import type { Database } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
-/** The address on file for one of the workspace's people, or none. */
-export const findPersonEmailRow = async (db: Db, tenantId: TenantId, contactId: ContactId) =>
-  db.from("contacts").select("email").eq("id", contactId).eq("tenant_id", tenantId).maybeSingle();
+/** What became of an address a customer wrote in their own message (note_person_email, 00593). */
+export type EmailNoted = "kept" | "had_one" | "taken" | "not_found";
+
+/**
+ * An address a customer gave in their own words, kept on their row only where none is on file: one call, under the row's
+ * lock (00593). Another person here holding it is `taken` and never moved: the owner merges them. A write that fails
+ * throws.
+ */
+export async function noteEmailTheyGave(
+  db: Db,
+  tenantId: TenantId,
+  contactId: ContactId,
+  address: string,
+): Promise<EmailNoted> {
+  const { data, error } = await db.rpc("note_person_email", {
+    p_tenant_id: tenantId,
+    p_contact_id: contactId,
+    p_email: address,
+  });
+  if (error) throw new DbFailure(error, "note_person_email");
+  return readAnswer("note_person_email", z.enum(["kept", "had_one", "taken", "not_found"]), data);
+}
 
 /** An address kept on a person through its door (set_person_email). */
 export const setPersonEmail = async (db: Db, contactId: ContactId, email: string) =>

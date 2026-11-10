@@ -87,7 +87,7 @@ export async function listFilesByName(
 }
 
 /**
- * One page of one shelf, newest first, found by its words where words are given (00596 files_found), and how many stand there in
+ * One page of one shelf, newest first, found by its words where words are given (00597 files_found), and how many stand there in
  * all: the search answers the page's ids, and their rows are read through the member's own columns, in the search's order.
  */
 export async function listFilesFound(

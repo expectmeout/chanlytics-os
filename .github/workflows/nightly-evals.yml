@@ -1,13 +1,15 @@
 name: Nightly evals
 
-# The receptionist's regression evals, every night (scorecard move 10): a made-up workspace's composed prompt, the
-# platform's own layer two and the cases in tooling/evals/nightly-cases.json (planted injections, refunds and discounts,
+# The receptionist's regression evals, every Monday (scorecard move 10; weekly since 3 Nov 2026, on Ruben's yes): a
+# made-up workspace's composed prompt, the platform's own layer two and the cases in tooling/evals/nightly-cases.json (planted injections, refunds and discounts,
 # prices in every currency, Spanish handoffs, multi-turn threads), asked of the model and judged. The pass line is the
 # lower bound of the Wilson interval of the pass rate, and a case marked hard must pass every time.
 #
-# The job asks the model ONLY with ANTHROPIC_EVAL_KEY, a sandbox model key that is not the platform's. It never
+# The job asks the model ONLY with ANTHROPIC_EVAL_KEY, a model key that is not the platform's. It never
 # receives ANTHROPIC_API_KEY, the production key, or any other secret: the script talks to the model directly with the
-# eval key and to nothing of ours.
+# eval key and to nothing of ours. The eval key is its own key in the platform's Anthropic organization, so a run
+# spends the same credit the receptionist answers with: 32 cases twice, about $1-2.50 a run, which is why it is weekly
+# (the file and its switch keep the name they were given).
 #
 # Off until the repository variable NIGHTLY_EVALS is "1" (Settings, Secrets and variables, Actions, Variables), the way
 # preview-smoke.yml is off until PREVIEW_SMOKE is: a secret cannot be read in a job's `if`, and a variable can. Off, the
@@ -17,7 +19,7 @@ name: Nightly evals
 # pass. Turning it on is Ruben's: the secret first, then the variable.
 on:
   schedule:
-    - cron: "0 10 * * *"
+    - cron: "0 10 * * 1"
   workflow_dispatch:
 
 # One run at a time: the evals spend a key by the minute.

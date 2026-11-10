@@ -21,6 +21,7 @@ apps/edge/lib/
   files/
   google/
   imports/
+  inbound/
   instagram/
   intake/
   leads/

@@ -109,7 +109,7 @@ export const filesNamedForAsk: Reader<{ names: readonly string[] }, { files: Fil
 };
 
 /**
- * A page of one shelf as Ask lists it, newest first, found by its words where it gives them (00596 files_found: what a file is
+ * A page of one shelf as Ask lists it, newest first, found by its words where it gives them (00597 files_found: what a file is
  * named, what its look saw, how a video sounds and what is said in it), and how many stand there in all.
  */
 export const filesFoundForAsk: Reader<

@@ -46,7 +46,7 @@ import { googleReader } from "../google/sweep.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../campaigns/freed-time-offer.js";
 import { remindLateBooking } from "../campaigns/late-reminder.js";
-import { answerInboundJob } from "../intake/answer-later.js";
+import { answerInboundJob } from "../intake/answer-job.js";
 import {
   runTick,
   claimNext,
@@ -188,7 +188,7 @@ async function pageWhatTheCustomersWaited(
     );
   }
   // Many failures in one heartbeat are also the platform's condition: one page with the counts in words and where to
-  // look. Each failed job has already told whom its kind tells (packages/jobs/src/tick.ts); the page is in addition to
+  // look. Each failed job has already told whom its kind tells (packages/jobs/src/runner/tick.ts); the page is in addition to
   // those, not instead of them.
   if (failed >= MASS_FAILURE_PAGE)
     await pageOperator({ db }, "jobs_mass_failure", `${failed} jobs failed in one heartbeat`, massFailureBody(tally));
@@ -267,7 +267,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               google: googleReader(db),
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
-              inbound: { answer: (claimed) => answerInboundJob(db, claimed) },
+              inbound: { answer: (claimed, deadline) => answerInboundJob(db, claimed, deadline) },
               // A freed time offered to the people who asked and never booked (decision 0082): the workspace's step on
               // slot_opened runs through the run the sweep uses, which lives here.
               freedTimes: { offer: (tenantId, freed) => offerFreedTime(db, tenantId, freed) },

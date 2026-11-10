@@ -10,6 +10,7 @@ export {
   normalizeInbound,
   sendTemplate,
   sendText,
+  sendTypingIndicator,
   sharedHistoryOf,
   storableReferral,
   WA_HISTORY_NOT_SHARED,
