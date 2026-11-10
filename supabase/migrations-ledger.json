@@ -69,13 +69,12 @@
     "00582": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00585 above it; it landed above that as 00592 to 00595",
     "00583": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00585 above it; it landed above that as 00592 to 00595",
     "00584": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00585 above it; it landed above that as 00592 to 00595",
-    "00586": "reserved for cm-content-pieces (the team adds photos and videos, #2224) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
+    "00586": "reserved for cm-content-pieces (the team adds photos and videos, #2224), which was renumbered to 00596 when #2223 (00585) and #2065 (00592-00595) went on production first",
     "00587": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
     "00588": "reserved for cm-cold-alone (cold email Stage 3) and cm-content-library (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
     "00589": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
     "00590": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
     "00591": "reserved for cm-cold-alone (cold email Stage 3) (Claude Video/docs/migration-claims.md and the lanes' working files, 10 Nov 2026); not on main when 00592-00595 were numbered above it",
-    "00596": "claimed by cm-content-pieces (content/pieces-and-moments, the team adds photos and videos), open and not on main when an occasion enrols a person (decision 0119) took 00598 above them; it lands above or beside it",
     "00597": "claimed by cm-content-library (files/the-library-in-the-database, a library is searched where it is kept), open and not on main when an occasion enrols a person (decision 0119) took 00598 above them; it lands above or beside it"
   },
   "migrations": {
@@ -600,6 +599,7 @@
     "00593_an_address_a_customer_gives_is_kept_where_none_is.sql": "7aba12cf4e92693015b96c692138ccdfc9311409f0ffc729a6d5c935f0055f1b",
     "00594_a_text_twilio_could_not_hand_us_is_taken_in.sql": "205272c407569eb819b742e78b5b58f828d592f61d146b7aa49c13accdf8e8ef",
     "00595_the_wires_are_proved_once_a_day.sql": "8f895248eaa2003b1e8d3e55068b93bda5de896d53fed6ccf95323ce573e9744",
+    "00596_the_team_adds_photos_and_videos.sql": "3857a958280145073612f157339969ca53a5661d753e6b7e87f57637120c6ced",
     "00598_an_occasion_enrols_a_person.sql": "9cfa94dafb856473697e7c9d126833fe69ea8f6be2c09122af64907be0911cc8",
     "00599_occasions_are_handed_out.sql": "c4391d6988bdf5f642c497ed7076b57284d5ad7700b02f0d8a59fc66f10b0558"
   }

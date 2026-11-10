@@ -236,12 +236,39 @@ test("Storage's HTTP 400 over a timeout of its own, a 500 or no answer says noth
   }
 });
 
-test("only a member who may change settings adds a photo, and an id that isn't one is no file", async () => {
+test("only a member who may add a photo adds one, and an id that isn't one is no file", async () => {
   const asked = service();
   arrives(PICTURE);
+  await assert.rejects(
+    start.POST.run(post({ mime: "image/jpeg", bytes: 1000 }), ctxFor({}, {}, {}, "viewer")),
+    (e) => e.status === 403,
+  );
   await assert.rejects(done.POST.run(post(DONE), ctxFor({}, {}, { id: F }, "viewer")), (e) => e.status === 403);
   await assert.rejects(done.POST.run(post(DONE), ctxFor({}, {}, { id: "not-a-uuid" })), (e) => e.status === 404);
   assert.equal(asked.found.length, 0);
+});
+
+test("an operator adds a photo, the team filming on their own phones; naming, filing and deleting stay the owner's", async () => {
+  const asked = service();
+  arrives(PICTURE);
+  let door = null;
+  const started = await start.POST.run(
+    post({ mime: "image/jpeg", bytes: 1000 }),
+    ctxFor({}, { file_start: (a) => ((door = a), null) }, {}, "operator"),
+  );
+  assert.equal(door.p_id, started.id, "the door is asked, and it holds the permission for certain");
+  const kept = await done.POST.run(post(DONE), ctxFor({}, {}, { id: F }, "operator"));
+  assert.equal(kept.file_id, F);
+  assert.equal(asked.found.length, 1, "the one door keeps it");
+  assert.equal(asked.found[0].p_actor, USER, "as theirs");
+  const row = { id: F, tenant_id: A, removed_at: null };
+  for (const [what, p] of [
+    ["filed", keep.POST.run(post({ ids: [F] }), ctxFor({}, {}, {}, "operator"))],
+    ["named", one.PATCH.run(post({ name: "front" }), ctxFor({ files: [row] }, {}, { id: F }, "operator"))],
+    ["deleted", one.DELETE.run(post({}), ctxFor({ files: [row] }, {}, { id: F }, "operator"))],
+  ]) {
+    await assert.rejects(p, (e) => e.status === 403, `an operator's file is ${what} by an owner or a partner`);
+  }
 });
 
 test("the Inbox's press names ids, and says how many moved", async () => {
