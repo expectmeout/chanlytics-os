@@ -598,6 +598,9 @@
     "00593_an_address_a_customer_gives_is_kept_where_none_is.sql": "7aba12cf4e92693015b96c692138ccdfc9311409f0ffc729a6d5c935f0055f1b",
     "00594_a_text_twilio_could_not_hand_us_is_taken_in.sql": "205272c407569eb819b742e78b5b58f828d592f61d146b7aa49c13accdf8e8ef",
     "00595_the_wires_are_proved_once_a_day.sql": "8f895248eaa2003b1e8d3e55068b93bda5de896d53fed6ccf95323ce573e9744",
-    "00596_the_team_adds_photos_and_videos.sql": "3857a958280145073612f157339969ca53a5661d753e6b7e87f57637120c6ced"
+    "00596_the_team_adds_photos_and_videos.sql": "3857a958280145073612f157339969ca53a5661d753e6b7e87f57637120c6ced",
+    "00597_a_library_is_searched_where_it_is_kept.sql": "0c400a19af8de272ac4632fdf1e1da3c441b6fe6597b900056702c5a824c6c48",
+    "00598_an_occasion_enrols_a_person.sql": "9cfa94dafb856473697e7c9d126833fe69ea8f6be2c09122af64907be0911cc8",
+    "00599_occasions_are_handed_out.sql": "c4391d6988bdf5f642c497ed7076b57284d5ad7700b02f0d8a59fc66f10b0558"
   }
 }

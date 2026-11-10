@@ -17,7 +17,7 @@ import {
 import { postMomentProblem, postPhotoProblem, postPlanProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
-import { filesForAsk } from "../../../../readers/files";
+import { filesNamedForAsk } from "../../../../readers/files";
 import { findPictureCopy } from "../../../../files/copies";
 import { POST_SIZES } from "../../../../posts/layout";
 import { getPhoto, postDrawn } from "../../../../posts/make";
@@ -156,7 +156,7 @@ async function postShownFirst(
 
 async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postInput>): Promise<ProposalOutcome> {
   const [{ files }, config] = await Promise.all([
-    load(toolContext.rc, filesForAsk, undefined).then((r) => r.data),
+    load(toolContext.rc, filesNamedForAsk, { names: [input.file] }).then((r) => r.data),
     load(toolContext.rc, readers.config, undefined).then((r) => r.data?.config ?? null),
   ]);
   const { found } = filesNamed(files, [input.file]);
@@ -209,7 +209,7 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
 export const postAct = defineAct({
   name: "propose_post",
   description:
-    "Make a post from one of the business's photos, or from one moment of one of its videos (at): a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo or the video with files action view first, unless it came with the question, and choose where the words go after seeing it. The first call draws the post and shows it to you: look at it with the owner's eyes, change the plan if a word sits on a face or the sign, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message, since nothing written beside the look reaches them. Asked only for a post, propose one at once, with a short plain headline from the photo and what you know of the business, rather than asking what it should say: the owner changes the words, the type and the layout on the card itself, for nothing, so propose once and offer no alternatives. A price, a number or a promise they have not said is refused: leave those out, or use theirs. One photo, or one moment, a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+    "Make a post from one of the business's photos, or from one moment of one of its videos (at): a picture with their words on it, for Instagram, Facebook or anywhere, in portrait, square and story. Code draws it, so it is free and the card shows the real picture; the owner presses Save, and it lands in Files. Open the photo or the video with files action view first, unless it came with the question, and choose where the words go after seeing it; a video's view names its best moments, which are where to choose at from. The first call draws the post and shows it to you: look at it with the owner's eyes, change the plan if a word sits on a face or the sign, and call again with looked set to its look_key; only then is the card made, and that call ends the turn, so answer the rest of what they asked beside it, in the same message, since nothing written beside the look reaches them. Asked only for a post, propose one at once, with a short plain headline from the photo and what you know of the business, rather than asking what it should say: the owner changes the words, the type and the layout on the card itself, for nothing, so propose once and offer no alternatives. A price, a number or a promise they have not said is refused: leave those out, or use theirs. One photo, or one moment, a post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
   kind: "post",
   input: postInput,
   label: "Making a post",

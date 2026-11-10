@@ -125,7 +125,8 @@ export function campaignReachable(
   });
   if (ticks.some((c) => runPlaybook.ready[c].unchecked)) return { block: null, usable };
   if (open.length === 0) return stopped(closed);
-  if (trigger?.kind === "visit" || named.length === 0) return { block: null, usable };
+  // A visit's moment names whoever the day brings, an occasion's whoever something happens to: nobody to judge now.
+  if (trigger?.kind === "visit" || trigger?.kind === "occasion" || named.length === 0) return { block: null, usable };
   if (named.some((r) => reachFor(r, purpose, how).channel !== null)) return { block: null, usable };
   if (yes.length === 0) return { block: { kind: "yes", purpose }, usable };
   // Somebody said yes, on a channel that cannot carry it now: the channel is what stops it.
@@ -300,9 +301,11 @@ export function campaignLine(context: {
   const when =
     kind === "visit"
       ? at
-      : context.trigger === "everyone_monthly"
-        ? `every ${context.cadence_days} days at ${at}`
-        : `daily at ${at}`;
+      : kind === "occasion"
+        ? "at each person's own time"
+        : context.trigger === "everyone_monthly"
+          ? `every ${context.cadence_days} days at ${at}`
+          : `daily at ${at}`;
   const by = channelsWords(context.goesBy);
   return `${does}, ${when}${by ? `, ${by}` : ""}`;
 }

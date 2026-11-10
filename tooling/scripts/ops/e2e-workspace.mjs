@@ -643,7 +643,11 @@ export function workspaceChannel() {
   };
 }
 
-/** A config the settings save would accept, built by the same helpers. */
+/**
+ * A config the settings save would accept, built by the same helpers. It takes videos (decision 0099, stage B): the nightly's
+ * video journey (e2e/settings/files.spec.ts) runs only where `features.video_preview` is on, and this reset is what writes the
+ * config each night, so a switch set on production by hand was gone by the next morning (10 Nov 2026).
+ */
 export function workspaceConfig() {
   const brain = {
     business_name: NAME,
@@ -651,7 +655,11 @@ export function workspaceConfig() {
     booking_link: BOOKING_LINK,
     ...newReceptionistDefaults(NAME),
   };
-  const parsed = TenantConfigWriteSchema.safeParse({ brain, notifications: { escalation_emails: [ALERT_INBOX] } });
+  const parsed = TenantConfigWriteSchema.safeParse({
+    brain,
+    notifications: { escalation_emails: [ALERT_INBOX] },
+    features: { video_preview: true },
+  });
   if (!parsed.success) {
     throw new Error(
       `the seeded config would not save: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,

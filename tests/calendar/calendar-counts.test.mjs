@@ -182,6 +182,8 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
       .filter((k) => !k.startsWith("seg:"))
       .sort(),
     [
+      // What an occasion starts (decision 0119) is here and never counted: nobody is in one until something happens.
+      "asked_no_booking",
       "everyone_monthly",
       "lapsed",
       "new_week",
@@ -191,10 +193,14 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
       "saved_list",
       // A freed time (0082): its pool is who asked and never booked, counted as every moment's.
       "slot_opened",
+      "visit_missed",
+      "visit_soon",
       "visit_tomorrow",
       "visited",
     ],
   );
+  for (const id of ["asked_no_booking", "visit_missed", "visit_soon"])
+    assert.equal(pools[id], null, `${id}: no pool to count`);
   // And every one of People's lists a playbook may run on here, under its token (decision 0009): none that reads the
   // calendar with none connected, none about whoever is looking, none that reads deals where they are off.
   const peoples = Object.keys(pools).filter((k) => k.startsWith("seg:"));
@@ -252,6 +258,7 @@ test("REGRESSION: the pools say how many each moment names said the yes it needs
 
 test("REGRESSION: a moment that could not be counted is not a zero -- a People read that failed answered empty pools, and the page drew '0 of 0' and 'nobody to send to'", async () => {
   const ids = [
+    "asked_no_booking",
     "everyone_monthly",
     "lapsed",
     "new_week",
@@ -260,6 +267,8 @@ test("REGRESSION: a moment that could not be counted is not a zero -- a People r
     "quiet_30",
     "saved_list",
     "slot_opened",
+    "visit_missed",
+    "visit_soon",
     "visit_tomorrow",
     "visited",
   ];

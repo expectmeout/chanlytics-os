@@ -453,6 +453,50 @@ function searchMessagesIn(tables, { p_tenant, p_words, p_since, p_limit }) {
   return hits.map(({ said, ...h }) => ({ ...h, snippet: headline(said, q) }));
 }
 
+/** 00597 file_search_words: the words a file is found by, as one text, as jsonb_path_query_array and ::text write them. */
+function fileSearchWordsOf(f) {
+  const look = f.look && typeof f.look === "object" ? f.look : null;
+  const list = (v) => (look ? JSON.stringify(Array.isArray(v) ? v : []) : "");
+  const moments =
+    look && Array.isArray(look.moments) ? look.moments.map((m) => m?.what).filter((w) => w !== undefined) : [];
+  return [
+    f.name ?? "",
+    typeof look?.line === "string" ? look.line : "",
+    list(look?.text_seen),
+    look ? JSON.stringify(moments) : "",
+    f.sound_said ?? "",
+    typeof f.sound?.words?.text === "string" ? f.sound.words.text : "",
+  ].join(" ");
+}
+
+/**
+ * `files_found` (00597), answered out of the files a fixture holds: one shelf of one workspace (contracts shelfFilterOf as its
+ * parts), not removed and not a video still on its way, found by the words in file_search_words where words are given, newest
+ * first with the id breaking ties, at most least(greatest(p_limit, 1), 1000) from p_offset: `{ ids, total }`. Blank words find
+ * every file on the shelf; words that could match nothing, or only by exclusions, none. No RLS: the double holds one member's view.
+ */
+function filesFoundIn(tables, args) {
+  const { p_tenant_id, p_status, p_limit, p_offset = 0, p_made = null, p_shows = null, p_or_unsorted = false } = args;
+  const words = String(args.p_words ?? "").trim();
+  const q = words ? webQuery(words) : null;
+  if (words && !q) return { ids: [], total: 0 };
+  const matched = (tables.files ?? [])
+    .filter(
+      (f) =>
+        f.tenant_id === p_tenant_id &&
+        f.removed_at == null &&
+        f.media_status !== "uploading" &&
+        f.status === p_status &&
+        (p_made === null || (f.source === "made") === p_made) &&
+        (p_shows === null || p_shows.includes(f.shows) || (p_or_unsorted === true && f.shows == null)) &&
+        (!q || q.some((g) => g.every((t) => holds(lexemesOf(fileSearchWordsOf(f)), t) !== t.not))),
+    )
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  const from = Math.max(p_offset ?? 0, 0);
+  const cap = Math.min(Math.max(p_limit ?? 1, 1), 1000);
+  return { ids: matched.slice(from, from + cap).map((f) => f.id), total: matched.length };
+}
+
 /** The columns newest_messages answers a message in: the reader's MESSAGE_COLUMNS. */
 const MESSAGE_ROW = [
   "id",
@@ -951,6 +995,7 @@ export const FAKE_JOB_KINDS = {
   reach_out_steps: [2, ["@tenant"], false],
   calendar_read: [2, ["@tenant"], false],
   google_read: [2, ["@tenant"], false],
+  sequence_occasions: [2, ["@tenant"], false],
   broadcast_send: [2, null, false],
   lead_round_start: [2, null, false],
   lead_collect: [2, ["run_id", "seq"], true],
@@ -1668,6 +1713,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
+    // The library's search (00597), from the files the fixture holds: Ask's list reads through it.
+    files_found: (args) => filesFoundIn(tables, args),
     // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of
     // "<tenant>:<value>", in order, null for null (contracts' hashLegacyErasedPhone is the same bytes).
     erasure_digests: ({ p_tenant_id, p_values }) =>

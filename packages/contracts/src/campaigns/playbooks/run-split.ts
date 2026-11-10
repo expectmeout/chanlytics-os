@@ -36,7 +36,9 @@ export interface RunReading {
  * is said whole. The one reading of it: Coming up's line, Resume's question and one run's split all ask it.
  */
 export function runCapOf(params: { trigger: string; cap_per_run?: number | null }): number {
-  return triggerOf(params.trigger)?.kind === "visit" ? 0 : (params.cap_per_run ?? 0);
+  const kind = triggerOf(params.trigger)?.kind;
+  // Nor an occasion's (decision 0119): its message is owed to the one person it happened to.
+  return kind === "visit" || kind === "occasion" ? 0 : (params.cap_per_run ?? 0);
 }
 
 /** Nobody on any channel. */

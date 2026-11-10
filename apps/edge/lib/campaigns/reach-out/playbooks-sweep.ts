@@ -142,7 +142,7 @@ async function tellSkipped(
   // Its moment, as the run kept it: a visit's people are not in line for a later batch, and the notice says so; a freed
   // time's says the time it offered; a late booking's reminder says nothing later sends it (0118).
   const notice = audienceLate(row.audience)
-    ? lateReminderSkippedNotice(name, row.recipient_count)
+    ? lateReminderSkippedNotice(name, row.recipient_count, audienceTrigger(row.audience))
     : skippedRunNotice(
         name,
         row.recipient_count,

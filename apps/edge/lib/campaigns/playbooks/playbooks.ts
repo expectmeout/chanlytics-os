@@ -26,7 +26,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import { getDealOnFile, listYesesSince } from "@chanlytics/db/deals";
 import { emitEvent } from "@chanlytics/db/events";
-import { listEveryoneIn, listSavedLists } from "@chanlytics/db/people";
+import { findPersonRow, listEveryoneIn, listSavedLists } from "@chanlytics/db/people";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { recordOver } from "@chanlytics/db/calendar";
 import type { Database } from "@chanlytics/db/types";
@@ -375,6 +375,75 @@ export async function loadTenantRunContext(
   };
 }
 
+/** How many of an occasion's people are read at once: each is one narrow read of People. */
+const PEOPLE_AT_ONCE = 8;
+
+/** These people's rows as People reads them, a few at a time; someone People no longer holds is left out. */
+async function findPeopleRows(db: Db, tenantId: TenantId, ids: readonly string[]): Promise<PersonRowDto[]> {
+  const rows: PersonRowDto[] = [];
+  for (let i = 0; i < ids.length; i += PEOPLE_AT_ONCE) {
+    const some = await Promise.all(ids.slice(i, i + PEOPLE_AT_ONCE).map((id) => findPersonRow(db, tenantId, id)));
+    rows.push(...some.flatMap((row) => (row ? [row] : [])));
+  }
+  return rows;
+}
+
+/**
+ * A run's context for the people occasions enrolled (decision 0119), read narrow: those people's rows, the workspace's
+ * zone, number and channels, and nothing else. An occasion's run names its one person, keeps no gap and no week's breath
+ * (contracts playbookRunReach) and takes its visit off the record, so everyone in People, a year of touches, the lists
+ * and the calendar's feed are not read for it: at fifty thousand people, a minute's job reads a handful of rows. A run
+ * on any other moment must never be handed this context: it would find nobody.
+ */
+export async function loadOccasionRunContext(
+  db: Db,
+  tenantId: TenantId,
+  now: Date,
+  contactIds: readonly string[],
+): Promise<TenantRunContext | { error: string }> {
+  const [{ data: tenant, error: tErr }, found, channels, { data: cfgRow, error: cfgErr }] = await Promise.all([
+    findWorkspaceZoneStatus(db, tenantId),
+    findPeopleRows(db, tenantId, [...new Set(contactIds)]).then(
+      (rows) => ({ rows, error: null }),
+      (e: unknown) => ({ rows: null, error: e instanceof Error ? e.message : String(e) }),
+    ),
+    channelFacts(db, tenantId),
+    findConfigRow(db, tenantId),
+  ]);
+  if (found.rows === null) return { error: `people: ${found.error}` };
+  if (tErr) return { error: `workspace: ${tErr.message}` };
+  if (cfgErr) return { error: `config: ${cfgErr.message}` };
+  if (channels.error) return { error: `channels: ${channels.error}` };
+  if (tenant?.status === "paused") return { error: CONTEXT_PAUSED };
+  const tz = tenant?.timezone || DEFAULT_TIMEZONE;
+  const profile = parseTenantConfig(cfgRow?.config ?? null)?.brain?.profile;
+  const health = numberHealthOfConfig(channels.whatsapp ? channels.whatsapp.config : {});
+  const ready = await channelsNow(channels, health, profile);
+  // No calendar is read: an occasion's visit is its appointment's row, which its door reads.
+  const visits = new Map<string, PersonVisitsDto>();
+  const people = poolRowsOf(withVisitsOf(found.rows, visits, { state: "none", timezone: tz, source: "calendar" }), {
+    tz,
+    now,
+    viewer: null,
+    ready,
+  });
+  return {
+    room: null,
+    db,
+    tenantId,
+    tz,
+    now,
+    people,
+    calendar: "none",
+    visits,
+    listMembers: () => null,
+    health,
+    ready,
+    touches: { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() },
+    pace: null,
+  };
+}
+
 interface RunRequest {
   /** The local day the run is for; one run per playbook per day. */
   runFor?: string;
@@ -384,6 +453,8 @@ interface RunRequest {
   freed?: FreedTimeRun;
   /** A booking the day's look can no longer name (decision 0118, lib/campaigns/late-reminder.ts): its batch has no day. */
   late?: RunPlaybookCommand["late"];
+  /** The person an occasion enrolled (decision 0119, lib/campaigns/occasions/due.ts): its batch has no day. */
+  occasion?: RunPlaybookCommand["occasion"];
 }
 
 /** The run over this runtime's ports: the rules are core's. */
@@ -414,8 +485,8 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
           logAndGoOn("event playbook.run"),
         );
         // A late booking's reminder is not the day's run (decision 0118): stamped, it would close the day for everyone the
-        // look has still to name, so its record is the event alone.
-        if (data.late === true) return;
+        // look has still to name, so its record is the event alone. Nor is an occasion's step (0119), which has no day.
+        if (data.late === true || data.occasion === true) return;
         // The run is kept (its batch says it ran, which alreadyRan reads); a stamp that fails is said, never the run's end.
         const stamped = await stampStepRun(db, tenantId, playbookId, runFor, at.toISOString());
         if (stamped.error)
@@ -487,6 +558,7 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
       by: req.by,
       ...(req.freed ? { freed: req.freed } : {}),
       ...(req.late ? { late: req.late } : {}),
+      ...(req.occasion ? { occasion: req.occasion } : {}),
     },
   );
 }

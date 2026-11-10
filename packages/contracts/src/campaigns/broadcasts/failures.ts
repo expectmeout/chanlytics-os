@@ -86,6 +86,9 @@ export function playbookRunNext(
   by: PlaybookRunNextBy,
 ): string | null {
   if (!run.playbook_id) return null;
+  // An occasion's message was one person's, for their own moment (decision 0119): nothing later sends it in its place.
+  if (triggerOf(run.trigger ?? "")?.kind === "occasion")
+    return "It is not sent again by itself: it was for one person's own moment. Open it to see who, and write to them yourself.";
   if (triggerOf(run.trigger ?? "")?.kind === "visit")
     return "It does not run again today, and a reminder belongs to its day, so the people it did not reach will not be sent it later.";
   return by === "tomorrow"

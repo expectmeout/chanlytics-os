@@ -403,9 +403,10 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
         : null,
     })),
     // The moments offered for a new playbook here: every moment, a proposal's too (0006), and of the two win-backs
-    // the one this workspace can read (momentOffered; a connected calendar's feed need not be readable just now).
+    // the one this workspace can read (momentOffered; a connected calendar's feed need not be readable just now). Not
+    // the three an occasion starts (decision 0119): Ask proposes none of them yet (PROPOSABLE_TRIGGERS), so it lists none.
     triggers: answer.moments
-      .filter((x) => x.offered)
+      .filter((x) => x.offered && x.trigger.kind !== "occasion")
       .map(({ trigger: x }) => ({
         trigger: x.id,
         label: triggerWords(x, shape.word).label,
