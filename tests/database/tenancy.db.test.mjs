@@ -267,6 +267,20 @@ before(async () => {
     template_name: "tenancy_tpl_1",
     trigger: "quiet_30",
   });
+  // A time a sequence owes one person (00598, decision 0119): members read; only the enrol door and the clock write.
+  const owedAt = new Date().toISOString();
+  await seed(
+    "sequence_occasions",
+    {
+      tenant_id: A,
+      sequence_id: ctx.playbook,
+      contact_id: ctx.contact,
+      occasion: "missed:tenancy-visit",
+      due_at: owedAt,
+      try_at: owedAt,
+    },
+    null,
+  );
   ctx.segment = await seed("segments", { tenant_id: A, name: "tenancy segment" });
   await seed("segment_members", { tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact }, null);
   // The workspace's first-run choices (00513): one row a workspace, which setup_choice_set writes.
@@ -801,6 +815,21 @@ const TENANT_TABLES = {
   sequence_sends: ["member", () => ({ tenant_id: A, batch_id: ctx.broadcast, contact_id: ctx.contact2 })],
   // Someone in a sequence (00441): members read where people stand; only the sends' trigger and the leave door write it.
   sequence_enrollments: ["member", () => ({ tenant_id: A, sequence_id: ctx.broadcast, contact_id: ctx.contact2 })],
+  // A time a sequence owes one person (00598): members read when it is owed; the enrol door and the clock write it.
+  sequence_occasions: [
+    "member",
+    () => {
+      const at = new Date().toISOString();
+      return {
+        tenant_id: A,
+        sequence_id: ctx.playbook,
+        contact_id: ctx.contact2,
+        occasion: "missed:stranger-visit",
+        due_at: at,
+        try_at: at,
+      };
+    },
+  ],
   sequence_replies: [
     "member",
     () => ({ message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "no" }),
