@@ -513,7 +513,7 @@ export { PHONE_PACE_WORDS, PHONE_PACES, phonePaceOf, phonePaceShown, phonePaceSp
 export { PHONE_VOICE_DEFAULT, PHONE_VOICE_SAMPLES_ORIGIN, PHONE_VOICE_WORDS, PHONE_VOICES, PHONE_VOICES_NATIVE_TO, phoneVoiceOf, phoneVoiceShown } from "./voice/phone-voices";
 export { frameDraftChange, frameGuardrail, frameHandOver, frameSteer, frameWhisper, injectedTurn, whisperText } from "./voice/whisper";
 export { GOING_TODAY_WORDS, goingTodayOf } from "./waits/going-today";
-export { closeSettledNotices, kindsEndedBy, NOTHING_WAITS_KNOWN, NOTICE_ENDS, noticeStillWaits, settledNoticeIds } from "./waits/notice-closes";
+export { closeSettledNotices, kindsEndedBy, NOTHING_WAITS_KNOWN, NOTICE_ENDS, noticeStillWaits, RUN_START_ENDS, settledNoticeIds } from "./waits/notice-closes";
 export { NOTICE_MENDS, warningsMendedBy } from "./waits/notice-mends";
 export { noticeTone } from "./waits/notice-tones";
 export { heldReplyNotice, WAIT_ACT_WORDS, WAIT_KINDS, WAIT_RULES, waitEndsWords, waitRuleOf } from "./waits/rules";

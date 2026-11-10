@@ -3,7 +3,7 @@
  * that resolves closes the handoff, deadman and call rows about its thread and nothing else; the one door
  * (notifications_close_about) closes each open row once, within the bell's window, of the kinds, subject and title it is
  * given; resume_email_offers closes the pause notice by the title contracts words it with; and the edge's close of a
- * mended warning (packages/db closeMendedNotices) writes what the bell reads. The lead question's close is the leads
+ * mended warning (packages/db closeNoticesByTitle) writes what the bell reads. The lead question's close is the leads
  * suite's (leads.db.test.mjs, "the bell rings twice"). Runs against the database `supabase start` builds on this machine,
  * never production.
  */
@@ -27,7 +27,7 @@ const skip =
 const DAY = 24 * 3_600_000;
 let db;
 let T;
-let closeMendedNotices;
+let closeNoticesByTitle;
 const ok = (r, what) => {
   assert.equal(r.error, null, `${what}: ${r.error?.message}`);
   return r.data;
@@ -36,7 +36,7 @@ const ok = (r, what) => {
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  ({ closeMendedNotices } = await import(
+  ({ closeNoticesByTitle } = await import(
     pathToFileURL(path.join(ROOT, "packages/db/src/repositories/notices/notifications/feed.ts")).href
   ));
   T = ok(
@@ -238,9 +238,9 @@ test(
     const theirs = await notice("number", "WhatsApp quality rating flagged", another);
     const lowered = await notice("number", "WhatsApp messaging limit lowered", channel);
     const kept = await notice("number", "WhatsApp quality rating back to normal", channel);
-    const n = await closeMendedNotices(db, {
+    const n = await closeNoticesByTitle(db, {
       tenantId: T,
-      warnings: warningsMendedBy({ kind: "number", title: "WhatsApp quality rating back to normal" }),
+      rules: warningsMendedBy({ kind: "number", title: "WhatsApp quality rating back to normal" }),
       subject: channel,
       keptId: kept,
       nowMs: Date.now(),
