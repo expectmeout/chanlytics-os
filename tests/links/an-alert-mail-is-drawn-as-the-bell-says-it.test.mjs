@@ -22,7 +22,7 @@ process.env.RESEND_API_KEY = "re_test_only";
 process.env.LEAD_TO = "ops@platform.test";
 process.env.LEAD_FROM = "Pager <pager@platform.test>";
 process.env.DASHBOARD_ORIGIN = "https://app.example.test";
-for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VERCEL_ENV"]) delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VERCEL_ENV"]) delete process.env[k];
 
 const { notify, sendOpsMail } = await import(at("apps/edge/lib/shared/alerts/notify.ts"));
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
@@ -123,7 +123,7 @@ test("notify sends the drawn mail beside the text: the same link, the workspace 
     tenants: [{ id: T, name: "Harbor Moving", slug: "harbor", timezone: "UTC", status: "active" }],
   });
   // A target whose loader read only the recipients: the workspace is read once, for the link and the name.
-  const target = { tenantId: T, notifications: { escalation_emails: ["owner@harbor.test"] }, isEnvDefault: false };
+  const target = { tenantId: T, notifications: { escalation_emails: ["owner@harbor.test"] } };
   const ok = await notify(
     target,
     { kind: "handoff", subject: "A customer needs you", body: "Customer: ana@example.com", route: "inbox/th-1" },
@@ -141,7 +141,7 @@ test("notify sends the drawn mail beside the text: the same link, the workspace 
 test("the copy the platform gets for a workspace nobody can be told in keeps the customer's words out of its drawing", async () => {
   const sent = [];
   const sendMail = async (m) => (sent.push(m), true);
-  const target = { tenantId: T, notifications: null, isEnvDefault: false };
+  const target = { tenantId: T, notifications: null };
   await sendOpsMail(
     target,
     { subject: "Rosa wrote", body: "Rosa: my address is 1 Main St", redactedBody: "A customer wrote to a workspace." },

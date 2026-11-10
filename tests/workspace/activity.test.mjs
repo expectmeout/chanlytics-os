@@ -214,7 +214,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
 // 63: people taken out of a sequence by a member are warn (decision 0060); a step changed is plain.
 // 64: people put back in a sequence, a leave undone (00450), are ok.
 // 66: a thread said not to be a customer's is a warning, and one said to be after all is ok (00539).
-const TONED_KINDS = 66;
+const TONED_KINDS = 65;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.

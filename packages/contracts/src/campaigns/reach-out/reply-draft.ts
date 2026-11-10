@@ -40,8 +40,8 @@ export const mayDraftReply = (mode: string): boolean => mode !== SILENT_MODE;
 
 /**
  * Whether the receptionist may draft, asked in G14's order: a receptionist that can speak, a workspace that lets it,
- * the day's tokens, then the spend. Null when it may. The gates about a message leaving (the pilot allowlist, a short
- * code, the reply window, consent, a thread held for a person, the reply cap) are not asked: a draft does not leave,
+ * the day's tokens, then the spend. Null when it may. The gates about a message leaving (a short code, the
+ * reply window, consent, a thread held for a person, the reply cap) are not asked: a draft does not leave,
  * and the owner's Send asks the door, which asks them.
  */
 export function draftRefusal(fields: {

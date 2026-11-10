@@ -38,9 +38,8 @@
  * recorded, so it is not acknowledged either: Meta sends it again.
  * wa_replied logs carry ingest_ms/post_ms (blueprint latency budget).
  *
- * Env: WHATSAPP_VERIFY_TOKEN, META_APP_SECRET, WHATSAPP_ACCESS_TOKEN,
- *      WHATSAPP_PHONE_ID, WHATSAPP_TEST_ALLOWLIST (optional, comma list),
- *      ANTHROPIC_API_KEY, RESEND_API_KEY + LEAD_TO/LEAD_FROM,
+ * Env: WHATSAPP_VERIFY_TOKEN, META_APP_SECRET, ANTHROPIC_API_KEY,
+ *      RESEND_API_KEY + LEAD_TO/LEAD_FROM,
  *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
 import { heldTenantId } from "@chanlytics/contracts";

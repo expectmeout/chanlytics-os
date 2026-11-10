@@ -150,10 +150,10 @@ test("the receptionist records a short code and does not answer it", () => {
   );
   assert.ok(body.includes("return;"), "and no reply is composed");
 
-  // Before the allowlist, which is the other reply-only gate, so the two
-  // cannot disagree about a sender that is both.
+  // Before the one-time code, the other set-aside, so the two cannot disagree
+  // about a sender that is both.
   assert.ok(
-    inbound.indexOf("if (shortCode(from)) {") < inbound.indexOf("ports.env.allowlist"),
+    inbound.indexOf("if (shortCode(from)) {") < inbound.indexOf("if (oneTimeCodeOf("),
     "the unreachable check comes first",
   );
 

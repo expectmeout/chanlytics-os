@@ -21,8 +21,7 @@ const OAUTH = {
 };
 Object.assign(process.env, OAUTH);
 // Nobody on file is mailed, and the only database is the one handed in.
-for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY"])
-  delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY"]) delete process.env[k];
 
 const { syncProfile } = await import("../../apps/edge/lib/google/profile-sync.ts");
 const { disconnectProfile } = await import("../../apps/edge/lib/google/profile-connection.ts");

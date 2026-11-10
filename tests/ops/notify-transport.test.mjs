@@ -145,7 +145,7 @@ test("every mail from the platform's sender says it was written by a program (RF
     await withEnv(env, async () => {
       assert.equal(
         await notify(
-          { tenantId: null, notifications: null, isEnvDefault: true },
+          { tenantId: null, notifications: null },
           { subject: "Rosa Diaz wrote by email: Tuesday?", body: "They wrote: “Tuesday?”" },
           { db: null },
         ),
@@ -271,7 +271,7 @@ test("a tenant with its own mailbox: the row is kept BEFORE the mail leaves, and
   };
   const out = await withEnv(PLATFORM_ENV, () =>
     notify(
-      { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+      { tenantId: TENANT, notifications: MAILBOX },
       {
         kind: "handoff",
         route: "inbox/th-c1",
@@ -306,7 +306,7 @@ test("a kind the table does not know is kept as an alert; a title and a body pas
   const rows = [];
   const db = fakeDb({ notifications: rows });
   await notify(
-    { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+    { tenantId: TENANT, notifications: MAILBOX },
     { kind: "bogus", subject: "x".repeat(250), body: "y".repeat(5000) },
     { db, send: transport().send },
   );
@@ -324,27 +324,26 @@ test("reaching the workspace is a different question from sending: the redacted 
       reachesTenant({
         tenantId: TENANT,
         notifications: { escalation_emails: ["owner@salon.test"] },
-        isEnvDefault: false,
       }),
       true,
       "its own people",
     );
     assert.equal(
-      reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: true }),
+      reachesTenant({ tenantId: null, notifications: null }),
       true,
-      "the designated workspace's mailbox IS the platform's",
+      "the platform's own notice reaches the platform",
     );
     // Sends fine, tells the owner nothing. A caller that spends a once-only
     // guard on `notify`'s true here marks a waiting customer as handled.
     assert.equal(
-      reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: false }),
+      reachesTenant({ tenantId: TENANT, notifications: null }),
       false,
       "the redacted note is not the workspace being told",
     );
   });
   await withEnv({ LEAD_TO: "", LEAD_FROM: "" }, async () => {
     assert.equal(
-      reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: false }),
+      reachesTenant({ tenantId: TENANT, notifications: null }),
       false,
       "nowhere to send is not reaching anyone either",
     );
@@ -360,7 +359,7 @@ test("ANOTHER tenant with no mailbox: the row is theirs, the platform gets the r
   try {
     out = await withEnv(PLATFORM_ENV, () =>
       notify(
-        { tenantId: TENANT, notifications: null, isEnvDefault: false },
+        { tenantId: TENANT, notifications: null },
         {
           kind: "job_failed",
           subject: "A reminder to +19175550100 did not send",
@@ -406,11 +405,7 @@ test("unaddressable and nothing safe to say: the row is kept, nothing is sent, f
   let out;
   try {
     out = await withEnv(PLATFORM_ENV, () =>
-      notify(
-        { tenantId: TENANT, notifications: null, isEnvDefault: false },
-        { subject: "Handoff", body: "words" },
-        { db, send: t.send },
-      ),
+      notify({ tenantId: TENANT, notifications: null }, { subject: "Handoff", body: "words" }, { db, send: t.send }),
     );
   } finally {
     log.restore();
@@ -429,7 +424,7 @@ test("no platform pair and no mailbox: nowhere to send, said in the log, the row
   try {
     out = await withEnv({ LEAD_TO: undefined, LEAD_FROM: undefined }, () =>
       notify(
-        { tenantId: TENANT, notifications: null, isEnvDefault: true },
+        { tenantId: TENANT, notifications: null },
         { subject: "Deadman: +19175550100", body: "…" },
         { db, send: t.send },
       ),
@@ -450,7 +445,7 @@ test("a platform notice (no tenant) keeps no row -- there is no bell for the pla
   const t = transport();
   const out = await withEnv(PLATFORM_ENV, () =>
     notify(
-      { tenantId: null, notifications: null, isEnvDefault: true },
+      { tenantId: null, notifications: null },
       { subject: "A background sweep is not running: deadman", body: "the edge answered 401" },
       { db, send: t.send },
     ),
@@ -472,7 +467,7 @@ test("losing the row never loses the mail: an insert the database refuses is log
   let out;
   try {
     out = await notify(
-      { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+      { tenantId: TENANT, notifications: MAILBOX },
       { subject: "Handoff", body: "words" },
       { db: refusing, send: t.send },
     );
@@ -487,7 +482,7 @@ test("losing the row never loses the mail: an insert the database refuses is log
   const t2 = transport();
   assert.equal(
     await notify(
-      { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+      { tenantId: TENANT, notifications: MAILBOX },
       { subject: "Handoff", body: "words" },
       { db: null, send: t2.send },
     ),
@@ -500,7 +495,7 @@ test("the transport's verdict is the door's: a refused mail is false even though
   const rows = [];
   const db = fakeDb({ notifications: rows });
   const out = await notify(
-    { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+    { tenantId: TENANT, notifications: MAILBOX },
     { subject: "Handoff", body: "words" },
     { db, send: transport(false).send },
   );
@@ -589,7 +584,7 @@ test("a kept row of a kind a phone hears about schedules one push_send naming it
   };
   await withEnv(PLATFORM_ENV, () =>
     notify(
-      { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+      { tenantId: TENANT, notifications: MAILBOX },
       { kind: "handoff", route: "inbox/th-1", subject: "Handoff needed", body: "Maria asked." },
       { db, send },
     ),
@@ -603,7 +598,7 @@ test("a kept row of a kind a phone hears about schedules one push_send naming it
   assert.ok(rows[0].id, "the row was given its id back");
   await withEnv(PLATFORM_ENV, () =>
     notify(
-      { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+      { tenantId: TENANT, notifications: MAILBOX },
       { kind: "sweep", subject: "Sweep late", body: "x" },
       { db, send: t.send },
     ),
@@ -685,7 +680,7 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     const t = transport();
     const out = await withEnv(PLATFORM_ENV, () =>
       notify(
-        { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+        { tenantId: TENANT, notifications: MAILBOX },
         { kind, subject: `a ${kind}`, body: "…" },
         { db: fakeDb({ notifications: rows }), send: t.send },
       ),
@@ -703,7 +698,7 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     const t = transport();
     await withEnv(PLATFORM_ENV, () =>
       notify(
-        { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+        { tenantId: TENANT, notifications: MAILBOX },
         { kind, subject: "x", body: "y" },
         { db: fakeDb({ notifications: [] }), send: t.send },
       ),
@@ -720,7 +715,7 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     const t = transport();
     const told = await withEnv(PLATFORM_ENV, () =>
       notifyOnce(
-        { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false },
+        { tenantId: TENANT, notifications: MAILBOX },
         { kind, subject: `a ${kind}`, body: "…" },
         { db: fakeDb({ notifications: [] }), send: t.send },
       ),
@@ -759,7 +754,7 @@ test("what the business turned off by email is not mailed on any path; the row i
     pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href
   );
   const off = { ...MAILBOX, email_off: ["call", "handoff", "deadman", "a_kind_from_tomorrow"] };
-  const target = { tenantId: TENANT, notifications: off, isEnvDefault: false };
+  const target = { tenantId: TENANT, notifications: off };
   for (const [kind, mails] of [
     ["call", 0],
     ["handoff", 1],
@@ -802,7 +797,7 @@ test("what the business turned off by email is not mailed on any path; the row i
     const o = transport();
     await withEnv(PLATFORM_ENV, () =>
       notify(
-        { tenantId: TENANT, notifications, isEnvDefault: false },
+        { tenantId: TENANT, notifications },
         { kind: "call", subject: "c", body: "…" },
         { db: fakeDb({ notifications: [] }), send: o.send },
       ),
@@ -840,7 +835,7 @@ test("a notice told once under its name keeps one row and tells the phones once 
   const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href);
   // A uuid made from a name (version 5), never an event's (random, version 4).
   const V5 = /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-  const target = { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false };
+  const target = { tenantId: TENANT, notifications: MAILBOX };
   const tables = { notifications: [], jobs: [] };
   const db = fakeDb(tables);
   const pushes = () => tables.jobs.filter((j) => j.kind === "push_send").length;
@@ -1032,7 +1027,7 @@ test("an event's notice is told once: its row keeps the event, the phones are to
 // mail that failed is owed and retried alone, for every notice that can be found again.
 test("notifyOnce keeps the row and tells the phones first, owes a mail that failed, and asked again finds the notice by what it is about and sends the mail alone; another notice about the same subject is not taken for it; a notice that names nothing it is about keeps the old way (S1-15)", async () => {
   const { notifyOnce } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/alerts/notify.ts")).href);
-  const target = { tenantId: TENANT, notifications: MAILBOX, isEnvDefault: false };
+  const target = { tenantId: TENANT, notifications: MAILBOX };
   const msg = {
     kind: "reach_out_replied",
     route: "inbox/th-c1",

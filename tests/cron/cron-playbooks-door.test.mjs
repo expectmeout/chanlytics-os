@@ -21,14 +21,7 @@ import { rows } from "../_rows.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
 import { at, knock, answer, refusedAtTheDoor, vault, wire, withEnv } from "../_cron-doors-world.mjs";
 
-for (const k of [
-  "WHATSAPP_PHONE_ID",
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-  "RESEND_API_KEY",
-  "LEAD_TO",
-  "LEAD_FROM",
-])
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", "LEAD_TO", "LEAD_FROM"])
   delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));

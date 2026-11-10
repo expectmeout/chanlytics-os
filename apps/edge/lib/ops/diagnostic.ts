@@ -12,7 +12,7 @@ import { getMigrationsLine } from "./migration-head.js";
 import { getBrainSummary } from "../ai/budget.js";
 import { securitySwitchesHere } from "../shared/security-switches.js";
 import { pageStates, untoldPages } from "../shared/alerts/page-operator.js";
-import { breakerStates, fetchFromProvider } from "@chanlytics/channels/shared";
+import { breakerStates } from "@chanlytics/channels/shared";
 import {
   getAgent,
   getRetellLlm,
@@ -21,7 +21,6 @@ import {
   type RetellAgentConfig,
   type RetellLlmConfig,
 } from "@chanlytics/channels/voice";
-import { metaAppId, GRAPH_VERSION } from "../whatsapp/meta-graph.js";
 import { DAY_MS } from "@chanlytics/contracts";
 import { listVoiceDoorKnocks } from "@chanlytics/db/voice";
 import { signatureOnly } from "../shared/door-auth.js";
@@ -36,11 +35,6 @@ import {
   readSweepHealth,
 } from "@chanlytics/db/ops";
 import { listVoiceRoutingRows } from "@chanlytics/db/lines";
-
-const META_APP_ID = metaAppId();
-
-/** How long the report waits on a provider it reads (Meta's token check): a stuck one used to hold the whole report. */
-const DIAG_READ_TIMEOUT_MS = 10_000;
 
 /** A part of the report: the keys it answers, in the order the report shows them. */
 type Section = Record<string, unknown>;
@@ -61,7 +55,6 @@ const REPORT: (() => Section | Promise<Section>)[] = [
   sweepHealth,
   pagerMemory,
   numberDrift,
-  waTokenPermanence,
   voiceAgentSettings,
   whatsappGates,
   receptionistDay,
@@ -93,7 +86,6 @@ function envPresence(): Section {
     env: {
       database: !!env.SUPABASE_URL && !!env.SUPABASE_SERVICE_ROLE_KEY,
       anthropic: !!env.ANTHROPIC_API_KEY,
-      waToken: !!env.WHATSAPP_ACCESS_TOKEN,
       resend: !!env.RESEND_API_KEY,
       metaSecret: !!env.META_APP_SECRET,
       retellKey: !!env.RETELL_API_KEY,
@@ -199,43 +191,6 @@ async function numberDrift(): Promise<Section> {
 }
 
 /**
- * Token permanence: a temp WHATSAPP_ACCESS_TOKEN expiring mid-App-Review would
- * take the pilot dark with no code change to blame. expires_at=0 = permanent.
- */
-async function waTokenPermanence(): Promise<Section> {
-  if (!env.WHATSAPP_ACCESS_TOKEN || !env.META_APP_SECRET) return { waTokenCheck: null };
-  try {
-    const query = new URLSearchParams({
-      input_token: env.WHATSAPP_ACCESS_TOKEN,
-      access_token: `${META_APP_ID}|${env.META_APP_SECRET}`,
-    });
-    const response = await fetchFromProvider(
-      "meta",
-      `https://graph.facebook.com/${GRAPH_VERSION}/debug_token?${query}`,
-      {
-        timeoutMs: DIAG_READ_TIMEOUT_MS,
-        idempotent: true,
-        tries: 2,
-      },
-    );
-    // No answer at all is said as a failed check, as the bare fetch's throw was.
-    if (response.status === 0) throw new Error(response.error ?? "no answer");
-    const json =
-      ((response.json ?? {}) as { data?: { is_valid?: boolean; expires_at?: number; type?: string } }).data || {};
-    return {
-      waTokenCheck: {
-        valid: !!json.is_valid,
-        expiresAt: json.expires_at,
-        type: json.type,
-        permanent: !!json.is_valid && json.expires_at === 0,
-      },
-    };
-  } catch (e) {
-    return { waTokenCheck: { error: String(e instanceof Error ? e.message : e).slice(0, 120) } };
-  }
-}
-
-/**
  * The voice agent's own settings decide what the call pipeline can show:
  * whether Retell sends transcript_updated (a live transcript), how long it
  * keeps recordings, whether their URLs are signed. Nothing else can read
@@ -320,18 +275,11 @@ function rowsOrError<T>(read: { data: T[] | null; error: { message: string } | n
 }
 
 /**
- * The two gates that decide whether a customer is answered on a number:
- * the staging allowlist (a reply skipped is a customer unanswered) and the
- * environment token a channel without its own credentials rides.
+ * Whether a business can connect its WhatsApp: Embedded Signup needs the app's secret and its configuration.
  */
 function whatsappGates(): Section {
   return {
     whatsapp: {
-      allowlist_numbers: (env.WHATSAPP_TEST_ALLOWLIST || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean).length,
-      env_fallback_token: !!env.WHATSAPP_ACCESS_TOKEN,
       signup_ready: !!(env.META_APP_SECRET && env.META_ES_CONFIG_ID),
     },
   };

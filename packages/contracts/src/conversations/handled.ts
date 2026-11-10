@@ -11,8 +11,8 @@
  *   handoff  a person was asked: an escalation was opened, changed or refreshed for it, whatever else went out beside
  *            it (a holding message, a confirmation that failed)
  *   blocked  nothing went out and nobody was asked: a rule set it aside (the person opted out, a person already holds
- *            the thread, a reaction or a system notice, a short code, a sender off the pilot allowlist, a send the
- *            wire refused), or the only thing that was to happen, an escalation, could not be written
+ *            the thread, a reaction or a system notice, a short code or a one-time code, a send the wire
+ *            refused), or the only thing that was to happen, an escalation, could not be written
  *
  * A message with no `handled` is unknown, not any of these: a row from before the stamp, an email (the receptionist
  * does not answer email), and a message the deadman sweep finished, whose outcome nobody recorded.

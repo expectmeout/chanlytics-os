@@ -61,7 +61,6 @@ async function tellBlocked(
     const target = {
       tenantId: numberAsked.tenant_id,
       notifications: await findNotifications(standingPorts.db, numberAsked.tenant_id),
-      isEnvDefault: false,
     };
     // The notice is the bell row, kept first (the workspace's own record), and the owner's mail; notify answers whether the
     // mail went. The line says it, so a notice whose mail did not go is seen: the door has kept BLOCKED, and a later read

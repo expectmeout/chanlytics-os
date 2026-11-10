@@ -52,8 +52,7 @@ import { withoutRequestId } from "../_log-lines.mjs";
 // default answer over the captured wire below.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.ANTHROPIC_API_KEY = "model-key-the-door-checks-for-and-never-spends";
-for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATSAPP_PHONE_ID", "WHATSAPP_ACCESS_TOKEN"])
-  delete process.env[k];
+for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;

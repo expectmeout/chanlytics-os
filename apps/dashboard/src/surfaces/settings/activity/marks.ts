@@ -72,7 +72,6 @@ const KIND_MARK: Partial<Record<string, string>> = {
   "line.texting_rejected": "alert",
   "voice.provisioned": "phone",
   "broadcast.stopped": "alert",
-  "ingest.allowlist_skip": "alert",
   "ingest.unreachable_sender": "alert",
   "ingest.unroutable": "alert",
   "webhook.auth": "bolt",

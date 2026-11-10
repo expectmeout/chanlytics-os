@@ -242,7 +242,6 @@ export async function runPgIngest(
 
 /** The steps runPgSafe guards; each logs `pg_<step>_failed`, a name in LOG_EVENTS, when it throws. */
 type PgStep =
-  | "allowlist_evt"
   | "booking_request"
   | "cost"
   | "echo"
@@ -487,12 +486,6 @@ export function pgSink(
             messageId: null,
           }),
     ...pgFinishing(db, tenantId, ing),
-    allowlistSkip: () =>
-      on
-        ? runPgSafe("allowlist_evt", () =>
-            emitEvent(db, tenantId, "ingest.allowlist_skip", "message", ing.message_id, {}),
-          )
-        : Promise.resolve(),
     /**
      * The sender cannot receive a reply. Recorded like any other message, and
      * not answered — see the guard in inbound.ts.

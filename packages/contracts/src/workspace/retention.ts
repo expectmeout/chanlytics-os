@@ -71,7 +71,6 @@ export const RATE_HITS_RETENTION_HOURS = 2;
 export const EVENT_EVIDENCE_KINDS = [
   "webhook.auth",
   "webhook.delivery",
-  "ingest.allowlist_skip",
   "ingest.unreachable_sender",
   "ingest.unroutable",
   "usage.llm_tokens",

@@ -11,7 +11,7 @@ import { fakeDb } from "../../_fake-db.mjs";
 import { at } from "../../_cron-doors-world.mjs";
 
 const SERVICE_KEY = "service-role-key-for-this-file";
-for (const k of ["RESEND_API_KEY", "LEAD_TO", "LEAD_FROM", "WHATSAPP_PHONE_ID"]) delete process.env[k];
+for (const k of ["RESEND_API_KEY", "LEAD_TO", "LEAD_FROM"]) delete process.env[k];
 process.env.SUPABASE_SERVICE_ROLE_KEY = SERVICE_KEY;
 process.env.SUPABASE_URL = "https://db.example.supabase.co";
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));

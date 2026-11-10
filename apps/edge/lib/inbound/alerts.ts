@@ -261,7 +261,7 @@ export async function alertUnroutable(
   // this is the PLATFORM's own mailbox and carries no customer content — only
   // the number, a count and the reason.
   const delivered = await notify(
-    { tenantId: null, notifications: null, isEnvDefault: true },
+    { tenantId: null, notifications: null },
     {
       subject: words.subject,
       body:

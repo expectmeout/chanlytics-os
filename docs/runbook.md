@@ -1482,8 +1482,8 @@ the door, another for the job), in this order; where it stops is the answer.
    reached us, or was refused before it was read. `bad_signature` (a 401) is a secret that does not match the app's;
    `wa_unroutable` / `wa_skip_unroutable` is a number no workspace holds, or one switched off (the platform is told once
    a window); `wa_skip_routing_failed` is a database read that failed, answered 503 so the provider sends it again.
-2. **Set aside on purpose.** `short_code_set_aside`, `one_time_code_set_aside` or `wa_skip_allowlist` (the
-   environment's own pilot number only): recorded, and not the receptionist's to answer.
+2. **Set aside on purpose.** `short_code_set_aside` or `one_time_code_set_aside`: recorded, and not the receptionist's
+   to answer.
 3. **Recorded, its answer scheduled.** `wa_answer_unscheduled` (`sms_answer_unscheduled`, `ig_answer_unscheduled`)
    means the job could not be written: the message waits for the deadman sweep, which flags the thread and tells the
    owner within a quarter of an hour (`unfinished_inbound_flagged`, and a "A customer wrote and nothing answered"

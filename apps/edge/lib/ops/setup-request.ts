@@ -54,7 +54,7 @@ export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): P
     .join("\n");
   const sent = await notify(
     // The platform's own mailbox: this is about a workspace, not addressed to one.
-    { tenantId: null, notifications: null, isEnvDefault: true },
+    { tenantId: null, notifications: null },
     {
       kind: "alert",
       subject: `${tenant.data.name} ${result.subject}`,
