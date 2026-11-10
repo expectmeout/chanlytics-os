@@ -43,6 +43,7 @@ import { askAbout, gate, navigate, refusalToast, routeDoor } from "../../frame-v
 import type { FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { runDetail } from "../broadcasts/detail-read";
+import { cmFootAsk } from "../parts/split";
 import { keptSendOf } from "./new/kept-send";
 import { useSequenceRead } from "./use-record";
 import { pressed, sequenceVerbs as verbs } from "./verbs";
@@ -395,7 +396,7 @@ export function HeadActs({ a, phone }: { a: RecordActs; phone: boolean }) {
  * Turn on, asked: when it runs next, from the record, and to about how many, from its reach (GET sequences/:id/reach), read
  * as the question opens. A sequence to leads reads nothing more: its question says what a reach-out's Resume says.
  */
-function TurnOnQuestion({ a }: { a: RecordActs }) {
+function TurnOnQuestion({ a, ...answers }: { a: RecordActs; busy: boolean; onNo: () => void; docked: boolean }) {
   const counted = a.row.starts === "moment" || a.row.starts === "list";
   const read = useSequenceRead(counted ? a.row.id : null, verbs.reach, verbs.peekReach);
   const reach = read.state === "read" ? read.data : undefined;
@@ -405,17 +406,21 @@ function TurnOnQuestion({ a }: { a: RecordActs }) {
       question={ask.question}
       detail={ask.detail}
       yes={ask.yes}
-      busy={a.busy}
       onYes={() => void a.turn("running")}
-      onNo={() => a.setAsking(null)}
+      {...answers}
       testid="sq-resume"
     />
   );
 }
 
-/** The question standing, where it was asked: Skip this batch, Turn on, Discard a draft, or Cancel a one-off's send. */
-export function RecordQuestion({ a }: { a: RecordActs }) {
-  if (a.asking === "resume") return <TurnOnQuestion a={a} />;
+/**
+ * The question standing, where it was asked: Skip this batch, Turn on, Discard a draft, or Cancel a one-off's send. A
+ * phone's dock asks it `docked` (phoneFootOf): its answer takes focus where it stands, and the page is not moved to it.
+ */
+export function RecordQuestion({ a, docked = false }: { a: RecordActs; docked?: boolean }) {
+  // What every question here shares: busy while its answer is on its way, No puts it away, and where it stands.
+  const answers = { busy: a.busy, onNo: () => a.setAsking(null), docked };
+  if (a.asking === "resume") return <TurnOnQuestion a={a} {...answers} />;
   if (a.asking === "skip")
     return (
       <Confirm
@@ -423,9 +428,8 @@ export function RecordQuestion({ a }: { a: RecordActs }) {
         detail={SEQUENCE_WORDS.skipDetail}
         yes={SEQUENCE_WORDS.skip}
         danger
-        busy={a.busy}
         onYes={() => void a.decide("skip")}
-        onNo={() => a.setAsking(null)}
+        {...answers}
         testid="sq-skip"
       />
     );
@@ -436,9 +440,8 @@ export function RecordQuestion({ a }: { a: RecordActs }) {
         detail={F.cancelDetail}
         yes={F.cancelYes}
         danger
-        busy={a.busy}
         onYes={() => void a.cancelSend()}
-        onNo={() => a.setAsking(null)}
+        {...answers}
         testid="sq-cancel"
       />
     );
@@ -449,9 +452,8 @@ export function RecordQuestion({ a }: { a: RecordActs }) {
         detail={SEQUENCE_WORDS.endDetail}
         yes={SEQUENCE_WORDS.end}
         danger
-        busy={a.busy}
         onYes={() => void a.end()}
-        onNo={() => a.setAsking(null)}
+        {...answers}
         testid="sq-end"
       />
     );
@@ -462,9 +464,8 @@ export function RecordQuestion({ a }: { a: RecordActs }) {
         detail="Nothing of it has gone; its steps go with it."
         yes={SEQUENCE_WORDS.discard}
         danger
-        busy={a.busy}
         onYes={() => void a.discard()}
-        onNo={() => a.setAsking(null)}
+        {...answers}
         testid="sq-discard"
       />
     );
@@ -672,7 +673,7 @@ function DockSaid({ line, fact, warn }: { line: string; fact: string | null; war
  * stands, so the pane draws no foot at all.
  */
 export function phoneFootOf(a: RecordActs, tab: SequenceTab): ReactNode {
-  if (a.asking) return <RecordQuestion a={a} />;
+  if (a.asking) return cmFootAsk(<RecordQuestion a={a} docked />);
   if (a.renaming) return null;
   if (a.unwritten)
     return (

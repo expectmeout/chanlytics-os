@@ -388,6 +388,34 @@ test("R21: while some are being checked, Approve says so, and who gets it names 
   assert.match(textOf(byTestId(tree, "ro-run-list")), /12 more are being checked; they go once they pass/);
 });
 
+test("a going run's Stop question is its foot on a phone, as a campaign run's is: beside the dock's line it stood squeezed into the pill, its words under its round ends", async () => {
+  world("sending");
+  // The run's own verbs, and the question they ask once its Stop is pressed (page/runs.tsx bcRunSolo hands both).
+  const acts = W.React.createElement("button", { "data-testid": "bc-stop" }, "Stop");
+  const question = W.React.createElement("span", { "data-testid": "bc-stop-confirm" }, "Stop it?");
+  const footOf = (tree) => find(byTestId(tree, "bc-run-solo"), (n) => n.type === "footer");
+  const media = W.matchMedia;
+  W.matchMedia = (q) => ({ matches: q === "(max-width: 900px)", addEventListener() {}, removeEventListener() {} });
+  try {
+    let foot = footOf((await open({ acts }))());
+    assert.ok(byTestId(foot, "ro-run-dock") && byTestId(foot, "bc-stop"), "the dock's line and its Stop beside it");
+    foot = footOf((await open({ acts, question }))());
+    const pair = byTestId(foot, "bc-stop-confirm");
+    assert.ok(pair, "REGRESSION: the question beside the dock's line, in the pill");
+    assert.ok(
+      find(foot, (n) => n.props?.["data-foot-pair"] !== undefined),
+      "in the kit's pair, the foot's alone",
+    );
+    assert.equal(byTestId(foot, "ro-run-dock"), null, "the dock's line stands down while it asks");
+  } finally {
+    W.matchMedia = media;
+  }
+  // A desk keeps its dock as it was: the line, and the verbs beside it.
+  const desk = footOf((await open({ acts, question }))());
+  assert.ok(byTestId(desk, "ro-run-dock") && byTestId(desk, "bc-stop"), "a desk's dock, as it was");
+  assert.equal(byTestId(desk, "bc-stop-confirm"), null);
+});
+
 test("R20: a scheduled run with held opens to them; each door presses its decision and reads the run again; a refusal is said at its row", async () => {
   const w = world("scheduled");
   const redraw = await open({ acts: W.React.createElement("button", { "data-testid": "bc-stop" }, "Cancel") });
