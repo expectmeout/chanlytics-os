@@ -368,6 +368,9 @@ export async function listWaitingOccasions(
     .eq("state", "waiting");
   if (of.contactId) read = read.eq("contact_id", of.contactId);
   const { data, error } = await read.order("due_at", { ascending: true }).limit(of.limit);
+  // A database 00598 has not reached yet holds no occasion: nothing waits, and a person's page still reads (either
+  // order with the build).
+  if (error && (error.code === "PGRST205" || error.code === "42P01")) return [];
   if (error) throw new DbFailure(error, "occasions: what waits");
   return data.map((r) => ({
     sequenceId: r.sequence_id,
