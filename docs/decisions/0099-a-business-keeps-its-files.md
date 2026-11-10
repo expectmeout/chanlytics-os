@@ -427,6 +427,20 @@ searches.
 Left: a clip's own date (its row holds only when it was added), which needs the date read out of a photo and a clip, each its
 own way, and a reading library weighed under decision 0054.
 
+### What a review the same day changed (00612)
+
+Read again the day it landed, two things in it were wrong, and both are put right.
+
+- **A word finds what is meant.** 00597 read a file's words as the message search does, whole words only, so "nail" no longer
+  found "nails" nor "cut" a haircut, which the search it replaced did; and neither found "salón" for "salon". A library is a
+  workspace's own few hundred files, searched by Ask in the words an owner used, so it is read as the People list is: every word
+  given is found anywhere in the file's text, with the case and the accents of Latin letters taken off both sides
+  (`search_fold`, slug_for_workspace's map). There is no grammar: "or" and a leading hyphen are words. The index of 00597
+  goes with it, since nothing reads a tsvector now and a workspace keeps at most a thousand files.
+- **A file is opened by its name in any language.** `listFilesByName` held a name to a-z, digits and hyphens, where a name is
+  any language's words (`fileNameOf`: año-nuevo), so Ask could not read, open, zoom or post a file an owner had named with an
+  accent. It asks for the name as it stands. No file on production had such a name yet.
+
 ## Not here
 
 Making pictures with a model (step 4): Claude Video/docs/2026-11-06-ask-eyes-fundamentals.md says the order.

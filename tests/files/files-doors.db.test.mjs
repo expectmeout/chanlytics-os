@@ -714,14 +714,28 @@ test(
       ["spanish", ["balayage"]],
       ["bienvenidos salón", ["balayage"]],
       ["shop", ["storefront"]],
+      // 00612: part of a word, and a word without its accents or its capitals.
+      ["bienven", ["balayage"]],
+      ["SALON", ["balayage"]],
+      ["colo finish", ["balayage"]],
+      ["store dusk, late!", ["storefront"]],
     ])
       assert.deepEqual((await libFound("libOwner", { p_words: words })).keys, keys, words);
     assert.deepEqual(await libFound("libOwner", { p_words: "dusk bienvenidos" }), { keys: [], total: 0 }, "every word");
     assert.equal((await libFound("libOwner", { p_words: "   " })).total, 4, "blank words find every file");
     assert.deepEqual(
       await libFound("libOwner", { p_words: "-dusk" }),
+      { keys: ["storefront"], total: 1 },
+      "no grammar: a leading hyphen takes nothing away",
+    );
+    assert.deepEqual(
+      await libFound("libOwner", { p_words: "dusk or bienvenidos" }),
       { keys: [], total: 0 },
-      "exclusions alone, none",
+      "or is a word like any other",
+    );
+    assert.equal(
+      ok(await as.libOwner.client.rpc("search_fold", { p_text: "SALÓN de Uñas" }), "the fold"),
+      "salon de unas",
     );
   },
 );

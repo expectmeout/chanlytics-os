@@ -348,7 +348,13 @@ export const filesTool = defineActions({
     list: readAction({
       input: z.object({
         shelf: z.enum(FILE_SHELVES).optional().describe("One shelf. Left out, or all: everything kept."),
-        about: z.string().max(80).optional().describe("Words to find in what a file shows, has written on it or says."),
+        about: z
+          .string()
+          .max(80)
+          .optional()
+          .describe(
+            "A few key words, each found anywhere in what a file is named, shows, has written on it or says; every word must be there, accents and capitals aside. The shortest form finds the most: nail finds nails.",
+          ),
         page: z
           .number()
           .int()
@@ -363,7 +369,7 @@ export const filesTool = defineActions({
       async run(turn, input) {
         const page = input.page ?? 1;
         const from = (page - 1) * LIST_MAX;
-        // The database finds and counts them (00597 files_found): only the page is read.
+        // The database finds and counts them (00597, 00612 files_found): only the page is read.
         const { files, total } = (
           await load(turn.rc, filesFoundForAsk, {
             shelf: input.shelf ?? "all",

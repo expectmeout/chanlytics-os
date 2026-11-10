@@ -469,17 +469,35 @@ function fileSearchWordsOf(f) {
   ].join(" ");
 }
 
+/** 00612 search_fold's map, letter for letter: the Latin accents a search takes off (slug_for_workspace's). */
+const FOLD_FROM = "àáâãäåāăąèéêëēĕėęěìíîïĩīĭįòóôõöøōŏőùúûüũūŭůñńçćčšž";
+const FOLD_TO = "aaaaaaaaaeeeeeeeeeiiiiiiiiooooooooouuuuuuuunncccsz";
+
+/** `search_fold` (00612): a text composed, in lower case, each accented Latin letter of the map as its plain one. */
+const searchFold = (text) =>
+  Array.from(
+    String(text ?? "")
+      .normalize("NFC")
+      .toLowerCase(),
+    (c) => {
+      const at = FOLD_FROM.indexOf(c);
+      return at < 0 ? c : FOLD_TO[at];
+    },
+  ).join("");
+
 /**
- * `files_found` (00597), answered out of the files a fixture holds: one shelf of one workspace (contracts shelfFilterOf as its
- * parts), not removed and not a video still on its way, found by the words in file_search_words where words are given, newest
- * first with the id breaking ties, at most least(greatest(p_limit, 1), 1000) from p_offset: `{ ids, total }`. Blank words find
- * every file on the shelf; words that could match nothing, or only by exclusions, none. No RLS: the double holds one member's view.
+ * `files_found` (00597, 00612), answered out of the files a fixture holds: one shelf of one workspace (contracts shelfFilterOf as
+ * its parts), not removed and not a video still on its way, newest first with the id breaking ties, at most
+ * least(greatest(p_limit, 1), 1000) from p_offset: `{ ids, total }`. Every word given (split at anything not a letter or a digit,
+ * the first twelve) is found anywhere in file_search_words, both sides folded; blank words find every file on the shelf. No RLS:
+ * the double holds one member's view.
  */
 function filesFoundIn(tables, args) {
   const { p_tenant_id, p_status, p_limit, p_offset = 0, p_made = null, p_shows = null, p_or_unsorted = false } = args;
-  const words = String(args.p_words ?? "").trim();
-  const q = words ? webQuery(words) : null;
-  if (words && !q) return { ids: [], total: 0 };
+  const words = searchFold(args.p_words)
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+    .slice(0, 12);
   const matched = (tables.files ?? [])
     .filter(
       (f) =>
@@ -489,7 +507,7 @@ function filesFoundIn(tables, args) {
         f.status === p_status &&
         (p_made === null || (f.source === "made") === p_made) &&
         (p_shows === null || p_shows.includes(f.shows) || (p_or_unsorted === true && f.shows == null)) &&
-        (!q || q.some((g) => g.every((t) => holds(lexemesOf(fileSearchWordsOf(f)), t) !== t.not))),
+        words.every((w) => searchFold(fileSearchWordsOf(f)).includes(w)),
     )
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
   const from = Math.max(p_offset ?? 0, 0);

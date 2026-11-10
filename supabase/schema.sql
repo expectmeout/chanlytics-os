@@ -6976,9 +6976,24 @@ CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit inte
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
-  with matched as (
-    select f.id, f.created_at
+  with asked as (
+    -- The words, folded and split once a call: at most twelve, so a long text asks no more of a file than a question does.
+    select coalesce(array_agg(w.word), '{}') as words
+      from (
+        select s.word
+          from regexp_split_to_table(public.search_fold(p_words), '[^[:alnum:]]+') with ordinality as s (word, place)
+         where s.word <> ''
+         order by s.place
+         limit 12
+      ) w
+  ),
+  on_shelf as materialized (
+    select f.id, f.created_at,
+           -- Folded once a file, and only where there are words to find in it.
+           case when cardinality(a.words) > 0
+                then public.search_fold(public.file_search_words(f.name, f.look, f.sound_said, f.sound)) end as said
       from public.files f
+     cross join asked a
      where f.tenant_id = p_tenant_id
        and f.removed_at is null
        -- A video whose bytes are still on their way is no file yet (00556), as every member read says.
@@ -6986,12 +7001,13 @@ CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit inte
        and f.status = p_status
        and (p_made is null or (f.source = 'made') = p_made)
        and (p_shows is null or f.shows = any (p_shows) or (coalesce(p_or_unsorted, false) and f.shows is null))
-       and (
-         nullif(btrim(coalesce(p_words, '')), '') is null
-         or (querytree(websearch_to_tsquery('simple', p_words)) not in ('', 'T')
-             and to_tsvector('simple', public.file_search_words(f.name, f.look, f.sound_said, f.sound))
-                 @@ (select websearch_to_tsquery('simple', p_words)))
-       )
+  ),
+  matched as (
+    select s.id, s.created_at
+      from on_shelf s
+     cross join asked a
+     where cardinality(a.words) = 0
+        or not exists (select 1 from unnest(a.words) as w (word) where position(w.word in s.said) = 0)
   ),
   page as (
     select m.id, m.created_at
@@ -7011,7 +7027,7 @@ $$;
 -- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) IS 'One page of one shelf of a workspace''s files, newest first, and how many in all (00597): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, shows, or unsorted). Words (websearch_to_tsquery, the ''simple'' configuration) are found in file_search_words; left out or blank, every file on the shelf; words that could match nothing, or only by what is not there, none. At most 1,000 a page. Under the caller''s row security.';
+COMMENT ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) IS 'One page of one shelf of a workspace''s files, newest first, and how many in all (00597, 00612): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, shows, or unsorted). Every word given (split at anything not a letter or a digit, the first twelve) is found anywhere in file_search_words, case and Latin accents aside (search_fold); left out or blank, every file on the shelf. At most 1,000 a page. Under the caller''s row security.';
 
 
 --
@@ -29284,6 +29300,29 @@ COMMENT ON FUNCTION public.search_ask(p_tenant uuid, p_words text, p_limit integ
 
 
 --
+-- Name: search_fold(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.search_fold(p_text text) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    SET search_path TO ''
+    AS $$
+  select translate(
+    lower(normalize(coalesce(p_text, ''), NFC)),
+    'àáâãäåāăąèéêëēĕėęěìíîïĩīĭįòóôõöøōŏőùúûüũūŭůñńçćčšž',
+    'aaaaaaaaaeeeeeeeeeiiiiiiiiooooooooouuuuuuuunncccsz'
+  )
+$$;
+
+
+--
+-- Name: FUNCTION search_fold(p_text text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.search_fold(p_text text) IS 'A text as a search reads it (00612): lower case, composed, the accents of Latin letters taken off (slug_for_workspace''s map), so salon finds salón. Immutable.';
+
+
+--
 -- Name: search_messages(uuid, text, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -43634,13 +43673,6 @@ CREATE INDEX files_created_by ON public.files USING btree (created_by) WHERE (cr
 
 
 --
--- Name: files_found_words; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX files_found_words ON public.files USING gin (to_tsvector('simple'::regconfig, public.file_search_words(name, look, sound_said, sound))) WHERE (removed_at IS NULL);
-
-
---
 -- Name: files_look_again; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -55573,6 +55605,15 @@ GRANT ALL ON FUNCTION public.scrub_contact_events(p_tenant_id uuid, p_contact_id
 REVOKE ALL ON FUNCTION public.search_ask(p_tenant uuid, p_words text, p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.search_ask(p_tenant uuid, p_words text, p_limit integer) TO authenticated;
 GRANT ALL ON FUNCTION public.search_ask(p_tenant uuid, p_words text, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION search_fold(p_text text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.search_fold(p_text text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.search_fold(p_text text) TO authenticated;
+GRANT ALL ON FUNCTION public.search_fold(p_text text) TO service_role;
 
 
 --

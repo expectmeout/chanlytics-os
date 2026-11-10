@@ -104,7 +104,7 @@
           },
           "about": {
             "type": "string",
-            "description": "Words to find in what a file shows, has written on it or says.",
+            "description": "A few key words, each found anywhere in what a file is named, shows, has written on it or says; every word must be there, accents and capitals aside. The shortest form finds the most: nail finds nails.",
             "maxLength": 80
           },
           "page": {
@@ -900,7 +900,7 @@
           },
           "about": {
             "type": "string",
-            "description": "Words to find in what a file shows, has written on it or says.",
+            "description": "A few key words, each found anywhere in what a file is named, shows, has written on it or says; every word must be there, accents and capitals aside. The shortest form finds the most: nail finds nails.",
             "maxLength": 80
           },
           "page": {
@@ -3298,7 +3298,7 @@
           },
           "about": {
             "type": "string",
-            "description": "Words to find in what a file shows, has written on it or says.",
+            "description": "A few key words, each found anywhere in what a file is named, shows, has written on it or says; every word must be there, accents and capitals aside. The shortest form finds the most: nail finds nails.",
             "maxLength": 80
           },
           "page": {
@@ -6132,7 +6132,7 @@
           },
           "about": {
             "type": "string",
-            "description": "Words to find in what a file shows, has written on it or says.",
+            "description": "A few key words, each found anywhere in what a file is named, shows, has written on it or says; every word must be there, accents and capitals aside. The shortest form finds the most: nail finds nails.",
             "maxLength": 80
           },
           "page": {
