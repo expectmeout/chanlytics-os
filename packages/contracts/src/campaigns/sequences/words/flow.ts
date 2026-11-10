@@ -128,9 +128,12 @@ export const SEQUENCE_FLOW_WORDS = {
   cancelAsk: "Cancel this send?",
   cancelDetail: "Nobody gets it. To send it on another day, make it again.",
   cancelYes: "Cancel the send",
-  /** A step after a reminder refused (the door): a reminder is said once, the day before; after the visit is its own moment. */
-  noFollowUpOnReminder:
-    "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
+  /**
+   * A step after a reminder refused (the door): a reminder is said once, the day before or, for the one an occasion
+   * starts (decision 0119), two hours before; after the visit is its own moment.
+   */
+  noFollowUpOnReminder: (trigger: string | null | undefined) =>
+    `A reminder goes once, ${trigger === "visit_soon" ? "two hours before" : "the day before"}. To write to them afterwards, start a sequence that sends after it.`,
   /** A step's change refused by the door (decision 0065 step 6): a message step keeps a message, a call or a note its words. */
   handOnMessage: "This step sends a message. To call them instead, add a call as the last step.",
   valuesOnHand: "A call or a note has no message to fill. Change what it says to do instead.",

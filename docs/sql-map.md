@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 178 | 178 |
-| reader | 75 | 0 |
+| reader | 76 | 0 |
 | the server's | 331 | 287 |
 | computed column | 3 | 0 |
 | trigger | 100 | 70 |
-| all | 687 | 535 |
+| all | 688 | 535 |
 
 ## Called by nothing
 
@@ -189,7 +189,7 @@ being read is dropped by a migration.
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
 | `file_upload_lapsed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A video whose bytes never arrived, a day on (00556): |
 | `file_video_begin` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A member's video on its way (00556), once the video platform holds its reservation: |
-| `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597): |
+| `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
 | `finish_broadcast` | the server's | the server | code `packages/db/src/repositories/events/delivery.ts` | A run that sent its last batch: |
 | `first_replies` | reader | a signed-in person, the server | code `apps/dashboard/src/server/metrics/metrics.ts`, `packages/contracts/src/today/metrics.ts` and 1 more; SQL `metrics_summary`, `platform_metrics_roll` and 2 more |  |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |
@@ -584,6 +584,7 @@ being read is dropped by a migration.
 | `scrub_call_raw` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `scrub_contact_events` | the server's | the server | SQL `contact_events_on_erase` | Rewrite the contact.named and contact.added events of one erased person to keep only `by`, `source` and a scrubbed_at stamp. |
 | `search_ask` | reader | a signed-in person, the server | code `packages/db/src/repositories/ask/memory.ts` | Recall (decision 0070): |
+| `search_fold` | reader | a signed-in person, the server | SQL `files_found` | A text as a search reads it (00612): |
 | `search_messages` | reader | a signed-in person, the server | code `packages/db/src/repositories/conversations/thread/messages.ts`; SQL `search_ask` | One workspace's messages and call transcripts that hold the words (websearch_to_tsquery, the 'simple' configuration), since p_since, newest first, at most least(greatest(p_limit, 1), 50) rows: |
 | `segment_members_on_erase` | trigger | the server | trigger `contacts_erase_leaves_lists on contacts` |  |
 | `sender_domain_said_automated` | the server's | the server | code `packages/db/src/repositories/email/senders.ts` | Whether three or more workspaces other than p_tenant_id had an owner say the domain p_domain, or an address at it, is automated (00495, decision 0080): |

@@ -59,31 +59,34 @@ export type FileMemberRow = Pick<
 
 /**
  * The files named, by the name a person and Ask both say or by the row's id (a turn's scope names its file by id): only those
- * rows, so a question about one file reads one. A name is one a file can have (00551 files_name_shape: lower-case letters,
- * digits and hyphens), and an id a uuid; anything else names nothing.
+ * rows, so a question about one file reads one. A name is whatever a file may be called, in any language (contracts fileNameOf:
+ * año-nuevo), so it is asked for as it stands and never held to a pattern of letters; an id is a uuid, or it names nothing.
  */
 export async function listFilesByName(
   db: Db,
   tenantId: TenantId,
   named: { names: readonly string[]; ids: readonly string[] },
 ): Promise<FileMemberRow[]> {
-  const names = named.names.filter((n) => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(n));
-  const ids = named.ids.filter((id) => isUuid(id));
-  const by = [
-    ...(names.length ? [`name.in.(${names.join(",")})`] : []),
-    ...(ids.length ? [`id.in.(${ids.join(",")})`] : []),
-  ];
-  if (!by.length) return [];
-  const { data, error } = await db
-    .from("files")
-    .select(MEMBER_COLUMNS)
-    .eq("tenant_id", tenantId)
-    .is("removed_at", null)
-    .or(ARRIVED)
-    .or(by.join(","))
-    .limit(FILES_MAX);
-  if (error) throw new DbFailure(error, "files by name");
-  return data;
+  const names = [...new Set(named.names.filter(Boolean))];
+  const ids = [...new Set(named.ids.filter((id) => isUuid(id)))];
+  // Async, so it answers rows and never hands a builder on (a builder's type spells out the whole schema).
+  const among = async (column: "name" | "id", values: readonly string[]) =>
+    await db
+      .from("files")
+      .select(MEMBER_COLUMNS)
+      .eq("tenant_id", tenantId)
+      .in(column, [...values])
+      .is("removed_at", null)
+      .or(ARRIVED)
+      .limit(FILES_MAX);
+  const [byName, byId] = await Promise.all([
+    names.length ? among("name", names) : null,
+    ids.length ? among("id", ids) : null,
+  ]);
+  if (byName?.error) throw new DbFailure(byName.error, "files by name");
+  if (byId?.error) throw new DbFailure(byId.error, "files by id");
+  const rows = new Map([...(byName?.data ?? []), ...(byId?.data ?? [])].map((row) => [row.id, row]));
+  return [...rows.values()];
 }
 
 /**
