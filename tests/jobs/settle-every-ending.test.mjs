@@ -78,6 +78,34 @@ test("a preview that will not be built is marked failed, so a send waiting on it
   assert.deepEqual(out, [{ what: "preview", changed: true }]);
 });
 
+test("a video's digest that will not hear it goes on to its look; one that will not draw its sheet stops saying Looking", async () => {
+  const F = "ffffffff-0000-4000-8000-000000000001";
+  for (const step of ["audio", "words", "note"]) {
+    const tables = { jobs: [] };
+    const kept = [];
+    const db = fakeDb(tables, {}, { file_look_keep: (a) => (kept.push(a), null) });
+    const out = await settleJob(
+      db,
+      { id: "j", kind: "video_digest", tenant_id: T, payload: { file_id: F, step, edition: "1" } },
+      false,
+    );
+    assert.deepEqual(out, [{ what: "file", changed: true }]);
+    assert.deepEqual(
+      tables.jobs.map((j) => [j.kind, j.payload]),
+      [["file_look", { file_id: F, edition: "1" }]],
+      `${step}: the look goes ahead on the sheet alone`,
+    );
+    assert.deepEqual(kept, [], `${step}: and the row is not said to have failed`);
+  }
+  const tables = { jobs: [] };
+  const kept = [];
+  const db = fakeDb(tables, {}, { file_look_keep: (a) => (kept.push(a), null) });
+  await settleJob(db, { id: "j", kind: "video_digest", tenant_id: T, payload: { file_id: F, step: "sheet" } }, false);
+  assert.equal(kept.length, 1, "a sheet that will not be drawn leaves nothing to look at");
+  assert.equal(kept[0].p_status, "failed");
+  assert.deepEqual(tables.jobs, []);
+});
+
 test("a part of a connection's history that will not come in says it stopped on its source's row, with Try again", async () => {
   const noted = [];
   const db = fakeDb({}, {}, { import_ledger_note: (a) => (noted.push(a), null) });

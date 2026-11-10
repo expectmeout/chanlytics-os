@@ -281,6 +281,74 @@ test("the sheet: Stream's frames tiled for real at the plan's size, a first post
   assert.equal(frames.length, 0);
 });
 
+/** A playback list as Stream answered for the real clips: a sound track named, or a picture alone (the silent one). */
+const LIST_WITH_SOUND = [
+  "#EXTM3U",
+  '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="group_audio",NAME="original",LANGUAGE="en",DEFAULT=YES,AUTOSELECT=YES,URI="a.m3u8"',
+  '#EXT-X-STREAM-INF:RESOLUTION=1080x1920,CODECS="avc1.4d4028,mp4a.40.2",BANDWIDTH=568931,AUDIO="group_audio"',
+  "v.m3u8",
+].join("\n");
+const LIST_SILENT = [
+  "#EXTM3U",
+  '#EXT-X-STREAM-INF:RESOLUTION=1174x480,CODECS="avc1.4d401f",BANDWIDTH=1546416',
+  "v.m3u8",
+].join("\n");
+const isList = (url) =>
+  url.startsWith("https://customer-abc.cloudflarestream.com/") && url.endsWith("/manifest/video.m3u8");
+
+test("a clip whose playback list names no sound track keeps that it has none, and is never asked for its sound", async () => {
+  const w = world({
+    files: [
+      videoRow({ claude_copy: { id: "file_sheet", expires_at: "2027-02-01T00:00:00Z", width: 2576, height: 1449 } }),
+    ],
+  });
+  const asked = [];
+  answer = async (url) => {
+    asked.push(url);
+    if (isList(url))
+      return new Response(LIST_SILENT, { status: 200, headers: { "content-type": "application/x-mpegURL" } });
+    // What Stream really answers the audio download of a clip with no sound: a 500, three tries of three.
+    return new Response(
+      JSON.stringify({ success: false, errors: [{ code: 10000, message: "Internal Server Error" }] }),
+      {
+        status: 500,
+      },
+    );
+  };
+  await fileJobs(w.db).digest(job("video_digest", { file_id: F, step: "audio", edition: "1" }), SOON());
+  assert.ok(!asked.some((u) => u.includes("/downloads")), "the sound is not asked for");
+  const sound = w.doors.find(([d]) => d === "sound")[1];
+  assert.deepEqual([sound.p_part, sound.p_said], ["none", "no sound"]);
+  assert.deepEqual(
+    w.tables.jobs.map((j) => [j.kind, j.payload.step]),
+    [["video_digest", "look"]],
+  );
+});
+
+test("a clip whose playback list names a sound track, or that could not be read, is asked for its sound as before", async () => {
+  for (const list of [new Response(LIST_WITH_SOUND, { status: 200 }), new Response("no", { status: 503 })]) {
+    const w = world({
+      files: [
+        videoRow({ claude_copy: { id: "file_sheet", expires_at: "2027-02-01T00:00:00Z", width: 2576, height: 1449 } }),
+      ],
+    });
+    const asked = [];
+    answer = async (url) => {
+      asked.push(url);
+      if (isList(url)) return list.clone();
+      if (url === `${STREAM_API}/${UID}/downloads/audio`) return ok({ result: { audio: { status: "inprogress" } } });
+      if (url === `${STREAM_API}/${UID}/downloads`) return ok({ result: { audio: { status: "inprogress" } } });
+      throw new Error(`nothing answers ${url}`);
+    };
+    await assert.rejects(
+      fileJobs(w.db).digest(job("video_digest", { file_id: F, step: "audio", edition: "1" }), Date.now() + 5_000),
+      /the sound is not ready yet/,
+    );
+    assert.ok(asked.includes(`${STREAM_API}/${UID}/downloads/audio`), "the sound is asked for");
+    assert.equal(w.doors.filter(([d]) => d === "sound").length, 0, "and nothing is said of it yet");
+  }
+});
+
 test("a clip Stream makes no sound for keeps that it has none, and goes straight to the look", async () => {
   const w = world({
     files: [

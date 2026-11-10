@@ -43,6 +43,7 @@ import {
   fetchStreamAudio,
   putStreamCaptions,
   readStreamAudio,
+  readStreamSoundTrack,
   readStreamVideo,
   streamAudioUrl,
   streamTokenOf,
@@ -164,6 +165,13 @@ async function audioStep(digest: Digest, sound: FileSound): Promise<VideoDigestS
   if ((await madeOf(digest)).has(FILE_MADE_OF_VIDEO.audio)) return "words";
   const keys = streamKeys();
   if (!keys) throw new Error("video_digest: Stream is not configured here");
+  // A clip with no sound track is said so by its playback list: Stream answers its audio download with a 500, never with none.
+  const listToken = streamTokenOf(keys.signing, { uid: digest.row.media_ref ?? "", seconds: AUDIO_TOKEN_S });
+  if ((await readStreamSoundTrack(keys.signing.customerCode, listToken)) === false) {
+    logger({ tenant_id: digest.row.tenant_id }).info("video_no_sound", { file: digest.row.id });
+    await keepSound(digest, sound, { none: true }, null);
+    return "look";
+  }
   let state = await askStreamAudio(keys.account, digest.row.media_ref ?? "");
   while (state.status === "inprogress" && msLeft(digest) > AUDIO_POLL_MS) {
     await new Promise((resolve) => setTimeout(resolve, AUDIO_POLL_MS));

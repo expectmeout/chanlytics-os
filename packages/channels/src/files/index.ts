@@ -10,6 +10,7 @@ export {
   fetchStreamFrame,
   putStreamCaptions,
   readStreamAudio,
+  readStreamSoundTrack,
   readStreamUsage,
   readStreamVideo,
   reserveStreamUpload,
