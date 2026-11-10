@@ -279,6 +279,13 @@ export interface JobContext {
   google?: {
     read: (job: ClaimedJob, deadline: number) => Promise<{ read: unknown } | { skipped: string }>;
   };
+  /**
+   * A workspace's lines' texts read from the provider and each one the door never heard taken in (00605, decision 0115), as
+   * the edge holds the provider and the door. INJECTED; a texts_read job in a runtime without it fails loudly.
+   */
+  texts?: {
+    read: (job: ClaimedJob, deadline: number) => Promise<{ read: unknown } | { skipped: string }>;
+  };
   website?: {
     /** The site read and its facts kept (business_reads); no call starts after `deadline`. Throws on a failed read. */
     read: (job: ClaimedJob, deadline: number) => Promise<void>;

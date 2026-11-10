@@ -180,14 +180,15 @@ export const JOB_KINDS = [
   // A video made ready one step a run, each run again safely (00556, decision 0099 B): payload { file_id, step, edition }.
   "video_digest",
   /**
-   * A workspace's hourly work, handed out by its clock and run here (00569, decision 0115), one job a workspace while one
-   * waits or runs: its due moments read and run together, its due reach-out steps, its calendar read, its Google listings
-   * and profile read. Payload {}: each asks what is due when it runs.
+   * A workspace's recurring work, handed out by its clock and run here (00569, decision 0115), one a workspace while
+   * one waits or runs: its due moments read and run together, its reach-out steps, its calendar read, its Google
+   * listings and profile read, its lines' unheard texts taken in (00605). Payload {}: each asks what is due as it runs.
    */
   "campaign_moments",
   "reach_out_steps",
   "calendar_read",
   "google_read",
+  "texts_read",
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];

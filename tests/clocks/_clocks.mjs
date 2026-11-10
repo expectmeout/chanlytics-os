@@ -130,6 +130,6 @@ export const CLOCKS = {
   sweep_voice_sessions: { kind: "keep", why: "retention: voice sessions a day past their token" },
   texts: {
     kind: "reconcile",
-    why: "reads each line's record of received texts from the provider and takes in every one the door could not (00594)",
+    why: "hands each workspace with a line that texts a job, which reads its lines' record of received texts from the provider and takes in every one the door could not (00594, 0115)",
   },
 };

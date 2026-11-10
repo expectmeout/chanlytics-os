@@ -162,6 +162,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   reach_out_steps: { stopped: "A reach-out could not run this hour", to: "today" },
   calendar_read: { stopped: "Your calendar could not be read this hour", to: "today" },
   google_read: { stopped: "Your Google listing could not be read this hour", to: "today" },
+  texts_read: { stopped: "Texts that arrived while we were away could not be checked just now", to: "inbox" },
   canary: { stopped: "The background work's own check did not finish", to: "today" },
 };
 

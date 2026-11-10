@@ -995,6 +995,7 @@ export const FAKE_JOB_KINDS = {
   reach_out_steps: [2, ["@tenant"], false],
   calendar_read: [2, ["@tenant"], false],
   google_read: [2, ["@tenant"], false],
+  texts_read: [2, ["@tenant"], false],
   broadcast_send: [2, null, false],
   lead_round_start: [2, null, false],
   lead_collect: [2, ["run_id", "seq"], true],

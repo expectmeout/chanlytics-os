@@ -364,6 +364,18 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: [],
     never: [],
   },
+  // A workspace's lines' texts read from the provider every ten minutes (00605): each one the door never heard is knocked on
+  // the door again, whose replay gate keeps a second knock a no-op, so a run that died is run again; the answer is its own job.
+  texts_read: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 15 * SECOND_MS,
+    ids: [],
+    never: [],
+  },
   // The ledger's own proof that it runs (00526): it does nothing, and Health says when it stops finishing.
   canary: {
     speaks: false,

@@ -136,10 +136,9 @@ export const CAPACITY = {
   },
   texts: {
     job: "texts-sweep",
-    bound:
-      "Time: lines in order, oldest first, until forty seconds have gone (`TEXTS_YIELD_AT_MS`), one Twilio read each.",
+    bound: "None: it hands each workspace with a line that texts one `texts_read`, every ten minutes.",
     atFull:
-      "TIGHT: about a hundred lines a tick at a few hundred milliseconds a read, so past that the newest lines are never read. The next clock to hand out a job a workspace.",
+      "One job a workspace every ten minutes, spread over five, each reading its own lines fifty texts a page and five pages back. The ledger's row is the limit.",
   },
 };
 

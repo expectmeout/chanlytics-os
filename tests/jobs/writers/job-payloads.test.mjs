@@ -95,6 +95,7 @@ test("the shapes writers hand over are what their kind says", () => {
     reach_out_steps: {},
     calendar_read: {},
     google_read: {},
+    texts_read: {},
     canary: {},
   };
   assert.deepEqual(Object.keys(samples).sort(), [...JOB_KINDS].sort());

@@ -735,6 +735,7 @@ export const LOG_EVENTS = [
   "text_canary_sent",
   "text_canary_waiting",
   "text_unheard_taken_in",
+  "texts_read",
   "texts_read_failed",
   "texts_swept",
   "trial_spent_plan_refused",

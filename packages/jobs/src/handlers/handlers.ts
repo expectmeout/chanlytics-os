@@ -433,6 +433,13 @@ async function googleRead(ctx: JobContext, job: ClaimedJob): Promise<void | { sk
   return "skipped" in answer ? answer : undefined;
 }
 
+/** texts_read: a workspace's lines' texts taken in where the door missed them, through what the edge injects (00605). */
+async function textsRead(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.texts) throw new Error("texts_read: this runtime holds no texts reader");
+  const answer = await ctx.texts.read(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
 /**
  * canary: the ledger's own proof that it runs (00526, decision 0089). It does nothing: that a row scheduled by pg_cron was
  * claimed, run and completed is the whole of what it proves, and sweep_status judges it by its newest done row, so
@@ -475,6 +482,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   reach_out_steps: reachOutSteps,
   calendar_read: calendarRead,
   google_read: googleRead,
+  texts_read: textsRead,
   canary,
 };
 
