@@ -344,7 +344,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: [],
     never: [],
   },
-  // A workspace's occasions whose time has come, handed out each minute by the sequences' clock (00597, decision 0119).
+  // A workspace's occasions whose time has come, handed out each minute by the sequences' clock (00598, decision 0119).
   // Nothing here puts words on a wire: a person's step schedules its send. Each row is settled as it is run, so a second
   // try runs only what the first did not, and what is left waiting is handed out again the next minute anyway.
   sequence_occasions: {

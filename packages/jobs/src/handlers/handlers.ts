@@ -423,7 +423,7 @@ async function campaignMoments(ctx: JobContext, job: ClaimedJob): Promise<void> 
   await ctx.campaigns.moments(job, ctx.deadline);
 }
 
-/** sequence_occasions: a workspace's occasions whose time has come, through what the edge injects (00597, decision 0119). payload {}. */
+/** sequence_occasions: a workspace's occasions whose time has come, through what the edge injects (00598, decision 0119). payload {}. */
 async function sequenceOccasions(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.campaigns) throw new Error("sequence_occasions: this runtime holds no campaign runner");
   await ctx.campaigns.occasions(job, ctx.deadline);

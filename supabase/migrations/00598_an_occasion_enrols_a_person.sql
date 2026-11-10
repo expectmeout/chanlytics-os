@@ -1,4 +1,4 @@
--- 00597 · An occasion enrols a person (decision 0119, stage 2 of "one timeline per person").
+-- 00598 · An occasion enrols a person (decision 0119, stage 2 of "one timeline per person").
 --
 -- A moment ran once a day, at its hour, for whoever the day's look named. Three things a business owes a customer cannot be
 -- said that way: a reminder two hours before a visit, a word after a visit marked missed, and a follow-up the day after
@@ -26,14 +26,14 @@
 --                                  sequence on, its step running, the workspace not paused). One that does not run is
 --                                  answered too, so the job settles it: a row never waits on a sequence that is off.
 --   sequence_occasions_hand_out    The service role's: one job (sequence_occasions) for each workspace with one due
---                                  (jobs_hand_out, decision 0115). Nothing calls it until 00598 gives it to the clock.
+--                                  (jobs_hand_out, decision 0115). Nothing calls it until 00599 gives it to the clock.
 --   job_kinds                      sequence_occasions, in the bulk lane, once per workspace while one waits or runs.
 --   sequence_steps_due             never hands the hourly sweep a step on one of the three: each runs by its occasion
 --                                  (00569's form otherwise).
 --   contacts_erase_leaves_occasions  An erased person's occasions are deleted with the tombstone.
 --
 -- Deploy order: either. Nothing writes the table, hands out the job or delivers an event until the build that knows them
--- is live and 00598 is on. Re-runnable.
+-- is live and 00599 is on. Re-runnable.
 
 set local lock_timeout = '3s';
 
