@@ -4,10 +4,26 @@
  * service role reads it, and only after the caller's own read of the row said it is theirs to see, or for their own workspace.
  */
 import "server-only";
-import { fileSoundOf, postPlanOf, recordOrNull, type FileRecordDto, type PostPlan } from "@chanlytics/contracts";
-import { getFileMade, findFile, getNewestMade, readFileSound, type FileMemberRow } from "@chanlytics/db/files";
+import {
+  fileSoundOf,
+  postPlanOf,
+  recordOrNull,
+  type FilePosted,
+  type FileRecordDto,
+  type PostPlan,
+} from "@chanlytics/contracts";
+import {
+  getFileMade,
+  findFile,
+  getNewestMade,
+  listFilePosts,
+  readFileSound,
+  type FileMemberRow,
+  type MemberPostRow,
+} from "@chanlytics/db/files";
 import { findFilePosted } from "@chanlytics/db/events";
 import { findConnection } from "@/server/connections/google";
+import { readInstagramPostable, instagramPostsOf } from "./instagram";
 import { log } from "@/server/shared/log";
 import { fileDtoOf } from "@/server/readers/files";
 import type { Member } from "@/server/shared/route";
@@ -22,16 +38,24 @@ import type { TenantId } from "@chanlytics/contracts";
 export async function readFileRecord(ctx: RouteContext, member: Member, row: FileMemberRow): Promise<FileRecordDto> {
   const file = fileDtoOf(row);
   if (row.kind === "video")
-    return { file, made: null, google: null, sound: fileSoundOf(await readFileSound(ctx.supabase, row.id)) };
-  if (row.source !== "made") return { file, made: null, google: null };
-  const [kept, connection, posted] = await Promise.all([
+    return {
+      file,
+      made: null,
+      google: null,
+      instagram: null,
+      sound: fileSoundOf(await readFileSound(ctx.supabase, row.id)),
+    };
+  if (row.source !== "made") return { file, made: null, google: null, instagram: null };
+  const [kept, connection, posts, can] = await Promise.all([
     getFileMade(serviceDb(), member.tenantId, row.id),
     findConnection(ctx.supabase, member.tenantId),
-    findFilePosted(serviceDb(), member.tenantId, row.id),
+    listFilePosts(ctx.supabase, member.tenantId, row.id),
+    readInstagramPostable(member.tenantId),
   ]);
-  const google = { connected: !!connection?.location_name, posted };
+  const google = { connected: !!connection?.location_name, posted: await onGoogle(member, row.id, posts) };
+  const instagram = can === null ? null : { can, posts: instagramPostsOf(posts) };
   const created = recordOrNull(kept);
-  if (!created) return { file, made: null, google };
+  if (!created) return { file, made: null, google, instagram };
   // Read under the caller's RLS: a photo removed since, or one they can't see, is no photo to name.
   const from = typeof created.from === "string" ? await findFile(ctx.supabase, created.from) : null;
   return {
@@ -41,7 +65,20 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
       plan: postPlanOf(recordOrNull(created.plan) ?? {}),
     },
     google,
+    instagram,
   };
+}
+
+/**
+ * Where the post is on Google (decision 0121, D16): its newest placement where that says it went up or came down; else what
+ * the edge's events say, for a post made before placements were kept, or one whose answer the press never heard.
+ */
+async function onGoogle(member: Member, fileId: string, posts: readonly MemberPostRow[]): Promise<FilePosted | null> {
+  const placed = posts.find((p) => p.place === "google");
+  if (placed?.status === "taken_down") return null;
+  if (placed?.status === "published" && placed.external_id)
+    return { name: placed.external_id, search_url: placed.permalink, at: placed.published_at ?? placed.created_at };
+  return findFilePosted(serviceDb(), member.tenantId, fileId);
 }
 
 /** The look a person settled on, as their newest post keeps it: what a card changed, since a card's Save keeps what was pressed. */

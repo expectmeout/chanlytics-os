@@ -84,6 +84,28 @@ export async function findInstagramAccountRow(
 }
 
 /**
+ * The workspace's Instagram account connected through Meta (decision 0117: one a workspace), active, as a post is sent from
+ * it: its row and what the row keeps (the token's permissions, whether it lapsed). Null for none. A read that fails THROWS.
+ */
+export async function findMetaInstagramRow(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ id: string; external_id: string; config: Json; credentials_ref: string | null } | null> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("id, external_id, config, credentials_ref")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "instagram")
+    .eq("status", "active")
+    .eq("config->>login", "meta")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "findMetaInstagramRow");
+  return data;
+}
+
+/**
  * An account's row, written for THIS workspace: an update of the row it holds, else an insert, written disabled (it
  * routes only once its token is in the Vault), that the unique (kind, external_id) refuses when another workspace raced
  * it there; this workspace's own row found that way is a double submit. Its id, `taken`, or `failed` with the words.

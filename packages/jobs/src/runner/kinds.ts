@@ -321,6 +321,40 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["file_id", "step"],
     never: [],
   },
+  // A post made ready on Instagram (00611, decision 0121): its container is kept on its send's row, so a second try asks after
+  // the same one rather than making another. A throw is Instagram's bad minute, or a picture it has not fetched yet.
+  post_prepare: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "owner",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 20 * SECOND_MS,
+    ids: ["post_id", "attempt"],
+    never: [],
+  },
+  // The send that puts it in front of people: once, after the recheck. One that got no answer is Checking (settle-post.ts).
+  post_publish: {
+    speaks: true,
+    retryWaitsMs: NO_FIELDS,
+    told: "owner",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 20 * SECOND_MS,
+    ids: ["post_id", "attempt"],
+    never: [],
+  },
+  // Instagram asked what it has after a send with no answer: only reads, so it is asked again when Instagram is down.
+  post_reconcile: {
+    speaks: false,
+    retryWaitsMs: SLOW_TWICE,
+    told: "owner",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 20 * SECOND_MS,
+    ids: ["post_id", "attempt"],
+    never: [],
+  },
   // A workspace's hourly work, handed out by its clock (00569, decision 0115). Nothing here puts words on a wire: a moment's
   // run schedules its send, a step's plans it. Each asks what is due when it runs, so a second try runs only what the first
   // did not, and what fails for good is the platform's to mend and tried again the next hour anyway.

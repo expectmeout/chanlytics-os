@@ -7,21 +7,13 @@ import {
   namesMoney,
   priceBreach,
   priceFigures,
-  fileFolderOf,
   POST_LIMITS,
   postMomentWont,
   postPhotoWont,
   type PostPhotoWont,
   type PostPlan,
-  type PostShapeName,
   type PostUndrawable,
 } from "@chanlytics/contracts";
-import type { TenantId } from "@chanlytics/contracts";
-
-/** Where a shape of a made file is kept: portrait is the file's original, the others stand beside it. */
-export function postPathOf(tenantId: TenantId, fileId: string, shape: PostShapeName): string {
-  return `${fileFolderOf(tenantId, fileId)}/${shape === "portrait" ? "original" : shape}.jpg`;
-}
 
 /** What a post's band says, with the business's number. */
 export const postBandOf = (phone: string, language: "en" | "es"): string =>

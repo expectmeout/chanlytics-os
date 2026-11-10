@@ -52,6 +52,7 @@ import { carriedBy, nextBatch } from "./batch-carry";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, RUN_INTERRUPTED, type Db } from "./ledger";
 import { scheduleJob, scheduleJobOnce } from "./schedule";
+import { settlePostJob } from "./settle-post";
 import type { TenantId } from "@chanlytics/contracts";
 
 export interface TerminalJob {
@@ -64,7 +65,7 @@ export interface TerminalJob {
 /** One thing a job was in the middle of, and what became of it. */
 export interface Settled {
   /** The kind of row, in the words the product uses for it. */
-  what: "message" | "broadcast" | "email" | "preview" | "import" | "notice" | "delivery" | "file" | "draft";
+  what: "message" | "broadcast" | "email" | "preview" | "import" | "notice" | "delivery" | "file" | "draft" | "post";
   /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
   /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
@@ -488,6 +489,11 @@ async function settleVideoDigest(db: Db, job: TerminalJob): Promise<Settled[]> {
 
 type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
 
+/** A post on its way to Instagram (00611): settle-post.ts says where it ends. */
+const settlePost: Settler = async (db, job, certain, reason) => [
+  { what: "post", changed: await settlePostJob(db, job, certain, reason) },
+];
+
 /**
  * Who makes each kind's leavings final, whichever way its job ended: its last try threw, a run died and the ledger gave
  * up, or nothing knew the kind (tick.ts conclude reaches this for all three). Null for a kind that leaves nothing saying
@@ -504,6 +510,9 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   reply_draft: settleDraft,
   file_look: settleFileLook,
   video_digest: settleVideoDigest,
+  post_prepare: settlePost,
+  post_publish: settlePost,
+  post_reconcile: settlePost,
   file_fetch: null,
   file_purge: null,
   line_provision: null,
@@ -537,6 +546,9 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   reply_draft: "draft",
   file_look: "file",
   video_digest: "file",
+  post_prepare: "post",
+  post_publish: "post",
+  post_reconcile: "post",
 };
 
 /**

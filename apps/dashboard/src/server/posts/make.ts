@@ -18,6 +18,7 @@ import {
   POST_VOICES,
   postMomentWont,
   postNameOf,
+  postPathOf,
   postPhotoWont,
   postWordsIn,
   recordOrNull,
@@ -25,7 +26,7 @@ import {
   type PostPicture,
   type PostShapeName,
 } from "@chanlytics/contracts";
-import { postBandOf, postPathOf, postUndrawable } from "../files/post-check";
+import { postBandOf, postUndrawable } from "../files/post-check";
 import { fileFingerprintOf, FINGERPRINT_BYTES } from "@chanlytics/channels/files";
 import { updateFileRow, recordFileMade, findFile, startFile, type FileMemberRow } from "@chanlytics/db/files";
 import { log } from "@/server/shared/log";
