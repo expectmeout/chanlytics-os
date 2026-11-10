@@ -503,7 +503,7 @@ being read is dropped by a migration.
 | `reach_out_chain_report` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/chain-doors.ts` |  |
 | `reach_out_chain_totals` | door | a signed-in person, the server | code `packages/contracts/src/reports/reach-out-report.ts`, `packages/db/src/repositories/reports/series.ts` | Every chain of the workspace (a reach-out's first step), by its id, for a member (may_read_workspace): |
 | `reach_out_check_take` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/check.ts` |  |
-| `reach_out_comes_back` | the server's | the server | SQL `reach_out_again_count`, `reach_out_audience` | Of leads written to before, those a sequence may write to once more (00602, decision 0120): |
+| `reach_out_comes_back` | the server's | the server | SQL `reach_out_again_count`, `reach_out_audience` and 1 more | Of leads written to before, those a sequence may write to once more (00602, decision 0120): |
 | `reach_out_day_due` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts` | The 6 PM line (Reach out Part 6, H12): |
 | `reach_out_draft_facts` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/drafts.ts`; SQL `reach_out_drafts_waiting` | A draft's lead as the send door judges it (00429): |
 | `reach_out_drafts_waiting` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/drafts.ts` | The drafts waiting for their owners (00429), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed |

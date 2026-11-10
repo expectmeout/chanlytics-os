@@ -745,7 +745,8 @@ const SOURCES = {
   reach_out_audience: [
     "00197",
     "create or replace function public.reach_out_audience(\n  p_tenant_id uuid,\n  p_search_id uuid,\n  p_limit int,",
-    "public.reach_out_audience(uuid, uuid, int, boolean)",
+    // 00602 dropped the four-argument door for one with a fifth, p_again_after (decision 0120): the one the database runs.
+    "public.reach_out_audience(uuid, uuid, int, boolean, int)",
   ],
   set_email_marketing: ["00177", "create or replace function public.set_email_marketing("],
   sending_domain_counts: ["00188", "create or replace function public.sending_domain_counts("],
@@ -766,6 +767,10 @@ const DROPPED = {
   sending_domain_counts: "00472",
 };
 
+/**
+ * The migration that re-creates a function whole after the one a test below holds it to, by its number, or by its number
+ * and its own header where that is not the source's.
+ */
 const LATER = {
   outreach_lead_facts: "00451",
   lead_set_stage: "00413",
@@ -774,14 +779,24 @@ const LATER = {
   // intake/a-delivery-taken-in-again-changes-no-consent.db.test.mjs proves it 00484's body but for those.
   ingest_inbound: "00592",
   // 00459 draws a sequence's leads from the search it draws from too (auto-add): one-road-to-a-sequence.db.test.mjs. 00572 leaves
-  // out who has a reason by a hash of them, the same leads: leads/workbench/a-reach-out-at-volume.db.test.mjs.
-  reach_out_audience: "00572",
+  // out who has a reason by a hash of them, the same leads: leads/workbench/a-reach-out-at-volume.db.test.mjs. 00602 makes
+  // it again with p_again_after, a business that never answered tried once more: reach-out/alone/tried-again.db.test.mjs.
+  // Its header is pg_dump's, on one line.
+  reach_out_audience: ["00602", "CREATE FUNCTION public.reach_out_audience("],
   // A company's addressee is the person, by the name their source gave, and People is asked once (lead_address_in_people):
   // 00430's, whose behaviour leads/people-card.db.test.mjs holds.
   reach_out_person: "00430",
   // 00530 keeps a call's audit copy when a delivery carries none (decision 0092): 00344's body but for that block, which
   // voice/rows/a-call-keeps-only-what-it-needs.db.test.mjs proves.
   ingest_call: "00530",
+};
+
+/** The body the database runs where a later migration re-created the function whole, or null where none did. */
+const laterBody = (name, header) => {
+  const later = LATER[name];
+  if (!later) return null;
+  const [from, own] = Array.isArray(later) ? later : [later, header];
+  return bodyIn(migration(from), own);
 };
 
 /**
@@ -1048,8 +1063,7 @@ test("every function re-created whole is its source's body but for the lines it 
         : `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
     );
     // A later migration that re-creates it whole runs now, and proves itself against this body (00226's suite).
-    const later = LATER[name];
-    assert.equal(lf(live.prosrc), later ? bodyIn(migration(later), header) : want, `${name}: the database runs it`);
+    assert.equal(lf(live.prosrc), laterBody(name, header) ?? want, `${name}: the database runs it`);
   }
 });
 
@@ -1078,8 +1092,7 @@ test(
       const [live] = query(
         `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
       );
-      const later = LATER[name];
-      assert.equal(lf(live.prosrc), later ? bodyIn(migration(later), header) : want, `${name}: the database runs it`);
+      assert.equal(lf(live.prosrc), laterBody(name, header) ?? want, `${name}: the database runs it`);
     }
   },
 );
@@ -1095,7 +1108,7 @@ test("every function re-created whole keeps its source's volatility, rights, sea
       ["authenticated", "service_role"],
     ],
     "outreach_lead_facts(uuid,uuid,text,uuid)": ["s", true, ["search_path=public"], ["service_role"]],
-    "reach_out_audience(uuid,uuid,integer,boolean)": ["s", true, ["search_path=public"], ["service_role"]],
+    "reach_out_audience(uuid,uuid,integer,boolean,integer)": ["s", true, ["search_path=public"], ["service_role"]],
     "set_email_marketing(uuid,uuid,text,text,uuid,jsonb)": ["v", true, ["search_path=public"], ["service_role"]],
   };
   const rows = query(`select p.oid::regprocedure::text as fn, p.provolatile as vol, p.prosecdef as definer,
@@ -1106,7 +1119,7 @@ test("every function re-created whole keeps its source's volatility, rights, sea
    where n.nspname = 'public'
      and p.oid in ('public.lead_set_stage(uuid,text,text,text,text,text,text)'::regprocedure,
                    'public.outreach_lead_facts(uuid,uuid,text,uuid)'::regprocedure,
-                   'public.reach_out_audience(uuid,uuid,integer,boolean)'::regprocedure,
+                   'public.reach_out_audience(uuid,uuid,integer,boolean,integer)'::regprocedure,
                    'public.set_email_marketing(uuid,uuid,text,text,uuid,jsonb)'::regprocedure)`);
   assert.deepEqual(Object.fromEntries(rows.map((r) => [r.fn, [r.vol, r.definer, r.config, r.grantees]])), want);
 });

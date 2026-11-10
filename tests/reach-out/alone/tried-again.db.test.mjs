@@ -68,6 +68,7 @@ async function writtenLead(name, daysAgo, over = {}) {
       tenant_id: A,
       class: "qualified",
       counted: true,
+      counted_month: new Date().toISOString().slice(0, 7),
       fit: "strong",
       reason: "",
     }),
@@ -194,39 +195,58 @@ test(
   },
 );
 
-test("its second first email is a round of its own, and it never comes back a third time", { skip }, async () => {
+/** A run of the sequence's first email to these leads, planned through the door the clock plans with: what it planned. */
+async function planned(runFor, ids) {
   const run = crypto.randomUUID();
-  const send = crypto.randomUUID();
+  const at = new Date().toISOString();
   ok(
     await db.rpc("reach_out_plan_run", {
       p_run: {
         id: run,
         tenant_id: A,
         playbook_id: root,
-        run_for: "2097-01-02",
-        name: "Movers · again",
+        run_for: runFor,
+        name: `Movers · ${runFor}`,
         template_id: template,
         template_name: "again_chain",
         template_language: "en",
         state: "scheduled",
-        scheduled_for: new Date().toISOString(),
-        recipient_count: 1,
+        scheduled_for: at,
+        recipient_count: ids.length,
         audience: { kind: "reach_out", root_id: root, step_id: root },
       },
-      p_sends: [
-        { id: send, lead_id: leads.old, contact_id: null, mailbox_id: null, send_at: new Date().toISOString() },
-      ],
+      p_sends: ids.map((lead) => ({
+        id: crypto.randomUUID(),
+        lead_id: lead,
+        contact_id: null,
+        mailbox_id: null,
+        send_at: at,
+      })),
     }),
     "the run",
   );
-  const [row] = ok(await db.from("sequence_sends").select("round, state").eq("id", send), "its send");
-  assert.deepEqual(
-    row,
-    { round: 2, state: "planned" },
-    "planned, as its second round: the first round's rule let it be",
-  );
-  assert.deepEqual(await comesBack([leads.old], 0), [], "a business tried again does not come back");
-});
+  return ok(await db.from("sequence_sends").select("lead_id, round, state").eq("batch_id", run), "its sends");
+}
+
+test(
+  "a second first email is a round of its own, only where the sequence tries again, and never a third",
+  { skip },
+  async () => {
+    assert.deepEqual(
+      await planned("2097-01-02", [leads.old]),
+      [],
+      "off: a business written to is left out of the run, as one another reach-out planned first is",
+    );
+    ok(await db.from("sequence_steps").update({ again_after_days: 90 }).eq("id", root), "tried again after 90 days");
+    assert.deepEqual(
+      await planned("2097-01-03", [leads.old, leads.recent]),
+      [{ lead_id: leads.old, round: 2, state: "planned" }],
+      "on: the one that may come back is planned as its second round; one written to 30 days ago is still left out",
+    );
+    assert.deepEqual(await comesBack([leads.old], 0), [], "a business tried again does not come back");
+    ok(await db.from("sequence_steps").update({ again_after_days: null }).eq("id", root), "off again");
+  },
+);
 
 test(
   "the switch is a member's who may approve: on, its words wait once more; the count says who and from when",

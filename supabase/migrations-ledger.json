@@ -604,7 +604,7 @@
     "00595_the_wires_are_proved_once_a_day.sql": "8f895248eaa2003b1e8d3e55068b93bda5de896d53fed6ccf95323ce573e9744",
     "00600_a_sequence_to_leads_may_send_on_its_own.sql": "73f379d30ed5cf9991049d768ff94b9c10aa811788dbd7069a11fbcb75cb1bd9",
     "00601_a_step_s_note_is_kept_on_its_thread.sql": "fa1cce033a48eeac12c030a276db5f69baad180cd1b7ff992359748814dfc524",
-    "00602_a_business_that_never_answered_may_be_tried_again.sql": "e6ed90c2c0a4633099360f4c9b9f40289784a73084a969942618032700d5da9a",
+    "00602_a_business_that_never_answered_may_be_tried_again.sql": "2b26c270ce9fa0b017c7880f0a0ddbb19a6f72c455b535e69198e442910110f7",
     "00603_one_first_email_a_lead_a_round.sql": "dec22bdea38d1162a48f1ecb0b07b7a5928a111140729096f7005749c5580775",
     "00604_the_first_round_s_index_goes.sql": "bbc22a5d64024c6d15f5698dfa1f3e9e74046ac0262dce5158cf259b60639b32"
   }

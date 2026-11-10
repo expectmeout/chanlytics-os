@@ -220,7 +220,7 @@ test(
       ${SEED}
       execute 'set local plan_cache_mode = force_generic_plan';
       ${planOf("lines", "public.reach_out_root_lines(uuid, uuid)", ROOT_ARGS, "uuid, uuid", "%L, %L", "t, root")}
-      ${planOf("audience", "public.reach_out_audience(uuid, uuid, integer, boolean)", ["p_tenant_id", "p_search_id", "p_limit", "p_include_unconfirmed"], "uuid, uuid, integer, boolean", "%L, %L, 5000, false", "t, list")}
+      ${planOf("audience", "public.reach_out_audience(uuid, uuid, integer, boolean, integer)", ["p_tenant_id", "p_search_id", "p_limit", "p_include_unconfirmed", "p_again_after"], "uuid, uuid, integer, boolean, integer", "%L, %L, 5000, false, null", "t, list")}
       ${planOf("people", "public.reach_out_people_of(uuid, uuid)", ROOT_ARGS, "uuid, uuid", "%L, %L", "t, root")}
 
       t0 := clock_timestamp();

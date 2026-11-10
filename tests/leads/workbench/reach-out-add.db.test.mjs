@@ -704,8 +704,9 @@ test("the doors are a signed-in member's; the predicate, the lines and the recor
     member_unchecked: false,
     member_rule: false,
   });
+  // One first email a lead a round (00603 built it; 00604 dropped the first round's own, 00427's).
   const [idx] = query(
-    `select indisunique as unique, indisvalid as valid from pg_index where indexrelid = 'public.sequence_sends_one_first'::regclass`,
+    `select indisunique as unique, indisvalid as valid from pg_index where indexrelid = 'public.sequence_sends_one_first_a_round'::regclass`,
   );
   assert.deepEqual(idx, { unique: true, valid: true });
 });

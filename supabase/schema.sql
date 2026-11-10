@@ -23096,6 +23096,7 @@ CREATE FUNCTION public.reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p
     from back b
 $$;
 
+
 --
 -- Name: FUNCTION reach_out_again_count(p_tenant_id uuid, p_root_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
@@ -23140,6 +23141,7 @@ begin
           jsonb_build_object('days', p_days, 'was', v_was, 'by', auth.uid()));
   return jsonb_build_object('root_id', p_root_id, 'again_after_days', p_days);
 end $$;
+
 
 --
 -- Name: FUNCTION reach_out_again_set(p_tenant_id uuid, p_root_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
@@ -23214,6 +23216,7 @@ CREATE FUNCTION public.reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_
             case m.fit when 'strong' then 0 when 'look' then 1 when 'long' then 2 else 3 end, l.found_at
    limit greatest(p_limit, 0)
 $$;
+
 
 --
 -- Name: FUNCTION reach_out_audience(p_tenant_id uuid, p_search_id uuid, p_limit integer, p_include_unconfirmed boolean, p_again_after integer); Type: COMMENT; Schema: public; Owner: -
@@ -23732,6 +23735,7 @@ CREATE FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[],
                           where im.tenant_id = p_tenant_id and im.contact_id = l.contact_id and im.direction = 'inbound'))
 $$;
 
+
 --
 -- Name: FUNCTION reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer); Type: COMMENT; Schema: public; Owner: -
 --
@@ -23799,14 +23803,6 @@ CREATE FUNCTION public.reach_out_day_due(p_now timestamp with time zone, p_limit
    order by c.id
    limit greatest(coalesce(p_limit, 0), 0)
 $$;
-
-
---
--- Name: FUNCTION reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer) TO service_role;
 
 
 --
@@ -24643,6 +24639,7 @@ declare
   v_tenant uuid := (p_run->>'tenant_id')::uuid;
   v_step uuid := (p_run->>'playbook_id')::uuid;
   v_root uuid := (p_run->'audience'->>'root_id')::uuid;
+  v_back uuid[] := '{}';
 begin
   if p_run->'audience'->>'kind' is distinct from 'reach_out' then
     raise exception 'reach_out_plan_run: a run of a reach-out says so in its audience';
@@ -24660,18 +24657,24 @@ begin
   exception when unique_violation then
     return jsonb_build_object('exists', true);
   end;
+  -- Who of these is written to a second time (00602, decision 0120): only where the sequence tries again, only by its
+  -- first email, and only whom reach_out_comes_back lets back now. Everyone else is of the first round, so a lead another
+  -- reach-out planned or wrote first is refused by the round's unique index below and left out, as before.
+  if v_step = v_root then
+    select coalesce(array_agg(b.lead_id), '{}') into v_back
+      from public.sequence_steps r,
+           lateral public.reach_out_comes_back(
+             v_tenant,
+             array(select (e->>'lead_id')::uuid from jsonb_array_elements(coalesce(p_sends, '[]'::jsonb)) e),
+             r.again_after_days) b
+     where r.id = v_root and r.tenant_id = v_tenant and r.again_after_days is not null;
+  end if;
   insert into public.sequence_sends (id, tenant_id, batch_id, step_id, sequence_id, lead_id, contact_id, mailbox_id,
                                       send_at, state, reason, round)
   select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.mailbox_id, x.send_at,
          coalesce(x.state, 'planned'), x.reason,
-         -- A first email's round (00602): one more than the lead's last first email of any sequence, so a business tried
-         -- again after it never answered has its second; a later step's email is of its first round.
-         case when v_step = v_root
-              then 1 + coalesce((select max(p.round) from public.sequence_sends p
-                                  where p.lead_id is not null and (p.tenant_id = v_tenant and p.lead_id = x.lead_id
-                                    and p.step_id = p.sequence_id
-                                    and not (p.state = 'skipped' and p.reason in ('run_canceled', 'owner_took_back', 'moved')))), 0)
-              else 1 end
+         -- The second round is the last: reach_out_comes_back never lets back a lead with one.
+         case when x.lead_id = any (v_back) then 2 else 1 end
     from jsonb_to_recordset(coalesce(p_sends, '[]'::jsonb))
          as x(id uuid, lead_id uuid, contact_id uuid, mailbox_id uuid, send_at timestamptz, state text, reason text)
    where exists (select 1 from public.leads l where l.id = x.lead_id and l.tenant_id = v_tenant)
@@ -53936,6 +53939,14 @@ GRANT ALL ON FUNCTION public.reach_out_chain_totals(p_tenant_id uuid, p_days int
 
 REVOKE ALL ON FUNCTION public.reach_out_check_take(p_tenant_id uuid, p_cap integer, p_at timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_check_take(p_tenant_id uuid, p_cap integer, p_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reach_out_comes_back(p_tenant_id uuid, p_lead_ids uuid[], p_after_days integer) TO service_role;
 
 
 --

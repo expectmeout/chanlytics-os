@@ -65,7 +65,8 @@ const liveBody = (name) =>
 const bodyIn = (src, header) => {
   const at = src.indexOf(header);
   assert.ok(at >= 0, `no ${header}`);
-  const open = src.indexOf("as $$", at) + "as $$".length;
+  // A migration copied from the snapshot writes it as pg_dump does, `AS $$`.
+  const open = at + /as \$\$/i.exec(src.slice(at)).index + "as $$".length;
   return src.slice(open, src.indexOf("$$", open));
 };
 
@@ -373,14 +374,15 @@ test("the re-created bodies are 00220's and 00185's, but for the away", { skip }
   // 00424 makes the followers again with each one's mailbox (a cold email leaves from a connected mailbox, 0056); 00451
   // writes both again over the sequence tables; 00455 makes the followers again for someone whose place still stands
   // (what-comes-back.db.test.mjs holds the change), still leaving out someone away; 00459 follows a step its owner
-  // skipped (what-comes-back.db.test.mjs again). That is what the database holds now.
+  // skipped (what-comes-back.db.test.mjs again); 00602 follows a first round's email alone (what-comes-back.db.test.mjs
+  // holds that change too). That is what the database holds now.
   assert.equal(
     liveBody("outreach_lead_facts"),
     bodyIn(migration("00451"), "create or replace function public.outreach_lead_facts("),
   );
   assert.equal(
     liveBody("reach_out_followers"),
-    bodyIn(migration("00459"), "create or replace function public.reach_out_followers("),
+    bodyIn(migration("00602"), "CREATE OR REPLACE FUNCTION public.reach_out_followers("),
   );
 });
 
