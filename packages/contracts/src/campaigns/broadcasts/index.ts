@@ -6,6 +6,7 @@ export {
   allowanceLines,
   allowanceRoom,
   AUDIENCE_KINDS,
+  audienceLate,
   audienceMembers,
   audiencePreview,
   audienceTrigger,

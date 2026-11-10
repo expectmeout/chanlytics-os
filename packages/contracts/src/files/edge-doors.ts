@@ -6,7 +6,10 @@ import { DOOR_ID, answerFields, edgeDoor } from "../shared/edge/door";
 const BOX = z.tuple([z.number(), z.number(), z.number(), z.number()]);
 const SIZE = z.tuple([z.number(), z.number()]);
 
-/** POST /api/admin/files/copies: the sizes a few files are kept in, and where, and copies of pictures made for a turn. */
+/**
+ * POST /api/admin/files/copies: the sizes a few files are kept in, and where, copies of pictures made for a turn, and a video's
+ * moments kept as stills.
+ */
 export const FILE_COPIES_DOOR = edgeDoor(
   "/api/admin/files/copies",
   z.object({
@@ -31,6 +34,11 @@ export const FILE_COPIES_DOOR = edgeDoor(
         }),
       )
       .optional(),
+    /**
+     * A video's moments kept as stills in its own folder (`at`, in seconds), each under the key the asker knows it by: what a
+     * post is drawn from, where a moment above is only shown to a model for a turn.
+     */
+    frames: z.array(z.object({ key: z.string(), id: DOOR_ID, at: z.number() })).optional(),
   }),
   answerFields({ copies: z.array(z.unknown()) }),
 );

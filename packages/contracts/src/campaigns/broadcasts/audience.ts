@@ -7,6 +7,7 @@ import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import { PEOPLE_LISTS } from "../../people/lists/builtin-lists";
 import { saidYesTo } from "../../people/person-consent";
 import type { PersonRowVM } from "../../people/person-row/row-facts";
+import { recordOrEmpty } from "../../shared/unknown";
 import type { RunReach } from "../playbooks/playbooks";
 import { firstNameOf } from "../templates/params";
 import { answeredYes } from "./reach-any";
@@ -48,12 +49,34 @@ export interface Audience {
    * kept it, which the allowance then holds as it held every run.
    */
   trigger?: string;
+  /**
+   * A late booking's reminder (decision 0118): the appointment it reminds of, that visit's start, ISO, and the business's
+   * day its words were written for ("2026-11-09": "tomorrow at 9:00 AM" is that day's). The batch that keeps it has no day
+   * of its own, so one still waiting for its owner is too late by these (contracts runApprovalRefusal). Absent on every
+   * other run.
+   */
+  late?: LateVisit;
+}
+
+/** The visit a late booking's reminder is about, as its batch keeps it (`Audience.late`). */
+interface LateVisit {
+  appointment: string;
+  start: string;
+  day: string;
 }
 
 /** The moment a run's audience names, or null for a broadcast and a run that kept none (`Audience.trigger`). */
 export function audienceTrigger(audience: unknown): string | null {
   const t = audience && typeof audience === "object" ? (audience as { trigger?: unknown }).trigger : null;
   return typeof t === "string" ? t : null;
+}
+
+/** The late booking a run's audience names (`Audience.late`), or null: every run but a late booking's reminder. */
+export function audienceLate(audience: unknown): LateVisit | null {
+  const { appointment, start, day } = recordOrEmpty(recordOrEmpty(audience).late);
+  return typeof appointment === "string" && typeof start === "string" && typeof day === "string"
+    ? { appointment, start, day }
+    : null;
 }
 
 /**

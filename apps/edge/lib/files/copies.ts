@@ -11,11 +11,15 @@
  * A video's moments (stage B) are drawn here, where Stream's keys are: one moment whole, a box of one cut by the photo's rules,
  * or a stretch as a sheet of its own (video-sheet.ts), each kept at Anthropic for a day as a picture made for the turn is. A
  * video's own copy, which `ids` asks for, is its sheet.
+ *
+ * A frame is a moment kept, not shown: cut whole at the clip's own size and stored in the video's folder (contracts
+ * fileFramePathOf), where the dashboard reads it to draw a post from. It goes when the folder does, and no model is sent it here.
  */
 import {
   FILE_COPIES_DOOR,
   FILE_PICTURE_KEEP_S,
   UUID,
+  fileFramePathOf,
   isFileMime,
   secondsOf,
   videoSpanPlanOf,
@@ -26,7 +30,7 @@ import {
 } from "@chanlytics/contracts";
 import { uploadClaudeFile } from "@chanlytics/channels/ai";
 import { imageHeaderOf } from "@chanlytics/core";
-import { findFileForWork } from "@chanlytics/db/files";
+import { filesBucket, findFileForWork } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readBody } from "../shared/admin-door.js";
@@ -47,6 +51,9 @@ const PICTURES_AT_ONCE = 4;
 const PICTURE_BYTES_MOST = 2_500_000;
 /** The most of a video's moments one call draws: a moment, a box or a stretch is a few seconds of Stream's frames each. */
 const MOMENTS_AT_ONCE = 2;
+
+/** The most frames one call keeps: a post is drawn from one. */
+const FRAMES_AT_ONCE = 2;
 
 /** A video's moment as the dashboard asks for it: a moment (`at`), a box of one (`at`, `box`, `of`), or a stretch (`from`, `to`). */
 interface MomentAsked {
@@ -158,6 +165,59 @@ async function momentKept(db: SupabaseClient<Database>, tenantId: TenantId, mome
   return drawnKept(tenantId, moment.key, `${row.id}-moment.jpg`, drawn);
 }
 
+/** A frame as the dashboard asks for it: a video, and the moment of it to keep as a still. */
+interface FrameAsked {
+  key: string;
+  id: string;
+  at: number;
+}
+
+function framesAsked(raw: unknown): FrameAsked[] | null {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || raw.length > FRAMES_AT_ONCE) return null;
+  const out: FrameAsked[] = [];
+  for (const entry of raw) {
+    const { key, id, at } = recordOrEmpty(entry);
+    if (typeof key !== "string" || !key || key.length > 40 || typeof id !== "string" || !UUID.test(id)) return null;
+    if (typeof at !== "number" || !Number.isFinite(at) || at < 0) return null;
+    out.push({ key, id, at });
+  }
+  return out;
+}
+
+type FrameKept = { key: string; kept: boolean; width?: number; height?: number; wont?: string };
+
+/** One moment of a video cut whole and kept in its folder, or the words that say why not. Kept again, it is the same object. */
+async function frameKept(db: SupabaseClient<Database>, tenantId: TenantId, frame: FrameAsked): Promise<FrameKept> {
+  const none = (wont: string): FrameKept => ({ key: frame.key, kept: false, wont });
+  const keys = streamKeys();
+  if (!keys) return none("videos are not set up here");
+  const row = await findFileForWork(db, tenantId, frame.id);
+  if (!row || row.removed_at || row.kind !== "video" || !row.media_ref) return none("no such video");
+  if (row.media_status !== "ready") return none("it is still being made ready");
+  const seconds = Number(row.seconds) || 0;
+  if (frame.at > seconds) return none(`the clip is ${Math.round(seconds)} seconds long`);
+  const drawn = await drawMoment(
+    keys.signing,
+    { mediaRef: row.media_ref, width: row.width, height: row.height },
+    frame.at,
+  );
+  if (!drawn) return none("Stream gave no frame at that moment just now");
+  const upload = await filesBucket(db).upload(fileFramePathOf(tenantId, row.id, frame.at), drawn.bytes, {
+    contentType: "image/jpeg",
+    upsert: true,
+  });
+  if (upload.error) {
+    logger({ tenant_id: tenantId }).warn("file_copy_failed", {
+      file: row.id,
+      why: "frame",
+      error: upload.error.message,
+    });
+    return none("it could not be kept just now");
+  }
+  return { key: frame.key, kept: true, width: drawn.width, height: drawn.height };
+}
+
 /** A picture as the dashboard sends it: its bytes in base64, what it is, and a name for Anthropic's listing. */
 interface PictureSent {
   key: string;
@@ -225,7 +285,10 @@ export async function listFileCopies(auth: Admitted, request: Request): Promise<
       "bad_request",
       `moments: 1-${MOMENTS_AT_ONCE}, each a key, a video's id, and at (with box and of), or from and to`,
     );
-  if ((ids.length === 0 && pictures.length === 0 && moments.length === 0) || ids.length > COPIES_AT_ONCE) {
+  const frames = framesAsked(body.frames);
+  if (!frames) return refuse(400, "bad_request", `frames: 1-${FRAMES_AT_ONCE}, each a key, a video's id and at`);
+  const nothingAsked = ids.length === 0 && pictures.length === 0 && moments.length === 0 && frames.length === 0;
+  if (nothingAsked || ids.length > COPIES_AT_ONCE) {
     return refuse(400, "bad_request", `ids: 1-${COPIES_AT_ONCE} files`);
   }
   const db = pg();
@@ -235,6 +298,14 @@ export async function listFileCopies(auth: Admitted, request: Request): Promise<
       momentKept(db, tenantId, m).catch((e: unknown) => {
         logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: m.key, why: "moment", error: errField(e) });
         return { key: m.key, file_id: null, wont: "it could not be drawn just now" } satisfies MomentKept;
+      }),
+    ),
+  );
+  const cut = Promise.all(
+    frames.map((f) =>
+      frameKept(db, tenantId, f).catch((e: unknown) => {
+        logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: f.key, why: "frame", error: errField(e) });
+        return { key: f.key, kept: false, wont: "it could not be cut just now" } satisfies FrameKept;
       }),
     ),
   );
@@ -254,11 +325,12 @@ export async function listFileCopies(auth: Admitted, request: Request): Promise<
     ),
     Promise.all(pictures.map((p) => pictureKept(tenantId, p))),
   ]);
-  const momentsKept = await drawn;
+  const [momentsKept, framesKept] = await Promise.all([drawn, cut]);
   return json(200, {
     ok: true,
     copies,
     ...(pictures.length ? { pictures: kept } : {}),
     ...(moments.length ? { moments: momentsKept } : {}),
+    ...(frames.length ? { frames: framesKept } : {}),
   });
 }

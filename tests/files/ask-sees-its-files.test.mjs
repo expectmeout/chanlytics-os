@@ -181,6 +181,28 @@ test("a list finds by what a file shows or has written on it", async () => {
   assert.match(said.files[0], /^storefront-dusk/);
 });
 
+test("a list is read a page at a time, so a long library is reached to its end and no further", async () => {
+  const files = Array.from({ length: 45 }, (_, i) =>
+    row(1, {
+      id: `ffffffff-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      name: `clip-${String(i).padStart(2, "0")}`,
+      created_at: new Date(Date.UTC(2026, 10, 1, 0, 45 - i)).toISOString(),
+    }),
+  );
+  const first = JSON.parse((await tool(files, { action: "list" })).result);
+  assert.equal(first.files.length, 40);
+  assert.match(first.files[0], /^clip-00 /, "newest first");
+  assert.equal(first.more, 5);
+  assert.equal(first.next_page, 2);
+  const second = JSON.parse((await tool(files, { action: "list", page: 2 })).result);
+  assert.equal(second.files.length, 5);
+  assert.match(second.files[0], /^clip-40 /);
+  assert.equal(second.more, undefined, "the last page says no more");
+  assert.equal(second.next_page, undefined);
+  const past = JSON.parse((await tool(files, { action: "list", page: 3 })).result);
+  assert.match(past.error, /there is no page 3: this list ends on page 2/);
+});
+
 test("a look that failed or was refused is said so on its line, so Ask does not take its silence for nothing", () => {
   const base = {
     name: "x",
@@ -620,4 +642,29 @@ test("a list's line says a video's length and its sound, and finds it by what it
   const said = JSON.parse((await tool([clip(1), row(2)], { action: "list", about: "spanish" })).result);
   assert.deepEqual(said.files.length, 1);
   assert.match(said.files[0], /^salon-tour-1 · place · video 0:24 · Spanish, 2 voices, music/);
+});
+
+test("a list finds a video by the words spoken in it, and one still being prepared by its name alone", async () => {
+  const files = [clip(1), clip(2, { sound: NO_SOUND, sound_said: null }), row(3)];
+  const found = JSON.parse((await tool(files, { action: "list", about: "bienvenidos gracias" })).result);
+  assert.equal(found.files.length, 1, "every word, in what is said");
+  assert.match(found.files[0], /^salon-tour-1 /);
+  const none = JSON.parse((await tool(files, { action: "list", about: "bienvenidos adios" })).result);
+  assert.deepEqual(none.files, []);
+  const waiting = [clip(1, { media_status: "processing", sound: null, sound_said: null })];
+  const byName = JSON.parse((await tool(waiting, { action: "list", about: "salon tour" })).result);
+  assert.equal(byName.files.length, 1);
+});
+
+test("a video says the moment its look chose to stand for it, where it is read and where it is opened", async () => {
+  const got = JSON.parse((await tool([clip(1)], { action: "get", name: "salon-tour-1" })).result);
+  assert.equal(got.stands_at, "0:04.3");
+  edge = async ({ ids }) =>
+    json200({ ok: true, copies: ids.map((id) => ({ id, file_id: "file_sheet", width: 2576, height: 1449 })) });
+  const opened = JSON.parse((await tool([clip(1)], { action: "view", names: ["salon-tour-1"] })).result);
+  assert.equal(opened.shown[0].stands_at, "0:04.3");
+  const unlooked = clip(1, { look: null, look_status: "waiting" });
+  const before = JSON.parse((await tool([unlooked], { action: "get", name: "salon-tour-1" })).result);
+  assert.equal(before.stands_at, undefined, "nothing before its look");
+  assert.equal(JSON.parse((await tool([row(2)], { action: "get", name: "photo-2" })).result).stands_at, undefined);
 });

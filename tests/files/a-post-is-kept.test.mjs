@@ -297,7 +297,7 @@ test("Save keeps a shape each in the file's folder, and the file by its door: wh
   assert.deepEqual(door.p_look.text_seen, ["Newly renovated", "Come see the new floor."]);
   assert.deepEqual(door.p_look.people, { count: 0, recognizable: 0 }, "who is in it is the photo's");
   assert.equal(door.p_who_in_it, "not_asked");
-  assert.deepEqual(door.p_made, { from: F, plan: PLAN });
+  assert.deepEqual(door.p_made, { from: F, plan: { ...PLAN, at: null } }, "a photo's plan names no moment of a video");
   assert.equal(door.p_actor, USER);
   assert.deepEqual(asked.removed, []);
   assert.equal(out.file_id, id);
