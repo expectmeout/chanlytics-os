@@ -153,7 +153,7 @@ export function StepWork(p: WorkProps & { onDone: () => void }) {
     <>
       {p.whole ? <State>{row.sentence}</State> : null}
       {p.whole && threadId ? <ThreadLast conversationId={threadId} pulled={p.pulled} /> : null}
-      <StepWords p={p} words={words} noted={note !== null} to={to} threadId={threadId} />
+      <StepNoteWords p={p} words={words} noted={note !== null} to={to} threadId={threadId} />
       {day.refused ? <Note tone="danger">{day.refused}</Note> : null}
       <Acts
         foot={p.foot}
@@ -190,7 +190,7 @@ export function StepWork(p: WorkProps & { onDone: () => void }) {
  * What to write for a step: what its note is, where it arrived written (decision 0120); the words, to change by hand; and what
  * is said to Ask about them, on their own thread, never about a note to someone new, which Ask's change would make a reply.
  */
-function StepWords(s: {
+function StepNoteWords(s: {
   p: WorkProps;
   words: ReturnType<typeof useStepWords>;
   noted: boolean;
