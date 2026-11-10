@@ -277,11 +277,11 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
     assert.ok(alerts.includes(s), s);
   assert.ok(!alerts.includes("sendText("), "the customer is not texted from the alerts module: the door does that");
   // The tenant's credentials or none: waCfgFor answers null for a tenant with
-  // nothing in the vault, and the door refuses rather than sending on the
-  // environment's pair (per-tenant-credentials.test.mjs runs the resolver,
+  // nothing in the vault, and the door refuses rather than sending on any
+  // other (per-tenant-credentials.test.mjs runs the resolver,
   // deliver.test.mjs runs the door).
   assert.ok(
-    src.ingest.includes("whatsapp: ports.sender(ports.waCfg(rt, isEnvDefault)),") &&
+    src.ingest.includes("whatsapp: ports.sender(ports.waCfg(rt)),") &&
       /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(
         src.ingest,
       ),

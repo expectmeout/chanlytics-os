@@ -37,8 +37,8 @@ const MAIL = { RESEND_API_KEY: "re_test_only", LEAD_TO: "ops@platform.test", LEA
 const MASTER = { sid: "ACplatformmasteraccountforthisfile", token: "platform-master-token-for-this-file" };
 
 // Each test file is its own process, so this is the whole environment, set
-// before the handler is imported below. The environment's own WhatsApp pair is
-// present, so a text taken for the environment's number would show; the
+// before the handler is imported below. The environment's old WhatsApp pair is
+// still set, as a deployment that never unset it holds it, so a text sent on it would show; the
 // platform's mailbox is configured, so what is not mailed below is not mailed
 // by decision, never for want of an address.
 process.env.TWILIO_ACCOUNT_SID = MASTER.sid;
@@ -46,14 +46,7 @@ process.env.TWILIO_AUTH_TOKEN = MASTER.token;
 process.env.WHATSAPP_PHONE_ID = "109990000000002";
 process.env.WHATSAPP_ACCESS_TOKEN = "the-environments-own-whatsapp-token";
 Object.assign(process.env, MAIL);
-for (const k of [
-  "ANTHROPIC_API_KEY",
-  "WHATSAPP_TEST_ALLOWLIST",
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-  "LINES_DRY_RUN",
-  "VERCEL_ENV",
-])
+for (const k of ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "LINES_DRY_RUN", "VERCEL_ENV"])
   delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -319,13 +312,7 @@ const blank = () => ({ history: [], pausedUntil: 0, replies: [], textedBefore: f
  * "opened" unless a case refuses it: a hold written is told from its event (decision 0043), one refused by the
  * receptionist's own note (`alerts`).
  */
-function receptionist({
-  allowlist = "",
-  ingest = () => {},
-  escalate = () => {},
-  escalateAnswer = "opened",
-  thread = blank,
-} = {}) {
+function receptionist({ ingest = () => {}, escalate = () => {}, escalateAnswer = "opened", thread = blank } = {}) {
   const kept = new Set();
   const seen = {
     runtimes: [],
@@ -334,7 +321,6 @@ function receptionist({
     escalations: [],
     alerts: [],
     whatsappWires: [],
-    allowlistSkips: 0,
     processed: 0,
     emails: [],
   };
@@ -351,7 +337,6 @@ function receptionist({
         policy: { reply: { mode: "auto", limits: {} } },
         // A workspace that texts: no WhatsApp credentials of its own, and not the environment's number.
         waCreds: null,
-        envNumber: false,
         paused: false,
         loadFailed: false,
         configBroken: false,
@@ -394,9 +379,6 @@ function receptionist({
         processed: async () => {
           seen.processed += 1;
         },
-        allowlistSkip: async () => {
-          seen.allowlistSkips += 1;
-        },
         unreachableSender: async () => {},
         noteEmail: async (address) => {
           seen.emails.push(address);
@@ -414,7 +396,7 @@ function receptionist({
       queueReply: async () => false,
     },
     alertStaff: async (thread, _said, _answered, reason, ctx) => {
-      seen.alerts.push({ thread, reason, channel: ctx.channel, envDefault: ctx.target.isEnvDefault });
+      seen.alerts.push({ thread, reason, channel: ctx.channel, tenantId: ctx.target.tenantId });
     },
     page: async () => "sent",
     sender: (cfg) => {
@@ -426,7 +408,7 @@ function receptionist({
     brain: async () => {
       throw new Error("the model must not be reached in this test");
     },
-    env: { allowlist, modelKey: undefined },
+    env: { modelKey: undefined },
   });
   return seen;
 }
@@ -868,28 +850,18 @@ test("a text that is an address and nothing else is kept on the person before an
   });
 });
 
-test("a text is never gated by the pilot allowlist or answered as the environment's own number: the door says the line is not the environment's", async () => {
+test("a text is answered on its line, never on the environment's old WhatsApp pair, and the owner's note is addressed to the workspace itself", async () => {
   const w = world();
   w.open();
-  // The environment's tester list, and a customer who is not on it. The list
-  // gates the environment's own WhatsApp number and nothing else: a text taken
-  // for that number would be recorded, skipped and never answered. The flag
-  // beside it -- that routing failed -- speaks only for the environment's own
-  // number too (reply-posture.ts), so this is what both of them decide.
   // A hold the database refused is told by the receptionist's own note, so the note's addressing shows.
-  const seen = receptionist({ allowlist: "+19175550100", escalateAnswer: "failed" });
+  const seen = receptionist({ escalateAnswer: "failed" });
   await listening(async () => {
     assert.deepEqual(await heard(await text(w.form(w.customer()), w.TOKEN)), twiml(200));
-    assert.equal(seen.allowlistSkips, 0, "no allowlist skip is recorded for a text");
-    assert.equal(w.left().texts.length, 1, "and the customer is answered");
-    assert.deepEqual(
-      seen.whatsappWires,
-      [null],
-      "the environment's WhatsApp pair is set, and is not this message's wire",
-    );
+    assert.equal(w.left().texts.length, 1, "the customer is answered");
+    assert.deepEqual(seen.whatsappWires, [null], "the old pair is still set, and is nobody's wire");
     assert.ok(
-      seen.alerts.length > 0 && seen.alerts.every((a) => a.envDefault === false),
-      "and the owner's note is not addressed as the environment's own workspace",
+      seen.alerts.length > 0 && seen.alerts.every((a) => a.tenantId === w.T),
+      "and the owner's note is the workspace's own, never the platform's",
     );
   });
 });

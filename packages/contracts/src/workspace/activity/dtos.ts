@@ -293,7 +293,6 @@ export const WORDS: Record<string, string> = {
   "billing.updated": "Billing changed",
   "billing.paused": "Billing paused the workspace",
   "billing.resumed": "Billing resumed the workspace",
-  "ingest.allowlist_skip": "A message was skipped by the allowlist",
   "ingest.unreachable_sender": "A sender could not be answered",
   "ingest.unroutable": "A message could not be placed on a workspace",
   "policy.veto_window_skipped": "A veto window was skipped",

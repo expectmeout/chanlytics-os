@@ -22,7 +22,6 @@ import { resolveChannelDetailed, type RoutedChannel } from "@chanlytics/db/chann
 import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob } from "@chanlytics/jobs";
 import { phoneTail } from "@chanlytics/contracts";
-import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { answerArrival, recordThenSchedule, spokeFirst } from "../inbound/arrival.js";
 import { realPorts, type InboundPorts } from "../inbound/ports.js";
@@ -39,10 +38,6 @@ const envelopeOf = (value: WaChangeValue): WaChangeValue => ({
 /** A value as the ledger keeps it: what JSON carries of it, which is all a job's payload holds. */
 const asKept = jsonCopyOf;
 
-/** Whether this number is the environment's own pilot line, whose replies leave on the environment's credentials. */
-const isEnvNumber = (phoneNumberId: string | undefined): boolean =>
-  !!phoneNumberId && phoneNumberId === (env.WHATSAPP_PHONE_ID || "");
-
 /**
  * The door's half: the message recorded (or set aside, or a redelivery, and then nothing more), and its answer scheduled
  * as its job, due now. Throws IngestFailed when the write failed, which the webhook answers with a 503 so Meta sends it
@@ -54,15 +49,9 @@ export async function recordWhatsapp(
   value: WaChangeValue,
   routed: RoutedChannel,
 ): Promise<void> {
-  const isEnvDefault = isEnvNumber(value.metadata?.phone_number_id);
-  await recordThenSchedule(
-    db,
-    { inbound: inboundFromWhatsapp(waRawMessage, value), carrier: null, isEnvDefault },
-    routed,
-    {
-      wa: asKept({ message: waRawMessage, value: envelopeOf(value) }),
-    },
-  );
+  await recordThenSchedule(db, { inbound: inboundFromWhatsapp(waRawMessage, value), carrier: null }, routed, {
+    wa: asKept({ message: waRawMessage, value: envelopeOf(value) }),
+  });
 }
 
 /**
@@ -103,7 +92,6 @@ export async function answerWhatsapp(db: Db, job: ClaimedJob, deadline?: number)
   const arrival = {
     inbound: inboundFromWhatsapp(message, value),
     carrier: null,
-    isEnvDefault: isEnvNumber(phoneNumberId),
   };
   await answerArrival(arrival, routed, speakingOnce(db, job, realPorts()), deadline);
 }

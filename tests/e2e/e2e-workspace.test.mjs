@@ -491,7 +491,7 @@ test("the one alert address is Resend's test inbox: a failed reply's alert goes 
   const w = world();
   const { tenantId: T } = await run(w);
   const [cfg] = of(w.t, "tenant_config", T);
-  const target = { tenantId: T, notifications: cfg.config.notifications, isEnvDefault: false };
+  const target = { tenantId: T, notifications: cfg.config.notifications };
   const platform = { to: ["platform@example.com"], from: "Chanlytics <alerts@example.com>" };
 
   // thread.spec.ts's reply fails at this channel and the job alerts the owner
@@ -1371,7 +1371,7 @@ test("no sweep or job reaches the Receptionist rows: the unfinished-message swee
         told.push(args);
         return true;
       },
-      loadTenantNotifications: async () => ({ notifications: null, isEnvDefault: false }),
+      loadTenantNotifications: async () => ({ notifications: null }),
       reachesTenant: () => true,
       deadline: Infinity,
       now: () => NOW + after,
@@ -2337,7 +2337,7 @@ test("the Campaigns rows are all terminal: no run waiting, no message queued or 
         told.push(args);
         return true;
       },
-      loadTenantNotifications: async () => ({ notifications: null, isEnvDefault: false }),
+      loadTenantNotifications: async () => ({ notifications: null }),
       reachesTenant: () => true,
       deadline: Infinity,
       now: () => NOW + after,

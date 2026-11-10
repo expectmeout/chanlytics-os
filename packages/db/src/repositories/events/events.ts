@@ -106,7 +106,6 @@ interface TableData {
     review_count: number | null;
   };
   "google.unlinked": { place_id: string; name: string | null; had_profile: boolean; by?: string | null };
-  "ingest.allowlist_skip": Nothing;
   "ingest.unreachable_sender": Nothing;
   "ingest.unroutable": { channel: "email" | "voice" | "whatsapp" | "instagram" } & JsonObject;
   "lead.emailed": { by: "reach_out"; send_id: string };
@@ -230,7 +229,6 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "google.reply_held": { category: "google", version: 1 },
   "google.reviews": { category: "google", version: 1 },
   "google.unlinked": { category: "google", version: 1 },
-  "ingest.allowlist_skip": { category: "ingest", version: 1 },
   "ingest.unreachable_sender": { category: "ingest", version: 1 },
   "ingest.unroutable": { category: "ingest", version: 1 },
   "lead.emailed": { category: "lead", version: 1 },

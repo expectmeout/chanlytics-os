@@ -55,7 +55,6 @@ for (const k of [
   "DIAG_KEY",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
-  "WHATSAPP_PHONE_ID",
   "RESEND_API_KEY",
   "LEAD_TO",
   "LEAD_FROM",

@@ -260,7 +260,6 @@ export const EVENT_KINDS = [
   "contact.consent_changed",
   "usage.llm_tokens",
   "usage.wa_conversation",
-  "ingest.allowlist_skip",
   /** The sender cannot receive a reply — a short code. Recorded, never answered. */
   "ingest.unreachable_sender",
   "message.send_failed",

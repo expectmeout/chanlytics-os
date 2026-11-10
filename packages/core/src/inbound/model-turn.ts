@@ -148,9 +148,9 @@ async function requestOf(
  * failure is nobody's. Never on a text or a DM, whose wires have none.
  */
 export function showTyping(at: Answering): void {
-  const { ports, channel, replyMode, rt, isEnvDefault, n, L } = at;
+  const { ports, channel, replyMode, rt, n, L } = at;
   if (!ports.typing || channel !== "whatsapp" || replyMode !== "auto" || !ports.env.modelKey) return;
-  ports.typing(ports.waCfg(rt, isEnvDefault), n.externalId).catch((e: unknown) => {
+  ports.typing(ports.waCfg(rt), n.externalId).catch((e: unknown) => {
     L.warn("wa_typing_failed", { error: errField(e) });
   });
 }
@@ -182,7 +182,7 @@ export async function takeModelTurn(
       // Cached for five minutes on the edge; a feed that cannot be read says
       // nothing. Read HERE, beside the visits above and the one line below that
       // consumes it — it used to be awaited at the top of the handler, so a
-      // short code, an off-allowlist sender, a STOP, a thumbs-up, a duplicate
+      // short code, a one-time code, a STOP, a thumbs-up, a duplicate
       // and a rate-capped message each paid an HTTP fetch and an ICS parse for
       // a value none of them ever reads, and the ingest write that must never
       // wait waited behind it.

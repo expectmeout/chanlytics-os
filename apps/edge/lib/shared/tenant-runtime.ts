@@ -50,7 +50,6 @@ import {
   type WireUnavailable,
 } from "@chanlytics/core";
 import type { SendResult } from "@chanlytics/channels/whatsapp";
-import { env } from "./env.js";
 import { logger, errField } from "./log.js";
 import { findGoogleListingAddress } from "@chanlytics/db/google";
 
@@ -77,12 +76,6 @@ export interface TenantRuntime {
   policy: Record<string, { mode: string; limits: PolicyLimits }>;
   /** Per-tenant WhatsApp credentials from Vault; null = the channel carries none, or the vault did not answer. */
   waCreds: { accessToken: string; phoneId: string } | null;
-  /**
-   * This workspace's WhatsApp number IS the environment's own pilot line
-   * (WHATSAPP_PHONE_ID), so the environment pair is its credentials and
-   * nobody else's. The only case in which the env pair may send.
-   */
-  envNumber: boolean;
   /**
    * IANA zone from `tenants.timezone` — the SAME column the metrics RPCs and
    * the Today surface read. A receptionist that states opening hours needs to
@@ -165,19 +158,6 @@ async function runtimeStamp(db: SupabaseClient<Database>, tenantId: TenantId): P
   return typeof data === "string" ? data : "";
 }
 
-/** Whether a WhatsApp channel's provider id is the environment's own pilot line. */
-function isEnvNumber(externalId: string | null | undefined): boolean {
-  const envPhoneId = env.WHATSAPP_PHONE_ID || "";
-  return !!envPhoneId && externalId === envPhoneId;
-}
-
-/** The environment pair, when both halves exist. */
-function envPair(): { phoneId: string; accessToken: string } | null {
-  const phoneId = env.WHATSAPP_PHONE_ID || "";
-  const accessToken = env.WHATSAPP_ACCESS_TOKEN || "";
-  return phoneId && accessToken ? { phoneId, accessToken } : null;
-}
-
 /**
  * This tenant's WhatsApp credentials, whichever channel is asking.
  *
@@ -192,39 +172,33 @@ function envPair(): { phoneId: string; accessToken: string } | null {
  * caller then used the environment pair, so a lookup blip sent one business's
  * reply from another business's number on another business's token. A tenant
  * whose credentials cannot be read gets none, and the send fails where a
- * person is told. The one exception is stated as a fact, not a fallback: the
- * tenant whose channel row carries the environment's own phone_number_id.
+ * person is told.
  */
 async function resolveWaCredentials(
   db: SupabaseClient<Database>,
   routed: RoutedChannel,
-): Promise<{ creds: { accessToken: string; phoneId: string } | null; envNumber: boolean }> {
+): Promise<{ creds: { accessToken: string; phoneId: string } | null }> {
   let channelId: string | null;
   let ref: string | null;
-  let externalId: string | null;
   if (routed.kind === "whatsapp") {
     channelId = routed.channelId;
     ref = routed.credentialsRef ?? null;
-    externalId = routed.externalId;
   } else {
     const { data, error } = await findWhatsAppRouting(db, routed.tenantId);
     // A number that cannot be read is not a workspace with none: the reply would go nowhere and say nothing.
     if (error) throw new DbFailure(error, "cannot read the workspace's WhatsApp number");
     channelId = data?.id ?? null;
     ref = data?.credentials_ref ?? null;
-    externalId = data?.external_id ?? null;
   }
-  const envNumber = isEnvNumber(externalId);
-  if (!channelId || !ref) return { creds: null, envNumber };
+  if (!channelId || !ref) return { creds: null };
   const { data, error } = await getChannelCredentials(db, channelId);
   if (error) {
     logger().error("wa_credentials_lookup_failed", { tenant_id: routed.tenantId, error: error.message });
-    return { creds: null, envNumber };
+    return { creds: null };
   }
   const item = data as { access_token?: string; phone_id?: string } | null;
   return {
     creds: item?.access_token && item?.phone_id ? { accessToken: item.access_token, phoneId: item.phone_id } : null,
-    envNumber,
   };
 }
 
@@ -349,7 +323,6 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       ...configParts(parsed),
       policy,
       waCreds: credsQ.creds,
-      envNumber: credsQ.envNumber,
       // Deliberately not thrown on. A channel list that failed to read leaves
       // the prompt exactly where it was before this existed — typed values,
       // unresolved — which is degraded, not silent. Throwing would mark the
@@ -380,8 +353,6 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       features: null,
       policy: {},
       waCreds: null,
-      // What the routed row itself says; nothing else could be read.
-      envNumber: routed.kind === "whatsapp" && isEnvNumber(routed.externalId),
       timezone: null,
       known: { workspace: null, channels: [], listing: null },
       paused: false,
@@ -453,8 +424,8 @@ async function numbersOf(
 }
 
 /**
- * One WhatsApp number's credentials, by the rule above: the vault's pair under its reference, the environment's pair
- * for the environment's own number and no other, and a read that failed said as one.
+ * One WhatsApp number's credentials, by the rule above: the vault's pair under its reference, and a read that failed
+ * said as one.
  */
 async function credentialsOfNumber(
   db: SupabaseClient<Database>,
@@ -474,8 +445,7 @@ async function credentialsOfNumber(
         ? { outcome: "present", credentials: { phoneId: item.phone_id, accessToken: item.access_token } }
         : { outcome: "absent" };
     }
-    const pair = isEnvNumber(ch.external_id) ? envPair() : null;
-    return pair ? { outcome: "present", credentials: pair } : { outcome: "absent" };
+    return { outcome: "absent" };
   } catch (e) {
     log.error("wa_credentials_for_tenant_threw", { tenant_id: tenantId, error: errField(e) });
     return { outcome: "unavailable", error: errField(e) };
@@ -559,19 +529,9 @@ async function numberWrittenTo(
   }
 }
 
-/**
- * The credentials a send on behalf of this runtime uses, or null: never a
- * guess. `arrivedOnEnvNumber` is the webhook's own knowledge that the message
- * came in on the environment's pilot line, which is the one case where the
- * environment pair is right even when the control plane could not be read.
- */
-export function waCfgFor(
-  rt?: TenantRuntime | null,
-  arrivedOnEnvNumber = false,
-): { phoneId: string; accessToken: string } | null {
-  if (rt?.waCreds) return { phoneId: rt.waCreds.phoneId, accessToken: rt.waCreds.accessToken };
-  if (rt?.envNumber || arrivedOnEnvNumber) return envPair();
-  return null;
+/** The credentials a send on behalf of this runtime uses: the workspace's own from the vault, or null, never a guess. */
+export function waCfgFor(rt?: TenantRuntime | null): { phoneId: string; accessToken: string } | null {
+  return rt?.waCreds ? { phoneId: rt.waCreds.phoneId, accessToken: rt.waCreds.accessToken } : null;
 }
 
 /**
@@ -582,16 +542,12 @@ export function waCfgFor(
  * one business's failure notice, naming its customer's number, to a different
  * business's owner. This reads the same tenant_config the one door reads, so
  * there is still only one place that knows how a tenant is addressed.
- *
- * `isEnvDefault` is answered by the tenant's own WhatsApp channel matching the
- * env phone id — the same test the webhook makes, asked from the other end.
  */
 export async function loadTenantNotifications(
   db: SupabaseClient<Database>,
   tenantId: TenantId,
 ): Promise<{
   notifications: NotificationsConfig | null;
-  isEnvDefault: boolean;
   slug?: string;
   name?: string;
   /** The workspace's settings could not be read: who it is told by is unknown, which is not "nobody". */
@@ -599,18 +555,8 @@ export async function loadTenantNotifications(
 }> {
   const log = logger();
   try {
-    const [cfgQ, chQ, named] = await Promise.all([
+    const [cfgQ, named] = await Promise.all([
       findConfigRow(db, tenantId),
-      // Filtered and bounded exactly as the two sibling readers above are.
-      // `tenant_channels` has no unique constraint on (tenant_id, kind) and the
-      // product ADDS a row rather than replacing one -- a reconnected number
-      // leaves the old row behind -- so a bare maybeSingle() is a PostgREST
-      // error the moment a workspace has two. That error was not checked
-      // either, so it arrived as `chQ.data === null`, which reads as "not the
-      // env number": the env-default workspace's own alerts silently became
-      // redacted platform notices with the customer's words withheld. Two
-      // ACTIVE rows answer with the oldest, as getWaCredentialsForTenant does.
-      findWhatsAppRouting(db, tenantId),
       // The workspace's address word and name, for an alert mail's link and its top (notify.ts alertWorkspace): read beside the
       // recipients so the mail costs no query of its own. Like the channel above, its failure costs the answer it was
       // asked for -- a mail with no link -- and never the recipients.
@@ -621,18 +567,8 @@ export async function loadTenantNotifications(
     ]);
     if (cfgQ.error) throw new DbFailure(cfgQ.error);
     const parsed = parseTenantConfigResult(cfgQ.data?.config);
-    const envPhoneId = env.WHATSAPP_PHONE_ID || "";
-    // A channel we could not read leaves ONE question unanswered -- whether
-    // this workspace is the environment's own -- and the recipients are not
-    // that question. Throwing here would land in the catch below and withhold
-    // the customer's words from a workspace whose mailbox we just read
-    // perfectly well, which is the outcome this whole function exists to
-    // avoid; `isEnvDefault` simply falls back to its safe answer.
-    if (chQ.error)
-      log.error("tenant_notifications_channel_unreadable", { tenant_id: tenantId, error: chQ.error.message });
     return {
       notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
-      isEnvDefault: !chQ.error && !!envPhoneId && chQ.data?.external_id === envPhoneId,
       // Unset where the workspace could not be read, so a mail reads it once itself (a null would say it has none).
       ...(named?.slug ? { slug: named.slug, name: named.name } : {}),
     };
@@ -640,6 +576,6 @@ export async function loadTenantNotifications(
     log.error("tenant_notifications_load_failed", { tenant_id: tenantId, error: errField(e) });
     // Unknown recipients: notify() will withhold customer content rather than
     // guess a mailbox. Said, so a caller that must not take "unknown" for "nobody" can wait.
-    return { notifications: null, isEnvDefault: false, unread: true };
+    return { notifications: null, unread: true };
   }
 }

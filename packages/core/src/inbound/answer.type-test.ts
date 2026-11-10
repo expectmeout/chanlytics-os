@@ -16,9 +16,9 @@ import type { NormalizedInbound } from "@chanlytics/channels/whatsapp";
 import type { RoutedChannel } from "@chanlytics/db/channels";
 import type { InboundCarrier, InboundInput } from "./answer";
 
-type At = { tenantId: TenantId; routed: RoutedChannel; isEnvDefault: false };
+type At = { tenantId: TenantId; routed: RoutedChannel };
 /** A message no line routed: no workspace to keep it for. */
-type Unrouted = { tenantId: TenantId; routed: null; isEnvDefault: false };
+type Unrouted = { tenantId: TenantId; routed: null };
 type OnWhatsapp = InboundMessage & { channel: "whatsapp" };
 type OnText = InboundMessage & { channel: "sms" };
 type OnInstagram = InboundMessage & { channel: "instagram" };

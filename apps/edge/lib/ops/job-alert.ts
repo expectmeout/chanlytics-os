@@ -53,9 +53,7 @@ const NEVER_PUSHED = new Set(["push_send", "push_receipts"]);
 /** `ports` is notify's own, for a test that runs this seam against a database in memory. */
 export function alertFor(db: ReturnType<typeof pg>, job: AlertableJob, ports: NotifyPorts = {}) {
   return async (news: JobNews): Promise<void> => {
-    const addressing = db
-      ? await loadTenantNotifications(db, job.tenant_id)
-      : { notifications: null, isEnvDefault: false };
+    const addressing = db ? await loadTenantNotifications(db, job.tenant_id) : { notifications: null };
     const target = { tenantId: job.tenant_id, ...addressing };
     const msg: NotifyMessage = {
       kind: news.kind,

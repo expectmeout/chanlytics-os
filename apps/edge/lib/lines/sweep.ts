@@ -93,8 +93,7 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
           });
           return { ok: true };
         },
-        alert: (subject, body) =>
-          notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
+        alert: (subject, body) => notify({ tenantId: null, notifications: null }, { kind: "alert", subject, body }),
         reportFailed: (tenant, row, error) =>
           reportLineFailed(db, choice.name, tenant, row, row.step ?? "setting up", error, "sweep"),
         now: () => Date.now(),
@@ -125,8 +124,7 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
           const notice = once ? await notifyOnce(target, { ...msg, onceKey: once }) : await notify(target, msg);
           return { told: notice, reached: reachesTenant(target) };
         },
-        alert: (subject, body) =>
-          notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
+        alert: (subject, body) => notify({ tenantId: null, notifications: null }, { kind: "alert", subject, body }),
         page: (key, subject, body) => pageOperator({ db }, key, subject, body),
         billingUrl: (slug) => `${dashboardOrigin()}/w/${encodeURIComponent(slug)}#/admin/billing`,
         now: () => Date.now(),
@@ -172,8 +170,7 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
     owed = await startOwedLines(db, (await listWorkspacesWithANumberChosen(db)).map(heldTenantId), {
       choice,
       now: () => new Date(),
-      alert: (subject, body) =>
-        notify({ tenantId: null, notifications: null, isEnvDefault: true }, { kind: "alert", subject, body }),
+      alert: (subject, body) => notify({ tenantId: null, notifications: null }, { kind: "alert", subject, body }),
     });
   } catch (e) {
     owed = { error: e instanceof Error ? e.message : String(e) };

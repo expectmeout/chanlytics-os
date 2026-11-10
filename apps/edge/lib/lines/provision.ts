@@ -61,7 +61,7 @@ export async function reportLineFailed(
     about: { type: "line", id: line.id },
   });
   await notify(
-    { tenantId: null, notifications: null, isEnvDefault: true },
+    { tenantId: null, notifications: null },
     {
       kind: "alert",
       subject: `Line failed · ${tenant.name}`,

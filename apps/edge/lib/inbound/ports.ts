@@ -81,8 +81,6 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
   /** The model, loaded only when there is a key: it is the one import that pulls the SDK. */
   brain: () => Promise<Pick<typeof import("../ai/receptionist-brain.js"), "generateReply">>;
   env: {
-    /** The pilot allowlist for the environment's own number: comma-separated E.164 digits; empty disables it. */
-    allowlist: string;
     modelKey: string | undefined;
   };
 }
@@ -142,7 +140,6 @@ export function realPorts(): InboundPorts {
     typing: async (cfg, messageId) => (cfg ? sendTypingIndicator(cfg, messageId) : false),
     brain: () => import("../ai/receptionist-brain.js"),
     env: {
-      allowlist: env.WHATSAPP_TEST_ALLOWLIST || "",
       modelKey: env.ANTHROPIC_API_KEY,
     },
   };

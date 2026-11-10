@@ -5,7 +5,7 @@
  *
  * This file is the order, and only the order: each step is a function in a
  * module beside it. The control plane is read first (./context.ts). Then the
- * ingest (./ingest.ts): a short code and a sender off the pilot allowlist are
+ * ingest (./ingest.ts): a short code and a one-time code a service sent are
  * recorded and not answered; every other message is persisted first, its
  * memory (Postgres, the only one there is) is read, an address in its words
  * is kept, and a redelivery stops at the replay gate. Then the gates, in
@@ -82,7 +82,6 @@ export type InboundInput = InboundAt &
 interface InboundAt {
   tenantId: TenantId;
   routed: RoutedChannel;
-  isEnvDefault: boolean;
   /**
    * The job's deadline (ms since the epoch), when the ledger gives one: the turn is held to it and to TURN_BUDGET_MS from
    * its start, whichever comes first (./context.ts), so a slow model ends in the holding reply and a person, never in a

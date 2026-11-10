@@ -33,24 +33,18 @@ import {
 import { fakeDb } from "../_fake-db.mjs";
 import { logLineOf } from "../_log-lines.mjs";
 
-// The door reads the environment at call time, except META_APP_ID, which it
-// reads once at import -- so the app it introspects tokens as is fixed here,
-// before the import, and proved on the wire below; the case for the DEFAULT
-// app imports a second copy of the door with this unset. Each test file is its
-// own process; every variable is declared in apps/edge/.env.example.
+// The door reads the environment at call time. Each test file is its own process; every variable is declared in
+// apps/edge/.env.example.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.DIAG_KEY = "diag-key-for-this-file";
-process.env.META_APP_ID = "424242424242424";
 for (const k of [
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "ANTHROPIC_API_KEY",
-  "WHATSAPP_ACCESS_TOKEN",
   "RESEND_API_KEY",
   "META_APP_SECRET",
   "RETELL_API_KEY",
   "META_ES_CONFIG_ID",
-  "WHATSAPP_TEST_ALLOWLIST",
   "EMAIL_DOMAIN",
   "RESEND_WEBHOOK_SECRET",
   "GRAPH_NOTIFY_SECRET",
@@ -64,7 +58,6 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { edgeFnUrl } = await import(at("apps/edge/lib/shared/dashboard-origin.ts"));
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { PAGE_WINDOW_MS, pageStates } = await import(at("apps/edge/lib/shared/alerts/page-operator.ts"));
-const { DEFAULT_META_APP_ID } = await import(at("apps/edge/lib/whatsapp/meta-graph.ts"));
 const { GET } = await import(at("apps/edge/api/diag.ts"));
 const { resetBreakers } = await import("@chanlytics/channels/shared");
 // Core's own build, which carries its own inlined copy of channels.
@@ -231,7 +224,6 @@ test("the environment report is booleans only and carries no value; the memory i
   assert.deepEqual(body.env, {
     database: true,
     anthropic: true,
-    waToken: false,
     resend: true,
     metaSecret: true,
     retellKey: false,
@@ -394,113 +386,19 @@ test("the two tables that model a number: an empty list is agreement, a row is a
 
 /* ------------------------------- the WhatsApp gates ----------------------- */
 
-test("the WhatsApp token's permanence is asked of Meta as the app this deployment speaks for -- the id fixed at import -- and neither the token nor the app secret comes back; the two gates that decide who is answered are counted", async () => {
+test("WhatsApp's one gate: a business can connect its number once the app's secret and its Embedded Signup configuration are both set; Meta is not asked, and neither value comes back", async () => {
   use();
-  const pair = {
-    WHATSAPP_ACCESS_TOKEN: "wa-token-value-nobody-may-see",
-    META_APP_SECRET: "meta-secret-value-nobody-may-see",
-  };
-  const meta = wire(() => ({
-    body: { data: { is_valid: true, expires_at: 0, type: "SYSTEM_USER", app_id: "424242424242424" } },
-  }));
+  const secret = "meta-secret-value-nobody-may-see";
+  const none = unreachable("the report asks Meta nothing about WhatsApp");
   try {
-    const body = await withEnv({ ...pair, WHATSAPP_TEST_ALLOWLIST: "15551230000, 15551230001,, " }, read);
-    assert.equal(meta.seen.length, 1);
-    const u = new URL(meta.seen[0].url);
-    assert.equal(`${u.origin}${u.pathname}`, "https://graph.facebook.com/v25.0/debug_token");
-    assert.equal(u.searchParams.get("input_token"), pair.WHATSAPP_ACCESS_TOKEN);
-    assert.equal(
-      u.searchParams.get("access_token"),
-      `424242424242424|${pair.META_APP_SECRET}`,
-      "the app id read at import, with the secret, is the app token",
-    );
-    assert.deepEqual(
-      body.waTokenCheck,
-      { valid: true, expiresAt: 0, type: "SYSTEM_USER", permanent: true },
-      "expires_at=0 is a permanent token",
-    );
-    const printed = JSON.stringify(body);
-    assert.ok(
-      !printed.includes(pair.WHATSAPP_ACCESS_TOKEN) && !printed.includes(pair.META_APP_SECRET),
-      "presence only",
-    );
-    assert.deepEqual(
-      body.whatsapp,
-      { allowlist_numbers: 2, env_fallback_token: true, signup_ready: false },
-      "two numbers on the staging allowlist; a token a channel without its own credentials rides; no Embedded Signup configuration",
-    );
-  } finally {
-    meta.restore();
-  }
-
-  const temp = wire(() => ({ body: { data: { is_valid: true, expires_at: 1_790_000_000, type: "USER" } } }));
-  try {
-    const body = await withEnv({ ...pair, META_ES_CONFIG_ID: "es-config-1" }, read);
-    assert.deepEqual(
-      body.waTokenCheck,
-      { valid: true, expiresAt: 1_790_000_000, type: "USER", permanent: false },
-      "a temp token expiring mid-App-Review would take the pilot dark with no code change to blame",
-    );
-    assert.equal(body.whatsapp.signup_ready, true, "the secret and the configuration together");
-  } finally {
-    temp.restore();
-  }
-
-  const down = wire(() => {
-    throw new Error("getaddrinfo ENOTFOUND graph.facebook.com");
-  });
-  try {
-    assert.deepEqual(
-      (await withEnv(pair, read)).waTokenCheck,
-      { error: "getaddrinfo ENOTFOUND graph.facebook.com" },
-      "Meta unreachable is a line in the report, not a failed report",
-    );
-  } finally {
-    down.restore();
-  }
-
-  const none = unreachable("without the token pair there is nothing to introspect");
-  try {
-    const body = await read();
-    assert.equal(body.waTokenCheck, null);
-    assert.deepEqual(body.whatsapp, { allowlist_numbers: 0, env_fallback_token: false, signup_ready: false });
+    const half = await withEnv({ META_APP_SECRET: secret }, read);
+    assert.deepEqual(half.whatsapp, { signup_ready: false }, "the secret alone is not a sign-up");
+    const both = await withEnv({ META_APP_SECRET: secret, META_ES_CONFIG_ID: "es-config-1" }, read);
+    assert.deepEqual(both.whatsapp, { signup_ready: true }, "the secret and the configuration together");
+    assert.ok(!JSON.stringify(both).includes(secret), "presence only");
+    assert.equal("waTokenCheck" in both, false, "the environment holds no WhatsApp token to introspect");
   } finally {
     none.restore();
-  }
-});
-
-test("the app a deployment that names none introspects its token as: the one live app, the same default Embedded Signup hands the browser -- so the sign-up and the introspection can never be two different apps", async () => {
-  use();
-  // The id is read ONCE, at import, by the module that holds the report (lib/ops/diagnostic.ts). This is a second copy
-  // of it, imported with the variable unset: the only way to run the fallback a deployment that never set
-  // META_APP_ID actually runs on. The knock is the door's, and every other case here goes through it.
-  const { readDiagnosticReport: defaulted } = await withEnv(
-    { META_APP_ID: undefined },
-    () => import(`${at("apps/edge/lib/ops/diagnostic.ts")}?no-meta-app-id`),
-  );
-  assert.notEqual(
-    DEFAULT_META_APP_ID,
-    process.env.META_APP_ID,
-    "and the case means something: the default is not the id this file set",
-  );
-  const pair = {
-    WHATSAPP_ACCESS_TOKEN: "wa-token-value-nobody-may-see",
-    META_APP_SECRET: "meta-secret-value-nobody-may-see",
-  };
-  const meta = wire(() => ({
-    body: { data: { is_valid: true, expires_at: 0, type: "SYSTEM_USER", app_id: DEFAULT_META_APP_ID } },
-  }));
-  try {
-    const body = await withEnv(pair, async () => (await defaulted()).json());
-    assert.equal(meta.seen.length, 1);
-    assert.equal(
-      new URL(meta.seen[0].url).searchParams.get("access_token"),
-      `${DEFAULT_META_APP_ID}|${pair.META_APP_SECRET}`,
-      'the default app\'s own token, never an empty app id beside the secret -- Meta answers an app token for app "" with a refusal, and the operator would read it as a dead WhatsApp token',
-    );
-    assert.deepEqual(body.waTokenCheck, { valid: true, expiresAt: 0, type: "SYSTEM_USER", permanent: true });
-  } finally {
-    meta.restore();
   }
 });
 
@@ -850,7 +748,6 @@ test("the report answers part by part in one order; a part that cannot read says
     "jobs_backlog",
     "pages",
     "numbers",
-    "waTokenCheck",
     "voiceAgents",
     "retellAuth",
     "whatsapp",
@@ -859,7 +756,6 @@ test("the report answers part by part in one order; a part that cannot read says
     "breakers",
   ];
   const every = {
-    WHATSAPP_ACCESS_TOKEN: "wa-token-value-nobody-may-see",
     META_APP_SECRET: "meta-secret-value-nobody-may-see",
     RETELL_API_KEY: KEY,
   };
@@ -873,8 +769,6 @@ test("the report answers part by part in one order; a part that cannot read says
   };
   use({ tenant_channels: [line] });
   const up = wire((req) => {
-    if (req.url.startsWith("https://graph.facebook.com/"))
-      return { body: { data: { is_valid: true, expires_at: 0, type: "SYSTEM_USER" } } };
     if (req.url.endsWith("/get-agent/agent_ok")) return { body: agentOnShell("agent_ok", "llm_ok") };
     if (req.url.endsWith("/get-retell-llm/llm_ok?version=1")) return { body: llmOnShell("llm_ok") };
     throw new Error(`unexpected request ${req.method} ${req.url}`);
@@ -916,23 +810,18 @@ test("the report answers part by part in one order; a part that cannot read says
       "no backlog without the clocks, no auth evidence without the agents",
     );
     assert.deepEqual(
-      [body.sweeps, body.pages, body.numbers, body.waTokenCheck, body.voiceAgents, body.brain, body.migrations],
+      [body.sweeps, body.pages, body.numbers, body.voiceAgents, body.brain, body.migrations],
       [
         { error: "permission denied for schema cron" },
         { error: "relation does not exist" },
         { error: "function public.number_drift() does not exist" },
-        { error: "getaddrinfo ENOTFOUND" },
         { error: "getaddrinfo ENOTFOUND" },
         { error: "canceling statement due to statement timeout" },
         { error: "function public.migration_head() does not exist" },
       ],
       "each part's failure in its own line",
     );
-    assert.deepEqual(
-      body.whatsapp,
-      { allowlist_numbers: 0, env_fallback_token: true, signup_ready: false },
-      "and the part that reads nothing still answers",
-    );
+    assert.deepEqual(body.whatsapp, { signup_ready: false }, "and the part that reads nothing still answers");
   } finally {
     down.restore();
   }

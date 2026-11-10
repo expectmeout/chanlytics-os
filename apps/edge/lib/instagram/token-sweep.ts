@@ -70,7 +70,6 @@ async function tellLapsed(db: Db, row: InstagramAccountRow, log: Logger): Promis
     {
       tenantId: row.tenant_id,
       notifications: target.notifications,
-      isEnvDefault: target.isEnvDefault,
       slug: target.slug,
     },
     {

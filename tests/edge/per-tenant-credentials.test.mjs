@@ -2,13 +2,12 @@
  * Every WhatsApp send uses the credentials of the tenant it belongs to, or
  * does not happen.
  *
- * The environment pair (WHATSAPP_PHONE_ID, WHATSAPP_ACCESS_TOKEN) is one
- * tenant's credentials: the pilot line's. It used to be everyone's fallback --
- * a vault error, a channel with no reference, a runtime that could not load --
- * and a fallback is how one business's reply left from another business's
- * number on another business's token. Now "no credentials" is an answer, the
- * send is refused where a person is told, and the environment pair goes only
- * to the tenant whose channel row carries the environment's own number.
+ * The environment once held a WhatsApp pair (WHATSAPP_PHONE_ID, WHATSAPP_ACCESS_TOKEN), first everyone's fallback --
+ * a vault error, a channel with no reference, a runtime that could not load -- and then the pilot line's alone. A
+ * fallback is how one business's reply left from another business's number on another business's token. Now a
+ * number's credentials are its own, in the vault, or there are none: "no credentials" is an answer, and the send is
+ * refused where a person is told. The pair is set below as a deployment that never unset it would hold it, and
+ * nothing reads it (the inbound review's B3, 10 Nov 2026).
  *
  * Executed, not read: the resolver runs against a fake database and a
  * controlled environment.
@@ -23,10 +22,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const { waCfgFor, getWaCredentialsForTenant, loadTenantNotifications, loadTenantRuntime, findWhatsappWireForTenant } =
   await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/shared/tenant-runtime.ts")).href);
 
+/** The old pair, as a deployment that never unset it holds it: read by nothing. */
 const ENV = { WHATSAPP_PHONE_ID: "111000", WHATSAPP_ACCESS_TOKEN: "env-token" };
 async function withEnv(env, fn) {
   const saved = {};
-  for (const k of ["WHATSAPP_PHONE_ID", "WHATSAPP_ACCESS_TOKEN"]) {
+  for (const k of Object.keys(ENV)) {
     saved[k] = process.env[k];
     if (env[k] === undefined) delete process.env[k];
     else process.env[k] = env[k];
@@ -41,7 +41,7 @@ async function withEnv(env, fn) {
   }
 }
 
-const runtime = (over = {}) => ({ tenantId: "t2", waCreds: null, envNumber: false, loadFailed: false, ...over });
+const runtime = (over = {}) => ({ tenantId: "t2", waCreds: null, loadFailed: false, ...over });
 
 test("a tenant with vault credentials sends on them, whatever the environment holds", () =>
   withEnv(ENV, () => {
@@ -60,20 +60,6 @@ test("no credentials is null -- never the environment's pair", () =>
       null,
       "a runtime that could not load, for a business that is not the pilot",
     );
-  }));
-
-test("the environment pair belongs to the environment's own number, and to a message that arrived on it", () =>
-  withEnv(ENV, () => {
-    assert.deepEqual(waCfgFor(runtime({ envNumber: true })), { phoneId: "111000", accessToken: "env-token" });
-    // Disaster posture: the control plane could not be read, but the webhook
-    // itself knows the message came in on the pilot line.
-    assert.deepEqual(waCfgFor(null, true), { phoneId: "111000", accessToken: "env-token" });
-  }));
-
-test("an environment with no pair has nothing to hand even the pilot line", () =>
-  withEnv({}, () => {
-    assert.equal(waCfgFor(runtime({ envNumber: true })), null);
-    assert.equal(waCfgFor(null, true), null);
   }));
 
 /* ------------------ by tenant id: the job runner's question ---------------- */
@@ -134,13 +120,14 @@ test("a vault that answers with a pair missing a half is a channel that carries 
     assert.deepEqual(await getWaCredentialsForTenant(db, "t2"), { outcome: "absent" });
   }));
 
-test("a channel with no reference gets the environment pair only when it IS the environment's number", () =>
+test("a channel with no vault reference carries no credentials, even on the number the old pair named", () =>
   withEnv(ENV, async () => {
     const pilot = fakeDb({ tenant_channels: [channel({ credentials_ref: null, external_id: "111000" })] });
-    assert.deepEqual(await getWaCredentialsForTenant(pilot, "t2"), {
-      outcome: "present",
-      credentials: { phoneId: "111000", accessToken: "env-token" },
-    });
+    assert.deepEqual(
+      await getWaCredentialsForTenant(pilot, "t2"),
+      { outcome: "absent" },
+      "the environment's pair is nobody's, the number it named included",
+    );
     const other = fakeDb({ tenant_channels: [channel({ credentials_ref: null, external_id: "333000" })] });
     assert.deepEqual(
       await getWaCredentialsForTenant(other, "t2"),
@@ -228,8 +215,8 @@ test("a workspace with two active WhatsApp numbers answers each customer from th
     assert.deepEqual(onNew.waCreds, { accessToken: "token-new", phoneId: "555000" });
     const onOld = await loadTenantRuntime(db, routed("wa-old", "111000"));
     assert.deepEqual(
-      [onOld.waCreds, onOld.envNumber],
-      [{ accessToken: "token-old", phoneId: "111000" }, true],
+      onOld.waCreds,
+      { accessToken: "token-old", phoneId: "111000" },
       "REGRESSION: the runtime cached for the workspace answered from the number that warmed the instance first",
     );
     assert.equal(await loadTenantRuntime(db, routed("wa-new", "555000")), onNew, "and each is served from the cache");
@@ -246,8 +233,6 @@ test("a caller that knows no number the customer wrote to is given the workspace
       outcome: "present",
       credentials: { phoneId: "111000", accessToken: "token-old" },
     });
-    // And whether the workspace is the environment's own is asked of the same row.
-    assert.equal((await loadTenantNotifications(db, T)).isEnvDefault, true);
   }));
 
 /* ---- the job runner's wire: from the number the person wrote to ---- */
@@ -419,61 +404,25 @@ const waRow = (over = {}) => ({
   ...over,
 });
 
-test("the workspace's own recipients are read, and its own number decides whether it is the environment's", () =>
+test("a workspace's own recipients are read, and its WhatsApp number is not asked: no workspace is the environment's own", () =>
   withEnv(ENV, async () => {
     const db = fakeDb({
       tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })],
       tenant_channels: [waRow()],
     });
-    assert.deepEqual(await loadTenantNotifications(db, "t2"), {
-      notifications: { escalation_emails: ["ada@example.com"] },
-      isEnvDefault: true,
-    });
-    const other = fakeDb({
-      tenant_config: [cfgRow({ escalation_emails: ["bo@example.com"] })],
-      tenant_channels: [waRow({ external_id: "999000" })],
-    });
-    assert.deepEqual(await loadTenantNotifications(other, "t2"), {
-      notifications: { escalation_emails: ["bo@example.com"] },
-      isEnvDefault: false,
-    });
-  }));
-
-test("a second WhatsApp row does not cost a workspace its own alerts", () =>
-  withEnv(ENV, async () => {
-    // `tenant_channels` has no unique constraint on (tenant_id, kind) and the
-    // product ADDS a row rather than replacing one -- a reconnected number
-    // leaves the old row behind. A bare maybeSingle() over two rows is a
-    // PostgREST error, and the error was not checked, so it arrived as
-    // `data === null`: read as "not the environment's number", which quietly
-    // downgraded this workspace's alerts to redacted platform notices with the
-    // customer's own words withheld.
-    const db = fakeDb({
-      tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })],
-      tenant_channels: [waRow({ id: "old", status: "disabled", external_id: "222000" }), waRow()],
-    });
     assert.deepEqual(
       await loadTenantNotifications(db, "t2"),
-      { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: true },
-      "the ACTIVE row answers, as it does for every other reader in this file",
+      { notifications: { escalation_emails: ["ada@example.com"] } },
+      "on the number the old pair named, addressed as itself",
     );
-  }));
-
-test("a channel read that fails costs only the env-default question, never the recipients", () =>
-  withEnv(ENV, async () => {
-    // The channel answers ONE thing here -- whether this workspace is the
-    // environment's own -- and the mailbox is not it. Failing the whole read
-    // on a channel error would withhold the customer's words from a workspace
-    // whose recipients were read perfectly well, which is the outcome this
-    // function's error path exists to avoid.
-    const db = fakeDb(
+    const broken = fakeDb(
       { tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] },
       { "tenant_channels.select": { message: "statement timeout" } },
     );
     assert.deepEqual(
-      await loadTenantNotifications(db, "t2"),
-      { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: false },
-      "addressed as itself; only isEnvDefault falls back",
+      await loadTenantNotifications(broken, "t2"),
+      { notifications: { escalation_emails: ["ada@example.com"] } },
+      "a channel read that would fail is never made, so it costs the recipients nothing",
     );
   }));
 
@@ -486,7 +435,6 @@ test("recipients that cannot be read ARE said as unknown, so notify withholds ra
     // Said as unread too, so a caller that must not take "unknown" for "nobody" can wait (the line warning: the review's N1).
     assert.deepEqual(await loadTenantNotifications(db, "t2"), {
       notifications: null,
-      isEnvDefault: false,
       unread: true,
     });
   }));

@@ -61,13 +61,10 @@ const RESEND = "https://api.resend.com/emails";
 export const NOTIFY_TIMEOUT_MS = 10_000;
 
 export interface NotifyTarget {
-  /** The tenant this message is ABOUT. */
+  /** The workspace this message is ABOUT; null for the platform's own notice, told in full at the platform's address. */
   tenantId: TenantId | null;
   /** That tenant's configured notification settings, when we could read them. */
   notifications: NotificationsConfig | null;
-  /** True when this tenant is the env-default one, whose owner IS the address
-   *  in LEAD_TO — the only case where the env fallback is that tenant's own. */
-  isEnvDefault: boolean;
   /** The workspace's address word (tenants.slug), when it was read with the recipients: the link at the foot of an alert
    *  mail is built from it. Unset means not read, and the mail reads it once; null means the workspace has none. */
   slug?: string | null;
@@ -230,7 +227,7 @@ export async function postMail({
 type Addressing =
   /** A mailbox this tenant configured. Full detail. */
   | { kind: "tenant"; to: string[]; from: string }
-  /** The env pair, which IS this tenant's own owner. Full detail. */
+  /** The platform's own notice, at the platform's address. Full detail. */
   | { kind: "platform"; to: string[]; from: string }
   /** A tenant we cannot address: the platform operator learns the FACT only. */
   | { kind: "redacted"; to: string[]; from: string }
@@ -244,9 +241,9 @@ export function chooseAddressing(target: NotifyTarget, platform: { to: string[];
     if (from) return { kind: "tenant", to: configured.escalation_emails, from };
   }
   if (!platform.to.length || !platform.from) return { kind: "none" };
-  // The env pair is only THIS tenant's own mailbox for the tenant that predates
-  // the control plane. For anyone else it belongs to a different business.
-  if (target.isEnvDefault) return { kind: "platform", to: platform.to, from: platform.from };
+  // The platform's address is the platform's own: a notice about no workspace goes there in full. For a workspace it
+  // belongs to a different business, so only the fact goes.
+  if (target.tenantId === null) return { kind: "platform", to: platform.to, from: platform.from };
   return { kind: "redacted", to: platform.to, from: platform.from };
 }
 

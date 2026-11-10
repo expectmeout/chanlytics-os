@@ -12,13 +12,7 @@ import { linesOf } from "../_log-lines.mjs";
 import { at } from "../_cron-doors-world.mjs";
 
 process.env.META_APP_SECRET = "meta-app-secret-for-this-file";
-for (const k of [
-  "RESEND_API_KEY",
-  "ANTHROPIC_API_KEY",
-  "WHATSAPP_PHONE_ID",
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-])
+for (const k of ["RESEND_API_KEY", "ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"])
   delete process.env[k];
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const hook = await import(at("apps/edge/api/whatsapp.ts"));

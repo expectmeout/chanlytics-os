@@ -48,12 +48,6 @@ export const env = {
   get WHATSAPP_VERIFY_TOKEN() {
     return trimmedEnv(process.env.WHATSAPP_VERIFY_TOKEN);
   },
-  get WHATSAPP_ACCESS_TOKEN() {
-    return trimmedEnv(process.env.WHATSAPP_ACCESS_TOKEN);
-  },
-  get WHATSAPP_PHONE_ID() {
-    return trimmedEnv(process.env.WHATSAPP_PHONE_ID);
-  },
   get META_APP_SECRET() {
     return trimmedEnv(process.env.META_APP_SECRET);
   },
@@ -74,10 +68,6 @@ export const env = {
    */
   get META_ES_KEEP_APP() {
     return trimmedEnv(process.env.META_ES_KEEP_APP);
-  },
-  /** Switch: limits who the environment's own pilot number answers; empty answers everyone. */
-  get WHATSAPP_TEST_ALLOWLIST() {
-    return trimmedEnv(process.env.WHATSAPP_TEST_ALLOWLIST);
   },
 
   // Instagram (the Instagram API with Instagram Login: decision 0001, step 8)

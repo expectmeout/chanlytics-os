@@ -211,13 +211,6 @@ test("each way out says what the message became, and what it was about where the
       [["blocked", null]],
     ],
     ["a short code", world(), text("Your code is 482913", "wamid.3", "12345"), {}, [["blocked", null]]],
-    [
-      "a sender off the pilot allowlist",
-      world({ isEnvDefault: true, env: { allowlist: "+13055550999" } }),
-      text("hi"),
-      {},
-      [["blocked", null]],
-    ],
     // News, not a wait (decision 0048): nobody is asked, so it is not a handoff.
     ["STOP", world(), text("STOP"), {}, [["blocked", null]]],
     ["a yes, confirmed", world(), text("START"), {}, [["ai", null]]],
