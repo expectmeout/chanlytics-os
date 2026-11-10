@@ -20,7 +20,8 @@ import { triggerOf } from "./triggers/notices";
  */
 export function messageAboutOfTrigger(trigger: string | null | undefined): MessageAbout {
   const kind = triggerOf(trigger ?? "")?.kind;
-  return kind === "visit" || kind === "deal" || kind === "freed" ? "theirs" : "ours";
+  // An occasion's too (decision 0119): their own visit in two hours, the one they missed, the booking they asked about.
+  return kind === "visit" || kind === "deal" || kind === "freed" || kind === "occasion" ? "theirs" : "ours";
 }
 
 /**
@@ -34,7 +35,8 @@ export function messageAboutOfTrigger(trigger: string | null | undefined): Messa
  * teammate holding the thread right now) holds the reminder too, but for a while: the batch waits for it, never skips for it.
  */
 export function passesHandoverPause(trigger: string | null | undefined): boolean {
-  return trigger === "visit_tomorrow";
+  // The reminder two hours before is the same promise at another hour (decision 0119): about their own booking.
+  return trigger === "visit_tomorrow" || trigger === "visit_soon";
 }
 
 /**

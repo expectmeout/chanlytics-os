@@ -13,6 +13,7 @@ import { visitStartTime, type VisitDto } from "../../calendar/people/visits";
 import { freedTimeWords } from "../../calendar/visit/freed-time";
 import { visitServiceOf } from "../../calendar/visit/service";
 import type { ListRef } from "../../people/lists/token";
+import { visitSideOf } from "./triggers/occasions";
 import { localDate } from "./schedule";
 import { DAY_MS } from "./time";
 import type { PlaybookPolicyClass, PlaybookState, PlaybookTrigger } from "./triggers/kinds";
@@ -53,6 +54,7 @@ export {
   triggerOf,
   triggerOffered,
   VISIT_TRIGGERS,
+  owedOncePerMoment,
   momentOffered,
   momentReadsCalendar,
   MOMENTS_RETIRED,
@@ -230,11 +232,13 @@ export function visitFactsFor(
   /** When the words will be read: the send's moment. Absent, they are read now, as the run assumes. */
   sendAt?: Date,
 ): { visit_when: string; visit_service: string } | null {
-  const result = triggerOf(trigger);
-  if (!result || result.kind !== "visit" || !visit) return null;
+  // A visit ahead is said with its time, one behind by its day: the reminders, and the thank-you and the missed visit
+  // (occasions.ts visitSideOf). A moment that names no visit has no words of one.
+  const side = visitSideOf(trigger);
+  if (!side || !visit) return null;
   return {
     visit_when:
-      trigger === "visit_tomorrow"
+      side === "ahead"
         ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}`
         : visitDayWord(visit, tz, sendAt, "yesterday"),
     visit_service: visitServiceOf(visit.title, names) || "your appointment",

@@ -39,6 +39,8 @@ const FAN_OUTS = {
   "packages/core/src/leads/runner/collect/batches.ts|rest": "no network: sites read before, kept in `sites`",
   "packages/core/src/leads/runner/rejudge.ts|batch": "no network: sites read before, kept in `sites`",
   "packages/db/src/repositories/campaigns/sequence-waiting.ts|ids": "the waiting reach-out batches of one page",
+  "packages/db/src/repositories/campaigns/occasions.ts|ids":
+    "a workspace's sequences on an occasion's three moments, one running a moment",
   "apps/edge/lib/ops/web-push.ts|subscriptions": "BROWSERS_TOLD_MAX, in the job that reads them",
 };
 

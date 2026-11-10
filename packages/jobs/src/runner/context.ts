@@ -9,6 +9,8 @@ import type {
   JobKind,
   JobNews,
   LateReminder,
+  OccasionEnrolment,
+  OccasionEvent,
   JobPayload,
   PushMessage,
   Unread,
@@ -271,6 +273,11 @@ export interface JobContext {
     moments: (job: ClaimedJob, deadline: number) => Promise<unknown>;
     /** A workspace's due reach-out steps; none started after `deadline`. Throws when its page cannot be read. */
     steps: (job: ClaimedJob, deadline: number) => Promise<unknown>;
+    /**
+     * A workspace's occasions whose time has come, each run or left (00598, decision 0119); none started after
+     * `deadline`. Throws when what is due, or the workspace, cannot be read.
+     */
+    occasions: (job: ClaimedJob, deadline: number) => Promise<unknown>;
   };
   /**
    * A workspace's Google listings and connected profile read, as the edge holds the keys (00569, decision 0115). INJECTED; a
@@ -314,6 +321,15 @@ export interface JobContext {
   reminders?: {
     /** The workspace's running step runs for the one person the appointment is for, once per visit. Throws when it could not be asked. */
     remind: (tenantId: TenantId, appointmentId: string) => Promise<LateReminder>;
+  };
+  /**
+   * A person enrolled for an occasion (decision 0119), as the edge holds it: the record, the sequences that start on it
+   * and the times it gives. INJECTED like the reminder of a late booking; a delivery to `occasion_enrol` in a runtime
+   * without it fails loudly.
+   */
+  occasions?: {
+    /** Each sequence that starts on what happened takes its person in, once. Throws when it could not be asked. */
+    enrol: (tenantId: TenantId, event: OccasionEvent) => Promise<OccasionEnrolment>;
   };
   /**
    * A lead's own receptionist built (00497, decision 0079), as the edge holds it: the website read and the model's key

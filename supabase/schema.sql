@@ -30371,6 +30371,181 @@ end $$;
 
 
 --
+-- Name: sequence_occasion_enrol(uuid, uuid, uuid, text, timestamp with time zone, boolean, text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_occasion_enrol(p_tenant_id uuid, p_sequence_id uuid, p_contact_id uuid, p_occasion text, p_due_at timestamp with time zone, p_single boolean DEFAULT false, p_replaces text DEFAULT NULL::text, p_rest_days integer DEFAULT 0) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_made integer;
+begin
+  if p_occasion is null or p_due_at is null then
+    raise exception 'sequence_occasion_enrol: an occasion has a key and a time' using errcode = '22004';
+  end if;
+  -- Someone erased, or not this workspace's, is enrolled in nothing.
+  if not exists (select 1 from public.contacts c
+                  where c.id = p_contact_id and c.tenant_id = p_tenant_id and c.erased_at is null) then
+    return 'gone';
+  end if;
+  -- A visit that moved: the occasions made for its other starts leave, so one reminder stands for it.
+  if p_replaces is not null and char_length(p_replaces) > 0 then
+    update public.sequence_occasions o
+       set state = 'left', why = 'moved', settled_at = now()
+     where o.sequence_id = p_sequence_id and o.contact_id = p_contact_id and o.state = 'waiting'
+       and left(o.occasion, char_length(p_replaces)) = p_replaces and o.occasion <> p_occasion;
+  end if;
+  -- One at a time, where the moment keeps it so: another of theirs waits here, or they are still in the sequence.
+  if p_single and (
+       exists (select 1 from public.sequence_occasions o
+                where o.sequence_id = p_sequence_id and o.contact_id = p_contact_id
+                  and o.state = 'waiting' and o.occasion <> p_occasion)
+       or exists (select 1 from public.sequence_enrollments e
+                   where e.sequence_id = p_sequence_id and e.lead_id is null
+                     and e.contact_id = p_contact_id and e.state = 'in')) then
+    return 'busy';
+  end if;
+  -- A moment that rests between occasions: nothing new while another of theirs here began inside the rest, whatever
+  -- became of it. A sequence's own message can be what starts its next occasion (a follow-up that carries the booking
+  -- link); the rest is what keeps that from going round.
+  if coalesce(p_rest_days, 0) > 0 and exists (
+       select 1 from public.sequence_occasions o
+        where o.sequence_id = p_sequence_id and o.contact_id = p_contact_id and o.occasion <> p_occasion
+          and o.created_at > now() - make_interval(days => p_rest_days)) then
+    return 'busy';
+  end if;
+  insert into public.sequence_occasions (tenant_id, sequence_id, contact_id, occasion, due_at, try_at)
+  values (p_tenant_id, p_sequence_id, p_contact_id, p_occasion, p_due_at, p_due_at)
+  on conflict (sequence_id, contact_id, occasion) do nothing;
+  get diagnostics v_made = row_count;
+  return case when v_made > 0 then 'enrolled' else 'already' end;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_occasion_enrol(p_tenant_id uuid, p_sequence_id uuid, p_contact_id uuid, p_occasion text, p_due_at timestamp with time zone, p_single boolean, p_replaces text, p_rest_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_occasion_enrol(p_tenant_id uuid, p_sequence_id uuid, p_contact_id uuid, p_occasion text, p_due_at timestamp with time zone, p_single boolean, p_replaces text, p_rest_days integer) IS 'Enrols a person in a sequence for an occasion, due at its own time (decision 0119): once per sequence, person and occasion, for good. p_replaces: what a moved visit''s older occasions start with, which leave as moved. p_single: none while another of theirs waits here or they are still in the sequence. Answers enrolled, already, busy or gone. Service role only.';
+
+
+--
+-- Name: sequence_occasions_due(uuid, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_occasions_due(p_tenant_id uuid, p_at timestamp with time zone, p_limit integer) RETURNS TABLE(id uuid, sequence_id uuid, contact_id uuid, occasion text, due_at timestamp with time zone, created_at timestamp with time zone, step jsonb, runs boolean)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select o.id, o.sequence_id, o.contact_id, o.occasion, o.due_at, o.created_at,
+         to_jsonb(s) || jsonb_build_object('mode', q.mode),
+         -- Whether its step runs now. One that does not is answered all the same: the job settles it, so no row waits on
+         -- a sequence its owner turned off, or on a step that is gone.
+         coalesce(q.state = 'on' and s.state = 'running' and t.status <> 'paused', false)
+    from public.sequence_occasions o
+    join public.sequences q on q.id = o.sequence_id
+    join public.tenants t on t.id = o.tenant_id
+    -- A sequence's first step is the row that shares its id (00440).
+    left join public.sequence_steps s on s.id = o.sequence_id
+   where o.tenant_id = p_tenant_id and o.state = 'waiting' and o.try_at <= p_at
+   order by o.try_at, o.id
+   limit greatest(coalesce(p_limit, 0), 0)
+$$;
+
+
+--
+-- Name: FUNCTION sequence_occasions_due(p_tenant_id uuid, p_at timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_occasions_due(p_tenant_id uuid, p_at timestamp with time zone, p_limit integer) IS 'A workspace''s waiting occasions due at p_at, soonest first, each with when it began, its sequence''s first step and mode as a run reads one, and whether that step runs now (the sequence on, the step running, the workspace not paused): the job settles one that does not (decision 0119). Service role only.';
+
+
+--
+-- Name: sequence_occasions_hand_out(timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_occasions_hand_out(p_at timestamp with time zone, p_spread_seconds integer) RETURNS integer
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select public.jobs_hand_out(
+    'sequence_occasions',
+    -- Every workspace with one due, whether or not its step runs now: the job settles what cannot run, so what is due
+    -- here is only ever the last minute's (the partial index sequence_occasions_due).
+    array(
+      select distinct o.tenant_id
+        from public.sequence_occasions o
+       where o.state = 'waiting' and o.try_at <= p_at
+    ),
+    p_spread_seconds
+  );
+$$;
+
+
+--
+-- Name: FUNCTION sequence_occasions_hand_out(p_at timestamp with time zone, p_spread_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_occasions_hand_out(p_at timestamp with time zone, p_spread_seconds integer) IS 'A sequence_occasions job for each workspace with an occasion due at p_at (decision 0119), through jobs_hand_out (0115): none where one already waits or runs. Answers how many it wrote. Service role only.';
+
+
+--
+-- Name: sequence_occasions_leave(uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_occasions_leave(p_tenant_id uuid, p_starts_with text, p_why text, p_except text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_left integer;
+begin
+  if p_starts_with is null or char_length(p_starts_with) < 3 or p_why is null then
+    return 0;
+  end if;
+  update public.sequence_occasions o
+     set state = 'left', why = left(p_why, 60), settled_at = now()
+   where o.tenant_id = p_tenant_id and o.state = 'waiting'
+     and left(o.occasion, char_length(p_starts_with)) = p_starts_with
+     -- All but one: a visit's occasions for its other starts, where the one for the start it has now stays.
+     and (p_except is null or o.occasion <> p_except);
+  get diagnostics v_left = row_count;
+  return v_left;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_occasions_leave(p_tenant_id uuid, p_starts_with text, p_why text, p_except text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_occasions_leave(p_tenant_id uuid, p_starts_with text, p_why text, p_except text) IS 'A workspace''s waiting occasions whose key starts with p_starts_with leave with why (decision 0119): a visit cancelled, a Missed taken back. Answers how many. Service role only.';
+
+
+--
+-- Name: sequence_occasions_on_erase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_occasions_on_erase() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if NEW.erased_at is not null and OLD.erased_at is null then
+    delete from public.sequence_occasions o where o.tenant_id = NEW.tenant_id and o.contact_id = NEW.id;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_occasions_on_erase(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_occasions_on_erase() IS 'When a person is erased, every occasion a sequence kept for them is deleted (decisions 0036, 0119): none of their steps is still to come, and no key names them.';
+
+
+--
 -- Name: sequence_once_keep(uuid, text, jsonb, uuid, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31627,8 +31802,9 @@ CREATE FUNCTION public.sequence_steps_due(p_kind text, p_at timestamp with time 
     cross join lateral (select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz) z
     cross join lateral (select p_at at time zone z.tz as clock) l
    where s.state = 'running' and s.kind = p_kind
-     -- A freed time's step runs when an appointment frees a time (decision 0082, 00498), never by the hour.
-     and s.trigger <> 'slot_opened'
+     -- A freed time's step runs when an appointment frees a time (decision 0082, 00498), never by the hour; nor does a
+     -- step an occasion starts (0119), which runs for each person at their own time.
+     and s.trigger not in ('slot_opened', 'visit_soon', 'visit_missed', 'asked_no_booking')
      and (s.kind = 'reach_out' or (r.state = 'running' and q.state = 'on'))
      and t.status <> 'paused'
      and (p_tenant_id is null or s.tenant_id = p_tenant_id)
@@ -34869,6 +35045,13 @@ begin
   exception when others then
     raise warning 'sequences-clock: the send clock was not asked: %', sqlerrm;
   end;
+  -- The occasions due (decision 0119): every minute, a job for each workspace with a person's step due, written here
+  -- with no call to the edge. Spread over twenty seconds: a time of someone's own is kept to the minute.
+  begin
+    perform public.sequence_occasions_hand_out(p_at, 20);
+  exception when others then
+    raise warning 'sequences-clock: the occasions were not handed out: %', sqlerrm;
+  end;
 end $$;
 
 
@@ -34876,7 +35059,7 @@ end $$;
 -- Name: FUNCTION trigger_sequences_clock(p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_sequences_clock(p_at timestamp with time zone) IS 'The one clock every sequence runs on (0060, S2): each minute it asks the moments'' sweep (at five past the hour), the check and the leads'' send clock, each at its own speed and each recording its own sweep_status row; one part''s fault is a warning and never stops the others.';
+COMMENT ON FUNCTION public.trigger_sequences_clock(p_at timestamp with time zone) IS 'The one clock every sequence runs on (0060, S2): each minute it asks the moments'' sweep (at five past the hour), the check before each cold email and the leads'' send clock, and hands a job to each workspace with an occasion due (0119). Each in its own block: one that fails is said in a warning and the others still run.';
 
 
 --
@@ -38015,7 +38198,7 @@ CASE
     WHEN (hand IS NULL) THEN ((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL))
     ELSE COALESCE(((trigger = 'after_step'::text) AND (template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND (jsonb_typeof(hand) = 'object'::text) AND ((hand ->> 'kind'::text) = ANY (ARRAY['call'::text, 'note'::text])) AND (jsonb_typeof((hand -> 'words'::text)) = 'string'::text) AND ((char_length(btrim((hand ->> 'words'::text))) >= 1) AND (char_length(btrim((hand ->> 'words'::text))) <= 280)) AND (((hand - 'kind'::text) - 'words'::text) = '{}'::jsonb)), false)
 END),
-    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text, 'slot_opened'::text])))
+    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text, 'slot_opened'::text, 'visit_soon'::text, 'visit_missed'::text, 'asked_no_booking'::text])))
 );
 
 
@@ -39953,6 +40136,39 @@ COMMENT ON TABLE public.sequence_lead_words IS 'Decision 0096: one lead''s own w
 
 
 --
+-- Name: sequence_occasions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sequence_occasions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    sequence_id uuid NOT NULL,
+    contact_id uuid NOT NULL,
+    occasion text NOT NULL,
+    due_at timestamp with time zone NOT NULL,
+    try_at timestamp with time zone NOT NULL,
+    state text DEFAULT 'waiting'::text NOT NULL,
+    why text,
+    batch_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    settled_at timestamp with time zone,
+    CONSTRAINT sequence_occasions_left_says_why CHECK (((state <> 'left'::text) OR (why IS NOT NULL))),
+    CONSTRAINT sequence_occasions_occasion_check CHECK (((char_length(occasion) >= 3) AND (char_length(occasion) <= 120))),
+    CONSTRAINT sequence_occasions_settled_is_dated CHECK (((state = 'waiting'::text) = (settled_at IS NULL))),
+    CONSTRAINT sequence_occasions_state_check CHECK ((state = ANY (ARRAY['waiting'::text, 'ran'::text, 'left'::text]))),
+    CONSTRAINT sequence_occasions_tried_from_its_time CHECK ((try_at >= due_at)),
+    CONSTRAINT sequence_occasions_why_check CHECK (((why IS NULL) OR ((char_length(why) >= 1) AND (char_length(why) <= 60))))
+);
+
+
+--
+-- Name: TABLE sequence_occasions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sequence_occasions IS 'Decision 0119: an occasion a sequence owes a person its first step for (a visit in two hours, a visit marked missed, the booking link sent and nothing booked), when that step is due and what became of it. One row per sequence, person and occasion, for good: served once. Ids, a key of ids and closed codes, never a person''s words.';
+
+
+--
 -- Name: sequence_replies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -41816,6 +42032,30 @@ ALTER TABLE ONLY public.sequence_enrollments
 
 ALTER TABLE ONLY public.sequence_lead_words
     ADD CONSTRAINT sequence_lead_words_pkey PRIMARY KEY (step_id, lead_id);
+
+
+--
+-- Name: sequence_occasions sequence_occasions_once; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_occasions
+    ADD CONSTRAINT sequence_occasions_once UNIQUE (sequence_id, contact_id, occasion);
+
+
+--
+-- Name: sequence_occasions sequence_occasions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_occasions
+    ADD CONSTRAINT sequence_occasions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sequence_occasions sequence_occasions_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_occasions
+    ADD CONSTRAINT sequence_occasions_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -43982,6 +44222,34 @@ CREATE INDEX sequence_lead_words_lead ON public.sequence_lead_words USING btree 
 
 
 --
+-- Name: sequence_occasions_batch; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_occasions_batch ON public.sequence_occasions USING btree (batch_id) WHERE (batch_id IS NOT NULL);
+
+
+--
+-- Name: sequence_occasions_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_occasions_due ON public.sequence_occasions USING btree (try_at) WHERE (state = 'waiting'::text);
+
+
+--
+-- Name: sequence_occasions_person; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_occasions_person ON public.sequence_occasions USING btree (tenant_id, contact_id);
+
+
+--
+-- Name: sequence_occasions_waiting; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequence_occasions_waiting ON public.sequence_occasions USING btree (tenant_id, due_at) WHERE (state = 'waiting'::text);
+
+
+--
 -- Name: sequence_replies_answer; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -44581,6 +44849,13 @@ CREATE TRIGGER contacts_erase_clears_run_words AFTER UPDATE OF erased_at ON publ
 --
 
 CREATE TRIGGER contacts_erase_leaves_lists AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.segment_members_on_erase();
+
+
+--
+-- Name: contacts contacts_erase_leaves_occasions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_leaves_occasions AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.sequence_occasions_on_erase();
 
 
 --
@@ -47798,6 +48073,38 @@ ALTER TABLE ONLY public.sequence_lead_words
 
 
 --
+-- Name: sequence_occasions sequence_occasions_batch_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_occasions
+    ADD CONSTRAINT sequence_occasions_batch_id_same_workspace FOREIGN KEY (tenant_id, batch_id) REFERENCES public.sequence_batches(tenant_id, id) ON DELETE SET NULL (batch_id);
+
+
+--
+-- Name: sequence_occasions sequence_occasions_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_occasions
+    ADD CONSTRAINT sequence_occasions_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: sequence_occasions sequence_occasions_sequence_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_occasions
+    ADD CONSTRAINT sequence_occasions_sequence_id_same_workspace FOREIGN KEY (tenant_id, sequence_id) REFERENCES public.sequences(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: sequence_occasions sequence_occasions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequence_occasions
+    ADD CONSTRAINT sequence_occasions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: sequence_replies sequence_replies_answered_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -49654,6 +49961,21 @@ ALTER TABLE public.sequence_lead_words ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY sequence_lead_words_member_select ON public.sequence_lead_words FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: sequence_occasions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.sequence_occasions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: sequence_occasions sequence_occasions_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY sequence_occasions_member_select ON public.sequence_occasions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -54729,6 +55051,46 @@ GRANT ALL ON FUNCTION public.sequence_move(p_tenant_id uuid, p_lead_id uuid, p_t
 
 
 --
+-- Name: FUNCTION sequence_occasion_enrol(p_tenant_id uuid, p_sequence_id uuid, p_contact_id uuid, p_occasion text, p_due_at timestamp with time zone, p_single boolean, p_replaces text, p_rest_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_occasion_enrol(p_tenant_id uuid, p_sequence_id uuid, p_contact_id uuid, p_occasion text, p_due_at timestamp with time zone, p_single boolean, p_replaces text, p_rest_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_occasion_enrol(p_tenant_id uuid, p_sequence_id uuid, p_contact_id uuid, p_occasion text, p_due_at timestamp with time zone, p_single boolean, p_replaces text, p_rest_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_occasions_due(p_tenant_id uuid, p_at timestamp with time zone, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_occasions_due(p_tenant_id uuid, p_at timestamp with time zone, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_occasions_due(p_tenant_id uuid, p_at timestamp with time zone, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_occasions_hand_out(p_at timestamp with time zone, p_spread_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_occasions_hand_out(p_at timestamp with time zone, p_spread_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_occasions_hand_out(p_at timestamp with time zone, p_spread_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_occasions_leave(p_tenant_id uuid, p_starts_with text, p_why text, p_except text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_occasions_leave(p_tenant_id uuid, p_starts_with text, p_why text, p_except text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_occasions_leave(p_tenant_id uuid, p_starts_with text, p_why text, p_except text) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_occasions_on_erase(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_occasions_on_erase() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_occasions_on_erase() TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -57495,6 +57857,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_enrollments TO servic
 
 GRANT SELECT ON TABLE public.sequence_lead_words TO authenticated;
 GRANT ALL ON TABLE public.sequence_lead_words TO service_role;
+
+
+--
+-- Name: TABLE sequence_occasions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.sequence_occasions TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_occasions TO service_role;
 
 
 --

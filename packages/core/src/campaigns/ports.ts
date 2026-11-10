@@ -279,7 +279,11 @@ export type RunOutcome =
         /** A freed time that begins by the moment its batch would go (a night's batch goes at nine): nobody can have it. */
         | "freed_time_passed"
         /** A late booking handed to a step on another moment (decision 0118): only the appointment reminder reminds one. */
-        | "not_a_reminder_step";
+        | "not_a_reminder_step"
+        /** A step an occasion starts, run with none (decision 0119): it runs for the person its occasion enrolled, never by the hour. */
+        | "no_occasion"
+        /** An occasion's person handed to a step on another moment: only a step an occasion starts runs for one. */
+        | "not_an_occasion_step";
     }
   | { outcome: "failed"; error: string };
 
@@ -337,6 +341,11 @@ export interface RunPlaybookCommand {
    * `visit_tomorrow`: its batch reminds that one person at its own time, and has no day of its own.
    */
   late?: LateReminderRun;
+  /**
+   * The person an occasion enrolled (decision 0119, contracts occasions.ts), for a step an occasion starts: its batch is
+   * that one person's, at their own time, and has no day of its own.
+   */
+  occasion?: OccasionRun;
 }
 
 /** A freed time as a run offers it: the appointment that freed it, and the span, epoch ms. */
@@ -356,6 +365,18 @@ export interface LateReminderRun {
   startsAt: number;
   /** When the reminder goes, epoch ms. */
   at: number;
+}
+
+/** The person an occasion enrolled as a run reaches them: who, what for, and the visit its words are about. */
+export interface OccasionRun {
+  contactId: string;
+  /** The occasion's key, as its row keeps it (contracts occasions.ts): the send keeps it too. */
+  occasion: string;
+  /**
+   * The visit it is about, off the record: the key a send asks its row again by (contracts appointmentHolds), the row's
+   * id, its start, epoch ms, and what it is for. Null for an occasion that names no visit (an ask).
+   */
+  visit: { key: string; appointment: string; startsAt: number; title: string | null; allDay: boolean } | null;
 }
 
 /* ---- The dashboard's verbs ---- */

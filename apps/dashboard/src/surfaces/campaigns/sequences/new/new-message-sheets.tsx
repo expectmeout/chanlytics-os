@@ -13,6 +13,7 @@ import {
   REACH_OUT_SLOTS,
   numberedValues,
   slugTemplateName,
+  momentNamesVisit,
   triggerOf,
   type CampaignMessage,
   type DraftWho,
@@ -47,9 +48,11 @@ export interface LibraryReads {
  */
 function notHereOf(m: NewMessage, first: boolean, who: DraftWho | null): string | null {
   const moment = who?.kind === "moment" ? (triggerOf(who.trigger)?.kind ?? null) : null;
+  // A moment whose message may say a visit: a visit's own two, and an occasion's two about one (decision 0119).
+  const namesVisit = who?.kind === "moment" && momentNamesVisit(who.trigger);
   const kinds = m.params.map((p) => p.kind);
-  if (kinds.some((k) => k === "visit_when" || k === "visit_service") && !(first && moment === "visit"))
-    return moment === "visit" ? W.sheets.firstStepOnly : W.sheets.visitOnly;
+  if (kinds.some((k) => k === "visit_when" || k === "visit_service") && !(first && namesVisit))
+    return namesVisit ? W.sheets.firstStepOnly : W.sheets.visitOnly;
   if (kinds.includes("proposal_link") && !(first && moment === "deal"))
     return moment === "deal" ? W.sheets.proposalFirstOnly : W.sheets.dealOnly;
   if (kinds.includes("freed_when") && !(first && moment === "freed"))

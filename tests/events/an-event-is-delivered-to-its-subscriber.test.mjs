@@ -75,6 +75,15 @@ const READS = {
     data: { change: "added", source: "booking_email", starts_at: "2999-10-12T15:00:00Z" },
     created_at: "2026-10-06T00:00:00Z",
   },
+  // An appointment's change, handed to the door that enrols its person in what an occasion starts (decision 0119).
+  occasion_enrol: {
+    kind: "appointment.changed",
+    category: "appointment",
+    subject_type: "appointment",
+    subject_id: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+    data: { change: "added", source: "booking_email" },
+    created_at: "2026-10-06T00:00:00Z",
+  },
   // The seat an accepted invitation made (acceptOpenInvites writes it).
   team_notice: {
     kind: "member.joined",
@@ -276,6 +285,8 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
   const offered = [];
   // The edge's reminder of a late booking, recorded: its door asks first whether the visit was reminded (decision 0118).
   const reminded = [];
+  // The edge's enrolment for an occasion, recorded: its rows are kept once, which is the door's to hold (decision 0119).
+  const enrolled = [];
   const ctx = {
     db,
     wire: { whatsapp: null, sms: null },
@@ -309,6 +320,12 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
         return { reminded: true, at: "2999-10-12T01:00:00.000Z", waits: false };
       },
     },
+    occasions: {
+      enrol: async (tenantId, happened) => {
+        enrolled.push([tenantId, happened]);
+        return { enrolled: 1, left: 0 };
+      },
+    },
   };
   const job = {
     id: "j-1",
@@ -316,7 +333,18 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
     kind: "event_deliver",
     payload: { event_id: E, subscriber, kind, lane: "2" },
   };
-  return { tables, ctx, job, pages, booked, told, offered, reminded, delivery: () => tables.event_deliveries[0] };
+  return {
+    tables,
+    ctx,
+    job,
+    pages,
+    booked,
+    told,
+    offered,
+    reminded,
+    enrolled,
+    delivery: () => tables.event_deliveries[0],
+  };
 }
 
 test("a subscriber runs and the delivery is done, counted once", async () => {
@@ -414,6 +442,7 @@ test("the harness: every subscriber run twice on one delivery leaves the same ro
       freed_time_offer: () => w.offered.length,
       reply_draft: () => (w.tables.jobs ?? []).filter((j) => j.kind === "reply_draft").length,
       visit_reminder: () => w.reminded.length,
+      occasion_enrol: () => w.enrolled.length,
     };
     assert.ok(acted[subscriber]() > 0, `${subscriber}: the first run acted`);
     const once = JSON.stringify(w.tables);

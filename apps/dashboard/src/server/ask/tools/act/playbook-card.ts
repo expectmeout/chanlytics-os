@@ -167,7 +167,7 @@ export async function getWordedMoment(toolContext: ToolContext, trig: Trigger) {
 
 /** What a new campaign's card says of the week's breath: an appointment moment's message is not held to it (D2). */
 export const breathSaid = (trig: Trigger): string =>
-  trig.kind === "visit" ? ` · ${PLAYBOOK_CARD_WORDS.appointmentBreath}` : "";
+  trig.kind === "visit" || trig.kind === "occasion" ? ` · ${PLAYBOOK_CARD_WORDS.appointmentBreath}` : "";
 
 /**
  * Who a new playbook's run reaches now, and who its moment names said the yes it needs, as the page's pools count them
