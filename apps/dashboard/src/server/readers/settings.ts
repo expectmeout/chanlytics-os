@@ -424,6 +424,10 @@ const claimSendsOrUnread = (
       )
     : null;
 
+/** What a new sequence to leads starts as (Autonomy's outreach row, contracts newSequenceMode): held, or asked for. */
+const coldStartMode = (policies: readonly { class: string; mode: string }[]): "veto" | "ask" =>
+  newSequenceMode(policies.find((p) => p.class === "outreach")?.mode, "leads", null) === "veto" ? "veto" : "ask";
+
 /**
  * GET settings/reach-out: what Cold email shows beyond the config. The mailbox as Connections says it, the month's
  * first emails against their share, the claims' counts, the lines Ask learned from how the owner writes, the newest
@@ -488,8 +492,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
             )
           : null,
         sending: mailboxes ? coldEmailSendingOf(mailboxes, month, rc.now.getTime()) : null,
-        batch_mode:
-          newSequenceMode(policies.find((p) => p.class === "outreach")?.mode, "leads") === "veto" ? "veto" : "ask",
+        batch_mode: coldStartMode(policies),
         never,
         foot:
           row && facts

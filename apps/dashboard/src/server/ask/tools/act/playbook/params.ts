@@ -441,7 +441,7 @@ export async function proposeOnStarter(
   if (reach.blocked) return getBlockedOutcome(toolContext, trig, reach.blocked, playbookNameAsked(input.name) || null);
   const { drawn, reading, policies, listLabel, usable } = reach;
   const held = await getAllowanceHeld(toolContext, channels, reading, clock, purposeOfPlaybook(cls));
-  const under = underMode(cls, policies);
+  const under = underMode(cls, policies, trig.id);
   const name = playbookNameAsked(input.name);
   // Its WhatsApp version goes for review at Approve only where none is on file; one on file is said as it stands, by the
   // drawer's reading (in review, refused), and the filing leaves it so.

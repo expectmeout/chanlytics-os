@@ -584,8 +584,9 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   const { playbook: p, full } = pacedRun(cmd.playbook, by.kind === "user", ctx.room);
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
-  // Its sequence's mode, or ask while the step's words are new to the owner or the mode is none this build knows.
-  const mode = batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at });
+  // The mode its sequence goes by, read for its moment (one an occasion starts never asks for each: contracts
+  // sequenceModeOf), or ask while the step's words are new to the owner.
+  const mode = batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at, trigger: p.trigger });
   const asked = askedOf(cmd);
   const { freed, late, occasion } = asked;
   const plan = batchPlan(by, mode, now, late);

@@ -1,4 +1,5 @@
 import { PLAYBOOK_VETO_DELAY_WORDS } from "../playbooks/triggers/notices";
+import { isOccasionTrigger } from "../playbooks/triggers/occasions";
 import { isOneOf } from "../../shared/unknown";
 
 /**
@@ -50,43 +51,78 @@ export const SEQUENCE_MODE_WORDS: Record<SequenceMode, { line: string; choice: s
 export const SEQUENCE_MODE_LABEL = "Before each batch";
 export const SEQUENCE_NEW_WORDS_ASK = "A batch of new words waits for your OK first, whatever this says.";
 
+/** The modes a sequence an occasion starts takes (decision 0119): it sends each message, or holds each for a stop. */
+const OWN_TIME_MODES: readonly SequenceMode[] = ["auto", "veto"];
+
 /**
- * The modes a sequence that exists may take, by how it starts: every one of them. One to leads may send on its own
- * since decision 0120, where its owner picks that on the sequence itself; until then cold email only waited or held.
- * The one argument stays, so a page asks by the sequence it shows and a kind that takes fewer is one line here.
+ * The modes a sequence that exists may take, by how it starts and the moment its first step starts on (`trigger`): every
+ * one of them, but for one an occasion starts. One to leads may send on its own since decision 0120, where its owner
+ * picks that on the sequence itself. One an occasion starts (decision 0119, Ruben 10 Nov 2026) writes to one person at a
+ * time of their own, so asking for each would make every customer an approval of their own, and a reminder's would run
+ * out when its visit began: it sends or it holds, and never asks. What How it runs offers and a change is judged by.
  */
-export function sequenceModesFor(_starts: string | null | undefined): readonly SequenceMode[] {
-  return SEQUENCE_MODES;
+export function sequenceModesFor(
+  _starts: string | null | undefined,
+  trigger: string | null | undefined,
+): readonly SequenceMode[] {
+  return isOccasionTrigger(trigger) ? OWN_TIME_MODES : SEQUENCE_MODES;
 }
 
 /**
- * The modes a NEW sequence may start as, by how it starts: one to leads starts held for a stop or asked for, never on
- * its own (decision 0120: sending on its own is chosen for a sequence whose emails its owner has seen go, never as a
- * default). What New's sheet and the Cold email page's row for new sequences offer.
+ * The modes a NEW sequence may start as, by how it starts and its first step's moment: one to leads starts held for a
+ * stop or asked for, never on its own (decision 0120: sending on its own is chosen for a sequence whose emails its owner
+ * has seen go, never as a default); one an occasion starts sends or holds (sequenceModesFor). What New's sheet and the
+ * Cold email page's row for new sequences offer.
  */
-export function sequenceStartModesFor(starts: string | null | undefined): readonly SequenceMode[] {
+export function sequenceStartModesFor(
+  starts: string | null | undefined,
+  trigger: string | null | undefined,
+): readonly SequenceMode[] {
+  if (isOccasionTrigger(trigger)) return OWN_TIME_MODES;
   return starts === "leads" ? ["veto", "ask"] : SEQUENCE_MODES;
 }
 
 /**
- * What a new sequence starts as (decision 0064): its class's Autonomy row where that is a mode a sequence of its kind
- * starts as, else ask. The database's sequence_mode_for (00462) says the same when it makes the sequence.
+ * The mode a sequence goes by: what its row keeps (`sequences.mode`), read for the moment its first step starts on. A
+ * mode this build does not know asks (fail safe); and where the sequence takes no asking (one an occasion starts,
+ * sequenceModesFor), a row that says ask, or says nothing known, is held for a stop, the nearest it has to a person's
+ * look. The database makes a sequence with its class's Autonomy row (00462 sequence_mode_for), which may say ask, so a
+ * row can hold it; nothing reads the row any other way. THE reading: the run's (batchModeOf), a head line's, How it runs'.
  */
-export function newSequenceMode(classMode: string | null | undefined, starts: string | null | undefined): SequenceMode {
-  return isSequenceMode(classMode) && sequenceStartModesFor(starts).includes(classMode) ? classMode : "ask";
+export function sequenceModeOf(mode: string | null | undefined, trigger: string | null | undefined): SequenceMode {
+  const kept = isSequenceMode(mode) ? mode : "ask";
+  return sequenceModesFor(null, trigger).includes(kept) ? kept : "veto";
+}
+
+/**
+ * What a new sequence starts as (decision 0064): its class's Autonomy row where that is a mode a sequence of its kind
+ * starts as; else ask, or held for a stop where its kind takes no asking (one an occasion starts). The database's
+ * sequence_mode_for (00462) says the same of every other kind when it makes the sequence, and sequenceModeOf reads what
+ * it kept for an occasion's.
+ */
+export function newSequenceMode(
+  classMode: string | null | undefined,
+  starts: string | null | undefined,
+  trigger: string | null | undefined,
+): SequenceMode {
+  const offered = sequenceStartModesFor(starts, trigger);
+  if (isSequenceMode(classMode) && offered.includes(classMode)) return classMode;
+  return offered.includes("ask") ? "ask" : "veto";
 }
 
 /**
  * How a step's next batch is decided (decision 0064): the one rule the run plans by and every page says it by. A batch of
  * a step whose words are new to the owner (none of its batches let go since they last changed: `words_ok_at`) waits for
- * an OK, whatever the mode; any other goes by its sequence's mode, and a mode this build does not know asks (fail safe).
+ * an OK, whatever the mode and the moment; any other goes by the mode its sequence goes by (sequenceModeOf: its own, read
+ * for the moment its first step starts on, `trigger`).
  */
 export function batchModeOf(state: {
   mode: string | null | undefined;
   words_ok_at: string | null | undefined;
+  trigger: string | null | undefined;
 }): SequenceMode {
   if (!state.words_ok_at) return "ask";
-  return isSequenceMode(state.mode) ? state.mode : "ask";
+  return sequenceModeOf(state.mode, state.trigger);
 }
 
 /**
@@ -95,4 +131,5 @@ export function batchModeOf(state: {
  * one rule its pages, its leads' lines and its run say it by.
  */
 export const coldBatchAsks = (state: { mode: string | null | undefined; words_ok_at: string | null | undefined }) =>
-  batchModeOf(state) === "ask";
+  // A sequence to leads starts at no moment: its mode is its own, whatever it says.
+  batchModeOf({ ...state, trigger: null }) === "ask";

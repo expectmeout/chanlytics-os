@@ -203,6 +203,21 @@ test("its words, its end and its mode are refused in the product's words before 
   await refused(put(tables, K2, { until: "next month" }), "validation", 400, PLAYBOOK_PATCH_WORDS.untilDay);
   await refused(put(tables, K2, { mode: "never" }), "validation", 400, PLAYBOOK_PATCH_WORDS.modeWhich);
   assert.deepEqual(tables.decisions, []);
+
+  // A sequence an occasion starts sends or holds (decision 0119): Ask me is refused in words that say why, and the two
+  // it takes are written.
+  const soon = world({
+    playbooks: [row(K1, A), row(K2, B, { name: "Two-hour reminder", trigger: "visit_soon", policy_class: "booking" })],
+  });
+  setServiceClient(fakeDb(soon));
+  await refused(put(soon, K2, { mode: "ask" }), "validation", 400, PLAYBOOK_PATCH_WORDS.modeOwnTime);
+  assert.deepEqual(soon.decisions, [], "nothing written for a refusal");
+  assert.match(PLAYBOOK_PATCH_WORDS.modeOwnTime, /at a time of their own/);
+  const held = await put(soon, K2, { mode: "veto" });
+  assert.equal(soon.sequences.find((q) => q.id === K2).mode, "veto");
+  // Its undo writes back what its row held, an ask the database gave it: taken, since the run reads it as held.
+  assert.deepEqual(held.was, { mode: "ask" });
+  setServiceClient(fakeDb(tables));
   const p = tables.playbooks.find((x) => x.id === K2);
   assert.deepEqual([p.params, p.until, tables.sequences.find((q) => q.id === K2).mode], [[], null, "ask"]);
 });

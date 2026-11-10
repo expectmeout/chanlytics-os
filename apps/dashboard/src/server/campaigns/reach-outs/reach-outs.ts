@@ -137,7 +137,7 @@ export async function listChains(ctx: RouteContext, tenantId: TenantId): Promise
         last_run_for: root.last_run_for,
         // As its run plans it (contracts batchModeOf): a first run whose words are new asks whatever the mode; then held,
         // asked, or on its own where its owner chose that (0120).
-        mode: batchModeOf({ mode: modes.get(root.id), words_ok_at: root.words_ok_at }),
+        mode: batchModeOf({ mode: modes.get(root.id), words_ok_at: root.words_ok_at, trigger: null }),
         may_spend: spend,
         waiting_run_id: waitingOf.get(root.id) ?? null,
       },

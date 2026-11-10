@@ -228,7 +228,7 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
             id="ro-batch-mode"
             labelledBy="rec-fold-batch_mode-label"
             value={textOrEmpty(fields.draft) || mode}
-            options={sequenceStartModesFor("leads").map((m) => ({
+            options={sequenceStartModesFor("leads", null).map((m) => ({
               value: m,
               label: SEQUENCE_MODE_WORDS[m].choice,
               // Leads are never offered `auto` (sequenceModesFor), which says nothing of its own here.

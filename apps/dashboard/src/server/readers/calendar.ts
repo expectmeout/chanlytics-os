@@ -163,7 +163,11 @@ export const calendarRuns: Reader<
         name: moment.name,
         trigger: moment.trigger,
         state: moment.state,
-        mode: batchModeOf({ mode: modes.get(moment.sequence_id), words_ok_at: moment.words_ok_at }),
+        mode: batchModeOf({
+          mode: modes.get(moment.sequence_id),
+          words_ok_at: moment.words_ok_at,
+          trigger: moment.trigger,
+        }),
         run_hour: moment.run_hour,
         last_run_for: moment.last_run_for,
         until: moment.until,

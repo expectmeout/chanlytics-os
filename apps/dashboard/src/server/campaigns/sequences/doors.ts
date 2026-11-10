@@ -3,6 +3,7 @@ import {
   AppError,
   SEQUENCE_FLOW_WORDS,
   isSequenceMode,
+  sequenceModeOf,
   takesFollowUps,
   validateReachOutWords,
   wordsIssueWords,
@@ -147,8 +148,9 @@ export async function makeSequenceNow(ctx: RouteContext, tenantId: TenantId, inp
         cadence_days: result.cadence_days,
         channels: result.channels,
         // How its batches are decided, where New chose (decision 0064's modes; a leads sequence starts held or asked:
-        // contracts sequenceStartModesFor, and the door takes no other).
-        ...(isSequenceMode(input.first.mode) ? { mode: input.first.mode } : {}),
+        // contracts sequenceStartModesFor, and the door takes no other), read for its moment: one an occasion starts
+        // never asks for each (sequenceModeOf), whatever the request says.
+        ...(isSequenceMode(input.first.mode) ? { mode: sequenceModeOf(input.first.mode, result.trigger) } : {}),
       },
       then,
       start: input.start,

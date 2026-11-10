@@ -18,6 +18,7 @@ import {
   SEQUENCE_NEW_WORDS_ASK,
   clockTime,
   scheduleSettingsOf,
+  sequenceModeOf,
   sequenceModesFor,
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
@@ -59,7 +60,8 @@ interface Values {
 function openingValues(rec: SequenceRecordDto): Values {
   const s = rec.settings;
   return {
-    mode: rec.sequence.mode ?? "ask",
+    // The mode it goes by (contracts sequenceModeOf): one an occasion starts holds where its row says ask.
+    mode: sequenceModeOf(rec.sequence.mode, rec.sequence.first?.trigger),
     run_hour: String(rec.sequence.first?.run_hour ?? 10),
     cap_per_run: String(s?.cap_per_run ?? 25),
     gap_days: String(s?.gap_days ?? 90),
@@ -105,7 +107,7 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
           <Select
             value={v.mode}
             onValueChange={(x) => set("mode", x)}
-            options={sequenceModesFor(rec.sequence.starts).map((m) => ({
+            options={sequenceModesFor(rec.sequence.starts, rec.sequence.first?.trigger).map((m) => ({
               value: m,
               label: SEQUENCE_MODE_WORDS[m].choice,
             }))}

@@ -15,6 +15,7 @@ import { campaignsHomeOf } from "../../../apps/dashboard/src/server/campaigns/li
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
 const { batchModeOf, LIFECYCLE_WORDS, PLAYBOOK_VETO_DELAY_MS, channelsReady, numberHealth, vetoRunNotice } = C;
+const { newSequenceMode, sequenceModeOf, sequenceModesFor, sequenceStartModesFor } = C;
 
 const TZ = "America/New_York";
 /** Sunday 6 Sep 2026, 10:00 AM in New York. */
@@ -32,6 +33,40 @@ test("batchModeOf: a step whose words are new waits for an OK whatever its mode;
   for (const mode of ["never", "sometimes", null, undefined])
     assert.equal(batchModeOf({ mode, words_ok_at: SEEN }), "ask", `${String(mode)} is no mode a sequence takes`);
   assert.equal(batchModeOf({ mode: "auto", words_ok_at: undefined }), "ask", "a row read before 00462 asks");
+});
+
+test("a sequence an occasion starts never asks for each message (decision 0119, Ruben 10 Nov 2026): it sends or holds, a row that says ask is read as held, and only words that are new wait for an OK", () => {
+  const OCCASIONS = ["visit_soon", "visit_missed", "asked_no_booking"];
+  for (const trigger of OCCASIONS) {
+    assert.deepEqual(sequenceModesFor("moment", trigger), ["auto", "veto"], trigger);
+    assert.deepEqual(sequenceStartModesFor(null, trigger), ["auto", "veto"], trigger);
+    // The mode it goes by: its own where it takes it, held for a stop where its row says ask or nothing known.
+    assert.equal(sequenceModeOf("auto", trigger), "auto");
+    assert.equal(sequenceModeOf("veto", trigger), "veto");
+    for (const kept of ["ask", null, undefined, "never"])
+      assert.equal(sequenceModeOf(kept, trigger), "veto", String(kept));
+    // New words wait for their first OK, as every sequence's do; after it, nobody is asked one person at a time.
+    assert.equal(batchModeOf({ mode: "auto", words_ok_at: null, trigger }), "ask");
+    assert.equal(batchModeOf({ mode: "ask", words_ok_at: SEEN, trigger }), "veto");
+    assert.equal(batchModeOf({ mode: "auto", words_ok_at: SEEN, trigger }), "auto");
+    // What a new one starts as: its class's row where it sends or holds, held where the row asks or there is none.
+    assert.equal(newSequenceMode("auto", "moment", trigger), "auto");
+    assert.equal(newSequenceMode("veto", "moment", trigger), "veto");
+    for (const row of ["ask", null, "never"])
+      assert.equal(newSequenceMode(row, "moment", trigger), "veto", String(row));
+  }
+  // Every other moment is as it was: the three modes, a row that asks asks, and no row asks.
+  for (const trigger of ["visit_tomorrow", "visited", "quiet_30", "proposal_waiting", null, undefined]) {
+    assert.deepEqual(sequenceModesFor("moment", trigger), ["auto", "veto", "ask"], String(trigger));
+    assert.equal(sequenceModeOf("ask", trigger), "ask");
+    assert.equal(sequenceModeOf(null, trigger), "ask", "a mode it does not know asks: fail safe");
+    assert.equal(batchModeOf({ mode: "ask", words_ok_at: SEEN, trigger }), "ask");
+    assert.equal(newSequenceMode("ask", "moment", trigger), "ask");
+    assert.equal(newSequenceMode(null, "moment", trigger), "ask");
+  }
+  // One to leads still starts held or asked, never on its own.
+  assert.deepEqual(sequenceStartModesFor("leads", null), ["veto", "ask"]);
+  assert.equal(newSequenceMode("auto", "leads", null), "ask");
 });
 
 /* -------------------------------------------------------------------------------------------------- the run -- */

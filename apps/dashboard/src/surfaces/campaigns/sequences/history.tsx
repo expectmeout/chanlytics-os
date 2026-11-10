@@ -114,7 +114,9 @@ function UpcomingRow(p: { rec: SequenceRecordDto; nowMs: number; batches: readon
   // A batch made and waiting for an OK waits; one to come goes by its sequence's mode, or asks while its words are new.
   const said = historyUpcomingWords(
     next.people,
-    made?.state === "pending_approval" ? "ask" : batchModeOf({ mode: row.mode, words_ok_at: row.first?.words_ok_at }),
+    made?.state === "pending_approval"
+      ? "ask"
+      : batchModeOf({ mode: row.mode, words_ok_at: row.first?.words_ok_at, trigger: row.first?.trigger }),
   );
   return (
     <ListRow

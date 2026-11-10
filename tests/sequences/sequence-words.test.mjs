@@ -511,6 +511,10 @@ test("a paused sequence's dock, who approves in its More, and where a follow-up 
   assert.equal(sequenceWhoApprovesHint("auto"), "Sends on its own");
   assert.equal(sequenceWhoApprovesHint("veto"), "Holds each batch for you to stop");
   assert.equal(sequenceWhoApprovesHint(null), "Asks you before each batch");
+  // One an occasion starts never asks for each (decision 0119): a row that says ask is said as it goes, held.
+  assert.equal(sequenceWhoApprovesHint("ask", "visit_soon"), "Holds each batch for you to stop");
+  assert.equal(sequenceWhoApprovesHint("auto", "visit_missed"), "Sends on its own");
+  assert.equal(sequenceWhoApprovesHint("ask", "visit_tomorrow"), "Asks you before each batch");
   assert.equal(takesFollowUps(row()), false, "a reminder is said once, the day before");
   assert.equal(takesFollowUps(row({ first: { ...FIRST, trigger: "quiet_30" } })), true);
   assert.equal(takesFollowUps(row({ starts: "leads" })), false);
