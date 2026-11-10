@@ -93,7 +93,6 @@ const READ = {
   batch_mode: "veto",
   mailbox: null,
   month: { sent: 0, of: 2000 },
-  by_hand_per_day: 30,
   claims: [],
   voice: [],
   sequence: null,
@@ -102,7 +101,7 @@ const READ = {
   about_from: null,
   known: { name: null, first_name: null, newest_search: null },
   foot: { business: "Brightline Cleaning", address: "1 Main St, Austin, TX 78704" },
-  never: { said_no: 0, asked_to_stop: 0 },
+  never: { said_no: 0, asked_to_stop: 0, customers: 0 },
 };
 /**
  * The page drawn with its read answering `read`, once what the test is about is on it: a page takes what the tab holds as
@@ -620,7 +619,7 @@ test("someone who can only read is told so, and offered no press", async () => {
   unmount();
 });
 
-test("each press shows to whoever may do it: an operator approves a batch, and connects no mailbox and starts no search", async () => {
+test("each press says who may do it: an operator approves a batch, and the presses they may not use stay and say who can", async () => {
   const head = (re) => (t) => {
     const h = byTestId(t, "rec-standing-head");
     return !!h && re.test(textOf(h));
@@ -632,6 +631,7 @@ test("each press shows to whoever may do it: an operator approves a batch, and c
     act: "Read and approve",
     to: "sends/33333333-3333-4333-8333-333333333333",
     needs_you: true,
+    needs: "approve",
     steps: [],
   };
   const mailbox = {
@@ -640,6 +640,7 @@ test("each press shows to whoever may do it: an operator approves a batch, and c
     headline: "Connect your mailbox to start sending",
     act: "Connect Google",
     to: null,
+    needs: "settings",
   };
   const fresh = {
     ...waiting,
@@ -647,6 +648,7 @@ test("each press shows to whoever may do it: an operator approves a batch, and c
     headline: "2 things before your first email",
     act: null,
     to: null,
+    needs: null,
     steps: [
       { id: "mailbox", done: false, title: "Connect your mailbox", detail: "Emails go out from your own address" },
       {
@@ -658,17 +660,29 @@ test("each press shows to whoever may do it: an operator approves a batch, and c
     ],
   };
   const may = globalThis.window.canDo;
+  const gated = globalThis.window.gate;
   globalThis.window.canDo = (action) => action === "approve";
+  // The shell's gate (frame/gate.ts) over the same role: a press it refuses stays, and says who can.
+  globalThis.window.gate = (action) =>
+    globalThis.window.canDo(action) ? {} : { "aria-disabled": true, "aria-description": "Only an owner can do this." };
   try {
     let tree = await drawOnRead({}, { standing: waiting }, head(/ready for your OK/));
     assert.equal(textOf(byTestId(tree, "rec-standing-act")), "Read and approve", "an OK is theirs to give");
+    assert.equal(byTestId(tree, "rec-standing-act").props["aria-disabled"], undefined);
     tree = await drawOnRead({}, { standing: mailbox }, head(/Connect your mailbox/));
-    assert.equal(byTestId(tree, "rec-standing-act"), null, "a mailbox is the settings'");
+    const connect = byTestId(tree, "rec-standing-act");
+    assert.equal(connect.props["aria-disabled"], true, "a mailbox is the settings': the press stays, and says who can");
+    assert.ok(connect.props["aria-description"], "who can, said");
     tree = await drawOnRead({}, { standing: fresh }, head(/2 things/));
-    assert.equal(byTestId(tree, "rec-step-mailbox-door"), null);
-    assert.equal(byTestId(tree, "rec-step-people-door"), null, "the lead finder is the owner's and the partner's");
+    assert.equal(byTestId(tree, "rec-step-mailbox-door").props["aria-disabled"], true);
+    assert.equal(
+      byTestId(tree, "rec-step-people-door").props["aria-disabled"],
+      true,
+      "the lead finder is the owner's and the partner's",
+    );
   } finally {
     globalThis.window.canDo = may;
+    globalThis.window.gate = gated;
   }
   unmount();
 });
@@ -766,19 +780,25 @@ test("the rules say the two they left out: customers, and countries", async () =
   unmount();
 });
 
-test("who never hears says how many, by address, and a count not read is left out", async () => {
-  let tree = await drawOnRead({}, { never: { said_no: 4, asked_to_stop: 2 } }, (t) =>
-    /6 so far\./.test(textOf(byTestId(t, "rec-card-never"))),
+test("who never hears says how many, by address, the three of them, and a count not read is left out", async () => {
+  let tree = await drawOnRead({}, { never: { said_no: 4, asked_to_stop: 2, customers: 3 } }, (t) =>
+    /9 so far\./.test(textOf(byTestId(t, "rec-card-never"))),
   );
   press(byTestId(tree, "rec-row-act-never"));
   tree = redrawTab();
   const sheet = textOf(byTestId(tree, "rec-never-sheet"));
+  assert.match(sheet, /Your customers3/);
   assert.match(sheet, /Said no4/);
   assert.match(sheet, /Asked to stop2/);
-  assert.match(sheet, /Always, on its own/);
   unmount();
   tree = await drawOnRead({}, { never: null }, (t) => !/so far/.test(textOf(byTestId(t, "rec-card-never"))));
   assert.doesNotMatch(textOf(byTestId(tree, "rec-card-never")), /so far/);
+  press(byTestId(tree, "rec-row-act-never"));
+  assert.match(
+    textOf(byTestId(redrawTab(), "rec-never-sheet")),
+    /Always, on its own/,
+    "customers said as kept, never counted",
+  );
   unmount();
 });
 

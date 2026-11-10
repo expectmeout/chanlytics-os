@@ -159,8 +159,8 @@ export function SoundCard(shared: OutreachShared & { again: () => void }) {
             act={
               shared.canEdit && can
                 ? {
-                    label: "Change",
-                    name: `Change ${SOUND_WORDS.title.toLowerCase()}`,
+                    label: REACH_OUT_SETTINGS_WORDS.acts.change,
+                    name: `${REACH_OUT_SETTINGS_WORDS.acts.change} ${SOUND_WORDS.title.toLowerCase()}`,
                     onClick: () => request(),
                     gate: editGate,
                   }
@@ -178,7 +178,7 @@ export function SoundCard(shared: OutreachShared & { again: () => void }) {
         channel={null}
         bare
         light
-        saveLabel="Use it"
+        saveLabel={REACH_OUT_SETTINGS_WORDS.acts.useIt}
         gate={gate("settings", "teach it how you write")}
         door={door}
         check={(text: string): Record<string, string> =>

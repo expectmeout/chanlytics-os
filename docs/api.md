@@ -3034,7 +3034,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `channels` | array of one of `"whatsapp"`, `"sms"`, `"email"` | yes | at most 3 |
 | `mode` | one of `"auto"`, `"veto"`, `"ask"` or null | yes |  |
 | `adds_new` | boolean | yes |  |
-| `owner_sends` | boolean | no |  |
+| `owner_sends` | `false` | no |  |
 | `draft_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `as_drafted` | object | no |  |
 | `steps` | array of object | yes | at least 1; at most 6 |
@@ -3070,7 +3070,7 @@ Declares no query schema: it takes none beyond the workspace, or reads its own (
 
 ### `GET /api/v1/settings/reach-out/note`
 
-Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/settings/reach-out/note/route.ts`).
 

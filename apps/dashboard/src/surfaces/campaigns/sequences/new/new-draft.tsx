@@ -8,7 +8,6 @@
  * leaving a changed draft asks too (the page's). On a wide pane what Ask checked and how it runs stand beside the steps
  * (the canvas's desk board). Every word is contracts' (new-words.ts).
  */
-import { connectMailbox } from "../../../settings/connections/mailbox-connect";
 import { useState, type ReactNode } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
@@ -29,7 +28,9 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Switch } from "../../../kit/switch/switch";
-import { gate, routeDoor } from "../../../frame-verbs";
+import { gate, routeDoor, type refusalToast } from "../../../frame-verbs";
+import { keepHistory } from "../../../settings/connections/history-choice";
+import { connectMailbox } from "../../../settings/connections/mailbox-connect";
 import { CmPane } from "../../parts/split";
 import { MessageSheet, WordsSheet, type LibraryReads } from "./new-message-sheets";
 import * as M from "./new-model";
@@ -86,6 +87,8 @@ interface DraftActs {
   discard: () => void;
   make: (start: boolean) => void;
   close: () => void;
+  /** A press the server refused (Connect Google's): said as the page's toast, in its words. */
+  refused: (r: Parameters<typeof refusalToast>[0]) => void;
 }
 
 /** What the sentence says a choice is, and whether it is made. */
@@ -324,7 +327,10 @@ function footLineOf(d: NewDraftDto, tz: string, at: M.FootReads): { lead: string
 const needsMailbox = (d: NewDraftDto): boolean => d.audience === "leads" && !!d.mailbox && !d.mailbox.label;
 
 /** To Google's consent with what the owner chose it brings in, and back to this draft, kept in the tab as it changes (new-page.tsx). */
-const connectForNew = (history: MailboxHistory) => connectMailbox("google", null, "new", history);
+const connectForNew = (history: MailboxHistory) => {
+  keepHistory(history);
+  return connectMailbox("google", null, "new", history);
+};
 
 /** The one act a draft is set up for: Start a sequence, Send now or Schedule a one-off, Send one to leads. */
 function actOf(d: NewDraftDto, onMake: (start: boolean) => void, onSendNow: () => void) {
@@ -370,7 +376,13 @@ function DraftFoot(p: {
         </Button>
       ) : null}
       {needsMailbox(draft) ? (
-        <Button variant="primary" onClick={p.onConnect} disabled={busy} data-testid="sq-nw-connect">
+        <Button
+          variant="primary"
+          onClick={p.onConnect}
+          disabled={busy}
+          data-testid="sq-nw-connect"
+          {...gate("settings", "connect a mailbox")}
+        >
           {W.sheets.connect}
         </Button>
       ) : (
@@ -500,7 +512,7 @@ function DraftSheets(p: {
       <FromSheet
         open={sheet?.kind === "from"}
         draft={draft}
-        onConnect={(history) => void connectForNew(history)}
+        onConnect={(history) => void connectForNew(history).then((r) => (r.ok ? undefined : acts.refused(r)))}
         onClose={close}
       />
     </>

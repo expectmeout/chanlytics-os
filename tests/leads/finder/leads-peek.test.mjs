@@ -405,6 +405,7 @@ const courierOf = (over = {}) => {
               words: WRITTEN,
               mail_foot: FOOT,
               from: over.from ?? null,
+              why: over.from ? null : (over.why ?? null),
               why_not: over.from ? null : (over.whyNot ?? null),
               foot: over.from ? "Sam\n\nI came across your business on Google Maps." : null,
             },
@@ -839,7 +840,7 @@ test("Send refused: its words stay, the door's reason beside them, and nothing m
 
 test("No mailbox: the one press is the way to connect one, and it says why", async () => {
   reset();
-  const courier = courierOf({ whyNot: LEAD_OWN_EMAIL_WORDS.whyNot.no_mailbox });
+  const courier = courierOf({ why: "no_mailbox", whyNot: LEAD_OWN_EMAIL_WORDS.whyNot.no_mailbox });
   const P = page({ courier, mode: "draft", draft: { busy: true } });
   await P.draw().acts.onDraft();
   const tree = P.draw().tree;
@@ -851,13 +852,25 @@ test("No mailbox: the one press is the way to connect one, and it says why", asy
 
 test("A mailbox that can't send now: Send stays, shut, and it says why", async () => {
   reset();
-  const courier = courierOf({ whyNot: LEAD_OWN_EMAIL_WORDS.whyNot.day_full });
+  const courier = courierOf({ why: "day_full", whyNot: LEAD_OWN_EMAIL_WORDS.whyNot.day_full });
   const P = page({ courier, mode: "draft", draft: { busy: true } });
   await P.draw().acts.onDraft();
   const tree = P.draw().tree;
   assert.equal(byTestId(tree, "lead-sheet-write-connect"), null);
   assert.equal(byTestId(tree, "lead-sheet-write-send").props.disabled, true);
   assert.match(textOf(byTestId(tree, "lead-sheet-write-why")), /sent its share for today/);
+});
+
+test("A mailbox that is there and can't send: the press is Open Connections, where it is fixed", async () => {
+  reset();
+  const courier = courierOf({ why: "not_sending", whyNot: LEAD_OWN_EMAIL_WORDS.whyNot.not_sending });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  const tree = P.draw().tree;
+  assert.equal(byTestId(tree, "lead-sheet-write-send"), null);
+  assert.equal(byTestId(tree, "lead-sheet-write-connect"), null);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-fix")), /Open Connections/);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-why")), /can't send right now/);
 });
 
 test("Write to them refused outright: why and the way back alone, no empty email and no mail app to press", () => {

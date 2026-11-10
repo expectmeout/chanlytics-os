@@ -213,6 +213,7 @@ export {
 export type { ScheduleCtx, ScheduleState } from "./schedule";
 export {
   batchModeOf,
+  coldBatchAsks,
   isSequenceMode,
   newSequenceMode,
   SEQUENCE_MODE_LABEL,

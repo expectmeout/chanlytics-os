@@ -21,11 +21,11 @@ export interface OutreachShared {
   read: ReachOutSettingsDto | null;
 }
 
-/** A card of the page: its title, its line, a mark at its head's end where it has one, and its rows. */
 /** What the section holds under a key, trimmed, or null where nothing is: what a row states at rest. */
 export const storedReachOut = (shared: OutreachShared, key: keyof ReachOutConfig): string | null =>
   textOrEmpty(shared.config.reach_out?.[key]).trim() || null;
 
+/** A card of the page: its title, its line, a mark at its head's end where it has one, and its rows. */
 export const OutreachCard = ({
   id,
   title,

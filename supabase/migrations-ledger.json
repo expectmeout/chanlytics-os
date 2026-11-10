@@ -65,13 +65,20 @@
     "00577": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
     "00578": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
     "00579": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
-    "00581": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a library is searched where it is kept (decision 0099) took 00588 above them; it lands above or beside it",
-    "00582": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a library is searched where it is kept (decision 0099) took 00588 above them; it lands above or beside it",
-    "00583": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a library is searched where it is kept (decision 0099) took 00588 above them; it lands above or beside it",
-    "00584": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a library is searched where it is kept (decision 0099) took 00588 above them; it lands above or beside it",
-    "00585": "claimed by cm-cold-fixes (#2223, cold email needs a mailbox in the database too, decision 0116), open and not on main when a library is searched where it is kept (decision 0099) took 00588 above them; it lands above or beside it",
-    "00586": "claimed by cm-content-pieces (#2224, the team adds photos and videos, decision 0099), open and not on main when a library is searched where it is kept (decision 0099) took 00588 above them; it lands above or beside it",
-    "00587": "the working number of cm-cold-alone (a sequence to leads may send on its own), unclaimed and not on main when a library is searched where it is kept (decision 0099) took 00588 above them"
+    "00581": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when cold email needs a mailbox (decision 0116) took 00585 above its claims; it lands above or beside it",
+    "00582": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when cold email needs a mailbox (decision 0116) took 00585 above its claims; it lands above or beside it",
+    "00583": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when cold email needs a mailbox (decision 0116) took 00585 above its claims; it lands above or beside it",
+    "00584": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when cold email needs a mailbox (decision 0116) took 00585 above its claims; it lands above or beside it",
+    "00586": "claimed by cm-content-pieces (#2224, the team adds photos and videos, decision 0099), open and not on main when a library is searched where it is kept (decision 0099) took 00596 above them; it lands above or beside it",
+    "00587": "working numbers of cm-cold-alone (cold email to leads, decision 0116), unclaimed and not on main when a library is searched where it is kept (decision 0099) took 00596 above them",
+    "00588": "working numbers of cm-cold-alone (cold email to leads, decision 0116), unclaimed and not on main when a library is searched where it is kept (decision 0099) took 00596 above them",
+    "00589": "working numbers of cm-cold-alone (cold email to leads, decision 0116), unclaimed and not on main when a library is searched where it is kept (decision 0099) took 00596 above them",
+    "00590": "working numbers of cm-cold-alone (cold email to leads, decision 0116), unclaimed and not on main when a library is searched where it is kept (decision 0099) took 00596 above them",
+    "00591": "working numbers of cm-cold-alone (cold email to leads, decision 0116), unclaimed and not on main when a library is searched where it is kept (decision 0099) took 00596 above them",
+    "00592": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), renumbered to 00592-00595 and open, not on main, when a library is searched where it is kept (decision 0099) took 00596 above them; it lands above or beside it",
+    "00593": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), renumbered to 00592-00595 and open, not on main, when a library is searched where it is kept (decision 0099) took 00596 above them; it lands above or beside it",
+    "00594": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), renumbered to 00592-00595 and open, not on main, when a library is searched where it is kept (decision 0099) took 00596 above them; it lands above or beside it",
+    "00595": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), renumbered to 00592-00595 and open, not on main, when a library is searched where it is kept (decision 0099) took 00596 above them; it lands above or beside it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -590,6 +597,7 @@
     "00574_a_record_of_each_thing_ask_did.sql": "a258a8fef63ad6fba2b98ab4cf81310316e0b8e8f512edb4f25b7876d90ef975",
     "00575_web_push_and_what_ask_told.sql": "22b059fcdafef7559b6e4a7a4c59d3466efb5d85e8effc5ef4f176149225ff92",
     "00580_a_late_booking_is_reminded.sql": "836e8d4d41a39945b2703ef0ef15a8a76e579742fb8607ac1c44f24094df22ef",
-    "00588_a_library_is_searched_where_it_is_kept.sql": "c209b1aa7be1e7303d178f21e4a38b349f4de162c9732713a08591a8f8bd81c7"
+    "00585_cold_email_needs_a_mailbox.sql": "de24b43131293771e9968fd27a79e93f24fbd0c5ec9e6851ee6097eebfad7488",
+    "00596_a_library_is_searched_where_it_is_kept.sql": "3e3069db4dd260a3677551b37f48b5c311caaa5f76011f50eff375879437d74b"
   }
 }

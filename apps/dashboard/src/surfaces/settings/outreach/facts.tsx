@@ -111,8 +111,10 @@ export function FactsCard(shared: OutreachShared) {
                 act={
                   shared.canEdit && can
                     ? {
-                        label: "Change",
+                        label: REACH_OUT_SETTINGS_WORDS.acts.change,
+                        name: FACT_WORDS.changeNamed(index + 1),
                         icon: "pencil",
+                        gate: gate("settings", "change the facts your emails can use"),
                         onClick: () => {
                           setAdding(false);
                           request();

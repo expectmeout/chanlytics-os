@@ -28,13 +28,13 @@ import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import {
   draftRefusalOf,
+  hasFootAddress,
   mailboxSendsNow,
   parseTenantConfig,
   reachOutSignatureOf,
   previewSlotOf,
   type LeadPreviewSlot,
   type SlotLead,
-  hasFootAddress,
 } from "@chanlytics/contracts";
 import { dashboardOrigin, unsubscribeOrigin } from "../../../shared/dashboard-origin.js";
 import { env } from "../../../shared/env.js";

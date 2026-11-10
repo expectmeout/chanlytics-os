@@ -13,6 +13,7 @@ import {
   reachOutSignatureOf,
   textOrEmpty,
   valueAt,
+  whyFrom,
 } from "@chanlytics/contracts";
 import { gate, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -40,11 +41,16 @@ const endingLinesOf = (ending: EndingDraft): string[] =>
     ...(reachOutSignatureOf({ reach_out: { signature: ending.signature, phone: ending.phone } }) ?? "").split("\n"),
   ].filter(Boolean);
 
-/** What the law asks for under them, in the words the send uses; null where the business has no address to give. */
+/**
+ * What the law asks for under them, in the words the send uses; null where the business has no address to give, or it
+ * is not read yet. Its first line says where the newest sequence found them: the map for a search, and for a list, which
+ * may hold anyone, the line a lead of no known source gets (contracts whyFrom).
+ */
 const endingFootOf = (shared: OutreachShared): string | null => {
   const foot = shared.read?.foot;
   if (!foot || !hasFootAddress(foot.business, foot.address)) return null;
-  return emailFoot(foot.business ?? "", foot.address, { kind: "cold", why: WHY_FROM_MAPS, unsubscribeUrl: null }, null);
+  const why = shared.read?.sequence?.fed_by === "list" ? whyFrom(null) : WHY_FROM_MAPS;
+  return emailFoot(foot.business ?? "", foot.address, { kind: "cold", why, unsubscribeUrl: null }, null);
 };
 
 /** One box of the sheet, with what is known that could go in it, offered while it is empty. */
@@ -153,13 +159,13 @@ export function EndingCard(shared: OutreachShared) {
                 ENDING_WORDS.none
               )
             }
-            value={noAddress ? null : ENDING_WORDS.foot}
+            value={foot ? ENDING_WORDS.foot : null}
             wrong={noAddress ? ENDING_WORDS.noAddress : null}
             act={
               shared.canEdit && can
                 ? {
-                    label: "Change",
-                    name: `Change ${ENDING_WORDS.title.toLowerCase()}`,
+                    label: REACH_OUT_SETTINGS_WORDS.acts.change,
+                    name: `${REACH_OUT_SETTINGS_WORDS.acts.change} ${ENDING_WORDS.title.toLowerCase()}`,
                     onClick: () => request(),
                     gate: editGate,
                   }

@@ -1,18 +1,25 @@
 /**
  * Write to them, a step of the same sheet (the review of 4 Nov 2026; decision 0094): one email, written for them by the
  * route (POST leads/:id/draft) and theirs to change. With a mailbox that can send it, Send leaves from there, through the
- * one send door, with Undo for its grace. With none, the one press is the way to connect one; a mailbox that can't send
- * now says why (Ruben, 9 Nov 2026: a mailbox is required, and sending by hand defeats the purpose). ‹ Back returns to the
+ * one send door, with Undo for its grace. With none, the one press opens the connect sheet; a mailbox that is there and
+ * can't send now says why, and its press opens Connections, where it is fixed (Ruben, 9 Nov 2026: a mailbox is
+ * required, and sending by hand defeats the purpose). Each is gated as connecting a mailbox is. ‹ Back returns to the
  * card.
  *
  * Hookless.
  */
-import { LEAD_OWN_EMAIL_WORDS as OW, LEAD_WORDS as LW, type LeadPeekVM } from "@chanlytics/contracts";
+import {
+  COLD_EMAIL_CONNECT_ROUTE,
+  CONNECTIONS_PAGE,
+  LEAD_OWN_EMAIL_WORDS as OW,
+  LEAD_WORDS as LW,
+  type LeadPeekVM,
+} from "@chanlytics/contracts";
 import { LEAD_SHEET_WORDS as W } from "./model/view";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Panel } from "../../kit/panel/panel";
-import { navigate } from "../../frame-verbs";
+import { gate, navigate } from "../../frame-verbs";
 import type { DraftState, PeekActs } from "../peek/types";
 import { WordsBox } from "./email-box";
 import { stepHead } from "./picker";
@@ -30,8 +37,17 @@ const refusedOutright = (d: DraftState) => !!d.refusal && !d.body;
 /** What goes under the words, as the road it takes lays it. */
 const footWordsOf = (d: DraftState) => (d.from ? d.foot : d.mailFoot?.trim()) || null;
 
-/** No mailbox at all: the press is the way to one, on the page that says what it takes. */
-const needsMailbox = (d: DraftState) => !d.from && d.whyNot === OW.whyNot.no_mailbox;
+/**
+ * The press where no mailbox sends it, by why (never by its words): none at all opens the connect sheet, one that can't
+ * send now opens Connections; null where Send is the press (a full day says why and waits).
+ */
+const roadPressOf = (d: DraftState): { label: string; icon: "mail" | "settings"; to: string; id: string } | null => {
+  if (d.from) return null;
+  if (d.whyCode === "no_mailbox")
+    return { label: OW.connect, icon: "mail", to: COLD_EMAIL_CONNECT_ROUTE, id: "connect" };
+  if (d.whyCode === "not_sending") return { label: OW.fix, icon: "settings", to: CONNECTIONS_PAGE, id: "fix" };
+  return null;
+};
 
 /**
  * The email, as it will go: to whom, its subject and its words to change, and what is added under them; "Writing it…"
@@ -131,17 +147,19 @@ export function SheetWriteDock({ draft, busy, on }: WriteProps) {
   const d: DraftState = draft || {};
   if (refusedOutright(d)) return null;
   const canSend = !!(d.from && d.subject && d.body && !d.busy && d.words?.trim() && !d.sending);
+  const road = roadPressOf(d);
   return (
     <div className="lw-dock" data-busy={busy || d.busy ? "true" : undefined} data-testid="lead-sheet-dock">
-      {needsMailbox(d) ? (
+      {road ? (
         <Button
           variant="primary"
           className="lw-dock-b"
-          onClick={() => navigate("admin/outreach/connect")}
-          data-testid="lead-sheet-write-connect"
+          onClick={() => navigate(road.to)}
+          {...gate("settings", "connect a mailbox")}
+          data-testid={`lead-sheet-write-${road.id}`}
         >
-          <Icon name="mail" size={14} />
-          <span className="lw-dock-w">{OW.connect}</span>
+          <Icon name={road.icon} size={14} />
+          <span className="lw-dock-w">{road.label}</span>
         </Button>
       ) : (
         <Button

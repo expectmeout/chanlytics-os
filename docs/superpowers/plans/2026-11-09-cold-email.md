@@ -196,6 +196,17 @@ Assumed call 4. If Ruben overrules it, skip this task, and Task 7's row reads `F
 
 **Stage A gate:** show Ruben on a phone. Push on his word.
 
+**The end-to-end review of Stage A (9 Nov 2026), and where it differs from the tasks above, on purpose:**
+
+- Setting up has four steps, not three: "Say what you sell" joined the mailbox, the address and the people, since an
+  email with nothing to say is the first thing a reply notices. A workspace that has written before is never held back
+  by it alone.
+- Today's line is decided by its own read: two reads say whether a workspace has started cold email (a search or a
+  sequence), and nothing else is read for one that has not (Task 11's rule, without asking the browser).
+- Who never hears counts all three by address: said no, asked to stop, and customers (Task 4).
+- The rule that a mailbox is required is the database's too (00585), and Start and Turn back on are held to it.
+- Still owed: the gate above, on his phone. The connect helpers move out of Settings with Stage B, as planned.
+
 ---
 
 # Stage B: the email first

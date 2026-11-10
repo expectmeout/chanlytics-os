@@ -127,6 +127,18 @@ test("the save writes the ending its body names, and keeps it where the body nam
   assert.equal((await rootOf(made.root_id)).signs_with, "name", "written: the body named it");
 });
 
+// Before any mailbox is connected (the next test connects A's): cold email sends from one (decision 0116, 00585).
+test("with no mailbox connected, a sequence to leads is refused, in the words New says", async (t) => {
+  if (skip) return t.skip(skip);
+  const refused = await as.a.c.rpc("sequence_create", {
+    p_tenant_id: A,
+    p_first: { starts: "leads", name: `Movers ${stamp} none` },
+    p_start: false,
+  });
+  assert.equal(refused.error?.code, "22023");
+  assert.match(refused.error?.message ?? "", /^Connect your mailbox first/);
+});
+
 test("New writes from the mailboxes whose SPF and DKIM are set, every one where none is, one email every 20 minutes", async (t) => {
   if (skip) return t.skip(skip);
   const set = await mailbox(A, { spf: "found", dkim: "found", dmarc: "found", mx: "found" });
@@ -161,4 +173,29 @@ test("New writes from the mailboxes whose SPF and DKIM are set, every one where 
   const rootB = await rootOf(b.id);
   assert.deepEqual([...rootB.mailbox_ids].sort(), [b1, b2].sort());
   assert.equal(rootB.owner_sends, false);
+});
+
+test("a sequence to leads is never sent by hand: asked so it is refused, and a copy of one that was sends from the mailboxes", async (t) => {
+  if (skip) return t.skip(skip);
+  // A's mailboxes are connected by the test before.
+  const byHand = await as.a.c.rpc("sequence_create", {
+    p_tenant_id: A,
+    p_first: { starts: "leads", name: `Movers ${stamp} by hand`, owner_sends: true },
+    p_start: false,
+  });
+  assert.equal(byHand.error?.code, "22023");
+  assert.match(byHand.error?.message ?? "", /by hand/);
+  // One kept from before the rule, sent by its owner: its copy goes from the mailboxes, as every new one does.
+  const old = ok(await save(chainOf(await listOf(A, "Movers old"), { owner_sends: true })));
+  assert.equal((await rootOf(old.root_id)).owner_sends, true);
+  const copy = ok(
+    await as.a.c.rpc("sequence_create", {
+      p_tenant_id: A,
+      p_first: { starts: "leads", name: `Movers ${stamp} copy`, from: old.root_id },
+      p_start: false,
+    }),
+  );
+  const root = await rootOf(copy.id);
+  assert.equal(root.owner_sends, false);
+  assert.ok(root.mailbox_ids.length > 0, "it writes from the workspace's mailboxes");
 });

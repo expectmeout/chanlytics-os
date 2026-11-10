@@ -452,6 +452,7 @@ export const LeadsFirstDay = ({
               className="ld-first-door"
               onClick={() => navigate("admin/outreach")}
               data-testid="ld-first-cold-email"
+              {...gate("settings", "set up cold email")}
             >
               <Icon name="send" size={14} />
               {LEAD_WORDS.firstDay.coldEmail}
