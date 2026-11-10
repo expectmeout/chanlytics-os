@@ -271,7 +271,7 @@ export interface JobContext {
     /** A workspace's due reach-out steps; none started after `deadline`. Throws when its page cannot be read. */
     steps: (job: ClaimedJob, deadline: number) => Promise<unknown>;
     /**
-     * A workspace's occasions whose time has come, each run or left (00585, decision 0119); none started after
+     * A workspace's occasions whose time has come, each run or left (00597, decision 0119); none started after
      * `deadline`. Throws when what is due, or the workspace, cannot be read.
      */
     occasions: (job: ClaimedJob, deadline: number) => Promise<unknown>;

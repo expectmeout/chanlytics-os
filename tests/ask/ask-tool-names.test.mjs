@@ -1251,7 +1251,7 @@ function againstOffered(got, frozen) {
  * hear first and in which voice, the transfer number, the owner's own words and the three messages -- beside the
  * languages and photos, so a card that changes a row of How it answers is proposed from what the row holds. This
  * world's: nothing set but the prompt written before the form, which the box opens as the owner's own words, and the
- * three messages it stores. 7 Nov 2026 (decision 0113): and How it reaches out after it, for the same reason; here
+ * three messages it stores. 7 Nov 2026 (decision 0113): and Cold email after it, for the same reason; here
  * nothing is set, so each row is null, there are no claims, and an answer to a lead offers the booking link. Nothing
  * else moved.
  */

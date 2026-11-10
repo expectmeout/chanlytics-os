@@ -437,8 +437,8 @@ test("a row ends on its state only where it is not On; the head's line says what
     "none asks",
   );
   assert.equal(sequenceSubLine(oneOff, rec, NOW), "One message · goes on its own");
-  // A sequence to leads fed by a list asks before each first email whatever its mode (00426: each lead was added by
-  // hand); one on its search holds as its mode says (30 Oct 2026: the line said it held what waited for an OK).
+  // A sequence to leads holds or asks as its mode says, fed by a list or by its search (Cold email, 9 Nov 2026): its
+  // first run needs an OK all the same, because its words are new (contracts batchModeOf).
   const leads = row({
     starts: "leads",
     mode: "veto",
@@ -446,7 +446,7 @@ test("a row ends on its state only where it is not On; the head's line says what
   });
   assert.equal(
     sequenceSubLine(leads, { ...rec, fed_by: "list" }, NOW),
-    "Leads from “Auto shops” · asks you before each first email",
+    "Leads from “Auto shops” · holds each batch for you to stop",
   );
   assert.equal(
     sequenceSubLine(leads, { ...rec, fed_by: "search" }, NOW),
@@ -460,7 +460,7 @@ test("a row ends on its state only where it is not On; the head's line says what
   // A search named as the sequence is the name said again under itself (3 Nov 2026), so the line leaves it out.
   assert.equal(
     sequenceSubLine({ ...leads, name: " auto Shops" }, { ...rec, fed_by: "list" }, NOW),
-    "Leads · asks you before each first email",
+    "Leads · holds each batch for you to stop",
   );
 });
 

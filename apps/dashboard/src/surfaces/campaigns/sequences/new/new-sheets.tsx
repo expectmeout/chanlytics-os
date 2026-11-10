@@ -9,6 +9,7 @@
 import { useState, type ReactNode } from "react";
 import {
   CHANNELS_DOOR,
+  COLD_EMAIL_CONNECT_WORDS,
   DAY_MS,
   FOLLOW_UP_CONDITIONS,
   SEQUENCE_EDIT_WORDS,
@@ -28,6 +29,7 @@ import {
   zonedInputValue,
   type ConsentChannel,
   type DraftWho,
+  type MailboxHistory,
   type NewAudience,
   type NewDraftDto,
   type NewKind,
@@ -43,8 +45,9 @@ import { ListRow } from "../../../kit/list-row/list-row";
 import { Select } from "../../../kit/select/select";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
-import { keyPress, routeDoor } from "../../../frame-verbs";
+import { gate, keyPress, routeDoor } from "../../../frame-verbs";
 import { pageClock } from "@/bridge/zone";
+import { HistoryChoice, historyKept } from "../../../settings/connections/history-choice";
 import { WhenDayTime } from "../../broadcasts/when";
 import * as M from "./new-model";
 import { AudienceToggle, CaseNote } from "./new-parts";
@@ -708,45 +711,65 @@ export function OkSheet(p: {
   );
 }
 
-/** Where a sequence to leads sends from: the workspace's mailbox, or the owner, each by hand. */
+/**
+ * Where a sequence to leads sends from: the workspace's mailbox, or what connecting one gives and brings in, and the way
+ * to it (as Cold email's sheet says it).
+ */
 export function FromSheet(p: {
   open: boolean;
   draft: NewDraftDto;
-  onOwnerSends: (on: boolean) => void;
+  onConnect: (history: MailboxHistory) => void;
   onClose: () => void;
 }) {
   const box = p.draft.mailbox;
+  const needs = !!box && !box.label;
+  const [history, setHistory] = useState<MailboxHistory>(historyKept);
   return (
-    <PickSheet open={p.open} title={W.sheets.from} sub={W.sheets.fromSub} onClose={p.onClose} testid="sq-nw-from">
-      <div className="sq-nw-rows">
-        {box?.label ? (
+    <PickSheet
+      open={p.open}
+      title={W.sheets.from}
+      sub={W.sheets.fromSub}
+      onClose={p.onClose}
+      testid="sq-nw-from-sheet"
+      foot={
+        needs ? (
+          <Button
+            variant="primary"
+            onClick={() => p.onConnect(history)}
+            data-testid="sq-nw-from-connect"
+            {...gate("settings", "connect a mailbox")}
+          >
+            {COLD_EMAIL_CONNECT_WORDS.google}
+          </Button>
+        ) : undefined
+      }
+    >
+      {needs ? (
+        <>
+          <div className="sq-nw-rows">
+            {COLD_EMAIL_CONNECT_WORDS.promises.map(([name, said]) => (
+              <Choice key={name} glyph="check" name={name} said={said} testid="sq-nw-from-promise" />
+            ))}
+          </div>
+          <HistoryChoice value={history} onChange={setHistory} lineClass="sq-nw-note" />
+        </>
+      ) : (
+        <div className="sq-nw-rows">
           <Choice
             glyph="mail"
             name={W.sheets.yourMailbox}
-            said={box.label}
-            on={!box.owner_sends}
-            onPick={() => p.onOwnerSends(false)}
+            said={box?.label ?? W.sheets.connectSaid}
+            on
             testid="sq-nw-from-box"
           />
-        ) : (
-          <Choice
-            glyph="mail"
-            name={W.sheets.noMailbox}
-            said={W.sheets.connectSaid}
-            door={{ label: W.sheets.connect, to: "settings" }}
-            testid="sq-nw-from-connect"
-          />
-        )}
-        <Choice
-          glyph="check"
-          name={W.sheets.youSend}
-          said={W.sheets.youSendSaid}
-          on={!box?.label || !!box.owner_sends}
-          onPick={() => p.onOwnerSends(true)}
-          testid="sq-nw-from-you"
-        />
-      </div>
+        </div>
+      )}
       <p className="sq-nw-note">{W.checks.pace(REACH_OUT_GAP_FIRST)}</p>
+      <p className="sq-nw-note">
+        <a className="sq-nw-door" {...routeDoor("admin/outreach")} data-testid="sq-nw-from-cold-email">
+          {W.sheets.coldEmail}
+        </a>
+      </p>
     </PickSheet>
   );
 }

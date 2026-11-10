@@ -26,7 +26,7 @@ export const listSearchCards = async (db: Db, tenantId: TenantId, limit: number)
     .order("created_at", { ascending: false })
     .limit(limit);
 
-/** The name of the workspace's newest search not removed, or null: who it has been looking for. */
+/** The name of the workspace's newest search not removed, or null where there is none; a blank name is "", still one. */
 export async function findNewestSearchName(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db
     .from("lead_searches")
@@ -37,7 +37,7 @@ export async function findNewestSearchName(db: Db, tenantId: TenantId): Promise<
     .limit(1)
     .maybeSingle();
   if (error) throw new DbFailure(error, "cannot read the newest search");
-  return data?.name.trim() || null;
+  return data ? data.name.trim() : null;
 }
 
 /** The workspace's searches' names, `limit` of them. */

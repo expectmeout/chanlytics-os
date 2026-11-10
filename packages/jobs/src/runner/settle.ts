@@ -51,7 +51,7 @@ import { countLiveBroadcastJobs } from "@chanlytics/db/jobs";
 import { carriedBy, nextBatch } from "./batch-carry";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, RUN_INTERRUPTED, type Db } from "./ledger";
-import { scheduleJob } from "./schedule";
+import { scheduleJob, scheduleJobOnce } from "./schedule";
 import type { TenantId } from "@chanlytics/contracts";
 
 export interface TerminalJob {
@@ -453,13 +453,27 @@ async function settleFileLook(db: Db, job: TerminalJob): Promise<Settled[]> {
   return [{ what: "file", changed: true }];
 }
 
+/** The digest's steps that only hear a video: one that will not finish is no reason the video goes unseen. */
+const HEARING_STEPS: ReadonlySet<string> = new Set(["audio", "words", "note"]);
+
 /**
- * A video's digest that will not finish (00556): the row stops saying Looking, by the same door a look's end goes through, so the
+ * A video's digest that will not finish (00556). A step that only hears it (its sound, its words, its note) leaves the look to
+ * go ahead on the sheet alone, as an ear that is held does: the first silent clip's audio was refused three times of three and the
+ * clip was never looked at. Any other step's end stops the row saying Looking, by the same door a look's end goes through, so the
  * tile settles on what it has (its poster, its length) and the sweep tries the step left undone a day on while the video is young.
  */
 async function settleVideoDigest(db: Db, job: TerminalJob): Promise<Settled[]> {
   const fileId = idFrom(job.payload, "file_id");
   if (!fileId) return [{ what: "file", changed: false, error: "no file on the job" }];
+  if (HEARING_STEPS.has(idFrom(job.payload, "step") ?? "")) {
+    await scheduleJobOnce(db, {
+      tenantId: job.tenant_id,
+      kind: "file_look",
+      dueAt: new Date(),
+      payload: { file_id: fileId, edition: String(VIDEO_LOOK_EDITION) },
+    });
+    return [{ what: "file", changed: true }];
+  }
   await keepFileLook(db, {
     tenantId: job.tenant_id,
     id: fileId,

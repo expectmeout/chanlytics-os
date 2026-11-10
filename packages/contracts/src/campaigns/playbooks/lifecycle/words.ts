@@ -234,7 +234,7 @@ export const LIFECYCLE_WORDS = {
       body: "The moments show who they reach once it reads. Everything else here is current.",
       surface: "playbooks",
     },
-    chains: { what: "your sequences to leads", body: "The moments above are current.", surface: "reach_outs" },
+    chains: { what: "your cold email", body: "The moments above are current.", surface: "reach_outs" },
     report: { what: "this period's numbers", body: "The runs below stand.", surface: "campaign_results" },
     // The broadcasts read itself, said in each tile made from it.
     reach: {

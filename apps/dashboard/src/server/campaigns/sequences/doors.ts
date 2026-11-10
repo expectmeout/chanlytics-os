@@ -40,6 +40,7 @@ import {
   type StepWordsBody,
 } from "./bodies";
 import type { TenantId } from "@chanlytics/contracts";
+import { refuseWithoutMailbox } from "../reach-outs/mailbox-needed";
 
 /**
  * A sequence's doors (decision 0060, 00442), as the routes under sequences press them: a new sequence made whole and one
@@ -164,7 +165,9 @@ async function makeLeadSequenceNow(ctx: RouteContext, tenantId: TenantId, input:
   const parsed = LEAD_FIRST_BODY.safeParse(input.first);
   if (!parsed.success) throw new AppError("validation", parsed.error.issues[0]?.message ?? "Name it.");
   // What Ask drafted is the decision's, beside what the owner made of it (decision 0078 step 2); never a step's.
-  const { as_drafted: asDrafted, ...first } = parsed.data;
+  // A sequence to leads sends from a mailbox, and the make marks one with none as sent by hand (00459), so none is made.
+  await refuseWithoutMailbox(ctx, tenantId, parsed.data.owner_sends);
+  const { as_drafted: asDrafted, owner_sends: _ownerSends, ...first } = parsed.data;
   const steps = (first.steps ?? []).map(({ id: _id, hand, ...s }) => (hand ? { ...s, hand } : s));
   steps.forEach((s, i) => {
     if ("hand" in s || !s.body.trim()) return;

@@ -1,5 +1,5 @@
 /**
- * The three writers read How it reaches out (decision 0113): the sequence's drafter (ownerSaid, which New and a rewrite
+ * The three writers read Cold email (decision 0113): the sequence's drafter (ownerSaid, which New and a rewrite
  * share), the opening writer at the edge (checkWorkspaceOf), and the reply drafter's steer (replyOfferSteer). A workspace
  * that never opened the page is told what it was told before; one that did is told the owner's own words.
  */

@@ -1,5 +1,5 @@
 /**
- * What each writer of a cold email reads of How it reaches out (decision 0113; the config's `reach_out` section,
+ * What each writer of a cold email reads of Cold email (decision 0113; the config's `reach_out` section,
  * config-schema.ts), with what it reads where nothing is set: the offer is what the business says of itself (db
  * findWorkspaceWords: business_records.about, else its Google profile's or its website's words) and then the owner's goal;
  * the tone is the receptionist's; the sign-off is what the caller already knew. So a workspace that never opens the page
@@ -27,6 +27,17 @@ const whatItDoesOf = (config: ReachOutReadable | null | undefined, about: string
  */
 export function reachOutOfferOf(config: ReachOutReadable | null | undefined, about: string | null): string | null {
   return whatItDoesOf(config, about) ?? filled(config?.ask?.goal);
+}
+
+/**
+ * Whether anything says what the business sells (reachOutOfferOf), for the page's one answer. `ownWords` undefined is
+ * its own words not read (the read failed, or it could not change the answer), which counts as said.
+ */
+export function reachOutPitchSaid(
+  config: ReachOutReadable | null | undefined,
+  ownWords: { text: string } | null | undefined,
+): boolean {
+  return ownWords === undefined || reachOutOfferOf(config, ownWords?.text ?? null) !== null;
 }
 
 /** The tone a cold email is written in: its own, else the receptionist's. */

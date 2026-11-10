@@ -12,23 +12,29 @@ import {
   type RehearsalDto,
   recordOrEmpty,
   ASK_MEMORY_LIMITS,
-  REACH_OUT_DRAFTS_PER_DAY,
   REACH_OUT_MONTH_EMAILS,
   REPLY_MODE_UNSET,
+  coldEmailSendingOf,
+  coldEmailStandingOf,
+  hasFootAddress,
   mailboxIsLive,
   mailboxSendsNow,
   mailboxWords,
+  newSequenceMode,
   parseTenantConfig,
+  reachOutPitchSaid,
+  type ColdEmailStandingFacts,
   type MailboxConnectionDto,
   type ReachOutChainDto,
+  type ReachOutChainReportDto,
   type ReachOutSettingsDto,
   type ReachOutSettingsMailbox,
   type ReachOutSettingsSequence,
   firstNameOf,
 } from "@chanlytics/contracts";
 import { findRehearsalById } from "@chanlytics/db/facts";
-import { countSentByStep, findWorkspaceWords, reviewLinkOf } from "@chanlytics/db/campaigns";
-import { findNewestSearchName } from "@chanlytics/db/leads";
+import { countHeldForAddress, countSentByStep, findWorkspaceWords, reviewLinkOf } from "@chanlytics/db/campaigns";
+import { countLeadSuppressions, findNewestSearchName } from "@chanlytics/db/leads";
 import { askMemoryLines, getJournalMemberNames } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
 import type { RouteContext } from "../shared/with-route";
@@ -36,6 +42,7 @@ import { findPromptPreview, type PromptPreviewDto } from "../receptionist/prompt
 import { listLines } from "../connections/lines";
 import { listMailboxConnectionsWithDays } from "../connections/mailbox-connections";
 import { readReachOutMonthOrNull } from "../campaigns/month-sent";
+import { getChainReport } from "../campaigns/reach-outs/chain-acts";
 import { listChains } from "../campaigns/reach-outs/reach-outs";
 import { log } from "../shared/log";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
@@ -234,7 +241,7 @@ export const rehearsal: Reader<{ id: string }, RehearsalDto> = {
   },
 };
 
-/* ------------------------------------------------------------ How it reaches out (decision 0113) */
+/* ------------------------------------------------------------ Cold email (decision 0113) */
 
 /** A chain's first step where it is an email with words: what Try it writes, and what the drafter reads. */
 const openingEmailOf = (chain: ReachOutChainDto) => {
@@ -242,11 +249,13 @@ const openingEmailOf = (chain: ReachOutChainDto) => {
   return first && !first.hand && first.body.trim() ? first : null;
 };
 
+/** The sequences running to leads, newest first. */
+export const runningNewestFirst = <T extends { state: string; created_at: string }>(chains: readonly T[]): T[] =>
+  chains.filter((c) => c.state === "running").sort((a, b) => b.created_at.localeCompare(a.created_at));
+
 /** The newest running sequence to leads whose first step is an email: Try it's words, and Signs as' first guess. */
 export function newestLeadSequence(chains: readonly ReachOutChainDto[]): ReachOutSettingsSequence | null {
-  const chain = chains
-    .filter((c) => c.state === "running" && openingEmailOf(c))
-    .reduce<ReachOutChainDto | null>((best, c) => (!best || c.created_at > best.created_at ? c : best), null);
+  const chain = runningNewestFirst(chains).find((c) => openingEmailOf(c)) ?? null;
   const first = chain ? openingEmailOf(chain) : null;
   if (!chain || !first) return null;
   const second = chain.steps.at(1);
@@ -258,6 +267,7 @@ export function newestLeadSequence(chains: readonly ReachOutChainDto[]): ReachOu
     signed_by: chain.signed_by,
     signs_with: chain.signs_with,
     mailbox_id: chain.mailbox_ids[0] ?? null,
+    fed_by: chain.fed_by ?? null,
     first: { subject: first.subject, body: first.body },
     next:
       second && !second.hand && second.after_days !== null
@@ -277,19 +287,16 @@ export function stepsCarrying(claims: readonly string[], chains: readonly ReachO
   );
 }
 
-/** Each claim with the emails sent from steps whose words carry it. */
+/** Each claim with the emails sent from steps whose words carry it; null where the counts could not be read. */
 export function claimCounts(
   claims: readonly string[],
   chains: readonly ReachOutChainDto[],
-  sent: ReadonlyMap<string, number>,
+  sent: ReadonlyMap<string, number> | null,
 ): ReachOutSettingsDto["claims"] {
   return claims.map((text) => {
     const t = text.trim();
-    const sends = chains
-      .flatMap((c) => c.steps)
-      .filter((s) => !s.hand && t && wordsOfStep(s).includes(t))
-      .reduce((n, s) => n + (sent.get(s.id) ?? 0), 0);
-    return { text, sends };
+    const carried = chains.flatMap((c) => c.steps).filter((s) => !s.hand && t && wordsOfStep(s).includes(t));
+    return { text, sends: sent ? carried.reduce((n, s) => n + (sent.get(s.id) ?? 0), 0) : null };
   });
 }
 
@@ -313,6 +320,67 @@ export function mailboxShown(
   };
 }
 
+/** The sequence the page's one answer speaks of: one waiting for an OK, else the newest running. */
+export function standingChainOf(chains: readonly ReachOutChainDto[]): ReachOutChainDto | null {
+  const running = runningNewestFirst(chains);
+  return running.find((c) => c.next.waiting_run_id) ?? running.at(0) ?? null;
+}
+
+/** What Where it stands decides from: a number the page could not read is null, never a made-up 0. */
+export function standingFactsOf(input: {
+  chains: readonly ReachOutChainDto[];
+  /** The report of standingChainOf's sequence, the one read this costs: null where it could not be read. */
+  report: ReachOutChainReportDto | null;
+  mailboxes: readonly MailboxConnectionDto[];
+  hasAddress: boolean;
+  heldForAddress: number | null;
+  month: { sent: number | null; of: number };
+  hasSearch: boolean;
+  hasPitch: boolean;
+  whoFor: string | null;
+  nowMs: number;
+  tz: string;
+}): ColdEmailStandingFacts {
+  const { chains, report, ...rest } = input;
+  const subject = standingChainOf(chains);
+  const total = (pick: (s: ReachOutChainReportDto["steps"][number]) => number | undefined): number | null =>
+    report ? report.steps.reduce((n, s) => n + (pick(s) ?? 0), 0) : null;
+  const sent = total((s) => s.written);
+  const waitingId = subject?.next.waiting_run_id ?? null;
+  const running = runningNewestFirst(chains);
+  return {
+    ...rest,
+    mailboxes: input.mailboxes.filter(mailboxIsLive),
+    hadSequence: chains.length > 0,
+    waitingRun:
+      subject && waitingId
+        ? {
+            id: waitingId,
+            planned: report?.runs.find((r) => r.id === waitingId)?.planned ?? null,
+            name: subject.search?.name || subject.name,
+            // What it sent unread says neither first nor next.
+            first: sent === null ? null : sent === 0,
+          }
+        : null,
+    othersWaiting: waitingId
+      ? running.filter((c) => c.next.waiting_run_id && c.root_id !== subject?.root_id).length
+      : 0,
+    running: running.map((c) => {
+      const own = c.root_id === subject?.root_id;
+      return {
+        root_id: c.root_id,
+        name: c.name,
+        fed_by: c.fed_by ?? null,
+        search_id: c.search?.id ?? null,
+        sent: own ? sent : null,
+        wroteBack: own ? total((s) => s.wrote_back) : null,
+        interested: own ? total((s) => s.interested) : null,
+        waitingLeads: c.people?.waiting ?? null,
+      };
+    }),
+  };
+}
+
 /** One part of the read, which may fail alone: the page draws the rest, and the failure is logged. */
 async function partOrElse<T>(read: Promise<T>, part: string, tenantId: TenantId, otherwise: T): Promise<T> {
   try {
@@ -323,8 +391,41 @@ async function partOrElse<T>(read: Promise<T>, part: string, tenantId: TenantId,
   }
 }
 
+type Db = RouteContext["supabase"];
+
+/** The business's own words. Undefined is not read, which never asks for a pitch (contracts reachOutPitchSaid). */
+const ownWordsOrUnread = (db: Db, tenantId: TenantId) =>
+  partOrElse<Awaited<ReturnType<typeof findWorkspaceWords>> | undefined>(
+    findWorkspaceWords(db, tenantId),
+    "about",
+    tenantId,
+    undefined,
+  );
+
+/** The reader's own name as the journal has it, or null. */
+const ownNameOrNull = async (db: Db, tenantId: TenantId, userId: string): Promise<string | null> => {
+  const names = await partOrElse<Record<string, string>>(getJournalMemberNames(db, [userId]), "name", tenantId, {});
+  return names[userId]?.trim() || null;
+};
+
+/** The emails each step carrying a claim sent. Null is not read, sequences or counts: the claim then shows no count. */
+const claimSendsOrUnread = (
+  db: Db,
+  tenantId: TenantId,
+  claims: readonly string[],
+  chains: readonly ReachOutChainDto[] | null,
+) =>
+  chains
+    ? partOrElse<ReadonlyMap<string, number> | null>(
+        countSentByStep(db, tenantId, stepsCarrying(claims, chains)),
+        "counts",
+        tenantId,
+        null,
+      )
+    : null;
+
 /**
- * GET settings/reach-out: what How it reaches out shows beyond the config. The mailbox as Connections says it, the month's
+ * GET settings/reach-out: what Cold email shows beyond the config. The mailbox as Connections says it, the month's
  * first emails against their share, the claims' counts, the lines Ask learned from how the owner writes, the newest
  * running sequence to leads, and Autonomy's reply mode, which a lead's drafted answer follows.
  */
@@ -333,38 +434,76 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const tenantId = rc.tenantId;
-    const [row, facts, mailboxes, sent, memory, chains, policies, ownWords, names, newestSearch] = await Promise.all([
-      partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
-      partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
-      partOrElse(listMailboxConnectionsWithDays(db, tenantId, rc.now), "mailboxes", tenantId, []),
-      readReachOutMonthOrNull(tenantId, rc.now),
-      partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
-      partOrElse(listChains(rc.ctx, tenantId), "chains", tenantId, []),
-      partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
-      partOrElse(findWorkspaceWords(db, tenantId), "about", tenantId, null),
-      partOrElse<Record<string, string>>(getJournalMemberNames(db, [rc.ctx.userId]), "name", tenantId, {}),
-      partOrElse(findNewestSearchName(db, tenantId), "newest_search", tenantId, null),
+    const [row, facts, mailboxes, sent, memory, chains, policies, ownWords, name, newestSearch, never] =
+      await Promise.all([
+        partOrElse(load(rc, readers.config, undefined), "config", tenantId, null),
+        partOrElse(load(rc, readers.facts, undefined), "facts", tenantId, null),
+        partOrElse<MailboxConnectionDto[] | null>(
+          listMailboxConnectionsWithDays(db, tenantId, rc.now),
+          "mailboxes",
+          tenantId,
+          null,
+        ),
+        readReachOutMonthOrNull(tenantId, rc.now),
+        partOrElse(askMemoryLines(db, tenantId, ASK_MEMORY_LIMITS.liveMax), "memory", tenantId, []),
+        partOrElse<ReachOutChainDto[] | null>(listChains(rc.ctx, tenantId), "chains", tenantId, null),
+        partOrElse(listPolicies(db, tenantId), "policies", tenantId, []),
+        ownWordsOrUnread(db, tenantId),
+        ownNameOrNull(db, tenantId, rc.ctx.userId),
+        // Undefined is not read: a search that could not be read is never a step still to do.
+        partOrElse<string | null | undefined>(findNewestSearchName(db, tenantId), "newest_search", tenantId, undefined),
+        partOrElse(countLeadSuppressions(db, tenantId), "never", tenantId, null),
+      ]);
+    const parsed = parseTenantConfig(row?.data?.config);
+    const claims = parsed?.reach_out?.proof ?? [];
+    const chainList = chains ?? [];
+    // What the one answer decides from, read: with any of it lost it says nothing, never "Connect your mailbox".
+    const decided = !!row && !!facts && !!mailboxes && !!chains;
+    const hasAddress = hasFootAddress(facts?.data.name, parsed?.brain?.profile?.address);
+    const subject = standingChainOf(chainList);
+    const [counted, report, heldForAddress] = await Promise.all([
+      claimSendsOrUnread(db, tenantId, claims, chains),
+      subject ? partOrElse(getChainReport(rc.ctx, tenantId, subject.root_id), "report", tenantId, null) : null,
+      hasAddress ? 0 : partOrElse(countHeldForAddress(db, tenantId), "held_for_address", tenantId, null),
     ]);
-    const name = names[rc.ctx.userId]?.trim() || null;
-    const claims = parseTenantConfig(row?.data?.config)?.reach_out?.proof ?? [];
-    const counted = await partOrElse(
-      countSentByStep(db, tenantId, stepsCarrying(claims, chains)),
-      "counts",
-      tenantId,
-      new Map(),
-    );
+    const tz = facts?.data.timezone ?? "UTC";
+    const month = { sent, of: REACH_OUT_MONTH_EMAILS };
     return {
       data: {
-        mailbox: mailboxShown(mailboxes, rc.now.getTime(), facts?.data.timezone ?? "UTC"),
-        month: { sent, of: REACH_OUT_MONTH_EMAILS },
-        by_hand_per_day: REACH_OUT_DRAFTS_PER_DAY,
-        claims: claimCounts(claims, chains, counted),
+        standing: decided
+          ? coldEmailStandingOf(
+              standingFactsOf({
+                chains: chainList,
+                report,
+                mailboxes,
+                hasAddress,
+                heldForAddress,
+                month,
+                hasSearch: newestSearch !== null,
+                hasPitch: reachOutPitchSaid(parsed, ownWords),
+                whoFor: parsed?.reach_out?.who_for?.trim() || null,
+                nowMs: rc.now.getTime(),
+                tz,
+              }),
+            )
+          : null,
+        sending: mailboxes ? coldEmailSendingOf(mailboxes, month, rc.now.getTime()) : null,
+        batch_mode:
+          newSequenceMode(policies.find((p) => p.class === "outreach")?.mode, "leads") === "veto" ? "veto" : "ask",
+        never,
+        foot:
+          row && facts
+            ? { business: facts.data.name.trim() || null, address: parsed?.brain?.profile?.address?.trim() || null }
+            : null,
+        mailbox: mailboxShown(mailboxes ?? [], rc.now.getTime(), tz),
+        month,
+        claims: claimCounts(claims, chainList, counted),
         voice: memory.filter((m) => m.source === "learned").map((m) => ({ id: m.id, text: m.text })),
-        sequence: newestLeadSequence(chains),
+        sequence: newestLeadSequence(chainList),
         reply_mode: policies.find((p) => p.class === "reply")?.mode ?? REPLY_MODE_UNSET,
         about: ownWords?.text ?? null,
         about_from: ownWords?.from ?? null,
-        known: { name, first_name: firstNameOf(name, null), newest_search: newestSearch },
+        known: { name, first_name: firstNameOf(name, null), newest_search: newestSearch || null },
       },
       rows: [],
       stamp: readerStamp(),

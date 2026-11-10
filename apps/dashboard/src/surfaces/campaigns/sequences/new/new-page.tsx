@@ -29,6 +29,7 @@ import {
   type NewKind,
   type NewWho,
   type ReachOutSourceDto,
+  refusalNeedsMailbox,
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { commitVerb } from "@/bridge/verbs/commit";
@@ -37,6 +38,7 @@ import { Button } from "../../../kit/button/button";
 import { keepTabDraft, tabDraft, useUnsavedWork } from "../../../kit/record/work";
 import { canDo, navigate, refusalToast, useFrameToast } from "../../../frame-verbs";
 import { useReadsHere, useSurface } from "../../../use-surface";
+import { mailboxConnectOutcome } from "../../../settings/connections/mailbox-connect";
 import { broadcasts } from "../../broadcasts/verbs";
 import { useCampaignsToast } from "../../home/route-toast";
 import { reachOuts } from "../../reach-out/surface";
@@ -231,11 +233,24 @@ function startedWords(d: NewDraftDto, start: boolean, tz: string): string {
   return W.started.people(M.firstBatchWords(d.run_hour, localHour(tz, new Date())));
 }
 
+/** What a make works with: the kept one-off it is, how it says so, what it lets go, and the workspace's clock. */
+interface MakeOn {
+  keptId: string | null;
+  flash: Flash;
+  letGo: () => void;
+  tz: string;
+  /** The door found no mailbox, which a draft written here by hand had no way to know: its foot becomes the way to one. */
+  onNoMailbox: () => void;
+}
+
+/** A draft whose mailbox the door found gone: its foot becomes the way to one. */
+const withoutMailbox = (d: NewDraftDto | null) => (d ? { ...d, mailbox: { ids: [], label: "" } } : d);
+
 /**
  * Keep, Start, Schedule and Send: the draft made through the one door, then its record (with what it now is), Drafts for
  * a one-off kept, or Sequences with a one-off's Stop.
  */
-function useMake(keptId: string | null, flash: Flash, letGo: () => void, tz: string) {
+function useMake({ keptId, flash, letGo, tz, onNoMailbox }: MakeOn) {
   const hosted = useCampaignsToast();
   const [busy, setBusy] = useState(false);
   const make = async (draft: NewDraftDto, start: boolean, drafted: NewDraftDto | null) => {
@@ -245,6 +260,7 @@ function useMake(keptId: string | null, flash: Flash, letGo: () => void, tz: str
     setBusy(false);
     if (!r.ok) {
       flash(refusalToast(r));
+      if (refusalNeedsMailbox(r)) onNoMailbox();
       return false;
     }
     const done = r.data as Output<"POST sequences/new">;
@@ -333,6 +349,22 @@ interface NewSequenceProps {
   kept?: string | null;
 }
 
+/** What the browser came back from Google with, said once as New opens: its word leaves the address as it is read. */
+function useCameFromGoogle(flash: Flash) {
+  const [came] = useState(() => mailboxConnectOutcome());
+  useEffect(() => {
+    if (came) flash(came.ok ? { msg: came.words } : { tone: "danger", msg: came.words });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as New opens: its word leaves the address as it is read
+  }, []);
+  return came;
+}
+
+/** Back from Google with a mailbox, the draft kept in the tab said none, and can start now. */
+function draftBackFromGoogle(draft: NewDraftDto | null, came: { ok: boolean } | null): NewDraftDto | null {
+  if (!draft || !came?.ok || draft.audience !== "leads" || !draft.mailbox) return draft;
+  return { ...draft, mailbox: { ...draft.mailbox, label: draft.mailbox.label || W.draft.yourMailbox } };
+}
+
 /** New, on the moment, for whom, or on the kept one-off its address names. */
 export function NewSequence({ moment = null, who = null, to = null, kept = null }: NewSequenceProps) {
   const reads = useNewReads(useSources());
@@ -343,7 +375,8 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const [back] = useState(() => tabDraft("new", here) as KeptHere | null);
   const [typed, setTyped] = useState<string | null>(back?.line ?? null);
   const line = typed ?? seed;
-  const [held, setDraft] = useState<NewDraftDto | null>(back?.draft ?? null);
+  const came = useCameFromGoogle(flash);
+  const [held, setDraft] = useState<NewDraftDto | null>(() => draftBackFromGoogle(back?.draft ?? null, came));
   // The draft as Ask last answered it, never as it is being edited: what a make keeps beside the owner's words.
   const [drafted, setDrafted] = useState<NewDraftDto | null>(() => back?.drafted ?? null);
   const { opened, letGo } = useOpenedOn(who, kept, reads);
@@ -367,7 +400,8 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     setDrafted(d);
     show(d);
   });
-  const made = useMake(kept, flash, letGo, reads?.draft.timezone ?? "UTC");
+  const tz = reads?.draft.timezone ?? "UTC";
+  const made = useMake({ keptId: kept, flash, letGo, tz, onNoMailbox: () => setDraft(withoutMailbox) });
   const busy = made.busy;
   const make = async (d: NewDraftDto, start: boolean) => {
     if (await made.make(d, start, drafted)) work.done();
@@ -375,7 +409,6 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   const may = canDo("approve");
   // What Ask is drafting it again as, while it does: the draft stands in that shape, with Undo (F1).
   const [pending, setPending] = useState<{ kind: NewKind; audience: NewAudience } | null>(null);
-
   const redraft = (f: { kind?: NewKind; audience?: NewAudience }) => {
     if (!draft) return;
     const kind = f.kind ?? draft.kind;
@@ -457,6 +490,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
           discard,
           make: (start) => void make(draft, start),
           close,
+          refused: (r) => flash(refusalToast(r)),
         }}
       />
     ) : (

@@ -1,6 +1,6 @@
--- 00586 · Occasions are handed out: the switch that turns decision 0119 on.
+-- 00598 · Occasions are handed out: the switch that turns decision 0119 on.
 --
--- 00585 made the table, its doors and the job's kind, and nothing called them. Here the two things that do:
+-- 00597 made the table, its doors and the job's kind, and nothing called them. Here the two things that do:
 --
 --   event_subscriptions       appointment.changed and booking_link.sent are delivered to `occasion_enrol` (core
 --                             events/subscribers.ts), in the bulk lane with the other reactions to a booking: a visit

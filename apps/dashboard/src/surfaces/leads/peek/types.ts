@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type {
   leadPeekMenu,
   LeadCallOutcome,
+  LeadEmailWhy,
   LeadEmailWords,
   LeadNotAFitWhy,
   LeadPeekVM,
@@ -21,9 +22,9 @@ export type PeekMode = "info" | "draft" | "why" | "erase" | "erasing";
 /** The stages the peek's segmented control offers (a stage `excluded` is never set from here). */
 type PeekStage = LeadPeekVM["stages"][number]["id"];
 
-/** A question the peek will ask once the owner is back at the tab: did you send it, how did the call go. */
+/** A question the peek will ask once the owner is back at the tab: how did the call go. */
 export interface Armed {
-  kind: "sent" | "call";
+  kind: "call";
   leadId: string;
   asked: boolean;
   outcome: LeadCallOutcome | null;
@@ -42,16 +43,17 @@ export interface DraftState {
   to?: string | null;
   subject?: string;
   body?: string;
-  mailto?: string | null;
   refusal?: string | null;
   /** The words alone, as changed: what Send takes, and what "Did you send it?" keeps. */
   words?: string;
   /** What their own mail app's road puts under the words. */
   mailFoot?: string;
-  /** The mailbox it would leave from, and what goes under the words there; why the mail app, where it is none. */
+  /** The mailbox it would leave from, and what goes under the words there; why it can't go, where it is none. */
   from?: string | null;
   foot?: string | null;
   whyNot?: string | null;
+  /** Why no mailbox sends it, by its code (contracts LeadEmailWhy): what the dock chooses its press by. */
+  whyCode?: LeadEmailWhy | null;
   /** Send is out. */
   sending?: boolean;
 }
@@ -86,10 +88,11 @@ export interface DraftData {
   to: string;
   subject: string;
   body: string;
-  mailto: string;
   words: string;
   mail_foot: string;
   from: string | null;
+  /** Absent from a server before it. */
+  why?: LeadEmailWhy | null;
   why_not: string | null;
   foot: string | null;
 }
@@ -140,8 +143,6 @@ export interface PeekActs {
   onSaveCall: () => Promise<void>;
   onDraft: (id: string) => Promise<void>;
   onTone: (tone: "shorter" | "warmer") => Promise<void>;
-  onOpenMail: () => void;
-  onCopyDraft: () => Promise<void>;
   /** Their words changed: the subject, or the email itself. */
   onWords: (patch: { subject?: string; words?: string }) => void;
   /**
@@ -149,9 +150,6 @@ export interface PeekActs {
    * `undone` is said if its Undo takes it back.
    */
   onSend: (undone?: () => void) => Promise<boolean>;
-  /** "Did you send it?" answered yes; true once the door kept it (the lead sheet then asks whether their sequence goes on). */
-  onSaidSent: () => Promise<boolean>;
-  onNotYet: () => void;
   reachOut: ReactNode;
 }
 

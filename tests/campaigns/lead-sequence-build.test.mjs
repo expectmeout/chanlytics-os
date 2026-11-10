@@ -612,6 +612,7 @@ test("Sends from says what is saved: the mailboxes kept in sight while chosen wi
     const tree = sheetOf(again(() => W.React.createElement(Runs, { rec })));
     return {
       pick: byTestId(tree, "ld-runs-from-pick"),
+      value: byTestId(tree, "ld-runs-from-value"),
       note: byTestId(tree, "ld-runs-from-note"),
       day: byTestId(tree, "ld-runs-day"),
       tree,
@@ -619,11 +620,8 @@ test("Sends from says what is saved: the mailboxes kept in sight while chosen wi
   };
   // Saved to send from the mailboxes, none connected: not shown as the inbox it is not; nothing goes, and it says so.
   const none = pickOf({ owner_sends: false, mailboxes: [] });
-  assert.equal(none.pick.props.value, "mailboxes");
-  assert.deepEqual(
-    none.pick.props.groups[0].options.map((o) => o.label),
-    ["Your inbox · you send", "Your mailboxes · none yet"],
-  );
+  assert.equal(none.pick, null, "one thing it can send from is a fact, not a picker of one");
+  assert.equal(textOf(none.value), "Your mailboxes · none yet");
   assert.match(textOf(none.note), /No mailbox sends now, so nothing goes/);
   assert.match(textOf(none.day), /None until a mailbox sends/);
   assert.doesNotMatch(textOf(none.day), /You send each/, "never the owner's pace for a chain they do not send");
@@ -634,10 +632,8 @@ test("Sends from says what is saved: the mailboxes kept in sight while chosen wi
   assert.match(textOf(switchable.note), /Your mailbox is connected: choose it to send these for you/);
   // The owner sends, with none connected: one choice, nothing to say.
   const plain = pickOf({ owner_sends: true, mailboxes: [] });
-  assert.deepEqual(
-    plain.pick.props.groups[0].options.map((o) => o.value),
-    ["inbox"],
-  );
+  assert.equal(plain.pick, null);
+  assert.match(textOf(plain.value), /inbox/i);
   assert.equal(plain.note ?? null, null);
 });
 
@@ -730,7 +726,7 @@ test("Each mailbox is a row: its day, why it does not send now, the records DNS 
       [false, false],
     ],
   );
-  assert.match(one[0].sub, /One has to send\. To stop them all, choose Your inbox · you send\.$/);
+  assert.match(one[0].sub, /One has to send\. To stop them all, pause the sequence\.$/);
   // A tick names its own list from then on, and the last one is never taken off.
   assert.deepEqual(contracts.leadMailboxesTicked(chain, [], "lee", false), ["sam", "ann", "kim"]);
   assert.deepEqual(contracts.leadMailboxesTicked(chain, ["sam"], "sam", false), ["sam"]);
@@ -794,12 +790,12 @@ test("How it runs draws the mailboxes' ticks, every batch of first emails waitin
   assert.deepEqual(lc.draft.mailbox_ids, ["sam"]);
   assert.equal(byTestId(tree, "ld-runs-every-mailbox") ?? null, null, "a list of its own now");
   assert.equal(byTestId(tree, "ld-runs-mailbox-sam-switch").props.readOnly, true);
-  // The batch rule as a fact, the choice for the follow-ups.
-  assert.equal(textOf(byTestId(tree, "ld-runs-first-emails")), "Every batch of first emails waits for your OK");
+  // One choice, for first emails and follow-ups alike.
+  assert.equal(byTestId(tree, "ld-runs-first-emails"), null, "first emails follow the one choice, after the first run");
   const follow = byTestId(tree, "ld-runs-approves-pick");
   assert.deepEqual(
     follow.props.groups[0].options.map((o) => o.label),
-    ["Your OK first, then 30 minutes to stop", "Each waits for your OK"],
+    ["Hold it 30 minutes so I can stop it", "Ask me"],
   );
   // Ends with: the signature, saved with the chain.
   const ends = byTestId(tree, "ld-runs-ends-pick");

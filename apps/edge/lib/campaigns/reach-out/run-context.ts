@@ -10,6 +10,7 @@ import {
   findStepRow,
   getLeadNamesByIds,
   getReachOutFedBy,
+  holdBatchForOk,
   getSequenceModes,
   handRun,
   insertDecision,
@@ -23,9 +24,17 @@ import {
 import { emitEvent } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "@chanlytics/core";
-import { DEFAULT_TIMEZONE, handOf, waitEndsWords, runRoute, DbFailure } from "@chanlytics/contracts";
+import {
+  clockWhen,
+  coldBatchGoesNotice,
+  DbFailure,
+  DEFAULT_TIMEZONE,
+  handOf,
+  runRoute,
+  waitEndsWords,
+} from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
-import { notify } from "../../shared/alerts/notify.js";
+import { notify, notifyOnceAs } from "../../shared/alerts/notify.js";
 import { loadTenantNotifications } from "../../shared/tenant-runtime.js";
 import { logger } from "../../shared/log.js";
 import { findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
@@ -35,12 +44,6 @@ import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
-
-/** When the first email of a run goes, in the workspace's words: "Monday 9:30 AM". */
-const firstWords = (tz: string, atMs: number): string =>
-  new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" }).format(
-    new Date(atMs),
-  );
 
 /**
  * The step as the verb reads it: its sequence's first step (the root, whose id is the sequence's, 00440), the chain's
@@ -102,6 +105,34 @@ const laterStepPorts = (db: Db, tenantId: TenantId): HandStepPorts => ({
   // The leads it refuses for good, passed over: their places end with why (00455).
   passOver: (rootId, leads) => leaveSequenceForLeads(db, { tenantId, sequenceId: rootId, leads }),
 });
+
+/**
+ * A batch that goes by itself, said to its owner: the row opens the run, where it is stopped, and the bell closes it once
+ * the run is no longer waiting to go. Told is the row on the bell: a mail that failed is owed and costs the batch
+ * nothing, and a second try never doubles the row.
+ */
+async function tellBatchGoes(
+  db: Db,
+  step: { tenantId: TenantId; name: ReachOutRow["name"] },
+  when: { tz: string; nowMs: number },
+  batch: { runId: string; planned: number; firstAt: number },
+): Promise<boolean> {
+  const target = await loadTenantNotifications(db, step.tenantId);
+  const notice = coldBatchGoesNotice(step.name, batch.planned, clockWhen(batch.firstAt, when.tz, when.nowMs));
+  const outcome = await notifyOnceAs(
+    { tenantId: step.tenantId, ...target },
+    { kind: "playbook", route: runRoute(batch.runId), about: { type: "broadcast", id: batch.runId }, ...notice },
+    { db },
+  );
+  return outcome !== "not_kept";
+}
+
+/** Only a run still scheduled is held: one that already moved on (sending, stopped) is left as it is. */
+async function holdUntoldBatch(db: Db, tenantId: TenantId, runId: string): Promise<boolean> {
+  const { data, error } = await holdBatchForOk(db, tenantId, runId);
+  if (error) throw new DbFailure(error, "cannot hold the run for its owner's OK");
+  return data.length > 0;
+}
 
 /**
  * Everything one step's run reads once: the workspace's zone, its sequence's mode, whether it may spend. A read that
@@ -222,11 +253,19 @@ export async function getReachOutRunContext(
           // Its sequence's name first, in the words every run waiting says (the Campaigns wiring review's lane 7: it said
           // "A reach-out waits for you: X", a noun that left the copy).
           subject: `${row.name} waits for your OK`,
-          // How its wait ends is the wait rule's (contracts waitEndsWords, leads_batch): it has no day to pass.
-          body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them, or skip the run. ${waitEndsWords("leads_batch")}.`,
+          // How its wait ends is the wait rule's (contracts waitEndsWords, leads_batch): it has no day to pass. Said of any
+          // batch alike, first emails or follow-ups, from a search or a list; its when as every batch's (contracts clockWhen).
+          body: `${planned} ${planned === 1 ? "email" : "emails"}, the first ${clockWhen(firstAt, tz, now.getTime())}. Approve them, or skip the run. ${waitEndsWords("leads_batch")}.`,
         },
       );
     },
+    // Neither answer ever throws at the run: a failure is written down and answered false.
+    notifyGoes: (runId, planned, firstAt) =>
+      tellBatchGoes(db, { tenantId, name: row.name }, { tz, nowMs: now.getTime() }, { runId, planned, firstAt }).catch(
+        logAndGoOn("cannot tell a batch's owner it goes", false),
+      ),
+    holdForOk: (runId) =>
+      holdUntoldBatch(db, tenantId, runId).catch(logAndGoOn("cannot hold an untold batch for its owner's OK", false)),
   };
   return { step: step.s, ports };
 }

@@ -643,7 +643,7 @@ test("the day's numbers are due at 6 PM in the workspace's zone, and once told, 
     await db.from("notifications").insert({
       tenant_id: A,
       kind: "reach_out_day",
-      title: "Today's reach-outs",
+      title: "Today's cold email",
       body: "…",
       subject_type: "reach_out_day",
       subject_id: today,

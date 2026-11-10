@@ -2320,12 +2320,6 @@
     "surface": "today",
     "expect": {
       "includes_any": ["mailbox"],
-      "proposals_any": ["reach_out_make"],
-      "card_fields_each": {
-        "reach_out_make": {
-          "chain.owner_sends": [true]
-        }
-      },
       "no_write": true
     }
   },

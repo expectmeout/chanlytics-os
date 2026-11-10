@@ -51,10 +51,9 @@ export interface NewReach {
 /** Why nobody can hear a draft (NewReach.nobody), each with its own cure: wait a week, connect, reach them, their yes. */
 export type NewNobody = "breath" | "no_channel" | "no_reach" | "no_yes";
 
-/** Where a sequence to leads sends from: the workspace's connected mailboxes (none named: every one), or the owner by hand. */
+/** Where a sequence to leads sends from: the workspace's connected mailboxes (none named: every one); no label, none. */
 export interface NewMailbox {
   ids: string[];
-  owner_sends: boolean;
   label: string;
 }
 

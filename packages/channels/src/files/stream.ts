@@ -284,19 +284,64 @@ const streamHostOf = (customerCode: string): string => `https://customer-${custo
 /** Stream's time as it reads one: seconds with up to two decimals, `12.5s`. */
 const streamTimeOf = (seconds: number): string => `${Math.max(0, Math.round(seconds * 100) / 100)}s`;
 
-/** One frame of the video at a moment, the whole frame kept inside the size asked (`fit=clip`). */
+/**
+ * The largest side a frame is given at, and the smallest: Stream refuses a side outside them, and an odd one, with a 400 for
+ * every frame of the sheet (read against Stream on 10 Nov 2026: "height: attribute must be an even integer", "width: attribute
+ * must be between 10 and 2000"). Contracts' VIDEO_FRAME_SIDE is this largest side (the-video-wires and a-video-is-shown-and-heard
+ * hold both at 2,000), so the size a model is told a moment is shown at is a size Stream gives.
+ */
+const STREAM_FRAME_SIDE_MAX = 2000;
+const STREAM_FRAME_SIDE_MIN = 10;
+
+/** A size Stream takes for a frame: brought inside its largest side, its shape kept, each side even and at least its least. */
+function streamFrameSizeOf(width: number, height: number): [number, number] {
+  const k = Math.min(1, STREAM_FRAME_SIDE_MAX / Math.max(width, height, 1));
+  const even = (n: number) =>
+    Math.min(STREAM_FRAME_SIDE_MAX, Math.max(STREAM_FRAME_SIDE_MIN, 2 * Math.round((n * k) / 2)));
+  return [even(width), even(height)];
+}
+
+/** One frame of the video at a moment, the whole frame kept inside the size asked (`fit=clip`), held to a size Stream takes. */
 export function streamFrameUrl(
   customerCode: string,
   token: string,
   frame: { at: number; width: number; height: number },
 ): string {
+  const [width, height] = streamFrameSizeOf(frame.width, frame.height);
   const q = new URLSearchParams({
     time: streamTimeOf(frame.at),
-    width: String(Math.round(frame.width)),
-    height: String(Math.round(frame.height)),
+    width: String(width),
+    height: String(height),
     fit: "clip",
   });
   return `${streamHostOf(customerCode)}/${token}/thumbnails/thumbnail.jpg?${q}`;
+}
+
+/** The video's playback list (HLS), under a token: it names a sound track only where the video has one. */
+const streamManifestUrl = (customerCode: string, token: string): string =>
+  `${streamHostOf(customerCode)}/${token}/manifest/video.m3u8`;
+
+/**
+ * Whether a video has a sound track, as its playback list says: an audio rendition (`#EXT-X-MEDIA` of TYPE=AUDIO), or an audio
+ * codec beside the picture's. Stream answers a 500 to the audio download of a clip with none (three tries of three, 10 Nov
+ * 2026), never "no audio", so this is what tells a silent clip from a moment's fault. Null where the list could not be read.
+ */
+export async function readStreamSoundTrack(
+  customerCode: string,
+  token: string,
+  deps: ModelDeps = {},
+): Promise<boolean | null> {
+  const reply = await fetchFromProvider(
+    "cloudflare",
+    streamManifestUrl(customerCode, token),
+    { method: "GET", timeoutMs: API_TRY_MS, idempotent: true, tries: 2, stream: true },
+    deps,
+  );
+  if (reply.outcome !== "ok" || !reply.body) return null;
+  // A body that will not read is a list not read: null below, and the sound is asked for as before.
+  const list = await new Response(reply.body).text().catch(() => null);
+  if (list === null || !list.includes("#EXTM3U")) return null;
+  return /^#EXT-X-MEDIA:.*TYPE=AUDIO/m.test(list) || /CODECS="[^"]*mp4a/i.test(list);
 }
 
 /** The video's sound as M4A, under a `downloadable` token. */

@@ -115,18 +115,25 @@ test("one address: the deploy alias redirects, and a preview never does", () => 
   );
 });
 
-test("the one public door under /api/ask is the voice agent's brain door, at its three exact paths, and nothing else of Ask is public", () => {
+test("two public doors under /api/ask: the voice agent's brain door, at its three exact paths, and the platform's morning clock; nothing else of Ask is public", () => {
   // The ElevenLabs agent calls the dashboard for a voice conversation's words (docs/decisions/0026): a provider with
   // no cookie, so the gate cannot stand in front of it. It was let in on these terms: the door proves the caller
   // twice before it reads a byte of the body (the agent's static secret, compared in constant time, then a session
   // row the member wrote), it runs the turn as that member under RLS with the token the row keeps sealed, and the
   // paths are exact, since the vendor appends /chat/completions to the address it is given.
+  // Ask's morning (#2211) is called by the platform's clock, which carries no cookie either: the route answers 401 to
+  // anything but the CRON_SECRET's bearer, and with no secret set it answers nothing at all. One exact path.
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]\)/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal set so this test can read it");
   const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
   assert.deepEqual(
     paths.filter((p) => p.startsWith("/api/ask")),
-    ["/api/ask/voice/llm", "/api/ask/voice/llm/chat/completions", "/api/ask/voice/llm/v1/chat/completions"],
+    [
+      "/api/ask/voice/llm",
+      "/api/ask/voice/llm/chat/completions",
+      "/api/ask/voice/llm/v1/chat/completions",
+      "/api/ask/morning-sweep",
+    ],
   );
   assert.ok(!paths.some((p) => p.startsWith("/api/v1/ask")), "every member route of Ask stays behind the gate");
 });
@@ -232,7 +239,7 @@ test("eight public PREFIXES, and only a workspace's own pages, the unsubscribe l
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/c/[token]")), ["route.ts"]);
 });
 
-test("only these sixteen paths are reachable without a session", () => {
+test("only these seventeen paths are reachable without a session", () => {
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
   const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
@@ -264,7 +271,10 @@ test("only these sixteen paths are reachable without a session", () => {
   // calls it for a conversation's words, with no cookie; the door proves the
   // caller twice before it reads the body (the test above). Three exact paths,
   // since the vendor appends /chat/completions to the address it is given.
+  // Ask's morning joined with Ask's answers (#2211): the platform's clock calls it with its CRON_SECRET and no cookie;
+  // anything else is a 401 (the test above). One exact path.
   assert.deepEqual(paths, [
+    "/api/ask/morning-sweep",
     "/api/ask/voice/llm",
     "/api/ask/voice/llm/chat/completions",
     "/api/ask/voice/llm/v1/chat/completions",

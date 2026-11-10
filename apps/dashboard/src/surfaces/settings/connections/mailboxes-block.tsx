@@ -45,7 +45,8 @@ import { canDo, gate, gateTitle, refusalToast, type FrameFlash } from "../../fra
 import { connectedMailboxes } from "./connected-mailboxes";
 import { LeftSenders } from "./left-senders";
 import { DnsSheet, copyWords } from "./dns-sheet";
-import { HistoryAct, HistoryChoice } from "./history-choice";
+import { HistoryAct } from "./history-act";
+import { HistoryChoice } from "./history-choice";
 import { MailboxSheet } from "./mailbox-sheet";
 import { setupVerbs } from "../../setup/surface";
 

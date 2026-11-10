@@ -326,8 +326,42 @@ test("How it goes: a way the message holds that isn't connected says so, with th
 
 test("Where a sequence to leads sends from says the pace it starts at, the one its make writes (0077, D7)", () => {
   const draft = M.setWho(M.draftByHand("sequence", "leads", "x"), { kind: "search", id: "s-1", label: "Plumbers" });
-  const tree = sheet(FromSheet, () => ({ open: true, draft, onOwnerSends() {}, onClose() {} }))();
-  const note = find(tree, (n) => classes(n).includes("sq-nw-note"));
+  const tree = sheet(FromSheet, () => ({ open: true, draft, onConnect() {}, onClose() {} }))();
+  const note = find(tree, (n) => classes(n).includes("sq-nw-note") && textOf(n).includes("every"));
   assert.equal(textOf(note), W.checks.pace(contracts.REACH_OUT_GAP_FIRST));
   assert.match(textOf(note), /every 20 minutes/);
+});
+
+test("With no mailbox, Sent from says what connecting gives and brings in, and the choice rides the press", () => {
+  const draft = {
+    ...M.setWho(M.draftByHand("sequence", "leads", "x"), { kind: "search", id: "s-1", label: "Plumbers" }),
+    mailbox: { ids: [], label: null },
+  };
+  const chose = [];
+  const draw = sheet(FromSheet, () => ({ open: true, draft, onConnect: (h) => chose.push(h), onClose() {} }));
+  let tree = draw();
+  const words = textOf(find(tree, (n) => classes(n).includes("sq-nw-rows")));
+  assert.match(words, /Starts at 10 a day/);
+  assert.match(words, /Replies land in your Inbox here/);
+  assert.match(words, /You approve the first run/);
+  assert.match(textOf(byTestId(tree, "mailbox-history-line")), /last 6 months/i);
+  press(byTestId(tree, "sq-nw-from-connect"));
+  assert.deepEqual(chose, ["six_months"]);
+  press(byTestId(tree, "mailbox-history-change"));
+  tree = draw();
+  find(tree, (n) => n.props?.label === contracts.MAILBOX_HISTORY_WORDS.choose).props.onValueChange("from_now");
+  tree = draw();
+  press(byTestId(tree, "sq-nw-from-connect"));
+  assert.deepEqual(chose, ["six_months", "from_now"]);
+});
+
+test("A mailbox already connected is named in Sent from, with nothing to connect", () => {
+  const draft = {
+    ...M.setWho(M.draftByHand("sequence", "leads", "x"), { kind: "search", id: "s-1", label: "Plumbers" }),
+    mailbox: { ids: ["m1"], label: "maya@brightline.example" },
+  };
+  const tree = sheet(FromSheet, () => ({ open: true, draft, onConnect() {}, onClose() {} }))();
+  assert.match(textOf(byTestId(tree, "sq-nw-from-box")), /maya@brightline\.example/);
+  assert.equal(byTestId(tree, "sq-nw-from-connect"), null);
+  assert.equal(byTestId(tree, "mailbox-history-line"), null);
 });

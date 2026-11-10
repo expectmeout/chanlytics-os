@@ -8,6 +8,7 @@ import "server-only";
  * (reachOutRefusal).
  */
 import {
+  coldBatchAsks,
   REACH_OUT_SAID_WORDS,
   readingPlan,
   type OwnerSaidIntent,
@@ -20,7 +21,9 @@ import {
 import { emitEvent } from "@chanlytics/db/events";
 import {
   findLeadReplyFacts,
+  findReachOutRoot,
   getOwnerSendFacts,
+  getSequenceModes,
   type OwnerSendFacts,
   readReachOutLines,
   readReachOutTimeline,
@@ -28,6 +31,7 @@ import {
   stopReachOutLead,
 } from "@chanlytics/db/campaigns";
 import type { Json } from "@chanlytics/db/types";
+import { logAndGoOn } from "@chanlytics/log";
 import { serviceDb } from "@/server/shared/service-db";
 import { getTenantFacts } from "@/server/shared/tenant";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -46,6 +50,28 @@ export async function getLeadLines(ctx: RouteContext, tenantId: TenantId, search
 }
 
 /**
+ * The story with whether its sequence's next batch asks, for the line that says when its email goes: by the rule its run
+ * plans by (contracts coldBatchAsks), so a first run whose words are new says "after your OK" whatever the mode. Unread,
+ * it says nothing.
+ */
+async function withBatchRule(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  story: ReachOutLeadTimelineDto,
+): Promise<ReachOutLeadTimelineDto> {
+  const chain = story.chain;
+  if (!chain) return story;
+  const read = await Promise.all([
+    getSequenceModes(ctx.supabase, tenantId, [chain.root_id]),
+    findReachOutRoot(ctx.supabase, chain.root_id),
+  ]).catch(logAndGoOn("reading how a lead's sequence runs", null));
+  if (!read) return story;
+  const [modes, root] = read;
+  const asks = coldBatchAsks({ mode: modes.get(chain.root_id), words_ok_at: root?.words_ok_at ?? null });
+  return { ...story, chain: { ...chain, asks } };
+}
+
+/**
  * One lead's story; null when the workspace does not hold the lead. Of a reach-out its owner sends (00429): an email
  * handed to them names the run it waits in, where they send it (the peek's Send it), and one that left from no mailbox
  * says whether it went on their word (from their own inbox, not a mailbox before 00424). Read beside the story, which
@@ -59,7 +85,7 @@ export async function findLeadTimeline(
   const { data, error } = await readReachOutTimeline(ctx.supabase, tenantId, leadId);
   if (error) throw reachOutRefusal(error);
   if (!data) return null;
-  const story = dtoOf<ReachOutLeadTimelineDto>(data);
+  const story = await withBatchRule(ctx, tenantId, dtoOf<ReachOutLeadTimelineDto>(data));
   const owners = story.sends.filter((s) => s.state === "drafted" || (s.left && !s.from && !s.host)).map((s) => s.id);
   if (owners.length === 0) return story;
   const facts = await getOwnerSendFacts(ctx.supabase, { tenantId, sendIds: owners }).catch(

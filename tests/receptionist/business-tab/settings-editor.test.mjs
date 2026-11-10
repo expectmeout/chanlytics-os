@@ -334,7 +334,7 @@ test("on a phone the bare address is the list of sections: their words in order,
   );
   assert.deepEqual(
     all(list, (n) => classesOf(n).includes("set-list-head")).map((h) => textOf(h).trim()),
-    ["You", "Business", "Receptionist", "Workspace"],
+    ["You", "Business", "Receptionist", "Outreach", "Workspace"],
     "under the rail's groups",
   );
   assert.ok(

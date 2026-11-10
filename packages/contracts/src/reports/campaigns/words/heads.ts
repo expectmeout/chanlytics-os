@@ -15,7 +15,7 @@ export const NOTHING_WENT_OUT = "Nothing went out in this period.";
 export function reachOutsWroteWords(emails: number, businesses: number | undefined): string {
   if (emails === 0) return "";
   const to = businesses === undefined ? "" : ` to ${plural(businesses, "business", "businesses")}`;
-  return ` Your sequences to leads wrote ${plural(emails, "email")}${to}.`;
+  return ` Your cold email sequences wrote ${plural(emails, "email")}${to}.`;
 }
 
 /** The people the period's runs reached, and how many of them wrote back, against the period before's. */

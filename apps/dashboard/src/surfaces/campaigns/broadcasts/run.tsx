@@ -40,7 +40,7 @@ import { ReachOutRun, RoRunDock, roRunHead, roRunWaits } from "../reach-out/appr
 import { reachOuts } from "../reach-out/surface";
 import { seeOverNow } from "../../see/see-over";
 import { starters } from "../templates/verbs";
-import { BcSheet, bcPersonRow, bcSheetDock, bcSheetSub } from "./run-sheet";
+import { BcSheet, bcPersonRow, bcSheetDock, bcSheetSub, bcStopAsked, bcVerbsPlace } from "./run-sheet";
 import type { BcSheetAsk } from "./run-sheet";
 import type { Flash } from "./page/types";
 import { broadcasts } from "./verbs";
@@ -320,6 +320,8 @@ interface BcDecidedAsk {
   d: BroadcastDetailDto;
   sheet: BcSheetAsk | null;
   acts: ReactNode;
+  /** Where the run's verbs stand (run-sheet.tsx bcVerbsPlace): on a phone, the question its stop asks is the foot. */
+  place: { tools: ReactNode; foot?: ReactNode };
   phone: boolean;
   seeAll: boolean;
   onSeeAll: () => void;
@@ -336,13 +338,16 @@ interface BcDecidedAsk {
  * verbs there once it goes. Null for any other run, which is its report.
  */
 function bcDecidedPane(ask: BcDecidedAsk): ReactNode {
-  const { d, sheet, acts, phone, seeAll, onSeeAll, onDecided, flash, pane } = ask;
+  const { d, sheet, acts, place, phone, seeAll, onSeeAll, onDecided, flash, pane } = ask;
   // Skip's question asked: on a phone the page dims under it (the block draws the wash).
   const armed = !!(sheet && sheet.armed && sheet.canSend && roRunWaits(d, sheet));
   const ro = bcReachOutBlock(d, { onDecided, flash, armed });
   if (ro) {
-    // Skip is Approve's caret on a phone, as a campaign run's is (below), and the foot's own word on a desk.
-    return pane(roRunHead(d, sheet, phone) || {}, ro, <RoRunDock d={d} sheet={sheet} acts={acts} phone={phone} />);
+    // Skip is Approve's caret on a phone, as a campaign run's is (below), and the foot's own word on a desk. A going run's
+    // own verbs are its foot's too, and on a phone their question takes the foot (bcVerbsPlace): beside the dock's line it
+    // stood squeezed into the pill, its words under its round ends (9 Nov 2026).
+    const dock = place.foot ?? <RoRunDock d={d} sheet={sheet} acts={acts} phone={phone} />;
+    return pane(roRunHead(d, sheet, phone) || {}, ro, dock);
   }
   const b = d.broadcast;
   const avm =
@@ -393,6 +398,11 @@ interface BroadcastDetailProps {
   name?: string | null;
   onClose: () => void;
   acts?: ReactNode;
+  /**
+   * The question the run's stop asks, while it is asked (bcStopAsked), as a dock asks it (BcRunVerbs, `docked`): what a
+   * phone draws in the pane's dock in place of `acts` at its head (run-sheet.tsx bcVerbsPlace).
+   */
+  question?: ReactNode;
   sheet?: BcSheetAsk | null;
   /** The page's toast, where the page has one: a reach-out run's Take out says its receipt there, with Put back. */
   flash?: Flash | null;
@@ -403,6 +413,7 @@ export function BroadcastDetail({
   name = null,
   onClose,
   acts = null,
+  question,
   sheet = null,
   flash = null,
 }: BroadcastDetailProps) {
@@ -512,13 +523,15 @@ export function BroadcastDetail({
   }
   const b = d.broadcast;
   const onSeeAll = () => setSeeAll((v) => !v);
-  const decided = bcDecidedPane({ d, sheet, acts, phone, seeAll, onSeeAll, onDecided: ask, flash, pane });
+  // Its verbs at its head, or the question its stop asks as a phone's dock (run-sheet.tsx bcVerbsPlace).
+  const place = bcVerbsPlace(phone, acts, question);
+  const decided = bcDecidedPane({ d, sheet, acts, place, phone, seeAll, onSeeAll, onDecided: ask, flash, pane });
   if (decided) return decided;
   // Done, it is read in Reports; while it can still change (scheduled, going out) its report stands here with its Stop.
   if (!BC_LIVE.has(b.state)) return <RunToReport b={b} pane={pane} />;
   const vm = broadcasts.report(d);
   return pane(
-    bcRunHead({ d, acts }),
+    bcRunHead({ d, acts: place.tools }),
     <div className="bc-report" data-testid="bc-detail">
       {b.params.length > 0 && bcValues(b)}
       {bcFigures(vm)}
@@ -527,6 +540,7 @@ export function BroadcastDetail({
         {bcAside(vm)}
       </div>
     </div>,
+    place.foot,
   );
 }
 
@@ -539,6 +553,8 @@ interface BcRunVerbsProps {
   approving?: boolean;
   approve: (row: BroadcastVM) => void;
   cancel: (row: BroadcastVM) => void;
+  /** Drawn in the pane's dock (a phone's question): its answer takes focus in place (the kit's Confirm, `docked`). */
+  docked?: boolean;
 }
 
 // A run's verbs: Approve for one waiting on a person, and the stop, armed and
@@ -557,13 +573,14 @@ export function BcRunVerbs({
   approving = false,
   approve,
   cancel,
+  docked = false,
 }: BcRunVerbsProps) {
   const stop = runStopWords(row.state);
   if (row.state === "pending_approval" && bcOpensOnItsSheet(row)) return null;
   // A run whose day has passed is refused by the verb (bcLateWords): the button says why instead of answering 409, and
   // the Skip beside it is the act left.
   const late = row.state === "pending_approval" ? bcLateWords(row) : null;
-  if (armed && canSend) {
+  if (bcStopAsked(row, canSend, armed)) {
     return (
       <Confirm
         question={stop.question(row)}
@@ -573,6 +590,7 @@ export function BcRunVerbs({
         busy={stopping}
         onYes={() => cancel(row)}
         onNo={() => onArm(false)}
+        docked={docked}
         testid="bc-stop"
       />
     );

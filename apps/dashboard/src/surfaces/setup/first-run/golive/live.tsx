@@ -99,6 +99,14 @@ export function FrYoureLive({
         </ul>
       </section>
       <div className="fr-links">
+        <button
+          type="button"
+          className="link-btn"
+          onClick={() => leave(LW.coldEmailTo)}
+          data-testid="fr-live-cold-email"
+        >
+          {LW.coldEmail}
+        </button>
         <button type="button" className="link-btn" onClick={() => leave(LW.briefTo)} data-testid="fr-live-brief">
           {LW.brief}
         </button>

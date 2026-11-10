@@ -91,6 +91,18 @@ export function vetoRunNotice(name: string, people: number, when: string): { sub
 }
 
 /**
+ * The same for a day's batch of cold email, which goes to businesses (contracts goingTodayOf says them the same way). Its
+ * title opens as a held batch's does, so the bell closes the row once the run has gone or been stopped (waits/notice-closes.ts).
+ */
+export function coldBatchGoesNotice(name: string, emails: number, when: string): { subject: string; body: string } {
+  const phrase = plural(emails, "business", "businesses");
+  return {
+    subject: `Campaign “${name}” sends ${when}: ${phrase}`,
+    body: `“${name}” emails ${phrase}. ${waitEndsWords("batch_hold", when)}, from Today or its run.`,
+  };
+}
+
+/**
  * Why a skipped batch's next one waits too, said for every mode, since the sweep's row knows neither the mode nor whether
  * its words are new: a skip leaves both as they were. One approval ends the wait of new words, and under Ask me every
  * batch waits (batchModeOf), so it says both.

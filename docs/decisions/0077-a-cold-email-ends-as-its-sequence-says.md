@@ -51,7 +51,10 @@ A sequence to leads sends from the workspace's own mailboxes (0056). Read at `b2
 4. **One first pace, 20 minutes,** in the create door and the contracts; the day's choices keep the slowest gap for each
    count, and the saved gap is always one of them.
 5. **How it runs says the batch rule as it is:** "Every batch of first emails waits for your OK"; its choice is for
-   follow-ups ("Your OK first, then 30 minutes to stop" or "Each waits for your OK").
+   follow-ups ("Your OK first, then 30 minutes to stop" or "Each waits for your OK"). (Amended 9 Nov 2026, Ruben's yes to
+   the Cold email plan: a sequence's first run waits for an OK, since its words are new; after that first emails follow
+   the one choice, as follow-ups do, "Hold it 30 minutes so I can stop it" or "Ask me". The rule said every batch, which
+   left the owner approving each day's first emails by hand, and the page's "Before each batch" untrue of them.)
 6. **A signature's lines are kept** when Gmail's HTML is read into words.
 
 ## Consequences

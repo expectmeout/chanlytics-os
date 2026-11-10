@@ -154,6 +154,9 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     whatsappOn: (n: string) => `WhatsApp on ${n}`,
     email: "your emails in the Inbox",
     movesTitle: "Ask's first three moves",
+    /** The way on to writing to businesses: Settings' Cold email, where a business that wants it starts. */
+    coldEmail: "Write to businesses too: Cold email",
+    coldEmailTo: "admin/outreach",
     movesLead: "Drafted from what's connected; each waits for your yes",
     yes: {
       title: "Ask your customers for their yes",

@@ -21,6 +21,7 @@ import type {
   TenantId,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
+import { idChunksOf } from "../../../shared/id-chunks";
 import { readAllRows } from "../../../shared/paged";
 import { listWaitingOccasions, withComing } from "../occasions";
 import { withReadyCounts } from "../sequence-waiting";
@@ -205,14 +206,14 @@ export async function getSequenceModes(
   ids: readonly string[],
 ): Promise<Map<string, SequenceMode>> {
   const out = new Map<string, SequenceMode>();
-  if (ids.length === 0) return out;
-  const { data, error } = await db
-    .from("sequences")
-    .select("id, mode")
-    .eq("tenant_id", tenantId)
-    .in("id", [...new Set(ids)]);
-  if (error) throw new DbFailure(error, "cannot read the sequences' modes");
-  for (const r of data ?? []) out.set(r.id, isSequenceMode(r.mode) ? r.mode : "ask");
+  // In lists of a request line each: a workspace of many sequences never asks with an address too long to send.
+  const reads = await Promise.all(
+    idChunksOf(ids).map((chunk) => db.from("sequences").select("id, mode").eq("tenant_id", tenantId).in("id", chunk)),
+  );
+  for (const { data, error } of reads) {
+    if (error) throw new DbFailure(error, "cannot read the sequences' modes");
+    for (const r of data) out.set(r.id, isSequenceMode(r.mode) ? r.mode : "ask");
+  }
   return out;
 }
 

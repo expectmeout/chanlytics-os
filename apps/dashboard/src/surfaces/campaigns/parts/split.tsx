@@ -153,6 +153,18 @@ interface CmPaneProps {
 }
 
 /**
+ * A question the pane's foot asks (a sequence's Turn on or End it, New's Send now): the foot whole, as the kit's pair, so on
+ * a phone its words stand inset over its two answers, each half the foot, and the capsule rounds round its rows
+ * (campaigns.css). Asked bare in the foot's pill, its first and last lines stood under the pill's round ends (9 Nov 2026).
+ * The question is the kit's Confirm, `docked`: on a phone the foot is docked at the screen's edge.
+ */
+export const cmFootAsk = (question: ReactNode) => (
+  <div className="cm-foot-ask" data-foot-pair="">
+    {question}
+  </div>
+);
+
+/**
  * The open thing's pane: its head (back on a phone, its mark, name, state and line, its acts, and Close on a desk), its
  * body, which scrolls, and its foot, which stays. Escape closes it, from anywhere on the page, as the sheet it replaced
  * did (the record kit's one rule, useRecSheetEscape): a list or a menu open in it takes its own Escape first and says so,

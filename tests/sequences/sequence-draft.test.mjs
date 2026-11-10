@@ -519,7 +519,7 @@ test("to leads: emails in Ask's words where they hold, a search its who, the mai
   assert.deepEqual(out.who, { kind: "search", id: ID(9), label: "Personal trainers · Austin" });
   assert.deepEqual(
     [out.channels, out.mailbox, out.adds_new, out.mode],
-    [["email"], { ids: [ID(8)], owner_sends: false, label: "maya@example.com" }, true, "ask"],
+    [["email"], { ids: [ID(8)], label: "maya@example.com" }, true, "ask"],
   );
   assert.deepEqual(
     out.steps.map((s) => [s.after_days, s.only_if]),
@@ -674,8 +674,25 @@ test("while Ask drafts it again, the draft stands in its new shape: its line, it
   assert.equal(M.atWords("2026-10-20T14:30", "long"), "Tuesday 2:30 PM");
 });
 
+test("a draft to leads with no mailbox says what stops it, and says it before anything can start", () => {
+  const W = NEW_WORDS.draft;
+  const toLeads = M.redraftShapeOf(M.draftByHand("sequence", "people", "Harbor Studio"), {
+    kind: "sequence",
+    audience: "leads",
+  });
+  const picked = M.setEmail(M.setWho(toLeads, { kind: "search", id: ID(9), label: "Plumbers" }), 0, {
+    subject: "Missed calls",
+    body: "{{opening}}\n\nWorth a look?",
+  });
+  const foot = { ready: ["email"], paused: false, localNow: "2026-11-09T10:00" };
+  assert.equal(M.notReady(picked, foot), null, "a mailbox to send from: nothing stops it");
+  const none = { ...picked, mailbox: { ids: [], label: "" } };
+  assert.deepEqual(M.notReady(none, foot), { lead: W.needsMailbox, sub: W.needsMailboxSub });
+  assert.equal(M.setOwnerSends, undefined, "nothing offers sending by hand");
+});
+
 test("Keep and Start send the draft as it stands: each message by its id or as written, a lead's mailbox, the kept one's id", () => {
-  const d = M.setOwnerSends(M.setMessage(sequence(), 0, held), true);
+  const d = M.setMessage(sequence(), 0, held);
   const body = M.makeBodyOf(d, true, null);
   assert.deepEqual(
     [
@@ -696,7 +713,7 @@ test("Keep and Start send the draft as it stands: each message by its id or as w
   assert.throws(() => M.makeBodyOf(M.draftByHand("sequence", "people", "x"), true, null), /who it is for/);
 });
 
-test("Keep and Start to leads pass the leads door's own check: the search, how batches are decided and who sends, as New chose them", () => {
+test("Keep and Start to leads pass the leads door's own check: the search and how batches are decided, as New chose them", () => {
   const toLeads = (kind) =>
     M.redraftShapeOf(M.draftByHand(kind, "people", "Harbor Studio"), { kind, audience: "leads" });
   let d = M.setWho(toLeads("sequence"), { kind: "search", id: ID(9), label: "Plumbers" });
@@ -712,7 +729,7 @@ test("Keep and Start to leads pass the leads door's own check: the search, how b
   };
   const kept = firstOf(d, false);
   assert.deepEqual(
-    [kept.search_id, kept.aim_search_id, kept.source_search_id, kept.mode, kept.owner_sends],
+    [kept.search_id, kept.aim_search_id, kept.source_search_id, kept.mode, "owner_sends" in kept],
     [ID(9), ID(9), ID(9), "ask", false],
   );
   assert.deepEqual(
@@ -723,11 +740,11 @@ test("Keep and Start to leads pass the leads door's own check: the search, how b
     ],
   );
   assert.equal(firstOf(M.setAddsNew(d, false), true).source_search_id, undefined, "it adds no new leads unless asked");
-  const picked = M.setOwnerSends(M.setWho(d, { kind: "leads", ids: [ID(1), ID(2)], label: "2 leads" }), true);
+  const picked = M.setWho(d, { kind: "leads", ids: [ID(1), ID(2)], label: "2 leads" });
   const started = firstOf(M.setMode(picked, "veto"), true);
   assert.deepEqual(
-    [started.lead_ids, started.search_id, started.mode, started.owner_sends],
-    [[ID(1), ID(2)], undefined, "veto", true],
+    [started.lead_ids, started.search_id, started.mode, "owner_sends" in started],
+    [[ID(1), ID(2)], undefined, "veto", false],
   );
   // Once to leads is one email, and decides no batches of its own.
   let once = M.setWho(toLeads("once"), { kind: "leads", ids: [ID(3)], label: "1 lead" });

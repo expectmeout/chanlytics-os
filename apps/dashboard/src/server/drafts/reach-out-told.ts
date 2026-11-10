@@ -1,6 +1,6 @@
 import "server-only";
 /**
- * What it's told (decision 0113, How it reaches out): a writer's prompt as it would be composed for this workspace now,
+ * What it's told (decision 0113, Cold email): a writer's prompt as it would be composed for this workspace now,
  * cut into its parts, never sent to a model. The words are the drafter's own read and its own lines (draftAskedParts),
  * with the line the owner would type in New left as words about it; the line about a business is the check's own
  * prompt, over the made-up business a preview reads (contracts reachOutExampleRecord) and the newest running sequence's

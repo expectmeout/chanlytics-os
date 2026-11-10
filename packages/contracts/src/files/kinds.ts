@@ -60,3 +60,10 @@ export const FILE_MADE_OF_VIDEO_MIMES = {
 /** Where one of a video's made things lives in its folder. */
 export const fileMadePathOf = (tenantId: string, fileId: string, which: FileMadeOfVideo): string =>
   `${tenantId}/${fileId}/${FILE_MADE_OF_VIDEO[which]}`;
+
+/**
+ * Where one moment of a video is kept as a still, in its folder: what a post is drawn from, since a post never reads the video
+ * platform. Named by its hundredths of a second, so a moment is one object however often it is asked for, and it goes with the folder.
+ */
+export const fileFramePathOf = (tenantId: string, fileId: string, at: number): string =>
+  `${tenantId}/${fileId}/frame-${Math.round(at * 100)}.jpg`;

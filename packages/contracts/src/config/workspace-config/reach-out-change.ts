@@ -1,5 +1,5 @@
 /**
- * How it reaches out's rows as Ask may change them (decision 0113): a change a card proposes and the owner approves,
+ * Cold email's rows as Ask may change them (decision 0113): a change a card proposes and the owner approves,
  * applied to a parsed config's reach_out section by the one writer of a key of it (writeReachOutKey), which the page's own
  * folds write through too. Ask's change schema is ask/schemas.ts's, its one door settings-change.ts.
  */
@@ -18,16 +18,16 @@ export type AskReachOutChange =
   | { op: "set_signature"; signature: string }
   | { op: "set_reply_offer"; offer: ReplyOffer };
 
-/** Each op, with the row of How it reaches out its card opens (admin/outreach/<row>). */
+/** Each op, with the row of Cold email its card opens (admin/outreach/<row>). */
 export const ASK_REACH_OUT_ROWS: Readonly<Record<AskReachOutChange["op"], string>> = {
   set_offer: "offer",
   set_who_for: "who_for",
   set_fixes: "fixes",
   add_claim: "proof",
   remove_claim: "proof",
-  set_cold_tone: "cold_tone",
-  set_signed_by: "signed_by",
-  set_signature: "signature",
+  set_cold_tone: "sound",
+  set_signed_by: "ending",
+  set_signature: "ending",
   set_reply_offer: "reply_offer",
 };
 
@@ -106,15 +106,19 @@ const REPLY_OFFER_SAID: Record<ReplyOffer, string> = {
 export function describeReachOutChange(change: AskReachOutChange): string {
   switch (change.op) {
     case "set_offer":
-      return change.offer.trim() ? `What you offer: ${quoted(change.offer)}` : "What you offer, taken away";
+      return change.offer.trim() ? `What you sell: ${quoted(change.offer)}` : "What you sell, taken away";
     case "set_who_for":
-      return change.who_for.trim() ? `Who it's for: ${quoted(change.who_for)}` : "Who it's for, taken away";
+      return change.who_for.trim()
+        ? `Who should hear from you: ${quoted(change.who_for)}`
+        : "Who should hear from you, taken away";
     case "set_fixes":
-      return change.fixes.trim() ? `What you fix for them: ${quoted(change.fixes)}` : "What you fix, taken away";
+      return change.fixes.trim()
+        ? `The problem you solve: ${quoted(change.fixes)}`
+        : "The problem you solve, taken away";
     case "add_claim":
-      return `A claim you stand behind: ${quoted(change.claim)}`;
+      return `A fact your emails can use: ${quoted(change.claim)}`;
     case "remove_claim":
-      return `No longer a claim: ${quoted(change.claim)}`;
+      return `No longer a fact: ${quoted(change.claim)}`;
     case "set_cold_tone":
       return change.tone.trim()
         ? `Cold emails sound: ${quoted(change.tone)}`

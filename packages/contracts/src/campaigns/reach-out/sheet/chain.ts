@@ -358,7 +358,7 @@ export const EMAIL_TEMPLATE_LIST_WORDS = {
   /** Said after WhatsApp's hover when the head's count takes email rows too. */
   headTip: (emails: number): string =>
     emails > 0
-      ? `The count takes ${plural(emails, "email")} of your sequences to leads too: their own words, sent by email, with no review.`
+      ? `The count takes ${plural(emails, "cold email")} too: their own words, sent by email, with no review.`
       : "",
   failed: "your emails to leads",
 } as const;

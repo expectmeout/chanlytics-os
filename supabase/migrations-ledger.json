@@ -65,10 +65,21 @@
     "00577": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
     "00578": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
     "00579": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when a late booking is reminded (decision 0118) took 00580 above its claims; it lands above or beside it",
-    "00581": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) once 00580 had landed, open and not on main when an occasion enrols a person (decision 0119) took 00585 above its claims; it lands above or beside it",
-    "00582": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) once 00580 had landed, open and not on main when an occasion enrols a person (decision 0119) took 00585 above its claims; it lands above or beside it",
-    "00583": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) once 00580 had landed, open and not on main when an occasion enrols a person (decision 0119) took 00585 above its claims; it lands above or beside it",
-    "00584": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) once 00580 had landed, open and not on main when an occasion enrols a person (decision 0119) took 00585 above its claims; it lands above or beside it"
+    "00581": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when cold email needs a mailbox (decision 0116) took 00585 above its claims; it lands above or beside it",
+    "00582": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when cold email needs a mailbox (decision 0116) took 00585 above its claims; it lands above or beside it",
+    "00583": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when cold email needs a mailbox (decision 0116) took 00585 above its claims; it lands above or beside it",
+    "00584": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when cold email needs a mailbox (decision 0116) took 00585 above its claims; it lands above or beside it",
+    "00586": "claimed by cm-content-pieces (content/pieces-and-moments, the team adds photos and videos), open and not on main when an occasion enrols a person (decision 0119) took 00597 above them; it lands above or beside it",
+    "00587": "a working number of cm-cold-alone (sequences/cold-email-runs-itself, cold email runs itself, decision 0120), renumbered at its push when an occasion enrols a person (decision 0119) took 00597 above them; nothing keeps it",
+    "00588": "a working number of cm-cold-alone (sequences/cold-email-runs-itself, cold email runs itself, decision 0120), renumbered at its push when an occasion enrols a person (decision 0119) took 00597 above them; nothing keeps it",
+    "00589": "a working number of cm-cold-alone (sequences/cold-email-runs-itself, cold email runs itself, decision 0120), renumbered at its push when an occasion enrols a person (decision 0119) took 00597 above them; nothing keeps it",
+    "00590": "a working number of cm-cold-alone (sequences/cold-email-runs-itself, cold email runs itself, decision 0120), renumbered at its push when an occasion enrols a person (decision 0119) took 00597 above them; nothing keeps it",
+    "00591": "a working number of cm-cold-alone (sequences/cold-email-runs-itself, cold email runs itself, decision 0120), renumbered at its push when an occasion enrols a person (decision 0119) took 00597 above them; nothing keeps it",
+    "00592": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when an occasion enrols a person (decision 0119) took 00597 above them; it lands above or beside it",
+    "00593": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when an occasion enrols a person (decision 0119) took 00597 above them; it lands above or beside it",
+    "00594": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when an occasion enrols a person (decision 0119) took 00597 above them; it lands above or beside it",
+    "00595": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10), open and not on main when an occasion enrols a person (decision 0119) took 00597 above them; it lands above or beside it",
+    "00596": "claimed by cm-content-library (files/the-library-in-the-database, a library is searched where it is kept), open and not on main when an occasion enrols a person (decision 0119) took 00597 above them; it lands above or beside it"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -587,7 +598,8 @@
     "00574_a_record_of_each_thing_ask_did.sql": "a258a8fef63ad6fba2b98ab4cf81310316e0b8e8f512edb4f25b7876d90ef975",
     "00575_web_push_and_what_ask_told.sql": "22b059fcdafef7559b6e4a7a4c59d3466efb5d85e8effc5ef4f176149225ff92",
     "00580_a_late_booking_is_reminded.sql": "836e8d4d41a39945b2703ef0ef15a8a76e579742fb8607ac1c44f24094df22ef",
-    "00585_an_occasion_enrols_a_person.sql": "846f9a8b8d1c9494b79eeee0b67c58083d74283d7018b17d96d24bd6e184aacf",
-    "00586_occasions_are_handed_out.sql": "3102776c7b6387e190a57f8652b5ea8891fa021b757edcd4c56ea28adb1cd159"
+    "00585_cold_email_needs_a_mailbox.sql": "de24b43131293771e9968fd27a79e93f24fbd0c5ec9e6851ee6097eebfad7488",
+    "00597_an_occasion_enrols_a_person.sql": "b06ffe074b30a08e56db779f0f005eccf663033359c2f98d51edb79e57d73727",
+    "00598_occasions_are_handed_out.sql": "d8e45136b8e076ae1fb6e6e0a7b124da9a0a218aaf3a38e9c94126e776e46ce4"
   }
 }

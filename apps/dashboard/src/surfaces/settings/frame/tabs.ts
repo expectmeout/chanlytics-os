@@ -49,11 +49,11 @@ export const SET_TABS: readonly SetTab[] = [
   { id: "hours", label: "Hours & booking", icon: "calendar", group: "Business" },
   // What the receptionist says: its voice, what it knows, what it can do, and what it is told.
   { id: "receptionist", label: "How it answers", icon: "chat", group: "Receptionist" },
-  // What a cold email to a business a search found is written from (decision 0113): the offer, the claims, the voice,
-  // the sign-off, where it sends from, what a reply sets off, the rules, what each writer is told, and Try it.
-  { id: "outreach", label: "How it reaches out", icon: "send", group: "Receptionist" },
   // What it may do without you, and every limit it keeps.
   { id: "autonomy", label: "Autonomy", icon: "shield", group: "Receptionist" },
+  // What Chanlytics says when it writes to businesses for you (decisions 0113, 0116): away from the receptionist, since
+  // it answers no one. Its route id stays `outreach`, as `workspace` does for Details: bells and Ask's answers name it.
+  { id: "outreach", label: "Cold email", icon: "send", group: "Outreach" },
   { id: "team", label: "Team", icon: "users", group: "Workspace" },
   // The tab reads Connections; its ROUTE id stays "integrations". Notification rows written before today carry route
   // "admin/integrations" in the database, and a rename would turn every one of those bells into a dead link. The word
@@ -118,11 +118,13 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   phone_pace: "receptionist",
   guardrails: "autonomy",
   escalate_when: "autonomy",
-  // How it reaches out's rows (decision 0113), each one key of the config's reach_out section, and the rows it states.
+  // Cold email's rows (decision 0113), each one key of the config's reach_out section, and the rows it states.
   offer: "outreach",
   who_for: "outreach",
   fixes: "outreach",
   proof: "outreach",
+  sound: "outreach",
+  ending: "outreach",
   cold_tone: "outreach",
   cold_voice: "outreach",
   signed_by: "outreach",
@@ -133,11 +135,24 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   try_lead: "outreach",
 };
 
-/** The page a row of the business is on: Hours & booking, How it answers, How it reaches out, Autonomy, or else Details. */
+/** The page a row of the business is on: Hours & booking, How it answers, Cold email, Autonomy, or else Details. */
 export const paneOfRow = (row: string): string => ROW_PANES[row] ?? DETAILS_TAB.id;
 
+/**
+ * Rows that became one sheet (the Cold email canvas's Changes): each name a bell, an Ask answer or a bookmark holds still
+ * opens the sheet that holds it now. Cold email's own: `integrations/signature` is a mailbox's, and `receptionist/tone`
+ * the receptionist's.
+ */
+const COLD_EMAIL_ROWS_NOW: Readonly<Record<string, string>> = {
+  cold_tone: "sound",
+  signed_by: "ending",
+  signature: "ending",
+  sign_phone: "ending",
+};
+const coldEmailRowNow = (row: string): string => COLD_EMAIL_ROWS_NOW[row] ?? row;
+
 /** The address that opens a row of the business, open, on the page that holds it. */
-export const settingsRowRoute = (row: string): string => `admin/${paneOfRow(row)}/${row}`;
+export const settingsRowRoute = (row: string): string => `admin/${paneOfRow(row)}/${coldEmailRowNow(row)}`;
 
 /** The section an address under Settings names: what stands before a row it may name (`workspace/calendar` is `workspace`). */
 const sectionOf = (id: string): string => (id.includes("/") ? id.slice(0, id.indexOf("/")) : id);
@@ -165,7 +180,8 @@ const SECTIONS_WITH_ROWS = new Set([
 export const settingsRowOf = (param: string | null | undefined): string | null => {
   const p = param || "";
   if (!SECTIONS_WITH_ROWS.has(sectionOf(p)) || !p.includes("/")) return null;
-  return p.slice(p.indexOf("/") + 1).split("/")[0] || null;
+  const row = p.slice(p.indexOf("/") + 1).split("/")[0] || null;
+  return row && sectionOf(p) === "outreach" ? coldEmailRowNow(row) : row;
 };
 
 /**

@@ -139,7 +139,6 @@ export function wroteActsOf(
   };
   return {
     ...on,
-    onSaidSent: () => on.onSaidSent().then(afterwards),
     onSend: () =>
       on
         .onSend(() => {

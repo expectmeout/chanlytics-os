@@ -298,7 +298,7 @@ export function reachOutsSection(fold: CampaignLensVM) {
   const ro = fold.reachOuts;
   if (failed === undefined && (ro === null || !ro.present)) return null;
   return (
-    <RptSection title="Sequences to leads" testid="rpt-reach-outs">
+    <RptSection title="Cold email" testid="rpt-reach-outs">
       {failed === undefined ? (
         ro && reachOutsBody(ro)
       ) : (

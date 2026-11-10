@@ -105,13 +105,13 @@ export const ASK_PAGES: JumpEntry[] = [
     sub: "the receptionist's voice, languages and notes",
     also: ["voice", "greeting", "languages"],
   },
-  // How it reaches out (decision 0113): a jump is three words at most (askJump), so it is found by its page's name too.
+  // Cold email (decisions 0113, 0116): found by what it was called too, since a jump is three words at most (askJump).
   {
-    label: "Reaching out",
+    label: "Cold email",
     to: "admin/outreach",
     kind: "page",
-    sub: "how it reaches out: what cold emails offer, the claims they make, how they sign off",
-    also: ["how it reaches out", "cold email", "outreach", "signature"],
+    sub: "what Chanlytics says when it writes to businesses for you",
+    also: ["how it reaches out", "reaching out", "outreach", "signature"],
   },
   {
     label: "Setting up",

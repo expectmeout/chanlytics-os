@@ -164,7 +164,7 @@ export interface ReachOutDayNumbers {
 }
 
 /**
- * The bell's line at 6 PM (H12): "Today's reach-outs" over what they wrote, who wrote back and what waits, each clause
+ * The bell's line at 6 PM (H12): "Today's cold email" over what they wrote, who wrote back and what waits, each clause
  * only when it is not zero.
  */
 export function reachOutDayWords(reachOutDayNumbers: ReachOutDayNumbers): { title: string; body: string } {

@@ -294,6 +294,7 @@ export function leadCardEmailOf(params: {
       name: params.chain.name,
       state: params.chain.state,
       fed_by: params.chain.fed_by,
+      asks: params.chain.next.mode === "ask",
       run_hour: params.chain.next.run_hour,
       last_run_for: params.chain.next.last_run_for,
       waiting_run_id: params.chain.next.waiting_run_id,

@@ -1,5 +1,5 @@
 /**
- * How it reaches out (decision 0113): what a cold email to a business a search found is written from, the config's
+ * Cold email (decision 0113): what a cold email to a business a search found is written from, the config's
  * `reach_out` section. What the business offers them, who it is for and what it fixes; the claims it may make about
  * itself, word for word; the tone of a cold email, apart from the receptionist's; how every email signs off; and what an
  * answer to a lead who wrote back offers. Never `outreach`: that is Autonomy's policy class. What each writer reads of it
@@ -34,7 +34,7 @@ export type ReachOutConfig = z.infer<typeof ReachOutConfigSchema>;
 /** The refusal a row says under its box, by the limit it went past. */
 export const REACH_OUT_REFUSAL_WORDS = {
   tooLong: (max: number) => `Keep it under ${max.toLocaleString("en-US")} characters.`,
-  claims: `Up to ${L.claims} claims.`,
+  claims: `Up to ${L.claims} facts.`,
   signature: `${L.signatureLines} lines at most, with no link and no {{value}}.`,
   phone: "A phone number, as people write one: its digits, with spaces, dashes or brackets.",
 } as const;

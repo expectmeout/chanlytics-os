@@ -247,7 +247,8 @@ export function PaneWorkspace({
    * answers' (business/prompt.tsx: a told section at rest and the sheet it opens), and the owner's copy of everything is
    * Billing's (WorkspaceData, drawn there since the split of 17 Oct 2026).
    */
-  if (real) return <BusinessTab flash={flash} open={row} part={part} />;
+  // Cold email is drawn whether or not a receptionist is set up: its cards read the business's name where there is one.
+  if (real || (connected && part === "outreach")) return <BusinessTab flash={flash} open={row} part={part} />;
   /* Nothing set up yet: the empty state, and the fold that sets a receptionist up from it (business/create.tsx).
      Provisioning inserts an EMPTY tenant_config row (migration 00017), so this is the first thing every new owner sees. */
   if (unconfigured) return <BtCreateCard flash={flash} />;

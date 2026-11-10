@@ -44,6 +44,7 @@ export {
   delayWords,
   readyRunNotice,
   vetoRunNotice,
+  coldBatchGoesNotice,
   skippedRunNotice,
   lateReminderSkippedNotice,
   freedTimeTakenNotice,

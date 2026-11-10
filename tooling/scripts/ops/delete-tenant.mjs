@@ -174,7 +174,7 @@ const TABLES = [
   "segments",
   "sequence_batches",
   "sequence_enrollments",
-  // What a sequence owes a person for an occasion (00585, decision 0119).
+  // What a sequence owes a person for an occasion (00597, decision 0119).
   "sequence_occasions",
   "sequence_replies",
   "sequence_sends",

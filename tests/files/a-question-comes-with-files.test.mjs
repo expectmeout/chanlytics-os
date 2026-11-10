@@ -35,7 +35,7 @@ after(() => {
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop/loop.ts"));
 const { readThread, modelTurnOf, toMessageVM } = await import(at("apps/dashboard/src/server/ask/store.ts"));
-const { attachedIdsOf } = await import(at("apps/dashboard/src/server/files/attached.ts"));
+const { attachedIdsOf, attachedPictures } = await import(at("apps/dashboard/src/server/files/attached.ts"));
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
 const { prepareAskTurn } = await import(at("apps/dashboard/src/server/ask/turn.ts"));
 const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt/stable-system.ts"));
@@ -387,4 +387,29 @@ test("an answer's history line says which files Ask opened in that turn, by the 
     "Hi",
     "a question opens nothing",
   );
+});
+
+test("a video that is ready and still cannot be opened is said so; only one still being prepared is said to be on its way", () => {
+  const video = (media_status) => ({
+    id: ID(1),
+    name: "salon-tour",
+    line: null,
+    kind: "video",
+    seconds: 12,
+    media_status,
+    width: 1080,
+    height: 1920,
+  });
+  const [unopened] = attachedPictures([video("ready")], new Map());
+  assert.equal(
+    unopened.said,
+    "The file salon-tour, a video, is attached to this question, but could not be opened. Say so, and do not guess what it shows.",
+  );
+  assert.equal(unopened.fileId, null);
+  const [waiting] = attachedPictures(
+    [video("processing")],
+    new Map([[ID(1), { fileId: "file_x", width: 10, height: 10 }]]),
+  );
+  assert.match(waiting.said, /is still being prepared/);
+  assert.equal(waiting.fileId, null, "a sheet from before is not shown for one being made ready again");
 });

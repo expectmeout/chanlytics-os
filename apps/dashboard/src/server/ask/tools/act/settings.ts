@@ -53,15 +53,16 @@ const SETTINGS_TITLE: Record<Exclude<z.infer<typeof AskSettingsChangeSchema>["op
   set_assistant_name: "Its name",
   set_phone_pace: "How fast it speaks",
   set_walk_ins: "Walk-ins",
-  set_offer: "What you offer",
-  set_who_for: "Who it's for",
-  set_fixes: "What you fix for them",
-  add_claim: "A claim you stand behind",
-  remove_claim: "A claim taken away",
-  set_cold_tone: "How cold emails sound",
-  set_signed_by: "Who cold emails sign as",
-  set_signature: "Your signature",
-  set_reply_offer: "What an answer to a lead offers",
+  set_offer: "What you sell",
+  set_who_for: "Who should hear from you",
+  set_fixes: "What problem you solve",
+  add_claim: "A fact your emails can use",
+  remove_claim: "A fact taken off",
+  // Cold email's rows by the cards that hold them on its page (How you sound, How your emails end, Your pitch).
+  set_cold_tone: "How you sound in cold emails",
+  set_signed_by: "How your emails end: your name",
+  set_signature: "How your emails end: under your name",
+  set_reply_offer: "What they should do next",
 };
 
 /** What the model sent for what the receptionist knows, its fields copied as each op takes them. */
@@ -140,7 +141,7 @@ function proposeSettings(
   const raw = input.change && typeof input.change === "object" ? recordOrEmpty(input.change) : null;
   if (!raw) return Promise.resolve(refuse("change is required"));
   const answers = typeof raw.op === "string" && raw.op in ASK_ANSWERS_ROWS;
-  // A row of How it reaches out (decision 0113) carries each op's own field, judged by the schema as it was sent.
+  // A row of Cold email (decision 0113) carries each op's own field, judged by the schema as it was sent.
   const parsed = AskSettingsChangeSchema.safeParse(
     typeof raw.op === "string" && isReachOutChange({ op: raw.op })
       ? raw
@@ -216,7 +217,7 @@ const ANSWERS_OPS = [
 ] as const satisfies readonly (keyof typeof ASK_ANSWERS_ROWS)[];
 
 /**
- * The ops of How it reaches out (decision 0113), in the same row: each takes its own field, the one its branch of
+ * The ops of Cold email (decision 0113), in the same row: each takes its own field, the one its branch of
  * AskSettingsChangeSchema names (offer, who_for, fixes, claim, tone, name, signature), said in one sentence of the
  * answers action's words.
  */
@@ -236,12 +237,12 @@ const REACH_OUT_OPS = [
 const VOICES_SAID = PHONE_VOICES.map((v) => `${v.name} (${v.says})`).join(", ");
 /** The three messages, by the key the model sends and when each goes out. */
 const MESSAGES_SAID = FALLBACK_ROWS.map((r) => `${r.key} (${r.label.toLowerCase()})`).join(", ");
-/** What an answer to a lead may offer, by the key the model sends (How it reaches out, decision 0113). */
+/** What an answer to a lead may offer, by the key the model sends (Cold email, decision 0113). */
 const REPLY_OFFERS_SAID = REPLY_OFFERS.join(", ");
 
 /**
  * A row of How it answers as a card (the Settings wiring review, item 14, 18 Oct 2026): every row the page has, through
- * the one handler and the one card, judged by the same schema op by op; and a row of How it reaches out the same way
+ * the one handler and the one card, judged by the same schema op by op; and a row of Cold email the same way
  * (decision 0113), each op's own field.
  */
 const answersAction = actAction({
@@ -272,7 +273,7 @@ const answersAction = actAction({
     { row: { op: "add_claim", claim: "Every cleaner is insured." } },
   ],
   label: "Preparing a change to how it answers",
-  words: `Action answers takes one row object, a row of How it answers and what it becomes: set_tone (tone, how it sounds in a line; empty takes it away), set_languages (languages, the whole list it speaks, replacing the one it has; empty for none), set_phone_greeting (greeting, what callers hear first, {business} for the name; empty for the standard line; one that never says it is automated gets the product's clause when spoken), set_phone_voice (voice, one of ${VOICES_SAID}), set_transfer_number (number, with country code like +1 212 555 0143, a line a person answers; empty takes a message instead), add_own_words (text, added after the owner's own words, which it reads on every reply), set_message (which, one of ${MESSAGES_SAID}, and text, with {business}, {booking link} and {phone} filled as it goes out; empty for the product's wording), set_photos (on, whether it looks at the photos customers send on WhatsApp), set_assistant_name (name, what it introduces itself as, at most 40 characters, beside "the automated assistant", which always stays; empty for none), set_phone_pace (pace on calls, slower to faster), set_walk_ins (walk_ins: yes, no, room when there's room, or unset to say nothing of them). A row of How it reaches out, its cold emails, takes its own field: set_offer (offer), set_who_for (who_for), set_fixes (fixes), add_claim or remove_claim (claim, a true sentence word for word: a number comes only from one), set_cold_tone (tone), set_signed_by (name), set_signature (signature, no link), set_reply_offer (offer, one of ${REPLY_OFFERS_SAID}: what an answer to a lead offers); empty takes a row away. Read workspace.settings first for what each row holds: a list replaces, so keep the languages they did not ask to drop. Call it when they want it to sound, speak, greet, put callers through or answer differently, be called something, speak faster or slower, take walk-ins or not, or change how cold emails read. ${approvalWords("settings")}.`,
+  words: `Action answers takes one row object, a row of How it answers and what it becomes: set_tone (tone, how it sounds in a line; empty takes it away), set_languages (languages, the whole list it speaks, replacing the one it has; empty for none), set_phone_greeting (greeting, what callers hear first, {business} for the name; empty for the standard line; one that never says it is automated gets the product's clause when spoken), set_phone_voice (voice, one of ${VOICES_SAID}), set_transfer_number (number, with country code like +1 212 555 0143, a line a person answers; empty takes a message instead), add_own_words (text, added after the owner's own words, which it reads on every reply), set_message (which, one of ${MESSAGES_SAID}, and text, with {business}, {booking link} and {phone} filled as it goes out; empty for the product's wording), set_photos (on, whether it looks at the photos customers send on WhatsApp), set_assistant_name (name, what it introduces itself as, at most 40 characters, beside "the automated assistant", which always stays; empty for none), set_phone_pace (pace on calls, slower to faster), set_walk_ins (walk_ins: yes, no, room when there's room, or unset to say nothing of them). A row of Cold email takes its own field: set_offer (offer), set_who_for (who_for), set_fixes (fixes), add_claim or remove_claim (claim, a true sentence word for word: a number comes only from one), set_cold_tone (tone), set_signed_by (name), set_signature (signature, no link), set_reply_offer (offer, one of ${REPLY_OFFERS_SAID}: what an answer to a lead offers); empty takes a row away. Read workspace.settings first for what each row holds: a list replaces, so keep the languages they did not ask to drop. Call it when they want it to sound, speak, greet, put callers through or answer differently, be called something, speak faster or slower, take walk-ins or not, or change how cold emails read. ${approvalWords("settings")}.`,
   build: (t, input) => proposeSettings(t, { change: input.row }),
 });
 
@@ -318,14 +319,14 @@ const answerStyleAction = actAction({
 
 /**
  * What the workspace is set to (D11, the operator, 15 Oct 2026): a change the receptionist follows (change, once the one
- * definition), how it answers and how it reaches out (answers, a row each of the pages', item 14 and decision 0113), what
+ * definition), how it answers and cold email (answers, a row each of the pages', item 14 and decision 0113), what
  * it may do alone for a class of message
  * (autonomy, once propose_autonomy) and the owner's goal for Ask (goal).
  */
 export const propose_settings = defineActions({
   name: "propose_settings",
   description:
-    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (voice, name, languages, what callers hear, its pace and who they reach, walk-ins, your own words, the messages when it can't answer, photos), how it reaches out (its cold emails), what it may do alone for a class of message (autonomy), or the business's goal for you.",
+    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (voice, name, languages, what callers hear, its pace and who they reach, walk-ins, your own words, the messages when it can't answer, photos), cold email (what its emails are written from), what it may do alone for a class of message (autonomy), or the business's goal for you.",
   actions: {
     change: actAction({
       ...settingsAct,

@@ -235,7 +235,7 @@ const REACHED = {
   "admin/hours": ["Hours & booking", "admin/hours"],
   "admin/files": ["Files", "admin/files"],
   "admin/receptionist": ["How it answers", "admin/receptionist"],
-  "admin/outreach": ["Reaching out", "admin/outreach"],
+  "admin/outreach": ["Cold email", "admin/outreach"],
   "admin/team": ["Team", "admin/team"],
   "admin/autonomy": ["Autonomy", "admin/autonomy"],
   "admin/notifications": ["Notifications", "admin/notifications"],
@@ -268,6 +268,12 @@ const where = (to) => {
   const [page, ...rest] = to.split("/");
   return [page, rest.length ? rest.join("/") : null];
 };
+
+test("Cold email is still found by the words it went by", () => {
+  // Three words at most: four are a question (askJump), so its old name is found by the end of it.
+  for (const words of ["cold email", "it reaches out", "reaching out", "outreach"])
+    assert.equal(askJump(words, EVERY)[0]?.to, "admin/outreach", words);
+});
 
 test("the jump index lists every real surface: each page the registry calls real, and People's scopes, is a jump away", () => {
   // Settings itself is the page every pane is under: it is real so that an address naming no pane opens Profile (A3c), and each

@@ -129,7 +129,7 @@ export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("set_assistant_name"), name: z.string().max(PROFILE_LIMITS.assistantName) }),
   z.object({ op: z.literal("set_phone_pace"), pace: z.enum(PHONE_PACES) }),
   z.object({ op: z.literal("set_walk_ins"), walk_ins: z.enum(WALK_INS_CHOICES) }),
-  // How it reaches out, a row each (decision 0113), within the section's own limits; an empty value empties the row.
+  // Cold email, a row each (decision 0113), within the section's own limits; an empty value empties the row.
   z.object({ op: z.literal("set_offer"), offer: z.string().max(REACH_OUT_LIMITS.offer) }),
   z.object({ op: z.literal("set_who_for"), who_for: z.string().max(REACH_OUT_LIMITS.whoFor) }),
   z.object({ op: z.literal("set_fixes"), fixes: z.string().max(REACH_OUT_LIMITS.fixes) }),

@@ -151,16 +151,16 @@ test("a period that sent nothing says so, and what the reach-outs wrote if only 
   assert.equal(fold(quiet).head, "Nothing went out in this period.");
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(12, 9) }).head,
-    "Nothing went out in this period. Your sequences to leads wrote 12 emails to 9 businesses.",
+    "Nothing went out in this period. Your cold email sequences wrote 12 emails to 9 businesses.",
   );
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(1, 1) }).head,
-    "Nothing went out in this period. Your sequences to leads wrote 1 email to 1 business.",
+    "Nothing went out in this period. Your cold email sequences wrote 1 email to 1 business.",
   );
   // A database that does not count businesses yet (before 00404) says the emails alone; a reach-out that wrote none says nothing.
   assert.equal(
     fold({ ...quiet, reachOuts: reachOutReport(12, undefined) }).head,
-    "Nothing went out in this period. Your sequences to leads wrote 12 emails.",
+    "Nothing went out in this period. Your cold email sequences wrote 12 emails.",
   );
   assert.equal(fold({ ...quiet, reachOuts: reachOutReport(0, 0) }).head, "Nothing went out in this period.");
   // The reach-outs are not in a head where campaigns went out: the head is the sends'.
@@ -934,7 +934,7 @@ test("nothing in the period: one quiet lens, every window part with its words, a
   assert.equal(reachOnly.quiet, true);
   assert.equal(
     reachOnly.head,
-    "Nothing went out in this period. Your sequences to leads wrote 12 emails to 9 businesses.",
+    "Nothing went out in this period. Your cold email sequences wrote 12 emails to 9 businesses.",
   );
   assert.equal(reachOnly.reachOuts.present, true);
   assert.equal(reachOnly.reachOuts.totals.written, 12);

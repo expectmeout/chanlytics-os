@@ -29486,26 +29486,41 @@ begin
   if v_source is not null and exists (select 1 from public.sequence_steps r where r.source_search_id = v_source) then
     raise exception 'Another sequence adds from that search already.' using errcode = '23505';
   end if;
+  -- Cold email sends from a mailbox (00585, decision 0116): never handed to the owner to send by hand, and never made
+  -- with none connected, whichever way in. The app says why first, in the words of what is true (contracts
+  -- coldEmailCannotSendWhy); these are its words for none at all.
+  if coalesce((p_first->>'owner_sends')::boolean, false) then
+    raise exception 'Chanlytics sends cold email from your mailbox, so sending each by hand isn''t offered.'
+      using errcode = '22023';
+  end if;
+  -- Sent from the workspace's connected mailboxes whose SPF and DKIM are not missing (00492, decision 0077), else from
+  -- every connected one.
+  select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
+    from public.mailbox_connections c
+   where c.tenant_id = p_tenant_id and c.state = 'connected'
+     and coalesce(c.dns->>'spf', '') <> 'missing' and coalesce(c.dns->>'dkim', '') <> 'missing';
+  if cardinality(v_boxes) = 0 then
+    select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
+      from public.mailbox_connections c where c.tenant_id = p_tenant_id and c.state = 'connected';
+  end if;
+  if cardinality(v_boxes) = 0 then
+    raise exception 'Connect your mailbox first: a sequence to leads sends from your own address. Settings › Cold email has the way.'
+      using errcode = '22023';
+  end if;
   if v_from is not null then
     v_chain := public.reach_out_chain_of(p_tenant_id, v_from);
     if v_chain is null then
       raise exception 'Sequence not found.' using errcode = 'P0002';
     end if;
-  else
-    -- Sent from the workspace's connected mailboxes whose SPF and DKIM are not missing (00492, decision 0077), else from
-    -- every connected one; with none, or where New said so, handed to the owner to send from their own inbox (00465).
-    select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
-      from public.mailbox_connections c
-     where c.tenant_id = p_tenant_id and c.state = 'connected'
-       and coalesce(c.dns->>'spf', '') <> 'missing' and coalesce(c.dns->>'dkim', '') <> 'missing';
-    if cardinality(v_boxes) = 0 then
-      select coalesce(array_agg(c.id order by c.created_at), '{}') into v_boxes
-        from public.mailbox_connections c where c.tenant_id = p_tenant_id and c.state = 'connected';
+    -- A copy of one its owner sent by hand sends from the mailboxes, as every new one does.
+    if coalesce((v_chain->>'owner_sends')::boolean, false) then
+      v_chain := v_chain || jsonb_build_object('owner_sends', false, 'mailbox_ids', to_jsonb(v_boxes));
     end if;
+  else
     v_chain := jsonb_build_object(
       'gap_minutes', 20,
       'mailbox_ids', to_jsonb(v_boxes),
-      'owner_sends', cardinality(v_boxes) = 0 or coalesce((p_first->>'owner_sends')::boolean, false),
+      'owner_sends', false,
       'steps', case when jsonb_typeof(p_first->'steps') = 'array' and jsonb_array_length(p_first->'steps') > 0
                     then p_first->'steps'
                     else jsonb_build_array(jsonb_build_object('subject', '', 'body', '')) end);

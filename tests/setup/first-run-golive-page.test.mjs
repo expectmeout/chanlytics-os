@@ -961,3 +961,11 @@ test("You're live: a refused Open Today stays and says why, and again goes on; a
     answer = null;
   }
 });
+
+test("the first run's last step has a way on to Cold email, beside Ask's three moves", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const live = await readFile("apps/dashboard/src/surfaces/setup/first-run/golive/live.tsx", "utf8");
+  assert.match(live, /fr-live-cold-email/);
+  const model = await readFile("apps/dashboard/src/surfaces/setup/first-run/model/golive.ts", "utf8");
+  assert.match(model, /coldEmailTo: "admin\/outreach"/);
+});

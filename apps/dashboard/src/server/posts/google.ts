@@ -25,7 +25,7 @@ const GOOGLE_ASKED_MS = 25 * SECOND_MS;
 /** The picture Google is sent to fetch. Drawn afresh each time: a post's words never change, but its logo and its colour may. */
 async function pictureForGoogle(ctx: RouteContext, member: Member, fileId: string, plan: PostPlan): Promise<string> {
   const photo = await getPhoto(ctx, plan);
-  const material = await getMaterial(ctx, member, photo);
+  const material = await getMaterial(ctx, member, { file: photo, at: plan.at });
   const picture = await postDrawn(plan, material, "wide", false);
   const path = `${fileFolderOf(member.tenantId, fileId)}/google.jpg`;
   const stored = await bucket().upload(path, picture, { contentType: "image/jpeg", upsert: true });
