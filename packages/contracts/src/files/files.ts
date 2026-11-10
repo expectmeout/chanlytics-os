@@ -51,6 +51,7 @@ export const FILE_WORDS = {
     noPhoto: "The photo this came from was deleted, so it can't be drawn for Google.",
     notAPost: "Only a post can go on Google.",
     notSent: "The post did not go through. Try again.",
+    onItsWay: "This post is already on its way to Google.",
   },
   madeFrom: "Made from",
   madeFromGone: "Made with Ask, from a photo since deleted",

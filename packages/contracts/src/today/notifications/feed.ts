@@ -157,6 +157,10 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   file_purge: { stopped: "A removed photo could not be let go", to: "admin/files" },
   // A video's digest. Not sent (packages/jobs TOLD_ELSEWHERE): its tile says what it has, and the sweep tries the step again.
   video_digest: { stopped: "A video could not be made ready", to: "admin/files" },
+  // A post on its way to Instagram (00611): the file's sheet says why, under the post.
+  post_prepare: { stopped: "A post could not go on Instagram", to: "admin/files" },
+  post_publish: { stopped: "A post could not go on Instagram", to: "admin/files" },
+  post_reconcile: { stopped: "Instagram did not say whether a post went up", to: "admin/files" },
   // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
   campaign_moments: { stopped: "A campaign could not run this hour", to: "today" },
   reach_out_steps: { stopped: "A reach-out could not run this hour", to: "today" },

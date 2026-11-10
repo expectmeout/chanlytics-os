@@ -503,9 +503,20 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   ),
   // Numbers: a day's tokens, a pause's hours (contracts config/limits.ts).
   policies: { limits: NOT_PERSONAL },
+  // Where a post went (00611, decision 0121): its caption is the business's own public words, and the rest is the platform's
+  // ids and our sentences.
+  posts: {
+    caption: WITH_WORKSPACE,
+    ...all(NOT_PERSONAL, "held_reason", "error", "container_id", "external_id", "permalink"),
+  },
   provider_events: {
     body: scrubbedBy("deliveries_scrub"),
     ...all(byAge("provider_events"), "provider_event_id", "door", "url", "headers"),
+  },
+  // Each send of a post (00611): what was sent is the post's caption and the picture's host; what came back is the platform's.
+  publish_attempts: {
+    request: WITH_WORKSPACE,
+    ...all(NOT_PERSONAL, "answer", "error", "container_id", "external_id"),
   },
   // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
   segments: all(NOT_PERSONAL, "name", "rule"),

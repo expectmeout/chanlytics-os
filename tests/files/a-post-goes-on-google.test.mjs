@@ -2,7 +2,8 @@
  * A kept post on the business's Google profile, from its sheet (apps/dashboard/src/server/posts/google.ts, decision 0099, step
  * 3), run through route(): the real route, the real composer, a database and a Storage in memory, and a fetch where the edge would be.
  * The picture is drawn for what Google shows and kept in the file's own folder, Google is sent to fetch it, and the person's words go as
- * they wrote them. A press only: nothing here runs by itself.
+ * they wrote them. A press only: nothing here runs by itself. The press keeps its placement as Instagram's does (00611, decision 0121,
+ * D16): written before the edge is asked, its one send kept, up with Google's name for it or refused in words, and taken down.
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
@@ -27,6 +28,12 @@ const edge = { asked: [], answer: null };
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
   const url = String(input instanceof Request ? input.url : input);
+  // The Meta link is not switched on here: the sheet offers Instagram nothing.
+  if (url.includes("/api/admin/meta/connection"))
+    return new Response(JSON.stringify({ ok: true, ready: false, on: false, app: null }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
   if (!url.includes("/api/admin/google")) return realFetch(input, init);
   const body = JSON.parse(init.body);
   edge.asked.push(body);
@@ -107,9 +114,13 @@ function world({
   events = [],
   made = { from: PHOTO_ID, plan: PLAN },
   storeFails = false,
+  posts = [],
 } = {}) {
   const uploaded = [];
   const signed = [];
+  const attempts = [];
+  // One table of placements, as the database has: the member's door writes it, the service role's doors move it.
+  const doors = placementDoors(posts, attempts);
   const ctx = {
     supabase: fakeDb(
       {
@@ -146,15 +157,20 @@ function world({
         google_listings: [],
         google_connections: connections,
         lines: [],
+        posts,
       },
       {},
-      {},
+      { post_begin: doors.begin },
     ),
     userId: USER,
     email: "ada@example.com",
     params: { id: POST_ID },
   };
-  const service = fakeDb({ files: [{ id: POST_ID, tenant_id: A, source: "made", made }], events }, {}, {});
+  const service = fakeDb(
+    { files: [{ id: POST_ID, tenant_id: A, source: "made", made }], events, posts },
+    {},
+    doors.service,
+  );
   service.storage = {
     from: () => ({
       download: async () => ({ data: new Blob([PHOTO]), error: null }),
@@ -170,8 +186,77 @@ function world({
     }),
   };
   setServiceClient(service);
-  return { ctx, uploaded, signed };
+  return { ctx, uploaded, signed, posts, attempts };
 }
+
+/** The placement doors (00611) over one table, as the migration writes them: what this press needs of them. */
+function placementDoors(posts, attempts) {
+  const find = (id) => posts.find((p) => p.id === id);
+  return {
+    begin: (a) => {
+      if (posts.some((p) => p.file_id === a.p_file_id && p.place === a.p_place && p.status === "publishing"))
+        return { fate: "busy", post_id: null };
+      const id = `0000000${posts.length + 1}-0000-4000-8000-000000000000`;
+      posts.push(placementRow({ id, place: a.p_place, kind: a.p_kind, caption: a.p_caption, status: "publishing" }));
+      return { fate: "begun", post_id: id };
+    },
+    service: {
+      post_attempt_open: (a) => {
+        const row = {
+          id: `att-${attempts.length + 1}`,
+          post_id: a.p_post_id,
+          step: a.p_step,
+          request: a.p_request,
+          outcome: null,
+        };
+        attempts.push(row);
+        return { fate: "open", id: row.id, finished: false, outcome: null, container_id: null, external_id: null };
+      },
+      post_attempt_close: (a) => {
+        Object.assign(
+          attempts.find((r) => r.id === a.p_attempt_id),
+          { outcome: a.p_outcome, external_id: a.p_external_id ?? null },
+        );
+        return true;
+      },
+      post_moved: ({ p_post_id, p_from, p_to, p_patch }) => {
+        const p = find(p_post_id);
+        if (!p || !p_from.includes(p.status)) return false;
+        p.status = p_to;
+        if (p_patch.external_id) p.external_id = p_patch.external_id;
+        if (p_patch.permalink) p.permalink = p_patch.permalink;
+        if (p_patch.error) p.error = p_patch.error;
+        if (p_to === "published") p.published_at = "2026-11-10T10:00:00.000Z";
+        return true;
+      },
+    },
+  };
+}
+
+/** A placement as the table keeps it. */
+const placementRow = (over = {}) => ({
+  id: "00000009-0000-4000-8000-000000000000",
+  tenant_id: A,
+  file_id: POST_ID,
+  place: "google",
+  kind: "picture",
+  caption: null,
+  status: "published",
+  held_reason: null,
+  permalink: null,
+  scheduled_for: "2026-11-10T09:00:00.000Z",
+  published_at: null,
+  error: null,
+  external_id: null,
+  approved_by: USER,
+  approved_at: "2026-11-10T09:00:00.000Z",
+  via: "press",
+  attempts: 0,
+  container_id: null,
+  created_at: "2026-11-10T09:00:00.000Z",
+  updated_at: "2026-11-10T09:00:00.000Z",
+  ...over,
+});
 const send = (method, body) => new Request(`http://localhost/api/v1/x${inA}`, { method, body: JSON.stringify(body) });
 const WORDS = "Come see the new floor this week.";
 
@@ -202,6 +287,32 @@ test("the post goes up: drawn for what Google shows, kept in its own folder, fet
     },
   ]);
   assert.ok(signed[0].seconds >= 3600, "long enough for Google to come for it, whenever it does");
+});
+
+test("the press keeps its placement: begun before the edge is asked, its send kept, and up under Google's own name", async () => {
+  const { ctx, posts, attempts } = world();
+  await route.POST.run(send("POST", { summary: WORDS }), ctx);
+  assert.equal(posts.length, 1);
+  const [placed] = posts;
+  assert.deepEqual(
+    [placed.place, placed.kind, placed.caption, placed.status, placed.external_id, placed.permalink],
+    ["google", "picture", WORDS, "published", NAME, "https://local.google.com/x"],
+  );
+  assert.deepEqual(
+    attempts.map((a) => [a.step, a.outcome, a.external_id]),
+    [["publish", "ok", NAME]],
+  );
+  assert.equal(attempts[0].request.photo, "storage.example", "the picture's host alone, never its signed address");
+});
+
+test("a refusal leaves the placement not posted, in the person's words, and a second press while one is going is the first", async () => {
+  const refused = world();
+  edge.answer = () => ({ status: 502, body: { ok: false, error: "google_refused", detail: "Photo too small" } });
+  await assert.rejects(route.POST.run(send("POST", { summary: WORDS }), refused.ctx), /did not take the post/);
+  assert.equal(refused.posts[0].status, "failed");
+  assert.match(refused.posts[0].error.words, /did not take the post/);
+  const busy = world({ posts: [placementRow({ status: "publishing" })] });
+  await assert.rejects(route.POST.run(send("POST", { summary: WORDS }), busy.ctx), /already on its way to Google/);
 });
 
 test("what a person pressed is what goes: its number by the plan, and a post with none asks for no Call button", async () => {
@@ -263,11 +374,12 @@ test("what the edge says comes back in a person's words", async () => {
 });
 
 test("it comes down by its name, and stays in Files", async () => {
-  const { ctx, uploaded } = world();
+  const { ctx, uploaded, posts } = world({ posts: [placementRow({ external_id: NAME })] });
   edge.answer = () => ({ body: { ok: true } });
   assert.deepEqual(await route.DELETE.run(send("DELETE", { name: NAME }), ctx), { down: true });
   assert.deepEqual(edge.asked, [{ op: "unpost", tenant_id: A, user_id: USER, file_id: POST_ID, post_name: NAME }]);
   assert.deepEqual(uploaded, []);
+  assert.equal(posts[0].status, "taken_down", "its placement says so");
 });
 
 test("one the edge can't find to take down is said to be gone", async () => {
@@ -315,6 +427,38 @@ test("a post's sheet says whether it can go up, and whether it is there", async 
   assert.equal(again.google.posted.name, NAME);
   const another = await recorded({ events: [posted("file.posted", "2026-11-05T10:00:00Z", { file_id: PHOTO_ID })] });
   assert.equal(another.google.posted, null, "another file's is not this one's");
+});
+
+test("a placement says where the post is on Google before the events do; a failed one leaves it to the events", async () => {
+  const placed = await recorded({
+    posts: [
+      placementRow({
+        external_id: NAME,
+        permalink: "https://local.google.com/p",
+        published_at: "2026-11-10T10:00:00.000Z",
+      }),
+    ],
+  });
+  assert.deepEqual(placed.google.posted, {
+    name: NAME,
+    search_url: "https://local.google.com/p",
+    at: "2026-11-10T10:00:00.000Z",
+  });
+  const down = await recorded({
+    posts: [placementRow({ status: "taken_down", external_id: NAME })],
+    events: [posted("file.posted", "2026-11-05T10:00:00Z")],
+  });
+  assert.equal(down.google.posted, null, "taken down, whatever an older event said");
+  const unheard = await recorded({
+    posts: [placementRow({ status: "failed" })],
+    events: [posted("file.posted", "2026-11-05T10:00:00Z")],
+  });
+  assert.equal(
+    unheard.google.posted.name,
+    NAME,
+    "a press that never heard its answer: the edge's event says it went up",
+  );
+  assert.equal(placed.instagram, null, "with the Meta link off, nothing of Instagram");
 });
 
 test("with nothing connected, or no location chosen, it can't go up", async () => {

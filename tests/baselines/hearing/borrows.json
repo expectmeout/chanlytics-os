@@ -17,6 +17,7 @@
   "console": "",
   "console/health": "",
   "files": "files settings",
+  "files/places": "",
   "frame": "calendar live settings workspace",
   "frame/sidebar": "workspace",
   "frame/topbar": "calendar live",

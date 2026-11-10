@@ -134,6 +134,7 @@ export {
   fileViewOf,
   inboxCleanOf,
   postNameOf,
+  postPathOf,
   shelfFilterOf,
   shelfOf,
   uploadNameOf,

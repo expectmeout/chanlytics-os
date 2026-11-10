@@ -2411,6 +2411,62 @@
       "where": null
     },
     {
+      "table": "posts",
+      "name": "posts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "posts",
+      "name": "posts_one_on_its_way",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "file_id"
+        },
+        {
+          "column": "place"
+        }
+      ],
+      "where": {
+        "in": {
+          "column": "status"
+        },
+        "values": [
+          "queued",
+          "preparing",
+          "publishing",
+          "checking"
+        ]
+      }
+    },
+    {
+      "table": "posts",
+      "name": "posts_external",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "place"
+        },
+        {
+          "column": "external_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "external_id"
+        }
+      }
+    },
+    {
       "table": "privacy_requests",
       "name": "privacy_requests_pkey",
       "primary": true,
@@ -2457,6 +2513,36 @@
         },
         {
           "column": "provider_event_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "publish_attempts",
+      "name": "publish_attempts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "publish_attempts",
+      "name": "publish_attempts_post_id_attempt_no_step_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "post_id"
+        },
+        {
+          "column": "attempt_no"
+        },
+        {
+          "column": "step"
         }
       ],
       "where": null

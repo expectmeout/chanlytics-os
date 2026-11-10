@@ -21694,6 +21694,309 @@ COMMENT ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer) 
 
 
 --
+-- Name: post_again(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_again(p_post_id uuid, p_from text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+begin
+  -- Its first send never landed: the second and last attempt, from a fresh container, with its job, in one transaction.
+  update public.posts p set status = 'queued', container_id = null, updated_at = now()
+   where p.id = p_post_id and p.status = p_from and p.attempts < 2
+  returning p.tenant_id into v_tenant;
+  if not found then
+    return false;
+  end if;
+  begin
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (v_tenant, 'post_prepare', now(), jsonb_build_object('post_id', p_post_id, 'attempt', '2'));
+  exception when unique_violation then
+    null;
+  end;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION post_again(p_post_id uuid, p_from text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_again(p_post_id uuid, p_from text) IS 'A post''s first attempt never landed (00611): queued again for its second and last, with its job, together. Answers whether it moved. The service role''s.';
+
+
+--
+-- Name: post_attempt_close(uuid, text, integer, jsonb, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_attempt_close(p_attempt_id uuid, p_outcome text, p_http_status integer DEFAULT NULL::integer, p_answer jsonb DEFAULT NULL::jsonb, p_container_id text DEFAULT NULL::text, p_external_id text DEFAULT NULL::text, p_error jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post uuid;
+begin
+  -- Never changed once finished: a second close of the same send is the first.
+  update public.publish_attempts a
+     set finished_at = now(), outcome = p_outcome, http_status = p_http_status,
+         answer = case when p_answer is null then null
+                       when octet_length(p_answer::text) > 4096
+                         then jsonb_build_object('cut', left(p_answer::text, 4000))
+                       else p_answer end,
+         container_id = p_container_id, external_id = p_external_id, error = p_error
+   where a.id = p_attempt_id and a.finished_at is null
+  returning a.post_id into v_post;
+  if not found then
+    return false;
+  end if;
+  update public.posts p
+     set container_id = coalesce(p_container_id, p.container_id),
+         external_id = coalesce(p_external_id, p.external_id),
+         error = case when p_outcome = 'ok' then p.error else coalesce(p_error, p.error) end,
+         updated_at = now()
+   where p.id = v_post;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION post_attempt_close(p_attempt_id uuid, p_outcome text, p_http_status integer, p_answer jsonb, p_container_id text, p_external_id text, p_error jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_attempt_close(p_attempt_id uuid, p_outcome text, p_http_status integer, p_answer jsonb, p_container_id text, p_external_id text, p_error jsonb) IS 'A send''s answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. A finished send is never changed: answers false. The service role''s.';
+
+
+--
+-- Name: post_attempt_open(uuid, integer, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no integer, p_step text, p_request jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+  v_row    public.publish_attempts;
+begin
+  select p.tenant_id into v_tenant from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  insert into public.publish_attempts (tenant_id, post_id, attempt_no, step, request)
+  values (v_tenant, p_post_id, p_attempt_no, p_step, coalesce(p_request, '{}'::jsonb))
+  on conflict (post_id, attempt_no, step) do nothing;
+  select * into v_row from public.publish_attempts a
+   where a.post_id = p_post_id and a.attempt_no = p_attempt_no and a.step = p_step;
+  update public.posts p set attempts = greatest(p.attempts, p_attempt_no), updated_at = now()
+   where p.id = p_post_id and p.attempts < p_attempt_no;
+  -- Opened again by a run that took up where one died: the row as it stands, which may already be finished.
+  return jsonb_build_object('fate', 'open', 'id', v_row.id, 'finished', v_row.finished_at is not null,
+                            'outcome', v_row.outcome, 'container_id', v_row.container_id,
+                            'external_id', v_row.external_id);
+end $$;
+
+
+--
+-- Name: FUNCTION post_attempt_open(p_post_id uuid, p_attempt_no integer, p_step text, p_request jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no integer, p_step text, p_request jsonb) IS 'One send of a post opened (00611), with the request as sent and never a token. Asked again for the same post, attempt and step, it answers the row as it stands. The service role''s.';
+
+
+--
+-- Name: post_begin(uuid, uuid, text, text, text, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone DEFAULT NULL::timestamp with time zone, p_via text DEFAULT 'press'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_file  public.files;
+  v_busy  uuid;
+  v_id    uuid;
+  v_when  timestamptz := greatest(coalesce(p_when, now()), now());
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_place is null or p_place <> all (array['instagram', 'google']) then
+    raise exception 'No such place: %.', p_place using errcode = '22023';
+  end if;
+  -- A reel waits for a video's road to Instagram (decision 0121); Google takes a picture alone.
+  if p_kind is null or p_kind <> all (array['picture', 'story']) or (p_place = 'google' and p_kind <> 'picture') then
+    return jsonb_build_object('fate', 'not_yet', 'post_id', null);
+  end if;
+  if p_caption is not null and char_length(p_caption) > 2200 then
+    raise exception 'A caption is at most 2,200 characters.' using errcode = '22023';
+  end if;
+  -- contracts POST_AHEAD_DAYS_MAX.
+  if v_when > now() + interval '30 days' then
+    raise exception 'A post goes within thirty days.' using errcode = '22023';
+  end if;
+  -- One at a time per file and place, as every door that names or files takes it (00551).
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found or v_file.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'post_id', null);
+  end if;
+  if v_file.source <> 'made' then
+    return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
+  end if;
+  -- A Google press is one call: one that died between its placement and its answer stops holding the next press after ten
+  -- minutes. Whether it went up is still the edge's events' to say.
+  update public.posts p
+     set status = 'failed', updated_at = now(),
+         error = jsonb_build_object('code', null, 'subcode', null, 'words', 'Google did not say whether this went up.')
+   where p.file_id = p_file_id and p.place = 'google' and p.status = 'publishing'
+     and p.updated_at < now() - interval '10 minutes';
+  select p.id into v_busy from public.posts p
+   where p.file_id = p_file_id and p.place = p_place
+     and p.status = any (array['queued', 'preparing', 'publishing', 'checking']);
+  if found then
+    return jsonb_build_object('fate', 'busy', 'post_id', v_busy);
+  end if;
+  insert into public.posts (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via, status)
+  values (p_tenant_id, p_file_id, p_place, p_kind,
+          case when p_kind = 'story' then null else nullif(btrim(p_caption), '') end,
+          v_when, v_actor, now(), coalesce(p_via, 'press'),
+          -- Google is asked by the press itself, in the same moment; Instagram's send is a job.
+          case when p_place = 'google' then 'publishing' else 'queued' end)
+  returning id into v_id;
+  if p_place = 'instagram' then
+    -- Ten minutes ahead of its time, so Instagram has made it ready by then. As text: a job's once-only key is made of strings.
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'post_prepare', greatest(now(), v_when - interval '10 minutes'),
+            jsonb_build_object('post_id', v_id, 'attempt', '1'));
+  end if;
+  return jsonb_build_object('fate', 'begun', 'post_id', v_id);
+end $$;
+
+
+--
+-- Name: FUNCTION post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) IS 'A member''s press, with the settings permission (00611, decision 0121): a made post approved for a place, as a picture or a story, with its words and its time. The placement is written, and for Instagram its first job. Answers {fate: begun, busy (the one on its way), gone, not_a_post, not_yet, post_id}.';
+
+
+--
+-- Name: post_moved(uuid, text[], text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb DEFAULT '{}'::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_patch jsonb := coalesce(p_patch, '{}'::jsonb);
+begin
+  update public.posts p
+     set status = p_to,
+         held_reason = case when p_to = 'held' then left(coalesce(v_patch ->> 'held_reason', 'Held.'), 300) end,
+         permalink = coalesce(v_patch ->> 'permalink', p.permalink),
+         published_at = case when p_to = 'published' then coalesce((v_patch ->> 'published_at')::timestamptz, now())
+                             else p.published_at end,
+         external_id = coalesce(v_patch ->> 'external_id', p.external_id),
+         error = case when v_patch ? 'error' then v_patch -> 'error' else p.error end,
+         updated_at = now()
+   where p.id = p_post_id and p.status = any (p_from);
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611), with its held reason, link, time, post id or refusal from p_patch; nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+
+
+--
+-- Name: post_pull(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_pull(p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+  v_status text;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select p.tenant_id, p.status into v_tenant, v_status from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if not coalesce(public.caller_has_permission(v_tenant, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- Up to the moment it is sent; the jobs read the row before they act, so a pulled post is never sent.
+  update public.posts p set status = 'pulled', updated_at = now()
+   where p.id = p_post_id and p.status = any (array['queued', 'preparing']);
+  if found then
+    return jsonb_build_object('fate', 'pulled');
+  end if;
+  return jsonb_build_object('fate', 'late', 'status', v_status);
+end $$;
+
+
+--
+-- Name: FUNCTION post_pull(p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_pull(p_post_id uuid) IS 'A member''s Don''t post, with the settings permission (00611): a post not yet being sent is pulled, and its jobs find it so and send nothing. Answers {fate: pulled, late (with where it stands), unknown}.';
+
+
+--
+-- Name: post_unanswered(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+begin
+  -- Sent with no answer: Checking, and the reconcile that asks Instagram what it has, in one transaction, so a post is
+  -- never left Checking with nothing to settle it.
+  update public.posts p set status = 'checking', updated_at = now()
+   where p.id = p_post_id and p.status = 'publishing'
+  returning p.tenant_id into v_tenant;
+  if not found then
+    return false;
+  end if;
+  begin
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (v_tenant, 'post_reconcile', now() + interval '2 minutes',
+            jsonb_build_object('post_id', p_post_id, 'attempt', p_attempt));
+  exception when unique_violation then
+    -- One is on the ledger already: it asks.
+    null;
+  end;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION post_unanswered(p_post_id uuid, p_attempt text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) IS 'A post sent with no answer (00611): Checking, and its reconcile two minutes on, together. Answers whether it was being sent. The service role''s.';
+
+
+--
 -- Name: preview_built(uuid, boolean, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -39463,6 +39766,62 @@ CREATE TABLE public.policies (
 
 
 --
+-- Name: posts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.posts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    file_id uuid NOT NULL,
+    place text NOT NULL,
+    kind text NOT NULL,
+    caption text,
+    scheduled_for timestamp with time zone DEFAULT now() NOT NULL,
+    approved_by uuid,
+    approved_at timestamp with time zone DEFAULT now() NOT NULL,
+    via text DEFAULT 'press'::text NOT NULL,
+    status text NOT NULL,
+    held_reason text,
+    attempts integer DEFAULT 0 NOT NULL,
+    container_id text,
+    external_id text,
+    permalink text,
+    published_at timestamp with time zone,
+    error jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT posts_attempts_shape CHECK (((attempts >= 0) AND (attempts <= 2))),
+    CONSTRAINT posts_caption_shape CHECK (((caption IS NULL) OR (char_length(caption) <= 2200))),
+    CONSTRAINT posts_held_shape CHECK ((((status = 'held'::text) = (held_reason IS NOT NULL)) AND ((held_reason IS NULL) OR (char_length(held_reason) <= 300)))),
+    CONSTRAINT posts_kind_check CHECK ((kind = ANY (ARRAY['picture'::text, 'story'::text, 'reel'::text]))),
+    CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text]))),
+    CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text, 'published'::text, 'held'::text, 'failed'::text, 'pulled'::text, 'taken_down'::text]))),
+    CONSTRAINT posts_via_check CHECK ((via = ANY (ARRAY['press'::text, 'card'::text])))
+);
+
+
+--
+-- Name: TABLE posts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.posts IS 'One row per place a post goes (00611, decision 0121): the exact file approved, who approved it and when, its words there, when it goes and where it stands. Written only through its doors.';
+
+
+--
+-- Name: COLUMN posts.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.status IS 'queued (approved, its job waiting), preparing (Instagram is making it ready), publishing (being sent now), checking (sent with no answer: Instagram is asked what it has), published, held (the recheck stopped it, held_reason says why), failed (error says why), pulled (the owner said not to), taken_down.';
+
+
+--
+-- Name: COLUMN posts.container_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.container_id IS 'The newest send''s container at the platform (publish_attempts holds each). Service role only.';
+
+
+--
 -- Name: privacy_requests; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -39557,6 +39916,39 @@ CREATE TABLE public.provider_events (
 --
 
 COMMENT ON TABLE public.provider_events IS 'Every verified delivery a provider made to a door, as it came, under the provider''s own id (decision 0032): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.';
+
+
+--
+-- Name: publish_attempts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.publish_attempts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    post_id uuid NOT NULL,
+    attempt_no integer NOT NULL,
+    step text NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    request jsonb NOT NULL,
+    answer jsonb,
+    http_status integer,
+    outcome text,
+    container_id text,
+    external_id text,
+    error jsonb,
+    CONSTRAINT publish_attempts_finished_shape CHECK (((finished_at IS NULL) = (outcome IS NULL))),
+    CONSTRAINT publish_attempts_no_check CHECK (((attempt_no >= 1) AND (attempt_no <= 2))),
+    CONSTRAINT publish_attempts_outcome_check CHECK (((outcome IS NULL) OR (outcome = ANY (ARRAY['ok'::text, 'refused'::text, 'no_answer'::text, 'failed'::text])))),
+    CONSTRAINT publish_attempts_step_check CHECK ((step = ANY (ARRAY['container'::text, 'publish'::text, 'reconcile'::text])))
+);
+
+
+--
+-- Name: TABLE publish_attempts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.publish_attempts IS 'One row per send of a post (00611, decision 0121): the request as sent (never a token), the answer as it came, the outcome. Never changed once finished.';
 
 
 --
@@ -41607,6 +41999,14 @@ ALTER TABLE ONLY public.policies
 
 
 --
+-- Name: posts posts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.posts
+    ADD CONSTRAINT posts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: privacy_requests privacy_requests_number_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -41636,6 +42036,22 @@ ALTER TABLE ONLY public.profiles
 
 ALTER TABLE ONLY public.provider_events
     ADD CONSTRAINT provider_events_pkey PRIMARY KEY (provider, provider_event_id);
+
+
+--
+-- Name: publish_attempts publish_attempts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.publish_attempts
+    ADD CONSTRAINT publish_attempts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: publish_attempts publish_attempts_post_id_attempt_no_step_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.publish_attempts
+    ADD CONSTRAINT publish_attempts_post_id_attempt_no_step_key UNIQUE (post_id, attempt_no, step);
 
 
 --
@@ -43662,6 +44078,41 @@ CREATE INDEX policies_person_reply_idx ON public.policies USING btree (tenant_id
 
 
 --
+-- Name: posts_approved_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX posts_approved_by ON public.posts USING btree (approved_by) WHERE (approved_by IS NOT NULL);
+
+
+--
+-- Name: posts_external; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX posts_external ON public.posts USING btree (place, external_id) WHERE (external_id IS NOT NULL);
+
+
+--
+-- Name: posts_one_on_its_way; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX posts_one_on_its_way ON public.posts USING btree (file_id, place) WHERE (status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text]));
+
+
+--
+-- Name: posts_tenant_file; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX posts_tenant_file ON public.posts USING btree (tenant_id, file_id, created_at DESC);
+
+
+--
+-- Name: posts_tenant_newest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX posts_tenant_newest ON public.posts USING btree (tenant_id, created_at DESC);
+
+
+--
 -- Name: privacy_requests_created_by; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -43694,6 +44145,13 @@ CREATE INDEX provider_events_received ON public.provider_events USING btree (rec
 --
 
 CREATE INDEX provider_events_tenant ON public.provider_events USING btree (tenant_id) WHERE (tenant_id IS NOT NULL);
+
+
+--
+-- Name: publish_attempts_post; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX publish_attempts_post ON public.publish_attempts USING btree (tenant_id, post_id, started_at);
 
 
 --
@@ -47475,6 +47933,30 @@ ALTER TABLE ONLY public.policies
 
 
 --
+-- Name: posts posts_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.posts
+    ADD CONSTRAINT posts_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: posts posts_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.posts
+    ADD CONSTRAINT posts_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id) ON DELETE CASCADE;
+
+
+--
+-- Name: posts posts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.posts
+    ADD CONSTRAINT posts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: privacy_requests privacy_requests_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -47504,6 +47986,22 @@ ALTER TABLE ONLY public.profiles
 
 ALTER TABLE ONLY public.provider_events
     ADD CONSTRAINT provider_events_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: publish_attempts publish_attempts_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.publish_attempts
+    ADD CONSTRAINT publish_attempts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: publish_attempts publish_attempts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.publish_attempts
+    ADD CONSTRAINT publish_attempts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -49396,6 +49894,21 @@ CREATE POLICY policies_owner_insert_person ON public.policies FOR INSERT TO auth
 
 
 --
+-- Name: posts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: posts posts_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY posts_member_select ON public.posts FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: privacy_requests; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -49422,6 +49935,21 @@ CREATE POLICY profiles_member_select ON public.profiles FOR SELECT TO authentica
 --
 
 ALTER TABLE public.provider_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: publish_attempts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.publish_attempts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: publish_attempts publish_attempts_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY publish_attempts_member_select ON public.publish_attempts FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
 
 --
 -- Name: push_devices; Type: ROW SECURITY; Schema: public; Owner: -
@@ -53379,6 +53907,64 @@ GRANT ALL ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer
 
 
 --
+-- Name: FUNCTION post_again(p_post_id uuid, p_from text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_again(p_post_id uuid, p_from text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_again(p_post_id uuid, p_from text) TO service_role;
+
+
+--
+-- Name: FUNCTION post_attempt_close(p_attempt_id uuid, p_outcome text, p_http_status integer, p_answer jsonb, p_container_id text, p_external_id text, p_error jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_attempt_close(p_attempt_id uuid, p_outcome text, p_http_status integer, p_answer jsonb, p_container_id text, p_external_id text, p_error jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_attempt_close(p_attempt_id uuid, p_outcome text, p_http_status integer, p_answer jsonb, p_container_id text, p_external_id text, p_error jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION post_attempt_open(p_post_id uuid, p_attempt_no integer, p_step text, p_request jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no integer, p_step text, p_request jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no integer, p_step text, p_request jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) TO authenticated;
+GRANT ALL ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) TO service_role;
+
+
+--
+-- Name: FUNCTION post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION post_pull(p_post_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_pull(p_post_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_pull(p_post_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.post_pull(p_post_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION post_unanswered(p_post_id uuid, p_attempt text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) TO service_role;
+
+
+--
 -- Name: FUNCTION preview_built(p_id uuid, p_ok boolean, p_why text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -57236,6 +57822,146 @@ GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
 
 
 --
+-- Name: TABLE posts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.posts TO service_role;
+
+
+--
+-- Name: COLUMN posts.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(id) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(tenant_id) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.file_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(file_id) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.place; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(place) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(kind) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.caption; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(caption) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.scheduled_for; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(scheduled_for) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.approved_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(approved_by) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.approved_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(approved_at) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.via; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(via) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(status) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.held_reason; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(held_reason) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.attempts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(attempts) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.external_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(external_id) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.permalink; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(permalink) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.published_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(published_at) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.error; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(error) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.created_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(created_at) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.updated_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(updated_at) ON TABLE public.posts TO authenticated;
+
+
+--
 -- Name: TABLE privacy_requests; Type: ACL; Schema: public; Owner: -
 --
 
@@ -57262,6 +57988,83 @@ GRANT ALL ON TABLE public.profiles TO service_role;
 --
 
 GRANT ALL ON TABLE public.provider_events TO service_role;
+
+
+--
+-- Name: TABLE publish_attempts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.publish_attempts TO service_role;
+
+
+--
+-- Name: COLUMN publish_attempts.id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(id) ON TABLE public.publish_attempts TO authenticated;
+
+
+--
+-- Name: COLUMN publish_attempts.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(tenant_id) ON TABLE public.publish_attempts TO authenticated;
+
+
+--
+-- Name: COLUMN publish_attempts.post_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(post_id) ON TABLE public.publish_attempts TO authenticated;
+
+
+--
+-- Name: COLUMN publish_attempts.attempt_no; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(attempt_no) ON TABLE public.publish_attempts TO authenticated;
+
+
+--
+-- Name: COLUMN publish_attempts.step; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(step) ON TABLE public.publish_attempts TO authenticated;
+
+
+--
+-- Name: COLUMN publish_attempts.started_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(started_at) ON TABLE public.publish_attempts TO authenticated;
+
+
+--
+-- Name: COLUMN publish_attempts.finished_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(finished_at) ON TABLE public.publish_attempts TO authenticated;
+
+
+--
+-- Name: COLUMN publish_attempts.http_status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(http_status) ON TABLE public.publish_attempts TO authenticated;
+
+
+--
+-- Name: COLUMN publish_attempts.outcome; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(outcome) ON TABLE public.publish_attempts TO authenticated;
+
+
+--
+-- Name: COLUMN publish_attempts.error; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(error) ON TABLE public.publish_attempts TO authenticated;
 
 
 --

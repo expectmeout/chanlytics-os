@@ -395,6 +395,24 @@ async function videoDigest(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await ctx.files.digest(job, ctx.deadline);
 }
 
+/** post_prepare: a post made ready on Instagram (00611, decision 0121), through what the edge injects. payload: { post_id, attempt } */
+async function postPrepare(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.posts) throw new Error("post_prepare: this runtime holds no poster");
+  return ctx.posts.prepare(job, ctx.deadline);
+}
+
+/** post_publish: a post sent, once, after the recheck (00611). payload: { post_id, attempt } */
+async function postPublish(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.posts) throw new Error("post_publish: this runtime holds no poster");
+  return ctx.posts.publish(job, ctx.deadline);
+}
+
+/** post_reconcile: Instagram asked what it has after a send with no answer (00611). payload: { post_id, attempt } */
+async function postReconcile(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.posts) throw new Error("post_reconcile: this runtime holds no poster");
+  return ctx.posts.reconcile(job, ctx.deadline);
+}
+
 /** website_read: the business's website read for Check (00479, decision 0073), through what the edge injects. payload: { url }. */
 async function websiteRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.website) throw new Error("website_read: this runtime holds no website reader");
@@ -471,6 +489,9 @@ const HANDLERS: Record<JobKind, Handler> = {
   file_fetch: fileFetch,
   file_purge: filePurge,
   video_digest: videoDigest,
+  post_prepare: postPrepare,
+  post_publish: postPublish,
+  post_reconcile: postReconcile,
   campaign_moments: campaignMoments,
   reach_out_steps: reachOutSteps,
   calendar_read: calendarRead,

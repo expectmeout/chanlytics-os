@@ -49,6 +49,7 @@ import type {
   FILE_WHO_IN_IT,
 } from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
+import type { POST_KINDS, POST_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing/dtos";
@@ -159,6 +160,12 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof FILE_SOURCES>, SchemaSet<"files.source">>>,
   Holds<Exactly<Of<typeof FILE_STATUSES>, SchemaSet<"files.status">>>,
   Holds<Exactly<Of<typeof FILE_WHO_IN_IT>, SchemaSet<"files.who_in_it">>>,
+
+  // A post on its way to a place (00611, decision 0121).
+  Holds<Exactly<Of<typeof POST_PLACES>, SchemaSet<"posts.place">>>,
+  Holds<Exactly<Of<typeof POST_KINDS>, SchemaSet<"posts.kind">>>,
+  Holds<Exactly<Of<typeof POST_STATUSES>, SchemaSet<"posts.status">>>,
+  Holds<Exactly<Of<typeof POST_VIAS>, SchemaSet<"posts.via">>>,
 
   // What a connected mailbox read a sender to be (00495, decision 0080).
   Holds<Exactly<Of<typeof SENDER_KINDS>, SchemaSet<"mailbox_sender_reads.kind">>>,

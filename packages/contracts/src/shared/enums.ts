@@ -180,6 +180,14 @@ export const JOB_KINDS = [
   // A video made ready one step a run, each run again safely (00556, decision 0099 B): payload { file_id, step, edition }.
   "video_digest",
   /**
+   * A post on its way to Instagram (00611, decision 0121), payload { post_id, attempt }, once a post and an attempt while one
+   * waits, in the bulk lane: a post never holds a reply. Prepare makes it ready there (a container) and is run again safely;
+   * publish sends it, once, after the recheck; reconcile asks Instagram what it has when a send had no answer.
+   */
+  "post_prepare",
+  "post_publish",
+  "post_reconcile",
+  /**
    * A workspace's hourly work, handed out by its clock and run here (00569, decision 0115), one job a workspace while one
    * waits or runs: its due moments read and run together, its due reach-out steps, its calendar read, its Google listings
    * and profile read. Payload {}: each asks what is due when it runs.

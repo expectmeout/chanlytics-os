@@ -298,6 +298,16 @@ export interface JobContext {
     digest: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
+   * A post on its way to Instagram (00611, decision 0121), as the edge holds it: the business's token lives in the vault
+   * there. INJECTED like the files; a post job in a runtime without it fails loudly. Each answers `skipped` when the post
+   * is no longer where its job expects it (pulled, held, already up), and throws when a try is worth repeating.
+   */
+  posts?: {
+    prepare: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
+    publish: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
+    reconcile: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
+  };
+  /**
    * A freed time offered to the people who asked and never booked (decision 0082), as the edge holds it: the workspace's
    * run context and its step on `slot_opened` live there. INJECTED like the website reader; a delivery to
    * `freed_time_offer` in a runtime without it fails loudly.

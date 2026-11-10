@@ -107,9 +107,11 @@ what the script writes.
 | [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/repositories/console/ops.ts` | on, no policy, so only the service role reaches it |
 | [`policies`](#policies) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 4 policies |
+| [`posts`](#posts) | `packages/db/src/repositories/files/posts.ts` | on, 1 policy |
 | [`privacy_requests`](#privacy_requests) | `packages/db/src/repositories/console/requests.ts` | on, no policy, so only the service role reaches it |
 | [`profiles`](#profiles) | `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/auth/account.ts`, `packages/db/src/repositories/console/support.ts` | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/repositories/events/provider-events.ts` | on, no policy, so only the service role reaches it |
+| [`publish_attempts`](#publish_attempts) | `packages/db/src/repositories/files/posts.ts` | on, 1 policy |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notices/member-alerts.ts` | on, 1 policy |
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
@@ -3005,6 +3007,47 @@ Foreign keys:
 | `policies_owner_delete_person` | delete | authenticated | `((subject_type = 'contact'::text) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.user_id = auth.uid()) AND (m.role = 'owner'::text)))))` |  |
 | `policies_owner_insert_person` | insert | authenticated |  | `((subject_type = 'contact'::text) AND (subject_id IS NOT NULL) AND (class = 'reply'::text) AND (tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE ((m.…` |
 
+### posts
+
+One row per place a post goes (00611, decision 0121): the exact file approved, who approved it and when, its words there, when it goes and where it stands. Written only through its doors.
+
+- Owned by: `packages/db/src/repositories/files/posts.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `file_id` | uuid | no |  |  |
+| `place` | text | no |  |  |
+| `kind` | text | no |  |  |
+| `caption` | text | yes |  |  |
+| `scheduled_for` | timestamp with time zone | no | `now()` |  |
+| `approved_by` | uuid | yes |  |  |
+| `approved_at` | timestamp with time zone | no | `now()` |  |
+| `via` | text | no | `'press'::text` |  |
+| `status` | text | no |  | queued (approved, its job waiting), preparing (Instagram is making it ready), publishing (being sent now), checking (sent with no answer: Instagram is asked what it has), published, held (the recheck stopped it, held_reason says why), failed (error says why), pulled (the owner said not to), taken_down. |
+| `held_reason` | text | yes |  |  |
+| `attempts` | integer | no | `0` |  |
+| `container_id` | text | yes |  | The newest send's container at the platform (publish_attempts holds each). Service role only. |
+| `external_id` | text | yes |  |  |
+| `permalink` | text | yes |  |  |
+| `published_at` | timestamp with time zone | yes |  |  |
+| `error` | jsonb | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `approved_by` → `auth.users` (`id`), on delete set null
+- `file_id` → [`files`](#files) (`id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `posts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### privacy_requests
 
 A request the data-deletion page promises an answer to (00467, decision 0066): a workspace to delete within thirty days of its owner asking, a person's request passed to the business, a copy of everything; with its steps. Outlives the workspace it was about. The service role alone reads and writes it.
@@ -3081,6 +3124,40 @@ Every verified delivery a provider made to a door, as it came, under the provide
 Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+### publish_attempts
+
+One row per send of a post (00611, decision 0121): the request as sent (never a token), the answer as it came, the outcome. Never changed once finished.
+
+- Owned by: `packages/db/src/repositories/files/posts.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `post_id` | uuid | no |  |  |
+| `attempt_no` | integer | no |  |  |
+| `step` | text | no |  |  |
+| `started_at` | timestamp with time zone | no | `now()` |  |
+| `finished_at` | timestamp with time zone | yes |  |  |
+| `request` | jsonb | no |  |  |
+| `answer` | jsonb | yes |  |  |
+| `http_status` | integer | yes |  |  |
+| `outcome` | text | yes |  |  |
+| `container_id` | text | yes |  |  |
+| `external_id` | text | yes |  |  |
+| `error` | jsonb | yes |  |  |
+
+Foreign keys:
+
+- `post_id` → [`posts`](#posts) (`id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `publish_attempts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### push_devices
 
