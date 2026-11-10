@@ -112,13 +112,15 @@ test("Today's Connect Google opens the connect sheet, and each note says what it
 
 test("a first run whose words are new asks whatever the mode, and a held batch after it does not", () => {
   assert.equal(coldBatchAsks({ mode: "veto", words_ok_at: null }), true);
+  assert.equal(
+    coldBatchAsks({ mode: "auto", words_ok_at: null }),
+    true,
+    "new words ask, even of one that sends on its own",
+  );
   assert.equal(coldBatchAsks({ mode: "veto", words_ok_at: "2026-11-09T15:00:00Z" }), false);
   assert.equal(coldBatchAsks({ mode: "ask", words_ok_at: "2026-11-09T15:00:00Z" }), true);
-  assert.equal(
-    coldBatchAsks({ mode: "auto", words_ok_at: "2026-11-09T15:00:00Z" }),
-    true,
-    "cold email never just goes",
-  );
+  // Set to send on its own by its owner (decision 0120), once its words have their OK it does not ask.
+  assert.equal(coldBatchAsks({ mode: "auto", words_ok_at: "2026-11-09T15:00:00Z" }), false);
 });
 
 test("no mailbox at all is known by its code, never by its words", () => {
