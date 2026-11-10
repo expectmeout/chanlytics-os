@@ -38,6 +38,13 @@ const LEADS = 10_000;
 const WRITTEN = 5_000;
 /** The audience takes what it may write to: everyone on the list not written to yet, up to its 5,000. */
 const PLACED = 5_000;
+/**
+ * Trying again (00608, decision 0120), asked at fewer days than a sequence may keep (90 to 365) so the seed's emails,
+ * which left 37 to 39 days ago, are old enough: the written leads whose every email has left come back, the half with
+ * one still planned do not.
+ */
+const AGAIN_DAYS = 30;
+const BACK = WRITTEN / 2;
 /** The most rows a read may walk: each CTE and function a few times over, and never once for each row of another. */
 const MOST_WALKED = 10 * LEADS;
 /** The guess the old reads' loops came from: past this the run did not reach the state it is here to read. */
@@ -221,6 +228,7 @@ test(
       execute 'set local plan_cache_mode = force_generic_plan';
       ${planOf("lines", "public.reach_out_root_lines(uuid, uuid)", ROOT_ARGS, "uuid, uuid", "%L, %L", "t, root")}
       ${planOf("audience", "public.reach_out_audience(uuid, uuid, integer, boolean, integer)", ["p_tenant_id", "p_search_id", "p_limit", "p_include_unconfirmed", "p_again_after"], "uuid, uuid, integer, boolean, integer", "%L, %L, 5000, false, null", "t, list")}
+      ${planOf("again", "public.reach_out_audience(uuid, uuid, integer, boolean, integer)", ["p_tenant_id", "p_search_id", "p_limit", "p_include_unconfirmed", "p_again_after"], "uuid, uuid, integer, boolean, integer", `%L, %L, 10000, false, ${AGAIN_DAYS}`, "t, list")}
       ${planOf("people", "public.reach_out_people_of(uuid, uuid)", ROOT_ARGS, "uuid, uuid", "%L, %L", "t, root")}
 
       t0 := clock_timestamp();
@@ -237,6 +245,19 @@ test(
                'written', count(*) filter (where exists (select 1 from public.sequence_sends s where s.sequence_id = root and s.lead_id = x.lead_id)))
         into a from public.reach_out_audience(t, list, 5000, false) x;
       seen := seen || jsonb_build_object('audience_said', a, 'audience_ms', round((extract(epoch from clock_timestamp() - t0) * 1000)::numeric));
+
+      -- Trying again (00608): the written whose every email left long enough ago come back, after the new ones.
+      t0 := clock_timestamp();
+      select jsonb_build_object(
+               'rows', count(*),
+               'written', count(*) filter (where exists (select 1 from public.sequence_sends s where s.sequence_id = root and s.lead_id = x.lead_id)))
+        into a from public.reach_out_audience(t, list, 10000, false, ${AGAIN_DAYS}) x;
+      seen := seen || jsonb_build_object('again_said', a, 'again_ms', round((extract(epoch from clock_timestamp() - t0) * 1000)::numeric));
+      select jsonb_build_object(
+               'rows', count(*),
+               'written', count(*) filter (where exists (select 1 from public.sequence_sends s where s.sequence_id = root and s.lead_id = x.lead_id)))
+        into a from public.reach_out_audience(t, list, ${PLACED}, false, ${AGAIN_DAYS}) x;
+      seen := seen || jsonb_build_object('again_first_said', a);
 
       t0 := clock_timestamp();
       select jsonb_build_object(
@@ -255,8 +276,8 @@ test(
       seen := seen || jsonb_build_object('lines_settings', to_jsonb(conf));
       raise exception 'seen %', encode(convert_to(seen::text, 'UTF8'), 'hex');
     end;`);
-    const { lines, audience, people, ...numbers } = seen;
-    const plans = { lines, audience, people };
+    const { lines, audience, people, again, ...numbers } = seen;
+    const plans = { lines, audience, people, again };
     console.log(
       JSON.stringify({
         ...numbers,
@@ -271,6 +292,11 @@ test(
     assert.deepEqual(numbers.lines_said, { rows: LEADS, written: WRITTEN, on_the_list: LEADS - WRITTEN });
     // Whoever it may write to, and nobody written to already.
     assert.deepEqual(numbers.audience_said, { rows: PLACED, written: 0 });
+    // Trying again: everyone new, then the written whose three emails all left more than AGAIN_DAYS ago (half of them:
+    // the other half hold one still planned); and within its limit the new ones come first, so a day's emails go to
+    // businesses never written to before any is written to twice.
+    assert.deepEqual(numbers.again_said, { rows: PLACED + BACK, written: BACK });
+    assert.deepEqual(numbers.again_first_said, { rows: PLACED, written: 0 });
     // Everyone not written to waits, each with a place of their own; a lead written to has none, the audience having let them go.
     assert.deepEqual(numbers.people_said, {
       rows: LEADS,
