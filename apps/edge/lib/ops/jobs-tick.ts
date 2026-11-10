@@ -48,6 +48,7 @@ import { textsReader } from "../sms/texts-sweep.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../campaigns/freed-time-offer.js";
 import { remindLateBooking } from "../campaigns/late-reminder.js";
+import { thankLateKept } from "../campaigns/late-thanks.js";
 import { occasionRuns } from "../campaigns/occasions/due.js";
 import { enrolOccasions } from "../campaigns/occasions/enrol.js";
 import { answerInboundJob } from "../intake/answer-job.js";
@@ -281,7 +282,11 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               freedTimes: { offer: (tenantId, freed) => offerFreedTime(db, tenantId, freed) },
               // A booking that landed after the reminder's daily look (decision 0118): the workspace's step on
               // visit_tomorrow runs for that one person, through the same run.
-              reminders: { remind: (tenantId, appointmentId) => remindLateBooking(db, tenantId, appointmentId) },
+              // And a visit marked kept after the thank-you's look (decision 0122): its step on `visited`, the same way.
+              reminders: {
+                remind: (tenantId, appointmentId) => remindLateBooking(db, tenantId, appointmentId),
+                thank: (tenantId, appointmentId) => thankLateKept(db, tenantId, appointmentId),
+              },
               // What happened to one person (decision 0119): the sequences that start on it take them in, at a time of
               // their own.
               occasions: { enrol: (tenantId, event) => enrolOccasions(db, tenantId, event) },

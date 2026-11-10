@@ -34,6 +34,16 @@ export function visitSideOf(trigger: string | null | undefined): "ahead" | "behi
 }
 
 /**
+ * Whether a moment's message waits for a member's word that the person came (decision 0122): the thank-you the day
+ * after a visit. It thanks them for coming, and may ask for a review, so it goes only for a visit the record says was
+ * kept. One nobody has marked is named and left out, counted (playbookRunReach's `unmarked`); the send asks the row once
+ * more (appointmentHolds); and a visit marked kept after the day's look is thanked on its own (lateThanksAt).
+ */
+export function waitsForKept(trigger: string | null | undefined): boolean {
+  return trigger === "visited";
+}
+
+/**
  * A visit's time as an example of a moment's message says it, the way its run would (playbooks visitWords): with its
  * time where the visit is ahead (tomorrow's the day before, today's two hours before), by its day alone where it is
  * behind (yesterday's the day after; today's for one marked missed, which is written to minutes later). Null for a

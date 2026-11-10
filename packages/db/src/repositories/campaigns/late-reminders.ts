@@ -34,12 +34,14 @@ const SEND_STANDS: readonly string[] = ["queued", "sent"];
 export async function findReminderStep(
   db: Db,
   tenantId: TenantId,
+  /** The visit's moment the step is on: the reminder the day before (0118), or the thank-you the day after (0122). */
+  moment: "visit_tomorrow" | "visited",
 ): Promise<{ state: "running"; step: ReminderStep } | { state: "paused" | "none" }> {
   const { data, error } = await db
     .from("sequence_steps")
     .select("*")
     .eq("tenant_id", tenantId)
-    .eq("trigger", REMINDER_MOMENT)
+    .eq("trigger", moment)
     .order("created_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the step that reminds of an appointment");
   const steps = data;

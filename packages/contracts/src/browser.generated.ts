@@ -102,7 +102,7 @@ export { FREED_TIME_PASSED_WORDS, poolWords, reachLines, runApprovalRefusal, run
 export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from "./campaigns/playbooks/channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./campaigns/playbooks/failed";
 export { FOLLOW_UP_NEEDS_LINK, FOLLOW_UP_ONE, followUpIsFor, followUpKey, followUpNames, followUpRunAt, followUpStandOf, followUpWords, PLAYBOOK_TOUCH_WINDOW_MS, playbookRunStop, playbookStopBy } from "./campaigns/playbooks/follow-ups";
-export { lateReminderAt } from "./campaigns/playbooks/late-reminder";
+export { lateReminderAt, lateThanksAt } from "./campaigns/playbooks/late-reminder";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./campaigns/playbooks/lifecycle/inputs";
 export { reachCountsOf, lifecycleComing, lifecycleReach, lifecycleResults, nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./campaigns/playbooks/lifecycle/tiles";
 export { channelsGoesByWords, LIFECYCLE_TOAST, LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf, tallyWords } from "./campaigns/playbooks/lifecycle/words";
@@ -116,7 +116,7 @@ export { inLastSendingHour, localDate, localHour, nextOpenMoment, nextRunLabel, 
 export { PLAYBOOK_BREATH_MS } from "./campaigns/playbooks/time";
 export { FREED_TIME_DEFAULTS, isPlaybookState, MOMENT_TRIGGERS, PLAYBOOK_CAP_CHOICES, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_LIMITS, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, SENDING_HOURS_WORDS, SENDING_NOW_WORDS, sendsWaitWords, whenItGoes } from "./campaigns/playbooks/triggers/kinds";
 export { CAMPAIGN_NOT_FOUND, coldBatchGoesNotice, delayWords, freedTimeTakenNotice, isWinBack, lateReminderSkippedNotice, leftBehindNotice, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, owedOncePerMoment, PLAYBOOK_NAME_MAX, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, winBackWords } from "./campaigns/playbooks/triggers/notices";
-export { isOccasionTrigger, momentNamesVisit, occasionIsSingle, occasionWords, visitWhenExample } from "./campaigns/playbooks/triggers/occasions";
+export { isOccasionTrigger, momentNamesVisit, occasionIsSingle, occasionWords, visitWhenExample, waitsForKept } from "./campaigns/playbooks/triggers/occasions";
 export { heldNoticeWords, REACH_OUT_RUN_REREAD_MS, REACH_OUT_TO_SEND_LABELS, reachOutRunMoving, reachOutRunWordsOf, TO_SEND_ALL_WORDS, toSendRowOf, toSendSaidWords, toSendWordsOf, waitingRunsDoor } from "./campaigns/reach-out/approval";
 export { COLD_EMAIL_CONNECT_WORDS } from "./campaigns/reach-out/connect-words";
 export { chainFirstSender, previewLinesOf, previewRefusedWords, REACH_OUT_FIRST_WORDS, REACH_OUT_GAP_FIRST, REACH_OUT_NEW_LIST_WORDS, REACH_OUT_PREVIEW_WORDS, REACH_OUT_SHEET_PARTS, reachOutAddHandStep, reachOutAddStep, reachOutAfterDayChoices, reachOutChainBodyOf, reachOutDefaultName, reachOutDoorOf, reachOutDraftIssues, reachOutDraftOf, reachOutDropStep, reachOutEditedWords, reachOutMayAddStep, reachOutMayPickMailbox, reachOutPreviewOf, reachOutSavedWords, reachOutSetHandWords, reachOutSheetPaceOf, reachOutSheetUnreadOf, reachOutVersionDraftOf, reachOutWhoWords } from "./campaigns/reach-out/draft";

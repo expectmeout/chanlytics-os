@@ -32,6 +32,7 @@ import {
   theirVisitTest,
   visitMomentDay,
   visitOnDay,
+  waitsForKept,
   type CampaignHow,
   type CampaignMessage,
   type ConsentChannel,
@@ -483,9 +484,15 @@ function recipientFacts(run: Run, goesAt: Date): (person: PersonRowVM) => Record
     // Which appointment the words are about, when it starts, and when the run read it from the calendar (the context's
     // now), so the send asks its row again (decision 0002, contracts appointmentHolds): a reminder never goes for one
     // that moved or was cancelled since the run, and the record's older word never holds one the run saw newer.
-    return words && visit?.key
-      ? { ...words, appointment: visit.key, visit_start: visit.start, appointment_read_at: ctx.now.toISOString() }
-      : words;
+    if (!words || !visit?.key) return words;
+    return {
+      ...words,
+      appointment: visit.key,
+      visit_start: visit.start,
+      appointment_read_at: ctx.now.toISOString(),
+      // A thank-you is owed only while its visit's row still says kept (decision 0122, contracts appointmentHolds).
+      ...(waitsForKept(p.trigger) ? { visit_was: "kept" } : {}),
+    };
   };
 }
 

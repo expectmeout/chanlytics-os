@@ -365,6 +365,8 @@ export const LOG_EVENTS = [
   "kept_going",
   "late_booking_not_reminded",
   "late_booking_reminded",
+  "late_visit_not_thanked",
+  "late_visit_thanked",
   "lead_check",
   "lead_collect",
   "lead_context_unavailable",

@@ -70,7 +70,8 @@ export function batchRefusal(step: PlaybookRow, { freed, late, occasion }: Asked
   if (freed && freed.start <= goesAt.getTime()) return "freed_time_passed";
   const occasionStep = isOccasionTrigger(step.trigger);
   if (occasionStep !== (occasion !== null)) return occasionStep ? "no_occasion" : "not_an_occasion_step";
-  return late && step.trigger !== "visit_tomorrow" ? "not_a_reminder_step" : null;
+  // A run about one visit, after the day's look: a late booking's reminder (0118), or a late Kept's thank-you (0122).
+  return late && triggerOf(step.trigger)?.kind !== "visit" ? "not_a_reminder_step" : null;
 }
 
 /**
