@@ -559,7 +559,15 @@ test("one reader: one lead's place and many leads' say what the sequence's peopl
   assert.equal(placeB.place.group, rowOf(W.b).group);
   assert.equal(placeB.sends.length, 1);
   assert.equal(placeB.sends[0].state, "sent");
-  assert.equal(placeB.reads_replies, false, "no connected mailbox: replies are told");
+  assert.equal(placeB.reads_replies, true, "a connected mailbox: its replies are read");
+  // A mailbox let go since the sequence was made (one is needed to make one, 00585): replies are told, not read.
+  ok(await db.from("mailbox_connections").update({ state: "removed" }).eq("tenant_id", A).select("id"));
+  try {
+    const told = ok(await as.operator.c.rpc("sequence_place", { p_tenant_id: A, p_lead_id: W.b }));
+    assert.equal(told.reads_replies, false, "no connected mailbox: replies are told");
+  } finally {
+    ok(await db.from("mailbox_connections").update({ state: "connected" }).eq("tenant_id", A).select("id"));
+  }
   assert.equal(placeB.joined.auto, false, "added by hand");
   assert.ok(placeB.joined.at, "when they joined its list");
   const none = ok(await as.operator.c.rpc("sequence_place", { p_tenant_id: A, p_lead_id: W.i }));

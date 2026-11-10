@@ -1194,7 +1194,6 @@ CREATE FUNCTION public.batch_closes_its_notices() RETURNS trigger
     AS $$
 begin
   if (OLD.state = 'pending_approval' and NEW.state <> 'pending_approval')
-     or (NEW.state = 'sending' and OLD.state <> 'sending')
      or (NEW.state in ('sent', 'canceled', 'failed') and OLD.state not in ('sent', 'canceled', 'failed')) then
     perform public.notifications_close_about(NEW.tenant_id, array['playbook'], 'broadcast', NEW.id::text);
   end if;
@@ -1209,7 +1208,7 @@ end $$;
 -- Name: FUNCTION batch_closes_its_notices(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.batch_closes_its_notices() IS 'Closes the open playbook rows about a run when it leaves pending_approval (approved, skipped, or skipped by the sweep, whoever does it), starts sending (its stop window over, 00585), or ends (sent, canceled, failed), through notifications_close_about (00461). Never fails the change: a failure is a warning.';
+COMMENT ON FUNCTION public.batch_closes_its_notices() IS 'Closes the open playbook rows about a run when it leaves pending_approval (approved, skipped, or skipped by the sweep, whoever does it) or ends (sent, canceled, failed), through notifications_close_about (00461). Never fails the change: a failure is a warning.';
 
 
 --

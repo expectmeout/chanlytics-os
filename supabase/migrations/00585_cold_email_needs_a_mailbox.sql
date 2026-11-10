@@ -1,4 +1,4 @@
--- 00585 · Cold email needs a mailbox, in the database too; and a batch's bell row closes as it starts sending.
+-- 00585 · Cold email needs a mailbox, in the database too.
 --
 -- Decision 0116 (Ruben, 9 Nov 2026: sending by hand defeats the purpose of Chanlytics). The app refuses a sequence to
 -- leads with no mailbox that sends, on New, on Ask's card and at the door, and refuses one asked to be sent by hand. The
@@ -8,12 +8,9 @@
 --                              refused, in the words New says; a copy of a sequence its owner sent by hand sends from
 --                              the mailboxes, as every new one does. One already sent by hand goes on as it is until the
 --                              column goes (Stage E of docs/superpowers/plans/2026-11-09-cold-email.md).
---   batch_closes_its_notices   as 00461 wrote it, and also when a run starts sending: the bell row "it sends at 10:30,
---                              stop it" promised a stop window that has ended, which the browser already said by closing
---                              it then (contracts waits/notice-closes.ts); now every device and the phone's icon agree.
 --
 -- Deploy order: either. The app refuses first, so this changes nothing a person sees from the app; a build before it
--- reads the same rows. Re-runnable: two functions replaced, their grants kept.
+-- reads the same rows. Re-runnable: one function replaced, its grants kept.
 
 set local lock_timeout = '3s';
 
@@ -141,21 +138,3 @@ begin
          coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('steps', v_n, 'started', p_start, 'starts', 'leads'),
          p_via, p_undo_of);
 end $$;
-
-create or replace function public.batch_closes_its_notices() returns trigger
-  language plpgsql security definer
-  set search_path to 'public'
-  as $$
-begin
-  if (OLD.state = 'pending_approval' and NEW.state <> 'pending_approval')
-     or (NEW.state = 'sending' and OLD.state <> 'sending')
-     or (NEW.state in ('sent', 'canceled', 'failed') and OLD.state not in ('sent', 'canceled', 'failed')) then
-    perform public.notifications_close_about(NEW.tenant_id, array['playbook'], 'broadcast', NEW.id::text);
-  end if;
-  return null;
-exception when others then
-  raise warning 'batch_closes_its_notices: %', sqlerrm;
-  return null;
-end $$;
-
-comment on function public.batch_closes_its_notices() is 'Closes the open playbook rows about a run when it leaves pending_approval (approved, skipped, or skipped by the sweep, whoever does it), starts sending (its stop window over, 00585), or ends (sent, canceled, failed), through notifications_close_about (00461). Never fails the change: a failure is a warning.';
