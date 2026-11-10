@@ -40,6 +40,30 @@ the post already up. Sending it again could post it twice.
 7. **Words, never codes.** What a refusal says comes from Instagram's code and subcode, in contracts `ON_INSTAGRAM.refused`:
    the day's limit, a picture Instagram could not take, a connection it no longer accepts, a busy minute, or anything else.
 
+## Tightened after a read of the whole road (10 November 2026)
+
+The road was read again end to end against Meta's content publishing guide and its IG User media reference, the day it
+went live and before any real post. Meta's own instruction for a publish with no answer is the one built: ask the
+container's status. What the read changed, none of it in the database:
+
+- **The second attempt asks before it makes anything.** A send with no answer may land after the reconcile looked. So the
+  second attempt first asks after the first container again. Published: the post is up, and nothing more is sent. Still
+  ready: it is the one sent again, so Instagram is handed the same post twice at most, never two posts; a refusal of that
+  second send with the container published is a post that is up. Only a container that lapsed or failed is made afresh.
+  This replaces "one fresh attempt" in 5.
+- **Found by its time alone is not proof.** A story carries no caption, so one on the account since the send may be one the
+  owner put up by hand. The container's status decides whether a post went up; the account's list proves it only by the
+  caption it was sent with, names it only when exactly one fits, and never names one another placement keeps.
+- **No post stays on its way for good.** A run that died right after keeping the container left the post queued, and its
+  send found nothing to send; a send's job that ended before the send began (the recheck could not read the database) left
+  it getting ready, holding every later press. The first now moves on at the next run; the second is said as not posted.
+- **A lapsed connection offers no press.** The sheet read the permissions alone, so a connection Meta no longer accepts
+  offered a press that was held a minute later.
+- **The picture says what it shows.** A post goes with the words drawn on it as its description (`alt_text`), which
+  Instagram reads out to someone who cannot see the picture. A story takes none.
+- **The sheet keeps reading a post that is being checked**: every five seconds for two minutes, then every fifteen for
+  seven more, counted per post.
+
 ## What it does not do yet
 
 A hold is said on the post's sheet; the bell hears of a failure only (the ledger's own `job_failed`), since every hold today

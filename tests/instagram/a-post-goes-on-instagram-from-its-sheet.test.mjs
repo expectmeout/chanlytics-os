@@ -100,7 +100,7 @@ const postRow = (tenant, over = {}) => ({
 });
 
 /** A workspace of its own each time (the switch is kept a while per workspace), with a made post and a photo. */
-function world({ on = true, scopes = ALL, connected = true, role = "owner", posts = [] } = {}) {
+function world({ on = true, scopes = ALL, connected = true, lapsed = false, role = "owner", posts = [] } = {}) {
   seq += 1;
   const tenant = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seq).padStart(12, "0")}`;
   if (on) ON.add(tenant);
@@ -150,7 +150,7 @@ function world({ on = true, scopes = ALL, connected = true, role = "owner", post
           external_id: "17841400000000001",
           status: "active",
           credentials_ref: "ref",
-          config: { login: "meta", scopes },
+          config: { login: "meta", scopes, ...(lapsed ? { token_lapsed_at: "2026-11-09T06:00:00Z" } : {}) },
           created_at: "2026-11-01T00:00:00Z",
         },
       ]
@@ -208,7 +208,13 @@ test("only where the Meta link is switched on, connected, and allowed to post", 
     route.POST.run(send(line, "POST", { as: "picture", caption: "Hi." }), line.ctx),
     (e) => e.message === ON_INSTAGRAM.lineOff,
   );
-  assert.deepEqual([off.begun, none.begun, line.begun], [[], [], []]);
+  // A connection Meta no longer accepts would only be held a minute later: the press is refused before anything is written.
+  const lapsed = world({ lapsed: true });
+  await assert.rejects(
+    route.POST.run(send(lapsed, "POST", { as: "picture", caption: "Hi." }), lapsed.ctx),
+    (e) => e.message === ON_INSTAGRAM.notConnected,
+  );
+  assert.deepEqual([off.begun, none.begun, line.begun, lapsed.begun], [[], [], [], []]);
 });
 
 test("only a made post goes, only on a press by whoever may save one, and a second press while one goes is the first", async () => {
@@ -269,4 +275,9 @@ test("the sheet reads whether Instagram takes a post, and where each one stands,
   assert.equal("container_id" in p, false);
   assert.equal((await read(world({ on: false }))).instagram, null, "nothing offered where the switch is off");
   assert.equal((await read(world({ connected: false }))).instagram.can, "not_connected");
+  assert.equal(
+    (await read(world({ lapsed: true }))).instagram.can,
+    "not_connected",
+    "a lapsed connection offers no press",
+  );
 });

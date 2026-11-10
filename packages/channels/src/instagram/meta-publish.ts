@@ -50,18 +50,24 @@ export function metaPostLimitRequest(poster: MetaPoster): InstagramRequest {
   );
 }
 
+/** The longest description of a picture Instagram keeps (IG User media, `alt_text`). */
+const META_ALT_MAX = 1000;
+
 /**
  * The fields a container is made with, as the attempt keeps them: the picture's host alone, never its signed address, and
- * never a token. A story shows no caption, so none is sent.
+ * never a token. A story shows no caption and takes no description, so neither is sent. A post's description (`says`, the
+ * words drawn on the picture) is what Instagram reads out to someone who cannot see it.
  */
 export function metaContainerFields(
   kind: InstagramPostKind,
   imageUrl: string,
-  caption: string | null,
+  words: { caption: string | null; says: string | null },
 ): Record<string, string> {
+  if (kind === "story") return { image_url: imageUrl, media_type: "STORIES" };
   return {
     image_url: imageUrl,
-    ...(kind === "story" ? { media_type: "STORIES" } : caption ? { caption } : {}),
+    ...(words.caption ? { caption: words.caption } : {}),
+    ...(words.says ? { alt_text: words.says.slice(0, META_ALT_MAX) } : {}),
   };
 }
 
@@ -166,21 +172,22 @@ export function parseMetaMediaList(json: unknown): MetaMedia[] {
 }
 
 /**
- * Of the account's newest, the one a send at `sentAt` made: posted after it (a minute's grace for two clocks), with the
- * caption it was sent with where it had one. A story carries none, so the first story after the send is it.
+ * Of the account's newest, the one a send at `sent.at` made: posted after it (a minute's grace for two clocks), with the
+ * caption it was sent with where it had one. Only when exactly one fits: two that fit are two posts, and nothing here says
+ * which is this one. A story carries no caption, so one found by its time alone is where the post is, never proof that it
+ * went up: the owner may have put one up by hand in the same minute (the container's status is the proof).
  */
 export function metaMediaSentBy(
   media: readonly MetaMedia[],
   sent: { at: string; caption: string | null },
 ): MetaMedia | null {
   const after = Date.parse(sent.at) - MIN_MS;
-  return (
-    media.find((item) => {
-      const at = item.timestamp ? Date.parse(item.timestamp) : Number.NaN;
-      if (!(at >= after)) return false;
-      return sent.caption ? (item.caption ?? "").trim() === sent.caption.trim() : true;
-    }) ?? null
-  );
+  const fitting = media.filter((item) => {
+    const at = item.timestamp ? Date.parse(item.timestamp) : Number.NaN;
+    if (!(at >= after)) return false;
+    return sent.caption ? (item.caption ?? "").trim() === sent.caption.trim() : true;
+  });
+  return fitting.length === 1 ? (fitting[0] ?? null) : null;
 }
 
 /** What a refusal comes to for the owner (contracts ON_INSTAGRAM.refused): which sentence the sheet and the bell say. */

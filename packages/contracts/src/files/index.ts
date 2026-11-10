@@ -67,6 +67,7 @@ export {
   postPhotoWont,
   postPlanOf,
   postPlanTidied,
+  postSentencesOf,
   postWordsIn,
 } from "./post";
 export type {

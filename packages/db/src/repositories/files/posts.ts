@@ -193,6 +193,27 @@ export async function findPlacementByName(
   return data?.id ?? null;
 }
 
+/**
+ * Of these ids a place gave its posts, the ones this workspace's placements already keep: a post found on the account by
+ * its time is never one another placement is. The service role's.
+ */
+export async function listKeptPostIds(
+  db: Db,
+  tenantId: TenantId,
+  place: PostPlace,
+  externalIds: readonly string[],
+): Promise<string[]> {
+  if (externalIds.length === 0) return [];
+  const { data, error } = await db
+    .from("posts")
+    .select("external_id")
+    .eq("tenant_id", tenantId)
+    .eq("place", place)
+    .in("external_id", [...externalIds]);
+  if (error) throw new DbFailure(error, "posts kept");
+  return data.flatMap((row) => (row.external_id ? [row.external_id] : []));
+}
+
 /** A post's sends in order, for the reconcile: what was sent and when. The service role's. */
 export async function listPostAttempts(db: Db, tenantId: TenantId, postId: string): Promise<PostAttemptRow[]> {
   const { data, error } = await db
