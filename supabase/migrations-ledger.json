@@ -52,15 +52,19 @@
     "00518": "claimed by cm-job-ledger (#2074, jobs/the-ledger-finished, the job ledger finished) and left when #2075 applied 00525 above it first; the ledger landed above that as 00526 to 00529",
     "00519": "claimed by cm-voice-ten (#2072, voice/to-a-ten, a call tells its owner once), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
     "00520": "claimed by cm-voice-ten (#2072, voice/to-a-ten, a call tells its owner once), open and not on main when a trial's leads count at every door took 00525 above every claim; it lands above or beside it",
-    "00521": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00576 to 00579",
-    "00522": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00576 to 00579",
-    "00523": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00576 to 00579",
-    "00524": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00576 to 00579",
-    "00534": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00575 above it; it landed above that as 00576 to 00579",
-    "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00575 above it; it landed above that as 00576 to 00579",
-    "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00575 above it; it landed above that as 00576 to 00579",
-    "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00575 above it; it landed above that as 00576 to 00579",
-    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544"
+    "00521": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00581 to 00584",
+    "00522": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00581 to 00584",
+    "00523": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00581 to 00584",
+    "00524": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00533 above it; it landed above that as 00581 to 00584",
+    "00534": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00575 above it; it landed above that as 00581 to 00584",
+    "00535": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00575 above it; it landed above that as 00581 to 00584",
+    "00536": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00575 above it; it landed above that as 00581 to 00584",
+    "00537": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00575 above it; it landed above that as 00581 to 00584",
+    "00543": "claimed by cm-lead-own-words (#2099, a lead's email edited where it is read), open and not on main when Anthropic is told whom a call is for (decision 0097) took 00544 above it; it lands above 00544",
+    "00576": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00580 above it; it landed above that as 00581 to 00584",
+    "00577": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00580 above it; it landed above that as 00581 to 00584",
+    "00578": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00580 above it; it landed above that as 00581 to 00584",
+    "00579": "claimed by cm-inbound-fixes (#2065, inbound/what-the-review-found, inbound to a 9-10) and left when main reached 00580 above it; it landed above that as 00581 to 00584"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -578,9 +582,10 @@
     "00573_a_press_that_showed_the_words_is_their_ok.sql": "c2548afadd3cb690702bc4abca4b89583e642feb163425e45268f4ed2bffdcb4",
     "00574_a_record_of_each_thing_ask_did.sql": "a258a8fef63ad6fba2b98ab4cf81310316e0b8e8f512edb4f25b7876d90ef975",
     "00575_web_push_and_what_ask_told.sql": "22b059fcdafef7559b6e4a7a4c59d3466efb5d85e8effc5ef4f176149225ff92",
-    "00576_a_message_and_the_yes_it_carries_are_kept_together.sql": "54da23cf97ca7efa645c38ef585f30552a95cc8282dca6bb6d2c3d6a45281970",
-    "00577_an_address_a_customer_gives_is_kept_where_none_is.sql": "cd92b3d11b97aad08d1b0ab1752792499c9e247694a751028cb098573f01ee56",
-    "00578_a_text_twilio_could_not_hand_us_is_taken_in.sql": "bd1b8f3eef8033d46f128f32f86f94a738d195f6517a0c2bb975296fe989c3a6",
-    "00579_the_wires_are_proved_once_a_day.sql": "1f030b14d3e9f38c886a0a3274d797b1fcde7aec438056e8bbd1006bf17276b0"
+    "00580_a_late_booking_is_reminded.sql": "836e8d4d41a39945b2703ef0ef15a8a76e579742fb8607ac1c44f24094df22ef",
+    "00581_a_message_and_the_yes_it_carries_are_kept_together.sql": "32cfebfebe22201621a590747ca49269713d56404bb1271bd959a69cb5626ae4",
+    "00582_an_address_a_customer_gives_is_kept_where_none_is.sql": "8c71e3a7df5fc1c410fc58657252f4e7875a324ec3e79783675758dc90c6e37a",
+    "00583_a_text_twilio_could_not_hand_us_is_taken_in.sql": "e9fb8d3bc4db3110f6534f3148d74b9df0dbf508925ae572ef0d3b13a73c11f3",
+    "00584_the_wires_are_proved_once_a_day.sql": "5a904e38e6587094eaad121cf0eaca36cee5e63d4904d3d353b6f11dcf6b5d33"
   }
 }

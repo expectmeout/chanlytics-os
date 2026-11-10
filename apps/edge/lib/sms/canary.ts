@@ -4,7 +4,7 @@
  * reply left. Nothing else shows that a real Twilio text gets a real answer while real traffic is near zero: the suite
  * fakes the wires, and the nightly cannot send one.
  *
- * pg_cron asks for it at 14:00 and 14:15 UTC ('text-canary', 00579). Each tick reads the line's own record from Twilio for the
+ * pg_cron asks for it at 14:00 and 14:15 UTC ('text-canary', 00584). Each tick reads the line's own record from Twilio for the
  * canary's words in the last CHECK_WITHIN_MS: none, and it sends one (CANARY_SMS_SERVICE, a Messaging Service of the
  * master account holding the canary's number, to CANARY_SMS_TO, the platform workspace's line); one younger than
  * CHECK_AFTER_MS, and it waits; an older one, and it asks the database what became of it, and pages the platform when

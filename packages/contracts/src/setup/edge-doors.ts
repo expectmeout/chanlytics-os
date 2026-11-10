@@ -62,3 +62,28 @@ export const INSTAGRAM_ACCOUNT_DOOR = edgeDoor(
     app: z.object({ client_id: z.string(), redirect_uri: z.string() }).partial().nullable(),
   }),
 );
+
+/**
+ * POST /api/admin/meta/connection: an Instagram account connected through Meta (Instagram API with Unified Login, the Meta
+ * link PRD), disconnected, or asked whether it can be here. `on` is the workspace's switch (contracts contentPreviewOf), read
+ * by the edge since a member may not read the config.
+ */
+export const META_CONNECTION_DOOR = edgeDoor(
+  "/api/admin/meta/connection",
+  z.object({
+    op: z.string(),
+    tenant_id: DOOR_ID.optional(),
+    user_id: DOOR_ID.optional(),
+    code: z.string().optional(),
+    channel_id: DOOR_ID.optional(),
+  }),
+  answerFields({
+    ready: z.boolean(),
+    on: z.boolean(),
+    app: z.object({ client_id: z.string(), config_id: z.string(), redirect_uri: z.string() }).partial().nullable(),
+    channel_id: z.string(),
+    account_id: z.string(),
+    username: z.string().nullable(),
+    accounts: z.array(z.object({ id: z.string(), username: z.string().nullable() })),
+  }),
+);

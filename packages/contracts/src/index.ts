@@ -10,6 +10,7 @@ export * from "./campaigns/broadcasts";
 export * from "./calendar";
 export * from "./config";
 export * from "./consent";
+export * from "./content";
 export * from "./console";
 export * from "./conversations";
 export * from "./deals";

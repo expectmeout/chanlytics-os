@@ -211,6 +211,19 @@
         }
       }
     },
+    "POST /api/admin/meta/connection": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/meta/connection.ts",
+      "knock_args": {
+        "aud": "/api/admin/meta/connection",
+        "opts": {
+          "body": {
+            "expr": "raw"
+          }
+        }
+      }
+    },
     "POST /api/admin/page": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

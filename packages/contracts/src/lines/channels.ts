@@ -11,6 +11,7 @@ import { agoWords, dateFormat, DAY_MS } from "../shared/time";
 import { formatPhoneDisplay } from "../shared/phone";
 import { lineOffGets } from "./caller-gets";
 import type { NumberStanding } from "./number-standing";
+import type { MetaLines } from "../content/lines";
 
 export interface ChannelDto {
   id: string;
@@ -39,6 +40,11 @@ export interface ChannelDto {
   handle?: string | null;
   /** When Instagram stopped taking the account's token (the token sweep): it answers nothing until connected again. */
   lapsed_at?: string | null;
+  /**
+   * What an Instagram account connected through Meta may do (contracts content metaLinesOf, from the permissions its token
+   * carries): absent or null on an account connected through Instagram's own login, and on every other kind.
+   */
+  meta_lines?: MetaLines | null;
 }
 
 /**
@@ -109,6 +115,8 @@ export interface ChannelVM {
   /** An Instagram account's handle, and when its connection lapsed: null on every other kind, and on a live account. */
   handle: string | null;
   lapsedAt: string | null;
+  /** An Instagram account connected through Meta: its five lines; null for one connected through Instagram's own login. */
+  metaLines: MetaLines | null;
   /** When the row was made. Carried so `channelFor` can break a tie the same way on
    *  either shape; the DTO has always had it. */
   created_at: string;
@@ -230,6 +238,7 @@ export function toChannelVM(dto: ChannelDto, now: Date, tz: string): ChannelVM {
     connectedAt: dto.connected_at ?? null,
     handle: dto.handle ?? null,
     lapsedAt: dto.lapsed_at ?? null,
+    metaLines: dto.meta_lines ?? null,
     created_at: dto.created_at,
   };
 }

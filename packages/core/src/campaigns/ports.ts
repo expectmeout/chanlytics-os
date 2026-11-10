@@ -277,7 +277,9 @@ export type RunOutcome =
         /** A freed time handed to a step on another moment: only a freed time's step offers one. */
         | "not_a_freed_time_step"
         /** A freed time that begins by the moment its batch would go (a night's batch goes at nine): nobody can have it. */
-        | "freed_time_passed";
+        | "freed_time_passed"
+        /** A late booking handed to a step on another moment (decision 0118): only the appointment reminder reminds one. */
+        | "not_a_reminder_step";
     }
   | { outcome: "failed"; error: string };
 
@@ -330,6 +332,11 @@ export interface RunPlaybookCommand {
    * on `slot_opened`: its batch offers it, and has no day of its own.
    */
   freed?: FreedTimeRun;
+  /**
+   * A booking the reminder's daily look can no longer name (decision 0118, contracts lateReminderAt), for a step on
+   * `visit_tomorrow`: its batch reminds that one person at its own time, and has no day of its own.
+   */
+  late?: LateReminderRun;
 }
 
 /** A freed time as a run offers it: the appointment that freed it, and the span, epoch ms. */
@@ -337,6 +344,18 @@ export interface FreedTimeRun {
   from: string;
   start: number;
   end: number;
+}
+
+/** A late booking as a run reminds it: who, which visit, and when the reminder goes. */
+export interface LateReminderRun {
+  contactId: string;
+  /** The appointment's id on the record. */
+  appointment: string;
+  /** The visit's day by the business's clock, and its start, epoch ms: a reminder still waiting then is too late. */
+  day: string;
+  startsAt: number;
+  /** When the reminder goes, epoch ms. */
+  at: number;
 }
 
 /* ---- The dashboard's verbs ---- */

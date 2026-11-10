@@ -8100,7 +8100,7 @@ begin
   v_contact_id := (v_person->>'contact_id')::uuid;
 
   -- A STOP or a START is written below, once the message is known to be new (00361), and so are the yeses a message
-  -- carries (00576). The person's row is locked here, where that write used to be, so the person, the thread and the
+  -- carries (00581). The person's row is locked here, where that write used to be, so the person, the thread and the
   -- message are still locked in that order. A START's channel is noted under note_yes_on_channel's own lock, taken
   -- here at its full strength so it is never raised later in the transaction.
   if p_opt_in then
@@ -8176,7 +8176,7 @@ begin
   -- already reflected in what the caller is told.
   select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;
 
-  -- The yeses this message carries, kept with it (00576): written here or not at all, and a repeat of the message,
+  -- The yeses this message carries, kept with it (00581): written here or not at all, and a repeat of the message,
   -- returned above, writes neither (its answer was written when it was kept).
   --
   -- A START is a yes on the channel it came on (contracts consent-channels.ts). The event above is written only when
@@ -16404,7 +16404,7 @@ end $$;
 -- Name: FUNCTION note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) IS 'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00577): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';
+COMMENT ON FUNCTION public.note_person_email(p_tenant_id uuid, p_contact_id uuid, p_email text) IS 'An address a customer wrote in their own message, kept on their row only where none is on file, under the row''s lock (00582): kept, had_one, taken (another person here holds it; the owner merges them) or not_found. Writes through set_person_email, as the edge with no session. Service role only.';
 
 
 --
@@ -16454,7 +16454,7 @@ end $$;
 -- Name: FUNCTION note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'Called by ingest_inbound for a START, in the transaction that keeps the message (00576; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
+COMMENT ON FUNCTION public.note_yes_on_channel(p_tenant_id uuid, p_contact_id uuid, p_channel text, p_message_external_id text, p_words text) IS 'Called by ingest_inbound for a START, in the transaction that keeps the message (00581; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
 
 
 --
@@ -32954,7 +32954,7 @@ end $$;
 -- Name: FUNCTION sms_sweep_text_canary(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sms_sweep_text_canary() IS 'The daily text canary''s clock (00579): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
+COMMENT ON FUNCTION public.sms_sweep_text_canary() IS 'The daily text canary''s clock (00584): calls the edge (/api/cron/text-canary), which sends a text from the platform''s own canary number to its own line and, on the next tick, checks that it was taken in and answered, or pages the platform. Off at the edge until its two settings are set.';
 
 
 --
@@ -32982,7 +32982,7 @@ end $$;
 -- Name: FUNCTION sms_sweep_texts(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sms_sweep_texts() IS 'The texts sweep''s clock (00578): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
+COMMENT ON FUNCTION public.sms_sweep_texts() IS 'The texts sweep''s clock (00583): calls the edge (/api/cron/texts), which reads each line''s record of received texts from the provider and takes in every one the database never heard, only when a line that can text exists; otherwise records that it looked.';
 
 
 --

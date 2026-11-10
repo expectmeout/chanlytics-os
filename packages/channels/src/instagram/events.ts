@@ -57,13 +57,15 @@ export interface IgMessaging {
  *  - message: a person wrote (or tapped): answered through the one shape.
  *  - echo: the business's own message on the thread, from the Instagram app or from us.
  *  - unsent: the person took a message back; its words are not kept.
- *  - ignored: asks nothing of anyone (a reaction, a read, an edit), or is not a message at all.
+ *  - ignored: asks nothing of anyone (a reaction, a read, an edit), or is not a message at all: an `entry.changes[]` item
+ *    (a comment, a mention, a story's numbers, which an account connected through Meta is sent) is one of these until
+ *    comments come into Inbox.
  */
 export type InstagramEvent =
   | { kind: "message"; account: string; from: string; mid: string; item: IgMessaging }
   | { kind: "echo"; account: string; to: string; mid: string; text: string | null; atIso: string | null }
   | { kind: "unsent"; account: string; from: string; mid: string }
-  | { kind: "ignored"; account: string; what: "reaction" | "read" | "edit" | "unknown" };
+  | { kind: "ignored"; account: string; what: "reaction" | "read" | "edit" | "change" | "unknown" };
 
 const trimmed = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -99,8 +101,12 @@ export function instagramEventsOf(body: unknown): InstagramEvent[] {
   for (const entry of body.entry) {
     if (!isObject(entry)) continue;
     const account = trimmed(entry.id);
-    if (!account || !Array.isArray(entry.messaging)) continue;
-    for (const item of entry.messaging) if (isObject(item)) events.push(eventOf(account, item));
+    if (!account) continue;
+    if (Array.isArray(entry.messaging))
+      for (const item of entry.messaging) if (isObject(item)) events.push(eventOf(account, item));
+    if (Array.isArray(entry.changes))
+      for (const change of entry.changes)
+        if (isObject(change)) events.push({ kind: "ignored", account, what: "change" });
   }
   return events;
 }

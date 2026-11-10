@@ -162,6 +162,8 @@ export interface ConnectionInputs {
    * null or still asking (`undefined`) reads as not yet: the row says Later.
    */
   instagram?: { ready: boolean } | null;
+  /** Whether this workspace may connect Meta (decision 0117: the app's login held, `content_preview` on); absent is no. */
+  meta?: { ready: boolean } | null;
 }
 
 const TONE: Record<ConnectionState, ConnectionTone> = {

@@ -246,6 +246,14 @@ function subscriberNamed(s: unknown): s is EventSubscriber {
  * fails the job and pages the operator (ledger PAGES_THE_PLATFORM: the fault is the platform's, never an owner's);
  * every subscriber may run twice on one delivery and leaves the same rows.
  */
+/** The edge's reminder of a late booking as the subscriber asks it; a runtime that holds none fails loudly. */
+const remindThrough =
+  (ctx: JobContext): SubscriberPorts["remindBooking"] =>
+  (tenantId, appointmentId) => {
+    if (!ctx.reminders) throw new Error("visit_reminder: this runtime holds no reminder of a late booking");
+    return ctx.reminders.remind(tenantId, appointmentId);
+  };
+
 async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const named = deliveryNamed(job.payload);
   if (!named) throw new Error("event_deliver: the payload names no event, subscriber and kind");
@@ -320,6 +328,8 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
       if (!ctx.freedTimes) throw new Error("freed_time_offer: this runtime holds no offer of a freed time");
       return ctx.freedTimes.offer(tenantId, freed);
     },
+    // The edge's reminder of a late booking (decision 0118): its run lives with the edge's run context too.
+    remindBooking: remindThrough(ctx),
     // A thread's draft asked for: the row claimed and the job scheduled here, so a runtime with no writer can still ask.
     askReplyDraft: async (tenantId, ref) => {
       const conversationId =

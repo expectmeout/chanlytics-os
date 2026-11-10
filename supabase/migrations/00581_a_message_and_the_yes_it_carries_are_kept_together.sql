@@ -1,4 +1,4 @@
--- 00576 · A message and the yes it carries are kept together (the inbound review, C9).
+-- 00581 · A message and the yes it carries are kept together (the inbound review, C9).
 --
 -- A START is a yes on the channel it came on, and YES OFFERS a yes to offers. The edge wrote each after ingest_inbound
 -- had kept the message, in calls of their own (note_yes_on_channel, set_marketing_consent), so a message could be kept
@@ -55,7 +55,7 @@ begin
   v_contact_id := (v_person->>'contact_id')::uuid;
 
   -- A STOP or a START is written below, once the message is known to be new (00361), and so are the yeses a message
-  -- carries (00576). The person's row is locked here, where that write used to be, so the person, the thread and the
+  -- carries (00581). The person's row is locked here, where that write used to be, so the person, the thread and the
   -- message are still locked in that order. A START's channel is noted under note_yes_on_channel's own lock, taken
   -- here at its full strength so it is never raised later in the transaction.
   if p_opt_in then
@@ -131,7 +131,7 @@ begin
   -- already reflected in what the caller is told.
   select consent, dnc into v_consent, v_dnc from contacts where id = v_contact_id;
 
-  -- The yeses this message carries, kept with it (00576): written here or not at all, and a repeat of the message,
+  -- The yeses this message carries, kept with it (00581): written here or not at all, and a repeat of the message,
   -- returned above, writes neither (its answer was written when it was kept).
   --
   -- A START is a yes on the channel it came on (contracts consent-channels.ts). The event above is written only when
@@ -199,4 +199,4 @@ revoke all on function public.ingest_inbound(uuid, text, text, text, text, text,
 grant execute on function public.ingest_inbound(uuid, text, text, text, text, text, text, text, timestamp with time zone, jsonb, jsonb, boolean, boolean, boolean) to service_role;
 
 comment on function public.note_yes_on_channel(uuid, uuid, text, text, text) is
-  'Called by ingest_inbound for a START, in the transaction that keeps the message (00576; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';
+  'Called by ingest_inbound for a START, in the transaction that keeps the message (00581; One message, every channel, step 2): when the person''s answer is a yes and its consent_channels does not hold the channel the START came on (NULL holds WhatsApp), writes the contact.consent_changed event ingest_inbound leaves out for a yes already given, carrying the channel, the message, the words and covers_another_channel, so events_keep_consent_channels adds the channel and the ledger shows the yes. Answers whether it wrote one. A repeat finds the channel held and writes nothing. Never raises. Service role only.';

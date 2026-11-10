@@ -41,6 +41,11 @@
  *   reply_draft       a thread handed to a person, its hold moved, or a customer writing on it again (escalation.opened,
  *                     .changed, .refreshed; 00538) asks whether it is owed a draft (core conversations/reply-draft.ts),
  *                     and the job that writes it. The row's claim is the once-only, so a second run schedules nothing.
+ *   visit_reminder    an appointment added, confirmed or moved on the record (appointment.changed) after the reminder's
+ *                     daily look for its day is handed to the edge's door, which runs the workspace's step on
+ *                     visit_tomorrow for that one person at the time the one rule gives it (contracts lateReminderAt,
+ *                     decision 0118). The door asks first whether this visit was reminded, so a second run makes nothing
+ *                     new. Each booking says what came of it in one log line.
  */
 import { heldContactId } from "@chanlytics/contracts";
 import {
@@ -67,6 +72,7 @@ import {
   type FreedTimeRefusal,
   type FreedTimeLine,
   type JobNews,
+  type LateReminder,
   type MemberJoined,
   type OptOutPerson,
   recordOrEmpty,
@@ -150,6 +156,12 @@ export interface SubscriberPorts {
    * tries again.
    */
   offerFreedTime(tenantId: TenantId, freed: FreedTimeRun): Promise<FreedTimeOffer>;
+  /**
+   * The edge's reminder of a late booking (decision 0118): the workspace's running step on `visit_tomorrow` runs for the
+   * one person the appointment is for, once per visit, where the day's look can no longer name it. Throws when it could
+   * not be asked, so the delivery tries again.
+   */
+  remindBooking(tenantId: TenantId, appointmentId: string): Promise<LateReminder>;
   /**
    * Whether the thread is owed a draft, and if so its row claimed and its job scheduled (decision 0093). Throws when it could
    * not be asked, so the delivery tries again.
@@ -379,5 +391,19 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     const detail =
       "detail" in otherFreedTimeAsked && otherFreedTimeAsked.detail ? { detail: otherFreedTimeAsked.detail } : {};
     logger().info("freed_time_not_offered", { ...about, why: otherFreedTimeAsked.why, ...detail });
+  },
+  visit_reminder: async (event, ports) => {
+    if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return;
+    const change = recordOrEmpty(event.data).change;
+    // A cancelled or vanished visit is owed no reminder; the door reads the row as it stands for every other change.
+    if (typeof change !== "string" || !BOOKS.has(change)) return;
+    const reminder = await ports.remindBooking(event.tenant_id, event.subject_id);
+    const about = { tenant_id: event.tenant_id, appointment: event.subject_id, event_id: event.id };
+    if (reminder.reminded) {
+      logger().info("late_booking_reminded", { ...about, at: reminder.at, waits: reminder.waits });
+      return;
+    }
+    const detail = reminder.detail ? { detail: reminder.detail } : {};
+    logger().info("late_booking_not_reminded", { ...about, why: reminder.why, ...detail });
   },
 };

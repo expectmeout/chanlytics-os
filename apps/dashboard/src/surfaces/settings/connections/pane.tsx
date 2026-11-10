@@ -37,6 +37,7 @@ import { BusinessRecordForm } from "./record-form";
 import { ConnectionRow, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 import { igConnect, type InstagramDoor } from "./instagram";
+import { metaConnect, type MetaDoor } from "./meta";
 
 type WaConfig = SignupDoor | null | undefined;
 
@@ -53,48 +54,88 @@ function googleNote(): string | null {
   );
 }
 
+/** A login's door as the pane asks it: Instagram's own (instagram.ts) or Meta's (meta.ts). */
+interface LoginDoor<D> {
+  config: () => Promise<D>;
+  held: () => D | null;
+  outcome: () => string | null;
+}
+
 /**
- * Instagram's door, asked once (`undefined` while asking, null where it could not be read: the row says Later), and what
- * the browser came back from Instagram with, said once under its row until Ok.
+ * A login's door, asked once (`undefined` while asking, null where it could not be read: the row says Later or leaves the
+ * offer out), and what the browser came back from that login with, said once under its row until Ok.
  */
-function useInstagram() {
+function useLoginDoor<D>(login: LoginDoor<D>) {
   // What the tab last held, drawn at once (pane-reads.ts): the row said it was asking, and changed as the answer came.
-  const [door, setDoor] = useState<InstagramDoor | null | undefined>(() => igConnect.held() ?? undefined);
-  const [note, setNote] = useState<string | null>(() => igConnect.outcome());
+  const [door, setDoor] = useState<D | null | undefined>(() => login.held() ?? undefined);
+  const [note, setNote] = useState<string | null>(() => login.outcome());
   useEffect(() => {
     let on = true;
-    igConnect
+    login
       .config()
       .then((c) => on && setDoor(c))
       .catch(() => on && setDoor(null));
     return () => {
       on = false;
     };
-  }, []);
+  }, [login]);
   return { door, note, clearNote: () => setNote(null) };
 }
 
-/** What came back from Instagram, under its row. */
-function InstagramNote({ note, onOk }: { note: string | null; onOk: () => void }) {
+/** Both logins' doors, asked as Connections opens: Instagram's own, and Meta's (the Meta link). */
+function useLogins() {
+  return { ig: useLoginDoor(igConnect), meta: useLoginDoor(metaConnect) };
+}
+type Logins = ReturnType<typeof useLogins>;
+
+/** What came back from a login, under the Instagram row: Instagram's own, or Meta's. */
+function LoginNote({ note, onOk, label }: { note: string | null; onOk: () => void; label: "Instagram" | "Meta" }) {
   if (!note) return null;
+  const id = `${label.toLowerCase()}-note`;
+  return <RecordRow id={id} testid={id} label={label} value={note} act={{ label: "Ok", onClick: onOk }} />;
+}
+
+/** What each login came back with, under the Instagram row, each until Ok. */
+function LoginNotes({ logins: { ig, meta } }: { logins: Logins }) {
   return (
-    <RecordRow
-      id="instagram-note"
-      testid="instagram-note"
-      label="Instagram"
-      value={note}
-      act={{ label: "Ok", onClick: onOk }}
-    />
+    <>
+      <LoginNote label="Instagram" note={ig.note} onOk={ig.clearNote} />
+      <LoginNote label="Meta" note={meta.note} onOk={meta.clearNote} />
+    </>
   );
 }
 
-/** The workspace's Instagram account turned off (the row that speaks for it, contracts channelFor), said as a toast. */
+/** A disconnect, asked about on its row first (row.tsx rowAsk). */
+const armDisconnect = (r: Row, k: { setArm: (a: Arm | null) => void }) =>
+  k.setArm({ kind: r.kind, what: "disconnect" });
+
+/**
+ * The verbs run in one step: those that leave for a provider's own screen (Google's consent, Instagram's, Meta's dialog),
+ * which sends the browser back with a word its row reads once (connections/google, instagram.ts, meta.ts), and the
+ * disconnects, each asked about first.
+ */
+const ONE_STEP_VERBS: Readonly<Record<string, (r: Row, k: { setArm: (a: Arm | null) => void }) => void>> = {
+  "verb:google-connect": () => googleVerbs.connect(),
+  "verb:instagram-connect": () => igConnect.start(),
+  "verb:meta-connect": () => metaConnect.start(),
+  "verb:google-disconnect": armDisconnect,
+  "verb:instagram-disconnect": armDisconnect,
+  "verb:meta-disconnect": armDisconnect,
+};
+
+/**
+ * The workspace's Instagram account turned off (the row that speaks for it, contracts channelFor), through the login that
+ * connected it (Meta's removes its subscription too), said as a toast.
+ */
 async function disconnectInstagram(channels: readonly ChannelVM[] | undefined): Promise<FrameFlash> {
   const account = channelFor(channels ?? [], "instagram");
-  const res = account ? await igConnect.disconnect(account.id) : { ok: false, message: "Nothing to disconnect." };
+  const viaMeta = !!account?.metaLines;
+  const login = viaMeta ? metaConnect : igConnect;
+  const name = viaMeta ? "Meta" : "Instagram";
+  const res = account ? await login.disconnect(account.id) : { ok: false, message: "Nothing to disconnect." };
   return res.ok
-    ? { msg: <>Instagram is disconnected. Its DMs are not answered here until you connect it again.</> }
-    : refusalToast(res, "Instagram not disconnected");
+    ? { msg: <>{name} is disconnected. Its DMs are not answered here until you connect it again.</> }
+    : refusalToast(res, `${name} not disconnected`);
 }
 
 /** Meta's door: asked once; `undefined` while asking, so the row says so, and what the tab last held before then. */
@@ -124,6 +165,7 @@ function useWhatsAppConfig(): WaConfig {
 interface Asked {
   whatsapp: WaConfig;
   instagram: InstagramDoor | null | undefined;
+  meta: MetaDoor | null | undefined;
   codes: LineCodeDto[];
   signupLeftOpenAt: string | null;
   signupSaid: string | null;
@@ -154,6 +196,7 @@ function rowsOf(
       signupLeftOpenAt: asked.signupLeftOpenAt,
       imports: S ? (S.dto.imports ?? null) : null,
       instagram: asked.instagram ? { ready: asked.instagram.ready } : null,
+      meta: asked.meta ? { ready: asked.meta.ready } : null,
     },
     Date.now(),
   );
@@ -208,16 +251,6 @@ async function runVerb(
       });
       return;
     }
-    case "verb:google-connect":
-      googleVerbs.connect();
-      return;
-    case "verb:instagram-connect":
-      // To Instagram's consent screen and back (connections/instagram.ts): the row reads the word it brings back.
-      igConnect.start();
-      return;
-    case "verb:instagram-disconnect":
-      k.setArm({ kind: r.kind, what: "disconnect" });
-      return;
     case "verb:google-check": {
       k.setBusy(true);
       const res = await googleVerbs.refresh();
@@ -244,9 +277,6 @@ async function runVerb(
       });
       return;
     }
-    case "verb:google-disconnect":
-      k.setArm({ kind: r.kind, what: "disconnect" });
-      return;
     case "verb:business-record":
       // The form is the row's own body, opened under it by its verb (Connect, or Open the record in its Settings).
       k.toggleRecord();
@@ -255,6 +285,8 @@ async function runVerb(
       k.toggleEmail();
       return;
     default:
+      // A connect that leaves for a provider's own screen, or a disconnect asked about first (ONE_STEP_VERBS).
+      ONE_STEP_VERBS[verb.to]?.(r, k);
       // A line that stopped part-way, set up again in place, as Start's row does it (contracts ownLineStandOf).
       if (verb.to.startsWith("verb:retry-line:")) {
         k.setBusy(true);
@@ -348,7 +380,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   const S = useSurface("setup");
   const G = useSurface("google");
   const waCfg = useWhatsAppConfig();
-  const ig = useInstagram();
+  const logins = useLogins();
   const [busy, setBusy] = useState(false);
   // Ad accounts, a demo's card or a workspace's whose Ads preview is on (campaigns/ads/shown.ts); no other workspace draws it.
   const adsShown = useAdsShown();
@@ -398,7 +430,8 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
     );
   }
 
-  const asked = { whatsapp: waCfg, instagram: ig.door, codes, signupLeftOpenAt: leftOpenAt, signupSaid };
+  const doors = { instagram: logins.ig.door, meta: logins.meta.door };
+  const asked = { whatsapp: waCfg, ...doors, codes, signupLeftOpenAt: leftOpenAt, signupSaid };
   const rows = rowsOf(channels, asked, S, G);
   const run = (r: Row) => {
     if (busy) return;
@@ -472,7 +505,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
             onClose={() => setEmailOpen(false)}
           />
         )}
-        {r.kind === "instagram" && <InstagramNote note={ig.note} onOk={ig.clearNote} />}
+        {r.kind === "instagram" && <LoginNotes logins={logins} />}
         {/* A Later row has no block, but what a connect came back with is still said under it. */}
         {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (
           <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={dropNote} />

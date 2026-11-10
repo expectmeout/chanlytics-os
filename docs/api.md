@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-380 handlers in 57 domains.
+384 handlers in 57 domains.
 
 ## activity
 
@@ -488,6 +488,32 @@ Reads; for a member of the workspace the request names, partner or above; counts
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/instagram/connect/route.ts`).
 
 ### `POST /api/v1/channels/instagram/disconnect`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `channel_id` | string (uuid) | yes |  |
+
+### `GET /api/v1/channels/meta`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/meta/route.ts`).
+
+### `GET /api/v1/channels/meta/callback`
+
+Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/meta/callback/route.ts`).
+
+### `GET /api/v1/channels/meta/connect`
+
+Reads; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/channels/meta/connect/route.ts`).
+
+### `POST /api/v1/channels/meta/disconnect`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
 
@@ -3352,7 +3378,7 @@ Every door on the edge whose body contracts declares (`packages/contracts/src/<d
 the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same
 schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 
-53 doors.
+54 doors.
 
 ### `POST /api/admin/billing`
 
@@ -3586,6 +3612,16 @@ Read with GET; takes no body.
 | `daily_cap` | number | no |  |
 | `address` | string | no |  |
 | `history` | any | no |  |
+
+### `POST /api/admin/meta/connection`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `op` | string | yes |  |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `code` | string | no |  |
+| `channel_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 
 ### `POST /api/admin/partner-invite`
 
@@ -3864,4 +3900,4 @@ A door on the edge refuses with `{ ok: false, error, detail? }`: `error` is a co
 person or support may read (`packages/contracts/src/shared/edge-errors.ts`). A door that crashes answers `door_failed`,
 at 500, and logs `door_failed` with the stack and the request's name.
 
-`accounts_unreadable`, `already_registered`, `already_sent`, `already_subscribed`, `ask_budget`, `bad_request`, `bad_signature`, `bad_template`, `bad_tenant`, `brain_failed`, `campaign_rejected`, `channel_read_failed`, `channel_write_failed`, `check_unset`, `config_broken`, `connection_write_failed`, `context_failed`, `could_not_queue`, `could_not_retire_old_draft`, `credentials_failed`, `direct`, `door_failed`, `draft_not_owed`, `draft_refused`, `email_off`, `empty_draft`, `erasure_unreadable`, `exchange_failed`, `free_mail`, `google_refused`, `grant_unreadable`, `in_flight`, `ingest_failed`, `instagram_account_taken`, `instagram_account_unreadable`, `instagram_messages_not_granted`, `invalid`, `key_unavailable`, `lane_unset`, `line_exists`, `line_failed_retry`, `line_not_retryable`, `line_retry_taken`, `listing_read_failed`, `listing_write_failed`, `mailbox_taken`, `message_read_failed`, `meta_failed`, `meta_refused`, `mock_registration`, `model_failed`, `model_paused`, `model_unavailable`, `model_unreachable`, `no_account`, `no_app_credentials`, `no_billing_record`, `no_business_record`, `no_campaign_to_resubmit`, `no_channel`, `no_credentials`, `no_customer`, `no_database`, `no_fn_secret`, `no_line_credentials`, `no_line_provider`, `no_listing`, `no_location`, `no_locations`, `no_messaging_service`, `no_model_key`, `no_oauth_client`, `no_open_handover`, `no_open_invitation`, `no_persona`, `no_phone`, `no_places_key`, `no_platform_mailbox`, `no_primary_profile`, `no_provider`, `no_provider_credentials`, `no_provider_key`, `no_refresh_token`, `no_registration_readable`, `no_review`, `no_sender`, `no_subaccount`, `no_subscription`, `no_such_location`, `no_token`, `no_waba`, `no_workspace_readable`, `not_a_held_draft`, `not_connected`, `not_found`, `not_from_profile`, `not_held`, `not_on_maps`, `not_paused`, `not_ready`, `not_rejected`, `not_trialing`, `nothing_to_answer`, `nothing_to_do`, `number_ambiguous`, `number_missing`, `number_taken`, `number_unreadable`, `payment_required`, `pin_required`, `platform_hold`, `platform_only`, `policy_block_price`, `policy_never`, `preview_failed`, `provider_refused`, `provider_unauthorized`, `provider_unreachable`, `purge_failed`, `query_failed`, `reach_out_step`, `read_failed`, `record_incomplete`, `register_failed`, `registration_pending`, `rehearsal_empty`, `rehearsal_minutes_used`, `replace_failed`, `resubmit_failed`, `review_read_failed`, `review_write_failed`, `routing_unreadable`, `run_failed`, `scope_missing`, `signature`, `sole_proprietor_incomplete`, `stripe_refused`, `stripe_unreadable`, `subscribe_failed`, `token_audience`, `token_body`, `token_expired`, `token_malformed`, `token_replayed`, `token_required`, `token_signature`, `too_large`, `too_many`, `too_many_on_domain`, `unauthorized`, `unavailable`, `unfile_failed`, `unknown_op`, `unreadable`, `voice_canary_failed`, `voice_canary_too_soon`, `voice_canary_unset`, `waba_not_granted`, `waba_unreadable`, `workspace_mismatch`, `write_failed`
+`accounts_unreadable`, `already_registered`, `already_sent`, `already_subscribed`, `ask_budget`, `bad_request`, `bad_signature`, `bad_template`, `bad_tenant`, `brain_failed`, `campaign_rejected`, `channel_read_failed`, `channel_write_failed`, `check_unset`, `config_broken`, `connection_write_failed`, `context_failed`, `could_not_queue`, `could_not_retire_old_draft`, `credentials_failed`, `direct`, `door_failed`, `draft_not_owed`, `draft_refused`, `email_off`, `empty_draft`, `erasure_unreadable`, `exchange_failed`, `free_mail`, `google_refused`, `grant_unreadable`, `in_flight`, `ingest_failed`, `instagram_account_taken`, `instagram_account_unreadable`, `instagram_accounts_several`, `instagram_messages_not_granted`, `invalid`, `key_unavailable`, `lane_unset`, `line_exists`, `line_failed_retry`, `line_not_retryable`, `line_retry_taken`, `listing_read_failed`, `listing_write_failed`, `mailbox_taken`, `message_read_failed`, `meta_failed`, `meta_off`, `meta_refused`, `mock_registration`, `model_failed`, `model_paused`, `model_unavailable`, `model_unreachable`, `no_account`, `no_app_credentials`, `no_billing_record`, `no_business_record`, `no_campaign_to_resubmit`, `no_channel`, `no_credentials`, `no_customer`, `no_database`, `no_fn_secret`, `no_line_credentials`, `no_line_provider`, `no_listing`, `no_location`, `no_locations`, `no_messaging_service`, `no_model_key`, `no_oauth_client`, `no_open_handover`, `no_open_invitation`, `no_persona`, `no_phone`, `no_places_key`, `no_platform_mailbox`, `no_primary_profile`, `no_provider`, `no_provider_credentials`, `no_provider_key`, `no_refresh_token`, `no_registration_readable`, `no_review`, `no_sender`, `no_subaccount`, `no_subscription`, `no_such_location`, `no_token`, `no_waba`, `no_workspace_readable`, `not_a_held_draft`, `not_connected`, `not_found`, `not_from_profile`, `not_held`, `not_on_maps`, `not_paused`, `not_ready`, `not_rejected`, `not_trialing`, `nothing_to_answer`, `nothing_to_do`, `number_ambiguous`, `number_missing`, `number_taken`, `number_unreadable`, `payment_required`, `pin_required`, `platform_hold`, `platform_only`, `policy_block_price`, `policy_never`, `preview_failed`, `provider_refused`, `provider_unauthorized`, `provider_unreachable`, `purge_failed`, `query_failed`, `reach_out_step`, `read_failed`, `record_incomplete`, `register_failed`, `registration_pending`, `rehearsal_empty`, `rehearsal_minutes_used`, `replace_failed`, `resubmit_failed`, `review_read_failed`, `review_write_failed`, `routing_unreadable`, `run_failed`, `scope_missing`, `signature`, `sole_proprietor_incomplete`, `stripe_refused`, `stripe_unreadable`, `subscribe_failed`, `token_audience`, `token_body`, `token_expired`, `token_malformed`, `token_replayed`, `token_required`, `token_signature`, `too_large`, `too_many`, `too_many_on_domain`, `unauthorized`, `unavailable`, `unfile_failed`, `unknown_op`, `unreadable`, `voice_canary_failed`, `voice_canary_too_soon`, `voice_canary_unset`, `waba_not_granted`, `waba_unreadable`, `workspace_mismatch`, `write_failed`

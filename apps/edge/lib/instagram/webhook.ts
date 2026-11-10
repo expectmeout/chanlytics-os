@@ -127,7 +127,7 @@ async function profileNameOf(db: Db, routed: RoutedChannel, igsid: string): Prom
   const kept = namesRead.get(key);
   if (kept && kept.until > Date.now()) return kept.name;
   const read = await getInstagramCredentials(db, { id: routed.channelId, credentials_ref: routed.credentialsRef });
-  const name = read.outcome === "present" ? await readInstagramName(read.credentials.accessToken, igsid) : null;
+  const name = read.outcome === "present" ? await readInstagramName(read.credentials, igsid) : null;
   namesRead.set(key, { name, until: Date.now() + (name ? NAME_TTL_MS : NAMELESS_TTL_MS) });
   return name;
 }

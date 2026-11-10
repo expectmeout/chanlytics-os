@@ -21,6 +21,7 @@ export {
 export type { IngestInboundParams, IngestResult, OutboundTarget } from "./ingest";
 export {
   findInstagramAccountHolder,
+  findInstagramAccountRow,
   findInstagramId,
   findLastInboundOn,
   findPersonOfInstagramId,

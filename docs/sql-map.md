@@ -364,8 +364,8 @@ being read is dropped by a migration.
 | `note_candidates` | the server's | the server | code `packages/db/src/repositories/people/notes.ts` | The note sweep's batch (0007): |
 | `note_for_you_notify` | the server's | the server | SQL `person_note_add`, `person_note_edit` and 1 more | Tell the member a note is for that it is there (0007): |
 | `note_page_vitals` | the server's | the server | code `packages/db/src/repositories/reports/page-vitals.ts` | Keeps one page load's reports ([{id, name, value, page?, part?, from?, warm?, detail?}]) with the device and the build; |
-| `note_person_email` | the server's | the server | code `packages/db/src/repositories/people/email.ts` | An address a customer wrote in their own message, kept on their row only where none is on file, under the row's lock (00577): |
-| `note_yes_on_channel` | the server's | the server | SQL `ingest_inbound` | Called by ingest_inbound for a START, in the transaction that keeps the message (00576; |
+| `note_person_email` | the server's | the server | code `packages/db/src/repositories/people/email.ts` | An address a customer wrote in their own message, kept on their row only where none is on file, under the row's lock (00582): |
+| `note_yes_on_channel` | the server's | the server | SQL `ingest_inbound` | Called by ingest_inbound for a START, in the transaction that keeps the message (00581; |
 | `notification_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `notifications_close_about` | the server's | the server | SQL `batch_closes_its_notices`, `escalation_closes_its_notices` and 4 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
 | `notifications_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
@@ -649,8 +649,8 @@ being read is dropped by a migration.
 | `setup_choice_set` | door | a signed-in person, the server | code `apps/dashboard/src/server/setup/setup.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | A member with the settings permission (an owner, or the partner who brought it) keeps what the first run chose for the workspace (00513, decision 0091): |
 | `setup_request` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/setup/request/route.ts`, `packages/db/src/repositories/workspace/setup.ts` | Setup: the owner asks a person at Chanlytics for something the product cannot do by itself -- a phone line, bringing a number over, setting up forwarding in an office phone system, repairing a configu |
 | `slug_for_workspace` | the server's | the server | SQL `create_workspace_for`, `preview_claim` | A workspace's slug from its name (create_workspace_for's rule since 00021, lifted out in 00497 for a preview's claim): |
-| `sms_sweep_text_canary` | the server's | the server | the clock, `text-canary` | The daily text canary's clock (00579): |
-| `sms_sweep_texts` | the server's | the server | the clock, `texts-sweep` | The texts sweep's clock (00578): |
+| `sms_sweep_text_canary` | the server's | the server | the clock, `text-canary` | The daily text canary's clock (00584): |
+| `sms_sweep_texts` | the server's | the server | the clock, `texts-sweep` | The texts sweep's clock (00583): |
 | `sole_proprietor_of` | the server's | the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | Whether a workspace's business on record has no tax id: |
 | `stamp_email_complaint` | the server's | the server | code `packages/db/src/repositories/email/email.ts` |  |
 | `stamp_email_from_mailbox` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | An email sent from a connected mailbox, stamped (00424): |

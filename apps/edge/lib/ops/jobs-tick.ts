@@ -45,6 +45,7 @@ import { campaignRuns } from "../campaigns/reach-out/workspace-runs.js";
 import { googleReader } from "../google/sweep.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../campaigns/freed-time-offer.js";
+import { remindLateBooking } from "../campaigns/late-reminder.js";
 import { answerInboundJob } from "../intake/answer-job.js";
 import {
   runTick,
@@ -270,6 +271,9 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               // A freed time offered to the people who asked and never booked (decision 0082): the workspace's step on
               // slot_opened runs through the run the sweep uses, which lives here.
               freedTimes: { offer: (tenantId, freed) => offerFreedTime(db, tenantId, freed) },
+              // A booking that landed after the reminder's daily look (decision 0118): the workspace's step on
+              // visit_tomorrow runs for that one person, through the same run.
+              reminders: { remind: (tenantId, appointmentId) => remindLateBooking(db, tenantId, appointmentId) },
               ...broughtIn(db),
               // A job that continues itself (a broadcast's next batch) is one
               // more row, as this job's tenant.

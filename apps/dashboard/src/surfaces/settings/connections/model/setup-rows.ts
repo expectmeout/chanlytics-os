@@ -5,8 +5,16 @@
  * the Inbox, and sequences to leads write from it), both from the same email line of Setup (mailbox.ts). And Instagram's
  * (decision 0001, step 8), from its account's channel and whether this deployment holds the app.
  */
-import { agoWords, EMAIL_NOT_ANSWERED_SENTENCE, googleAudienceWords, SETUP_STATE_WORDS } from "@chanlytics/contracts";
-import type { ChannelVM } from "@chanlytics/contracts";
+import {
+  agoWords,
+  EMAIL_NOT_ANSWERED_SENTENCE,
+  googleAudienceWords,
+  META_LINE_OFF_WHY,
+  META_LINE_WORDS,
+  META_LINES,
+  SETUP_STATE_WORDS,
+} from "@chanlytics/contracts";
+import type { ChannelVM, ConnectionNote, MetaLines } from "@chanlytics/contracts";
 
 import type { ConnectionDraft, ConnectionInputs, ConnectionVerb } from "./setup";
 
@@ -113,9 +121,12 @@ export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft 
 /**
  * Instagram (decision 0001, step 8): an account connected answers its DMs, and says how recently one came; one whose
  * token Instagram stopped taking answers nothing until it is connected again, and says so; with none, Connect, where this
- * deployment holds the app, and Later where it does not.
+ * deployment holds the app, and Later where it does not. Where the account came through Meta (the Meta link), or this
+ * workspace may connect Meta, the row is Meta's (metaRow).
  */
 export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: ChannelVM | null }): ConnectionDraft {
+  const metaReady = !!connectionInputs.meta?.ready;
+  if (ig?.metaLines || (metaReady && !ig?.on)) return metaRow(ig, metaReady);
   const base = { kind: "instagram" as const, icon: "instagram", title: "Instagram" };
   const detail = ig?.handle ? `@${ig.handle}` : null;
   const connect: ConnectionVerb = { label: "Connect Instagram", to: "verb:instagram-connect", who: "owner" };
@@ -136,6 +147,8 @@ export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: C
       stateWords: "Connected",
       sentence: `${ig.healthLabel}. The receptionist answers its DMs within a day of each one, as Instagram allows.`,
       verb: { label: "Disconnect", to: "verb:instagram-disconnect", who: "owner" },
+      // The same account, moved to Meta's one connection: its DMs keep flowing (the Meta link takes the row over).
+      ...(metaReady ? { also: META_CONNECT_VERB, notes: [{ text: MOVE_TO_META, live: true as const }] } : {}),
     };
   if (connectionInputs.instagram?.ready)
     return {
@@ -154,5 +167,62 @@ export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: C
     stateWords: "Later",
     sentence: "Direct messages, answered by the receptionist like WhatsApp.",
     verb: null,
+  };
+}
+
+const META_CONNECT_VERB: ConnectionVerb = { label: "Connect Meta", to: "verb:meta-connect", who: "owner" };
+const MOVE_TO_META =
+  "Connect Meta to move this account to one connection: its DMs keep flowing, and posting, trending sounds, comments and numbers come through it as each is built.";
+
+/**
+ * What Meta allowed, one line: the permissions the token carries, by the five lines' words (contracts metaLinesOf). Said as
+ * what Meta allowed, never as what works: the DMs are the one line answered today, and the others come as each is built.
+ */
+function metaLinesNotes(lines: MetaLines): ConnectionNote[] {
+  const allowed = META_LINES.filter((l) => lines[l]).map((l) => META_LINE_WORDS[l]);
+  const not = META_LINES.filter((l) => !lines[l]).map((l) => META_LINE_WORDS[l]);
+  return [
+    ...(allowed.length ? [{ text: `Meta allows: ${allowed.join(", ")}.` }] : []),
+    ...(not.length ? [{ text: `Not allowed: ${not.join(", ")}. ${META_LINE_OFF_WHY}`, live: true as const }] : []),
+  ];
+}
+
+/**
+ * The Meta link's row (decision 0117): one connection for the account, through Meta's Unified Login. Connected, it
+ * answers the account's DMs and says what Meta allowed; lapsed, it says so and asks for a reconnect; not connected, where
+ * this workspace may connect Meta, Connect Meta. A workspace without the switch never draws this row for an unconnected
+ * account: the Instagram row stands as before.
+ */
+function metaRow(ig: ChannelVM | null, metaReady: boolean): ConnectionDraft {
+  const base = { kind: "instagram" as const, icon: "instagram", title: "Meta" };
+  const detail = ig?.handle ? `@${ig.handle}` : null;
+  const lines = ig?.metaLines ?? null;
+  if (ig?.on && lines && ig.lapsedAt)
+    return {
+      ...base,
+      detail,
+      state: "attention",
+      stateWords: "Needs connecting again",
+      sentence: "Meta stopped accepting the connection, so the account's DMs are not being answered. Connect it again.",
+      verb: metaReady ? { ...META_CONNECT_VERB, label: "Connect again" } : null,
+    };
+  if (ig?.on && lines)
+    return {
+      ...base,
+      detail,
+      state: "connected",
+      stateWords: "Connected",
+      sentence: `${ig.healthLabel}. The receptionist answers its DMs within a day of each one, as Instagram allows.`,
+      verb: { label: "Disconnect", to: "verb:meta-disconnect", who: "owner" },
+      notes: metaLinesNotes(lines),
+    };
+  return {
+    ...base,
+    detail,
+    state: "none",
+    stateWords: "Not connected",
+    sentence:
+      "Sign in with Instagram or Facebook. One connection answers your Instagram DMs now, and brings posting, trending sounds, comments and numbers as each is built.",
+    verb: metaReady ? (ig ? { ...META_CONNECT_VERB, label: "Connect again" } : META_CONNECT_VERB) : null,
   };
 }
