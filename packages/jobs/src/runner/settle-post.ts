@@ -3,6 +3,8 @@
  * ready that failed is a post not sent, in the words the refusal gave, or in the plain ones. A send that was certainly not
  * taken (Instagram refused it) is the same. A send whose run died, or whose answer never came, may have put the post up, so
  * it is never failed here: it is Checking, and Instagram is asked what it has two minutes on, before anything is sent again.
+ * A send's job that ended before the post was being sent (the recheck could not read the database, the run died first)
+ * sent nothing: the post is not left Getting ready for good, holding every later press; it did not go, in those words.
  */
 import { ON_INSTAGRAM, recordOrEmpty, type PostStatus } from "@chanlytics/contracts";
 import { markPostUnanswered, movePost } from "@chanlytics/db/files";
@@ -27,6 +29,8 @@ export async function settlePostJob(
   if (job.kind === "post_prepare") return move(["queued", "preparing"], "failed", reason ?? ON_INSTAGRAM.notSent);
   if (job.kind === "post_reconcile") return move(["checking"], "failed", ON_INSTAGRAM.refused.unknown);
   if (certain) return move(["preparing", "publishing"], "failed", reason ?? ON_INSTAGRAM.notSent);
-  // Checking, with the reconcile that asks Instagram, written together (00611 post_unanswered).
-  return markPostUnanswered(db, postId, attempt);
+  // Checking, with the reconcile that asks Instagram, written together (00611 post_unanswered). A post that was not being
+  // sent yet is moved by neither: its send never began, so it is failed in words rather than left where it stood.
+  if (await markPostUnanswered(db, postId, attempt)) return true;
+  return move(["preparing"], "failed", ON_INSTAGRAM.notSent);
 }

@@ -46,6 +46,7 @@ export {
   findPlacementByName,
   findPostForWork,
   listFilePosts,
+  listKeptPostIds,
   listPostAttempts,
   markPostUnanswered,
   mayStillPost,

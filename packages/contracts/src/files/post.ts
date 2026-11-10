@@ -64,6 +64,17 @@ export function postPlanOf(payload: Record<string, unknown>): PostPlan {
   };
 }
 
+/**
+ * Words drawn on a picture, as sentences a person reads or hears: each part ended where it has no end of its own. What a
+ * caption starts from on the post's sheet, and what Instagram reads out for the picture; "" when there are none.
+ */
+export function postSentencesOf(parts: readonly (string | null)[]): string {
+  return parts
+    .filter((w): w is string => !!w)
+    .map((w) => (/[.!?]$/.test(w) ? w : `${w}.`))
+    .join(" ");
+}
+
 /** A plan as it goes out: what was typed, with the spaces a person leaves while typing taken off, and an empty part no part. */
 export function postPlanTidied(plan: PostPlan): PostPlan {
   return { ...plan, line: plan.line.trim(), over: plan.over?.trim() || null, under: plan.under?.trim() || null };
