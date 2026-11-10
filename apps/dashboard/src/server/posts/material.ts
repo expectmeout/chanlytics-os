@@ -103,7 +103,7 @@ async function photoRead(file: FileMemberRow): Promise<Buffer> {
 }
 
 /** What a post's photo is read from: a photo, or one moment of a video (`at`, in seconds from its start). */
-export interface PostFrom {
+interface PostFrom {
   file: FileMemberRow;
   at: number | null;
 }
