@@ -24,6 +24,7 @@ export {
   findInstagramAccountRow,
   findInstagramId,
   findLastInboundOn,
+  findMetaInstagramRow,
   findPersonOfInstagramId,
   listActiveInstagramAccounts,
   listLastDmsSentTo,

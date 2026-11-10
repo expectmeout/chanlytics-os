@@ -3,10 +3,11 @@
  * and for a video what was heard of it; what a person says of it; and its foot. Settings loads no Base UI popup, so the sheet is
  * the house's (kit/record/sheet). Each change is saved as it is made, and the door's refresh reads the list again.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   FILE_WORDS as W,
   MAKE_POST_ASK,
+  ON_INSTAGRAM,
   POST_WORDS,
   fileSaidOf,
   fileViewOf,
@@ -15,7 +16,9 @@ import {
   type FileDto,
   type FileMade,
   type FilePosted,
+  type FileRecordDto,
   type FileSound,
+  type PostDto,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
@@ -26,7 +29,14 @@ import { afterSheetCloses } from "../kit/sheet/back";
 import { askAbout, canDo, type FrameFlash } from "../frame-verbs";
 import { FileChoices, FileReads, FileWho, NameField, type SheetPress } from "./file-fields";
 import { Picture } from "./photo";
-import { PostGoogle, PostGoogleActs, PostOnGoogle, usePostGoogle } from "./post-google";
+import { PostGoogle, PostGoogleActs, PostOnGoogle, usePostGoogle } from "./places/post-google";
+import {
+  PostInstagram,
+  PostInstagramActs,
+  PostOnInstagram,
+  useSheetInstagram,
+  type usePostInstagram,
+} from "./places/post-instagram";
 import { PostShapes } from "./post-shapes";
 import { PostVersion, PostVersionActs, usePostVersion } from "./post-version";
 import { fileVerbs, type FileChange } from "./verbs";
@@ -51,6 +61,10 @@ function usePostRecord(file: FileDto) {
   const [connected, setConnected] = useState(false);
   const [posted, setPosted] = useState<FilePosted | null>(null);
   const [sound, setSound] = useState<FileSound | null>(null);
+  const [instagram, setInstagram] = useState<FileRecordDto["instagram"]>(null);
+  // Read again when asked: a post on its way to Instagram says where it stands as it moves.
+  const [asked, setAsked] = useState(0);
+  const reread = useCallback(() => setAsked((n) => n + 1), []);
   const isPost = file.source === "made";
   const isVideo = file.kind === "video";
   const heard = isVideo ? `${file.media_status}|${file.sound_said ?? ""}` : "";
@@ -62,13 +76,14 @@ function usePostRecord(file: FileDto) {
       setMade(r.data.made);
       setConnected(r.data.google?.connected ?? false);
       setPosted(r.data.google?.posted ?? null);
+      setInstagram(r.data.instagram ?? null);
       setSound(r.data.sound ?? null);
     });
     return () => {
       live = false;
     };
-  }, [file.id, isPost, isVideo, heard]);
-  return { made, connected, posted, setPosted, sound };
+  }, [file.id, isPost, isVideo, heard, asked]);
+  return { made, connected, posted, setPosted, sound, instagram, reread };
 }
 
 /** Where a post came from, a door to that photo while it is here; anything else says the road that brought it. */
@@ -100,12 +115,14 @@ function FileActs({
   makePost,
   newVersion,
   toGoogle,
+  toInstagram,
 }: SheetPress & {
   remove: () => void;
   ask: () => void;
   makePost: () => void;
   newVersion: (() => void) | null;
   toGoogle: (() => void) | null;
+  toInstagram: (() => void) | null;
 }) {
   const [asking, setAsking] = useState(false);
   const video = file.kind === "video";
@@ -157,6 +174,11 @@ function FileActs({
           {W.newVersion}
         </Button>
       )}
+      {toInstagram && (
+        <Button variant="quiet" onClick={toInstagram} data-testid="fl-to-instagram">
+          {ON_INSTAGRAM.post}
+        </Button>
+      )}
       {toGoogle && (
         <Button variant="quiet" onClick={toGoogle} data-testid="fl-to-google">
           {W.google.post}
@@ -191,20 +213,61 @@ function FileShown({
   said,
   version,
   going,
+  toInstagram,
   made,
 }: {
   file: FileDto;
   said: string;
   version: ReturnType<typeof usePostVersion>;
   going: ReturnType<typeof usePostGoogle>;
+  toInstagram: ReturnType<typeof usePostInstagram>;
   made: FileMade | null;
 }) {
   if (version.open) return <PostVersion version={version} />;
   if (going.open && made) return <PostGoogle google={going} plan={made.plan} />;
+  if (toInstagram.open) return <PostInstagram draft={toInstagram} alt={file.line ?? said} />;
   if (file.source === "made")
     return <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />;
   if (file.kind === "video") return <VideoOpened file={file} said={said} />;
   return <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />;
+}
+
+/** The foot of a post on its way somewhere: a new version, Google's words, Instagram's; null while nothing is drafted. */
+function draftActsOf(drafts: {
+  version: ReturnType<typeof usePostVersion>;
+  going: ReturnType<typeof usePostGoogle>;
+  toInstagram: ReturnType<typeof usePostInstagram>;
+}): React.ReactNode {
+  if (drafts.version.open) return <PostVersionActs version={drafts.version} />;
+  if (drafts.going.open) return <PostGoogleActs google={drafts.going} />;
+  if (drafts.toInstagram.open) return <PostInstagramActs draft={drafts.toInstagram} />;
+  return null;
+}
+
+/** Where the post went: up on Google, and the newest on Instagram with where it stands. */
+function PostPlaces({
+  id,
+  posted,
+  newest,
+  may,
+  saidDown,
+  pulled,
+  flash,
+}: {
+  id: string;
+  posted: FilePosted | null;
+  newest: PostDto | null;
+  may: boolean;
+  saidDown: () => void;
+  pulled: () => void;
+  flash: (f: FrameFlash) => void;
+}) {
+  return (
+    <>
+      {posted && <PostOnGoogle id={id} posted={posted} may={may} saidDown={saidDown} flash={flash} />}
+      {newest && <PostOnInstagram id={id} post={newest} may={may} pulled={pulled} flash={flash} />}
+    </>
+  );
 }
 
 export /** What a person says of one file. Each change is saved as it is made, and the door's refresh reads the list again. */
@@ -222,12 +285,16 @@ function FileSheet({
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const may = canDo("settings");
-  const { made, connected, posted, setPosted, sound } = usePostRecord(file);
+  const { made, connected, posted, setPosted, sound, instagram, reread } = usePostRecord(file);
   const version = usePostVersion((id, words) => {
     flash({ msg: <>{words}</> });
     open(id);
   });
-  const going = usePostGoogle(file.id, made?.plan ?? null, setPosted, flash);
+  const plan = made?.plan ?? null;
+  const going = usePostGoogle(file.id, plan, setPosted, flash);
+  const ig = useSheetInstagram(file.id, { plan, instagram, reread }, flash);
+  const toInstagram = ig.draft;
+  const drafting = version.open || going.open || toInstagram.open;
   const change = async (body: FileChange): Promise<string | null> => {
     setBusy(true);
     const r = await fileVerbs.change(file.id, body);
@@ -262,11 +329,7 @@ function FileSheet({
       backCloses={`file:${file.id}`}
       testid="fl-sheet"
       foot={
-        version.open ? (
-          <PostVersionActs version={version} />
-        ) : going.open ? (
-          <PostGoogleActs google={going} />
-        ) : (
+        draftActsOf({ version, going, toInstagram }) ?? (
           <FileActs
             {...press}
             remove={() => void remove()}
@@ -275,12 +338,13 @@ function FileSheet({
             // From the photo it came from: with that gone, there is nothing to draw it again from.
             newVersion={made?.from ? () => version.begin(made.plan) : null}
             toGoogle={may && connected && !posted && made?.from ? going.begin : null}
+            toInstagram={may && ig.free ? toInstagram.begin : null}
           />
         )
       }
     >
-      <FileShown file={file} said={said} version={version} going={going} made={made} />
-      {!version.open && !going.open && (
+      <FileShown file={file} said={said} version={version} going={going} toInstagram={toInstagram} made={made} />
+      {!drafting && (
         <>
           {says && <p className="files-says">{says}</p>}
           {file.kind === "video" && <VideoHeard sound={sound} />}
@@ -297,9 +361,15 @@ function FileSheet({
               <FileReads file={file} />
             )}
             <FileFrom file={file} made={made} open={open} />
-            {posted && (
-              <PostOnGoogle id={file.id} posted={posted} may={may} saidDown={() => setPosted(null)} flash={flash} />
-            )}
+            <PostPlaces
+              id={file.id}
+              posted={posted}
+              newest={ig.newest}
+              may={may}
+              saidDown={() => setPosted(null)}
+              pulled={reread}
+              flash={flash}
+            />
             {/* Under what was pressed, and read out: a press that did nothing says so where the eye and a screen reader are. */}
             {problem && (
               <div role="alert">

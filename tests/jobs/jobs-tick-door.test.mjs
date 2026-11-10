@@ -26,7 +26,7 @@ import { withoutRequestId } from "../_log-lines.mjs";
 import { at, KEY, answer, wire } from "../_cron-doors-world.mjs";
 
 const MAIL = { RESEND_API_KEY: "re_test_only", LEAD_TO: "ops@platform.test", LEAD_FROM: "Pager <pager@platform.test>" };
-/** The environment's own WhatsApp pair: present, so a job that fell back to it would show. */
+/** The environment's old WhatsApp pair, still set as a deployment that never unset it holds it: a job that sent on it would show. */
 const ENV_WHATSAPP = { phoneId: "109990000000003", token: "the-environments-own-whatsapp-token" };
 /** The platform's own Twilio account: what makes the texting provider Twilio's, and never what a line sends with. */
 const MASTER = { sid: "ACplatformmasteraccountforthisfile", token: "platform-master-token-for-this-file" };

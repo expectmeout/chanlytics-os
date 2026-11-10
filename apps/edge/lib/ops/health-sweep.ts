@@ -96,7 +96,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     // no customer content in it, so this takes the same addressing
     // alertUnroutable() uses in apps/edge/api/whatsapp.ts.
     delivered = await notify(
-      { tenantId: null, notifications: null, isEnvDefault: true },
+      { tenantId: null, notifications: null },
       {
         subject: `A background sweep is not running: ${plan.alert.map((r) => r.sweep).join(", ")}`,
         body: describeSweepTrouble(plan.alert),
@@ -107,7 +107,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
 
   if (plan.recovered.length && !plan.broken.length) {
     await notify(
-      { tenantId: null, notifications: null, isEnvDefault: true },
+      { tenantId: null, notifications: null },
       {
         subject: "Background sweeps are answering again",
         body:

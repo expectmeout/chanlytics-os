@@ -221,7 +221,20 @@ before(async () => {
   // What Ask remembers (00470, decision 0070): a line every member reads, a day of the journal its owners read, and the
   // viewer's own morning.
   await seed("ask_memory_lines", { tenant_id: A, text: "Our best customers are dental offices", source: "pane" });
-  await seed("files", fileRow("seeded"));
+  ctx.file = await seed("files", fileRow("seeded"));
+  // Where a post went, and a send of it (00611): the service role writes both, a member reads where it stands.
+  ctx.post = await seed("posts", {
+    tenant_id: A,
+    file_id: ctx.file,
+    place: "instagram",
+    kind: "picture",
+    status: "queued",
+  });
+  await seed(
+    "publish_attempts",
+    { tenant_id: A, post_id: ctx.post, attempt_no: 1, step: "container", request: {} },
+    null,
+  );
   // What a person removed, by fingerprint, read by no member (00551).
   await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
   // Keyed by their workspace and day, so no id to pick.
@@ -745,6 +758,12 @@ const TENANT_TABLES = {
   ask_memory_lines: ["member", () => ({ tenant_id: A, text: "A stranger's line", source: "pane" })],
   files: ["member", () => fileRow("a-strangers")],
   files_let_go: ["none", () => ({ tenant_id: A, fingerprint: "a-strangers" })],
+  // Where a post went and each send of it (00611): a member reads them, the service role writes them.
+  posts: ["member", () => ({ tenant_id: A, file_id: ctx.file, place: "google", kind: "picture", status: "published" })],
+  publish_attempts: [
+    "member",
+    () => ({ tenant_id: A, post_id: ctx.post, attempt_no: 2, step: "publish", request: {} }),
+  ],
   ask_journal_days: ["owner", () => ({ tenant_id: A, day: "2026-10-19", state: "quiet" })],
   ask_mornings: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, day: "2026-10-20" })],
   // What Ask did and what it told (00574, 00575): a member reads them, a member who may act writes the record.
@@ -1116,7 +1135,12 @@ const OTHER_TABLES = {
 };
 
 /** A member's grant on files is by column (00551: never the copy's id or the fingerprint), so `*` is refused them. */
-const COLUMNS_OF = { files: "id, tenant_id" };
+const COLUMNS_OF = {
+  files: "id, tenant_id",
+  // A member never reads a post's container, nor what a send carried and what came back (00611's column grants).
+  posts: "id, tenant_id, status",
+  publish_attempts: "id, tenant_id, outcome",
+};
 
 const seen = async (client, table, filter) => {
   let q = client

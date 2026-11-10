@@ -2,13 +2,24 @@
  * A kept post on the business's Google profile, and off it (decision 0099, step 3): a person's press, and only that. The picture is
  * drawn for what Google shows, from what the post was asked to be, and kept in the file's own folder, so what empties the folder empties
  * it. Google fetches it by itself, some time after it answers, so its address lasts a day. The edge holds the token and says it to Google.
+ *
+ * The press keeps its placement as Instagram's does (00611, decision 0121, D16): one record of where each post went, written before
+ * the edge is asked, its one send kept as an attempt, and settled by the answer: up, with Google's name for it, or refused in words.
  */
 import "server-only";
 import { AppError, DAY_MS, FILE_WORDS, SECOND_MS, fileFolderOf, type PostPlan } from "@chanlytics/contracts";
-import type { FileMemberRow } from "@chanlytics/db/files";
+import {
+  beginPost,
+  closePostAttempt,
+  findPlacementByName,
+  movePost,
+  openPostAttempt,
+  type FileMemberRow,
+} from "@chanlytics/db/files";
 import { callEdgeGoogle } from "@/server/connections/google";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
+import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { bucket } from "../files/file";
 import { getMaterial } from "./material";
@@ -65,6 +76,25 @@ export async function postFileToGoogle(
   const { made } = await readFileRecord(ctx, member, row);
   if (!made?.from) throw new AppError("validation", ON_GOOGLE.noPhoto);
   const photoUrl = await pictureForGoogle(ctx, member, row.id, made.plan);
+  const placed = await beginPost(ctx.supabase, {
+    tenantId: member.tenantId,
+    fileId: row.id,
+    place: "google",
+    kind: "picture",
+    caption: input.summary,
+    when: null,
+    via: "press",
+  });
+  if (placed.fate === "busy") throw new AppError("conflict", ON_GOOGLE.onItsWay, 409);
+  if (placed.fate !== "begun" || !placed.post_id) throw new AppError("not_found", FILE_WORDS.gone, 404);
+  const postId = placed.post_id;
+  const db = serviceDb();
+  const send = await openPostAttempt(db, {
+    postId,
+    attemptNo: 1,
+    step: "publish",
+    request: { summary_chars: input.summary.length, photo: new URL(photoUrl).host },
+  });
   const answer = await callEdgeGoogle(
     {
       op: "post",
@@ -78,12 +108,42 @@ export async function postFileToGoogle(
     },
     GOOGLE_ASKED_MS,
   );
-  if (answer.status !== 200 || answer.body?.ok !== true) throw refusedBy(answer);
-  return {
+  if (answer.status !== 200 || answer.body?.ok !== true) {
+    const refused = refusedBy(answer);
+    await closePostAttempt(db, {
+      attemptId: send.id,
+      outcome: answer.status === 0 || answer.status >= 500 ? "no_answer" : "refused",
+      httpStatus: answer.status || null,
+      answer: null,
+      error: { code: null, subcode: null, words: refused.message },
+    });
+    await movePost(db, {
+      postId,
+      from: ["publishing"],
+      to: "failed",
+      patch: { error: { code: null, subcode: null, words: refused.message } },
+    });
+    throw refused;
+  }
+  const posted = {
     name: String(answer.body.name),
     search_url: typeof answer.body.search_url === "string" ? answer.body.search_url : null,
     state: typeof answer.body.state === "string" ? answer.body.state : null,
   };
+  await closePostAttempt(db, {
+    attemptId: send.id,
+    outcome: "ok",
+    httpStatus: 200,
+    answer: null,
+    externalId: posted.name,
+  });
+  await movePost(db, {
+    postId,
+    from: ["publishing"],
+    to: "published",
+    patch: { external_id: posted.name, permalink: posted.search_url },
+  });
+  return posted;
 }
 
 /** DELETE files/[id]/google: the post comes off the profile. It stays in Files. */
@@ -98,5 +158,12 @@ export async function takeFileOffGoogle(
     GOOGLE_ASKED_MS,
   );
   if (a.status !== 200 || a.body?.ok !== true) throw refusedBy(a);
+  await takenDownOnGoogle(member, row.id, input.name);
   return { down: true };
+}
+
+/** Its placement, where one was kept, marked taken down: the sheet then reads it as off Google. A post made before is its events'. */
+async function takenDownOnGoogle(member: Member, fileId: string, name: string): Promise<void> {
+  const placed = await findPlacementByName(serviceDb(), member.tenantId, fileId, name);
+  if (placed) await movePost(serviceDb(), { postId: placed, from: ["published"], to: "taken_down" });
 }

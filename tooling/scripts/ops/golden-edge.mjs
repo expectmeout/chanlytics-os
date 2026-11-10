@@ -119,7 +119,7 @@ await secretCheck("POST /api/whatsapp signed status payload is 200 ok", async ()
   assert(r.status === 200, `status ${r.status}`);
   assert((await r.json()).ok === true, "body not ok:true");
 });
-await secretCheck("POST /api/whatsapp signed text from non-allowlisted number is 200 (dropped)", async () => {
+await secretCheck("POST /api/whatsapp signed text on a number nobody routes is 200 (dropped)", async () => {
   const body = JSON.stringify({
     object: "whatsapp_business_account",
     entry: [
@@ -203,9 +203,7 @@ if (DIAG) {
     assert(r.status === 200, `status ${r.status}`);
     const j = await r.json();
     assert(j.memory === "postgres" && j.env, "diag shape wrong");
-    console.log(
-      `      diag: memory=${j.memory} env=${JSON.stringify(j.env)} waTokenCheck=${JSON.stringify(j.waTokenCheck)}`,
-    );
+    console.log(`      diag: memory=${j.memory} env=${JSON.stringify(j.env)} whatsapp=${JSON.stringify(j.whatsapp)}`);
   });
 }
 await check("GET /api/diag wrong key is 403", async () => {
@@ -223,6 +221,9 @@ if (process.env.INGEST === "1" && process.env.SUPABASE_URL && process.env.SUPABA
   const tag = process.env.RUN_TAG || String(Date.now());
   const wamid = `wamid.golden.ingest.${tag}`;
   const fromDigits = "15550001111";
+  // A one-time code a service sent (contracts oneTimeCodeOf): recorded and marked handled, never answered, on any
+  // workspace's number, so the probe spends no model call and texts nobody back.
+  const PROBE_BODY = "Your Golden Probe verification code is 482913. Do not share it.";
   const msgPayload = (id) =>
     JSON.stringify({
       object: "whatsapp_business_account",
@@ -241,7 +242,7 @@ if (process.env.INGEST === "1" && process.env.SUPABASE_URL && process.env.SUPABA
                     id,
                     type: "text",
                     timestamp: String(Math.floor(Date.now() / 1000)),
-                    text: { body: "golden ingest probe — ignore" },
+                    text: { body: PROBE_BODY },
                   },
                 ],
               },
@@ -256,22 +257,15 @@ if (process.env.INGEST === "1" && process.env.SUPABASE_URL && process.env.SUPABA
     const r = await post("/api/whatsapp", body, { "x-hub-signature-256": sign(body) });
     assert(r.status === 200, `status ${r.status}`);
   });
-  await check("INGEST: message row persisted, processed, allowlist-skipped", async () => {
+  await check("INGEST: message row persisted and processed, set aside as a one-time code", async () => {
     const { data: msg } = await db
       .from("messages")
       .select("id, tenant_id, body, meta, conversation_id, contact_id")
       .eq("external_id", wamid)
       .maybeSingle();
     assert(msg, "message row missing");
-    assert(msg.body === "golden ingest probe — ignore", "body mismatch");
+    assert(msg.body === PROBE_BODY, "body mismatch");
     assert(msg.meta && msg.meta.processed_at, "processed_at not stamped");
-    const { data: evt } = await db
-      .from("events")
-      .select("id")
-      .eq("kind", "ingest.allowlist_skip")
-      .eq("subject_id", msg.id)
-      .maybeSingle();
-    assert(evt, "allowlist_skip event missing");
     const { data: contact } = await db
       .from("contacts")
       .select("wa_profile_name, phone_e164")

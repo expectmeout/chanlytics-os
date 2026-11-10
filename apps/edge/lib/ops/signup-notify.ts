@@ -60,7 +60,7 @@ export async function notifySignup(auth: Admitted, body: Partial<Body>): Promise
     : "Their Setup page tells them what to do next; nothing is provisioned until they ask.\n";
   const sent = await notify(
     // The platform's own mailbox: this is about a workspace, not addressed to one.
-    { tenantId: null, notifications: null, isEnvDefault: true },
+    { tenantId: null, notifications: null },
     {
       kind: "alert",
       subject: `New workspace: ${tenant.data.name}`,

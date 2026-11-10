@@ -11,8 +11,8 @@
  * decides: a number the database routes runs that workspace's receptionist on
  * that workspace's wire; a number the database answers is not ours is
  * dead-lettered under the platform and the platform is told, once a window; a
- * number the database could not answer for is NOT acknowledged, the
- * environment's own number included: there is no fallback profile. The
+ * number the database could not answer for is NOT acknowledged: there is no
+ * fallback profile. The
  * account's news is routed by its WABA and never by a number. Receipts land
  * on the routed workspace's rows and nowhere else. An owner's reply from the
  * Business app pauses the receptionist for the workspace's own hours. And a
@@ -33,23 +33,17 @@ import { fakeDb } from "../_fake-db.mjs";
 import { pauseMsOf } from "@chanlytics/contracts";
 import { fieldsOf } from "../_log-lines.mjs";
 
-/** The environment's own pilot line: the one number whose credentials come from the environment. */
-const ENV_PHONE_ID = "109990000000001";
-
 // The door reads its secret and its token at the knock. Each test file is its
 // own process, so this is the whole environment, set before the handler is
 // imported below. The platform's mailbox is set only inside the cases that
 // listen for mail.
 process.env.META_APP_SECRET = "meta-app-secret-for-this-file";
 process.env.WHATSAPP_VERIFY_TOKEN = "verify-token-for-this-file";
-process.env.WHATSAPP_PHONE_ID = ENV_PHONE_ID;
 for (const k of [
   "RESEND_API_KEY",
   "LEAD_TO",
   "LEAD_FROM",
   "ANTHROPIC_API_KEY",
-  "WHATSAPP_ACCESS_TOKEN",
-  "WHATSAPP_TEST_ALLOWLIST",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
 ])
@@ -326,7 +320,6 @@ function receptionist({ ingest = () => {} } = {}) {
           return { outcome: "sent", messageId: "m-out", externalId: "wamid.out" };
         },
         processed: async () => {},
-        allowlistSkip: async () => {},
         unreachableSender: async () => {},
         noteEmail: async (address) => {
           seen.emails.push(address);
@@ -350,7 +343,7 @@ function receptionist({ ingest = () => {} } = {}) {
     brain: async () => {
       throw new Error("the model must not be reached in this test");
     },
-    env: { allowlist: "", modelKey: undefined },
+    env: { modelKey: undefined },
   });
   return seen;
 }
@@ -691,57 +684,6 @@ test("a number the database could not answer for is not acknowledged: 503 with t
         );
         assert.equal(seen.sent.length, 2);
         assert.equal(line.mail().length, 1, "and the platform is not told again");
-      }),
-    );
-  } finally {
-    line.restore();
-  }
-});
-
-test("the same failure on the environment's own number is no exception: not acknowledged, nothing said, the platform told", async () => {
-  // There used to be a baked copy of one workspace's profile that this number
-  // answered from while the database was unreadable. That copy is gone, and
-  // the pilot waits for the read like every other workspace.
-  const w = world();
-  w.open({ "tenant_channels.select": { message: "connection terminated unexpectedly" } });
-  const seen = receptionist();
-  const line = wire();
-  const from = w.customer();
-  try {
-    await withEnv(MAIL, () =>
-      listening(async (log) => {
-        const res = await deliver(
-          w.change(
-            { messages: [text(from, `wamid.${w.i}.env`, "hi, are you open today?")] },
-            { phoneId: ENV_PHONE_ID },
-          ),
-        );
-        assert.deepEqual(
-          await answer(res),
-          [503, { ok: false, unrecorded: 1 }],
-          "not acknowledged, so Meta redelivers once the read works",
-        );
-        assert.deepEqual(
-          [seen.runtimes, seen.ingested, seen.sent],
-          [[], [], []],
-          "nothing recorded and nothing said in anyone's voice",
-        );
-        assert.equal(
-          kind(w.tables, "ingest.unroutable").length,
-          0,
-          "a blip is not a decision: nothing is dead-lettered",
-        );
-        assert.deepEqual(
-          log.said("wa_routing_lookup_failed").map((l) => l.fields.phone_number_id),
-          [ENV_PHONE_ID],
-        );
-        assert.deepEqual(
-          log.said("wa_skip_routing_failed").map((l) => l.fields),
-          [{ phone_number_id: ENV_PHONE_ID, messages: 1 }],
-        );
-        const mail = line.mail();
-        assert.equal(mail.length, 1, "the platform is told the control plane cannot be read");
-        assert.equal(mail[0].subject, "WhatsApp messages are arriving and the control plane cannot be read");
       }),
     );
   } finally {

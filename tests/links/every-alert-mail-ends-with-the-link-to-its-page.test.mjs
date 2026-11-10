@@ -25,7 +25,7 @@ process.env.RESEND_API_KEY = "re_test_only";
 process.env.LEAD_TO = "ops@platform.test";
 process.env.LEAD_FROM = "Pager <pager@platform.test>";
 process.env.DASHBOARD_ORIGIN = "https://app.example.test";
-for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VERCEL_ENV"]) delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VERCEL_ENV"]) delete process.env[k];
 
 const { notify, notifyOnce, notifyEvent, sendOpsMail } = await import(at("apps/edge/lib/shared/alerts/notify.ts"));
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
@@ -58,7 +58,7 @@ function world() {
 }
 const addressed = { escalation_emails: [OWNER], from: "Harbor <hi@harbor.test>" };
 /** A target whose slug rode with its recipients, as loadTenantNotifications hands it. */
-const harbor = (over = {}) => ({ tenantId: T, notifications: addressed, isEnvDefault: false, slug: "harbor", ...over });
+const harbor = (over = {}) => ({ tenantId: T, notifications: addressed, slug: "harbor", ...over });
 const msg = (kind, over = {}) => ({
   kind,
   subject: `A ${kind} notice`,
@@ -160,7 +160,7 @@ test("a notice kept to be told exactly once (notifyOnce, notifyEvent) ends its m
 test("the redacted copy, which tells the platform that a workspace cannot be addressed, carries no link", async () => {
   const db = world();
   const t = transport();
-  const target = { tenantId: T, notifications: null, isEnvDefault: false, slug: "harbor" };
+  const target = { tenantId: T, notifications: null, slug: "harbor" };
   await notify(target, msg("handoff", { route: `inbox/th-${ID}` }), { db, send: t.send });
   assert.equal(t.sent.length, 1);
   assert.deepEqual(t.sent[0].to, ["ops@platform.test"], "the platform's mailbox, never the workspace's");
@@ -168,17 +168,9 @@ test("the redacted copy, which tells the platform that a workspace cannot be add
   assert.doesNotMatch(t.sent[0].text, /What happened/, "and still none of the customer's words");
 });
 
-test("a workspace whose owner IS the platform's mailbox (the first one) is mailed in full, with the link", async () => {
-  const t = transport();
-  const target = { tenantId: T, notifications: null, isEnvDefault: true, slug: "harbor" };
-  await notify(target, msg("handoff", { route: `inbox/th-${ID}` }), { db: world(), send: t.send });
-  assert.deepEqual(t.sent[0].to, ["ops@platform.test"]);
-  assert.ok(t.sent[0].text.endsWith(`Open it: ${ORIGIN}/w/harbor/inbox/th-${ID}`));
-});
-
 test("the platform's own news, which is about no workspace, has no page to open", async () => {
   const t = transport();
-  await notify({ tenantId: null, notifications: null, isEnvDefault: true }, msg("alert"), {
+  await notify({ tenantId: null, notifications: null }, msg("alert"), {
     db: world(),
     send: t.send,
   });

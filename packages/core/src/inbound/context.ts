@@ -40,7 +40,7 @@ function replyAddressOf(n: InboundMessage): string {
 
 /** The control plane, read once, and everything that is fixed for this whole message. */
 export async function openInbound(input: InboundInput, ports: InboundPorts) {
-  const { inbound: n, tenantId, routed, isEnvDefault, carrier } = input;
+  const { inbound: n, tenantId, routed, carrier } = input;
   const from = replyAddressOf(n);
   const channel: InboundChannel = carrier?.channel ?? "whatsapp";
   // Persist first has nowhere to persist to without a database: the message is refused, and the provider sends it again.
@@ -81,7 +81,6 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
   const notifyTarget: InboundHandoff["target"] = {
     tenantId,
     notifications: notif,
-    isEnvDefault,
     // Read with the runtime, so an alert's mail links the workspace's page without a read of its own.
     ...(rt?.slug !== undefined ? { slug: rt.slug } : {}),
   };
@@ -96,7 +95,6 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
     n,
     tenantId,
     routed,
-    isEnvDefault,
     carrier,
     from,
     channel,

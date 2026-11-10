@@ -27,15 +27,7 @@ const MASTER = { sid: `AC${"9".repeat(32)}`, token: "the-platforms-own-twilio-to
 process.env.RETELL_FN_SECRET = SECRET;
 process.env.TWILIO_ACCOUNT_SID = MASTER.sid;
 process.env.TWILIO_AUTH_TOKEN = MASTER.token;
-for (const k of [
-  "WHATSAPP_PHONE_ID",
-  "WHATSAPP_ACCESS_TOKEN",
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-  "RESEND_API_KEY",
-  "LEAD_TO",
-  "LEAD_FROM",
-])
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "RESEND_API_KEY", "LEAD_TO", "LEAD_FROM"])
   delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");

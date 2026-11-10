@@ -34,11 +34,9 @@ const LOGS = new Set(GATES.map((g) => g.log));
  * Each gate's condition, as a world option, a runtime field or a change to the message. `shape` is the message's own
  * (one per message); the rest can stack.
  */
-const AHEAD = { pilot: "15550001111" };
 const CONDITION = {
   short_code: { from: "22395" },
   one_time_code: { body: "Your Apple ID Code is: 123456. Don't share it with anyone." },
-  pilot_allowlist: { over: { isEnvDefault: true, env: { allowlist: AHEAD.pilot } } },
   replay: null,
   thread_unknown: { over: { unreadable: true } },
   opt_out: {
@@ -189,11 +187,10 @@ test("a redelivery of a message already handled stops at the replay gate, before
  * condition and every later one's, stops first.
  */
 const CHAINS = [
-  // The environment's own WhatsApp number, every set-aside, then the gates every text meets.
+  // Every set-aside, then the gates every message meets.
   [
     "short_code",
     "one_time_code",
-    "pilot_allowlist",
     "thread_unknown",
     "opt_out",
     "stale",

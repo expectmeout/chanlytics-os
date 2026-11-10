@@ -34,8 +34,7 @@ Object.assign(process.env, {
   LEAD_TO: "ops@platform.test",
   LEAD_FROM: "Pager <pager@platform.test>",
 });
-for (const k of ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATSAPP_PHONE_ID"])
-  delete process.env[k];
+for (const k of ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -218,7 +217,6 @@ function receptionist({ ingest = () => {} } = {}) {
       features: null,
       policy: { reply: { mode: "auto", limits: {} } },
       waCreds: null,
-      envNumber: false,
       paused: false,
       loadFailed: false,
       configBroken: false,
@@ -259,7 +257,6 @@ function receptionist({ ingest = () => {} } = {}) {
             : { outcome: "failed", reason: "provider", status: r.status, errorBody: null, messageId: null };
         },
         processed: async () => {},
-        allowlistSkip: async () => {},
         unreachableSender: async () => {},
         noteEmail: async () => {},
         vetoFallback: async () => {},
@@ -276,7 +273,7 @@ function receptionist({ ingest = () => {} } = {}) {
       throw new Error("a DM must not be answered on WhatsApp");
     },
     brain: async () => ({ generateReply: async () => ({ text: "We're open Saturday 9 to 5!", escalate: false }) }),
-    env: { allowlist: "", modelKey: "a-key-for-this-file" },
+    env: { modelKey: "a-key-for-this-file" },
   });
   return seen;
 }

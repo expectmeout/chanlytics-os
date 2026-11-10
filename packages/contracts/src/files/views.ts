@@ -1,8 +1,9 @@
 /** Files: views. */
 
 import type { FileKind, FileMediaStatus } from "./kinds";
-import type { PostPlan } from "./post";
+import type { PostPlan, PostShapeName } from "./post";
 import type { FileSound } from "./sound";
+import type { InstagramPostable, PostDto } from "../content/posts";
 import {
   FILE_NAME_MAX,
   FILE_SHOWS,
@@ -18,6 +19,13 @@ export const fileViewOf = (fileId: string): string => `/api/v1/files/${fileId}/v
 
 /** Its folder, for what removes everything a file has. */
 export const fileFolderOf = (tenantId: string, fileId: string): string => `${tenantId}/${fileId}`;
+
+/**
+ * Where a shape of a made post is kept: portrait is the file's original, the others stand beside it. The dashboard keeps
+ * them, and the edge signs one for Instagram to fetch (decision 0121).
+ */
+export const postPathOf = (tenantId: string, fileId: string, shape: PostShapeName): string =>
+  `${fileFolderOf(tenantId, fileId)}/${shape === "portrait" ? "original" : shape}.jpg`;
 
 /**
  * A name from any words, in any language: lower case, hyphens, no extension, and an apostrophe no break in a word (año-nuevo,
@@ -123,6 +131,11 @@ export interface FileRecordDto {
   made: FileMade | null;
   /** Whether it can go on Google, and whether it is there. */
   google: { connected: boolean; posted: FilePosted | null } | null;
+  /**
+   * Whether it can go on Instagram now (decision 0121), and its posts there, newest first. Null where the Meta link is not
+   * switched on for the workspace, and on anything but a post.
+   */
+  instagram: { can: InstagramPostable; posts: PostDto[] } | null;
   /** A video's: what was heard of it (sound.ts), each part named by who heard it. Absent on a picture. */
   sound?: FileSound;
 }

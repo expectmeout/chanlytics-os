@@ -6057,6 +6057,90 @@ export type Database = {
           },
         ]
       }
+      posts: {
+        Row: {
+          approved_at: string
+          approved_by: string | null
+          attempts: number
+          caption: string | null
+          container_id: string | null
+          created_at: string
+          error: Json | null
+          external_id: string | null
+          file_id: string
+          held_reason: string | null
+          id: string
+          kind: string
+          permalink: string | null
+          place: string
+          published_at: string | null
+          scheduled_for: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          via: string
+        }
+        Insert: {
+          approved_at?: string
+          approved_by?: string | null
+          attempts?: number
+          caption?: string | null
+          container_id?: string | null
+          created_at?: string
+          error?: Json | null
+          external_id?: string | null
+          file_id: string
+          held_reason?: string | null
+          id?: string
+          kind: string
+          permalink?: string | null
+          place: string
+          published_at?: string | null
+          scheduled_for?: string
+          status: string
+          tenant_id: string
+          updated_at?: string
+          via?: string
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string | null
+          attempts?: number
+          caption?: string | null
+          container_id?: string | null
+          created_at?: string
+          error?: Json | null
+          external_id?: string | null
+          file_id?: string
+          held_reason?: string | null
+          id?: string
+          kind?: string
+          permalink?: string | null
+          place?: string
+          published_at?: string | null
+          scheduled_for?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          via?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       privacy_requests: {
         Row: {
           asked_at: string
@@ -6174,6 +6258,72 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "provider_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publish_attempts: {
+        Row: {
+          answer: Json | null
+          attempt_no: number
+          container_id: string | null
+          error: Json | null
+          external_id: string | null
+          finished_at: string | null
+          http_status: number | null
+          id: string
+          outcome: string | null
+          post_id: string
+          request: Json
+          started_at: string
+          step: string
+          tenant_id: string
+        }
+        Insert: {
+          answer?: Json | null
+          attempt_no: number
+          container_id?: string | null
+          error?: Json | null
+          external_id?: string | null
+          finished_at?: string | null
+          http_status?: number | null
+          id?: string
+          outcome?: string | null
+          post_id: string
+          request: Json
+          started_at?: string
+          step: string
+          tenant_id: string
+        }
+        Update: {
+          answer?: Json | null
+          attempt_no?: number
+          container_id?: string | null
+          error?: Json | null
+          external_id?: string | null
+          finished_at?: string | null
+          http_status?: number | null
+          id?: string
+          outcome?: string | null
+          post_id?: string
+          request?: Json
+          started_at?: string
+          step?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publish_attempts_post_id_same_workspace"
+            columns: ["tenant_id", "post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "publish_attempts_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -10473,6 +10623,57 @@ export type Database = {
       playbook_totals: {
         Args: { p_history?: number; p_tenant_id: string }
         Returns: Json
+      }
+      post_again: {
+        Args: { p_from: string; p_post_id: string }
+        Returns: boolean
+      }
+      post_attempt_close: {
+        Args: {
+          p_answer?: Json
+          p_attempt_id: string
+          p_container_id?: string
+          p_error?: Json
+          p_external_id?: string
+          p_http_status?: number
+          p_outcome: string
+        }
+        Returns: boolean
+      }
+      post_attempt_open: {
+        Args: {
+          p_attempt_no: number
+          p_post_id: string
+          p_request: Json
+          p_step: string
+        }
+        Returns: Json
+      }
+      post_begin: {
+        Args: {
+          p_caption: string
+          p_file_id: string
+          p_kind: string
+          p_place: string
+          p_tenant_id: string
+          p_via?: string
+          p_when?: string
+        }
+        Returns: Json
+      }
+      post_moved: {
+        Args: {
+          p_from: string[]
+          p_patch?: Json
+          p_post_id: string
+          p_to: string
+        }
+        Returns: boolean
+      }
+      post_pull: { Args: { p_post_id: string }; Returns: Json }
+      post_unanswered: {
+        Args: { p_attempt: string; p_post_id: string }
+        Returns: boolean
       }
       preview_built: {
         Args: { p_id: string; p_ok: boolean; p_why?: string }

@@ -70,14 +70,6 @@ export function daysToSunset(flag: Pick<Flag, "sunset">, now: Date): number | nu
 
 export const FLAGS: readonly Flag[] = [
   {
-    name: "WHATSAPP_TEST_ALLOWLIST",
-    mechanism: "edge_env",
-    does: "Limits who the environment's own pilot number answers; empty answers everyone.",
-    owner: "platform",
-    sunset: null,
-    kept: "The environment's pilot line stays as a test line.",
-  },
-  {
     name: "RETELL_DOORS_SIGNED",
     mechanism: "edge_env",
     does: "'1' makes Retell's signature the only key to the voice doors; unset, the shared secret opens them beside it.",

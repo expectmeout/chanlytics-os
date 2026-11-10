@@ -147,21 +147,6 @@ test("an ingest the database refuses is not swallowed: IngestFailed surfaces and
   assert.equal(w.seen.sent.length, 0, "nothing is said to a customer whose words were not kept");
 });
 
-test("the pilot allowlist matches however the number is written", async () => {
-  // Meta delivers `from` as bare digits and the natural way to write the env
-  // var is the E.164 spelling with its "+", so a raw string compare matched
-  // nothing — including the tester the list was written for, whose messages
-  // were persisted, marked handled and never answered.
-  const spelt = world({ isEnvDefault: true, env: { allowlist: `+${FROM}` } });
-  await spelt.run(text("hi"));
-  assert.equal(spelt.seen.sent.length, 1, "the allowlisted tester is answered whichever spelling the env var uses");
-
-  const other = world({ isEnvDefault: true, env: { allowlist: "+13055550999" } });
-  await other.run(text("hi"));
-  assert.equal(other.seen.sent.length, 0, "and the list still gates everyone else");
-  assert.equal(other.seen.processed, 1, "recorded and marked handled, as before");
-});
-
 test("the writer is read without the message being answered: the reader is handed its id, which was stored first", async () => {
   // 11 Oct 2026: every writer was "Returning contact. Last in touch today." (db readLeadContext says why).
   const asked = [];

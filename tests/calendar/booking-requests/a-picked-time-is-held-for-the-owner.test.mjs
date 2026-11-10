@@ -221,7 +221,6 @@ function world({ answer, takes = true, terms = TERMS, withRequest = true }) {
     },
     processed: async () => {},
     noteHandled: async () => {},
-    allowlistSkip: async () => {},
     unreachableSender: async () => {},
     noteEmail: async () => {},
     vetoFallback: async () => {},
@@ -296,14 +295,14 @@ function world({ answer, takes = true, terms = TERMS, withRequest = true }) {
         return answer;
       },
     }),
-    env: { allowlist: "", modelKey: "sk-test" },
+    env: { modelKey: "sk-test" },
   };
   // The message as its door hands it over (decision 0001, step 3): WhatsApp's own, in the one shape.
   const inbound = (body) => inboundFromWhatsapp(message(body), value);
   // Its job's half, which every message takes since its door records it (lib/inbound/arrival.ts answerArrival).
   return {
     seen,
-    run: (body) => answerArrival({ inbound: inbound(body), carrier: null, isEnvDefault: false }, routed, ports),
+    run: (body) => answerArrival({ inbound: inbound(body), carrier: null }, routed, ports),
   };
 }
 

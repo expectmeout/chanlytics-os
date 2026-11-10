@@ -180,6 +180,14 @@ export const JOB_KINDS = [
   // A video made ready one step a run, each run again safely (00556, decision 0099 B): payload { file_id, step, edition }.
   "video_digest",
   /**
+   * A post on its way to Instagram (00611, decision 0121), payload { post_id, attempt }, once a post and an attempt while one
+   * waits, in the bulk lane: a post never holds a reply. Prepare makes it ready there (a container) and is run again safely;
+   * publish sends it, once, after the recheck; reconcile asks Instagram what it has when a send had no answer.
+   */
+  "post_prepare",
+  "post_publish",
+  "post_reconcile",
+  /**
    * A workspace's recurring work, handed out by its clock and run here (00569, decision 0115), one a workspace while
    * one waits or runs: its due moments read and run together, its reach-out steps, its calendar read, its Google
    * listings and profile read, its lines' unheard texts taken in (00605). Payload {}: each asks what is due as it runs.
@@ -260,7 +268,6 @@ export const EVENT_KINDS = [
   "contact.consent_changed",
   "usage.llm_tokens",
   "usage.wa_conversation",
-  "ingest.allowlist_skip",
   /** The sender cannot receive a reply — a short code. Recorded, never answered. */
   "ingest.unreachable_sender",
   "message.send_failed",

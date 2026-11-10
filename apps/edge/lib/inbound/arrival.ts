@@ -30,15 +30,12 @@ import type { JobPayload } from "@chanlytics/contracts";
 import { corePorts, realPorts, type InboundPorts } from "./ports.js";
 
 /**
- * A customer's message as its door hands it over: in the one shape, with its own wire's carrier. `isEnvDefault` is
- * WhatsApp's alone: the environment's own pilot number, whose replies leave on the environment's credentials.
+ * A customer's message as its door hands it over: in the one shape, with its own wire's carrier.
  */
 type Arrival =
-  | { inbound: InboundMessage & { channel: "whatsapp" }; carrier: null; isEnvDefault: boolean }
+  | { inbound: InboundMessage & { channel: "whatsapp" }; carrier: null }
   | { inbound: InboundMessage & { channel: "sms" }; carrier: InboundCarrier<"sms"> }
   | { inbound: InboundMessage & { channel: "instagram" }; carrier: InboundCarrier<"instagram"> };
-
-const envDefaultOf = (arrival: Arrival): boolean => (arrival.carrier === null ? arrival.isEnvDefault : false);
 
 /**
  * The door's half: the message recorded, or set aside, and nothing answered. The ingest's row when it waits for its
@@ -51,8 +48,7 @@ export function recordArrival(
   /** Everything outside the verb: the real modules unless a test says otherwise (./ports.ts). */
   ports: InboundPorts = realPorts(),
 ): Promise<IngestResult | null> {
-  const isEnvDefault = envDefaultOf(arrival);
-  return recordInbound({ ...arrival, tenantId: routed.tenantId, routed, isEnvDefault }, corePorts(ports));
+  return recordInbound({ ...arrival, tenantId: routed.tenantId, routed }, corePorts(ports));
 }
 
 /**
@@ -67,9 +63,8 @@ export function answerArrival(
   /** When the turn must have its answer by (the job's deadline, ms since the epoch): core caps it at TURN_BUDGET_MS. */
   endsAtMs?: number,
 ): Promise<void> {
-  const isEnvDefault = envDefaultOf(arrival);
   return answerInbound(
-    { ...arrival, tenantId: routed.tenantId, routed, isEnvDefault, ...(endsAtMs === undefined ? {} : { endsAtMs }) },
+    { ...arrival, tenantId: routed.tenantId, routed, ...(endsAtMs === undefined ? {} : { endsAtMs }) },
     corePorts(ports),
   );
 }

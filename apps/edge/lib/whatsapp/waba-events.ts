@@ -528,7 +528,6 @@ async function tellWabaChange(
   const target: NotifyTarget = {
     tenantId: routed.tenantId,
     notifications: await loadNotifications(routed.tenantId),
-    isEnvDefault: false,
   };
   await notify(target, {
     kind: described.kind,

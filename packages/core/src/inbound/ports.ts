@@ -112,8 +112,6 @@ export interface InboundRuntime {
   policy: Record<string, { mode: string; limits: PolicyLimits }>;
   /** Per-tenant WhatsApp credentials from Vault; null = the channel carries none, or the vault did not answer. */
   waCreds: { accessToken: string; phoneId: string } | null;
-  /** This workspace's WhatsApp number IS the environment's own pilot line. */
-  envNumber: boolean;
   /** IANA zone from `tenants.timezone`; null only when the row could not be read. */
   timezone: string | null;
   /** tenants.status = 'paused', written by billing for a workspace whose subscription stopped. */
@@ -142,8 +140,6 @@ export interface InboundHandoff {
     tenantId: TenantId | null;
     /** That tenant's configured notification settings, when we could read them. */
     notifications: NotificationsConfig | null;
-    /** True when this tenant is the env-default one, whose owner IS the address in LEAD_TO. */
-    isEnvDefault: boolean;
     /** The workspace's address word, when it was read with the recipients (the edge's NotifyTarget.slug). */
     slug?: string | null;
   };
@@ -261,7 +257,6 @@ export interface InboundSink {
    * never touches processed_at.
    */
   noteHandled(handled: Handled, intent?: BrainIntent | null): Promise<unknown>;
-  allowlistSkip(): Promise<unknown>;
   /** The sender cannot receive a reply (a short code). Recorded like any other message, and not answered. */
   unreachableSender(): Promise<unknown>;
   /** An address the customer gave in their own words: kept only where none is on file; a taken address is said, never moved. */
@@ -448,13 +443,11 @@ export interface InboundPorts {
    */
   log(base: Record<string, unknown>): InboundLog;
   /**
-   * Which WhatsApp credentials this message's replies leave on: the tenant's
-   * own, or the environment pair for the environment's own number.
+   * Which WhatsApp credentials this message's replies leave on: the workspace's own, from the vault; null when it
+   * has none.
    */
-  waCfg(rt?: InboundRuntime | null, arrivedOnEnvNumber?: boolean): WaConfig | null;
+  waCfg(rt?: InboundRuntime | null): WaConfig | null;
   env: {
-    /** The pilot allowlist for the environment's own number: comma-separated E.164 digits; empty disables it. */
-    allowlist: string;
     modelKey: string | undefined;
   };
 }

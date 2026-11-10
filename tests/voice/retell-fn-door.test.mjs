@@ -33,7 +33,7 @@ import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf } from "../_log-lines.mjs";
 
 const SECRET = "fn-secret-for-this-file";
-/** The environment's own WhatsApp pair: present, so a send that fell back to it would show. */
+/** The environment's old WhatsApp pair, still set as a deployment that never unset it holds it: a send on it would show. */
 const ENV_WHATSAPP = { phoneId: "109990000000004", token: "the-environments-own-whatsapp-token" };
 
 // Each test file is its own process, so this is the whole environment, set

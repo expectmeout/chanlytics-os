@@ -2,8 +2,7 @@
  * The workspace's address word rides with the recipients it is told at (wiring/records-not-pages, task 1.7; finding A2a): an
  * alert mail ends with a link to the workspace's own page, built from `tenants.slug`, and the edge's two loaders of "who is
  * told" read it where they already read the workspace, so the mail costs no query of its own. `loadTenantNotifications` is
- * the one a sweep or a job asks by tenant id (it reads the workspace beside the settings and the channel, three reads at
- * once); the runtime is what a message's handler holds (it reads the workspace's row already, for its name and its clock).
+ * the one a sweep or a job asks by tenant id (it reads the workspace beside the settings, two reads at once); the runtime is what a message's handler holds (it reads the workspace's row already, for its name and its clock).
  *
  * A workspace whose slug cannot be read is still told: the recipients are not the slug, and a missing slug is a mail with no
  * link (every-alert-mail-ends-with-the-link-to-its-page).
@@ -36,11 +35,10 @@ function capture() {
   };
 }
 
-test("a workspace's recipients come with its address word, in the same three reads", async () => {
+test("a workspace's recipients come with its address word, in the same two reads", async () => {
   const db = fakeDb({ tenants: [tenant], tenant_config: [config], tenant_channels: [] });
   assert.deepEqual(await loadTenantNotifications(db, T), {
     notifications: { escalation_emails: [OWNER] },
-    isEnvDefault: false,
     slug: "harbor",
     // and its name, which an alert mail names at its top (notify alertWorkspace)
     name: "Harbor Moving",
@@ -50,15 +48,15 @@ test("a workspace's recipients come with its address word, in the same three rea
       .filter((s) => s.table)
       .map((s) => s.table)
       .sort(),
-    ["tenant_channels", "tenant_config", "tenants"],
-    "the recipients, the number and the workspace: one read each, none more",
+    ["tenant_config", "tenants"],
+    "the recipients and the workspace: one read each, none more; its WhatsApp number is not asked",
   );
 });
 
 test("a workspace with no row to read has no address word to give, and its recipients are the same", async () => {
   const db = fakeDb({ tenants: [], tenant_config: [config], tenant_channels: [] });
   const got = await loadTenantNotifications(db, T);
-  assert.deepEqual(got, { notifications: { escalation_emails: [OWNER] }, isEnvDefault: false });
+  assert.deepEqual(got, { notifications: { escalation_emails: [OWNER] } });
   assert.equal("slug" in got, false, "unset is 'not read', which the mail reads once for itself; it is not null");
 });
 
@@ -71,7 +69,6 @@ test("a workspace read that fails costs only the link: the recipients are still 
   try {
     assert.deepEqual(await loadTenantNotifications(db, T), {
       notifications: { escalation_emails: [OWNER] },
-      isEnvDefault: false,
     });
   } finally {
     log.restore();

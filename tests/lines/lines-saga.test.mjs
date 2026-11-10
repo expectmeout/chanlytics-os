@@ -539,10 +539,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
     "the bell on success",
   );
   assert.ok(prov.includes("Your phone line hit a snag — a person at Chanlytics has it"), "the bell on failure");
-  assert.ok(
-    prov.includes("{ tenantId: null, notifications: null, isEnvDefault: true }"),
-    "the platform hears a failure",
-  );
+  assert.ok(prov.includes("{ tenantId: null, notifications: null }"), "the platform hears a failure");
   for (const k of ["line.answering", "line.failed", "line.released"]) assert.ok(EVENT_KINDS.includes(k), k);
   const lib = readCode("apps/edge/lib/lines/lines.ts");
   assert.ok(lib.includes("chooseLineProvider({ sid, token, dryRun: env.LINES_DRY_RUN, vercelEnv: env.VERCEL_ENV })"));

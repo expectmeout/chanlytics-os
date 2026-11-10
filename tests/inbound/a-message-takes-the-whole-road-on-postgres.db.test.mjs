@@ -149,7 +149,7 @@ before(async () => {
     calendar: { openings: async () => null, visits: async () => null },
     alertStaff: async () => {},
     page: async () => "sent",
-    env: { allowlist: "", modelKey: "sk-test" },
+    env: { modelKey: "sk-test" },
   });
 });
 

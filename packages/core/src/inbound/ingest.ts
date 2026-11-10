@@ -4,8 +4,8 @@
  *
  * ingestMessage takes the InboundContext that openInbound bound and returns Ingested (./context.ts), or nothing when
  * the message stops here. A short code (a sender nothing can be sent back to) is recorded and not answered, and so are a
- * one-time code a service sent (contracts oneTimeCodeOf, the reader every wire shares) and a sender off the pilot
- * allowlist, which binds only the environment's own WhatsApp number and is compared as digits on both sides. A redelivery stops at the replay gate, the ingest's own new-or-seen claim, once it is processed or a reply
+ * one-time code a service sent (contracts oneTimeCodeOf, the reader every wire shares). A redelivery stops at the
+ * replay gate, the ingest's own new-or-seen claim, once it is processed or a reply
  * names it, because a missed auto-reply beats a double text. Every other message is persisted before anything can
  * fail, its memory is read back through the persist port (a thread that cannot be read comes back UNKNOWN, and
  * ./gates.ts hands it to a person), an address the customer gives in their own typed or tapped words is kept where none
@@ -20,7 +20,7 @@
  * reads the reply that names it): a job taken up again after a runner died mid-turn still answers, and one whose turn
  * already reached a reply says nothing twice and leaves the stamp to the deadman sweep.
  *
- * Persist first is the rule: the allowlist and the short code gate the reply, never the persist. An ingest the database
+ * Persist first is the rule: what is set aside gates the reply, never the persist. An ingest the database
  * refused throws IngestFailed (./ports.ts) after a best-effort copy of the customer's words goes to the workspace's
  * handoff mail; the WhatsApp door counts it into a 503, so Meta redelivers, and the SMS door refuses with a 503 and
  * alerts the platform on the same signal.
@@ -68,25 +68,12 @@ async function ingestOrSay(cx: InboundContext): Promise<IngestResult> {
 }
 
 /**
- * A sender the receptionist never answers, recorded and set aside: a short code, a one-time code from any number, or
- * a sender off the pilot allowlist. True when the message was one, and is finished with.
+ * A sender the receptionist never answers, recorded and set aside: a short code, or a one-time code from any number.
+ * True when the message was one, and is finished with.
  */
 async function setAside(cx: InboundContext): Promise<boolean> {
-  const { ports, tenantId, isEnvDefault, from, channel, db, rt } = cx;
+  const { ports, tenantId, from, channel, db, rt } = cx;
   const recordOrSay = () => ingestOrSay(cx);
-  // THE PILOT ALLOWLIST, scoped to the number it was made for.
-  //
-  // It exists so the deployment's OWN WhatsApp number — the pilot line in
-  // WHATSAPP_PHONE_ID — answers only the testers while something is being
-  // tried. It was applied to every message on every channel, which was
-  // harmless while there was one tenant and became a silent muzzle the
-  // moment there were more: a business that connected its own number would
-  // have its customers persisted, marked processed, and never answered,
-  // with one event to show for it. The salon has only escaped it because
-  // the one allowlisted number is the only person who has written to them.
-  //
-  // A tenant that brought its own number, and every text on a line this
-  // product bought, is never gated by it.
   // A short code is a sender, never a person. A carrier notice, a two-factor
   // code or a bank alert lands on a business's line like any other text, and
   // nothing can be sent back to one from a ten-digit number — so composing a
@@ -95,7 +82,7 @@ async function setAside(cx: InboundContext): Promise<boolean> {
   //
   // Recorded, exactly like any other message, because an owner should be able
   // to see what arrived on their line. Not answered. This gates the REPLY, not
-  // the persist, for the same reason the allowlist below does.
+  // the persist.
   if (shortCode(from)) {
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
@@ -117,23 +104,6 @@ async function setAside(cx: InboundContext): Promise<boolean> {
     return true;
   }
 
-  // Compared as DIGITS on both sides. Meta delivers `from` as bare digits, and
-  // the natural way to write this env var is the E.164 spelling with its "+" —
-  // so a raw string compare matched nothing, including the tester the list was
-  // written for: every message on the pilot line was persisted, skipped and
-  // never answered, with one event per message to show for it. Exactly the
-  // silent muzzle the note above exists to prevent.
-  const digits = (s: string) => s.replace(/\D/g, "");
-  const allow = ports.env.allowlist.split(",").map(digits).filter(Boolean);
-  if (isEnvDefault && allow.length && !allow.includes(digits(from))) {
-    // §4 delta (deliberate): allowlist gates the REPLY, not the persist.
-    const ing = await recordOrSay();
-    const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
-    cx.L.info("wa_skip_allowlist");
-    await sink.allowlistSkip();
-    await sink.processed(handledOf(SET_ASIDE));
-    return true;
-  }
   return false;
 }
 
@@ -166,11 +136,11 @@ async function answeredBefore(cx: InboundContext, ing: IngestResult): Promise<bo
 
 /**
  * The message recorded and its memory read, with the three ways out bound; nothing when it stops here: a short
- * code, a sender off the pilot allowlist, or a redelivery already answered. Its job's own visit is a redelivery, and
+ * code, a one-time code, or a redelivery already answered. Its job's own visit is a redelivery, and
  * goes on while the message is unprocessed and unanswered.
  */
 export async function ingestMessage(cx: InboundContext): Promise<Ingested | undefined> {
-  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
+  const { ports, n, tenantId, carrier, from, channel, db, t0, L, rt, notifyTarget } = cx;
   const recordOrSay = () => ingestOrSay(cx);
   if (await setAside(cx)) return;
 
@@ -195,12 +165,11 @@ export async function ingestMessage(cx: InboundContext): Promise<Ingested | unde
   // change under them.
   const thread: ThreadState = await ports.persist.thread(db, tenantId, ing);
   const ingestMs = Date.now() - t0;
-  // This message's wires: WhatsApp on the tenant's credentials (the
-  // environment's pair only for the environment's own number), or the
+  // This message's wires: WhatsApp on the workspace's own credentials, or the
   // carrier that brought the message in (a texting line, an Instagram account), on its own wire. Bound here, where the
   // credentials are; the door refuses when the wire for this channel is missing.
   const wires: Wire = {
-    whatsapp: ports.sender(ports.waCfg(rt, isEnvDefault)),
+    whatsapp: ports.sender(ports.waCfg(rt)),
     ...(carrier ? { [carrier.channel]: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),
   };
   const sink = ports.persist.sink(db, tenantId, ing, rt, channel, wires);

@@ -27,8 +27,7 @@ import { fakeDb } from "../_fake-db.mjs";
 // The doors read these at call time; each test file is its own process. No
 // environment pair, so a channel without its own credentials gets none.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
-for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATSAPP_PHONE_ID", "WHATSAPP_ACCESS_TOKEN"])
-  delete process.env[k];
+for (const k of ["DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;

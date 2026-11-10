@@ -45,14 +45,6 @@ export const INBOUND_GATES: readonly InboundGate[] = [
     log: "one_time_code_set_aside",
   },
   {
-    key: "pilot_allowlist",
-    kind: "gate",
-    when: "On the environment's own WhatsApp number, a sender off `WHATSAPP_TEST_ALLOWLIST`",
-    then: "Recorded and set aside",
-    hold: null,
-    log: "wa_skip_allowlist",
-  },
-  {
     key: "persist",
     kind: "step",
     when: "Every other message",

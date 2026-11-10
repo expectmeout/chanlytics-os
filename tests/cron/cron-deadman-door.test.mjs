@@ -25,7 +25,7 @@ process.env.RESEND_API_KEY = "re_test_only";
 process.env.LEAD_TO = "ops@platform.test";
 process.env.LEAD_FROM = "Pager <pager@platform.test>";
 process.env.DASHBOARD_ORIGIN = "https://app.harbor.test";
-for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/deadman.ts"));
@@ -986,7 +986,7 @@ test("a notice that cannot be given is an error line, and the run stays marked n
     db: late.db,
     L: quietLog,
     notifyOnce: async () => true,
-    loadTenantNotifications: async () => ({ notifications: null, isEnvDefault: false }),
+    loadTenantNotifications: async () => ({ notifications: null }),
     deadline: Date.now() - 1,
   });
   assert.deepEqual(r, { stranded: 0 });

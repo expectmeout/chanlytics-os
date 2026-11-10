@@ -874,6 +874,20 @@
       "rate": "file_google",
       "spend": false
     },
+    "POST files/[id]/instagram": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_instagram",
+      "spend": false
+    },
+    "DELETE files/[id]/instagram": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "file_instagram",
+      "spend": false
+    },
     "GET files/[id]/play": {
       "kind": "read",
       "scope": "row",

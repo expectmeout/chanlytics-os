@@ -13,8 +13,7 @@ import { fakeDb } from "../_fake-db.mjs";
 import { logLineOf, fieldsOf } from "../_log-lines.mjs";
 import { at, knock, answer, vault, wire } from "../_cron-doors-world.mjs";
 
-for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "WHATSAPP_PHONE_ID", "WHATSAPP_ACCESS_TOKEN"])
-  delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { POST, YIELD_AT_MS } = await import(at("apps/edge/api/cron/channel-quality.ts"));

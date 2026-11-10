@@ -184,7 +184,6 @@ export function world(over = {}) {
           seen.handled.push({ how: how ?? null, intent: intent ?? null, marked: false });
           await over.forwardTo?.(ing).noteHandled(how, intent);
         },
-        allowlistSkip: async () => {},
         unreachableSender: async () => {
           seen.unreachable += 1;
         },
@@ -252,7 +251,7 @@ export function world(over = {}) {
     brain: async () => {
       throw new Error("the model must not be reached in this test");
     },
-    env: { allowlist: "", modelKey: undefined, ...(over.env ?? {}) },
+    env: { modelKey: undefined, ...(over.env ?? {}) },
   };
   // The messages stamped processed, by id: what an ingest of one already recorded answers (`processed`).
   const processedIds = new Set();
@@ -299,7 +298,7 @@ export function world(over = {}) {
     return over.shape ? over.shape(n) : n;
   };
   /** The fixture as its door hands it over: the one shape, with its wire's carrier (lib/inbound/arrival.ts Arrival). */
-  const arrivalOf = (m) => ({ inbound: shaped(m), carrier: over.carrier ?? null, isEnvDefault: !!over.isEnvDefault });
+  const arrivalOf = (m) => ({ inbound: shaped(m), carrier: over.carrier ?? null });
   /** The door's half: recorded, nothing answered (recordArrival). */
   const record = async (m) => {
     const unbind = bind(m);
