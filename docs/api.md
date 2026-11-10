@@ -1020,7 +1020,7 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 
 ### `POST /api/v1/files/[id]/done`
 
-Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
+Writes; for a member of the workspace the request names, operator or above; counts against the `file_upload` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
@@ -1102,7 +1102,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 
 ### `POST /api/v1/files/start`
 
-Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
+Writes; for a member of the workspace the request names, operator or above; counts against the `file_upload` rate; spends nothing.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
