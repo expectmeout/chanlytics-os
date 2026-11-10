@@ -10,11 +10,13 @@ import { z } from "zod";
 import {
   AppError,
   FILE_CACHE_S,
+  FILE_VIDEO_SECONDS_MAX,
   FILE_WORDS as W,
   POST_LAYOUTS,
   POST_LIMITS,
   POST_SHAPES,
   POST_VOICES,
+  postMomentWont,
   postNameOf,
   postPhotoWont,
   postWordsIn,
@@ -49,13 +51,15 @@ export const postPlanInput = z.object({
   layout: z.enum(POST_LAYOUTS).default("over"),
   language: z.enum(["en", "es"]),
   people_agreed: z.boolean(),
+  // A card made before a video's moment could be a post's photo names none, and is a photo's.
+  at: z.number().min(0).max(FILE_VIDEO_SECONDS_MAX).nullable().default(null),
 });
 
-/** A photo a post may be made from, or the words that say why not. */
+/** A photo a post may be made from, or a video with the moment of it the plan names, or the words that say why not. */
 export async function getPhoto(ctx: RouteContext, plan: PostPlan): Promise<FileMemberRow> {
   const file = await findFile(ctx.supabase, plan.file_id);
   if (!file) throw new AppError("not_found", W.gone, 404);
-  const wont = postPhotoWont(file);
+  const wont = postPhotoWont(file) ?? postMomentWont(file, plan.at);
   if (wont) throw new AppError("validation", postWordsIn(plan.language).photoWont[wont]);
   for (const [words, limit] of [
     [plan.line, POST_LIMITS.line],
@@ -99,7 +103,7 @@ export async function previewPost(
   plan: PostPlan & { shape?: PostPicture | undefined },
 ): Promise<Response> {
   const file = await getPhoto(ctx, plan);
-  const material = await getMaterial(ctx, member, file);
+  const material = await getMaterial(ctx, member, { file, at: plan.at });
   const picture = await postDrawn(plan, material, plan.shape ?? "portrait", true);
   return new Response(new Uint8Array(picture), {
     status: 200,
@@ -153,7 +157,7 @@ export async function makePost(
     const { error } = await updateFileRow(ctx.supabase, { tenantId: member.tenantId, id: file.id, whoInIt: "agreed" });
     if (error) throw fileDoorRefusal(error);
   }
-  const material = await getMaterial(ctx, member, file);
+  const material = await getMaterial(ctx, member, { file, at: plan.at });
   const [portrait, square, story] = await Promise.all([
     postDrawn(plan, material, "portrait", false),
     postDrawn(plan, material, "square", false),

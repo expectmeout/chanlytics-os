@@ -9,6 +9,7 @@ import {
   priceFigures,
   fileFolderOf,
   POST_LIMITS,
+  postMomentWont,
   postPhotoWont,
   type PostPhotoWont,
   type PostPlan,
@@ -109,11 +110,20 @@ const PHOTO_WONT_TO_MODEL: Readonly<Record<PostPhotoWont, string>> = {
   made: "that is a post Ask already made, with its words on it. Use the photo it came from",
   unkept: "it waits in the Inbox or was set aside: it is the owner's to keep first",
   design: "it already has words or a design on it, so more would clash",
-  video: "it is a video, and a post is drawn from a photo. Say so, and offer nothing in its place",
+  video:
+    "it is a video still being made ready, so no moment of it can be used yet. Say so, and that you will once it is",
+  moment:
+    "it is a video, and a post is drawn from one moment of it: open it with files action view, choose the moment that shows it best (zoom with at opens one whole), and call again with at set to that moment, inside the clip",
 };
 
 /** What a file needs before a post is made from it, in a sentence for the model, or null. */
 export function postPhotoProblem(item: Parameters<typeof postPhotoWont>[0]): string | null {
   const wont = postPhotoWont(item);
+  return wont ? PHOTO_WONT_TO_MODEL[wont] : null;
+}
+
+/** What a video's moment needs before a post is drawn from it, in a sentence for the model, or null. A photo needs none. */
+export function postMomentProblem(item: Parameters<typeof postMomentWont>[0], at: number | null): string | null {
+  const wont = postMomentWont(item, at);
   return wont ? PHOTO_WONT_TO_MODEL[wont] : null;
 }

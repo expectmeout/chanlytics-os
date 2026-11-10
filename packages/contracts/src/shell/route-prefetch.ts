@@ -161,6 +161,7 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "views",
     "channels/whatsapp/signup",
     "channels/instagram",
+    "channels/meta",
   ],
   "admin/billing": ["partner", "billing"],
   "admin/memory": ["partner", "ask/memory"],

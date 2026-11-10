@@ -1079,6 +1079,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
+| `at` | number or null | no |  |
 
 ### `POST /api/v1/files/post/preview`
 
@@ -1096,6 +1097,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
+| `at` | number or null | no |  |
 | `shape` | one of `"portrait"`, `"square"`, `"story"`, `"wide"` | no |  |
 
 ### `POST /api/v1/files/start`
@@ -3461,6 +3463,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `ids` | array of string | no |  |
 | `pictures` | array of object | no |  |
 | `moments` | array of object | no |  |
+| `frames` | array of object | no |  |
 
 ### `POST /api/admin/files/listen`
 
