@@ -4,7 +4,7 @@
  */
 import { buildEmailRequest, campaignsIdentity, hostedIdentity, type EmailRequest } from "@chanlytics/channels/email";
 import { signUnsubscribeToken, unsubscribeUrl } from "@chanlytics/channels/tokens";
-import { errField, logger } from "@chanlytics/log";
+import { errField, logAndGoOn, logger } from "@chanlytics/log";
 import {
   CAMPAIGN_EMAIL_TAG,
   HELD_WHEN_COUNTED,
@@ -52,6 +52,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import { emitEvent, finishBroadcast } from "@chanlytics/db/events";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
+import { closeRunStartNotices } from "@chanlytics/db/notices";
 import { resolveOutboundTarget, resolveOutboundTargetForContact } from "@chanlytics/db/channels";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type ClaimedJob, type JobContext, must } from "../runner/context";
@@ -393,7 +394,13 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
           "broadcast_send: cannot start the broadcast",
           await startBroadcastRun(db, { tenantId: job.tenant_id, broadcastId: id }, new Date().toISOString()),
         );
-        return !!rows && rows.length > 0;
+        const started = !!rows && rows.length > 0;
+        // The row that said it goes unless stopped asks no more, on any device (contracts RUN_START_ENDS).
+        if (started)
+          await closeRunStartNotices(db, { tenantId: job.tenant_id, runId: id, nowMs: Date.now() }).catch(
+            logAndGoOn("closing a started run's stop row", 0),
+          );
+        return started;
       },
       // A freed time's batch asks the record before its first send (decision 0082): the appointment that freed it and what
       // stands now; a time booked since is taken, and the batch is cancelled as the system and told once.

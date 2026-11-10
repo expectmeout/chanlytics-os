@@ -25,7 +25,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  closeMendedNotices,
+  closeNoticesByTitle,
   findNotice,
   forgetNotification,
   insertNotification,
@@ -348,7 +348,7 @@ export async function recordNotification(
 
 /**
  * The warnings a kept row or a change mends, closed (contracts NOTICE_MENDS, warningsMendedBy; packages/db
- * closeMendedNotices): a number's flag by its "back to normal", a payment that did not go through by a paid invoice, a
+ * closeNoticesByTitle): a number's flag by its "back to normal", a payment that did not go through by a paid invoice, a
  * domain held by its resume or its release. Best effort: a close that fails is logged (notice_mend_failed) and the
  * warning stays until read, as it did; it never fails what was kept or changed (the wiring's second audit,
  * W-channel-team-plus-4).
@@ -367,7 +367,7 @@ export async function mendWarnings(
   const warnings = warningsMendedBy(by);
   if (!warnings.length) return;
   try {
-    await closeMendedNotices(db, { tenantId, warnings, subject, keptId, nowMs: Date.now() });
+    await closeNoticesByTitle(db, { tenantId, rules: warnings, subject, keptId, nowMs: Date.now() });
   } catch (e) {
     logger({ tenant_id: tenantId }).error("notice_mend_failed", {
       by: "change" in by ? by.change : by.kind,

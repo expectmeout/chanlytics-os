@@ -19,7 +19,8 @@ export {
 export type { MemberAlerts } from "./member-alerts";
 export { findBellSeen, listBellRows, listNotificationMarks } from "./notifications/bell";
 export {
-  closeMendedNotices,
+  closeNoticesByTitle,
+  closeRunStartNotices,
   findMemberEmail,
   findMemberJoined,
   getOlderUnread,

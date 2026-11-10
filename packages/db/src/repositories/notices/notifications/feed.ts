@@ -16,6 +16,7 @@ import {
   type SchemaSet,
   recordOrEmpty,
   DbFailure,
+  RUN_START_ENDS,
 } from "@chanlytics/contracts";
 import { oneOr, type Db } from "./kept";
 import type { TenantId } from "@chanlytics/contracts";
@@ -323,38 +324,37 @@ async function bellRowsOf(
 const bellWindowFrom = (nowMs: number): string => new Date(nowMs - BELL_WINDOW_DAYS * DAY_MS).toISOString();
 
 /**
- * The warnings a mend closes (contracts NOTICE_MENDS, warningsMendedBy): for each, the workspace's open rows of its kind in
- * the bell's window (about the same subject where the pair must be; none where it must and no subject is known), less the
- * row just kept, whose title its rule matches, closed (closed_at). The titles are matched here, never in SQL, so the rule
- * stays in contracts. Answers how many it closed.
+ * The rows that rules of a kind and a title close: the warnings a mend closes (contracts NOTICE_MENDS, warningsMendedBy),
+ * a run's stop row as it starts (RUN_START_ENDS). For each rule, the workspace's open rows of its kind in the bell's window
+ * (about the same subject where the rule says so; none where it must and no subject is known), less the row just kept,
+ * whose title the rule matches, closed (closed_at). The titles are matched here, never in SQL, so the rules stay in
+ * contracts. Answers how many it closed.
  */
-export async function closeMendedNotices(
+export async function closeNoticesByTitle(
   db: Db,
   params: {
     tenantId: TenantId;
-    warnings: ReadonlyArray<{ kind: SchemaSet<"notifications.kind">; title: RegExp; sameSubject: boolean }>;
+    rules: ReadonlyArray<{ kind: SchemaSet<"notifications.kind">; title: RegExp; sameSubject: boolean }>;
     subject: { type: string; id: string } | null;
     keptId: string | null;
     nowMs: number;
   },
 ): Promise<number> {
   let closed = 0;
-  for (const warning of params.warnings) {
-    if (warning.sameSubject && !params.subject) continue;
+  for (const rule of params.rules) {
+    if (rule.sameSubject && !params.subject) continue;
     let query = db
       .from("notifications")
       .select("id, title")
       .eq("tenant_id", params.tenantId)
-      .eq("kind", warning.kind)
+      .eq("kind", rule.kind)
       .is("closed_at", null)
       .gte("created_at", bellWindowFrom(params.nowMs));
-    if (warning.sameSubject && params.subject)
+    if (rule.sameSubject && params.subject)
       query = query.eq("subject_type", params.subject.type).eq("subject_id", params.subject.id);
     const found = await query;
-    if (found.error) throw new DbFailure(found.error, "cannot read the warnings a mend closes");
-    const ids = (found.data ?? [])
-      .filter((r) => r.id !== params.keptId && warning.title.test(r.title))
-      .map((r) => r.id);
+    if (found.error) throw new DbFailure(found.error, "cannot read the rows a rule closes");
+    const ids = (found.data ?? []).filter((r) => r.id !== params.keptId && rule.title.test(r.title)).map((r) => r.id);
     if (!ids.length) continue;
     const up = await db
       .from("notifications")
@@ -363,8 +363,25 @@ export async function closeMendedNotices(
       .in("id", ids)
       .is("closed_at", null)
       .select("id");
-    if (up.error) throw new DbFailure(up.error, "cannot close the mended warnings");
+    if (up.error) throw new DbFailure(up.error, "cannot close the rows a rule closes");
     closed += (up.data ?? []).length;
   }
   return closed;
 }
+
+/**
+ * The rows a run's start ends (contracts RUN_START_ENDS): its stop window's row, closed as the run starts sending, for
+ * every device and the phone's icon. Answers how many it closed; a read or a write that fails throws, for the caller to
+ * log and go on, since a row left open costs the run nothing.
+ */
+export const closeRunStartNotices = (
+  db: Db,
+  run: { tenantId: TenantId; runId: string; nowMs: number },
+): Promise<number> =>
+  closeNoticesByTitle(db, {
+    tenantId: run.tenantId,
+    rules: RUN_START_ENDS.map((rule) => ({ ...rule, sameSubject: true })),
+    subject: { type: "broadcast", id: run.runId },
+    keptId: null,
+    nowMs: run.nowMs,
+  });

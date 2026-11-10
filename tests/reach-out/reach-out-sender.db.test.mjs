@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { coldBatchGoesNotice, heldNoticeWords } from "@chanlytics/contracts";
 import { importBundle } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -294,7 +295,7 @@ test(
 );
 
 test(
-  "the writer over the real guards: one due send becomes its person, its email, its job, a queued send and a sending run",
+  "the writer over the real guards: one due send becomes its person, its email, its job, a queued send and a sending run, whose stop row closes",
   { skip },
   async () => {
     ok(
@@ -314,6 +315,15 @@ test(
     const dom = await mailbox(A);
     const from = ok(await db.from("mailbox_connections").select("address").eq("id", dom).single()).address;
     const runId = await run(A, root, "2026-09-25");
+    // What its owner was told as the run was made: the row that said it goes unless stopped, and another about the run.
+    const kept = (title) =>
+      one(
+        db
+          .from("notifications")
+          .insert({ tenant_id: A, kind: "playbook", title, body: "x", subject_type: "broadcast", subject_id: runId }),
+      );
+    const stop = await kept(coldBatchGoesNotice("Movers", 1, "today 10:30 AM").subject);
+    const held = await kept(heldNoticeWords({ name: "Movers", held: 1, reasons: [] }).subject);
     const [lead] = await leads(A, 1);
     const [sendId] = await planned(A, runId, root, dom, [lead], Date.now() - MIN);
     const lane = {
@@ -347,6 +357,12 @@ test(
       [["outbound_send", "scheduled", "outreach", true, m.conversation_id]],
     );
     assert.equal(ok(await db.from("sequence_batches").select("state").eq("id", runId).single()).state, "sending");
+    // Its first email started it: the stop row is closed for every device and the phone's icon, the run's other row stays.
+    const rows = ok(await db.from("notifications").select("id, closed_at").in("id", [stop, held]));
+    assert.deepEqual(Object.fromEntries(rows.map((r) => [r.id === stop ? "stop" : "held", r.closed_at !== null])), {
+      stop: true,
+      held: false,
+    });
     // The mailbox's capacity counts the queued email (its send), so the day's share already knows it.
     const cap = ok(await db.rpc("mailbox_capacity", { p_mailbox_id: dom, p_at: iso(Date.now()) }));
     assert.equal(cap.used, 1);
