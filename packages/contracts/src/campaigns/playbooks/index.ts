@@ -73,6 +73,7 @@ export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./patch";
 export type { PlaybookPatch, PlaybookPatchKey } from "./patch";
 export {
   CAMPAIGN_NOT_FOUND,
+  coldBatchGoesNotice,
   delayWords,
   eligibleForPlaybook,
   FOLLOW_UP_NEEDS_LINK,

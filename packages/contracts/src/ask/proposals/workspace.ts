@@ -80,7 +80,7 @@ export const settingsSpec: ProposalSpecAboveOperator = {
   // A change to How it answers opens there, on its row (the Settings wiring review, item 14); the rest on Details.
   open: (proposal) => {
     const change = proposal.payload.change as AskSettingsChange | undefined;
-    // How it reaches out's opens there, on its row (decision 0113).
+    // Cold email's opens there, on its row (decision 0113).
     if (change && isReachOutChange(change)) return `admin/outreach/${ASK_REACH_OUT_ROWS[change.op]}`;
     const op = change?.op;
     if (!op || !(op in ASK_ANSWERS_ROWS)) return "admin/workspace";

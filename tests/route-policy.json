@@ -2447,6 +2447,13 @@
       "rate": null,
       "spend": false
     },
+    "GET settings/reach-out/note": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET settings/reach-out/told": {
       "kind": "read",
       "scope": "workspace",
@@ -2732,6 +2739,13 @@
       "scope": "workspace",
       "role": "partner",
       "rate": null,
+      "spend": false
+    },
+    "POST settings/reach-out/provider-wanted": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
       "spend": false
     }
   }

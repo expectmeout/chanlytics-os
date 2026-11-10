@@ -37,6 +37,13 @@ export type EmailFoot =
 /** The foots that carry an unsubscribe link, and so have an HTML twin to put it in. */
 export type LinkedFoot = Exclude<EmailFoot, { kind: "visit" }>;
 
+/**
+ * Whether a cold email's foot has what the law asks of it, a business's name and its postal address: the one rule the
+ * send holds on (`no_business_address`) and the Cold email page says before it does.
+ */
+export const hasFootAddress = (name: string | null | undefined, address: string | null | undefined): boolean =>
+  !!name?.trim() && !!address?.trim();
+
 /** Why a customer gets an offer, in the words of the language it is sent in. */
 const offerWhy = (w: SenderWords, personName: string, reason: "customer" | "asked"): string =>
   reason === "asked" ? w.offerAsked(personName) : w.offerCustomer(personName);

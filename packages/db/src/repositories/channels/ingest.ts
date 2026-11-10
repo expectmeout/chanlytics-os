@@ -41,7 +41,7 @@ export interface IngestInboundParams {
   optIn?: boolean;
   /**
    * The customer texted the OFFERS keyword specifically: a second, separate answer (contracts consent.ts), kept by
-   * ingest_inbound with the message, in its transaction (00581), and never under a stop that stands after it.
+   * ingest_inbound with the message, in its transaction (00592), and never under a stop that stands after it.
    */
   optInMarketing?: boolean;
 }
@@ -103,7 +103,7 @@ export async function ingestInbound(db: Db, inboundParams: IngestInboundParams):
   });
   if (error) throw new DbFailure(error, "ingest_inbound");
   const out = readAnswer("ingest_inbound", IngestAnswer, data);
-  // The yes a message carries is kept with it (00581), and a yes to offers under a stop is not: said, once, by the visit
+  // The yes a message carries is kept with it (00592), and a yes to offers under a stop is not: said, once, by the visit
   // that kept the message, so "I wrote YES OFFERS and nothing happened" has an answer.
   if (inboundParams.optInMarketing && out.is_new && stoppedNow(out))
     dbLog().warn("offers_yes_while_stopped", {

@@ -56,7 +56,8 @@ export function emailRow(connectionInputs: ConnectionInputs, { nowMs }: { nowMs:
       detail: null,
       state: "later",
       stateWords: "Later",
-      sentence: "Email from customers will come in through your own Google Workspace or Microsoft 365 mailbox.",
+      // Said of no provider: none is offered here yet, so none is promised.
+      sentence: "Email from customers will come in through your own mailbox.",
       verb: null,
     };
   return {
@@ -69,11 +70,16 @@ export function emailRow(connectionInputs: ConnectionInputs, { nowMs }: { nowMs:
   };
 }
 
+/** Whose mailboxes connect here: only the providers this deployment offers. */
+const providersSaid = (providers: readonly string[]): string =>
+  [providers.includes("google") && "Google Workspace", providers.includes("microsoft") && "Microsoft 365"]
+    .filter(Boolean)
+    .join(" or ");
+
 /**
- * The mailboxes sequences to leads write from (decision 0056): the business's own Google Workspace or Microsoft 365
- * mailboxes, listed and connected under the row (mailboxes-block.tsx). Later while this deployment offers neither
- * provider and the workspace has none, so the row is there, greyed, saying what is coming and what happens meanwhile
- * (each email is handed to the owner to send). One held or signed out is the row's attention, said once, here.
+ * The mailboxes cold email goes from (decision 0056, 0116): the business's own, listed and connected under the row
+ * (mailboxes-block.tsx). Later while this deployment offers no provider and the workspace has none, so the row is there,
+ * greyed, saying what is coming. One held or signed out is the row's attention, said once, here.
  */
 export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft {
   const base = { kind: "mailbox" as const, icon: "send", title: "Your mailbox" };
@@ -87,7 +93,7 @@ export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft 
       detail: one ? (boxes[0]?.address ?? null) : `${boxes.length} mailboxes`,
       state: needs ? "attention" : "connected",
       stateWords: needs ? `${needs} to look at` : "On",
-      sentence: `Email people write to ${one ? "it" : "them"} comes into your Inbox, and sequences to leads write from ${one ? "it" : "them"}.`,
+      sentence: `Email people write to ${one ? "it" : "them"} comes into your Inbox, and cold email goes from ${one ? "it" : "them"}.`,
       verb: null,
       body: "mailboxes",
     };
@@ -102,7 +108,7 @@ export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft 
       detail: null,
       state: "none",
       stateWords: "Not connected",
-      sentence: `Connect your Google Workspace or Microsoft 365 mailbox: email from people comes into your Inbox, and sequences to leads write from it.${note ? ` ${note}` : ""}`,
+      sentence: `Connect your ${providersSaid(sending.providers)} mailbox: email from people comes into your Inbox, and cold email goes from it.${note ? ` ${note}` : ""}`,
       verb: null,
       body: "mailboxes",
     };
@@ -112,8 +118,7 @@ export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft 
     detail: null,
     state: "later",
     stateWords: "Later",
-    sentence:
-      "Sequences to leads will send from your own Google Workspace or Microsoft 365 mailbox. Until then, each email is handed to you to send.",
+    sentence: "Cold email will go from your own mailbox.",
     verb: null,
   };
 }

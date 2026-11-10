@@ -136,6 +136,21 @@ export async function drawVideoMoment(
   };
 }
 
+/**
+ * A moment of a video kept as a still in its own folder, cut on the edge (where Stream's keys are): what a post is drawn from. The
+ * size it was kept at, or the words that say why it was not.
+ */
+export async function keepVideoFrame(
+  member: Who,
+  frame: { id: string; at: number },
+  leftMs: number = COPIES_MS,
+): Promise<{ width: number | null; height: number | null } | { wont: string }> {
+  const reply = await copiesDoor(member, { frames: [{ key: "one", ...frame }] }, leftMs);
+  const row = Array.isArray(reply?.frames) ? recordOrNull(reply.frames[0]) : null;
+  if (row?.kept !== true) return { wont: typeof row?.wont === "string" ? row.wont : "it could not be cut just now" };
+  return sizeOf(row);
+}
+
 /** A picture made here, held at Anthropic for a day, or null where it could not be: said in words then, never a failed turn. */
 export async function findPictureCopy(
   person: Who,

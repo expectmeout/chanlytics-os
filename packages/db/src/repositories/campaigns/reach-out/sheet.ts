@@ -38,13 +38,15 @@ export interface ReachOutStepRow {
   template_id: string | null;
   /** A call or a note for the team instead of words (00228); contracts' handOf reads it. */
   hand: unknown;
+  /** When its words were last let go by their owner (00573): a step with none still asks (contracts batchModeOf). */
+  words_ok_at: string | null;
   run_hour: number;
   last_run_for: string | null;
   created_at: string;
 }
 
 const STEP_COLUMNS =
-  "id, name, state, trigger, lead_search_id, after_playbook_id:after_step_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, signs_with, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+  "id, name, state, trigger, lead_search_id, after_playbook_id:after_step_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, signs_with, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at, words_ok_at";
 
 /** Every reach-out step of a workspace, each chain's root among them (trigger lead_first). */
 export async function listReachOutSteps(db: Db, tenantId: TenantId): Promise<ReachOutStepRow[]> {
@@ -68,10 +70,11 @@ export async function findReachOutRoot(
   state: string;
   trigger: string;
   lead_search_id: string | null;
+  words_ok_at: string | null;
 } | null> {
   const { data, error } = await db
     .from("sequence_steps")
-    .select("id, tenant_id, name, state, trigger, lead_search_id")
+    .select("id, tenant_id, name, state, trigger, lead_search_id, words_ok_at")
     .eq("id", id)
     .eq("kind", "reach_out")
     .eq("trigger", "lead_first")
@@ -233,12 +236,20 @@ export async function saveReachOutChain(
 }
 
 /** The runs waiting for their owner's approval, as their audiences say them (a reach-out's names its root). */
-export async function listRunsWaiting(db: Db, tenantId: TenantId): Promise<{ id: string; audience: unknown }[]> {
+/** How many waiting runs one read takes, newest first: a sequence has one at a time, so a workspace never nears it. */
+const RUNS_WAITING_READ_MAX = 500;
+
+export async function listRunsWaiting(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ id: string; audience: unknown; recipient_count: number }[]> {
   const { data, error } = await db
     .from("sequence_batches")
-    .select("id, audience")
+    .select("id, audience, recipient_count")
     .eq("tenant_id", tenantId)
-    .eq("state", "pending_approval");
+    .eq("state", "pending_approval")
+    .order("created_at", { ascending: false })
+    .limit(RUNS_WAITING_READ_MAX);
   if (error) throw new DbFailure(error, "cannot read the runs waiting");
   return data ?? [];
 }

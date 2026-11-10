@@ -1,5 +1,5 @@
 /**
- * The texts sweep's door: pg_cron asks it every ten minutes ('texts-sweep', 00583) while a line that can text exists,
+ * The texts sweep's door: pg_cron asks it every ten minutes ('texts-sweep', 00594) while a line that can text exists,
  * with the sweep key, and it answers what the sweep says.
  *
  * sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and checks the key; the sweep is

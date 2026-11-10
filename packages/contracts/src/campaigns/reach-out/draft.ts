@@ -417,7 +417,6 @@ export const REACH_OUT_SHEET_PARTS = {
   remove: "Remove this step",
   everyMailbox: "Every connected mailbox",
   /** From's choice for a reach-out its owner sends (00429). */
-  youSend: "You send them, from your own inbox",
   mailboxesMax: `Up to ${REACH_OUT_MAILBOXES_MAX} mailboxes, or every connected one.`,
   connectGoogle: "Connect Google",
   connectMicrosoft: "Connect Microsoft",

@@ -16,6 +16,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { LEAD_OWN_EMAIL_WORDS } from "@chanlytics/contracts";
 import { roleGate } from "../../../packages/contracts/src/shell/refusal.ts";
 import { stateOf } from "../../../packages/contracts/src/shell/tone.ts";
 import { LEAD_WORDS, leadDraftFooter, toLeadPeekVM } from "../../../packages/contracts/src/leads/leads.ts";
@@ -404,6 +405,7 @@ const courierOf = (over = {}) => {
               words: WRITTEN,
               mail_foot: FOOT,
               from: over.from ?? null,
+              why: over.from ? null : (over.why ?? null),
               why_not: over.from ? null : (over.whyNot ?? null),
               foot: over.from ? "Sam\n\nI came across your business on Google Maps." : null,
             },
@@ -689,21 +691,6 @@ test("their sequence runs and nothing needs you: Take out asks, Never write unde
   assert.equal(P.st.mode, "draft");
   assert.equal(byTestId(writing, "peek-draft-subject").props.value, "Missed calls at Travis Heights");
   assert.equal(byTestId(writing, "peek-draft-body").props.value, WRITTEN, "the words alone, theirs to change");
-  const app = byTestId(writing, "peek-open-mail");
-  assert.match(app.props.href, /^mailto:hello%40travisheightscoaching\.example\?subject=Missed%20calls%20at/);
-  await press(app);
-  assert.equal(P.st.armed.kind, "sent", "opening their mail app asks Did you send it? once they are back");
-  P.st.armed = { ...P.st.armed, asked: true };
-  await press(byTestId(P.draw().tree, "peek-sent-yes"));
-  assert.deepEqual(courier.seen.at(-1), [
-    "stage",
-    IN,
-    { kind: "emailed", words: { subject: "Missed calls at Travis Heights", body: WRITTEN } },
-  ]);
-  assert.equal(P.st.mode, "info", "sent: back to the card");
-  const after = byTestId(P.draw().tree, "lead-sheet-leave-confirm");
-  assert.match(textOf(after), /You wrote to them yourself/, "and Take out is asked, said for why");
-  assert.equal(byTestId(after, "lead-sheet-leave-never"), null);
 });
 
 test("a call that reached them asks nothing: the send door writes to them no more, and the sheet offers nothing it cannot do", async () => {
@@ -768,7 +755,7 @@ test("an email waiting for your OK keeps Never write in More: its dock's Take ou
   assert.ok(await menuItem(P, "Never write"), "the one place it is asked while that email waits");
 });
 
-test("Write to them from a mailbox: Send is the primary, the mail apps under its caret, and what goes under the words is drawn", async () => {
+test("Write to them from a mailbox: Send is the one press, no mail app beside it, and what goes under the words is drawn", async () => {
   reset();
   const courier = courierOf({ from: "sam@getharbor.example" });
   const P = page({ courier, mode: "draft", draft: { busy: true } });
@@ -779,7 +766,7 @@ test("Write to them from a mailbox: Send is the primary, the mail apps under its
   assert.equal(byTestId(tree, "peek-open-mail"), null, "one primary");
   assert.match(textOf(byTestId(tree, "lead-sheet-write-foot")), /I came across your business/);
   assert.equal(byTestId(tree, "lead-sheet-write-why"), null);
-  assert.ok(kitItem(tree, "lead-sheet-write-more", "Your mail app"), "the mail app stays, under the caret");
+  assert.equal(byTestId(tree, "lead-sheet-write-more"), null, "no mail app, Gmail or Copy under it");
 });
 
 test("Their words changed go as changed: Send takes them, without the foot", async () => {
@@ -851,16 +838,39 @@ test("Send refused: its words stay, the door's reason beside them, and nothing m
   assert.equal(flashes.length, 0);
 });
 
-test("No mailbox: the mail app is the primary, as it was, and it says why", async () => {
+test("No mailbox: the one press is the way to connect one, and it says why", async () => {
   reset();
-  const courier = courierOf({ whyNot: "Connect a Google mailbox on Connections to send from here." });
+  const courier = courierOf({ why: "no_mailbox", whyNot: LEAD_OWN_EMAIL_WORDS.whyNot.no_mailbox });
   const P = page({ courier, mode: "draft", draft: { busy: true } });
   await P.draw().acts.onDraft();
   const tree = P.draw().tree;
-  assert.ok(byTestId(tree, "peek-open-mail"));
+  assert.equal(byTestId(tree, "peek-open-mail"), null, "no mail app to open");
   assert.equal(byTestId(tree, "lead-sheet-write-send"), null);
-  assert.match(textOf(byTestId(tree, "lead-sheet-write-why")), /Connect a Google mailbox/);
-  assert.match(textOf(byTestId(tree, "lead-sheet-write-foot")), /no thanks/, "the foot that road puts under the words");
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-connect")), /Connect your mailbox/);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-why")), /Connect your mailbox to send from here/);
+});
+
+test("A mailbox that can't send now: Send stays, shut, and it says why", async () => {
+  reset();
+  const courier = courierOf({ why: "day_full", whyNot: LEAD_OWN_EMAIL_WORDS.whyNot.day_full });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  const tree = P.draw().tree;
+  assert.equal(byTestId(tree, "lead-sheet-write-connect"), null);
+  assert.equal(byTestId(tree, "lead-sheet-write-send").props.disabled, true);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-why")), /sent its share for today/);
+});
+
+test("A mailbox that is there and can't send: the press is Open Connections, where it is fixed", async () => {
+  reset();
+  const courier = courierOf({ why: "not_sending", whyNot: LEAD_OWN_EMAIL_WORDS.whyNot.not_sending });
+  const P = page({ courier, mode: "draft", draft: { busy: true } });
+  await P.draw().acts.onDraft();
+  const tree = P.draw().tree;
+  assert.equal(byTestId(tree, "lead-sheet-write-send"), null);
+  assert.equal(byTestId(tree, "lead-sheet-write-connect"), null);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-fix")), /Open Connections/);
+  assert.match(textOf(byTestId(tree, "lead-sheet-write-why")), /can't send right now/);
 });
 
 test("Write to them refused outright: why and the way back alone, no empty email and no mail app to press", () => {
@@ -876,47 +886,6 @@ test("Write to them refused outright: why and the way back alone, no empty email
     assert.equal(byTestId(tree, id), null, `no ${id}: nothing was written`);
 });
 
-test("Write to them, a long email or a shut clipboard: the words are said to be copied, and a refused copy says so", async () => {
-  reset();
-  const long = `Hi,\n\n${"We answer the calls that ring out. ".repeat(130)}`;
-  const P = page({
-    mode: "draft",
-    draft: {
-      busy: false,
-      tone: "first",
-      to: "hello@travisheightscoaching.example",
-      subject: "Calls",
-      body: long,
-      mailto: null,
-    },
-  });
-  const tree = P.draw().tree;
-  assert.ok(byTestId(tree, "lead-sheet-write-paste"), "a link too long for the words: they are copied as it opens");
-  assert.doesNotMatch(
-    byTestId(tree, "peek-open-mail").props.href,
-    /body=/,
-    "the link carries the address and subject alone",
-  );
-  const was = globalThis.window.navigator.clipboard.writeText;
-  globalThis.window.navigator.clipboard.writeText = async () => {
-    throw new Error("Write permission denied.");
-  };
-  const said = (msg) => () => flashes.at(-1)?.msg === msg;
-  try {
-    await press(kitItem(tree, "lead-sheet-write-more", "Copy"));
-    await until(said(LEAD_WORDS.copyRefused), "the refused copy said");
-  } finally {
-    globalThis.window.navigator.clipboard.writeText = was;
-  }
-  assert.equal(P.st.armed, null, "nothing copied: Did you send it? is not armed");
-  await press(kitItem(P.draw().tree, "lead-sheet-write-more", "Copy"));
-  await until(said(LEAD_WORDS.copiedDraft), "the copy said");
-  assert.equal(P.st.armed.kind, "sent");
-});
-
-/* =================================================== the one scroll ==== */
-
-/** Every test id the sheet draws, in the order it draws them. */
 const idsOf = (tree) =>
   all(tree, (n) => typeof n.props?.["data-testid"] === "string").map((n) => n.props["data-testid"]);
 

@@ -9,7 +9,7 @@ import { slotCountIn, slotFault, slotMentions, slotsOut } from "../../templates/
 import { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SUBJECT_MAX, type ReachOutSlot } from "./slots";
 
 /** The whole email as a business reads it, the opening counted at its most (§4.4). */
-export const REACH_OUT_WORDS_MAX = 120;
+const REACH_OUT_WORDS_MAX = 120;
 
 /** Ask's own words for a step to leads, shorter than the owner may write (drafts/sequence.ts LEAD_RULES): the first. */
 export const ASK_FIRST_WORDS_MAX = 80;
@@ -31,7 +31,7 @@ export const REACH_OUT_MAILBOXES_MAX = 10;
 
 export const REACH_OUT_NAME_MAX = 80;
 
-/** The name a cold email signs with, at most this long: How it reaches out's Signs as holds the same (decision 0113). */
+/** The name a cold email signs with, at most this long: Cold email's Signs as holds the same (decision 0113). */
 export const SIGNED_BY_MAX = REACH_OUT_LIMITS.signedBy;
 
 /** The gap's choices on the sheet, in minutes; the database holds 5–120 (00183). */

@@ -572,7 +572,7 @@ test("the batch is judged before it is walked: a source that is not one of the f
   assert.equal(door[0].p_source, CONSENT_RESET_SOURCE);
 });
 
-test("the yeses a message carries are the ingest's own: one call keeps the message, a START's channel and a YES OFFERS (00581)", async () => {
+test("the yeses a message carries are the ingest's own: one call keeps the message, a START's channel and a YES OFFERS (00592)", async () => {
   const { ingestInbound } = await import(at("packages/db/src/repositories/channels/ingest.ts"));
   const inbound = {
     tenantId: A,

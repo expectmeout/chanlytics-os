@@ -4,7 +4,7 @@ import { apiGet } from "../workspace";
 import { expectNoSidewaysScroll } from "../signals";
 
 /**
- * Settings › How it reaches out on a real workspace (decision 0113): the things only a browser shows. Its cards land
+ * Settings › Cold email on a real workspace (decision 0113): the things only a browser shows. Its cards land
  * with the pane, a fold opens as a sheet and gives way without saving, What it's told switches between its writers and
  * closes on its one ×, and Try it draws a tried email with its marks, from a stand-in for the preview door put on the
  * page by the test, never the real one (which spends the model). The rule Settings › Business keeps: the spec NEVER
@@ -20,22 +20,23 @@ async function readConfig(page: Page): Promise<unknown> {
 
 async function openPage(page: Page): Promise<void> {
   await page.goto("/#/admin/outreach");
-  await expect(page.getByTestId("rec-card-offer")).toBeVisible({ timeout: 40_000 });
+  await expect(page.getByTestId("rec-card-pitch")).toBeVisible({ timeout: 40_000 });
 }
 
 const CARDS = [
-  "rec-card-offer",
-  "rec-card-proof",
-  "rec-card-writes",
-  "rec-card-sign-off",
-  "rec-card-sends-from",
-  "rec-card-writes-back",
-  "rec-card-rules",
-  "rec-card-told",
-  "rec-card-try",
+  "rec-standing",
+  "rec-card-sample",
+  "rec-card-pitch",
+  "rec-card-facts",
+  "rec-card-sound",
+  "rec-card-ending",
+  "rec-card-sending",
+  "rec-card-replies",
+  "rec-card-never",
+  "rec-card-kept",
 ];
 
-test.describe("Settings › How it reaches out on a real workspace", () => {
+test.describe("Settings › Cold email on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
@@ -69,7 +70,7 @@ test.describe("Settings › How it reaches out on a real workspace", () => {
     expect(await readConfig(page), "the journey changed the shared workspace").toEqual(before);
   });
 
-  test("What it's told switches between its writers and closes on its one ×", async ({ page }) => {
+  test("The exact instructions switch between their writers and closes on its one ×", async ({ page }) => {
     await openPage(page);
     await page.getByTestId("rec-row-act-told").click();
     const sheet = page.getByTestId("rec-told-sheet");
@@ -84,7 +85,7 @@ test.describe("Settings › How it reaches out on a real workspace", () => {
     await expect(sheet).toHaveCount(0);
   });
 
-  test("Try it draws the email it is answered, the line about them and a claim marked", async ({ page }) => {
+  test("A sample email draws the email it is answered, the line about them and a claim marked", async ({ page }) => {
     await page.route("**/api/v1/reach-outs/preview*", (route) =>
       route.fulfill({
         json: {
@@ -126,7 +127,7 @@ test.describe("Settings › How it reaches out on a real workspace", () => {
     test.use({ viewport: { width: 390, height: 844 } });
     test("the page scrolls down, never sideways", async ({ page }) => {
       await openPage(page);
-      await expectNoSidewaysScroll(page, "How it reaches out on a phone", [".set-pane"]);
+      await expectNoSidewaysScroll(page, "Cold email on a phone", [".set-pane"]);
     });
   });
 });

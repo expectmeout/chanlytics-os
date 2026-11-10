@@ -65,6 +65,16 @@ export const finishBatchSending = async (db: Db, batchId: string, at: string) =>
     .eq("state", "sending")
     .select("id");
 
+/** A scheduled run nobody could be told of, moved to waiting on its owner's yes, its id back: none when it was not scheduled. */
+export const holdBatchForOk = async (db: Db, tenantId: TenantId, batchId: string) =>
+  db
+    .from("sequence_batches")
+    .update({ state: "pending_approval" })
+    .eq("tenant_id", tenantId)
+    .eq("id", batchId)
+    .eq("state", "scheduled")
+    .select("id");
+
 /** These leads' clocks, as a reach-out send is timed by: their region and hours. */
 export const listLeadClocks = async (db: Db, tenantId: TenantId, leadIds: string[]) =>
   db.from("leads").select("id, region, hours").eq("tenant_id", tenantId).in("id", leadIds);

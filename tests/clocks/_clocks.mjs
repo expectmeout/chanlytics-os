@@ -29,7 +29,7 @@ export const CLOCKS = {
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
   text_canary: {
     kind: "judge",
-    why: "judges the real wires once a day: a text to the platform's own line, taken in and answered, or a page (00584)",
+    why: "judges the real wires once a day: a text to the platform's own line, taken in and answered, or a page (00595)",
   },
   channel_quality: { kind: "reconcile", why: "reads each connected WhatsApp number's quality rating from Meta" },
   deadman: {
@@ -130,6 +130,6 @@ export const CLOCKS = {
   sweep_voice_sessions: { kind: "keep", why: "retention: voice sessions a day past their token" },
   texts: {
     kind: "reconcile",
-    why: "reads each line's record of received texts from the provider and takes in every one the door could not (00583)",
+    why: "reads each line's record of received texts from the provider and takes in every one the door could not (00594)",
   },
 };

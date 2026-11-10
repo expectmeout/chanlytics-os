@@ -91,12 +91,7 @@ test("Connections: no new hosted address (decision 0073, R13) -- the business's 
   const hosted = connections({ ready: true, domain: "mail.chanlytics.com", mailbox: null });
   assert.deepEqual(
     [hosted.state, hosted.stateWords, hosted.verb, hosted.sentence],
-    [
-      "later",
-      "Later",
-      null,
-      "Email from customers will come in through your own Google Workspace or Microsoft 365 mailbox.",
-    ],
+    ["later", "Later", null, "Email from customers will come in through your own mailbox."],
   );
   // A mailbox can be connected here: the row says email comes through it, and the mailbox row below does the connecting.
   const viaMailbox = connections({

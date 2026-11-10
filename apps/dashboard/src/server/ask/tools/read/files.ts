@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import {
+  FILES_MAX,
   FILE_SHELVES,
   clockOf,
   cuesSaidOf,
@@ -21,7 +22,8 @@ import {
   type ZoomSize,
 } from "@chanlytics/contracts";
 import { fileIndexLineOf, fileShelfSaid, fileWhoSaid, type FileForAsk } from "@/server/files/line";
-import { findFile, readFileSound } from "@chanlytics/db/files";
+import { findFile, listVideosHeard, readFileSound, type FileRow } from "@chanlytics/db/files";
+import { logAndGoOn } from "@chanlytics/log";
 import { drawVideoMoment, findPictureCopy, listFileCopiesOf, type FileCopy } from "../../../files/copies";
 import { askEar } from "../../../files/listen";
 import { findNewestPostLook } from "../../../posts/record";
@@ -43,8 +45,10 @@ import { PICTURES, defineActions, readAction, type ToolContext, type ToolPicture
  * moment (`at` and `box`), or a stretch as a sheet of its own (`from`, `to`); `listen` puts a question about a stretch to an ear.
  */
 
-/** The most lines a list answers: enough to choose from, and a narrower ask finds the rest. */
+/** The most lines one page of a list answers: enough to choose from, and the next page or a narrower ask finds the rest. */
 const LIST_MAX = 40;
+/** The last page a list has: a workspace's files at their cap, a page at a time. */
+const LIST_PAGES_MAX = Math.ceil(FILES_MAX / LIST_MAX);
 /** The most pictures one read opens: each costs a few cents the first time, and a person compares no more than this at once. */
 const VIEW_MAX = 4;
 /** How much of what a video says `get` carries; `view` carries the whole, as its sheet's words. */
@@ -62,6 +66,9 @@ const filesOfTurn = async (t: ToolContext): Promise<FileForAsk[]> =>
 const leftOf = (t: ToolContext): number | undefined => (t.endsAt === undefined ? undefined : t.endsAt - Date.now());
 
 const isVideo = (f: Pick<FileForAsk, "kind">): boolean => f.kind === "video";
+/** The moment a video's look chose to stand for the whole clip, as a read says it; nothing before its look. */
+const standsAtOf = (f: Pick<FileForAsk, "stands_at">): { stands_at?: string } =>
+  f.stands_at === null ? {} : { stands_at: clockOf(f.stands_at, true) };
 const notReadyWords = (f: Pick<FileForAsk, "media_status">): string =>
   f.media_status === "failed"
     ? "could not be prepared: the video platform could not read it, and its owner can delete it"
@@ -81,6 +88,36 @@ export function filesNamed(files: readonly FileForAsk[], names: readonly string[
     else if (!found.includes(file)) found.push(file);
   }
   return { found, missing };
+}
+
+/**
+ * What is said in the videos among these files, by file: read only when a list is searched, so a clip is found by its words as a
+ * photo is by its sign. A read that fails finds by the rest.
+ */
+async function spokenIn(turn: ToolContext, files: readonly FileForAsk[]): Promise<ReadonlyMap<string, string>> {
+  if (!files.some((f) => isVideo(f) && f.media_status === "ready")) return new Map();
+  const heard = await listVideosHeard(turn.ctx.supabase, turn.tenantId).catch(
+    logAndGoOn<Pick<FileRow, "id" | "sound">[]>("listVideosHeard", []),
+  );
+  return new Map(
+    heard.map((video) => {
+      const words = fileSoundOf(video.sound).words;
+      return [video.id, words && !("none" in words) ? words.text : ""];
+    }),
+  );
+}
+
+/** The files a list's words find: every word in what a file is named, shows, has written on it or says. */
+async function filesAbout(turn: ToolContext, files: readonly FileForAsk[], about: string | undefined) {
+  const words = about?.toLowerCase().split(/\s+/).filter(Boolean) ?? [];
+  if (!words.length) return files;
+  const spoken = await spokenIn(turn, files);
+  return files.filter((f) => {
+    const hay = [f.name, f.line ?? "", f.sound_said ?? "", ...f.text_seen, spoken.get(f.id) ?? ""]
+      .join(" ")
+      .toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
 }
 
 /** A copy's size, where the edge said it, as the model is told it. */
@@ -136,7 +173,7 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
       const size = sizeOf(copies.get(f.id) as FileCopy);
       return {
         name: f.name,
-        ...(isVideo(f) ? { video: clockOf(f.seconds ?? 0) } : {}),
+        ...(isVideo(f) ? { video: clockOf(f.seconds ?? 0), ...standsAtOf(f) } : {}),
         shelf: fileShelfSaid(f),
         who: fileWhoSaid(f),
         ...(size ? { size } : {}),
@@ -272,6 +309,7 @@ async function oneNamed(t: ToolContext, name: string): Promise<FileForAsk | { er
 async function videoGot(turn: ToolContext, file: FileForAsk) {
   const base = {
     video: clockOf(file.seconds ?? 0),
+    ...standsAtOf(file),
     ...(file.media_status === "ready" ? {} : { state: notReadyWords(file) }),
   };
   if (file.media_status !== "ready") return base;
@@ -337,26 +375,33 @@ export const filesTool = defineActions({
       input: z.object({
         shelf: z.enum(FILE_SHELVES).optional().describe("One shelf. Left out, or all: everything kept."),
         about: z.string().max(80).optional().describe("Words to find in what a file shows, has written on it or says."),
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .max(LIST_PAGES_MAX)
+          .optional()
+          .describe("Left out, the newest. The next_page a list answered, for the ones after."),
       }),
       examples: [{ shelf: "work" }],
       label: "Looking through your files",
-      words:
-        "Action list answers one line a file, newest first, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound.",
+      words: `Action list answers one line a file, newest first, ${LIST_MAX} a page, to choose by: its name, shelf, quality, who is in it, and what the look saw; a video's, its length and sound. Where it says more, page reads on.`,
       async run(turn, input) {
         const all = await filesOfTurn(turn);
         const shelf = input.shelf ?? "all";
         const onShelf =
           shelf === "all" ? all.filter((f) => f.status === "filed") : all.filter((f) => shelfOf(f) === shelf);
-        const words = input.about?.toLowerCase().split(/\s+/).filter(Boolean) ?? [];
-        const matched = words.length
-          ? onShelf.filter((f) => {
-              const hay = [f.name, f.line ?? "", f.sound_said ?? "", ...f.text_seen].join(" ").toLowerCase();
-              return words.every((w) => hay.includes(w));
-            })
-          : onShelf;
+        const matched = await filesAbout(turn, onShelf, input.about);
+        const page = input.page ?? 1;
+        const from = (page - 1) * LIST_MAX;
+        if (page > 1 && from >= matched.length)
+          return {
+            error: `there is no page ${page}: this list ends on page ${Math.max(1, Math.ceil(matched.length / LIST_MAX))}`,
+          };
+        const more = matched.length - from - LIST_MAX;
         return {
-          files: matched.slice(0, LIST_MAX).map(fileIndexLineOf),
-          ...(matched.length > LIST_MAX ? { more: matched.length - LIST_MAX } : {}),
+          files: matched.slice(from, from + LIST_MAX).map(fileIndexLineOf),
+          ...(more > 0 ? { more, next_page: page + 1 } : {}),
         };
       },
     }),
@@ -365,7 +410,7 @@ export const filesTool = defineActions({
       examples: [{ name: "storefront-dusk-street" }],
       label: "Reading what a file shows",
       words:
-        "Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard.",
+        "Action get answers what the look wrote of one file: a note, not the picture, and its size in pixels; a video's, what was heard, and stands_at, the moment its look chose to stand for the whole clip.",
       async run(turn, input) {
         const file = await oneNamed(turn, input.name);
         if ("error" in file) return file;

@@ -125,4 +125,8 @@ export const JOB_WRITERS = {
     clock: "deadman",
     why: "a resumed run past its time with nothing on the ledger is found (stranded runs)",
   },
+  "packages/jobs/src/runner/settle.ts|file_look": {
+    clock: "health",
+    why: "a video whose hearing would not finish is still Looking, and keepFilesMoving asks for the step it lacks a day on",
+  },
 };

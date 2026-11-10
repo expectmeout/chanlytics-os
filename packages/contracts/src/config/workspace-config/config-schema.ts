@@ -239,7 +239,7 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
       message: "Not a booking tool this product knows.",
     });
   }
-  // How it reaches out's: held here alone, never on the read, whichever door the save came by.
+  // Cold email's: held here alone, never on the read, whichever door the save came by.
   for (const p of reachOutProblems(cfg.reach_out ?? {})) {
     ctx.addIssue({ code: "custom", path: ["reach_out", ...p.path], message: p.message });
   }

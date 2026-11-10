@@ -69,8 +69,6 @@ export const SEQUENCE_WORDS = {
   waitsForOk: "Waits for your OK",
   /** Approve while an opening of its batch is being written: you read each before it goes, so it waits for them. */
   openingsWriting: "Writing openings…",
-  /** Who approves a sequence to leads fed by a list: each first email waits for an OK (00426), whatever its mode. */
-  asksFirstEmail: "asks you before each first email",
   /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
   whoApproves: "Who approves",
   turnOff: "Turn this off",
@@ -406,9 +404,7 @@ export function sequenceSubLine(
     // read 'Leads from "Local: your receptionist is built"' beneath itself).
     const search = row.first?.search_name?.trim() ?? "";
     const from = search && search.toLowerCase() !== row.name.trim().toLowerCase() ? `Leads from “${search}”` : "Leads";
-    // Fed by a list, each first email waits for an OK whatever its mode (00426: each of its leads was added by hand).
-    const asks = rec.fed_by === "list" ? SEQUENCE_WORDS.asksFirstEmail : sequenceApprovalWords(row.mode);
-    return `${from} · ${row.first?.owner_sends ? "you send each one" : asks}`;
+    return `${from} · ${row.first?.owner_sends ? "you send each one" : sequenceApprovalWords(row.mode)}`;
   }
   return `${sequenceStartWords(row, rec.word)} · ${sequenceApprovalWords(row.mode)}`;
 }

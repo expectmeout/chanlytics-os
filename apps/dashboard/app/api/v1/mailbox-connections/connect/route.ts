@@ -6,8 +6,8 @@ const Query = z.object({
   provider: z.enum(["google", "microsoft"]),
   mailbox_id: z.uuid().optional(),
   admin: z.enum(["1"]).optional(),
-  /** Back to the first run that asked (decision 0073), not to Connections. */
-  back: z.enum(["start"]).optional(),
+  /** Back to the first run that asked (decision 0073), to New, or to Cold email, not to Connections. */
+  back: z.enum(["start", "new", "cold_email"]).optional(),
   /** What its owner chose of a new mailbox's history (decision 0086); absent, its last six months. */
   history: z.enum(["six_months", "from_now"]).optional(),
 });

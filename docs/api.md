@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-384 handlers in 57 domains.
+386 handlers in 57 domains.
 
 ## activity
 
@@ -1079,6 +1079,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
+| `at` | number or null | no |  |
 
 ### `POST /api/v1/files/post/preview`
 
@@ -1096,6 +1097,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `layout` | one of `"over"`, `"left"`, `"band"`, `"frame"` | no |  |
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
+| `at` | number or null | no |  |
 | `shape` | one of `"portrait"`, `"square"`, `"story"`, `"wide"` | no |  |
 
 ### `POST /api/v1/files/start`
@@ -1730,7 +1732,7 @@ Reads; for a member of the workspace the request names, partner or above; counts
 | `provider` | one of `"google"`, `"microsoft"` | yes |  |
 | `mailbox_id` | string (uuid) | no |  |
 | `admin` | one of `"1"` | no |  |
-| `back` | one of `"start"` | no |  |
+| `back` | one of `"start"`, `"new"`, `"cold_email"` | no |  |
 | `history` | one of `"six_months"`, `"from_now"` | no |  |
 
 ## mailbox-senders
@@ -3032,7 +3034,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `channels` | array of one of `"whatsapp"`, `"sms"`, `"email"` | yes | at most 3 |
 | `mode` | one of `"auto"`, `"veto"`, `"ask"` or null | yes |  |
 | `adds_new` | boolean | yes |  |
-| `owner_sends` | boolean | no |  |
+| `owner_sends` | `false` | no |  |
 | `draft_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `as_drafted` | object | no |  |
 | `steps` | array of object | yes | at least 1; at most 6 |
@@ -3065,6 +3067,20 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/settings/reach-out/route.ts`).
+
+### `GET /api/v1/settings/reach-out/note`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/settings/reach-out/note/route.ts`).
+
+### `POST /api/v1/settings/reach-out/provider-wanted`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `provider` | string | yes | at least 1 characters; at most 60 characters |
 
 ### `GET /api/v1/settings/reach-out/told`
 
@@ -3461,6 +3477,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `ids` | array of string | no |  |
 | `pictures` | array of object | no |  |
 | `moments` | array of object | no |  |
+| `frames` | array of object | no |  |
 
 ### `POST /api/admin/files/listen`
 

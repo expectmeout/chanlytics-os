@@ -247,7 +247,7 @@ async function readied(
 const noWords = (r: { reason?: string; text: string }): boolean =>
   r.reason === "refusal" || r.reason === "brain_error" || !r.text.trim();
 
-/** What the brain is told to change: a member's words; for an answer to a lead, what How it reaches out says it offers. */
+/** What the brain is told to change: a member's words; for an answer to a lead, what Cold email says it offers. */
 const instructionOf = (ask: ReplyDraftAsk, rt: TenantRuntime): string | null =>
   ask.answersLead ? replyOfferSteer(rt.replyOffer) : ask.instruction;
 

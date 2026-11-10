@@ -1440,11 +1440,10 @@ test("no provider offered and none connected: the row is there, Later and greyed
     assert.ok(row, `the row is drawn: ${JSON.stringify(sending)}`);
     assert.equal(row.props["data-state"], "later");
     assert.equal(byTestId(tree, "mailbox-connect-google"), null, "nothing to connect yet");
-    // What is coming, and what happens meanwhile, waits behind the row's quiet press, as every row's sentence does.
+    // What is coming waits behind the row's quiet press, as every row's sentence does.
     press(byTestId(tree, "connection-mailbox-why"));
     tree = settle(Connections);
-    assert.match(textOf(byTestId(tree, "connection-mailbox-says")), /Google Workspace or Microsoft 365/);
-    assert.match(textOf(byTestId(tree, "connection-mailbox-says")), /handed to you to send/);
+    assert.match(textOf(byTestId(tree, "connection-mailbox-says")), /your own mailbox/);
   }
   // Ten is the most: no Connect is offered past it.
   emailSeam({

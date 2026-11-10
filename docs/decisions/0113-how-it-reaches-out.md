@@ -3,6 +3,9 @@
 **Status:** Accepted by Ruben, 7 November 2026 (the canvas _How it reaches out_, Version 3, reviewed against main; "Plan the build"; "Start
 the build"). Built, and merged as #2191 on 8 November 2026. No migration: the section is a key of the workspace's config, and every count is read.
 
+**Amended 9 November 2026 (decision 0116):** the page is Cold email now, in a group of its own, and its rows are arranged
+as an owner reads them. The section, its keys, its one writer and what each writer reads of it stand as they are here.
+
 ## Context
 
 Settings had _How it answers_ for the receptionist answering people who write in, and nothing for the cold email it writes to businesses a search

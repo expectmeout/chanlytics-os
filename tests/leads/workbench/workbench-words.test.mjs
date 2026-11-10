@@ -44,6 +44,7 @@ const story = (over = {}) => ({
     name: "Early gyms",
     state: "running",
     fed_by: "list",
+    asks: true,
     run_hour: 9,
     last_run_for: null,
     waiting_run_id: null,
@@ -89,7 +90,7 @@ const line = (t, now = NOW) => reachOutStandingOf(t, now, TZ)?.line;
 
 test("when a lead nothing was written to goes: with its sequence's batch, never at a minute", () => {
   const c = story().chain;
-  const search = { ...c, fed_by: "search" };
+  const search = { ...c, fed_by: "search", asks: false };
   assert.equal(reachOutWhenOf(search, Date.parse("2026-10-13T12:00:00Z"), TZ), "goes today from 9:00 AM");
   assert.equal(reachOutWhenOf(search, NOW, TZ), "goes within the hour", "today's not made yet");
   assert.equal(reachOutWhenOf({ ...search, last_run_for: "2026-10-13" }, NOW, TZ), "goes tomorrow from 9:00 AM");
@@ -98,7 +99,8 @@ test("when a lead nothing was written to goes: with its sequence's batch, never 
     "goes tomorrow from 9:00 AM",
     "past the day's last hour",
   );
-  assert.equal(reachOutWhenOf(c, NOW, TZ), "goes within the hour, after your OK", "a list asks");
+  assert.equal(reachOutWhenOf({ ...c, asks: true }, NOW, TZ), "goes within the hour, after your OK", "its mode asks");
+  assert.equal(reachOutWhenOf({ ...c, asks: false }, NOW, TZ), "goes within the hour", "a list follows its mode too");
   assert.equal(reachOutWhenOf({ ...c, waiting_run_id: "run-1" }, NOW, TZ), "waits for your OK");
   assert.equal(reachOutWhenOf({ ...c, state: "paused" }, NOW, TZ), "nothing goes while it is paused");
 });

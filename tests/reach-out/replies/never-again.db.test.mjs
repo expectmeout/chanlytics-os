@@ -770,9 +770,9 @@ const LATER = {
   outreach_lead_facts: "00451",
   lead_set_stage: "00413",
   // 00484 adds the per-channel row (decision 0001, step 4); inbound/a-thread-keeps-when-each-wire-last-heard.db.test.mjs
-  // proves it 00361's body but for that block. 00581 keeps the yeses a message carries in its transaction:
+  // proves it 00361's body but for that block. 00592 keeps the yeses a message carries in its transaction:
   // intake/a-delivery-taken-in-again-changes-no-consent.db.test.mjs proves it 00484's body but for those.
-  ingest_inbound: "00581",
+  ingest_inbound: "00592",
   // 00459 draws a sequence's leads from the search it draws from too (auto-add): one-road-to-a-sequence.db.test.mjs. 00572 leaves
   // out who has a reason by a hash of them, the same leads: leads/workbench/a-reach-out-at-volume.db.test.mjs.
   reach_out_audience: "00572",

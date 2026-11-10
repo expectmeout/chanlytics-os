@@ -1,7 +1,7 @@
 {
-  "rows": 169,
+  "rows": 170,
   "same": 12,
-  "differ": 157,
+  "differ": 158,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -592,6 +592,14 @@
       "doors": "anthropic_profiles · billing_accounts · business_reads · business_records · contacts · conversations · google_connections · google_listings · google_reviews · imports · leads · lines · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_channels · tenant_config · tenants"
     },
     "POST channels/instagram/disconnect": {
+      "changes": "",
+      "doors": "tenant_channels",
+      "door": {
+        "channels": "every page",
+        "setup": "every page"
+      }
+    },
+    "POST channels/meta/disconnect": {
       "changes": "",
       "doors": "tenant_channels",
       "door": {

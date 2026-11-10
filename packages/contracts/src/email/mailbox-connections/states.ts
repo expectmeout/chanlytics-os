@@ -229,10 +229,17 @@ export interface MailboxCounts {
 }
 
 /** Below this many sent, the share is taken of this many: five bounces in a mailbox's first emails hold it. */
-const COUNT_FLOOR = 150;
+export const MAILBOX_HOLD_COUNT_FLOOR = 150;
 
 /** The share past which a mailbox holds itself: 3% of what it sent (decision 0056, 8). */
-const HOLD_PERCENT = 3;
+export const MAILBOX_HOLD_PERCENT = 3;
+
+/** Whether its bounces, and servers' refusals of the sender, are past what holds it: the one measure of them. */
+export function mailboxBouncesHold(counts: Pick<MailboxCounts, "sent" | "bounced" | "blocked">): boolean {
+  return (
+    (counts.bounced + counts.blocked) * 100 > MAILBOX_HOLD_PERCENT * Math.max(counts.sent, MAILBOX_HOLD_COUNT_FLOOR)
+  );
+}
 
 /**
  * The hold a mailbox's own mail earns it, or null (decision 0056, 8): any complaint, else hard bounces and servers'
@@ -243,11 +250,15 @@ const HOLD_PERCENT = 3;
  */
 export function mailboxHoldOf(mailboxCounts: MailboxCounts | null): MailboxHold | null {
   if (!mailboxCounts) return null;
-  const of = Math.max(mailboxCounts.sent, COUNT_FLOOR);
   if (mailboxCounts.complained > 0) return "complaint";
-  if ((mailboxCounts.bounced + mailboxCounts.blocked) * 100 > HOLD_PERCENT * of) return "bounces";
-  if (mailboxCounts.unsubscribed * 100 > HOLD_PERCENT * of) return "unsubscribes";
+  if (mailboxBouncesHold(mailboxCounts)) return "bounces";
+  if (mailboxUnsubscribesHold(mailboxCounts)) return "unsubscribes";
   return null;
+}
+
+/** Whether the people who unsubscribed hold a mailbox: past 3% of what it sent, of the floor at least, as bounces are. */
+export function mailboxUnsubscribesHold(counts: Pick<MailboxCounts, "sent" | "unsubscribed">): boolean {
+  return counts.unsubscribed * 100 > MAILBOX_HOLD_PERCENT * Math.max(counts.sent, MAILBOX_HOLD_COUNT_FLOOR);
 }
 
 /* ------------------------------------------------------------------------------------------------- the words */

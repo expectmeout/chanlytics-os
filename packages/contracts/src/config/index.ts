@@ -194,6 +194,7 @@ export {
   INSTRUCTIONS_MAX,
   isE164,
   isRealDate,
+  isReplyOffer,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
   PROFILE_LIMITS,

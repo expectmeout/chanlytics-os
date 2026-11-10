@@ -349,6 +349,49 @@ switch goes on: the thumbnail's time precision, an iPhone clip, processing times
 ear's two models, the sheet at 2,576 against 1,568, and the words' shapes. The Gemini key is made on a billed project. The
 nightly's video journey (`e2e/settings/files.spec.ts`) runs where the e2e workspace takes videos.
 
+## What the first real clips proved
+
+Four clips went through production in the e2e workspace on 10 November 2026: one spoken in English and Spanish, one silent, one
+with music, one of a room with a spoken line. Each was playable at Stream about 20 seconds after its last byte, and its player,
+playback list and signed frames answered.
+
+- **Every frame was refused until #2220.** Stream's thumbnails take a width and a height that are each even and from 10 to 2,000
+  pixels, and answer a 400 to anything else; the sheet's tiles had an odd side and a moment was asked at 2,576. With that fixed,
+  a clip was seen, heard, named and shelved within 25 to 45 seconds of its last byte, its words written word for word in both
+  languages, for under a tenth of a cent a clip.
+- **A clip with no sound track never reached its look.** Stream answers its audio download with a 500, three tries of three,
+  never with "no audio". The audio step now reads the clip's playback list first, which names a sound track only where there is
+  one (`readStreamSoundTrack`); and a step that only hears a video and will not finish leaves the look to go ahead on the sheet
+  alone (the ledger's settle), as an ear that is held does.
+- **Ask, asked for a post from a clip,** opened it, chose a moment and drew the post from it in 15 seconds; it declined a
+  commercial whose every frame carried another brand, and it left off a time it had only heard said in the clip.
+
+## A library of clips: what Ask reaches, and a post from one moment
+
+A read of the whole chain on 9 November 2026, against a business whose library is mostly clips, found what such a library would
+meet before any video is made for it. This is what needed no migration.
+
+- **A list is read a page at a time** (`files` action list, `page`). It answered its newest forty and nothing after them, so most
+  of a long shelf was out of Ask's reach unless a search word happened to find it. It says `more` and the `next_page` to ask for.
+- **A search reads what is said.** `about` read a file's name, its look's line, the words seen in it and its sound's few words. It
+  reads the words spoken in each video too (`listVideosHeard`), only when a search asks; a workspace's hour of video bounds it.
+- **The moment a video's look chose is said** (`stands_at`, where a video is read and where it is opened). The look names the
+  frame that stands for the clip, and only the poster used it.
+- **A post is drawn from one moment of a video** (`propose_post` with `at`, kept as `PostPlan.at`). A video was refused whole, so a
+  library of clips made no post at all. The edge cuts the moment whole, at the clip's own size, and keeps it in the video's folder
+  (the copies door's `frames`, contracts `fileFramePathOf`); the dashboard then draws from Storage as it does from a photo, so the
+  card's picture, its Save, a new version and Google's wide picture all read the same still, and it goes when the folder does. A
+  video not ready yet makes none, the moment is held inside the clip, and no model is sent the frame by this road.
+- **A video's length asked of Stream is kept** (`keepVideoSeconds`). Known to one run of the digest alone, the page said no length
+  and every closer look was refused as past the clip's end.
+- **A video that is ready and has no sheet to show is said as not opened**, where it was said to be still on its way.
+
+Left, each a migration's and so a change of its own: who may add a file (every write is an owner's or a partner's, where the
+content plan has the people who film adding their clips); a clip's own date (its row holds only when it was added, so "oldest
+first" cannot be said); and a failed video's fingerprint holding its twin out until the failed one is deleted
+(`file_video_begin`). The pictures a site or a listing showed before 00551 are brought by one `website_read` for the workspace:
+nothing reads them again by itself. Nothing here has met a real clip; the trial above still stands first.
+
 ## Not here
 
 Making pictures with a model (step 4): Claude Video/docs/2026-11-06-ask-eyes-fundamentals.md says the order.

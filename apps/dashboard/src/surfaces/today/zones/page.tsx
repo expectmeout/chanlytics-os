@@ -19,6 +19,7 @@
  * (head.tsx): the greeting, one sentence, Listen, Since you looked, and on a desk the day's four figures. The grid is
  * zones.css's.
  */
+import { ColdEmailNote } from "./cold-email-note";
 import { useWaitsOnToday } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { useTodayOnPhone } from "../phone";
@@ -48,6 +49,7 @@ function PhoneToday({ waiting, lead }: { waiting: boolean; lead: boolean }) {
       <TodayAlertBand />
       {waiting ? null : settingUp(true)}
       <NeedYou />
+      <ColdEmailNote />
       {lead ? <AskFound wide /> : null}
       <DayZone under={nothing ? <PhoneNothingYet /> : null} />
       {lead ? null : <AskFound wide={false} />}
@@ -79,6 +81,7 @@ export function TodayZones() {
         <div className="tz-col">
           {waiting ? null : settingUp(true)}
           <NeedYou />
+          <ColdEmailNote />
           {lead ? <AskFound wide /> : null}
           {waiting ? settingUp(false) : null}
           {alone ? <DayZone /> : null}

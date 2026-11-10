@@ -208,7 +208,7 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   broadcasts: "Sent",
   audiences: "Who a send reaches",
   playbooks: "Campaigns",
-  reach_outs: "Sequences to leads",
+  reach_outs: "Cold email",
   reach_out_replies: "Replies from leads",
   sequences: "Sequences",
   calendar: "Calendar",

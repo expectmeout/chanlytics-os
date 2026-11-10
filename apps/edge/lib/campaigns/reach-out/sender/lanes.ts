@@ -28,6 +28,7 @@ import type { Database, Json } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
 import {
   draftRefusalOf,
+  hasFootAddress,
   mailboxSendsNow,
   parseTenantConfig,
   reachOutSignatureOf,
@@ -158,7 +159,7 @@ export function tickReads(db: Db) {
           businessName,
           address,
           bookingLink: brain?.booking_link?.trim() || null,
-          missing: !businessName || !address ? "no_business_address" : null,
+          missing: hasFootAddress(businessName, address) ? null : "no_business_address",
           signature: reachOutSignatureOf(config),
         };
       }),

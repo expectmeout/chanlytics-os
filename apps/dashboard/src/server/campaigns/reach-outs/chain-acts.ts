@@ -53,6 +53,7 @@ import { getStoredConfig } from "@/server/workspace/config-row";
 import { log } from "@/server/shared/log";
 import { getTenantFacts } from "@/server/shared/tenant";
 import type { TenantId } from "@chanlytics/contracts";
+import { refuseTurningToHand, refuseWithoutMailbox } from "./mailbox-needed";
 
 /** One email written by the model at the edge, whose door may take thirty seconds: a little over it. */
 export const PREVIEW_TIMEOUT_MS = 35_000;
@@ -185,6 +186,8 @@ export async function saveChain(
   /** A draft's record (00459): an email still to write (no words yet) is kept as it is, and Start asks for it. */
   opts: { unwritten?: boolean } = {},
 ): Promise<ReachOutSavedDto> {
+  if (rootId === null) await refuseWithoutMailbox(ctx, member.tenantId, input.owner_sends);
+  else await refuseTurningToHand(ctx, member.tenantId, rootId, input.owner_sends);
   const all = validateReachOutChain(input, { bookingLink: !!(await bookingLinkOf(ctx, member.tenantId)) });
   const blank = (i: number | null) => {
     const s = i === null ? null : input.steps[i];

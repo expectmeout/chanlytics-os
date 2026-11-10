@@ -188,7 +188,7 @@ export type {
   ReplyListRow,
   ReplyReadingRow,
 } from "./reach-out/outreach";
-export { countSentByStep } from "./reach-out/proof";
+export { countHeldForAddress, countSentByStep } from "./reach-out/proof";
 export {
   addReachOutPerson,
   claimSends,
@@ -287,6 +287,7 @@ export {
   findRunFor,
   findStepRow,
   finishBatchSending,
+  holdBatchForOk,
   insertDecision,
   listChainSteps,
   listLeadClocks,

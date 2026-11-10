@@ -638,7 +638,7 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
   );
   // A lens draws no heading that says what its tab says (Ruben, 9 Oct 2026): the section keeps its label for a screen reader. The
   // Campaigns lens's reach-outs are a part of their own, and name themselves.
-  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Worth knowing", "Sequences to leads"]);
+  assert.deepEqual(all(tree, (n) => n.type === "h2").map(textOf), ["Worth knowing", "Cold email"]);
   assert.deepEqual(
     all(tree, (n) => n.type === "section" && n.props.className === "rpt-section").map((n) => n.props["aria-label"]),
     [
@@ -651,7 +651,7 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
       "Campaigns",
       "Time between steps",
       "Stuck now",
-      "Sequences to leads",
+      "Cold email",
     ],
   );
   assert.equal(

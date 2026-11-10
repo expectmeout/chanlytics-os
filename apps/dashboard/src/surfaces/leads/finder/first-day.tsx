@@ -23,7 +23,7 @@ import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Sheet } from "../../kit/sheet/sheet";
-import { gate } from "../../frame-verbs";
+import { gate, navigate } from "../../frame-verbs";
 
 type Suggestion = LeadSuggestionsDto["items"][number];
 
@@ -445,6 +445,17 @@ export const LeadsFirstDay = ({
             >
               <Icon name="list" size={14} />
               {FIRST_DAY_SAYS.importIt}
+            </Button>
+            <Button
+              variant="quiet"
+              size="sm"
+              className="ld-first-door"
+              onClick={() => navigate("admin/outreach")}
+              data-testid="ld-first-cold-email"
+              {...gate("settings", "set up cold email")}
+            >
+              <Icon name="send" size={14} />
+              {LEAD_WORDS.firstDay.coldEmail}
             </Button>
           </div>
         )}

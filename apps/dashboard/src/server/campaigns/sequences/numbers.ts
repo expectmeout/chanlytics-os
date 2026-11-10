@@ -1,6 +1,6 @@
 /**
  * Words: numbers. A number Ask writes about the owner's business stands only where the owner said it (decision 0113):
- * in a claim on How it reaches out, or in the business's name. What a slot fills in is the slot's ({{opening}}'s numbers
+ * in a claim on Cold email, or in the business's name. What a slot fills in is the slot's ({{opening}}'s numbers
  * are its record's, read by the opening's own reader), and a time claims nothing about anyone.
  */
 import { REACH_OUT_SLOT_SET, slotsOut } from "@chanlytics/contracts";

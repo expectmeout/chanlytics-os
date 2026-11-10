@@ -56,7 +56,10 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 export interface ErrorDetailsByCode {
   /** The fields a body breaks, each with its first sentence (route()'s parse); or a chain's issues in order, each said. */
   validation:
-    { readonly fields: Readonly<Record<string, string>> } | { readonly issues: readonly { readonly words: string }[] };
+    | { readonly fields: Readonly<Record<string, string>> }
+    | { readonly issues: readonly { readonly words: string }[] }
+    /** No mailbox is connected at all: New takes its mailbox off for it (contracts refusalNeedsMailbox). */
+    | { readonly needs: "mailbox" };
   /** How long until the limit lets this through. */
   rate_limited: { readonly retry_after_s: number };
   /** The least role that may, so a page titles the refusal "Owner only" rather than guess it from the sentence. */

@@ -1648,7 +1648,7 @@ test("the page is its bands and nothing seeded", () => {
       .map(name)
       .map((n) => n.replace(" tz-setup-lead", ""))
       .sort(),
-    ["NeedYou", "tq tps tz-setup"],
+    ["ColdEmailNote", "NeedYou", "tq tps tz-setup"],
   );
   assert.ok(
     byTestId(byTestId(tree, "today-foot"), "today-period"),

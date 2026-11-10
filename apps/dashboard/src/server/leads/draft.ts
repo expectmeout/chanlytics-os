@@ -12,7 +12,6 @@ import {
   LEAD_UNBACKED_NUMBER,
   LeadDraftAnswerSchema,
   leadDraftFooter,
-  mailtoOf,
   fencedInline,
   parseTenantConfig,
   reachOutToneOf,
@@ -61,7 +60,7 @@ const UNBACKED_AGAIN =
   "Write it again with no number about the writer's business that its claims do not say word for word.";
 
 /**
- * What How it reaches out says of the writer (decision 0113), as data: each line only where the owner wrote it, and with
+ * What Cold email says of the writer (decision 0113), as data: each line only where the owner wrote it, and with
  * no offer of theirs what the business says it does (db findWorkspaceWords), so the email knows what it is about.
  */
 export function writerLines(config: ReturnType<typeof parseTenantConfig>, ownWords: string | null): string[] {
@@ -99,12 +98,11 @@ async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): P
 interface DraftAnswer extends LeadEmailOffer {
   to: string;
   subject: string;
-  /** The email as the mail app sends it: the words and the foot. */
+  /** The email whole: the words and the foot. */
   body: string;
-  mailto: string;
   /** The words alone: what is edited, and what Send takes. */
   words: string;
-  /** The foot the mail app's road puts under the words. */
+  /** The foot the email carries where no mailbox signs it yet. */
   mail_foot: string;
 }
 
@@ -178,7 +176,6 @@ export async function draftFor(
     to: lead.email,
     subject: answer.subject,
     body,
-    mailto: mailtoOf(lead.email, answer.subject, body),
     words: answer.body,
     mail_foot: mailFoot,
     ...(await getLeadEmailOffer(ctx, lead, offer)),

@@ -137,6 +137,7 @@ export const ROUTES = {
   "GET sequences/[id]/replies": { method: "GET", path: "/api/v1/sequences/[id]/replies" },
   "GET settings": { method: "GET", path: "/api/v1/settings" },
   "GET settings/reach-out": { method: "GET", path: "/api/v1/settings/reach-out" },
+  "GET settings/reach-out/note": { method: "GET", path: "/api/v1/settings/reach-out/note" },
   "GET settings/reach-out/told": { method: "GET", path: "/api/v1/settings/reach-out/told" },
   "GET setup": { method: "GET", path: "/api/v1/setup" },
   "GET team": { method: "GET", path: "/api/v1/team" },
@@ -340,6 +341,7 @@ export const ROUTES = {
   "POST sequences/draft": { method: "POST", path: "/api/v1/sequences/draft" },
   "POST sequences/new": { method: "POST", path: "/api/v1/sequences/new" },
   "POST sequences/voice": { method: "POST", path: "/api/v1/sequences/voice" },
+  "POST settings/reach-out/provider-wanted": { method: "POST", path: "/api/v1/settings/reach-out/provider-wanted" },
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST support/report": { method: "POST", path: "/api/v1/support/report" },
@@ -525,6 +527,7 @@ export type Routes = {
   "GET sequences/[id]/replies": typeof import("../../app/api/v1/sequences/[id]/replies/route").GET;
   "GET settings": typeof import("../../app/api/v1/settings/route").GET;
   "GET settings/reach-out": typeof import("../../app/api/v1/settings/reach-out/route").GET;
+  "GET settings/reach-out/note": typeof import("../../app/api/v1/settings/reach-out/note/route").GET;
   "GET settings/reach-out/told": typeof import("../../app/api/v1/settings/reach-out/told/route").GET;
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
   "GET team": typeof import("../../app/api/v1/team/route").GET;
@@ -728,6 +731,7 @@ export type Routes = {
   "POST sequences/draft": typeof import("../../app/api/v1/sequences/draft/route").POST;
   "POST sequences/new": typeof import("../../app/api/v1/sequences/new/route").POST;
   "POST sequences/voice": typeof import("../../app/api/v1/sequences/voice/route").POST;
+  "POST settings/reach-out/provider-wanted": typeof import("../../app/api/v1/settings/reach-out/provider-wanted/route").POST;
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST support/report": typeof import("../../app/api/v1/support/report/route").POST;

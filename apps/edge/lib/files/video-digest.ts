@@ -43,11 +43,12 @@ import {
   fetchStreamAudio,
   putStreamCaptions,
   readStreamAudio,
+  readStreamSoundTrack,
   readStreamVideo,
   streamAudioUrl,
   streamTokenOf,
 } from "@chanlytics/channels/files";
-import { findFileForWork, filesBucket, keepFileSound, type FileRow } from "@chanlytics/db/files";
+import { findFileForWork, filesBucket, keepFileSound, keepVideoSeconds, type FileRow } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../shared/log.js";
@@ -164,6 +165,13 @@ async function audioStep(digest: Digest, sound: FileSound): Promise<VideoDigestS
   if ((await madeOf(digest)).has(FILE_MADE_OF_VIDEO.audio)) return "words";
   const keys = streamKeys();
   if (!keys) throw new Error("video_digest: Stream is not configured here");
+  // A clip with no sound track is said so by its playback list: Stream answers its audio download with a 500, never with none.
+  const listToken = streamTokenOf(keys.signing, { uid: digest.row.media_ref ?? "", seconds: AUDIO_TOKEN_S });
+  if ((await readStreamSoundTrack(keys.signing.customerCode, listToken)) === false) {
+    logger({ tenant_id: digest.row.tenant_id }).info("video_no_sound", { file: digest.row.id });
+    await keepSound(digest, sound, { none: true }, null);
+    return "look";
+  }
   let state = await askStreamAudio(keys.account, digest.row.media_ref ?? "");
   while (state.status === "inprogress" && msLeft(digest) > AUDIO_POLL_MS) {
     await new Promise((resolve) => setTimeout(resolve, AUDIO_POLL_MS));
@@ -299,6 +307,8 @@ export async function digestVideo(db: Db, job: ClaimedJob, deadline: number): Pr
     const read = keys ? await readStreamVideo(keys.account, row.media_ref) : null;
     if (!read?.ok || !read.video.seconds) throw new Error("video_digest: the video's length is not known yet");
     row.seconds = read.video.seconds;
+    // Kept on the row: known to this run alone, the page said no length and Ask's every closer look was refused as past the clip's end.
+    await keepVideoSeconds(db, row.tenant_id, row.id, read.video.seconds);
   }
   const digest: Digest = {
     db,

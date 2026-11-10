@@ -131,7 +131,7 @@ export const LEAD_BUILD_WORDS = {
     mailboxes: (n: number) =>
       n === 0 ? "Your mailboxes · none yet" : n === 1 ? "Your mailbox" : `Your ${n} mailboxes`,
     /** Saved to send from the mailboxes, and none sends now: nothing goes until one does, or it changes. */
-    noneSends: "No mailbox sends now, so nothing goes: choose Your inbox to send each yourself, or connect one.",
+    noneSends: "No mailbox sends now, so nothing goes. Connect one on Settings › Cold email.",
     /** Saved for the owner to send, with a mailbox that could send for them now. */
     canSwitch: (n: number) =>
       `${n === 1 ? "Your mailbox is" : `Your ${n} mailboxes are`} connected: choose ${n === 1 ? "it" : "them"} to send these for you.`,
@@ -148,17 +148,9 @@ export const LEAD_BUILD_WORDS = {
     footer: "Footer",
     footerValue: "Why they hear from you",
     noAddress: "Add your address in Settings › Details: every email carries it at the foot.",
-    /** The batch rule as it stands (0077, D11): every batch of first emails of a sequence fed by a list waits for an OK. */
-    firstEmails: "Every batch of first emails waits for your OK",
-    /** The mode's choice, for the steps after the first. */
-    followUps: "Follow-ups",
-    followUpModes: { veto: "Your OK first, then 30 minutes to stop", ask: "Each waits for your OK" } satisfies Record<
-      "veto" | "ask",
-      string
-    >,
     /** The mailboxes it writes from (0077, D4): a tick each, one always kept. */
     everyMailbox: "Every mailbox, and any you connect later",
-    keepOne: "One has to send. To stop them all, choose Your inbox · you send.",
+    keepOne: "One has to send. To stop them all, pause the sequence.",
     newMailbox: "New",
     dnsMissing: (records: readonly string[]) => `${records.map((r) => r.toUpperCase()).join(" and ")} missing`,
     setUpDns: "Set up DNS",

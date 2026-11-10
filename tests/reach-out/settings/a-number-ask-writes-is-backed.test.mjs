@@ -1,6 +1,6 @@
 /**
  * A number Ask writes about the owner's business stands only where the owner said it (decision 0113): in one of the
- * claims on How it reaches out, or in the business's name. The words the owner types are theirs and are never judged
+ * claims on Cold email, or in the business's name. The words the owner types are theirs and are never judged
  * for it. A number that is a time ("a 10-minute walkthrough", "9:30") claims nothing, and a slot's number is the slot's.
  */
 import { test } from "node:test";

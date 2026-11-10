@@ -31,7 +31,7 @@ installStubReact({
 const S = "../../../apps/dashboard/src";
 (await import(`${S}/bridge/zone.ts`)).installClock();
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-const { useRecordActs, HeadActs, RecordNotice, phoneFootOf } = await import(
+const { useRecordActs, HeadActs, RecordNotice, RecordQuestion, phoneFootOf } = await import(
   `${S}/surfaces/campaigns/sequences/record-acts.tsx`
 );
 
@@ -80,7 +80,7 @@ const rec = (over = {}, past = {}) => ({
   ...past,
 });
 
-/** The record's head, its notice and, on a phone, its dock, drawn as the record draws them. */
+/** The record's head, its notice (or the question asked in its place, on a desk) and, on a phone, its dock, as the record draws them. */
 function Head({ record, phone }) {
   const a = useRecordActs(
     record,
@@ -93,7 +93,7 @@ function Head({ record, phone }) {
     "div",
     null,
     h(HeadActs, { a, phone }),
-    h(RecordNotice, { a, tab: "steps" }),
+    phone ? null : a.asking ? h(RecordQuestion, { a }) : h(RecordNotice, { a, tab: "steps" }),
     phone ? phoneFootOf(a, "steps") : null,
   );
 }
@@ -145,6 +145,36 @@ test("a sequence to leads is let go of while it has written nothing, renamed lik
   assert.ok(moreOf(wrote).includes(SEQUENCE_ACT_WORDS.rename));
   const quiet = draw(leads({}, { wrote: false }));
   assert.ok(moreOf(quiet).includes(DISCARD), "one on that wrote nothing is let go of");
+});
+
+test("a question a phone's dock asks is the foot, and takes focus where it stands; one asked on a desk as it always did", () => {
+  // Bare in the dock's pill its first and last lines stood under the pill's round ends, and a plain focus on its answer
+  // moved the page to its end (9 Nov 2026): it is the foot (parts/split.tsx cmFootAsk, the kit's pair) and the kit's
+  // Confirm `docked`, its No (End it and Discard destroy, so the No) taking focus with preventScroll.
+  const ask = (record, phone, words) => {
+    const props = { record, phone };
+    let tree = draw(record, phone);
+    const item = all(tree, (n) => Array.isArray(n.props?.groups))
+      .flatMap((m) => m.props.groups.flatMap((g) => g.items))
+      .find((i) => i.label === words);
+    item.onSelect();
+    tree = again(() => globalThis.React.createElement(Head, props));
+    return tree;
+  };
+  for (const [record, words, id] of [
+    [rec({}, { ran: true }), END, "sq-end"],
+    [rec({}, { ran: false }), DISCARD, "sq-discard"],
+  ]) {
+    const phone = ask(record, true, words);
+    const pair = all(phone, (n) => n.props?.className === "cm-foot-ask" && n.props["data-foot-pair"] !== undefined);
+    assert.ok(pair.length === 1 && byTestId(pair[0], `${id}-confirm`), `${id}: the question is the foot's pair`);
+    const docked = byTestId(phone, `${id}-no`);
+    const focused = [];
+    docked.props.ref?.({ focus: (how) => focused.push(how) });
+    assert.deepEqual([docked.props.autoFocus, focused], [false, [{ preventScroll: true }]], `${id}, in the dock`);
+    const desk = byTestId(ask(record, false, words), `${id}-no`);
+    assert.deepEqual([desk.props.autoFocus, desk.props.ref], [true, undefined], `${id}, on a desk`);
+  }
 });
 
 test("the head draws each act its judge offers, for every record above, and none it does not", () => {

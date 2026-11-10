@@ -39,7 +39,7 @@ import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
 import { refusalToast, touchSwipe } from "../../frame-verbs";
 import { useWaitFor } from "../../use-surface";
-import { LeadCallAsk, LeadPeekAsk, LeadSentAsk } from "../peek/asks";
+import { LeadCallAsk, LeadPeekAsk } from "../peek/asks";
 import type { Armed, Deck, DraftState, Flash, PeekActs, PeekMode } from "../peek/types";
 import { PileBulk, type PileBulkFacts } from "../pile/bulk";
 import { keepPileForTheWayBack, type LeadPile } from "../pile/use-pile";
@@ -404,8 +404,6 @@ function asksOf(d: SheetDraw) {
       <LeadPeekAsk vm={vm} mode={p.mode} busy={p.busy} on={on} />
     ) : a && a.asked && a.leadId === vm.id && a.kind === "call" ? (
       <LeadCallAsk armed={a} busy={p.busy} on={on} deck={p.deck} />
-    ) : a && a.asked && a.leadId === vm.id && a.kind === "sent" ? (
-      <LeadSentAsk busy={p.busy} on={on} />
     ) : null;
   return ask ? (
     <div className="lw-ask" ref={askInView}>

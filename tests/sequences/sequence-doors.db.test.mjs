@@ -71,6 +71,17 @@ const template = async (name, status) =>
     `the template ${name}`,
   ).id;
 
+/** A connected mailbox: cold email sends from one, and a sequence to leads is refused with none (00585). */
+const connectMailbox = (tenant, label) =>
+  db.from("mailbox_connections").insert({
+    tenant_id: tenant,
+    provider: "google",
+    provider_account: `acct-${label}-${stamp}`,
+    address: `sam@${label}-${stamp}.example`,
+    host: `${label}-${stamp}.example`,
+    from_name: "Sam",
+  });
+
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
@@ -84,6 +95,7 @@ before(async () => {
     ).id;
   tenantId = await workspace("sequence-doors");
   otherTenant = await workspace("sequence-doors-other");
+  ok(await connectMailbox(tenantId, "doors"));
   templateId = await template("come_back", "approved");
   for (const [key, phone] of [
     ["ana", "+15555550121"],

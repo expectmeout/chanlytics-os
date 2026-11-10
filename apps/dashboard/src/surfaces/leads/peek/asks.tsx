@@ -86,27 +86,6 @@ export const LeadPeekAsk = ({ vm, mode, busy, on }: AskProps) => {
   );
 };
 
-/** "Did you send it?" -- asked when the owner comes back to the tab, never before (PRD 9.3). */
-export const LeadSentAsk = ({ busy, on }: { busy: boolean; on: PeekActs }) => (
-  <div className="pk-ask" role="group" aria-label={W.sentQuestion} data-testid="peek-sent-ask">
-    <div className="t">{W.sentQuestion}</div>
-    <div className="row">
-      <button
-        type="button"
-        className="btn btn-primary btn-sm"
-        disabled={busy}
-        data-testid="peek-sent-yes"
-        onClick={on.onSaidSent}
-      >
-        {W.sentYes}
-      </button>
-      <button type="button" className="btn btn-ghost btn-sm" data-testid="peek-sent-no" onClick={on.onNotYet}>
-        {W.sentNo}
-      </button>
-    </div>
-  </div>
-);
-
 /** "How did the call go?" -- the six outcomes, a note, and Save (PRD 9.4). On a phone they are a 2 x 3 grid. */
 export const LeadCallAsk = ({
   armed,

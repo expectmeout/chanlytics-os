@@ -63,7 +63,7 @@ import { BtBookingLinkRow, BtGoalCard, BtTransferNumberRow, BtWhoCard } from "./
 import { LearnedFromYou } from "../autonomy/learned";
 
 /**
- * How it reaches out's cards (decision 0113), a chunk of their own, fetched as that page is drawn: Settings' other pages
+ * Cold email's cards (decision 0113), a chunk of their own, fetched as that page is drawn: Settings' other pages
  * and the first run, which draw the business's rows, carry none of them or their words (bundle-budget.mjs, a page's line).
  */
 const outreachCode = codeOnce(() => import("../outreach/cards").then(({ OutreachCards }) => ({ OutreachCards })));
@@ -77,6 +77,13 @@ type Flash = (flash: FrameFlash) => void;
  * "Settings, split" canvas): it was one page of 34 rows for three readers.
  */
 export type BusinessPart = "workspace" | "hours" | "receptionist" | "outreach";
+
+/** The record of a workspace with no receptionist set up yet, which Cold email alone is drawn over. */
+const NO_BRAIN: Brain = {};
+
+/** The record a page draws from: the receptionist's, else, for Cold email alone, which needs none, an empty one. */
+const pageBrainOf = (config: Config | null, parts: readonly BusinessPart[]): Brain | null =>
+  (config && config.brain) || (parts.length === 1 && parts[0] === "outreach" ? NO_BRAIN : null);
 
 /**
  * A door that opens a row of the business by its id, from a page that draws the business's pages `here`: in place where
@@ -428,12 +435,18 @@ const useBtOpenRow = (row: string | null, drawn: boolean, canEdit: boolean) => {
   useEffect(() => {
     if (!row || !drawn || opened.current === row) return;
     const key = document.getElementById(`rec-row-${row}-key`);
-    if (!key) return;
+    if (!key && !SHEETS_WITHOUT_A_ROW.has(row)) return;
     opened.current = row;
-    btRowIntoView(key);
+    if (key) btRowIntoView(key);
     if (canEdit) btOpenRow(row);
   }, [row, drawn, canEdit]);
 };
+
+/**
+ * Sheets an address opens that stand under no row of their own: Cold email's connect sheet
+ * (contracts COLD_EMAIL_CONNECT_ROUTE), which Today's line and a lead's Connect land on.
+ */
+const SHEETS_WITHOUT_A_ROW: ReadonlySet<string> = new Set(["connect"]);
 
 /**
  * A page of the business, drawn from the settings read: the part Settings names (frame/page.tsx draws one), or several
@@ -461,11 +474,11 @@ export const BusinessTab = ({
   const prompt = useBtPromptSheet();
   const settings = settingsNow() || null;
   const config = settings && (settings.config as Config | null);
-  const brain = (config && config.brain) || null;
+  const brain = pageBrainOf(config, parts);
   const canEdit = canDo("settings");
   const outreach = useCode(outreachCode, parts.includes("outreach"));
   const Outreach = parts.includes("outreach") ? (outreach.loaded?.OutreachCards ?? null) : null;
-  // A row an address names is looked for once the page's rows are drawn: How it reaches out's, once their chunk is in.
+  // A row an address names is looked for once the page's rows are drawn: Cold email's, once their chunk is in.
   const rowsDrawn = !!(settings && config && brain) && (!parts.includes("outreach") || !!Outreach);
   useBtOpenRow(open, rowsDrawn, canEdit);
   if (!settings || !config || !brain) return null;
@@ -512,10 +525,10 @@ export const BusinessTab = ({
           <BtRehearse canEdit={canEdit} bookingLink={brain.booking_link ?? null} />
         </>
       ) : null}
-      {/* How it reaches out (decision 0113): what a cold email is written from, its own folder's cards. */}
+      {/* Cold email (decision 0113): what a cold email is written from, its own folder's cards. */}
       {Outreach ? <Outreach brain={brain} config={config} canEdit={canEdit} flash={flash} saver={saver} /> : null}
       {parts.includes("outreach") && outreach.failed ? (
-        <FailedRead kind="card" what="How it reaches out" onRetry={outreach.retry} testid="rec-outreach-failed" />
+        <FailedRead kind="card" what="Cold email" onRetry={outreach.retry} testid="rec-outreach-failed" />
       ) : null}
       {/* The sheets, LAST, after every card, through one slot (BtSheetSlot says why). Whatever card comes next goes above
           this line, and whatever sheet comes next goes through the slot; a page test holds it last. */}

@@ -447,7 +447,7 @@ test("a connect come back, in words: each reason the edge answers, and the rule 
   assert.equal(MAILBOX_CONNECT_WORDS.not_owner, "Only an owner can connect a mailbox.", "the page's own gate's words");
   assert.equal(mailboxConnectWords("something_new"), MAILBOX_CONNECT_WORDS.failed);
   assert.equal(mailboxConnectWords(null), MAILBOX_CONNECT_WORDS.failed);
-  assert.match(mailboxesFootWords(0), /through Google or Microsoft/);
+  assert.match(mailboxesFootWords(0), /through Google/);
   assert.match(mailboxesFootWords(3), /comes into your Inbox/);
   assert.doesNotMatch(mailboxesFootWords(3), /a day/, "its ramp is its Sending lines', not the foot's");
   assert.equal(mailboxesFootWords(MAILBOX_CONNECTIONS_MAX), "10 is the most. Remove one to add another.");

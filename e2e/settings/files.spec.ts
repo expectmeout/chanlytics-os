@@ -368,7 +368,10 @@ test.describe("Files, a video", () => {
       await expect(sheet.getByTestId("fl-player")).toHaveAttribute("src", /cloudflarestream\.com\/.+\/iframe/, {
         timeout: 30_000,
       });
-      await expect(sheet.getByTestId("fl-make-post"), "a video makes no post").toHaveCount(0);
+      await expect(
+        sheet.getByTestId("fl-make-post"),
+        "a ready video offers a post, drawn from one moment of it",
+      ).toBeVisible();
       await expect(sheet.getByTestId("fl-download"), "and its own file stays with whoever sent it").toHaveCount(0);
     } finally {
       if (videoId) {

@@ -603,6 +603,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST channels/whatsapp/standing": () => [channelsOverride, ...reportsCampaigns()],
   // An Instagram account turned off: Connections' row (the channels read) and the Setup row that says what answers.
   "POST channels/instagram/disconnect": () => [channelsOverride, setupOverride],
+  // The same account connected through Meta, turned off (decision 0117): its row is the same channel, so the same two.
+  "POST channels/meta/disconnect": () => [channelsOverride, setupOverride],
   // The bell's press also moves when this member last looked, which Today's Since you looked says (GET today's `since`).
   "PUT notifications": () => [notificationsOverride, todayOverride],
   // Setup, lines, billing, Google.
@@ -676,6 +678,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
     "a card acted on by the server: its answer names the calls it made, and the press reads again after each",
   "POST ask/act/undo":
     "a card taken back by the server: its answer names the calls it made, and the press reads again after each",
+  "POST settings/reach-out/provider-wanted":
+    "which mailbox a workspace would use, counted for us: its sheet says so from the answer, and no page draws it",
   "POST files/post/preview": "a post's picture is drawn for its card and kept nowhere",
   "POST files/[id]/google": "a post put on Google: its sheet says so from the answer, and the list holds nothing of it",
   "DELETE files/[id]/google":

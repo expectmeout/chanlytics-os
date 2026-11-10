@@ -20,8 +20,6 @@ import {
   MAILBOX_SIGNATURE_WORDS,
   customerDomainWords,
   mailboxActs,
-  mailboxConnectOk,
-  mailboxConnectWords,
   mailboxDnsOf,
   mailboxGmailSignsWords,
   mailboxHistoryLine,
@@ -33,25 +31,14 @@ import {
   mailboxSignsChoiceOf,
   mailboxSignsOf,
   mailboxesFootWords,
-  type MailboxHistory,
-  type MailboxProvider,
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import type { ApiResult } from "@/client/api";
+import { connectMailbox, mailboxConnectOutcome } from "./mailbox-connect";
 
 interface ConnectedMailboxesApi {
-  /**
-   * To the provider's consent screen: the door is asked for the way there, and the browser leaves only when it gave
-   * one, so a refusal comes back here to be said on the page. A Reconnect names its mailbox.
-   */
-  /** `back: "start"` brings the owner back to the first run that asked (decision 0073), not to Connections. */
-  /** `history` is what its owner chose of a new mailbox's history (decision 0086); absent, its last six months. */
-  connect(
-    provider: MailboxProvider,
-    mailboxId?: string | null,
-    back?: "start",
-    history?: MailboxHistory,
-  ): Promise<ApiResult<unknown>>;
+  /** To the provider's consent screen (mailbox-connect.ts). */
+  connect: typeof connectMailbox;
   /** The link a Microsoft 365 admin opens to approve Chanlytics for their organisation, once. */
   adminLink(): Promise<ApiResult<{ url: string }>>;
   set(
@@ -73,8 +60,8 @@ interface ConnectedMailboxesApi {
   /** Where its history stands on its row, and the act that fits; and the choice's words. */
   historyLine: typeof mailboxHistoryLine;
   historyWords: typeof MAILBOX_HISTORY_WORDS;
-  /** What the browser came back from the provider with, said once: its words, whether it is good news, and its word. */
-  outcome(): { ok: boolean; words: string; code: string | null } | null;
+  /** What the browser came back from the provider with, said once (mailbox-connect.ts). */
+  outcome: typeof mailboxConnectOutcome;
   row: typeof mailboxRowWords;
   sending: typeof mailboxSendingLines;
   /** What it signs with (00487): the choice it stands on, what the Gmail choice says, the rule the send reads (the
@@ -100,18 +87,7 @@ interface ConnectedMailboxesApi {
 }
 
 export const connectedMailboxes: ConnectedMailboxesApi = {
-  connect: async (provider, mailboxId, back, history) => {
-    const r = await api()("GET mailbox-connections/connect", {
-      query: {
-        provider,
-        ...(mailboxId ? { mailbox_id: mailboxId } : {}),
-        ...(back ? { back } : {}),
-        ...(history && !mailboxId ? { history } : {}),
-      },
-    });
-    if (r.ok) window.location.assign(r.data.url);
-    return r;
-  },
+  connect: connectMailbox,
   adminLink: () => api()("GET mailbox-connections/connect", { query: { provider: "microsoft", admin: "1" } }),
   set: (id, s) => api()("PATCH mailbox-connections/[id]", { params: { id }, body: s }),
   resume: (id) => api()("POST mailbox-connections/[id]/resume", { params: { id } }),
@@ -121,27 +97,7 @@ export const connectedMailboxes: ConnectedMailboxesApi = {
   history: (id, act) => api()("POST mailbox-connections/[id]/history", { params: { id }, body: { act } }),
   historyLine: mailboxHistoryLine,
   historyWords: MAILBOX_HISTORY_WORDS,
-  outcome() {
-    try {
-      const q = new URLSearchParams(window.location.search);
-      const outcome = q.get("mailbox");
-      if (!outcome) return null;
-      const why = q.get("why");
-      q.delete("mailbox");
-      q.delete("why");
-      const rest = q.toString();
-      window.history.replaceState(
-        null,
-        "",
-        `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`,
-      );
-      const ok = mailboxConnectOk(outcome);
-      const code = ok ? outcome : why;
-      return { ok, words: mailboxConnectWords(code), code };
-    } catch {
-      return null;
-    }
-  },
+  outcome: mailboxConnectOutcome,
   row: mailboxRowWords,
   signs: {
     choiceOf: mailboxSignsChoiceOf,

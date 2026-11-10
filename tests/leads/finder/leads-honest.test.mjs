@@ -3037,8 +3037,8 @@ test("the peek is handed acts, not setters: every control it draws has a functio
   draw();
   const peek = peeks.at(-1);
   assert.equal(peek.vm.id, "l1", "the peek is open on the lead under the cursor");
-  // What the peek (surfaces/leads/peek) reads off its props as `on.<name>`: the stage, Not a fit, Draft and its tones, Open in
-  // your email, Copy, the two answers to "Did you send it?", the way back and the way out. Handed the page's raw
+  // What the peek (surfaces/leads/peek) reads off its props as `on.<name>`: the stage, Not a fit, Draft and its tones, the
+  // call's outcome and note, the way back and the way out. Handed the page's raw
   // setters instead, every one of them is undefined -- a pane of dead controls that the peek's own unit tests
   // never see, because those build the acts themselves and this page did not.
   const dead = [
@@ -3047,10 +3047,6 @@ test("the peek is handed acts, not setters: every control it draws has a functio
     "onWhy",
     "onDraft",
     "onTone",
-    "onOpenMail",
-    "onCopyDraft",
-    "onSaidSent",
-    "onNotYet",
     "onOutcome",
     "onNote",
     "onSaveCall",

@@ -47,7 +47,7 @@ const root = (over = {}) => ({
   ...over,
 });
 function ports(over = {}) {
-  const made = { runs: [], sends: [], told: [], recorded: [], passed: [] };
+  const made = { runs: [], sends: [], told: [], going: [], held: [], recorded: [], passed: [] };
   return {
     made,
     ports: {
@@ -64,6 +64,8 @@ function ports(over = {}) {
       planRun: async (run, sends) => (made.runs.push(run), made.sends.push(...sends), { id: run.id }),
       recordRun: async (run, counts) => void made.recorded.push([run.id, run.state, counts]),
       notifyWaiting: async (runId, n, firstAt) => void made.told.push([runId, n, firstAt]),
+      notifyGoes: async (runId, n, firstAt) => (made.going.push([runId, n, firstAt]), true),
+      holdForOk: async (runId) => (made.held.push(runId), true),
       ...over,
     },
   };
@@ -109,18 +111,31 @@ test("a step's first run, its words new, waits for its owner, with every send pl
   assert.deepEqual(made.told, [[RUN, 2, Date.parse("2026-09-28T14:30:00Z")]]);
 });
 
-test("a chain fed by a list asks before every first email, its words seen or not; its later steps give thirty minutes", async () => {
+test("a chain fed by a list: its first run asks, then first emails follow Before each batch, as its later steps do", async () => {
   const inHours = Date.parse("2026-09-28T15:00:00Z"); // 10 AM in Austin
-  const first = ports({ now: () => inHours, audience: async () => [lead("a")] });
-  const out = await runReachOut(first.ports, root({ fed_by: "list", words_ok_at: SEEN }), day);
-  assert.deepEqual(
-    out,
-    { outcome: "held", reason: "waiting_for_you", planned: 1 },
-    "every lead on it was added by hand",
+  const newWords = ports({ now: () => inHours, audience: async () => [lead("a")] });
+  const out = await runReachOut(newWords.ports, root({ fed_by: "list", words_ok_at: null }), day);
+  assert.deepEqual(out, { outcome: "held", reason: "waiting_for_you", planned: 1 }, "the first run needs an OK");
+  assert.equal(newWords.made.runs[0].state, "pending_approval");
+  assert.equal(
+    newWords.made.sends[0].send_at,
+    "2026-09-28T15:00:00.000Z",
+    "no thirty minutes: it goes when they say yes",
   );
-  assert.equal(first.made.runs[0].state, "pending_approval");
-  assert.equal(first.made.sends[0].send_at, "2026-09-28T15:00:00.000Z", "no thirty minutes: it goes when they say yes");
-  assert.equal(first.made.told.length, 1, "its owner is told a run waits");
+  assert.equal(newWords.made.told.length, 1, "its owner is told a run waits");
+
+  const held = ports({ now: () => inHours, audience: async () => [lead("a")] });
+  const after = await runReachOut(held.ports, root({ fed_by: "list", words_ok_at: SEEN }), day);
+  assert.deepEqual(after, { outcome: "sent", planned: 1 }, "words seen, it holds for a stop");
+  assert.equal(held.made.runs[0].state, "scheduled");
+  assert.equal(held.made.sends[0].send_at, "2026-09-28T15:30:00.000Z", "thirty minutes to stop it");
+
+  for (const mode of ["ask", "something else", null]) {
+    const asked = ports({ mode, now: () => inHours, audience: async () => [lead("a")] });
+    const said = await runReachOut(asked.ports, root({ fed_by: "list", words_ok_at: SEEN }), day);
+    assert.deepEqual(said, { outcome: "held", reason: "waiting_for_you", planned: 1 }, `a mode of ${mode} asks`);
+  }
+
   const later = ports({
     now: () => inHours,
     followers: async () => [
@@ -147,14 +162,19 @@ test("a chain fed by a list asks before every first email, its words seen or not
   assert.equal(later.made.runs[0].state, "scheduled");
 });
 
-test("a run of a step whose words were seen gives thirty minutes and tells nobody; one whose sequence asks for every batch waits; new words wait again", async () => {
+test("a run of a step whose words were seen gives thirty minutes and tells its owner when it goes; one whose sequence asks for every batch waits; new words wait again", async () => {
   const inHours = Date.parse("2026-09-28T15:00:00Z"); // 10 AM in Austin
   const later = ports({ now: () => inHours, audience: async () => [lead("a")] });
   const out = await runReachOut(later.ports, root({ words_ok_at: SEEN }), day);
   assert.deepEqual(out, { outcome: "sent", planned: 1 });
   assert.equal(later.made.runs[0].state, "scheduled");
   assert.equal(later.made.sends[0].send_at, "2026-09-28T15:30:00.000Z", "thirty minutes to stop it first");
-  assert.deepEqual(later.made.told, []);
+  assert.deepEqual(later.made.told, [], "it asks nothing of them");
+  assert.deepEqual(
+    later.made.going,
+    [[later.made.runs[0].id, 1, Date.parse("2026-09-28T15:30:00.000Z")]],
+    "Before each batch says they are told it is ready: the run, how many, and when it goes",
+  );
   assert.deepEqual(
     later.made.recorded,
     [[later.made.runs[0].id, "scheduled", { planned: 1, skipped: 0 }]],
@@ -164,9 +184,95 @@ test("a run of a step whose words were seen gives thirty minutes and tells nobod
   assert.equal((await runReachOut(asked.ports, root({ words_ok_at: SEEN }), day)).reason, "waiting_for_you");
   assert.equal(asked.made.runs[0].state, "pending_approval");
   assert.equal(asked.made.sends[0].send_at, "2026-09-28T15:00:00.000Z", "waiting for its owner, it plans from now");
+  assert.deepEqual(asked.made.going, [], "a run that waits is told as waiting, never as going");
   // A later step whose words changed (its words_ok_at cleared) waits once, under Holds it too.
   const changed = ports({ now: () => inHours, audience: async () => [lead("a")] });
   assert.equal((await runReachOut(changed.ports, root(), day)).reason, "waiting_for_you");
+});
+
+test("a batch nobody could be told of does not go by itself: it waits for its owner's OK, and they are told it waits", async () => {
+  const inHours = Date.parse("2026-09-28T15:00:00Z");
+  const bells = {
+    "the bell is down": async () => {
+      throw new Error("the bell is down");
+    },
+    "the bell answers that nobody was told": async () => false,
+  };
+  for (const [what, notifyGoes] of Object.entries(bells)) {
+    const quiet = ports({ now: () => inHours, audience: async () => [lead("a")], notifyGoes });
+    assert.deepEqual(
+      await runReachOut(quiet.ports, root({ words_ok_at: SEEN }), day),
+      { outcome: "held", reason: "waiting_for_you", planned: 1 },
+      what,
+    );
+    assert.equal(quiet.made.runs.length, 1, "the run is made and on the ledger");
+    assert.deepEqual(quiet.made.held, [RUN], `${what}: held for its owner's OK`);
+    assert.deepEqual(
+      quiet.made.recorded,
+      [[RUN, "pending_approval", { planned: 1, skipped: 0 }]],
+      `${what}: on the record as waiting, never as a batch the system sent by itself`,
+    );
+    assert.deepEqual(
+      quiet.made.told,
+      [[RUN, 1, Date.parse("2026-09-28T15:30:00.000Z")]],
+      `${what}: its owner is told it waits`,
+    );
+  }
+});
+
+test("a batch that could be neither told of nor held is never lost: it goes at its time, on the record as going", async () => {
+  const inHours = Date.parse("2026-09-28T15:00:00Z");
+  const holds = {
+    "the hold fails": async () => {
+      throw new Error("the database is down");
+    },
+    "the run had already moved on": async () => false,
+  };
+  for (const [what, holdForOk] of Object.entries(holds)) {
+    const stuck = ports({
+      now: () => inHours,
+      audience: async () => [lead("a")],
+      notifyGoes: async () => false,
+      holdForOk,
+    });
+    assert.deepEqual(
+      await runReachOut(stuck.ports, root({ words_ok_at: SEEN }), day),
+      { outcome: "sent", planned: 1 },
+      what,
+    );
+    assert.deepEqual(stuck.made.recorded, [[RUN, "scheduled", { planned: 1, skipped: 0 }]], what);
+    assert.deepEqual(stuck.made.told, [], `${what}: nothing waits, so nothing is said to wait`);
+  }
+});
+
+test("a waiting bell that fails costs a held batch nothing: it still waits, on the record", async () => {
+  const quiet = ports({
+    now: () => Date.parse("2026-09-28T15:00:00Z"),
+    audience: async () => [lead("a")],
+    notifyGoes: async () => false,
+    notifyWaiting: async () => {
+      throw new Error("the bell is down");
+    },
+  });
+  assert.deepEqual(await runReachOut(quiet.ports, root({ words_ok_at: SEEN }), day), {
+    outcome: "held",
+    reason: "waiting_for_you",
+    planned: 1,
+  });
+  assert.deepEqual(quiet.made.recorded, [[RUN, "pending_approval", { planned: 1, skipped: 0 }]]);
+});
+
+test("a run its owner sends by hand is never said to go, and never held", async () => {
+  const byHand = ports({
+    now: () => Date.parse("2026-09-28T15:00:00Z"),
+    audience: async () => [lead("a")],
+    draftLoad: async () => ({ today: 0, open: 0 }),
+    notifyGoes: async () => false,
+  });
+  await runReachOut(byHand.ports, root({ words_ok_at: SEEN, owner_sends: true }), day);
+  assert.equal(byHand.made.runs.length, 1);
+  assert.deepEqual(byHand.made.going, [], "its owner sends it: nothing goes without them");
+  assert.deepEqual(byHand.made.held, [], "and nothing is held from them");
 });
 
 test("nothing is assembled while a run of the chain waits, a chain is paused, or the workspace may not spend", async () => {

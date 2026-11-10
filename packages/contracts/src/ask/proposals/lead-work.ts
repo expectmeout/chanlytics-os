@@ -230,7 +230,9 @@ export const reachOutMakeSpec: ProposalSpec = {
       ? { route: "POST reach-outs", body: chain }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: ({ payload: pl }) => `“${asText(rec(pl.chain).name)}” is saved. Nothing goes until you OK the first emails.`,
+  // Its first batch waits for an OK whatever the mode; every one after goes by Before each batch (contracts batchModeOf).
+  receipt: ({ payload: pl }) =>
+    `“${asText(rec(pl.chain).name)}” is saved. Nothing goes until you OK the first emails. After that, each batch goes as Before each batch says on Cold email.`,
   made: (_p, data) => idIn(rec(data), "root_id"),
   open: (_p, outcome) => (outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE),
 };
