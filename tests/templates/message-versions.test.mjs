@@ -268,6 +268,11 @@ test("the moments offered for a new playbook: no retired one, and one win-back, 
     "proposal_waiting",
     // A calendar frees times when its appointments are cancelled (decision 0082).
     "slot_opened",
+    // And starts a sequence for one person at a time of their own (decision 0119): two hours before their visit, once a
+    // visit is marked missed, and the day after an ask with no booking.
+    "visit_soon",
+    "visit_missed",
+    "asked_no_booking",
   ]);
   assert.deepEqual(Object.keys(MOMENTS_RETIRED), ["new_week", "phoned_only"]);
   // A playbook already made on a retired moment keeps running: the run asks triggerOffered, which they still pass.
