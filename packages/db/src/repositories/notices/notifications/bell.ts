@@ -19,9 +19,14 @@ export const listBellRows = async (db: Db, tenantId: TenantId, since: string, li
     .order("created_at", { ascending: false })
     .limit(limit);
 
-/** When the member last looked at the workspace's bell, or none. */
+/** When the member last looked at the workspace's bell and how far they have read it (00614), or none. */
 export const findBellSeen = async (db: Db, tenantId: TenantId, userId: string) =>
-  db.from("notification_reads").select("seen_at").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
+  db
+    .from("notification_reads")
+    .select("seen_at, read_through_at")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", userId)
+    .maybeSingle();
 
 /** The member's own marks (read, dismissed) on these notices. */
 export const listNotificationMarks = async (db: Db, userId: string, notificationIds: string[]) =>

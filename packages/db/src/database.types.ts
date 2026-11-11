@@ -5127,16 +5127,19 @@ export type Database = {
       }
       notification_reads: {
         Row: {
+          read_through_at: string
           seen_at: string
           tenant_id: string
           user_id: string
         }
         Insert: {
+          read_through_at?: string
           seen_at?: string
           tenant_id: string
           user_id: string
         }
         Update: {
+          read_through_at?: string
           seen_at?: string
           tenant_id?: string
           user_id?: string
@@ -9992,6 +9995,10 @@ export type Database = {
           p_title?: string
         }
         Returns: number
+      }
+      notifications_read_through: {
+        Args: { p_tenant_id: string; p_through?: string }
+        Returns: Json
       }
       notifications_seen: { Args: { p_tenant_id: string }; Returns: Json }
       number_drift: {

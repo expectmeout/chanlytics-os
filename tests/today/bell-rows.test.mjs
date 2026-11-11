@@ -663,3 +663,46 @@ test("D1-template-marks: a kept template notice opens the message it is about in
   assert.deepEqual([by["n:t0"].to, by["n:t0"].action], ["messages", "Open Messages"]);
   assert.deepEqual([by["n:t2"].to, by["n:t2"].action], ["campaigns/messages", "Open Messages"]);
 });
+
+/* ------------------------- the top bar's own presses ------------------------- */
+
+const { Topbar } = await import("../../apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
+
+test("Mark all read is its own press: it reads the notes through the bell, says how many beside Undo, and is no look; the badge is the bell's own number (decision 0124)", () => {
+  const flashes = [];
+  const pressed = { seen: 0, read: 0, undone: 0 };
+  W.usePPToast = () => [null, (p) => flashes.push(p)];
+  W.__notifs = {
+    feed: () => [
+      { id: "n-1", kind: "booking", title: "1 booked", message: "Tove Lind", at: 0, unread: true, actions: [] },
+    ],
+    alerts: () => null,
+    onChange: () => () => undefined,
+    older: () => 0,
+    // Three are new since the look, though one row wears a dot here: the badge says the bell's number, not its dots.
+    unread: () => 3,
+    seenAll: () => void (pressed.seen += 1),
+    readAll: () => {
+      pressed.read += 1;
+      return { read: 4, undo: () => void (pressed.undone += 1) };
+    },
+  };
+  const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
+  const draw = () => Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
+  try {
+    fresh();
+    const closed = draw();
+    assert.equal(bellOf(closed).props["aria-label"], "Notifications, 3 unread", "the bell's own number");
+    bellOf(closed).props.onClick();
+    find(again(draw), (n) => typeof n.props?.onReadAll === "function").props.onReadAll();
+    assert.equal(pressed.read, 1, "read through the bell's own door");
+    assert.equal(pressed.seen, 0, "REGRESSION: Mark all read wrote a look, which is what closing the bell writes");
+    assert.equal(textOf(flashes.at(-1).msg), "4 marked read", "how many it read, in contracts' words");
+    flashes.at(-1).undo();
+    assert.equal(pressed.undone, 1, "Undo is the bell's own way back");
+  } finally {
+    unmount();
+    delete W.__notifs;
+    delete W.usePPToast;
+  }
+});

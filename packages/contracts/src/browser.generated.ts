@@ -498,7 +498,7 @@ export { openReads, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLO
 export { leadMapLegend, leadPinTone, stateLabel, stateOf, stateTone, stateWordList, TONES } from "./shell/tone";
 export { PAGE_BUILD, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_READ, PageVitalReport, pageVitalsWords, vitalValueWords, vitalVerdict } from "./shell/vitals";
 export { PAGE_DEVICES, PAGE_METRICS, PAGE_PHONE_QUERY, PAGE_VITALS, PAGE_VITALS_PER_BEACON, PRIMARY_PART, vitalsPageOf } from "./shell/vitals-pages";
-export { bellSections, todayAwayGrouped, todaySince } from "./today/away";
+export { BELL_READ_WORDS, bellSections, todayAwayGrouped, todaySince } from "./today/away";
 export { offerRefusedWords, standingWithRuns, TODAY_PHONE_WORDS, todayDraftsSub, todayHeadLine, todayWentLine, todayAlsoWaiting } from "./today/bands";
 export { toTodayVM } from "./today/brief";
 export { tzClock, tzSince } from "./today/clock";
@@ -509,7 +509,7 @@ export { figureDoorOf, todayProof } from "./today/figures";
 export { emailWires, TODAY_BOOKED_SHOWN } from "./today/metrics";
 export { ALERT_PANE_WORDS, ALERT_TOPICS, alertGrid, alertTestMail, BELL_LINE_KINDS, bellLineFor, EMAIL_ALWAYS_KINDS, EMAILED_NOTIFICATION_KINDS, emailsFor, emailsNotificationKind, openItLine, phoneLine, withTopicEmail, withTopicPush } from "./today/notification-kinds";
 export { buildNotificationFeed, callOfKey, conversationOfNeedsKey, dedupeFeed, jobNewsWords, kindListDoor, nameKnownCustomers, noteWhose, noticeRoute, REACH_OUT_DAY_ROUTE, SERVER_KEY_PREFIX, serverNotificationRows, verbForRoute } from "./today/notifications/feed";
-export { agoLabel, ALERT_KINDS, applyReadState, bellCalls, EMPTY_READ_STATE, SERVER_NOTIFICATION_KINDS, unreadCount } from "./today/notifications/feed-input";
+export { agoLabel, ALERT_KINDS, applyReadState, bellCalls, bellReadThroughMs, EMPTY_READ_STATE, SERVER_NOTIFICATION_KINDS, unreadCount } from "./today/notifications/feed-input";
 export { firstLine, isPushKind, parseDevice, parseMemberAlerts, PUSH_KINDS, PUSH_PLATFORMS, pushesFor, pushFor, pushOffOf, BELL_LIST_ROWS, BELL_WINDOW_DAYS, isForReader, keptUnreadOf, olderUnreadOf, PUSH_RECEIPTS_AFTER_MS, unreadFor } from "./today/push";
 export { isHoldRow, isPersonRow, namesAPerson, saidOfMessages } from "./today/queue";
 export { NO_REPLY_AFTER_MS } from "./today/rows";

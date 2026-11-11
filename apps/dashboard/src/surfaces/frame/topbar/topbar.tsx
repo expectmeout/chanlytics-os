@@ -11,7 +11,7 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { askCalls, type FrameFlash } from "../../frame-verbs";
 import type { DemoNote } from "./bell-demo";
 import { tbOverlay, useDemoBell, useDemoPresence } from "./bell-demo-acts";
-import { BAR_LINE_WORDS } from "@chanlytics/contracts";
+import { BAR_LINE_WORDS, BELL_READ_WORDS } from "@chanlytics/contracts";
 import { askAbout, openAsk } from "../../frame-doors";
 import { Button } from "../../kit/button/button";
 import { AskFace } from "../../kit/face/ask-face";
@@ -118,6 +118,13 @@ function TbLine({ onAsk, askLabel }: { onAsk: () => void; askLabel: string | nul
 /** The unread rows the real bell does not list (S6-10): its badge counts them, as the bell's number everywhere else does. */
 const tbOlderOf = (real: Bell | null) => (real && real.older ? real.older() : 0);
 
+/**
+ * The bell's number: what is new since the member last looked (the bridge's own count, decision 0124). A bell that says
+ * no number of its own is counted by its rows' dots, as it was.
+ */
+const tbNewOf = (real: Bell | null, shown: readonly BellNote[]) =>
+  real && real.unread ? real.unread() : shown.filter((n) => n.unread).length + tbOlderOf(real);
+
 /** The workspace's own rows and this device's alerts, read again as the bridge's bell changes. */
 function useRealBell(real: Bell | null) {
   const [realRows, setRealRows] = useState<BellNote[]>(() => (real ? real.feed() : []));
@@ -211,8 +218,8 @@ function bellActs({ real, notifs, setNotifs, realRows, setAlertState, flash, clo
   };
   const readAll = () => {
     if (real) {
-      real.seenAll();
-      flash({ msg: <>All caught up</> });
+      const { read, undo } = real.readAll();
+      flash({ msg: <>{BELL_READ_WORDS.done(read)}</>, undo });
       return;
     }
     const prev = notifs;
@@ -360,10 +367,11 @@ function useBell(flash: Flash) {
   useDemoPresence(flash);
   // The seeded feed is demo theater: outside a demo we show no count rather than a badge promising things that don't exist.
   const shown: BellNote[] = real ? realRows : isDemoFrame() ? notifs.map(tbOverlay) : [];
-  const unread = shown.filter((n) => n.unread).length + tbOlderOf(real);
+  const unread = tbNewOf(real, shown);
   const ping = useBellPing(unread, real, notifs);
-  // The bell's press is the member looking (Today in three zones, 2 Nov 2026): once it closes, what it held is seen, and
-  // Today's Since you looked starts again from now. Never on a look at Today alone.
+  // The bell's press is the member looking (Today in three zones, 2 Nov 2026): once it closes, what it held is seen,
+  // so its number starts again and Today's Since you looked does too. No note is read by it (decision 0124): a dot goes
+  // when its note is opened or by Mark all read. Never on a look at Today alone.
   const closeBell = useCallback(() => {
     setOpenNotifs(false);
     real?.seenAll();
