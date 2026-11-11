@@ -42,7 +42,6 @@ const NEED_YOU_STATE = "today-need-you";
 const TO_DO_STATE = "today-to-do";
 
 const NO_KEPT: Kept = {};
-const NO_ROWS: readonly TodayQueueRowVM[] = [];
 const NONE_DONE: readonly string[] = [];
 
 /** The groups above To do, as drawn: Up next, the five waiting, and what waits for your OK. */
@@ -170,7 +169,7 @@ export function useNeedYouModel(vm: TodayVM | null): NeedYouModel | null {
   // The row a desk has open: Up next until the member opens another (undefined), or none where they closed it (null).
   const [opened, setOpened] = useRowState<string | null | undefined>(NEED_YOU_STATE, "opened", undefined);
   const phone = useTodayOnPhone();
-  const rows = vm ? withKept(TODAY_HELPERS.withReplies(vm.queue.rows), kept) : [...NO_ROWS];
+  const rows = vm ? withKept(TODAY_HELPERS.withReplies(vm.queue.rows), kept) : [];
   const groups = needYouGroupsOf(rows);
   const drawn: NeedYouDrawn = {
     next: groups.next,
@@ -224,7 +223,7 @@ export const draftWantsOf = (rows: readonly TodayQueueRowVM[]): DraftWant[] =>
  */
 export function useNeedYouLine(vm: TodayVM | null): string | null {
   const model = useNeedYouModel(vm);
-  const open = model ? [...model.groups.next, ...model.drawn.waiting].filter((r) => !model.kept[r.id]) : [...NO_ROWS];
+  const open = model ? [...model.groups.next, ...model.drawn.waiting].filter((r) => !model.kept[r.id]) : [];
   // A reply outside WhatsApp's window goes only as a template: Ask's words for it are not said as ready (the 10/10 read,
   // 2 Nov 2026: "Ask drafted a reply" over a card whose one press was Choose a template).
   const counts = useDraftCounts(

@@ -23,9 +23,9 @@ export const setupCardReady: Promise<void> = bodyCode().then(
  * read and the card's code are in, as the card draws nothing until then.
  */
 export function useSetupActs(): boolean {
-  const S = useSurface("setup");
+  const setup = useSurface("setup");
   const body = useCode(bodyCode, true).loaded;
-  return !!S && !!body && body.setupCardActs(S);
+  return !!setup && !!body && body.setupCardActs(setup);
 }
 
 /** The card, its first act the page's coral where `coral` (today/arrangement.ts). */

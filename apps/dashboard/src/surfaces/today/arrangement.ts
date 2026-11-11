@@ -50,18 +50,18 @@ interface ArrangementReads {
 }
 
 /** The arrangement, from what each part will draw. Pure: the page's tests hold the walk here. */
-export function arrangementOf(r: ArrangementReads): TodayArrangement {
-  const lead = r.read && !r.needYou;
-  const coral: CoralHolder = r.queueCoral
+export function arrangementOf(reads: ArrangementReads): TodayArrangement {
+  const lead = reads.read && !reads.needYou;
+  const coral: CoralHolder = reads.queueCoral
     ? "queue"
-    : r.todoCoral
+    : reads.todoCoral
       ? "todo"
-      : !r.waiting && r.setupActs
+      : !reads.waiting && reads.setupActs
         ? "setup"
-        : lead && r.found.acts && r.mayAct
+        : lead && reads.found.acts && reads.mayAct
           ? "found"
           : null;
-  return { waiting: r.waiting, lead, alone: lead && !r.found.draws, coral };
+  return { waiting: reads.waiting, lead, alone: lead && !reads.found.draws, coral };
 }
 
 /** Today's arrangement, read in the page's render from the same reads its parts draw from. */

@@ -35,35 +35,35 @@ import { TodaySetup } from "./setup-card";
  * What is left to set up and what was brought in, one card (nothing while neither draws), over Need you (`lead`) or under
  * it; its first act the coral where the arrangement gave it.
  */
-const settingUp = (lead: boolean, a: TodayArrangement) => (
+const settingUp = (lead: boolean, at: TodayArrangement) => (
   <div key="setting-up" className={`tq tps tz-setup${lead ? " tz-setup-lead" : ""}`} data-testid="today-setting-up">
-    <TodaySetup coral={a.coral === "setup"} />
+    <TodaySetup coral={at.coral === "setup"} />
     <TodayBroughtIn />
   </div>
 );
 
 /** Ask found where it leads the page, wide, its first act the coral where the arrangement gave it. */
-const foundLeading = (a: TodayArrangement) => (a.lead ? <AskFound wide coral={a.coral === "found"} /> : null);
+const foundLeading = (at: TodayArrangement) => (at.lead ? <AskFound wide coral={at.coral === "found"} /> : null);
 
 /** Ask found under the day, where it does not lead: never the coral. */
-const foundUnder = (a: TodayArrangement) => (a.lead ? null : <AskFound wide={false} coral={false} />);
+const foundUnder = (at: TodayArrangement) => (at.lead ? null : <AskFound wide={false} coral={false} />);
 
 /** Today on a phone: the same blocks in one column, in the canvas's order. */
-function PhoneToday({ a }: { a: TodayArrangement }) {
+function PhoneToday({ at }: { at: TodayArrangement }) {
   // On a day nothing was counted the four zeros are one line under the day, and no card of their own.
   const nothing = useNothingSoFar();
   return (
     <div className="dash-a-v2 dash-a-v2-glass dash-a-v2-phone tz tz-phone" data-testid="today-phone">
       <TodayAlertBand />
-      {a.waiting ? null : settingUp(true, a)}
+      {at.waiting ? null : settingUp(true, at)}
       <NeedYou />
       <ColdEmailNote />
-      {foundLeading(a)}
+      {foundLeading(at)}
       <DayZone under={nothing ? <PhoneNothingYet /> : null} />
-      {foundUnder(a)}
+      {foundUnder(at)}
       {nothing ? null : <PhoneSoFar />}
       <PhonePins />
-      {a.waiting ? settingUp(false, a) : null}
+      {at.waiting ? settingUp(false, at) : null}
       <TodayEnd />
     </div>
   );
@@ -73,26 +73,26 @@ export function TodayZones() {
   // Setting up never stands over a person waiting: under Need you while anyone does (keyed, so a turn moves and never
   // mounts them again), over it while nobody does. Ask found leads where Need you draws no pane, once Today has been read.
   // Nothing waits and nothing was found: the day alone, one column, rather than a work column left empty beside it.
-  const a = useTodayArrangement();
+  const at = useTodayArrangement();
   const phone = useTodayOnPhone();
-  if (phone) return <PhoneToday a={a} />;
-  const { waiting, alone } = a;
+  if (phone) return <PhoneToday at={at} />;
+  const { waiting, alone } = at;
   return (
     <div className="dash-a-v2 dash-a-v2-glass tz" data-testid="today-zones">
       <TodayAlertBand />
       <div className={`tz-bento${alone ? " tz-bento-one" : ""}`}>
         <div className="tz-col">
-          {waiting ? null : settingUp(true, a)}
+          {waiting ? null : settingUp(true, at)}
           <NeedYou />
           <ColdEmailNote />
-          {foundLeading(a)}
-          {waiting ? settingUp(false, a) : null}
+          {foundLeading(at)}
+          {waiting ? settingUp(false, at) : null}
           {alone ? <DayZone /> : null}
         </div>
         {alone ? null : (
           <div className="tz-col">
             <DayZone />
-            {foundUnder(a)}
+            {foundUnder(at)}
           </div>
         )}
       </div>
