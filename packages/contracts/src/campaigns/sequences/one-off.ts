@@ -2,7 +2,14 @@
  * A one-off's one count, in a module of its own: the Inbox reads the People tab's words (tab-words.ts), and
  * words/flow.ts would ride whole into its page with it (Build and bundle, #2245: +3.6 KB).
  */
-import type { SequenceRowDto } from "./dto";
+/**
+ * The parts of a sequence's row the count reads (dto.ts SequenceRowDto's `date` and `last`), written here so this module
+ * imports nothing: dto.ts stands in a circle of types, and a module that imports it joins it.
+ */
+interface OneOffRow {
+  date: { batch_id: string; state: string; people: number } | null;
+  last: { id: string; sent: number } | null;
+}
 
 /**
  * How many people a one-off is said to reach (Ruben, 10 Nov 2026: one that went said "Went to 3 people" on its Steps while
@@ -10,7 +17,7 @@ import type { SequenceRowDto } from "./dto";
  * once it went, the people it was sent to, as the list and History count them (its last batch's sent), since a person it
  * could not reach is not one it went to. The one count every line about a one-off says.
  */
-export function oneOffPeople(row: Pick<SequenceRowDto, "date" | "last">): number {
+export function oneOffPeople(row: OneOffRow): number {
   const date = row.date;
   if (!date) return 0;
   if (date.state === "sent" && row.last && row.last.id === date.batch_id) return row.last.sent;
