@@ -6,7 +6,7 @@
  * The rows are Setup's own (surfaces/setup/rows: `SetupCardRow`, `SetupRows`), imported; each row's Skip is this
  * card's (SkipMenu), so the first run's own page never loads the kit's Menu.
  */
-import { useLayoutEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 import { restEndsDay, type SetupPutOffWhy } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "@/surfaces/setup/first-run/model/first-run-helpers";
 import {
@@ -24,14 +24,12 @@ import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
 import { appNavigate, refusalFlash, useToast, type Flash } from "../shell";
-import { useWaitsOnToday } from "../../needs-you";
 import { useTodayOnPhone } from "../phone";
-import { holdsCoral, useQueueHoldsCoral } from "../queue-coral";
 
 /**
  * While a step is open: the one row that opens the first run. Its act is the page's coral while nobody waits on the
- * owner; while someone does, the queue's first act is (need-you/people-rows.tsx actKindOf) and this one is the quiet
- * kind, since the coral is for what is now (Today stood with Continue setting up and Answer both in it).
+ * owner; while someone does, the queue's first act is (today/arrangement.ts) and this one is the quiet kind, since the
+ * coral is for what is now (Today stood with Continue setting up and Answer both in it).
  */
 function startRow(start: NonNullable<SetupCardVM["start"]>, left: string, nav: (to: string) => void, quiet: boolean) {
   return (
@@ -217,6 +215,16 @@ function optionalRows(
  * no step, and folded away "Calls aren't answered yet" under a head that said nothing needs you): what folds is everything
  * after it, and where nothing is, there is no chevron to press.
  */
+/**
+ * Whether the card draws an act that may be the page's coral: a step still open, or a row of Setup's left. A folded card
+ * still draws its next step, so it counts; a card gone for the week, or with nothing left, draws none (today/arrangement.ts
+ * hands the coral on).
+ */
+export function setupCardActs(setup: SetupSurface): boolean {
+  const card = FIRST_RUN_HELPERS.todayCard(setup.vm, setupWhoOf(setup));
+  return !!card && (!!card.start || card.rows.length > 0);
+}
+
 const foldsAnything = (card: SetupCardVM): boolean =>
   (card.start
     ? card.kept.length + card.done.length
@@ -262,27 +270,17 @@ function foldChevron(short: boolean, toggle: () => void) {
 // word is contracts' (first-run-card.ts setupCardOf); the rows are Setup's own, drawn as the card's compact rows. A phone
 // draws the same rows and acts, each row one line (the phone pass, 3 Nov 2026): its short name and one pill, the act and
 // Skip's caret (mobile.css), with no sentence; the head its title on one line, and Hide for a week the card's last row.
-export const TodaySetupCard = ({ S }: { S: SetupSurface }) => {
+// `coral`: whether its first act is the page's coral, as Today's arrangement gave it (today/arrangement.ts): nobody waits
+// on the owner and nothing the queue drew holds it. Else the card's acts are quiet.
+export const TodaySetupCard = ({ S, coral }: { S: SetupSurface; coral: boolean }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
-  // Anyone waiting on the owner (surfaces/needs-you.ts), or any row the queue drew with its coral (a step due, a visit to
-  // mark: queue-coral.ts): the queue then holds the page's coral, and the card's acts are quiet.
-  const needs = useWaitsOnToday();
-  const queued = useQueueHoldsCoral();
-  const waiting = needs || queued;
+  const waiting = !coral;
   const [folded, toggle] = useFold();
   // On a phone the head is the card's title on one line with its chevron, and Hide for a week the open card's last row
   // (the phone pass, 3 Nov 2026: beside Hide the title broke onto two lines).
   const phone = useTodayOnPhone();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
-  // Its first act is the page's coral while nothing before it in the walk holds it and it draws one: told, so Ask found
-  // goes quiet beside it (queue-coral.ts). A folded card still draws its next step, so it holds it too; a card gone for the
-  // week hands it on.
-  const holds = !!card && !waiting && (!!card.start || card.rows.length > 0);
-  useLayoutEffect(() => {
-    holdsCoral("setup", holds);
-  }, [holds]);
-  useLayoutEffect(() => () => holdsCoral("setup", false), []);
   if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
   // The day a week put off now ends, on the business's clock: said in Skip's menu before the press, and after Hide.

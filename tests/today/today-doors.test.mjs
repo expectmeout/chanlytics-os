@@ -139,7 +139,7 @@ await setupCardReady;
 const { NeedYou } = await import("../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { AskFound } = await import("../../apps/dashboard/src/surfaces/today/zones/found.tsx");
 const { TodayZones } = await import("../../apps/dashboard/src/surfaces/today/zones/page.tsx");
-const { queueHoldsCoral, zoneDrawn } = await import("../../apps/dashboard/src/surfaces/today/queue-coral.ts");
+const { useTodayArrangement } = await import("../../apps/dashboard/src/surfaces/today/arrangement.ts");
 // The module instances the pages use: the seam's store, and the verbs the card's Skip and Hide press (`setupVerbs`).
 const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
@@ -221,11 +221,15 @@ const headSaid = (vm) => {
   again(() => HeadProbe());
   return textOf(standingSaid()?.sentence ?? null);
 };
-// What is left to set up, one card above the queue (TodaySetup): it reads Setup's surface, not the day's.
+// What is left to set up, one card above the queue (TodaySetup): it reads Setup's surface, not the day's. Drawn as the page
+// draws it, its coral the page's arrangement's (today/arrangement.ts).
+const SetupAsPage = () => TodaySetup({ coral: useTodayArrangement().coral === "setup" });
 const mountSetup = () => {
   fresh();
-  return again(() => TodaySetup());
+  return again(() => SetupAsPage());
 };
+/** Ask found as the page draws it, wide where it leads, its coral the arrangement's. */
+const FoundAsPage = ({ wide }) => AskFound({ wide, coral: wide && useTodayArrangement().coral === "found" });
 const mountQueue = (vm) => {
   setSurfaceValue("today", vm);
   fresh();
@@ -547,7 +551,7 @@ test("the card once it answers: Setup's own rows, WhatsApp first, folded to the 
     const fold = find(card, (n) => n.props?.["data-testid"] === "today-setup-fold");
     assert.equal(fold.props["aria-expanded"], true, "open until it is folded");
     fold.props.onClick();
-    const folded = again(() => TodaySetup());
+    const folded = again(() => SetupAsPage());
     assert.equal(
       findAll(folded, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length,
       1,
@@ -560,7 +564,7 @@ test("the card once it answers: Setup's own rows, WhatsApp first, folded to the 
     );
     assert.equal(find(folded, (n) => n.props?.["data-testid"] === "today-setup-fold").props["aria-expanded"], false);
     find(folded, (n) => n.props?.["data-testid"] === "today-setup-fold").props.onClick();
-    const open = again(() => TodaySetup());
+    const open = again(() => SetupAsPage());
     assert.equal(findAll(open, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length, rows.length, "open");
     assert.equal(put.length, before, "folding put nothing off");
     const hide = find(open, (n) => n.props?.["data-testid"] === "today-setup-hide");
@@ -598,12 +602,12 @@ test("a press anywhere on the card's head folds it, and one on its own buttons s
   feedSetup(answeringSetup());
   const open = () =>
     find(
-      again(() => TodaySetup()),
+      again(() => SetupAsPage()),
       (n) => n.props?.["data-testid"] === "today-setup-fold",
     ).props["aria-expanded"];
   const pressHead = (inButton) =>
     find(
-      again(() => TodaySetup()),
+      again(() => SetupAsPage()),
       (n) => String(n.props?.className ?? "").includes("setup-card-head"),
     ).props.onClick({ target: new globalThis.Element(inButton) });
   try {
@@ -741,6 +745,34 @@ test("REGRESSION: an email-only workspace is not told nothing can come in, nor t
   }
 });
 
+/** One idea of Ask's to approve: Ask found's one row. */
+const idea = () => ({
+  id: "p-1",
+  kind: "message",
+  needs: "operator",
+  title: "Write to Rosa",
+  summary: "Write to Rosa, as Ask would send it.",
+  payload: {},
+  undo: null,
+});
+/** Ask's morning, offered, with these cards. */
+const morningWith = (...cards) => ({
+  fetchedAt: Date.now(),
+  dto: {
+    day: "2026-09-06",
+    state: "quiet",
+    offered: true,
+    thread_id: null,
+    message_id: "m-1",
+    headline: "",
+    detail: "",
+    cards,
+    findings: [],
+    rested: {},
+    lately: [],
+  },
+});
+
 /** A workspace answering, with WhatsApp and more still to set up: the card's rows. */
 const answeringSetup = () =>
   setupSurface({
@@ -763,8 +795,18 @@ const answeringSetup = () =>
 test("while someone waits on you, what is left to set up stands under the queue, open as the owner left it, its acts quiet (the live walk's TODAY-1, 27 Oct 2026; the refined canvas, 31 Oct)", () => {
   const rowsOf = (t) => findAll(t, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? ""));
   const byId = (t, id) => find(t, (n) => n.props?.["data-testid"] === id);
+  const held = { ...conversation("cv5", "Rosa Díaz", [msg({ conversation_id: "cv5" })]), state: "needs_human" };
+  const hold = {
+    id: "e5",
+    conversation_id: "cv5",
+    reason: "human_token",
+    details: null,
+    state: "open",
+    created_at: "2026-09-06T12:00:30Z",
+  };
+  const rosaWaits = () => toTodayVM(metrics(), [held], [hold], [], NOW);
   feedSetup(answeringSetup());
-  queueHoldsCoral(true);
+  setSurfaceValue("today", rosaWaits());
   try {
     const card = mountSetup();
     assert.ok(byId(card, "today-setup"), "the card stands");
@@ -778,7 +820,7 @@ test("while someone waits on you, what is left to set up stands under the queue,
       "the coral is the queue's while someone waits: every act here is quiet",
     );
   } finally {
-    queueHoldsCoral(false);
+    setSurfaceValue("today", undefined);
     feedSetup(undefined);
   }
   // The page: the work first while anyone waits on the owner, the chores first while nobody does, by the one count
@@ -791,31 +833,20 @@ test("while someone waits on you, what is left to set up stands under the queue,
     return col.props.children.filter(Boolean).map((c) => c.type.name ?? c.props["data-testid"]);
   };
   setSurfaceValue("today", todayWith([]));
-  zoneDrawn("found", true);
+  setSurfaceValue("ask_morning", morningWith(idea()));
   assert.deepEqual(
     work(),
     ["today-setting-up", "NeedYou", "ColdEmailNote", "AskFound"],
     "nobody waits on a quiet day: the chores lead, and Ask found stands wide in the work's column",
   );
-  zoneDrawn("found", false);
+  setSurfaceValue("ask_morning", undefined);
   assert.deepEqual(
     work(),
     ["today-setting-up", "NeedYou", "ColdEmailNote", "AskFound", "DayZone"],
     "and where Ask found has nothing either, the day stands in the one column rather than beside an empty one",
   );
-  const held = { ...conversation("cv5", "Rosa Díaz", [msg({ conversation_id: "cv5" })]), state: "needs_human" };
-  const hold = {
-    id: "e5",
-    conversation_id: "cv5",
-    reason: "human_token",
-    details: null,
-    state: "open",
-    created_at: "2026-09-06T12:00:30Z",
-  };
-  // Need you draws its pane while anyone waits, and says so as it draws (zones/need-you.tsx, queue-coral.ts): drawn here
-  // as the page's children only, so the test says it for it.
-  setSurfaceValue("today", toTodayVM(metrics(), [held], [hold], [], NOW));
-  zoneDrawn("need-you", true);
+  // Need you draws its pane while anyone waits: the page's arrangement knows it before anything draws (today/arrangement.ts).
+  setSurfaceValue("today", rosaWaits());
   assert.deepEqual(work(), ["NeedYou", "ColdEmailNote", "today-setting-up"], "Rosa waits: the work leads");
   // A run waiting for a word is someone waiting too: a one-off broadcast waits until it is decided.
   const oneOff = {
@@ -831,8 +862,11 @@ test("while someone waits on you, what is left to set up stands under the queue,
     created_at: "2026-09-06T10:00:00Z",
     counts: { sent: 0, replied: 0 },
   };
+  // The campaigns' read, on the seam and on the window as the app holds it (campaigns/broadcasts/surface.ts mirrors it):
+  // the count reads the one, the list's rows the other.
   setSurfaceValue("today", toTodayVM(metrics(), [], [], [], NOW));
   setSurfaceValue("broadcasts", { rows: [oneOff] });
+  globalThis.window.__BROADCASTS = { rows: [oneOff] };
   try {
     assert.deepEqual(
       work(),
@@ -840,45 +874,21 @@ test("while someone waits on you, what is left to set up stands under the queue,
       "a run waits for your OK: the work leads",
     );
   } finally {
-    zoneDrawn("need-you", false);
     setSurfaceValue("broadcasts", undefined);
+    globalThis.window.__BROADCASTS = undefined;
     setSurfaceValue("today", undefined);
   }
 });
 
 test("one coral across setting up and Ask found (the Moments board: else setting up, else Ask found's first act): the card's first act while it draws one, folded or open", () => {
-  const idea = {
-    id: "p-1",
-    kind: "message",
-    needs: "operator",
-    title: "Write to Rosa",
-    summary: "Write to Rosa, as Ask would send it.",
-    payload: {},
-    undo: null,
-  };
-  setSurfaceValue("ask_morning", {
-    fetchedAt: Date.now(),
-    dto: {
-      day: "2026-09-06",
-      state: "quiet",
-      offered: true,
-      thread_id: null,
-      message_id: "m-1",
-      headline: "",
-      detail: "",
-      cards: [idea],
-      findings: [],
-      rested: {},
-      lately: [],
-    },
-  });
+  setSurfaceValue("ask_morning", morningWith(idea()));
   setSurfaceValue("today", todayWith([]));
   feedSetup(answeringSetup());
   const isCoral = (v) => /(^| )primary( |$)/.test(String(v.props.className ?? ""));
   const foundAct = () => {
     fresh();
     return find(
-      again(() => AskFound({ wide: true })),
+      again(() => FoundAsPage({ wide: true })),
       (n) => n.props?.["data-testid"] === "today-found-act",
     );
   };
@@ -890,7 +900,7 @@ test("one coral across setting up and Ask found (the Moments board: else setting
     // Folded, the card still says what is next (8 Nov 2026), so its act keeps the coral.
     const open = mountSetup();
     press(find(open, (n) => n.props?.["data-testid"] === "today-setup-fold"));
-    again(() => TodaySetup());
+    again(() => SetupAsPage());
     assert.equal(foundAct().props.variant, "quiet", "the card folded: its next step still holds the coral");
     // Unfolded again for the tests after this one: the fold is kept on the device.
     press(find(mountSetup(), (n) => n.props?.["data-testid"] === "today-setup-fold"));
