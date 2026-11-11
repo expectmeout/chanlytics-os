@@ -4,10 +4,14 @@
  * with. What the plan is and what it must pass are pieces.ts's and piece-timeline.ts's; what it says to a person is piece-words.ts's.
  */
 import { isOneOf, nonBlankOrNull, recordOrNull } from "../shared/unknown";
-import type { PieceShape } from "./pieces";
+import type { PiecePlan, PieceShape } from "./pieces";
 
-/** A shape's composition in the template: its name as the renderer takes one, which is with no underscore. */
-export const pieceCompositionOf = (shape: PieceShape): string => shape.split("_").join("-");
+/**
+ * A shape's composition in the template: its name as the renderer takes one, which is with no underscore. A plan as it is read
+ * is drawn by `blocks`, whatever shape its payload was kept in; `hook-cut` stays in the template for a deploy that still hands
+ * it a plan the old way.
+ */
+export const pieceCompositionOf = (shape: PieceShape | PiecePlan["shape"]): string => shape.split("_").join("-");
 
 /**
  * The template's edition, and the hash of everything its machine image is made of (tooling/video/template-hash.mjs). A video is
@@ -15,7 +19,7 @@ export const pieceCompositionOf = (shape: PieceShape): string => shape.split("_"
  * a change to the template is a new edition here, with its image built before the change is merged (tooling/video/README.md).
  * tests/content/the-template-has-its-image.test.mjs fails the change that forgets.
  */
-export const PIECE_TEMPLATE = { edition: 1, hash: "c6585feea787" } as const;
+export const PIECE_TEMPLATE = { edition: 2, hash: "4e3e426db96a" } as const;
 
 /** Where a video asked for stands (00613 `pieces`): being made, a file under Made by Ask, or not made. */
 export const PIECE_STATUSES = ["making", "made", "failed"] as const;

@@ -36,6 +36,8 @@ export interface PieceWords {
     gone: string;
   };
   wont: Record<PieceWont, string>;
+  /** What a before-and-after pair's two pictures are called. */
+  pair: [string, string];
   /** Why a video asked for was not made: the fact alone, which its card says over its Try again. */
   failed: Record<PieceFail, string>;
   /**
@@ -92,19 +94,25 @@ export const PIECE_WORDS: PieceWords = {
     gone: "This video isn't in Files any more.",
   },
   wont: {
-    cuts: "A video takes two to five moments from your clips.",
+    blocks: "A video takes two to six moments.",
     file: "One of the clips isn't in Files any more.",
-    not_video: "A video is made from video clips. That file is a picture.",
+    not_video: "That moment needs a video clip. That file is a picture.",
+    not_photo: "That moment needs a photo. That file is a video.",
     made: "That's a video made here already. Use the clips it came from.",
     unkept: "Keep that clip in Files first.",
     not_ready: "That clip is still being made ready. A video can use it once it is.",
     stretch: "One of the moments has no length. Choose where it starts and ends.",
     past_end: "One of the moments runs past the end of its clip.",
-    cut_length: "Each moment runs between a second and a half and four seconds.",
+    block_length: "One of the moments is too short or too long to watch.",
     length: "The moments together run between 8 and 15 seconds.",
     people: "Someone in a clip can be recognized. Say they agreed to be shown first.",
     lines: "The opening words are one or two short lines.",
+    opens_on_card: "The opening words sit over a picture. This video opens on a card.",
+    card: "A words card takes one to three short lines.",
+    quote: "That quote is too long to read on a phone.",
+    label: "A caption is one short line.",
   },
+  pair: ["Before", "After"],
   failed: FAILED,
   bell: {
     ready: "Your video is ready",
@@ -151,19 +159,25 @@ const PIECE_WORDS_ES: PieceWords = {
     gone: "Este video ya no está en Archivos.",
   },
   wont: {
-    cuts: "Un video lleva de dos a cinco momentos de tus clips.",
+    blocks: "Un video lleva de dos a seis momentos.",
     file: "Uno de los clips ya no está en Archivos.",
-    not_video: "Un video se hace con clips de video. Ese archivo es una imagen.",
+    not_video: "Ese momento necesita un clip de video. Ese archivo es una imagen.",
+    not_photo: "Ese momento necesita una foto. Ese archivo es un video.",
     made: "Ese video ya se hizo aquí. Usa los clips de los que salió.",
     unkept: "Guarda primero ese clip en Archivos.",
     not_ready: "Ese clip todavía se está preparando. Un video puede usarlo cuando esté listo.",
     stretch: "Uno de los momentos no tiene duración. Elige dónde empieza y dónde termina.",
     past_end: "Uno de los momentos pasa del final de su clip.",
-    cut_length: "Cada momento dura entre un segundo y medio y cuatro segundos.",
+    block_length: "Uno de los momentos es demasiado corto o demasiado largo.",
     length: "Los momentos juntos duran entre 8 y 15 segundos.",
     people: "En un clip se reconoce a alguien. Di primero que aceptó aparecer.",
     lines: "El texto de apertura es una o dos líneas cortas.",
+    opens_on_card: "El texto de apertura va sobre una imagen. Este video empieza con una tarjeta.",
+    card: "Una tarjeta de texto lleva de una a tres líneas cortas.",
+    quote: "Esa cita es demasiado larga para leerla en un teléfono.",
+    label: "Un rótulo es una línea corta.",
   },
+  pair: ["Antes", "Después"],
   failed: FAILED_ES,
   bell: {
     ready: "Tu video está listo",

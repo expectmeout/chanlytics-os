@@ -250,12 +250,12 @@ export { CONTENT_ROUTE, contentPreviewOf, isContentParam } from "./content/addre
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./content/lines";
 export { CONTENT_FAILED_DAYS, CONTENT_MAKING_MAX, CONTENT_MAX, CONTENT_PAGE, CONTENT_WORDS, contentHeadOf, contentMakingSaid, contentMarkOf, contentMarkSaid, contentMoving } from "./content/page";
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./content/piece-card";
-export { PIECE_FRAME, pieceLineWidthOf, pieceWordsBoxOf } from "./content/piece-frame";
+export { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceLineWidthOf, pieceWordsBoxOf } from "./content/piece-frame";
 export { isPieceStep, PIECE_FAILS, PIECE_ROUNDS_MAX, PIECE_STAGES, PIECE_STATUSES, PIECE_TEMPLATE, pieceCompositionOf, pieceLookOf, pieceMachineOf, pieceRoundsOf, PIECES_MAKING_MAX } from "./content/piece-making";
 export { pieceSpec } from "./content/piece-spec";
-export { compilePiece, pieceWordsOnCuts } from "./content/piece-timeline";
+export { compilePiece, pieceWordsOnBlocks } from "./content/piece-timeline";
 export { PIECE_WORDS, pieceWordsIn } from "./content/piece-words";
-export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, piecePlanOf } from "./content/pieces";
+export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, pieceFileIdsOf, piecePlanOf } from "./content/pieces";
 export { INSTAGRAM_POST_KINDS, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_KINDS, POST_ON_ITS_WAY, POST_PLACES, POST_PULLABLE, POST_STATUSES, POST_VIAS, postCaptionProblem } from "./content/posts";
 export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONNECTION_LABELS, MISSED_CALL_LINE, missedCall, neverConnected, reachedVoicemail, UNCONNECTED_DIAL_LINE } from "./conversations/call-dto";
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
