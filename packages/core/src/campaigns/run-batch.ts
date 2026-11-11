@@ -10,6 +10,7 @@ import {
   slotShort,
   triggerOf,
   visitFactsFor,
+  waitsForKept,
   type Audience,
   type PersonRowVM,
   type RunPlan,
@@ -193,5 +194,26 @@ export function batchAudience(
     reach,
     ...(kept.list ? { list: kept.list } : {}),
     ...(visit ? { late: visit } : {}),
+  };
+}
+
+/**
+ * A visit's words with what the send asks its row again by (decision 0002, contracts appointmentHolds): which appointment
+ * they are about, when it starts, and when the run read it from the calendar, so a message never goes for one that moved
+ * or was cancelled since, and the record's older word never holds one the run saw newer. A thank-you keeps that it is
+ * owed only while the row still says kept (decision 0122, contracts waitsForKept).
+ */
+export function withVisitKey(
+  trigger: string,
+  words: Record<string, string>,
+  visit: { key: string; start: string },
+  readAt: Date,
+): Record<string, string> {
+  return {
+    ...words,
+    appointment: visit.key,
+    visit_start: visit.start,
+    appointment_read_at: readAt.toISOString(),
+    ...(waitsForKept(trigger) ? { visit_was: "kept" } : {}),
   };
 }

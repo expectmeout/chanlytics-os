@@ -267,6 +267,11 @@ export const NEED_YOU_WORDS = {
       asks
         ? `“${name}” has a message for them ${when}, and asks you before it goes.`
         : `“${name}” offers them another time ${when}.`,
+    /** A Kept that a sequence answers (decision 0122): the thank-you waits for this word, and the row says when it goes. */
+    thanks: (name: string, when: string, asks: boolean) =>
+      asks
+        ? `“${name}” has a thank-you for them ${when}, and asks you before it goes.`
+        : `“${name}” thanks them ${when}.`,
     noWay: (reason: string) => `Nothing to send a rebook by. ${reason}`,
     change: "Change",
   },

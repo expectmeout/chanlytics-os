@@ -47,6 +47,7 @@ export async function thankLateKept(
     startsAt,
     tz: zone.data?.timezone || DEFAULT_TIMEZONE,
     nowMs,
+    runHour: step.run_hour,
     lastRunFor: step.last_run_for,
   });
   if (!when) return { thanked: false, why: "not_late" };

@@ -40,6 +40,7 @@ async function logged(fn) {
 function world({
   data = { change: "added", source: "booking_email", starts_at: "2999-10-12T15:00:00Z" },
   reminder = { reminded: true, at: GOES, waits: false },
+  thanks = { thanked: true, at: GOES, waits: false },
 } = {}) {
   const tables = {
     events: [
@@ -74,6 +75,7 @@ function world({
     ],
   };
   const asks = [];
+  const thanked = [];
   const ctx = {
     db: fakeDb(tables),
     wire: { whatsapp: null, sms: null },
@@ -84,6 +86,12 @@ function world({
         if (reminder instanceof Error) throw reminder;
         return reminder;
       },
+      // A visit marked kept (decision 0122): the same subscriber's other door.
+      thank: async (tenantId, appointmentId) => {
+        thanked.push([tenantId, appointmentId]);
+        if (thanks instanceof Error) throw thanks;
+        return thanks;
+      },
     },
   };
   const job = {
@@ -92,7 +100,7 @@ function world({
     kind: "event_deliver",
     payload: { event_id: E, subscriber: SUBSCRIBER, kind: KIND, lane: "2" },
   };
-  return { ctx, job, asks, delivery: () => tables.event_deliveries[0] };
+  return { ctx, job, asks, thanked, delivery: () => tables.event_deliveries[0] };
 }
 
 /** The subscriber's own lines, as [name, fields]. */
@@ -161,4 +169,48 @@ test("a runtime that holds no reminder fails loudly, never quietly", async () =>
   const w = world();
   delete w.ctx.reminders;
   await assert.rejects(() => dispatchJob(w.ctx, w.job), /this runtime holds no reminder of a late booking/);
+});
+
+/** The lines a Kept writes, as [name, fields]. */
+const thanksLines = (lines) =>
+  lines.filter((l) => l.event?.startsWith("late_visit_")).map((l) => [l.event, fieldsOf(l)]);
+
+test("a visit marked kept asks the thank-you's door, never the reminder's, and says what came of it (decision 0122)", async () => {
+  const w = world({ data: { change: "kept", by: "member" } });
+  const { answer, lines } = await logged(() => dispatchJob(w.ctx, w.job));
+  assert.equal(answer, "done");
+  assert.deepEqual(w.thanked, [[T, APPT]], "the appointment of the event, in its workspace");
+  assert.deepEqual(w.asks, [], "a visit behind is owed no reminder");
+  assert.deepEqual(thanksLines(lines), [
+    ["late_visit_thanked", { tenant_id: T, appointment: APPT, event_id: E, at: GOES, waits: false }],
+  ]);
+  assert.deepEqual(reminderLines(lines), []);
+  assert.equal(w.delivery().state, "done");
+});
+
+test("a Kept that is owed no thank-you of its own says why in one line; a workspace with no thank-you says nothing", async () => {
+  const kept = { change: "kept", by: "member" };
+  for (const [thanks, fields] of [
+    [{ thanked: false, why: "not_late" }, { why: "not_late" }],
+    [{ thanked: false, why: "already" }, { why: "already" }],
+    [
+      { thanked: false, why: "off", detail: "no_calendar" },
+      { why: "off", detail: "no_calendar" },
+    ],
+  ]) {
+    const w = world({ data: kept, thanks });
+    const { lines } = await logged(() => dispatchJob(w.ctx, w.job));
+    assert.deepEqual(thanksLines(lines), [
+      ["late_visit_not_thanked", { tenant_id: T, appointment: APPT, event_id: E, ...fields }],
+    ]);
+  }
+  // Every Kept of every workspace comes through here: one with no sequence on the day after is not a line a day.
+  const none = world({ data: kept, thanks: { thanked: false, why: "no_step" } });
+  assert.deepEqual(thanksLines((await logged(() => dispatchJob(none.ctx, none.job))).lines), []);
+});
+
+test("a thank-you's door that could not be asked fails the delivery, so it is tried again", async () => {
+  const w = world({ data: { change: "kept", by: "member" }, thanks: new Error("the workspace could not be read") });
+  await logged(() => assert.rejects(dispatchJob(w.ctx, w.job), /could not be read/));
+  assert.notEqual(w.delivery().state, "done");
 });

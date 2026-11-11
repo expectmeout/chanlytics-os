@@ -121,7 +121,15 @@ export function reachLines(
   const noAddress = reach.no_address ?? 0;
   const addressStopped = reach.address_stopped ?? 0;
   const noChannel = reach.no_channel ?? 0;
+  const unmarked = reach.unmarked ?? 0;
   const reasons: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[] = [
+    // A thank-you waits for the word that they came (decision 0122): the ones nobody has marked, and where it is said.
+    {
+      n: unmarked,
+      words: `${one(unmarked, "is", "are")} not marked kept yet`,
+      tone: "warn",
+      door: { words: "Say who came", to: SAY_WHO_CAME_ROUTE },
+    },
     {
       n: reach.noYes,
       words: `never said yes to ${offers ? "offers" : "hearing from you"}`,
@@ -204,6 +212,9 @@ export function reachLines(
     lines,
   };
 }
+
+/** Where a member says whether yesterday's visits were kept: Today, whose To do asks "Did they come?" of each. */
+const SAY_WHO_CAME_ROUTE = "today";
 
 /** What the held line says of the people the month's emails or texts have no room for ("2 held for this month's allowance"). */
 const ALLOWANCE_HELD_WORDS = "held for this month's allowance";

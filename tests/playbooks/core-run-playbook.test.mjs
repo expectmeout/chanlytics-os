@@ -893,7 +893,8 @@ test("two visits tomorrow, the first found by name alone and not surely theirs: 
 });
 
 test("a person seen yesterday and again this morning is thanked for YESTERDAY's visit: the latest visit alone is today's", async () => {
-  const yesterday = visit("2026-09-05T15:00:00Z", "Balayage"); // yesterday, 11:00 AM in New York
+  // Yesterday, 11:00 AM in New York, and a member said they came: the thank-you waits for that word (decision 0122).
+  const yesterday = { ...visit("2026-09-05T15:00:00Z", "Balayage"), said: "kept" };
   const thisMorning = visit("2026-09-06T12:00:00Z", "Trim"); // today, 8:00 AM, over by now
   const read = {
     timezone: TZ,
@@ -1137,7 +1138,8 @@ const reminder = (over = {}) =>
     ...over,
   });
 const NEXT_VISIT = visit("2026-09-07T18:00:00Z", "Balayage"); // tomorrow, 2:00 PM in New York
-const LAST_VISIT = visit("2026-09-05T18:00:00Z", "Balayage"); // yesterday, 2:00 PM in New York
+// Yesterday, 2:00 PM in New York, marked kept: what the check after a visit waits for (decision 0122).
+const LAST_VISIT = { ...visit("2026-09-05T18:00:00Z", "Balayage"), said: "kept" };
 /** People with a visit tomorrow, as people_list reads them: what they can be reached by, said yes to, last wrote on. */
 function visitors(specs, when = { next: NEXT_VISIT, last: null }) {
   const visits = new Map(specs.map(([id]) => [id, { timezone: TZ, source: "calendar", state: "ok", ...when }]));

@@ -50,7 +50,7 @@ export function lateReminderAt(booking: LateBooking): { at: number; day: string 
   return booking.nowMs < morning && booking.startsAt - morning >= LATE_REMINDER_NOTICE_MS ? { at: morning, day } : null;
 }
 
-/** A visit marked kept as the rule reads it: its start, the moment of the word, and the thank-you step's last look. */
+/** A visit marked kept as the rule reads it: its start, the moment of the word, and the thank-you step's own clock. */
 interface KeptVisit {
   /** The visit's start, epoch ms. */
   startsAt: number;
@@ -58,26 +58,37 @@ interface KeptVisit {
   tz: string;
   /** When a member said it was kept. */
   nowMs: number;
-  /** The last day the thank-you's step ran (sequence_steps.last_run_for). */
+  /** The thank-you step's hour, and the last day it ran (sequence_steps.run_hour, last_run_for). */
+  runHour: number;
   lastRunFor: string | null;
 }
 
 /**
- * When a visit marked kept after the day's look is thanked (epoch ms) and the day of the visit, by the business's
- * clock (decision 0122); null where the look names it, or no thank-you is owed. The thank-you's words say "yesterday", so
- * it is owed on the day after the visit and no other. Marked on the visit's own day, tomorrow's look names it; marked
- * the day after before that day's look, the look names it, now that the record says kept; marked after the look, it goes
- * now, while the day's sending hours last; marked later still, its words would be a day old, and nothing goes.
+ * When a visit marked kept is thanked (epoch ms), the day of the visit, and whether the day's look can no longer send it
+ * (`late`), by the business's clock (decision 0122); null where no thank-you is owed. Its words say "yesterday", so it is
+ * owed on the day after the visit and no other. Marked on the visit's own day, tomorrow's look names it; marked the day
+ * after before that day's look, the look names it, now that the record says kept; marked after the look, it goes now
+ * on its own, while the day's sending hours last; marked later still, its words would be a day old, and nothing goes.
+ * THE reading: the edge's late thank-you asks it (lateThanksAt), and the door that takes the word says it (Today's row).
  */
-export function lateThanksAt(kept: KeptVisit): { at: number; day: string } | null {
+export function keptThanksAt(kept: KeptVisit): { at: number; day: string; late: boolean } | null {
   const now = new Date(kept.nowMs);
   const today = localDate(kept.tz, now);
   const day = localDate(kept.tz, new Date(kept.startsAt));
-  if (shiftKey(day, 1) !== today) return null;
-  const hour = localHour(kept.tz, now);
-  if (hour > PLAYBOOK_HOURS.max) return null;
+  const next = shiftKey(day, 1);
+  const look = (on: string) =>
+    wallClockAt(kept.tz, on, Math.min(Math.max(kept.runHour, PLAYBOOK_HOURS.min), PLAYBOOK_HOURS.max), 0);
+  if (today === day) return { at: look(next), day, late: false };
+  if (today !== next || localHour(kept.tz, now) > PLAYBOOK_HOURS.max) return null;
   // A look still to come today names the visit itself.
-  return kept.lastRunFor === today ? { at: kept.nowMs, day } : null;
+  if (kept.lastRunFor !== today) return { at: Math.max(look(today), kept.nowMs), day, late: false };
+  return { at: kept.nowMs, day, late: true };
+}
+
+/** When a visit marked kept after the day's look is thanked on its own, and its day; null where the look sends it, or nothing is owed. */
+export function lateThanksAt(kept: KeptVisit): { at: number; day: string } | null {
+  const owed = keptThanksAt(kept);
+  return owed?.late ? { at: owed.at, day: owed.day } : null;
 }
 
 /**

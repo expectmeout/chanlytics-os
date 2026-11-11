@@ -13,7 +13,7 @@ import {
   VISIT_ASK_WORDS,
   VISIT_WORDS,
   appointmentWords,
-  type MissedFollowUp,
+  type VisitFollowUp,
   type VisitLineVM,
   type VisitMark,
   type VisitStateVM,
@@ -27,10 +27,10 @@ import { StatePill } from "./kit/pill/state-pill";
 import { gate } from "./shell-doors";
 
 /**
- * What the door answered: it wrote (and, for a Missed a sequence answers, which one writes to them and when: decision
- * 0119), or it refused in a sentence for the person who asked.
+ * What the door answered: it wrote (and, for a Missed or a Kept a sequence answers, which one writes to them and when:
+ * decisions 0119 and 0122), or it refused in a sentence for the person who asked.
  */
-type VisitSaid = { ok: true; follows: MissedFollowUp | null } | { ok: false; message: string };
+type VisitSaid = { ok: true; follows: VisitFollowUp | null } | { ok: false; message: string };
 
 /** Say what became of a visit, on the record's row for it: the one door every page presses (POST calendar/visits/[id]). */
 export async function sayVisit(id: string, status: VisitWord): Promise<VisitSaid> {

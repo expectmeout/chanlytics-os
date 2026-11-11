@@ -1134,9 +1134,32 @@ test("POST calendar/visits/:id: a Missed says what it sets going (decision 0119)
     null,
     "marked days later, a member is tidying the record",
   );
-  // Kept says nothing of it.
+  // Kept says nothing of a missed visit's sequence.
   const kept = await visitRoute.POST.run(post({ status: "kept" }), world({ status: "kept" }));
   assert.equal(kept.follows, null);
+
+  // A Kept is answered where a thank-you waits for it (decision 0122): the sequence on the day after, and when it goes.
+  const thanks = { trigger: "visited", last_run_for: "2026-09-08" };
+  const keptSays = async (over) =>
+    (await visitRoute.POST.run(post({ status: "kept" }), world({ status: "kept", step: thanks, ...over }))).follows;
+  const after = { name: "After the appointment" };
+  // Said on the visit's own day: tomorrow's look, at the step's hour.
+  assert.deepEqual(await keptSays({ sequence: after }), {
+    name: "After the appointment",
+    when: "tomorrow 10:00 AM",
+    asks: false,
+  });
+  // Yesterday's visit, said after today's look went: now, on its own.
+  const yesterday = visit({ status: "kept", starts_at: new Date(at - 24 * 3_600_000).toISOString() });
+  assert.equal((await keptSays({ sequence: after, appointment: yesterday })).when, "today 2:00 PM");
+  // Before today's look: the look sends it, at its hour or now where that has passed.
+  const early = { ...thanks, last_run_for: "2026-09-07" };
+  assert.equal((await keptSays({ sequence: after, appointment: yesterday, step: early })).when, "today 2:00 PM");
+  // Words that are new, or a sequence that asks: it waits for an OK.
+  assert.equal((await keptSays({ sequence: { ...after, mode: "ask" } })).asks, true);
+  // Two days on, its words would be a day old: nothing follows.
+  const old = visit({ status: "kept", starts_at: new Date(at - 2 * 24 * 3_600_000).toISOString() });
+  assert.equal(await keptSays({ sequence: after, appointment: old }), null);
 
   // Marked at night, the message is the morning's: the run moves a send outside the sending hours to nine.
   t.mock.timers.setTime(Date.parse("2026-09-09T02:30:00.000Z")); // Tuesday 10:30 PM in New York

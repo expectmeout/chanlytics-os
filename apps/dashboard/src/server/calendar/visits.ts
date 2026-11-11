@@ -13,9 +13,10 @@ import {
   VISIT_REFUSALS,
   batchModeOf,
   clockNearWhen,
+  keptThanksAt,
   missedFollowUpAt,
   nextOpenMoment,
-  type MissedFollowUp,
+  type VisitFollowUp,
   type TenantId,
   type VisitMark,
   type VisitWord,
@@ -46,8 +47,8 @@ interface VisitMarked {
   from: string;
   decision_id: string | null;
   unchanged: boolean;
-  /** Marked missed where a sequence on that moment owes the person its message: which, and when (missedFollowUpOf). */
-  follows: MissedFollowUp | null;
+  /** Marked missed or kept where a sequence owes the person its message for it: which, and when (visitFollowUpOf). */
+  follows: VisitFollowUp | null;
 }
 
 /**
@@ -57,21 +58,31 @@ interface VisitMarked {
  * Null where no sequence runs on a missed visit, the visit is nobody's on record, or it began too long ago to be owed
  * one. It promises nothing: the run still leaves someone who booked again, who cannot be reached, or whose mark was
  * taken back. A read that fails is logged and answers null: the word was said, and the row falls back to its own offer.
+ *
+ * A visit marked kept is answered the same way (decision 0122): the thank-you the day after waits for this word, and
+ * goes by the day's look or, said after it, on its own (contracts keptThanksAt, the edge's own rule).
  */
-async function missedFollowUpOf(
+async function visitFollowUpOf(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
-  appointmentId: string,
+  marked: { appointmentId: string; status: "missed" | "kept" },
   now: Date,
-): Promise<MissedFollowUp | null> {
-  const [step] = await listOccasionSteps(ctx.supabase, tenantId, ["visit_missed"]);
+): Promise<VisitFollowUp | null> {
+  const [step] = await listOccasionSteps(ctx.supabase, tenantId, [
+    marked.status === "kept" ? "visited" : "visit_missed",
+  ]);
   if (!step) return null;
-  const visit = await findOccasionAppointment(ctx.supabase, tenantId, appointmentId);
+  const visit = await findOccasionAppointment(ctx.supabase, tenantId, marked.appointmentId);
   if (!visit?.contactId) return null;
-  const due = missedFollowUpAt({ markedAt: now.getTime(), startsAt: Date.parse(visit.startsAt) });
-  if (due === null) return null;
   const zone = await findWorkspaceZoneStatus(ctx.supabase, tenantId);
   const tz = zone.data?.timezone || DEFAULT_TIMEZONE;
+  const startsAt = Date.parse(visit.startsAt);
+  const due =
+    marked.status === "kept"
+      ? (keptThanksAt({ startsAt, tz, nowMs: now.getTime(), runHour: step.runHour, lastRunFor: step.lastRunFor })?.at ??
+        null)
+      : missedFollowUpAt({ markedAt: now.getTime(), startsAt });
+  if (due === null) return null;
   return {
     name: step.name,
     when: clockNearWhen(nextOpenMoment(tz, new Date(due)).at.getTime(), tz, now.getTime()),
@@ -102,10 +113,11 @@ export async function markVisitOf(
   }
   if (!item.unchanged && typeof item.decision_id !== "string")
     throw new Error("mark_visit: the door answered without its decision");
+  const stands = item.appointment.status;
   const follows =
-    item.appointment.status === "missed"
-      ? await missedFollowUpOf(ctx, appointment.tenant_id, appointmentId, new Date()).catch(
-          logAndGoOn("missedFollowUpOf", null),
+    stands === "missed" || stands === "kept"
+      ? await visitFollowUpOf(ctx, appointment.tenant_id, { appointmentId, status: stands }, new Date()).catch(
+          logAndGoOn("visitFollowUpOf", null),
         )
       : null;
   return {

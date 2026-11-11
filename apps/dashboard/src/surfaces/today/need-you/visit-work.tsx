@@ -12,7 +12,7 @@ import {
   shortName,
   writeWireName,
   type AppointmentWord,
-  type MissedFollowUp,
+  type VisitFollowUp,
   type PersonReachDto,
   type VisitWord,
 } from "@chanlytics/contracts";
@@ -182,13 +182,22 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
   );
 }
 
+/** What the sequence that answers a word does for it, as the row says it: another time offered, or a thank-you. */
+const saidOf = (mark: VisitWord, follows: VisitFollowUp): string | undefined =>
+  mark === "missed"
+    ? W.visit.follows(follows.name, follows.when, follows.asks)
+    : mark === "kept"
+      ? W.visit.thanks(follows.name, follows.when, follows.asks)
+      : undefined;
+
 /** Yesterday's visit to mark: Kept, or Missed and the rebook Ask writes, sent from the row. */
 export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
   const { row, main, may, flash, keep, unkeep } = p;
   // Kept by the row, not by this part: the walk's sheet and the page's row say the same (row-state.ts).
   const [mark, setMark] = useRowState<VisitWord | "rebook" | null>(row.id, "mark", null);
   // A Missed that a sequence answers (decision 0119): the row says who writes to them, and offers no rebook of its own.
-  const [follows, setFollows] = useRowState<MissedFollowUp | null>(row.id, "follows", null);
+  // A Kept that one answers (0122): the thank-you waits for this word, and the row says when it goes.
+  const [follows, setFollows] = useRowState<VisitFollowUp | null>(row.id, "follows", null);
   const [busy, setBusy] = useState(false);
   const say = async (status: VisitWord) => {
     if (!row.visit) return;
@@ -210,7 +219,7 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
     return (
       <Done
         words={VISIT_WORDS[mark]}
-        detail={mark === "missed" && follows ? W.visit.follows(follows.name, follows.when, follows.asks) : undefined}
+        detail={follows ? saidOf(mark, follows) : undefined}
         act={{ label: W.visit.change, onPress: () => setMark(null) }}
       />
     );

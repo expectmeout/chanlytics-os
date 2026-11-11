@@ -359,6 +359,34 @@ test("a Missed that a sequence answers (decision 0119) says who writes to them a
       ),
     );
 
+    // A Kept that a thank-you waits for (decision 0122) says when it goes: the word is what sends it.
+    reset();
+    doorSays = answers({ name: "After the appointment", when: "tomorrow 10:00 AM", asks: false });
+    press(buttons(work(), "Kept")[0]);
+    await until(
+      () =>
+        buttons(
+          again(() => work()),
+          "Change",
+        ).length === 1,
+      "Kept is said in the row",
+    );
+    assert.ok(
+      textOf(again(() => work())).includes("“After the appointment” thanks them tomorrow 10:00 AM."),
+      textOf(again(() => work())),
+    );
+    reset();
+    doorSays = answers({ name: "Missed appointment", when: "tomorrow 9:00 AM", asks: true });
+    press(buttons(work(), "Missed")[0]);
+    await until(
+      () =>
+        buttons(
+          again(() => work()),
+          "Change",
+        ).length === 1,
+      "Missed is said in the row again",
+    );
+
     // Kept after a Change says nothing of a message: the word is the row's alone.
     press(
       buttons(

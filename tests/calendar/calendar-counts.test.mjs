@@ -100,6 +100,22 @@ const tables = (url, role = "owner", extra = {}) => ({
   tenant_channels: [{ tenant_id: T, kind: "whatsapp", status: "active", config: {} }],
   ...extra,
 });
+/**
+ * The record's word on a feed's visits of 7 September, 2:00 PM in New York: a member said each was kept, which the
+ * thank-you the day after waits for (decision 0122). By the feed's own key for each event.
+ */
+const keptOn7 = (...uids) =>
+  uids.map((uid, i) => ({
+    id: `dddddddd-0000-4000-8000-00000000070${i + 1}`,
+    tenant_id: T,
+    source: "calendar_feed",
+    external_id: uid,
+    status: "kept",
+    starts_at: "2026-09-07T18:00:00+00:00",
+    ends_at: "2026-09-07T19:00:00+00:00",
+    vanished_at: null,
+    expires_at: null,
+  }));
 /** A person who said yes to offers and can be texted; `n` numbers their phone. */
 const person = (n, over = {}) => ({
   id: `p${n}`,
@@ -368,7 +384,7 @@ test("a playbook whose message is stricter than its moment's class is counted by
     playbook("pb-month", "everyone_monthly", "after_visit"),
   ];
   const { pools } = await triggerPools(
-    ctxFor(tables(url, "owner", { templates }), { people_list: pagedList(all) }),
+    ctxFor(tables(url, "owner", { templates, appointments: keptOn7("v1", "v2") }), { people_list: pagedList(all) }),
     T,
     {},
     TZ,
@@ -396,7 +412,7 @@ test("a playbook whose message is stricter than its moment's class is counted by
   const blind = await triggerPools(
     {
       supabase: fakeDb(
-        tables(url, "owner", { templates }),
+        tables(url, "owner", { templates, appointments: keptOn7("v1", "v2") }),
         { "templates.select": { message: "down" } },
         { people_list: pagedList(all) },
       ),
@@ -487,7 +503,7 @@ test("a playbook whose message has no WhatsApp row is counted by the category it
     playbook("pb-gone", "no_such_message"),
   ];
   const { pools } = await triggerPools(
-    ctxFor(tables(url, "owner", { templates }), { people_list: pagedList(all) }),
+    ctxFor(tables(url, "owner", { templates, appointments: keptOn7("v1", "v2") }), { people_list: pagedList(all) }),
     T,
     {},
     TZ,
@@ -513,7 +529,9 @@ test("a playbook whose message has no WhatsApp row is counted by the category it
     "a row that names no category is an offer, as a send reads it",
   );
   // The reads: every channel's rows, once, with each row's id and channel, which the message is picked out of them by.
-  const asked = ctxFor(tables(url, "owner", { templates }), { people_list: pagedList(all) });
+  const asked = ctxFor(tables(url, "owner", { templates, appointments: keptOn7("v1", "v2") }), {
+    people_list: pagedList(all),
+  });
   await triggerPools(asked, T, {}, TZ, NOW, NO_DEALS, { playbooks });
   assert.deepEqual(
     asked.supabase.seen.filter((q) => q.table === "templates").map((q) => q.columns),
@@ -524,7 +542,7 @@ test("a playbook whose message has no WhatsApp row is counted by the category it
   const blind = await triggerPools(
     {
       supabase: fakeDb(
-        tables(url, "owner", { templates }),
+        tables(url, "owner", { templates, appointments: keptOn7("v1", "v2") }),
         { "templates.select": { message: "down" } },
         { people_list: pagedList(all) },
       ),
