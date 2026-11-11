@@ -35,4 +35,4 @@ The migration before the build. The build selects the new column, so it fails on
 
 ## Held by
 
-`tests/today/record/a-note-is-unread-until-it-is-read.test.mjs` (the rule, the bell's rows, the bridge's look and Mark all read), `tests/today/notifications.db.test.mjs` (the door on a database), `tests/partners/second-factor-catalog.db.test.mjs` (the door named), `tests/routes/reads-routes.test.mjs` (the read and the write), `tests/today/record/one-row-for-one-hold.test.mjs` (a kept hold), `tests/today/notifications.test.mjs` (the top bar).
+`tests/today/record/a-note-is-unread-until-it-is-read.test.mjs` (the rule, the bell's rows, the bridge's look and Mark all read), `tests/today/notifications.db.test.mjs` (the door on a database), `tests/partners/second-factor-catalog.db.test.mjs` (the door named), `tests/routes/reads-routes.test.mjs` (the read and the write), `tests/today/record/one-row-for-one-hold.test.mjs` (a kept hold), `tests/today/bell-rows.test.mjs` (the top bar, drawn, and its Mark all read pressed).
