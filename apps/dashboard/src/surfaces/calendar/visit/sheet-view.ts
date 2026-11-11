@@ -196,20 +196,20 @@ function initialsOfName(name: string | null): string {
 
 /**
  * How the visit stands, said once: a member's word, a request, not marked yet, under way now, else nothing. Where the
- * sheet asks whether they came (`asked`), the question says it is not marked yet, and no pill says it again over it
+ * sheet asks whether they came (`asking`), the question says it is not marked yet, and no pill says it again over it
  * (Ruben, 11 Nov 2026).
  */
 function sheetStateOf(
   calendarBlock: CalendarBlockVM,
   line: VisitLineVM,
   nowMs: number,
-  asked: boolean,
+  asking: boolean,
 ): VisitSheetState | null {
   if (line.state) {
     const s = line.state;
     if (s.tone === "requested") return { word: s.text, tone: "plain", ring: "dashed" };
     if (s.tone === "past")
-      return line.unmarked && !asked ? { word: VISIT_ASK_WORDS.unmarked, tone: "plain", ring: "plain" } : null;
+      return line.unmarked && !asking ? { word: VISIT_ASK_WORDS.unmarked, tone: "plain", ring: "plain" } : null;
     return { word: s.text, tone: s.pill, ring: null };
   }
   const started = Date.parse(calendarBlock.start) <= nowMs && Date.parse(calendarBlock.end) > nowMs;
