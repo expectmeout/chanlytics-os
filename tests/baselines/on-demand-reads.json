@@ -396,9 +396,9 @@
     "fresh": "Read as Settings › Cold email opens and as its row is reached for, and again once the pasted email is read into the voice's lines; the tab keeps the last answer to draw the cards first.",
     "why": "It holds what the config does not: where cold email stands, what its mailboxes can send, who is kept off, the month's first emails, each claim's sends, the voice's lines, the newest sequence to leads and Autonomy's reply mode. Each moves on its own page (Connections, a send, New, Autonomy) or with this pane's paste, so the pane's next opening is when it is looked at again."
   },
-  "apps/dashboard/src/surfaces/today/zones/cold-email-note.tsx GET settings/reach-out/note": {
+  "apps/dashboard/src/surfaces/today/cold-email-note-read.ts GET settings/reach-out/note": {
     "kind": "on-open",
-    "fresh": "Read as Today opens once the workspace has a search, and again as the day moves, at most once a minute; a read that fails says nothing and the next move asks again.",
+    "fresh": "Read with Today's own first reads where the tab opens on Today (its first draw waits for it), as Today's card is drawn, and again as the day moves, at most once a minute; the tab keeps the last answer to draw the card first, and a read that fails says nothing and the next move asks again.",
     "why": "One line of what waits on the owner: it hears no table of its own, and a mailbox or a run that changes moves Today's own read, which asks it again."
   },
   "apps/dashboard/src/surfaces/settings/outreach/told.tsx GET settings/reach-out/told": {

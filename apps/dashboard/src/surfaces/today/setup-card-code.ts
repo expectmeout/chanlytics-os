@@ -15,7 +15,7 @@ import { routeOnScreen } from "@/bridge/workspace";
 export const setupCardCode = codeOnce(() => import("./zones/setup-card-body"));
 
 /** Whether the tab opened on Today; false where there is no page (a node test's stand-in window). */
-function todayOnScreen(): boolean {
+export function todayOnScreen(): boolean {
   if (typeof window === "undefined" || typeof window.location?.pathname !== "string") return false;
   return routePartsOf(routeOnScreen()).page === "today";
 }

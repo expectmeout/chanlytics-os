@@ -44,6 +44,7 @@ import { createRequire } from "node:module";
 import { hookFrames } from "../_hook-frames.mjs";
 import { keysDrawn } from "../_keys.mjs";
 import { kitHooks, kitPages } from "../_stub-react.mjs";
+import { until } from "../shared/_until.mjs";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York, the week calendar.test.mjs draws.
@@ -1315,6 +1316,45 @@ test("REGRESSION (21 Oct 2026): a cold board waits for its campaigns, never past
     honourDeps = false;
     setSurfaceValue("calendar_runs", undefined);
     setStatus("calendar_runs", "live");
+  }
+});
+
+test("REGRESSION (10 Nov 2026): a load whose weeks landed a moment before the page came on screen still waits for its campaigns, never past 600 ms; weeks held from an earlier read never wait", async () => {
+  const runs = {
+    dto: { timezone: "America/New_York", from: "2026-09-07", days: 63, paused: false, runs: [], moments: [] },
+    fetchedAt: 1,
+  };
+  /**
+   * A load on a slower machine: the document's head started both reads, both answered before the page's code ran, and
+   * the weeks' answer was handed over first. The page comes on screen with its weeks in hand and its campaigns a turn behind.
+   */
+  const justLanded = () => {
+    fresh();
+    setSurfaceValue("calendar", { vm: toCalendarVM(dto(), NOW), fetchedAt: Date.now() });
+    setSurfaceValue("calendar_runs", undefined);
+  };
+  honourDeps = true;
+  try {
+    justLanded();
+    assert.ok(
+      byTestId(page(), "calendar-cold"),
+      "REGRESSION: the meetings drew first, and the campaigns pushed them down as they came (5 of 5 loads at a quarter of the speed)",
+    );
+    setSurfaceValue("calendar_runs", runs);
+    assert.ok(byTestId(page(), "calendar-real"), "both in: the board, drawn once, with its campaigns");
+    // The campaigns slow to come: the board draws without them once 600 ms have passed.
+    justLanded();
+    assert.ok(byTestId(page(), "calendar-cold"));
+    await until(() => byTestId(page(), "calendar-real"), "the board, once its wait for the campaigns has passed");
+    // Weeks this tab held from a read well before the page came on screen (a move between pages, a return visit's kept
+    // copy): the board at once, as it always drew.
+    fresh();
+    setSurfaceValue("calendar", { vm: toCalendarVM(dto(), NOW), fetchedAt: Date.now() - 5_000 });
+    setSurfaceValue("calendar_runs", undefined);
+    assert.ok(byTestId(page(), "calendar-real"), "weeks held from before never wait");
+  } finally {
+    honourDeps = false;
+    setSurfaceValue("calendar_runs", undefined);
   }
 });
 

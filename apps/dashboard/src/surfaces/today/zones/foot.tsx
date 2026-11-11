@@ -84,12 +84,16 @@ function WeekLine() {
 
 /**
  * The desk's foot: the week and the pinned lists, one strip under the zones; a week whose read failed says so there.
- * Nothing where neither has anything.
+ * Nothing where neither has anything, and nothing before People's book is in or has failed: the strip stands under Ask
+ * found, which draws with the book (found.tsx), and drawn with the week alone it was pushed down as Ask found came, 333 px
+ * on a quiet desk (the load review of 10 Nov 2026).
  */
 export function DeskFoot() {
   const pins = usePins();
   const headline = useSurface("reports_headline");
   const failed = useSurfaceFailed("reports_headline");
+  const bookFailed = useSurfaceFailed("people");
+  if (!borrowed<PeopleListsLike>("__PEOPLE") && !bookFailed) return null;
   if (!headline && !failed && !pins.length) return null;
   return (
     <section className="tz-pane tz-strip" data-testid="today-foot" aria-label={LIST_GROUP_WORDS.pinned}>

@@ -38,9 +38,11 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
     // The drafts Ask kept for the rows of Need you, read with the page so each row draws with its words (surfaces/today/
     // need-you/drafts-surface.ts; decision 0071).
     "reply_drafts",
+    // The bell: what cannot wait is one line under the head, drawn from its warnings (surfaces/today/zones/alert.tsx), and
+    // Since you looked says its notes.
+    "notifications",
     "reports_headline",
     "playbooks",
-    "notifications",
     "live",
     "people",
     // The line and the runs' number: Live's strip and Sent's are made of the channels read (surfaces/channels/surface.ts).
@@ -162,9 +164,12 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   // above the queue and the seat a run takes in it (Sent's runs), a row read as a reach-out's reply, a review to answer
   // (Google's) and the words of each row (the drafts Ask kept). Each landed after the queue on a cold load and moved it: the
   // strip in 18 of 41 phone loads, the runs and reviews 400 to 600 ms after it, the drafts after the queue had drawn, 181
-  // and 397 px each on a desk (the Today load review, 27 Oct 2026). Each is a small read the head starts with Today's own
-  // (contracts PREFETCH_READS); People's book, read last, is waited for by none of it.
-  today: ["setup", "calendar", "broadcasts", "reach_out_replies", "google", "reply_drafts"],
+  // and 397 px each on a desk (the Today load review, 27 Oct 2026). And the bell: what cannot wait is one line under the
+  // head, drawn from the bell's warnings (zones/alert.tsx, 9 Nov 2026), and read in the stream's second tier it landed 100
+  // to 190 ms after the page and pushed all of it down, 54 px on a desk and 64 on a phone (the load review of 10 Nov 2026).
+  // Each is a small read the head starts with Today's own (contracts PREFETCH_READS); People's book, read last, is
+  // waited for by none of it.
+  today: ["setup", "calendar", "broadcasts", "reach_out_replies", "google", "reply_drafts", "notifications"],
   // The Inbox's rows of the runs waiting for your word stand above its threads: landing after them, four pushed them 330px down
   // on a phone (18 Oct 2026). Sent's runs read nothing of People and leave from the document's head with the threads.
   // And what a row and a thread draw from other reads: the calls a timeline holds (Conversations' read) and a reply to a

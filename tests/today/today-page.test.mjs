@@ -720,8 +720,11 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
   press(line);
   assert.equal(went.at(-1), "reports");
   assert.equal(buttons(tree, "Reports").length, 0, "no second door to Reports on the card");
-  // A desk says it once, in the strip at the page's foot (Today in three zones, 2 Nov 2026).
+  // A desk says it once, in the strip at the page's foot (Today in three zones, 2 Nov 2026), once People's book is in: the
+  // strip stands under Ask found, which draws with the book.
+  set({ __PEOPLE: people() });
   assert.equal(textOf(byTestId(draw(DeskFoot), "today-period")), todayPeriodLine(headline()).text);
+  set({ __PEOPLE: undefined });
   set({ headline: undefined });
   const loading = draw(PhoneSoFar);
   assert.equal(byTestId(loading, "today-period"), null);
@@ -1972,6 +1975,19 @@ test("the bento (Today in three zones, 2 Nov 2026): what cannot wait over all of
   // said is said where it is acted on (the head's Since you looked, Ask found's rows).
   for (const gone of ["today-brief", "today-going", "today-card", "today-live", "today-away", "today-leaks"])
     assert.equal(byTestId(tree, gone), null, gone);
+});
+
+test("REGRESSION (10 Nov 2026): a desk's foot stands under Ask found, so it waits for People's book as Ask found does; drawn with the week alone, it was pushed down as Ask found came", () => {
+  clear();
+  // The week is in, People's book still on its way: Ask found, which stands over the strip, has not drawn yet.
+  set({ today: busy(), headline: headline() });
+  assert.equal(
+    byTestId(draw(DeskFoot), "today-foot"),
+    null,
+    "REGRESSION: the strip drew before Ask found and was pushed 333 px down as it landed (a quiet desk, production)",
+  );
+  set({ __PEOPLE: people() });
+  assert.ok(byTestId(draw(DeskFoot), "today-period"), "the book in: the strip, under Ask found, where it stays");
 });
 
 // LAST in the file: a surface's failure cannot be taken back (surface-status.ts has no reset), so every test above saw the headline unfailed.

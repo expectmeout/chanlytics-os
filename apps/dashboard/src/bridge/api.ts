@@ -89,17 +89,31 @@ async function endSession(win: Window): Promise<void> {
 const pageBegan = (): number =>
   typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin) ? performance.timeOrigin : Date.now();
 
+/** What the document head started and parked for this page, by URL (contracts routePrefetchScript); null where it started nothing. */
+function prefetched(win: Window): Record<string, unknown> | null {
+  const slot = (win as Window & Record<string, unknown>)[PREFETCH_SLOT];
+  return slot && typeof slot === "object" ? (slot as Record<string, unknown>) : null;
+}
+
 /**
  * What the document head started for a URL (contracts routePrefetchScript), taken once: the slot forgets it as it is
  * handed over, so a later read of the same URL asks the server.
  */
 function takePrefetched(win: Window, url: string): Promise<Response> | null {
-  const slot = (win as Window & Record<string, unknown>)[PREFETCH_SLOT];
-  if (!slot || typeof slot !== "object") return null;
-  const held = (slot as Record<string, unknown>)[url];
-  if (!held || typeof (held as Promise<Response>).then !== "function") return null;
-  delete (slot as Record<string, unknown>)[url];
+  const slot = prefetched(win);
+  const held = slot?.[url];
+  if (!slot || !held || typeof (held as Promise<Response>).then !== "function") return null;
+  delete slot[url];
   return held as Promise<Response>;
+}
+
+/**
+ * Whether the document head started a read of this path for the load (`settings/reach-out/note`) and no read has taken it
+ * yet: a page's first draw may wait for such a read without asking the server for anything itself.
+ */
+export function headStarted(path: string, win: Window = window): boolean {
+  const slot = prefetched(win);
+  return !!slot && Object.keys(slot).some((url) => url.split("?")[0] === `/api/v1/${path}`);
 }
 
 /**
