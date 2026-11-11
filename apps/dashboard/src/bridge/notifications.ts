@@ -478,7 +478,11 @@ export function installNotifications(
 
   const api: BellApi = {
     feed: () => toRows(rows(), Date.now()),
-    unread: () => unreadCount(rows()) + older(),
+    // The bell's number: what is new since the member last looked and is not read. A dot alone is no part of it.
+    unread: () => {
+      const seen = seenAt();
+      return rows().filter((r) => r.unread && r.at > seen).length + older();
+    },
     older,
     seenAll: () => {
       save({ seenAt: Date.now() });

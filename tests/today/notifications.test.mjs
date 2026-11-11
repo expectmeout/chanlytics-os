@@ -93,7 +93,7 @@ test("the feed: who needs you, a draft still waiting, a missed call today, an op
   assert.deepEqual(buildNotificationFeed({ now: NOW }), []);
 });
 
-test("this device's read state: seen moves the line, read and dismissed are by key", () => {
+test("this device's read state: reading through moves the line, read and dismissed are by key", () => {
   const items = buildNotificationFeed({
     threads: [
       thread({ needsYou: true, waitingMin: 5 }),
@@ -101,21 +101,21 @@ test("this device's read state: seen moves the line, read and dismissed are by k
     ],
     now: NOW,
   });
-  const fresh = applyReadState(items, { seenAt: 0, read: [], dismissed: [], alerts: false });
+  const fresh = applyReadState(items, { seenAt: 0, read: [], dismissed: [], alerts: false }, 0);
   assert.deepEqual(
     fresh.map((r) => r.unread),
     [true, true],
   );
-  const seen = applyReadState(items, { seenAt: NOW - 30 * 60_000, read: [], dismissed: [], alerts: false });
+  const seen = applyReadState(items, { seenAt: 0, read: [], dismissed: [], alerts: false }, NOW - 30 * 60_000);
   assert.deepEqual(
     seen.map((r) => [r.key, r.unread]),
     [
       ["needs:t1", true],
       ["needs:t9", false],
     ],
-    "what became true after the last look is new",
+    "what became true after the member last read through is unread",
   );
-  const read = applyReadState(items, { seenAt: 0, read: ["needs:t1"], dismissed: ["needs:t9"], alerts: false });
+  const read = applyReadState(items, { seenAt: 0, read: ["needs:t1"], dismissed: ["needs:t9"], alerts: false }, 0);
   assert.deepEqual(
     read.map((r) => [r.key, r.unread]),
     [["needs:t1", false]],
