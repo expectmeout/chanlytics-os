@@ -35,6 +35,8 @@ export interface OccasionStep {
   name: string;
   mode: string | null;
   wordsOkAt: string | null;
+  /** The last day its first step's daily look ran (`last_run_for`): what a visit's moment asks (contracts keptThanksAt). */
+  lastRunFor: string | null;
 }
 
 /**
@@ -49,7 +51,7 @@ export async function listOccasionSteps(
   if (triggers.length === 0) return [];
   const steps = await db
     .from("sequence_steps")
-    .select("id, sequence_id, trigger, run_hour, words_ok_at")
+    .select("id, sequence_id, trigger, run_hour, words_ok_at, last_run_for")
     .eq("tenant_id", tenantId)
     .eq("state", "running")
     .in("trigger", [...triggers]);
@@ -78,6 +80,7 @@ export async function listOccasionSteps(
         name: sequence.name,
         mode: sequence.mode,
         wordsOkAt: step.words_ok_at,
+        lastRunFor: step.last_run_for,
       },
     ];
   });

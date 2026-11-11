@@ -141,6 +141,9 @@ export function appointmentHolds(rows: ReadonlyMap<string, AppointmentState>, fa
   const key = typeof facts.appointment === "string" ? facts.appointment : null;
   const start = typeof facts.visit_start === "string" ? Date.parse(facts.visit_start) : NaN;
   const row = key ? rows.get(key) : undefined;
+  // A thank-you is owed only for a visit the record says was kept (decision 0123, contracts waitsForKept): a word taken
+  // back since the run, or a row that is gone, holds it.
+  if (facts.visit_was === "kept") return row?.status === "kept";
   if (!row || !Number.isFinite(start)) return true;
   // A message about a visit marked missed (decision 0119) is owed while its row still says so: a member may take the
   // word back, and then nothing of it goes.

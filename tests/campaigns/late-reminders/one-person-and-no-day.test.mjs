@@ -245,9 +245,12 @@ test("a late reminder that waits keeps the words of the moment it was to go, nev
   assert.deepEqual(row.audience.late, { appointment: APPT, start: "2026-11-10T19:00:00.000Z", day: "2026-11-10" });
 });
 
-test("a late booking handed to any other step is off before anything is read or written", async () => {
+test("a run about one visit handed to a step on no visit's moment is off before anything is read or written", async () => {
+  // A visit's two moments take one: a late booking's reminder (0118), and a late Kept's thank-you (0123).
   const { ports, calls } = fakes();
-  const r = await ask(ports, { playbook: reminder({ trigger: "visited", name: "After the appointment" }) });
+  const r = await ask(ports, {
+    playbook: reminder({ trigger: "quiet_30", name: "Win-back", policy_class: "reengage" }),
+  });
   assert.deepEqual(r, { outcome: "off", mode: "auto", skipped: "not_a_reminder_step" });
   assert.deepEqual(calls, []);
 });

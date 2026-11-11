@@ -12,6 +12,7 @@ import {
   channelsReady,
   eligibleForPlaybook,
   playbookRunReach,
+  appointmentHolds,
   scheduleLine,
   triggerOf,
   visitFactsFor,
@@ -102,6 +103,8 @@ const visit = (startIso, title, hours = 1) => ({
   all_day: false,
   via: "phone",
 });
+/** The same visit as a member said it was kept: what the thank-you the day after waits for (decision 0123). */
+const kept = (v) => ({ ...v, said: "kept" });
 const withVisits = (id, next, last, over = {}) =>
   toPersonRowVM(
     dto(id, { visits: { timezone: TZ, source: "Google Calendar", state: "ok", next, last }, ...over }),
@@ -162,7 +165,7 @@ test("the moments: People's lists and a cadence, two the calendar makes possible
   );
   assert.equal(
     scheduleLine({ trigger: "visited", run_hour: 18, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
-    "Daily 6:00 PM · everyone who visited yesterday · up to 25",
+    "Daily 6:00 PM · everyone whose visit yesterday you marked kept · up to 25",
   );
   assert.equal(
     scheduleLine({ trigger: "quiet_30", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "visit"),
@@ -239,7 +242,7 @@ test("by email a visit's message is about their own visit (decision D1): it asks
   const nothing = { consent: "unknown", marketing_consent: "unknown", phone_e164: null, email: "ana@example.com" };
   const tomorrow = (id, over) => withVisits(id, visit("2026-09-07T15:00:00Z", "Cut"), null, { ...nothing, ...over });
   const yesterday = (id, over) =>
-    withVisits(id, null, visit("2026-09-06T00:00:00Z", "Balayage"), { ...nothing, ...over });
+    withVisits(id, null, kept(visit("2026-09-06T00:00:00Z", "Balayage")), { ...nothing, ...over });
   assert.equal(tomorrow("a").consent.relationship, false, "the fixture is nobody the business has dealt with");
   const reminder = run("visit_tomorrow", [tomorrow("a")]);
   assert.deepEqual(
@@ -267,13 +270,13 @@ test("by email a visit's message is about their own visit (decision D1): it asks
 });
 
 test("after the visit: yesterday's visit with nothing booked next; the gap and the week's breath do not apply to either", () => {
-  const yesterday = withVisits("a", null, visit("2026-09-06T00:00:00Z", "Balayage")); // Sat 5 Sep, 8:00 PM New York
+  const yesterday = withVisits("a", null, kept(visit("2026-09-06T00:00:00Z", "Balayage"))); // Sat 5 Sep, 8:00 PM New York
   const yesterdayRebooked = withVisits(
     "b",
     visit("2026-09-20T15:00:00Z", "Gloss"),
-    visit("2026-09-05T22:00:00Z", "Balayage"),
+    kept(visit("2026-09-05T22:00:00Z", "Balayage")),
   );
-  const twoDaysAgo = withVisits("c", null, visit("2026-09-04T18:00:00Z", "Cut"));
+  const twoDaysAgo = withVisits("c", null, kept(visit("2026-09-04T18:00:00Z", "Cut")));
   const p = { trigger: "visited", cap_per_run: 25, gap_days: 90, cadence_days: 30, ...HOW };
   assert.deepEqual(
     eligibleForPlaybook([yesterday, yesterdayRebooked, twoDaysAgo], p, untouched, nowMs).map((r) => r.id),
@@ -296,7 +299,9 @@ test("after the visit: yesterday's visit with nothing booked next; the gap and t
   // re-engagement, and its "book your next visit" made it an offer). So with no message in view the yes it needs is
   // the one about their own visit, as the reminder's is. With the message in view (a playbook made before the change,
   // still sending the marketing thank-you) the stricter of the class and the message holds: only a yes to offers.
-  const noOffers = withVisits("e", null, visit("2026-09-06T00:00:00Z", "Balayage"), { marketing_consent: "unknown" });
+  const noOffers = withVisits("e", null, kept(visit("2026-09-06T00:00:00Z", "Balayage")), {
+    marketing_consent: "unknown",
+  });
   assert.deepEqual(
     eligibleForPlaybook([noOffers], { ...p, message: null }, untouched, nowMs).map((r) => r.id),
     ["e"],
@@ -312,6 +317,70 @@ test("after the visit: yesterday's visit with nothing booked next; the gap and t
     ["e"],
     "a message about the visit reaches them",
   );
+});
+
+test("the thank-you waits for the word that they came (decision 0123): a visit nobody marked is named and left out, counted; one marked missed is nobody's visit; one marked kept is thanked", () => {
+  const p = { trigger: "visited", cap_per_run: 25, gap_days: 90, cadence_days: 30, ...HOW };
+  const at = "2026-09-06T00:00:00Z"; // Sat 5 Sep, 8:00 PM New York: yesterday
+  const came = withVisits("a", null, kept(visit(at, "Balayage")));
+  const unmarked = withVisits("b", null, visit(at, "Cut"));
+  const alsoUnmarked = withVisits("c", null, visit(at, "Gloss"));
+  const drawn = playbookRunReach([came, unmarked, alsoUnmarked], p, untouched, nowMs, null);
+  assert.deepEqual(
+    drawn.eligible.map((r) => r.id),
+    ["a"],
+    "only the visit a member said was kept",
+  );
+  assert.deepEqual(
+    [drawn.reach.pool, drawn.reach.will, drawn.reach.unmarked],
+    [3, 1, 2],
+    "the other two are named and counted: a page says how many wait on the owner's word",
+  );
+  // Everyone marked: nothing is counted as waiting.
+  assert.equal("unmarked" in playbookRunReach([came], p, untouched, nowMs, null).reach, false);
+  // The reminder the day before asks nobody's word: a visit ahead is nobody's to mark.
+  const tomorrow = withVisits("d", visit("2026-09-07T19:00:00Z", "Cut"), null);
+  const reminder = playbookRunReach([tomorrow], { ...p, trigger: "visit_tomorrow" }, untouched, nowMs, null);
+  assert.deepEqual([reminder.reach.will, reminder.reach.unmarked], [1, undefined]);
+  // Seen twice yesterday: the later visit is the one its words name, and its word decides.
+  const twice = (later) =>
+    toPersonRowVM(
+      dto("e", {
+        visits: {
+          timezone: TZ,
+          source: "Google Calendar",
+          state: "ok",
+          next: null,
+          last: later,
+          near: [kept(visit("2026-09-05T15:00:00Z", "Cut")), later],
+        },
+      }),
+      TZ,
+      NOW,
+    );
+  const reaches = (row) => playbookRunReach([row], p, untouched, nowMs, null).reach.will;
+  assert.equal(reaches(twice(visit(at, "Gloss"))), 0, "the later one is not marked yet");
+  assert.equal(reaches(twice(kept(visit(at, "Gloss")))), 1);
+});
+
+test("the send asks the row once more: a thank-you goes only while the record still says kept (appointmentHolds)", () => {
+  const start = "2026-09-06T00:00:00.000Z";
+  const facts = {
+    appointment: "k-1",
+    visit_start: start,
+    appointment_read_at: "2026-09-06T14:00:00.000Z",
+    visit_was: "kept",
+  };
+  const row = (status) =>
+    new Map([["k-1", { status, starts_at: start, updated_at: "2026-09-06T13:00:00.000Z", vanished_at: null }]]);
+  assert.equal(appointmentHolds(row("kept"), facts), true);
+  assert.equal(appointmentHolds(row("missed"), facts), false, "a Kept corrected to Missed since the run holds it");
+  assert.equal(appointmentHolds(row("booked"), facts), false, "a word taken back holds it");
+  assert.equal(appointmentHolds(new Map(), facts), false, "a row that is gone holds it: nothing says they came");
+  // Every other visit's message is as it was: a reminder with no row goes, and one whose visit was cancelled is held.
+  const reminder = { appointment: "k-1", visit_start: start, appointment_read_at: "2026-09-06T14:00:00.000Z" };
+  assert.equal(appointmentHolds(new Map(), reminder), true);
+  assert.equal(appointmentHolds(row("cancelled"), reminder), false);
 });
 
 test("a second reminder on the same moment reaches nobody its twin reached for this visit, and says so (the phone review, 16 Oct 2026)", () => {
@@ -341,7 +410,7 @@ test("a second reminder on the same moment reaches nobody its twin reached for t
 /** The visit as the calendar matched it: by `via`, which the receptionist says to a person and a run must weigh. */
 const foundBy = (via, v) => ({ ...v, via });
 const TOMORROW = visit("2026-09-07T15:00:00Z", "Balayage · Maria Lopez");
-const YESTERDAY = visit("2026-09-06T00:00:00Z", "Balayage · Maria Lopez");
+const YESTERDAY = kept(visit("2026-09-06T00:00:00Z", "Balayage · Maria Lopez"));
 
 test("a row carries how its visits were found, and none without a visit", () => {
   const r = withVisits("a", foundBy("name", TOMORROW), foundBy("email", YESTERDAY));

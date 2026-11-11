@@ -9,6 +9,7 @@ import type {
   JobKind,
   JobNews,
   LateReminder,
+  LateThanks,
   OccasionEnrolment,
   OccasionEvent,
   JobPayload,
@@ -338,6 +339,8 @@ export interface JobContext {
   reminders?: {
     /** The workspace's running step runs for the one person the appointment is for, once per visit. Throws when it could not be asked. */
     remind: (tenantId: TenantId, appointmentId: string) => Promise<LateReminder>;
+    /** The workspace's running step on the day after a visit runs for the one person a late Kept is for (decision 0123). */
+    thank: (tenantId: TenantId, appointmentId: string) => Promise<LateThanks>;
   };
   /**
    * A person enrolled for an occasion (decision 0119), as the edge holds it: the record, the sequences that start on it

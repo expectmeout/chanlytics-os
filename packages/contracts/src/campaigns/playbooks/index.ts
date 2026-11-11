@@ -3,8 +3,8 @@ export { campaignChannelsOf, playbookChannelsRead, WHATSAPP_VERSION_ALONE } from
 export type { ChannelStand, PlaybookChannelsRead, PlaybookMessage } from "./channels";
 export { PLAYBOOK_RUN_DOOR } from "./edge-doors";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./failed";
-export { lateReminderAt } from "./late-reminder";
-export type { LateReminder } from "./late-reminder";
+export { keptThanksAt, lateReminderAt } from "./late-reminder";
+export type { LateReminder, LateThanks } from "./late-reminder";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./lifecycle/inputs";
 export type { LifecycleAnswer, LifecycleAnswerRead } from "./lifecycle/inputs";
 export { reachCountsOf } from "./lifecycle/tiles";
@@ -210,5 +210,6 @@ export {
   occasionIsSingle,
   occasionWords,
   visitWhenExample,
+  waitsForKept,
 } from "./triggers/occasions";
 export type { OccasionTrigger } from "./triggers/occasions";

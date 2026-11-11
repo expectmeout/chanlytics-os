@@ -286,7 +286,7 @@ export function momentStartsSentence(trigger: string | null, hour: number | null
     case "visit_tomorrow":
       return `The day before each ${words.one}${at}`;
     case "visited":
-      return `The day after each ${words.one}${at}`;
+      return `The day after each ${words.one} you mark kept${at}`;
     case "quiet_30":
       return `When someone has gone quiet for 30 days${at}`;
     case "lapsed":
