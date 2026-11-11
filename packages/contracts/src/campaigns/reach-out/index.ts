@@ -258,7 +258,7 @@ export {
   reachOutToneOf,
 } from "./section";
 export { coldEmailNeedsLook, coldEmailSendingOf } from "./sending";
-export type { ColdEmailCheck, ColdEmailHealth, ColdEmailNeedsLook, ColdEmailSending } from "./sending";
+export type { ColdEmailCheck, ColdEmailHealth, ColdEmailSending } from "./sending";
 export {
   REACH_OUT_SETTINGS_WORDS,
   reachOutRuleLines,

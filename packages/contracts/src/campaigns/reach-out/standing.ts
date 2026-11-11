@@ -363,13 +363,12 @@ const pausedAnswer: Rule = (f) => {
  * "Needs a look" on Sending is never the only word of it. Below everything that stops an email or waits for an OK, since
  * those are today's; above "Sending", which would read as all being well.
  */
-const attentionAnswer: Rule = (f) => {
-  const look = f.needsLook;
-  if (!look) return null;
+const attentionAnswer: Rule = ({ needsLook }) => {
+  if (!needsLook) return null;
   return {
     kind: "attention",
-    headline: look.alone ? "Your mailbox needs a look" : "One mailbox needs a look",
-    detail: `${look.why}. ${look.detail}.`,
+    headline: needsLook.alone ? "Your mailbox needs a look" : "One mailbox needs a look",
+    detail: `${needsLook.why}. ${needsLook.detail}.`,
     act: "See what to fix",
     to: CONNECTIONS_PAGE,
     needs_you: true,
