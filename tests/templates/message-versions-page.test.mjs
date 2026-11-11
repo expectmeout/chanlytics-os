@@ -51,6 +51,7 @@ const { starterWords } = await import(`${S}/campaigns/templates/composer.tsx`);
 const { Picker } = await import(`${S}/kit/picker/picker.tsx`);
 const { standingSaid } = await import(`${S}/kit/head/standing.ts`);
 const { Segmented } = await import(`${S}/kit/segmented/segmented.tsx`);
+const { SubTabs } = await import(`${S}/kit/sub-tabs/sub-tabs.tsx`);
 const { Field } = await import(`${S}/kit/field/field.tsx`);
 const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
 const { Confirm } = await import(`${S}/kit/confirm/confirm.tsx`);
@@ -187,19 +188,24 @@ const opened = (tree, name) => {
   press(find(rowOf(tree, name), (n) => n.props?.["data-testid"] === "template-open"));
   return redraw();
 };
-/** The switch's channel picked, as the radio group says it. */
+/** The open message's channels, as the kit's sub-tabs (Messages, the canvas of 10 Nov 2026: they were a switch). */
+const tabsOf = (tree) => find(paneOf(tree), (n) => n.type === SubTabs);
+/** One channel's tab of the open message. */
+const tabOf = (tree, id) => tabsOf(tree).props.tabs.find((t) => t.id === id);
+/** Where the language in view stands on each channel: its tabs' words, in order (the line that said it went). */
+const standingOf = (tree) => Array.from(tabsOf(tree).props.tabs, (t) => t.hint).join(", ");
+/** A channel's tab picked, as the tabs say it. */
 const switched = (tree, channel) => {
-  find(paneOf(tree), (n) => n.type === Segmented).props.onValueChange(channel);
+  tabsOf(tree).props.onSelect(channel);
   return redraw();
 };
 /** A message opened, and its channel picked. */
 const viewing = (tree, name, channel) => switched(opened(tree, name), channel);
 const bodyOf = (tree) => textOf(byTestId(tree, "template-version-body"));
 const menuOf = (tree) => find(paneOf(tree), (n) => n.type === Menu);
-const itemOf = (tree, words) =>
-  menuOf(tree)
-    .props.groups.flatMap((g) => g.items)
-    .find((i) => i.label === words);
+/** An item of the pane's one menu by its first word: an email's "Edit the email" is its Edit. */
+const itemsOf = (tree) => menuOf(tree).props.groups.flatMap((g) => g.items);
+const itemOf = (tree, words) => itemsOf(tree).find((i) => i.label === words || i.label.split(" ")[0] === words);
 /** One of the editor's fields, by its label: the kit's Field, which holds the label, the hint and the box. */
 const fieldOf = (tree, label) => find(paneOf(tree), (n) => n.type === Field && n.props.label === label);
 /** The box of words in a field, by its label: where the words are typed, and what the editor reads them from. */
@@ -248,7 +254,7 @@ const WINBACK = "winback_reply";
 
 /* ---------------------------------- the row ---------------------------------- */
 
-test("a row says, quietly, which channels its message has a version on: from contracts' words, and nothing where it has none", () => {
+test("a row says its name and one line; the channels a message has are its tabs' words, from contracts', where it is open", () => {
   const tree = page({
     rows: [starterRow(VISIT), starterRow(WINBACK), custom("fall_hours")],
     versions: [
@@ -265,26 +271,23 @@ test("a row says, quietly, which channels its message has a version on: from con
       }),
     ],
   });
-  const channels = (name) => byTestId(rowOf(tree, name), "template-channels");
-  assert.equal(textOf(channels(VISIT)), "WhatsApp · Email · Text", "all three, in the order the switch offers them");
-  assert.equal(textOf(channels(WINBACK)), "WhatsApp", "a message with a WhatsApp row alone");
-  assert.equal(textOf(channels("fall_hours")), "WhatsApp");
-  assert.equal(channels(AFTER_VISIT), null, "a starter nobody added is on no channel, and the row says nothing of it");
+  // Two lines a row (Messages, the canvas of 10 Nov 2026): the channels line went with the words and the columns.
+  assert.equal(byTestId(rowOf(tree, VISIT), "template-channels"), null, "no channels line on a row");
+  const hints = (name) => standingOf(opened(tree, name));
+  assert.equal(hints(VISIT), "WhatsApp · approved, Email · ready, Text · ready", "all three, in the tabs' order");
+  assert.equal(hints(WINBACK), "WhatsApp · approved, Email · not written, Text · not for offers");
 });
 
 test("a page whose email and text rows were not read draws its WhatsApp rows as it always did", () => {
   const tree = viewing(page({ rows: [starterRow(VISIT)], versions: null }), VISIT, "email");
-  assert.equal(
-    textOf(byTestId(rowOf(tree, VISIT), "template-channels")),
-    "WhatsApp",
-    "never a channel it did not read",
-  );
+  assert.ok(rowOf(tree, VISIT), "the row is there");
+  assert.equal(tabOf(tree, "email").hint, "Email · not written", "never a channel it did not read");
   assert.ok(byTestId(paneOf(tree), "template-version-none"), "and the pane offers to write the email");
 });
 
 /* ---------------------------------- the switch ---------------------------------- */
 
-test("an open message has a switch, WhatsApp | Email | Text, beside its language control, and opens on WhatsApp's words", () => {
+test("an open message has its channels as tabs, WhatsApp | Email | Text, beside its language control, and opens on WhatsApp's words", () => {
   const tree = opened(page({ rows: [starterRow(VISIT)], versions: [emailRow(VISIT)] }), VISIT);
   const pane = paneOf(tree);
   const bar = find(pane, (n) => n.props?.className === "tpl-viewbar");
@@ -292,10 +295,10 @@ test("an open message has a switch, WhatsApp | Email | Text, beside its language
     find(bar, (n) => n.props?.["data-testid"] === "template-lang"),
     "its language control is in the bar",
   );
-  const switchEl = find(bar, (n) => n.type === Segmented);
-  assert.ok(switchEl, "and the switch");
+  const switchEl = find(bar, (n) => n.type === SubTabs);
+  assert.ok(switchEl, "and the tabs");
   assert.deepEqual(
-    switchEl.props.options.map((o) => [o.value, o.label, o.testid]),
+    switchEl.props.tabs.map((o) => [o.id, o.label, o.testid]),
     [
       ["whatsapp", "WhatsApp", "template-channel-whatsapp"],
       ["email", "Email", "template-channel-email"],
@@ -305,9 +308,10 @@ test("an open message has a switch, WhatsApp | Email | Text, beside its language
   assert.equal(switchEl.props.value, "whatsapp");
   assert.ok(byTestId(pane, "message-preview"), "WhatsApp: the bubble, as it was");
   assert.equal(byTestId(pane, "template-version"), null, "and no email's or text's version");
-  assert.ok(
-    find(pane, (n) => n.type === Menu),
-    "its Rename, Hide and Delete stay",
+  assert.deepEqual(
+    itemsOf(tree).map((i) => i.label),
+    ["Rename", "Put away", "Delete"],
+    "the one menu at its head",
   );
 });
 
@@ -892,8 +896,8 @@ test("Edit opens the editor on the version's own words; Remove asks first, and o
       .props.groups.flatMap((g) => g.items)
       .map((i) => [i.label, i.tone]),
     [
-      ["Edit", undefined],
-      ["Remove", "danger"],
+      ["Edit the email", undefined],
+      ["Remove the email version", "danger"],
     ],
   );
   itemOf(tree, "Edit").onSelect();
@@ -996,7 +1000,6 @@ const ownRow = (channel, name, over = {}) =>
     ...over,
   });
 const HOURS = "fall_hours";
-const standingOf = (tree) => textOf(byTestId(paneOf(tree), "template-standing"));
 const messagesOf = (rows, versions) => contracts.campaignMessagesOf([...rows, ...versions]);
 
 test("listingOf lists messages, not WhatsApp rows: an own-only message is a group with its languages, a starter whose Spanish is an email counts Spanish as on file, a hidden own-only message is in the fold", () => {
@@ -1154,24 +1157,25 @@ test("the open message says where each language stands on each channel, in contr
   // WhatsApp in review with an email beside it.
   let tree = open([custom(HOURS, { meta_status: "pending" })], [ownRow("email", HOURS)]);
   assert.equal(standingOf(tree), "WhatsApp · in review, Email · ready, Text · not written");
-  assert.equal(find(paneOf(tree), (n) => n.type === Segmented).props.value, "whatsapp", "opens on WhatsApp's");
+  assert.equal(tabsOf(tree).props.value, "whatsapp", "opens on WhatsApp's");
+  assert.equal(tabOf(tree, "whatsapp").need, "WhatsApp · in review", "and its tab's dot says it waits on WhatsApp");
   // An email and a text, no WhatsApp: the message is whole, and opens on its email.
   const both = [ownRow("email", HOURS, { category: "utility" }), ownRow("sms", HOURS, { category: "utility" })];
   tree = open([], both);
   assert.equal(standingOf(tree), "WhatsApp · not added, Email · ready, Text · ready");
-  assert.equal(find(paneOf(tree), (n) => n.type === Segmented).props.value, "email");
+  assert.equal(tabsOf(tree).props.value, "email");
   tree = open([], [ownRow("sms", HOURS, { category: "utility" })]);
   assert.equal(standingOf(tree), "WhatsApp · not added, Email · not written, Text · ready");
-  assert.equal(find(paneOf(tree), (n) => n.type === Segmented).props.value, "sms", "a text alone opens on the text");
+  assert.equal(tabsOf(tree).props.value, "sms", "a text alone opens on the text");
   // WhatsApp alone, approved.
   tree = open([custom(HOURS, { category: "utility" })], []);
   assert.equal(standingOf(tree), "WhatsApp · approved, Email · not written, Text · not written");
   // WhatsApp refused, and an offer: its text can never be written, and says so.
   tree = open([custom(HOURS, { meta_status: "rejected", category: "marketing" })], []);
   assert.equal(standingOf(tree), "WhatsApp · refused, Email · not written, Text · not for offers");
-  // Said once per channel, as separate words (a screen reader reads each), in the order the switch offers them.
+  // Said once per channel, each its tab's own (a screen reader hears each tab's), in the order the tabs offer them.
   assert.deepEqual(
-    all(byTestId(paneOf(tree), "template-standing"), (n) => n.type === "span").map((n) => n.props["data-channel"]),
+    tabsOf(tree).props.tabs.map((t) => t.id),
     ["whatsapp", "email", "sms"],
   );
   // The words are contracts' one set.
@@ -1232,8 +1236,7 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   const row = rowOf(tree, HOURS);
   assert.ok(row, "the row is there, found by the name it is filed under");
   assert.equal(row.props["data-testid"], "custom-row");
-  assert.ok(textOf(row).includes("“Hi {first name}, our hours start {date}.”"), "the words of its email");
-  assert.equal(textOf(byTestId(row, "template-channels")), "Email");
+  assert.ok(textOf(row).includes("“Hi {first name}, our hours start {date}.”"), "its email's words: nothing sends it");
   // The search finds it by the words of an email's subject and body, as it finds a WhatsApp message by its own.
   lineBox().props.onChange({
     target: { value: "our hours start" },
@@ -1255,12 +1258,12 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
     "its email is in view, on the version it is filed under",
   );
   assert.deepEqual(
-    menuOf(tree)
-      .props.groups.flatMap((g) => g.items)
-      .map((i) => i.label),
-    ["Edit", "Remove"],
+    itemsOf(tree).map((i) => i.label),
+    ["Edit the email", "Remove the email version"],
   );
-  assert.equal(byTestId(paneOf(tree), "template-pane-status"), null, "no WhatsApp badge: it has no WhatsApp version");
+  // Its head says where it stands in the list, never a WhatsApp status it does not have (Messages, the canvas of 10 Nov 2026).
+  assert.equal(textOf(byTestId(paneOf(tree), "template-pane-status")).trim(), "Not in use", "nothing sends it");
+  assert.equal(tabOf(tree, "whatsapp").need, undefined, "and no WhatsApp dot: no WhatsApp version to wait on");
   // WhatsApp's own verbs are the WhatsApp version's alone (and need a number): its tab has none to rename, hide or delete.
   tree = switched(tree, "whatsapp");
   assert.equal(menuOf(tree), null);
@@ -1408,7 +1411,7 @@ test("a new message asks where it is sent first -- Email, Text, WhatsApp -- and 
   assert.ok(byTestId(tree, "tpl-composer"), "WhatsApp's rows");
   assert.ok(byTestId(tree, "tpl-submit"), "and its submit");
   assert.equal(byTestId(tree, "tpl-own"), null);
-  assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New template");
+  assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New message");
   assert.equal(
     textOf(find(tree, (n) => n.props?.className === "cm-pane-sub")),
     "WhatsApp reviews it before it can be sent — usually minutes, sometimes a day",
@@ -1457,14 +1460,14 @@ test("a text chosen for a new message says the carriers' sentence and the way ou
   );
   assert.equal(byTestId(tree, "tpl-composer"), null, "no WhatsApp rows");
   assert.equal(byTestId(tree, "tpl-own"), null, "and nothing to write");
-  // The pane's line under "New template" says what an email is (ready when saved, reviewed by no one) and what WhatsApp
+  // The pane's line under "New message" says what an email is (ready when saved, reviewed by no one) and what WhatsApp
   // does; a text is neither written here nor reviewed, and says its own sentence in the form, not that of an email.
   assert.equal(
     find(tree, (n) => n.props?.className === "cm-pane-sub"),
     null,
     "no line under the pane's name on a Text",
   );
-  assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New template");
+  assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New message");
   assert.equal(byTestId(tree, "template-version-editor"), null, "a text takes no words here");
   assert.equal(textOf(byTestId(tree, "tpl-text-email")), "Write it as an email");
   press(byTestId(tree, "tpl-text-email"));
@@ -1665,12 +1668,8 @@ test("a message begun as an email is written by ONE request -- an offer, with it
   tree = redraw();
   assert.equal(composerOf(tree), null, "the composer gives way");
   assert.ok(paneOf(tree), "to the message, open");
-  assert.equal(textOf(find(paneOf(tree), (n) => n.props?.className === "cm-pane-title")).trim(), "Spring offer");
-  assert.equal(
-    find(paneOf(tree), (n) => n.type === Segmented).props.value,
-    "email",
-    "on the channel its first version is on",
-  );
+  assert.equal(textOf(find(paneOf(tree), (n) => n.props?.className === "cm-pane-name")).trim(), "Spring offer");
+  assert.equal(tabsOf(tree).props.value, "email", "on the channel its first version is on");
   assert.equal(textOf(byTestId(paneOf(tree), "template-version-subject")), "Spring offer");
   assert.equal(bodyOf(paneOf(tree)), "Hi Dani, 20% off this week.");
   assert.ok(rowOf(tree, "spring_offer"), "and its row is in the list");

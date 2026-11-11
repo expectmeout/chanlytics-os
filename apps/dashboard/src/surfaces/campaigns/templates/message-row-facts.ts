@@ -5,7 +5,7 @@
  * two that read a surface (`usageOf`) read what the surface holds now, as the JSX read `window.__TEMPLATE_USE`,
  * `__TEMPLATE_SENT` and `__PLAYBOOKS` with no surface argument.
  */
-import { messageHolds, messageStandingWords, NUMBERED_SLOT } from "@chanlytics/contracts";
+import { messageHolds, messageStandingWords, messageWhyNot, NUMBERED_SLOT } from "@chanlytics/contracts";
 import type { CampaignMessage, TemplateSentWords } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { surfaceValue } from "../../surface-values";
@@ -13,7 +13,7 @@ import { onFileOf } from "./group";
 import type { PresentRow, TemplateGroup, TemplateRow, TplLang } from "./group";
 import type { StarterLibrary } from "./verbs";
 import { channelsWords, messageName, purposeOfMessage, versionsOfMessage } from "./versions";
-import { tplLangLabel, tplOneLine, tplOwn, tplSaid, tplSlotWord } from "./words";
+import { TPL_LIST_WORDS, tplLangLabel, tplOneLine, tplOwn, tplSaid, tplSlotWord } from "./words";
 
 /**
  * The first language a message has on file, else the set's first: where a row opens. The first WhatsApp holds, as it
@@ -321,4 +321,84 @@ function lineWords(p: {
       (_: string, n: string) => `{${tplSlotWord(kinds[Number(n) - 1], labels[Number(n) - 1], n)}}`,
     ),
   );
+}
+
+/**
+ * Where a message stands in the list (Messages, the canvas of 10 Nov 2026): it needs you (WhatsApp said no to it, paused it
+ * or turned it off, or a running sequence sends a language it cannot send), it goes out (a step that runs sends it, or the
+ * Inbox books with it), nothing sends it now, or it was put away. One reading, for its row and for its pane's head.
+ */
+export type MessagePlace = "need" | "going" | "idle" | "away";
+
+/** A message as the list sets it: where it stands, the line under its name, and what stands at its right. */
+export interface MessageSetting {
+  place: MessagePlace;
+  /** The line under its name: why it needs you, what sends it, or what it is for. */
+  said: string;
+  /** That line says what sends it (the row's "what sends it", which a test finds by its id). */
+  saysUse: boolean;
+  /** At its right: how many went out, when the last did, or that a starter is not added; null for nothing. */
+  aside: string | null;
+}
+
+type Facts = ReturnType<typeof messageFacts>;
+
+/** WhatsApp's states that stop a version for good until someone acts: refused, paused, turned off. */
+const STOPPED: ReadonlySet<string> = new Set(["rejected", "paused", "disabled"]);
+
+/** The language the message has on file but put away: its WhatsApp row's, else its message's. */
+const isAway = (r: TemplateRow): boolean => (r.message ? r.message.hidden : !!r.row?.hidden_at);
+
+/** Why the message needs you, in the one sentence contracts says it in, or null where it does not. */
+function needWords(group: TemplateGroup, facts: Facts): string | null {
+  for (const r of group.rows) {
+    const w = r.message?.versions.whatsapp ?? null;
+    if (r.message && w && !w.hidden && STOPPED.has(w.status)) return w.reason ?? messageWhyNot(r.message, "whatsapp");
+  }
+  const { usage, marks } = facts;
+  if (marks.attn && usage.skipped)
+    return TPL_LIST_WORDS.sendsMissing(usage.skippedAt ? usage.skippedAt.lang.label : tplLangLabel(usage.skipped));
+  // A version this product cannot send whole needs you only where something sends it.
+  const sends = !!(usage.use && (usage.use.running || usage.use.booking));
+  const blocked = sends ? group.rows.find((r) => r.message?.versions.whatsapp?.blocked) : undefined;
+  return blocked?.message ? messageWhyNot(blocked.message, "whatsapp") : null;
+}
+
+/** What sends it, as its row and its pane say it: the sequences, the one-offs and the Inbox, and what they are doing. */
+export const sentByWords = (use: { words: string; note: string | null }): string =>
+  use.note ? `${use.words} · ${use.note}` : use.words;
+
+/** What a message nothing sends now says under its name: what last sent it, why it cannot be sent, or what it is for. */
+function idleWords(g: TemplateGroup, facts: Facts): { said: string; saysUse: boolean } {
+  const use = facts.usage.use;
+  if (use && !use.unused) return { said: sentByWords(use), saysUse: true };
+  const blocked = g.rows.find((r) => r.message?.versions.whatsapp?.blocked)?.message;
+  if (blocked) return { said: messageWhyNot(blocked, "whatsapp") ?? g.purpose, saysUse: false };
+  if (g.starter) return { said: g.purpose.charAt(0).toUpperCase() + g.purpose.slice(1), saysUse: false };
+  return { said: facts.line ? `“${facts.line}”` : g.purpose, saysUse: false };
+}
+
+/** What stands at a row's right: how many went out, of one going out; when the last did, of one that is not. */
+function asideOf(place: MessagePlace, sent: Facts["usage"]["sent"]): string | null {
+  if (place === "need" || !sent) return null;
+  if (place === "going") return sent.count ? TPL_LIST_WORDS.sentCount(sent.count) : TPL_LIST_WORDS.notSentYet;
+  if (sent.count) return sent.when ? TPL_LIST_WORDS.sentWhen(sent.when) : TPL_LIST_WORDS.sentCount(sent.count);
+  // A starter never added says so; one on file that never went out says nothing more than its line.
+  return sent.when && !/never/i.test(sent.when) ? sent.when : null;
+}
+
+/** Where a message stands, and what its row says of it. */
+export function placeOfMessage(group: TemplateGroup, facts: Facts): MessageSetting {
+  const onFile = onFileOf(group);
+  const away = onFile.length > 0 && onFile.every(isAway);
+  const need = away ? null : needWords(group, facts);
+  const use = facts.usage.use;
+  const place: MessagePlace = away ? "away" : need ? "need" : use && (use.running || use.booking) ? "going" : "idle";
+  const line =
+    place === "need"
+      ? { said: need ?? "", saysUse: false }
+      : place === "going" && use
+        ? { said: sentByWords(use), saysUse: true }
+        : idleWords(group, facts);
+  return { place, ...line, aside: asideOf(place, facts.usage.sent) };
 }

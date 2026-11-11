@@ -1,12 +1,12 @@
 /**
- * What the Templates page draws around its list (moved from MessagesReal in legacy/pages/messages.jsx, decision 0015):
- * the head's line and act, the search with WhatsApp's sync beside it, the notice about the WhatsApp number, the
- * composer's pane, the starter set's offer, the list with its column names, and the foot. Each is a function that
- * returns its element, called by the page and not drawn as a component of its own, so the page's tree is the tree it was.
+ * What the Messages page draws around its list (moved from MessagesReal in legacy/pages/messages.jsx, decision 0015):
+ * the head's line and act, the search, the notice about the WhatsApp number, the composer's pane, the starter set's offer,
+ * the list in its groups (Need you, Going out, Not in use, Put away, Cold emails: Messages, the canvas of 10 Nov 2026), and
+ * the foot, which says when WhatsApp was last asked. Each is a function that returns its element, called by the page and
+ * not drawn as a component of its own, so the page's tree is the tree it was.
  */
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { LIBRARY_STARTER_WORDS, LIBRARY_WORDS } from "@chanlytics/contracts";
-import { libraryCount } from "@chanlytics/contracts";
 import type { CampaignMessage } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
@@ -22,57 +22,32 @@ import { CmBanner, CmDot } from "../parts/head";
 import { TemplateComposer } from "./composer";
 import { customKey } from "./group";
 import type { TemplateGroup, TemplateListing, TplLang } from "./group";
-import { TplEmailRows, TplEmailsFailed, tplAllApproved, tplHeadTip } from "./emails";
+import { TplEmailRows, TplEmailsFailed } from "./emails";
+import type { tplEmails } from "./emails";
+import type { MessagePlace } from "./message-row-facts";
 import type { StarterLibrary, VersionDraft } from "./verbs";
 import { versionsOfMessage } from "./versions";
-import { tplAgo, tplAnd, tplSpell } from "./words";
+import { TPL_LIST_WORDS, tplAgo, tplAnd, tplSpell } from "./words";
 
-type Emails = Parameters<typeof tplHeadTip>[0];
-
-interface HeadSubProps {
-  listing: TemplateListing;
-  messages: readonly CampaignMessage[];
-  emails: Emails;
-}
+type Emails = ReturnType<typeof tplEmails>;
 
 /**
- * The line under the head: the page's numbers -- how many, how many approved, how many WhatsApp is still reading --
- * in plain words and nothing to press: the frame's head draws it as a sentence, and under Glass it is hidden where the
- * list is narrow. When it last synced with WhatsApp is the list's own (listBar), beside the search. Templates, never
- * "messages": that word is a thread in the Inbox and a send in a broadcast's numbers. The count is the one Campaigns' home
- * carries on its Library act (contracts libraryCount).
+ * The line under the head: how many messages need you and how many go out, the two things a person opens Messages to
+ * know, in plain words and nothing to press; the frame's head draws it as a sentence. Its hover says what the list holds
+ * (LIBRARY_WORDS.headTip). It counted every template on file ("15 templates · 12 approved, 1 in review"), a number nobody
+ * acts on (Messages, the canvas of 10 Nov 2026).
  */
-export function headSub({ listing, messages, emails }: HeadSubProps) {
-  const { shown, approved, pending } = listing;
-  const total = libraryCount(messages, emails.length);
+export function headSub({ need, going }: { need: number; going: number }) {
   return (
-    <>
-      <span className="tabular" data-tip={tplHeadTip(emails)} data-testid="messages-count">
-        {total === 0 ? (
-          "No template on file yet"
-        ) : (
-          <>
-            <b className="cm-head-n">{total}</b> {total === 1 ? "template" : "templates"}
-          </>
-        )}
-      </span>
-      {shown.length > 0 && (
+    <span className="tabular" data-tip={LIBRARY_WORDS.headTip} data-testid="messages-count">
+      {need > 0 ? (
         <>
+          <b className="cm-head-n">{TPL_LIST_WORDS.needYou(need)}</b>
           <CmDot />
-          {/* "7 templates · 7 approved" said the number twice: all of them is "all approved". */}
-          <span className="tabular">
-            <span className="cm-head-ok">
-              {tplAllApproved(approved, shown, emails) ? "all approved" : `${approved} approved`}
-            </span>
-            {pending ? (
-              <>
-                , <span className="cm-head-info">{pending} in review</span>
-              </>
-            ) : null}
-          </span>
         </>
-      )}
-    </>
+      ) : null}
+      {TPL_LIST_WORDS.goingOut(going)}
+    </span>
   );
 }
 
@@ -81,15 +56,15 @@ interface HeadRightProps {
 }
 
 /**
- * The head's act: the page's one, drawn as the kit's button, as Playbooks' and Broadcasts' are. It is there whenever the
- * person may act: a message needs no WhatsApp number, so the number is the composer's to ask for, where it says so.
+ * The head's act: the page's one, drawn as the kit's button, as Sequences' is. It is there whenever the person may act: a
+ * message needs no WhatsApp number, so the number is the composer's to ask for, where it says so.
  */
 export function headRight({ onNew }: HeadRightProps) {
   return (
-    // Said as the kit's act says it (act-words.tsx): "+ New template" where the row holds it, "+ New" where not. A template,
-    // never "a message": a message is what a customer gets (broadcasts-honest's word rule).
-    <Button variant="primary" onClick={onNew} data-testid="template-new" {...gate("approve", "write a template")}>
-      <ActWords icon={<Icon name="plus" size={14} />} words="New template" />
+    // Said as the kit's act says it (act-words.tsx): "+ New message" where the row holds it, "+ New" where not. A message,
+    // as the tab is called: "template" was a third word for the one thing (Messages, the canvas of 10 Nov 2026).
+    <Button variant="primary" onClick={onNew} data-testid="template-new" {...gate("approve", "write a message")}>
+      <ActWords icon={<Icon name="plus" size={14} />} words="New message" />
     </Button>
   );
 }
@@ -97,54 +72,21 @@ export function headRight({ onNew }: HeadRightProps) {
 interface BarProps {
   q: string;
   setQ: (q: string) => void;
-  /** The search is the bar's line (a desk's): the bar draws no box of its own. */
+  /** The search is the bar's line (a desk's): the list draws no box of its own. */
   inLine: boolean;
-  hasWhatsApp: boolean;
-  lastSync: string | null;
-  doing: string | null;
-  busy: boolean;
-  sync: () => Promise<void>;
 }
 
 /**
- * The top of the list, as the Inbox's list opens on its search: the box that finds a template by its words, across the
- * list's width, and beside it when the list last synced with WhatsApp -- a STATE the page is in, not a chore the owner
- * remembers: it says when it last looked and presses to look again, and while it looks it is the only control that says
- * it is working (C20). Both were the frame head's (the search in its act, the state in its sentence), which a phone turns
- * into one coral circle and Glass leaves out of the list's reach. The box is the kit's search, as Sequences' beside it is: a
- * plain field here had no glyph and another fill (the sample walk, 18 Oct 2026). On a desk the box is the bar's line
- * (the page heads canvas, H2, 31 Oct 2026), and the bar holds the sync alone.
+ * The top of the list on a phone, as the Inbox's list opens on its search: the box that finds a message by its words,
+ * across the list's width. On a desk the box is the bar's line (the page heads canvas, H2, 31 Oct 2026), and the list
+ * opens on its first group. When WhatsApp was last asked stood beside it, a press a person had to remember: it is the
+ * list's foot now (listFoot), a line that says when it last looked.
  */
-export function listBar({ q, setQ, inLine, hasWhatsApp, lastSync, doing, busy, sync }: BarProps) {
-  if (inLine && !hasWhatsApp) return null;
+export function listBar({ q, setQ, inLine }: BarProps) {
+  if (inLine) return null;
   return (
     <div className="tpl-bar">
-      {!inLine && <Search label="Search messages" value={q} onChange={setQ} testid="templates-search" />}
-      {hasWhatsApp && (
-        <LinkButton
-          className={`tpl-fresh${doing === "sync" ? " is-busy" : ""}`}
-          onClick={sync}
-          disabled={busy}
-          data-testid="sync-templates"
-          aria-description="Check WhatsApp for changes"
-          {...gate("approve", "sync from WhatsApp")}
-        >
-          <span className={`tpl-fresh-dot${lastSync ? "" : " never"}`} aria-hidden="true" />
-          {/* "Synced 16d ago", the words every tool says it in; "In step with WhatsApp" took the line's room. */}
-          {doing === "sync" ? (
-            "Checking WhatsApp…"
-          ) : lastSync ? (
-            <>
-              Synced <span className="tpl-fresh-age">{tplAgo(lastSync)}</span>
-            </>
-          ) : (
-            "Never synced"
-          )}
-          <span className="tpl-fresh-again" aria-hidden="true">
-            <Icon name="refresh" size={12} />
-          </span>
-        </LinkButton>
-      )}
+      <Search label="Search messages" value={q} onChange={setQ} testid="templates-search" />
     </div>
   );
 }
@@ -307,97 +249,120 @@ export function startersOffer({ S, langs, busy, addingAll, addStarters, hasNumbe
   );
 }
 
+/** The list's groups, in the order a person asks about them, each with the messages that stand in it. */
+export type ListGroups = Record<MessagePlace, readonly TemplateGroup[]>;
+
+/** A group folded under its name, or open; Not in use's null is its own: open where nothing needs you and nothing goes out. */
+export type ListFolds = { idle: boolean | null; away: boolean; emails: boolean };
+
 interface ListProps {
-  listed: number;
-  listStarters: TemplateGroup[];
-  listCustom: TemplateGroup[];
+  groups: ListGroups;
   listEmails: Emails;
   openKey: string | null;
   onOpenKey: (key: string) => void;
   card: (g: TemplateGroup) => ReactNode;
+  /** Which groups stand open; a search opens every one, as what it finds may be in any. */
+  folds: ListFolds;
+  /** A group's head pressed: it stands open, or folded, from now on. */
+  onFold: (group: keyof ListFolds, open: boolean) => void;
   needle: string;
   q: string;
 }
 
-/** The list: what each column of a row is, once, above them, then the messages, the emails and what is said of none. */
+/** A group's name over its rows: a press that folds it where it folds, its name alone where it does not. */
+function groupHead({
+  name,
+  n,
+  fold,
+  open,
+  onFold,
+}: {
+  name: string;
+  n: number;
+  fold: keyof ListFolds | null;
+  open: boolean;
+  onFold: ListProps["onFold"];
+}) {
+  if (!fold)
+    return (
+      <h3 className="msg-group-head">
+        <span className="msg-group-name">{name}</span>
+      </h3>
+    );
+  return (
+    <LinkButton
+      className="msg-group-head"
+      onClick={() => onFold(fold, !open)}
+      aria-expanded={open}
+      aria-label={TPL_LIST_WORDS.fold(name, n)}
+      data-testid={fold === "away" ? "templates-hidden" : `templates-fold-${fold}`}
+    >
+      <span className="msg-group-name">{name}</span>
+      <span className="msg-group-n tabular">{n}</span>
+      <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
+    </LinkButton>
+  );
+}
+
+/** One group: its name, and while it stands open, its rows. Nothing at all where it holds none. */
+function listGroup({
+  place,
+  n,
+  rows,
+  fold,
+  open,
+  onFold,
+}: {
+  place: MessagePlace | "emails";
+  n: number;
+  rows: () => ReactNode;
+  fold: keyof ListFolds | null;
+  open: boolean;
+  onFold: ListProps["onFold"];
+}) {
+  if (n === 0) return null;
+  const name = TPL_LIST_WORDS[place];
+  return (
+    <div className="msg-group" data-place={place} data-testid={`templates-${place}`}>
+      {groupHead({ name, n, fold, open, onFold })}
+      {open ? <div className="msg-list">{rows()}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * The list, in its groups: what needs you, what goes out, a cold email sequence's emails (which a sequence sends, so they
+ * stand with what goes out), what nothing sends now and what was put away, each under its name. The first three stand
+ * open; the last two fold, Not in use open where nothing needs you and nothing goes out. A search opens every group and
+ * keeps the rows whose words have it.
+ */
 export function templateList(p: ListProps) {
-  const { listed, listStarters, listCustom, listEmails, openKey, onOpenKey, card } = p;
-  const { needle, q } = p;
+  const { groups, listEmails, openKey, onOpenKey, card, folds, onFold, needle, q } = p;
+  const searching = needle !== "";
+  const idleOpen = searching || (folds.idle ?? (groups.need.length === 0 && groups.going.length === 0));
+  const listed = groups.need.length + groups.going.length + groups.idle.length + groups.away.length + listEmails.length;
+  const of = (place: MessagePlace) => ({ place, n: groups[place].length, rows: () => groups[place].map(card), onFold });
   return (
     <section className="msg-section" data-testid="templates">
-      <div className="msg-list">
-        {/* What each column of a row is, once, above them -- the way the People
-            and Leads tables name theirs. Inside the list, not above it: the list
-            is the container the row's columns are measured against. The first
-            cell is the mark's, and has no heading. */}
-        {listed > 0 && (
-          <div className="msg-list-head" aria-hidden="true">
-            <span />
-            <span>The message</span>
-            <span>Sent by</span>
-            <span className="msg-list-head-sent">Sent</span>
-          </div>
-        )}
-        {listStarters.map(card)}
-        {listCustom.map(card)}
-        <TplEmailRows emails={listEmails} openKey={openKey} onOpenKey={onOpenKey} />
-      </div>
+      {listGroup({ ...of("need"), fold: null, open: true })}
+      {listGroup({ ...of("going"), fold: null, open: true })}
+      {listGroup({
+        place: "emails",
+        n: listEmails.length,
+        rows: () => <TplEmailRows emails={listEmails} openKey={openKey} onOpenKey={onOpenKey} />,
+        fold: "emails",
+        open: searching || folds.emails,
+        onFold,
+      })}
+      {listGroup({ ...of("idle"), fold: "idle", open: idleOpen })}
+      {listGroup({ ...of("away"), fold: "away", open: searching || folds.away })}
       {needle && listed === 0 && (
-        <EmptyState kind="line" title={`No template’s words have “${q.trim()}” in them.`} testid="templates-no-match" />
+        <EmptyState kind="line" title={TPL_LIST_WORDS.noMatch(q.trim())} testid="templates-no-match" />
       )}
       <TplEmailsFailed />
     </section>
   );
 }
-
-interface TplFootProps {
-  partialSet: boolean;
-  busy: boolean;
-  onAddRest: () => void;
-  leftToAdd: string;
-  addingAll: boolean;
-  hidden: number;
-  showHidden: boolean;
-  setShowHidden: Dispatch<SetStateAction<boolean>>;
-}
-
-// The foot of the list: the starter set's languages not yet added, as one quiet act, and what the workspace kept out
-// of the composers, folded and still on file. How long WhatsApp takes to read a new one is the head's hover and the
-// composer's line; said here too, it was the page's third time. Moved whole out of MessagesReal.
-const TplFoot = ({
-  partialSet,
-  busy,
-  onAddRest,
-  leftToAdd,
-  addingAll,
-  hidden,
-  showHidden,
-  setShowHidden,
-}: TplFootProps) => (
-  <footer className="msg-foot">
-    {partialSet && (
-      <LinkButton
-        disabled={busy}
-        onClick={onAddRest}
-        data-tip={leftToAdd}
-        aria-description={leftToAdd}
-        data-testid="starter-add-all"
-        {...gate("approve", "add a starter template")}
-      >
-        <Icon name="plus" size={12} />
-        {addingAll ? "Adding…" : "Add the rest of the starter set"}
-      </LinkButton>
-    )}
-    {hidden > 0 && (
-      <span className="msg-foot-fold" data-testid="templates-fold">
-        <LinkButton onClick={() => setShowHidden((v) => !v)} aria-expanded={showHidden} data-testid="templates-hidden">
-          <Icon name={showHidden ? "chevron-up" : "chevron-down"} size={12} />
-          Not in the composers · <span className="tabular">{hidden}</span> · still on file
-        </LinkButton>
-      </span>
-    )}
-  </footer>
-);
 
 interface ListFootProps {
   listing: TemplateListing;
@@ -405,37 +370,67 @@ interface ListFootProps {
   busy: boolean;
   addingAll: boolean;
   addStarters: (keys: string[] | null, languages: string[]) => Promise<void>;
-  showHidden: boolean;
-  setShowHidden: Dispatch<SetStateAction<boolean>>;
-  card: (g: TemplateGroup) => ReactNode;
+  /** WhatsApp's number is there to ask, and when its messages were last read from it. */
+  hasWhatsApp: boolean;
+  doing: string | null;
+  sync: () => Promise<void>;
 }
 
-/** Under the list: its foot, and what the workspace kept out of the composers while the fold is open. */
-export function listFoot(p: ListFootProps) {
-  const { listing, partialSet, busy, addingAll, addStarters, showHidden, setShowHidden, card } = p;
-  const { hiddenMessages, hiddenGroups, langs, leftToAdd } = listing;
+/**
+ * When WhatsApp was last asked about the workspace's messages, quietly, at the list's foot: a STATE the page is in, which
+ * a press asks again (WhatsApp tells the app its answer on a message by itself; this reads the messages made in WhatsApp's
+ * own tools). While it asks, it is the only control that says it is working (C20).
+ */
+function syncLine({ listing, doing, busy, sync }: Pick<ListFootProps, "listing" | "doing" | "busy" | "sync">) {
+  const ago = listing.lastSync ? tplAgo(listing.lastSync) : null;
   return (
-    <>
-      {(partialSet || hiddenMessages.length > 0) && (
-        <TplFoot
-          partialSet={partialSet}
-          busy={busy}
-          onAddRest={() =>
+    <LinkButton
+      className={`tpl-fresh${doing === "sync" ? " is-busy" : ""}`}
+      onClick={sync}
+      disabled={busy}
+      data-testid="sync-templates"
+      aria-description={TPL_LIST_WORDS.checkAgain}
+      {...gate("approve", "check WhatsApp for changes")}
+    >
+      <span className={`tpl-fresh-dot${listing.lastSync ? "" : " never"}`} aria-hidden="true" />
+      {doing === "sync" ? TPL_LIST_WORDS.checking : ago ? TPL_LIST_WORDS.checked(ago) : TPL_LIST_WORDS.neverChecked}
+      <span className="tpl-fresh-again" aria-hidden="true">
+        <Icon name="refresh" size={12} />
+      </span>
+    </LinkButton>
+  );
+}
+
+/**
+ * Under the list: the starter set's languages not yet added, as one quiet act, and when WhatsApp was last asked. How long
+ * WhatsApp takes to read a new one is the head's hover and the composer's line; said here too, it was the page's third
+ * time. What the workspace put away is a group of the list now, under its name.
+ */
+export function listFoot(p: ListFootProps) {
+  const { listing, partialSet, busy, addingAll, addStarters, hasWhatsApp } = p;
+  const { langs, leftToAdd } = listing;
+  if (!partialSet && !hasWhatsApp) return null;
+  return (
+    <footer className="msg-foot">
+      {partialSet && (
+        <LinkButton
+          disabled={busy}
+          onClick={() =>
             addStarters(
               null,
               langs.map((l) => l.id),
             )
           }
-          leftToAdd={leftToAdd}
-          addingAll={addingAll}
-          hidden={hiddenMessages.length}
-          showHidden={showHidden}
-          setShowHidden={setShowHidden}
-        />
+          data-tip={leftToAdd}
+          aria-description={leftToAdd}
+          data-testid="starter-add-all"
+          {...gate("approve", "add a starter message")}
+        >
+          <Icon name="plus" size={12} />
+          {addingAll ? "Adding…" : "Add the rest of the starter set"}
+        </LinkButton>
       )}
-      {showHidden && hiddenGroups.length > 0 && (
-        <div className="msg-list msg-list-hidden">{hiddenGroups.map(card)}</div>
-      )}
-    </>
+      {hasWhatsApp ? syncLine(p) : null}
+    </footer>
   );
 }

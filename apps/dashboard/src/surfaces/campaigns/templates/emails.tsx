@@ -6,7 +6,6 @@
  * own rows. There is no "nothing on file" line: the starter set is always offered, a workspace with no WhatsApp number
  * included, so the list is never bare.
  */
-import { LIBRARY_WORDS } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
 import { surfaceValue } from "../../surface-values";
 import { ReachOutEmailRow } from "../reach-out/email-message";
@@ -19,17 +18,8 @@ type Emails = ReturnType<typeof reachOuts.words.emailTemplateRowsOf>;
 export const tplEmails = (chains: ReachOutsSurface | undefined): Emails =>
   Array.isArray(chains) ? reachOuts.words.emailTemplateRowsOf(chains) : [];
 
-// The head's hover: what the Library holds, and when the count takes a reach-out's email rows, contracts' sentence saying so.
-export const tplHeadTip = (emails: Emails): string =>
-  emails.length > 0
-    ? `${LIBRARY_WORDS.headTip} ${reachOuts.words.EMAIL_TEMPLATE_LIST_WORDS.headTip(emails.length)}`
-    : LIBRARY_WORDS.headTip;
-
 export const tplEmailsMatching = (emails: Emails, needle: string): Emails =>
   emails.filter((t) => !needle || `${t.subject || ""} ${t.body} ${t.chain_name}`.toLowerCase().includes(needle));
-
-export const tplAllApproved = (approved: number, shown: readonly unknown[], emails: Emails): boolean =>
-  approved === shown.length && emails.length === 0;
 
 // Under the list: the reach-outs' read that failed, said with its Retry. An unread one says nothing.
 export function TplEmailsFailed() {

@@ -38,18 +38,21 @@ export const messagesOf = (read: TemplatesRead): CampaignMessage[] =>
   read.messages ?? campaignMessagesOf(read.templates);
 
 /**
- * What the Library lists of the workspace's messages (templates/group.ts listingOf): a row to each starter of the set
- * offered here, whatever of it the workspace holds; a row to each name the workspace wrote or synced, whatever languages and
- * channels it holds, and a fold for what it hid. Meta's sample is never one.
+ * What the Library lists of the workspace's messages (templates/group.ts listingOf), every group open: a row to each starter
+ * of the set offered here, whatever of it the workspace holds; a row to each name the workspace wrote or synced, whatever
+ * languages and channels it holds; and Put away, the group that folds what it hid, where a name it holds is hidden in
+ * every language (Messages, the canvas of 10 Nov 2026). Meta's sample is never one.
  */
 export function libraryRows(
   messages: readonly CampaignMessage[],
   starterNames: readonly string[],
 ): { starterRows: number; customRows: number; hidden: boolean } {
-  const written = messages.filter((m) => !isLibrarySample(m.name) && !starterNames.includes(m.name));
+  const listed = messages.filter((m) => !isLibrarySample(m.name));
+  const written = listed.filter((m) => !starterNames.includes(m.name));
+  const names = new Set(listed.map((m) => m.name));
   return {
     starterRows: starterNames.length,
-    customRows: new Set(written.filter((m) => !m.hidden).map((m) => m.name)).size,
-    hidden: written.some((m) => m.hidden),
+    customRows: new Set(written.map((m) => m.name)).size,
+    hidden: [...names].some((name) => listed.filter((m) => m.name === name).every((m) => m.hidden)),
   };
 }

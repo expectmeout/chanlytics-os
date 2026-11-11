@@ -377,7 +377,7 @@ test("REGRESSION (C17, C21): a viewer on Templates finds New message where it al
       byTestId(tree, "template-new") ??
       find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "template-new");
     assert.ok(write, "REGRESSION: New message was hidden from a viewer, with no word why");
-    assert.equal(write.props["data-tip"], "Only an owner or operator can write a template.");
+    assert.equal(write.props["data-tip"], "Only an owner or operator can write a message.");
     assert.ok(!listening.includes("messages:new"), "REGRESSION: a listener for an event nothing dispatches");
   } finally {
     globalThis.addEventListener = add;

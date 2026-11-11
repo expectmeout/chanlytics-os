@@ -421,11 +421,25 @@ const library = async (record) => {
   return drawAgain(() => TemplatesPage());
 };
 
+/** The Library with every group that folds pressed open (Not in use, Put away), as the spec counts it. */
+const unfolded = (tree) => {
+  let now = tree;
+  for (const id of ["templates-fold-idle", "templates-hidden"]) {
+    const head = byTestId(now, id);
+    if (head && head.props["aria-expanded"] === false) {
+      press(head);
+      now = drawAgain(() => TemplatesPage());
+    }
+  }
+  return now;
+};
+
 test("the Library draws the rows the spec counts, the quiet line only where there is no number, and its composer opens where the spec says", async () => {
   // The recorded settings answers say no review link (none predates it), so the Library offers no review ask.
   const starterNames = contracts.startersOffered({ reviewLink: false }).map((s) => s.name);
   for (const [name, record] of WORKSPACES) {
-    const tree = await library(record);
+    // Every group open (Messages, the canvas of 10 Nov 2026: Not in use and Put away fold), so each row the spec counts is drawn.
+    const tree = unfolded(await library(record));
     const messages = messagesOf(read(record, "/api/v1/templates", { all: "1" }));
     // The bridge made the page the same messages the route answers.
     assert.deepEqual(

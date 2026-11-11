@@ -1,9 +1,11 @@
 /**
- * Campaigns > Library (the route's `messages`, the path's `templates`): the wording the receptionist and the campaigns send, on each channel, shown as the customer sees it
- * (moved from legacy/pages/messages.jsx, decision 0015). One row per message -- the starter set in the library's order,
- * then what the workspace wrote or synced -- opening, beside the list, on the bubble for the language in view, its
- * languages (approved, in review, or one tap to add), and the verbs an operator has under a menu. Meta's own sample is
- * never shown; a message the workspace hid sits under a fold, still on file. A WhatsApp version is approved by WhatsApp
+ * Campaigns > Messages (the route's `messages`, the path's `templates`): the wording the receptionist and the campaigns
+ * send, on each channel, shown as the customer sees it (moved from legacy/pages/messages.jsx, decision 0015). One row per
+ * message, in groups a person reads top down (Messages, the canvas of 10 Nov 2026): what needs you, what goes out, what
+ * nothing sends now and what was put away, each under its name, the last two folded -- opening, beside the list, on the
+ * bubble for the language in view, its channels, its languages, what sends it and what went out, and the verbs an
+ * operator has under the menu on its caret. Meta's own sample is never shown; a message the workspace put away is its own
+ * group, still on file. A WhatsApp version is approved by WhatsApp
  * whether it is written here or in WhatsApp Manager, an email or a text is ready when it is saved, and a marketing message
  * can only go to people who said yes to offers. Every verb goes through the templates verbs and the surface is re-fetched,
  * so the cards are the server's.
@@ -54,8 +56,10 @@ import { PaneSheet } from "../home/pane-sheet";
 import { ReachOutEmailPane } from "../reach-out/email-message";
 import { tplEmailOpen, tplEmails, tplEmailsMatching } from "./emails";
 import { groupNamed, listingOf, nameOfGroup } from "./group";
-import type { TemplateGroup } from "./group";
+import type { TemplateGroup, TplLang } from "./group";
 import { MessageRow } from "./message-row";
+import { firstView, messageFacts, placeOfMessage } from "./message-row-facts";
+import type { MessageSetting } from "./message-row-facts";
 import { pageActs } from "./page-acts";
 import {
   composerPane,
@@ -68,12 +72,52 @@ import {
   startersOffer,
   templateList,
 } from "./page-parts";
+import type { ListFolds, ListGroups } from "./page-parts";
 import { TemplatePane } from "./template-pane";
 import { starters as library } from "./verbs";
 import { brainOf } from "./words";
 
 /** No email or text rows read: one array for every draw, so nothing that takes it sees it change. */
 const NO_VERSIONS: readonly TemplateDto[] = [];
+
+/**
+ * The list's groups, each with its messages in the order they came (the starter set's, then the workspace's own): where
+ * each stands is placeOfMessage's reading of it.
+ */
+function messageGroupsOf(
+  listed: readonly TemplateGroup[],
+  read: ReadonlyMap<string, { setting: MessageSetting }>,
+): ListGroups {
+  const of = (place: MessageSetting["place"]) => listed.filter((g) => read.get(g.key)?.setting.place === place);
+  return { need: of("need"), going: of("going"), idle: of("idle"), away: of("away") };
+}
+
+/** What each message's row and its pane's head read of it, worked out once: the language it opens on, and where it stands. */
+function readEach(every: readonly TemplateGroup[], langs: readonly TplLang[], versions: readonly TemplateDto[]) {
+  const read = new Map<string, { facts: ReturnType<typeof messageFacts>; setting: MessageSetting }>();
+  for (const g of every) {
+    const facts = messageFacts({ g, langs, S: library, versions, view: firstView(g, langs) });
+    read.set(g.key, { facts, setting: placeOfMessage(g, facts) });
+  }
+  return read;
+}
+
+/** A message's row, from what was read of it once: nothing for one that was not read. */
+function messageCard(read: ReturnType<typeof readEach>, shownKey: string | null, openOne: (key: string) => void) {
+  return (group: TemplateGroup) => {
+    const it = read.get(group.key);
+    return it ? (
+      <MessageRow
+        key={group.key}
+        g={group}
+        facts={it.facts}
+        setting={it.setting}
+        open={shownKey === group.key}
+        onOpen={() => openOne(group.key)}
+      />
+    ) : null;
+  };
+}
 
 /** The page has read nothing yet, or is a session with no workspace to read. */
 function readingNow(view: CmView | undefined) {
@@ -111,7 +155,8 @@ function usePageState() {
   // A message half-written when the page was left opens again as the page does: the tab kept its words (the
   // composer's own useUnsavedWork, under "new").
   const [composing, setComposing] = useState(() => !!tabDraft("template", "new"));
-  const [showHidden, setShowHidden] = useState(false);
+  // Which of the list's groups stand open: Not in use's own (null) opens it where nothing else is there to read.
+  const [folds, setFolds] = useState<ListFolds>({ idle: null, away: false, emails: true });
   // Which reach-out email is open, by its key, in the pane beside the list (a message open is the address's). One thing open
   // at a time: the words of two messages side by side is the wall this page stopped being.
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -128,8 +173,8 @@ function usePageState() {
     doingRef,
     composing,
     setComposing,
-    showHidden,
-    setShowHidden,
+    folds,
+    setFolds,
     openKey,
     setOpenKey,
     pressed,
@@ -153,7 +198,7 @@ function roleHint(canAct: boolean, hasWhatsApp: boolean): ReactNode {
   if (canAct || !hasWhatsApp) return null;
   return (
     <span className="bc-excl-hint" data-testid="messages-role">
-      {gateTitle("approve", "rename, hide or delete a template")}
+      {gateTitle("approve", "rename, put away or delete a message")}
     </span>
   );
 }
@@ -253,7 +298,7 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   const S = library;
   const state = usePageState();
   const phone = useCmPhone();
-  const { doing, setDoing, doingRef, composing, setComposing, showHidden, setShowHidden } = state;
+  const { doing, setDoing, doingRef, composing, setComposing, folds, setFolds } = state;
   const { openKey, q, setQ, inLine, toastNode, flash } = state;
   const named = useNamedMessage(route, setComposing);
   const busy = doing !== null;
@@ -281,25 +326,18 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   // the picker, where the languages it cannot add would have been. (An email's or a text's
   // version of a message needs no number: only a WhatsApp version does.)
   const addWhy = !hasWhatsApp ? LIBRARY_WORDS.addNeedsNumber : !canAct ? gateTitle("approve", "add a language") : null;
-  const { routed, shownKey, openOne, startNew, closeOpen, openMade } = messageOpener(
-    { route, named },
-    [...starters, ...customGroups, ...hiddenGroups],
-    state,
-  );
-  const read = { langs, S, versions };
+  const every = [...starters, ...customGroups, ...hiddenGroups];
+  const { routed, shownKey, openOne, startNew, closeOpen, openMade } = messageOpener({ route, named }, every, state);
   const held = { templates, messages };
-  const card = (g: TemplateGroup) => (
-    <MessageRow key={g.key} g={g} {...read} open={shownKey === g.key} onOpen={() => openOne(g.key)} />
-  );
+  const read = readEach(every, langs, versions);
+  const card = messageCard(read, shownKey, openOne);
 
   const needle = q.trim().toLowerCase();
   const matches = matchesOf(needle, langs, S, versions);
-  const listStarters = starters.filter(matches);
-  const listCustom = customGroups.filter(matches);
-  // A reach-out's emails (Reach out Part 4 PR 8, R19): contracts' rows over the chains, found by their words too.
+  const groups = messageGroupsOf(every.filter(matches), read);
+  // A cold email sequence's emails (Reach out Part 4 PR 8, R19): contracts' rows over the chains, found by their words too.
   const emails = tplEmails(chains);
   const listEmails = tplEmailsMatching(emails, needle);
-  const listed = listStarters.length + listCustom.length + listEmails.length;
 
   // What is open beside the list: the composer, a message or a reach-out's email. A message the address names that the
   // list no longer has (deleted, or a number that went) says so.
@@ -351,26 +389,26 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
         quiet
         title={LIBRARY_WORDS.title}
         testid="messages-standing"
-        sub={headSub({ listing, messages, emails })}
+        sub={headSub({ need: groups.need.length, going: groups.going.length })}
         right={headRight({ onNew: startNew })}
       />
-      {/* The top of the list, as the Inbox's opens: the search, and beside it when WhatsApp was last asked. */}
-      {listBar({ q, setQ, inLine, hasWhatsApp, lastSync: listing.lastSync, doing, busy, sync })}
+      {/* The top of the list on a phone, as the Inbox's opens: the search. A desk's is the bar's line. */}
+      {listBar({ q, setQ, inLine })}
       {roleHint(canAct, hasWhatsApp)}
       {numberNotice({ channels, hasWhatsApp })}
       {allMissing && startersOffer({ S, langs, busy, addingAll, addStarters, hasNumber: hasWhatsApp })}
       {templateList({
-        listed,
-        listStarters,
-        listCustom,
+        groups,
         listEmails,
         openKey: shownKey,
         onOpenKey: openOne,
         card,
+        folds,
+        onFold: (group, open) => setFolds((was) => ({ ...was, [group]: open })),
         needle,
         q,
       })}
-      {listFoot({ listing, partialSet, busy, addingAll, addStarters, showHidden, setShowHidden, card })}
+      {listFoot({ listing, partialSet, busy, addingAll, addStarters, hasWhatsApp, doing, sync })}
     </div>
   );
 

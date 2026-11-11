@@ -379,6 +379,12 @@ const messagesOpen = (over = {}, which = "custom-row") => {
   press(find(row, (n) => n.props?.["data-testid"] === "template-open"));
   return messagesAgain();
 };
+/** What sends the offer, as the settings read says it: a sequence running now, unless a test says otherwise. */
+const sentBy = (words, more = {}) => ({
+  offer: { words, note: null, unused: false, sequence: null, running: true, booking: false, ...more },
+});
+/** A row's second line: why it needs you, what sends it, or what it is for. */
+const rowLine = (t) => find(byTestId(t, "custom-row"), (n) => n.props?.className === "msg-row-words");
 /**
  * The message the surface stamps on a template it offers (surfaces/campaigns/parts/channels.ts cmOfferedMessages), made as the
  * reader makes it, of a row on each channel the template holds: what the Send by row reads a closed channel's words from.
@@ -1260,18 +1266,20 @@ test("a run's report: who it touched is filtered by the kit's sub-tabs, and a pe
 
 /* ------------------------------ Messages ------------------------------ */
 
-test("the page counts templates: `message` is what a customer gets, and the word meant three things across one nav", () => {
-  // With rows on file, so the line reaches its plural: an empty workspace says
-  // "No template on file yet" whatever the word for a full one is.
-  const tree = messages({ templatesAll: [templateRow(), templateRow({ id: "t8", name: "welcome" })] });
+test("the page says what needs you and what goes out, and calls a message a message, as its tab does", () => {
+  // Messages, the canvas of 10 Nov 2026: the head counted every template on file, a number nobody acts on; it says the
+  // two things a person opens Messages to know, in one word, message (its button said "New template").
+  messages({
+    templatesAll: [templateRow(), templateRow({ id: "t8", name: "welcome", meta_status: "rejected" })],
+    templateUse: sentBy("Win-back"),
+  });
   const line = textOf(headSaid());
-  assert.match(
-    line,
-    /(No template on file yet|\d+ templates?\b)/,
-    `REGRESSION: it counted "messages" under a tab beside the Inbox — ${line}`,
-  );
-  assert.ok(!/\bmessages?\b/i.test(line), `nothing on the line calls a template a message — ${line}`);
-  assert.equal(textOf(headed(tree, "template-new")).trim(), "New template", "and the act that makes one says so");
+  assert.ok(line.includes("1 needs you"), `the one WhatsApp refused needs you -- ${line}`);
+  assert.ok(line.includes("1 going out"), `and the one a running sequence sends goes out -- ${line}`);
+  assert.ok(!/\btemplates?\b/i.test(line), `no "template" on the line -- ${line}`);
+  messages({ templatesAll: [templateRow()] });
+  assert.ok(textOf(headSaid()).includes("Nothing going out yet"), "nothing sends it: said so, not a count of zero");
+  assert.equal(textOf(headed(messagesAgain(), "template-new")).trim(), "New message", "and its act says so");
 });
 
 test("REGRESSION (C20): on Messages only the pressed control says it is working, and every control waits -- one flag relabelled every Add while a sync ran", async () => {
@@ -1312,10 +1320,10 @@ test("REGRESSION (C20): on Messages only the pressed control says it is working,
     tree = messagesAgain();
     assert.match(
       textOf(byTestId(tree, "sync-templates")),
-      /Synced|Never synced/,
+      /Checked with WhatsApp|Not checked with WhatsApp yet/,
       "and afterwards it says when it last looked, not what to press",
     );
-    assert.match(textOf(toasts.at(-1).msg), /2 templates from WhatsApp — 2 approved, 1 marketing/, "and what it found");
+    assert.match(textOf(toasts.at(-1).msg), /2 messages from WhatsApp — 2 approved, 1 marketing/, "and what it found");
   } finally {
     sync.restore();
   }
@@ -1352,31 +1360,31 @@ test("A starter set part-way on file says what is left at the list's foot, in wo
   }
 });
 
-test("A row asks for attention when a language a playbook sends is missing or not approved -- not for a language nobody sends -- and the head says all approved once", () => {
+test("A message needs you when a language a running sequence sends is missing -- not for a language nobody sends, nor one WhatsApp is still reading", () => {
   const en = templateRow({ id: "t-en", name: "offer", language: "en_US", meta_status: "approved" });
   const es = templateRow({ id: "t-es", name: "offer", language: "es", meta_status: "pending" });
-  const use = { offer: { words: "Offer", unused: false, playbook: "pb-1" } };
+  const use = sentBy("Offer", { sequence: "pb-1" });
   const sends = (language) => ({
     rows: [
       { id: "pb-1", name: "Offer", template_name: "offer", template_language: language, state: "running", runs: true },
     ],
   });
-  const attn = (t) => String(byTestId(t, "custom-row").props.className).split(" ").includes("is-attn");
-  // A playbook sends Spanish and WhatsApp holds only English: every run of it is skipped.
+  const row = (t) => byTestId(t, "custom-row");
+  // A playbook sends Spanish and WhatsApp holds only English: every run of it is skipped. It needs you.
   let tree = messages({ templatesAll: [en], playbooks: sends("es"), templateUse: use });
-  assert.ok(attn(tree), "a language a running playbook sends, missing");
+  assert.equal(row(tree).props["data-place"], "need", "a language a running sequence sends, missing");
+  assert.ok(String(row(tree).props.className).split(" ").includes("is-attn"));
   assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish missing");
-  assert.ok(textOf(headSaid()).includes("all approved"), "the one on file is approved");
-  // It sends the approved English, and Spanish is in review: nothing is refused, so the row is at rest -- and the
-  // pill still says Spanish is in review.
+  assert.ok(textOf(row(tree)).includes("A sequence sends it in Spanish"), textOf(row(tree)));
+  assert.ok(textOf(headSaid()).includes("1 needs you"), textOf(headSaid()));
+  // It sends the approved English, and Spanish is in review: it goes out, and the pill says Spanish is in review.
   tree = messages({ templatesAll: [en, es], playbooks: sends("en_US"), templateUse: use });
-  assert.ok(!attn(tree), "REGRESSION: a language nobody sends asked for attention");
+  assert.equal(row(tree).props["data-place"], "going", "REGRESSION: a language nobody sends asked for attention");
   assert.equal(textOf(byTestId(tree, "template-status")).trim(), "Spanish in review");
-  const head = textOf(headSaid());
-  assert.ok(head.includes("1 approved") && head.includes("1 in review"), head);
-  // Without the playbooks read, a language on file that is not approved, on a message something sends.
+  assert.ok(textOf(headSaid()).includes("1 going out"), textOf(headSaid()));
+  // Without the playbooks read, a language WhatsApp is still reading is no work of the owner's.
   tree = messages({ templatesAll: [en, es], playbooks: undefined, templateUse: use });
-  assert.ok(attn(tree), "the playbooks unread: what is on file and not approved");
+  assert.equal(row(tree).props["data-place"], "going", "the playbooks unread: in review is not needing you");
 });
 
 /**
@@ -1412,18 +1420,16 @@ test("A message is a row you scan, and the words open under it: what it is, what
     meta_status: "approved",
     body_preview: "Hi {{1}},\n  20% off\tthis week.",
   });
-  let tree = messages({
-    templatesAll: [en],
-    templateUse: { offer: { words: "Win-back", unused: false, playbook: "pb-1" } },
-  });
-  const row = byTestId(tree, "custom-row");
-  // A line of the words rides the row, on one line whatever the message does with
-  // newlines and tabs, in quotes and with its slots NAMED rather than numbered --
-  // so a row IS the message, and shows what varies per person. A slot nothing
-  // names on file is "value 1": never Meta's "{{1}}".
+  // Two lines (Messages, the canvas of 10 Nov 2026): its name, and what sends it; a message nothing sends quotes its words.
+  let tree = messages({ templatesAll: [en] });
+  let row = byTestId(tree, "custom-row");
+  // A line of the words, on one line whatever its newlines and tabs, in quotes, its slots NAMED: what varies per person.
+  // A slot nothing names on file is "value 1": never Meta's "{{1}}".
   assert.ok(textOf(row).includes("“Hi {value 1}, 20% off this week.”"), textOf(row));
-  assert.ok(textOf(byTestId(row, "template-users")).includes("Win-back"), "and what sends it, closed");
-  assert.ok(byTestId(row, "template-sent"), "and what went out, in its own cell");
+  tree = messages({ templatesAll: [en], templateUse: sentBy("Win-back") });
+  row = byTestId(tree, "custom-row");
+  assert.ok(textOf(byTestId(row, "template-users")).includes("Win-back"), "what sends it, closed");
+  assert.equal(byTestId(row, "template-sent"), null, "and, the sends unread, nothing said of what went out");
   assert.equal(byTestId(tree, "template-open-body"), null, "the whole message is not drawn until it is asked for");
   assert.equal(paneOf(tree), null, "and nothing is open beside the list");
   // The name WhatsApp knows it by is no row's: in type on every closed row ("winback_offer") it was a word nobody acts on
@@ -1436,10 +1442,10 @@ test("A message is a row you scan, and the words open under it: what it is, what
     0,
     "no name in type on the row's line",
   );
-  // Nor in the open message's pane (11 Oct 2026): where it was made, in one word, and never the name it is filed under.
+  // Nor in the open message's pane (11 Oct 2026), nor where it was made ("Made here": Messages, the canvas of 10 Nov 2026).
   const body = textOf(byTestId(paneOf(opened), "template-open-body"));
   assert.ok(!body.includes("offer_spring"), body);
-  assert.match(body, /Made here|From WhatsApp Manager/);
+  assert.doesNotMatch(body, /Made here|From WhatsApp Manager/);
 
   // No language on the closed row. Open, ONE language control per message, where a slot per language stood ("EN ES"
   // on every row): the language in view, its state drawn, and no "+1" for a message that exists in one language.
@@ -1513,7 +1519,7 @@ test("A message is a row you scan, and the words open under it: what it is, what
   assert.ok(textOf(paneOf(tree)).includes("offer"), "the pane is the pressed message's");
 });
 
-test("Templates is the Inbox's shape: the search and WhatsApp's sync are the list's own top bar, the head's act is New alone, an open message's verbs are its pane's menu, and New opens a pane too", async () => {
+test("Messages is the Inbox's shape: the search is the bar's line and WhatsApp's check the list's foot, the head's act is New alone, an open message's verbs are the menu on its caret, and New opens a pane too", async () => {
   const keep = { ...templates };
   const said = [];
   Object.assign(templates, {
@@ -1528,11 +1534,12 @@ test("Templates is the Inbox's shape: the search and WhatsApp's sync are the lis
     assert.ok(byTestId(head, "template-new"), "the head's act is New");
     assert.equal(byTestId(head, "templates-search"), null, "not the search");
     assert.equal(byTestId(head, "sync-templates"), null, "nor the sync");
-    // On a desk the search is the top bar's line (page-search.ts; the page heads canvas, H2, 31 Oct 2026), and the list's
-    // top bar holds the sync.
+    // On a desk the search is the top bar's line (page-search.ts; the page heads canvas, H2, 31 Oct 2026), and when
+    // WhatsApp was last asked is the list's foot (Messages, the canvas of 10 Nov 2026): no top bar of the list's own.
     const bar = find(tree, (n) => n.props?.className === "tpl-bar");
-    assert.ok(byTestId(bar, "sync-templates"), "the list's top bar holds the sync");
-    assert.equal(byTestId(bar, "templates-search"), null, "and not the search, which is the line");
+    assert.equal(bar, null, "no top bar on a desk");
+    const foot = find(tree, (n) => n.type === "footer" && n.props?.className === "msg-foot");
+    assert.ok(byTestId(foot, "sync-templates"), "the list's foot holds WhatsApp's check");
     assert.equal(lineBox()?.props["data-testid"], "templates-search", "the line searches the messages");
     assert.equal(byTestId(tree, "messages-real").props["data-open"], undefined, "nothing open: the list alone");
 
@@ -1544,14 +1551,15 @@ test("Templates is the Inbox's shape: the search and WhatsApp's sync are the lis
       textOf(find(paneOf(tree), (n) => n.props?.className === "cm-pane-title")).startsWith("Offer"),
       "the pane is named as the row is",
     );
-    assert.equal(byTestId(tree, "template-menu"), null, "the row's own ··· is gone");
+    assert.equal(byTestId(customRow(tree), "template-menu"), null, "the row has no menu of its own");
+    assert.equal(textOf(byTestId(paneOf(tree), "template-menu")).trim(), "", "a caret at its head: no three dots");
     assert.deepEqual(
       find(tree, (n) => n.type === Menu)
         .props.groups.flatMap((g) => g.items)
         .map((i) => [i.label, i.tone, i.gate["data-testid"]]),
       [
         ["Rename", undefined, "template-rename"],
-        ["Hide", undefined, "template-hide"],
+        ["Put away", undefined, "template-hide"],
         ["Delete", "danger", "template-delete"],
       ],
     );
@@ -1569,7 +1577,7 @@ test("Templates is the Inbox's shape: the search and WhatsApp's sync are the lis
     await settle();
     tree = messagesAgain();
     assert.equal(byTestId(tree, "template-rename-form"), null, "and the form is gone with it");
-    menuItem(tree, "Hide").onSelect();
+    menuItem(tree, "Put away").onSelect();
     assert.deepEqual(said.at(-1), ["hide", "t9"]);
     await settle();
 
@@ -1595,7 +1603,7 @@ test("Templates is the Inbox's shape: the search and WhatsApp's sync are the lis
     press(headed(tree, "template-new"));
     tree = messagesAgain();
     assert.ok(byTestId(tree, "messages-composer"));
-    assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New template");
+    assert.equal(textOf(find(tree, (n) => n.props?.className === "cm-pane-title")).trim(), "New message");
     assert.ok(byTestId(tree, "custom-row"), "the list stays beside it");
     press(byTestId(customRow(tree), "template-open"));
     tree = messagesAgain();
@@ -1893,23 +1901,27 @@ test("A new template may be written in any language WhatsApp takes, found by typ
   }
 });
 
-test("A message says whether it may be sent to everyone, on the row: marketing is a rule about who it can reach, not a label", () => {
-  // Meta's own category on the workspace's row, and the library's purpose on a
-  // starter not yet added -- the same mark either way, because the rule is the same.
-  const tree = messages({
-    templatesAll: [
-      templateRow({ id: "t-o", name: "offer", language: "en_US", category: "MARKETING" }),
-      templateRow({ id: "t-n", name: "front_desk_note", language: "en_US", category: "UTILITY" }),
-    ],
-  });
-  const marks = all(tree, (n) =>
-    String(n.props?.className || "")
-      .split(" ")
-      .includes("msg-row-mark"),
-  ).map((m) => m.props["data-kind"]);
-  assert.ok(marks.includes("offer") && marks.includes("note"), marks.join(","));
-  const offer = all(tree, (n) => n.props?.["data-kind"] === "offer")[0];
-  assert.ok(String(offer.props["data-tip"]).includes("said yes to offers"), offer.props["data-tip"]);
+test("A message says whether it may be sent to everyone, where it is open: marketing is a rule about who it can reach, not a label", () => {
+  // Meta's own category on the workspace's row. A row is two lines (Messages, the canvas of 10 Nov 2026): the mark is
+  // the open message's, at its head, and the line under its name says it.
+  const kindOf = (name) => {
+    messages({
+      templatesAll: [
+        templateRow({ id: "t-o", name: "offer", language: "en_US", category: "marketing" }),
+        templateRow({ id: "t-n", name: "front_desk_note", language: "en_US", category: "utility" }),
+      ],
+    });
+    const tree = openedRow((t) => find(t, (n) => n.props?.["data-template"] === name));
+    const mark = find(paneOf(tree), (n) => /\bmsg-row-mark\b/.test(n.props?.className ?? ""));
+    return { mark, said: textOf(byTestId(paneOf(tree), "template-pane-users")) };
+  };
+  const offer = kindOf("offer");
+  assert.equal(offer.mark.props["data-kind"], "offer");
+  assert.ok(String(offer.mark.props["data-tip"]).includes("said yes to offers"), offer.mark.props["data-tip"]);
+  assert.equal(offer.said, "An offer, for people who said yes to offers");
+  const note = kindOf("front_desk_note");
+  assert.equal(note.mark.props["data-kind"], "note");
+  assert.equal(note.said, "About their own booking or proposal");
 });
 
 test("REGRESSION (C22): a message shows the quality WhatsApp rated it -- the rating was synced and never drawn", () => {
@@ -1921,14 +1933,11 @@ test("REGRESSION (C22): a message shows the quality WhatsApp rated it -- the rat
   const q = byTestId(tree, "template-quality");
   assert.ok(q, "REGRESSION: no rating on the message");
   assert.equal(textOf(q).trim(), "Medium quality");
-  tree = messagesOpen({
-    templatesAll: [templateRow({ name: "front_desk_note", source: "meta", quality: "UNKNOWN" })],
-  });
-  assert.equal(
-    textOf(byTestId(tree, "template-quality")).trim(),
-    "Quality not rated yet",
-    "a rating WhatsApp has not given is said so",
-  );
+  // Only a rating that warns is drawn (Messages, the canvas of 10 Nov 2026): high, or none given yet, is nothing to act on.
+  for (const quality of ["UNKNOWN", "GREEN", "HIGH"]) {
+    tree = messagesOpen({ templatesAll: [templateRow({ name: "front_desk_note", source: "meta", quality })] });
+    assert.equal(byTestId(tree, "template-quality"), null, `${quality}: nothing to say`);
+  }
   tree = messagesOpen({ templatesAll: [templateRow({ name: "front_desk_note", source: "meta", quality: null })] });
   assert.equal(byTestId(tree, "template-quality"), null, "nothing synced, nothing said");
 });
@@ -1987,27 +1996,24 @@ test("Messages says what sends each message -- every source, so 'nothing sends i
   const offer = [templateRow({ name: "offer", language: "en_US" })];
   let tree = messages({
     templatesAll: offer,
-    templateUse: { offer: { words: "Win-back · step 2 and Labor Day hours", unused: false, sequence: "sq-1" } },
+    templateUse: sentBy("Win-back · step 2 and Labor Day hours", { sequence: "sq-1" }),
   });
-  const users = byTestId(tree, "template-users");
+  const users = byTestId(byTestId(tree, "custom-row"), "template-users");
   assert.ok(textOf(users).includes("Win-back · step 2 and Labor Day hours"), textOf(users));
-  press(users);
+  // Opened, what sends it is a fact of the message, with its Open (the record kit's row): the one sequence that sends it.
+  tree = openedRow(customRow);
+  press(byTestId(paneOf(tree), "template-users"));
   assert.equal(went.at(-1), "campaigns/sequences/sq-1", "and it opens the one sequence that sends it");
 
-  // The answer the page could not give while it read the playbooks alone: a
-  // message two broadcasts had gone out with read the same as a dead one.
-  tree = messages({
-    templatesAll: offer,
-    templateUse: { offer: { words: "Not used", unused: true, sequence: null } },
-  });
-  assert.equal(textOf(byTestId(tree, "template-users")).trim(), "Not used");
+  // What the page could not say while it read the playbooks alone: nothing sends it, so it says what it is, not in use.
+  tree = messages({ templatesAll: offer, templateUse: sentBy("Not used", { unused: true, running: false }) });
+  assert.equal(byTestId(byTestId(tree, "custom-row"), "template-users"), null);
+  assert.equal(byTestId(tree, "custom-row").props["data-place"], "idle");
 
-  // More than one sequence: the line still says them, and opens the list.
-  tree = messages({
-    templatesAll: offer,
-    templateUse: { offer: { words: "Win-back and Welcome", unused: false, sequence: null } },
-  });
-  press(byTestId(tree, "template-users"));
+  // More than one sequence: the line still says them, and its Open opens the list.
+  messages({ templatesAll: offer, templateUse: sentBy("Win-back and Welcome") });
+  tree = openedRow(customRow);
+  press(byTestId(paneOf(tree), "template-users"));
   assert.equal(went.at(-1), "campaigns/sequences", "no single sequence to open, so the list");
 
   // A usage read that has not landed is not "nothing sends it".
@@ -2017,41 +2023,34 @@ test("Messages says what sends each message -- every source, so 'nothing sends i
 
 test("Messages says how many of each went out and when the last one did -- and a message that never went out says so in words, not 0", () => {
   const offer = [templateRow({ name: "offer", language: "en_US" })];
-  let tree = messages({ templatesAll: offer, templateSent: { offer: { count: "1,204", when: "2d ago" } } });
-  const head = find(tree, (n) => n.props?.className === "msg-list-head");
-  assert.ok(textOf(head).includes("Sent"), `the column is named once, above the rows -- ${textOf(head)}`);
+  const going = sentBy("Win-back");
+  const twice = { offer: { count: "1,204", when: "2d ago" } };
+  const never = { offer: { count: null, when: "Never sent" } };
+  // Going out: how many went, at the row's right, with the word a screen reader needs.
+  let tree = messages({ templatesAll: offer, templateUse: going, templateSent: twice });
   let cell = byTestId(byTestId(tree, "custom-row"), "template-sent");
-  assert.ok(cell, "the row carries the cell");
-  assert.match(
-    textOf(cell),
-    /1,204 sent/,
-    "the count, and the word a stacked row and a screen reader need without the heading",
-  );
-  assert.ok(textOf(cell).includes("2d ago"), textOf(cell));
-
-  tree = messages({ templatesAll: offer, templateSent: { offer: { count: null, when: "Never sent" } } });
+  assert.equal(textOf(cell).trim(), "1,204 sent");
+  // Not going out now: when the last one went.
+  tree = messages({ templatesAll: offer, templateSent: twice });
+  assert.equal(textOf(byTestId(byTestId(tree, "custom-row"), "template-sent")).trim(), "Sent 2d ago");
+  // One going out that never went says so in words; one not going out says nothing at its right, and its pane none went.
+  tree = messages({ templatesAll: offer, templateUse: going, templateSent: never });
   cell = byTestId(byTestId(tree, "custom-row"), "template-sent");
-  // A dash where the number would be (aria-hidden: a screen reader hears the words), then the words.
-  assert.equal(textOf(cell).replace("—", "").trim(), "Never sent");
-  assert.ok(!/\b0\b/.test(textOf(cell)), "never a 0 in a column of counts");
+  assert.equal(textOf(cell).trim(), "Not sent yet");
+  assert.ok(!/\b0\b/.test(textOf(cell)), "never a 0");
+  tree = messages({ templatesAll: offer, templateSent: never });
+  assert.equal(byTestId(byTestId(tree, "custom-row"), "template-sent"), null);
+  tree = openedRow(customRow);
+  assert.ok(textOf(byTestId(paneOf(tree), "template-facts")).includes("None yet"), "its pane says none went");
 
   // A roll-up that was not read makes no claim.
   tree = messages({ templatesAll: offer, templateSent: null });
-  assert.equal(
-    textOf(byTestId(byTestId(tree, "custom-row"), "template-sent")).trim(),
-    "",
-    "not read is not never sent",
-  );
+  assert.equal(byTestId(byTestId(tree, "custom-row"), "template-sent"), null, "not read is not never sent");
   // A starter not on file has nothing to count, and says why: it was never added.
-  // Not "Never sent", which would say a template exists that nothing sent.
   tree = messages({ templatesAll: offer, templateSent: { offer: { count: "3", when: "just now" } } });
   const starter = all(tree, (n) => n.props?.["data-testid"] === "starter-row")[0];
   assert.ok(starter, "the fixture draws a starter the workspace has not added");
-  assert.equal(textOf(byTestId(starter, "template-sent")).replace("—", "").trim(), "Not added");
-  assert.ok(
-    !/\b0\b|Never sent/.test(textOf(byTestId(starter, "template-sent"))),
-    "neither a 0 nor a send that never happened",
-  );
+  assert.equal(textOf(byTestId(starter, "template-sent")).trim(), "Not added");
 });
 
 test("The template a composer opens on does not depend on the order the rows arrived in", () => {
@@ -2143,7 +2142,10 @@ test("A message says its state once, and a refusal is a line rather than a hover
       templateRow({ name: "offer", language: "en_US", meta_status: "rejected", rejected_reason: "ABUSIVE_CONTENT" }),
     ],
   });
-  const said = textOf(byTestId(tree, "template-rejected"));
+  // It needs you, and its row's line says why (Messages, the canvas of 10 Nov 2026), in the warn ink.
+  const line = rowLine(tree);
+  assert.equal(line.props["data-tone"], "warn");
+  const said = textOf(line);
   assert.ok(said.includes("abusive content"), said);
   assert.ok(said.includes("send it back"), "and what to do about it");
 
@@ -2159,7 +2161,7 @@ test("A message says its state once, and a refusal is a line rather than a hover
     ],
   });
   assert.equal(
-    textOf(byTestId(tree, "template-rejected")),
+    textOf(rowLine(tree)),
     "WhatsApp refused this one: Variables can't be at the start or end of the template. Change the words and send it back.",
     "REGRESSION: 'variables can't be at the start or end of the template.. Change the words'",
   );
@@ -2260,12 +2262,10 @@ test("A template this product cannot send is not offered, and its card says why"
     ],
   );
 
-  // And the library says why rather than leaving it looking available.
+  // And the library says why rather than leaving it looking available: its row's line.
   const card = messages({ templatesAll: [picture] });
-  assert.ok(
-    textOf(byTestId(card, "template-blocked")).includes("a picture for a heading"),
-    textOf(byTestId(card, "template-blocked")),
-  );
+  const why = textOf(rowLine(card));
+  assert.ok(why.includes("a picture for a heading"), why);
 
   // Every shape the wire cannot carry, each named. The card above proves one of
   // them reaches the page; these prove the rule itself, one case at a time.

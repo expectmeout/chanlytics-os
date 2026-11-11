@@ -59,7 +59,7 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
       () => (t.hidden_at ? templateVerbs.show(t.id) : templateVerbs.hide(t.id)),
       () => (
         <>
-          <b>{tplTitle(t)}</b> {t.hidden_at ? "is back in the composers" : "is out of the composers — still on file"}
+          <b>{tplTitle(t)}</b> {t.hidden_at ? "is back in the list and the composers" : "is put away — still on file"}
         </>
       ),
     );
@@ -87,7 +87,7 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
         const { seen, approved, marketing } = r.data;
         return (
           <>
-            {seen} template{seen === 1 ? "" : "s"} from WhatsApp — {approved} approved, {marketing} marketing
+            {seen} message{seen === 1 ? "" : "s"} from WhatsApp — {approved} approved, {marketing} marketing
           </>
         );
       },

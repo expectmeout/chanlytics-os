@@ -81,11 +81,12 @@ export type TeamInvite = Output<"GET team">["invites"][number];
 
 /**
  * What each template is used by, as the card says it (`__TEMPLATE_USE`), by the template's name: the words after "Sent by",
- * the line under them, and the one sequence that sends it, where its link opens (null: several, or none, so the list).
+ * the line under them, the one sequence that sends it, where its link opens (null: several, or none, so the list), whether
+ * a step that runs sends it, and whether the Inbox books with it. The last two are what Messages calls going out.
  */
 export type TemplateUse = Record<
   string,
-  { words: string; note: string | null; unused: boolean; sequence: string | null; running: boolean }
+  { words: string; note: string | null; unused: boolean; sequence: string | null; running: boolean; booking: boolean }
 >;
 
 /**
@@ -310,6 +311,7 @@ export const settingsOverride: SurfaceOverride = {
               sequence: u.sequences?.length === 1 ? (u.sequences[0] ?? null) : null,
               // Running is on and not past its last day (S1-3).
               running: u.playbooks.some((p) => !p.paused && !p.ended),
+              booking: u.booking,
             },
           ];
         }),

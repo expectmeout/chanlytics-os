@@ -399,28 +399,26 @@ const REPORT = {
   can_remove: false,
 };
 
-test("Templates: a chain's emails are messages in the list, on the Email channel with what sends them; the page counts them, and its hover says so", () => {
+test("Messages: a chain's emails are messages in the list, in a group of their own, with what sends them; the rows read no report", () => {
   const tree = page({ rows: [WHATSAPP_ROW], channels: [{ kind: "whatsapp" }] });
   const rows = rowsOf(tree);
   assert.equal(rows.length, 2);
   assert.equal(all(tree, (n) => n.props?.["data-testid"] === "custom-row").length, 1, "the WhatsApp row is unchanged");
-  // The page's line is the frame's head's (CmHead says it to the standing): the count, and its hover.
+  // A group of their own (Messages, the canvas of 10 Nov 2026): a sequence sends them, so they stand open, after Going out.
+  const group = byTestId(tree, "templates-emails");
+  assert.ok(group, "the cold emails' own group");
+  assert.equal(all(group, (n) => n.props?.["data-testid"] === "reach-out-email").length, 2, "both its emails in it");
+  // The page's line is the frame's head's (CmHead says it to the standing): what needs you and what goes out.
   const line = standingSaid()?.sentence ?? null;
-  assert.ok(textOf(line).includes("3 templates"), "the page counts both");
-  const tip = find(line, (n) => n.props?.["data-testid"] === "messages-count").props["data-tip"];
-  assert.ok(tip.endsWith("The count takes 2 cold emails too: their own words, sent by email, with no review."), tip);
+  assert.ok(textOf(line).includes("Nothing going out yet"), textOf(line));
   const nudge = rows[1];
-  assert.equal(textOf(byTestId(nudge, "template-channels")), "Email", "the channel a message's row says");
-  assert.equal(textOf(byTestId(nudge, "template-users")), "Reach out · Personal trainers");
-  assert.ok(textOf(nudge).includes("step 2 · after 4 days with nothing back"));
-  // The words as a message's row says them: the slots by their names, never as braces.
-  assert.ok(textOf(nudge).includes("Just checking in, {their business}."), textOf(nudge));
+  // Two lines: its name, and what sends it, the step and its wait in the chain's own words.
+  assert.equal(byTestId(nudge, "template-channels"), null, "no channels line: its pane says it is an email");
+  assert.ok(textOf(byTestId(nudge, "template-users")).startsWith("Reach out · Personal trainers"));
+  assert.ok(textOf(nudge).includes("step 2 · after 4 days with nothing back"), textOf(nudge));
   assert.equal(textOf(nudge).includes("{{"), false);
-  for (const r of rows) assert.equal(textOf(byTestId(r, "template-sent")), "", "closed, no count");
+  for (const r of rows) assert.equal(byTestId(r, "template-sent"), null, "closed, no count");
   assert.deepEqual(reported, [], "the list reads no report (R23)");
-  press(byTestId(nudge, "template-users"));
-  // What sends it opens: its sequence, on Sequences (where the retired outbound/<id> moved, #1644).
-  assert.deepEqual(went, [`campaigns/sequences/${ROOT}`]);
 });
 
 test("an email row says how many it wrote once it opens and its chain's report reads, and nothing when it cannot", async () => {
