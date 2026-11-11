@@ -7,7 +7,7 @@
 import { pieceWordsIn } from "./piece-words";
 import { piecePlanOf } from "./pieces";
 import { asText, rec, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
-import { FILES_ROUTE } from "../files/post-spec";
+import { FILES_ROUTE } from "../files/views";
 
 export const pieceSpec: ProposalSpecAboveOperator = {
   needs: "partner",

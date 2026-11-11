@@ -129,6 +129,7 @@ export {
   FILE_SHELVES,
   fileFolderOf,
   fileNameOf,
+  FILES_ROUTE,
   fileSaidOf,
   fileShelfOpening,
   filesTallyOf,

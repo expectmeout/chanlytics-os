@@ -3,8 +3,22 @@
  * a post on its way to a place (decision 0121), and a video made from its clips (decision 0122). Every public name, named: a new
  * export is a line here, never an export *.
  */
+export { CONTENT_ROUTE, contentPreviewOf, isContentParam } from "./address";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
+export {
+  CONTENT_FAILED_DAYS,
+  CONTENT_MAKING_MAX,
+  CONTENT_MAX,
+  CONTENT_PAGE,
+  CONTENT_WORDS,
+  contentHeadOf,
+  contentMakingSaid,
+  contentMarkOf,
+  contentMarkSaid,
+  contentMoving,
+} from "./page";
+export type { ContentMadeDto, ContentMakingDto, ContentMark, ContentPageDto, ContentTally } from "./page";
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./piece-card";
 export type { PieceFollowedDto, PieceStands } from "./piece-card";
 export { PIECE_FRAME, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";

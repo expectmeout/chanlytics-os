@@ -4,10 +4,8 @@
  * operator may add a photo, not this.
  */
 import { postPlanOf, postWordsIn, type PostLanguage } from "./post";
+import { FILES_ROUTE } from "./views";
 import { asText, rec, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
-
-/** The Files page, where a card made of a file opens. */
-export const FILES_ROUTE = "admin/files";
 
 const postSaysOf = (p: { payload: Record<string, unknown> }) => postWordsIn(postPlanOf(p.payload).language);
 

@@ -137,6 +137,8 @@ const ADDRESSES = [
   "outbound",
   "campaigns/ads",
   "campaigns/ads:new",
+  // Campaigns › Content (decision 0125): what Ask made, where its switch is on.
+  "campaigns/content",
 ];
 const PANES = Object.keys(ROUTE_SURFACE)
   .filter((r) => r.startsWith("admin/"))

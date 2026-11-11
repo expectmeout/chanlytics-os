@@ -40,6 +40,7 @@ import { todayOverride } from "@/surfaces/today/override";
 import { todayPinsOverride } from "@/surfaces/today/pins-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
 import { filesOverride } from "@/surfaces/files/surface";
+import { contentOverride } from "@/surfaces/campaigns/content/surface";
 import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
 import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { workspaceOverride, type SurfaceOverride } from "./surface-data";
@@ -94,6 +95,9 @@ const pinsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? dr
 const memoryIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMemoryOverride]) : []);
 // A business's files (files/surface.ts; decision 0099), where the pane is drawn: nothing else a page draws reads them.
 const filesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([filesOverride]) : []);
+// What Ask made (campaigns/content/surface.ts), where Campaigns › Content is drawn: a made file's change, a post sent or stopped.
+const contentIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([contentOverride]) : []);
+const filesAndContentIfDrawn = (): SurfaceOverride[] => [...filesIfDrawn(), ...contentIfDrawn()];
 // Ask's morning (today/ask-morning-surface.ts; decision 0070; its cards rows of Need you, 0071), where Today is on screen: a card of the morning's turn
 // pressed in the Line, or on Today itself, leaves the cards Today offers, so none is drawn with a press it no longer takes.
 const morningIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMorningOverride]) : []);
@@ -535,10 +539,15 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // A photo added, changed, deleted or put in a video (decisions 0099, 0122): the Files pane's read, where it is drawn.
   "POST files/[id]/done": filesIfDrawn,
   "POST files/keep": filesIfDrawn,
-  "POST files/post": filesIfDrawn,
-  "POST files/video": filesIfDrawn,
-  "PATCH files/[id]": filesIfDrawn,
-  "DELETE files/[id]": filesIfDrawn,
+  "POST files/post": filesAndContentIfDrawn,
+  "POST files/video": filesAndContentIfDrawn,
+  "PATCH files/[id]": filesAndContentIfDrawn,
+  "DELETE files/[id]": filesAndContentIfDrawn,
+  // A post put on a place or taken off it changes no file, so the feed is silent: Content, which draws where each stands, reads.
+  "POST files/[id]/google": contentIfDrawn,
+  "DELETE files/[id]/google": contentIfDrawn,
+  "POST files/[id]/instagram": contentIfDrawn,
+  "DELETE files/[id]/instagram": contentIfDrawn,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
@@ -687,13 +696,6 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
     "which mailbox a workspace would use, counted for us: its sheet says so from the answer, and no page draws it",
   "POST files/post/preview": "a post's picture is drawn for its card and kept nowhere",
   "POST files/video/preview": "a video's storyboard is drawn for its card and kept nowhere",
-  "POST files/[id]/google": "a post put on Google: its sheet says so from the answer, and the list holds nothing of it",
-  "DELETE files/[id]/google":
-    "a post taken off Google: its sheet says so from the answer, and the list holds nothing of it",
-  "POST files/[id]/instagram":
-    "a post approved for Instagram: its sheet reads its record again, and the list holds nothing of it",
-  "DELETE files/[id]/instagram":
-    "a post stopped before it went to Instagram: its sheet reads its record again, and the list holds nothing of it",
   "POST files/start": "an upload under way is no file yet: the page reads again when it arrives",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.

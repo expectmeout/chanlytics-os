@@ -277,7 +277,7 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "content_preview",
     mechanism: "workspace_feature",
-    does: "Connect Meta offered in this workspace (decision 0117): one connection for its Instagram account's DMs, posts, sounds, comments and numbers, through Meta's Unified Login. Off, Connections shows the Instagram row as before and the edge refuses the Meta door. On for Chanlytics' own workspace until Meta's App Review passes.",
+    does: "Content in this workspace: Campaigns › Content drawn, everything Ask made and where each piece stands (decision 0125), and Connect Meta offered (decision 0117): one connection for its Instagram account's DMs, posts, sounds, comments and numbers, through Meta's Unified Login. Off, Connections shows the Instagram row as before and the edge refuses the Meta door. On for Chanlytics' own workspace until Meta's App Review passes.",
     owner: "Ruben",
     sunset: "2027-01-31",
   },

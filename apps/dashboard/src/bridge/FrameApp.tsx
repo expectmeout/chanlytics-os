@@ -69,6 +69,7 @@ import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
 import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
 import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
 import { filesOverride } from "@/surfaces/files/surface";
+import { contentOverride } from "@/surfaces/campaigns/content/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
@@ -280,6 +281,8 @@ const SURFACES = [
   askMorningOverride,
   askMemoryOverride,
   filesOverride,
+  // What Ask made, read where Campaigns › Content is drawn (surfaces/campaigns/content/surface.ts).
+  contentOverride,
   // The drafts Ask kept for the rows of Need you, read with Today's own first reads (surfaces/today/need-you/drafts-surface.ts).
   replyDraftsOverride,
   calendarOverride,

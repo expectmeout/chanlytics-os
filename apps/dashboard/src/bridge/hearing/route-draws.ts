@@ -104,6 +104,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // read first since its first draw waits for it (ROUTE_WAITS).
   messages: ["channels", "reach_outs", "playbooks"],
   "campaigns/messages": ["channels", "reach_outs", "playbooks"],
+  // Campaigns › Content (`campaigns/content`, where it is drawn): what Ask made, its own read (campaigns/content/surface.ts).
+  "campaigns/content": ["content"],
   // Sent's sheets stand beside Sequences' list (decision 0060, D3), and a run's names its playbook. Send it again on a run that
   // went offers its list where it can still be sent to: who each audience reaches, last, since it is every page of People, and
   // never waited for (the sheet draws from Sent's runs alone, and the button joins it once that is in).

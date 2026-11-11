@@ -14,6 +14,9 @@ import {
   type FileWhoInIt,
 } from "./limits";
 
+/** The Files page: where a card made of a file opens, and where any page sends a person to add one. */
+export const FILES_ROUTE = "admin/files";
+
 /** Where a page's <img> points: the route signs a fresh address, for the member's own session, each time it is asked. */
 export const fileViewOf = (fileId: string): string => `/api/v1/files/${fileId}/view`;
 

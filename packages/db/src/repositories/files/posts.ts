@@ -258,3 +258,44 @@ export async function listFilePosts(db: Db, tenantId: TenantId, fileId: string):
   if (error) throw new DbFailure(error, "file posts");
   return data;
 }
+
+/** The member's columns of a post and the file it is of: what a page of files reads of its posts in one read. */
+const MEMBER_FILE_POST_COLUMNS =
+  "id, file_id, place, kind, caption, status, held_reason, permalink, scheduled_for, published_at, error, external_id, created_at";
+
+export type MemberFilePostRow = MemberPostRow & Pick<PostRow, "file_id">;
+
+/** The most posts one page of files is read: a page holds 96 files at most, and the newest at each place is what it draws. */
+const FILE_POSTS_MAX = 500;
+
+/**
+ * The posts of these files, newest first, under the caller's RLS: Content's page, whose tiles say where each stands. The
+ * ids are one page's (contracts CONTENT_MAX, 96), well under what one `.in()` holds, by posts_tenant_file.
+ */
+export async function listPostsOfFiles(
+  db: Db,
+  tenantId: TenantId,
+  fileIds: readonly string[],
+): Promise<MemberFilePostRow[]> {
+  if (fileIds.length === 0) return [];
+  const { data, error } = await db
+    .from("posts")
+    .select(MEMBER_FILE_POST_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .in("file_id", [...fileIds])
+    .order("created_at", { ascending: false })
+    .limit(FILE_POSTS_MAX);
+  if (error) throw new DbFailure(error, "posts of files");
+  return data;
+}
+
+/** How many of the workspace's posts are up, at any place: Content's tally. */
+export async function countPostsOut(db: Db, tenantId: TenantId): Promise<number> {
+  const { count, error } = await db
+    .from("posts")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("status", "published");
+  if (error) throw new DbFailure(error, "posts out");
+  return count ?? 0;
+}

@@ -2370,15 +2370,15 @@ section:has(> .tpl-composer:not(.is-translate)) {
   min-width: 0;
   min-height: 0;
 }
-/* Ads, kept beside Sequences and Messages on Campaigns' one mount (home/route.tsx), is a page that scrolls: where the frame's
-   pane holds still (a desk), it scrolls inside itself; a phone's window scrolls it, as it does the others. */
-.main-scroll.pane > .cmh.ads {
+/* Ads and Content, kept beside Sequences and Messages on Campaigns' one mount (home/route.tsx), are pages that scroll: where
+   the frame's pane holds still (a desk), each scrolls inside itself; a phone's window scrolls it, as it does the others. */
+.main-scroll.pane > .cmh:is(.ads, .cnv) {
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
 }
 @media (width > 720px) {
-  .main-scroll.pane > .cmh.ads {
+  .main-scroll.pane > .cmh:is(.ads, .cnv) {
     overflow-y: auto;
   }
 }

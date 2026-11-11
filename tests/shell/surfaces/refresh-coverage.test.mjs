@@ -62,6 +62,8 @@ const PAGES = [
   "#/admin/memory",
   // A business's files, which Settings › Files alone draws (decision 0099).
   "#/admin/files",
+  // What Ask made and where each piece was posted, which Campaigns › Content alone draws.
+  "#/campaigns/content",
 ];
 
 test("every write re-reads its surfaces or says why it re-reads none, and never both", () => {
