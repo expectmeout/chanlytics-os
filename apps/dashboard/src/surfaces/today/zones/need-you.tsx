@@ -12,17 +12,16 @@
  * One row is the focus and draws its work in place: on a phone the card, the first row still open, whose words open the
  * sheet that walks the list; on a desk the one opened, Up next until another is. Its act is the page's one coral; where it
  * takes none (a reply that goes on its own, whose press is Stop), the first row waiting takes it, and where nothing above
- * To do took it, To do's first act. Every other row is drawn short, its verb at its right with Ask's mark where Ask
- * prepared it, and opens itself. Need you is one pane under its name, on a desk and a phone alike.
+ * To do took it, To do's first act. Which row that is, which rows are drawn and whether the list draws a pane at all is
+ * its model's (need-you-model.ts), which the page and the head read too, so none of them learns it from the list a frame
+ * late. Every other row is drawn short, its verb at its right with Ask's mark where Ask prepared it, and opens itself.
+ * Need you is one pane under its name, on a desk and a phone alike.
  */
 import { useEffect, useLayoutEffect, useState, type ReactElement, type ReactNode } from "react";
 import {
   DEFAULT_TIMEZONE,
   NEED_YOU_CAPS,
   NEED_YOU_WORDS as W,
-  clockIsNear,
-  needYouGroupsOf,
-  needYouSay,
   verbForRoute,
   waitingRunsDoor,
   type NeedYouGroups,
@@ -37,19 +36,16 @@ import { surfaceValue } from "../../surface-values";
 import { usePartShown } from "../../use-surface";
 import { broadcastsRead, runsPending, useRunsActing } from "../../waits/run-acts";
 import { waitRows, type Nav, type VerbKind } from "../../waits/wait-rows";
-import { TODAY_HELPERS } from "../helpers";
-import { useDraftCounts, useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
+import { useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
 import { NeedYouGroup, handBackAll, handedBackWords, type HandedBack } from "../need-you/groups";
-import { tellHeadSay } from "../need-you/head-say";
 import { OlderGroup } from "../need-you/older";
 import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
-import { draftWantOf, opensToWork, worksInPlace } from "../need-you/rows";
+import { worksInPlace } from "../need-you/rows";
 import { clearRowStates } from "../need-you/row-state";
 import { WalkSheet, type WalkAt, type WalkOlder } from "../need-you/sheet/walk-sheet";
-import { useTodayOnPhone } from "../phone";
-import { keptWith, keptWithout, withKept, type Kept } from "./kept";
+import { draftWantsOf, useNeedYouModel, type NeedYouDrawn, type NeedYouModel } from "../need-you-model";
+import { keptWith, keptWithout, type Kept } from "./kept";
 import { useToDoRows, type ToDoRows } from "./to-do";
-import { queueHoldsCoral, zoneDrawn } from "../queue-coral";
 import { sectionDoor } from "./section-door";
 import { appNavigate, canDo, doorGlyph, surfaceFailed, useMoved, useToast, workspaceClock } from "../shell";
 import { useTodayWord } from "./day-vm";
@@ -59,11 +55,9 @@ export const NeedYou = () => {
   useMoved("today");
   const vm = surfaceValue("today");
   usePartShown("today", "queue", !!vm);
-  return vm ? <NeedYouList vm={vm} /> : null;
+  const model = useNeedYouModel(vm ?? null);
+  return vm && model ? <NeedYouList vm={vm} model={model} /> : null;
 };
-
-/** The drafts these rows read (rows.tsx draftWantOf): a reply, or a call back's read. */
-const draftWantsOf = (rows: readonly TodayQueueRowVM[]) => rows.map(draftWantOf).filter((w): w is DraftWant => !!w);
 
 /** The drafts the drawn rows read, asked for once per set, where the page's first reads did not hold them. */
 function useDraftsAhead(wants: readonly DraftWant[]) {
@@ -72,32 +66,6 @@ function useDraftsAhead(wants: readonly DraftWant[]) {
     if (wants.length) void wantDrafts(wants);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- asked for by its key: a row drawn again with the same threads and messages asks nothing
   }, [key]);
-}
-
-/**
- * What the head says after how many need you: what Ask prepared for the rows still open, then the one thing that cannot
- * wait, a reply that goes on its own or the first window to shut within two hours. Told as the rows draw; the head says
- * nothing of it once the list goes.
- */
-function useTellHead(open: readonly TodayQueueRowVM[]) {
-  // A reply outside WhatsApp's window goes only as a template: Ask's words for it are not said as ready (the 10/10 read,
-  // 2 Nov 2026: "Ask drafted a reply" over a card whose one press was Choose a template).
-  const counts = useDraftCounts(
-    draftWantsOf(open.filter((r) => r.writes?.window_open !== false && r.kind !== "callback")),
-  );
-  const held = open.find((r) => r.kind === "held") ?? null;
-  // The window that cannot wait is another person's: a held reply's own is said on its row, a day away, and the
-  // receptionist is already answering them.
-  const shuts = open.find((r) => r.kind !== "held" && clockIsNear(r) && r.writes?.window_closes) ?? null;
-  const line = needYouSay({
-    ...counts,
-    held: held ? { who: held.who } : null,
-    firstWindow: shuts?.writes?.window_closes ? { who: shuts.who, at: shuts.writes.window_closes } : null,
-  });
-  useLayoutEffect(() => {
-    tellHeadSay(line);
-  }, [line]);
-  useLayoutEffect(() => () => tellHeadSay(null), []);
 }
 
 /**
@@ -116,10 +84,9 @@ function useActedTold(kept: Kept) {
  * row for the visit (row-state.ts): it goes as Today does.
  */
 function usePhoneWalk() {
-  const phone = useTodayOnPhone();
   const [walk, setWalk] = useState<WalkAt>(null);
   useEffect(() => () => clearRowStates(), []);
-  return { phone, walk, setWalk };
+  return { walk, setWalk };
 }
 
 /** The walk through the rows the card draws, on a phone: the sheet, and To do's to-dos for its end. Called, not drawn. */
@@ -197,17 +164,13 @@ const cutDoor = (say: (n: number) => string, cut: number, to = "inbox") => (cut 
 /** The old rows handed back this visit, kept for the visit with what they came to: the next read has none of them. */
 type OlderHanded = { rows: readonly TodayQueueRowVM[]; handed: HandedBack };
 
-/** The groups above To do, as drawn: Up next, the five waiting, and what waits for your OK with its runs. */
-type Drawn = Pick<NeedYouGroups<TodayQueueRowVM>, "next" | "waiting" | "ok">;
-
-/** A verb that never takes the coral. */
+/** A run's verb, which is never the coral: the coral is for a person waiting. */
 const QUIET: VerbKind = () => "ghost";
 
 /**
- * The groups above To do, each under its small head, in the page's order, so the coral goes to the first act drawn: Up
- * next (whose row drawn short is the focus put aside, never the coral), who waits on you, and what waits for your OK with
- * its runs. Each says how many of its rows are still open, which falls as they are worked, as the head's count does; none
- * once all are. Called, not drawn; a group with no rows is null.
+ * The groups above To do, each under its small head, in the page's order: Up next, who waits on you, and what waits for
+ * your OK with its runs. Each says how many of its rows are still open, which falls as they are worked, as the head's
+ * count does; none once all are. Called, not drawn; a group with no rows is null.
  */
 function groupsAbove(
   {
@@ -216,7 +179,7 @@ function groupsAbove(
     runs,
   }: {
     groups: NeedYouGroups<TodayQueueRowVM>;
-    drawn: Drawn;
+    drawn: NeedYouDrawn;
     runs: { drawn: readonly ReactElement[]; count: number; cut: number };
   },
   ctx: NeedYouRowsCtx,
@@ -228,7 +191,7 @@ function groupsAbove(
   return [
     drawn.next.length ? (
       <NeedYouGroup key="next" title={G.next} count={null} testid="today-group-next">
-        {needYouRows(drawn.next, { ...ctx, shortKind: QUIET })}
+        {needYouRows(drawn.next, ctx)}
       </NeedYouGroup>
     ) : null,
     drawn.waiting.length ? (
@@ -325,43 +288,8 @@ function readsFailed(callsUnread: boolean) {
   );
 }
 
-/**
- * One coral on the page: the first act asked for takes it and every other is quiet; `taken`, once the rows are drawn, says
- * whether one did.
- */
-function oneCoral(): { verbKind: VerbKind; taken: () => boolean } {
-  let left = true;
-  return {
-    verbKind: () => {
-      const k = left ? "primary" : "ghost";
-      left = false;
-      return k;
-    },
-    taken: () => !left,
-  };
-}
-
-/** A verb that never takes the coral, for a row nobody counts. */
-const OLDER_QUIET = { verbKind: QUIET, shortKind: QUIET };
-
-/** Whether Need you took the coral, told to To do, the setup card and Ask found as the list draws (queue-coral.ts). */
-function useCoralTold(holds: boolean) {
-  useLayoutEffect(() => {
-    queueHoldsCoral(holds);
-  }, [holds]);
-  useLayoutEffect(() => () => queueHoldsCoral(false), []);
-}
-
-/** Whether Need you draws a pane at all, told to the page as the list draws: where it draws none, Ask found leads. */
-function useDrawnTold(drawn: boolean) {
-  useLayoutEffect(() => {
-    zoneDrawn("need-you", drawn);
-  }, [drawn]);
-  useLayoutEffect(() => () => zoneDrawn("need-you", false), []);
-}
-
-/** The rows of a group still open: the ones nobody acted on this visit. */
-const stillOpen = (rows: readonly TodayQueueRowVM[], kept: Kept) => rows.filter((r) => !kept[r.id]);
+/** Older's rows hold no coral: nobody counts them, and an old number in them must not take it from setting up (8 Nov 2026). */
+const OLDER_QUIET = { coral: null };
 
 /**
  * The walk through Older (his call D7): no part of the morning's, it starts from its own row or the morning's end, and is over as
@@ -401,8 +329,8 @@ function useOldWalk(walkTo: (at: WalkAt) => void) {
  * the Older row, or from the walk's end.
  */
 function phoneWalk(p: {
-  groups: ReturnType<typeof needYouGroupsOf<TodayQueueRowVM>>;
-  drawn: Drawn;
+  groups: NeedYouGroups<TodayQueueRowVM>;
+  drawn: NeedYouDrawn;
   order: readonly TodayQueueRowVM[];
   at: WalkAt;
   oldWalk: ReturnType<typeof useOldWalk>;
@@ -425,17 +353,13 @@ function phoneWalk(p: {
   );
 }
 
-const NeedYouList = ({ vm }: { vm: TodayVM }) => {
-  // The runs (Sent's), the reviews and the people move the parts of the list; the replies to a reach-out move a row read
-  // as that reply's (contracts withReplies). Today owns those reads, so this redraws and reads nothing.
-  useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "google", "settings"]);
+const NeedYouList = ({ vm, model }: { vm: TodayVM; model: NeedYouModel }) => {
   const [toastNode, ppFlash] = useToast();
-  // The rows acted on this visit (a reply sent, a thread snoozed), kept in their place.
-  const [kept, setKept] = useState<Kept>({});
-  // The row a desk has open: Up next until the member opens another (undefined), or none where they closed it (null).
-  const [opened, setOpened] = useState<string | null | undefined>(undefined);
+  // The rows acted on this visit (a reply sent, a thread snoozed), kept in their place, and the row a desk has open: the
+  // model's, kept in the rows' store, so the page and the head read them as the list does.
+  const { rows, groups, drawn, order, focus, kept, setKept, setOpened, phone } = model;
   const [older, setOlder] = useState<OlderHanded | null>(null);
-  const { phone, walk, setWalk: walkTo } = usePhoneWalk();
+  const { walk, setWalk: walkTo } = usePhoneWalk();
   const oldWalk = useOldWalk(walkTo);
   const { setWalkingOld, setWalk } = oldWalk;
   // The runs with an Approve or a Cancel on its way: their buttons wait for the server (S9-10).
@@ -443,37 +367,18 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   const nav: Nav = (to) => appNavigate(to);
   const may = canDo("approve");
   const word = useTodayWord();
-  // A handoff whose thread's reply to a reach-out was read is that reply's row (contracts withReplies, PR 8).
-  const rows = withKept(TODAY_HELPERS.withReplies(vm.queue.rows), kept);
-  const groups = needYouGroupsOf(rows);
-  const drawn: Drawn = {
-    next: groups.next,
-    waiting: groups.waiting.slice(0, NEED_YOU_CAPS.waiting),
-    ok: groups.ok.slice(0, NEED_YOU_CAPS.ok),
-  };
   // What waits for your OK: the searches drawn, then the runs an approval can still send, three in all.
   const runs = waitRows(
     { nav, flash: ppFlash, verbKind: QUIET, acting, phone, late: false },
     Math.max(0, NEED_YOU_CAPS.ok - drawn.ok.length),
   );
-  const order = [...drawn.next, ...drawn.waiting, ...drawn.ok];
-  // The focus: the first row still open that opens to be worked, on a phone always; on a desk until another is opened. A
-  // reply that goes on its own is one (the canvas's shift moment): drawn as its card, it leaves the first waiting row
-  // short, holding the coral, and once it is stopped the next open row rises.
-  const first = order.find((r) => !kept[r.id] && (opensToWork(r) || r.kind === "held"))?.id ?? null;
-  const focus = phone || opened === undefined ? first : opened;
-  const focusRow = order.find((r) => r.id === focus) ?? null;
-  // Whether the focus's own act takes the coral: a reply that goes on its own takes none (its press is Stop).
-  const focusTakes = !!focusRow && !kept[focusRow.id] && focusRow.kind !== "held";
-  const coral = oneCoral();
   // Only the rows drawn are drafted (decision 0071): the five waiting, not those past them. Older's only as one is opened:
   // nobody counts them, most are let go unread, and a draft is a model's turn.
   const olderOpen = groups.old.filter((r) => r.id === walk || r.id === focus);
   useDraftsAhead(draftWantsOf([...groups.next, ...drawn.waiting, ...olderOpen]));
   const ctx: NeedYouRowsCtx = {
     nav,
-    verbKind: coral.verbKind,
-    shortKind: focusTakes ? QUIET : coral.verbKind,
+    coral: model.coral,
     may,
     tz: workspaceClock()?.zone() ?? DEFAULT_TIMEZONE,
     flash: ppFlash,
@@ -493,21 +398,16 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
   };
   const door = listDoorOf(groups.next.length + groups.waiting.length, runs.count);
   const above = groupsAbove({ groups, drawn, runs }, ctx);
-  // Every row above To do has asked for its act by now: whether one took the coral, which To do hears.
-  const holds = coral.taken();
-  const todo = useToDoRows({ cap: NEED_YOU_CAPS.todo, queueHolds: holds, open: ctx.open, focus: phone ? null : focus });
-  // Older never takes the coral, and has no say in how the page is laid out: nobody counts it, and an old number in it left
-  // Finish setting up quiet and Ask found under an empty day (8 Nov 2026).
-  useCoralTold(holds);
-  // Ask's line over the people still waiting and drawn; how many need you is the one count, which hears what was acted on
-  // here.
-  useTellHead(stillOpen([...groups.next, ...drawn.waiting], kept));
+  const todo = useToDoRows({ model: model.todo, open: ctx.open, focus: phone ? null : focus });
+  // How many need you is the one count, which hears what was acted on here.
   useActedTold(kept);
   const olderRows = groups.old.length ? groups.old : (older?.rows ?? []);
   // Nobody waiting, only your own to-dos: the pane is To do, under "Nothing needs you", where "Need you" over them read as wrong.
   const onlyToDo = !above.some(Boolean) && todo.drawn.length > 0;
   const workDrawn = [...above, todoGroup(todo, onlyToDo)];
   const onlyOlder = !workDrawn.some(Boolean) && vm.callsRead !== false;
+  // Older never takes the coral, and has no say in how the page is laid out (the model's `draws` leaves it out): nobody
+  // counts it, and an old number in it left Finish setting up quiet and Ask found under an empty day (8 Nov 2026).
   const olderGroup = olderRows.length ? (
     <OlderGroup
       key="old"
@@ -518,7 +418,6 @@ const NeedYouList = ({ vm }: { vm: TodayVM }) => {
       bare={onlyOlder}
     />
   ) : null;
-  useDrawnTold(!onlyOlder);
   return (
     <ListBody
       phone={phone}

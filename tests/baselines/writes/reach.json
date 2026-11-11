@@ -1,6 +1,6 @@
 {
-  "rows": 172,
-  "same": 12,
+  "rows": 173,
+  "same": 13,
   "differ": 160,
   "writes": {
     "DELETE ask/memory/[id]": {
@@ -1197,6 +1197,10 @@
     },
     "POST files/post": {
       "changes": "files INSERT UPDATE",
+      "tells": "files"
+    },
+    "POST files/video": {
+      "changes": "files UPDATE · pieces INSERT UPDATE",
       "tells": "files"
     },
     "POST google/link": {

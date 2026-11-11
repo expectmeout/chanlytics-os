@@ -23,7 +23,7 @@ import { AttnRow } from "../../kit/attention/attn-row";
 import { Icon } from "../../kit/icon/icon";
 import { businessTrailFor } from "../../people/business-trail";
 import { surfaceValue } from "../../surface-values";
-import type { Nav, VerbKind } from "../../waits/wait-rows";
+import type { Nav } from "../../waits/wait-rows";
 import { gate, type Flash } from "../shell";
 import { useDraft } from "./drafts";
 import { draftWantOf, opensToWork, shortLabel, workOf, worksInPlace } from "./rows";
@@ -33,7 +33,12 @@ import { needYouLineOf, reviewStars } from "./sheet/row-line";
 /** What the section hands its rows. */
 export interface NeedYouRowsCtx {
   nav: Nav;
-  verbKind: VerbKind;
+  /**
+   * The row whose act is the page's coral, by its id, as the model chose it (need-you-model.ts): the focus still open, or
+   * where its act takes none, the first row waiting; To do's first act where Need you's took none. Null where none of these
+   * rows holds it.
+   */
+  coral: string | null;
   may: boolean;
   tz: string;
   flash: (f: Flash) => void;
@@ -56,21 +61,14 @@ export interface NeedYouRowsCtx {
    * walks the list on it (walk-sheet.tsx), as a row drawn short does.
    */
   phone?: { walk: (rowId: string) => void } | null;
-  /**
-   * The kind a row drawn short gives its verb (Today in three zones, 2 Nov 2026): quiet while the focus's own act takes
-   * the page's coral, and in Up next, whose short row is the focus put aside; else `verbKind`, so the first row waiting
-   * takes the coral where the focus takes none (a reply that goes on its own, whose press is Stop).
-   */
-  shortKind?: VerbKind;
 }
 
 /**
- * The kind of a row's act: the coral for the focus still open, quiet for the rest. A reply of the receptionist's
- * counting down never takes it: it goes unless stopped, so its press is Stop, and the coral is for what waits on you.
+ * The kind of a row's act: the coral for the one row the model gave it (a reply of the receptionist's counting down never
+ * holds it: it goes unless stopped, so its press is Stop, and the coral is for what waits on you), quiet for the rest.
  */
-function actKindOf(r: { id: string; kind?: TodayQueueRowVM["kind"] }, c: NeedYouRowsCtx): "primary" | "ghost" {
-  return c.kept.has(r.id) || r.kind === "held" ? "ghost" : c.verbKind();
-}
+const actKindOf = (r: { id: string }, c: NeedYouRowsCtx): "primary" | "ghost" =>
+  r.id === c.coral ? "primary" : "ghost";
 
 /** The glyph of the wire a row came by, before what they want: the kit's Icon by the words a row shows. */
 const VIA_GLYPH: Record<TodayQueueRowVM["channel"], string> = {
@@ -157,7 +155,7 @@ export function rowWords(row: TodayQueueRowVM) {
  */
 function shortRow(r: TodayQueueRowVM, c: NeedYouRowsCtx): ReactElement {
   const open = () => c.open(r.id);
-  const kind = (c.shortKind ?? c.verbKind)();
+  const kind = actKindOf(r, c);
   return (
     <AttnRow
       key={r.id}
