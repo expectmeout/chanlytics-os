@@ -16,7 +16,6 @@ import {
   type SlotLead,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { Popover } from "../../kit/popover/popover";
 import { PreviewLine } from "./preview";
 import { useLeadPreview } from "./preview-read";
@@ -49,9 +48,9 @@ export function FillIn(p: { piece: LeadEmailPiece; lead: SlotLead | null; onChan
       <p className="lw-note">{says.from}</p>
       <p className="lw-note">{says.varies}</p>
       {onChange ? (
-        <LinkButton className="lw-link" onClick={() => onChange(piece.at)} data-testid="lead-card-fill-change">
+        <Button size="sm" variant="secondary" onClick={() => onChange(piece.at)} data-testid="lead-card-fill-change">
           {F.change}
-        </LinkButton>
+        </Button>
       ) : null}
     </Popover>
   );

@@ -1428,11 +1428,14 @@ html.frame-on .lw .lw-fill, .lw .lw-fill { display: inline; min-height: 0; heigh
 .lw-blank { padding: 0 5px; border-radius: var(--radius-sm); background: var(--selected-fill); color: var(--ink); font-weight: var(--weight-medium); white-space: nowrap; }
 html.frame-on .lw .lw-recep, .lw .lw-recep { display: inline; min-height: 0; height: auto; padding: 0 5px; border-radius: var(--radius-sm); background: var(--selected-fill); font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: inherit; }
 .lw-recep-say { font-weight: var(--weight-regular); color: var(--ink-dim); }
-.lw .lw-recep[data-tone="go"], .lw .lw-recep[data-tone="done"] { background: var(--ok-soft); color: var(--ok-ink); }
-.lw .lw-recep[data-tone="go"] .lw-recep-say, .lw .lw-recep[data-tone="done"] .lw-recep-say { color: var(--ok-ink); }
-.lw .lw-recep[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
+html.frame-on .lw .lw-recep:is([data-tone="go"], [data-tone="done"]), .lw .lw-recep:is([data-tone="go"], [data-tone="done"]) { background: var(--ok-soft); color: var(--ok-ink); }
+.lw .lw-recep:is([data-tone="go"], [data-tone="done"]) .lw-recep-say { color: var(--ok-ink); }
+html.frame-on .lw .lw-recep[data-tone="warn"], .lw .lw-recep[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
 .lw .lw-recep[data-tone="warn"] .lw-recep-say { color: var(--warn-ink); }
-.lw-fill-says { display: flex; flex-direction: column; gap: 4px; width: min(280px, calc(100vw - 32px)); }
+/* The bubble stands over the email's own words, so its ground is solid, as the calendar's pop is: glass let the words
+   behind it read through its own. */
+.lw-fill-says { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: min(280px, calc(100vw - 32px)); }
+.lw-fill-says[role="dialog"] { background-color: var(--surface-pop-solid); background-image: none; backdrop-filter: none; }
 .lw-fill-t { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
 .lw-now-view { margin: 2px 0 6px; }
 .lw-mail-n { margin: 6px 0 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }

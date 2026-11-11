@@ -716,16 +716,19 @@ test("a fill-in is a press of its own: it says what it is and where from, and a 
   assert.ok(said.includes(F.signs) && said.includes(F.same), said);
   // A tap that lands on it is the bubble's: the email's own tap begins no typing.
   const body = byId(tree, "lead-card-body");
-  const el = { contains: () => false };
-  body.props.onPointerDown({ currentTarget: el, clientX: 40, clientY: 40 });
-  body.props.onClick({
-    currentTarget: el,
-    clientX: 40,
-    clientY: 40,
-    target: { closest: (q) => (q === "[data-fill]" ? {} : null) },
-  });
+  const tap = (el, target) => {
+    body.props.onPointerDown({ currentTarget: el, clientX: 40, clientY: 40 });
+    body.props.onClick({ currentTarget: el, clientX: 40, clientY: 40, target });
+  };
+  tap({ contains: () => true }, { closest: (q) => (q === "[data-fill]" ? {} : null) });
+  assert.equal(byId(s.draw(), "lead-sheet-box-body"), null);
+  // So is a press inside the bubble (Make it now, Open it): React hands it up from its portal, and it is not in the words.
+  tap({ contains: () => false }, { closest: () => null });
   assert.equal(byId(s.draw(), "lead-sheet-box-body"), null);
   assert.equal(s.said.opened, 0);
+  // A press on the words themselves still begins the typing.
+  tap({ contains: () => true }, { closest: () => null });
+  assert.ok(byId(s.draw(), "lead-sheet-box-body"));
 });
 
 test("Change it for this one opens the box, as Edit does", () => {

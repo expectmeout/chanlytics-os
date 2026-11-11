@@ -426,8 +426,10 @@ function tapToType(box: EmailBox, edit: SheetMailEdit, part: BoxPart) {
     onPointerDown: (e: PointerEvent<HTMLElement>) => pressedAt.set(e.currentTarget, { x: e.clientX, y: e.clientY }),
     onPointerCancel: (e: PointerEvent<HTMLElement>) => pressedAt.delete(e.currentTarget),
     onClick: (e: MouseEvent<HTMLElement>) => {
-      // A press on a fill-in or the receptionist's mark is its own (fill-in.tsx): it opens its bubble, never the box.
-      if ((e.target as Element | null)?.closest?.("[data-fill]")) return;
+      // A press on a fill-in or the receptionist's mark is its own (fill-in.tsx): it opens its bubble, never the box. So
+      // is a press inside that bubble, which React hands up from its portal though it is nowhere in these words.
+      const on = e.target as Element | null;
+      if (on && (!e.currentTarget.contains(on) || on.closest?.("[data-fill]"))) return;
       const at = pressedAt.get(e.currentTarget);
       pressedAt.delete(e.currentTarget);
       if (!at || Math.hypot(e.clientX - at.x, e.clientY - at.y) >= GRAB_AT) return;
