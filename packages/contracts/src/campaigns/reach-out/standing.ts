@@ -20,6 +20,7 @@ export type ColdEmailStandingKind =
   | "not_started"
   | "ready"
   | "paused"
+  | "attention"
   | "sending";
 
 /** A running sequence, newest first; a number is null where it could not be read, and is left out, never a made-up 0. */
@@ -54,6 +55,12 @@ export interface ColdEmailStandingFacts {
   /** Something says what the business sells (contracts reachOutOfferOf). A read that failed counts as said. */
   hasPitch: boolean;
   whoFor: string | null;
+  /**
+   * A mailbox that sends and fails a check (contracts coldEmailNeedsLook): what fails, by its address where more than one
+   * sends, and what its check says of it. Absent on a read that holds no checks (Today's small one), which then says
+   * nothing of it: Today speaks up for what stops or waits.
+   */
+  needsLook?: { why: string; detail: string; alone: boolean } | null;
   nowMs: number;
   tz: string;
 }
@@ -351,6 +358,24 @@ const pausedAnswer: Rule = (f) => {
   };
 };
 
+/**
+ * A mailbox that still sends and fails a check (its domain misses a record, a complaint came in): said at the top, so
+ * "Needs a look" on Sending is never the only word of it. Below everything that stops an email or waits for an OK, since
+ * those are today's; above "Sending", which would read as all being well.
+ */
+const attentionAnswer: Rule = ({ needsLook }) => {
+  if (!needsLook) return null;
+  return {
+    kind: "attention",
+    headline: needsLook.alone ? "Your mailbox needs a look" : "One mailbox needs a look",
+    detail: `${needsLook.why}. ${needsLook.detail}.`,
+    act: "See what to fix",
+    to: CONNECTIONS_PAGE,
+    needs_you: true,
+    needs: "settings",
+  };
+};
+
 const readyAnswer: Rule = (f) =>
   f.running.length === 0
     ? {
@@ -420,6 +445,7 @@ const ANSWERS_IN_ORDER: readonly Rule[] = [
   waitingAnswer,
   monthAnswer,
   noOneNewAnswer,
+  attentionAnswer,
   readyAnswer,
 ];
 
