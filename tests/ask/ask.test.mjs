@@ -1548,8 +1548,8 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
       shell.includes('data-testid="phone-ask"'),
   );
   assert.ok(
-    shell.includes("if (s.askOpen || s.navOpen) return false;"),
-    "hidden while the palette or the drawer is open",
+    shell.includes("if (s.askOpen) return false;"),
+    "hidden while the Line is open; the drawer leaves it with the bar (shell-status.test.mjs opens the drawer)",
   );
   const askCss = readRaw("apps/dashboard/src/surfaces/ask/ask.css").replace(/\s+/g, " ");
   assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
