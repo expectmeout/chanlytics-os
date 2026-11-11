@@ -457,7 +457,7 @@ test("Mark all kept, at To do's foot: every one of yesterday's left to mark, the
       ok: true,
       data: {
         marked: 4,
-        alreadyKept: 0,
+        already_kept: 0,
         refused: 0,
         why: null,
         follows: { name: "After the appointment", when: "today 10:00 AM", asks: false },
@@ -490,7 +490,7 @@ test("Mark all kept, at To do's foot: every one of yesterday's left to mark, the
     status: 200,
     body: {
       ok: true,
-      data: { marked: 3, alreadyKept: 0, refused: 1, why: "It was cancelled already.", follows: null },
+      data: { marked: 3, already_kept: 0, refused: 1, why: "It was cancelled already.", follows: null },
     },
   });
   clear();

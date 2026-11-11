@@ -156,7 +156,7 @@ const KEPT_AT_ONCE = 5;
  */
 export interface VisitsKept {
   marked: number;
-  alreadyKept: number;
+  already_kept: number;
   refused: number;
   why: string | null;
   follows: VisitFollowUp | null;
@@ -173,12 +173,12 @@ export async function markVisitsKeptOf(
   tenantId: TenantId,
   ids: readonly string[],
 ): Promise<VisitsKept> {
-  const out: VisitsKept = { marked: 0, alreadyKept: 0, refused: 0, why: null, follows: null };
+  const out: VisitsKept = { marked: 0, already_kept: 0, refused: 0, why: null, follows: null };
   const moved: Pick<VisitMarked, "visit">[] = [];
   const sayKept = async (id: string) => {
     try {
       const mark = await sayOnVisit(ctx, id, "kept");
-      if (mark.unchanged) out.alreadyKept += 1;
+      if (mark.unchanged) out.already_kept += 1;
       else {
         out.marked += 1;
         moved.push(mark);

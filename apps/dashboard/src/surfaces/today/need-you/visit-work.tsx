@@ -24,7 +24,6 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { Button } from "../../kit";
 import { gate } from "../shell";
 import { Acts, Done, Going, Note, State, Words, Writing, startKind, whoseWords, type WorkProps } from "./parts";
-import type { NeedYouRowsCtx } from "./people-rows";
 import { useRowState } from "./row-state";
 import { sendWords, undoSend, useSend } from "./sends";
 
@@ -264,9 +263,9 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
 /** What the press came to, in the toast's words: how many, the ones refused, and the thank-you that follows. */
 function keptWords(answer: Awaited<ReturnType<typeof markVisitsKept>>): string {
   if (!answer.ok) return answer.message;
-  const { marked, alreadyKept, refused, why, follows } = answer.data;
+  const { marked, already_kept, refused, why, follows } = answer.data;
   return [
-    marked + alreadyKept ? W.visit.allKept.done(marked + alreadyKept) : "",
+    marked + already_kept ? W.visit.allKept.done(marked + already_kept) : "",
     refused ? W.visit.allKept.refused(refused, why ?? "") : "",
     follows ? W.visit.thanks(follows.name, follows.when, follows.asks) : "",
   ]
@@ -286,7 +285,7 @@ export function KeptAll({
 }: {
   ids: readonly string[];
   word: AppointmentWord;
-  ctx: Pick<NeedYouRowsCtx, "may" | "flash">;
+  ctx: Pick<WorkProps, "may" | "flash">;
 }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
