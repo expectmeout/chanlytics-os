@@ -11,6 +11,7 @@
  */
 import {
   applyReadState,
+  bellReadThroughMs,
   conversationOfNeedsKey,
   dedupeFeed,
   serverNotificationRows,
@@ -83,9 +84,9 @@ export function bellOlderOf(
 /**
  * The bell's rows: what the browser derives beside what the workspace keeps, once each. A derived "needs you" row whose
  * hold the edge has kept takes its marks from the kept notice, so it is unread until the owner reads it on any device (or
- * has seen everything since), and gone once it is dismissed on any; every other derived row keeps this device's marks, which
- * is the only place a row nothing stores can keep them. `device.seenAt` is the later of this device's seen moment and the
- * server's, so a Mark all read just made counts before the re-read lands.
+ * has read through it), and gone once it is dismissed on any; every other derived row keeps this device's marks, which
+ * is the only place a row nothing stores can keep them. How far the member has read is the server's (`kept`, contracts
+ * bellReadThroughMs); a press this tab just made rides in on `kept` too (bridge/notifications.ts).
  *
  * A kept row that announced a wait reads as read once what it announced is settled (`waits`, notice-closes.ts: a run approved
  * or skipped, a booking email dismissed or read again, a review answered), and the derived "Invitation pending" row of an
@@ -98,21 +99,23 @@ export function bellFeed(input: {
   waits?: WhatWaits;
 }): NotificationRow[] {
   const { device, kept } = input;
-  const seenMs = Math.max(device.seenAt, (kept?.seen_at ? Date.parse(kept.seen_at) : 0) || 0);
+  // How far the member has read: the server's moment once the bell's rows are read; before that, this device's last
+  // look stands in, as it did. A look reads nothing once the server says (decision 0124).
+  const readMs = kept ? bellReadThroughMs(kept) : device.seenAt;
   const accepted = acceptedInvitations(kept);
   const own: NotificationRow[] = [];
   for (const item of input.derived) {
     if (item.key.startsWith(INVITE_KEY_PREFIX) && accepted.has(item.key.slice(INVITE_KEY_PREFIX.length))) continue;
     const marks = item.kind === "needs_you" ? holdMarksOf(item.key, kept) : [];
     if (marks.length === 0) {
-      own.push(...applyReadState([item], device));
+      own.push(...applyReadState([item], device, readMs));
       continue;
     }
     // Dismissed on the server, by whichever device: the hold is not on this bell either.
     if (marks.every((n) => n.dismissed)) continue;
     own.push({
       ...item,
-      unread: marks.some((n) => !n.dismissed && !n.read && Date.parse(n.created_at) > seenMs),
+      unread: marks.some((n) => !n.dismissed && !n.read && Date.parse(n.created_at) > readMs),
     });
   }
   return dedupeFeed([...own, ...closeSettledNotices(serverNotificationRows(kept), input.waits ?? NOTHING_WAITS_KNOWN)]);

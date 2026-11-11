@@ -105,7 +105,7 @@ export interface FeedInput {
 
 /** What one device remembers about the bell. */
 export interface NotificationReadState {
-  /** "Mark all read" and closing the bell move this; opening it does not, so "New" holds while it is open. */
+  /** Closing the bell and Mark all read move this: the bell's number counts what came after it. It reads no note. */
   seenAt: number;
   read: string[];
   dismissed: string[];
@@ -119,11 +119,31 @@ export interface NotificationRow extends NotificationItem {
   unread: boolean;
 }
 
-/** The feed as a device sees it: dismissed rows gone, unread decided. */
-export function applyReadState(items: NotificationItem[], state: NotificationReadState): NotificationRow[] {
+/**
+ * The feed as a device sees it: dismissed rows gone, unread decided. A row is unread until it is read where it stands
+ * (`state.read`) or Mark all read has passed it (`readMs`, how far the member has read: decision 0124). A look at the
+ * bell (`state.seenAt`) reads nothing: it moves the bell's number alone. `readMs` is asked of every caller, since the
+ * look and the read were one moment until 00614 and a caller that passed neither would read by the wrong one.
+ */
+export function applyReadState(
+  items: NotificationItem[],
+  state: NotificationReadState,
+  readMs: number,
+): NotificationRow[] {
   const read = new Set(state.read);
   const gone = new Set(state.dismissed);
-  return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
+  return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > readMs && !read.has(i.key) }));
+}
+
+/**
+ * How far a member has read their bell, epoch ms: the server's read-through moment (00614), or their seen moment from
+ * a server that says none (before it, a look read everything); 0 where neither is known. THE reading: a kept row's dot
+ * (serverNotificationRows), the bell's rows (bellFeed) and the bridge's Undo read it here.
+ */
+export function bellReadThroughMs(
+  dto: Pick<NotificationsDto, "seen_at" | "read_through_at"> | null | undefined,
+): number {
+  return Date.parse(dto?.read_through_at ?? dto?.seen_at ?? "") || 0;
 }
 
 /**
@@ -286,6 +306,12 @@ export interface NotificationDto {
 export interface NotificationsDto {
   notifications: NotificationDto[];
   seen_at: string | null;
+  /**
+   * How far this person has read: Mark all read moves it, a look at the bell does not (00614, decision 0124). A row
+   * newer than it with no read mark of theirs wears its dot. Null for a member who never read through; absent from a
+   * server before it, where the dots follow `seen_at` as they did (bellReadThroughMs).
+   */
+  read_through_at?: string | null;
   /**
    * This reader's unread kept rows of the whole window, by unreadFor: the listed rows' and the older ones' (the bell lists
    * the newest BELL_LIST_ROWS). Absent from a server before it.

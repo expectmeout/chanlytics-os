@@ -42,6 +42,8 @@ import { logAndGoOn } from "@chanlytics/log";
  * rows' and the older ones', counted by the one count the push job's badge uses (packages/db getOlderUnread, getUnreadOfReaders' rule), so the
  * page, the icon and the push agree on a busy month (the wiring's second audit, S6-10). The older rows are read only
  * when the list is full and some of them may be unread (newer than the seen moment). The route's body, moved here whole.
+ * How far they have read rides beside the look (`read_through_at`, 00614, decision 0124): a row's dot reads it, while
+ * the count stays the look's.
  * A notification is not a row a citation names: none of the thirteen is the bell's.
  */
 export const notifications: Reader<undefined, NotificationsDto> = {
@@ -111,6 +113,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
     const out: NotificationsDto = {
       notifications,
       seen_at: seenAt,
+      read_through_at: seen.data?.read_through_at ?? null,
       unread: listedUnread + older.unread,
       ...(older.holdThreads.length ? { older_holds: older.holdThreads } : {}),
     };

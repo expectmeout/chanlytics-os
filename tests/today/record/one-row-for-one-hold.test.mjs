@@ -50,11 +50,11 @@ const notice = (id, conversation, over = {}) => ({
   ...over,
 });
 const derivedOf = (threads) => buildNotificationFeed({ threads, now: NOW });
-const feed = ({ threads = [thread(C1, "Dana")], notices = [], seenAt = null, device = {} } = {}) =>
+const feed = ({ threads = [thread(C1, "Dana")], notices = [], seenAt = null, readThrough = null, device = {} } = {}) =>
   bellFeed({
     derived: derivedOf(threads),
     device: { ...EMPTY_READ_STATE, ...device },
-    kept: { notifications: notices, seen_at: seenAt },
+    kept: { notifications: notices, seen_at: seenAt, read_through_at: readThrough },
   });
 const keys = (rows) => rows.map((r) => r.key);
 
@@ -82,18 +82,16 @@ test("where the edge has kept the hold, the row's read mark is the server's: rea
   assert.equal(stale[0].unread, true, "the server has it unread, so every device does");
 });
 
-test("a Mark all read that has not been re-read counts at once, and one before the hold was kept does not hide it", () => {
+test("Mark all read reads a kept hold on every device, a look reads none, and one before the hold was kept hides nothing", () => {
   const kept = notice(K1, C1);
   const keptAt = Date.parse(kept.created_at);
-  // This device's seen moment is later than the notice: nothing is new to it, before the server's copy is back.
-  assert.equal(feed({ notices: [kept], device: { seenAt: keptAt + 1000 } })[0].unread, false);
-  // The server's seen moment, the same on every device.
-  assert.equal(feed({ notices: [kept], seenAt: iso(keptAt + 1000) })[0].unread, false);
+  // The server's read-through moment, the same on every device.
+  assert.equal(feed({ notices: [kept], readThrough: iso(keptAt + 1000) })[0].unread, false);
+  // A look, on this device or the server's, reads nothing (decision 0124).
+  const looked = { seenAt: iso(keptAt + 1000), readThrough: iso(keptAt - 1000), device: { seenAt: keptAt + 1000 } };
+  assert.equal(feed({ notices: [kept], ...looked })[0].unread, true);
   // A moment before the notice was kept hides nothing.
-  assert.equal(
-    feed({ notices: [kept], seenAt: iso(keptAt - 1000), device: { seenAt: keptAt - 5000 } })[0].unread,
-    true,
-  );
+  assert.equal(feed({ notices: [kept], readThrough: iso(keptAt - 1000) })[0].unread, true);
 });
 
 test("dismissed on the server, by any device, the hold is not on this bell: neither the derived row nor the notice", () => {
@@ -116,7 +114,8 @@ test("where no notice is kept yet, the derived row keeps this device's marks, as
   assert.equal(feed()[0].unread, true);
   assert.equal(feed({ device: { read: [key] } })[0].unread, false, "read here");
   assert.deepEqual(keys(feed({ device: { dismissed: [key] } })), [], "dismissed here");
-  assert.equal(feed({ device: { seenAt: NOW } })[0].unread, false, "everything seen");
+  assert.equal(feed({ readThrough: iso(NOW) })[0].unread, false, "everything read through");
+  assert.equal(feed({ device: { seenAt: NOW } })[0].unread, true, "a look reads nothing");
 });
 
 test("two devices read the same notice and agree, whatever each remembers of its own", () => {

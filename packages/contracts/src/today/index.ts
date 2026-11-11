@@ -1,5 +1,5 @@
 /** What needs the owner now: Today's brief, the bell's feed, and the phone it pushes to. */
-export { bellSections, todayAwayGrouped, todaySince } from "./away";
+export { BELL_READ_WORDS, bellSections, todayAwayGrouped, todaySince } from "./away";
 export type {
   AwayGroupVM,
   AwayQueueRef,
@@ -90,6 +90,7 @@ export {
   ALERT_KINDS,
   applyReadState,
   bellCalls,
+  bellReadThroughMs,
   EMPTY_READ_STATE,
   SERVER_NOTIFICATION_KINDS,
   unreadCount,

@@ -2498,6 +2498,7 @@ Foreign keys:
 | `tenant_id` | uuid | no |  |  |
 | `user_id` | uuid | no |  |  |
 | `seen_at` | timestamp with time zone | no | `'1970-01-01 00:00:00+00'::timestamp with time zone` |  |
+| `read_through_at` | timestamp with time zone | no | `'1970-01-01 00:00:00+00'::timestamp with time zone` | How far this member has read their bell (00614, decision 0124): Mark all read moves it, a look does not. A row newer than it with no read mark of theirs is unread. Never later than seen_at. |
 
 Foreign keys:
 
