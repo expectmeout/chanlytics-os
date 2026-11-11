@@ -417,7 +417,7 @@ export function VisitFoot({ c }: { c: VisitCtx }) {
           testid="cal-visit-cancel"
         />
       ) : (
-        <div className="cal-visit-acts">
+        <div className="cal-visit-acts" data-foot-acts="">
           <PrimaryAct c={c} />
           {vm.circles.message ? (
             <Button
