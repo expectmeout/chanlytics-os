@@ -20,7 +20,7 @@ import { FillIn, ReceptionistMark } from "./fill-in";
 export type BoxPart = "subject" | "body";
 
 /** Begins the typing in one of the email's boxes: the caret where the press fell, or at the words' end. */
-export type BeginTyping = (part: BoxPart, at: number | null) => void;
+type BeginTyping = (part: BoxPart, at: number | null) => void;
 
 /** Where in its piece a point falls, by whichever of the two the browser has. */
 function caretAtPoint(left: number, top: number): { node: Node; offset: number } | null {

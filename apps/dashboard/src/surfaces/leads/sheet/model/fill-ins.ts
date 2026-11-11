@@ -68,7 +68,7 @@ export const LEAD_FILL_WORDS = {
 const F = LEAD_FILL_WORDS;
 
 /** A fill-in's bubble: what it is, where its value came from, whether it changes. */
-export interface FillInSays {
+interface FillInSays {
   title: string;
   from: string;
   varies: string;
@@ -144,7 +144,7 @@ export function emailBlanksOf(written: LeadEmailText): EmailBlanks | null {
 }
 
 /** The mark's words after its name, and its tone. */
-export interface PreviewMark {
+interface PreviewMark {
   say: string;
   tone: LeadPreviewLineVM["tone"];
 }
