@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 179 | 179 |
+| door | 180 | 180 |
 | reader | 76 | 0 |
 | the server's | 336 | 292 |
 | computed column | 3 | 0 |
 | trigger | 100 | 70 |
-| all | 694 | 541 |
+| all | 695 | 542 |
 
 ## Called by nothing
 
@@ -35,6 +35,7 @@ being read is dropped by a migration.
 | `ai_shadow_agreement` | read by hand to judge the second model against the first (decision 0023, the shadow port), as the service role |
 | `ai_usage_month` | a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs |
 | `conversation_draft_keep` | Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own |
+| `notifications_read_through` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
 | `platform_role` | the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs |
@@ -370,6 +371,7 @@ being read is dropped by a migration.
 | `note_yes_on_channel` | the server's | the server | SQL `ingest_inbound` | Called by ingest_inbound for a START, in the transaction that keeps the message (00592; |
 | `notification_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `notifications_close_about` | the server's | the server | SQL `batch_closes_its_notices`, `escalation_closes_its_notices` and 4 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
+| `notifications_read_through` | door | a signed-in person, the server | nothing at run time | A member reads their bell through (00614, decision 0124). |
 | `notifications_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `number_drift` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | Where lines and tenant_channels disagree in a way that is actually wrong: |
 | `offers_email_reach` | reader | a signed-in person, the server | code `packages/db/src/repositories/campaigns/email-offers.ts` | How many people an offer by email would reach in this workspace (Setup): |
