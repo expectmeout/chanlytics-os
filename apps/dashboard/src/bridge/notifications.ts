@@ -317,7 +317,7 @@ export interface BellApi {
    * Mark all read: every dot goes, here at once and on the server for every device, and the number with them. Answers
    * how many notes it read and the way back, which puts the dots where they stood and leaves the look as it is.
    */
-  readAll(): { read: number; undo(): void };
+  readAll(): { read: number; undo: () => void };
   read(key: string): void;
   dismiss(key: string): void;
   restore(key: string): void;
