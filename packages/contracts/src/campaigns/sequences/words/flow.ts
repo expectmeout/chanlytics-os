@@ -3,13 +3,13 @@
 import { appointmentWords, type AppointmentWord } from "../../../journey/appointment-word";
 import { isOccasionTrigger, occasionWords } from "../../playbooks/triggers/occasions";
 import { owedOncePerMoment } from "../../playbooks/triggers/notices";
-import { clockDate, clockNextSend, clockWhen } from "../../../shared/clock";
+import { clockDate } from "../../../shared/clock";
 import { capitalize, plural } from "../../../shared/words";
 import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT } from "../../../shell/campaign-rooms";
 import { runWaitsOnYou, type RunDays } from "../../../waits/waits";
 import type { SequenceRowDto } from "../dto";
 import { SEQUENCE_MODE_WORDS, sequenceModeOf, type SequenceState } from "../sequence";
-import { needsCount, needsWords } from "../list";
+import { needsCount } from "../list";
 import type { ReachOutFedBy } from "../../reach-out/leads/lines";
 
 /** The page's own words, said once. */
@@ -28,8 +28,9 @@ export const SEQUENCE_WORDS = {
   groups: {
     needs: "Needs you",
     customers: "Your customers",
-    leads: "Leads",
-    dates: "Dates",
+    // Type's own names (SEQUENCE_LIST_WORDS.types): one set of names (decision 0126).
+    leads: "Cold email",
+    dates: "One-off sends",
     off: "Paused",
     drafts: "Drafts",
     ended: "Ended",
@@ -251,12 +252,14 @@ export function sequenceWaitsNow(row: SequenceRowDto, days: RunDays): SequenceRo
 /**
  * Which of the list's groups a sequence is drawn in: a draft under Drafts, what needs you (people or emails waiting, or a
  * twin sending each person the same moment twice) first, a sequence paused under Paused, one ended under Ended (folded at
- * the list's foot), and the rest by how it starts. A one-off that went stays among the Dates, where it is looked for.
+ * the list's foot), and the rest by how it starts. A one-off that went stays among the One-off sends, where it is looked
+ * for; one that failed needs you (decision 0126).
  */
 export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null = null): SequenceGroup {
   // A draft stays in the list under Drafts until it is started: nothing of it goes, so nothing of it needs you.
   if (row.state === "draft") return "drafts";
   if (needsCount(row.needs) > 0 || twin) return "needs";
+  if (row.starts === "date" && row.date?.state === "failed") return "needs";
   if (row.starts === "date") return "dates";
   if (row.state === "ended") return "ended";
   if (row.state === "paused") return "off";
@@ -342,43 +345,6 @@ export function sequenceRowState(row: SequenceRowDto): { label: string; tone: "p
   }
   if (row.state === "paused" || row.state === "ended") return { label: SEQUENCE_STATE_WORDS[row.state], tone: "plain" };
   return null;
-}
-
-/**
- * A list row's second line, after what starts it: what needs you where something does, else what comes next or what
- * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 people · 12 replied", "10 in it". A
- * twin says so first (sequenceTwinOf). A count says what it counts: "Sent Oct 12 · 184 · 12 replied" read as a stray number
- * under "Dec 29 · 5 people" (the sample walk, 18 Oct 2026).
- */
-export function sequenceRowLine(
-  row: SequenceRowDto,
-  tz: string,
-  nowMs: number,
-  twin: SequenceTwin | null = null,
-): string {
-  if (row.state === "draft") return row.once ? SEQUENCE_WORDS.keptOnce : SEQUENCE_WORDS.notStarted;
-  const needs = needsWords(row.needs);
-  if (needs) return needs;
-  if (twin) return twinLineOf(row);
-  if (row.starts === "date" && row.date) {
-    const at = Date.parse(row.date.at);
-    if (row.last)
-      return `Sent ${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${plural(row.last.sent, "person", "people")} · ${row.last.replied} replied`;
-    // Still to go, it says when, as its toast did ("Goes at 2:40 PM"); gone without a report yet, the day it went.
-    const when = at > nowMs ? `Goes ${clockWhen(at, tz, nowMs).replace(/^today /, "at ")}` : clockDate(at, tz, nowMs);
-    return `${when} · ${plural(row.date.people, "person", "people")}`;
-  }
-  if (row.state === "paused") return row.in_it > 0 ? `${row.in_it} waiting` : "Paused";
-  if (row.next) return clockNextSend(Date.parse(row.next.at), tz, nowMs);
-  // An occasion's sequence (decision 0119): the first person waiting, and how many wait with them.
-  if (row.coming && row.coming.people > 0) {
-    const first = clockNextSend(Date.parse(row.coming.at), tz, nowMs);
-    return row.coming.people === 1 ? `${first} · 1 person` : `${first} · ${row.coming.people} people waiting`;
-  }
-  if (row.in_it > 0) return `${row.in_it} in it`;
-  if (row.last)
-    return `${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${row.last.sent} sent · ${row.last.replied} replied`;
-  return "Nobody yet";
 }
 
 /** A sequence's head line under its name: "Before a visit · one message · since Sep 18". */

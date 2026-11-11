@@ -111,12 +111,13 @@ export {
 export type { LeadBuildPart, LeadBuildStepVM, LeadInsertRowVM, LeadRewriteDto } from "./lead-build/steps";
 export {
   batchOkSendsNothing,
+  byLongestWait,
   heldByCheckWords,
   needsCount,
-  needsWords,
   SEQUENCE_LIST_WORDS,
   SEQUENCE_SORTS,
   SEQUENCE_TYPES,
+  sequenceMatches,
   sequenceTypeOf,
   sortedSequences,
 } from "./list";
@@ -267,7 +268,6 @@ export {
   SEQUENCE_WORDS,
   sequenceGroupOf,
   sequenceHeadLine,
-  sequenceRowLine,
   sequenceRowState,
   sequenceStartWords,
   sequenceStateTone,
@@ -300,3 +300,4 @@ export {
   stepsStopSentence,
 } from "./words/next";
 export type { SequenceNext, SequenceNotice } from "./words/next";
+export { needsWords, sequenceRowLine } from "./words/row-line";
