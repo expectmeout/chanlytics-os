@@ -74,13 +74,8 @@ export function Since(p: { reads: StartReads; line: string; may: boolean; onDraf
       }
       acts={
         kept && p.may ? (
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => p.onDraft(kept)}
-            data-testid="sq-nw-since-go"
-            {...gate("approve")}
-          >
+          // Quiet: the page's one coral act is the open start's.
+          <Button size="sm" onClick={() => p.onDraft(kept)} data-testid="sq-nw-since-go" {...gate("approve")}>
             {W.say.draft}
           </Button>
         ) : undefined

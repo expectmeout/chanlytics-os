@@ -49,7 +49,6 @@ export const readyReadsOf = (reads: StartReads): ReadyReads => ({
   everyone: reads.everyone,
   sources: reads.sources ? reads.sources.map((s) => ({ id: s.id, name: s.name, ready: s.ready })) : null,
   running: reads.running,
-  calendarOn: reads.calendarOn,
   hasDeals: reads.hasDeals,
   word: reads.word,
 });
@@ -166,7 +165,9 @@ export function Ready(p: { reads: StartReads; may: boolean; onStart: (s: ReadySt
                     glyph={s.glyph}
                     name={p.may ? s.title : s.fact.title}
                     said={p.may ? s.said : s.fact.said}
-                    tag={p.may ? W.starts.kind[s.kind] : null}
+                    full
+                    // New makes a sequence unless it says otherwise: only the one sent once wears its kind.
+                    tag={p.may && s.kind === "once" ? W.starts.kind.once : null}
                     onPick={p.may ? () => p.onStart(s) : null}
                     testid={`sq-nw-start-${s.id}`}
                   />

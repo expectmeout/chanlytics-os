@@ -182,7 +182,6 @@ export {
   NEW_READY_MAX,
   NEW_READY_WORDS,
   journeyCovered,
-  momentNeedsCalendar,
   newJourneyOf,
   readyStartsOf,
   newSinceWords,

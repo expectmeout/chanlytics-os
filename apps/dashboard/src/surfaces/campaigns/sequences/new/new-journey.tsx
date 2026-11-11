@@ -58,6 +58,7 @@ export function Journey(p: { reads: ReadyReads; may: boolean; onStart: (s: Ready
                 glyph={m.on ? "check" : "clock"}
                 name={m.label}
                 said={saidOf(m)}
+                full
                 // Only what cannot run here yet steps back: a moment a sequence stands on is as present as an open one.
                 off={!!m.needs}
                 door={m.on ? { label: W.sheets.open, to: sequenceRoute(m.on.id) } : null}

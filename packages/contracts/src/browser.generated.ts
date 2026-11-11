@@ -161,7 +161,7 @@ export { againMonthOf, LEAD_BUILD_WORDS, LEAD_REWRITE_CHANGE_MAX, leadBuildSteps
 export { batchOkSendsNothing, heldByCheckWords, needsCount, needsWords, SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./campaigns/sequences/list";
 export { asDraftedFrom, asDraftedOf, handStepsHold, NEW_DRAFT_JSON_SCHEMA, NEW_VALUES, numberedValues, sentAsDrafted, VOICE_LINE_LEAD, VOICE_LINES_MAX, VOICE_PASTE_MAX, VOICE_PASTE_MIN, VOICE_WORDS, voiceLineOf, voiceSaid } from "./campaigns/sequences/new-draft/checks";
 export { leadChainStepOf, NEW_AUDIENCES, NEW_KINDS, NEW_ONCE_AHEAD_DAYS, NEW_STEP_DOES, NEW_STEPS_MAX, NEW_WAIT_DAYS, NEW_WORDS_MAX, newConditionsOf, newListOf, newWaitOf, whoSuits } from "./campaigns/sequences/new-draft/steps";
-export { NEW_READY_MAX, NEW_READY_WORDS, journeyCovered, momentNeedsCalendar, newJourneyOf, readyStartsOf, newSinceWords } from "./campaigns/sequences/new-ready";
+export { NEW_READY_MAX, NEW_READY_WORDS, journeyCovered, newJourneyOf, readyStartsOf, newSinceWords } from "./campaigns/sequences/new-ready";
 export { handTitleOf, NEW_WORDS } from "./campaigns/sequences/new-words";
 export { PLACE_RAIL_WORDS, PLACE_WORDS, placeLineWriting, placeRailOf, placeSpanOf, placeStands, placeToneOf, placeWordOf, PLACE_NOT_PLANNED_WORD, placeLeftWord, placeNotPlannedOf } from "./campaigns/sequences/place";
 export { SCHEDULE_WORDS, scheduleChannels, scheduleDays, scheduleEnd, scheduleInLine, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleStepFacts, scheduleStepState, scheduleStepSub, scheduleWait } from "./campaigns/sequences/schedule";

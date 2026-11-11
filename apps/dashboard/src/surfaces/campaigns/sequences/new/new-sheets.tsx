@@ -102,6 +102,8 @@ export function Choice(p: {
   glyph: string;
   name: string;
   said?: string | null;
+  /** Its name and its line said whole, wrapping where the row is narrow: words that explain the choice, which a cut would spoil. */
+  full?: boolean;
   /** What kind it makes, at the row's end ("Sequence", "Once"). */
   tag?: string | null;
   count?: number | null;
@@ -115,8 +117,10 @@ export function Choice(p: {
   return (
     <ListRow
       mark={<Icon name={p.glyph} size={15} />}
-      name={p.name}
-      said={p.said ?? undefined}
+      name={p.full ? <span className="sq-nw-whole">{p.name}</span> : p.name}
+      said={
+        p.full && p.said ? (place) => <div className={`${place} sq-nw-whole`}>{p.said}</div> : (p.said ?? undefined)
+      }
       className={p.off ? "sq-nw-choice is-off" : p.on ? "sq-nw-choice is-on" : "sq-nw-choice"}
       aria-pressed={p.onPick ? !!p.on : undefined}
       data-testid={p.testid}

@@ -9,7 +9,7 @@ import {
   NEW_READY_WORDS as R,
   NEW_WORDS as W,
   journeyCovered,
-  momentNeedsCalendar,
+  momentOffered,
   newJourneyOf,
   readyStartsOf,
   newSinceWords,
@@ -43,7 +43,6 @@ const reads = (over = {}) => ({
   everyone: null,
   sources: [],
   running: [],
-  calendarOn: true,
   hasDeals: false,
   word: "appointment",
   ...over,
@@ -57,6 +56,8 @@ const on = (trigger, over = {}) => ({
   ...over,
 });
 const ids = (starts) => starts.map((s) => s.id);
+/** The same moments where no calendar is connected, offered as the house's rule offers them (momentOffered). */
+const NO_CALENDAR = MOMENTS.map((m) => ({ ...m, offered: momentOffered(m, { calendarOn: false }) }));
 
 test("most people waiting first, and a moment nobody waits in is still offered", () => {
   assert.deepEqual(ids(readyStartsOf(reads())), [
@@ -69,6 +70,14 @@ test("most people waiting first, and a moment nobody waits in is still offered",
     "slot_opened",
   ]);
   assert.equal(NEW_READY_MAX, 4);
+  // Day one, nobody in any of them: the four a business sets up first, the reminder leading.
+  const dayOne = MOMENTS.map((m) => ({ ...m, candidates: 0 }));
+  assert.deepEqual(ids(readyStartsOf(reads({ moments: dayOne }))).slice(0, NEW_READY_MAX), [
+    "visit_tomorrow",
+    "visited",
+    "asked_no_booking",
+    "visit_soon",
+  ]);
 });
 
 test("a retired moment, the month's offer, a list's own trigger and a proposal with no deals are no start", () => {
@@ -77,11 +86,14 @@ test("a retired moment, the month's offer, a list's own trigger and a proposal w
   assert.ok(ids(readyStartsOf(reads({ hasDeals: true }))).includes("proposal_waiting"));
 });
 
-test("without a calendar, what is read off it is left to One step away", () => {
-  assert.deepEqual(ids(readyStartsOf(reads({ calendarOn: false }))), ["lapsed", "asked_no_booking"]);
-  assert.equal(momentNeedsCalendar({ id: "visit_missed", kind: "occasion" }), true);
-  assert.equal(momentNeedsCalendar({ id: "slot_opened", kind: "freed" }), true);
-  assert.equal(momentNeedsCalendar({ id: "asked_no_booking", kind: "occasion" }), false);
+test("without a calendar, what is read off it is left to One step away, and a win-back no one can hear is no start", () => {
+  // The win-back by silence is the one offered here; nobody is in it and nobody said yes, so nothing is ready.
+  assert.deepEqual(ids(readyStartsOf(reads({ moments: NO_CALENDAR }))), []);
+  // Someone can hear an offer: it leads, and the win-back may be set up before anyone goes quiet.
+  assert.deepEqual(ids(readyStartsOf(reads({ moments: NO_CALENDAR, everyone: 12 }))), ["everyone", "quiet_30"]);
+  // Someone has gone quiet: the win-back leads.
+  const quiet = NO_CALENDAR.map((m) => (m.id === "quiet_30" ? { ...m, candidates: 9 } : m));
+  assert.deepEqual(ids(readyStartsOf(reads({ moments: quiet, everyone: 12 }))), ["quiet_30", "everyone"]);
 });
 
 test("a moment a sequence already starts on is not offered again; either win-back counts for both", () => {
@@ -156,6 +168,9 @@ test("a start's words: today's where it has them, its hint where nobody waits, a
   assert.equal(by("lapsed").said, "lapsed hint");
   assert.equal(by("visit_soon").said, "visit_soon hint");
   assert.equal(by("asked_no_booking").said, R.reach(2));
+  // Where New has no words of its own for a moment, its name: short, so a row never cuts it.
+  assert.equal(by("asked_no_booking").title, "asked_no_booking label");
+  assert.equal(by("visit_soon").title, "visit_soon label");
   assert.equal(by("visit_tomorrow").line, "Remind each customer the day before their appointment");
   // What a viewer reads of each: the fact it is drawn from, never an act.
   assert.deepEqual(by("visited").fact, { title: W.viewer.thank(6), said: W.viewer.thankSaid });
@@ -187,11 +202,19 @@ test("the journey: each moment in the order a customer passes it, covered or ope
 });
 
 test("the journey without a calendar says what it needs, and offers no draft there", () => {
-  const journey = newJourneyOf(reads({ calendarOn: false }));
+  const journey = newJourneyOf(reads({ moments: NO_CALENDAR }));
+  // Every moment a calendar would offer is drawn, waiting on it; the win-back is the one read by silence.
+  assert.deepEqual(
+    journey.map((m) => m.id),
+    ["asked_no_booking", "visit_tomorrow", "visit_soon", "visit_missed", "visited", "slot_opened", "quiet_30"],
+  );
   const reminder = journey.find((m) => m.id === "visit_tomorrow");
   assert.equal(reminder.needs, "calendar");
   assert.equal(reminder.start, null);
-  assert.equal(journey.find((m) => m.id === "asked_no_booking").needs, null);
+  const winBack = journey.find((m) => m.id === "quiet_30");
+  assert.equal(winBack.needs, null);
+  assert.equal(winBack.start.fixed.who.trigger, "quiet_30");
+  assert.equal(journeyCovered(journey), 0);
 });
 
 test("what changed while away: only what went from nothing to something", () => {

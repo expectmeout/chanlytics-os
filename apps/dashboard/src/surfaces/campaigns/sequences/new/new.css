@@ -408,6 +408,11 @@
 .sq-nw-choice.is-off {
   opacity: 0.55;
 }
+/* A choice whose words explain it says them whole: its name and its line wrap where the row is narrow, never cut
+   mid-sentence. */
+.sq-nw-choice .sq-nw-whole {
+  white-space: normal;
+}
 /* A setup row's door ("Import ›", "Find ›"): its word and chevron say it opens a page, so it wears no link underline. With
    none set it wore the browser's own, which Firefox draws heavy under semibold words (Ruben, 11 Nov 2026). */
 .sq-nw-door {

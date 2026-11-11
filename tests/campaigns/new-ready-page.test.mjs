@@ -177,10 +177,12 @@ test("One step away stands under what is ready, and the journey in place of Runs
   assert.ok(!has(tree, "sq-nw-setup-calendar"), "the calendar is connected");
   assert.ok(textOf(byTestId(tree, "sq-nw-journey")).includes(R.covered(1, 5)));
   assert.ok(!has(tree, "sq-nw-running"));
-  // Without a calendar, what is read off it leaves the starts for One step away.
-  const bare = draw({ calendarOn: false });
+  // Without a calendar, what is read off it leaves the starts for One step away (Campaigns' read offers none of it).
+  const offered = (m) => contracts.momentOffered(m, { calendarOn: false });
+  const bare = draw({ calendarOn: false, moments: READS.moments.map((m) => ({ ...m, offered: offered(m) })) });
   assert.ok(has(bare, "sq-nw-setup-calendar"));
   assert.ok(!has(bare, "sq-nw-start-visited"));
+  assert.ok(textOf(byTestId(bare, "sq-nw-journey")).includes(R.covered(1, 4)), "the calendar's moments still drawn");
 });
 
 test("a viewer reads what is happening, where someone waits, with nothing to press", () => {

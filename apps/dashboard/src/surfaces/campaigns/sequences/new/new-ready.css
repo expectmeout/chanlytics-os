@@ -29,18 +29,13 @@
 .sq-nw-line > .sq-nw-line-ask[data-live] {
   color: var(--accent-ink);
 }
+/* The words are the kit's box of sentences said in place (kit.css .rec-input-words: no padding, as tall as its words), so
+   the room around them is the field's own: one row stands level with the mark and the presses, and more rows grow up
+   from them. */
 .sq-nw-line > .sq-nw-line-words {
   flex: 1 1 auto;
   min-width: 0;
-}
-.sq-nw-line-words > textarea {
-  width: 100%;
-  min-height: 40px;
-  max-height: 120px;
   padding: 8px 0;
-  font-size: var(--text-base);
-  line-height: 24px;
-  letter-spacing: 0;
 }
 .sq-nw-line > button {
   flex: none;
@@ -127,6 +122,7 @@
 }
 .sq-nw-open > button {
   align-self: stretch;
+  justify-content: center;
 }
 
 /* The journey (the kit's inset panel): its name, the door to its map, a dot a moment (ink where a sequence stands on
@@ -141,6 +137,10 @@
 .sq-nw-jr > b {
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+}
+.sq-nw-jr > button,
+.sq-nw-jr > small {
+  justify-self: end;
 }
 .sq-nw-jr > small {
   font-size: var(--text-xs);

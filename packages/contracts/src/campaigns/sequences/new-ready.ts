@@ -6,8 +6,7 @@
  */
 import type { AppointmentWord } from "../../journey/appointment-word";
 import { plural } from "../../shared/words";
-import { isWinBack } from "../playbooks/triggers/notices";
-import { momentNamesVisit } from "../playbooks/triggers/occasions";
+import { isWinBack, momentOffered } from "../playbooks/triggers/notices";
 import { newSequenceLine } from "./draft";
 import type { DraftWho, NewAudience, NewKind } from "./new-draft/steps";
 import { NEW_WORDS } from "./new-words";
@@ -22,6 +21,22 @@ const NEW_JOURNEY_ORDER: readonly string[] = [
   "visit_soon",
   "visit_missed",
   "visited",
+  "slot_opened",
+  "proposal_waiting",
+  "lapsed",
+  "quiet_30",
+];
+
+/**
+ * The moments in the order a business sets them up, which is how the starts stand where as many wait in two, or nobody
+ * waits in either: the reminder, the thank-you, the booking follow-up, then the rest.
+ */
+const NEW_BASICS_ORDER: readonly string[] = [
+  "visit_tomorrow",
+  "visited",
+  "asked_no_booking",
+  "visit_soon",
+  "visit_missed",
   "slot_opened",
   "proposal_waiting",
   "lapsed",
@@ -61,7 +76,10 @@ const R = NEW_READY_WORDS;
 const S = NEW_WORDS.starts;
 const V = NEW_WORDS.viewer;
 
-/** A moment as Campaigns' read counts it: who a run would reach today, null where it was not counted. */
+/**
+ * A moment as Campaigns' read counts it: whether a new sequence may start on it here (contracts momentOffered, which
+ * knows the calendar), and who a run would reach today, null where that was not counted.
+ */
 export interface ReadyMoment {
   id: string;
   label: string;
@@ -92,7 +110,6 @@ export interface ReadyReads {
   everyone: number | null;
   sources: readonly { id: string; name: string; ready: number }[] | null;
   running: readonly ReadyRunning[];
-  calendarOn: boolean;
   hasDeals: boolean;
   word: AppointmentWord;
 }
@@ -114,9 +131,12 @@ export interface ReadyStart {
   fixed: { kind: NewKind; audience: NewAudience; who: DraftWho };
 }
 
-/** Whether a moment is read off the calendar: a visit's, an occasion about a visit, a freed time. */
-export const momentNeedsCalendar = (target: Pick<ReadyMoment, "id" | "kind">): boolean =>
-  target.kind === "visit" || target.kind === "freed" || momentNamesVisit(target.id);
+/**
+ * Whether a moment waits on a calendar here: not offered now, and it would be with one connected (the house's one rule,
+ * momentOffered). Never a win-back: where no calendar is, the one read by silence stands for both.
+ */
+const waitsOnCalendar = (target: ReadyMoment): boolean =>
+  !target.offered && !isWinBack(target.id) && momentOffered(target, { calendarOn: true });
 
 /** The sequence that stands on a moment: one not ended that starts on it, or, for a win-back, on either reading. */
 function standsOn(running: readonly ReadyRunning[], id: string): ReadyRunning | null {
@@ -140,7 +160,8 @@ function momentStart(readyMoment: ReadyMoment, word: AppointmentWord): ReadyStar
   return {
     id: readyMoment.id,
     glyph: "clock",
-    title: thank ? S.thank : winBack && n > 0 ? S.winBack(n) : line,
+    // A moment's own name where New has no words of its own for it: short, so a row never cuts it.
+    title: thank ? S.thank : winBack && n > 0 ? S.winBack(n) : readyMoment.label,
     said: thank && n > 0 ? S.thankSaid(n) : n > 0 && !winBack ? R.reach(n) : readyMoment.hint,
     fact: momentFact(readyMoment, n),
     people: readyMoment.candidates,
@@ -155,13 +176,14 @@ function momentStart(readyMoment: ReadyMoment, word: AppointmentWord): ReadyStar
   };
 }
 
-/** The moments a sequence may start on here, in the journey's order: offered, not doubled, and readable. */
+/** The moments a sequence may start on here, in the order they are set up: offered, not doubled, and readable. */
 function momentStarts(reads: ReadyReads): ReadyStart[] {
-  return NEW_JOURNEY_ORDER.flatMap((id) => {
+  return NEW_BASICS_ORDER.flatMap((id) => {
     const found = reads.moments.find((t) => t.id === id);
     if (!found || !found.offered || standsOn(reads.running, id)) return [];
-    if (momentNeedsCalendar(found) && !reads.calendarOn) return [];
     if (id === "proposal_waiting" && !reads.hasDeals) return [];
+    // A win-back nobody is in, where nobody can hear an offer yet, reaches no one: what it needs is One step away's.
+    if (isWinBack(id) && !found.candidates && !reads.everyone) return [];
     return [momentStart(found, reads.word)];
   });
 }
@@ -227,8 +249,8 @@ function foundStarts(reads: ReadyReads): ReadyStart[] {
 /**
  * Everything a workspace can start now. Who is waiting leads, most people first: a moment someone is in, a search's ready
  * leads, a list nothing sends to. Then one offer to everyone who said yes, who are waiting for nothing, so it never
- * stands over someone who is. Then the moments nobody is in yet, in the journey's order. New draws the first
- * NEW_READY_MAX.
+ * stands over someone who is. Then the moments nobody is in yet, in the order a business sets them up. New draws the
+ * first NEW_READY_MAX.
  */
 export function readyStartsOf(reads: ReadyReads): ReadyStart[] {
   const moments = momentStarts(reads);
@@ -252,8 +274,9 @@ export interface JourneyMoment {
 }
 
 /**
- * The journey's moments in order. One no longer offered (the win-back this workspace cannot read) is drawn only while a
- * sequence stands on it, and a proposal's only where a deal was recorded or a sequence stands on it.
+ * The journey's moments in order. One a calendar would offer is drawn as waiting on it; any other not offered (the
+ * win-back this workspace cannot read) only while a sequence stands on it; and a proposal's only where a deal was recorded
+ * or a sequence stands on it.
  */
 export function newJourneyOf(reads: ReadyReads): JourneyMoment[] {
   return NEW_JOURNEY_ORDER.flatMap((id) => {
@@ -261,9 +284,9 @@ export function newJourneyOf(reads: ReadyReads): JourneyMoment[] {
     if (!found) return [];
     const twin = standsOn(reads.running, id);
     const stands = twin && twin.first?.trigger === id ? twin : null;
-    if (!found.offered && !stands) return [];
+    const needs = waitsOnCalendar(found) ? ("calendar" as const) : null;
+    if (!found.offered && !stands && !needs) return [];
     if (id === "proposal_waiting" && !reads.hasDeals && !stands) return [];
-    const needs = momentNeedsCalendar(found) && !reads.calendarOn ? ("calendar" as const) : null;
     return [
       {
         id,
