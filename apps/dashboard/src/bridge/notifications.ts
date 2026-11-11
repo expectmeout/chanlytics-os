@@ -9,9 +9,11 @@
  *
  * What lives where, so two devices agree:
  *   - the kept rows' read and dismissed marks are the server's;
- *   - the "seen everything" moment is the server's too: Mark all read writes
- *     it there, every device reads it back, and this device keeps its own
- *     copy only so the badge does not wait for the re-read;
+ *   - when a member last looked is the server's (seen_at): closing the bell writes it there, every device reads it
+ *     back, and it moves the bell's number alone. This device keeps its own copy only so the badge does not wait for
+ *     the re-read;
+ *   - how far they have read is the server's too (read_through_at, 00614): Mark all read moves it, a look does not,
+ *     and a press made in this tab is held in memory only until the server's own moment is read again;
  *   - read and dismissed marks on DERIVED rows (a thread that needs you, a
  *     held draft, a missed call, an open invitation — rows nothing stores)
  *     stay on this device, keyed by the workspace's id, and go when their
@@ -29,6 +31,7 @@ import {
   EMPTY_READ_STATE,
   agoLabel,
   bellCalls,
+  bellReadThroughMs,
   bellSections,
   type BellSectionVM,
   buildNotificationFeed,
@@ -308,7 +311,13 @@ export interface BellApi {
   older(): number;
   /** The kept rows' unread count alone, by the rule the edge counts a push's badge by (contracts unreadFor): the phone app's icon. */
   keptUnread(): number;
+  /** The member looked at the bell (it closed): its number starts again from now. No note is read by it. */
   seenAll(): void;
+  /**
+   * Mark all read: every dot goes, here at once and on the server for every device, and the number with them. Answers
+   * how many notes it read and the way back, which puts the dots where they stood and leaves the look as it is.
+   */
+  readAll(): { read: number; undo(): void };
   read(key: string): void;
   dismiss(key: string): void;
   restore(key: string): void;
@@ -366,6 +375,42 @@ async function askAlerts(
   return { on: permission === "granted", permission };
 }
 
+/** No kept rows read yet: what a press made before the bell's first read rides on. */
+const NO_KEPT_ROWS: NotificationsDto = { notifications: [], seen_at: null };
+
+/**
+ * How far the member has read, as this tab holds it (decision 0124). It is the server's (GET notifications'
+ * `read_through_at`), the same on every device; and a Mark all read, or its Undo, that this tab just made is held here
+ * while its write and the re-read behind it are on their way, so the dots answer the press at once and do not blink back
+ * if the write lands before the read. The held moment is let go when the bell's rows are read again after the write
+ * landed: the server's moment is then the same.
+ */
+function readThroughOf(win: Window & Globals) {
+  let pressed: { at: number; landed: boolean } | null = null;
+  win.addEventListener("surface:notifications", () => {
+    if (pressed?.landed) pressed = null;
+  });
+  return {
+    /** Whether a press is held: the bell's moment is this tab's for now, whatever the server last said. */
+    held: (): boolean => pressed !== null,
+    /** The kept rows as the server holds them, read through the press this tab just made where one is on its way. */
+    kept: (): NotificationsDto | null | undefined => {
+      const dto = win.__NOTIFICATIONS?.dto;
+      if (!pressed) return dto;
+      return { ...(dto ?? NO_KEPT_ROWS), read_through_at: new Date(pressed.at).toISOString() };
+    },
+    /** Hold `at` as the moment read through while `write` is on its way. */
+    press: (at: number, write: Promise<unknown>): void => {
+      const mine = { at, landed: false };
+      pressed = mine;
+      const land = () => {
+        mine.landed = true;
+      };
+      void write.then(land, land);
+    },
+  };
+}
+
 /**
  * Install the bell. `win` and `storage` are injectable so the rule can be
  * executed in a test without a browser.
@@ -387,6 +432,8 @@ export function installNotifications(
    * read on one the badge is the same number on both.
    */
   const seenAt = () => Math.max(state().seenAt, Date.parse(win.__NOTIFICATIONS?.dto?.seen_at ?? "") || 0);
+  // How far the member has read: the server's, or a press this tab just made (readThroughOf).
+  const through = readThroughOf(win);
   // The unread kept rows the bell does not list, less the holds it draws itself (contracts bellOlderOf; S6-10).
   const older = () => bellOlderOf(win.__NOTIFICATIONS?.dto, seenAt(), rows());
   const deviceState = (): NotificationReadState => ({ ...state(), seenAt: seenAt() });
@@ -420,7 +467,7 @@ export function installNotifications(
       bellFeed({
         derived: feedFromGlobals(win, Date.now()),
         device: deviceState(),
-        kept: win.__NOTIFICATIONS?.dto,
+        kept: through.kept(),
         waits: whatWaits(),
       }).sort((a, b) => b.at - a.at),
     );
@@ -487,6 +534,22 @@ export function installNotifications(
     seenAll: () => {
       save({ seenAt: Date.now() });
       void mark({ seen: true });
+    },
+    readAll: () => {
+      // Where the dots stood before the press: the server's moment, or this device's last look before the bell's rows are read.
+      const known = !!win.__NOTIFICATIONS?.dto || through.held();
+      const was = known ? bellReadThroughMs(through.kept()) : state().seenAt;
+      const read = unreadCount(rows()) + older();
+      const now = Date.now();
+      through.press(now, mark({ read_all: true }));
+      save({ seenAt: now });
+      return {
+        read,
+        undo: () => {
+          through.press(was, mark({ read_through: new Date(was).toISOString() }));
+          emit();
+        },
+      };
     },
     keptUnread: () => keptUnreadIn(win, seenAt()),
     read: (key) => {

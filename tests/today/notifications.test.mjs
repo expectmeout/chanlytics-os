@@ -354,7 +354,7 @@ test("a kept row of an alerting kind wakes the device like a derived one: not th
   assert.equal(fired.length, 1, "told once");
 });
 
-test("two devices agree after Mark all read: the seen moment is the server's, the marks are keyed by the workspace's id, and a mark for a row that left the feed goes", async () => {
+test("two devices agree after a look: the seen moment is the server's, the marks are keyed by the workspace's id, and a mark for a row that left the feed goes", async () => {
   const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/notifications.ts")).href);
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const device = (over = {}) => {
@@ -374,7 +374,7 @@ test("two devices agree after Mark all read: the seen moment is the server's, th
     };
     return { win, store, storage, api: mod.installNotifications(win, storage) };
   };
-  // Device A: one row unread; Mark all read keeps its own copy and tells the server.
+  // Device A: one row new; a look keeps its own copy of the moment and tells the server.
   const a = device();
   assert.equal(a.api.unread(), 1);
   a.api.seenAll();
