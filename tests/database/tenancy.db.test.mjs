@@ -585,6 +585,11 @@ before(async () => {
   // An error a page hit (00469): no workspace on it, a hash of who; Health reads it on the service role.
   await seed("client_errors", { fingerprint: key, boundary: "os", name: "TypeError", message: "tenancy" }, null);
   probes.push(["client_errors", "fingerprint", key]);
+  // The machine image an edition of the video template is drawn on (00613): the platform's, no workspace on it. An
+  // edition no template has, so no other suite's image is touched.
+  const edition = 1_000_000 + Math.floor(Math.random() * 1_000_000);
+  await seed("piece_images", { edition, snapshot_id: `snap_${key}`, hash: "0123456789ab" }, null);
+  probes.push(["piece_images", "edition", edition]);
 
   // A partner brought A (0012): their row, the workspace's attribution, one earning, and the card the workspace
   // pays with. The earning outlives the workspace and holds the partner row, so both are removed by hand, in order.

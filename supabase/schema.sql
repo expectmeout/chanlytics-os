@@ -20628,37 +20628,6 @@ COMMENT ON FUNCTION public.person_step_from_playbook(p_tenant_id uuid, p_contact
 
 
 --
--- Name: platform_acts_forward(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.platform_acts_forward() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
-    AS $$
-begin
-  if TG_OP = 'DELETE' then
-    raise exception 'the Admin log keeps every row (platform_acts %)', OLD.id using errcode = 'check_violation';
-  end if;
-  if NEW.id is distinct from OLD.id or NEW.at is distinct from OLD.at
-     or NEW.actor_email is distinct from OLD.actor_email or NEW.actor_role is distinct from OLD.actor_role
-     or NEW.act is distinct from OLD.act or NEW.target_kind is distinct from OLD.target_kind
-     or NEW.target_id is distinct from OLD.target_id or NEW.reason_kind is distinct from OLD.reason_kind
-     or NEW.ticket is distinct from OLD.ticket or NEW.note is distinct from OLD.note
-     or (NEW.tenant_id is distinct from OLD.tenant_id and NEW.tenant_id is not null)
-     or (NEW.actor_id is distinct from OLD.actor_id and NEW.actor_id is not null) then
-    raise exception 'an Admin log row says who did what, where and why once (platform_acts %)', OLD.id
-      using errcode = 'check_violation';
-  end if;
-  if OLD.outcome <> 'running' and (NEW.outcome is distinct from OLD.outcome
-     or NEW.outcome_note is distinct from OLD.outcome_note or NEW.finished_at is distinct from OLD.finished_at) then
-    raise exception 'an Admin log row is finished once (platform_acts %: %)', OLD.id, OLD.outcome
-      using errcode = 'check_violation';
-  end if;
-  return NEW;
-end $$;
-
-
---
 -- Name: piece_begin(uuid, jsonb, jsonb, text, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -20951,6 +20920,37 @@ $$;
 --
 
 COMMENT ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) IS 'The machine a video is being drawn on, kept or let go (00613); one kept is the drawing begun (stage). Answers whether the video is still being made. The service role''s.';
+
+
+--
+-- Name: platform_acts_forward(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_acts_forward() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if TG_OP = 'DELETE' then
+    raise exception 'the Admin log keeps every row (platform_acts %)', OLD.id using errcode = 'check_violation';
+  end if;
+  if NEW.id is distinct from OLD.id or NEW.at is distinct from OLD.at
+     or NEW.actor_email is distinct from OLD.actor_email or NEW.actor_role is distinct from OLD.actor_role
+     or NEW.act is distinct from OLD.act or NEW.target_kind is distinct from OLD.target_kind
+     or NEW.target_id is distinct from OLD.target_id or NEW.reason_kind is distinct from OLD.reason_kind
+     or NEW.ticket is distinct from OLD.ticket or NEW.note is distinct from OLD.note
+     or (NEW.tenant_id is distinct from OLD.tenant_id and NEW.tenant_id is not null)
+     or (NEW.actor_id is distinct from OLD.actor_id and NEW.actor_id is not null) then
+    raise exception 'an Admin log row says who did what, where and why once (platform_acts %)', OLD.id
+      using errcode = 'check_violation';
+  end if;
+  if OLD.outcome <> 'running' and (NEW.outcome is distinct from OLD.outcome
+     or NEW.outcome_note is distinct from OLD.outcome_note or NEW.finished_at is distinct from OLD.finished_at) then
+    raise exception 'an Admin log row is finished once (platform_acts %: %)', OLD.id, OLD.outcome
+      using errcode = 'check_violation';
+  end if;
+  return NEW;
+end $$;
 
 
 --
@@ -54906,14 +54906,6 @@ GRANT ALL ON FUNCTION public.person_step_from_playbook(p_tenant_id uuid, p_conta
 
 
 --
--- Name: FUNCTION platform_acts_forward(); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.platform_acts_forward() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.platform_acts_forward() TO service_role;
-
-
---
 -- Name: FUNCTION piece_begin(p_tenant_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -54960,6 +54952,14 @@ GRANT ALL ON FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) TO servi
 
 REVOKE ALL ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION platform_acts_forward(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_acts_forward() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_acts_forward() TO service_role;
 
 
 --
