@@ -14,6 +14,7 @@ import {
   ASK_MEMORY_LIMITS,
   REACH_OUT_MONTH_EMAILS,
   REPLY_MODE_UNSET,
+  coldEmailNeedsLook,
   coldEmailSendingOf,
   coldEmailStandingOf,
   hasFootAddress,
@@ -341,6 +342,8 @@ export function standingFactsOf(input: {
   nowMs: number;
   tz: string;
 }): ColdEmailStandingFacts {
+  // Why a mailbox that sends needs a look, from the checks Sending shows (contracts coldEmailNeedsLook).
+  const needsLook = coldEmailNeedsLook(input.mailboxes, input.nowMs);
   const { chains, report, ...rest } = input;
   const subject = standingChainOf(chains);
   const total = (pick: (s: ReachOutChainReportDto["steps"][number]) => number | undefined): number | null =>
@@ -351,6 +354,7 @@ export function standingFactsOf(input: {
   return {
     ...rest,
     mailboxes: input.mailboxes.filter(mailboxIsLive),
+    needsLook,
     hadSequence: chains.length > 0,
     waitingRun:
       subject && waitingId

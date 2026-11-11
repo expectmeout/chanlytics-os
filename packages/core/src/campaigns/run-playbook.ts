@@ -57,6 +57,7 @@ import {
   waitEndOf,
   type KeptList,
   type Skipped,
+  withVisitKey,
 } from "./run-batch";
 import type {
   AssembleDecision,
@@ -484,7 +485,7 @@ function recipientFacts(run: Run, goesAt: Date): (person: PersonRowVM) => Record
     // now), so the send asks its row again (decision 0002, contracts appointmentHolds): a reminder never goes for one
     // that moved or was cancelled since the run, and the record's older word never holds one the run saw newer.
     return words && visit?.key
-      ? { ...words, appointment: visit.key, visit_start: visit.start, appointment_read_at: ctx.now.toISOString() }
+      ? withVisitKey(p.trigger, words, { key: visit.key, start: visit.start }, ctx.now)
       : words;
   };
 }

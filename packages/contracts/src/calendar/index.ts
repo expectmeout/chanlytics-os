@@ -80,7 +80,7 @@ export type {
   CalendarWeekDto,
   EarlierVisitsDto,
   HeldNoticeDto,
-  MissedFollowUp,
+  VisitFollowUp,
   VisitMark,
   VisitOriginDto,
 } from "./dto";

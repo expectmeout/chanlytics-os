@@ -35,7 +35,7 @@ export async function remindLateBooking(
   now: Date = new Date(),
   load: typeof loadTenantRunContext = loadTenantRunContext,
 ): Promise<LateReminder> {
-  const found = await findReminderStep(db, tenantId);
+  const found = await findReminderStep(db, tenantId, "visit_tomorrow");
   if (found.state !== "running") return { reminded: false, why: found.state === "paused" ? "paused" : "no_step" };
   const { step } = found;
   const nowMs = now.getTime();
