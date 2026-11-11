@@ -155,6 +155,11 @@ export const REACH_OUT_SETTINGS_WORDS = {
     fixes: "What problem do you solve?",
     next: "What should they do next?",
     empty: "Not set",
+    /** What an email is written without, under a row nobody has filled: why it is worth a line. */
+    without: {
+      whoFor: "Without it, emails are written for any business.",
+      fixes: "Without it, emails can't say what you fix for them.",
+    },
     /** Where the words a row shows in place of the owner's came from (ReachOutSettingsDto.about_from, else the goal). */
     from: {
       record: "Read from what your business does, until you write it here.",
@@ -223,7 +228,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
     from: "From",
     pace: "Pace",
     month: "This month",
-    batch: "Before each batch",
+    // The row is what a NEW sequence starts as; one that exists keeps its own on its page.
+    batch: "Before each batch, on new sequences",
     none: "Not connected",
     /** The page's read came back without its mailboxes: not known, which is neither connected nor not. */
     unread: "Couldn't check just now",
@@ -242,6 +248,8 @@ export const REACH_OUT_SETTINGS_WORDS = {
     /** The sheet's press where a mailbox can't send, named by what fixes it, as the top card names it; on Connections. */
     fixFor: { reconnect: "Reconnect", on_hold: "See what to fix", paused: "Open Connections" },
     sendMore: "Send more",
+    /** The press beside why it needs a look: Connections holds the fix. */
+    seeFix: "See what to fix",
     details: "Details",
     connect: "Connect",
     batchAutonomy: "See this for every kind of message on Autonomy",

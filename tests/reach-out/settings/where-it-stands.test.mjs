@@ -403,3 +403,35 @@ test("a new sequence is refused in the words of what is true: no mailbox, or one
     assert.doesNotMatch(why, /Connect your mailbox first/, "a mailbox that is there is never asked for again");
   }
 });
+
+test("a mailbox that sends and fails a check is said at the top, with what fails and where to fix it; below anything that stops an email or waits for an OK", () => {
+  const needsLook = {
+    why: "sam@get.example: Your domain is missing its SPF and DKIM records",
+    detail: "Add them on Connections, so your emails reach inboxes",
+    alone: false,
+  };
+  const said = coldEmailStandingOf(facts({ mailboxes: [CONNECTED, CONNECTED], needsLook }));
+  assert.equal(said.kind, "attention");
+  assert.equal(said.headline, "One mailbox needs a look");
+  assert.equal(
+    said.detail,
+    "sam@get.example: Your domain is missing its SPF and DKIM records. Add them on Connections, so your emails reach inboxes.",
+  );
+  assert.deepEqual(
+    [said.act, said.to, said.needs_you, said.needs],
+    ["See what to fix", "admin/integrations", true, "settings"],
+  );
+  // The only mailbox is "your mailbox".
+  const alone = coldEmailStandingOf(
+    facts({ needsLook: { ...needsLook, why: "Your domain is missing its DMARC record", alone: true } }),
+  );
+  assert.equal(alone.headline, "Your mailbox needs a look");
+  // A batch waiting for an OK is today's, and a held mailbox stops emails: each is said first.
+  const waitingRun = { id: "run-1", planned: 12, name: "Clinics · Austin", first: false };
+  assert.equal(coldEmailStandingOf(facts({ needsLook, waitingRun })).kind, "waiting_ok");
+  const held = [{ state: "held", held_why: "bounces" }, CONNECTED];
+  assert.equal(coldEmailStandingOf(facts({ needsLook, mailboxes: held })).kind, "held");
+  // Nothing fails, or the read holds no checks (Today's): the answer is what it was.
+  assert.equal(coldEmailStandingOf(facts({ needsLook: null })).kind, "sending");
+  assert.equal(coldEmailStandingOf(facts()).kind, "sending");
+});

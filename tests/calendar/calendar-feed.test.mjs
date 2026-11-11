@@ -33,6 +33,7 @@ import {
   zoneMidnight,
   isConsultationTitle,
   feedMarksOf,
+  VISITS_KEPT_MAX,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -47,6 +48,7 @@ const { itemsToDays, MAX_ITEMS_PER_DAY } = await import(at("apps/dashboard/src/s
 const { previewFeed } = await import(at("apps/dashboard/src/server/calendar/feed-preview.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
 const visitRoute = await import(at("apps/dashboard/app/api/v1/calendar/visits/[id]/route.ts"));
+const keptRoute = await import(at("apps/dashboard/app/api/v1/calendar/visits/kept/route.ts"));
 
 const TZ = "America/New_York";
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -1134,9 +1136,32 @@ test("POST calendar/visits/:id: a Missed says what it sets going (decision 0119)
     null,
     "marked days later, a member is tidying the record",
   );
-  // Kept says nothing of it.
+  // Kept says nothing of a missed visit's sequence.
   const kept = await visitRoute.POST.run(post({ status: "kept" }), world({ status: "kept" }));
   assert.equal(kept.follows, null);
+
+  // A Kept is answered where a thank-you waits for it (decision 0123): the sequence on the day after, and when it goes.
+  const thanks = { trigger: "visited", last_run_for: "2026-09-08" };
+  const keptSays = async (over) =>
+    (await visitRoute.POST.run(post({ status: "kept" }), world({ status: "kept", step: thanks, ...over }))).follows;
+  const after = { name: "After the appointment" };
+  // Said on the visit's own day: tomorrow's look, at the step's hour.
+  assert.deepEqual(await keptSays({ sequence: after }), {
+    name: "After the appointment",
+    when: "tomorrow 10:00 AM",
+    asks: false,
+  });
+  // Yesterday's visit, said after today's look went: now, on its own.
+  const yesterday = visit({ status: "kept", starts_at: new Date(at - 24 * 3_600_000).toISOString() });
+  assert.equal((await keptSays({ sequence: after, appointment: yesterday })).when, "today 2:00 PM");
+  // Before today's look: the look sends it, at its hour or now where that has passed.
+  const early = { ...thanks, last_run_for: "2026-09-07" };
+  assert.equal((await keptSays({ sequence: after, appointment: yesterday, step: early })).when, "today 2:00 PM");
+  // Words that are new, or a sequence that asks: it waits for an OK.
+  assert.equal((await keptSays({ sequence: { ...after, mode: "ask" } })).asks, true);
+  // Two days on, its words would be a day old: nothing follows.
+  const old = visit({ status: "kept", starts_at: new Date(at - 2 * 24 * 3_600_000).toISOString() });
+  assert.equal(await keptSays({ sequence: after, appointment: old }), null);
 
   // Marked at night, the message is the morning's: the run moves a send outside the sending hours to nine.
   t.mock.timers.setTime(Date.parse("2026-09-09T02:30:00.000Z")); // Tuesday 10:30 PM in New York
@@ -1211,4 +1236,104 @@ test("the week reads the record: a cancelled booking is drawn struck and keeps t
     [{ id: "f2", status: "missed" }],
   );
   assert.equal(week.feed.notices.count, 0, "a cancelled visit is none of the visits the notices became");
+});
+
+test("POST calendar/visits/kept: each visit named goes through the door one Kept goes through, refusals counted and said, the thank-you that follows said once; a viewer, an empty list, a list past the most and a word that is not an id are refused before it", async (t) => {
+  const ids = [1, 2, 3, 4].map((n) => `dddddddd-0000-4000-8000-00000000d1${n}0`);
+  const at = Date.parse("2026-09-08T18:00:00.000Z"); // Tuesday 2:00 PM in New York
+  t.mock.timers.enable({ apis: ["Date"], now: at });
+  const asked = [];
+  const yesterday = new Date(at - 24 * 3_600_000).toISOString();
+  // The door as 00397 answers: the third was cancelled, the fourth was said kept already.
+  const door = (a) => {
+    asked.push(a);
+    if (a.p_appointment_id === ids[2]) return { error: "cancelled" };
+    if (a.p_appointment_id === ids[3])
+      return { appointment: { id: ids[3], status: "kept" }, from: "kept", unchanged: true };
+    return {
+      appointment: { id: a.p_appointment_id, status: "kept" },
+      from: "booked",
+      decision_id: `dec-${asked.length}`,
+    };
+  };
+  const world = (role = "operator", over = {}) => {
+    const t2 = {
+      ...tables(null, role),
+      appointments: ids.map((id) => ({
+        id,
+        tenant_id: T,
+        contact_id: "cccccccc-0000-4000-8000-00000000c011",
+        status: "booked",
+        starts_at: yesterday,
+        vanished_at: null,
+        title: "Colour",
+        service: null,
+        all_day: false,
+        source: "booking",
+        external_id: null,
+      })),
+      decisions: [],
+      sequences: [],
+      sequence_steps: [],
+      ...over,
+    };
+    return ctxFor(t2, { mark_visit: door });
+  };
+  const send = (body, role, over) =>
+    keptRoute.POST.run(
+      new Request("http://localhost/api/v1/calendar/visits/kept", { method: "POST", body: JSON.stringify(body) }),
+      world(role, over),
+    );
+
+  const out = await send({ ids });
+  assert.deepEqual(
+    asked.map((a) => [a.p_appointment_id, a.p_status]),
+    ids.map((id) => [id, "kept"]),
+    "each named, as one press names it",
+  );
+  assert.deepEqual(out, {
+    marked: 2,
+    already_kept: 1,
+    refused: 1,
+    why: "It was cancelled already.",
+    follows: null,
+  });
+
+  // Where the thank-you runs, the answer says it once: every one is a visit of the same day.
+  asked.length = 0;
+  const S = "eeeeeeee-0000-4000-8000-00000000e021";
+  const thanks = await send({ ids: ids.slice(0, 2) }, "operator", {
+    sequences: [{ id: S, tenant_id: T, name: "After the appointment", state: "on", mode: "auto" }],
+    sequence_steps: [
+      {
+        id: S,
+        sequence_id: S,
+        tenant_id: T,
+        trigger: "visited",
+        run_hour: 10,
+        state: "running",
+        words_ok_at: "2026-09-01T00:00:00Z",
+        last_run_for: "2026-09-08",
+      },
+    ],
+  });
+  assert.equal(thanks.marked, 2);
+  assert.deepEqual(thanks.follows, { name: "After the appointment", when: "today 2:00 PM", asks: false });
+
+  // A name twice is said once.
+  asked.length = 0;
+  await send({ ids: [ids[0], ids[0]] });
+  assert.equal(asked.length, 1);
+
+  // Refused before the door: a viewer, nothing named, more than one press marks, a word that is no id, another key.
+  asked.length = 0;
+  await assert.rejects(send({ ids }, "viewer"), (e) => e.status === 403);
+  for (const body of [
+    { ids: [] },
+    { ids: Array.from({ length: VISITS_KEPT_MAX + 1 }, () => ids[0]) },
+    { ids: ["not-an-id"] },
+    { ids, status: "missed" },
+  ])
+    await assert.rejects(send(body), (e) => e.code === "validation", JSON.stringify(body).slice(0, 60));
+  assert.deepEqual(asked, [], "nothing reached the door for a refusal");
 });

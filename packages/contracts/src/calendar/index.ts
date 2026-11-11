@@ -80,7 +80,7 @@ export type {
   CalendarWeekDto,
   EarlierVisitsDto,
   HeldNoticeDto,
-  MissedFollowUp,
+  VisitFollowUp,
   VisitMark,
   VisitOriginDto,
 } from "./dto";
@@ -249,6 +249,7 @@ export {
   visitActsOf,
   visitLineOf,
   visitLineOfBlock,
+  VISITS_KEPT_MAX,
   visitStands,
   visitStateOf,
 } from "./words/visit";

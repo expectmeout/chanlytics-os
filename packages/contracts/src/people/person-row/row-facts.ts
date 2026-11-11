@@ -299,8 +299,9 @@ export interface PersonRowVM {
    * The calendar days of their visits near today, each with how it was found to be theirs, by start: what a day-keyed
    * playbook asks ("a visit tomorrow", playbooks/reach.ts), which the next visit alone could not answer for a person with
    * one later today. A read made before the calendar kept them gives the next and the last. Empty without a calendar.
+   * `said`: what a member said became of it (VisitDto.said), which a thank-you waits for (contracts waitsForKept).
    */
-  visitDays: { date: string; via: MatchVia }[];
+  visitDays: { date: string; via: MatchVia; said?: "kept" | "missed" }[];
   /** The calendar's zone; null without a calendar. */
   calendarTz: string | null;
   /** Their deal, as the page says it (0004); null where none was recorded. */
@@ -428,7 +429,13 @@ export function visitKeysOf(
   const missedMs = visits?.missed ? Date.parse(visits.missed.start) : NaN;
   return {
     missedVisitDays: Number.isFinite(missedMs) ? Math.max(0, localDaysBetween(missedMs, nowMs, tz)) : null,
-    visitDays: visits ? near.map((x) => ({ date: visitDateKey(x.start, visits.timezone), via: x.via })) : [],
+    visitDays: visits
+      ? near.map((x) => ({
+          date: visitDateKey(x.start, visits.timezone),
+          via: x.via,
+          ...(x.said ? { said: x.said } : {}),
+        }))
+      : [],
     nextVisitDate: visits?.next ? visitDateKey(visits.next.start, visits.timezone) : null,
     lastVisitDate: visits?.last ? visitDateKey(visits.last.start, visits.timezone) : null,
     nextVisitId: visits?.next?.record_id ?? null,

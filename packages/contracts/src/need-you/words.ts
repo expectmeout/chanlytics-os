@@ -267,6 +267,27 @@ export const NEED_YOU_WORDS = {
       asks
         ? `“${name}” has a message for them ${when}, and asks you before it goes.`
         : `“${name}” offers them another time ${when}.`,
+    /**
+     * Every one of yesterday's left to mark, said kept at once (Today's Mark all kept, decision 0123's loose end): the
+     * press, its question, and what it came to. A Kept cannot be taken back to unmarked, only changed to Missed, so the
+     * question says so, and what follows.
+     */
+    allKept: {
+      act: (n: number) => `Mark all ${n} kept`,
+      ask: (n: number, many: string) => `Did all ${n} of yesterday's ${many} come?`,
+      detail:
+        "Each one marked kept is thanked, where a thank-you runs. Any of them can be changed to Missed afterwards, on the Calendar.",
+      yes: "Mark them kept",
+      no: "Not yet",
+      done: (n: number) => (n === 1 ? "Marked kept" : `${n} marked kept`),
+      refused: (n: number, reason: string) =>
+        `${n === 1 ? "1 couldn't be marked" : `${n} couldn't be marked`}: ${reason}`,
+    },
+    /** A Kept that a sequence answers (decision 0123): the thank-you waits for this word, and the row says when it goes. */
+    thanks: (name: string, when: string, asks: boolean) =>
+      asks
+        ? `“${name}” has a thank-you for them ${when}, and asks you before it goes.`
+        : `“${name}” thanks them ${when}.`,
     noWay: (reason: string) => `Nothing to send a rebook by. ${reason}`,
     change: "Change",
   },

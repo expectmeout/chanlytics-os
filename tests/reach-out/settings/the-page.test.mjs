@@ -89,6 +89,7 @@ const READ = {
     today: { sent: 7, cap: 10 },
     month: "34 sent, of 2,000 included",
     customer_host: null,
+    why: null,
   },
   batch_mode: "veto",
   mailbox: null,
@@ -756,8 +757,40 @@ test("Sending's sheet shows what Healthy means, and Send more only for a mailbox
   unmount();
 });
 
+test("Sending says why it needs a look as its first row, with the door to the fix; a healthy one has no such row", async () => {
+  const why = "sam@get.example: Your domain is missing its SPF and DKIM records";
+  const sending = { ...READ.sending, more: 1, health: "attention", why };
+  let tree = await drawOnRead({}, { sending }, (t) => !!byTestId(t, "rec-row-send_why"));
+  const row = byTestId(tree, "rec-row-send_why");
+  assert.match(textOf(row), /Needs a look/);
+  assert.match(textOf(row), /sam@get\.example: Your domain is missing its SPF and DKIM records/);
+  assert.match(textOf(byTestId(tree, "rec-row-act-send_why")), /See what to fix/);
+  press(byTestId(tree, "rec-row-act-send_why"));
+  assert.equal(went.at(-1), "admin/integrations");
+  unmount();
+  // The page's first frame is what it last held: wait for the healthy read itself.
+  tree = await drawOnRead({}, {}, (t) => /Healthy/.test(textOf(byTestId(t, "rec-sending-pill"))));
+  assert.equal(byTestId(tree, "rec-row-send_why"), null);
+  unmount();
+});
+
+test("a pitch row nobody filled says what an email is written without, and one that is filled does not", async () => {
+  let tree = await drawOnRead({}, {}, (t) => !!byTestId(t, "rec-row-who_for"));
+  assert.match(textOf(byTestId(tree, "rec-row-who_for")), /Not set/);
+  assert.match(textOf(byTestId(tree, "rec-row-who_for")), /Without it, emails are written for any business\./);
+  assert.match(textOf(byTestId(tree, "rec-row-fixes")), /Without it, emails can't say what you fix for them\./);
+  unmount();
+  const filled = { reach_out: { who_for: "Dental clinics in Austin", fixes: "Missed calls after hours" } };
+  tree = await drawOnRead(filled, {}, (t) => /Dental clinics/.test(textOf(byTestId(t, "rec-row-who_for"))));
+  assert.doesNotMatch(textOf(byTestId(tree, "rec-row-who_for")), /Without it/);
+  assert.doesNotMatch(textOf(byTestId(tree, "rec-row-fixes")), /Without it/);
+  unmount();
+});
+
 test("Before each batch offers holding or asking, never sending on its own, and says it is for new sequences", async () => {
   let tree = await drawOnRead({}, {}, (t) => /Held 30 minutes/.test(textOf(byTestId(t, "rec-row-batch_mode"))));
+  // On its face too, not only in its sheet: the row is what a new sequence starts as.
+  assert.match(textOf(byTestId(tree, "rec-row-batch_mode")), /Before each batch, on new sequences/);
   openFold(tree, "batch_mode");
   tree = redrawTab();
   const choice = textOf(byTestId(tree, "rec-batch-mode-choice"));

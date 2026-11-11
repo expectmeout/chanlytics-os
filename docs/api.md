@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-390 handlers in 57 domains.
+391 handlers in 57 domains.
 
 ## activity
 
@@ -387,6 +387,14 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `status` | one of `"kept"`, `"missed"`, `"cancelled"` | yes |  |
+
+### `POST /api/v1/calendar/visits/kept`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `person_edit` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `ids` | array of string (uuid) | yes | at least 1; at most 200 |
 
 ## calls
 

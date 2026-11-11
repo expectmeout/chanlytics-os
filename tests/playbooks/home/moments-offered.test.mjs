@@ -122,7 +122,7 @@ test("a trigger says its label and hint in the workspace's word, and so do the w
   });
   assert.deepEqual(triggerWords(t("visited"), "lesson"), {
     label: "After the lesson",
-    hint: "The day after a lesson, when nothing is booked next",
+    hint: "The day after a lesson you mark kept, when nothing is booked next",
   });
   assert.deepEqual(triggerWords(t("lapsed"), "session"), {
     label: "Win-back",
@@ -323,8 +323,8 @@ test("the surface publishes the business's shape and says every appointment mome
       ],
       [
         "After the session",
-        "The day after a session, when nothing is booked next",
-        "Daily 6:00 PM · everyone who had a session yesterday · up to 25",
+        "The day after a session you mark kept, when nothing is booked next",
+        "Daily 6:00 PM · everyone whose session yesterday you marked kept · up to 25",
       ],
     ],
   );
@@ -332,7 +332,7 @@ test("the surface publishes the business's shape and says every appointment mome
     session.triggers.filter((t) => t.kind === "visit").map((t) => [t.label, t.hint]),
     [
       ["Session reminder", "The day before a session on the calendar"],
-      ["After the session", "The day after a session, when nothing is booked next"],
+      ["After the session", "The day after a session you mark kept, when nothing is booked next"],
     ],
   );
   assert.equal(session.triggers.find((t) => t.id === "lapsed").hint, "No session in 45 days, and nothing booked");
@@ -611,7 +611,8 @@ test("an After-the-visit playbook that still sends the marketing thank-you it wa
       calendarTz: RUN_ZONE,
       lastVisitDate: yesterday,
       lastVisitMs: NOW - D,
-      visitDays: [{ date: yesterday, via: "phone" }],
+      // Marked kept: the thank-you waits for that word (decision 0123).
+      visitDays: [{ date: yesterday, via: "phone", said: "kept" }],
       booked: false,
       ...over,
     });

@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { coldEmailSendingOf } from "@chanlytics/contracts";
+import { coldEmailNeedsLook, coldEmailSendingOf } from "@chanlytics/contracts";
 
 const NOW = Date.UTC(2026, 10, 9, 15);
 const ALL_FOUND = { spf: "found", dkim: "found", dmarc: "found", mx: "found" };
@@ -63,7 +63,45 @@ test("several mailboxes add up, and the one shown is the first that sends now", 
   const s = read([paused, box(), second]);
   assert.equal(s.from, "maya@brightlinecleaning.example");
   assert.equal(s.more, 2);
-  assert.equal(s.pace, "30 a day across 2 mailboxes");
+  // What they send in all, never a number that reads as each one's; "for now" while either still climbs its ramp.
+  assert.equal(s.pace, "30 a day in all across 2 mailboxes, for now");
+});
+
+test("mailboxes that send alike say what each does: twenty in all is ten from each, for now", () => {
+  const second = box({ id: "m2", address: "sam@get.example" });
+  assert.equal(read([box(), second]).pace, "20 a day in all, 10 from each for now");
+  // At the ramp's top there is nothing more to come, and it says so by saying nothing.
+  const top = [box({ sent_days: 30 }), box({ id: "m2", address: "sam@get.example", sent_days: 30 })];
+  assert.equal(read(top).pace, "80 a day in all, 40 from each");
+});
+
+test("'Needs a look' is never said without what to look at: the first check that fails on a mailbox that sends, by its address where more than one does", () => {
+  const missing = { mx: "found", spf: "missing", dkim: "missing", dmarc: "found" };
+  // One mailbox: the check's own words, and its fix in the plural its records are.
+  const one = read([box({ dns: missing })]);
+  assert.equal(one.health, "attention");
+  assert.equal(one.why, "Your domain is missing its SPF and DKIM records");
+  assert.deepEqual(coldEmailNeedsLook([box({ dns: missing })], NOW), {
+    why: "Your domain is missing its SPF and DKIM records",
+    detail: "Add them on Connections, so your emails reach inboxes",
+    alone: true,
+  });
+  // Two that send, the second failing: named, since "and 1 more" hid which.
+  const other = box({ id: "m2", address: "sam@get.example", host: "get.example", dns: missing });
+  const two = read([box(), other]);
+  assert.equal(two.health, "attention");
+  assert.equal(two.why, "sam@get.example: Your domain is missing its SPF and DKIM records");
+  assert.equal(coldEmailNeedsLook([box(), other], NOW).alone, false);
+  // One record is "it".
+  const dmarc = { ...ALL_FOUND, dmarc: "missing" };
+  assert.equal(
+    coldEmailNeedsLook([box({ dns: dmarc })], NOW).detail,
+    "Add it on Connections, so your emails reach inboxes",
+  );
+  // Healthy, or a mailbox its owner paused: nothing to look at, and nothing said.
+  assert.equal(read([box()]).why, null);
+  assert.equal(read([box({ state: "paused", dns: missing })]).why, null);
+  assert.equal(coldEmailNeedsLook([], NOW), null);
 });
 
 test("every check passing is what Healthy means", () => {
