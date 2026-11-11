@@ -1,5 +1,5 @@
 /**
- * Campaigns › Content's body (apps/dashboard/src/surfaces/campaigns/content/content-body.tsx), bundled for node with the
+ * Campaigns › Content's body (apps/dashboard/src/surfaces/campaigns/content/body.tsx), bundled for node with the
  * dashboard's own React and drawn in each state it has: not read, a read that failed, nothing made, videos being made and one
  * not made, made pieces with where each stands, and more to show. And Campaigns' strip, which has its tab only where the
  * workspace's switch is on. Each state says one thing once.
@@ -33,10 +33,10 @@ globalThis.document = { addEventListener() {}, removeEventListener() {}, querySe
 const out = await build({
   stdin: {
     contents:
-      'export { ContentBody } from "../../apps/dashboard/src/surfaces/campaigns/content/content-body.tsx";\n' +
+      'export { ContentBody } from "../../apps/dashboard/src/surfaces/campaigns/content/body.tsx";\n' +
       'export { campaignsChrome } from "../../apps/dashboard/src/surfaces/campaigns/routes.ts";\n' +
       'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
-      'export { showMoreContent } from "../../apps/dashboard/src/surfaces/campaigns/content/surface.ts";\n' +
+      'export { readMoreContent } from "../../apps/dashboard/src/surfaces/campaigns/content/surface.ts";\n' +
       'export { onSurfaceMoved } from "../../apps/dashboard/src/bridge/surface-status.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
@@ -205,7 +205,7 @@ test("more of what was made is read after what is there, and whoever draws it is
   };
   let told = 0;
   const stop = S.onSurfaceMoved(["content"], () => (told += 1));
-  await S.showMoreContent();
+  await S.readMoreContent();
   stop();
   assert.equal(asked.length, 1);
   assert.ok(asked[0].includes("/api/v1/content?"), asked[0]);
@@ -219,7 +219,7 @@ test("more of what was made is read after what is there, and whoever draws it is
   assert.equal(now.making.length, 1, "what is being made is the first page's, and stays");
   assert.equal(told, 1, "no read of the surface's own landed, so its page is told its rows did");
   // With nothing more, a press asks for nothing.
-  await S.showMoreContent();
+  await S.readMoreContent();
   assert.equal(asked.length, 1);
 });
 

@@ -133,8 +133,8 @@ export function contentMarkSaid(mark: ContentMark, kind: FileKind): string {
 /** What heads the made pieces, in one line: how many are made, and how many are out. */
 export function contentHeadOf(tally: ContentTally): string {
   if (tally.made === 0) return CONTENT_WORDS.empty.title;
-  const made = tally.made === 1 ? "1 piece made" : `${tally.made} pieces made`;
-  return `${made} · ${tally.posted === 0 ? "none posted yet" : `${tally.posted} posted`}`;
+  const count = tally.made === 1 ? "1 piece made" : `${tally.made} pieces made`;
+  return `${count} · ${tally.posted === 0 ? "none posted yet" : `${tally.posted} posted`}`;
 }
 
 /** A video asked for, as its tile says it: its opening words, where it is at, and why where it was not made. */

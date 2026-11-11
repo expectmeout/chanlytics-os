@@ -1,6 +1,6 @@
 /**
  * Campaigns › Content's body: what is being made, then everything made, newest first, each a tile that says where it stands.
- * Pure: what it is handed is what it draws, and each press is its page's (content-page.tsx). A made piece is Files' own tile
+ * Pure: what it is handed is what it draws, and each press is its page's (page.tsx). A made piece is Files' own tile
  * (files/photo.tsx), so a post or a video looks the same wherever it is drawn, with one line under it that only this page
  * says. What is made is headed by its count ("8 pieces made · 3 posted"): the frame's head keeps a page's sentence for a
  * reader alone, on a desk and on a phone, so the page says it where it is seen, once.
@@ -35,18 +35,18 @@ export interface ContentActs {
 
 /** A video that is no file yet: its ground says where it is at, its words under it, and why where it was not made. */
 function MakingTile({ making }: { making: ContentMakingDto }) {
-  const said = contentMakingSaid(making);
+  const words = contentMakingSaid(making);
   return (
-    <div className="cnv-tile" data-status={making.status} data-testid="cnv-making">
+    <div className="cnv-piece" data-status={making.status} data-testid="cnv-making">
       <span className="files-frame">
-        <span className="files-pic files-unseen" role="img" aria-label={`${said.title}: ${said.state}`}>
-          {said.state}
+        <span className="files-pic files-unseen" role="img" aria-label={`${words.title}: ${words.state}`}>
+          {words.state}
         </span>
       </span>
-      <span className="cnv-name">{said.title}</span>
-      {said.failed ? (
+      <span className="cnv-name">{words.title}</span>
+      {words.failed ? (
         <span className="cnv-said" data-mark="stuck" data-testid="cnv-said">
-          {said.failed}
+          {words.failed}
         </span>
       ) : null}
     </div>
@@ -57,7 +57,7 @@ function MakingTile({ making }: { making: ContentMakingDto }) {
 function MadeTile({ made, onOpen }: { made: ContentMadeDto; onOpen: (fileId: string) => void }) {
   const mark = contentMarkOf(made.posts);
   return (
-    <div className="cnv-tile" data-testid="cnv-tile">
+    <div className="cnv-piece" data-testid="cnv-tile">
       <Photo file={made.file} onOpen={() => onOpen(made.file.id)} />
       <span className="cnv-said" data-mark={mark.is} data-testid="cnv-said">
         {contentMarkSaid(mark, made.file.kind)}

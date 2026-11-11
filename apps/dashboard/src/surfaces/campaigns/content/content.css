@@ -1,4 +1,4 @@
-/* Campaigns › Content. A tile and "show more" are Files' own (files/files.css), loaded with the page (content-page.tsx):
+/* Campaigns › Content. A tile and "show more" are Files' own (files/files.css), loaded with the page (page.tsx):
    what is here is the page's parts, its grid, and the one line under a tile that only this page says. */
 
 .cnv-part {
@@ -34,7 +34,7 @@
   }
 }
 
-.cnv-tile {
+.cnv-piece {
   display: flex;
   flex-direction: column;
   gap: 4px;

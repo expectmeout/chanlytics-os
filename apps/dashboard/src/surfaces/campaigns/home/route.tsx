@@ -43,7 +43,7 @@ import { CampaignsToast } from "./route-toast";
 const adsCode = () => import("../ads/ads-page").then((m) => ({ default: m.AdsPage }));
 const AdsPage = lazy(adsCode);
 // The Content view's code, a chunk of its own, fetched where Content is drawn: once the frame is idle on another view, or at its press.
-const contentCode = () => import("../content/content-page").then((m) => ({ default: m.ContentPage }));
+const contentCode = () => import("../content/page").then((m) => ({ default: m.ContentPage }));
 const ContentPage = lazy(contentCode);
 
 /** What stands where a view will be while its chunk loads: the page's own box, and the shell's quiet words after their beat. */

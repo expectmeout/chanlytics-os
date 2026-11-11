@@ -95,8 +95,7 @@ const pinsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? dr
 const memoryIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([askMemoryOverride]) : []);
 // A business's files (files/surface.ts; decision 0099), where the pane is drawn: nothing else a page draws reads them.
 const filesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([filesOverride]) : []);
-// What Ask made (campaigns/content/surface.ts), where Campaigns › Content is drawn: a file made, renamed or deleted, and a
-// post sent or stopped, each move a tile there.
+// What Ask made (campaigns/content/surface.ts), where Campaigns › Content is drawn: a made file's change, a post sent or stopped.
 const contentIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([contentOverride]) : []);
 const filesAndContentIfDrawn = (): SurfaceOverride[] => [...filesIfDrawn(), ...contentIfDrawn()];
 // Ask's morning (today/ask-morning-surface.ts; decision 0070; its cards rows of Need you, 0071), where Today is on screen: a card of the morning's turn
@@ -544,8 +543,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST files/video": filesAndContentIfDrawn,
   "PATCH files/[id]": filesAndContentIfDrawn,
   "DELETE files/[id]": filesAndContentIfDrawn,
-  // A post put on a place or taken off it: no file changes, so the feed says nothing, and Campaigns › Content is the one
-  // list that draws where each stands. The sheet that pressed it says so from its own answer.
+  // A post put on a place or taken off it changes no file, so the feed is silent: Content, which draws where each stands, reads.
   "POST files/[id]/google": contentIfDrawn,
   "DELETE files/[id]/google": contentIfDrawn,
   "POST files/[id]/instagram": contentIfDrawn,

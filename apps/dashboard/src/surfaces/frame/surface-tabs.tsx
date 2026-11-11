@@ -215,10 +215,12 @@ interface StripPlace {
   at: number;
 }
 
-/** Whether the workspace's Ads preview is on, by the one rule (contracts adsPreviewOf), over the settings it holds (`__SETTINGS`). */
-const stAdsPreviewOn = () => adsPreviewOf((window.__SETTINGS as { config?: unknown } | undefined)?.config);
-/** Whether the workspace's Content view is on, by the one rule (contracts contentPreviewOf), over the settings it holds. */
-const stContentPreviewOn = () => contentPreviewOf((window.__SETTINGS as { config?: unknown } | undefined)?.config);
+/** The workspace's config, as the settings the frame holds have it (`__SETTINGS`). */
+const stConfig = () => (window.__SETTINGS as { config?: unknown } | undefined)?.config;
+/** Whether the workspace's Ads preview is on, by the one rule (contracts adsPreviewOf). */
+const stAdsPreviewOn = () => adsPreviewOf(stConfig());
+/** Whether the workspace's Content view is on, by the one rule (contracts contentPreviewOf). */
+const stContentPreviewOn = () => contentPreviewOf(stConfig());
 
 /** Which of People's scopes an address of `clients` is: Leads, the Pipeline, or the list itself (a list, a state). */
 const peopleScopeRoute = (param: string | null | undefined) => {

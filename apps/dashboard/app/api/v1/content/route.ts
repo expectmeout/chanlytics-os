@@ -4,9 +4,10 @@ import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
 import { content } from "@/server/readers/content";
 
-const Query = z.object({
-  limit: z.coerce.number().int().min(1).max(CONTENT_MAX).optional(),
+/** What a page of Content is asked for: where the last page ended, and how many. */
+const Asked = z.object({
   before: z.string().min(1).max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(CONTENT_MAX).optional(),
 });
 
 /**
@@ -17,6 +18,6 @@ const Query = z.object({
  */
 export const GET = read({
   scope: workspace,
-  query: Query,
+  query: Asked,
   handle: async ({ ctx, member, input }) => (await load(readerContext(ctx, member), content, input)).data,
 });

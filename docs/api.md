@@ -856,8 +856,8 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `limit` | integer | no | ≥ 1; ≤ 96 |
 | `before` | string | no | at least 1 characters; at most 100 characters |
+| `limit` | integer | no | ≥ 1; ≤ 96 |
 
 ## conversations
 

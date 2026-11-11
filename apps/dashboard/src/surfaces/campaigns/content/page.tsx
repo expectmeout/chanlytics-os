@@ -4,7 +4,7 @@
  * (`files` made here) and where each was posted (00611 `posts`), read by one read (surface.ts, GET content).
  *
  * The head holds two doors: Ask, opened on this page, and Files, where clips are added. How many are made and how many are
- * out heads the made pieces themselves (content-body.tsx). A tile opens its file where it already opens, in Files, with Back
+ * out heads the made pieces themselves (body.tsx). A tile opens its file where it already opens, in Files, with Back
  * coming home here. A video being made and a post on its way are told to no page, so while one moves the page asks again,
  * a few seconds apart, and stops when none does.
  */
@@ -22,8 +22,8 @@ import { useSurface } from "../../use-surface";
 import { CmHead } from "../parts/head";
 import { type CmView, useCmPhone } from "../parts/split";
 import { useCampaignsToast } from "../home/route-toast";
-import { ContentBody, type ContentActs } from "./content-body";
-import { showMoreContent } from "./surface";
+import { ContentBody, type ContentActs } from "./body";
+import { readMoreContent } from "./surface";
 
 /** How often the page asks again while a video is being made or a post is on its way, and how many times before it rests. */
 const CONTENT_FOLLOW_MS = 5 * SECOND_MS;
@@ -31,15 +31,15 @@ const CONTENT_FOLLOWS_AT_MOST = 120;
 
 /** Asks again while something moves; stops when nothing does, and after ten minutes of asking (the bell says what lands). */
 function useAsksWhileMoving(moving: boolean): void {
-  const asked = useRef(0);
+  const asks = useRef(0);
   useEffect(() => {
     if (!moving) {
-      asked.current = 0;
+      asks.current = 0;
       return undefined;
     }
     const timer = setInterval(() => {
-      asked.current += 1;
-      if (asked.current > CONTENT_FOLLOWS_AT_MOST) clearInterval(timer);
+      asks.current += 1;
+      if (asks.current > CONTENT_FOLLOWS_AT_MOST) clearInterval(timer);
       else void refreshSurface("content");
     }, CONTENT_FOLLOW_MS);
     return () => clearInterval(timer);
@@ -51,7 +51,7 @@ const askHere = () => askAbout({ about: { kind: "page", id: CONTENT_ROUTE, label
 const toFiles = () => navigate(FILES_ROUTE);
 
 /** The head's acts: Files' door, quiet, and Ask, the page's one primary. On a phone the shell's own Ask door stands in. */
-function HeadActs({ phone }: { phone: boolean }) {
+function ContentDoors({ phone }: { phone: boolean }) {
   return (
     <>
       <Button variant="quiet" size="sm" onClick={toFiles} data-testid="cnv-head-files">
@@ -76,7 +76,7 @@ export function ContentPage({ view }: { view?: CmView }) {
   const more = () => {
     if (gettingMore) return;
     setGettingMore(true);
-    void showMoreContent()
+    void readMoreContent()
       .catch(() => flash?.({ tone: "danger", msg: <>{W.moreFailed}</> }))
       .finally(() => setGettingMore(false));
   };
@@ -88,7 +88,7 @@ export function ContentPage({ view }: { view?: CmView }) {
   };
   return (
     <div ref={view?.ref} className="cmh cnv" data-slide={view?.slide} data-testid="content-page">
-      <CmHead title={W.tab} quiet right={<HeadActs phone={phone} />} allowance={false} />
+      <CmHead title={W.tab} quiet right={<ContentDoors phone={phone} />} allowance={false} />
       <ContentBody held={dto} acts={acts} gettingMore={gettingMore} />
     </div>
   );

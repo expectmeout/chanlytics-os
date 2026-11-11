@@ -54,12 +54,12 @@ export function postDtoOf(row: MemberPostRow): PostDto {
 function makingDtoOf(row: PieceStandingRow): ContentMakingDto {
   const plan = piecePlanOf(recordOrEmpty(row.plan));
   const failed = row.status === "failed";
-  const why = isOneOf(PIECE_FAILS, row.failed_why) ? row.failed_why : "unknown";
+  const reason = isOneOf(PIECE_FAILS, row.failed_why) ? row.failed_why : "unknown";
   return {
     id: row.id,
     status: failed ? "failed" : "making",
     stage: isOneOf(PIECE_STAGES, row.stage) ? row.stage : "queued",
-    failed_why: failed ? why : null,
+    failed_why: failed ? reason : null,
     lines: plan.lines,
     language: plan.language,
     moments: plan.cuts.length,
