@@ -14,7 +14,7 @@ import { SEQUENCE_WORDS, sequenceStartWords, twinLineOf, type SequenceTwin } fro
 import { batchWaitsUntilTonight } from "./next";
 
 /** "since 9:05 AM" today, "since yesterday", "since Sun" within the week, else "since Oct 30". */
-function sinceWords(atMs: number, tz: string, nowMs: number): string {
+function waitedSinceWords(atMs: number, tz: string, nowMs: number): string {
   return `since ${zoneDayKey(atMs, tz) === zoneDayKey(nowMs, tz) ? clockTime(atMs, tz) : clockNear(atMs, tz, nowMs)}`;
 }
 
@@ -86,7 +86,8 @@ export function needsWords(
   if (more.length > 0) return kinds.map((k) => k.short).join(" · ");
   if (only.ends === "tonight") return `${only.full} · ${SEQUENCE_WORDS.untilTonight}`;
   const oldest = row.needs.oldest_at;
-  if (only.ends === "since" && oldest) return `${only.full} · ${sinceWords(Date.parse(oldest), clock.tz, clock.nowMs)}`;
+  if (only.ends === "since" && oldest)
+    return `${only.full} · ${waitedSinceWords(Date.parse(oldest), clock.tz, clock.nowMs)}`;
   return only.full;
 }
 
@@ -130,9 +131,11 @@ function startsWhenWords(row: Pick<SequenceRowDto, "starts" | "first">, word: Ap
 /** A draft: a one-off kept to send, else whether it can start or has emails to write, and the day it was made. */
 function draftLine(row: SequenceRowDto, tz: string, nowMs: number): string {
   if (row.once) return SEQUENCE_WORDS.keptOnce;
-  const made = `made ${clockDate(Date.parse(row.created_at), tz, nowMs)}`;
+  const createdOn = `made ${clockDate(Date.parse(row.created_at), tz, nowMs)}`;
   const unwritten = row.unwritten ?? 0;
-  return unwritten > 0 ? `${plural(unwritten, "email", "emails")} to write · ${made}` : `Ready to start · ${made}`;
+  return unwritten > 0
+    ? `${plural(unwritten, "email", "emails")} to write · ${createdOn}`
+    : `Ready to start · ${createdOn}`;
 }
 
 /** A one-off's day in its own tense: didn't go, went with what it drew back, goes, or the day it went with no report. */
