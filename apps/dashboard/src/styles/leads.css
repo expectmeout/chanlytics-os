@@ -1416,6 +1416,25 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-val { padding: 0 5px; border-radius: var(--radius-sm); background: var(--info-soft); color: var(--info-ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .lw-open { display: inline; padding: 0 6px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); color: var(--ink-dim); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .lw-hole { padding: 0 5px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn-ink); }
+/* A fill-in (decision 0126): a blank's value wears a dotted line and is a press; a blank by its name alone, and the
+   receptionist's link, take the hole's own shape in the selected tint, since neither waits on anyone. Amber stays what
+   needs you: the receptionist's mark is amber only where its email would be skipped. Over the kit's text button, as
+   Edit is: its height its words', no padding of a control's. */
+html.frame-on .lw .lw-fill, .lw .lw-fill { display: inline; min-height: 0; height: auto; padding: 0; border-radius: var(--radius-xs); font: inherit; color: inherit; text-align: inherit; text-decoration: underline dotted var(--ink-dim); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+@media (hover: hover) {
+  .lw .lw-fill:hover { background: var(--selected-fill); }
+}
+.lw .lw-fill[data-popup-open] { background: var(--selected-fill); }
+.lw-blank { padding: 0 5px; border-radius: var(--radius-sm); background: var(--selected-fill); color: var(--ink); font-weight: var(--weight-medium); white-space: nowrap; }
+html.frame-on .lw .lw-recep, .lw .lw-recep { display: inline; min-height: 0; height: auto; padding: 0 5px; border-radius: var(--radius-sm); background: var(--selected-fill); font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: inherit; }
+.lw-recep-say { font-weight: var(--weight-regular); color: var(--ink-dim); }
+.lw .lw-recep[data-tone="go"], .lw .lw-recep[data-tone="done"] { background: var(--ok-soft); color: var(--ok-ink); }
+.lw .lw-recep[data-tone="go"] .lw-recep-say, .lw .lw-recep[data-tone="done"] .lw-recep-say { color: var(--ok-ink); }
+.lw .lw-recep[data-tone="warn"] { background: var(--warn-soft); color: var(--warn-ink); }
+.lw .lw-recep[data-tone="warn"] .lw-recep-say { color: var(--warn-ink); }
+.lw-fill-says { display: flex; flex-direction: column; gap: 4px; width: min(280px, calc(100vw - 32px)); }
+.lw-fill-t { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); }
+.lw-now-view { margin: 2px 0 6px; }
 .lw-mail-n { margin: 6px 0 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
 .lw-mail-n.warn { color: var(--warn-ink); }
 .lw-mail-n.quiet { margin: 10px 18px 0; }
