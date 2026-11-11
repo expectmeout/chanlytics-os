@@ -9,6 +9,7 @@
  * still reaches the email. The line written for them is kept as it was typed: it is the member's now.
  *
  *   leadWordsPieces    the same email as the sheet reads it at rest, each piece at its place in the box's words
+ *   leadWordsBlanks    a step's words with every blank by its name: what everyone on the step gets (decision 0126)
  *   leadWordsInBox     the email as the box opens with it
  *   leadWordsFromBox   what the box says, as the words to keep
  *   leadWordsProblem   what is wrong with those words, in the step's own rules; null where they may go
@@ -33,12 +34,14 @@ export interface LeadEmailText {
 }
 
 /**
- * A piece of the email as the sheet reads it at rest: its words, the line written for them, or what stands for something
- * not known yet (`slot`). `at` is where it starts in the box's words, so a press on it puts the caret there.
+ * A piece of the email as the sheet reads it at rest: its words, the line written for them, a blank's value where it has
+ * one (`value`, naming its blank), what stands for one not known yet (`mark`), or a blank by its name alone (`blank`, what
+ * Show the blanks draws: decision 0126). `at` is where it starts in the words it was read from, so a press on it puts the
+ * caret there.
  */
 export interface LeadEmailPiece {
   at: number;
-  kind: "words" | "line" | "mark";
+  kind: "words" | "line" | "mark" | "value" | "blank";
   text: string;
   slot?: string;
 }
@@ -53,6 +56,15 @@ export interface LeadStepWordsDto extends LeadEmailText {
 export const LEAD_WORDS_BOX = {
   /** What stands for the line while it is still to be written: left alone, the check writes it. */
   line: "[A line about them, written before it goes]",
+  /** What Show the blanks calls the line written for them. */
+  lineBlank: "A line about them",
+  /** The switch over the email: the email with this lead's values in, or the step's words with each blank named. */
+  view: {
+    label: "How the email is shown",
+    read: "As they'll read it",
+    blanks: "Show the blanks",
+    note: "These words go to everyone on this step. Only the blanks change.",
+  },
   edit: "Edit",
   editOf: (personName: string) => `Edit the email to ${personName}`,
   bodyOf: (personName: string) => `The email to ${personName}`,
@@ -122,11 +134,30 @@ export function leadWordsPieces(wordsFor: WordsFor & { body: string; opening: st
   for (const m of slotMentions(SLOTS, wordsFor.body)) {
     put("words", wordsFor.body.slice(from, m.index));
     const value = slotValueOf(SLOTS, m.key, values);
-    if (value) put(m.key === "opening" ? "line" : "words", value);
-    else put("mark", markOf(m.key), m.key);
+    if (!value) put("mark", markOf(m.key), m.key);
+    else if (m.key === "opening") put("line", value);
+    else put("value", value, m.key);
     from = m.index + m.written.length;
   }
   put("words", wordsFor.body.slice(from));
+  return out;
+}
+
+/** A step's words with every blank by its name: what everyone on the step gets, before any value is in. */
+export function leadWordsBlanks(text: string): LeadEmailPiece[] {
+  const out: LeadEmailPiece[] = [];
+  let from = 0;
+  for (const m of slotMentions(SLOTS, text)) {
+    if (m.index > from) out.push({ at: from, kind: "words", text: text.slice(from, m.index) });
+    out.push({
+      at: m.index,
+      kind: "blank",
+      text: m.key === "opening" ? W.lineBlank : capitalize(labelOf(m.key)),
+      slot: m.key,
+    });
+    from = m.index + m.written.length;
+  }
+  if (from < text.length) out.push({ at: from, kind: "words", text: text.slice(from) });
   return out;
 }
 

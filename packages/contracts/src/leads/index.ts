@@ -494,6 +494,7 @@ export { LEAD_OWN_EMAIL_WORDS, leadEmailFromOf, leadEmailLineOf, leadEmailRefusa
 export type { LeadEmailDto, LeadEmailMailbox, LeadEmailWhy } from "./sheet/lead-sheet-email";
 export {
   LEAD_WORDS_BOX,
+  leadWordsBlanks,
   leadWordsFromBox,
   leadWordsInBox,
   leadWordsPieces,
