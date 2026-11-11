@@ -246,7 +246,7 @@ test("a late reminder that waits keeps the words of the moment it was to go, nev
 });
 
 test("a run about one visit handed to a step on no visit's moment is off before anything is read or written", async () => {
-  // A visit's two moments take one: a late booking's reminder (0118), and a late Kept's thank-you (0122).
+  // A visit's two moments take one: a late booking's reminder (0118), and a late Kept's thank-you (0123).
   const { ports, calls } = fakes();
   const r = await ask(ports, {
     playbook: reminder({ trigger: "quiet_30", name: "Win-back", policy_class: "reengage" }),

@@ -1051,7 +1051,7 @@ test("a freed time's words for every send of its batch (decision 0082): the time
   );
 });
 
-test("a thank-you's run says who waits on the owner's word (decision 0122): the visits nobody marked kept, with where to say it", () => {
+test("a thank-you's run says who waits on the owner's word (decision 0123): the visits nobody marked kept, with where to say it", () => {
   const reach = {
     pool: 5,
     will: 2,

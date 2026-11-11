@@ -102,7 +102,7 @@ const tables = (url, role = "owner", extra = {}) => ({
 });
 /**
  * The record's word on a feed's visits of 7 September, 2:00 PM in New York: a member said each was kept, which the
- * thank-you the day after waits for (decision 0122). By the feed's own key for each event.
+ * thank-you the day after waits for (decision 0123). By the feed's own key for each event.
  */
 const keptOn7 = (...uids) =>
   uids.map((uid, i) => ({

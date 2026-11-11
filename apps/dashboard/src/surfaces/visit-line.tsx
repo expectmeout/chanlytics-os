@@ -28,7 +28,7 @@ import { gate } from "./shell-doors";
 
 /**
  * What the door answered: it wrote (and, for a Missed or a Kept a sequence answers, which one writes to them and when:
- * decisions 0119 and 0122), or it refused in a sentence for the person who asked.
+ * decisions 0119 and 0123), or it refused in a sentence for the person who asked.
  */
 type VisitSaid = { ok: true; follows: VisitFollowUp | null } | { ok: false; message: string };
 

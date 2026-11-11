@@ -196,7 +196,7 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
   // Kept by the row, not by this part: the walk's sheet and the page's row say the same (row-state.ts).
   const [mark, setMark] = useRowState<VisitWord | "rebook" | null>(row.id, "mark", null);
   // A Missed that a sequence answers (decision 0119): the row says who writes to them, and offers no rebook of its own.
-  // A Kept that one answers (0122): the thank-you waits for this word, and the row says when it goes.
+  // A Kept that one answers (0123): the thank-you waits for this word, and the row says when it goes.
   const [follows, setFollows] = useRowState<VisitFollowUp | null>(row.id, "follows", null);
   const [busy, setBusy] = useState(false);
   const say = async (status: VisitWord) => {

@@ -339,7 +339,7 @@ export interface JobContext {
   reminders?: {
     /** The workspace's running step runs for the one person the appointment is for, once per visit. Throws when it could not be asked. */
     remind: (tenantId: TenantId, appointmentId: string) => Promise<LateReminder>;
-    /** The workspace's running step on the day after a visit runs for the one person a late Kept is for (decision 0122). */
+    /** The workspace's running step on the day after a visit runs for the one person a late Kept is for (decision 0123). */
     thank: (tenantId: TenantId, appointmentId: string) => Promise<LateThanks>;
   };
   /**

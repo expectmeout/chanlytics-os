@@ -1,5 +1,5 @@
 /**
- * A visit marked kept after the thank-you's look is thanked on its own (decision 0122).
+ * A visit marked kept after the thank-you's look is thanked on its own (decision 0123).
  *
  * The thank-you the day after a visit goes only for a visit a member said was kept. Its look is once a day, at its hour,
  * so a word said after that look found nobody to send it: the owner pressed Kept at three and the customer was never

@@ -1,4 +1,4 @@
-# 0122 · A thank-you waits for kept
+# 0123 · A thank-you waits for kept
 
 **Status:** Accepted by Ruben, 10 November 2026 ("Wait for Kept"), and built the same day. No migration. Written against main at `1f5095c050`.
 

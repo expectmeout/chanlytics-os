@@ -65,7 +65,7 @@ interface KeptVisit {
 
 /**
  * When a visit marked kept is thanked (epoch ms), the day of the visit, and whether the day's look can no longer send it
- * (`late`), by the business's clock (decision 0122); null where no thank-you is owed. Its words say "yesterday", so it is
+ * (`late`), by the business's clock (decision 0123); null where no thank-you is owed. Its words say "yesterday", so it is
  * owed on the day after the visit and no other. Marked on the visit's own day, tomorrow's look names it; marked the day
  * after before that day's look, the look names it, now that the record says kept; marked after the look, it goes now
  * on its own, while the day's sending hours last; marked later still, its words would be a day old, and nothing goes.
@@ -87,7 +87,7 @@ export function keptThanksAt(kept: KeptVisit): { at: number; day: string; late: 
 }
 
 /**
- * What a late Kept's thank-you came to (the edge's, decision 0122): one that goes at its time, or waits for the owner's
+ * What a late Kept's thank-you came to (the edge's, decision 0123): one that goes at its time, or waits for the owner's
  * OK; or none, and why: no running step on the day after a visit, the workspace or its step paused, the appointment
  * gone or not kept, nobody it is for, a visit the day's look names or one thanked for no longer, one thanked already,
  * or a run that was off (its reason the detail).

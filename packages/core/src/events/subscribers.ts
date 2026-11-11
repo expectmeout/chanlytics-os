@@ -172,7 +172,7 @@ export interface SubscriberPorts {
    */
   remindBooking(tenantId: TenantId, appointmentId: string): Promise<LateReminder>;
   /**
-   * The edge's thank-you for a visit marked kept after the day's look (decision 0122): the workspace's running step on
+   * The edge's thank-you for a visit marked kept after the day's look (decision 0123): the workspace's running step on
    * `visited` runs for the one person it is for, once per visit. Throws when it could not be asked, so the delivery
    * tries again.
    */
@@ -417,7 +417,7 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return;
     const change = recordOrEmpty(event.data).change;
     const about = { tenant_id: event.tenant_id, appointment: event.subject_id, event_id: event.id };
-    // A member's word that they came (decision 0122): the thank-you the day's look can no longer send is this one's.
+    // A member's word that they came (decision 0123): the thank-you the day's look can no longer send is this one's.
     if (change === "kept") {
       const thanks = await ports.thankKept(event.tenant_id, event.subject_id);
       if (thanks.thanked) logger().info("late_visit_thanked", { ...about, at: thanks.at, waits: thanks.waits });

@@ -179,7 +179,7 @@ export interface RunReach {
   /** No channel the playbook ticks can carry its message here (step 3). Absent on a run counted before. */
   no_channel?: number;
   /**
-   * A visit nobody has said was kept, where the moment waits for that word (decision 0122, contracts waitsForKept): named
+   * A visit nobody has said was kept, where the moment waits for that word (decision 0123, contracts waitsForKept): named
    * and left out, so a page says how many wait on the owner's answer. Absent where none does.
    */
   unmarked?: number;
@@ -300,7 +300,7 @@ function visitNamed(
 }
 
 /**
- * Whether the visit a thank-you is about is one a member said was kept (decision 0122): the latest of the day that is
+ * Whether the visit a thank-you is about is one a member said was kept (decision 0123): the latest of the day that is
  * surely theirs, which is the one its words name (visitOnDay's "last"), by what the record holds of it.
  */
 function visitKept(
@@ -444,7 +444,7 @@ export function playbookRunReach(
     return { eligible, reach, saidYes, channelOf: kept };
   };
   const allowed: PersonRowVM[] = [];
-  // A thank-you waits for the word that they came (decision 0122): a visit nobody marked kept is named and left out.
+  // A thank-you waits for the word that they came (decision 0123): a visit nobody marked kept is named and left out.
   const { owed, waits } = owedOf(rows, named, run, nowMs);
   Object.assign(reach, waits);
   // Each person on the one channel the run reaches them on (reachFor), or counted under why it reaches them on none.

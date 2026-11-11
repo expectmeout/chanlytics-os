@@ -59,7 +59,7 @@ interface VisitMarked {
  * one. It promises nothing: the run still leaves someone who booked again, who cannot be reached, or whose mark was
  * taken back. A read that fails is logged and answers null: the word was said, and the row falls back to its own offer.
  *
- * A visit marked kept is answered the same way (decision 0122): the thank-you the day after waits for this word, and
+ * A visit marked kept is answered the same way (decision 0123): the thank-you the day after waits for this word, and
  * goes by the day's look or, said after it, on its own (contracts keptThanksAt, the edge's own rule).
  */
 async function visitFollowUpOf(

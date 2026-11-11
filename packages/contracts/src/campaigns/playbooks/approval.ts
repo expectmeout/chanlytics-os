@@ -123,7 +123,7 @@ export function reachLines(
   const noChannel = reach.no_channel ?? 0;
   const unmarked = reach.unmarked ?? 0;
   const reasons: { n: number; words: string; tone: "warn" | "plain"; door: { words: string; to: string } | null }[] = [
-    // A thank-you waits for the word that they came (decision 0122): the ones nobody has marked, and where it is said.
+    // A thank-you waits for the word that they came (decision 0123): the ones nobody has marked, and where it is said.
     {
       n: unmarked,
       words: `${one(unmarked, "is", "are")} not marked kept yet`,

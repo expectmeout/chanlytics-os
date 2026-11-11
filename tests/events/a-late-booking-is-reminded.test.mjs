@@ -86,7 +86,7 @@ function world({
         if (reminder instanceof Error) throw reminder;
         return reminder;
       },
-      // A visit marked kept (decision 0122): the same subscriber's other door.
+      // A visit marked kept (decision 0123): the same subscriber's other door.
       thank: async (tenantId, appointmentId) => {
         thanked.push([tenantId, appointmentId]);
         if (thanks instanceof Error) throw thanks;
@@ -175,7 +175,7 @@ test("a runtime that holds no reminder fails loudly, never quietly", async () =>
 const thanksLines = (lines) =>
   lines.filter((l) => l.event?.startsWith("late_visit_")).map((l) => [l.event, fieldsOf(l)]);
 
-test("a visit marked kept asks the thank-you's door, never the reminder's, and says what came of it (decision 0122)", async () => {
+test("a visit marked kept asks the thank-you's door, never the reminder's, and says what came of it (decision 0123)", async () => {
   const w = world({ data: { change: "kept", by: "member" } });
   const { answer, lines } = await logged(() => dispatchJob(w.ctx, w.job));
   assert.equal(answer, "done");

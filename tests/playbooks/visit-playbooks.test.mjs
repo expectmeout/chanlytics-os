@@ -103,7 +103,7 @@ const visit = (startIso, title, hours = 1) => ({
   all_day: false,
   via: "phone",
 });
-/** The same visit as a member said it was kept: what the thank-you the day after waits for (decision 0122). */
+/** The same visit as a member said it was kept: what the thank-you the day after waits for (decision 0123). */
 const kept = (v) => ({ ...v, said: "kept" });
 const withVisits = (id, next, last, over = {}) =>
   toPersonRowVM(
@@ -319,7 +319,7 @@ test("after the visit: yesterday's visit with nothing booked next; the gap and t
   );
 });
 
-test("the thank-you waits for the word that they came (decision 0122): a visit nobody marked is named and left out, counted; one marked missed is nobody's visit; one marked kept is thanked", () => {
+test("the thank-you waits for the word that they came (decision 0123): a visit nobody marked is named and left out, counted; one marked missed is nobody's visit; one marked kept is thanked", () => {
   const p = { trigger: "visited", cap_per_run: 25, gap_days: 90, cadence_days: 30, ...HOW };
   const at = "2026-09-06T00:00:00Z"; // Sat 5 Sep, 8:00 PM New York: yesterday
   const came = withVisits("a", null, kept(visit(at, "Balayage")));

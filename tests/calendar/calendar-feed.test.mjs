@@ -1138,7 +1138,7 @@ test("POST calendar/visits/:id: a Missed says what it sets going (decision 0119)
   const kept = await visitRoute.POST.run(post({ status: "kept" }), world({ status: "kept" }));
   assert.equal(kept.follows, null);
 
-  // A Kept is answered where a thank-you waits for it (decision 0122): the sequence on the day after, and when it goes.
+  // A Kept is answered where a thank-you waits for it (decision 0123): the sequence on the day after, and when it goes.
   const thanks = { trigger: "visited", last_run_for: "2026-09-08" };
   const keptSays = async (over) =>
     (await visitRoute.POST.run(post({ status: "kept" }), world({ status: "kept", step: thanks, ...over }))).follows;

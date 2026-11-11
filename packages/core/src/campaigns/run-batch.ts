@@ -71,7 +71,7 @@ export function batchRefusal(step: PlaybookRow, { freed, late, occasion }: Asked
   if (freed && freed.start <= goesAt.getTime()) return "freed_time_passed";
   const occasionStep = isOccasionTrigger(step.trigger);
   if (occasionStep !== (occasion !== null)) return occasionStep ? "no_occasion" : "not_an_occasion_step";
-  // A run about one visit, after the day's look: a late booking's reminder (0118), or a late Kept's thank-you (0122).
+  // A run about one visit, after the day's look: a late booking's reminder (0118), or a late Kept's thank-you (0123).
   return late && triggerOf(step.trigger)?.kind !== "visit" ? "not_a_reminder_step" : null;
 }
 
@@ -201,7 +201,7 @@ export function batchAudience(
  * A visit's words with what the send asks its row again by (decision 0002, contracts appointmentHolds): which appointment
  * they are about, when it starts, and when the run read it from the calendar, so a message never goes for one that moved
  * or was cancelled since, and the record's older word never holds one the run saw newer. A thank-you keeps that it is
- * owed only while the row still says kept (decision 0122, contracts waitsForKept).
+ * owed only while the row still says kept (decision 0123, contracts waitsForKept).
  */
 export function withVisitKey(
   trigger: string,

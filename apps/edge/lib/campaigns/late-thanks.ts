@@ -1,5 +1,5 @@
 /**
- * A visit marked kept after the day's look, thanked (decision 0122): the door the subscriber `visit_reminder` asks through
+ * A visit marked kept after the day's look, thanked (decision 0123): the door the subscriber `visit_reminder` asks through
  * for a Kept (core subscribers.ts), injected into the job context by the tick (ops/jobs-tick.ts) beside the late booking's.
  *
  * The thank-you looks once a day, at its hour, for yesterday's visits a member said were kept. One marked kept after that

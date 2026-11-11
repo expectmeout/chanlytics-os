@@ -282,7 +282,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               freedTimes: { offer: (tenantId, freed) => offerFreedTime(db, tenantId, freed) },
               // A booking that landed after the reminder's daily look (decision 0118): the workspace's step on
               // visit_tomorrow runs for that one person, through the same run.
-              // And a visit marked kept after the thank-you's look (decision 0122): its step on `visited`, the same way.
+              // And a visit marked kept after the thank-you's look (decision 0123): its step on `visited`, the same way.
               reminders: {
                 remind: (tenantId, appointmentId) => remindLateBooking(db, tenantId, appointmentId),
                 thank: (tenantId, appointmentId) => sendLateThanks(db, tenantId, appointmentId),

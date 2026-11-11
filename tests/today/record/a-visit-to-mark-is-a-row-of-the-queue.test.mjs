@@ -359,7 +359,7 @@ test("a Missed that a sequence answers (decision 0119) says who writes to them a
       ),
     );
 
-    // A Kept that a thank-you waits for (decision 0122) says when it goes: the word is what sends it.
+    // A Kept that a thank-you waits for (decision 0123) says when it goes: the word is what sends it.
     reset();
     doorSays = answers({ name: "After the appointment", when: "tomorrow 10:00 AM", asks: false });
     press(buttons(work(), "Kept")[0]);

@@ -19,7 +19,7 @@ export interface VisitMark {
 
 /**
  * What a member's word about a visit sets going, as the door that took the word answers it: the sequence that owes the
- * person its message for it (the one on a missed visit, decision 0119; the thank-you the day after one kept, 0122) by
+ * person its message for it (the one on a missed visit, decision 0119; the thank-you the day after one kept, 0123) by
  * name, when that message is due in the business's words ("today 3:55 PM"; a mark at night is the morning's), and
  * whether it waits for an OK first (its words are new, or its sequence asks).
  */

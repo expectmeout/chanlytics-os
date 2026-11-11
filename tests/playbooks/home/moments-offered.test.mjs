@@ -611,7 +611,7 @@ test("an After-the-visit playbook that still sends the marketing thank-you it wa
       calendarTz: RUN_ZONE,
       lastVisitDate: yesterday,
       lastVisitMs: NOW - D,
-      // Marked kept: the thank-you waits for that word (decision 0122).
+      // Marked kept: the thank-you waits for that word (decision 0123).
       visitDays: [{ date: yesterday, via: "phone", said: "kept" }],
       booked: false,
       ...over,

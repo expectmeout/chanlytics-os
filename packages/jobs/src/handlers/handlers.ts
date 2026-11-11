@@ -346,7 +346,7 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     },
     // The edge's reminder of a late booking (decision 0118): its run lives with the edge's run context too.
     remindBooking: remindThrough(ctx),
-    // The edge's thank-you for a visit marked kept after the day's look (decision 0122): the same run, the same context.
+    // The edge's thank-you for a visit marked kept after the day's look (decision 0123): the same run, the same context.
     thankKept: thankThrough(ctx),
     // The edge's enrolment for an occasion (decision 0119): the record and the sequences it starts live there too.
     enrolOccasions: enrolThrough(ctx),
