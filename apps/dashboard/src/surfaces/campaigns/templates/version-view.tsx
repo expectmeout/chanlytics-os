@@ -1,7 +1,8 @@
 /**
  * A message's email or text version, in the pane beside the list, when the channel switch is on it (One message, every
  * channel, step 1): the version in the language in view as its recipient reads it, with its Edit and Remove under a menu
- * (Remove asks first); or, where the message has none, one quiet line and the act that writes it, which opens the editor
+ * (Remove asks first), which is the pane's one menu where the pane holds them (`held`: Messages, the canvas of 10 Nov 2026,
+ * where a second menu on the version was a second ⋯); or, where the message has none, one quiet line and the act that writes it, which opens the editor
  * on the starter's words or a copy of the WhatsApp ones. A message the channel never carries (an offer, by text) has no
  * version there and cannot have one, so it says why in contracts' words and offers nothing. The editor takes the view's
  * place while a version is being written, and its words come back if the pane was left with them unsaved (the editor's
@@ -54,6 +55,19 @@ interface VersionViewProps {
   onSave: (draft: VersionDraft) => Promise<ApiResult<unknown> | null>;
   /** Taking the version away, which asks first; none where the version is not this page's to remove (a reach-out's is its step's). */
   onRemove?: (row: VersionRow) => void;
+  /**
+   * Where the pane that draws it holds its Edit and Remove in its own menu (Messages' message pane): whether the version is
+   * being written, and whether its Remove is being asked. The view then draws no menu of its own. None: it keeps its own.
+   */
+  held?: VersionHeld;
+}
+
+/** A version's two states that the pane's menu sets: being written, and its Remove being asked. */
+interface VersionHeld {
+  writing: boolean;
+  setWriting: (on: boolean) => void;
+  removing: boolean;
+  setRemoving: (on: boolean) => void;
 }
 
 /** The menu on a version on file: Edit, and Remove, which asks first, where the version may be removed. */
@@ -93,8 +107,10 @@ function versionMenu(p: { channel: OwnVersionChannel; busy: boolean; onEdit: () 
 
 /** A version on file: its preview, its menu and, once Remove is chosen, the question. */
 function Held(p: VersionViewProps & { row: VersionRow; onEdit: () => void }) {
-  const { channel, lang, row, slots, values, rules, canWrite, busy, onEdit, onRemove } = p;
-  const [arm, setArm] = useState(false);
+  const { channel, lang, row, slots, values, rules, canWrite, busy, onEdit, onRemove, held } = p;
+  const [own, setOwn] = useState(false);
+  const arm = held ? held.removing : own;
+  const setArm = held ? held.setRemoving : setOwn;
   const word = VERSION_CHANNEL_WORDS[channel];
   return (
     <div className="tpl-ver" data-testid="template-version" data-channel={channel}>
@@ -107,7 +123,9 @@ function Held(p: VersionViewProps & { row: VersionRow; onEdit: () => void }) {
           slots={slots}
           rules={rules}
         />
-        {canWrite ? versionMenu({ channel, busy, onEdit, onRemove: onRemove ? () => setArm(true) : undefined }) : null}
+        {canWrite && !held
+          ? versionMenu({ channel, busy, onEdit, onRemove: onRemove ? () => setArm(true) : undefined })
+          : null}
       </div>
       {arm ? (
         <Confirm
@@ -182,9 +200,11 @@ function Unfiled(p: VersionViewProps) {
 
 /** The version on the channel the switch is on, in the language in view. */
 export function VersionView(p: VersionViewProps) {
-  const { name, channel, lang, row, start, slots, values, rules, busy, onSave } = p;
+  const { name, channel, lang, row, start, slots, values, rules, busy, onSave, held } = p;
   // Words kept in the tab from an editor that was left open are written again where the pane opens.
-  const [writing, setWriting] = useState(() => !!name && !!keptWords(name, lang.id, channel));
+  const [own, setOwn] = useState(() => !!name && !!keptWords(name, lang.id, channel));
+  const writing = held ? held.writing : own;
+  const setWriting = held ? held.setWriting : setOwn;
   if (!name || !p.filed) return <Unfiled {...p} />;
   if (writing && name) {
     return (

@@ -157,3 +157,55 @@ export const TPL_VERSION_WORDS = {
   began: (title: string, channel: string, language: string): string =>
     `${title} is in ${CAMPAIGN_ROOMS.library}: the ${lower(channel)} version in ${language} is saved`,
 };
+
+/**
+ * What the list says (Messages, the canvas of 10 Nov 2026, steps 1 and 2): its groups, in the order a person asks about
+ * them, the line under a message's name where the list works it out, what stands at the right of a row, the head's line,
+ * and the list's foot. A message is called a message, as the tab is: "template" was a third word for one thing.
+ */
+export const TPL_LIST_WORDS = {
+  /** The groups: what needs you, what goes out now, what nothing sends now, and what was put away. */
+  need: "Need you",
+  going: "Going out",
+  idle: "Not in use",
+  away: "Put away",
+  /** A cold email sequence's emails, which are a step's own words and are written with their sequence. */
+  emails: "Cold emails",
+  /** How many a folded group holds, to a screen reader, and what its head does. */
+  fold: (name: string, n: number): string => `${name}, ${n}`,
+  /** A running sequence sends a language the message has no version of that it can send. */
+  sendsMissing: (language: string): string => `A sequence sends it in ${language}, which it has no version to send in.`,
+  /** At a row's right: how many went out, of a message that goes out; when the last did, of one that does not now. */
+  sentCount: (count: string): string => `${count} sent`,
+  notSentYet: "Not sent yet",
+  sentWhen: (when: string): string => `Sent ${when}`,
+  /** The head's line: how many need you and how many go out. */
+  needYou: (n: number): string => `${n} need${n === 1 ? "s" : ""} you`,
+  goingOut: (n: number): string => (n === 0 ? "Nothing going out yet" : `${n} going out`),
+  /** The list's foot: when WhatsApp was last asked about the workspace's messages, and the press that asks again. */
+  checked: (ago: string): string => `Checked with WhatsApp ${ago}`,
+  neverChecked: "Not checked with WhatsApp yet",
+  checking: "Checking WhatsApp…",
+  checkAgain: "Check WhatsApp for changes",
+  /** A search with nothing in it. */
+  noMatch: (q: string): string => `No message’s words have “${q}” in them.`,
+  /** What a message written here is, under its name in its pane (a starter says its own line). */
+  anOffer: "An offer, for people who said yes to offers",
+  aNote: "About their own booking or proposal",
+  /** The open message's head: where it stands, in the words of its group. */
+  placeWord: { need: "Needs you", going: "Going out", idle: "Not in use", away: "Put away" },
+  /** The open message's facts: what sends it, and what went out. */
+  sentBy: "Sent by",
+  sent: "Sent",
+  open: "Open",
+  sentFact: (count: string, when: string | null): string => (when ? `${count}, the last ${when}` : count),
+  neverSent: "None yet",
+  /** The menu on the open message's caret, and its name to a screen reader. */
+  more: (title: string): string => `What to do with ${title}`,
+  putAway: "Put away",
+  bringBack: "Bring back",
+  putAwayTip: "Keep it on file, out of the list and the composers",
+  bringBackTip: "Back in the list and the composers",
+  editVersion: (channel: string): string => `Edit the ${channel.toLowerCase()}`,
+  removeVersion: (channel: string): string => `Remove the ${channel.toLowerCase()} version`,
+} as const;

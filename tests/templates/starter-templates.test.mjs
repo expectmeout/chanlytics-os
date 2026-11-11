@@ -511,7 +511,8 @@ test("the pages: titles not names, the starter set in Settings, the message as t
     integrations.includes('messages: "channel-messages"') && !integrations.includes("TemplatesCard"),
     "Integrations points at Messages (the WhatsApp row's verb) and lists no template",
   );
-  assert.ok(s.includes("tplTitle(") && s.includes('"Made here"'), "a title, with where it was made under it");
+  // Where it was made ("Made here", "From WhatsApp Manager") went from the open message (Messages, the canvas of 10 Nov 2026).
+  assert.ok(s.includes("tplTitle(") && !s.includes('"Made here"'), "a title, and nothing an owner does not act on");
   // Broadcasts' slot choices (moved from broadcasts.jsx), which the run's hook still works out. The send screen that drew
   // them, with its starter set's button and its preview, went with decision 0065's step 7: New writes a first message.
   const b = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/page/reach.ts");
@@ -650,7 +651,8 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.tsx`))
     .join(" ");
   // Hide is an item of the pane's kit Menu, which takes no test id of its own: it is among the props its `gate` hands the item's button.
-  assert.ok(s.includes('"data-testid": "template-hide"') && s.includes('data-testid="templates-hidden"'));
+  // What was put away is a group of the list, under its name; its head is the fold's press (templates-hidden).
+  assert.ok(s.includes('"data-testid": "template-hide"') && s.includes('"templates-hidden"'));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(b.includes("body: { hidden: true } })") && b.includes("body: { hidden: false } })"));
   // A run under the veto window is a row of Today's day, at its time, with its Stop (decision 0064): runs-honest.test.mjs

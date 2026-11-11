@@ -54,10 +54,15 @@ test.describe("Messages on a real workspace", () => {
     expect(settings.status()).toBe(200);
     const reviewLink = ((await settings.json()).data as { review_link?: boolean }).review_link === true;
     const starterNames = startersOffered({ reviewLink }).map((s) => s.name);
-    // The list is the messages: the set's starters, a row each, whatever of it the workspace holds, then a row to each name it
-    // wrote or synced, whatever languages and channels it holds, and a fold for what it hid.
+    // The list is the messages, in groups: the set's starters, a row each, whatever of it the workspace holds, and a row to
+    // each name it wrote or synced, whatever languages and channels it holds, with Put away folding what it hid.
     const rows = libraryRows(messages, starterNames);
     await expect(real.getByTestId("templates-hidden")).toHaveCount(rows.hidden ? 1 : 0);
+    // The groups that fold (Not in use, Put away: Messages, the canvas of 10 Nov 2026) opened, so every row is there to count.
+    for (const fold of ["templates-fold-idle", "templates-hidden"]) {
+      const head = real.getByTestId(fold);
+      if ((await head.count()) > 0 && (await head.getAttribute("aria-expanded")) === "false") await head.click();
+    }
     // A message's languages are what it opens into: no closed row carries a language
     // control (they were a column of every row, "● EN ⌄" sixteen times), and the open
     // message carries ONE, however many languages it has.

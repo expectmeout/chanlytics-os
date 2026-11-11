@@ -36,7 +36,7 @@ import type { TemplateGroup } from "../templates/group";
 import { closedLine } from "../templates/message-row-parts";
 import { VersionView } from "../templates/version-view";
 import type { VersionDraft } from "../templates/verbs";
-import { tplLangLabel, tplOneLine, tplOwn } from "../templates/words";
+import { TPL_LIST_WORDS, tplLangLabel, tplOneLine, tplOwn } from "../templates/words";
 import { useReachOutReport } from "./row";
 import { reachOuts } from "./surface";
 
@@ -56,6 +56,13 @@ const emailMark = () => (
     <Icon name="mail" size={14} />
   </span>
 );
+
+/** How many a step wrote, at its row's right, once read: none while it reads, and a step that wrote none says so in words. */
+function sentAside(written: number | null): string | null {
+  if (written === null) return null;
+  const sent = templateSentWords({ count: written, lastAt: null }, "UTC", Date.now());
+  return sent.count ? TPL_LIST_WORDS.sentCount(sent.count) : sent.when;
+}
 
 interface RowProps {
   t: EmailMessage;
@@ -78,15 +85,13 @@ export function ReachOutEmailRow({ t, open = false, onOpen }: RowProps) {
     >
       {closedLine({
         g,
-        offer: false,
         mark: emailMark(),
         tag: null,
-        words: inOneLine(t.body),
-        channels: w.chip,
-        use: { words: w.sends, note: w.sendsNote, unused: false, sequence: t.root_id },
-        present: [],
+        said: `${w.sends} · ${w.sendsNote}`,
+        saysUse: true,
+        warn: false,
         // Said only once read: a count that was not read is no count, and a step that wrote none says so in words.
-        sent: written === null ? null : templateSentWords({ count: written, lastAt: null }, "UTC", Date.now()),
+        aside: sentAside(written),
         open,
         onOpen,
       })}

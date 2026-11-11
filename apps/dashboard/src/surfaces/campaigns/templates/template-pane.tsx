@@ -1,35 +1,41 @@
 /**
- * A message, open, in the pane beside the list (parts/split.tsx): its mark, its name, its state in the language in view
- * and what sends it over its one language control, the message as a customer reads it, its foot and the verbs that
- * change it -- Rename, Hide and Delete, the menu in the pane's head (message-row-parts.tsx). The rename form and a
- * delete's question stay in the body, where they are answered.
+ * A message, open, in the pane beside the list (parts/split.tsx): its mark, its name, where it stands (Needs you, Going
+ * out, Not in use, Put away: the list's own reading of it) and what it is for; its channels as tabs, each saying by its dot
+ * whether that version needs you, beside its one language control; the message as a customer reads it, its foot, and
+ * under them what sends it and what went out (Messages, the canvas of 10 Nov 2026, step 2). The verbs that change it are
+ * the one menu on the caret at its head: Rename, Put away and Delete on WhatsApp; Edit and Remove on an email or a text.
+ * The rename form and a delete's question stay in the body, where they are answered.
  *
  * It was the row's own, under it. What it keeps is what the open message was keeping: the language in view, the one
- * being written, the one just sent, and the name or the delete in progress. The page keys it by the message, so another
- * message opens on its own first language.
+ * being written, the one just sent, the channel in view, and the name, the delete, or a version's editor or Remove in
+ * progress. The page keys it by the message, so another message opens on its own first language.
  *
- * A message is a name and its versions (One message, every channel, step 1): beside its language control a switch,
- * WhatsApp | Email | Text, says which version is in view in that language. WhatsApp's is what the pane always drew; an
+ * A message is a name and its versions (One message, every channel, step 1): WhatsApp's is what the pane always drew; an
  * email's and a text's are version-view.tsx, which reads the rows of that name the page was handed (versions.ts) and
- * writes them through the page's acts. The head's menu is the WhatsApp message's own, so it is drawn on WhatsApp alone.
+ * writes them through the page's acts.
  */
 import { useState } from "react";
-import { TEMPLATE_UNUSED_WORDS, VERSION_CHANNELS, VERSION_CHANNEL_WORDS } from "@chanlytics/contracts";
+import type { ReactNode } from "react";
+import { SEQUENCES_ROUTE, VERSION_CHANNELS, VERSION_CHANNEL_WORDS, sequenceRoute } from "@chanlytics/contracts";
 import type { VersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
+import { navigate } from "../../frame-verbs";
 import { StatePill } from "../../kit/pill/state-pill";
-import { Segmented } from "../../kit/segmented/segmented";
+import { RecordRow } from "../../kit/record/row";
+import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { CmPane, useCmPhone } from "../parts/split";
 import type { TemplateMade } from "./composer-acts";
 import type { StarterGroup, TemplateGroup, TplLang } from "./group";
-import { firstView, messageFacts } from "./message-row-facts";
+import { firstView, messageFacts, placeOfMessage, sentByWords } from "./message-row-facts";
+import type { MessagePlace } from "./message-row-facts";
 import { langBar, openRow, paneMenu, tplMark } from "./message-row-parts";
-import type { LineCtx, RowCtx } from "./message-row-parts";
+import type { RowCtx, VersionActs } from "./message-row-parts";
+import { keptWords } from "./version-editor";
 import { VersionView } from "./version-view";
 import type { StarterLibrary, VersionDraft } from "./verbs";
 import { messageName, neverCarried, startingWords, versionFills, versionRowOf } from "./versions";
-import { TPL_VERSION_WORDS } from "./words";
+import { TPL_LIST_WORDS, TPL_VERSION_WORDS } from "./words";
 
 interface PaneProps {
   g: TemplateGroup;
@@ -55,16 +61,157 @@ interface PaneProps {
   onRemoveVersion?: (g: TemplateGroup, lang: TplLang, row: TemplateDto) => void;
 }
 
-/** The channel switch's choices, in the order a page offers them, each by contracts' name for it. */
-const CHANNEL_OPTIONS = VERSION_CHANNELS.map((value) => ({
-  value,
-  label: VERSION_CHANNEL_WORDS[value],
-  testid: `template-channel-${value}`,
-}));
+/** Where it stands, as its head's pill says it: the list's group, in the tone of what it asks of you. */
+const PLACE_TONES: Record<MessagePlace, string> = { need: "warn", going: "ok", idle: "plain", away: "plain" };
 
-/** What sends it, in the words its row says: the one line under the pane's name. */
-const sendsWords = (use: LineCtx["use"]) =>
-  use ? (use.unused ? TEMPLATE_UNUSED_WORDS : `Sent by ${use.words}${use.note ? ` · ${use.note}` : ""}`) : null;
+type Facts = ReturnType<typeof messageFacts>;
+
+/**
+ * What the message is for, under its name: a starter's own line, else what kind of message it is (an offer reaches only
+ * people who said yes to offers; a note about their own booking reaches anyone a send may).
+ */
+function forWords(g: TemplateGroup, offer: boolean): string {
+  if (g.starter) return g.purpose.charAt(0).toUpperCase() + g.purpose.slice(1);
+  return offer ? TPL_LIST_WORDS.anOffer : TPL_LIST_WORDS.aNote;
+}
+
+/**
+ * Under the words: what sends it, with the one sequence that does where it opens it (else the list of them), and how many
+ * went out and when the last did. Nothing of either where it was not read; a starter never added has no sends to say.
+ */
+function messageFactsRows(facts: Facts) {
+  const { use, sent } = facts.usage;
+  const sends = use && !use.unused;
+  const sentLine = !sent
+    ? null
+    : sent.count
+      ? TPL_LIST_WORDS.sentFact(sent.count, sent.when)
+      : /never/i.test(sent.when ?? "")
+        ? TPL_LIST_WORDS.neverSent
+        : null;
+  if (!sends && !sentLine) return null;
+  return (
+    <div className="tpl-facts" data-testid="template-facts">
+      {sends ? (
+        <RecordRow
+          id="template-sent-by"
+          label={TPL_LIST_WORDS.sentBy}
+          value={sentByWords(use)}
+          act={{
+            label: TPL_LIST_WORDS.open,
+            onClick: () => navigate(use.sequence ? sequenceRoute(use.sequence) : SEQUENCES_ROUTE),
+            testid: "template-users",
+            name: `${TPL_LIST_WORDS.open} ${use.words}`,
+          }}
+        />
+      ) : null}
+      {sentLine ? <RecordRow id="template-sent-count" label={TPL_LIST_WORDS.sent} value={sentLine} /> : null}
+    </div>
+  );
+}
+
+/** The key a version's editor and its Remove are held under: its channel and its language. */
+const versionKey = (channel: VersionChannel, language: string): string => `${channel}:${language}`;
+
+/**
+ * An email's or a text's version's two states, which the pane's menu sets (Edit, Remove): which one is being written, and
+ * which one's Remove is being asked. Words an editor left in the tab open it again, until it is closed.
+ */
+function useVersionHeld() {
+  // A key being written; `-key` for one closed by hand, so words it kept do not open it again.
+  const [writing, setWriting] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  return (key: string, kept: boolean) => ({
+    writing: writing === null ? kept : writing === key,
+    setWriting: (on: boolean) => setWriting(on ? key : `-${key}`),
+    removing: removing === key,
+    setRemoving: (on: boolean) => setRemoving(on ? key : null),
+  });
+}
+
+/** The channels as tabs, each named by contracts' word, its standing on hover, and a dot where its version needs you. */
+function channelTabs(facts: Facts, standing: Record<VersionChannel, string>) {
+  const whatsapp = facts.lang.message?.versions.whatsapp ?? null;
+  const waiting = !!whatsapp && (whatsapp.status !== "approved" || whatsapp.blocked !== null);
+  return VERSION_CHANNELS.map((value) => ({
+    id: value,
+    label: VERSION_CHANNEL_WORDS[value],
+    testid: `template-channel-${value}`,
+    hint: standing[value],
+    ...(value === "whatsapp" && waiting ? { need: standing.whatsapp } : {}),
+  }));
+}
+
+/**
+ * An email's or a text's version, where its tab is in view, and its acts, which the head's one menu holds: Edit, and
+ * Remove, where a version is on file to act on. Nothing of either on WhatsApp, whose words are the pane's own.
+ */
+function versionPart({
+  g,
+  S,
+  facts,
+  channel,
+  canWrite,
+  busy,
+  heldOf,
+  onSave,
+  onRemove,
+}: {
+  g: TemplateGroup;
+  S: StarterLibrary;
+  facts: Facts;
+  channel: VersionChannel;
+  canWrite: boolean;
+  busy: boolean;
+  heldOf: ReturnType<typeof useVersionHeld>;
+  onSave: (written: VersionDraft) => Promise<ApiResult<unknown> | null>;
+  onRemove: (filed: TemplateDto) => void;
+}): { version: ReactNode; versionActs: VersionActs | null } {
+  if (channel === "whatsapp") return { version: null, versionActs: null };
+  const { present, onFile, lang, words, has } = facts;
+  const { view, row } = lang;
+  const own = [...has.email, ...has.sms];
+  const fills = versionFills({ g, S, present, row, own, view, values: words.values });
+  const filedRow = has[channel].find((r) => r.language === view) ?? null;
+  const name = messageName(g);
+  const key = versionKey(channel, view);
+  const held = heldOf(key, !!name && !!keptWords(name, view, channel));
+  const versionActs: VersionActs | null =
+    filedRow && name && canWrite && !held.writing
+      ? {
+          word: VERSION_CHANNEL_WORDS[channel],
+          onEdit: () => held.setWriting(true),
+          onRemove: () => held.setRemoving(true),
+        }
+      : null;
+  if (!fills) return { version: null, versionActs };
+  const version = (
+    <VersionView
+      key={key}
+      name={name}
+      channel={channel}
+      lang={lang.cur.lang}
+      row={filedRow ? versionRowOf(filedRow) : null}
+      start={startingWords({
+        channel,
+        g,
+        language: view,
+        copy: words.body || (own.find((r) => r.language === view)?.body_preview ?? ""),
+      })}
+      slots={fills.slots}
+      values={fills.values}
+      neverCarried={neverCarried(channel, g, lang.message)}
+      starterHas={!!(channel === "email" ? g.starter?.email?.[view] : g.starter?.sms?.[view])}
+      filed={onFile.length > 0}
+      canWrite={canWrite}
+      busy={busy}
+      onSave={onSave}
+      onRemove={() => filedRow && onRemove(filedRow)}
+      held={held}
+    />
+  );
+  return { version, versionActs };
+}
 
 export function TemplatePane(p: PaneProps) {
   const { g, langs, bizName, canAct, canAdd = false, addWhy = null, busy, doing = null, S, onClose } = p;
@@ -86,13 +233,16 @@ export function TemplatePane(p: PaneProps) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState("");
   const [arm, setArm] = useState(false);
+  const heldOf = useVersionHeld();
   // Which of the message's channels is in view: where it opens is the one its anchor is on (contracts rule 2: WhatsApp's,
   // else the email's, else the text's), WhatsApp's words as they always were where it has them.
   const [channel, setChannel] = useState<VersionChannel>(
     () => g.rows.find((r) => r.lang.id === first.langId)?.message?.anchor.channel ?? "whatsapp",
   );
   const facts = messageFacts({ g, langs, S, canAdd, addWhy, versions, view: { langId, back, adding, sentLang } });
-  const { present, onFile, lang, words, usage, marks, note, has, standing } = facts;
+  const { present, onFile, lang, words, usage, marks, note, standing } = facts;
+  // Where it stands is the list's reading, of the language it opens on: the head says what its row says.
+  const setting = placeOfMessage(g, messageFacts({ g, langs, S, versions, view: first }));
   const { view, row } = lang;
   const closeActs = () => {
     setRenaming(false);
@@ -149,62 +299,46 @@ export function TemplatePane(p: PaneProps) {
     pick,
     cancelNew,
   };
-  const says = sendsWords(usage.use);
-  // The language control keeps its place; the switch is beside it, and picks what the body below shows.
+  // The channels as tabs, and the language control beside them, which keeps its place whichever is in view.
   const bar = (
     <div className="tpl-viewbar">
-      {langBar(c)}
-      <Segmented
+      <SubTabs
         label={TPL_VERSION_WORDS.switchName(g.title)}
         value={channel}
-        onValueChange={setChannel}
-        options={CHANNEL_OPTIONS}
+        tabs={channelTabs(facts, standing)}
+        onSelect={(id) => setChannel(VERSION_CHANNELS.find((v) => v === id) ?? channel)}
         className="tpl-channels"
       />
+      {langBar(c)}
     </div>
   );
-  const own = [...has.email, ...has.sms];
-  const fills = channel === "whatsapp" ? null : versionFills({ g, S, present, row, own, view, values: words.values });
-  const filedRow = channel === "whatsapp" ? null : (has[channel].find((r) => r.language === view) ?? null);
-  const version =
-    channel !== "whatsapp" && fills ? (
-      <VersionView
-        key={`${channel}:${view}`}
-        name={messageName(g)}
-        channel={channel}
-        lang={lang.cur.lang}
-        row={filedRow ? versionRowOf(filedRow) : null}
-        start={startingWords({
-          channel,
-          g,
-          language: view,
-          copy: words.body || (own.find((r) => r.language === view)?.body_preview ?? ""),
-        })}
-        slots={fills.slots}
-        values={fills.values}
-        neverCarried={neverCarried(channel, g, lang.message)}
-        starterHas={!!(channel === "email" ? g.starter?.email?.[view] : g.starter?.sms?.[view])}
-        filed={onFile.length > 0}
-        canWrite={canWrite}
-        busy={busy}
-        onSave={(written) => onSaveVersion(g, lang.cur.lang, written)}
-        onRemove={() => filedRow && onRemoveVersion(g, lang.cur.lang, filedRow)}
-      />
-    ) : null;
+  const { version, versionActs } = versionPart({
+    ...{ g, S, facts, channel, canWrite, busy, heldOf },
+    onSave: (written) => onSaveVersion(g, lang.cur.lang, written),
+    onRemove: (filed) => onRemoveVersion(g, lang.cur.lang, filed),
+  });
   return (
     <CmPane
       testid="template-pane"
-      // A phone's head is a line a thumb wide: the gift or the bell is the row's, in the list, not the open message's there.
+      // A phone's head is a line a thumb wide: the gift or the bell is the desk's.
       mark={phone ? null : tplMark(marks.offer)}
       title={g.title}
-      badge={row ? <StatePill kind="template" value={row.meta_status} testid="template-pane-status" /> : null}
-      sub={says ? <span data-testid="template-pane-users">{says}</span> : null}
-      // Rename, Hide and Delete are the WhatsApp message's (their question and their form are drawn where its words are);
-      // an email's or a text's own Edit and Remove are the menu on that version.
-      tools={channel === "whatsapp" ? paneMenu(c) : null}
+      badge={
+        <StatePill
+          kind="tone"
+          value={PLACE_TONES[setting.place]}
+          label={TPL_LIST_WORDS.placeWord[setting.place]}
+          testid="template-pane-status"
+        />
+      }
+      sub={<span data-testid="template-pane-users">{forWords(g, marks.offer)}</span>}
+      tools={paneMenu(c, channel, versionActs)}
       onClose={onClose}
     >
-      {openRow(c, bar, version)}
+      {openRow(c, bar, version, {
+        need: setting.place === "need" ? setting.said : null,
+        facts: messageFactsRows(facts),
+      })}
     </CmPane>
   );
 }

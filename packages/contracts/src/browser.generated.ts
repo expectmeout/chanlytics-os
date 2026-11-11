@@ -188,7 +188,7 @@ export { messageLanguageCode, STARTER_LANGUAGES } from "./campaigns/templates/st
 export { STARTER_TEMPLATES } from "./campaigns/templates/starter-templates/table";
 export { placeholdersOf, placeholdersSequential, slugTemplateName, TEMPLATE_BODY_MAX, TEMPLATE_BODY_WORDS, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LABEL_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_WORDS, TEMPLATE_SAME_NAME_WORDS, TEMPLATE_STATUS_WORDS, templateBodyTooLong, templateComponents, templateNameOk, validateTemplateDraft } from "./campaigns/templates/templates";
 export { playbookName, TEMPLATE_TITLE_MAX, templateTitle } from "./campaigns/templates/titles";
-export { TEMPLATE_UNUSED_WORDS, templateSends, templateSendsOf, templateSentWords, templateUnused, templateUsage, templateUseNote, templateUseWords } from "./campaigns/templates/usage";
+export { templateSends, templateSendsOf, templateSentWords, templateUnused, templateUsage, templateUseNote, templateUseWords } from "./campaigns/templates/usage";
 export { BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainMetaOf, brainOutputSchemaFor, CONFIDENCE_STEPS, replyWhy } from "./config/brain";
 export { abilityRows, cannotFoldWords, cannotRows, VISION_SWITCH_WORDS } from "./config/business-tab/abilities";
 export { BOOKING_LINK_ROW_WORDS, businessGap } from "./config/business-tab/business-gap";

@@ -164,7 +164,6 @@ export {
 export type { TemplateCategoryChoice, TemplateDraft, TemplateDraftCheck, TemplateDraftInput } from "./templates";
 export { playbookName, TEMPLATE_TITLE_MAX, templateTitle } from "./titles";
 export {
-  TEMPLATE_UNUSED_WORDS,
   templateSends,
   templateSendsOf,
   templateSentWords,

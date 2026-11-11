@@ -151,8 +151,8 @@ const capital = (s: string): string => (s ? (s[0] ?? "").toUpperCase() + s.slice
 const sequenceStepWords = (p: TemplateUse["playbooks"][number]): string =>
   p.sequence ? (p.sequence.step ? `${p.sequence.name} · step ${p.sequence.step}` : p.sequence.name) : p.name;
 
-/** The words a message that nothing sends says, on its row and in its pane. */
-export const TEMPLATE_UNUSED_WORDS = "Not used";
+/** The words a message that nothing sends says, where its uses are said in one line. */
+const TEMPLATE_UNUSED_WORDS = "Not used";
 
 /**
  * What sends it, in one line, after "Sent by": the sequences' steps by their sequences' names ("VIP color clients · step

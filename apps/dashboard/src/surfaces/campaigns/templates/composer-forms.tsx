@@ -514,7 +514,7 @@ function newTemplatePane(c: ComposerCtx, made: Made) {
   return (
     <CmPane
       testid="messages-composer"
-      title="New template"
+      title="New message"
       sub={
         where === "whatsapp"
           ? "WhatsApp reviews it before it can be sent — usually minutes, sometimes a day"

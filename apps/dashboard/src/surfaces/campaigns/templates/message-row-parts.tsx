@@ -1,20 +1,15 @@
 /**
- * What one message draws (moved from MessageRow in legacy/pages/messages.jsx, decision 0015): the closed line in the list
- * (what it is, what sends it, how much of it went out), and what it opens into, in the pane beside the list
- * (parts/split.tsx): its one language control, the message as a customer reads it, its foot, and the verbs that change it,
- * which are the pane head's menu. Each is a function that returns its element, called by the row and the pane and not
+ * What one message draws (moved from MessageRow in legacy/pages/messages.jsx, decision 0015): the closed line in the list,
+ * two lines (its name, and why it needs you, what sends it or what it is for; at its right how many went out or when the
+ * last did: Messages, the canvas of 10 Nov 2026), and what it opens into, in the pane beside the list (parts/split.tsx):
+ * its one language control, the message as a customer reads it, its foot, and the verbs that change it, which are the
+ * menu on the pane head's caret. Each is a function that returns its element, called by the row and the pane and not
  * drawn as a component of its own, so their trees are the trees they were.
  */
 import type { ReactNode } from "react";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import {
-  SEQUENCES_ROUTE,
-  TEMPLATE_UNUSED_WORDS,
-  VERSION_CHANNELS,
-  refusedWords,
-  sequenceRoute,
-} from "@chanlytics/contracts";
-import type { CampaignMessage, TemplateSentWords, VersionChannel } from "@chanlytics/contracts";
+import { SEQUENCES_ROUTE, refusedWords } from "@chanlytics/contracts";
+import type { CampaignMessage, VersionChannel } from "@chanlytics/contracts";
 import { editorBox, focusAsDrawn, gate, navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -23,7 +18,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Menu } from "../../kit/menu/menu";
-import type { MenuGroup } from "../../kit/menu/menu";
+import type { MenuItem } from "../../kit/menu/menu";
 import { Picker } from "../../kit/picker/picker";
 import { cmRowPress } from "../parts/head";
 import { CmLangGlyph, cmLanguageSearch, cmLanguages } from "../parts/picker";
@@ -34,21 +29,23 @@ import type { TemplateMade } from "./composer-acts";
 import type { PresentRow, StarterGroup, TemplateGroup, TemplateRow, TplLang } from "./group";
 import { languageStatus } from "./message-row-facts";
 import type { StarterLibrary } from "./verbs";
-import { tplTag, tplTitle } from "./words";
+import { TPL_LIST_WORDS, tplTag, tplTitle } from "./words";
 
-/** What a closed line reads: the message, the words that stand for it, what sends it and how much went out. */
-export interface LineCtx {
+/** What a closed line reads: its name, the one line under it, and what stands at its right. */
+interface LineCtx {
   g: TemplateGroup;
-  offer: boolean;
-  /** The mark it wears where it is not marketing's or utility's (a reach-out's email wears the mail's). */
+  /** The mark before its name, where it wears one (a cold email wears the mail's); a message wears none. */
   mark?: ReactNode;
+  /** A language of it that is not simply approved ("Spanish in review"), beside its name. */
   tag: { words: string; tone: string } | null;
-  words: string;
-  /** The channels it has a version on, as a row says them ("WhatsApp · Email · Text"); null where it has none. */
-  channels: string | null;
-  use: { words: string; note: string | null; unused: boolean; sequence: string | null } | null;
-  present: PresentRow[];
-  sent: TemplateSentWords | null;
+  /** The line under its name: why it needs you, what sends it, or what it is for. */
+  said: string;
+  /** That line says what sends it. */
+  saysUse: boolean;
+  /** The line is why it needs you: said in the warn ink. */
+  warn: boolean;
+  /** At its right: how many went out, or when the last did; null for nothing. */
+  aside: string | null;
   open: boolean;
   onOpen: () => void;
 }
@@ -130,7 +127,7 @@ export function tplMark(offer: boolean) {
  * pane, because a message that cannot be sent should not have to be opened to say so; opened, the pane says it of the
  * language in view.
  */
-export function rowHints(row: TemplateDto | null) {
+function rowHints(row: TemplateDto | null) {
   // WhatsApp's own reason, in the one sentence contracts says it in (refusedWords).
   const refused = row && row.meta_status === "rejected" ? refusedWords(row.rejected_reason) : null;
   return (
@@ -151,11 +148,12 @@ export function rowHints(row: TemplateDto | null) {
 
 /**
  * The closed line: a press anywhere on it that is not one of its controls opens it (cmRowPress), as a person's row
- * does. The press that opens it covers the mark and the words -- the part of a row that is not already something you
- * can press. What sends it is its own act, in its own cell; the languages are the pane's.
+ * does. Two lines, as the canvas draws a row: its name, and under it why it needs you, what sends it or what it is for;
+ * at its right how many went out, or when the last did. What sends it opens from the pane, where it is a fact with its
+ * own Open; the words, the languages and the channels are the pane's too.
  */
 export function closedLine(c: LineCtx) {
-  const { g, offer, mark, tag, words, channels, use, present, sent, open, onOpen } = c;
+  const { g, mark, tag, said, saysUse, warn, aside, open, onOpen } = c;
   return (
     <div className="msg-row-line" role="presentation" onClick={cmRowPress}>
       <LinkButton
@@ -165,11 +163,9 @@ export function closedLine(c: LineCtx) {
         data-row-open
         data-testid="template-open"
       >
-        {mark ?? tplMark(offer)}
+        {mark ?? null}
         <span className="msg-row-said">
           <span className="msg-row-titles">
-            {/* The name WhatsApp knows it by is the pane's (its foot), not every row's: an owner reads the
-                title and the words, and "winback_offer" in type is nothing they act on. */}
             <span className="msg-row-title">{g.title}</span>
             {/* The one pill (the kit's StatePill), in the tone and the words the pane's pill wears: a refused version is
                 "Refused" on the row, the pane and the Inbox's picker (contracts TEMPLATE_STATUS_WORDS). */}
@@ -177,78 +173,20 @@ export function closedLine(c: LineCtx) {
               <StatePill kind="tone" value={tag.tone} label={tag.words} className="msg-tag" testid="template-status" />
             )}
           </span>
-          <span className="msg-row-words">{words ? `“${words}”` : g.purpose}</span>
-          {/* Where it can go, quietly: the channels it has a version on, said from contracts' words. */}
-          {channels && (
-            <span className="msg-row-channels" data-testid="template-channels">
-              {channels}
-            </span>
-          )}
+          <span
+            className="msg-row-words"
+            data-tone={warn ? "warn" : undefined}
+            data-testid={saysUse ? "template-users" : undefined}
+          >
+            {said}
+          </span>
         </span>
       </LinkButton>
-      {/* What sends it -- every source -- and under it, what that thing is doing: "runs daily at 10:00", "a run is
-          waiting on you". The server joins the three (a sequence's step names its template, so does a one-off a person
-          sent, the Inbox books by rule) and hands down both lines, so "Not used" is a reading rather than a guess about
-          what it could not see. Its link opens the one sequence that sends it, else the list. A stacked row has no
-          column heading, so it says "Sent by" itself. A name missing from the map is usage unread: say nothing. */}
-      <span className="msg-row-use">
-        {use &&
-          (use.unused ? (
-            <>
-              <span className="msg-use-none" data-testid="template-users">
-                <span className="msg-use-ring" aria-hidden="true" />
-                {TEMPLATE_UNUSED_WORDS}
-              </span>
-              {!present.length && g.starter && <span className="msg-use-note">not on WhatsApp yet</span>}
-            </>
-          ) : (
-            <>
-              <span className="msg-use-by">
-                <span className="msg-use-by-word">Sent by </span>
-                <LinkButton
-                  className="msg-use-link"
-                  onClick={() => navigate(use.sequence ? sequenceRoute(use.sequence) : SEQUENCES_ROUTE)}
-                  data-testid="template-users"
-                >
-                  {use.words}
-                </LinkButton>
-              </span>
-              {use.note && <span className="msg-use-note">{use.note}</span>}
-            </>
-          ))}
-      </span>
-      {/* What LEFT, and when the latest did: counted off the people a run sent
-          to, which is what Reports calls "Messages sent" -- not a run's
-          `recipient_count`, the audience it was scheduled for. "sent" rides the
-          count, because a stacked row has no heading and a screen reader never
-          hears the heading at all. A message that never went out says so under
-          a dash, where a number would be; one never added says that instead. */}
-      <span className="msg-row-sent" data-testid="template-sent">
-        {sent &&
-          (sent.count ? (
-            <>
-              <span className="msg-row-sent-n">
-                {sent.count}
-                <span className="msg-row-sent-unit"> sent</span>
-              </span>
-              {sent.when && (
-                <>
-                  <span className="msg-row-sent-dot" aria-hidden="true">
-                    ·
-                  </span>
-                  <span className="msg-row-sent-when">{sent.when}</span>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <span className="msg-row-sent-n is-none" aria-hidden="true">
-                —
-              </span>
-              <span className="msg-row-sent-never">{sent.when}</span>
-            </>
-          ))}
-      </span>
+      {aside ? (
+        <span className="msg-row-sent" data-testid="template-sent">
+          {aside}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -275,9 +213,6 @@ export function langBar(c: RowCtx) {
   });
   return (
     <div className="msg-lang">
-      <span className="msg-lang-k" aria-hidden="true">
-        Language
-      </span>
       <Picker
         label={`Language for ${g.title}`}
         value={view}
@@ -336,29 +271,32 @@ function newLanguage(c: RowCtx) {
   );
 }
 
+/** WhatsApp's ratings that say nothing is wrong: only a rating that warns is drawn. */
+const QUALITY_AT_REST: ReadonlySet<string> = new Set(["HIGH", "GREEN", "UNKNOWN"]);
+
 /**
- * The foot of an open message: where it was made, its rating, and the act that adds a language; where the language in
- * view is not on WhatsApp, that the words are what WhatsApp would review. The name WhatsApp files it under and its
- * category stood here too ("visit_reminder · utility · from WhatsApp Manager"): nothing an owner acts on (Ruben, 11 Oct
- * 2026), and the rename's own receipt says the filed name where it matters.
+ * The foot of an open message: the rating WhatsApp gave it where that rating warns, and the act that adds a language;
+ * where the language in view is not on WhatsApp, that the words are what WhatsApp would review. Where it was made ("Made
+ * here", "From WhatsApp Manager") and a high rating stood here too: nothing an owner acts on (Messages, the canvas of 10
+ * Nov 2026), as the name WhatsApp files it under was not (Ruben, 11 Oct 2026).
  */
 function cardFoot(c: RowCtx) {
   const { g, busy, doing, row, cur, starterText, onAdd } = c;
+  const quality = row && row.quality ? String(row.quality).toUpperCase() : null;
+  const warns = quality !== null && !QUALITY_AT_REST.has(quality);
+  const adds = !row && !!g.starter && !!starterText;
+  if (row && !warns) return null;
   return (
     <div className="msg-card-foot">
-      {row ? (
-        <span className="msg-card-meta">{row.source === "chanlytics" ? "Made here" : "From WhatsApp Manager"}</span>
-      ) : (
+      {row ? null : (
         <span className="msg-card-meta">Not on WhatsApp in {cur.lang.label} yet — the words WhatsApp would review</span>
       )}
-      {/* The rating WhatsApp gives the template in view, as of the last sync; nothing when none was synced. */}
-      {row && row.quality && (
-        <StatePill kind="template_quality" value={String(row.quality).toUpperCase()} testid="template-quality" />
-      )}
+      {/* The rating WhatsApp gives the template in view, as of the last sync, where it warns. */}
+      {warns ? <StatePill kind="template_quality" value={quality} testid="template-quality" /> : null}
       {/* The language the library has written and the workspace never added,
           offered where its words already are: the picker puts that language
           in view, and this adds it as it is -- no assistant, no draft. */}
-      {!row && g.starter && starterText && (
+      {adds && (
         <Button
           size="sm"
           disabled={busy}
@@ -462,66 +400,106 @@ function cardActs(c: RowCtx, row: TemplateDto) {
 }
 
 /**
- * The menu in the pane's head: rename it, hide it (or show it again) and delete it, for the members who may. The kit's
- * Menu takes no test id of an item, so each item's own is among the props it hands its button (`gate`, which is spread
- * there): the ids the rows' links carried stay.
+ * An email's or a text's own acts, which the pane's one menu holds while that version is in view: Edit, and Remove where it
+ * may be removed. Null where there is no version on file to act on, or the member may not write.
  */
-export function paneMenu(c: RowCtx) {
-  const { g, row, canAct, busy, setDraft, setRenaming, setArm, onHide } = c;
-  if (!row || !canAct) return null;
-  const hidden = !!row.hidden_at;
-  const groups: MenuGroup[] = [
+export interface VersionActs {
+  /** The channel's name, as the menu says it ("Email"). */
+  word: string;
+  onEdit: () => void;
+  onRemove: (() => void) | null;
+}
+
+/** The WhatsApp version's acts: rename it, put it away (or bring it back) and delete it, for the members who may. */
+function whatsappItems({ busy, setDraft, setRenaming, setArm, onHide }: RowCtx, row: TemplateDto): MenuItem[] {
+  const away = !!row.hidden_at;
+  return [
     {
-      items: [
-        {
-          label: "Rename",
-          glyph: <Icon name="pencil" size={13} />,
-          title: "Call it something in your own words — WhatsApp keeps its name",
-          disabled: busy,
-          gate: { "data-testid": "template-rename" },
-          onSelect: () => {
-            setDraft(row.title || "");
-            setArm(false);
-            setRenaming(true);
-          },
-        },
-        {
-          label: hidden ? "Show" : "Hide",
-          glyph: <Icon name="eye" size={13} />,
-          title: hidden ? "Offer it in the composers again" : "Keep it on file, out of the composers",
-          disabled: busy,
-          gate: { "data-testid": "template-hide" },
-          onSelect: () => onHide(row),
-        },
-        {
-          label: "Delete",
-          glyph: <Icon name="x" size={13} />,
-          tone: "danger",
-          disabled: busy,
-          gate: { "data-testid": "template-delete" },
-          onSelect: () => {
-            setRenaming(false);
-            setArm(true);
-          },
-        },
-      ],
+      label: "Rename",
+      glyph: <Icon name="pencil" size={13} />,
+      title: "Call it something in your own words — WhatsApp keeps its name",
+      disabled: busy,
+      gate: { "data-testid": "template-rename" },
+      onSelect: () => {
+        setDraft(row.title || "");
+        setArm(false);
+        setRenaming(true);
+      },
+    },
+    {
+      label: away ? TPL_LIST_WORDS.bringBack : TPL_LIST_WORDS.putAway,
+      glyph: <Icon name="eye" size={13} />,
+      title: away ? TPL_LIST_WORDS.bringBackTip : TPL_LIST_WORDS.putAwayTip,
+      disabled: busy,
+      gate: { "data-testid": "template-hide" },
+      onSelect: () => onHide(row),
+    },
+    {
+      label: "Delete",
+      glyph: <Icon name="x" size={13} />,
+      tone: "danger",
+      disabled: busy,
+      gate: { "data-testid": "template-delete" },
+      onSelect: () => {
+        setRenaming(false);
+        setArm(true);
+      },
     },
   ];
+}
+
+/** An email's or a text's acts, as the version view's own menu said them. */
+function versionItems(busy: boolean, acts: VersionActs): MenuItem[] {
+  const items: MenuItem[] = [
+    {
+      label: TPL_LIST_WORDS.editVersion(acts.word),
+      glyph: <Icon name="pencil" size={13} />,
+      disabled: busy,
+      gate: { "data-testid": "template-version-edit" },
+      onSelect: acts.onEdit,
+    },
+  ];
+  const remove = acts.onRemove;
+  if (remove)
+    items.push({
+      label: TPL_LIST_WORDS.removeVersion(acts.word),
+      glyph: <Icon name="x" size={13} />,
+      tone: "danger",
+      disabled: busy,
+      gate: { "data-testid": "template-version-remove" },
+      onSelect: remove,
+    });
+  return items;
+}
+
+/**
+ * The pane's one menu, on the caret at its head (no three dots: Ruben, 20 Oct 2026; Messages, the canvas of 10 Nov 2026,
+ * which had two of them, one a channel): what can be done to the version in view. On WhatsApp, Rename, Put away and
+ * Delete; on an email or a text, Edit and Remove. The kit's Menu takes no test id of an item, so each item's own is among
+ * the props it hands its button (`gate`, which is spread there): the ids the rows' links carried stay. Null where nothing
+ * may be done here.
+ */
+export function paneMenu(c: RowCtx, channel: VersionChannel, version: VersionActs | null) {
+  const { g, row, canAct } = c;
+  const items =
+    channel === "whatsapp"
+      ? row && canAct
+        ? whatsappItems(c, row)
+        : []
+      : version
+        ? versionItems(c.busy, version)
+        : [];
+  if (items.length === 0) return null;
+  const name = TPL_LIST_WORDS.more(g.title);
   return (
     <Menu
+      label={name}
       trigger={
-        <Button
-          iconOnly
-          variant="quiet"
-          size="sm"
-          aria-label={`More for ${g.title}`}
-          title={`More for ${g.title}`}
-          data-testid="template-menu"
-        >
-          <Icon name="more" size={13} />
+        <Button iconOnly variant="quiet" size="sm" aria-label={name} title={name} data-testid="template-menu">
+          <Icon name="chevron-down" size={14} />
         </Button>
       }
-      groups={groups}
+      groups={[{ header: g.title, items }]}
     />
   );
 }
@@ -547,41 +525,36 @@ function readPane(c: RowCtx) {
 }
 
 /**
- * Where the language in view stands on each channel, in contracts' words ("WhatsApp · in review", "Email · ready", "Text ·
- * not written"): the languages' state, said once for every channel the message can be written for, so a message with no
- * WhatsApp version is never read as one WhatsApp refused.
+ * The open message, in the pane's body: its channels and its one language control first, where they stay whichever
+ * language is picked -- one panel, so the control keeps its place and its focus when a pick moves between a language on
+ * file and one being written (two panels remounted it, and a keyboard's focus fell to the page). Where the language stands
+ * on each channel is its tab's (its dot, and its words on hover): the sentence that said it under them said it again. With
+ * the tabs on an email or a text, the same panel holds that version (`version`) where WhatsApp's words were; under the
+ * words, what sends the message and what went out (`facts`).
  */
-function languageStandingLine(c: RowCtx) {
-  return (
-    <p className="bc-excl-hint tpl-standing" data-testid="template-standing">
-      {VERSION_CHANNELS.map((channel, i) => (
-        <span key={channel} data-channel={channel}>
-          {i > 0 ? ", " : ""}
-          {c.standing[channel]}
-        </span>
-      ))}
-    </p>
-  );
-}
-
-/**
- * The open message, in the pane's body: its one language control first, where it stays whichever language is picked --
- * one panel, so the control keeps its place and its focus when a pick moves between a language on file and one being
- * written (two panels remounted it, and a keyboard's focus fell to the page). With the channel switch on an email or a
- * text, the same panel holds that version (`version`) where WhatsApp's words were.
- */
-export function openRow(c: RowCtx, bar: ReactNode, version: ReactNode = null) {
+export function openRow(
+  c: RowCtx,
+  bar: ReactNode,
+  version: ReactNode = null,
+  around: { need: string | null; facts: ReactNode } = { need: null, facts: null },
+) {
   const { row, starterText } = c;
   return (
     <div className="msg-row-open tpl-read" data-testid="template-open-body">
       {bar}
-      {languageStandingLine(c)}
+      {/* Why it needs you, whichever channel and language is in view: the list's own sentence for it. */}
+      {around.need ? (
+        <p className="bc-excl-hint warn" data-testid="template-need">
+          {around.need}
+        </p>
+      ) : null}
       {version ?? (
         <>
-          {rowHints(row)}
+          {around.need ? null : rowHints(row)}
           {!row && !starterText ? newLanguage(c) : readPane(c)}
         </>
       )}
+      {around.facts}
     </div>
   );
 }
