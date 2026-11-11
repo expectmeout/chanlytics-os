@@ -1,5 +1,5 @@
 /**
- * Each sequence row says what's going on (decision 0126; the canvas "Sequences: lines that tell the truth", calls S1 to S9).
+ * Each sequence row says what's going on (decision 0128; the canvas "Sequences: lines that tell the truth", calls S1 to S9).
  *
  * A row's line is the first of these that is true: what waits on you and since when; a twin; a one-off's day; a paused
  * one's people; what goes next and to how many; who is in it; that every lead is through; what it sent; what starts it.

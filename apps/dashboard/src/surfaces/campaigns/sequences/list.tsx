@@ -5,7 +5,7 @@
  * where its state is not the ordinary one (contracts sequenceRowState: a green On on every row said nothing). Over its search
  * stands Pipeline's row (Ruben, 21 Oct 2026, for parity; list-bar.tsx): which view it shows, and at its right the type it
  * keeps and how its rows are sorted; a search narrows what they leave, by name, lead search or list. Each row's line is
- * the first true thing of contracts' order (words/row-line.ts, decision 0126). A row opens its record beside the list, and on a
+ * the first true thing of contracts' order (words/row-line.ts, decision 0128). A row opens its record beside the list, and on a
  * phone pushed in over it, the row lit as the finger left it (sequences-page.tsx). New is the head's act, beside the strip
  * of views (sequences-page.tsx), as Messages' New is. Every word is contracts' (sequences/words/next.ts); the list composes
  * them. First contact is no sequence (D7: the receptionist leaves the list), and the list says nothing of it (Ruben, 21 Oct

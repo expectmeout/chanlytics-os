@@ -1,5 +1,5 @@
 /**
- * A sequence's row, in one line (decision 0126; the canvas "Sequences: lines that tell the truth", calls S1 to S9): the
+ * A sequence's row, in one line (decision 0128; the canvas "Sequences: lines that tell the truth", calls S1 to S9): the
  * first of these that is true. What waits on you and since when ("2 follow-ups wait for your OK · since Sun"); a twin
  * on its moment; a one-off's day; a paused one's people; what goes next and to how many ("Next tomorrow 9:00 AM · 6
  * people"); who is in it; that every lead is through; what it sent; what starts it. Never a bare zero. The list and Ask
@@ -177,7 +177,7 @@ function leadsIdleLine(row: SequenceRowDto): string {
   return row.first?.source_search_id ? "All leads through · waits for new ones" : "All leads through · add more";
 }
 
-/** A row's line: the first of these that is true (decision 0126). */
+/** A row's line: the first of these that is true (decision 0128). */
 export function sequenceRowLine(
   row: SequenceRowDto,
   at: { tz: string; nowMs: number; word: AppointmentWord; twin: SequenceTwin | null },

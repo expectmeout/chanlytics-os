@@ -12,7 +12,7 @@ export const SEQUENCE_LIST_WORDS = {
   types: {
     label: "Type",
     all: "All types",
-    // The groups' own names (SEQUENCE_WORDS.groups), one set of names (decision 0126).
+    // The groups' own names (SEQUENCE_WORDS.groups), one set of names (decision 0128).
     customers: "Your customers",
     leads: "Cold email",
     once: "One-off sends",
@@ -67,7 +67,7 @@ function waitedSinceMs(row: Pick<SequenceRowDto, "needs" | "starts" | "date">): 
 }
 
 /**
- * Needs you's order (decision 0126): the longest wait first, whatever Sort says, and a row with no age (a twin) after
+ * Needs you's order (decision 0128): the longest wait first, whatever Sort says, and a row with no age (a twin) after
  * those with one. Ties keep the order they came in, so the rest follow Sort.
  */
 export function byLongestWait(

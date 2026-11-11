@@ -1,4 +1,4 @@
-# 0126 · Each sequence row says what's going on
+# 0128 · Each sequence row says what's going on
 
 **Status:** Accepted by Ruben, 11 November 2026 ("Yes, plan it" on the canvas _Sequences: lines that tell the truth_, calls S1 to S9). Stage 1 built; Stage 2 adds four facts to the list's read. Written against main at `873a8c23eb`.
 

@@ -28,7 +28,7 @@ export const SEQUENCE_WORDS = {
   groups: {
     needs: "Needs you",
     customers: "Your customers",
-    // Type's own names (SEQUENCE_LIST_WORDS.types): one set of names (decision 0126).
+    // Type's own names (SEQUENCE_LIST_WORDS.types): one set of names (decision 0128).
     leads: "Cold email",
     dates: "One-off sends",
     off: "Paused",
@@ -253,7 +253,7 @@ export function sequenceWaitsNow(row: SequenceRowDto, days: RunDays): SequenceRo
  * Which of the list's groups a sequence is drawn in: a draft under Drafts, what needs you (people or emails waiting, or a
  * twin sending each person the same moment twice) first, a sequence paused under Paused, one ended under Ended (folded at
  * the list's foot), and the rest by how it starts. A one-off that went stays among the One-off sends, where it is looked
- * for; one that failed needs you (decision 0126).
+ * for; one that failed needs you (decision 0128).
  */
 export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null = null): SequenceGroup {
   // A draft stays in the list under Drafts until it is started: nothing of it goes, so nothing of it needs you.

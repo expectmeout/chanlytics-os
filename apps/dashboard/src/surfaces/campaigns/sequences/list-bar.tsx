@@ -36,7 +36,7 @@ export type SequencesType = "all" | SequenceType;
 /**
  * The rows in their groups, in the order they are given (the sort's), each group that holds one; a twin is read against
  * every sequence of the workspace, whatever the type keeps. Needs you is the exception: the longest wait first, whatever
- * Sort says (contracts byLongestWait, decision 0126), its ties in Sort's order.
+ * Sort says (contracts byLongestWait, decision 0128), its ties in Sort's order.
  */
 export function groupedOf(rows: readonly SequenceRowDto[], every: readonly SequenceRowDto[]): Grouped[] {
   const by = new Map<SequenceGroup, Grouped["rows"]>();
@@ -145,7 +145,7 @@ function TypePick(p: ListBarProps) {
 
 /**
  * Sort: how each group's rows are ordered, the newest made first as the list is read. Its word is the order picked once
- * one other than the first is, as Type's is; its caption says Needs you keeps the longest wait first (decision 0126).
+ * one other than the first is, as Type's is; its caption says Needs you keeps the longest wait first (decision 0128).
  */
 function SortPick(p: ListBarProps) {
   return (
