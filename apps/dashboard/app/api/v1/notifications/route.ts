@@ -40,15 +40,8 @@ export const PUT = write({
   input: Mark,
   handle: async ({ ctx, member, input: body }) => {
     const tenantId = member.tenantId;
-    if (body.read_all === true || body.read_through !== undefined) {
-      const { data, error } = await markBellReadThrough(ctx, {
-        p_tenant_id: tenantId,
-        ...(body.read_through !== undefined ? { p_through: body.read_through } : {}),
-      });
-      if (error) throw dbRefusal(error);
-      const said = (data ?? {}) as { seen_at?: string; read_through_at?: string; was?: string };
-      return { seen_at: said.seen_at ?? null, read_through_at: said.read_through_at ?? null, was: said.was ?? null };
-    }
+    if (body.read_all === true || body.read_through !== undefined)
+      return markBellReadThrough(ctx, tenantId, body.read_through);
     if (body.seen === true) {
       const { data, error } = await markBellSeen(ctx, { p_tenant_id: tenantId });
       if (error) throw dbRefusal(error);

@@ -22,6 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import { bellFeed } from "../../../apps/dashboard/src/bridge/surfaces/hold-rows.ts";
 import { importSrc } from "../../_source.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const NOW = Date.parse("2026-11-11T15:00:00Z");
 const ago = (min) => NOW - min * 60_000;
@@ -166,7 +167,6 @@ after(() => {
   globalThis.window = was;
 });
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 const puts = () =>
   requests.filter((r) => r.method === "PUT" && r.url.includes("/api/v1/notifications")).map((r) => r.body);
 /** A moment `min` minutes before the real clock, which the bridge reads. */
@@ -197,7 +197,7 @@ test("closing the bell is a look: the number starts again, the look is written, 
   const { api } = bell({ notifications: [liveRow("a", 5), liveRow("b", 30)], seen_at: null, read_through_at: null });
   assert.equal(api.unread(), 2);
   api.seenAll();
-  await settle();
+  await until(() => puts().length > 0, "the look is written");
   assert.deepEqual(puts(), [{ seen: true }], "a look writes the look, and reads nothing");
   assert.equal(api.unread(), 0, "the number starts again from the look");
   assert.deepEqual(
@@ -230,7 +230,7 @@ test("Mark all read reads every note at once and tells the server; Undo puts the
     "at once, before the server answers",
   );
   assert.equal(api.unread(), 0);
-  await settle();
+  await until(() => puts().length > 0, "Mark all read is written");
   assert.deepEqual(puts(), [{ read_all: true }]);
 
   press.undo();
@@ -243,18 +243,18 @@ test("Mark all read reads every note at once and tells the server; Undo puts the
     "the dots as they stood",
   );
   assert.equal(api.unread(), 0, "an Undo leaves the look where it is: the number does not come back");
-  await settle();
+  await until(() => puts().length > 1, "the Undo is written");
   assert.deepEqual(
     puts().at(-1),
     { read_through: through },
     "back to the moment it stood at, never one of this device's",
   );
 
-  // The bell's rows are read again after the write landed: the server's own moment is the bell's again.
+  // The bell's rows are read again after the write landed: the held press lets go, and the server's own moment is the
+  // bell's again. Before the write has landed the press still stands, so the read is heard until it does.
   win.__NOTIFICATIONS = { dto: { ...dto, read_through_at: live(0) } };
-  hear("surface:notifications");
-  assert.deepEqual(feedDots(api), [
-    ["n:a", false],
-    ["n:b", false],
-  ]);
+  await until(() => {
+    hear("surface:notifications");
+    return feedDots(api).every(([, unread]) => !unread);
+  }, "the held press lets go once its write has landed and the bell's rows are read again");
 });

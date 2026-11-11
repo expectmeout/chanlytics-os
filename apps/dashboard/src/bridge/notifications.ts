@@ -412,6 +412,46 @@ function readThroughOf(win: Window & Globals) {
 }
 
 /**
+ * Device alerts. What each source holds when it is first read is its backlog and never alerts; only what appears AFTER,
+ * while the app is not in view. Each source takes its own first look: one first look for all of them, taken before the
+ * Inbox's read landed (the calls' and invitations' come first, and a read that failed comes back later), made every thread
+ * already waiting a new one, and a hidden tab alerted for them (the wiring's second audit, X6-2).
+ * Hears each of the feed's events, says the bell changed (`emit`) and wakes the device for what is new.
+ */
+function hearFeed(win: Window & Globals, alertsOn: () => boolean, emit: () => void): void {
+  const known = new Map<FeedSource, ReadonlySet<string>>();
+  // The same rule for the rows the workspace keeps, with its own first look: those arrive with the bell's own
+  // surface, often after the Inbox's, and a backlog read late is still a backlog. Only an alerting kind the person
+  // has not read wakes the device (a search waiting a day on its question is one; its row is the trigger's).
+  let knownKept: Set<string> | null = null;
+  const freshKept = (): NotificationItem[] => {
+    const dto = win.__NOTIFICATIONS?.dto;
+    if (!dto) return [];
+    const rows = serverNotificationRows(dto).filter((r) => r.unread && ALERT_KINDS.includes(r.kind));
+    const keys = new Set(rows.map((r) => r.key));
+    const out = knownKept === null ? [] : rows.filter((r) => !knownKept!.has(r.key));
+    knownKept = keys;
+    return out;
+  };
+  const tell = () => {
+    const items = feedFromGlobals(win, Date.now());
+    const loaded = loadedSources(win);
+    const fresh: NotificationItem[] = [];
+    for (const source of FEED_SOURCES) {
+      if (!loaded[source]) continue;
+      const theirs = items.filter((i) => sourceOfKey(i.key) === source);
+      const before = known.get(source);
+      if (before) fresh.push(...theirs.filter((i) => !before.has(i.key) && ALERT_KINDS.includes(i.kind)));
+      known.set(source, new Set(theirs.map((i) => i.key)));
+    }
+    fresh.push(...freshKept());
+    emit();
+    if (fresh.length) alertDevice(win, fresh, alertsOn());
+  };
+  for (const ev of FEED_EVENTS) win.addEventListener(ev, tell);
+}
+
+/**
  * Install the bell. `win` and `storage` are injectable so the rule can be
  * executed in a test without a browser.
  */
@@ -486,40 +526,8 @@ export function installNotifications(
     return ids.length > 0;
   };
 
-  // Device alerts. What each source holds when it is first read is its backlog and never alerts; only what appears AFTER,
-  // while the app is not in view. Each source takes its own first look: one first look for all of them, taken before the
-  // Inbox's read landed (the calls' and invitations' come first, and a read that failed comes back later), made every thread
-  // already waiting a new one, and a hidden tab alerted for them (the wiring's second audit, X6-2).
-  const known = new Map<FeedSource, ReadonlySet<string>>();
-  // The same rule for the rows the workspace keeps, with its own first look: those arrive with the bell's own
-  // surface, often after the Inbox's, and a backlog read late is still a backlog. Only an alerting kind the person
-  // has not read wakes the device (a search waiting a day on its question is one; its row is the trigger's).
-  let knownKept: Set<string> | null = null;
-  const freshKept = (): NotificationItem[] => {
-    const dto = win.__NOTIFICATIONS?.dto;
-    if (!dto) return [];
-    const rows = serverNotificationRows(dto).filter((r) => r.unread && ALERT_KINDS.includes(r.kind));
-    const keys = new Set(rows.map((r) => r.key));
-    const out = knownKept === null ? [] : rows.filter((r) => !knownKept!.has(r.key));
-    knownKept = keys;
-    return out;
-  };
-  const tell = () => {
-    const items = feedFromGlobals(win, Date.now());
-    const loaded = loadedSources(win);
-    const fresh: NotificationItem[] = [];
-    for (const source of FEED_SOURCES) {
-      if (!loaded[source]) continue;
-      const theirs = items.filter((i) => sourceOfKey(i.key) === source);
-      const before = known.get(source);
-      if (before) fresh.push(...theirs.filter((i) => !before.has(i.key) && ALERT_KINDS.includes(i.kind)));
-      known.set(source, new Set(theirs.map((i) => i.key)));
-    }
-    fresh.push(...freshKept());
-    emit();
-    if (fresh.length) alertDevice(win, fresh, state().alerts);
-  };
-  for (const ev of FEED_EVENTS) win.addEventListener(ev, tell);
+  // Device alerts, heard on each of the feed's events (hearFeed).
+  hearFeed(win, () => state().alerts, emit);
   // The surfaces that say what still waits move the badge without a new row: the bell is drawn again.
   onSurfaceMoved(WAITS_SURFACES, emit);
 
@@ -537,8 +545,8 @@ export function installNotifications(
     },
     readAll: () => {
       // Where the dots stood before the press: the server's moment, or this device's last look before the bell's rows are read.
-      const known = !!win.__NOTIFICATIONS?.dto || through.held();
-      const was = known ? bellReadThroughMs(through.kept()) : state().seenAt;
+      const fromServer = !!win.__NOTIFICATIONS?.dto || through.held();
+      const was = fromServer ? bellReadThroughMs(through.kept()) : state().seenAt;
       const read = unreadCount(rows()) + older();
       const now = Date.now();
       through.press(now, mark({ read_all: true }));

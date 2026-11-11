@@ -489,7 +489,7 @@ test("the top bar shows the real feed outside a demo, with the device-alert swit
   assert.ok(tb.includes("const real = !isDemoFrame() && bell ? bell : null;"));
   assert.ok(tb.includes("const shown: BellNote[] = real ? realRows : isDemoFrame() ? notifs.map(tbOverlay) : [];"));
   assert.ok(tb.includes("real.onChange("), "repaints when a surface refreshes or a mark changes");
-  // What a press in the bell does is run, not read: tests/shell/surfaces/shell-status.test.mjs draws the bar and presses.
+  // What a press in the bell does is run, not read: tests/today/bell-rows.test.mjs draws the bar and presses.
   assert.ok(
     tb.includes("alerts={b.real ? b.alertState : null}"),
     "the bell hands its notes this device's alerts switch",
