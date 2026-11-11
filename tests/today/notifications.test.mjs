@@ -93,7 +93,7 @@ test("the feed: who needs you, a draft still waiting, a missed call today, an op
   assert.deepEqual(buildNotificationFeed({ now: NOW }), []);
 });
 
-test("this device's read state: seen moves the line, read and dismissed are by key", () => {
+test("this device's read state: reading through moves the line, read and dismissed are by key", () => {
   const items = buildNotificationFeed({
     threads: [
       thread({ needsYou: true, waitingMin: 5 }),
@@ -101,21 +101,21 @@ test("this device's read state: seen moves the line, read and dismissed are by k
     ],
     now: NOW,
   });
-  const fresh = applyReadState(items, { seenAt: 0, read: [], dismissed: [], alerts: false });
+  const fresh = applyReadState(items, { seenAt: 0, read: [], dismissed: [], alerts: false }, 0);
   assert.deepEqual(
     fresh.map((r) => r.unread),
     [true, true],
   );
-  const seen = applyReadState(items, { seenAt: NOW - 30 * 60_000, read: [], dismissed: [], alerts: false });
+  const seen = applyReadState(items, { seenAt: 0, read: [], dismissed: [], alerts: false }, NOW - 30 * 60_000);
   assert.deepEqual(
     seen.map((r) => [r.key, r.unread]),
     [
       ["needs:t1", true],
       ["needs:t9", false],
     ],
-    "what became true after the last look is new",
+    "what became true after the member last read through is unread",
   );
-  const read = applyReadState(items, { seenAt: 0, read: ["needs:t1"], dismissed: ["needs:t9"], alerts: false });
+  const read = applyReadState(items, { seenAt: 0, read: ["needs:t1"], dismissed: ["needs:t9"], alerts: false }, 0);
   assert.deepEqual(
     read.map((r) => [r.key, r.unread]),
     [["needs:t1", false]],
@@ -354,7 +354,7 @@ test("a kept row of an alerting kind wakes the device like a derived one: not th
   assert.equal(fired.length, 1, "told once");
 });
 
-test("two devices agree after Mark all read: the seen moment is the server's, the marks are keyed by the workspace's id, and a mark for a row that left the feed goes", async () => {
+test("two devices agree after a look: the seen moment is the server's, the marks are keyed by the workspace's id, and a mark for a row that left the feed goes", async () => {
   const mod = await import(pathToFileURL(path.join(here, "../../apps/dashboard/src/bridge/notifications.ts")).href);
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const device = (over = {}) => {
@@ -374,7 +374,7 @@ test("two devices agree after Mark all read: the seen moment is the server's, th
     };
     return { win, store, storage, api: mod.installNotifications(win, storage) };
   };
-  // Device A: one row unread; Mark all read keeps its own copy and tells the server.
+  // Device A: one row new; a look keeps its own copy of the moment and tells the server.
   const a = device();
   assert.equal(a.api.unread(), 1);
   a.api.seenAll();
@@ -489,7 +489,7 @@ test("the top bar shows the real feed outside a demo, with the device-alert swit
   assert.ok(tb.includes("const real = !isDemoFrame() && bell ? bell : null;"));
   assert.ok(tb.includes("const shown: BellNote[] = real ? realRows : isDemoFrame() ? notifs.map(tbOverlay) : [];"));
   assert.ok(tb.includes("real.onChange("), "repaints when a surface refreshes or a mark changes");
-  assert.ok(tb.includes("real.seenAll();"), "Mark all read is this device's line");
+  // What a press in the bell does is run, not read: tests/today/bell-rows.test.mjs draws the bar and presses.
   assert.ok(
     tb.includes("alerts={b.real ? b.alertState : null}"),
     "the bell hands its notes this device's alerts switch",

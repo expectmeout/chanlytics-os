@@ -237,7 +237,9 @@ test("reading notifications: the workspace's rows of the last thirty days, newes
       { notification_id: N2, user_id: USER, read_at: at(2), dismissed_at: null },
       { notification_id: N1, user_id: "someone-else", read_at: at(0), dismissed_at: at(0) },
     ],
-    notification_reads: [{ tenant_id: A, user_id: USER, seen_at: "2026-09-10T12:00:00Z" }],
+    notification_reads: [
+      { tenant_id: A, user_id: USER, seen_at: "2026-09-10T12:00:00Z", read_through_at: "2026-09-09T12:00:00Z" },
+    ],
   };
   const out = await notifications.GET.run(get(`?workspace=${A}`), ctxFor(tables));
   assert.deepEqual(
@@ -249,6 +251,11 @@ test("reading notifications: the workspace's rows of the last thirty days, newes
     "this workspace's rows of the month, newest first, with MY marks: another person's mark on N1 is not mine",
   );
   assert.equal(out.seen_at, "2026-09-10T12:00:00Z");
+  assert.equal(
+    out.read_through_at,
+    "2026-09-09T12:00:00Z",
+    "how far they have read rides beside when they last looked",
+  );
   assert.deepEqual(
     [out.notifications[0].title, out.notifications[0].route, out.notifications[0].subject_type],
     ["Rosa asked for a person", "inbox/th-x", "conversation"],
@@ -259,6 +266,7 @@ test("reading notifications: the workspace's rows of the last thirty days, newes
     [[N4], null],
     "never opened the bell here: no seen moment",
   );
+  assert.equal(fresh.read_through_at, null, "and never read through");
   await refused(notifications.GET.run(get(""), ctxFor(tables)), "choose_workspace", 400);
 });
 
@@ -273,6 +281,12 @@ test("marking notifications: every member may, the workspace must be named, and 
       calls.push(["mark", args]);
       return null;
     },
+    notifications_read_through: (args) => {
+      calls.push(["through", args]);
+      return args.p_through
+        ? { read_through_at: args.p_through }
+        : { seen_at: "2026-09-11T12:00:00Z", read_through_at: "2026-09-11T12:00:00Z", was: "2026-09-10T12:00:00Z" };
+    },
   };
   const tables = { memberships: both("viewer", "viewer") };
   await refused(notifications.PUT.run(put("", { seen: true }), ctxFor(tables, { rpcs })), "choose_workspace", 400);
@@ -285,6 +299,26 @@ test("marking notifications: every member may, the workspace must be named, and 
   assert.deepEqual(calls[1], ["mark", { p_id: id, p_read: true }]);
   await refused(notifications.PUT.run(put(`?workspace=${A}`, { id }), ctxFor(tables, { rpcs })), "validation", 400);
   await refused(notifications.PUT.run(put(`?workspace=${A}`, {}), ctxFor(tables, { rpcs })), "validation", 400);
+  // Mark all read: no moment is sent, the database's own now is the moment; the answer carries where it stood.
+  const all = await notifications.PUT.run(put(`?workspace=${B}`, { read_all: true }), ctxFor(tables, { rpcs }));
+  assert.deepEqual(all, {
+    seen_at: "2026-09-11T12:00:00Z",
+    read_through_at: "2026-09-11T12:00:00Z",
+    was: "2026-09-10T12:00:00Z",
+  });
+  assert.deepEqual(calls.at(-1), ["through", { p_tenant_id: B }]);
+  // Its Undo: back to the moment it stood at.
+  const back = await notifications.PUT.run(
+    put(`?workspace=${B}`, { read_through: "2026-09-10T12:00:00.000Z" }),
+    ctxFor(tables, { rpcs }),
+  );
+  assert.deepEqual(back, { seen_at: null, read_through_at: "2026-09-10T12:00:00.000Z", was: null });
+  assert.deepEqual(calls.at(-1), ["through", { p_tenant_id: B, p_through: "2026-09-10T12:00:00.000Z" }]);
+  await refused(
+    notifications.PUT.run(put(`?workspace=${B}`, { read_through: "yesterday" }), ctxFor(tables, { rpcs })),
+    "validation",
+    400,
+  );
 });
 
 test("the code a customer scans to say yes is not handed out while the workspace is paused or ended: its address answers none, as the Broadcasts card offers none; a standing that cannot be read serves it, as the card does (the wiring's second audit, X4-1)", async () => {

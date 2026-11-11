@@ -368,6 +368,11 @@ export interface BellSectionVM<T extends BellNoteLike> {
   lines: Array<BellLineVM<T>>;
 }
 
+/** What Mark all read says it did, beside its Undo (decision 0124). */
+export const BELL_READ_WORDS = {
+  done: (n: number): string => (n === 1 ? "1 marked read" : `${n} marked read`),
+} as const;
+
 /** The unread kept rows the bell does not list, and the act that clears them (the bell lists its newest BELL_LIST_ROWS). */
 const bellOlderWords = (n: number): string =>
   n === 1

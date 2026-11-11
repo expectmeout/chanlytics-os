@@ -9,9 +9,11 @@
  *
  * What lives where, so two devices agree:
  *   - the kept rows' read and dismissed marks are the server's;
- *   - the "seen everything" moment is the server's too: Mark all read writes
- *     it there, every device reads it back, and this device keeps its own
- *     copy only so the badge does not wait for the re-read;
+ *   - when a member last looked is the server's (seen_at): closing the bell writes it there, every device reads it
+ *     back, and it moves the bell's number alone. This device keeps its own copy only so the badge does not wait for
+ *     the re-read;
+ *   - how far they have read is the server's too (read_through_at, 00614): Mark all read moves it, a look does not,
+ *     and a press made in this tab is held in memory only until the server's own moment is read again;
  *   - read and dismissed marks on DERIVED rows (a thread that needs you, a
  *     held draft, a missed call, an open invitation — rows nothing stores)
  *     stay on this device, keyed by the workspace's id, and go when their
@@ -29,6 +31,7 @@ import {
   EMPTY_READ_STATE,
   agoLabel,
   bellCalls,
+  bellReadThroughMs,
   bellSections,
   type BellSectionVM,
   buildNotificationFeed,
@@ -308,7 +311,13 @@ export interface BellApi {
   older(): number;
   /** The kept rows' unread count alone, by the rule the edge counts a push's badge by (contracts unreadFor): the phone app's icon. */
   keptUnread(): number;
+  /** The member looked at the bell (it closed): its number starts again from now. No note is read by it. */
   seenAll(): void;
+  /**
+   * Mark all read: every dot goes, here at once and on the server for every device, and the number with them. Answers
+   * how many notes it read and the way back, which puts the dots where they stood and leaves the look as it is.
+   */
+  readAll(): { read: number; undo: () => void };
   read(key: string): void;
   dismiss(key: string): void;
   restore(key: string): void;
@@ -366,6 +375,82 @@ async function askAlerts(
   return { on: permission === "granted", permission };
 }
 
+/** No kept rows read yet: what a press made before the bell's first read rides on. */
+const NO_KEPT_ROWS: NotificationsDto = { notifications: [], seen_at: null };
+
+/**
+ * How far the member has read, as this tab holds it (decision 0124). It is the server's (GET notifications'
+ * `read_through_at`), the same on every device; and a Mark all read, or its Undo, that this tab just made is held here
+ * while its write and the re-read behind it are on their way, so the dots answer the press at once and do not blink back
+ * if the write lands before the read. The held moment is let go when the bell's rows are read again after the write
+ * landed: the server's moment is then the same.
+ */
+function readThroughOf(win: Window & Globals) {
+  let pressed: { at: number; landed: boolean } | null = null;
+  win.addEventListener("surface:notifications", () => {
+    if (pressed?.landed) pressed = null;
+  });
+  return {
+    /** Whether a press is held: the bell's moment is this tab's for now, whatever the server last said. */
+    held: (): boolean => pressed !== null,
+    /** The kept rows as the server holds them, read through the press this tab just made where one is on its way. */
+    kept: (): NotificationsDto | null | undefined => {
+      const dto = win.__NOTIFICATIONS?.dto;
+      if (!pressed) return dto;
+      return { ...(dto ?? NO_KEPT_ROWS), read_through_at: new Date(pressed.at).toISOString() };
+    },
+    /** Hold `at` as the moment read through while `write` is on its way. */
+    press: (at: number, write: Promise<unknown>): void => {
+      const mine = { at, landed: false };
+      pressed = mine;
+      const land = () => {
+        mine.landed = true;
+      };
+      void write.then(land, land);
+    },
+  };
+}
+
+/**
+ * Device alerts. What each source holds when it is first read is its backlog and never alerts; only what appears AFTER,
+ * while the app is not in view. Each source takes its own first look: one first look for all of them, taken before the
+ * Inbox's read landed (the calls' and invitations' come first, and a read that failed comes back later), made every thread
+ * already waiting a new one, and a hidden tab alerted for them (the wiring's second audit, X6-2).
+ * Hears each of the feed's events, says the bell changed (`emit`) and wakes the device for what is new.
+ */
+function hearFeed(win: Window & Globals, alertsOn: () => boolean, emit: () => void): void {
+  const known = new Map<FeedSource, ReadonlySet<string>>();
+  // The same rule for the rows the workspace keeps, with its own first look: those arrive with the bell's own
+  // surface, often after the Inbox's, and a backlog read late is still a backlog. Only an alerting kind the person
+  // has not read wakes the device (a search waiting a day on its question is one; its row is the trigger's).
+  let knownKept: Set<string> | null = null;
+  const freshKept = (): NotificationItem[] => {
+    const dto = win.__NOTIFICATIONS?.dto;
+    if (!dto) return [];
+    const rows = serverNotificationRows(dto).filter((r) => r.unread && ALERT_KINDS.includes(r.kind));
+    const keys = new Set(rows.map((r) => r.key));
+    const out = knownKept === null ? [] : rows.filter((r) => !knownKept!.has(r.key));
+    knownKept = keys;
+    return out;
+  };
+  const tell = () => {
+    const items = feedFromGlobals(win, Date.now());
+    const loaded = loadedSources(win);
+    const fresh: NotificationItem[] = [];
+    for (const source of FEED_SOURCES) {
+      if (!loaded[source]) continue;
+      const theirs = items.filter((i) => sourceOfKey(i.key) === source);
+      const before = known.get(source);
+      if (before) fresh.push(...theirs.filter((i) => !before.has(i.key) && ALERT_KINDS.includes(i.kind)));
+      known.set(source, new Set(theirs.map((i) => i.key)));
+    }
+    fresh.push(...freshKept());
+    emit();
+    if (fresh.length) alertDevice(win, fresh, alertsOn());
+  };
+  for (const ev of FEED_EVENTS) win.addEventListener(ev, tell);
+}
+
 /**
  * Install the bell. `win` and `storage` are injectable so the rule can be
  * executed in a test without a browser.
@@ -387,6 +472,8 @@ export function installNotifications(
    * read on one the badge is the same number on both.
    */
   const seenAt = () => Math.max(state().seenAt, Date.parse(win.__NOTIFICATIONS?.dto?.seen_at ?? "") || 0);
+  // How far the member has read: the server's, or a press this tab just made (readThroughOf).
+  const through = readThroughOf(win);
   // The unread kept rows the bell does not list, less the holds it draws itself (contracts bellOlderOf; S6-10).
   const older = () => bellOlderOf(win.__NOTIFICATIONS?.dto, seenAt(), rows());
   const deviceState = (): NotificationReadState => ({ ...state(), seenAt: seenAt() });
@@ -420,7 +507,7 @@ export function installNotifications(
       bellFeed({
         derived: feedFromGlobals(win, Date.now()),
         device: deviceState(),
-        kept: win.__NOTIFICATIONS?.dto,
+        kept: through.kept(),
         waits: whatWaits(),
       }).sort((a, b) => b.at - a.at),
     );
@@ -439,50 +526,38 @@ export function installNotifications(
     return ids.length > 0;
   };
 
-  // Device alerts. What each source holds when it is first read is its backlog and never alerts; only what appears AFTER,
-  // while the app is not in view. Each source takes its own first look: one first look for all of them, taken before the
-  // Inbox's read landed (the calls' and invitations' come first, and a read that failed comes back later), made every thread
-  // already waiting a new one, and a hidden tab alerted for them (the wiring's second audit, X6-2).
-  const known = new Map<FeedSource, ReadonlySet<string>>();
-  // The same rule for the rows the workspace keeps, with its own first look: those arrive with the bell's own
-  // surface, often after the Inbox's, and a backlog read late is still a backlog. Only an alerting kind the person
-  // has not read wakes the device (a search waiting a day on its question is one; its row is the trigger's).
-  let knownKept: Set<string> | null = null;
-  const freshKept = (): NotificationItem[] => {
-    const dto = win.__NOTIFICATIONS?.dto;
-    if (!dto) return [];
-    const rows = serverNotificationRows(dto).filter((r) => r.unread && ALERT_KINDS.includes(r.kind));
-    const keys = new Set(rows.map((r) => r.key));
-    const out = knownKept === null ? [] : rows.filter((r) => !knownKept!.has(r.key));
-    knownKept = keys;
-    return out;
-  };
-  const tell = () => {
-    const items = feedFromGlobals(win, Date.now());
-    const loaded = loadedSources(win);
-    const fresh: NotificationItem[] = [];
-    for (const source of FEED_SOURCES) {
-      if (!loaded[source]) continue;
-      const theirs = items.filter((i) => sourceOfKey(i.key) === source);
-      const before = known.get(source);
-      if (before) fresh.push(...theirs.filter((i) => !before.has(i.key) && ALERT_KINDS.includes(i.kind)));
-      known.set(source, new Set(theirs.map((i) => i.key)));
-    }
-    fresh.push(...freshKept());
-    emit();
-    if (fresh.length) alertDevice(win, fresh, state().alerts);
-  };
-  for (const ev of FEED_EVENTS) win.addEventListener(ev, tell);
+  // Device alerts, heard on each of the feed's events (hearFeed).
+  hearFeed(win, () => state().alerts, emit);
   // The surfaces that say what still waits move the badge without a new row: the bell is drawn again.
   onSurfaceMoved(WAITS_SURFACES, emit);
 
   const api: BellApi = {
     feed: () => toRows(rows(), Date.now()),
-    unread: () => unreadCount(rows()) + older(),
+    // The bell's number: what is new since the member last looked and is not read. A dot alone is no part of it.
+    unread: () => {
+      const seen = seenAt();
+      return rows().filter((r) => r.unread && r.at > seen).length + older();
+    },
     older,
     seenAll: () => {
       save({ seenAt: Date.now() });
       void mark({ seen: true });
+    },
+    readAll: () => {
+      // Where the dots stood before the press: the server's moment, or this device's last look before the bell's rows are read.
+      const fromServer = !!win.__NOTIFICATIONS?.dto || through.held();
+      const was = fromServer ? bellReadThroughMs(through.kept()) : state().seenAt;
+      const read = unreadCount(rows()) + older();
+      const now = Date.now();
+      through.press(now, mark({ read_all: true }));
+      save({ seenAt: now });
+      return {
+        read,
+        undo: () => {
+          through.press(was, mark({ read_through: new Date(was).toISOString() }));
+          emit();
+        },
+      };
     },
     keptUnread: () => keptUnreadIn(win, seenAt()),
     read: (key) => {

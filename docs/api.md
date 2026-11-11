@@ -1954,6 +1954,8 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `seen` | boolean | no |  |
+| `read_all` | boolean | no |  |
+| `read_through` | string (date-time) | no |  |
 | `id` | string | no |  |
 | `read` | boolean | no |  |
 | `dismissed` | boolean | no |  |

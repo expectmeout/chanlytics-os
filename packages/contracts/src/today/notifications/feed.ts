@@ -14,6 +14,7 @@ import { noticeTone } from "../../waits/notice-tones";
 import { SEQUENCES_ROUTE } from "../../campaigns/sequences/address";
 import { MESSAGES_ROUTE } from "../../shell/address";
 import {
+  bellReadThroughMs,
   SERVER_NOTIFICATION_KINDS,
   settledRow,
   type FeedCall,
@@ -454,13 +455,13 @@ export function callOfKey(key: string): string | null {
 }
 
 /**
- * The kept rows as the bell shows them: dismissed ones gone, unread decided
- * by the person's seen moment and their own read mark — the same on every
- * device, because both live on the server.
+ * The kept rows as the bell shows them: dismissed ones gone, unread decided by how far the person has read
+ * (bellReadThroughMs) and their own read mark on the row, the same on every device because both live on the server. A
+ * look at the bell reads no row: it moves the number alone (contracts unreadFor), decision 0124.
  */
 export function serverNotificationRows(dto: NotificationsDto | null | undefined): NotificationRow[] {
   if (!dto) return [];
-  const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
+  const readMs = bellReadThroughMs(dto);
   return dto.notifications
     .filter((n) => !n.dismissed)
     .map((otherRow) => {
@@ -481,7 +482,7 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
         icon: tone === "ok" ? "check" : look.icon,
         tone: tone ?? look.tone,
         action: look.own ? look.action : (verbForRoute(route) ?? look.action),
-        unread: at > seen && !otherRow.read,
+        unread: at > readMs && !otherRow.read,
         about:
           otherRow.subject_type && otherRow.subject_id
             ? { type: otherRow.subject_type, id: otherRow.subject_id }

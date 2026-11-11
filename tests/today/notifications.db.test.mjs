@@ -320,3 +320,69 @@ test(
     assert.equal(after_.data.length, before.data.length, "a note for its own writer rings nobody");
   },
 );
+
+test(
+  "read through (00614): Mark all read moves how far the member has read and their look together, a look moves the look alone, and Undo goes back, never forward",
+  { skip },
+  async () => {
+    const anon = createClient(URL_, ANON, { auth: { persistSession: false } });
+    const out = await anon.rpc("notifications_read_through", { p_tenant_id: tenantId });
+    assert.match(out.error?.message ?? "", /permission denied for function|Sign in required/);
+    const stranger = await memberClient("owner", otherTenantId);
+    const notMine = await stranger.client.rpc("notifications_read_through", { p_tenant_id: tenantId });
+    assert.match(notMine.error?.message ?? "", /Workspace not found/);
+
+    // Every member may: a viewer reads the bell too.
+    const member = await memberClient("viewer");
+    const mine = async () => {
+      const r = await db
+        .from("notification_reads")
+        .select("seen_at, read_through_at")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", member.userId)
+        .maybeSingle();
+      assert.equal(r.error, null, r.error?.message);
+      return r.data;
+    };
+    // An Undo before anything was read through moves nothing, and makes no row.
+    const early = await member.client.rpc("notifications_read_through", {
+      p_tenant_id: tenantId,
+      p_through: "2026-01-01T00:00:00Z",
+    });
+    assert.equal(early.error, null, early.error?.message);
+    assert.equal(early.data.unchanged, true);
+    assert.equal(await mine(), null);
+
+    const all = await member.client.rpc("notifications_read_through", { p_tenant_id: tenantId });
+    assert.equal(all.error, null, all.error?.message);
+    assert.equal(Date.parse(all.data.was), 0, "never read through before: the moment it stood at is the beginning");
+    const read = await mine();
+    assert.equal(read.read_through_at, read.seen_at, "reading everything is also a look: both at one moment");
+
+    // A look moves the look alone.
+    const look = await member.client.rpc("notifications_seen", { p_tenant_id: tenantId });
+    assert.equal(look.error, null, look.error?.message);
+    const looked = await mine();
+    assert.equal(looked.read_through_at, read.read_through_at, "a look reads nothing");
+    assert.ok(Date.parse(looked.seen_at) >= Date.parse(read.seen_at));
+
+    // Never forward: a moment later than the one held changes nothing.
+    const forward = await member.client.rpc("notifications_read_through", {
+      p_tenant_id: tenantId,
+      p_through: new Date(Date.now() + 3_600_000).toISOString(),
+    });
+    assert.equal(forward.error, null, forward.error?.message);
+    assert.equal(forward.data.unchanged, true);
+    assert.equal((await mine()).read_through_at, read.read_through_at);
+
+    // Undo: back to where it stood, and the look stays where it is.
+    const undo = await member.client.rpc("notifications_read_through", {
+      p_tenant_id: tenantId,
+      p_through: all.data.was,
+    });
+    assert.equal(undo.error, null, undo.error?.message);
+    const undone = await mine();
+    assert.equal(Date.parse(undone.read_through_at), Date.parse(all.data.was));
+    assert.equal(undone.seen_at, looked.seen_at, "an Undo leaves the look where it was");
+  },
+);
