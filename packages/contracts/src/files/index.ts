@@ -134,6 +134,7 @@ export {
   filesTallyOf,
   fileViewOf,
   inboxCleanOf,
+  issuesSaidOf,
   postNameOf,
   postPathOf,
   shelfFilterOf,

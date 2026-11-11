@@ -14,7 +14,9 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
 const { PIECE_LIMITS, piecePlanOf } = await import(at("packages/contracts/src/content/pieces.ts"));
 const { pieceWordsOnCuts } = await import(at("packages/contracts/src/content/piece-timeline.ts"));
-const { pieceStandsOf, pieceStillMoving } = await import(at("packages/contracts/src/content/piece-card.ts"));
+const { pieceStandsOf, pieceStillMoving, pieceWantsStills } = await import(
+  at("packages/contracts/src/content/piece-card.ts")
+);
 const { PIECE_WORDS, pieceWordsIn } = await import(at("packages/contracts/src/content/piece-words.ts"));
 const { compilePiece } = await import(at("packages/contracts/src/content/piece-timeline.ts"));
 const { PIECE_FRAME, pieceLineWidthOf, pieceWordsBoxOf } = await import(
@@ -295,6 +297,39 @@ test("a video not made says why once: its card over Try again, its bell with wha
   }
 });
 
+test("a card is titled by its opening line, without the comma that leads into the next one", () => {
+  // Seen on production 11 Nov 2026: "Long layers," / "all the bounce" made "Video: Long layers," and Ask's line over it
+  // "Here it is: Video: Long layers,."
+  for (const language of ["en", "es"]) {
+    const says = pieceWordsIn(language);
+    assert.equal(says.cardTitle("Long layers,"), "Video: Long layers");
+    assert.equal(says.cardTitle("  Pedí volumen.  "), "Video: Pedí volumen.");
+    assert.equal(says.cardTitle("Did I get it?"), "Video: Did I get it?");
+    assert.equal(says.cardTitle("Same chair —"), "Video: Same chair");
+  }
+});
+
+test("the bell names a made video as Files shows it, never by its file name", () => {
+  // Seen on production 11 Nov 2026: "long-layers is in Files, under Made by Ask."
+  assert.equal(PIECE_WORDS.bell.readyBody("long-layers"), "Long layers is in Files, under Made by Ask.");
+  assert.equal(pieceWordsIn("es").bell.readyBody("pedi-volumen"), "Pedi volumen está en Archivos, en Hecho por Ask.");
+});
+
+test("a card asks for its stills before the press, while its video is made or was not, and for a ready one whose poster did not come", () => {
+  const ready = { is: "ready", file: { id: "f1" } };
+  // Before the press the stills are the card.
+  assert.equal(pieceWantsStills(false, null, false), true);
+  // Pressed, and nothing read of its video yet: the stills it has stand, and none are asked for.
+  assert.equal(pieceWantsStills(true, null, false), false);
+  assert.equal(pieceWantsStills(true, { is: "making", stage: "drawing" }, false), true);
+  assert.equal(pieceWantsStills(true, { is: "failed", why: "draw" }, false), true);
+  // A video that is ready shows itself, by its poster.
+  assert.equal(pieceWantsStills(true, ready, false), false);
+  // A poster is cut some seconds after its video can be played: one that did not come leaves the first still to stand in.
+  assert.equal(pieceWantsStills(true, ready, true), true);
+  assert.equal(pieceWantsStills(true, { is: "gone" }, true), false);
+});
+
 test("the stills wear the words wherever the video will: a first moment under two seconds leaves them on the second", () => {
   const at = (cuts, frames) => pieceWordsOnCuts({ cuts: cuts.map((f) => ({ frames: f })), words: { frames } });
   // Words that stay are on every moment.
@@ -316,11 +351,11 @@ test("a card says where its video stands from its row and its file, and nothing 
     is: "making",
     stage: "saving",
   });
-  // Made, and the look every file gets is still reading it: Ask watches it before the owner does.
+  // Ready as soon as it can be played, the moment the bell rings (Ruben, 11 Nov 2026: "Ready when playable"): the look every
+  // file gets comes after, as for any file, and holds nothing back.
   const waiting = file({ look_status: "waiting" });
-  assert.deepEqual(pieceStandsOf(read({ status: "made", file: waiting })), { is: "checking", file: waiting });
+  assert.deepEqual(pieceStandsOf(read({ status: "made", file: waiting })), { is: "ready", file: waiting });
   assert.deepEqual(pieceStandsOf(read({ status: "made", file: file() })), { is: "ready", file: file() });
-  // A look that could not be finished holds nothing back: the video is there to open.
   assert.equal(pieceStandsOf(read({ status: "made", file: file({ look_status: "failed" }) })).is, "ready");
   assert.deepEqual(pieceStandsOf(read({ status: "failed", failed_why: "draw" })), { is: "failed", why: "draw" });
   assert.deepEqual(pieceStandsOf(read({ status: "failed" })), { is: "failed", why: "unknown" });
@@ -329,7 +364,7 @@ test("a card says where its video stands from its row and its file, and nothing 
   assert.deepEqual(pieceStandsOf(read({ status: "made" })), { is: "gone" });
   // It is read again only while something is still moving.
   assert.deepEqual(
-    ["making", "checking", "ready", "failed", "gone"].map((is) => pieceStillMoving({ is })),
-    [true, true, false, false, false],
+    ["making", "ready", "failed", "gone"].map((is) => pieceStillMoving({ is })),
+    [true, false, false, false],
   );
 });

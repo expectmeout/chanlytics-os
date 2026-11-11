@@ -693,6 +693,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "DELETE files/[id]/instagram":
     "a post stopped before it went to Instagram: its sheet reads its record again, and the list holds nothing of it",
   "POST files/start": "an upload under way is no file yet: the page reads again when it arrives",
+  "POST files/video": "a video asked for is no file yet: its card reads its own row, and Files hears it once made",
+  "POST files/video/preview": "a video's stills are drawn for its card and kept nowhere",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.
   "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",

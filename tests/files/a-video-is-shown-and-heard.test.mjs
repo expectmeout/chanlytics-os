@@ -385,6 +385,32 @@ test("a video's look names the frame that stands for it, and its edition is its 
   );
 });
 
+test("a video made here is looked at as a finished video: its own words, end card and silence are no fault of it", () => {
+  // Seen on production 11 Nov 2026: a made video's look listed "Overlay text on the first four frames" and "Ends on a dark
+  // booking card with no sound" as what was wrong with it, and its card said so in amber.
+  const asked = (made) =>
+    look.fileVideoLookAsked({
+      seconds: 10,
+      frames: 20,
+      step: 0.5,
+      width: 2576,
+      height: 1449,
+      business: "A salon",
+      services: [],
+      sound: "It has no sound.",
+      made,
+    });
+  const finished = asked(true);
+  assert.match(finished, /made here, from the business's own clips/);
+  assert.match(finished, /opening words[\s\S]*end card[\s\S]*no sound[\s\S]*on purpose/);
+  assert.match(finished, /issues: only what would stop the business posting it as it is/);
+  assert.ok(finished.indexOf("made here") < finished.indexOf("- line:"), "said before the catalog asks for anything");
+  const clip = asked(false);
+  assert.doesNotMatch(clip, /made here/, "a clip a member sent is asked as before");
+  assert.match(clip, /- issues: anything that hurts its use/);
+  assert.equal(look.VIDEO_LOOK_EDITION, 2, "a clip's words are unchanged, so no video is read again");
+});
+
 test("a video's look keeps its best moments: each at a frame the sheet holds, with words, once a frame, five at most", () => {
   const plan = video.videoSheetPlanOf({ seconds: 24, width: 1920, height: 1080 });
   const at = (frame) => plan.times[frame - 1];

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const { FILE_NAME_MAX, filePathOf, isFileMime } = await importSrc("packages/contracts/src/files/limits.ts");
-const { fileFolderOf, fileNameOf, fileSaidOf, inboxCleanOf, shelfOf, whoStandsOf } = await importSrc(
+const { fileFolderOf, fileNameOf, fileSaidOf, inboxCleanOf, issuesSaidOf, shelfOf, whoStandsOf } = await importSrc(
   "packages/contracts/src/files/views.ts",
 );
 const { filesSayOf } = await importSrc("packages/contracts/src/files/files.ts");
@@ -81,6 +81,17 @@ test("a name reads as words, and what is typed from them comes back to the same 
   for (const name of ["storefront-dusk-street", "año-nuevo", "img-2041", "日本語"]) {
     assert.equal(fileNameOf(fileSaidOf(name)), name);
   }
+});
+
+test("what the look found wrong is said as sentences, each ending as one, never a run of phrases", () => {
+  // Seen on a made video's card, 11 Nov 2026: three notes joined by spaces read as one sentence with no stops.
+  assert.equal(
+    issuesSaidOf(["Stylist's hands visible in several frames", "Other people in the background."]),
+    "Stylist's hands visible in several frames. Other people in the background.",
+  );
+  assert.equal(issuesSaidOf(["Too dark!", "  shaky  ", ""]), "Too dark! Shaky.");
+  assert.equal(issuesSaidOf(["Ends on a card,"]), "Ends on a card.");
+  assert.equal(issuesSaidOf([]), "");
 });
 
 test("a file's folder holds it and only it, under its workspace", () => {
