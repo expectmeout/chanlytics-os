@@ -95,10 +95,12 @@ function OpenStart(p: { start: ReadyStart; held: NewMessage | null; business: st
           values={exampleParams(held.params, p.business, visitWhenExample(start.trigger))}
         />
       ) : null}
-      <p className="sq-nw-open-meta">{R.firstWaits}</p>
-      <Button variant="primary" onClick={p.onStart} data-testid={`sq-nw-start-${start.id}`} {...gate("approve")}>
-        {R.open}
-      </Button>
+      <div className="sq-nw-open-foot">
+        <p className="sq-nw-open-meta">{R.firstWaits}</p>
+        <Button variant="primary" onClick={p.onStart} data-testid={`sq-nw-start-${start.id}`} {...gate("approve")}>
+          {R.open}
+        </Button>
+      </div>
     </Panel>
   );
 }

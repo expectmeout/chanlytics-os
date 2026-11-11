@@ -120,8 +120,14 @@
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }
-.sq-nw-open > button {
-  align-self: stretch;
+/* Its foot: what the act promises, then the act, which fills the row on a phone. On a wide pane they stand side by side
+   (new.css, with the page's other wide-pane rules). */
+.sq-nw-open-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sq-nw-open-foot > button {
   justify-content: center;
 }
 

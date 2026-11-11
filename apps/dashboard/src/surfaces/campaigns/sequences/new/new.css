@@ -32,6 +32,12 @@
   .sq-nw-col.is-side > .sq-nw-cap:first-child {
     margin-top: 0;
   }
+  /* The open start's act beside what it promises (new-ready.css), never a bar across the pane. */
+  .sq-nw .sq-nw-open-foot {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 .sq-nw[aria-busy="true"] .sq-nw-who,
 .sq-nw[aria-busy="true"] .sq-nw-rail {
