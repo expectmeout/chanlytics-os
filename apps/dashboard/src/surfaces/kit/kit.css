@@ -65,9 +65,12 @@
   color: var(--ink-muted);
 }
 /* A link that is a button is not underlined: Broadcasts' Download QR and Print a desk sign, the shell's, People's
-   and the thread's. Settings had this rule for itself alone. */
+   and the thread's. Settings had this rule for itself alone. And its words stand on a button's line: a button's is the
+   browser's own, a link took the page's 1.5, and Campaigns' New, a link, drew its words 0.6px over its mark where the
+   Inbox's and Messages', buttons, drew them level (Ruben, 11 Nov 2026). */
 a.btn {
   text-decoration: none;
+  line-height: normal;
 }
 
 .btn-primary {
