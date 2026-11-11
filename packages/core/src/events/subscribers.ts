@@ -78,6 +78,7 @@ import {
   type FreedTimeLine,
   type JobNews,
   type LateReminder,
+  type LateThanks,
   type MemberJoined,
   type OccasionEnrolment,
   type OccasionEvent,
@@ -170,6 +171,12 @@ export interface SubscriberPorts {
    * not be asked, so the delivery tries again.
    */
   remindBooking(tenantId: TenantId, appointmentId: string): Promise<LateReminder>;
+  /**
+   * The edge's thank-you for a visit marked kept after the day's look (decision 0123): the workspace's running step on
+   * `visited` runs for the one person it is for, once per visit. Throws when it could not be asked, so the delivery
+   * tries again.
+   */
+  thankKept(tenantId: TenantId, appointmentId: string): Promise<LateThanks>;
   /**
    * The edge's enrolment for an occasion (decision 0119): the person an appointment's change or a booking link is about
    * is taken into each sequence that starts on it, once, and what waited for a visit that is off leaves. Throws when it
@@ -409,10 +416,23 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
   visit_reminder: async (event, ports) => {
     if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return;
     const change = recordOrEmpty(event.data).change;
+    const about = { tenant_id: event.tenant_id, appointment: event.subject_id, event_id: event.id };
+    // A member's word that they came (decision 0123): the thank-you the day's look can no longer send is this one's.
+    if (change === "kept") {
+      const thanks = await ports.thankKept(event.tenant_id, event.subject_id);
+      if (thanks.thanked) logger().info("late_visit_thanked", { ...about, at: thanks.at, waits: thanks.waits });
+      // A workspace with no thank-you says nothing: every Kept comes through here.
+      else if (thanks.why !== "no_step")
+        logger().info("late_visit_not_thanked", {
+          ...about,
+          why: thanks.why,
+          ...(thanks.detail ? { detail: thanks.detail } : {}),
+        });
+      return;
+    }
     // A cancelled or vanished visit is owed no reminder; the door reads the row as it stands for every other change.
     if (typeof change !== "string" || !BOOKS.has(change)) return;
     const reminder = await ports.remindBooking(event.tenant_id, event.subject_id);
-    const about = { tenant_id: event.tenant_id, appointment: event.subject_id, event_id: event.id };
     if (reminder.reminded) {
       logger().info("late_booking_reminded", { ...about, at: reminder.at, waits: reminder.waits });
       return;

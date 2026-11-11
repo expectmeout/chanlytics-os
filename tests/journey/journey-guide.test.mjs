@@ -45,7 +45,7 @@ test("with a calendar, six rows in the journey's order, the day before and the d
   assert.equal(said("before"), "the day before an appointment on the calendar: a reminder");
   assert.equal(
     said("after"),
-    "the day after an appointment, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
+    "the day after an appointment you mark kept, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
   );
   assert.equal(
     guide.at(-1).sends,
@@ -163,7 +163,7 @@ test("the guide says the workspace's own word for an appointment, and the day af
   assert.equal(row("before").sends, "the day before a meeting on the calendar: a reminder");
   assert.equal(
     row("after").sends,
-    "the day after a meeting, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
+    "the day after a meeting you mark kept, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
   );
   // Each moment's row says when in its moment's own words (contracts triggerWords), the workspace's word among them.
   for (const r of guide.filter((x) => x.stage !== null && x.moment !== null)) {

@@ -10,6 +10,7 @@ import {
   slotShort,
   triggerOf,
   visitFactsFor,
+  waitsForKept,
   type Audience,
   type PersonRowVM,
   type RunPlan,
@@ -70,7 +71,8 @@ export function batchRefusal(step: PlaybookRow, { freed, late, occasion }: Asked
   if (freed && freed.start <= goesAt.getTime()) return "freed_time_passed";
   const occasionStep = isOccasionTrigger(step.trigger);
   if (occasionStep !== (occasion !== null)) return occasionStep ? "no_occasion" : "not_an_occasion_step";
-  return late && step.trigger !== "visit_tomorrow" ? "not_a_reminder_step" : null;
+  // A run about one visit, after the day's look: a late booking's reminder (0118), or a late Kept's thank-you (0123).
+  return late && triggerOf(step.trigger)?.kind !== "visit" ? "not_a_reminder_step" : null;
 }
 
 /**
@@ -192,5 +194,26 @@ export function batchAudience(
     reach,
     ...(kept.list ? { list: kept.list } : {}),
     ...(visit ? { late: visit } : {}),
+  };
+}
+
+/**
+ * A visit's words with what the send asks its row again by (decision 0002, contracts appointmentHolds): which appointment
+ * they are about, when it starts, and when the run read it from the calendar, so a message never goes for one that moved
+ * or was cancelled since, and the record's older word never holds one the run saw newer. A thank-you keeps that it is
+ * owed only while the row still says kept (decision 0123, contracts waitsForKept).
+ */
+export function withVisitKey(
+  trigger: string,
+  words: Record<string, string>,
+  visit: { key: string; start: string },
+  readAt: Date,
+): Record<string, string> {
+  return {
+    ...words,
+    appointment: visit.key,
+    visit_start: visit.start,
+    appointment_read_at: readAt.toISOString(),
+    ...(waitsForKept(trigger) ? { visit_was: "kept" } : {}),
   };
 }

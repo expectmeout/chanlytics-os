@@ -20,26 +20,26 @@ type ReminderStep = Omit<StepRow, "template_id" | "template_name" | "template_la
   mode: SequenceMode | undefined;
 };
 
-/** The moment the appointment reminder runs on (contracts PLAYBOOK_TRIGGERS). */
-const REMINDER_MOMENT = "visit_tomorrow";
 /** How far back a batch may be and still hold this visit's reminder: a late one is made within a day of its visit. */
 const REMINDED_SINCE_MS = 3 * DAY_MS;
 /** A customer's send that stands: on its way, a waiting batch's among them, or gone (sequence_sends_customer_states). */
 const SEND_STANDS: readonly string[] = ["queued", "sent"];
 
 /**
- * The workspace's step on `visit_tomorrow`: the running one, with its sequence's mode as a run reads it (the oldest,
+ * The workspace's step on a visit's moment (`moment`): the running one, with its sequence's mode as a run reads it (the oldest,
  * should two sequences hold one: a visit is reminded once), else whether one stands paused, else none.
  */
 export async function findReminderStep(
   db: Db,
   tenantId: TenantId,
+  /** The visit's moment the step is on: the reminder the day before (0118), or the thank-you the day after (0123). */
+  moment: "visit_tomorrow" | "visited",
 ): Promise<{ state: "running"; step: ReminderStep } | { state: "paused" | "none" }> {
   const { data, error } = await db
     .from("sequence_steps")
     .select("*")
     .eq("tenant_id", tenantId)
-    .eq("trigger", REMINDER_MOMENT)
+    .eq("trigger", moment)
     .order("created_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the step that reminds of an appointment");
   const steps = data;

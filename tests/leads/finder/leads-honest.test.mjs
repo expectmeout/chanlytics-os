@@ -1388,7 +1388,7 @@ test("with no search kept and no lead held the first day stands alone: the quest
   const said = standingSaid();
   assert.deepEqual(
     [said?.title, said?.sentence, said?.act],
-    ["People", undefined, undefined],
+    ["Leads", undefined, undefined],
     "the head says the name alone",
   );
   const scope = find(tree, (n) =>
@@ -1645,7 +1645,7 @@ test("on a phone the first day draws no bar, its ideas are rows with a door's ma
   // The door for a list the owner already has is the head's act on a phone, on the row of views where People's Add a
   // person and the Pipeline's New proposal stand (Ruben, 7 Oct 2026); the page does not say it a second time.
   const said = standingSaid();
-  assert.deepEqual([said?.title, said?.sentence], ["People", undefined], "the head says the name and no sentence");
+  assert.deepEqual([said?.title, said?.sentence], ["Leads", undefined], "the head says the name and no sentence");
   const act = byTestId(said.act, "leads-import-open");
   assert.ok(act, "and holds Import leads");
   assert.equal(byTestId(fd, "ld-first-import"), null, "so the page's own line for it is a desk's");
@@ -1665,7 +1665,7 @@ test("on a phone Leads' act is New search, and Import leads is a word on the row
   try {
     let tree = draw();
     const said = standingSaid();
-    assert.equal(said?.title, "People");
+    assert.equal(said?.title, "Leads");
     const act = byTestId(said.act, "leads-new-search-act");
     assert.ok(act, "the head holds New search");
     assert.equal(textOf(act).trim(), "New search");

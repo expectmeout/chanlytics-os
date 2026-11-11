@@ -225,6 +225,7 @@ export {
   SEQUENCE_NEW_WORDS_ASK,
   SEQUENCE_STARTS,
   SEQUENCE_STATES,
+  sequenceModeOf,
   sequenceModesFor,
   sequenceStartModesFor,
 } from "./sequence";

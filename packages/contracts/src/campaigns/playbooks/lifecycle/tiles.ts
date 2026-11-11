@@ -193,9 +193,8 @@ export function resumeDetailOf(
   const detail = resume.detail(when, lifecyclePlaybook.candidates === null ? null : nextShare(lifecyclePlaybook));
   if (lifecyclePlaybook.mode === undefined) return detail;
   if (!lifecyclePlaybook.words_ok_at) return `${detail}. ${resume.asksFirst}`;
-  return batchModeOf({ mode: lifecyclePlaybook.mode, words_ok_at: lifecyclePlaybook.words_ok_at }) === "auto"
-    ? `${detail}. ${resume.auto}`
-    : detail;
+  const { mode, words_ok_at, trigger } = lifecyclePlaybook;
+  return batchModeOf({ mode, words_ok_at, trigger }) === "auto" ? `${detail}. ${resume.auto}` : detail;
 }
 
 /**

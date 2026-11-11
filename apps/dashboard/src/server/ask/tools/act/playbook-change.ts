@@ -281,7 +281,7 @@ async function proposePlaybookChange(toolContext: ToolContext, input: ChangeAske
   // the mode its next batch goes under (contracts batchModeOf), so it never promises a batch of new words goes alone.
   const seqMode = set.mode ?? row.mode;
   const wordsOk = set.params ? null : row.words_ok_at;
-  const mode = batchModeOf({ mode: seqMode, words_ok_at: wordsOk });
+  const mode = batchModeOf({ mode: seqMode, words_ok_at: wordsOk, trigger: row.trigger });
   const waits = row.waiting ? row.waiting.recipient_count : null;
   return propose(
     {

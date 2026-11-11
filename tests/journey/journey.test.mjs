@@ -43,7 +43,7 @@ test("each word says its phrases once, with its own article and verb", () => {
   assert.equal(visit.offTomorrow(3), "Off · 3 people visit tomorrow");
   assert.equal(visit.offYesterday(2), "Off · 2 people visited yesterday");
   assert.equal(visit.tomorrowWho, "everyone with a visit tomorrow");
-  assert.equal(visit.yesterdayWho, "everyone who visited yesterday");
+  assert.equal(visit.yesterdayWho, "everyone whose visit yesterday you marked kept");
   assert.equal(visit.lapsedHint, "No visit in 45 days, and nothing booked");
   const meeting = C.appointmentWords("meeting");
   assert.deepEqual(
@@ -57,7 +57,7 @@ test("each word says its phrases once, with its own article and verb", () => {
   const appointment = C.appointmentWords("appointment");
   assert.equal(appointment.a, "an appointment");
   assert.equal(appointment.before.hint, "The day before an appointment on the calendar");
-  assert.equal(appointment.after.hint, "The day after an appointment, when nothing is booked next");
+  assert.equal(appointment.after.hint, "The day after an appointment you mark kept, when nothing is booked next");
   assert.equal(appointment.startsWith, "an appointment tomorrow, an appointment yesterday");
   assert.equal(
     appointment.needsCalendar,
@@ -142,7 +142,7 @@ test("the drawer's schedule and a card's pool say the workspace's word; a propos
   assert.equal(C.scheduleLine(p, "meeting"), "Daily 10:00 AM · everyone with a meeting tomorrow · up to 25");
   assert.equal(
     C.scheduleLine({ ...p, trigger: "visited" }, "visit"),
-    "Daily 10:00 AM · everyone who visited yesterday · up to 25",
+    "Daily 10:00 AM · everyone whose visit yesterday you marked kept · up to 25",
   );
   assert.equal(C.poolWords("visit_tomorrow", "appointment"), "with an appointment tomorrow");
   assert.equal(C.poolWords("visited", "lesson"), "who had a lesson yesterday");

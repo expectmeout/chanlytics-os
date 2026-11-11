@@ -57,6 +57,7 @@ import {
   waitEndOf,
   type KeptList,
   type Skipped,
+  withVisitKey,
 } from "./run-batch";
 import type {
   AssembleDecision,
@@ -484,7 +485,7 @@ function recipientFacts(run: Run, goesAt: Date): (person: PersonRowVM) => Record
     // now), so the send asks its row again (decision 0002, contracts appointmentHolds): a reminder never goes for one
     // that moved or was cancelled since the run, and the record's older word never holds one the run saw newer.
     return words && visit?.key
-      ? { ...words, appointment: visit.key, visit_start: visit.start, appointment_read_at: ctx.now.toISOString() }
+      ? withVisitKey(p.trigger, words, { key: visit.key, start: visit.start }, ctx.now)
       : words;
   };
 }
@@ -584,8 +585,9 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
   const { playbook: p, full } = pacedRun(cmd.playbook, by.kind === "user", ctx.room);
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
-  // Its sequence's mode, or ask while the step's words are new to the owner or the mode is none this build knows.
-  const mode = batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at });
+  // The mode its sequence goes by, read for its moment (one an occasion starts never asks for each: contracts
+  // sequenceModeOf), or ask while the step's words are new to the owner.
+  const mode = batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at, trigger: p.trigger });
   const asked = askedOf(cmd);
   const { freed, late, occasion } = asked;
   const plan = batchPlan(by, mode, now, late);

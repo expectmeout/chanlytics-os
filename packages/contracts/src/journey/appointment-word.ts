@@ -157,7 +157,8 @@ export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
     last: `Last ${word}`,
     today: (n) => `${n} ${n === 1 ? word : many} today`,
     before: { caps: `${Title} tomorrow`, name: `${Title} reminder`, hint: `The day before ${seen.a} on the calendar` },
-    after: { caps: `After the ${word}`, hint: `The day after ${seen.a}, when nothing is booked next` },
+    // It waits for the word that they came (decision 0123): the hint says what sends it.
+    after: { caps: `After the ${word}`, hint: `The day after ${seen.a} you mark kept, when nothing is booked next` },
     soon: { name: `${Title} reminder, 2 hours before`, hint: `Two hours before ${seen.a} on the calendar` },
     missed: {
       name: `Missed ${word}`,
@@ -165,7 +166,7 @@ export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
     },
     lapsedHint: `No ${word} in 45 days, and nothing booked`,
     tomorrowWho: `everyone with ${seen.a} tomorrow`,
-    yesterdayWho: `everyone who ${seen.had} yesterday`,
+    yesterdayWho: `everyone whose ${word} yesterday you marked kept`,
     withTomorrow: `with ${seen.a} tomorrow`,
     whoYesterday: `who ${seen.had} yesterday`,
     noneTomorrow: `Nobody ${seen.has} tomorrow`,

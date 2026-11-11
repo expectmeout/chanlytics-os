@@ -241,7 +241,7 @@ function BeforeEachBatch({ rec, flash, moved }: { rec: SequenceRecordDto } & Pic
             }
             groups={[
               {
-                options: sequenceModesFor("leads").map((m) => ({
+                options: sequenceModesFor("leads", null).map((m) => ({
                   value: m,
                   label: SEQUENCE_MODE_WORDS[m].choice,
                 })),

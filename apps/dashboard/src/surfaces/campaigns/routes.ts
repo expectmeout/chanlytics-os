@@ -104,10 +104,11 @@ function sequencesChrome(): { crumbs: Crumb[]; mount: string; act: null; views: 
 }
 
 /**
- * Ads' crumbs: Campaigns, then Ads, and under it the ad open in its drawer or the composer. One mount for every Ads address,
- * a page that scrolls, where Sequences' list and record are panes.
+ * Ads' crumbs: Campaigns, then Ads, and under it the ad open in its drawer or the composer. Campaigns' one mount, as Messages',
+ * so a switch to it from Sequences or Messages is no new page: the view kept beside them is shown, under the head where
+ * theirs stands (Ruben, 10 Nov 2026: on a mount of its own its head stood 7px lower, and a press on its tab said Reading).
  */
-function adsChrome(param: string): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: false } {
+function adsChrome(param: string): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
   const at = parseAds(param);
   const ads = { label: ADS_WORDS.adsTab, to: ADS_ROUTE };
   // An ad the page has not read (a link before it loaded) names none until the wiring lane's surface holds real ones.
@@ -118,10 +119,10 @@ function adsChrome(param: string): { crumbs: Crumb[]; mount: string; act: null; 
       : at.compose
         ? [CAMPAIGNS, ads, ADS_WORDS.newAd]
         : [CAMPAIGNS, ADS_WORDS.adsTab],
-    mount: ADS_ROUTE,
+    mount: "campaigns",
     act: null,
     views: campaignsViews("ads"),
-    pane: false,
+    pane: true,
   };
 }
 

@@ -33,6 +33,29 @@ export function visitSideOf(trigger: string | null | undefined): "ahead" | "behi
   return trigger === "visited" || trigger === "visit_missed" ? "behind" : null;
 }
 
+/**
+ * Whether a moment's message waits for a member's word that the person came (decision 0123): the thank-you the day
+ * after a visit. It thanks them for coming, and may ask for a review, so it goes only for a visit the record says was
+ * kept. One nobody has marked is named and left out, counted (playbookRunReach's `unmarked`); the send asks the row once
+ * more (appointmentHolds); and a visit marked kept after the day's look is thanked on its own (keptThanksAt).
+ */
+export function waitsForKept(trigger: string | null | undefined): boolean {
+  return trigger === "visited";
+}
+
+/**
+ * A visit's time as an example of a moment's message says it, the way its run would (playbooks visitWords): with its
+ * time where the visit is ahead (tomorrow's the day before, today's two hours before), by its day alone where it is
+ * behind (yesterday's the day after; today's for one marked missed, which is written to minutes later). Null for a
+ * moment that names no visit, where an example keeps its own.
+ */
+export function visitWhenExample(trigger: string | null | undefined): string | null {
+  const side = visitSideOf(trigger);
+  if (side === "ahead") return trigger === "visit_soon" ? "today at 2:00 PM" : "tomorrow at 2:00 PM";
+  if (side === "behind") return trigger === "visit_missed" ? "today" : "yesterday";
+  return null;
+}
+
 /** Whether a moment's message may say a visit's time or day: the slots a visit fills (templates `visit_when`, `visit_service`). */
 export function momentNamesVisit(trigger: string | null | undefined): boolean {
   return visitSideOf(trigger) !== null;

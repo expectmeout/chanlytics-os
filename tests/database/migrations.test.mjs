@@ -194,3 +194,123 @@ test("the lock_timeout rule reads a migration as written: set before, a CONCURRE
     "a comment is not a statement",
   );
 });
+
+/**
+ * A file is one transaction when it is applied, and that is what the lock guard leans on. The CLI sends `RESET ALL`, then
+ * the file's statements and its ledger row as one batch that Postgres commits together (`db push`, `db reset` and the
+ * replay `supabase start` runs; read in supabase/cli 2.116 and 2.120), and the connector's `apply_migration` wraps the
+ * file in `begin`. So `set local lock_timeout` lasts to the file's end, and a file that fails leaves nothing behind.
+ * Production's log says "SET LOCAL can only be used in transaction blocks" at each push of one, and the setting holds
+ * all the same: on 10 Nov 2026 the warning and every statement of 00597, 00598 and 00599 shared one transaction each.
+ *
+ * Three things would break it, and the rules below fail each: a statement Postgres runs only outside a transaction,
+ * which the CLI runs on its own after committing what came before it (its `isPipelineIncompatible`); a `begin` or
+ * `commit` the file writes, after which the CLI sends every statement by itself; and `set lock_timeout` without
+ * `local`, which stays on the connection after the file. Every file on main kept all three when they were written, so
+ * they hold from the first file. docs/runbook.md, "Apply a migration".
+ */
+const REFUSED_IN_A_TRANSACTION = [
+  /^create\s+(?:unique\s+)?index\s+concurrently(?:\s|$)/i,
+  /^drop\s+index\s+concurrently(?:\s|$)/i,
+  /^reindex(?:\s|\()[\s\S]*\sconcurrently(?:\s|$)/i,
+  /^vacuum(?:\s|\(|$)/i,
+  /^alter\s+system(?:\s|$)/i,
+  /^cluster(?:\s|$)/i,
+];
+/** A transaction's own boundary. `rollback to` a savepoint stays inside the transaction, and is not one. */
+const OWN_TRANSACTION =
+  /^(?:begin|start\s+transaction|commit|end|abort|rollback(?!\s+(?:work\s+|transaction\s+)?to\b)|prepare\s+transaction)\b/i;
+/** The lock guard for the connection, which outlives the file. A function's own `set lock_timeout` is its clause. */
+const SESSION_TIMEOUT = /^set\s+(?:session\s+)?lock_timeout\b/i;
+
+/** Whether Postgres refuses a statement inside a transaction, so the CLI runs it on its own. */
+function refusedInATransaction(statement) {
+  return REFUSED_IN_A_TRANSACTION.some((r) => r.test(statement));
+}
+
+/**
+ * A migration's statements as the CLI splits them, near enough: its comments set aside, then a body between dollar
+ * quotes (a function's, a `do` block's) kept inside the statement it belongs to, so its `begin` and `end` are not read
+ * as the file's.
+ */
+function topLevelStatements(sql) {
+  const bare = sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, " ");
+  return migrationStatements(bare.replace(/\$([A-Za-z_]\w*)?\$[\s\S]*?\$\1\$/g, "''"));
+}
+
+test("a statement Postgres runs only outside a transaction is its file's only statement", () => {
+  for (const f of files) {
+    const statements = topLevelStatements(fs.readFileSync(path.join(DIR, f), "utf8"));
+    const alone = statements.find(refusedInATransaction);
+    if (alone === undefined) continue;
+    assert.equal(
+      statements.length,
+      1,
+      `${f}: "${alone.slice(0, 80)}" runs only outside a transaction, so the CLI commits what comes before it and runs ` +
+        "it on its own: a lock_timeout set before it ends there, and a file that fails after it is left half applied. " +
+        "Give it a file of its own (docs/runbook.md, Apply a migration).",
+    );
+  }
+});
+
+test("a migration opens and closes no transaction of its own: the CLI makes each file one", () => {
+  for (const f of files) {
+    const own = topLevelStatements(fs.readFileSync(path.join(DIR, f), "utf8")).find((s) => OWN_TRANSACTION.test(s));
+    assert.equal(
+      own,
+      undefined,
+      `${f}: "${own}" is a transaction's boundary. A file that writes one is sent a statement at a time, so ` +
+        "set local lock_timeout ends at its first commit and a failure leaves what ran before it. Take it out: " +
+        "the file is already one transaction (docs/runbook.md, Apply a migration).",
+    );
+  }
+});
+
+test("a migration's lock guard is set local, which ends with its file", () => {
+  for (const f of files) {
+    const session = topLevelStatements(fs.readFileSync(path.join(DIR, f), "utf8")).find((s) => SESSION_TIMEOUT.test(s));
+    assert.equal(
+      session,
+      undefined,
+      `${f}: "${session}" sets the lock_timeout for the connection, past the end of the file. Write ` +
+        "set local lock_timeout = '3s'; which holds for the whole file and no further: the file is one transaction, " +
+        "and the warning production's log prints for it is expected (docs/runbook.md, Apply a migration).",
+    );
+  }
+});
+
+test("the transaction rules read a migration as the CLI sends it: a body in dollar quotes belongs to its statement", () => {
+  const fn =
+    "set local lock_timeout = '3s';\n" +
+    "-- a comment; with $$ in it\n" +
+    "create or replace function public.f() returns void language plpgsql\nset lock_timeout = '3s'\nas $body$\n" +
+    "begin\n  perform 1;\n  commit;\nend\n$body$;\n" +
+    "do $$ begin perform 2; end $$;";
+  const statements = topLevelStatements(fn);
+  assert.equal(statements.length, 3, "the guard, the function and the do block");
+  assert.equal(statements.filter((s) => OWN_TRANSACTION.test(s)).length, 0, "a body's begin and commit are its own");
+  assert.equal(
+    statements.filter((s) => SESSION_TIMEOUT.test(s)).length,
+    0,
+    "a function's set clause is not a statement",
+  );
+
+  assert.ok(refusedInATransaction("create unique index concurrently if not exists a on public.x (y)"));
+  assert.ok(refusedInATransaction("drop index concurrently if exists public.a"));
+  assert.ok(refusedInATransaction("reindex index concurrently public.a"));
+  assert.ok(refusedInATransaction("vacuum (analyze) public.x"));
+  assert.ok(refusedInATransaction("alter system set work_mem = '8MB'"));
+  assert.ok(refusedInATransaction("cluster public.x using a"));
+  assert.ok(!refusedInATransaction("create index a on public.x (y)"), "a plain build runs in the transaction");
+  assert.ok(!refusedInATransaction("alter table public.x cluster on a"), "an alter table, whatever it says after");
+
+  for (const s of ["begin", "commit", "end", "rollback", "start transaction", "abort", "commit prepared 'a'"]) {
+    assert.ok(OWN_TRANSACTION.test(s), s);
+  }
+  assert.ok(!OWN_TRANSACTION.test("rollback to savepoint a"), "a savepoint stays inside the transaction");
+  assert.ok(!OWN_TRANSACTION.test("end_of_day_rows_go()"), "a name that starts with a boundary's word");
+
+  assert.ok(SESSION_TIMEOUT.test("set lock_timeout = '3s'"));
+  assert.ok(SESSION_TIMEOUT.test("set session lock_timeout to '3s'"));
+  assert.ok(!SESSION_TIMEOUT.test("set local lock_timeout = '3s'"));
+});

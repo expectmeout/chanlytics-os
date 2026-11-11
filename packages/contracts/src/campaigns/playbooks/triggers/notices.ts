@@ -154,15 +154,32 @@ export function lateReminderSkippedNotice(
   trigger: string | null,
 ): { subject: string; body: string } {
   const subject = `“${name}” didn’t go: nobody approved it`;
-  const after = `it did not reach them, and no later batch sends it in its place. Open it to see who, and write to them yourself. The next “${name}” waits for your OK too: ${NEXT_BATCH_WAITS}.`;
+  const unsent =
+    "it did not reach them, and no later batch sends it in its place. Open it to see who, and write to them yourself.";
+  // An occasion's waits only while its words are new (contracts sequenceModesFor: it never asks for each).
   if (triggerOf(trigger ?? "")?.kind === "occasion")
     return {
       subject,
-      body: `The message made for ${plural(people, "person", "people")} waited for your OK until it was too late to send: ${after}`,
+      body: `The message made for ${plural(people, "person", "people")} waited for your OK until it was too late to send: ${unsent} The next “${name}” waits for your OK too, until you approve one.`,
     };
+  const after = `${unsent} The next “${name}” waits for your OK too: ${NEXT_BATCH_WAITS}.`;
   return {
     subject,
     body: `${plural(people, "person", "people")} booked after the day’s reminders went, and the reminder made for them waited for your OK until it was too late to send: ${after}`,
+  };
+}
+
+/**
+ * What the owner is told when someone behind a step's first OK ran out of time (decision 0119). While a step's words wait
+ * for their first OK one batch waits, and the people after it wait behind it rather than each become an approval of their
+ * own; one whose own time passes meanwhile (a reminder's visit began, or a day went by) is left with nothing sent. Told
+ * once per waiting batch, when the first is left, so the wait is never silent about who it costs; its row opens the
+ * batch that waits.
+ */
+export function leftBehindNotice(name: string, people: number): { subject: string; body: string } {
+  return {
+    subject: `“${name}” is skipping people while it waits for your OK`,
+    body: `${plural(people, "person’s message", "people’s messages")} did not go: “${name}” still waits for your first OK of its words, and their time passed while it waited. Nothing later sends it in its place. Each person after them is skipped the same way until you approve or skip the one that waits, from your Inbox or Today.`,
   };
 }
 

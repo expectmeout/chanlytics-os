@@ -8,7 +8,6 @@ import { useEffect, useRef } from "react";
 import {
   CUSTOMER_DOMAIN_DAILY_MAX,
   REACH_OUT_SETTINGS_WORDS,
-  SEQUENCE_MODE_LABEL,
   SEQUENCE_MODE_WORDS,
   sequenceStartModesFor,
   textOrEmpty,
@@ -215,7 +214,7 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
       canEdit={canDo("autonomy")}
       flash={shared.flash}
       id="batch_mode"
-      label={SEQUENCE_MODE_LABEL}
+      label={SEND_WORDS.batch}
       channel={null}
       light
       gate={gate("autonomy", "change what happens before each batch")}
@@ -228,7 +227,7 @@ function BatchFold(shared: OutreachShared & { again: () => void }) {
             id="ro-batch-mode"
             labelledBy="rec-fold-batch_mode-label"
             value={textOrEmpty(fields.draft) || mode}
-            options={sequenceStartModesFor("leads").map((m) => ({
+            options={sequenceStartModesFor("leads", null).map((m) => ({
               value: m,
               label: SEQUENCE_MODE_WORDS[m].choice,
               // Leads are never offered `auto` (sequenceModesFor), which says nothing of its own here.
@@ -274,6 +273,14 @@ export function SendingCard(shared: OutreachShared & { again: () => void }) {
         words ? <StatePill kind="tone" value={HEALTH_TONES[health]} label={words} testid="rec-sending-pill" /> : null
       }
     >
+      {sending?.why ? (
+        <RecordRow
+          id="send_why"
+          label={SEND_WORDS.health.attention}
+          value={sending.why}
+          act={{ label: SEND_WORDS.seeFix, onClick: () => navigate(CONNECTIONS_PAGE) }}
+        />
+      ) : null}
       <RecordRow
         id="send_from"
         label={SEND_WORDS.from}

@@ -38,6 +38,12 @@ export interface ColdEmailSending {
   month: string | null;
   /** The domain to name a second one after, where the mailbox shown is on the customer's own: what "Send more" offers. */
   customer_host: string | null;
+  /**
+   * Why it needs a look: the first check that fails on a mailbox that sends, named by its address where more than one
+   * does. Null where none fails. The card says it beside its pill, and the page's one answer says it at the top
+   * (coldEmailNeedsLook), so "Needs a look" is never said without what to look at.
+   */
+  why: string | null;
 }
 
 type Mailbox = Pick<
@@ -76,12 +82,20 @@ function paceOfOne(m: Mailbox): string {
   return `${now} a day now, ${next.perDay} after ${next.days} more day${next.days === 1 ? "" : "s"} of sending`;
 }
 
+/**
+ * Several mailboxes' pace: what they send in all, and what each does where they send alike, said as "for now" while any
+ * still climbs its ramp: "20 a day in all, 10 from each for now". "20 a day across 2 mailboxes" read as twenty each.
+ */
 function paceOf(sending: readonly Mailbox[]): string | null {
   const first = sending[0];
   if (!first) return null;
   if (sending.length === 1) return paceOfOne(first);
-  const total = sending.reduce((n, m) => n + mailboxDailyCap(m), 0);
-  return `${total} a day across ${sending.length} mailboxes`;
+  const caps = sending.map(mailboxDailyCap);
+  const total = caps.reduce((n, cap) => n + cap, 0);
+  const alike = caps.every((cap) => cap === caps[0]);
+  const climbs = sending.some((m) => nextOnRamp(m) !== null);
+  if (alike) return `${total} a day in all, ${caps[0]} from each${climbs ? " for now" : ""}`;
+  return `${total} a day in all across ${sending.length} mailboxes${climbs ? ", for now" : ""}`;
 }
 
 function domainCheck(m: Mailbox): ColdEmailCheck {
@@ -90,7 +104,7 @@ function domainCheck(m: Mailbox): ColdEmailCheck {
     return {
       ok: false,
       title: `Your domain is missing its ${missing.join(" and ")} record${missing.length === 1 ? "" : "s"}`,
-      detail: "Add it on Connections, so your emails reach inboxes",
+      detail: `Add ${missing.length === 1 ? "it" : "them"} on Connections, so your emails reach inboxes`,
     };
   if (SIGNED_RECORDS.some((k) => !m.dns[k]))
     return {
@@ -187,6 +201,34 @@ function checksFor(shown: Mailbox | undefined, sending: readonly Mailbox[]): Col
   return [...mailboxChecksOf(shown), ...others];
 }
 
+/** A mailbox that sends and fails a check: which, what fails, and what the check says to do about it. */
+export interface ColdEmailNeedsLook {
+  /** The check's title, behind the mailbox's address where more than one sends. */
+  why: string;
+  /** What the check says to do, or what happens next. */
+  detail: string;
+  /** Whether it is the workspace's only mailbox that sends. */
+  alone: boolean;
+}
+
+/**
+ * The first check that fails on a mailbox that sends now, or null where none does: the one reading of why Sending "needs
+ * a look", for its card (coldEmailSendingOf's `why`) and for the page's one answer (coldEmailStandingOf's `needsLook`).
+ */
+export function coldEmailNeedsLook(mailboxes: readonly Mailbox[], nowMs: number): ColdEmailNeedsLook | null {
+  const sending = mailboxes.filter(mailboxIsLive).filter((m) => mailboxSendsNow(m, nowMs));
+  for (const m of sending) {
+    const failing = mailboxChecksOf(m).find((c) => c.ok === false);
+    if (failing)
+      return {
+        why: sending.length > 1 ? `${m.address}: ${failing.title}` : failing.title,
+        detail: failing.detail,
+        alone: sending.length === 1,
+      };
+  }
+  return null;
+}
+
 function healthOf(live: readonly Mailbox[], checks: readonly ColdEmailCheck[]): ColdEmailHealth {
   if (live.length === 0) return "none";
   if (live.some((m) => m.state === "reconnect")) return "reconnect";
@@ -218,5 +260,6 @@ export function coldEmailSendingOf(
         ? null
         : `${month.sent.toLocaleString("en-US")} sent, of ${month.of.toLocaleString("en-US")} included`,
     customer_host: shown?.customer_domain ? shown.host : null,
+    why: coldEmailNeedsLook(mailboxes, nowMs)?.why ?? null,
   };
 }

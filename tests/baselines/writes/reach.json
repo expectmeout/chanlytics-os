@@ -1,7 +1,7 @@
 {
-  "rows": 171,
+  "rows": 172,
   "same": 12,
-  "differ": 159,
+  "differ": 160,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -569,6 +569,25 @@
       }
     },
     "POST calendar/visits/[id]": {
+      "changes": "appointments UPDATE",
+      "extra": {
+        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "reports_people": "reports/people"
+      },
+      "missing": {
+        "ask_morning": "today",
+        "broadcasts": "broadcasts, clients/get-yes, inbox, today",
+        "calendar_runs": "calendar",
+        "conversations": "conversations, inbox",
+        "inbox": "inbox",
+        "person": "clients/person",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
+        "setup": "admin/integrations, start, today",
+        "today": "every page",
+        "today_pins": "today"
+      }
+    },
+    "POST calendar/visits/kept": {
       "changes": "appointments UPDATE",
       "extra": {
         "playbooks": "broadcasts, campaigns/messages, messages, today",

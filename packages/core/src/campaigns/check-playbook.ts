@@ -19,6 +19,7 @@ import {
   isDayKey,
   isPlaybookState,
   isSequenceMode,
+  sequenceModesFor,
   isWinBack,
   localDate,
   messageFitsMoment,
@@ -354,9 +355,13 @@ export async function findUntil(
  * The mode a change names (decision 0064): one of the three a sequence takes, a sequence to leads among them since
  * decision 0120 (Send it is its owner's choice on a sequence that exists); undefined where the change names none.
  */
-function patchMode(v: unknown): SequenceMode | undefined {
+function patchMode(v: unknown, trigger: string, when: PatchWhen): SequenceMode | undefined {
   if (v === undefined) return undefined;
   if (!isSequenceMode(v)) throw new AppError("validation", PLAYBOOK_PATCH_WORDS.modeWhich);
+  // One an occasion starts sends or holds, and never asks for each (decision 0119, contracts sequenceModesFor). An undo
+  // writes back what its row held, an ask the database gave it among them: the run reads that as held (sequenceModeOf).
+  if (!sequenceModesFor(null, trigger).includes(v) && !when.undo)
+    throw new AppError("validation", PLAYBOOK_PATCH_WORDS.modeOwnTime);
   return v;
 }
 
@@ -423,7 +428,7 @@ export async function checkPlaybookPatch(
     cadence_days: patchNumber("cadence_days", record.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, record.params),
     until: await findUntil(ports, record.until, when),
-    mode: patchMode(record.mode),
+    mode: patchMode(record.mode, row.trigger, when),
   };
   const held = patchHeldOf(row);
   const set: PlaybookPatch = {};

@@ -31,6 +31,12 @@ export interface OccasionStep {
   sequenceId: string;
   trigger: Trigger;
   runHour: number;
+  /** The sequence's name, its mode, and when its first step's words last had an OK: how its next batch goes (batchModeOf). */
+  name: string;
+  mode: string | null;
+  wordsOkAt: string | null;
+  /** The last day its first step's daily look ran (`last_run_for`): what a visit's moment asks (contracts keptThanksAt). */
+  lastRunFor: string | null;
 }
 
 /**
@@ -45,7 +51,7 @@ export async function listOccasionSteps(
   if (triggers.length === 0) return [];
   const steps = await db
     .from("sequence_steps")
-    .select("id, sequence_id, trigger, run_hour")
+    .select("id, sequence_id, trigger, run_hour, words_ok_at, last_run_for")
     .eq("tenant_id", tenantId)
     .eq("state", "running")
     .in("trigger", [...triggers]);
@@ -54,7 +60,7 @@ export async function listOccasionSteps(
   if (firsts.length === 0) return [];
   const on = await db
     .from("sequences")
-    .select("id")
+    .select("id, name, mode")
     .eq("tenant_id", tenantId)
     .eq("state", "on")
     .in(
@@ -62,10 +68,22 @@ export async function listOccasionSteps(
       firsts.map((s) => s.sequence_id),
     );
   if (on.error) throw new DbFailure(on.error, "occasions: which of their sequences are on");
-  const running = new Set(on.data.map((q) => q.id));
-  return firsts
-    .filter((s) => running.has(s.sequence_id))
-    .map((s) => ({ sequenceId: s.sequence_id, trigger: s.trigger, runHour: s.run_hour }));
+  const running = new Map(on.data.map((q) => [q.id, q]));
+  return firsts.flatMap((step) => {
+    const sequence = running.get(step.sequence_id);
+    if (!sequence) return [];
+    return [
+      {
+        sequenceId: step.sequence_id,
+        trigger: step.trigger,
+        runHour: step.run_hour,
+        name: sequence.name,
+        mode: sequence.mode,
+        wordsOkAt: step.words_ok_at,
+        lastRunFor: step.last_run_for,
+      },
+    ];
+  });
 }
 
 /**
@@ -304,8 +322,8 @@ export async function findMessageSentTo(
   };
 }
 
-/** Whether a batch of this step still waits for its owner: while its words are new, the next person waits behind it. */
-export async function findWaitingBatchOf(db: Db, tenantId: TenantId, stepId: string): Promise<boolean> {
+/** The batch of this step that still waits for its owner, or null: while its words are new, the next person waits behind it. */
+export async function findWaitingBatchOf(db: Db, tenantId: TenantId, stepId: string): Promise<string | null> {
   const { data, error } = await db
     .from("sequence_batches")
     .select("id")
@@ -314,7 +332,7 @@ export async function findWaitingBatchOf(db: Db, tenantId: TenantId, stepId: str
     .eq("state", "pending_approval")
     .limit(1);
   if (error) throw new DbFailure(error, "occasions: whether a batch of the step waits");
-  return data.length > 0;
+  return data[0]?.id ?? null;
 }
 
 /**

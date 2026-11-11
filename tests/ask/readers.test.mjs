@@ -6652,7 +6652,7 @@ test("campaigns.journey says the customer journey: 2 of 4 moments covered, first
     assert.deepEqual(said.guide, journeyGuide({ calendarOn: true, hasDeals: false, word: "appointment" }));
     assert.equal(
       said.guide.find((r) => r.stage === "after").sends,
-      "the day after an appointment, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
+      "the day after an appointment you mark kept, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",
     );
     const before = said.guide.find((r) => r.stage === "before");
     assert.deepEqual(

@@ -1050,3 +1050,31 @@ test("a freed time's words for every send of its batch (decision 0082): the time
     "a batch made at night goes at nine: its words are read then",
   );
 });
+
+test("a thank-you's run says who waits on the owner's word (decision 0123): the visits nobody marked kept, with where to say it", () => {
+  const reach = {
+    pool: 5,
+    will: 2,
+    noNumber: 0,
+    stopped: 0,
+    noYes: 1,
+    heardThis: 0,
+    heardAny: 0,
+    overCap: 0,
+    overLimit: 0,
+    unmarked: 2,
+  };
+  const after = { trigger: "visited", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
+  const said = reachLines(reach, after);
+  assert.equal(said.pool, 5);
+  assert.deepEqual(said.lines[0], {
+    n: 2,
+    words: "2 are not marked kept yet",
+    tone: "warn",
+    door: { words: "Say who came", to: "today" },
+  });
+  assert.equal(reachLines({ ...reach, unmarked: 1 }, after).lines[0].words, "1 is not marked kept yet");
+  // A run counted before the rule, or with everyone marked, says nothing of it.
+  const { unmarked: _none, ...before } = reach;
+  assert.ok(!reachLines(before, after).lines.some((l) => l.words.includes("marked kept")));
+});

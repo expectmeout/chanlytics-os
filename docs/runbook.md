@@ -1624,7 +1624,7 @@ ledger with each version's name, whoever pushes and from wherever.
 
 1. **Write it** at the number free when it lands: above main's head and above production's
    (`supabase migration list --linked` shows production's). Named for the schema change, re-runnable statements, a
-   header of a few lines, `lock_timeout` set. Record it in the ledger:
+   header of a few lines, `set local lock_timeout = '3s';` as its first statement (below). Record it in the ledger:
 
    ```bash
    node tooling/scripts/checks/migration-ledger.mjs --record
@@ -1636,6 +1636,22 @@ ledger with each version's name, whoever pushes and from wherever.
    pull request's ledger to main's (`migration-ledger.mjs --base origin/main`): an entry main recorded may not change,
    which a folder and a ledger edited together would hide from the test. A number renumbered before it
    lands is recorded again by the same command, which also lets go of the reserved gaps the new number now covers.
+
+   **The lock guard is `set local lock_timeout = '3s';`, and it holds for the whole file.** A change that locks a
+   table already there (an `alter table`, a plain index, a policy, a trigger) then waits three seconds at most behind a
+   long transaction and fails, instead of stopping every write behind it; from 00557 `database/migrations.test.mjs`
+   fails a file that locks one without it. The CLI sends a file as one transaction: `RESET ALL`, then the file's
+   statements and its ledger row as one batch that Postgres commits together (`db push`, `db reset` and the replay
+   `supabase start` runs alike; read in supabase/cli 2.116 and 2.120). The connector's `apply_migration` wraps the file
+   in `begin` itself. So `set local` lasts to the file's end and no further, and a file that fails leaves nothing
+   behind. Production's log says `SET LOCAL can only be used in transaction blocks` at each push of such a file: Postgres
+   remarking on a transaction that has no `begin` of its own, which keeps the setting all the same (read on 10 Nov 2026:
+   the warning and every statement of 00597, 00598 and 00599 share one transaction each). Not `set lock_timeout`
+   without `local`: that one stays on the connection after the file. Two things end a file's transaction early, and
+   the test fails both: a statement Postgres runs only on its own (`create` or `drop index concurrently`,
+   `reindex ... concurrently`, `vacuum`, `alter system`, `cluster`), which the CLI runs after committing what came
+   before it, so it is its file's only statement; and a `begin` or `commit` of the file's own, after which the CLI
+   sends each statement by itself.
 
    **An index on a table that is always being written** (`messages`, `events`, `calls`, `contacts`,
    `sequence_sends`, `jobs`, `conversations`) is built `CONCURRENTLY`, in a file that holds that one statement and nothing else,
