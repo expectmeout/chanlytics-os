@@ -6,6 +6,7 @@
  * a sheet on a phone. Type is the outer filter and the view the inner one: the views count what the type keeps.
  */
 import {
+  byLongestWait,
   SEQUENCE_GROUPS,
   SEQUENCE_SORTS,
   SEQUENCE_TYPES,
@@ -34,7 +35,8 @@ export type SequencesType = "all" | SequenceType;
 
 /**
  * The rows in their groups, in the order they are given (the sort's), each group that holds one; a twin is read against
- * every sequence of the workspace, whatever the type keeps.
+ * every sequence of the workspace, whatever the type keeps. Needs you is the exception: the longest wait first, whatever
+ * Sort says (contracts byLongestWait, decision 0126), its ties in Sort's order.
  */
 export function groupedOf(rows: readonly SequenceRowDto[], every: readonly SequenceRowDto[]): Grouped[] {
   const by = new Map<SequenceGroup, Grouped["rows"]>();
@@ -43,7 +45,11 @@ export function groupedOf(rows: readonly SequenceRowDto[], every: readonly Seque
     const g = sequenceGroupOf(row, twin);
     by.set(g, [...(by.get(g) ?? []), { row, twin }]);
   }
-  return SEQUENCE_GROUPS.flatMap((g) => (by.get(g)?.length ? [{ group: g, rows: by.get(g) ?? [] }] : []));
+  return SEQUENCE_GROUPS.flatMap((g) => {
+    const held = by.get(g) ?? [];
+    if (held.length === 0) return [];
+    return [{ group: g, rows: g === "needs" ? [...held].sort((p, q) => byLongestWait(p.row, q.row)) : held }];
+  });
 }
 
 /** What the row reads and writes: the view and its groups, the type and how many of each, and the sort. */
@@ -137,19 +143,29 @@ function TypePick(p: ListBarProps) {
   );
 }
 
-/** Sort: how each group's rows are ordered, the newest made first as the list is read. */
+/**
+ * Sort: how each group's rows are ordered, the newest made first as the list is read. Its word is the order picked once
+ * one other than the first is, as Type's is; its caption says Needs you keeps the longest wait first (decision 0126).
+ */
 function SortPick(p: ListBarProps) {
   return (
     <Menu
       align="end"
       label={L.sorts.label}
       trigger={
-        <Button variant="plain" size="sm" className="sq-view-act" data-testid="sq-sort">
-          {L.sorts.label}
+        <Button
+          variant="plain"
+          size="sm"
+          className="sq-view-act"
+          data-on={p.sort === "newest" ? undefined : ""}
+          data-testid="sq-sort"
+        >
+          {p.sort === "newest" ? L.sorts.label : L.sorts[p.sort]}
         </Button>
       }
       groups={[
         {
+          caption: L.sorts.needsFirst,
           choose: {
             value: p.sort,
             onChoose: (v) => p.onSort(SEQUENCE_SORTS.find((s) => s === v) ?? "newest"),
