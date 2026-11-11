@@ -220,8 +220,8 @@ function optionalRows(
  * still draws its next step, so it counts; a card gone for the week, or with nothing left, draws none (today/arrangement.ts
  * hands the coral on).
  */
-export function setupCardActs(S: SetupSurface): boolean {
-  const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
+export function setupCardActs(setup: SetupSurface): boolean {
+  const card = FIRST_RUN_HELPERS.todayCard(setup.vm, setupWhoOf(setup));
   return !!card && (!!card.start || card.rows.length > 0);
 }
 

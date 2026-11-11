@@ -51,8 +51,8 @@ const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zon
 const { TodayHeadFigures } = await import("../../../apps/dashboard/src/surfaces/today/zones/figures.tsx");
 const { PhoneSoFar } = await import("../../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
 const { TodayAlertBand } = await import("../../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
-const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
-const { useHeadSay } = await import("../../../apps/dashboard/src/surfaces/today/need-you/head-say.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { useNeedYouLine } = await import("../../../apps/dashboard/src/surfaces/today/need-you-model.ts");
 
 /** Sofia asked for a person three hours ago, an hour before Ana: two handoffs, Sofia's the older. */
 const sofia = () =>
@@ -559,7 +559,7 @@ test("the head says Ask has a reply ready only where its words can go: never ove
     });
     set(vm);
     draw(NeedYou);
-    return again(() => useHeadSay());
+    return again(() => useNeedYouLine(surfaceValue("today") ?? null));
   };
   try {
     assert.match(String(headOver("2026-09-18T19:00:00Z")), /Ask has a reply ready/, "an open window: the words can go");
@@ -576,7 +576,6 @@ test("the head says Ask has a reply ready only where its words can go: never ove
 test("on a phone the page is one column in the canvas's order: Ask found leads where Need you draws no pane, setting up goes under the work while anyone waits, and the page's end is last", async () => {
   phone = true;
   const { TodayZones } = await import("../../../apps/dashboard/src/surfaces/today/zones/page.tsx");
-  const { zoneDrawn } = await import("../../../apps/dashboard/src/surfaces/today/queue-coral.ts");
   const order = () => {
     fresh();
     const page = again(() => TodayZones());
@@ -584,9 +583,8 @@ test("on a phone the page is one column in the canvas's order: Ask found leads w
     assert.equal(root.props["data-testid"], "today-phone");
     return root.props.children.filter(Boolean).map((c) => c.type?.name ?? c.props?.["data-testid"]);
   };
-  // Need you draws its panes and says so as it draws (zones/need-you.tsx); drawn here as the page's children only.
+  // Whether Need you draws its panes is the page's arrangement's to know before anything draws (today/arrangement.ts).
   set(twoWaiting());
-  zoneDrawn("need-you", true);
   const busy = order();
   assert.deepEqual(busy, [
     "TodayAlertBand",
@@ -599,8 +597,21 @@ test("on a phone the page is one column in the canvas's order: Ask found leads w
     "today-setting-up",
     "TodayEnd",
   ]);
-  zoneDrawn("need-you", false);
+  // Nobody waits, but Ben's step is due: To do is Need you's pane, so Ask found stays under the day.
   set(nobodyWaiting());
+  assert.deepEqual(order(), [
+    "TodayAlertBand",
+    "today-setting-up",
+    "NeedYou",
+    "ColdEmailNote",
+    "DayZone",
+    "AskFound",
+    "PhoneSoFar",
+    "PhonePins",
+    "TodayEnd",
+  ]);
+  // And with no step due either, Need you draws no pane and Ask found leads.
+  delete W.__PEOPLE;
   assert.deepEqual(order(), [
     "TodayAlertBand",
     "today-setting-up",

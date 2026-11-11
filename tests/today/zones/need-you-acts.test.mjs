@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { again, all, unmount } from "../../_stub-react.mjs";
+import { again, all, quiet, redrawWanted, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { NOW, W, answerWith, flashes, json, wire, dayWith, draw, row } from "./_world.mjs";
 
@@ -20,6 +20,7 @@ const { AttnRow } = await import("../../../apps/dashboard/src/surfaces/kit/atten
 const { useNeedYouLine, useNeedYouModel } =
   await import("../../../apps/dashboard/src/surfaces/today/need-you-model.ts");
 const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { surfaceMoved } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
 
 /** Need you's model and the head's line, as the page and the head read them over Today's read. */
 const model = () => again(() => useNeedYouModel(surfaceValue("today") ?? null));
@@ -121,6 +122,23 @@ test("Older's Mark all done refused whole says why and stays to be pressed again
   assert.equal(again_.props.work, null, "and nothing says they were marked done");
   setSurfaceValue("today", undefined);
   unmount();
+});
+
+test("Need you's model hears every read its rows come from, so the list, the page and the head redraw as one lands", () => {
+  setSurfaceValue("today", dayWith([row("w1", "Dana Ruiz")]));
+  draw(NeedYou);
+  // A reach-out's reply read is that reply's row (the wiring's second audit, W-campaign-run-template-reachout-7); Google's
+  // reviews and People's steps are To do's; the runs wait for an OK.
+  for (const read of ["today", "broadcasts", "people", "calendar", "reach_out_replies", "google", "settings"]) {
+    quiet();
+    surfaceMoved(read);
+    assert.ok(redrawWanted(), `REGRESSION: ${read} landed and Need you was not drawn again`);
+  }
+  quiet();
+  surfaceMoved("billing");
+  assert.ok(!redrawWanted(), "and not for a read it does not draw");
+  unmount();
+  setSurfaceValue("today", undefined);
 });
 
 test("Need you's model says whether it draws a pane, which the page lays its columns by: nobody waiting draws none, and Ask found leads", () => {

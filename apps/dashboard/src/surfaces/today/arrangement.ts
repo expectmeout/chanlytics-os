@@ -19,7 +19,7 @@ import { useFoundModel } from "./zones/found";
 import { useSetupActs } from "./zones/setup-card";
 
 /** What may hold the page's coral, in the walk's order; null where nothing on the page asks for it. */
-export type CoralHolder = "queue" | "todo" | "setup" | "found" | null;
+type CoralHolder = "queue" | "todo" | "setup" | "found" | null;
 
 export interface TodayArrangement {
   /** Anyone waiting on the owner (the one count, needs-you.ts): setting up then stands under Need you, never over it. */
@@ -32,7 +32,7 @@ export interface TodayArrangement {
 }
 
 /** What the arrangement is worked out from: what each part will draw. */
-export interface ArrangementReads {
+interface ArrangementReads {
   /** Today has been read: before it, Need you has drawn nothing yet, and Ask found does not lead. */
   read: boolean;
   /** Need you draws a pane (need-you-model.ts `draws`). */
