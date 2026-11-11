@@ -135,6 +135,10 @@ test("nothing made says what Ask makes and offers the two ways to start", () => 
   const html = draw(page());
   assert.equal(count(html, "cnv-empty"), 1);
   assert.match(html, /Nothing made yet/);
+  assert.match(html, /Ask makes posts from your photos\./, "a workspace that takes no videos is promised none");
+  assert.doesNotMatch(html, /videos from your clips/);
+  const videos = S.renderToStaticMarkup(S.createElement(S.ContentBody, { held: page(), acts, videos: true }));
+  assert.match(videos, /posts from your photos and videos from your clips/);
   assert.match(html, /Ask for one/);
   assert.match(html, /Open Files/);
   assert.equal(count(html, "cnv-making-title"), 0);
@@ -226,28 +230,26 @@ test("more of what was made is read after what is there, and whoever draws it is
 /** The settings read as the surface holds it, with these features in the workspace's stored config. */
 const settingsWith = (features) => S.setSurfaceValue("settings", { settings: { config: { features } }, messages: [] });
 
-test("Campaigns has a Content tab only where the workspace's switch is on, between Messages and Ads", () => {
+test("every workspace's Campaigns has a Content tab, after Messages and before Ads where Ads is drawn", () => {
   settingsWith({});
-  const off = S.campaignsChrome({ param: null });
+  const plain = S.campaignsChrome({ param: null });
   assert.deepEqual(
-    off.views.tabs.map((t) => t.id),
-    ["sequences", "messages"],
+    plain.views.tabs.map((t) => t.id),
+    ["sequences", "messages", "content"],
+    "no switch draws it: Connect Meta's (content_preview) is off here",
   );
-  settingsWith({ content_preview: true, ads_preview: true });
-  const on = S.campaignsChrome({ param: null });
+  assert.equal(plain.views.tabs.find((t) => t.id === "content").to, "campaigns/content");
+  settingsWith({ ads_preview: true });
   assert.deepEqual(
-    on.views.tabs.map((t) => t.id),
+    S.campaignsChrome({ param: null }).views.tabs.map((t) => t.id),
     ["sequences", "messages", "content", "ads"],
   );
-  assert.equal(on.views.tabs.find((t) => t.id === "content").to, "campaigns/content");
 });
 
-test("the Content address wears Campaigns' crumbs and picks its tab, and is Sequences where the switch is off", () => {
-  settingsWith({ content_preview: true });
-  const on = S.campaignsChrome({ param: "content" });
-  assert.equal(on.views.picked, "content");
-  assert.equal(on.mount, "campaigns");
-  assert.equal(on.crumbs.at(-1), "Content");
+test("the Content address wears Campaigns' crumbs and picks its tab in any workspace", () => {
   settingsWith({});
-  assert.equal(S.campaignsChrome({ param: "content" }).views.picked, "sequences");
+  const at = S.campaignsChrome({ param: "content" });
+  assert.equal(at.views.picked, "content");
+  assert.equal(at.mount, "campaigns");
+  assert.equal(at.crumbs.at(-1), "Content");
 });

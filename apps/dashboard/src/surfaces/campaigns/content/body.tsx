@@ -66,15 +66,23 @@ function MadeTile({ made, onOpen }: { made: ContentMadeDto; onOpen: (fileId: str
   );
 }
 
-/** The page, of what was read. `gettingMore` is true while the next page of what was made is being read. */
-function ContentRead({ dto, acts, gettingMore }: { dto: ContentPageDto; acts: ContentActs; gettingMore: boolean }) {
+/** What the body is told beside what was read. */
+interface ContentShows {
+  /** True while the next page of what was made is being read. */
+  gettingMore: boolean;
+  /** Whether the workspace takes videos (features.video_preview): where it does not, Ask makes no video and none is offered. */
+  videos: boolean;
+}
+
+/** The page, of what was read. */
+function ContentRead({ dto, acts, shows }: { dto: ContentPageDto; acts: ContentActs; shows: ContentShows }) {
   if (dto.making.length === 0 && dto.made.length === 0)
     return (
       <EmptyState
         kind="page"
         glyph="content"
         title={W.empty.title}
-        body={W.empty.body}
+        body={shows.videos ? W.empty.body : W.empty.bodyPhotos}
         action={{ label: W.empty.ask, onClick: acts.onAsk, testid: "cnv-empty-ask" }}
         also={{ label: W.empty.files, onClick: acts.onFiles, testid: "cnv-empty-files" }}
         testid="cnv-empty"
@@ -110,8 +118,8 @@ function ContentRead({ dto, acts, gettingMore }: { dto: ContentPageDto; acts: Co
                 variant="quiet"
                 size="sm"
                 onClick={acts.onMore}
-                disabled={gettingMore}
-                aria-busy={gettingMore}
+                disabled={shows.gettingMore}
+                aria-busy={shows.gettingMore}
                 data-testid="cnv-more"
               >
                 {W.more}
@@ -129,10 +137,12 @@ export function ContentBody({
   held,
   acts,
   gettingMore = false,
+  videos = false,
 }: {
   held: ContentPageDto | null | undefined;
   acts: ContentActs;
   gettingMore?: boolean;
+  videos?: boolean;
 }) {
   if (held === undefined)
     return (
@@ -141,5 +151,5 @@ export function ContentBody({
       </div>
     );
   if (held === null) return <FailedRead kind="page" what={W.failedWhat} surface="content" testid="cnv-failed" />;
-  return <ContentRead dto={held} acts={acts} gettingMore={gettingMore} />;
+  return <ContentRead dto={held} acts={acts} shows={{ gettingMore, videos }} />;
 }

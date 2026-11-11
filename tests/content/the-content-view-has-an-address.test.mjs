@@ -1,6 +1,6 @@
 /**
- * Campaigns › Content has one address and one switch (the Content view's decision). The switch is read off the config as
- * stored, by one function the edge and the dashboard both ask, so Connect Meta and the Content view never disagree.
+ * Campaigns › Content has one address (decision 0125), every workspace's. Connect Meta's switch is read off the config as
+ * stored, by one function the edge and the dashboard both ask.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

@@ -263,8 +263,8 @@ test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequenc
   assert.deepEqual(home.crumbs, ["Campaigns"]);
   assert.deepEqual(
     home.views?.tabs.map((t) => t.id),
-    ["sequences", "messages"],
-    "no Ads tab in a real workspace",
+    ["sequences", "messages", "content"],
+    "no Ads tab in a real workspace; Content is every workspace's (decision 0125)",
   );
   assert.deepEqual(campaignsChrome({ param: "ads" }), home);
   assert.deepEqual(campaignsChrome({ param: "ads:ad:abc" }), home);
@@ -274,7 +274,7 @@ test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequenc
     assert.equal(campaignsChrome({ param: null }).views?.picked, "sequences");
     assert.deepEqual(
       campaignsChrome({ param: null }).views?.tabs.map((t) => t.id),
-      ["sequences", "messages", "ads"],
+      ["sequences", "messages", "content", "ads"],
     );
     const at = campaignsChrome({ param: "ads" });
     assert.equal(at.views?.picked, "ads");
