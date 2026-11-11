@@ -11,14 +11,8 @@ import { runApproveWords } from "../../../shell/campaign-rooms";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "../dto";
 import { heldByCheckWords, okSendsNothing } from "../list";
 import { sequenceRunOff, type RunOffReason } from "../run-off";
-import {
-  SEQUENCE_STATE_WORDS,
-  SEQUENCE_WORDS,
-  oneOffPeople,
-  sequenceApprovalWords,
-  twinLineOf,
-  type SequenceTwin,
-} from "./flow";
+import { SEQUENCE_STATE_WORDS, SEQUENCE_WORDS, sequenceApprovalWords, twinLineOf, type SequenceTwin } from "./flow";
+import { oneOffPeople } from "../one-off";
 
 /** When a sequence's next batch goes, and to how many where it is counted; `soon` when its hour has come and it is due. */
 export interface SequenceNext {

@@ -3083,19 +3083,22 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
      is no bare circle: it keeps its mark and its first word, "+ New", in the capsule People's scopes draw theirs in on a
      phone, 28px and 44 to a finger by a margin no one sees (Ruben, 8 Oct 2026: a plus alone said nothing). The rest of
      its name is kept for a screen reader, as the circle keeps the whole of one. */
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > :is(button, a):first-child:has(> .pg-act-fit) {
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit),
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > a:first-child:has(> .pg-act-fit) {
     position: relative;
     height: var(--control-h-sm);
     min-height: var(--control-h-sm);
     padding: 0 14px 0 12px;
     font-size: var(--text-base);
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > :is(button, a):first-child:has(> .pg-act-fit)::after {
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child:has(> .pg-act-fit)::after,
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > a:first-child:has(> .pg-act-fit)::after {
     content: "";
     position: absolute;
     inset: -9px 0; /* From inside the button's 1px border: 44 in all. */
   }
-  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > :is(button, a):first-child > .pg-act-fit > .pg-act-rest {
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > button:first-child > .pg-act-fit > .pg-act-rest,
+  .pg-slot:has(> nav):not([data-strip="people"]) > .pg-act-slot > span > a:first-child > .pg-act-fit > .pg-act-rest {
     position: absolute;
     width: 1px;
     height: 1px;

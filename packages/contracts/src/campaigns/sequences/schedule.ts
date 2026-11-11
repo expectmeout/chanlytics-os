@@ -10,7 +10,8 @@ import { triggerOf } from "../playbooks/triggers/notices";
 import { clockAhead, clockDate, clockTime } from "../../shared/clock";
 import { plural } from "../../shared/words";
 import type { SequencePeopleDto, SequenceRowDto, SequenceStepDto } from "./dto";
-import { SEQUENCE_WORDS, leadStepStand, oneOffPeople } from "./words/flow";
+import { oneOffPeople } from "./one-off";
+import { SEQUENCE_WORDS, leadStepStand } from "./words/flow";
 import {
   batchWaitsUntilTonight,
   momentStartsSentence,

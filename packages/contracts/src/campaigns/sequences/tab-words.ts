@@ -35,7 +35,7 @@ import type {
   SequencePersonDto,
   SequenceRowDto,
 } from "./dto";
-import { oneOffPeople } from "./words/flow";
+import { oneOffPeople } from "./one-off";
 
 /** A step opened to be changed (the canvas's Editor board): its fields, what a save reaches, and its preview. */
 export const SEQUENCE_EDIT_WORDS = {

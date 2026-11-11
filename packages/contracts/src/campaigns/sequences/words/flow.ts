@@ -388,19 +388,6 @@ export function sequenceHeadLine(row: SequenceRowDto, word: AppointmentWord, tz:
 }
 
 /**
- * How many people a one-off is said to reach (Ruben, 10 Nov 2026: one that went said "Went to 3 people" on its Steps while
- * its list row and its History said 2): before it goes, the people it is for (its batch's count, taken as it was made);
- * once it went, the people it was sent to, as the list and History count them (its last batch's sent), since a person it
- * could not reach is not one it went to. The one count every line about a one-off says.
- */
-export function oneOffPeople(row: Pick<SequenceRowDto, "date" | "last">): number {
-  const date = row.date;
-  if (!date) return 0;
-  if (date.state === "sent" && row.last && row.last.id === date.batch_id) return row.last.sent;
-  return date.people;
-}
-
-/**
  * The line under a record's name on its page (the phone review): what starts it and who approves its batches, each said
  * once there, so the flow never repeats them and no box at its foot says them again. "Before a meeting · sends on its
  * own"; a sequence to leads names its search and says it waits on your inbox where you send each one; a one-off says it
