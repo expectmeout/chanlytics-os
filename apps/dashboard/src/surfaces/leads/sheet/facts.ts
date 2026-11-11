@@ -12,7 +12,6 @@ import {
   leadOpeningOf,
   leadOwnWordsOf,
   leadWordsInBox,
-  leadWordsBlanks,
   leadWordsPieces,
   markedOpeningOf,
   placeRailOf,
@@ -62,6 +61,7 @@ import { subjectWords } from "../../campaigns/sequences/place/email-as";
 import { businessAddressOf, reachOutSignatureNow } from "../../campaigns/sequences/leads/reads";
 import { leadCardFor, leadCardLeadOf, leadCardWorkspace, type LeadCardFacts } from "../pile/card";
 import { leadDtoFor } from "../surface";
+import { emailBlanksOf, type EmailBlanks } from "./model/fill-ins";
 import type { LeadAim } from "./use-aim";
 
 /** A pile's own: how many are left for later, for its end. */
@@ -146,7 +146,7 @@ export interface SheetMail {
   /** Whose email it is, for a part of it that reads something of theirs (the receptionist's mark); null where it went. */
   leadId: string | null;
   /** The same words with each blank by its name, where they name any: what Show the blanks draws. Null: no switch. */
-  blanks: { subject: readonly LeadEmailPiece[] | null; body: readonly LeadEmailPiece[] } | null;
+  blanks: EmailBlanks | null;
   /** The name or the signature it ends with under the words, as the send ends it. */
   ending: string | null;
   /** What the check refused marked in its opening, where it is read before it goes. */
@@ -344,13 +344,6 @@ function factLineOf(leadId: string): string | null {
   return leadOpeningOf(null, { business_name, city, hours: hours ?? null, rating, reviews });
 }
 
-/** A step's words with each blank named, where they name any (decision 0127). */
-function blanksOf(written: LeadEmailText): SheetMail["blanks"] {
-  const subject = written.subject === null ? null : leadWordsBlanks(written.subject);
-  const body = leadWordsBlanks(written.body);
-  return [...(subject ?? []), ...body].some((piece) => piece.kind === "blank") ? { subject, body } : null;
-}
-
 /** The words of one step for this lead, as they read and as they end, and what it takes to type them. */
 function stepWordsOf(
   i: Pick<SheetInputs, "vm" | "emails">,
@@ -376,7 +369,7 @@ function stepWordsOf(
     subject: box.subject,
     pieces: leadWordsPieces({ body: step.written.body, lead, workspace, opening: line }),
     leadId: i.vm.id,
-    blanks: blanksOf(step.written),
+    blanks: emailBlanksOf(step.written),
     ending: ending.signature ?? ending.signOff,
     wordsUnread: !i.emails.wordsRead,
     edit: i.emails.wordsRead

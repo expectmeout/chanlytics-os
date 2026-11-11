@@ -1,20 +1,18 @@
 /**
- * A fill-in on the lead's card (decision 0127): a filled blank is a piece of its own that names its blank, the step's
- * words can be read with every blank named, each fill-in says what it is and where it came from, and the receptionist's
- * mark says what will happen to the email. Pure: contracts alone.
+ * A fill-in on the lead's card (decision 0127): a filled blank is a piece of its own that names its blank (contracts), a
+ * step's words can be read with every blank named, each fill-in says what it is and where it came from, and the
+ * receptionist's mark says what will happen to the email (the sheet's own model). Pure: no page is drawn.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+const { leadWordsPieces } = await import("@chanlytics/contracts");
 const {
   LEAD_FILL_WORDS: F,
-  LEAD_WORDS_BOX: B,
-  PREVIEW_LINE_WORDS: P,
+  emailBlanksOf,
   fillInSaysOf,
-  leadWordsBlanks,
-  leadWordsPieces,
-  previewChipOf,
-} = await import("@chanlytics/contracts");
+  previewMarkOf,
+} = await import("../../../apps/dashboard/src/surfaces/leads/sheet/model/fill-ins.ts");
 
 const LEAD = { business_name: "Luxe Lane", city: "Austin" };
 const WORKSPACE = { businessName: "Harbor Moving Co", yourName: "Sam", bookingLink: null };
@@ -44,7 +42,7 @@ test("the line written for them stays the line, and a blank with nothing to fill
     opening: "Nice chairs.",
   });
   assert.deepEqual(
-    pieces.map((p) => [p.kind, p.slot ?? null]),
+    pieces.map((piece) => [piece.kind, piece.slot ?? null]),
     [
       ["line", null],
       ["words", null],
@@ -53,15 +51,26 @@ test("the line written for them stays the line, and a blank with nothing to fill
   );
 });
 
-test("the blanks: the step's own words with every blank named, the line among them", () => {
-  assert.deepEqual(leadWordsBlanks("{{opening}}\n\nHi {{business}}: {{their preview}}"), [
-    { at: 0, kind: "blank", text: B.lineBlank, slot: "opening" },
-    { at: 11, kind: "words", text: "\n\nHi " },
-    { at: 16, kind: "blank", text: "Their business", slot: "business" },
-    { at: 28, kind: "words", text: ": " },
-    { at: 30, kind: "blank", text: "Their receptionist", slot: "their preview" },
-  ]);
-  assert.deepEqual(leadWordsBlanks("No blanks here."), [{ at: 0, kind: "words", text: "No blanks here." }]);
+test("the blanks: a step's own words with every blank named, the line among them; none where it names none", () => {
+  assert.deepEqual(
+    emailBlanksOf({ subject: "For {{business}}", body: "{{opening}}\n\nHi {{business}}: {{their preview}}" }),
+    {
+      subject: [
+        { at: 0, kind: "words", text: "For " },
+        { at: 4, kind: "blank", text: "Their business", slot: "business" },
+      ],
+      body: [
+        { at: 0, kind: "blank", text: F.lineBlank, slot: "opening" },
+        { at: 11, kind: "words", text: "\n\nHi " },
+        { at: 16, kind: "blank", text: "Their business", slot: "business" },
+        { at: 28, kind: "words", text: ": " },
+        { at: 30, kind: "blank", text: "Their receptionist", slot: "their preview" },
+      ],
+    },
+  );
+  // A later step has no subject; words that name no blank have no blanks to show.
+  assert.equal(emailBlanksOf({ subject: null, body: "Try it: {{their preview}}" }).subject, null);
+  assert.equal(emailBlanksOf({ subject: null, body: "No blanks here." }), null);
 });
 
 test("what a fill-in says: what it is, where it came from, and whether it changes", () => {
@@ -96,25 +105,25 @@ const row = (over = {}) => ({
 });
 
 test("the receptionist's mark says what will happen to the email, as the send would do it", () => {
-  const c = P.chip;
-  assert.equal(previewChipOf(null, NOW), null, "not read yet: it says its name alone");
-  assert.deepEqual(previewChipOf({ preview: null, makes: true }, NOW), { say: c.none, tone: "quiet" });
-  assert.deepEqual(previewChipOf({ preview: null, makes: false }, NOW), { say: c.notOurs, tone: "warn" });
-  assert.deepEqual(previewChipOf({ preview: row({ state: "building" }), makes: true }, NOW), {
-    say: c.building,
+  const words = F.mark;
+  assert.equal(previewMarkOf(null, NOW), null, "not read yet: it says its name alone");
+  assert.deepEqual(previewMarkOf({ preview: null, makes: true }, NOW), { say: words.none, tone: "quiet" });
+  assert.deepEqual(previewMarkOf({ preview: null, makes: false }, NOW), { say: words.notOurs, tone: "warn" });
+  assert.deepEqual(previewMarkOf({ preview: row({ state: "building" }), makes: true }, NOW), {
+    say: words.building,
     tone: "busy",
   });
-  assert.deepEqual(previewChipOf({ preview: row(), makes: true }, NOW), { say: c.ready, tone: "go" });
-  assert.deepEqual(previewChipOf({ preview: row({ state: "failed", failed_why: "no_name" }), makes: true }, NOW), {
-    say: c.failed,
+  assert.deepEqual(previewMarkOf({ preview: row(), makes: true }, NOW), { say: words.ready, tone: "go" });
+  assert.deepEqual(previewMarkOf({ preview: row({ state: "failed", failed_why: "no_name" }), makes: true }, NOW), {
+    say: words.failed,
     tone: "warn",
   });
-  assert.deepEqual(previewChipOf({ preview: row({ ends_at: "2026-11-01T00:00:00Z" }), makes: true }, NOW), {
-    say: c.ended,
+  assert.deepEqual(previewMarkOf({ preview: row({ ends_at: "2026-11-01T00:00:00Z" }), makes: true }, NOW), {
+    say: words.ended,
     tone: "warn",
   });
-  assert.deepEqual(previewChipOf({ preview: row({ state: "claimed" }), makes: true }, NOW), {
-    say: c.claimed,
+  assert.deepEqual(previewMarkOf({ preview: row({ state: "claimed" }), makes: true }, NOW), {
+    say: words.claimed,
     tone: "done",
   });
 });

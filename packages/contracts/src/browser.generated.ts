@@ -345,10 +345,9 @@ export { listTyped, PEOPLE_ASKED_CHARS, PEOPLE_FIND_WORDS, PEOPLE_INDUSTRY_CHARS
 export { planNeedsASite, planReadsSites, planVersionOf } from "./leads/search/plan";
 export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords, lowerFirst } from "./leads/search/sentence";
 export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES, LEAD_STATUS_GROUPS, LEAD_COUNTER_KINDS, LEAD_MEMBER_CLASSES, LEAD_PREFERENCE_KINDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS } from "./leads/search/sets";
-export { fillInSaysOf, LEAD_FILL_WORDS } from "./leads/sheet/lead-fill-ins";
 export { LEAD_COLUMN_GROUPS, LEAD_RATED_HINT, leadClaimedWord, leadColumnsOf, leadOutcomeWord } from "./leads/sheet/lead-row-columns";
 export { LEAD_OWN_EMAIL_WORDS, leadEmailFromOf, leadEmailLineOf, leadEmailRefusalOf } from "./leads/sheet/lead-sheet-email";
-export { LEAD_WORDS_BOX, leadWordsBlanks, leadWordsFromBox, leadWordsInBox, leadWordsPieces, leadWordsProblem } from "./leads/sheet/lead-sheet-words";
+export { LEAD_WORDS_BOX, leadWordsFromBox, leadWordsInBox, leadWordsPieces, leadWordsProblem } from "./leads/sheet/lead-sheet-words";
 export { LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_CALL_OUTCOMES, LEAD_CLASSES, LEAD_CLOSED_WORDS, LEAD_EMAIL_WORDS, LEAD_FIT_WORDS, LEAD_HEADING_WORDS, LEAD_LIST_WORDS, LEAD_LISTS, LEAD_NOT_A_FIT_WHYS, LEAD_SORTS, LEAD_STAGE_WORDS, LEAD_STATUS_GROUP_WORDS, LEAD_VIEW_SORTS } from "./leads/words/lists";
 export { LEAD_CALL_QUESTION, LEAD_LOW_SHARE_FLOOR, LEAD_NO_CARD_LINE, LEAD_NOTE_MAX, LEAD_NOTE_PLACEHOLDER, LEAD_OUTSIDE_US_LINE, LEAD_PAUSED_TITLE, LEAD_TALKING_NOTE, LEAD_UNCLAIMED_NOTE, leadAllowanceFact, leadAnd, leadEndingFound, leadEndingLine, leadLowShare, leadNearWhere, leadNoCardLine, leadNotBusinessesLine, leadNoteLeft, outcomeMove } from "./leads/words/notes";
 export { LEAD_ASKED_NOT_WRITTEN, LEAD_CHECK_UNSURE, LEAD_CHECK_WORDS, LEAD_CLASS_WORDS, LEAD_CONSENT_REFUSAL, LEAD_CONTACT_STANDARD_WORDS, LEAD_ERASE_WORDS, LEAD_LEFT_OUT_WORD, LEAD_LOCKED_LINE, LEAD_MAILBOX_WORDS, LEAD_NO_ADDRESS, LEAD_NO_EMAIL_LINE, LEAD_NO_SITE_WORD, LEAD_NOT_A_FIT_ASK, LEAD_NOT_A_FIT_TITLE, LEAD_NOT_A_FIT_WORDS, LEAD_READ_SOURCES, LEAD_REVIEW_WORD, LEAD_SENT_QUESTION, LEAD_SOURCE_WORD, LEAD_SUPPRESSING_WHY, LEAD_UNBACKED_NUMBER, LEAD_UNREACHABLE_WORD } from "./leads/words/refusals";
@@ -429,7 +428,7 @@ export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABEL
 export { consentChangeWords } from "./people/person-timeline";
 export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";
 export { PREVIEW_LIMITS, PREVIEW_STATES, previewClaimable, previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewSlotOf, previewStartersOf, previewStateOf, previewTurnsOf } from "./previews/lead-preview";
-export { PREVIEW_LINE_WORDS, previewChipOf, previewLineOf } from "./previews/line";
+export { PREVIEW_LINE_WORDS, previewLineOf } from "./previews/line";
 export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./previews/tried";
 export { LEAD_PREVIEW_WORDS } from "./previews/words";
 export { checkFixRoute, datesIn, daysIn, FIX_BLOCK_OF, FIX_ROUTE_OPS, FIX_ROUTE_SCHEMA, FIX_WORDS, fixField, fixLine, fixRouteSystemPrompt, fixRouteUserContent, guardrailIn, languagesIn, linkIn, minutesIn, priceIn, routeFix, serviceIn, timesIn } from "./rehearsal/fix-router";

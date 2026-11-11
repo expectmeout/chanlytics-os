@@ -483,8 +483,6 @@ export type {
   LeadRunState,
   LeadSearchVia,
 } from "./search/sets";
-export { fillInSaysOf, LEAD_FILL_WORDS } from "./sheet/lead-fill-ins";
-export type { FillInSaysVM } from "./sheet/lead-fill-ins";
 export {
   LEAD_COLUMN_GROUPS,
   LEAD_RATED_HINT,
@@ -496,7 +494,6 @@ export { LEAD_OWN_EMAIL_WORDS, leadEmailFromOf, leadEmailLineOf, leadEmailRefusa
 export type { LeadEmailDto, LeadEmailMailbox, LeadEmailWhy } from "./sheet/lead-sheet-email";
 export {
   LEAD_WORDS_BOX,
-  leadWordsBlanks,
   leadWordsFromBox,
   leadWordsInBox,
   leadWordsPieces,

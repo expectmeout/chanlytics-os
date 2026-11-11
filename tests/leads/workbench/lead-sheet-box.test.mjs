@@ -65,6 +65,16 @@ const storage = () => {
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = { addEventListener() {}, removeEventListener() {}, hasFocus: () => true };
+// What a press landed on, as the page's own element: the email asks whether it is inside a fill-in.
+class PressedElement {
+  constructor(inFill) {
+    this.inFill = inFill;
+  }
+  closest(query) {
+    return query === "[data-fill]" && this.inFill ? this : null;
+  }
+}
+globalThis.Element = PressedElement;
 
 const SEQ = "5e000000-0000-4000-8000-0000000000aa";
 const STEP = "5e000000-0000-4000-8000-0000000000bb";
@@ -123,13 +133,13 @@ const { Popover } = await import("../../../apps/dashboard/src/surfaces/kit/popov
 const { Segmented } = await import("../../../apps/dashboard/src/surfaces/kit/segmented/segmented.tsx");
 const {
   LEAD_CARD_WORDS,
-  LEAD_FILL_WORDS: F,
   LEAD_WORDS_BOX: B,
   PREVIEW_LINE_WORDS: P,
-  leadWordsBlanks,
   leadWordsPieces,
   placeLineWriting,
 } = await import("@chanlytics/contracts");
+const { LEAD_FILL_WORDS: F, emailBlanksOf } =
+  await import("../../../apps/dashboard/src/surfaces/leads/sheet/model/fill-ins.ts");
 const { LEAD_SHEET_WORDS } = await import("../../../apps/dashboard/src/surfaces/leads/sheet/model/view.ts");
 
 const inTree = (node, test_) => {
@@ -720,14 +730,14 @@ test("a fill-in is a press of its own: it says what it is and where from, and a 
     body.props.onPointerDown({ currentTarget: el, clientX: 40, clientY: 40 });
     body.props.onClick({ currentTarget: el, clientX: 40, clientY: 40, target });
   };
-  tap({ contains: () => true }, { closest: (q) => (q === "[data-fill]" ? {} : null) });
+  tap({ contains: () => true }, new PressedElement(true));
   assert.equal(byId(s.draw(), "lead-sheet-box-body"), null);
   // So is a press inside the bubble (Make it now, Open it): React hands it up from its portal, and it is not in the words.
-  tap({ contains: () => false }, { closest: () => null });
+  tap({ contains: () => false }, new PressedElement(false));
   assert.equal(byId(s.draw(), "lead-sheet-box-body"), null);
   assert.equal(s.said.opened, 0);
   // A press on the words themselves still begins the typing.
-  tap({ contains: () => true }, { closest: () => null });
+  tap({ contains: () => true }, new PressedElement(false));
   assert.ok(byId(s.draw(), "lead-sheet-box-body"));
 });
 
@@ -739,16 +749,15 @@ test("Change it for this one opens the box, as Edit does", () => {
 });
 
 test("Show the blanks draws the step's own words with each blank named, and takes no tap", () => {
-  const blanks = { subject: leadWordsBlanks(STEP_WORDS.subject), body: leadWordsBlanks(STEP_WORDS.body) };
-  const s = sheetOf(mailOf(editOf(), { blanks }));
+  const s = sheetOf(mailOf(editOf(), { blanks: emailBlanksOf(STEP_WORDS) }));
   const view = inTree(s.draw(), (n) => n.type === Segmented);
   assert.equal(view.props.value, "read");
   view.props.onValueChange("blanks");
   const tree = s.draw();
   assert.equal(textOf(byId(tree, "lead-card-subject")), "Quick one for Their business");
-  assert.equal(textOf(byId(tree, "lead-card-body")), `${B.lineBlank}\n\nI run Harbor.\n\nYour name`);
+  assert.equal(textOf(byId(tree, "lead-card-body")), `${F.lineBlank}\n\nI run Harbor.\n\nYour name`);
   assert.equal(byId(tree, "lead-card-body").props.onClick, undefined, "a tap types nothing here");
-  assert.equal(textOf(byId(tree, "lead-card-view-note")), B.view.note);
+  assert.equal(textOf(byId(tree, "lead-card-view-note")), F.view.note);
   assert.ok(byId(tree, "lead-sheet-box-edit"), "Edit still opens the box");
   // Words with no blank in them, or none handed: no switch.
   assert.equal(
@@ -762,8 +771,8 @@ test("the receptionist's blank is a mark, never a bracket: its name while it is 
   const edit = editOf({ leadId: NEXT, first: false, written: words, stepWritten: words });
   door.preview = { preview: null, makes: true };
   const s = sheetOf(mailOf(edit, { subject: null, leadId: NEXT }));
-  assert.equal(textOf(byId(s.draw(), "lead-card-receptionist")), P.chip.name);
+  assert.equal(textOf(byId(s.draw(), "lead-card-receptionist")), P.title);
   assert.equal(byId(s.draw(), "lead-card-gap"), null, "no yellow bracket");
-  await until(() => textOf(byId(s.draw(), "lead-card-receptionist")).includes(P.chip.none), "the mark's read lands");
+  await until(() => textOf(byId(s.draw(), "lead-card-receptionist")).includes(F.mark.none), "the mark's read lands");
   assert.ok(byId(s.draw(), "lead-sheet-preview-make"), "Make it now is a press away");
 });

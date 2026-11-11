@@ -203,8 +203,6 @@ function topOf(d: SheetDraw, desk: boolean) {
             now={facts.now}
             whole={sheet.ui.whole}
             onWhole={() => sheet.put({ whole: !sheet.ui.whole })}
-            blanks={sheet.ui.blanks}
-            onBlanks={(on) => sheet.put({ blanks: on })}
             {...emailActsOf({ run: d.run, facts, sheet, flash: p.flash, moved: d.moved, box: d.box })}
           />
         </div>

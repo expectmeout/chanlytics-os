@@ -22,8 +22,8 @@ export type {
   PreviewState,
   PreviewTurnVM,
 } from "./lead-preview";
-export { PREVIEW_LINE_WORDS, previewChipOf, previewLineOf } from "./line";
-export type { LeadPreviewDto, LeadPreviewFacts, LeadPreviewLineVM, PreviewChipVM } from "./line";
+export { PREVIEW_LINE_WORDS, previewLineOf } from "./line";
+export type { LeadPreviewDto, LeadPreviewFacts, LeadPreviewLineVM } from "./line";
 export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./tried";
 export type { PreviewTriedDto } from "./tried";
 export { LEAD_PREVIEW_WORDS } from "./words";

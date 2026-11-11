@@ -2,19 +2,20 @@
  * The lead sheet's Their receptionist (decision 0079, L5): the line a lead's own receptionist says to its sender, what
  * the business said is not right under it, and its three presses: Make it now (a workspace of ours, none made yet),
  * Open it (the page as the sender looks at it, which counts nothing) and Copy link. Its read is the sheet's one
- * (preview-read.ts): painted from the tab's last answer, read again behind, and again after a press. A refusal is said
+ * (fill-ins/preview-read.ts): painted from the tab's last answer, read again behind, and again after a press. A refusal is said
  * where it was pressed. Every word is contracts'.
  *
  * The line and its presses are a part of their own (PreviewLine), drawn under Sequence here and in the bubble the card's
- * mark opens (fill-in.tsx, decision 0127).
+ * mark opens (fill-ins/fill-in.tsx, decision 0127).
  */
 import { useState } from "react";
 import { PREVIEW_LINE_WORDS as W, previewLineOf, type LeadPreviewLineVM } from "@chanlytics/contracts";
+import { api } from "@/bridge/api";
 import { Button } from "../../kit/button/button";
 import { CopyButton } from "../../kit/copy-button/copy-button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { gate } from "../../frame-verbs";
-import { makeLeadPreview, useLeadPreview } from "./preview-read";
+import { tellPreviewMoved, useLeadPreview } from "./fill-ins/preview-read";
 
 /** The line and its presses, wherever they are drawn. */
 export function PreviewLine({ leadId, line }: { leadId: string; line: LeadPreviewLineVM }) {
@@ -23,9 +24,10 @@ export function PreviewLine({ leadId, line }: { leadId: string; line: LeadPrevie
   const make = async () => {
     setBusy(true);
     setRefused(null);
-    const why = await makeLeadPreview(leadId);
+    const made = await api()("POST leads/[id]/preview", { params: { id: leadId } });
     setBusy(false);
-    setRefused(why);
+    if (made.ok) tellPreviewMoved(leadId);
+    else setRefused(made.message);
   };
   return (
     <>

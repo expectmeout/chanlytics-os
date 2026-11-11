@@ -11,10 +11,11 @@ Ruben, 11 November: "perhaps clicking or something on the variables can switch b
 ## Decision
 
 1. **A filled blank is a piece of its own** (`leadWordsPieces`: `value`, naming its blank). On the card it wears a dotted line and is a press: its bubble says what it is, where it came from and whether it changes (`fillInSaysOf`), with Change it for this one, which opens the box at that spot. A tap on it never begins the typing; a tap on the words around it still does.
-2. **One switch over the email:** As they'll read it, or Show the blanks (`leadWordsBlanks`): the step's own words with each blank by its name. It flips the whole email, never one word, and a tap types nothing while the blanks show.
-3. **The receptionist's blank is a mark, never a bracket.** It says what the send will do (`previewChipOf`, which follows `previewSlotOf`: made when this goes, being made, ready, or that the email is skipped), and its bubble is the Sequence line's own line and presses: Make it now, Open it, Copy link.
-4. **One read for the sheet** (`sheet/preview-read.ts`): the mark and the Sequence line read one answer through one tab cache, and a press on either moves both. The card reads it only where its email names the link.
-5. **One name:** Their receptionist, for the blank, the line, the mark and every sentence that named it. The blank's key, `their preview`, stays: a stored version knows a blank by its number.
+2. **One switch over the email:** As they'll read it, or Show the blanks (`emailBlanksOf`): the step's own words with each blank by its name. It flips the whole email, never one word, and a tap types nothing while the blanks show.
+3. **The receptionist's blank is a mark, never a bracket.** It says what the send will do (`previewMarkOf`, which follows `previewSlotOf`: made when this goes, being made, ready, or that the email is skipped), and its bubble is the Sequence line's own line and presses: Make it now, Open it, Copy link.
+4. **One read for the sheet** (`sheet/fill-ins/preview-read.ts`): the mark and the Sequence line read one answer through one tab cache, and a press on either moves both. The card reads it only where its email names the link.
+5. **The card's own rules live with the card.** What a fill-in says, the blanks and the mark's words are the sheet's alone, so they are its model's (`surfaces/leads/sheet/model/fill-ins.ts`), not contracts'; contracts gains only the `value` piece. What reads and draws the email's words is a folder of the sheet's (`sheet/fill-ins/`), and the box keeps what types them.
+6. **One name:** Their receptionist, for the blank, the line, the mark and every sentence that named it. The blank's key, `their preview`, stays: a stored version knows a blank by its number.
 
 ## What it leaves
 

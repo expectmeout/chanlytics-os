@@ -3,7 +3,6 @@
  * from the row the sender's workspace holds (LeadPreviewDto, GET leads/:id/preview). Apart from the page's words
  * (previews/words.ts), so the public page carries none of this.
  *
- *   previewChipOf    the mark that stands for the link in an email on the lead's card: what the send will do with it
  *   previewLineOf    the line: none yet, being set up, couldn't be made (why), ready, sent, opened, tried, made theirs or
  *                    ended; what they said is not right under it; and which of Make their preview, Open it and Copy link
  *                    it offers
@@ -69,21 +68,6 @@ export const PREVIEW_LINE_WORDS = {
   copy: "Copy link",
   copied: "Link copied",
   notOurs: "Only Chanlytics' own workspace makes these.",
-  /**
-   * The mark that stands for the link in an email on the lead's card (decision 0127): its name, and what will happen. A
-   * receptionist that cannot be made, or has ended, means the send skips that one email (channels reachOutWords:
-   * no_preview).
-   */
-  chip: {
-    name: "Their receptionist",
-    none: "made when this goes",
-    building: "being made",
-    ready: "ready",
-    claimed: "made theirs",
-    failed: "couldn't be made, so this email is skipped",
-    ended: "ended, so this email is skipped",
-    notOurs: "can't be made here, so this email is skipped",
-  },
 } as const;
 
 /** The line for a lead's preview, or null where there is none and this workspace makes none. */
@@ -117,28 +101,4 @@ export function previewLineOf(dto: LeadPreviewDto, now: Date): LeadPreviewLineVM
           : words.ready;
   const path = `/preview/${encodeURIComponent(preview.token)}`;
   return { ...base, words: `${stage} · ${words.endsIn(days)}`, tone: preview.tried_at ? "go" : "quiet", ...look(path) };
-}
-
-/** The mark's words after its name, and its tone. */
-export interface PreviewChipVM {
-  say: string;
-  tone: LeadPreviewLineVM["tone"];
-}
-
-/**
- * What the card's mark says for a lead's preview, as the send would treat it (previewSlotOf): none yet is made when the
- * email goes, one being made holds it, one ready goes with it, and one that failed, ended or cannot be made here skips
- * that email. Null while the read is out: the mark says its name alone, never a guess.
- */
-export function previewChipOf(dto: LeadPreviewDto | null, now: Date): PreviewChipVM | null {
-  if (!dto) return null;
-  const chip = PREVIEW_LINE_WORDS.chip;
-  const preview = dto.preview;
-  if (!preview) return dto.makes ? { say: chip.none, tone: "quiet" } : { say: chip.notOurs, tone: "warn" };
-  if (preview.state === "building") return { say: chip.building, tone: "busy" };
-  if (preview.state === "failed") return { say: chip.failed, tone: "warn" };
-  if (preview.state === "claimed") return { say: chip.claimed, tone: "done" };
-  return previewClaimable(previewStateOf(preview, now))
-    ? { say: chip.ready, tone: "go" }
-    : { say: chip.ended, tone: "warn" };
 }
