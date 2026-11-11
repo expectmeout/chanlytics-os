@@ -615,3 +615,48 @@ test(
     }
   },
 );
+
+test(
+  "the Sequences list says the leads its first step cannot start: an email that could not be checked, on the list past a day",
+  { skip },
+  async () => {
+    // Decision 0128, stage 2 (sequence_overview's `stuck`): the list said "3 in it" of three leads no batch could ever
+    // take. Asked through the same door as above, so of a member alone, and never of a lead that only waits its turn.
+    const listed = async (client) =>
+      ok(await client.rpc("sequence_overview", { p_tenant_id: A, p_sequence_id: W.intro }))[0];
+    assert.equal(ok(await db.from("sequences").select("state").eq("id", W.intro).single()).state, "on", "it runs");
+    const list = (await rootOf(W.intro)).lead_search_id;
+    const onList = () =>
+      db.from("lead_search_members").select("id, created_at").eq("search_id", list).eq("lead_id", W.a);
+    const [standing] = ok(await onList());
+    assert.ok(standing, "the lead stands on its list");
+    assert.equal((await listed(as.operator.c)).stuck, null, "its batch takes it: nothing is stuck");
+    ok(await db.from("leads").update({ email_state: "unknown" }).eq("id", W.a));
+    try {
+      assert.equal(
+        (await listed(as.operator.c)).stuck,
+        null,
+        "on its list under a day: its first step has not had its turn at it",
+      );
+      const since = new Date(Date.now() - 3 * DAY).toISOString();
+      ok(await db.from("lead_search_members").update({ created_at: since }).eq("id", standing.id).select("id"));
+      const stuck = (await listed(as.operator.c)).stuck;
+      assert.deepEqual([stuck?.leads, stuck?.reason], [1, "unchecked"], "past a day, and nothing checks it again");
+      assert.equal(Date.parse(stuck.since), Date.parse(since), "since it has stood on the list");
+      assert.equal((await listed(as.viewer.c)).stuck?.leads, 1, "a member who only reads is told");
+      assert.equal((await listed(db)).stuck, null, "asked by no member, the door says nothing, and nothing is said");
+      // Checked since: its batch takes it, and it is stuck no longer.
+      ok(await db.from("leads").update({ email_state: "ok" }).eq("id", W.a));
+      assert.equal((await listed(as.operator.c)).stuck, null, "an email that checked is not stuck");
+    } finally {
+      ok(await db.from("leads").update({ email_state: "ok" }).eq("id", W.a));
+      ok(
+        await db
+          .from("lead_search_members")
+          .update({ created_at: standing.created_at })
+          .eq("id", standing.id)
+          .select("id"),
+      );
+    }
+  },
+);

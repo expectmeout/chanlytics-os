@@ -699,3 +699,81 @@ test(
     assert.deepEqual(await done(leads.id), { ran: true, wrote: true });
   },
 );
+
+test(
+  "the list's read says a run that did nothing and its day, what a batch still going has sent, and who is between two steps with a time to come (decision 0128, stage 2)",
+  { skip },
+  async () => {
+    const root = await firstStep("Not going");
+    const listed = async () =>
+      ok(await operator.rpc("sequence_overview", { p_tenant_id: tenantId, p_sequence_id: root }), "the list's read")[0];
+    const quiet = await listed();
+    assert.deepEqual(
+      [quiet.last_run_off, quiet.between, quiet.stuck, quiet.last],
+      [null, null, null, null],
+      "no run recorded, nobody between steps, nothing stuck, nothing gone",
+    );
+
+    // A run that did nothing: the newest playbook.run event says why, as the record reads it, and the step its day.
+    const ran = (data, agoMs) =>
+      db.from("events").insert({
+        tenant_id: tenantId,
+        kind: "playbook.run",
+        subject_type: "playbook",
+        subject_id: root,
+        data,
+        created_at: new Date(Date.now() - agoMs).toISOString(),
+      });
+    ok(await ran({ sent: 2 }, 120_000), "a run that sent");
+    ok(await ran({ skipped: "no_calendar" }, 60_000), "the run after it, which did nothing");
+    ok(await db.from("sequence_steps").update({ last_run_for: "2026-11-10" }).eq("id", root), "the day it ran for");
+    const off = await listed();
+    assert.deepEqual([off.last_run_off, off.last_run_for], ["no_calendar", "2026-11-10"]);
+    ok(await ran({ sent: 1 }, 0), "a run since, which sent");
+    assert.equal((await listed()).last_run_off, null, "the newest run is the one read: one that sent says nothing");
+
+    // A batch still going: nothing of it gone is no last batch; one sent is counted, though the batch stays open.
+    const going = await batchOf(root, "sending", [people.ana]);
+    assert.equal((await listed()).last, null, "nothing of it has gone yet");
+    ok(
+      await db.from("sequence_sends").insert({
+        batch_id: going,
+        contact_id: people.bo,
+        tenant_id: tenantId,
+        state: "sent",
+        sent_at: new Date().toISOString(),
+      }),
+      "one of it that went",
+    );
+    const last = (await listed()).last;
+    assert.deepEqual([last?.id, last?.sent], [going, 1], "a batch still going says what it sent");
+
+    // Between two steps: Bo's message went and nothing of his is open. With a time to come he is counted, and his time
+    // is said; due already, he is not (his step's next run makes his batch).
+    const place = () =>
+      db.from("sequence_enrollments").select("id").eq("sequence_id", root).eq("contact_id", people.bo);
+    let [between] = ok(await place(), "Bo's place");
+    if (!between)
+      between = ok(
+        await db
+          .from("sequence_enrollments")
+          .insert({ tenant_id: tenantId, sequence_id: root, contact_id: people.bo })
+          .select("id")
+          .single(),
+        "Bo's place, made",
+      );
+    const due = new Date(Date.now() + 2 * 86_400_000).toISOString();
+    ok(await db.from("sequence_enrollments").update({ next_at: due }).eq("id", between.id), "his next step's time");
+    const coming = (await listed()).between;
+    assert.equal(coming?.people, 1, "one person has a time to come");
+    assert.equal(Date.parse(coming.at), Date.parse(due), "the first one's time");
+    ok(
+      await db
+        .from("sequence_enrollments")
+        .update({ next_at: new Date(Date.now() - 3_600_000).toISOString() })
+        .eq("id", between.id),
+      "a time already past",
+    );
+    assert.equal((await listed()).between, null, "someone due already is not counted as to come");
+  },
+);

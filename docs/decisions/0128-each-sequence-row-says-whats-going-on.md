@@ -1,6 +1,6 @@
 # 0128 · Each sequence row says what's going on
 
-**Status:** Accepted by Ruben, 11 November 2026 ("Yes, plan it" on the canvas _Sequences: lines that tell the truth_, calls S1 to S9). Stage 1 built; Stage 2 adds four facts to the list's read. Written against main at `873a8c23eb`.
+**Status:** Accepted by Ruben, 11 November 2026 ("Yes, plan it" on the canvas _Sequences: lines that tell the truth_, calls S1 to S9). Stage 1 built; Stage 2 built ("Yes, build Stage 2", 11 November, with the corrections below). Written against main at `873a8c23eb`; stage 2 against `a591e77196`.
 
 ## Context
 
@@ -22,12 +22,28 @@ On 11 November four of the five live rows on Ruben's Sequences list were true bu
 
 - **Ask's `needs_count` does not count a failed one-off.** It counts what an OK or an answer clears; a failed send is cleared by sending again. The row's group says it needs you.
 - **Today and the bell word a waiting batch their own way** ("Win-back waits for your OK"). They could take the same "since" later.
-- **A cold email's leads that never started still read "3 in it"** until Stage 2.
+- **A lead refused for good is still counted in it.** One written to already, a customer, or on the never-again list stands on its list and reads "in it"; it asks nothing of its owner, so it is not said as stuck. Taking such leads out of the count is its own change.
+- **No totals over thirty days.** The canvas drew "40 sent · 6 replied · last 30 days". A customer's reply is found by reading each thread a message reached, so counting a month of them for every row would make the list slower as a business sends more. The row keeps its last batch's own numbers; a month's are Reports'.
 
-## Stage 2
+## Stage 2: the list sees what is stuck
 
-The list's read adds leads that never started and the most common reason (an email that came back "Couldn't check", which nothing re-checks by itself), a customer's run that did nothing, the next person due between steps, and sent and replied counted from every send. Each joins the line above in its place; what should be going and isn't joins Needs you. One migration; the database before the build.
+One change to the list's read (`sequence_overview`) adds three facts, and the line each gives. A sequence that should be going and isn't joins Needs you, in its place by how long (`sequenceStuckOf`, contracts `campaigns/sequences/run-off.ts`, which the group, the order and the line all ask).
+
+1. **Leads that could not be checked** (`stuck`): "3 leads couldn't be checked · since Oct 28". A lead whose email came back "Couldn't check" is left out of every batch, and nothing checks it again by itself, so it stood on its list for good and the row said "3 in it". Its owner mends it with Check again on Leads.
+2. **A run that did nothing** (`last_run_off`, `last_run_for`): "Didn't run · no calendar is connected", by the reasons the record already says (`sequenceRunOff`), read for every row that is on and runs by its hour.
+3. **Who is between two steps** (`between`): "Next tomorrow 9:30 AM · 9 people" in place of "18 in it": the first of those with a time to come, and how many have one.
+
+And `last` counts a batch still going that has sent some: one held email kept a batch open for days, and its 18 sent were counted nowhere (Sort by last sent, and what Ask reads).
+
+**Corrected from the canvas, by what the code and production said:**
+
+- **Waiting more than a day is not stuck.** A cold email's first step takes a day's worth of leads, so most of a long list has stood there for days, and goes. "N leads haven't started" would have been said of every large sequence. Stuck is a lead its first step refuses for a reason its owner can mend; today that is one reason.
+- **The reason is asked, never worked out again,** through the door a member already has (`sequence_queued_why_not`, which asks `reach_out_why_not` at the list's own setting), and of at most the 200 leads that have stood longest on each list, past a day: the reason costs a lead at a time, and a list of 50,000 must cost what a list of 200 does. Asked by no member (the service role), the door answers nothing and nothing is said to be stuck.
+- **Between two steps is three kinds of people:** a time to come, a time already past (their step's next run makes their batch), and no step left. Only the first is counted.
+- **Where each one stands is still read once** (`sequence_places`): the new counts come from that one read. On production's largest workspace the read ran in 16 ms.
+
+Either deploy order: the function keeps its name, its arguments and its jsonb answer, which gains keys; a dashboard before it ignores them, and one after it, on a database before it, says of each row what it said.
 
 ## Held by
 
-`tests/sequences/list/each-line-says-whats-going-on.test.mjs`, `tests/sequences/sequence-words.test.mjs`.
+`tests/sequences/list/each-line-says-whats-going-on.test.mjs`, `tests/sequences/sequence-words.test.mjs`; stage 2 by `tests/sequences/list/the-list-sees-what-is-stuck.test.mjs`, and on a database by `tests/leads/workbench/one-road-to-a-sequence.db.test.mjs` (leads that could not be checked) and `tests/sequences/sequence-doors.db.test.mjs` (a run that did nothing, a batch still going, between two steps).
