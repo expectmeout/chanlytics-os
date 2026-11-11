@@ -34,6 +34,7 @@ import { adsModel } from "./model/page";
 import type { AdDraft } from "./model/new-ad";
 import type { AdsGroupBy, AdsVM, AskVM, HeadVM } from "./model/page";
 import { Button } from "../../kit/button/button";
+import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
 import { afterMove, askAbout, askOnScreenKey, gate, setAskOnScreen, useFrameToast } from "../../frame-verbs";
 import { CmHead } from "../parts/head";
@@ -45,7 +46,7 @@ import {
   useLedgerKeys,
   useRowMarks,
 } from "../parts/ledger-keys";
-import { useCmPhone } from "../parts/split";
+import { type CmView, useCmPhone } from "../parts/split";
 import { AskLine } from "./ask-line";
 import { AdDrawer } from "./drawer/drawer";
 import { Figures } from "./figures";
@@ -80,14 +81,18 @@ function HeadSentence({ head }: { head: HeadVM }) {
 }
 
 /** The head's acts: Ask (quiet) and New ad, the page's one primary, which is the owner's press. Nothing to create in v0. */
-function HeadActs({ mode, onNew }: { mode: AdsVM["mode"]; onNew: () => void }) {
+function HeadActs({ mode, onNew, phone }: { mode: AdsVM["mode"]; onNew: () => void; phone: boolean }) {
   // Ask opens on this page, so its answer is about the ads and not about nothing.
   const onAsk = () => askAbout({ about: { kind: "page", id: "campaigns/ads", label: ADS_WORDS.adsTab } });
+  // On a phone (and a tablet, which wears its head) the shell's ✦ is Ask's door, so the head holds New ad alone, first, and the frame draws it as it draws the
+  // other views' New: "+ New" in the same capsule (Ruben, 10 Nov 2026: it stood bigger than Sequences' and Messages').
   return (
     <>
-      <Button variant="quiet" size="sm" className="cmh-ask" onClick={onAsk} data-testid="ads-ask-door">
-        <Icon name="sparkle" size={13} /> {HEAD.ask}
-      </Button>
+      {phone ? null : (
+        <Button variant="quiet" size="sm" className="cmh-ask" onClick={onAsk} data-testid="ads-ask-door">
+          <Icon name="sparkle" size={13} /> {HEAD.ask}
+        </Button>
+      )}
       {mode === "v0" ? null : (
         <Button
           variant="primary"
@@ -96,7 +101,7 @@ function HeadActs({ mode, onNew }: { mode: AdsVM["mode"]; onNew: () => void }) {
           data-testid="ads-head-new"
           {...gate("approve", GATE.turnOn)}
         >
-          <Icon name="plus" size={12} /> {HEAD.newAd}
+          <ActWords icon={<Icon name="plus" size={14} />} words={HEAD.newAd} />
         </Button>
       )}
     </>
@@ -234,6 +239,8 @@ function useAdsLedgerKeys(vm: AdsVM, address: AdsAddress) {
 interface AdsPageProps {
   /** The address's param, `campaigns/<param>`: `ads`, an ad open, the composer or Results. */
   param: string;
+  /** The deck's seat and the side it comes in from, as Campaigns' other kept views take theirs (home/route.tsx). */
+  view?: CmView;
 }
 
 /**
@@ -253,7 +260,7 @@ function useAskKnowsThePage(today: boolean) {
 const opensOnOfAddress = (address: AdsAddress) =>
   address.ad !== null || address.compose !== null || address.results ? "running" : adsOpening();
 
-export function AdsPage({ param }: AdsPageProps) {
+export function AdsPage({ param, view }: AdsPageProps) {
   const address = parseAds(param);
   const nav = useAdsNav(address);
   const { read, config, example, setExample, verbs, readAgain } = useAdsStore(opensOnOfAddress(address));
@@ -307,7 +314,9 @@ export function AdsPage({ param }: AdsPageProps) {
   };
   return (
     <div
+      ref={view?.ref}
       className="cmh ads"
+      data-slide={view?.slide}
       data-testid="campaigns-ads"
       data-phone={phone ? "true" : undefined}
       data-example={example}
@@ -319,7 +328,7 @@ export function AdsPage({ param }: AdsPageProps) {
         allowance={false}
         testid="ads-head"
         sub={<HeadSentence head={vm.head} />}
-        right={<HeadActs mode={vm.mode} onNew={acts.onNew} />}
+        right={<HeadActs mode={vm.mode} onNew={acts.onNew} phone={phone} />}
       />
       <PreviewNote said={today ? EXAMPLE.preview.today : undefined} />
       <AdsUnder vm={vm} phone={phone} />

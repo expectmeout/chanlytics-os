@@ -333,7 +333,11 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
   // From a server before 00455 there is no replied group: the sequence's needs say how many, and the Inbox has them.
   const replied = wroteBack ? (counts.replied ?? 0) : rec.sequence.needs.replies;
   if (needs === 0 && waiting.length === 0 && folded.length === 0 && replied === 0)
-    return <p className="sq-none">{P.nobody}</p>;
+    return (
+      <p className="sq-none" data-testid="sq-people-none">
+        {rec.sequence.starts === "date" && rec.sequence.date ? P.oneOff(rec.sequence) : P.nobody}
+      </p>
+    );
   return (
     <div className="sq-people" data-testid="sq-people">
       <SequenceNeeds

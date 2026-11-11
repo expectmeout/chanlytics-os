@@ -11,7 +11,14 @@ import { runApproveWords } from "../../../shell/campaign-rooms";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "../dto";
 import { heldByCheckWords, okSendsNothing } from "../list";
 import { sequenceRunOff, type RunOffReason } from "../run-off";
-import { SEQUENCE_STATE_WORDS, SEQUENCE_WORDS, sequenceApprovalWords, twinLineOf, type SequenceTwin } from "./flow";
+import {
+  SEQUENCE_STATE_WORDS,
+  SEQUENCE_WORDS,
+  oneOffPeople,
+  sequenceApprovalWords,
+  twinLineOf,
+  type SequenceTwin,
+} from "./flow";
 
 /** When a sequence's next batch goes, and to how many where it is counted; `soon` when its hour has come and it is due. */
 export interface SequenceNext {
@@ -246,9 +253,14 @@ export function sequenceNotice(
  * come): to come, "tomorrow 10:00 AM, to 186 people"; gone, "Went Oct 13 · 8:21 AM, to 3 people"; let go of, "Canceled ·
  * it was for Oct 13 · 8:21 AM"; failed, "Didn't go · Oct 13 · 8:21 AM".
  */
-function dateSentence(date: NonNullable<SequenceRowDto["date"]>, tz: string, nowMs: number): string {
+function dateSentence(
+  row: SequenceRowDto,
+  date: NonNullable<SequenceRowDto["date"]>,
+  tz: string,
+  nowMs: number,
+): string {
   const at = Date.parse(date.at);
-  const phrase = plural(date.people, "person", "people");
+  const phrase = plural(oneOffPeople(row), "person", "people");
   if (date.state === "sent") return `Went ${clockDate(at, tz, nowMs)} · ${clockTime(at, tz)}, to ${phrase}`;
   if (date.state === "canceled") return `Canceled · it was for ${clockWhen(at, tz, nowMs)}`;
   if (date.state === "failed") return `Didn’t go · ${clockWhen(at, tz, nowMs)}`;
@@ -258,7 +270,7 @@ function dateSentence(date: NonNullable<SequenceRowDto["date"]>, tz: string, now
 /** What starts a sequence, in a sentence the flow opens with: "The day before each visit, at 9:00 AM". */
 export function sequenceStartsSentence(row: SequenceRowDto, word: AppointmentWord, tz: string, nowMs: number): string {
   const f = row.first;
-  if (row.starts === "date" && row.date) return dateSentence(row.date, tz, nowMs);
+  if (row.starts === "date" && row.date) return dateSentence(row, row.date, tz, nowMs);
   if (row.starts === "leads") return f?.search_name ? `A lead joins ${f.search_name}` : "A lead joins the list";
   if (row.starts === "list") return listStartsSentence(f?.list_name ?? null, f?.run_hour ?? null);
   return momentStartsSentence(f?.trigger ?? null, f?.run_hour ?? null, word);

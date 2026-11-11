@@ -48,7 +48,8 @@ export const LeadsActs = ({ canFind, onFind }: { canFind: boolean; onFind: () =>
 );
 
 /**
- * Leads' head where no standing line is drawn: People's name, and the act it is handed. A desk says its standing with its
+ * Leads' head where no standing line is drawn: its own name, Leads, as the Pipeline says its own (Ruben, 10 Nov 2026), and
+ * the act it is handed. A desk says its standing with its
  * line (people/rail/standing.tsx) and Find leads beside it; a phone drew no line and said nothing, so the frame named the
  * page from its crumbs and it had no act (Ruben, 7 Oct 2026).
  *
@@ -59,7 +60,7 @@ export const LeadsActs = ({ canFind, onFind }: { canFind: boolean; onFind: () =>
  * nothing of its own.
  */
 export const LeadsHead = ({ act }: { act?: ReactNode }) => {
-  useStanding({ title: "People", back: null, act });
+  useStanding({ title: "Leads", back: null, act });
   return null;
 };
 

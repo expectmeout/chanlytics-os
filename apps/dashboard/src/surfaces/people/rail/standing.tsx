@@ -57,9 +57,10 @@ function LeadsStandingLine({
   act?: ReactNode;
 }) {
   const needs = leads.needsYou;
-  // The page is People's Leads scope, picked in the page's own strip, so it keeps People's name and has no way back (D1).
+  // The page is People's Leads scope, picked in the page's own strip: it says its own name, as the Pipeline does, and has
+  // no way back (D1). It said People, the strip's name, over a page of leads (Ruben, 10 Nov 2026).
   useStanding({
-    title: "People",
+    title: "Leads",
     sentence: (
       <>
         {[leads.total, ...leads.parts].filter((p) => p !== "").join(" · ")}
