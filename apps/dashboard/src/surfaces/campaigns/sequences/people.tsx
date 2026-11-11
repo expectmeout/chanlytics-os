@@ -304,6 +304,15 @@ function WaitingEmails({ rows, emails, rec, flash, moved, lit }: WaitingProps) {
   );
 }
 
+/** The tab with nobody on it: a one-off says who it went to or goes to (its one count, oneOffPeople), any other nobody. */
+function PeopleNone({ row }: { row: SequenceRecordDto["sequence"] }) {
+  return (
+    <p className="sq-none" data-testid="sq-people-none">
+      {row.starts === "date" && row.date ? P.oneOff(row) : P.nobody}
+    </p>
+  );
+}
+
 export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again: number; moved: () => void }) {
   const { rec, flash, again, moved } = p;
   const { read } = usePeopleRead(rec.sequence.id, again);
@@ -333,11 +342,7 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
   // From a server before 00455 there is no replied group: the sequence's needs say how many, and the Inbox has them.
   const replied = wroteBack ? (counts.replied ?? 0) : rec.sequence.needs.replies;
   if (needs === 0 && waiting.length === 0 && folded.length === 0 && replied === 0)
-    return (
-      <p className="sq-none" data-testid="sq-people-none">
-        {rec.sequence.starts === "date" && rec.sequence.date ? P.oneOff(rec.sequence) : P.nobody}
-      </p>
-    );
+    return <PeopleNone row={rec.sequence} />;
   return (
     <div className="sq-people" data-testid="sq-people">
       <SequenceNeeds
