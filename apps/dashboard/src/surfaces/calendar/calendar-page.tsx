@@ -107,14 +107,25 @@ function ColdFrame() {
 const RUNS_WAIT_MS = 600;
 
 /**
+ * Whether the weeks' read landed only a moment ago, within the wait a cold board gives its campaigns. A load whose two
+ * reads both answered before the page's code ran is handed its weeks first, so the page comes on screen with them in hand
+ * and its campaigns a turn behind: it drew its meetings, then the campaigns after them, in 5 of 5 loads at a quarter of
+ * the speed (10 Nov 2026, production: 450 to 640 ms apart, the grid 21 px down). Weeks held from an earlier read (a move
+ * between pages, a return visit's kept copy) are older than this, and draw at once.
+ */
+const justLanded = (live: CalendarSurface | undefined): boolean => !!live && Date.now() - live.fetchedAt < RUNS_WAIT_MS;
+
+/**
  * Whether a cold board holds its first draw for its campaigns, so the two come in as one and no row of campaigns lands
  * between the meetings after them, pushing them down (Ruben, 21 Oct 2026). Only a page that had nothing to draw as it came
- * on screen (a load, or a tab that had not read the weeks), only while Show draws campaigns, only while their read is out
- * (not failed), and never past RUNS_WAIT_MS from the weeks' landing (`boardIn`: the real read). A page that drew at once (its
- * weeks in hand, or a demo's sample a read then replaces) draws at once, as it always did, and never goes back to its frame.
+ * on screen (a load, or a tab that had not read the weeks) or whose weeks had only just landed (`justLanded`), only while
+ * Show draws campaigns, only while their read is out (not failed), and never past RUNS_WAIT_MS from when it began to wait
+ * (`live`: the real read). A page that drew at once (weeks it held from before, or a demo's sample a read then replaces)
+ * draws at once, as it always did, and never goes back to its frame.
  */
-function useRunsHold(boardIn: boolean, drewAtStart: boolean): boolean {
-  const coldAtStart = useRef(!drewAtStart);
+function useRunsHold(live: CalendarSurface | undefined, drewAtStart: boolean): boolean {
+  const boardIn = !!live;
+  const coldAtStart = useRef(!drewAtStart || justLanded(live));
   const wanted = useRef(keptShow());
   const runsIn = !!useSurface("calendar_runs");
   const runsFailed = useSurfaceFailed("calendar_runs");
@@ -140,7 +151,7 @@ export function CalendarPage(props: CalendarAddress) {
   const demo = useCalendarDemo();
   const C = live ?? (demo ? demo.calendarSample() : undefined);
   // Only a real read is waited for: a demo's runs are the sample's, in hand with its weeks.
-  const hold = useRunsHold(!!live, !!C);
+  const hold = useRunsHold(live, !!C);
   // The Calendar's first part (client/page-speed.ts): its board, drawn once the weeks are in (and, cold, its campaigns).
   usePartShown("calendar", "board", !!C && !hold);
   if (!C || hold) return <ColdFrame />;

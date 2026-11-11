@@ -838,8 +838,11 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   };
   // What a page reads itself beside its surfaces, started by the head with them: New's searches whose leads are ready, one of
   // its starts, which its first draw waits for where the tab opens on New (reach-out/sources.ts; the Campaigns load review).
+  // And Cold email's one line on Today, which its first draw waits for where the tab opens on Today: asked as Today's own
+  // read first is, and by its card as it is drawn (today/cold-email-note-read.ts; the load review of 10 Nov 2026).
   const { readSources } = await importSrc(`${S}/surfaces/campaigns/reach-out/sources.ts`);
-  const pageReads = { "campaigns/sequences/new": [readSources] };
+  const { readColdEmailNote } = await importSrc(`${S}/surfaces/today/cold-email-note-read.ts`);
+  const pageReads = { "campaigns/sequences/new": [readSources], today: [readColdEmailNote] };
   // A key with words after its page (`campaigns/sequences/new`) is that page at that address, as the registry reads one
   // (routePartsOf); a key that names a screen, no address, is asked at one of its addresses (a run at its home).
   const ADDRESS_OF = { "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1" };
@@ -895,6 +898,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     api().forget();
     asked.length = 0;
     for (const k of keys) void overrides[k].apply().catch(() => {});
+    for (const read of pageReads[route] ?? []) void read();
     const [own, beside] = openReads(route);
     const opened = [...own.slice(1), ...beside]
       .map((r) => `/api/v1/${r}${r.includes("?") ? "&" : "?"}workspace=harbor`)
