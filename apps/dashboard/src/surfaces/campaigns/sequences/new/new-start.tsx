@@ -8,7 +8,6 @@
  */
 import { NEW_WORDS as W, peopleRoute, type NewDraftAsk, type NewKind, type ReadyStart } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
-import { gate } from "../../../frame-verbs";
 import { CmPane } from "../../parts/split";
 import { NewLine, NEW_LINE_MIN } from "./new-line";
 import { Journey } from "./new-journey";
