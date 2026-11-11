@@ -11,15 +11,20 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { again, all, unmount } from "../../_stub-react.mjs";
+import { again, all, quiet, redrawWanted, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { NOW, W, answerWith, flashes, json, wire, dayWith, draw, row } from "./_world.mjs";
 
 const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { AttnRow } = await import("../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
-const { useHeadSay } = await import("../../../apps/dashboard/src/surfaces/today/need-you/head-say.ts");
-const { useCoralHeld, useZoneDrawn } = await import("../../../apps/dashboard/src/surfaces/today/queue-coral.ts");
-const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { useNeedYouLine, useNeedYouModel } =
+  await import("../../../apps/dashboard/src/surfaces/today/need-you-model.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { surfaceMoved } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
+
+/** Need you's model and the head's line, as the page and the head read them over Today's read. */
+const model = () => again(() => useNeedYouModel(surfaceValue("today") ?? null));
+const headLine = () => again(() => useNeedYouLine(surfaceValue("today") ?? null));
 
 const MIN = 60_000;
 const DAY = 86_400_000;
@@ -50,7 +55,7 @@ test("the head's line names no window of a reply going on its own; another perso
   setSurfaceValue("today", dayWith([lea()]));
   draw(NeedYou);
   assert.doesNotMatch(
-    String(again(() => useHeadSay())),
+    String(headLine()),
     /window closes/,
     "REGRESSION: the head named Lea's own window, a day away, as the thing that cannot wait",
   );
@@ -61,7 +66,7 @@ test("the head's line names no window of a reply going on its own; another perso
   });
   setSurfaceValue("today", dayWith([lea(), priya]));
   draw(NeedYou);
-  assert.match(String(again(() => useHeadSay())), /Priya's window closes at 5:35 PM/);
+  assert.match(String(headLine()), /Priya's window closes at 5:35 PM/);
   setSurfaceValue("today", undefined);
 });
 
@@ -71,9 +76,9 @@ test("Older's Mark all done never takes the coral, with nothing above it either:
   const tree = draw(NeedYou);
   const older = rowsDrawn(tree).find((r) => testidOf(r) === "queue-older");
   assert.equal(older.props.cta?.kind, "ghost", "nobody counts it, and the head says nothing needs you");
-  assert.equal(
-    again(() => useCoralHeld("queue")),
-    false,
+  assert.deepEqual(
+    [model().coral, model().todo.coral],
+    [null, null],
     "REGRESSION: an old number left Finish setting up quiet",
   );
   unmount();
@@ -119,26 +124,29 @@ test("Older's Mark all done refused whole says why and stays to be pressed again
   unmount();
 });
 
-test("Need you tells the page whether it draws a pane, which the page lays its columns by: nobody waiting draws none, and Ask found leads", () => {
-  setSurfaceValue("today", dayWith([]));
+test("Need you's model hears every read its rows come from, so the list, the page and the head redraw as one lands", () => {
+  setSurfaceValue("today", dayWith([row("w1", "Dana Ruiz")]));
   draw(NeedYou);
-  assert.equal(
-    again(() => useZoneDrawn("need-you")),
-    false,
-    "nobody waiting: no pane, whatever came in today",
-  );
-  setSurfaceValue("today", dayWith([row("w1", "Dana Ruiz", { waitedMs: 3 * MIN * 20 })]));
-  draw(NeedYou);
-  assert.equal(
-    again(() => useZoneDrawn("need-you")),
-    true,
-    "someone waiting: Need you's pane",
-  );
+  // A reach-out's reply read is that reply's row (the wiring's second audit, W-campaign-run-template-reachout-7); Google's
+  // reviews and People's steps are To do's; the runs wait for an OK.
+  for (const read of ["today", "broadcasts", "people", "calendar", "reach_out_replies", "google", "settings"]) {
+    quiet();
+    surfaceMoved(read);
+    assert.ok(redrawWanted(), `REGRESSION: ${read} landed and Need you was not drawn again`);
+  }
+  quiet();
+  surfaceMoved("billing");
+  assert.ok(!redrawWanted(), "and not for a read it does not draw");
   unmount();
-  assert.equal(
-    again(() => useZoneDrawn("need-you")),
-    false,
-    "and once Today goes, none",
-  );
   setSurfaceValue("today", undefined);
+});
+
+test("Need you's model says whether it draws a pane, which the page lays its columns by: nobody waiting draws none, and Ask found leads", () => {
+  setSurfaceValue("today", dayWith([]));
+  assert.equal(model().draws, false, "nobody waiting: no pane, whatever came in today");
+  setSurfaceValue("today", dayWith([row("w1", "Dana Ruiz", { waitedMs: 3 * MIN * 20 })]));
+  assert.equal(model().draws, true, "someone waiting: Need you's pane");
+  setSurfaceValue("today", undefined);
+  assert.equal(model(), null, "and before Today is read, nothing");
+  unmount();
 });

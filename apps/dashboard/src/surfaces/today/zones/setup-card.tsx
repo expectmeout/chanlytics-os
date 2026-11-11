@@ -17,10 +17,22 @@ export const setupCardReady: Promise<void> = bodyCode().then(
   () => undefined,
 );
 
-export const TodaySetup = () => {
+/**
+ * Whether the card, once drawn, draws an act that may hold the page's coral (setup-card-body.tsx setupCardActs): read by
+ * Today's arrangement in the same pass as the card, so the coral is settled before either paints. False until Setup's
+ * read and the card's code are in, as the card draws nothing until then.
+ */
+export function useSetupActs(): boolean {
+  const setup = useSurface("setup");
+  const body = useCode(bodyCode, true).loaded;
+  return !!setup && !!body && body.setupCardActs(setup);
+}
+
+/** The card, its first act the page's coral where `coral` (today/arrangement.ts). */
+export const TodaySetup = ({ coral }: { coral: boolean }) => {
   const S = useSurface("setup");
   const body = useCode(bodyCode, true).loaded;
   // Drawn once Setup's read and the card's code are in, the card or nothing (client/page-speed.ts).
   usePartShown("today", "setup", !!S && !!body);
-  return S && body ? <body.TodaySetupCard S={S} /> : null;
+  return S && body ? <body.TodaySetupCard S={S} coral={coral} /> : null;
 };

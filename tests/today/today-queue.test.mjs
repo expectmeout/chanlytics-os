@@ -541,11 +541,9 @@ test("the wiring: one row component for People and Today, the queue in the comma
     'data-testid="today-queue"',
     // The day is the seam's (surface-values.ts), where the JSX read window.TODAY_DATA.
     'surfaceValue("today")',
-    "<NeedYouList vm={vm} />",
-    "vm.queue.rows",
-    // A reach-out's reply read redraws the queue: it is that reply's row (the wiring's second audit, W-campaign-run-template-reachout-7).
-    // Google's reviews and People's steps do too: To do is a group of it (Today in three zones).
-    'useMoved(["broadcasts", "people", "calendar", "reach_out_replies", "google", "settings"])',
+    // The list draws from its model (need-you-model.ts), which the page and the head read too; what the model hears is
+    // executed in zones/need-you-acts.test.mjs.
+    "<NeedYouList vm={vm} model={model} />",
   ])
     assert.ok(queue.includes(s), s);
   assert.ok(

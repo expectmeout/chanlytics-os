@@ -28,6 +28,7 @@ import {
   press,
   quiet,
   redrawWanted,
+  unmount,
 } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { NOW, ZONE, handoffDay, peopleWithSteps } from "./_world.mjs";
@@ -207,7 +208,9 @@ test("the steps sit after everyone waiting on a person and before a call worth a
 /* ----------------------------------------------- the queue, drawn ----------------------------------------------- */
 
 const buttons = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
+// Drawn as a visit to Today: the last one's tree goes first, and what its presses came to with it (row-state.ts).
 const draw = () => {
+  unmount();
   fresh();
   return W.React.createElement(NeedYou, {});
 };
