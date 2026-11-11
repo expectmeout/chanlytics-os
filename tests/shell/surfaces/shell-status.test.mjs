@@ -1921,7 +1921,6 @@ test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigat
   const wrap = (tree) => find(tree, (n) => /\bside-wrap\b/.test(String(n.props?.className || "")));
   const ask = (tree) => find(tree, (n) => n.props?.["data-testid"] === "phone-ask");
   const closed = mount("#/clients").tree;
-  assert.ok(ask(closed), "the ✦ beside the tab bar");
   assert.equal(wrap(closed).props.role, undefined, "the sidebar on a desk, or the drawer shut, is no dialog");
   assert.equal(wrap(closed).props["aria-label"], undefined);
   find(closed, (n) => n.type === "Topbar").props.onMenu();
@@ -1934,10 +1933,7 @@ test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigat
   );
   assert.equal(wrap(open).props["aria-label"], "Navigation");
   assert.equal(wrap(open).props["aria-modal"], undefined, "not modal: it does not move focus into itself");
-  assert.ok(
-    ask(open),
-    "REGRESSION: the ✦ stays, dimmed with the bar under the drawer's veil; it was taken off, and blinked out of the bar's row as More opened (11 Nov 2026)",
-  );
+  assert.ok(ask(closed) && ask(open), "REGRESSION: the ✦ stays with the bar while the drawer is open");
 });
 
 test("a route whose surface has not landed is an empty pane that says it is reading, never a skeleton, and the page fades in as it lands", () => {
