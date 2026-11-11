@@ -55,7 +55,6 @@ export function leadCardLeadOf(leadId: string): LeadCardLead | null {
     city: dto.city,
     kind: dto.kind ?? null,
     facts: dto.facts ?? null,
-    source: dto.source,
     to: peek ? peek.reach.email.address : dto.email,
     emailState: dto.email_state,
     canCall: !!(peek && peek.reach.phone && peek.reach.phone.tel),

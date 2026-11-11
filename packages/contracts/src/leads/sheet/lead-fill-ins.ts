@@ -38,15 +38,22 @@ export interface FillInSaysVM {
   varies: string;
 }
 
-/** Where a lead was found, as its fill-ins say it: the Maps card (or none said), the people card, or a file of the owner's. */
-function foundWords(source: string | null | undefined): string {
-  if (source === undefined || source === null || source === "maps" || source === "local_businesses") return F.fromMaps;
-  return source === "people_at_companies" ? F.fromDirectory : F.fromList;
+/**
+ * Where a lead was found, as its fill-ins say it: by its source where the lead says one (the Maps card's, the people
+ * card's, a file of the owner's), else by its kind, since the card's lead carries no source: a company is the people
+ * card's, a place the Maps card's.
+ */
+function foundWords(lead: SlotLead): string {
+  const source = lead.source;
+  if (source === "maps" || source === "local_businesses") return F.fromMaps;
+  if (source === "people_at_companies") return F.fromDirectory;
+  if (source) return F.fromList;
+  return lead.kind === "company" ? F.fromDirectory : F.fromMaps;
 }
 
 /** What the blank `slot` says for this lead; null for the line, the receptionist's link, or a name that is no blank. */
 export function fillInSaysOf(slot: string, lead: SlotLead): FillInSaysVM | null {
-  const found = foundWords(lead.source);
+  const found = foundWords(lead);
   switch (slot) {
     case "business":
     case "company":

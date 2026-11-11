@@ -68,6 +68,8 @@ test("what a fill-in says: what it is, where it came from, and whether it change
   assert.deepEqual(fillInSaysOf("business", LEAD), { title: F.business, from: F.fromMaps, varies: F.each });
   assert.equal(fillInSaysOf("city", { ...LEAD, source: "people_at_companies" }).from, F.fromDirectory);
   assert.equal(fillInSaysOf("business", { ...LEAD, source: "file" }).from, F.fromList);
+  // The card's lead says no source: a company is the people card's, a place the Maps card's.
+  assert.equal(fillInSaysOf("company", { ...LEAD, kind: "company" }).from, F.fromDirectory);
   assert.equal(fillInSaysOf("first name", LEAD).from, F.nobody);
   assert.deepEqual(fillInSaysOf("your name", LEAD), { title: F.yourName, from: F.signs, varies: F.same });
   assert.equal(fillInSaysOf("booking link", LEAD).varies, F.same);
