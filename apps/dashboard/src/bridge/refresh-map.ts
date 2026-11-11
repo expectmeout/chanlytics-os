@@ -536,6 +536,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST files/[id]/done": filesIfDrawn,
   "POST files/keep": filesIfDrawn,
   "POST files/post": filesIfDrawn,
+  // A video begun from the clips (decision 0122): its people marked as agreed to be in it change those clips' rows. The video
+  // itself lands about a minute on, from its job, and the page reads again when it arrives.
+  "POST files/video": filesIfDrawn,
   "PATCH files/[id]": filesIfDrawn,
   "DELETE files/[id]": filesIfDrawn,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
@@ -685,6 +688,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST settings/reach-out/provider-wanted":
     "which mailbox a workspace would use, counted for us: its sheet says so from the answer, and no page draws it",
   "POST files/post/preview": "a post's picture is drawn for its card and kept nowhere",
+  "POST files/video/preview": "a video's storyboard is drawn for its card and kept nowhere",
   "POST files/[id]/google": "a post put on Google: its sheet says so from the answer, and the list holds nothing of it",
   "DELETE files/[id]/google":
     "a post taken off Google: its sheet says so from the answer, and the list holds nothing of it",
