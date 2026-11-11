@@ -144,6 +144,10 @@ test("a start's words: today's where it has them, its hint where nobody waits, a
   assert.equal(by("visit_soon").said, "visit_soon hint");
   assert.equal(by("asked_no_booking").said, R.reach(2));
   assert.equal(by("visit_tomorrow").line, "Remind each customer the day before their appointment");
+  // What a viewer reads of each: the fact it is drawn from, never an act.
+  assert.deepEqual(by("visited").fact, { title: W.viewer.thank(6), said: W.viewer.thankSaid });
+  assert.deepEqual(by("lapsed").fact, { title: W.viewer.winBack(41), said: "lapsed hint" });
+  assert.deepEqual(by("asked_no_booking").fact, { title: "asked_no_booking label", said: R.reach(2) });
   assert.deepEqual(by("visit_tomorrow").fixed.who, {
     kind: "moment",
     trigger: "visit_tomorrow",

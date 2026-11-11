@@ -5,218 +5,16 @@
  * line is kept with its Stop; when Ask could not draft it, or nothing here fits, the line stays and Build it yourself is
  * offered. A viewer sees what is happening and what runs, and is told who can make one. Hookless.
  */
-import {
-  NEW_WORDS as W,
-  leadsRoute,
-  newSequenceLine,
-  peopleRoute,
-  type AppointmentWord,
-  type NewDraftAsk,
-  type NewKind,
-} from "@chanlytics/contracts";
+import { NEW_WORDS as W, peopleRoute, type NewDraftAsk, type NewKind, type ReadyStart } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
-import { LinkButton } from "../../../kit/link-button/link-button";
 import { gate } from "../../../frame-verbs";
 import { CmPane } from "../../parts/split";
 import { NewLine, NEW_LINE_MIN } from "./new-line";
 import * as M from "./new-model";
 import { CaseNote, SaidLine } from "./new-parts";
-import { Choice, runningOn, type WhoReads } from "./new-sheets";
+import { Ready, type StartReads } from "./new-ready";
+import { Choice } from "./new-sheets";
 import "./new-ready.css";
-
-/** What the opening view reads: who it could be for (the who sheet's), the calendar, and the Library's count. */
-export interface StartReads extends WhoReads {
-  calendarOn: boolean;
-  word: AppointmentWord;
-  /** How many messages the Library holds; null where it was not read. */
-  messages: number | null;
-}
-
-/** A start from what is happening: its line and the choices it makes, drafted as it is pressed; and the fact under it. */
-interface Start {
-  id: string;
-  glyph: string;
-  title: string;
-  said: string;
-  /** What is happening, as a viewer reads it: the fact the start is drawn from, with nothing to press (the Viewer board). */
-  fact: { title: string; said: string | null };
-  kind: NewKind;
-  line: string;
-  fixed: Omit<NewDraftAsk, "words">;
-}
-
-/** A moment a new sequence may start on with someone to hear it now, and nothing on it already. */
-function freeMoment(reads: StartReads, ids: readonly string[]) {
-  const m = reads.moments.find((t) => ids.includes(t.id) && t.offered);
-  if (!m || !m.candidates) return null;
-  const twin = runningOn(reads.running, (r) => r.starts === "moment" && r.first?.trigger === m.id);
-  return twin ? null : m;
-}
-
-/** The starts the workspace offers now, in the canvas's order: each with someone to reach, none doubling one that runs. */
-function startsOf(reads: StartReads): Start[] {
-  const out: Start[] = [];
-  const moment = (
-    ids: readonly string[],
-    title: (n: number) => string,
-    said: (n: number, hint: string) => string,
-    fact: (n: number, hint: string) => Start["fact"],
-  ) => {
-    const m = freeMoment(reads, ids);
-    if (!m || !m.candidates) return;
-    out.push({
-      id: m.id,
-      glyph: "clock",
-      title: title(m.candidates),
-      said: said(m.candidates, m.hint),
-      fact: fact(m.candidates, m.hint),
-      kind: "sequence",
-      line: newSequenceLine(m.id, reads.word) ?? m.label,
-      fixed: { kind: "sequence", audience: "people", who: { kind: "moment", trigger: m.id, label: m.label } },
-    });
-  };
-  moment(
-    ["visited"],
-    () => W.starts.thank,
-    (n) => W.starts.thankSaid(n),
-    (n) => ({ title: W.viewer.thank(n), said: W.viewer.thankSaid }),
-  );
-  moment(
-    ["lapsed", "quiet_30"],
-    W.starts.winBack,
-    (_n, hint) => hint,
-    (n, hint) => ({ title: W.viewer.winBack(n), said: hint }),
-  );
-  if (reads.everyone)
-    out.push({
-      id: "everyone",
-      glyph: "send",
-      title: W.starts.offer,
-      said: W.starts.offerSaid(reads.everyone),
-      fact: { title: W.viewer.offer(reads.everyone), said: null },
-      kind: "once",
-      line: newSequenceLine("everyone_monthly", reads.word) ?? W.starts.offer,
-      fixed: { kind: "once", audience: "people", who: { kind: "everyone", label: W.draft.everyoneOffers } },
-    });
-  const source = (reads.sources ?? []).find(
-    (s) => s.ready > 0 && !runningOn(reads.running, (r) => r.starts === "leads" && r.first?.source_search_id === s.id),
-  );
-  if (source)
-    out.push({
-      id: `search-${source.id}`,
-      glyph: "search",
-      title: W.starts.leads(source.ready),
-      said: source.name,
-      fact: { title: W.viewer.leads(source.ready), said: source.name },
-      kind: "sequence",
-      line: W.starts.leadsLine(source.name),
-      fixed: { kind: "sequence", audience: "leads", who: { kind: "search", id: source.id, label: source.name } },
-    });
-  moment(
-    ["new_week"],
-    W.starts.welcome,
-    (_n, hint) => hint,
-    (n, hint) => ({ title: W.viewer.welcome(n), said: hint }),
-  );
-  return out;
-}
-
-/** What a bare workspace needs before each start: the calendar, someone who said yes, a search with leads. */
-function setupOf(
-  reads: StartReads,
-): { id: string; title: string; said: string; door: { label: string; to: string } }[] {
-  const out = [];
-  if (!reads.calendarOn)
-    out.push(
-      {
-        id: "calendar",
-        title: W.starts.remind,
-        said: W.starts.needsCalendar,
-        door: { label: W.starts.connect, to: "settings" },
-      },
-      {
-        id: "thank",
-        title: W.starts.thankToo,
-        said: W.starts.needsCalendarToo,
-        door: { label: W.starts.connect, to: "settings" },
-      },
-    );
-  if (reads.everyone === 0)
-    out.push({
-      id: "everyone",
-      title: W.starts.toEveryone,
-      said: W.starts.noOneYet,
-      door: { label: W.starts.import, to: "people" },
-    });
-  if (reads.sources && reads.sources.length === 0)
-    out.push({
-      id: "leads",
-      title: W.starts.nearYou,
-      said: W.starts.findFirst,
-      door: { label: W.starts.find, to: leadsRoute({ list: "all" }) },
-    });
-  return out;
-}
-
-/** The starts, or the one thing each needs, then what runs already. */
-function Starts(p: { reads: StartReads; may: boolean; onStart: (s: Start) => void; onSeeRunning: () => void }) {
-  const starts = startsOf(p.reads);
-  const setup = starts.length ? [] : setupOf(p.reads);
-  const running = p.reads.running.filter((r) => r.state === "on");
-  return (
-    <>
-      {starts.length ? (
-        <>
-          <p className="sq-nw-cap">{p.may ? W.starts.cap : W.starts.happening}</p>
-          <div className="sq-nw-rows" data-testid="sq-nw-starts">
-            {starts.map((s) => (
-              <Choice
-                key={s.id}
-                glyph={s.glyph}
-                name={p.may ? s.title : s.fact.title}
-                said={p.may ? s.said : s.fact.said}
-                tag={p.may ? W.starts.kind[s.kind] : null}
-                onPick={p.may ? () => p.onStart(s) : null}
-                testid={`sq-nw-start-${s.id}`}
-              />
-            ))}
-          </div>
-        </>
-      ) : null}
-      {setup.length ? (
-        <>
-          <p className="sq-nw-cap">{W.starts.setup}</p>
-          <div className="sq-nw-rows" data-testid="sq-nw-setup">
-            {setup.map((s) => (
-              <Choice
-                key={s.id}
-                glyph="plus"
-                name={s.title}
-                said={s.said}
-                door={s.door}
-                testid={`sq-nw-setup-${s.id}`}
-              />
-            ))}
-          </div>
-        </>
-      ) : null}
-      {running.length ? (
-        <p className="sq-nw-note" data-testid="sq-nw-running">
-          {W.starts.running}{" "}
-          {running
-            .slice(0, 2)
-            .map((r) => r.name)
-            .join(", ")}
-          {running.length > 2 ? ` ${W.starts.andMore(running.length - 2)}` : ""}.{" "}
-          <LinkButton size="inherit" onClick={p.onSeeRunning} data-testid="sq-nw-see-running">
-            {W.starts.see}
-          </LinkButton>
-        </p>
-      ) : null}
-      {p.reads.messages === 0 ? <p className="sq-nw-note">{W.starts.noMessages}</p> : null}
-    </>
-  );
-}
 
 /**
  * Nothing here can start on what the line asks (D3): what Ask said, the closest ways to do it anyway -- a list kept in
@@ -268,6 +66,8 @@ function Drafting({ line, onStop }: { line: string; onStop: () => void }) {
   );
 }
 
+export type { StartReads } from "./new-ready";
+
 interface StartProps {
   line: string;
   onLine: (words: string) => void;
@@ -292,6 +92,11 @@ export function StartView(p: StartProps) {
   const enough = p.line.trim().length >= NEW_LINE_MIN;
   const draftIt = () => {
     if (enough) p.onDraft(p.line.trim());
+  };
+  // A start is its own line, drafted as it is pressed, with its choices made.
+  const start = (s: ReadyStart) => {
+    p.onLine(s.line);
+    p.onDraft(s.line, s.fixed);
   };
   return (
     <CmPane title={W.title} onClose={p.onClose} testid="sq-new">
@@ -331,15 +136,10 @@ export function StartView(p: StartProps) {
             <NoFit refused={p.refused} onOnce={() => p.onByHand("once")} />
           ) : null}
           {p.reads ? (
-            <Starts
-              reads={p.reads}
-              may={p.may}
-              onStart={(s) => {
-                p.onLine(s.line);
-                p.onDraft(s.line, s.fixed);
-              }}
-              onSeeRunning={p.onClose}
-            />
+            <>
+              <Ready reads={p.reads} may={p.may} onStart={start} />
+              {p.reads.messages === 0 ? <p className="sq-nw-note">{W.starts.noMessages}</p> : null}
+            </>
           ) : null}
         </div>
       )}

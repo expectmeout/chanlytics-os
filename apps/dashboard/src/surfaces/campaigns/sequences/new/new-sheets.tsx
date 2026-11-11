@@ -183,7 +183,7 @@ export interface WhoReads {
     offered: boolean;
     candidates: number | null;
   }[];
-  lists: readonly { id: string; name: string; candidates: number | null; said: string | null }[];
+  lists: readonly { id: string; name: string; candidates: number | null; said: string | null; builtin: boolean }[];
   everyone: number | null;
   everyoneHeld: number | null;
   sources: readonly ReachOutSourceDto[] | null;

@@ -59,6 +59,7 @@ export const NEW_READY_WORDS = {
 
 const R = NEW_READY_WORDS;
 const S = NEW_WORDS.starts;
+const V = NEW_WORDS.viewer;
 
 /** A moment as Campaigns' read counts it: who a run would reach today, null where it was not counted. */
 export interface ReadyMoment {
@@ -102,6 +103,8 @@ export interface ReadyStart {
   glyph: "clock" | "send" | "search" | "users";
   title: string;
   said: string;
+  /** What is happening, as a viewer reads it: the fact the start is drawn from, with nothing to press. */
+  fact: { title: string; said: string | null };
   /** Who it would reach today: 0 where nobody waits yet, null where that was not counted. */
   people: number | null;
   kind: NewKind;
@@ -121,6 +124,13 @@ function standsOn(running: readonly ReadyRunning[], id: string): ReadyRunning | 
   return running.find((r) => r.state !== "ended" && r.starts === "moment" && same(r.first?.trigger)) ?? null;
 }
 
+/** A moment as a viewer reads it: who came in, who went quiet, or its name and who it would reach. */
+function momentFact(readyMoment: ReadyMoment, n: number): ReadyStart["fact"] {
+  if (n > 0 && readyMoment.id === "visited") return { title: V.thank(n), said: V.thankSaid };
+  if (n > 0 && isWinBack(readyMoment.id)) return { title: V.winBack(n), said: readyMoment.hint };
+  return { title: readyMoment.label, said: n > 0 ? R.reach(n) : readyMoment.hint };
+}
+
 /** A moment as a start, in the words New already says where it has them. */
 function momentStart(readyMoment: ReadyMoment, word: AppointmentWord): ReadyStart {
   const n = readyMoment.candidates ?? 0;
@@ -132,6 +142,7 @@ function momentStart(readyMoment: ReadyMoment, word: AppointmentWord): ReadyStar
     glyph: "clock",
     title: thank ? S.thank : winBack && n > 0 ? S.winBack(n) : line,
     said: thank && n > 0 ? S.thankSaid(n) : n > 0 && !winBack ? R.reach(n) : readyMoment.hint,
+    fact: momentFact(readyMoment, n),
     people: readyMoment.candidates,
     kind: "sequence",
     trigger: readyMoment.id,
@@ -165,6 +176,7 @@ function otherStarts(reads: ReadyReads): ReadyStart[] {
       glyph: "send",
       title: S.offer,
       said: S.offerSaid(reads.everyone),
+      fact: { title: V.offer(reads.everyone), said: null },
       people: reads.everyone,
       kind: "once",
       trigger: null,
@@ -180,6 +192,7 @@ function otherStarts(reads: ReadyReads): ReadyStart[] {
       glyph: "search",
       title: S.leads(source.ready),
       said: source.name,
+      fact: { title: V.leads(source.ready), said: source.name },
       people: source.ready,
       kind: "sequence",
       trigger: null,
@@ -196,6 +209,7 @@ function otherStarts(reads: ReadyReads): ReadyStart[] {
       glyph: "users",
       title: R.list(list.name),
       said: R.listSaid(list.candidates),
+      fact: { title: list.name, said: R.listSaid(list.candidates) },
       people: list.candidates,
       kind: "sequence",
       trigger: null,
