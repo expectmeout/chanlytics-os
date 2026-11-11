@@ -1,22 +1,23 @@
 /**
  * New, before a draft (decision 0065; the canvas "New: start from what's ready", 11 Nov 2026): one line to say or type
- * what it should do (new-line.tsx); what changed while the owner was away (new-since.tsx); what the workspace can start
- * now, the one reaching most people standing open, and the one thing each other start needs (new-ready.tsx); and the
- * customers' journey with its map (new-journey.tsx). Each start is a line Ask drafts from with its choices already made.
+ * what it should do (line.tsx); what changed while the owner was away (since.tsx); what the workspace can start
+ * now, the first standing open, and the one thing each other start needs (ready.tsx, by ready-rules.ts); and the
+ * customers' journey with its map (journey.tsx). Each start is a line Ask drafts from with its choices already made.
  * While Ask drafts, the line is kept with its Stop; when Ask could not draft it, or nothing here fits, the line stays and
  * Build it yourself is offered. A viewer reads what is happening, and is told who can make one.
  */
-import { NEW_WORDS as W, peopleRoute, type NewDraftAsk, type NewKind, type ReadyStart } from "@chanlytics/contracts";
+import { NEW_WORDS as W, peopleRoute, type NewDraftAsk, type NewKind } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { CmPane } from "../../parts/split";
-import { NewLine, NEW_LINE_MIN } from "./new-line";
-import { Journey } from "./new-journey";
+import { Choice } from "./choice";
+import { Journey } from "./journey";
+import { NewLine, NEW_LINE_MIN } from "./line";
 import * as M from "./new-model";
 import { CaseNote, SaidLine } from "./new-parts";
-import { Ready, readyReadsOf, type StartReads } from "./new-ready";
-import { Choice } from "./new-sheets";
-import { Since, forgetLeftLine } from "./new-since";
-import "./new-ready.css";
+import { Ready, readyReadsOf, type StartReads } from "./ready";
+import type { ReadyStart } from "./ready-rules";
+import { Since, forgetLeftLine } from "./since";
+import "./ready.css";
 
 /**
  * Nothing here can start on what the line asks (D3): what Ask said, the closest ways to do it anyway -- a list kept in
@@ -68,7 +69,7 @@ function Drafting({ line, onStop }: { line: string; onStop: () => void }) {
   );
 }
 
-export type { StartReads } from "./new-ready";
+export type { StartReads } from "./ready";
 
 interface StartProps {
   line: string;
@@ -92,7 +93,7 @@ interface StartProps {
 /** New before a draft, in New's pane. */
 export function StartView(p: StartProps) {
   const enough = p.line.trim().length >= NEW_LINE_MIN;
-  // However a line is drafted, what the tab kept of it is let go (new-since.tsx).
+  // However a line is drafted, what the tab kept of it is let go (since.tsx).
   const draft = (words: string, fixed?: Omit<NewDraftAsk, "words">) => {
     forgetLeftLine();
     p.onDraft(words, fixed);

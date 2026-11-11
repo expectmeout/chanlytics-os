@@ -2,14 +2,20 @@
  * What New opens on (the canvas "New: start from what's ready", 11 Nov 2026): the starts a workspace can begin now, most
  * people waiting first, a moment offered before anyone waits in it (N1, N3); the journey's moments, each covered by a
  * sequence or open (N10); and what changed while the owner was away (N11). Pure: what the page counted is an argument,
- * and nothing here asks Ask, so New opens at once. No zod: the browser reads it.
+ * and nothing here asks Ask, so New opens at once. The dashboard's own: no other tree says these words or reads these
+ * rules, so they stand with the page they are for.
  */
-import type { AppointmentWord } from "../../journey/appointment-word";
-import { plural } from "../../shared/words";
-import { isWinBack, momentOffered } from "../playbooks/triggers/notices";
-import { newSequenceLine } from "./draft";
-import type { DraftWho, NewAudience, NewKind } from "./new-draft/steps";
-import { NEW_WORDS } from "./new-words";
+import {
+  NEW_WORDS,
+  isWinBack,
+  momentOffered,
+  newSequenceLine,
+  plural,
+  type AppointmentWord,
+  type DraftWho,
+  type NewAudience,
+  type NewKind,
+} from "@chanlytics/contracts";
 
 /** How many starts New draws: the open one and three rows. The rest are a press away, on the map. */
 export const NEW_READY_MAX = 4;
@@ -72,15 +78,15 @@ export const NEW_READY_WORDS = {
   },
 } as const;
 
-const R = NEW_READY_WORDS;
-const S = NEW_WORDS.starts;
-const V = NEW_WORDS.viewer;
+const READY = NEW_READY_WORDS;
+const STARTS = NEW_WORDS.starts;
+const VIEWER = NEW_WORDS.viewer;
 
 /**
  * A moment as Campaigns' read counts it: whether a new sequence may start on it here (contracts momentOffered, which
  * knows the calendar), and who a run would reach today, null where that was not counted.
  */
-export interface ReadyMoment {
+interface ReadyMoment {
   id: string;
   label: string;
   hint: string;
@@ -90,7 +96,7 @@ export interface ReadyMoment {
 }
 
 /** A sequence that runs, as far as a twin is told by: what it starts on. */
-export interface ReadyRunning {
+interface ReadyRunning {
   id: string;
   name: string;
   state: string;
@@ -145,25 +151,26 @@ function standsOn(running: readonly ReadyRunning[], id: string): ReadyRunning | 
 }
 
 /** A moment as a viewer reads it: who came in, who went quiet, or its name and who it would reach. */
-function momentFact(readyMoment: ReadyMoment, n: number): ReadyStart["fact"] {
-  if (n > 0 && readyMoment.id === "visited") return { title: V.thank(n), said: V.thankSaid };
-  if (n > 0 && isWinBack(readyMoment.id)) return { title: V.winBack(n), said: readyMoment.hint };
-  return { title: readyMoment.label, said: n > 0 ? R.reach(n) : readyMoment.hint };
+function momentFact(readyMoment: ReadyMoment, waiting: number): ReadyStart["fact"] {
+  if (waiting > 0 && readyMoment.id === "visited") return { title: VIEWER.thank(waiting), said: VIEWER.thankSaid };
+  if (waiting > 0 && isWinBack(readyMoment.id)) return { title: VIEWER.winBack(waiting), said: readyMoment.hint };
+  return { title: readyMoment.label, said: waiting > 0 ? READY.reach(waiting) : readyMoment.hint };
 }
 
 /** A moment as a start, in the words New already says where it has them. */
 function momentStart(readyMoment: ReadyMoment, word: AppointmentWord): ReadyStart {
-  const n = readyMoment.candidates ?? 0;
+  const waiting = readyMoment.candidates ?? 0;
   const line = newSequenceLine(readyMoment.id, word) ?? readyMoment.label;
   const thank = readyMoment.id === "visited";
   const winBack = isWinBack(readyMoment.id);
+  const counted = waiting > 0 && !winBack ? READY.reach(waiting) : readyMoment.hint;
   return {
     id: readyMoment.id,
     glyph: "clock",
     // A moment's own name where New has no words of its own for it: short, so a row never cuts it.
-    title: thank ? S.thank : winBack && n > 0 ? S.winBack(n) : readyMoment.label,
-    said: thank && n > 0 ? S.thankSaid(n) : n > 0 && !winBack ? R.reach(n) : readyMoment.hint,
-    fact: momentFact(readyMoment, n),
+    title: thank ? STARTS.thank : winBack && waiting > 0 ? STARTS.winBack(waiting) : readyMoment.label,
+    said: thank && waiting > 0 ? STARTS.thankSaid(waiting) : counted,
+    fact: momentFact(readyMoment, waiting),
     people: readyMoment.candidates,
     kind: "sequence",
     trigger: readyMoment.id,
@@ -194,13 +201,13 @@ function everyoneStart(reads: ReadyReads): ReadyStart | null {
   return {
     id: "everyone",
     glyph: "send",
-    title: S.offer,
-    said: S.offerSaid(reads.everyone),
-    fact: { title: V.offer(reads.everyone), said: null },
+    title: STARTS.offer,
+    said: STARTS.offerSaid(reads.everyone),
+    fact: { title: VIEWER.offer(reads.everyone), said: null },
     people: reads.everyone,
     kind: "once",
     trigger: null,
-    line: newSequenceLine("everyone_monthly", reads.word) ?? S.offer,
+    line: newSequenceLine("everyone_monthly", reads.word) ?? STARTS.offer,
     fixed: { kind: "once", audience: "people", who: { kind: "everyone", label: NEW_WORDS.draft.everyoneOffers } },
   };
 }
@@ -216,13 +223,13 @@ function foundStarts(reads: ReadyReads): ReadyStart[] {
     out.push({
       id: `search-${source.id}`,
       glyph: "search",
-      title: S.leads(source.ready),
+      title: STARTS.leads(source.ready),
       said: source.name,
-      fact: { title: V.leads(source.ready), said: source.name },
+      fact: { title: VIEWER.leads(source.ready), said: source.name },
       people: source.ready,
       kind: "sequence",
       trigger: null,
-      line: S.leadsLine(source.name),
+      line: STARTS.leadsLine(source.name),
       fixed: { kind: "sequence", audience: "leads", who: { kind: "search", id: source.id, label: source.name } },
     });
   const taken = (id: string) =>
@@ -234,13 +241,13 @@ function foundStarts(reads: ReadyReads): ReadyStart[] {
     out.push({
       id: list.id,
       glyph: "users",
-      title: R.list(list.name),
-      said: R.listSaid(list.candidates ?? 0),
-      fact: { title: list.name, said: R.listSaid(list.candidates ?? 0) },
+      title: READY.list(list.name),
+      said: READY.listSaid(list.candidates ?? 0),
+      fact: { title: list.name, said: READY.listSaid(list.candidates ?? 0) },
       people: list.candidates,
       kind: "sequence",
       trigger: null,
-      line: R.listLine(list.name),
+      line: READY.listLine(list.name),
       fixed: { kind: "sequence", audience: "people", who: { kind: "list", token: list.id, label: list.name } },
     });
   return out;
@@ -315,8 +322,8 @@ export interface NewSeen {
 export function newSinceWords(before: NewSeen | null, now: NewSeen): string[] {
   if (!before) return [];
   return [
-    before.everyone === 0 && now.everyone > 0 ? R.since.yes(now.everyone) : "",
-    before.leads === 0 && now.leads > 0 ? R.since.leads(now.leads) : "",
-    !before.calendar && now.calendar ? R.since.calendar : "",
+    before.everyone === 0 && now.everyone > 0 ? READY.since.yes(now.everyone) : "",
+    before.leads === 0 && now.leads > 0 ? READY.since.leads(now.leads) : "",
+    !before.calendar && now.calendar ? READY.since.calendar : "",
   ].filter(Boolean);
 }

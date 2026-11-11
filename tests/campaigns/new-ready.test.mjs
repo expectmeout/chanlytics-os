@@ -1,19 +1,20 @@
 /**
- * What New opens on (the canvas "New: start from what's ready", N1, N3, N10, N11): the starts a workspace can begin now,
- * the journey's moments, and what changed while the owner was away. Pure rules over what the page counted.
+ * What New opens on (sequences/new/ready-rules.ts; the canvas "New: start from what's ready", N1, N3, N10, N11): the
+ * starts a workspace can begin now, the journey's moments, and what changed while the owner was away. Pure rules over
+ * what the page counted.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
+import { NEW_WORDS as W, momentOffered } from "@chanlytics/contracts";
+
+const {
   NEW_READY_MAX,
-  NEW_READY_WORDS as R,
-  NEW_WORDS as W,
+  NEW_READY_WORDS: R,
   journeyCovered,
-  momentOffered,
   newJourneyOf,
-  readyStartsOf,
   newSinceWords,
-} from "@chanlytics/contracts";
+  readyStartsOf,
+} = await import("../../apps/dashboard/src/surfaces/campaigns/sequences/new/ready-rules.ts");
 
 const moment = (id, kind, candidates, over = {}) => ({
   id,

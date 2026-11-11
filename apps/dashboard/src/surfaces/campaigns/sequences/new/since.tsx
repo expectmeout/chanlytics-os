@@ -7,17 +7,18 @@
  * (bridge/tab-memory.ts), never as a draft: a line alone is not work, and the tab closes over it without asking.
  */
 import { useEffect, useState } from "react";
-import { NEW_READY_WORDS as R, NEW_WORDS as W, newSinceWords, type NewSeen } from "@chanlytics/contracts";
+import { NEW_WORDS as W } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { tabMemory } from "../../../kit/record/shell-verbs";
 import { gate } from "../../../frame-verbs";
-import { NEW_LINE_MIN } from "./new-line";
+import { NEW_LINE_MIN } from "./line";
 import { CaseNote } from "./new-parts";
-import type { StartReads } from "./new-ready";
+import type { StartReads } from "./ready";
+import { NEW_READY_WORDS as R, newSinceWords, type NewSeen } from "./ready-rules";
 
 /** Where the tab keeps it: New's page, the view as it was left. */
-const PAGE = "new";
-const VIEW = "left";
+const NEW_PAGE = "new";
+const LEFT_VIEW = "left";
 
 /** What the tab holds of New as it was left. */
 interface Left {
@@ -26,7 +27,7 @@ interface Left {
 }
 
 /** What the tab kept, read as what this keeps: a place of another shape is nothing. */
-function leftOf(place: Record<string, unknown> | null | undefined): Left | null {
+function leftFromPlace(place: Record<string, unknown> | null | undefined): Left | null {
   if (!place || place.seen !== true) return null;
   return {
     line: typeof place.line === "string" ? place.line : null,
@@ -40,21 +41,21 @@ function leftOf(place: Record<string, unknown> | null | undefined): Left | null 
 
 /** `seen` marks it kept: a workspace with nobody, no leads and no calendar is still a place to come back to. */
 const keepLeft = (left: Left): void => {
-  tabMemory()?.keepPlace(PAGE, VIEW, { seen: true, line: left.line, ...left.seen });
+  tabMemory()?.keepPlace(NEW_PAGE, LEFT_VIEW, { seen: true, line: left.line, ...left.seen });
 };
 
 /** A line as it is drafted is done with: what the tab kept of it is let go. */
 export function forgetLeftLine(): void {
-  const left = leftOf(tabMemory()?.place(PAGE, VIEW));
+  const left = leftFromPlace(tabMemory()?.place(NEW_PAGE, LEFT_VIEW));
   if (left) keepLeft({ ...left, line: null });
 }
 
-export function Since(p: { reads: StartReads; line: string; may: boolean; onDraft: (words: string) => void }) {
-  const [left] = useState(() => leftOf(tabMemory()?.place(PAGE, VIEW)));
-  const everyone = p.reads.everyone ?? 0;
-  const leads = (p.reads.sources ?? []).reduce((n, s) => n + s.ready, 0);
-  const calendar = p.reads.calendarOn;
-  const line = p.line.trim();
+export function Since(props: { reads: StartReads; line: string; may: boolean; onDraft: (words: string) => void }) {
+  const [left] = useState(() => leftFromPlace(tabMemory()?.place(NEW_PAGE, LEFT_VIEW)));
+  const everyone = props.reads.everyone ?? 0;
+  const leads = (props.reads.sources ?? []).reduce((sum, source) => sum + source.ready, 0);
+  const calendar = props.reads.calendarOn;
+  const line = props.line.trim();
   useEffect(() => {
     keepLeft({ line: line || null, seen: { everyone, leads, calendar } });
   }, [line, everyone, leads, calendar]);
@@ -69,13 +70,13 @@ export function Since(p: { reads: StartReads; line: string; may: boolean; onDraf
       words={
         <>
           {since.join(" · ")}
-          {kept && p.may ? <span className="sq-nw-since-line">{R.since.kept(kept)}</span> : null}
+          {kept && props.may ? <span className="sq-nw-since-line">{R.since.kept(kept)}</span> : null}
         </>
       }
       acts={
-        kept && p.may ? (
+        kept && props.may ? (
           // Quiet: the page's one coral act is the open start's.
-          <Button size="sm" onClick={() => p.onDraft(kept)} data-testid="sq-nw-since-go" {...gate("approve")}>
+          <Button size="sm" onClick={() => props.onDraft(kept)} data-testid="sq-nw-since-go" {...gate("approve")}>
             {W.say.draft}
           </Button>
         ) : undefined

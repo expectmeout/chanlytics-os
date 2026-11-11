@@ -32,7 +32,8 @@ import { routeDoor } from "../../../frame-verbs";
 import { templates as templateVerbs } from "../../templates/verbs";
 import { tplOwn } from "../../templates/words";
 import { channelsSaidOf, heldMessageOf } from "./new-model";
-import { Choice, PickSheet } from "./new-sheets";
+import { Choice } from "./choice";
+import { PickSheet } from "./new-sheets";
 
 /** The Library as the message sheet reads it: its messages, and the rows their values are read from. */
 export interface LibraryReads {

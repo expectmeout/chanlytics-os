@@ -32,7 +32,7 @@
   .sq-nw-col.is-side > .sq-nw-cap:first-child {
     margin-top: 0;
   }
-  /* The open start's act beside what it promises (new-ready.css), never a bar across the pane. */
+  /* The open start's act beside what it promises (ready.css), never a bar across the pane. */
   .sq-nw .sq-nw-open-foot {
     flex-direction: row;
     align-items: center;
@@ -381,7 +381,7 @@
   color: var(--ink-dim);
 }
 
-/* The line to Ask, and the quiet line under it (new-ready.css draws the line itself). */
+/* The line to Ask, and the quiet line under it (ready.css draws the line itself). */
 .sq-nw-say {
   display: flex;
   flex-direction: column;

@@ -1,6 +1,6 @@
 /**
- * New's first screen, drawn (sequences/new/new-start.tsx with new-line.tsx, new-ready.tsx, new-journey.tsx and
- * new-since.tsx; decision 0129, the canvas "New: start from what's ready"), on the stub React over what the page reads:
+ * New's first screen, drawn (sequences/new/new-start.tsx with line.tsx, ready.tsx, journey.tsx and since.tsx; decision
+ * 0129, the canvas "New: start from what's ready"), on the stub React over what the page reads:
  *
  * - It opens on what is ready: the start reaching most people stands open, the rest are rows, and a press drafts it from
  *   its own line with its choices made.
@@ -18,7 +18,6 @@ import { installStubReact, fresh, again, find, byTestId, textOf, press } from ".
 const TID = "t-studio";
 const ZONE = "America/New_York";
 const W = contracts.NEW_WORDS;
-const R = contracts.NEW_READY_WORDS;
 
 installStubReact({
   location: {
@@ -53,6 +52,7 @@ const { installTabMemory } = await import(`${SRC}/bridge/tab-memory.ts`);
 installTabMemory(globalThis);
 const TM = globalThis.__tabMemory;
 const { StartView } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-start.tsx`);
+const { NEW_READY_WORDS: R } = await import(`${SRC}/surfaces/campaigns/sequences/new/ready-rules.ts`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 const { Field } = await import(`${SRC}/surfaces/kit/field/field.tsx`);
 
