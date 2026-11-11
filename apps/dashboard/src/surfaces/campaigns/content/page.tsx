@@ -1,6 +1,6 @@
 /**
- * Campaigns › Content: everything Ask made for the business and where each piece stands. Drawn in a workspace whose Content
- * switch is on (shown.ts, campaigns/home/route.tsx). Real data or nothing: what is being made (00613 `pieces`), what was made
+ * Campaigns › Content: everything Ask made for the business and where each piece stands, in every workspace
+ * (campaigns/home/route.tsx). Real data or nothing: what is being made (00613 `pieces`), what was made
  * (`files` made here) and where each was posted (00611 `posts`), read by one read (surface.ts, GET content).
  *
  * The head holds two doors: Ask, opened on this page, and Files, where clips are added. How many are made and how many are
@@ -12,7 +12,14 @@
 import "../../files/files.css";
 import "./content.css";
 import { useEffect, useRef, useState } from "react";
-import { CONTENT_ROUTE, CONTENT_WORDS as W, FILES_ROUTE, SECOND_MS, contentMoving } from "@chanlytics/contracts";
+import {
+  CONTENT_ROUTE,
+  CONTENT_WORDS as W,
+  FILES_ROUTE,
+  SECOND_MS,
+  contentMoving,
+  videoPreviewOf,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
@@ -50,12 +57,15 @@ function useAsksWhileMoving(moving: boolean): void {
 const askHere = () => askAbout({ about: { kind: "page", id: CONTENT_ROUTE, label: W.tab } });
 const toFiles = () => navigate(FILES_ROUTE);
 
-/** The head's acts: Files' door, quiet, and Ask, the page's one primary. On a phone the shell's own Ask door stands in. */
-function ContentDoors({ phone }: { phone: boolean }) {
+/**
+ * The head's acts: Files' door, quiet, saying what this workspace adds there (clips where it takes videos, photos where it does
+ * not), and Ask, the page's one primary. On a phone the shell's own Ask door stands in.
+ */
+function ContentDoors({ phone, videos }: { phone: boolean; videos: boolean }) {
   return (
     <>
       <Button variant="quiet" size="sm" onClick={toFiles} data-testid="cnv-head-files">
-        <ActWords icon={<Icon name="plus" size={14} />} words={W.addClips} />
+        <ActWords icon={<Icon name="plus" size={14} />} words={videos ? W.addClips : W.addPhotos} />
       </Button>
       {phone ? null : (
         <Button variant="primary" size="sm" onClick={askHere} data-testid="cnv-head-ask">
@@ -68,6 +78,7 @@ function ContentDoors({ phone }: { phone: boolean }) {
 
 export function ContentPage({ view }: { view?: CmView }) {
   const held = useSurface("content");
+  const videos = videoPreviewOf(useSurface("settings")?.settings?.config);
   const phone = useCmPhone();
   const dto = held === undefined || held === null ? held : held.dto;
   useAsksWhileMoving(!!dto && contentMoving(dto));
@@ -88,8 +99,8 @@ export function ContentPage({ view }: { view?: CmView }) {
   };
   return (
     <div ref={view?.ref} className="cmh cnv" data-slide={view?.slide} data-testid="content-page">
-      <CmHead title={W.tab} quiet right={<ContentDoors phone={phone} />} allowance={false} />
-      <ContentBody held={dto} acts={acts} gettingMore={gettingMore} />
+      <CmHead title={W.tab} quiet right={<ContentDoors phone={phone} videos={videos} />} allowance={false} />
+      <ContentBody held={dto} acts={acts} gettingMore={gettingMore} videos={videos} />
     </div>
   );
 }

@@ -19,7 +19,7 @@
   "console/health": "",
   "files": "files settings",
   "files/places": "",
-  "frame": "calendar live settings workspace",
+  "frame": "calendar live workspace",
   "frame/sidebar": "workspace",
   "frame/topbar": "calendar live",
   "inbox": "broadcasts conversations inbox people reply_drafts settings",

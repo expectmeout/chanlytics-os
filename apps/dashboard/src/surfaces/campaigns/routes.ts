@@ -30,7 +30,6 @@ import {
   sequenceRoute,
 } from "@chanlytics/contracts";
 import { adsShown } from "./ads/shown";
-import { contentShown } from "./content/shown";
 import { surfaceValue } from "../surface-values";
 import type { SurfaceViews } from "../routes";
 // MOCKUP: the crumb names an ad the page has read (the store remembers them) until the wiring lane's surface holds real ones.
@@ -45,13 +44,10 @@ const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE };
 
 /**
  * Sequences | Messages | Content | Ads, Campaigns' views, as the frame's strip draws them (the one Reports and People use):
- * what goes out on its own, the messages it sends (D4: the Library is Messages), what Ask made for the business where that
- * is drawn (content/shown.ts), and, where it is drawn, what you pay to show people who don't have your number.
+ * what goes out on its own, the messages it sends (D4: the Library is Messages), what Ask made for the business (decision
+ * 0125, every workspace's), and, where it is drawn, what you pay to show people who don't have your number.
  */
 function campaignsViews(picked: "sequences" | "messages" | "content" | "ads"): SurfaceViews {
-  const content = contentShown()
-    ? [{ id: "content", label: CONTENT_WORDS.tab, to: CONTENT_ROUTE, testid: "campaigns-view-content" }]
-    : [];
   const ads = adsShown() ? [{ id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" }] : [];
   return {
     name: "campaigns",
@@ -61,7 +57,7 @@ function campaignsViews(picked: "sequences" | "messages" | "content" | "ads"): S
     tabs: [
       { id: "sequences", label: CAMPAIGN_ROOMS.sequences, to: SEQUENCES_ROUTE, testid: "campaigns-view-sequences" },
       { id: "messages", label: ADS_WORDS.messagesTab, to: MESSAGES_ROUTE, testid: "campaigns-view-messages" },
-      ...content,
+      { id: "content", label: CONTENT_WORDS.tab, to: CONTENT_ROUTE, testid: "campaigns-view-content" },
       ...ads,
     ],
   };
@@ -175,8 +171,8 @@ function messagesViewChrome(): { crumbs: Crumb[]; mount: string; act: null; view
 
 /**
  * Campaigns' crumbs: the Ads view's for `campaigns/ads…` where it is drawn (ads/shown.ts), the Content view's for
- * `campaigns/content` where it is drawn (content/shown.ts), Messages' for `campaigns/messages`, and Sequences' for every
- * other address, the sheets Campaigns opens over it among them. Every address is one mount, the page's own.
+ * `campaigns/content`, Messages' for `campaigns/messages`, and Sequences' for every other address, the sheets Campaigns
+ * opens over it among them. Every address is one mount, the page's own.
  */
 export function campaignsChrome({ param }: { param: string | null }): {
   crumbs: Crumb[];
@@ -186,7 +182,7 @@ export function campaignsChrome({ param }: { param: string | null }): {
   pane?: boolean;
 } {
   if (adsShown() && param && isAdsParam(param)) return adsChrome(param);
-  if (contentShown() && isContentParam(param)) return contentChrome();
+  if (isContentParam(param)) return contentChrome();
   if (isMessagesParam(param)) return messagesViewChrome();
   return sequencesChrome();
 }

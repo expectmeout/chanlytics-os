@@ -117,7 +117,7 @@ export const FeaturesConfigSchema = z
     ads_preview: z.boolean().optional(),
     /** A business's videos taken in this workspace (decision 0099, stage B; contracts files/video.ts videoPreviewOf). */
     video_preview: z.boolean().optional(),
-    /** Content in this workspace: Campaigns › Content drawn (decision 0125) and Connect Meta offered (decision 0117); contracts content/address.ts contentPreviewOf. */
+    /** Connect Meta offered in this workspace (decision 0117), and so posting to Instagram; contracts content/address.ts contentPreviewOf. */
     content_preview: z.boolean().optional(),
     /**
      * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held

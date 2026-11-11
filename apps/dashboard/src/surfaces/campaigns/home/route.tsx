@@ -9,7 +9,7 @@
  * drawn. The address is read from the path, never from the route params: a move between two of its addresses is
  * a change of the path alone (workspace.ts goToRoute), and the page follows it, one mount across them all.
  *
- * Sequences, Messages and, where each is drawn, Content and Ads are kept, as People's scopes are (people/people-route.tsx): each drawn from the first time it is
+ * Sequences, Messages, Content and, where it is drawn, Ads are kept, as People's scopes are (people/people-route.tsx): each drawn from the first time it is
  * shown, or ahead of that, hidden, once the frame is idle on the other (useViewsAhead), and hidden under React's Activity
  * while the other is shown, so a press on the strip shows a view already drawn, its rows, its search and its place as they
  * were left. They were two pages: a switch put the old one away, drew nothing for 600 ms on a phone while the new one was
@@ -35,7 +35,6 @@ import { refreshSurface, replaceRoute, useFrameToast } from "../../frame-verbs";
 import type { CmView } from "../parts/split";
 import { surfaceValue } from "../../surface-values";
 import { useAdsShown } from "../ads/shown";
-import { useContentShown } from "../content/shown";
 import { MessagePaneProvider, sequencesPageNow, useMessagesView } from "./campaigns-code";
 import { CampaignsToast } from "./route-toast";
 
@@ -57,7 +56,7 @@ function ViewReading() {
   );
 }
 
-/** Campaigns' kept views, in the strip's order: Content and Ads only where each is drawn (content/shown.ts, ads/shown.ts). */
+/** Campaigns' kept views, in the strip's order: Ads only where it is drawn (ads/shown.ts). */
 type View = "sequences" | "messages" | "content" | "ads";
 const VIEW_ORDER: readonly View[] = ["sequences", "messages", "content", "ads"];
 /** The deck's one seat for Campaigns' views. */
@@ -102,7 +101,7 @@ function useKeptViews(view: View, route: string, ahead: boolean) {
  * (onDemand), so the first press on the strip shows it drawn. React draws a hidden Activity at the lowest priority, behind
  * anything on screen.
  */
-function useViewsAhead(view: View, adsShown: boolean, contentShown: boolean): boolean {
+function useViewsAhead(view: View, adsShown: boolean): boolean {
   const [ahead, setAhead] = useState(false);
   useEffect(() => {
     if (ahead || typeof window === "undefined") return undefined;
@@ -111,20 +110,20 @@ function useViewsAhead(view: View, adsShown: boolean, contentShown: boolean): bo
       // Ads' code, fetched and not drawn: its page reads its own example when it is first shown.
       if (adsShown && view !== "ads") void adsCode();
       // Content's code, fetched and not drawn: its read is its own, made when it is first shown.
-      if (contentShown && view !== "content") void contentCode();
+      if (view !== "content") void contentCode();
       setAhead(true);
     });
-  }, [ahead, view, adsShown, contentShown]);
+  }, [ahead, view, adsShown]);
   return ahead;
 }
 
 /**
- * Which view an address is. `campaigns/ads…` is the Ads view and `campaigns/content` the Content view, each where it is drawn
- * (ads/shown.ts, content/shown.ts); a workspace with neither has nothing to read there, so those addresses are Sequences.
+ * Which view an address is. `campaigns/content` is the Content view, and `campaigns/ads…` the Ads view where it is drawn
+ * (ads/shown.ts): a workspace without it has no ads to read, so its Ads address is Sequences.
  */
-function viewOf(param: string | null, adsShown: boolean, contentShown: boolean): View {
+function viewOf(param: string | null, adsShown: boolean): View {
   if (param && isAdsParam(param) && adsShown) return "ads";
-  if (isContentParam(param) && contentShown) return "content";
+  if (isContentParam(param)) return "content";
   return isMessagesParam(param) ? "messages" : "sequences";
 }
 
@@ -135,13 +134,12 @@ export function CampaignsRoute() {
   // The mount's toast: a send made in New, which closes as it sends, says so here, with its Stop (route-toast.ts).
   const [toastNode, flash] = useFrameToast();
   const adsShown = useAdsShown();
-  const contentShown = useContentShown();
   const landing = retiredRouteOf(route);
-  const view = viewOf(param, adsShown, contentShown);
+  const view = viewOf(param, adsShown);
   // Sequences is a chunk of its own (campaigns-code.tsx), most often fetched before the press: then the page is drawn at once,
   // and only a press that beat it waits under the Suspense below. Taken once for the mount, which follows every address.
   const [SequencesPage] = useState(sequencesPageNow);
-  const ahead = useViewsAhead(view, adsShown, contentShown);
+  const ahead = useViewsAhead(view, adsShown);
   const kept = useKeptViews(view, landing ?? route, ahead);
   // Messages' code, a chunk of Campaigns' own: asked for once the view is drawn, shown or ahead.
   const Messages = useMessagesView(kept.drawn.has("messages"));
@@ -165,8 +163,8 @@ export function CampaignsRoute() {
           {Messages ? <Messages view={kept.viewOf("messages")} route={kept.messagesAt} /> : <ViewReading />}
         </Activity>
       ) : null}
-      {/* Content, a view kept beside the others on the same mount, where its switch is on (content/shown.ts). */}
-      {contentShown && kept.drawn.has("content") ? (
+      {/* Content, a view kept beside the others on the same mount (decision 0125). */}
+      {kept.drawn.has("content") ? (
         <Activity mode={view === "content" ? "visible" : "hidden"}>
           <Suspense fallback={<ViewReading />}>
             <ContentPage view={kept.viewOf("content")} />

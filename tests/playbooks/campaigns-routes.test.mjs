@@ -201,12 +201,13 @@ test("Campaigns' crumbs are its first view's at every address but Ads, a sheet o
   assert.equal(c("sequences").crumbs.at(-1), "Run");
   rememberRun({ id: "b-old", name: "Win-back · 2026-08-01", run_for: "2026-08-01", state: "sent" });
   assert.equal(c("sequences").crumbs.at(-1), "Win-back · 2026-08-01");
-  // The strip: Sequences and Messages, and Ads only where it is drawn.
+  // The strip: Sequences, Messages and Content (every workspace's, decision 0125), and Ads only where it is drawn.
   assert.deepEqual(
     c(null).views.tabs.map((t) => [t.id, t.label, t.to]),
     [
       ["sequences", "Sequences", "campaigns/sequences"],
       ["messages", "Messages", "campaigns/messages"],
+      ["content", "Content", "campaigns/content"],
     ],
   );
   // Messages is the strip's other view on the same mount (19 Oct 2026): its own tab lit, the same one head, the pane.

@@ -1,9 +1,9 @@
 /**
  * Content's address (`campaigns/content`), a view of Campaigns beside Sequences, Messages and Ads: everything Ask made for the
- * business and where each piece stands. Drawn only where a workspace's switch is on, as Ads is (ads/address.ts adsPreviewOf).
+ * business and where each piece stands, in every workspace (decision 0125). And the switch that offers Connect Meta.
  *
- * A module of its own and small: the frame's route chunk reads the address and the switch, so nothing of the page (its words,
- * its marks) may ride in here. Those are page.ts's.
+ * A module of its own and small: the frame's route chunk reads the address, so nothing of the page (its words, its marks) may
+ * ride in here. Those are page.ts's.
  */
 import { recordOrNull } from "../shared/unknown";
 
@@ -14,9 +14,9 @@ export const CONTENT_ROUTE = "campaigns/content";
 export const isContentParam = (param: string | null | undefined): boolean => !!param && /^content(:|$)/.test(param);
 
 /**
- * Whether a workspace's config turns Content on (`features.content_preview`, the flag registry's `content_preview`): Connect
- * Meta in Settings (decision 0117) and the Content view in Campaigns. Read off the config as stored, so anything but `true` is
- * off. The one reader of the switch: the edge, the frame and the page each ask it.
+ * Whether a workspace's config offers Connect Meta (`features.content_preview`, the flag registry's `content_preview`;
+ * decision 0117), and so posting to Instagram. Read off the config as stored, so anything but `true` is off. The one reader of
+ * the switch: the edge and the dashboard both ask it. The Content view is every workspace's and reads no switch (decision 0125).
  */
 export function contentPreviewOf(config: unknown): boolean {
   const features = recordOrNull(recordOrNull(config)?.features);

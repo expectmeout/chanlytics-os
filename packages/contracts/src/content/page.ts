@@ -100,7 +100,9 @@ export const CONTENT_WORDS = {
   /** What a video with no opening words is called. */
   video: "Video",
   ask: "Make something",
+  /** The head's door to Files: clips where the workspace takes videos, photos where it does not. */
   addClips: "Add clips",
+  addPhotos: "Add photos",
   makingTitle: "Being made",
   more: "Show more",
   /** The next page of what was made could not be read: what is on screen stands. */
@@ -110,6 +112,8 @@ export const CONTENT_WORDS = {
   empty: {
     title: "Nothing made yet",
     body: "Ask makes posts from your photos and videos from your clips. Everything it makes shows here.",
+    /** Where the workspace takes no videos (features.video_preview): Ask makes no video there, so it says none. */
+    bodyPhotos: "Ask makes posts from your photos. Everything it makes shows here.",
     ask: "Ask for one",
     files: "Open Files",
   },
