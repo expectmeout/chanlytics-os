@@ -776,3 +776,46 @@ test("the receptionist's blank is a mark, never a bracket: its name while it is 
   await until(() => textOf(byId(s.draw(), "lead-card-receptionist")).includes(F.mark.none), "the mark's read lands");
   assert.ok(byId(s.draw(), "lead-sheet-preview-make"), "Make it now is a press away");
 });
+
+test("while a receptionist is being made its mark looks again by itself, and says ready when it is", async (t) => {
+  // The wait between looks is the clock's: the test turns it, and waits for what it asserts.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const made = "5e000000-0000-4000-8000-0000000000f1";
+  const preview = (state) => ({
+    preview: {
+      state,
+      token: "t",
+      failed_why: null,
+      ends_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      first_sent_at: null,
+      opened_count: 0,
+      asked_count: 0,
+      call_count: 0,
+      call_seconds: 0,
+      tried_at: null,
+      claimed_at: null,
+      not_right: [],
+    },
+    makes: true,
+  });
+  const words = { subject: null, body: "Try it: {{their preview}}" };
+  const edit = editOf({ leadId: made, first: false, written: words, stepWritten: words });
+  door.preview = preview("building");
+  const s = sheetOf(mailOf(edit, { subject: null, leadId: made }));
+  const mark = () => textOf(byId(s.draw(), "lead-card-receptionist"));
+  await until(() => mark().includes(F.mark.building), "it says it is being made");
+  const asked = () =>
+    sent.filter(([method, path]) => method === "GET" && path.endsWith(`/leads/${made}/preview`)).length;
+  const before = asked();
+  // Nothing is pressed: the receptionist is made, the wait runs out, and the mark's own look finds it.
+  door.preview = preview("ready");
+  t.mock.timers.tick(4_000);
+  await until(() => mark().includes(F.mark.ready), "it says ready with nothing pressed");
+  assert.ok(asked() > before, "it asked again by itself");
+  assert.ok(byId(s.draw(), "lead-sheet-preview-open"), "and Open it is a press away");
+  // Made, it asks no more: the clock turned again finds nothing waiting.
+  const after = asked();
+  t.mock.timers.tick(60_000);
+  s.draw();
+  assert.equal(asked(), after);
+});
