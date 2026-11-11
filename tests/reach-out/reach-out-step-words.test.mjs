@@ -259,5 +259,5 @@ test("their preview (decision 0079): a link like any other, the step's one, and 
     ["0:body:first_has_their_preview"],
     "said once, in its own words, and a later step may name it",
   );
-  assert.equal(chainIssueWords(issues[0]), "A first email carries no link. Put their preview in a later step.");
+  assert.equal(chainIssueWords(issues[0]), "A first email carries no link. Put their receptionist in a later step.");
 });
