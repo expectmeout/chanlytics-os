@@ -73,6 +73,7 @@ const held = (over = {}, language = "en") => ({
   refused: null,
   waiting: false,
   stands: null,
+  posterMissed() {},
   press: { label: "Make it", disabled: false },
   ...over,
 });
@@ -130,13 +131,30 @@ test("being made: where it is at, and that she may leave", () => {
   assert.ok(waits.read.includes("up to 20 minutes"), waits.read);
 });
 
-test("made and being looked at: the video's own first frame, still dim, and no word of leaving", () => {
+test("ready the moment it can be played, as the bell rings: Ask's look comes after, and holds nothing back", () => {
+  // Ruben, 11 Nov 2026, "Ready when playable": the card said "Ask is checking" for some 13 seconds after the bell had said
+  // it was ready. The words of that wait are gone with it.
   const says = pieceWordsIn("en");
-  const { html, read } = drawn(held({ stands: { is: "checking", file: made({ look_status: "waiting" }) } }));
-  assert.equal(read, `Ask is checking Made. Ask looks at it before you do. ${SUMMARY}`);
-  assert.ok(html.includes(`/api/v1/files/${FILE}/view?w=320&amp;look=waiting`), "its poster, asked for by its look");
-  assert.ok(html.includes('data-dim=""') && !html.includes("ask-piece-working"), "dim, and nothing of Ask's over it");
-  assert.ok(!read.includes(says.making));
+  const { html, read } = drawn(held({ stands: { is: "ready", file: made({ look_status: "waiting" }) } }));
+  assert.equal(read, `It's ready In Files, under Made by Ask. Open ${SUMMARY}`);
+  assert.ok(
+    !html.includes("data-dim") && !html.includes("ask-piece-working"),
+    "at full strength, nothing of Ask's over it",
+  );
+  assert.ok(!("checkingMark" in says.follows) && !("checking" in says.follows));
+  assert.ok(!read.includes(says.making), "no word of leaving once it is there");
+});
+
+test("a card that has its stills shows the video's own first frame from them, and asks for the poster only without them", () => {
+  // The platform says a video can be played some seconds before its poster is cut: a card that asked for it then showed nothing
+  // over the still it already had. The still is the video's first frame with its words, so it is what the card shows.
+  const live = drawn(held({ stands: { is: "ready", file: made({ look_status: "waiting" }) } }));
+  assert.equal(times(live.html, 'class="ask-piece-slice"'), 1, "the first still, at full strength");
+  assert.ok(!live.html.includes("ask-piece-poster"), "no poster asked for while the still stands");
+  // A card drawn afresh later, its stills not asked for again, shows the video's poster.
+  const later = drawn(held({ picture: null, stands: { is: "ready", file: made() } }));
+  assert.ok(later.html.includes(`/api/v1/files/${FILE}/view?w=320"`), "the poster, by its address alone");
+  assert.ok(!later.html.includes("ask-piece-slice"));
 });
 
 test("ready: said once, where it is, and Open", () => {
@@ -145,9 +163,9 @@ test("ready: said once, where it is, and Open", () => {
   assert.equal(times(read, "10 seconds"), 1, "its length is the card's own line, said once");
   assert.ok(!html.includes("data-dim"), "at full strength");
   assert.ok(html.includes('data-testid="ask-piece-open"'));
-  // What the look found against it is said before she opens it.
+  // What the look found is said on the video's own page, as for any file: the card is ready before the look has run.
   const found = drawn(held({ stands: { is: "ready", file: made({ issues: ["The words run off the top."] }) } }));
-  assert.ok(found.read.includes("The words run off the top. Open"), found.read);
+  assert.ok(!found.read.includes("The words run off the top"), found.read);
 });
 
 test("not made: why, once, and Try again for whoever may press", () => {

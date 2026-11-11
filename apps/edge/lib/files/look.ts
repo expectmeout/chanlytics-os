@@ -248,6 +248,8 @@ async function lookAtVideo(db: Db, job: ClaimedJob, row: FileRow, deadline: numb
           height: copy.height,
           ...about,
           sound: heard,
+          // A video made here is judged as one ready to post: its words, end card and silence are its own (decision 0122).
+          made: row.source === "made",
         }),
       },
     ],

@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { PIECES_MAKING_MAX } from "@chanlytics/contracts";
+import { takeLock } from "../_file-lock.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -142,8 +143,13 @@ const endAll = async () =>
     "ended",
   );
 
+// A piece_make due now is a row of the one queue, in the lane of someone waiting, which a claim serves first: a suite claiming
+// beside this one carries it off (_file-lock.mjs). The broadcasts suite met four of them as strays, 138 ms after the press
+// that wrote them (11 Nov 2026, #2253's run), so this file runs apart from the suites that claim.
+let releaseLedger;
 before(async () => {
   if (skip) return;
+  releaseLedger = await takeLock("jobs-ledger");
   db = createClient(URL_, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const tenants = ok(
     await db
@@ -164,13 +170,17 @@ before(async () => {
 
 after(async () => {
   if (skip) return;
-  const all = [A, B];
-  await db.from("jobs").delete().in("tenant_id", all);
-  await db.from("pieces").delete().in("tenant_id", all);
-  await db.from("files").delete().in("tenant_id", all);
-  await db.from("memberships").delete().in("tenant_id", all);
-  await db.from("tenants").delete().in("id", all);
-  for (const id of users) await db.auth.admin.deleteUser(id);
+  try {
+    const all = [A, B];
+    await db.from("jobs").delete().in("tenant_id", all);
+    await db.from("pieces").delete().in("tenant_id", all);
+    await db.from("files").delete().in("tenant_id", all);
+    await db.from("memberships").delete().in("tenant_id", all);
+    await db.from("tenants").delete().in("id", all);
+    for (const id of users) await db.auth.admin.deleteUser(id);
+  } finally {
+    await releaseLedger?.();
+  }
 });
 
 test(

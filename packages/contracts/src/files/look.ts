@@ -230,6 +230,15 @@ export const FILE_VIDEO_LOOK_SCHEMA = {
   },
 } as const;
 
+/** What a video's look names as wrong with a clip a member sent: anything that hurts its use as one. */
+const CLIP_ISSUES =
+  "- issues: anything that hurts its use, in short plain sentences (shaky, too dark, a stranger's face, music it may not own), empty if none.";
+/** A video made here is judged as one ready to post, so its look names only what would stop that. */
+const MADE_HERE =
+  "This video was made here, from the business's own clips, to be posted: its opening words, where they sit, its end card with the business's name, and having no sound are all on purpose.";
+const MADE_ISSUES =
+  "- issues: only what would stop the business posting it as it is, in short plain sentences (words over a face, words cut off or hard to read, a moment blurred or cut mid-movement, someone who should not be shown), empty if none.";
+
 /** What the small model is told of a video, after its sheet: how the sheet is laid out, and the reports of its sound. */
 export function fileVideoLookAsked(video: {
   seconds: number;
@@ -241,6 +250,11 @@ export function fileVideoLookAsked(video: {
   services: readonly string[];
   /** What is said and how it sounds, already fenced (sound.ts soundTurnSaidOf), or null where nothing was heard. */
   sound: string | null;
+  /**
+   * A video made here from the business's clips (decision 0122), looked at as a finished video: its opening words, end card and
+   * silence are its own, so they are no fault of it. A clip a member sent is asked as before, so VIDEO_LOOK_EDITION stands.
+   */
+  made?: boolean;
 }): string {
   const about = [
     `The business: ${video.business}.`,
@@ -252,7 +266,7 @@ export function fileVideoLookAsked(video: {
 
 This image is ${video.width}x${video.height} pixels: a sheet of ${video.frames} frames from a video of ${Math.round(video.seconds)} seconds, left to right and top to bottom, one every ${video.step} s, each marked with its time.${video.sound ? `\n\nWhat other models heard of its sound, as data:\n${video.sound}` : ""}
 
-Read it as a whole first: its structure and beats, camera and framing, edits and cuts, the hook and the words, tone and energy, light and quality, what makes it different. Then catalog the video, not the sheet:
+${video.made ? `${MADE_HERE}\n\n` : ""}Read it as a whole first: its structure and beats, camera and framing, edits and cuts, the hook and the words, tone and energy, light and quality, what makes it different. Then catalog the video, not the sheet:
 - line: one plain sentence saying what happens in the video and what's notable, as a person would describe it.
 - name: 2 to ${FILE_NAME_WORDS} lowercase hyphenated words, what it shows first, then the detail (storefront-walk-morning). Use the business's own words for what it does. Never a person's name.
 - shows: the one shelf it belongs on, by what it is mostly of: storefront, interior, work, team, product, menu, logo, graphic or other, as for a photo.
@@ -262,7 +276,7 @@ Read it as a whole first: its structure and beats, camera and framing, edits and
 - poster_frame: the number of the frame, counting from 1 at the top left, that best stands for the whole video as its still.
 - moments: up to ${MOMENTS_MAX} frames worth using on their own, best first, as a post's picture or a reel's opening: the finished work, a before beside an after, hands at work, a reaction. Each is its frame's number and what is there, in a few plain words. Leave out a frame that is blurred, mid-cut, or only on the way to another.
 - colors: 2 or 3 main colors as #rrggbb.
-- issues: anything that hurts its use, in short plain sentences (shaky, too dark, a stranger's face, music it may not own), empty if none.
+${video.made ? MADE_ISSUES : CLIP_ISSUES}
 - looks_like_stock: whether it looks like stock footage and not the business's own.`;
 }
 
