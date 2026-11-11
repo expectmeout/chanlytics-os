@@ -8,6 +8,7 @@ import {
   forgetPushDevice,
   keepMemberView,
   markNotification,
+  markNotificationsReadThrough,
   markNotificationsSeen,
   registerPushDevice,
   forgetWebPush,
@@ -33,5 +34,8 @@ export const forgetDevice = (ctx: Ctx, args: Parameters<typeof forgetPushDevice>
 export const markOne = (ctx: Ctx, args: Parameters<typeof markNotification>[1]) => markNotification(ctx.supabase, args);
 export const markBellSeen = (ctx: Ctx, args: Parameters<typeof markNotificationsSeen>[1]) =>
   markNotificationsSeen(ctx.supabase, args);
+/** Mark all read, or its Undo with a moment to go back to (00614). */
+export const markBellReadThrough = (ctx: Ctx, args: Parameters<typeof markNotificationsReadThrough>[1]) =>
+  markNotificationsReadThrough(ctx.supabase, args);
 export const saveMemberView = (ctx: Ctx, args: Parameters<typeof keepMemberView>[1]) =>
   keepMemberView(ctx.supabase, args);

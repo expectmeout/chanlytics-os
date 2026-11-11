@@ -101,8 +101,10 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   const doors = readCode("packages/db/src/repositories/notices/devices.ts");
   assert.ok(
     route.includes("markBellSeen(ctx, { p_tenant_id: tenantId })") &&
+      route.includes("markBellReadThrough(ctx, {") &&
       route.includes("markOne(ctx, {") &&
       route.includes('rate: "notify_mark",') &&
+      doors.includes('db.rpc("notifications_read_through", args)') &&
       doors.includes('db.rpc("notifications_seen", args)') &&
       doors.includes('db.rpc("notification_mark", args)'),
   );

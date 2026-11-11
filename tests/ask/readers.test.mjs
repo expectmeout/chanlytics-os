@@ -5740,7 +5740,12 @@ test("the notifications, for the page: GET notifications answers its reader's pa
   // No row this month: no mark is read at all.
   const quiet = dayCtx(notificationsWorld(NOW, { rows: [] }));
   const none = await kernel.load(turnIn(quiet), notificationsReader, undefined);
-  assert.deepEqual(none.data, { notifications: [], seen_at: "2026-09-10T12:00:00Z", unread: 0 });
+  assert.deepEqual(none.data, {
+    notifications: [],
+    seen_at: "2026-09-10T12:00:00Z",
+    read_through_at: null,
+    unread: 0,
+  });
   assert.deepEqual(asked(quiet), ["notification_reads.select", "notifications.select"]);
 });
 
