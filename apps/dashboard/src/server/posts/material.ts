@@ -92,7 +92,8 @@ async function logoRead(tenantId: TenantId, path: string): Promise<string | null
   return mark ? `data:image/png;base64,${mark.toString("base64")}` : null;
 }
 
-async function photoRead(file: FileMemberRow): Promise<Buffer> {
+/** A photo's bytes, in a kind the code reads, at the widest a drawing needs. */
+export async function readPhoto(file: FileMemberRow): Promise<Buffer> {
   const path = filePathOf(file.tenant_id, file.id, file.mime);
   const read = await bucket().download(path, { transform: { width: PHOTO_READ_WIDTH, resize: "contain" } });
   if (read.error || !read.data) {
@@ -141,7 +142,7 @@ export async function postMaterialFrom(
 ): Promise<PostMaterial> {
   const [photo, look, config] = await Promise.all([
     heldRead(`photo:${file.id}:${at ?? ""}`, PHOTO_HELD_MS, () =>
-      file.kind === "video" && at !== null ? readFrame(ctx, tenantId, file, at) : photoRead(file),
+      file.kind === "video" && at !== null ? readFrame(ctx, tenantId, file, at) : readPhoto(file),
     ),
     findWorkspaceLook(ctx.supabase, tenantId),
     configOf(),
