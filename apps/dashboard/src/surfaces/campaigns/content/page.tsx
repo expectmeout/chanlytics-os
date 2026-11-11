@@ -58,13 +58,14 @@ const askHere = () => askAbout({ about: { kind: "page", id: CONTENT_ROUTE, label
 const toFiles = () => navigate(FILES_ROUTE);
 
 /**
- * The head's acts: Files' door, quiet, saying what this workspace adds there (clips where it takes videos, photos where it does
- * not), and Ask, the page's one primary. On a phone the shell's own Ask door stands in.
+ * The head's acts: Files' door, saying what this workspace adds there (clips where it takes videos, photos where it does not),
+ * and Ask, the page's one primary. On a phone the shell's own Ask door stands in for Ask, and Files' door is the page's one
+ * act, coral as every view's beside the strip is (Ruben, 11 Nov 2026).
  */
 function ContentDoors({ phone, videos }: { phone: boolean; videos: boolean }) {
   return (
     <>
-      <Button variant="quiet" size="sm" onClick={toFiles} data-testid="cnv-head-files">
+      <Button variant={phone ? "primary" : "quiet"} size="sm" onClick={toFiles} data-testid="cnv-head-files">
         <ActWords icon={<Icon name="plus" size={14} />} words={videos ? W.addClips : W.addPhotos} />
       </Button>
       {phone ? null : (

@@ -3061,6 +3061,23 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
     align-self: center;
     justify-content: flex-end;
   }
+  /* Where Campaigns' strip holds four views (Ads drawn after Content), a phone cannot hold them and the coral act on one
+     line: the strip scrolled under a thumb and "Ads" stood cut at its edge (Ruben, 11 Nov 2026). The act goes up to the
+     name's row, at its right as on a page with no strip, the name's row 13px lower so it clears the bell, and the strip
+     has its row to itself. */
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) {
+    padding-top: 13px;
+  }
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-head-slot {
+    grid-column: 1;
+    align-self: center;
+  }
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > .pg-act-slot {
+    grid-row: 1;
+  }
+  .pg-slot[data-strip="campaigns"]:has(> nav > a:nth-of-type(4)) > nav {
+    grid-column: 1 / -1;
+  }
   /* A coral act beside the strip is as tall as the view picked in it and on its line, with the strip's 4px over and under
      it: at the strip's 36 the coral read bigger than the tabs beside it (Ruben, 6 Nov 2026). It is 44 to a finger by a
      margin no one sees. The empty capsules beside a strip, the Calendar's Settings and Reports' period, keep the strip's 36. */
