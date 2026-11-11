@@ -53,7 +53,7 @@ export const NEW_READY_WORDS = {
     yes: (n: number) => `${plural(n, "person", "people")} said yes to messages`,
     leads: (n: number) => `${plural(n, "lead is", "leads are")} ready`,
     calendar: "Your calendar is connected",
-    go: (line: string) => `Draft “${line}”`,
+    kept: (line: string) => `You wrote “${line}”`,
   },
 } as const;
 

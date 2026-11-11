@@ -1,9 +1,10 @@
 /**
- * New, before a draft (decision 0065; the New canvas's row A, D3, D5 and E5): one line to say what it should do, and Draft
- * it; or a start from what is happening in the workspace, each a line Ask drafts from with its choices already made (who
- * it is for, the kind). A workspace with nothing set up is offered the one thing each start needs. While Ask drafts, the
- * line is kept with its Stop; when Ask could not draft it, or nothing here fits, the line stays and Build it yourself is
- * offered. A viewer sees what is happening and what runs, and is told who can make one. Hookless.
+ * New, before a draft (decision 0065; the canvas "New: start from what's ready", 11 Nov 2026): one line to say or type
+ * what it should do (new-line.tsx); what changed while the owner was away (new-since.tsx); what the workspace can start
+ * now, the one reaching most people standing open, and the one thing each other start needs (new-ready.tsx); and the
+ * customers' journey with its map (new-journey.tsx). Each start is a line Ask drafts from with its choices already made.
+ * While Ask drafts, the line is kept with its Stop; when Ask could not draft it, or nothing here fits, the line stays and
+ * Build it yourself is offered. A viewer reads what is happening, and is told who can make one.
  */
 import { NEW_WORDS as W, peopleRoute, type NewDraftAsk, type NewKind, type ReadyStart } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
@@ -15,6 +16,7 @@ import * as M from "./new-model";
 import { CaseNote, SaidLine } from "./new-parts";
 import { Ready, readyReadsOf, type StartReads } from "./new-ready";
 import { Choice } from "./new-sheets";
+import { Since, forgetLeftLine } from "./new-since";
 import "./new-ready.css";
 
 /**
@@ -91,13 +93,18 @@ interface StartProps {
 /** New before a draft, in New's pane. */
 export function StartView(p: StartProps) {
   const enough = p.line.trim().length >= NEW_LINE_MIN;
+  // However a line is drafted, what the tab kept of it is let go (new-since.tsx).
+  const draft = (words: string, fixed?: Omit<NewDraftAsk, "words">) => {
+    forgetLeftLine();
+    p.onDraft(words, fixed);
+  };
   const draftIt = () => {
-    if (enough) p.onDraft(p.line.trim());
+    if (enough) draft(p.line.trim());
   };
   // A start is its own line, drafted as it is pressed, with its choices made.
   const start = (s: ReadyStart) => {
     p.onLine(s.line);
-    p.onDraft(s.line, s.fixed);
+    draft(s.line, s.fixed);
   };
   return (
     <CmPane title={W.title} onClose={p.onClose} testid="sq-new">
@@ -109,7 +116,7 @@ export function StartView(p: StartProps) {
             <NewLine
               line={p.line}
               onLine={p.onLine}
-              onDraft={(words) => p.onDraft(words)}
+              onDraft={(words) => draft(words)}
               hint={p.failed ? W.say.kept : p.reads?.messages === 0 ? W.say.writes : W.say.hint}
             />
           ) : (
@@ -138,6 +145,15 @@ export function StartView(p: StartProps) {
           ) : null}
           {p.reads ? (
             <>
+              <Since
+                reads={p.reads}
+                line={p.line}
+                may={p.may}
+                onDraft={(words) => {
+                  p.onLine(words);
+                  draft(words);
+                }}
+              />
               <Ready reads={p.reads} may={p.may} onStart={start} />
               <Journey reads={readyReadsOf(p.reads)} may={p.may} onStart={start} />
               {p.reads.messages === 0 ? <p className="sq-nw-note">{W.starts.noMessages}</p> : null}

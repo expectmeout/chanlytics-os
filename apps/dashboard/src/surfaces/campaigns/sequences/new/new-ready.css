@@ -162,3 +162,10 @@
   border-color: transparent;
   background: var(--ink);
 }
+
+/* The line New kept, on a row of its own under what changed. */
+.sq-nw-since-line {
+  display: block;
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+}
