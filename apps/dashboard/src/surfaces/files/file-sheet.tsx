@@ -11,6 +11,7 @@ import {
   POST_WORDS,
   fileSaidOf,
   fileViewOf,
+  issuesSaidOf,
   postPhotoWont,
   whoStandsOf,
   type FileDto,
@@ -351,7 +352,7 @@ function FileSheet({
           {says && <p className="files-says">{says}</p>}
           {file.kind === "video" && <VideoHeard sound={sound} />}
           {file.looks_like_stock && file.status === "inbox" && <Notice label={W.stock} fact={W.stock} line />}
-          {file.issues.length > 0 && <p className="files-says files-issues">{file.issues.join(" ")}</p>}
+          {file.issues.length > 0 && <p className="files-says files-issues">{issuesSaidOf(file.issues)}</p>}
           <div className="files-fields">
             {may ? (
               <>

@@ -3,7 +3,7 @@
  * member by their first name, as the page's name, and under it one sentence that follows the rows. A line that is down
  * leads, and how many need you as well; else how many need you, the one count (the badge's, the strip's Inbox tab's, the
  * phone tab's and the title's: Need you's rows above To do still open, needs-you.ts), then what Ask prepared and the one thing
- * that cannot wait, as the rows still hold them (need-you/head-say.ts); after closing, how today went; with nobody
+ * that cannot wait, as the rows still hold them (need-you-model.ts useNeedYouLine); after closing, how today went; with nobody
  * waiting, what is listening on a quiet day, else "Nothing needs you." and that that's everyone (contracts
  * todayHeadLine). Listen stands beside the greeting on a desk and beside the bell on a phone (the kit head's `beside`); on
  * a desk the day's four figures stand at the head's right (figures.tsx). Under the sentence, one line of what happened
@@ -34,7 +34,7 @@ import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { todayGreetingNow } from "../chrome";
 import { TODAY_HELPERS } from "../helpers";
-import { useHeadSay } from "../need-you/head-say";
+import { useNeedYouLine } from "../need-you-model";
 import { useRests } from "../need-you/rests";
 import { reviewsToAnswer } from "../need-you/reviews";
 import { useTodayOnPhone } from "../phone";
@@ -173,7 +173,9 @@ function useDayTurned(): boolean {
 export function useZonesStanding(): void {
   const phone = useTodayOnPhone();
   const vm = useSurface("today");
-  const said = useHeadSay();
+  // Read from Need you's own model in the head's pass, never heard from the list as it draws: the line is there on the
+  // first frame (today/arrangement.ts says why).
+  const said = useNeedYouLine(vm ?? null);
   // The one count, the badge's: it leaves a row the moment Need you acts on it (needs-you.ts needsYouActed).
   const count = useNeedsYou() ?? 0;
   const turned = useDayTurned();

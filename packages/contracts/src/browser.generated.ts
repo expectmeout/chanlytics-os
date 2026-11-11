@@ -249,7 +249,7 @@ export { pageWords, reportCode, reportOf, SETUP_ASK_WORDS, supportClusters } fro
 export { CONTENT_ROUTE, contentPreviewOf, isContentParam } from "./content/address";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./content/lines";
 export { CONTENT_FAILED_DAYS, CONTENT_MAKING_MAX, CONTENT_MAX, CONTENT_PAGE, CONTENT_WORDS, contentHeadOf, contentMakingSaid, contentMarkOf, contentMarkSaid, contentMoving } from "./content/page";
-export { pieceStandsOf, pieceStillMoving } from "./content/piece-card";
+export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./content/piece-card";
 export { PIECE_FRAME, pieceLineWidthOf, pieceWordsBoxOf } from "./content/piece-frame";
 export { isPieceStep, PIECE_FAILS, PIECE_ROUNDS_MAX, PIECE_STAGES, PIECE_STATUSES, PIECE_TEMPLATE, pieceCompositionOf, pieceLookOf, pieceMachineOf, pieceRoundsOf, PIECES_MAKING_MAX } from "./content/piece-making";
 export { pieceSpec } from "./content/piece-spec";
@@ -305,7 +305,7 @@ export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HI
 export { POST_LAYOUTS, POST_LIMITS, POST_NO_PHONE, POST_PICTURES, POST_SHAPES, POST_VOICES, POST_WORDS, postMomentWont, postPhotoWont, postPlanOf, postPlanTidied, postSentencesOf, postWordsIn } from "./files/post";
 export { cuesSaidOf, earWordsOf, fileSoundOf, languageCodeOf, languageNameOf, noteSaidOf, scribeWordsOf, soundNoteOf, soundSaidOf, soundTurnSaidOf, VIDEO_EAR_SCHEMA, VIDEO_EAR_SYSTEM, VIDEO_EAR_WORDS_SCHEMA, videoEarAsked, videoListenAsked, videoSheetAfterOf, vttOf } from "./files/sound";
 export { clockOf, isDigestStep, nextDigestStepOf, secondsOf, VIDEO_DIGEST_STEPS, VIDEO_FRAME_SIDE, VIDEO_SHEET_FRAMES, VIDEO_SHEET_PIXELS, VIDEO_SHEET_SIDE, VIDEO_SPAN_FRAMES, VIDEO_TILE_LABEL_PX, videoFrameSizeOf, videoFramesSaidOf, videoFrameWhatOf, videoPreviewOf, videoSheetPlanOf, videoSheetSaidOf, videoSheetWhatOf, videoSpanPlanOf, videoSpanWhatOf } from "./files/video";
-export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, FILES_ROUTE, fileSaidOf, fileShelfOpening, filesTallyOf, fileViewOf, inboxCleanOf, postNameOf, postPathOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/views";
+export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, FILES_ROUTE, fileSaidOf, fileShelfOpening, filesTallyOf, fileViewOf, inboxCleanOf, issuesSaidOf, postNameOf, postPathOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/views";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";

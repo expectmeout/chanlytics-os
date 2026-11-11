@@ -12,7 +12,7 @@
  * A video (stage B) is its poster, its length in a corner, once it is ready; until then its ground says it is being made ready,
  * and one Stream could not read says so, for its owner to delete. On its way it draws no picture of its own: an <img> cannot.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { FILE_WORDS as W, clockOf, fileSaidOf, fileViewOf, uploadNameOf, type FileDto } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Meter } from "../kit/meter/meter";
@@ -27,7 +27,10 @@ const smallPictureOf = (id: string): string => `${fileViewOf(id)}?w=480`;
 /** What has come in on this visit: drawn again, as the list takes over from a tile or back on a shelf, it stands and never fades in twice. */
 const cameIn = new Set<string>();
 
-export /** A picture where it can be drawn. One Storage can't draw keeps its ground and says its name, never a broken glyph. */
+export /**
+ * A picture where it can be drawn. One Storage can't draw keeps its ground and says its name, never a broken glyph, or says
+ * `unseen` where the caller knows why it is not there yet.
+ */
 function Picture({
   src,
   alt,
@@ -35,6 +38,7 @@ function Picture({
   big = false,
   eager = false,
   onArrived,
+  unseen,
 }: {
   src: string;
   alt: string;
@@ -43,6 +47,8 @@ function Picture({
   /** Loaded whether or not it is near the screen, since something waits on it. */
   eager?: boolean;
   onArrived?: () => void;
+  /** What stands in its place when it does not come, in place of the name. */
+  unseen?: ReactNode;
 }) {
   const [broken, setBroken] = useState(false);
   const [seenBefore] = useState(() => cameIn.has(src));
@@ -52,6 +58,7 @@ function Picture({
     if (!src.startsWith("blob:")) cameIn.add(src);
     onArrived?.();
   }, [arrived, src, onArrived]);
+  if (broken && unseen) return unseen;
   if (broken)
     return (
       <span
@@ -116,12 +123,22 @@ function VideoWaits({ failed, name }: { failed: boolean; name: string }) {
   );
 }
 
-/** A video on the grid: its poster and its length once it is ready, its state in words until then. */
+/**
+ * A video on the grid: its poster and its length once it is ready, its state in words until then. The platform says a video
+ * can be played a few seconds before its poster is cut (the digest's sheet, then the look's own frame): a tile drawn between
+ * says it is getting ready, and asks again once Ask has looked at it, so it never stands blank.
+ */
 function VideoFrame({ file, name }: { file: FileDto; name: string }) {
   if (file.media_status !== "ready") return <VideoWaits failed={file.media_status === "failed"} name={name} />;
   return (
     <>
-      <Picture src={smallPictureOf(file.id)} alt={file.line ?? name} name={name} />
+      <Picture
+        key={file.look_status}
+        src={smallPictureOf(file.id)}
+        alt={file.line ?? name}
+        name={name}
+        unseen={<VideoWaits failed={false} name={name} />}
+      />
       {file.seconds !== null && (
         <span className="files-length" data-testid="fl-length">
           {clockOf(file.seconds)}

@@ -537,19 +537,19 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST conversations/[id]/draft": draftsIfDrawn,
   "PATCH ask/memory/[id]": memoryIfDrawn,
   "DELETE ask/memory/[id]": memoryIfDrawn,
-  // A photo added, changed or deleted (decision 0099): the Files pane's own read, where it is drawn.
+  // A photo added, changed, deleted or put in a video (decisions 0099, 0122): the Files pane's read, where it is drawn.
   "POST files/[id]/done": filesIfDrawn,
   "POST files/keep": filesIfDrawn,
   "POST files/post": filesAndContentIfDrawn,
+  "POST files/video": filesAndContentIfDrawn,
   "PATCH files/[id]": filesAndContentIfDrawn,
   "DELETE files/[id]": filesAndContentIfDrawn,
-  // A post put on a place or taken off it, and a video asked for: no file changes, so the feed says nothing, and Campaigns ›
-  // Content is the one list that draws where each stands. The sheet that pressed it says so from its own answer.
+  // A post put on a place or taken off it: no file changes, so the feed says nothing, and Campaigns › Content is the one
+  // list that draws where each stands. The sheet that pressed it says so from its own answer.
   "POST files/[id]/google": contentIfDrawn,
   "DELETE files/[id]/google": contentIfDrawn,
   "POST files/[id]/instagram": contentIfDrawn,
   "DELETE files/[id]/instagram": contentIfDrawn,
-  "POST files/video": contentIfDrawn,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],
@@ -697,8 +697,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST settings/reach-out/provider-wanted":
     "which mailbox a workspace would use, counted for us: its sheet says so from the answer, and no page draws it",
   "POST files/post/preview": "a post's picture is drawn for its card and kept nowhere",
+  "POST files/video/preview": "a video's storyboard is drawn for its card and kept nowhere",
   "POST files/start": "an upload under way is no file yet: the page reads again when it arrives",
-  "POST files/video/preview": "a video's stills are drawn for its card and kept nowhere",
   // The ideas for a first search, written where they are due (S11-8): the answer is the ideas themselves, which the Leads surface
   // lays on the view on screen (readSuggestions), as it does a read of them; nothing else draws them.
   "POST lead-suggestions": "the ideas written for a first search: the page lays the answer on its view itself",

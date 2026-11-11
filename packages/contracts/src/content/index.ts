@@ -19,7 +19,7 @@ export {
   contentMoving,
 } from "./page";
 export type { ContentMadeDto, ContentMakingDto, ContentMark, ContentPageDto, ContentTally } from "./page";
-export { pieceStandsOf, pieceStillMoving } from "./piece-card";
+export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./piece-card";
 export type { PieceFollowedDto, PieceStands } from "./piece-card";
 export { PIECE_FRAME, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";
 export type { PieceWordsBox } from "./piece-frame";

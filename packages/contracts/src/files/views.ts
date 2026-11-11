@@ -62,6 +62,22 @@ export function fileSaidOf(name: string): string {
   return first.toUpperCase() + rest.join("");
 }
 
+/**
+ * What the look found wrong with a file, as a person reads it: each note a sentence, its first letter capital and its end a
+ * stop, so three notes never run together as one. The page's sheet and Ask's card both say them through here.
+ */
+export function issuesSaidOf(issues: readonly string[]): string {
+  return issues
+    .map((issue) => issue.trim().replace(/[,;:]+$/u, ""))
+    .filter(Boolean)
+    .map((issue) => {
+      const [first = "", ...rest] = Array.from(issue);
+      const sentence = first.toUpperCase() + rest.join("");
+      return /[.!?]$/u.test(sentence) ? sentence : `${sentence}.`;
+    })
+    .join(" ");
+}
+
 /** A file as the page and Ask read it. Nothing here is a provider's or a storage path. */
 export interface FileDto {
   id: string;

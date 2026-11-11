@@ -7,11 +7,12 @@
  * kept on its turn for everyone. A card's act is its own verb walk (need-you/idea-work.tsx useIdeaActs), or the door it
  * names; what it came to is said in its place with its Undo, and the row is kept there for the visit. Under them, what
  * came of an idea approved lately. Where Need you draws no pane it leads the page, wide, its rows three across, and its
- * first act takes the coral where nothing before it in the walk did (queue-coral.ts); else it stands under the day and
- * takes none. A read it ranks from that failed is said in its place.
+ * first act takes the coral where nothing before it in the walk did; else it stands under the day and takes none. Both are
+ * Today's arrangement's to say (today/arrangement.ts), which reads what Ask found will draw (useFoundModel) in the same
+ * pass as the pane. A read it ranks from that failed is said in its place.
  */
-import { useLayoutEffect, useState } from "react";
-import { NEED_YOU_WORDS as W, needYouGroupsOf, type AskMorningCard } from "@chanlytics/contracts";
+import { useState } from "react";
+import { MIN_MS, NEED_YOU_WORDS as W, needYouGroupsOf, type AskMorningCard } from "@chanlytics/contracts";
 import { ASK_FOUND_WORDS as F, askFoundOf, type AskFoundRowVM } from "./found-rows";
 import type { PeopleListsLike } from "../leaks";
 import { refreshSurfaces } from "@/bridge/surface-runner";
@@ -26,8 +27,7 @@ import { Done } from "../need-you/parts";
 import { CardSheet, dismissedOnTurn, restoreOnTurn, useIdeaActs } from "../need-you/idea-work";
 import { useRests } from "../need-you/rests";
 import { useRowState } from "../need-you/row-state";
-import { useCoralAhead, zoneDrawn } from "../queue-coral";
-import { appNavigate, askAbout, borrowed, canDo, doorGlyph, gate, useMoved, useToast, type Flash } from "../shell";
+import { appNavigate, askAbout, borrowed, doorGlyph, gate, useMoved, useToast, type Flash } from "../shell";
 
 /** How often Ask's morning is read again while Ask writes it: a turn takes up to two minutes. */
 const MORNING_POLL_MS = 8_000;
@@ -44,15 +44,48 @@ function useMorningWait(writing: boolean) {
 const FOUND_STATE = "ask-found";
 const NO_CARDS: readonly AskMorningCard[] = [];
 
+type Headline = NonNullable<Parameters<typeof TODAY_HELPERS.leaks>[0]>;
+type NoReply = Parameters<typeof TODAY_HELPERS.withoutWrongPerson>[0];
+type Rules = ReturnType<typeof TODAY_HELPERS.leaks>["rows"];
+
+const NO_REPLY: NoReply = [];
+
+/** The rules last worked out, with the reads and the minute they were worked out from. */
+let rulesHeld: { headline: Headline; people: PeopleListsLike; noReply: NoReply; minute: number; rows: Rules } | null =
+  null;
+
+/**
+ * Every rule that holds over the page's reads, worked out once a read and a minute: the page's arrangement and the pane
+ * both read Ask found in the same pass, and People's rows are everyone the workspace has.
+ */
+function rulesOf(headline: Headline, people: PeopleListsLike, noReply: NoReply): Rules {
+  const minute = Math.floor(Date.now() / MIN_MS);
+  const held = rulesHeld;
+  if (
+    held &&
+    held.headline === headline &&
+    held.people === people &&
+    held.noReply === noReply &&
+    held.minute === minute
+  )
+    return held.rows;
+  const rows = TODAY_HELPERS.leaks(headline, people, TODAY_HELPERS.withoutWrongPerson(noReply), {
+    max: EVERY_RULE,
+    nowMs: minute * MIN_MS,
+  }).rows;
+  rulesHeld = { headline, people, noReply, minute, rows };
+  return rows;
+}
+
 /**
  * The rows of Ask found, how a row is set aside for a week and how a card pressed keeps its place: everything it reads,
  * the page already holds. `broke`: a read the rules stand on that failed (People first: nothing else on the page says it,
- * where the foot says Reports), said in Ask found's place.
+ * where the foot says Reports), said in Ask found's place. `draws`: whether the pane draws (a row, or a read that failed),
+ * and `acts`: whether it draws a row whose act may be the coral. Read by the page's arrangement as well as the pane.
  */
-function useFoundRows() {
+export function useFoundModel() {
   useMoved(["today", "ask_morning", "people", "reach_out_replies"]);
   const morning = surfaceValue("ask_morning")?.dto ?? null;
-  useMorningWait(morning?.state === "writing");
   const headline = useSurface("reports_headline");
   const people = borrowed<PeopleListsLike>("__PEOPLE");
   const headlineFailed = useSurfaceFailed("reports_headline");
@@ -65,14 +98,8 @@ function useFoundRows() {
   // receipt and Undo with it (morning.ts waitingCards).
   const [kept, setKept] = useRowState<readonly AskMorningCard[]>(FOUND_STATE, "kept", NO_CARDS);
   const broke = !people && peopleFailed ? "People" : !headline && headlineFailed ? "Reports" : null;
-  // Drawn once the rules' reads are in, or one of them has failed: Today's last part, People being its heaviest read.
-  usePartShown("today", "look", !!broke || (!!headline && !!people));
   // Every rule that holds, never the old pane's two: Ask found ranks them with the rest, draws three, and says the others.
-  const rules =
-    headline && people
-      ? TODAY_HELPERS.leaks(headline, people, TODAY_HELPERS.withoutWrongPerson(vm?.noReply ?? []), { max: EVERY_RULE })
-          .rows
-      : [];
+  const rules = headline && people ? rulesOf(headline, people, vm?.noReply ?? NO_REPLY) : [];
   const read = morning?.offered ? [...(morning.findings ?? []), ...morning.cards] : [];
   const found = askFoundOf({
     rules,
@@ -84,7 +111,17 @@ function useFoundRows() {
   });
   const rest = (key: string, flash: (f: Flash) => void, onUndone: () => void) => restIt({ key, flash, onUndone });
   const keep = (card: AskMorningCard) => setKept((was) => (was.some((k) => k.id === card.id) ? was : [...was, card]));
-  return { found, morning, rest, keep, broke };
+  return {
+    found,
+    morning,
+    rest,
+    keep,
+    broke,
+    // Drawn once the rules' reads are in, or one of them has failed: Today's last part, People being its heaviest read.
+    shown: !!broke || (!!headline && !!people),
+    draws: found.rows.length > 0 || !!broke,
+    acts: found.rows.length > 0,
+  };
 }
 
 /** What a row's parts are handed: its place, whether its act is the coral, and how it is set aside. */
@@ -254,14 +291,6 @@ function CardRow(
   );
 }
 
-/** Whether Ask found draws, told to the page (queue-coral.ts): where neither it nor Need you does, the day is alone. */
-function useFoundTold(drawn: boolean) {
-  useLayoutEffect(() => {
-    zoneDrawn("found", drawn);
-  }, [drawn]);
-  useLayoutEffect(() => () => zoneDrawn("found", false), []);
-}
-
 /** "2 more", which opens them in place: it was a count with no door. Called, not drawn. */
 function moreDoor(more: number, everyRow: boolean, turn: () => void) {
   if (!more) return null;
@@ -282,19 +311,17 @@ function moreDoor(more: number, everyRow: boolean, turn: () => void) {
 
 /**
  * Ask found's pane: its name and how many more there are, a read that failed, its three rows, and what came of an idea
- * lately. `wide` where it leads the page, its rows three across; its first act then takes the coral, where nothing
- * before it in the walk did.
+ * lately. `wide` where it leads the page, its rows three across; `coral` where its first act is the page's coral, as
+ * Today's arrangement gave it (today/arrangement.ts): it leads, and nothing before it in the walk took it.
  */
-export function AskFound({ wide }: { wide: boolean }) {
-  const { found, morning, rest, keep, broke } = useFoundRows();
+export function AskFound({ wide, coral }: { wide: boolean; coral: boolean }) {
+  const { found, morning, rest, keep, broke, shown } = useFoundModel();
+  useMorningWait(morning?.state === "writing");
+  usePartShown("today", "look", shown);
   const [toastNode, flash] = useToast();
   const [open, setOpen] = useState<string | null>(null);
   const [everyRow, setEveryRow] = useState(false);
-  const ahead = useCoralAhead("found");
-  useFoundTold(found.rows.length > 0 || !!broke);
   if (!found.rows.length && !broke) return toastNode;
-  // The coral is Ask found's where it leads the page and nothing before it in the walk took it, setting up included.
-  const coralFirst = wide && !ahead && canDo("approve");
   return (
     <section
       className={`tz-pane tz-found${wide ? " tz-found-wide" : ""}`}
@@ -320,7 +347,7 @@ export function AskFound({ wide }: { wide: boolean }) {
         {(everyRow ? [...found.rows, ...found.rest] : found.rows).map((row, i) => {
           const ports: RowPorts = {
             row,
-            coral: coralFirst && i === 0,
+            coral: coral && i === 0,
             open: open === row.key,
             onToggle: () => setOpen((was) => (was === row.key ? null : row.key)),
             rest: (onUndone) => rest(row.key, flash, onUndone),

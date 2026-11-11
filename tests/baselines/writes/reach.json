@@ -1,7 +1,7 @@
 {
   "rows": 177,
-  "same": 14,
-  "differ": 163,
+  "same": 15,
+  "differ": 162,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -1222,10 +1222,7 @@
     },
     "POST files/video": {
       "changes": "files UPDATE · pieces INSERT UPDATE",
-      "tells": "files",
-      "missing": {
-        "files": "admin/files"
-      }
+      "tells": "files"
     },
     "POST google/link": {
       "changes": "",

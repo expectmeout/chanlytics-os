@@ -596,7 +596,8 @@ test("the platform's word that a made video can be played rings the bell once; o
   assert.equal(tables.notifications[0].kind, "video_ready");
   // The bell opens the video itself, in its sheet on Files, where it plays.
   assert.equal(tables.notifications[0].route, `admin/files?do=file:${CLIP}`);
-  assert.match(tables.notifications[0].body, /i-asked-for-volume/);
+  // Named as Files shows it, never by its file name (seen on production 11 Nov 2026: "long-layers is in Files").
+  assert.match(tables.notifications[0].body, /^I asked for volume is in Files/);
   // A word about a video that was not made here, or one delivered again, rings nothing.
   await tellPieceMoved(db, { fate: "ready", tenant_id: T, file_id: CLIP, made: false });
   await tellPieceMoved(db, { fate: "repeated", tenant_id: T, file_id: CLIP, made: false });
