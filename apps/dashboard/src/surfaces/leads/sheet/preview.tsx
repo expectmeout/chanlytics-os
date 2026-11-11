@@ -24,10 +24,10 @@ export function PreviewLine({ leadId, line }: { leadId: string; line: LeadPrevie
   const make = async () => {
     setBusy(true);
     setRefused(null);
-    const made = await api()("POST leads/[id]/preview", { params: { id: leadId } });
+    const answer = await api()("POST leads/[id]/preview", { params: { id: leadId } });
     setBusy(false);
-    if (made.ok) tellPreviewMoved(leadId);
-    else setRefused(made.message);
+    if (answer.ok) tellPreviewMoved(leadId);
+    else setRefused(answer.message);
   };
   return (
     <>

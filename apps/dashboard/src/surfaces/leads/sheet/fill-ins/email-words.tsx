@@ -51,7 +51,7 @@ function offsetAtPress(event: MouseEvent<HTMLElement>): number | null {
 }
 
 /** What was pressed, where it is an element of the page. */
-const elementOf = (target: EventTarget | null): Element | null =>
+const pressedElementOf = (target: EventTarget | null): Element | null =>
   typeof Element !== "undefined" && target instanceof Element ? target : null;
 
 /** A tap on the read email begins the typing: a tap, never the drag that walks the leads, nor words being selected. */
@@ -63,7 +63,7 @@ function tapToType(begin: BeginTyping, part: BoxPart) {
     onPointerCancel: (event: PointerEvent<HTMLElement>) => pressedAt.delete(event.currentTarget),
     onClick: (event: MouseEvent<HTMLElement>) => {
       // A fill-in's press, and one inside the bubble it opened, are their own: neither is in the words to be typed.
-      const pressed = elementOf(event.target);
+      const pressed = pressedElementOf(event.target);
       if (pressed && (!event.currentTarget.contains(pressed) || pressed.closest("[data-fill]"))) return;
       const from = pressedAt.get(event.currentTarget);
       pressedAt.delete(event.currentTarget);
