@@ -532,12 +532,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST conversations/[id]/draft": draftsIfDrawn,
   "PATCH ask/memory/[id]": memoryIfDrawn,
   "DELETE ask/memory/[id]": memoryIfDrawn,
-  // A photo added, changed or deleted (decision 0099): the Files pane's own read, where it is drawn.
+  // A photo added, changed, deleted or put in a video (decisions 0099, 0122): the Files pane's read, where it is drawn.
   "POST files/[id]/done": filesIfDrawn,
   "POST files/keep": filesIfDrawn,
   "POST files/post": filesIfDrawn,
-  // A video begun from the clips (decision 0122): its people marked as agreed to be in it change those clips' rows. The video
-  // itself lands about a minute on, from its job, and the page reads again when it arrives.
   "POST files/video": filesIfDrawn,
   "PATCH files/[id]": filesIfDrawn,
   "DELETE files/[id]": filesIfDrawn,
