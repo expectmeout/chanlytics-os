@@ -183,6 +183,14 @@
     display: none;
   }
 }
+/* An act on To do's rows as a whole (Mark all kept): at the foot's end, its question across the foot once asked. */
+.ny-kept-all {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 40px;
+  border-top: 1px solid var(--line);
+}
 /* What a group could not hold: its press at the group's foot. */
 .ny-more {
   display: flex;

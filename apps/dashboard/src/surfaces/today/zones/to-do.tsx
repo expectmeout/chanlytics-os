@@ -24,6 +24,7 @@ import { useTodayWord } from "./day-vm";
 import { keptWith, keptWithout, withKept, type Kept } from "./kept";
 import { dueSteps, stepDone } from "./queue-steps";
 import { askedVisits } from "./queue-visits";
+import { KeptAll } from "../need-you/kept-all";
 
 /** To do's rows as Need you draws them: the rows drawn, how many there are in all, and the toast their presses say in. */
 export interface ToDoRows {
@@ -49,6 +50,8 @@ export interface ToDoRows {
    * where none was left out: the press at the group's foot opens it, since the Inbox holds none of them.
    */
   door: string | null;
+  /** Mark all kept, where two or more of yesterday's visits wait to be marked (need-you/kept-all.tsx); null otherwise. */
+  keptAll: ReactNode;
   toast: ReactNode;
 }
 
@@ -154,5 +157,6 @@ export function useToDoRows({
           : null;
   const cut = Math.max(0, count - rows.filter(held).length);
   const walk = { rows, kept: ctx.kept, keep: ctx.keep, unkeep: ctx.unkeep, stepDone: ctx.stepDone };
-  return { drawn, walk, count, cut, left: cut, door, toast: toastNode };
+  const keptAll = visits ? <KeptAll ids={visits.markIds} word={word} ctx={ctx} /> : null;
+  return { drawn, walk, count, cut, left: cut, door, keptAll, toast: toastNode };
 }

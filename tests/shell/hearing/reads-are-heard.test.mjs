@@ -523,6 +523,8 @@ const NOT_READ = {
     "channelChange() names the Campaigns lens for the connected number's health; the first receptionist writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "POST calendar/visits/[id] -> reports_people":
     "visits() names the People lens with the other readers of a visit; the lens's read (GET reports/people) reads no appointment. Premature. Owed: drop reportsPeople() from visits(), with its assertions in a-visit-reaches-every-reader.test.mjs.",
+  "POST calendar/visits/kept -> reports_people":
+    "visits() names the People lens with the other readers of a visit; the lens's read (GET reports/people) reads no appointment. Premature. Owed: drop reportsPeople() from visits(), with its assertions in a-visit-reaches-every-reader.test.mjs.",
   "POST google/reviews/[id]/reply -> today":
     "Not premature: the answer is a reply_review decision (server/settings/google-actions.ts recordDecision), which Today's \"N done today\" counts (readers/today.ts doneToday over db getTodayDoneCount, Today in three zones, 2 Nov 2026), and the ledger is plumbing to this trace, so it finds nothing Today reads. Without it the count stays a review short until Today's next read; the review is answered from Today's own To do.",
 };

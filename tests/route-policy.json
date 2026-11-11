@@ -370,6 +370,13 @@
       "rate": "person_edit",
       "spend": false
     },
+    "POST calendar/visits/kept": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "person_edit",
+      "spend": false
+    },
     "POST calls/[id]/end": {
       "kind": "write",
       "scope": "row",

@@ -19,6 +19,7 @@ export function NeedYouGroup({
   count,
   bare = false,
   more = null,
+  foot = null,
   testid,
   children,
 }: {
@@ -28,6 +29,8 @@ export function NeedYouGroup({
   bare?: boolean;
   /** What the group could not hold: how many, in words, and where they are. */
   more?: { label: string; to: string } | null;
+  /** An act on the group's rows as a whole, at its foot over the press to the rest (To do's Mark all kept). */
+  foot?: ReactNode;
   testid: string;
   children: ReactNode;
 }) {
@@ -50,6 +53,7 @@ export function NeedYouGroup({
       )}
       <div className="tq-list">
         {children}
+        {foot}
         {more ? (
           <a className="ny-more" {...routeDoor(more.to)} data-testid={`${testid}-more`}>
             {more.label}

@@ -5,7 +5,13 @@
  */
 import { addressOf } from "../activity/record-address";
 import { visitDoor } from "../calendar/appointment-key";
-import { VISIT_ASK_WORDS, VISIT_WORDS, visitLineOfBlock, type VisitLineVM } from "../calendar/words/visit";
+import {
+  VISIT_ASK_WORDS,
+  VISITS_KEPT_MAX,
+  VISIT_WORDS,
+  visitLineOfBlock,
+  type VisitLineVM,
+} from "../calendar/words/visit";
 import { initialsOf } from "../conversations/thread-contact";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import type { PersonRowVM } from "../people/person-row/row-facts";
@@ -189,6 +195,8 @@ export interface TodayVisitAskVM {
 export interface TodayVisitsAskedVM {
   items: TodayVisitAskVM[];
   count: number;
+  /** Every one of them by the record's row (VisitMark.id), the ones past `items` among them: what Mark all kept says. */
+  markIds: string[];
   word: AppointmentWord;
   /** The Calendar on yesterday, where every one of them is. */
   to: string;
@@ -229,7 +237,13 @@ export function todayVisitsAsked(
   if (!yesterday) return null;
   const unmarkedVisits = unmarkedVisitsOf(yesterday, nowMs, "Yesterday");
   if (!unmarkedVisits.length) return null;
-  return { items: unmarkedVisits.slice(0, max), count: unmarkedVisits.length, word, to: `calendar/${yesterday.key}` };
+  return {
+    items: unmarkedVisits.slice(0, max),
+    count: unmarkedVisits.length,
+    markIds: unmarkedVisits.slice(0, VISITS_KEPT_MAX).map((v) => v.markId),
+    word,
+    to: `calendar/${yesterday.key}`,
+  };
 }
 
 /**
