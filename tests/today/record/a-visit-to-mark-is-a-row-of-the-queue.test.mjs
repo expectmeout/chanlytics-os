@@ -457,7 +457,7 @@ test("Mark all kept, at To do's foot: every one of yesterday's left to mark, the
       ok: true,
       data: {
         marked: 4,
-        unchanged: 0,
+        alreadyKept: 0,
         refused: 0,
         why: null,
         follows: { name: "After the appointment", when: "today 10:00 AM", asks: false },
@@ -488,7 +488,10 @@ test("Mark all kept, at To do's foot: every one of yesterday's left to mark, the
   flashes.length = 0;
   doorSays = () => ({
     status: 200,
-    body: { ok: true, data: { marked: 3, unchanged: 0, refused: 1, why: "It was cancelled already.", follows: null } },
+    body: {
+      ok: true,
+      data: { marked: 3, alreadyKept: 0, refused: 1, why: "It was cancelled already.", follows: null },
+    },
   });
   clear();
   byTestId(todoOf(draw()), "today-kept-all-press").props.onClick();

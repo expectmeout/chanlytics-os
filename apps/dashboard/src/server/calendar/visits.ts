@@ -126,9 +126,9 @@ async function sayOnVisit(
 const followsOf = (
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
-  said: Pick<VisitMarked, "visit">,
+  mark: Pick<VisitMarked, "visit">,
 ): Promise<VisitFollowUp | null> => {
-  const { id, status } = said.visit;
+  const { id, status } = mark.visit;
   return status === "missed" || status === "kept"
     ? visitFollowUpOf(ctx, tenantId, { appointmentId: id, status }, new Date()).catch(
         logAndGoOn("visitFollowUpOf", null),
@@ -141,8 +141,8 @@ export async function markVisitOf(
   appointment: { id: string; tenant_id: TenantId },
   status: VisitWord,
 ): Promise<VisitMarked> {
-  const said = await sayOnVisit(ctx, appointment.id, status);
-  return { ...said, follows: await followsOf(ctx, appointment.tenant_id, said) };
+  const mark = await sayOnVisit(ctx, appointment.id, status);
+  return { ...mark, follows: await followsOf(ctx, appointment.tenant_id, mark) };
 }
 
 /** How many visits are said kept at once: each is one row's transaction, so a few at a time keeps a long day short. */
@@ -156,7 +156,7 @@ const KEPT_AT_ONCE = 5;
  */
 export interface VisitsKept {
   marked: number;
-  unchanged: number;
+  alreadyKept: number;
   refused: number;
   why: string | null;
   follows: VisitFollowUp | null;
@@ -173,15 +173,15 @@ export async function markVisitsKeptOf(
   tenantId: TenantId,
   ids: readonly string[],
 ): Promise<VisitsKept> {
-  const out: VisitsKept = { marked: 0, unchanged: 0, refused: 0, why: null, follows: null };
+  const out: VisitsKept = { marked: 0, alreadyKept: 0, refused: 0, why: null, follows: null };
   const moved: Pick<VisitMarked, "visit">[] = [];
   const sayKept = async (id: string) => {
     try {
-      const said = await sayOnVisit(ctx, id, "kept");
-      if (said.unchanged) out.unchanged += 1;
+      const mark = await sayOnVisit(ctx, id, "kept");
+      if (mark.unchanged) out.alreadyKept += 1;
       else {
         out.marked += 1;
-        moved.push(said);
+        moved.push(mark);
       }
     } catch (e) {
       if (!(e instanceof AppError)) throw e;

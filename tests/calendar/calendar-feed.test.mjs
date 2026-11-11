@@ -1293,7 +1293,7 @@ test("POST calendar/visits/kept: each visit named goes through the door one Kept
   );
   assert.deepEqual(out, {
     marked: 2,
-    unchanged: 1,
+    alreadyKept: 1,
     refused: 1,
     why: "It was cancelled already.",
     follows: null,

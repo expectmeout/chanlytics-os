@@ -39,15 +39,6 @@ export async function sayVisit(id: string, status: VisitWord): Promise<VisitSaid
 }
 
 /**
- * Many visits said kept at once, through the door that says each as one press would (POST calendar/visits/kept): how many
- * moved, were kept already or were refused with the first one's sentence, and the thank-you that follows; or its refusal.
- */
-export async function sayVisitsKept(ids: readonly string[]) {
-  const r = await api()("POST calendar/visits/kept", { body: { ids: [...ids] } });
-  return r.ok ? { ok: true as const, data: r.data } : { ok: false as const, message: r.message };
-}
-
-/**
  * How a visit stands, as the kit's pill in the tone its state wears (Kept done, Missed for a person to look at, Past and
  * Cancelled plain); nothing while it is ahead. A visit that has ended and nobody has marked says so on hover.
  */

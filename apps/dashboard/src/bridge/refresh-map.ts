@@ -545,7 +545,6 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // visits reads it from the appointments record (#1551): People's rows and the Inbox's chip over them, the playbooks' and the
   // audiences' pools, Reports' booking line and Today's. The one list, so a page that draws a visit cannot be left behind.
   "POST calendar/visits/[id]": visits,
-  // Many said kept at once (Today's Mark all kept): the same readers as one.
   "POST calendar/visits/kept": visits,
   // A class's mode is what a new sequence of it starts as (decision 0064: a sequence's own mode is its own, so no Campaigns page or
   // Calendar run reads the class's row), and what a person's own mode and a review's draft follow: People's rows say a person's, and

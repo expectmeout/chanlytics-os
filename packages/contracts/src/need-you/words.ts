@@ -280,7 +280,8 @@ export const NEED_YOU_WORDS = {
       yes: "Mark them kept",
       no: "Not yet",
       done: (n: number) => (n === 1 ? "Marked kept" : `${n} marked kept`),
-      refused: (n: number, why: string) => `${n === 1 ? "1 couldn't be marked" : `${n} couldn't be marked`}: ${why}`,
+      refused: (n: number, reason: string) =>
+        `${n === 1 ? "1 couldn't be marked" : `${n} couldn't be marked`}: ${reason}`,
     },
     /** A Kept that a sequence answers (decision 0123): the thank-you waits for this word, and the row says when it goes. */
     thanks: (name: string, when: string, asks: boolean) =>
