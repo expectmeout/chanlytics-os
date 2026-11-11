@@ -23,6 +23,11 @@ import { glideTo } from "../view-tabs/glide";
 
 /** How long a tab pressed stays lit while the address has not followed, before the bar says where it is again. */
 const PENDING_MS = 3000;
+/**
+ * How long the lozenge glides to a place pressed: a change of view's length until 7 Nov 2026. Nothing waits on it, and
+ * at a change of view's 240 ms it read as a snap, not a glide (Ruben, 11 Nov 2026).
+ */
+const LOZENGE_GLIDE_MS = 460;
 /** How soon after a finger's press its click comes, at most, for the click to be that press again. */
 const TOUCH_CLICK_MS = 1000;
 
@@ -94,7 +99,7 @@ export function TabBar({ label, picked, places, onPick, more, testid, className 
   const press = (tab: HTMLElement, place: TabBarPlace) => {
     if (place.id !== lit) {
       const was = bar.current ? bar.current.querySelector<HTMLElement>(".tab-bar-tab.active") : null;
-      if (bar.current && was) glideTo(bar.current, was, tab, viewDeck.alone());
+      if (bar.current && was) glideTo(bar.current, was, tab, viewDeck.alone(LOZENGE_GLIDE_MS));
       setPending(place.id);
     }
     afterPaint(() => onPick(place.id));

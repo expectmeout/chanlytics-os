@@ -195,10 +195,10 @@ interface Deck {
   stay(): void;
   /**
    * A timeline for a highlight that moves with no view under it: the tab bar's, whose places are cut in, never slid
-   * (tab-bar/tab-bar.tsx). The spring a tapped strip's highlight rides, begun now. Null under reduced motion, where the
-   * tab's own class lights it at once.
+   * (tab-bar/tab-bar.tsx). The spring a tapped strip's highlight rides, its clock slowed to last `ms`, begun now. Null
+   * under reduced motion, where the tab's own class lights it at once.
    */
-  alone(): Follow | null;
+  alone(ms: number): Follow | null;
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(1, n));
@@ -659,16 +659,19 @@ function comeBack(table: Table, el: HTMLElement, move: Timeline): void {
   comeHome(table, el, { from, level, width: el.getBoundingClientRect().width });
 }
 
-/** A highlight's own timeline: from where it is to where it goes on the spring a change of view rides, from rest. */
-function alone(table: Table): Follow | null {
+/**
+ * A highlight's own timeline over `ms`: from where it is to where it goes, from rest, on the spring a change of view
+ * rides with its clock slowed to `ms`, the same shape at the length the highlight's owner gives it.
+ */
+function alone(table: Table, ms: number): Follow | null {
   if (table.env.reduced()) return null;
-  const run: Run = { ms: TIMELINE_MS, t0: table.env.now(), keep: true };
-  const share = (t: number) => (t >= TIMELINE_MS ? 1 : 1 - springAt(1, 0, 0, t));
+  const run: Run = { ms, t0: table.env.now(), keep: true };
+  const share = (t: number) => (t >= ms ? 1 : 1 - springAt(1, 0, 0, (t * TIMELINE_MS) / ms));
   return {
     follow: (el, frame) =>
       startAt(
         el,
-        frames(TIMELINE_MS, (t) => frame(share(t))),
+        frames(ms, (t) => frame(share(t))),
         run,
       ),
   };
@@ -736,7 +739,7 @@ export function createDeck(env: DeckEnv): Deck {
       const was = el ? table.held.get(el) : undefined;
       if (el && was && was.role === "out" && was.move) comeBack(table, el, was.move);
     },
-    alone: () => alone(table),
+    alone: (ms) => alone(table, ms),
   };
 }
 
