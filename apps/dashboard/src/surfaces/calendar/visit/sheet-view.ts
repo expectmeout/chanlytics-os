@@ -194,13 +194,22 @@ function initialsOfName(name: string | null): string {
     .join("");
 }
 
-/** How the visit stands, said once: a member's word, a request, not marked yet, under way now, else nothing. */
-function sheetStateOf(calendarBlock: CalendarBlockVM, line: VisitLineVM, nowMs: number): VisitSheetState | null {
+/**
+ * How the visit stands, said once: a member's word, a request, not marked yet, under way now, else nothing. Where the
+ * sheet asks whether they came (`asked`), the question says it is not marked yet, and no pill says it again over it
+ * (Ruben, 11 Nov 2026).
+ */
+function sheetStateOf(
+  calendarBlock: CalendarBlockVM,
+  line: VisitLineVM,
+  nowMs: number,
+  asked: boolean,
+): VisitSheetState | null {
   if (line.state) {
     const s = line.state;
     if (s.tone === "requested") return { word: s.text, tone: "plain", ring: "dashed" };
     if (s.tone === "past")
-      return line.unmarked ? { word: VISIT_ASK_WORDS.unmarked, tone: "plain", ring: "plain" } : null;
+      return line.unmarked && !asked ? { word: VISIT_ASK_WORDS.unmarked, tone: "plain", ring: "plain" } : null;
     return { word: s.text, tone: s.pill, ring: null };
   }
   const started = Date.parse(calendarBlock.start) <= nowMs && Date.parse(calendarBlock.end) > nowMs;
@@ -439,6 +448,7 @@ export function visitSheetOf(visitSheetInput: VisitSheetInput): VisitSheetVM {
   const phone = facts?.phone ?? block.contacts.e164.at(0) ?? null;
   const { proposal, words } = proposalOf(visitSheetInput, facts);
   const primary = nobody ? null : primaryOf(visitSheetInput, line, proposal, words);
+  const ask = visitAskOf(visitSheetInput, line);
   return {
     title: block.service || appointmentWords(visitSheetInput.word).Title,
     when: {
@@ -448,10 +458,10 @@ export function visitSheetOf(visitSheetInput: VisitSheetInput): VisitSheetVM {
       dur: block.time === "All day" ? null : visitSheetInput.dur || null,
       repeats: block.series,
     },
-    state: sheetStateOf(block, line, visitSheetInput.nowMs),
+    state: sheetStateOf(block, line, visitSheetInput.nowMs, ask !== null),
     nobody,
     person: personOf(visitSheetInput, line, facts),
-    ask: visitAskOf(visitSheetInput, line),
+    ask,
     rows: nobody ? [] : visitRowsOf(visitSheetInput, ended, facts),
     footnote: footnoteOf(visitSheetInput, nobody),
     primary,

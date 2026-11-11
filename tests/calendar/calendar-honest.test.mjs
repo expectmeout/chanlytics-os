@@ -2912,9 +2912,9 @@ test("what became of a visit (0002 step 8): an ended one not marked yet says so 
   waiting.props.onClick();
   tree = page();
   assert.equal(
-    textOf(byTestId(tree, "cal-visit-state")),
-    "Not marked yet",
-    "REGRESSION: an ended visit said Done, as if they came",
+    byTestId(tree, "cal-visit-state"),
+    null,
+    "REGRESSION: an ended visit said Done, as if they came; the question says it is not marked, and no pill says it again",
   );
   const ask = byTestId(tree, "cal-visit-ask");
   assert.ok(ask, "the one question an ended visit asks");
