@@ -321,6 +321,20 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["file_id", "step"],
     never: [],
   },
+  // A video made from a business's clips (00613, decision 0122): each step is safe to run again (a machine started twice is
+  // two drawings and one is let go; a file begun twice is the one row), and a step that must wait puts its own next tick on the
+  // ledger, so a throw is a fault of ours: tried once more two minutes on, while the machine still holds what it drew, then
+  // its owner is told and its row stops saying Making (settle.ts settlePiece). The longest call is the video's bytes sent.
+  piece_make: {
+    speaks: false,
+    retryWaitsMs: ONCE,
+    told: "owner",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 30 * SECOND_MS,
+    ids: ["piece_id", "step", "tick"],
+    never: [],
+  },
   // A post made ready on Instagram (00611, decision 0121): its container is kept on its send's row, so a second try asks after
   // the same one rather than making another. A throw is Instagram's bad minute, or a picture it has not fetched yet.
   post_prepare: {

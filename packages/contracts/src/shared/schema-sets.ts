@@ -50,6 +50,8 @@ import type {
 } from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
 import type { POST_KINDS, POST_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
+import type { PIECE_FAILS, PIECE_STAGES, PIECE_STATUSES } from "../content/piece-making";
+import type { PIECE_SHAPES } from "../content/pieces";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing/dtos";
@@ -166,6 +168,12 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof POST_KINDS>, SchemaSet<"posts.kind">>>,
   Holds<Exactly<Of<typeof POST_STATUSES>, SchemaSet<"posts.status">>>,
   Holds<Exactly<Of<typeof POST_VIAS>, SchemaSet<"posts.via">>>,
+
+  // A video made from a business's clips (00613, decision 0122).
+  Holds<Exactly<Of<typeof PIECE_SHAPES>, SchemaSet<"pieces.shape">>>,
+  Holds<Exactly<Of<typeof PIECE_STATUSES>, SchemaSet<"pieces.status">>>,
+  Holds<Exactly<Of<typeof PIECE_STAGES>, SchemaSet<"pieces.stage">>>,
+  Holds<Exactly<Of<typeof PIECE_FAILS>, SchemaSet<"pieces.failed_why">>>,
 
   // What a connected mailbox read a sender to be (00495, decision 0080).
   Holds<Exactly<Of<typeof SENDER_KINDS>, SchemaSet<"mailbox_sender_reads.kind">>>,

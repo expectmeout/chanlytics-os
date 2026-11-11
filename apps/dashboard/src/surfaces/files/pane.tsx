@@ -39,7 +39,7 @@ import { useSwapMotion } from "../kit/motion/use-swap-motion";
 import { doAsked } from "../kit/sheet/back";
 import { canDo, gate, refreshSurface, type FrameFlash } from "../frame-verbs";
 import { useSurface } from "../use-surface";
-import { hearFileAsked } from "./file-asked";
+import { followFileAsked } from "./file-asked";
 import { FileSheet } from "./file-sheet";
 import { InboxPress } from "./inbox-press";
 import { Photo, PhotosOnTheirWay } from "./photo";
@@ -320,9 +320,10 @@ function FilesLibrary({
 
 export function PaneFiles({ flash }: { flash: (f: FrameFlash) => void }) {
   const held = useSurface("files");
-  // A photo the address names (`?do=file:<id>`: a reload, a link, Back into it) opens as the page does, once.
+  // A file the address names (`?do=file:<id>`: a reload, a link, Back into it) opens as the page does; one asked for from
+  // another page, or while this one stands, opens as the ask lands (file-asked.ts).
   const [openId, setOpenId] = useState<string | null>(() => doAsked("file"));
-  useEffect(() => hearFileAsked(setOpenId), []);
+  useEffect(() => followFileAsked(setOpenId), []);
   if (held === undefined)
     return <EmptyState kind="card" glyph="image" title={W.title} body={W.reading} testid="fl-reading" />;
   if (held === null)

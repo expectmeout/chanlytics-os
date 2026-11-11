@@ -246,6 +246,8 @@ export type MediaFate = {
   fate: "ready" | "failed" | "repeated" | "gone" | "unknown";
   tenant_id: TenantId | null;
   file_id: string | null;
+  /** The video was one made here, and this word moved its piece with it (00613): made on ready, failed on failed. */
+  made: boolean;
 };
 
 const MEDIA_FATES = ["ready", "failed", "repeated", "gone", "unknown"] as const satisfies readonly MediaFate["fate"][];
@@ -257,6 +259,7 @@ function mediaFateOf(data: unknown, door: string): MediaFate {
     fate: o.fate,
     tenant_id: typeof o.tenant_id === "string" ? heldTenantId(o.tenant_id) : null,
     file_id: typeof o.file_id === "string" ? o.file_id : null,
+    made: o.made === true,
   };
 }
 

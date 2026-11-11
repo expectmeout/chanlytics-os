@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 178 | 178 |
+| door | 179 | 179 |
 | reader | 76 | 0 |
-| the server's | 331 | 287 |
+| the server's | 336 | 292 |
 | computed column | 3 | 0 |
 | trigger | 100 | 70 |
-| all | 688 | 535 |
+| all | 694 | 541 |
 
 ## Called by nothing
 
@@ -82,7 +82,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ask_memory_write`, `create_mailbox` and 13 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ask_memory_write`, `create_mailbox` and 14 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -174,7 +174,7 @@ being read is dropped by a migration.
 | `fact_suggestion_answer` | door | a signed-in person, the server | code `apps/dashboard/src/server/receptionist/fact-notes.ts`, `packages/db/src/repositories/facts/suggestions.ts` | A member answers a note suggested from an owner's correction (decision 0063): |
 | `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551): |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551). |
-| `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 3 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
+| `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 4 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Inbox's one press (00551): |
 | `file_listing_aside` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What a public listing offered and nobody kept goes aside (00551): |
 | `file_look_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | What the look saw (00551), under the owner's word: |
@@ -442,6 +442,12 @@ being read is dropped by a migration.
 | `person_set_first_touch` | the server's | the server | SQL `calls_note_first_touch`, `events_note_first_touch` and 1 more | A person's first touch (K3), written once: |
 | `person_signer_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_signers on contacts` | When a person is erased, the name a reply's reading found as its signer goes with them (0036, 0052). |
 | `person_step_from_playbook` | the server's | the server | SQL `reach_out_hand_run`, `reach_out_reply_apply` and 1 more | A dated step the product makes for the team on a person (Reach out Part 5, G11): |
+| `piece_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/pieces.ts` | A member's press, with the settings permission (00613, decision 0122): |
+| `piece_end` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A video that could not be made (00613): |
+| `piece_file_begin` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video on its way into the video platform (00613): |
+| `piece_sent` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video's bytes have all gone into the video platform (00613): |
+| `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613): |
+| `piece_step` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | The machine a video is being drawn on, kept or let go (00613); |
 | `platform_acts_forward` | trigger | the server | trigger `platform_acts_forward on platform_acts` |  |
 | `platform_admin_add` | the server's | the server | nothing at run time | Adds a person to the Console's staff by email with a role, or changes the role of one who is staff already (00467). |
 | `platform_answer_silence` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | The active customers' workspaces whose answer rate was zero on the day (00277; |

@@ -215,6 +215,8 @@ export const SERVER_NOTIFICATION_KINDS = [
   "website_form",
   // Photos an import found wait in Files' Inbox for a person's word (00551): the row opens that page.
   "files_waiting",
+  // A video the owner asked Ask for can be played (00613): the row opens Files, where it is under Made by Ask.
+  "video_ready",
 ] as const;
 
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];

@@ -235,6 +235,8 @@ before(async () => {
     { tenant_id: A, post_id: ctx.post, attempt_no: 1, step: "container", request: {} },
     null,
   );
+  // A video asked for (00613): its doors write it, a member reads where it stands.
+  await seed("pieces", { tenant_id: A, shape: "hook_cut", plan: {}, look: {}, edition: 1, card_key: "seeded" });
   // What a person removed, by fingerprint, read by no member (00551).
   await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
   // Keyed by their workspace and day, so no id to pick.
@@ -583,6 +585,11 @@ before(async () => {
   // An error a page hit (00469): no workspace on it, a hash of who; Health reads it on the service role.
   await seed("client_errors", { fingerprint: key, boundary: "os", name: "TypeError", message: "tenancy" }, null);
   probes.push(["client_errors", "fingerprint", key]);
+  // The machine image an edition of the video template is drawn on (00613): the platform's, no workspace on it. An
+  // edition no template has, so no other suite's image is touched.
+  const edition = 1_000_000 + Math.floor(Math.random() * 1_000_000);
+  await seed("piece_images", { edition, snapshot_id: `snap_${key}`, hash: "0123456789ab" }, null);
+  probes.push(["piece_images", "edition", edition]);
 
   // A partner brought A (0012): their row, the workspace's attribution, one earning, and the card the workspace
   // pays with. The earning outlives the workspace and holds the partner row, so both are removed by hand, in order.
@@ -763,6 +770,11 @@ const TENANT_TABLES = {
   publish_attempts: [
     "member",
     () => ({ tenant_id: A, post_id: ctx.post, attempt_no: 2, step: "publish", request: {} }),
+  ],
+  // A video asked for (00613): a member reads it, only its doors write it.
+  pieces: [
+    "member",
+    () => ({ tenant_id: A, shape: "hook_cut", plan: {}, look: {}, edition: 1, card_key: "a-strangers" }),
   ],
   ask_journal_days: ["owner", () => ({ tenant_id: A, day: "2026-10-19", state: "quiet" })],
   ask_mornings: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, day: "2026-10-20" })],
@@ -1124,6 +1136,7 @@ const OTHER_TABLES = {
   sweep_status: "none",
   event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
   job_kinds: "none", // each job kind's lane, once-only rule and pause (00526): platform-wide rows, the service role's alone
+  piece_images: "none", // the machine image each edition of the video template is drawn on (00613): the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()
@@ -1140,6 +1153,8 @@ const COLUMNS_OF = {
   // A member never reads a post's container, nor what a send carried and what came back (00611's column grants).
   posts: "id, tenant_id, status",
   publish_attempts: "id, tenant_id, outcome",
+  // A member never reads the machine a video is drawn on, nor its card's key (00613's column grants).
+  pieces: "id, tenant_id, status",
 };
 
 const seen = async (client, table, filter) => {

@@ -415,6 +415,12 @@ async function videoDigest(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await ctx.files.digest(job, ctx.deadline);
 }
 
+/** piece_make: one step of a video made from a business's clips (00613, decision 0122), through what the edge injects. payload: { piece_id, step, tick } */
+async function pieceMake(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.files) throw new Error("piece_make: this runtime holds no file reader");
+  await ctx.files.piece(job, ctx.deadline);
+}
+
 /** post_prepare: a post made ready on Instagram (00611, decision 0121), through what the edge injects. payload: { post_id, attempt } */
 async function postPrepare(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.posts) throw new Error("post_prepare: this runtime holds no poster");
@@ -525,6 +531,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   post_prepare: postPrepare,
   post_publish: postPublish,
   post_reconcile: postReconcile,
+  piece_make: pieceMake,
   campaign_moments: campaignMoments,
   reach_out_steps: reachOutSteps,
   calendar_read: calendarRead,

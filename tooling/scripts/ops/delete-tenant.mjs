@@ -107,6 +107,8 @@ const TABLES = [
   // Where each post went, and each send of it (00611, decision 0121).
   "posts",
   "publish_attempts",
+  // Each video asked for (00613, decision 0122); the video itself is a file, above.
+  "pieces",
   "sequence_lead_words",
   // The notes an owner's corrections suggest keeping (00448, decision 0063).
   "fact_suggestions",

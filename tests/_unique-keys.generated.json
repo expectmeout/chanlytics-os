@@ -2342,6 +2342,60 @@
       }
     },
     {
+      "table": "piece_images",
+      "name": "piece_images_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "edition"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "pieces",
+      "name": "pieces_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "pieces",
+      "name": "pieces_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "pieces",
+      "name": "pieces_card_key_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "card_key"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "platform_acts",
       "name": "platform_acts_pkey",
       "primary": true,

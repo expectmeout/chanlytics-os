@@ -16,6 +16,7 @@ import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
+import { tellPieceMoved } from "./piece-make.js";
 
 /** A video's event is a few KB. */
 const STREAM_EVENT_BYTES_MAX = 64 * 1024;
@@ -62,6 +63,9 @@ export async function receiveStreamWebhook(request: Request): Promise<Response> 
     log.error("stream_webhook_unwritable", { error: errField(e) });
     return refuse(503, "no_database");
   }
+  // A video made here: its owner's bell, from the delivery that moved it. A bell that could not be rung is a line, never
+  // a refusal: the video's word is kept, and Stream is not asked to say it again.
+  await tellPieceMoved(db, fate).catch((e: unknown) => log.error("stream_webhook_untold", { error: errField(e) }));
   logger({ door: "stream-webhook", ...(fate.tenant_id ? { tenant_id: fate.tenant_id } : {}) }).info(
     "stream_webhook_heard",
     {

@@ -255,6 +255,8 @@ export async function getNewestMade(db: Db, tenantId: TenantId): Promise<FileRow
     .select("made")
     .eq("tenant_id", tenantId)
     .eq("source", "made")
+    // A post is a picture: a video made here keeps a plan of its own (00613), and no look to carry on.
+    .eq("kind", "image")
     .is("removed_at", null)
     .order("created_at", { ascending: false })
     .limit(1)

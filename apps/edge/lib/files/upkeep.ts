@@ -40,6 +40,7 @@ import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
 import { fetchFiles } from "./found.js";
 import { lookAtFile } from "./look.js";
+import { makePiece, tellPieceMoved } from "./piece-make.js";
 import { digestVideo, scheduleVideoStep } from "./video-digest.js";
 import { streamAccount } from "./video-keys.js";
 
@@ -120,18 +121,22 @@ async function keepVideosMoving(db: Db, nowMs: number): Promise<{ asked: number;
   for (const video of waiting) {
     if (!account || !video.media_ref) continue;
     const read = await readStreamVideo(account, video.media_ref);
+    // A video made here tells its owner as its word is heard, here as at the webhook (piece-make.ts).
     if (read.ok && read.video.ready)
-      await markFileMediaReady(db, {
-        mediaRef: video.media_ref,
-        seconds: read.video.seconds,
-        width: read.video.width,
-        height: read.video.height,
-      });
+      await tellPieceMoved(
+        db,
+        await markFileMediaReady(db, {
+          mediaRef: video.media_ref,
+          seconds: read.video.seconds,
+          width: read.video.width,
+          height: read.video.height,
+        }),
+      );
     else if (read.ok && read.video.state === "error")
-      await markFileMediaFailed(db, video.media_ref, read.video.errorCode);
+      await tellPieceMoved(db, await markFileMediaFailed(db, video.media_ref, read.video.errorCode));
     // A video Stream no longer has, though it was sent: deleted there by hand, or lapsed. Its owner deletes the row.
     else if (!read.ok && read.gone && video.media_status === "processing")
-      await markFileMediaFailed(db, video.media_ref, "ERR_NOT_AT_STREAM");
+      await tellPieceMoved(db, await markFileMediaFailed(db, video.media_ref, "ERR_NOT_AT_STREAM"));
   }
   const stopped = await listVideosToDigestAgain(db, {
     triedBefore: new Date(nowMs - DAY_MS).toISOString(),
@@ -202,5 +207,6 @@ export function fileJobs(db: Db): NonNullable<JobContext["files"]> {
     fetch: (job, deadline) => fetchFiles(db, job, deadline),
     purge: (job) => purgeFile(db, job),
     digest: (job, deadline) => digestVideo(db, job, deadline),
+    piece: (job, deadline) => makePiece(db, job, deadline),
   };
 }

@@ -72,7 +72,8 @@ export async function postFileToGoogle(
   row: FileMemberRow,
   input: { summary: string },
 ): Promise<{ name: string; search_url: string | null; state: string | null }> {
-  if (row.source !== "made") throw new AppError("validation", ON_GOOGLE.notAPost);
+  // Google takes a picture: a video made here is not a post for it.
+  if (row.source !== "made" || row.kind === "video") throw new AppError("validation", ON_GOOGLE.notAPost);
   const { made } = await readFileRecord(ctx, member, row);
   if (!made?.from) throw new AppError("validation", ON_GOOGLE.noPhoto);
   const photoUrl = await pictureForGoogle(ctx, member, row.id, made.plan);

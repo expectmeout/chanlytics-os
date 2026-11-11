@@ -311,6 +311,8 @@ export interface JobContext {
     purge: (job: ClaimedJob) => Promise<void>;
     /** One step of a video made ready, the next scheduled at once (00556). Throws when a try is worth repeating. */
     digest: (job: ClaimedJob, deadline: number) => Promise<void>;
+    /** One step of a video made from the business's clips, the next put on the ledger by the step (00613). Throws on a fault of ours. */
+    piece: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
    * A post on its way to Instagram (00611, decision 0121), as the edge holds it: the business's token lives in the vault

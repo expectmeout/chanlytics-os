@@ -96,6 +96,10 @@ export interface ToolContext {
   endsAt?: number;
 }
 
+/** How long the edge has for what a tool asks of it, from what is left of the turn; nothing where no turn runs it. */
+export const timeLeftOf = (context: ToolContext): number | undefined =>
+  context.endsAt === undefined ? undefined : context.endsAt - Date.now();
+
 /**
  * A picture a read opens, as the request carries it: what it is called, the id only the edge's copy has, and the size the model
  * sees it at, so it can name a box in those pixels (Ask's eyes). The file's own id rides for what the turn remembers it opened

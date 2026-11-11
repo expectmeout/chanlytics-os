@@ -1012,6 +1012,7 @@ export const FAKE_JOB_KINDS = {
   post_prepare: [2, ["post_id", "attempt"], false],
   post_publish: [2, ["post_id", "attempt"], false],
   post_reconcile: [2, ["post_id", "attempt"], false],
+  piece_make: [1, ["piece_id", "step", "tick"], false],
   campaign_moments: [2, ["@tenant"], false],
   reach_out_steps: [2, ["@tenant"], false],
   calendar_read: [2, ["@tenant"], false],

@@ -188,6 +188,12 @@ export const JOB_KINDS = [
   "post_publish",
   "post_reconcile",
   /**
+   * A video made from a business's clips (00613, decision 0122), payload { piece_id, step, tick }, one step a run, in the
+   * lane of someone waiting who is not a customer: start reads the clips and starts the machine that draws it, wait asks
+   * after the drawing and sends the video into the video platform. A wait that runs out of its run is the next tick.
+   */
+  "piece_make",
+  /**
    * A workspace's recurring work, handed out by its clock and run here (00569, decision 0115), one a workspace while
    * one waits or runs: its due moments read and run together, its reach-out steps, its calendar read, its Google
    * listings and profile read, its lines' unheard texts taken in (00605). Payload {}: each asks what is due as it runs.

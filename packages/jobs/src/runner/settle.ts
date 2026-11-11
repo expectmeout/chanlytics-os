@@ -37,7 +37,7 @@ import { logger } from "@chanlytics/log";
 import { recordConversationDraftFailed } from "@chanlytics/db/ask";
 import { emitEvent, failOpenDelivery } from "@chanlytics/db/events";
 import { failQueuedSend } from "@chanlytics/db/jobs";
-import { keepFileLook } from "@chanlytics/db/files";
+import { endPiece, keepFileLook } from "@chanlytics/db/files";
 import { holdNoticeIfUnkept } from "@chanlytics/db/calendar";
 import { noteImport } from "@chanlytics/db/imports";
 import {
@@ -487,6 +487,16 @@ async function settleVideoDigest(db: Db, job: TerminalJob): Promise<Settled[]> {
   return [{ what: "file", changed: true }];
 }
 
+/**
+ * A video being made whose job ended for good (00613): its row stops saying Making. One that already ended, or that is only
+ * waiting on the video platform's word (its bytes went: piece_sent), is left as it stands, by the door's own guard.
+ */
+async function settlePiece(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const pieceId = idFrom(job.payload, "piece_id");
+  if (!pieceId) return [{ what: "file", changed: false, error: "no video on the job" }];
+  return [{ what: "file", changed: await endPiece(db, pieceId, "unknown") }];
+}
+
 type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
 
 /** A post on its way to Instagram (00611): settle-post.ts says where it ends. */
@@ -510,6 +520,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   reply_draft: settleDraft,
   file_look: settleFileLook,
   video_digest: settleVideoDigest,
+  piece_make: settlePiece,
   post_prepare: settlePost,
   post_publish: settlePost,
   post_reconcile: settlePost,
@@ -546,6 +557,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   reply_draft: "draft",
   file_look: "file",
   video_digest: "file",
+  piece_make: "file",
   post_prepare: "post",
   post_publish: "post",
   post_reconcile: "post",

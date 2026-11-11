@@ -276,6 +276,7 @@ test("a picture opened says how their newest post looks, so the next keeps what 
     id: `${at}`,
     tenant_id: A,
     source: "made",
+    kind: "image",
     removed_at: null,
     created_at: `2026-11-0${at}T00:00:00Z`,
     made: { from: ID(1), plan },
@@ -289,6 +290,8 @@ test("a picture opened says how their newest post looks, so the next keeps what 
         made(3, { voice: "classic", layout: "frame", book: false }, { removed_at: "2026-11-04T00:00:00Z" }),
         made(4, { voice: "classic", layout: "left", book: false }, { tenant_id: "another" }),
         { ...made(5, {}), source: "upload" },
+        // A video made since is no post: what it keeps is its own plan, and no look to carry on.
+        { ...made(6, { shape: "hook_cut", lines: ["I asked for volume"] }), kind: "video" },
       ],
     }),
   );

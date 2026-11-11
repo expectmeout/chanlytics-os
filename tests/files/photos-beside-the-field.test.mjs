@@ -45,7 +45,8 @@ const out = await build({
       'export { AskQuestion } from "../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
       'export { AskPostCard, usePostCard } from "../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
       'export { PostEdit } from "../../apps/dashboard/src/surfaces/files/post-edit.tsx";\n' +
-      'export { hearFileAsked, openFile } from "../../apps/dashboard/src/surfaces/files/file-asked.ts";\n' +
+      'export { followFileAsked, openFile } from "../../apps/dashboard/src/surfaces/files/file-asked.ts";\n' +
+      'export { notifyAddress } from "../../apps/dashboard/src/bridge/workspace.ts";\n' +
       'export { drawnKeyOf, keepDrawn, pictureDrawn } from "../../apps/dashboard/src/surfaces/files/post-drawn.ts";\n' +
       'export { postFileOf, sharePostFile, sharesPictures } from "../../apps/dashboard/src/surfaces/files/post-share.ts";\n' +
       'export { askText } from "../../apps/dashboard/src/surfaces/ask/words.ts";\n' +
@@ -507,12 +508,55 @@ test("a file asked for from over its page is opened by the page: the address is 
   S.openFile(FILE(5), (r) => went.push(r));
   assert.deepEqual(went, [`admin/files?do=file:${FILE(5)}`], "the address says it, for a page not on screen yet");
   assert.deepEqual(opened, []);
-  const stop = S.hearFileAsked((id) => opened.push(id));
+  const stop = S.followFileAsked((id) => opened.push(id));
   S.openFile(FILE(6), () => {});
   assert.deepEqual(opened, [FILE(6)]);
   stop();
   S.openFile(FILE(7), () => {});
   assert.deepEqual(opened, [FILE(6)], "a page gone hears nothing");
+});
+
+test("a page the router drew before it moved the address opens the file the address names once it has landed", () => {
+  const opened = [];
+  // The router draws the page it moves to and then moves the address, so the page was drawn over the address it came from:
+  // by the time it listens, the address says the file (the bell's Watch it and a card's Open, pressed on any other page).
+  globalThis.window.location.search = `?do=file:${FILE(8)}`;
+  try {
+    const stop = S.followFileAsked((id) => opened.push(id));
+    assert.deepEqual(opened, [FILE(8)]);
+    stop();
+  } finally {
+    globalThis.window.location.search = "";
+  }
+});
+
+test("a page on screen opens the file its address is moved to, and never one a sheet already stood on", () => {
+  const opened = [];
+  globalThis.window.history = { state: null, pushState() {} };
+  try {
+    const stop = S.followFileAsked((id) => opened.push(id));
+    assert.deepEqual(opened, [], "an address that names none opens none");
+    // The bell's row, pressed on Files itself: the address moves, the route does not.
+    globalThis.window.location.search = `?do=file:${FILE(9)}`;
+    S.notifyAddress();
+    assert.deepEqual(opened, [FILE(9)]);
+    // Forward onto the entry its sheet stood on, closed since: a later move away is not a second ask for it.
+    globalThis.window.history.state = { sheet: 3 };
+    S.notifyAddress();
+    assert.deepEqual(opened, [FILE(9)], "the entry a sheet stood on asks for nothing new");
+    // Another sheet's name is not a file's.
+    globalThis.window.history.state = null;
+    globalThis.window.location.search = "?do=note:someone";
+    S.notifyAddress();
+    assert.deepEqual(opened, [FILE(9)]);
+    stop();
+    globalThis.window.location.search = `?do=file:${FILE(9)}`;
+    S.notifyAddress();
+    assert.deepEqual(opened, [FILE(9)], "a page gone hears nothing");
+  } finally {
+    globalThis.window.location.search = "";
+    delete globalThis.window.history;
+  }
 });
 
 test("a Spanish post says its own words, on the card and its presses", () => {

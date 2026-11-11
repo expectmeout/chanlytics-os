@@ -70,6 +70,8 @@ const NOTIFICATION_DELIVERY = {
   ask_cards: "bell",
   // Photos an import found, waiting for a person's word in Files (00551): a line on the bell, no more.
   files_waiting: "bell",
+  // A video asked for can be played (00613): a line on the bell, no more.
+  video_ready: "bell",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
   website_form: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
@@ -325,6 +327,7 @@ export const BELL_LINE_KINDS = [
   "note_to_keep",
   "ask_cards",
   "files_waiting",
+  "video_ready",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */

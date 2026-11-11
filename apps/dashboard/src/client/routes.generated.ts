@@ -71,6 +71,7 @@ export const ROUTES = {
   "GET files/[id]": { method: "GET", path: "/api/v1/files/[id]" },
   "GET files/[id]/play": { method: "GET", path: "/api/v1/files/[id]/play" },
   "GET files/[id]/view": { method: "GET", path: "/api/v1/files/[id]/view" },
+  "GET files/video/[id]": { method: "GET", path: "/api/v1/files/video/[id]" },
   "GET google": { method: "GET", path: "/api/v1/google" },
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
@@ -228,6 +229,8 @@ export const ROUTES = {
   "POST files/post": { method: "POST", path: "/api/v1/files/post" },
   "POST files/post/preview": { method: "POST", path: "/api/v1/files/post/preview" },
   "POST files/start": { method: "POST", path: "/api/v1/files/start" },
+  "POST files/video": { method: "POST", path: "/api/v1/files/video" },
+  "POST files/video/preview": { method: "POST", path: "/api/v1/files/video/preview" },
   "POST google/link": { method: "POST", path: "/api/v1/google/link" },
   "POST google/locations": { method: "POST", path: "/api/v1/google/locations" },
   "POST google/refresh": { method: "POST", path: "/api/v1/google/refresh" },
@@ -466,6 +469,7 @@ export type Routes = {
   "GET files/[id]": typeof import("../../app/api/v1/files/[id]/route").GET;
   "GET files/[id]/play": typeof import("../../app/api/v1/files/[id]/play/route").GET;
   "GET files/[id]/view": typeof import("../../app/api/v1/files/[id]/view/route").GET;
+  "GET files/video/[id]": typeof import("../../app/api/v1/files/video/[id]/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
@@ -623,6 +627,8 @@ export type Routes = {
   "POST files/post": typeof import("../../app/api/v1/files/post/route").POST;
   "POST files/post/preview": typeof import("../../app/api/v1/files/post/preview/route").POST;
   "POST files/start": typeof import("../../app/api/v1/files/start/route").POST;
+  "POST files/video": typeof import("../../app/api/v1/files/video/route").POST;
+  "POST files/video/preview": typeof import("../../app/api/v1/files/video/preview/route").POST;
   "POST google/link": typeof import("../../app/api/v1/google/link/route").POST;
   "POST google/locations": typeof import("../../app/api/v1/google/locations/route").POST;
   "POST google/refresh": typeof import("../../app/api/v1/google/refresh/route").POST;

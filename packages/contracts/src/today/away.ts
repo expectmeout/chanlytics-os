@@ -129,6 +129,7 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   website_form: ["form sent on your website", "forms sent on your website"],
   // One batch of found photos is one line; a morning's several are still one page to open.
   files_waiting: ["set of photos waiting for you", "sets of photos waiting for you"],
+  video_ready: ["video ready", "videos ready"],
 };
 
 /**

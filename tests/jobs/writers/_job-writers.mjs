@@ -34,6 +34,9 @@ export const JOB_WRITERS = {
   },
   "apps/edge/lib/email/resend-event.ts|email_ingest": { provider: "answers 503, and the provider delivers it again" },
   "apps/edge/lib/files/found.ts|file_fetch": { ledger: "the website read or import that found them runs again" },
+  "apps/edge/lib/files/piece-make.ts|piece_make": {
+    ledger: "the step that would have written the next runs again: a start finds its machine kept and starts no second",
+  },
   "apps/edge/lib/files/upkeep.ts|file_look": { clock: "health", why: "keepFilesMoving, the clock's own work" },
   "apps/edge/lib/files/upkeep.ts|file_purge": { clock: "health", why: "keepFilesMoving, the clock's own work" },
   "apps/edge/lib/files/video-digest.ts|file_look": { clock: "health", why: "keepFilesMoving finds a file not moving" },

@@ -102,6 +102,8 @@ what the script writes.
 | [`person_doubts`](#person_doubts) | `packages/db/src/repositories/people/people.ts` | on, 1 policy |
 | [`person_moments`](#person_moments) | `packages/db/src/repositories/people/people.ts` | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/campaigns/reach-out/ahead.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`piece_images`](#piece_images) | `packages/db/src/repositories/files/pieces.ts` | on, no policy, so only the service role reaches it |
+| [`pieces`](#pieces) | `packages/db/src/repositories/files/pieces.ts` | on, 1 policy |
 | [`platform_acts`](#platform_acts) | `packages/db/src/repositories/console/acts.ts`, `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
@@ -2872,6 +2874,58 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `person_notes_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### piece_images
+
+The machine image a made video is drawn on, one row an edition of the template (00613, decision 0122). The platform's own: no workspace reads it. Written by the script that builds an image.
+
+- Owned by: `packages/db/src/repositories/files/pieces.ts`
+- Primary key: `edition`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `edition` | integer | no |  |  |
+| `snapshot_id` | text | no |  |  |
+| `hash` | text | no |  |  |
+| `made_at` | timestamp with time zone | no | `now()` |  |
+
+### pieces
+
+One row a video asked for (00613, decision 0122): its plan as pressed, the template's edition it is drawn by, where it stands and the file it became. Written only through its doors.
+
+- Owned by: `packages/db/src/repositories/files/pieces.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `shape` | text | no |  |  |
+| `plan` | jsonb | no |  |  |
+| `look` | jsonb | no |  |  |
+| `status` | text | no | `'making'::text` | making (its job is drawing it, or the video platform is making it playable), made (a file, under Made by Ask), failed (failed_why says why, in contracts PIECE_FAILS). |
+| `stage` | text | no | `'queued'::text` | Where a video being made stands, as its card says it: queued (its job has not begun), waiting_clip (a clip's full-size copy is still being made), drawing (a machine is drawing it), saving (it is on its way into Files). |
+| `failed_why` | text | yes |  |  |
+| `edition` | integer | no |  |  |
+| `file_id` | uuid | yes |  |  |
+| `machine` | jsonb | yes |  | The machine it is being drawn on, while it is: its name at the platform, the drawing's own id, when it began and which try it is. Service role only. |
+| `card_key` | text | no |  | The key of the card whose press asked for it: the same press twice is one video. |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+| `made_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `pieces_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### platform_acts
 

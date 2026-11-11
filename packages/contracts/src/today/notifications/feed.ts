@@ -161,6 +161,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   post_prepare: { stopped: "A post could not go on Instagram", to: "admin/files" },
   post_publish: { stopped: "A post could not go on Instagram", to: "admin/files" },
   post_reconcile: { stopped: "Instagram did not say whether a post went up", to: "admin/files" },
+  // A video being made (00613). Its own failures say why on the bell (contracts PIECE_WORDS.failed); this is the ledger's
+  // word for one that ended with nothing known.
+  piece_make: { stopped: "A video could not be made", to: "admin/files" },
   // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
   campaign_moments: { stopped: "A campaign could not run this hour", to: "today" },
   reach_out_steps: { stopped: "A reach-out could not run this hour", to: "today" },
@@ -312,6 +315,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
   ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },
   files_waiting: { icon: "image", tone: "", action: "Open Files", to: "admin/files" },
+  // A video made here that can be played (00613): its row opens the video itself, so its door says what she will do there.
+  video_ready: { icon: "image", tone: "ok", action: "Watch it", to: "admin/files", own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };
@@ -353,6 +358,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/activity/, "Open Activity"],
   [/^admin\/team/, "Open Team"],
   [/^admin\/billing/, "Open Billing"],
+  // A row of another kind that opens Files (a video that could not be made, 0122) says Files, never its kind's own door.
+  [/^admin\/files/, "Open Files"],
   [/^inbox\/to-send$/, "Open To send"],
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],

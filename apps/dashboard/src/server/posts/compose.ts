@@ -37,6 +37,9 @@ const FONT_FILES = [
 
 let fonts: Promise<Parameters<typeof satori>[1]["fonts"]> | null = null;
 
+/** A layout as satori reads one: our nodes are its elements, typed apart only because it names React's. */
+const laidOut = (node: PostNode) => node as PostNode & Parameters<typeof satori>[0];
+
 /** The fonts, read once a process. */
 const fontsHeld = () =>
   (fonts ??= Promise.all(
@@ -90,7 +93,7 @@ export async function composePost(postAsked: PostAsked): Promise<Buffer> {
       .removeAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true }),
-    satori(postLayout(layout) as PostNode & Parameters<typeof satori>[0], {
+    satori(laidOut(postLayout(layout)), {
       width: shape.width,
       height: shape.height,
       fonts: await fontsHeld(),
@@ -128,4 +131,139 @@ async function softenedLayer(fitted: Pixels, layer: Pixels): Promise<{ input: Bu
     .raw()
     .toBuffer({ resolveWithObject: true });
   return { input: soft.data, ...rawOf(soft) };
+}
+
+/** One tile of a video's storyboard: a cut's first frame, what is written under it, and whether the opening words are on it. */
+interface BoardTile {
+  frame: Buffer;
+  label: string;
+  words: boolean;
+}
+
+/** A storyboard's tiles, each a third of the video's frame, the space between them, and the strip their captions stand on. */
+const BOARD_TILE_WIDTH = 360;
+const BOARD_GAP = 12;
+const BOARD_LABEL_HEIGHT = 44;
+const BOARD_PAGE = "#111111";
+
+/**
+ * A video's storyboard, as a JPEG (decision 0122): each cut's first frame side by side in play order, with the opening words'
+ * backing drawn where the video will draw it, at the size it will have. `words` and `frame` are the video's own numbers
+ * (contracts pieceWordsBoxOf, PIECE_FRAME), scaled here to the tile, so what is looked at before a video is made is where its
+ * words will sit. Kept nowhere: it is looked at, by Ask and then by the person, and drawn again when asked.
+ *
+ * `plain` is the card's own: the stills alone, edge to edge, with no caption under them and no space between, since the page
+ * stands each on its own and a cut's seconds are nothing an owner needs. Ask's look keeps both: it names a cut by its number.
+ */
+export async function composeBoard(board: {
+  tiles: readonly BoardTile[];
+  words: { lines: readonly string[]; top: number; size: number };
+  frame: { width: number; height: number; pad: number; padSide: number; gap: number; leading: number };
+  plain?: boolean;
+}): Promise<Buffer> {
+  const { tiles, words, frame } = board;
+  const gap = board.plain ? 0 : BOARD_GAP;
+  const labelHeight = board.plain ? 0 : BOARD_LABEL_HEIGHT;
+  const scale = BOARD_TILE_WIDTH / frame.width;
+  const tileHeight = Math.round(frame.height * scale);
+  const width = tiles.length * BOARD_TILE_WIDTH + Math.max(0, tiles.length - 1) * gap;
+  const height = tileHeight + labelHeight;
+  const backing: PostNode = {
+    type: "div",
+    props: {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: frame.gap * scale,
+        padding: `${frame.pad * scale}px ${frame.padSide * scale}px`,
+        borderRadius: 28 * scale,
+        backgroundColor: "rgba(0,0,0,0.52)",
+      },
+      children: words.lines.map((line) => ({
+        type: "div",
+        props: {
+          style: {
+            fontFamily: "Mona Sans",
+            fontWeight: 800,
+            fontSize: words.size * scale,
+            lineHeight: frame.leading,
+            color: "#ffffff",
+            whiteSpace: "nowrap",
+          },
+          children: line,
+        },
+      })),
+    },
+  };
+  const column = (tile: BoardTile): PostNode => ({
+    type: "div",
+    props: {
+      style: { display: "flex", flexDirection: "column", width: BOARD_TILE_WIDTH, height },
+      children: [
+        {
+          type: "div",
+          props: {
+            style: { display: "flex", position: "relative", width: BOARD_TILE_WIDTH, height: tileHeight },
+            children: tile.words
+              ? [
+                  {
+                    type: "div",
+                    props: {
+                      style: {
+                        display: "flex",
+                        justifyContent: "center",
+                        position: "absolute",
+                        top: words.top * scale,
+                        left: 0,
+                        width: BOARD_TILE_WIDTH,
+                      },
+                      children: [backing],
+                    },
+                  },
+                ]
+              : [],
+          },
+        },
+        ...(labelHeight
+          ? [
+              {
+                type: "div",
+                props: {
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: BOARD_TILE_WIDTH,
+                    height: labelHeight,
+                    fontFamily: "Mona Sans",
+                    fontWeight: 600,
+                    fontSize: 20,
+                    color: "#ffffff",
+                  },
+                  children: tile.label,
+                },
+              },
+            ]
+          : []),
+      ],
+    },
+  });
+  const page: PostNode = {
+    type: "div",
+    props: { style: { display: "flex", width, height, gap }, children: tiles.map(column) },
+  };
+  const [frames, layer] = await Promise.all([
+    Promise.all(
+      tiles.map((tile) => sharp(tile.frame).rotate().resize(BOARD_TILE_WIDTH, tileHeight, { fit: "cover" }).toBuffer()),
+    ),
+    satori(laidOut(page), { width, height, fonts: await fontsHeld() }),
+  ]);
+  return sharp({ create: { width, height, channels: 3, background: BOARD_PAGE } })
+    .composite([
+      ...frames.map((input, i) => ({ input, left: i * (BOARD_TILE_WIDTH + gap), top: 0 })),
+      { input: Buffer.from(layer) },
+    ])
+    .jpeg({ quality: DRAFT_JPEG_QUALITY })
+    .toBuffer();
 }

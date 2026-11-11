@@ -20,6 +20,7 @@ const FAN_OUTS = {
   "apps/dashboard/src/server/campaigns/reach-out-replies.ts|candidates": "one page of replies",
   "apps/dashboard/src/server/campaigns/sequences/doors.ts|input.then": "a sequence's steps, in the door's input",
   "apps/dashboard/src/server/connections/email.ts|conversations": "one page of threads",
+  "apps/dashboard/src/server/content/storyboard.ts|timeline.cuts": "a video's cuts: PIECE_LIMITS.cutsMax, five",
   "apps/dashboard/src/server/connections/mailbox-connections.ts|rows": "a workspace's mailboxes",
   "apps/dashboard/src/server/console/support.ts|askers .slice(0, ASKER_LOOKUPS)": "ASKER_LOOKUPS",
   "apps/dashboard/src/server/leads/send.ts|rows": "a workspace's mailboxes",

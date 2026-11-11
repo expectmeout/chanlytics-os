@@ -119,6 +119,8 @@ const KINDS = [
   "memory_change",
   "memory_forget",
   "post",
+  // A video made from the business's clips (decision 0122).
+  "piece",
   "teleport",
 ];
 
@@ -202,6 +204,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     memory_change: "settings",
     memory_forget: "approve",
     post: "settings",
+    piece: "settings",
   });
 });
 
@@ -425,6 +428,8 @@ const ANSWERS = {
   // POST ask/memory's (AskMemoryDoorDto): the line kept, which its undo forgets.
   memory: { ...ANSWER_ALL, memory: { id: "m1", text: "We close at noon on Fridays." }, again: false },
   post: { ...ANSWER_ALL, file_id: "f2", name: "come-see-the-new-floor", twin: false },
+  // POST files/video's: the video's row, begun.
+  piece: { ...ANSWER_ALL, piece_id: "pc1", fate: "begun" },
 };
 const TAB = { settings: { config: { brain: {} }, version: 3 } };
 const TAB_AFTER = { settings: { config: { brain: {} }, version: 4 } };
@@ -635,6 +640,22 @@ const SHAPES = {
       book: true,
       words_at: "bottom",
       voice: "classic",
+      language: "en",
+      people_agreed: false,
+    }),
+  ],
+  piece: [
+    card("piece", {
+      shape: "hook_cut",
+      cuts: [
+        { file_id: "f1", from: 2, to: 5 },
+        { file_id: "f1", from: 6, to: 9 },
+        { file_id: "f1", from: 9, to: 12 },
+      ],
+      lines: ["I asked for volume", "Did I get it?"],
+      words_at: "low",
+      words_hold: "all",
+      end_line: null,
       language: "en",
       people_agreed: false,
     }),
@@ -870,6 +891,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     memory_change: ["PATCH ask/memory/[id]"],
     memory_forget: ["DELETE ask/memory/[id]", "POST ask/memory"],
     post: ["DELETE files/[id]", "POST files/post"],
+    piece: ["POST files/video"],
     fix: [],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
@@ -915,6 +937,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       ["person_merge", "owner"],
       ["person_mode", "owner"],
       ["person_mode_many", "owner"],
+      ["piece", "partner"],
       ["post", "partner"],
       ["settings", "partner"],
     ],

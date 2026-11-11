@@ -67,6 +67,8 @@ export const instagramPostsOf = (rows: readonly MemberPostRow[]): PostDto[] =>
 /** What the press refuses before anything is written, in words. */
 async function refusalBefore(member: Member, row: FileMemberRow): Promise<AppError | null> {
   if (row.source !== "made") return new AppError("validation", ON_INSTAGRAM.notAPost);
+  // A video made here is no picture or story: a reel waits for its own road to Instagram (decision 0121).
+  if (row.kind === "video") return new AppError("validation", ON_INSTAGRAM.notYet);
   const postable = await readInstagramPostable(member.tenantId);
   if (postable === null || postable === "not_connected")
     return new AppError("conflict", ON_INSTAGRAM.notConnected, 409);

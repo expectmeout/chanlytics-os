@@ -264,7 +264,7 @@ const OPERATOR_ACTS = [
  * the tool search last. An owner's own are actions of the tools a partner has (a person's mode and a merge, many
  * people's mode, the activity log), so an owner and a partner are offered the same tools.
  */
-const PARTNER_ACTS = [...OPERATOR_ACTS, "propose_lead_search", "propose_post"].sort();
+const PARTNER_ACTS = [...OPERATOR_ACTS, "propose_lead_search", "propose_piece", "propose_post"].sort();
 /** A role's reads and acts, sorted by name as the registry sorts them, the acts among the reads. */
 const withReads = (acts) => [...READS, ...acts].sort();
 const OFFERED = {
@@ -297,8 +297,8 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
   for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [14, 29, 31, 31],
-    "a viewer thirteen reads and the search, an operator fifteen acts more, a partner and an owner the lead search too",
+    [14, 29, 32, 32],
+    "a viewer thirteen reads and the search, an operator fifteen acts more, a partner and an owner the lead search, a post and a video too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),

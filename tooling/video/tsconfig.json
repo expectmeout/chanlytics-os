@@ -1,0 +1,16 @@
+{
+  "//": "The template alone, checked by image.mjs before it is bundled. It reads the monorepo's drawing numbers and types by path (packages/contracts/src/content), so those files are compiled with it.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM"],
+    "types": []
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

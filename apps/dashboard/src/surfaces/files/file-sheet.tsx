@@ -140,9 +140,10 @@ function FileActs({
         testid="fl-remove-ask"
       />
     );
-  // A post Ask made says its own, by the shape it shows; a video's own file stays with whoever sent it; anything else is the one picture.
+  // A post Ask made says its own, by the shape it shows; a video's own file stays with whoever sent it, but one made here is
+  // kept here and given; anything else is the one picture.
   const download =
-    file.source === "made" || video ? null : (
+    (file.source === "made") !== video ? null : (
       <Button variant="quiet" href={`${fileViewOf(file.id)}?download`} data-testid="fl-download">
         {W.download}
       </Button>
@@ -207,7 +208,7 @@ function FileActs({
   );
 }
 
-/** What the sheet shows of the file: a new version being made, a post on its way to Google, a post's shapes, a video's player, or the picture. */
+/** What the sheet shows of the file: a new version being made, a post on its way to Google, a video's player, a post's shapes, or the picture. */
 function FileShown({
   file,
   said,
@@ -226,9 +227,10 @@ function FileShown({
   if (version.open) return <PostVersion version={version} />;
   if (going.open && made) return <PostGoogle google={going} plan={made.plan} />;
   if (toInstagram.open) return <PostInstagram draft={toInstagram} alt={file.line ?? said} />;
+  // A video first: one made here is a video too, played as any other, and never a post's shapes.
+  if (file.kind === "video") return <VideoOpened file={file} said={said} />;
   if (file.source === "made")
     return <PostShapes id={file.id} name={file.name} alt={file.line ?? said} says={POST_WORDS} />;
-  if (file.kind === "video") return <VideoOpened file={file} said={said} />;
   return <Picture src={`${fileViewOf(file.id)}?w=1280`} alt={file.line ?? said} name={said} big />;
 }
 

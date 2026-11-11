@@ -233,6 +233,8 @@ const ANNOUNCES = {
   ask_cards:
     "Today, which the row opens, reads the member's morning with Ask for you as it comes on screen and while Ask writes; the feed does not tell of ask_mornings (decision 0070).",
   files_waiting: "Files, which the row opens, hears file: what waits, and what was kept, as it changes.",
+  video_ready:
+    "Files, which the row opens, hears file: a video made here is a row there from its first byte, and its tile turns playable as the row does (00613).",
   website_form:
     "The person's page, which the row opens, hears contacts and person_notes: the person the form made and the note it suggested (00488).",
 };

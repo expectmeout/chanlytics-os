@@ -99,7 +99,7 @@ export function postPlanProblem(plan: Pick<PostPlan, "line" | "over" | "under">,
 }
 
 const PHOTO_WONT_TO_MODEL: Readonly<Record<PostPhotoWont, string>> = {
-  made: "that is a post Ask already made, with its words on it. Use the photo it came from",
+  made: "that is a post or a video Ask already made, with its words on it. Use the photo or the clip it came from",
   unkept: "it waits in the Inbox or was set aside: it is the owner's to keep first",
   design: "it already has words or a design on it, so more would clash",
   video:
