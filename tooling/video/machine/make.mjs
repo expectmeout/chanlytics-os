@@ -2,12 +2,15 @@
 // what to draw. It fetches each file's parts in order into the bundle's public folder, draws the composition with the renderer the
 // image holds, and says where it stands in progress.json as it goes, so whoever started it can leave and ask later.
 //
-//   { "fetch": [{ "to": "cut-0.mp4", "parts": ["https://...init", "https://...segment", ...] }],
-//     "composition": "hook-cut", "props": { ... }, "out": "video.mp4" }
+//   { "fetch": [{ "to": "block-0.mp4", "parts": ["https://...init", "https://...segment", ...] },
+//              { "to": "block-1.img", "parts": ["https://...a photo"] }],
+//     "composition": "blocks", "props": { ... }, "out": "video.mp4" }
 //
-// It decides nothing: which seconds of which clip, the words and where they sit were all worked out before it was started. A
-// playback copy's init part followed by the segments that cover a cut is a playable file, which is why parts are joined as they
-// come. Nothing here is a business's: the addresses are short-lived and arrive with the job.
+// It decides nothing: which seconds of which clip, which photo, the words and where they sit were all worked out before it
+// was started. A playback copy's init part followed by the segments that cover a cut is a playable file, which is why parts
+// are joined as they come. A photo is one part, asked for as a kind a browser draws whatever the phone that took it kept
+// (where the photos are kept answers that ask; the video platform's parts are what they are). Nothing here is a business's:
+// the addresses are short-lived and arrive with the job.
 import fs from "node:fs";
 import path from "node:path";
 import { renderMedia, selectComposition } from "@remotion/renderer";
@@ -18,6 +21,8 @@ const WORK = path.join(HERE, "piece");
 const PROGRESS = path.join(WORK, "progress.json");
 /** The longest one part is waited for: a few megabytes from the video platform. A part that hangs fails the drawing, which is then started afresh. */
 const PART_MS = 45_000;
+/** What every part is asked as: a picture in a kind a browser draws, and anything else as it is. */
+const ASKED_AS = { accept: "image/webp,*/*" };
 
 fs.mkdirSync(WORK, { recursive: true });
 fs.mkdirSync(path.join(BUNDLE, "public"), { recursive: true });
@@ -31,7 +36,7 @@ function say(progress) {
 async function fetched(file) {
   const parts = [];
   for (const address of file.parts) {
-    const res = await fetch(address, { signal: AbortSignal.timeout(PART_MS) });
+    const res = await fetch(address, { headers: ASKED_AS, signal: AbortSignal.timeout(PART_MS) });
     if (!res.ok) throw new Error(`${file.to}: a part answered ${res.status}`);
     parts.push(Buffer.from(await res.arrayBuffer()));
   }

@@ -1,23 +1,30 @@
-// The template's compositions, each named for a plan's shape with a hyphen where the shape has an underscore (the renderer takes no
-// underscore in a name; contracts pieceCompositionOf). `sample-clip` is not a shape: it draws a few seconds of moving
-// picture with nothing but code, so the image's proof has a clip to cut from without any business's footage (image.mjs).
+// The template's compositions (contracts pieceCompositionOf names the one a plan is drawn by). `blocks` draws every plan;
+// `hook-cut` is what an edge before blocks asks for, kept so either app may deploy first. `sample-clip` is no plan's: it
+// draws a few seconds of moving picture with nothing but code, so the image's proof has a clip to cut from without any
+// business's footage (image.mjs).
 import { AbsoluteFill, Composition, interpolate, registerRoot, useCurrentFrame, useVideoConfig } from "remotion";
 import { PIECE_FRAME } from "../../../packages/contracts/src/content/piece-frame";
 import type { PieceMaterial } from "../../../packages/contracts/src/content/piece-timeline";
-import { HookCut } from "./hook-cut";
+import { Blocks } from "./blocks";
+import { HookCut, type HookCutMaterial } from "./hook-cut";
 
-/** What the studio and the bundle's own check draw where nothing was handed in: one cut, so the shape is whole. */
+/** What the studio and the bundle's own check draw where nothing was handed in: one clip, so the video is whole. */
+const WORN = {
+  width: PIECE_FRAME.width,
+  height: PIECE_FRAME.height,
+  fps: PIECE_FRAME.fps,
+  frames: 90 + PIECE_FRAME.end - PIECE_FRAME.fade,
+  words: { lines: ["Sample"], top: PIECE_FRAME.wordsHighTop, size: PIECE_FRAME.wordsSizeMax, frames: null },
+  end: { line: null, under: null, logo: false, name: "Sample", book: null, address: null },
+  accent: "#ffffff",
+};
 const SAMPLE: PieceMaterial = {
-  timeline: {
-    width: PIECE_FRAME.width,
-    height: PIECE_FRAME.height,
-    fps: PIECE_FRAME.fps,
-    frames: 90 + PIECE_FRAME.end - PIECE_FRAME.fade,
-    cuts: [{ source: "sample", trim: 0, frames: 90 }],
-    words: { lines: ["Sample"], top: PIECE_FRAME.wordsHighTop, size: PIECE_FRAME.wordsSizeMax, frames: null },
-    end: { line: null, under: null, logo: false, name: "Sample", book: null, address: null },
-    accent: "#ffffff",
-  },
+  timeline: { ...WORN, blocks: [{ is: "clip", source: "sample", trim: 0, frames: 90, label: null }] },
+  files: [["sample.mp4"]],
+  logo: null,
+};
+const SAMPLE_CUTS: HookCutMaterial = {
+  timeline: { ...WORN, cuts: [{ source: "sample", trim: 0, frames: 90 }] },
   cuts: ["sample.mp4"],
   logo: null,
 };
@@ -48,13 +55,28 @@ function Root() {
   return (
     <>
       <Composition
-        id="hook-cut"
-        component={HookCut}
+        id="blocks"
+        component={Blocks}
         fps={PIECE_FRAME.fps}
         width={PIECE_FRAME.width}
         height={PIECE_FRAME.height}
         durationInFrames={SAMPLE.timeline.frames}
         defaultProps={SAMPLE}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: props.timeline.frames,
+          fps: props.timeline.fps,
+          width: props.timeline.width,
+          height: props.timeline.height,
+        })}
+      />
+      <Composition
+        id="hook-cut"
+        component={HookCut}
+        fps={PIECE_FRAME.fps}
+        width={PIECE_FRAME.width}
+        height={PIECE_FRAME.height}
+        durationInFrames={SAMPLE_CUTS.timeline.frames}
+        defaultProps={SAMPLE_CUTS}
         calculateMetadata={({ props }) => ({
           durationInFrames: props.timeline.frames,
           fps: props.timeline.fps,
