@@ -304,14 +304,14 @@ function visitNamed(
  * surely theirs, which is the one its words name (visitOnDay's "last"), by what the record holds of it.
  */
 function visitKept(
-  r: PersonRowVM,
+  person: PersonRowVM,
   run: Pick<RunPlaybook, "trigger" | "day">,
   nowMs: number,
   theirs: ReturnType<typeof theirVisitTest>,
 ): boolean {
-  if (!r.calendarTz) return false;
-  const day = run.day ?? visitMomentDay(run.trigger, r.calendarTz, nowMs);
-  const onDay = r.visitDays.filter((d) => d.date === day && theirs(r, d.via));
+  if (!person.calendarTz) return false;
+  const day = run.day ?? visitMomentDay(run.trigger, person.calendarTz, nowMs);
+  const onDay = person.visitDays.filter((visit) => visit.date === day && theirs(person, visit.via));
   return onDay[onDay.length - 1]?.said === "kept";
 }
 
