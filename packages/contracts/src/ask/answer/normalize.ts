@@ -355,7 +355,11 @@ export function answerWords(askAnswer: AskAnswer): string {
     .join(" ");
 }
 
-const sentence = (s: string) => (/[.!?]$/.test(s) ? s : `${s}.`);
+/** A sentence of a card's title: one that ends leading into more (a comma) ends as a sentence, never ",.". */
+const sentence = (s: string) => {
+  const ended = s.replace(/[,;:]+$/u, "");
+  return /[.!?]$/.test(ended) ? ended : `${ended}.`;
+};
 
 /**
  * The answer when a round proposed and nothing else, every card made: the cards are the Do, with no second round. A

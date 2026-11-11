@@ -5,7 +5,7 @@
  */
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
-export { pieceStandsOf, pieceStillMoving } from "./piece-card";
+export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./piece-card";
 export type { PieceFollowedDto, PieceStands } from "./piece-card";
 export { PIECE_FRAME, pieceLineWidthOf, pieceWordsBoxOf } from "./piece-frame";
 export type { PieceWordsBox } from "./piece-frame";

@@ -1170,6 +1170,11 @@ test("cards only: the cards are the Do, said in a sentence that counts nothing t
     answerForCards([{ title: "Move Sam to Friday?" }], "en", null).say.headline,
     "Here it is: Move Sam to Friday?",
   );
+  // A title that ends leading into more ends as a sentence, never ",." (a video's card, 11 Nov 2026).
+  assert.equal(
+    answerForCards([{ title: "Video: Long layers," }], "en", null).say.headline,
+    "Here it is: Video: Long layers.",
+  );
   const es = answerForCards([{ title: "a" }, { title: "b" }], "es", null);
   assert.deepEqual([es.say.headline, es.say.detail, es.language], ["2 para mirar.", "", "es"]);
   assert.equal(answerForCards([{ title: "a" }, { title: "b" }], "en", null).say.headline, "2 to look at.");

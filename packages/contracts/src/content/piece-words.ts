@@ -3,6 +3,7 @@
  * press and as the video is made, checked and ready; why a plan can't be made; why one asked for was not; and the bell's lines.
  * Every sentence a page or the bell says of one comes from here. A line is one fact, and a button a verb she would say.
  */
+import { fileSaidOf } from "../files/views";
 import type { PieceFail, PieceStage } from "./piece-making";
 import type { PieceLanguage, PieceWont } from "./pieces";
 
@@ -21,14 +22,12 @@ export interface PieceWords {
   notDrawn: string;
   boardSaid: string;
   /**
-   * The card once pressed, as the video's own row stands (piece-card.ts pieceStandsOf): being made, with where it is at;
-   * made and being looked at; ready; not made; or no longer in Files.
+   * The card once pressed, as the video's own row stands (piece-card.ts pieceStandsOf): being made, with where it is at; ready,
+   * the moment it can be played; not made; or no longer in Files.
    */
   follows: {
     making: string;
     stage: Record<PieceStage, (moments: number) => string>;
-    checkingMark: string;
-    checking: string;
     ready: string;
     /** Where a video that is ready is: its length is the card's own line. */
     readyWhere: string;
@@ -51,6 +50,9 @@ export interface PieceWords {
   };
 }
 
+/** A card's title: its opening line, without what leads into the next one (a comma, a dash), so it never ends mid-breath. */
+const titled = (line: string): string => `Video: ${line.trim().replace(/[\s,;:\u2013\u2014-]+$/u, "")}`;
+
 /** Why a video was not made, and what a person does about each. */
 const FAILED: Record<PieceFail, string> = {
   clips: "One of its clips isn't in Files any more, or can't be used yet.",
@@ -67,7 +69,7 @@ const FAILED_NEXT: Record<PieceFail, string> = {
 
 /** In English, which is also what a video says where nothing names a language. */
 export const PIECE_WORDS: PieceWords = {
-  cardTitle: (line) => `Video: ${line}`,
+  cardTitle: titled,
   summary: (moments, seconds, clips) =>
     `${Math.round(seconds)} seconds, vertical. ${moments} moments from ${clips === 1 ? "your clip" : `${clips} of your clips`}.`,
   making: "You can close this. It lands in Files, under Made by Ask, and your bell says so.",
@@ -83,8 +85,6 @@ export const PIECE_WORDS: PieceWords = {
       drawing: (moments) => `Cutting ${moments} moments`,
       saving: () => "Putting it in Files",
     },
-    checkingMark: "Ask is checking",
-    checking: "Made. Ask looks at it before you do.",
     ready: "It's ready",
     readyWhere: "In Files, under Made by Ask.",
     open: "Open",
@@ -108,7 +108,7 @@ export const PIECE_WORDS: PieceWords = {
   failed: FAILED,
   bell: {
     ready: "Your video is ready",
-    readyBody: (name) => `${name} is in Files, under Made by Ask.`,
+    readyBody: (name) => `${fileSaidOf(name)} is in Files, under Made by Ask.`,
     failed: "Your video could not be made",
     failedBody: (reason) => `${FAILED[reason]} ${FAILED_NEXT[reason]}`,
   },
@@ -128,7 +128,7 @@ const FAILED_NEXT_ES: Record<PieceFail, string> = {
 };
 
 const PIECE_WORDS_ES: PieceWords = {
-  cardTitle: (line) => `Video: ${line}`,
+  cardTitle: titled,
   summary: (moments, seconds, clips) =>
     `${Math.round(seconds)} segundos, en vertical. ${moments} momentos de ${clips === 1 ? "tu clip" : `${clips} de tus clips`}.`,
   making: "Puedes cerrar esto. Llega a Archivos, en Hecho por Ask, y tu campana te avisa.",
@@ -144,8 +144,6 @@ const PIECE_WORDS_ES: PieceWords = {
       drawing: (moments) => `Cortando ${moments} momentos`,
       saving: () => "Guardándolo en Archivos",
     },
-    checkingMark: "Ask lo está revisando",
-    checking: "Hecho. Ask lo mira antes que tú.",
     ready: "Está listo",
     readyWhere: "En Archivos, en Hecho por Ask.",
     open: "Abrir",
@@ -169,7 +167,7 @@ const PIECE_WORDS_ES: PieceWords = {
   failed: FAILED_ES,
   bell: {
     ready: "Tu video está listo",
-    readyBody: (name) => `${name} está en Archivos, en Hecho por Ask.`,
+    readyBody: (name) => `${fileSaidOf(name)} está en Archivos, en Hecho por Ask.`,
     failed: "No se pudo hacer tu video",
     failedBody: (reason) => `${FAILED_ES[reason]} ${FAILED_NEXT_ES[reason]}`,
   },

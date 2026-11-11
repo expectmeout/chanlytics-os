@@ -35,8 +35,12 @@ Ruben judged them better than the hand cuts.
    look as it stands, and writes the video's row and its job's first step together (`piece_begin`), once by the card's key.
    Three being made is a workspace's most. Once pressed the card reads the video's own row (`GET files/video/[id]`) and says
    where it stands, in the content canvas's states: being made (starting, waiting on its clip, cutting, putting it in Files),
-   made and being looked at, ready with Open, not made with why and Try again, or no longer in Files. Try again is the same
-   press: `piece_begin` takes a video that was not made up again under the same key, so a card never makes a second row.
+   ready with Open, not made with why and Try again, or no longer in Files. Ready is the moment the video can be played, when
+   the bell rings too: the card first waited some 13 seconds more for Ask's look, saying "Ask is checking" after the bell had
+   said it was ready, and Ruben chose "Ready when playable" (11 November 2026). The look comes after, as for any file, and what
+   it notes is on the video's page; a card with its stills shows the first of them, the video's own first frame, and one drawn
+   afresh later shows the poster. Try again is the same press: `piece_begin` takes a video that was not made up again under the
+   same key, so a card never makes a second row.
 4. **A machine that exists for that one video.** `piece_make` runs one step a run in the lane of someone waiting. `start`
    reads each clip's full-size playback copy for the parts its moments need, starts a machine from the saved image for the
    template's edition, and hands it the addresses to fetch and the timeline to draw. `wait` asks after the drawing; done, it
@@ -55,6 +59,8 @@ Ruben judged them better than the hand cuts.
    move on the page itself included (`followFileAsked`). One that could not be made says why in the owner's words (its
    clips, the drawing, keeping it, or unknown): its card over Try again, its bell with what to do and a door that says
    Files. After its bytes went, only the platform's word ends it: no later run can throw a sent video away.
+   The look judges a made video as one ready to post: its opening words, end card and silence are its own, and what it notes
+   is only what would stop it being posted (contracts `fileVideoLookAsked`, `made`; a clip a member sent is asked as before).
 6. **Its own file is kept, so it can be downloaded.** The video platform plays a video and gives no file back. A clip a member
    sent stays with them; a video made here exists nowhere else, so its mp4 is kept in its folder (the `files` bucket takes
    `video/mp4`) and its sheet has Download.
