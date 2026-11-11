@@ -108,6 +108,7 @@ export function PitchCard(shared: OutreachShared) {
         empty: PITCH_WORDS.empty,
         rule: `${PITCH_WORDS.whoForNote} ${PITCH_WORDS.reachWords}`,
         known: shared.read?.known.newest_search,
+        hint: storedReachOut(shared, "who_for") ? null : PITCH_WORDS.without.whoFor,
       })}
       {reachOutFold(shared, {
         id: "fixes",
@@ -118,6 +119,7 @@ export function PitchCard(shared: OutreachShared) {
         placeholder: PITCH_WORDS.placeholders.fixes,
         empty: PITCH_WORDS.empty,
         rule: PITCH_WORDS.reachWords,
+        hint: storedReachOut(shared, "fixes") ? null : PITCH_WORDS.without.fixes,
       })}
       <NextStepFold {...shared} />
     </OutreachCard>
