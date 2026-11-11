@@ -447,3 +447,68 @@ test("REGRESSION: a visit marked keeps its place in To do's three, with its word
   assert.ok(foot && textOf(foot).includes("1 more to do"), "REGRESSION: the visit left out was said nowhere");
   assert.match(foot.props.href, /calendar\/2026-09-17$/, "its door is the Calendar on yesterday");
 });
+
+test("Mark all kept, at To do's foot: every one of yesterday's left to mark, the ones past the three drawn among them, asked first, then said through the one door; nothing for one, or for whoever may not say it", async () => {
+  clear();
+  doors.length = 0;
+  doorSays = () => ({
+    status: 200,
+    body: {
+      ok: true,
+      data: {
+        marked: 4,
+        already_kept: 0,
+        refused: 0,
+        why: null,
+        follows: { name: "After the appointment", when: "today 10:00 AM", asks: false },
+      },
+    },
+  });
+  const todo = () => todoOf(again(() => W.React.createElement(NeedYou, {})));
+  const tree = todoOf(draw());
+  const press = byTestId(tree, "today-kept-all-press");
+  assert.ok(press, "where two or more wait to be marked");
+  assert.equal(textOf(press).trim(), "Mark all 4 kept", "all four, though To do draws three");
+  // Asked first: how many, and what follows; nothing is sent until the yes.
+  press.props.onClick();
+  const ask = byTestId(todo(), "today-kept-all-ask-confirm");
+  assert.ok(textOf(ask).includes("Did all 4 of yesterday's appointments come?"), textOf(ask));
+  assert.ok(textOf(ask).includes("changed to Missed afterwards"), "and that each can be corrected");
+  assert.deepEqual(doors, []);
+  byTestId(todo(), "today-kept-all-ask-yes").props.onClick();
+  await until(() => flashes.length > 0, "what it came to is said");
+  assert.deepEqual(doors, [["POST", "/api/v1/calendar/visits/kept", { ids: ["r-a", "r-c", "r-f", "r-g"] }]]);
+  assert.equal(flashes.at(-1).tone, "ok");
+  assert.equal(
+    textOf(flashes.at(-1).msg),
+    "4 marked kept · \u201cAfter the appointment\u201d thanks them today 10:00 AM.",
+  );
+
+  // Refused in part: what went, and the first refusal's words, in the warning's tone.
+  flashes.length = 0;
+  doorSays = () => ({
+    status: 200,
+    body: {
+      ok: true,
+      data: { marked: 3, already_kept: 0, refused: 1, why: "It was cancelled already.", follows: null },
+    },
+  });
+  clear();
+  byTestId(todoOf(draw()), "today-kept-all-press").props.onClick();
+  byTestId(todo(), "today-kept-all-ask-yes").props.onClick();
+  await until(() => flashes.length > 0, "said");
+  assert.equal(flashes.at(-1).tone, "warn");
+  assert.equal(textOf(flashes.at(-1).msg), "3 marked kept · 1 couldn't be marked: It was cancelled already.");
+
+  // Not yet: the question goes, and nothing is said.
+  clear();
+  doors.length = 0;
+  byTestId(todoOf(draw()), "today-kept-all-press").props.onClick();
+  byTestId(todo(), "today-kept-all-ask-no").props.onClick();
+  assert.ok(byTestId(todo(), "today-kept-all-press"), "the press stands again");
+  assert.deepEqual(doors, []);
+
+  // One to mark is its own row's Kept: no press for all.
+  clear([block("a", 14)]);
+  assert.equal(byTestId(todoOf(draw()), "today-kept-all-press"), null);
+});

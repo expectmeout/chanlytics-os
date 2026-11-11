@@ -249,6 +249,7 @@ export {
   visitActsOf,
   visitLineOf,
   visitLineOfBlock,
+  VISITS_KEPT_MAX,
   visitStands,
   visitStateOf,
 } from "./words/visit";

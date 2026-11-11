@@ -81,7 +81,7 @@ export { calendarPersonFactsOf, calendarPersonOf } from "./calendar/visit/calend
 export { changeFreesATime, FREED_TIME_REFUSALS, freedTimeOf, freedTimesUnoffered, freedTimeTaken, freedTimeWords } from "./calendar/visit/freed-time";
 export { visitTitleWithout } from "./calendar/visit/service";
 export { ADD_TO_PEOPLE_WORDS, addToPeopleOf, CALENDAR_FEED_WORDS, calendarHoursLines, clockLabel, closureDatesLabel, closuresFrom, eventText, feedNotes, feedSourceLabel, readAgoLabel, ruleParts, rulesLine, visitMarkOfDto } from "./calendar/words/labels";
-export { sightingStands, VISIT_ASK_WORDS, VISIT_REFUSALS, VISIT_WORDS, visitActsOf, visitLineOf, visitLineOfBlock, visitStands, visitStateOf } from "./calendar/words/visit";
+export { sightingStands, VISIT_ASK_WORDS, VISIT_REFUSALS, VISIT_WORDS, visitActsOf, visitLineOf, visitLineOfBlock, VISITS_KEPT_MAX, visitStands, visitStateOf } from "./calendar/words/visit";
 export { AUDIENCE_KINDS, audienceLate, audienceMembers, audiencePreview, audienceTrigger, CONSENT_LIST_IDS, eligibleFor, enrolFor, EVERYONE_HINT, EVERYONE_LABEL, heldWords, saidYesOnAny, UNKNOWN_AUDIENCE_WORDS } from "./campaigns/broadcasts/audience";
 export { BROADCAST_GAP_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_THROTTLE_WAITS_MS, broadcastName, cleanParam, emptyAudienceRefusal, OUTCOME_UNKNOWN, renderTemplate, runCountsOf, runTitleOf, sentByWords, toBroadcastVM, whenLabel } from "./campaigns/broadcasts/broadcasts";
 export { CHANNELS_DOOR, channelsStandingParts, channelsStandingWords } from "./campaigns/broadcasts/channels-standing";

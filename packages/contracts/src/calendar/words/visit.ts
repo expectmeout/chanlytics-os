@@ -7,6 +7,12 @@ import type { VisitWord } from "../../shared/enums";
 /** Each word as the panel says it, on a state and on an act alike. */
 export const VISIT_WORDS: Record<VisitWord, string> = { kept: "Kept", missed: "Missed", cancelled: "Cancelled" };
 
+/**
+ * The most visits one press marks kept (POST calendar/visits/kept, Today's Mark all kept): a busy day's worth, so a
+ * day past it is marked in two presses, never refused whole.
+ */
+export const VISITS_KEPT_MAX = 200;
+
 /** The door's refusals (mark_visit's `{ error }`), each in a sentence for the person who asked. */
 export const VISIT_REFUSALS: Record<string, string> = {
   never_booked: "It was only requested, never booked: it can be cancelled, but not kept or missed.",
