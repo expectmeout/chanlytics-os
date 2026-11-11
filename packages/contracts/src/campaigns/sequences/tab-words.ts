@@ -28,7 +28,14 @@ import { pct } from "../../shared/numbers";
 import { RUN_OPEN_WORDS, RUN_WAITING_SHORT } from "../../shell/campaign-rooms";
 import { plural } from "../../shared/words";
 import { DAY_MS } from "../../shared/time";
-import type { SequenceBatchDto, SequenceHistoryDto, SequencePeopleGroup, SequencePersonDto } from "./dto";
+import type {
+  SequenceBatchDto,
+  SequenceHistoryDto,
+  SequencePeopleGroup,
+  SequencePersonDto,
+  SequenceRowDto,
+} from "./dto";
+import { oneOffPeople } from "./one-off";
 
 /** A step opened to be changed (the canvas's Editor board): its fields, what a save reaches, and its preview. */
 export const SEQUENCE_EDIT_WORDS = {
@@ -258,6 +265,18 @@ export function peopleNeedsOf(
 /** The People tab's own words: its rows, its folds and taking someone out. */
 export const SEQUENCE_PEOPLE_WORDS = {
   nobody: "Nobody is in it yet.",
+  /**
+   * A one-off's People with nobody waiting on it: who it went to or goes to, by the count its Steps, list and History say
+   * (oneOffPeople), never "Nobody is in it yet" under one that went (Ruben, 10 Nov 2026). A one-off holds no places, so
+   * this is all its tab has to say until someone it reached needs you.
+   */
+  oneOff: (row: Pick<SequenceRowDto, "date" | "last">): string => {
+    const state = row.date?.state;
+    if (state === "canceled") return "Canceled · nothing went.";
+    if (state === "failed") return "It didn’t go.";
+    const to = plural(oneOffPeople(row), "person", "people");
+    return state === "sent" ? `It went to ${to}. Nobody is waiting on it.` : `It goes to ${to}.`;
+  },
   failed: "who is in it",
   someone: "Someone",
   step: (place: number) => `step ${place}`,

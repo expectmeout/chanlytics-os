@@ -6,6 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  SEQUENCE_PEOPLE_WORDS,
   scheduleChannels,
   scheduleDays,
   scheduleEnd,
@@ -131,6 +132,32 @@ test("where it starts names what it starts on apart, so the page makes it a door
   });
   const start = scheduleStart(oneOff, "visit", { tz: TZ, nowMs: NOW });
   assert.deepEqual([start.lead, start.name, start.sub], ["Nov 24 · 10:00 AM", null, "Goes on its own, to 186 people"]);
+});
+
+test("a one-off that went says the people it was sent to, as its list and History do, on its Steps and its People", () => {
+  // Ruben, 10 Nov 2026: one made for 3 that reached 2 said "Went to 3 people" over a list row and a History that said 2,
+  // and "Nobody is in it yet" on its People.
+  const went = row({
+    starts: "date",
+    date: { batch_id: "b1", state: "sent", at: "2026-11-06T22:13:00Z", people: 3 },
+    last: { id: "b1", at: "2026-11-06T22:13:00Z", sent: 2, replied: 2 },
+  });
+  assert.deepEqual(scheduleSpan(went, []), { count: "One message", over: "to 2 people" });
+  assert.equal(scheduleStart(went, "visit", { tz: TZ, nowMs: NOW }).sub, "Went to 2 people");
+  assert.equal(SEQUENCE_PEOPLE_WORDS.oneOff(went), "It went to 2 people. Nobody is waiting on it.");
+  // Before it goes, the people it is for; a last batch that is not its own counts nothing for it.
+  const toCome = row({
+    starts: "date",
+    date: { batch_id: "b1", state: "scheduled", at: "2026-11-24T15:00:00Z", people: 3 },
+    last: { id: "b0", at: "2026-11-01T15:00:00Z", sent: 9, replied: 0 },
+  });
+  assert.equal(scheduleSpan(toCome, []).over, "to 3 people");
+  assert.equal(SEQUENCE_PEOPLE_WORDS.oneOff(toCome), "It goes to 3 people.");
+  const canceled = row({
+    starts: "date",
+    date: { batch_id: "b1", state: "canceled", at: "2026-11-24T15:00:00Z", people: 3 },
+  });
+  assert.equal(SEQUENCE_PEOPLE_WORDS.oneOff(canceled), "Canceled · nothing went.");
 });
 
 test("the wait between two steps says who it keeps going; a lead's step goes on to those who haven't written back", () => {

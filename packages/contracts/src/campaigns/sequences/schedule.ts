@@ -10,6 +10,7 @@ import { triggerOf } from "../playbooks/triggers/notices";
 import { clockAhead, clockDate, clockTime } from "../../shared/clock";
 import { plural } from "../../shared/words";
 import type { SequencePeopleDto, SequenceRowDto, SequenceStepDto } from "./dto";
+import { oneOffPeople } from "./one-off";
 import { SEQUENCE_WORDS, leadStepStand } from "./words/flow";
 import {
   batchWaitsUntilTonight,
@@ -121,12 +122,12 @@ export function scheduleDays(steps: readonly Pick<SequenceStepDto, "place" | "af
  * is a message (to leads, or a customer's that closes on a call or a note).
  */
 export function scheduleSpan(
-  row: Pick<SequenceRowDto, "starts" | "date">,
+  row: Pick<SequenceRowDto, "starts" | "date" | "last">,
   steps: readonly (Pick<SequenceStepDto, "place" | "after_days"> & { hand?: SequenceStepDto["hand"] })[],
 ): { count: string; over: string | null } {
   // A one-off is its one message, to the people it picked.
   if (row.starts === "date")
-    return { count: "One message", over: row.date ? `to ${plural(row.date.people, "person", "people")}` : null };
+    return { count: "One message", over: row.date ? `to ${plural(oneOffPeople(row), "person", "people")}` : null };
   const length = steps.length;
   const notAllMessages = row.starts === "leads" || steps.some((s) => s.hand);
   const [one, many] = notAllMessages ? ["step", "steps"] : ["message", "messages"];
@@ -138,8 +139,8 @@ export function scheduleSpan(
 }
 
 /** A one-off's day, by where its batch stands: how it goes, or how it went, and to how many. */
-function dateStand(date: NonNullable<SequenceRowDto["date"]>): string {
-  const to = `to ${plural(date.people, "person", "people")}`;
+function dateStand(row: SequenceRowDto, date: NonNullable<SequenceRowDto["date"]>): string {
+  const to = `to ${plural(oneOffPeople(row), "person", "people")}`;
   switch (date.state) {
     case "pending_approval":
       return `Waits for your OK, ${to}`;
@@ -172,7 +173,7 @@ export function scheduleStart(
     return {
       lead: `${clockDate(when, clock.tz, clock.nowMs)} · ${clockTime(when, clock.tz)}`,
       name: null,
-      sub: dateStand(row.date),
+      sub: dateStand(row, row.date),
     };
   }
   if (row.starts === "leads")
