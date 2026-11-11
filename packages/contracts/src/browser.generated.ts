@@ -345,6 +345,7 @@ export { listTyped, PEOPLE_ASKED_CHARS, PEOPLE_FIND_WORDS, PEOPLE_INDUSTRY_CHARS
 export { planNeedsASite, planReadsSites, planVersionOf } from "./leads/search/plan";
 export { planArea, planLeavingOut, planSaid, planSentence, planWhere, planWho, planWords, lowerFirst } from "./leads/search/sentence";
 export { LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_OPERATION_KINDS, LEAD_REACH_FILTERS, LEAD_STAGES, LEAD_STATUS_GROUPS, LEAD_COUNTER_KINDS, LEAD_MEMBER_CLASSES, LEAD_PREFERENCE_KINDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS } from "./leads/search/sets";
+export { fillInSaysOf, LEAD_FILL_WORDS } from "./leads/sheet/lead-fill-ins";
 export { LEAD_COLUMN_GROUPS, LEAD_RATED_HINT, leadClaimedWord, leadColumnsOf, leadOutcomeWord } from "./leads/sheet/lead-row-columns";
 export { LEAD_OWN_EMAIL_WORDS, leadEmailFromOf, leadEmailLineOf, leadEmailRefusalOf } from "./leads/sheet/lead-sheet-email";
 export { LEAD_WORDS_BOX, leadWordsBlanks, leadWordsFromBox, leadWordsInBox, leadWordsPieces, leadWordsProblem } from "./leads/sheet/lead-sheet-words";
@@ -428,7 +429,7 @@ export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABEL
 export { consentChangeWords } from "./people/person-timeline";
 export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";
 export { PREVIEW_LIMITS, PREVIEW_STATES, previewClaimable, previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewSlotOf, previewStartersOf, previewStateOf, previewTurnsOf } from "./previews/lead-preview";
-export { PREVIEW_LINE_WORDS, previewLineOf } from "./previews/line";
+export { PREVIEW_LINE_WORDS, previewChipOf, previewLineOf } from "./previews/line";
 export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./previews/tried";
 export { LEAD_PREVIEW_WORDS } from "./previews/words";
 export { checkFixRoute, datesIn, daysIn, FIX_BLOCK_OF, FIX_ROUTE_OPS, FIX_ROUTE_SCHEMA, FIX_WORDS, fixField, fixLine, fixRouteSystemPrompt, fixRouteUserContent, guardrailIn, languagesIn, linkIn, minutesIn, priceIn, routeFix, serviceIn, timesIn } from "./rehearsal/fix-router";

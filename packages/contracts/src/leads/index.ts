@@ -483,6 +483,8 @@ export type {
   LeadRunState,
   LeadSearchVia,
 } from "./search/sets";
+export { fillInSaysOf, LEAD_FILL_WORDS } from "./sheet/lead-fill-ins";
+export type { FillInSaysVM } from "./sheet/lead-fill-ins";
 export {
   LEAD_COLUMN_GROUPS,
   LEAD_RATED_HINT,
