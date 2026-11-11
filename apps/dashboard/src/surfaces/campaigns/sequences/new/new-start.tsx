@@ -10,9 +10,10 @@ import { Button } from "../../../kit/button/button";
 import { gate } from "../../../frame-verbs";
 import { CmPane } from "../../parts/split";
 import { NewLine, NEW_LINE_MIN } from "./new-line";
+import { Journey } from "./new-journey";
 import * as M from "./new-model";
 import { CaseNote, SaidLine } from "./new-parts";
-import { Ready, type StartReads } from "./new-ready";
+import { Ready, readyReadsOf, type StartReads } from "./new-ready";
 import { Choice } from "./new-sheets";
 import "./new-ready.css";
 
@@ -138,6 +139,7 @@ export function StartView(p: StartProps) {
           {p.reads ? (
             <>
               <Ready reads={p.reads} may={p.may} onStart={start} />
+              <Journey reads={readyReadsOf(p.reads)} may={p.may} onStart={start} />
               {p.reads.messages === 0 ? <p className="sq-nw-note">{W.starts.noMessages}</p> : null}
             </>
           ) : null}
