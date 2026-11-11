@@ -52,8 +52,8 @@ export interface LeadPreviewLineVM {
 
 /** The sheet's words. */
 export const PREVIEW_LINE_WORDS = {
-  title: "Their preview",
-  none: "No preview yet. One is made when an email that names {{their preview}} goes.",
+  title: "Their receptionist",
+  none: "Not made yet. It is made when an email that carries its link goes, and that email waits for it.",
   building: "Being set up. It takes about half a minute.",
   failed: (reason: string | null) =>
     `Couldn't be made: ${reason === "no_name" ? "the lead has no name to set it up under" : "its set-up failed"}.`,
@@ -63,11 +63,11 @@ export const PREVIEW_LINE_WORDS = {
   claimed: "Made theirs. They're a customer now.",
   ended: "Ended",
   endsIn: (days: number) => (days <= 1 ? "ends tomorrow" : `ends in ${days} days`),
-  make: "Make their preview",
+  make: "Make it now",
   open: "Open it",
   copy: "Copy link",
   copied: "Link copied",
-  notOurs: "Only Chanlytics' own workspace makes previews.",
+  notOurs: "Only Chanlytics' own workspace makes these.",
 } as const;
 
 /** The line for a lead's preview, or null where there is none and this workspace makes none. */

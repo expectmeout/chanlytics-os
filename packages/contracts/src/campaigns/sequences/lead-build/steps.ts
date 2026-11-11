@@ -82,8 +82,8 @@ export const LEAD_BUILD_WORDS = {
   /** {{their preview}} (decision 0079): made at the first email that names it. */
   previewMade: "made when it goes",
   /** Why a step offers no {{their preview}}: a first email carries no link, and a company takes no bookings. */
-  previewLater: "Their preview goes in a later email: a first email carries no link.",
-  previewNotForCompanies: "Their preview is for a business that takes bookings, so a company gets none.",
+  previewLater: "Their receptionist goes in a later email: a first email carries no link.",
+  previewNotForCompanies: "Their receptionist is for a business that takes bookings, so a company gets none.",
   notSet: "not set",
   add: "Add",
   waits: "Waits",

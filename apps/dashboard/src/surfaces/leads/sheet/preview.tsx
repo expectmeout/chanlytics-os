@@ -1,46 +1,36 @@
 /**
- * The lead sheet's Their preview (decision 0079, L5): the line a lead's own receptionist says to its sender, what the
- * business said is not right under it, and its three presses: Make their preview (a workspace of ours, none made yet),
- * Open it (the page as the sender looks at it, which counts nothing) and Copy link. Its read is its own
- * (GET leads/:id/preview): painted from the tab's last answer, read again behind, and again after a press. A refusal is
- * said where it was pressed. Every word is contracts'.
+ * The lead sheet's Their receptionist (decision 0079, L5): the line a lead's own receptionist says to its sender, what
+ * the business said is not right under it, and its three presses: Make it now (a workspace of ours, none made yet),
+ * Open it (the page as the sender looks at it, which counts nothing) and Copy link. Its read is the sheet's one
+ * (fill-ins/preview-read.ts): painted from the tab's last answer, read again behind, and again after a press. A refusal is said
+ * where it was pressed. Every word is contracts'.
+ *
+ * The line and its presses are a part of their own (PreviewLine), drawn under Sequence here and in the bubble the card's
+ * mark opens (fill-ins/fill-in.tsx, decision 0127).
  */
 import { useState } from "react";
-import { PREVIEW_LINE_WORDS as W, previewLineOf } from "@chanlytics/contracts";
-import type { ApiResult, Output } from "@/client/api";
+import { PREVIEW_LINE_WORDS as W, previewLineOf, type LeadPreviewLineVM } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
-import { readCache } from "@/bridge/read-cache";
-import { useSequenceRead } from "../../campaigns/sequences/use-record";
 import { Button } from "../../kit/button/button";
 import { CopyButton } from "../../kit/copy-button/copy-button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { gate } from "../../frame-verbs";
+import { tellPreviewMoved, useLeadPreview } from "./fill-ins/preview-read";
 
-type PreviewAnswer = ApiResult<Output<"GET leads/[id]/preview">>;
-const previews = readCache<PreviewAnswer>("lead_preview", (r) => r.ok);
-const readPreview = (leadId: string) =>
-  previews.through(leadId, () => api()("GET leads/[id]/preview", { params: { id: leadId } }));
-const peekPreview = (leadId: string) => previews.peek(leadId);
-
-/** Their preview, for one lead: nothing where there is none and this workspace makes none. */
-export function SheetPreview({ leadId }: { leadId: string }) {
-  const [again, setAgain] = useState(0);
+/** The line and its presses, wherever they are drawn. */
+export function PreviewLine({ leadId, line }: { leadId: string; line: LeadPreviewLineVM }) {
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
-  const read = useSequenceRead(leadId, readPreview, peekPreview, { again });
-  const line = read.state === "read" ? previewLineOf(read.data, new Date()) : null;
-  if (!line) return null;
   const make = async () => {
     setBusy(true);
     setRefused(null);
-    const r = await api()("POST leads/[id]/preview", { params: { id: leadId } });
+    const answer = await api()("POST leads/[id]/preview", { params: { id: leadId } });
     setBusy(false);
-    if (r.ok) setAgain((n) => n + 1);
-    else setRefused(r.message);
+    if (answer.ok) tellPreviewMoved(leadId);
+    else setRefused(answer.message);
   };
   return (
-    <section className="lw-preview" aria-label={W.title} id="lead-sheet-preview" data-testid="lead-sheet-sec-preview">
-      <p className="lw-note">{W.title}</p>
+    <>
       <p className="lw-preview-l" data-tone={line.tone} data-testid="lead-sheet-preview-line">
         {line.words}
       </p>
@@ -57,7 +47,7 @@ export function SheetPreview({ leadId }: { leadId: string }) {
             disabled={busy}
             onClick={() => void make()}
             data-testid="lead-sheet-preview-make"
-            {...gate("approve", "make their preview")}
+            {...gate("approve", "make their receptionist")}
           >
             {W.make}
           </Button>
@@ -81,6 +71,19 @@ export function SheetPreview({ leadId }: { leadId: string }) {
           {refused}
         </p>
       ) : null}
+    </>
+  );
+}
+
+/** Their receptionist, for one lead: nothing where there is none and this workspace makes none. */
+export function SheetPreview({ leadId }: { leadId: string }) {
+  const read = useLeadPreview(leadId);
+  const line = read.state === "read" ? previewLineOf(read.data, new Date()) : null;
+  if (!line) return null;
+  return (
+    <section className="lw-preview" aria-label={W.title} id="lead-sheet-preview" data-testid="lead-sheet-sec-preview">
+      <p className="lw-note">{W.title}</p>
+      <PreviewLine leadId={leadId} line={line} />
     </section>
   );
 }

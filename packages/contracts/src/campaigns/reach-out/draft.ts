@@ -278,7 +278,7 @@ export function previewRefusedWords(reason: string): string {
       return "Add your business's address in Settings › Details: every email carries it at the foot.";
     // Decision 0079: {{their preview}} is made at the first send that names it, and the send waits for it.
     case "preview_building":
-      return "Their preview is made when this email goes, and it waits for it.";
+      return "Their receptionist is made when this email goes, and it waits for it.";
     case "no_preview":
       return "This business's preview couldn't be made, or it ended, so its email would be skipped.";
     default:
