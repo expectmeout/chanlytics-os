@@ -176,6 +176,20 @@ export async function listFilesOnShelf(
   return data ?? [];
 }
 
+/** How many files made here are kept and still there, a video on its way aside: Content's tally, counted and never listed. */
+export async function countFilesMade(db: Db, tenantId: TenantId): Promise<number> {
+  const { count, error } = await db
+    .from("files")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .is("removed_at", null)
+    .or(ARRIVED)
+    .eq("status", "filed")
+    .eq("source", "made");
+  if (error) throw new DbFailure(error, "files made");
+  return count ?? 0;
+}
+
 /** One file, under the caller's RLS; null where it is not there for them, or was removed. */
 export async function findFile(db: Db, id: string): Promise<FileMemberRow | null> {
   const { data, error } = await db

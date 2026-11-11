@@ -243,6 +243,8 @@ const HEARD_BEFORE = {
   ask_memory: [],
   // A business's files (decision 0099): heard where the pane is drawn, so a name the look just gave shows without a press.
   files: ["files"],
+  // What Ask made (decision 0125): a made piece is a file, so a video landing or a name the look gives moves its tile.
+  content: ["files"],
   // The drafts Ask kept for Need you's rows, read with Today's first reads (decision 0071): written and read by the rows.
   reply_drafts: ["conversation_drafts"],
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
@@ -330,6 +332,8 @@ const HEARD_BEFORE = {
 const ON_ITS_PAGE_BEFORE = {
   // A business's files (decision 0099): nothing but Settings › Files draws them.
   files: ["files"],
+  // What Ask made (decision 0125): nothing but Campaigns › Content draws it.
+  content: ["files"],
   // What Ask noticed and the cards about a batch: heard on Today, the page that draws them (decision 0087).
   ask_morning: ["sequence_batches", "sequences", "sequence_steps"],
   people: [
@@ -445,6 +449,7 @@ const ROUTES = [
  */
 const HOME = {
   files: "admin/files",
+  content: "campaigns/content",
   playbooks: "outbound",
   reports_campaigns: "reports/campaigns",
   settings: "messages",

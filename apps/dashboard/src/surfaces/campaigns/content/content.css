@@ -1,0 +1,66 @@
+/* Campaigns › Content. A tile and "show more" are Files' own (files/files.css), loaded with the page (content-page.tsx):
+   what is here is the page's parts, its grid, and the one line under a tile that only this page says. */
+
+.cnv-part {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cnv-part + .cnv-part {
+  margin-top: 28px;
+}
+
+.cnv-part-name {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-dim);
+}
+
+/* Files' columns on a desk, so a tile is one size on both pages. A phone holds two across with room between them: each
+   tile here has words under it, where Files' own grid is pictures alone, three across and edge to edge. */
+.cnv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .cnv-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 16px;
+  }
+}
+
+.cnv-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The words a video being made opens on: it has no picture yet, so its name is kept on a phone too, where Files' is not. */
+.cnv-name {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Where a piece stands. Done and waiting are quiet: only what needs her (amber, still) and what is working (the accent) are told apart. */
+.cnv-said {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+
+.cnv-said[data-mark="stuck"] {
+  color: var(--warn-ink);
+}
+
+.cnv-said[data-mark="going"] {
+  color: var(--accent);
+}

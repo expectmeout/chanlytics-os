@@ -148,7 +148,7 @@ interface FilesAsked {
 }
 
 /** A place in a shelf's order, as fileCursorOf said it, or a refusal: a cursor this route did not give reads nothing. */
-function cursorAsked(before: string | undefined): { at: string; id: string } | null {
+export function cursorAsked(before: string | undefined): { at: string; id: string } | null {
   if (before === undefined) return null;
   const [at = "", id = "", ...rest] = before.split("|");
   if (rest.length || Number.isNaN(Date.parse(at)) || !UUID.test(id)) throw new AppError("validation", W.failedRead);

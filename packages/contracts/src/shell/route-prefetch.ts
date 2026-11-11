@@ -137,6 +137,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // the head started once its own reads are in (api.ts dropPrefetched), before a page that loads on demand could take it, so the
   // dearest of the reports would be read twice.
   "campaigns/ads": SETTINGS_READ,
+  // Campaigns › Content (`campaigns/content`, where it is drawn): the settings read, which says whether it is, and its own
+  // first page (campaigns/content/surface.ts asks with no query, so the page takes this one).
+  "campaigns/content": [...SETTINGS_READ, "content"],
   // Settings: its own read, and the partner account the rail names Partner by; a pane its address names opens on its own
   // (below, the head reads the pane's word: `settings/billing` is `admin/billing`), and a pane not named there on these.
   admin: [...SETTINGS_READ, "partner"],

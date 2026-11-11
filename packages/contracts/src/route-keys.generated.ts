@@ -64,6 +64,7 @@ export const ROUTE_KEYS = [
   "GET contacts",
   "GET contacts/[id]",
   "GET contacts/export",
+  "GET content",
   "GET conversations",
   "GET conversations/[id]",
   "GET conversations/[id]/export",

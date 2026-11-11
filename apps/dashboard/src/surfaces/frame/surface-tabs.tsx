@@ -9,7 +9,7 @@
  */
 import { useEffect, useLayoutEffect, useReducer } from "react";
 import type { ComponentType } from "react";
-import { adsPreviewOf } from "@chanlytics/contracts";
+import { adsPreviewOf, contentPreviewOf } from "@chanlytics/contracts";
 import { stripShown, useHeadUnder, type StripAt } from "../kit/head/standing";
 import { holdMoves } from "../kit/motion/swipe";
 import { ViewTabs as KitViewTabs, type ViewTabsProps } from "../kit/view-tabs/view-tabs";
@@ -217,6 +217,8 @@ interface StripPlace {
 
 /** Whether the workspace's Ads preview is on, by the one rule (contracts adsPreviewOf), over the settings it holds (`__SETTINGS`). */
 const stAdsPreviewOn = () => adsPreviewOf((window.__SETTINGS as { config?: unknown } | undefined)?.config);
+/** Whether the workspace's Content view is on, by the one rule (contracts contentPreviewOf), over the settings it holds. */
+const stContentPreviewOn = () => contentPreviewOf((window.__SETTINGS as { config?: unknown } | undefined)?.config);
 
 /** Which of People's scopes an address of `clients` is: Leads, the Pipeline, or the list itself (a list, a state). */
 const peopleScopeRoute = (param: string | null | undefined) => {
@@ -238,12 +240,19 @@ const peoplePlace = (param: string | null | undefined): StripPlace | null => {
   return at < 0 ? null : { strip: "people", at };
 };
 
+/** Where an address of Campaigns stands along its strip: Ads last, Content before it, every other view first. */
+const campaignsPlace = (param: string | null | undefined): number => {
+  if (param && /^ads(:|$)/.test(param)) return 2;
+  return param && /^content(:|$)/.test(param) ? 1 : 0;
+};
+
 export const stripPlace = (page: string, param?: string | null): StripPlace | null => {
   if (page === "clients") return peoplePlace(param);
-  // Campaigns' own views (its chrome's, surfaces/campaigns/routes.ts): Messages, the home and its addresses, then Ads. A
-  // demo session's, or a workspace's whose Ads preview is on (surfaces/campaigns/ads/shown.ts): any other has no strip.
-  if (page === "campaigns" && (isDemoFrame() || stAdsPreviewOn()))
-    return { strip: "campaigns", at: param && /^ads(:|$)/.test(param) ? 1 : 0 };
+  // Campaigns' own views (its chrome's, surfaces/campaigns/routes.ts): Messages, the home and its addresses, then Content,
+  // then Ads, each of the last two where it is drawn (a demo session's Ads, or a workspace's whose Ads preview or Content
+  // is on: surfaces/campaigns/ads/shown.ts, content/shown.ts): any other has no strip.
+  if (page === "campaigns" && (isDemoFrame() || stAdsPreviewOn() || stContentPreviewOn()))
+    return { strip: "campaigns", at: campaignsPlace(param) };
   const found = Object.entries(ST_GROUPS).find(([key, g]) => key !== "people" && g.match.includes(page));
   if (!found) return null;
   const at = found[1].tabs.filter((t) => !t.demoOnly || isDemoFrame()).findIndex((t) => t.id === page);

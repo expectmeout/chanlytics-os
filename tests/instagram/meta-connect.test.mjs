@@ -30,7 +30,8 @@ const APP = {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const { contentPreviewOf, runMetaOp } = await import(at("apps/edge/lib/instagram/meta-connect.ts"));
+const { runMetaOp } = await import(at("apps/edge/lib/instagram/meta-connect.ts"));
+const { contentPreviewOf } = await import(at("packages/contracts/src/content/address.ts"));
 
 const T = "abababab-3333-4000-8000-000000000001";
 const OTHER = "abababab-3333-4000-8000-000000000002";

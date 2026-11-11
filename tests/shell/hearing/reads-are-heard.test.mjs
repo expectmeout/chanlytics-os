@@ -107,6 +107,8 @@ const PAGES = [
   // Sent's page, where its runs and who each audience reaches are drawn.
   "broadcasts",
   "campaigns/sequences",
+  // Content, where what Ask made and where each piece was posted are drawn (decision 0125).
+  "campaigns/content",
   "clients",
   "calendar",
   "live",

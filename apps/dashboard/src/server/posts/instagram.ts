@@ -8,10 +8,6 @@ import "server-only";
 import {
   AppError,
   ON_INSTAGRAM,
-  POST_KINDS,
-  POST_PLACES,
-  POST_STATUSES,
-  isOneOf,
   metaLinesOf,
   postCaptionProblem,
   recordOrEmpty,
@@ -23,6 +19,7 @@ import {
 import { findMetaInstagramRow } from "@chanlytics/db/channels";
 import { beginPost, listFilePosts, pullPost, type FileMemberRow, type MemberPostRow } from "@chanlytics/db/files";
 import { readMetaSwitch } from "@/server/connections/meta";
+import { postDtoOf } from "@/server/readers/content";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -39,25 +36,6 @@ export async function readInstagramPostable(tenantId: TenantId): Promise<Instagr
   const config = recordOrEmpty(row.config);
   if (config.token_lapsed_at) return "not_connected";
   return metaLinesOf(config.scopes).publish ? "yes" : "line_off";
-}
-
-/** A post as the sheet reads it: Instagram's refusal in the owner's words, never its code. */
-export function postDtoOf(row: MemberPostRow): PostDto {
-  const words = recordOrEmpty(row.error).words;
-  return {
-    id: row.id,
-    // A value a newer write holds that this build does not know is read as the nearest it does.
-    place: isOneOf(POST_PLACES, row.place) ? row.place : "instagram",
-    kind: isOneOf(POST_KINDS, row.kind) ? row.kind : "picture",
-    caption: row.caption,
-    status: isOneOf(POST_STATUSES, row.status) ? row.status : "checking",
-    held_reason: row.held_reason,
-    permalink: row.permalink,
-    scheduled_for: row.scheduled_for,
-    published_at: row.published_at,
-    error: typeof words === "string" ? words : null,
-    created_at: row.created_at,
-  };
 }
 
 /** A file's posts on Instagram, newest first, as the sheet shows them, of the file's posts read under the member's session. */

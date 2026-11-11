@@ -13,10 +13,13 @@ import {
   ADS_ROUTE,
   ADS_WORDS,
   CAMPAIGN_ROOMS,
+  CONTENT_ROUTE,
+  CONTENT_WORDS,
   MESSAGES_ROUTE,
   RUN_UNNAMED_WORDS,
   SEQUENCES_ROUTE,
   isAdsParam,
+  isContentParam,
   isMessagesParam,
   messageOfRoute,
   parseAds,
@@ -27,6 +30,7 @@ import {
   sequenceRoute,
 } from "@chanlytics/contracts";
 import { adsShown } from "./ads/shown";
+import { contentShown } from "./content/shown";
 import { surfaceValue } from "../surface-values";
 import type { SurfaceViews } from "../routes";
 // MOCKUP: the crumb names an ad the page has read (the store remembers them) until the wiring lane's surface holds real ones.
@@ -40,11 +44,14 @@ type Crumb = string | { label: string; to: string };
 const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE };
 
 /**
- * Sequences | Messages | Ads, Campaigns' views, as the frame's strip draws them (the one Reports and People use): what goes
- * out on its own, the messages it sends (D4: the Library is Messages), and, where it is drawn, what you pay to show people
- * who don't have your number.
+ * Sequences | Messages | Content | Ads, Campaigns' views, as the frame's strip draws them (the one Reports and People use):
+ * what goes out on its own, the messages it sends (D4: the Library is Messages), what Ask made for the business where that
+ * is drawn (content/shown.ts), and, where it is drawn, what you pay to show people who don't have your number.
  */
-function campaignsViews(picked: "sequences" | "messages" | "ads"): SurfaceViews {
+function campaignsViews(picked: "sequences" | "messages" | "content" | "ads"): SurfaceViews {
+  const content = contentShown()
+    ? [{ id: "content", label: CONTENT_WORDS.tab, to: CONTENT_ROUTE, testid: "campaigns-view-content" }]
+    : [];
   const ads = adsShown() ? [{ id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" }] : [];
   return {
     name: "campaigns",
@@ -54,6 +61,7 @@ function campaignsViews(picked: "sequences" | "messages" | "ads"): SurfaceViews 
     tabs: [
       { id: "sequences", label: CAMPAIGN_ROOMS.sequences, to: SEQUENCES_ROUTE, testid: "campaigns-view-sequences" },
       { id: "messages", label: ADS_WORDS.messagesTab, to: MESSAGES_ROUTE, testid: "campaigns-view-messages" },
+      ...content,
       ...ads,
     ],
   };
@@ -126,6 +134,20 @@ function adsChrome(param: string): { crumbs: Crumb[]; mount: string; act: null; 
   };
 }
 
+/**
+ * Content's crumbs: Campaigns, then Content. Campaigns' one mount, as Messages' and Ads', so a switch to it is no new page:
+ * the view kept beside them is shown.
+ */
+function contentChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
+  return {
+    crumbs: [CAMPAIGNS, CONTENT_WORDS.tab],
+    mount: "campaigns",
+    act: null,
+    views: campaignsViews("content"),
+    pane: true,
+  };
+}
+
 /** A message's title, by its name, as the settings read holds it; null before it is read, or for a name it no longer has. */
 function messageTitleOf(name: string): string | null {
   return surfaceValue("settings")?.messages?.find((m) => m.name === name)?.title || null;
@@ -152,9 +174,9 @@ function messagesViewChrome(): { crumbs: Crumb[]; mount: string; act: null; view
 }
 
 /**
- * Campaigns' crumbs: the Ads view's for `campaigns/ads…` where it is drawn (ads/shown.ts), Messages' for
- * `campaigns/messages`, and Sequences' for every other address, the sheets Campaigns opens over it among them. Every
- * address is one mount, the page's own.
+ * Campaigns' crumbs: the Ads view's for `campaigns/ads…` where it is drawn (ads/shown.ts), the Content view's for
+ * `campaigns/content` where it is drawn (content/shown.ts), Messages' for `campaigns/messages`, and Sequences' for every
+ * other address, the sheets Campaigns opens over it among them. Every address is one mount, the page's own.
  */
 export function campaignsChrome({ param }: { param: string | null }): {
   crumbs: Crumb[];
@@ -164,6 +186,7 @@ export function campaignsChrome({ param }: { param: string | null }): {
   pane?: boolean;
 } {
   if (adsShown() && param && isAdsParam(param)) return adsChrome(param);
+  if (contentShown() && isContentParam(param)) return contentChrome();
   if (isMessagesParam(param)) return messagesViewChrome();
   return sequencesChrome();
 }

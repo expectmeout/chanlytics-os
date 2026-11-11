@@ -165,3 +165,29 @@ export async function keepPieceImage(
   });
   if (error) throw new DbFailure(error, "piece image keep");
 }
+
+/** What a member reads of a video on the Content page: where it stands and the plan it was pressed with, never its machine. */
+export type PieceStandingRow = Pick<
+  PieceRow,
+  "id" | "status" | "stage" | "failed_why" | "plan" | "file_id" | "created_at"
+>;
+
+/**
+ * The videos being made, and the ones not made since `failedSince`, newest first, under the caller's RLS: Content's "Being
+ * made". A workspace makes three at a time (contracts PIECES_MAKING_MAX), so a page reads a handful, by pieces_tenant_newest.
+ */
+export async function listPiecesStanding(
+  db: Db,
+  tenantId: TenantId,
+  page: { failedSince: string; limit: number },
+): Promise<PieceStandingRow[]> {
+  const { data, error } = await db
+    .from("pieces")
+    .select("id, status, stage, failed_why, plan, file_id, created_at")
+    .eq("tenant_id", tenantId)
+    .or(`status.eq.making,and(status.eq.failed,created_at.gte.${page.failedSince})`)
+    .order("created_at", { ascending: false })
+    .limit(page.limit);
+  if (error) throw new DbFailure(error, "pieces standing");
+  return data;
+}

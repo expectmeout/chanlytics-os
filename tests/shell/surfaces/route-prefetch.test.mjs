@@ -771,6 +771,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/settings/notifications/surface.ts`)).alertsOverride,
       (await importSrc(`${S}/surfaces/settings/memory/surface.ts`)).askMemoryOverride,
       (await importSrc(`${S}/surfaces/files/surface.ts`)).filesOverride,
+      // What Ask made, which Campaigns › Content draws beside the settings read that says whether it is drawn.
+      (await importSrc(`${S}/surfaces/campaigns/content/surface.ts`)).contentOverride,
     ].map((o) => [o.key, o]),
   );
   // And what a pane of Settings reads that is no surface (Team's partner, Connections' doors, Profile's views, the log's first
@@ -818,6 +820,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     outbound: ["channels"],
     messages: ["channels"],
     "campaigns/messages": ["channels"],
+    "campaigns/content": ["content"],
     // Every pane of Settings draws the partner account (the rail's Partner), and some what else they stand on: the calendar's
     // weeks (Hours), Setup's connections (How it answers, Connections), Google and the channels (Connections), the member's
     // alerts, Billing's plan, Ask's memory. A pane drawn from none of the settings read stands on who is looking alone.

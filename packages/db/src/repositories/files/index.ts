@@ -20,6 +20,7 @@ export {
 } from "./doors";
 export type { FileFate, MediaFate, VideoFate } from "./doors";
 export {
+  countFilesMade,
   filesBucket,
   findFile,
   findFileForWork,
@@ -49,18 +50,21 @@ export {
   findPieceImage,
   keepPieceImage,
   keepPieceMachine,
+  listPiecesStanding,
   markPieceSent,
   sayPieceStage,
 } from "./pieces";
-export type { PieceBegun, PieceFileFate, PieceMemberRow, PieceRow } from "./pieces";
+export type { PieceBegun, PieceFileFate, PieceMemberRow, PieceRow, PieceStandingRow } from "./pieces";
 export {
   beginPost,
   closePostAttempt,
+  countPostsOut,
   findPlacementByName,
   findPostForWork,
   listFilePosts,
   listKeptPostIds,
   listPostAttempts,
+  listPostsOfFiles,
   markPostUnanswered,
   mayStillPost,
   movePost,
@@ -68,4 +72,12 @@ export {
   pullPost,
   queuePostAgain,
 } from "./posts";
-export type { MemberPostRow, PostAttempt, PostAttemptRow, PostBegun, PostPatch, PostRow } from "./posts";
+export type {
+  MemberFilePostRow,
+  MemberPostRow,
+  PostAttempt,
+  PostAttemptRow,
+  PostBegun,
+  PostPatch,
+  PostRow,
+} from "./posts";

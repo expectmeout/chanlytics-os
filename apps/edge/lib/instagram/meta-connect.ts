@@ -2,7 +2,7 @@
  * POST /api/admin/meta/connection — a business's Instagram professional account connected through Meta (decision 0117,
  * Instagram API with Unified Login), disconnected, or asked whether it can be here. Signed admin token only: the
  * dashboard's /api/v1/channels/meta routes are the callers, for an owner or a manager, and only where the workspace's
- * `content_preview` is on (contentPreviewOf: the switch is read here, since a member may not read the config).
+ * `content_preview` is on (contracts contentPreviewOf: the switch is read here, since a member may not read the config).
  *
  *   status      Whether this deployment holds the Meta app's login configuration, whether this workspace may use it, and
  *               the public half of the app the dashboard builds the way out from.
@@ -50,7 +50,7 @@ import {
 } from "@chanlytics/db/channels";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
 import type { Database, Json } from "@chanlytics/db/types";
-import { isTenantId, recordOrNull, UUID, type TenantId } from "@chanlytics/contracts";
+import { contentPreviewOf, isTenantId, recordOrNull, UUID, type TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
@@ -86,16 +86,7 @@ export function metaLoginApp(): MetaApp | null {
     : null;
 }
 
-/**
- * Whether a workspace's config offers Connect Meta (`features.content_preview`, the flag registry's `content_preview`). Read
- * off the config as stored, so anything but `true` is off. The one reader of the switch.
- */
-export function contentPreviewOf(config: unknown): boolean {
-  const features = recordOrNull(recordOrNull(config)?.features);
-  return features?.content_preview === true;
-}
-
-/** Whether the workspace may connect Meta, by its switch; null when its config could not be read. */
+/** Whether the workspace may connect Meta, by its switch (contracts contentPreviewOf); null when its config could not be read. */
 async function switchedOn(db: Db, tenantId: TenantId): Promise<boolean | null> {
   return findWorkspaceNameAndConfig(db, tenantId)
     .then(({ config }) => contentPreviewOf(config))
