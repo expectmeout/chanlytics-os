@@ -222,7 +222,7 @@ async function postPicture(plan: PostPlan, shape: PostPicture, signal?: AbortSig
 }
 
 /**
- * A video's storyboard (POST files/video/preview), for its card: the first frame of each cut with the opening words where the video
+ * A video's storyboard (POST files/video/preview), for its card: each block as the video shows it, the opening words where it
  * shows them. What the server refuses of the plan, it says in the video's own language; a lost line says nothing.
  */
 async function pieceBoard(plan: PiecePlan, signal?: AbortSignal): Promise<PieceBoard> {

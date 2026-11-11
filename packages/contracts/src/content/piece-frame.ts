@@ -35,7 +35,22 @@ export const PIECE_FRAME = {
   wordsLeading: 1.08,
   /** The fewest frames the words stay when they leave with the first cut: two seconds. */
   wordsFramesMin: 60,
+  /**
+   * A block's own caption: one line on the words' backing, at the foot of its picture and clear of what a phone app draws
+   * there. Its size, its backing's padding above and at each side, and how far a pair's upper one stands off the rule.
+   */
+  labelSize: 46,
+  labelPad: 14,
+  labelPadSide: 24,
+  labelLift: 28,
+  /** A before-and-after pair: one picture over the other, this much of the paper between them. */
+  pairRule: 6,
+  /** How far down a photo is held where it is cropped to fill: a little above its middle, where a person's face and hair are. */
+  heldAt: 0.38,
 } as const;
+
+/** Where the opening words' backing starts at its widest, from the frame's left: a caption starts there too. */
+export const PIECE_SIDE = (PIECE_FRAME.width - PIECE_FRAME.wordsWidth) / 2 - PIECE_FRAME.wordsPadSide;
 
 /** Where the words' backing sits and how large its lines are, in the frame's pixels. */
 export interface PieceWordsBox {
@@ -60,4 +75,72 @@ export function pieceWordsBoxOf(lines: readonly string[], place: PieceWordsPlace
       Math.max(0, lines.length - 1) * PIECE_FRAME.wordsGap,
   );
   return { top: place === "low" ? PIECE_FRAME.wordsLowBottom - height : PIECE_FRAME.wordsHighTop, height, size };
+}
+
+/**
+ * A card's own numbers: a words card's largest size, the sizes a quote is tried at (largest first), the most lines it takes,
+ * how far above the frame's middle a card's words are centred (what a phone app draws at the foot is taller than at the
+ * head), how dark a quote's picture goes under it, and the size of who said it.
+ */
+export const PIECE_CARD = {
+  sizeMax: 120,
+  quoteSizes: [72, 60, 52],
+  quoteLinesMax: 7,
+  lift: 80,
+  dim: 0.65,
+  fromSize: 44,
+} as const;
+
+/** A words card's size: its widest line fits the words' width, never larger than a card's most. A line never wraps. */
+export function pieceCardSizeOf(lines: readonly string[]): number {
+  const widest = Math.max(1, ...lines.map((l) => pieceLineWidthOf(l, 1)));
+  return Math.min(PIECE_CARD.sizeMax, Math.floor(PIECE_FRAME.wordsWidth / widest));
+}
+
+/** A quote's words wrapped to a width at one size: a word goes on the next line where it no longer fits this one. */
+function wrappedAt(words: readonly string[], size: number, width: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const longer = line ? `${line} ${word}` : word;
+    if (line && pieceLineWidthOf(longer, size) > width) {
+      lines.push(line);
+      line = word;
+    } else line = longer;
+  }
+  return line ? [...lines, line] : lines;
+}
+
+/**
+ * The same count of lines at the narrowest width that still holds them, found by halving: the lines come out near one
+ * length, so a quote never ends on one word under full lines.
+ */
+function evened(words: readonly string[], size: number, lines: string[]): string[] {
+  let narrow = Math.max(...words.map((w) => pieceLineWidthOf(w, size)));
+  let wide: number = PIECE_FRAME.wordsWidth;
+  let kept = lines;
+  while (wide - narrow > 1) {
+    const width = (narrow + wide) / 2;
+    const tried = wrappedAt(words, size, width);
+    if (tried.length <= lines.length) {
+      kept = tried;
+      wide = width;
+    } else narrow = width;
+  }
+  return kept;
+}
+
+/**
+ * A quote wrapped by its words at the largest size that keeps it to a card's lines, each inside the frame's width and the
+ * lines near one length; null where no size does (too long, or one word wider than the frame), or where it says nothing.
+ */
+export function pieceQuoteLinesOf(text: string): { lines: string[]; size: number } | null {
+  const words = text.trim().split(/\s+/u).filter(Boolean);
+  if (words.length === 0) return null;
+  for (const size of PIECE_CARD.quoteSizes) {
+    const lines = wrappedAt(words, size, PIECE_FRAME.wordsWidth);
+    const fits = lines.every((l) => pieceLineWidthOf(l, size) <= PIECE_FRAME.wordsWidth);
+    if (fits && lines.length <= PIECE_CARD.quoteLinesMax) return { lines: evened(words, size, lines), size };
+  }
+  return null;
 }

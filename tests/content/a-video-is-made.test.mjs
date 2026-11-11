@@ -1,7 +1,8 @@
 /**
  * The job that makes a video from a business's clips (apps/edge/lib/files/piece-make.ts; 00613, decision 0122), over a database
  * in memory, a web that answers as the video platform does, and a machine that draws from memory. One step a run: start checks
- * the plan against the clips as they stand, reads which parts of each clip its cuts need and starts the machine; wait asks after
+ * the plan against its files as they stand, reads what each block needs fetched (a clip's parts, a photo's address) and starts
+ * the machine; wait asks after
  * the drawing and, once it is done, sends the video into the video platform as a file. The platform's own word that it can be
  * played is what makes it made, and rings the bell.
  */
@@ -133,10 +134,10 @@ const MEDIA = [
 let storageFails = false;
 
 /** A world: the tables, the doors the job knocks on as the database answers them, the bucket, the web, and a machine. */
-function world({ piece = pieceRow(), clip = clipRow(), image = true, master = MASTER, twin = null } = {}) {
+function world({ piece = pieceRow(), clip = clipRow(), photos = [], image = true, master = MASTER, twin = null } = {}) {
   const tables = {
     pieces: [piece],
-    files: clip ? [clip] : [],
+    files: [...(clip ? [clip] : []), ...photos],
     piece_images: image
       ? [{ edition: PIECE_TEMPLATE.edition, snapshot_id: "snap_test", hash: PIECE_TEMPLATE.hash }]
       : [],
@@ -216,8 +217,17 @@ function world({ piece = pieceRow(), clip = clipRow(), image = true, master = MA
   );
   setPg(db);
   const kept = [];
+  const signed = [];
   db.storage = {
     from: () => ({
+      // A photo's address for the machine, as Storage signs one: good for a while, resized as asked.
+      createSignedUrl: async (path, seconds, opts) => {
+        signed.push({ path, seconds, transform: opts?.transform ?? null });
+        return {
+          data: { signedUrl: `https://db.example/storage/v1/render/image/sign/files/${path}?token=t` },
+          error: null,
+        };
+      },
       upload: async (path, bytes, opts) => {
         if (storageFails) return { data: null, error: { message: "the bucket is full" } };
         kept.push({ path, bytes: bytes.length, type: opts?.contentType });
@@ -251,7 +261,7 @@ function world({ piece = pieceRow(), clip = clipRow(), image = true, master = MA
     stop: async (m) => void machine.stopped.push(m.name),
     pause: async () => void machine.pauses++,
   });
-  return { db, tables, web, machine, row, kept };
+  return { db, tables, web, machine, row, kept, signed };
 }
 
 const job = (step, tick = "1") => ({
@@ -263,30 +273,31 @@ const job = (step, tick = "1") => ({
 const soon = () => Date.now() + 45_000;
 const stepsOf = (tables) => tables.jobs.map((j) => [j.kind, j.payload.step, j.payload.tick]);
 
-test("start reads which parts of the clip each cut needs and starts the machine from the edition's image", async () => {
+test("start reads which parts of the clip each cut needs and starts the machine from the edition's image, to draw it in blocks", async () => {
   const { db, tables, machine, row } = world();
   await makePiece(db, job("start"), soon());
   assert.equal(machine.started.length, 1);
   const { snapshotId, job: drawn } = machine.started[0];
   assert.equal(snapshotId, "snap_test");
-  assert.equal(drawn.composition, "hook-cut");
+  // A plan kept as "Hook first" is read as blocks, each cut a clip's moment, and drawn by the one composition.
+  assert.equal(drawn.composition, "blocks");
   assert.deepEqual(
     drawn.fetch.map((f) => [f.to, f.parts.map((p) => p.split("/").pop())]),
     [
-      ["cut-0.mp4", ["init.mp4", "seg_1.mp4", "seg_2.mp4"]],
-      ["cut-1.mp4", ["init.mp4", "seg_2.mp4"]],
-      ["cut-2.mp4", ["init.mp4", "seg_2.mp4", "seg_3.mp4"]],
-      ["cut-3.mp4", ["init.mp4", "seg_3.mp4"]],
+      ["block-0.mp4", ["init.mp4", "seg_1.mp4", "seg_2.mp4"]],
+      ["block-1.mp4", ["init.mp4", "seg_2.mp4"]],
+      ["block-2.mp4", ["init.mp4", "seg_2.mp4", "seg_3.mp4"]],
+      ["block-3.mp4", ["init.mp4", "seg_3.mp4"]],
     ],
   );
   assert.ok(
     drawn.fetch.every((f) => f.parts.every((p) => p.startsWith(`${HOST}/`))),
     "every part is asked of the video platform",
   );
-  assert.deepEqual(drawn.props.cuts, ["cut-0.mp4", "cut-1.mp4", "cut-2.mp4", "cut-3.mp4"]);
+  assert.deepEqual(drawn.props.files, [["block-0.mp4"], ["block-1.mp4"], ["block-2.mp4"], ["block-3.mp4"]]);
   assert.equal(drawn.props.logo, null);
   // The clip is 11.69 s by its playback copy, whatever the row said: the last cut is trimmed to it.
-  assert.equal(drawn.props.timeline.cuts[3].frames, Math.round((11.69 - 9.8) * 30));
+  assert.equal(drawn.props.timeline.blocks[3].frames, Math.round((11.69 - 9.8) * 30));
   assert.equal(drawn.props.timeline.end.name, "Harbor Studio");
   assert.equal(drawn.props.timeline.accent, "#336699");
   const kept = pieceMachineOf(row().machine);
@@ -296,6 +307,99 @@ test("start reads which parts of the clip each cut needs and starts the machine 
   assert.equal(kept.frames, 310);
   assert.equal(row().stage, "drawing", "its card says it is being drawn");
   assert.deepEqual(stepsOf(tables), [["piece_make", "wait", "1"]]);
+});
+
+const PHOTO = "ffffffff-0000-4000-8000-000000000002";
+const PHOTO_2 = "ffffffff-0000-4000-8000-000000000003";
+const photoRow = (id, over = {}) =>
+  clipRow({
+    id,
+    name: `photo-${id.slice(-1)}`,
+    mime: "image/jpeg",
+    kind: "image",
+    media_ref: null,
+    media_status: null,
+    seconds: null,
+    ...over,
+  });
+/** A plan in blocks, as a row will hold one: a clip, a photo, a pair (a photo over a clip's moment), a card, a quote over a photo. */
+const blocksPlan = () => ({
+  shape: "blocks",
+  blocks: [
+    { is: "clip", file_id: CLIP, from: 2.3, to: 4.8, label: "Silk press" },
+    { is: "photo", file_id: PHOTO, seconds: 2.5, label: null },
+    { is: "pair", before: { file_id: PHOTO_2, at: null }, after: { file_id: CLIP, at: 7.9 }, seconds: 3 },
+    { is: "words", lines: ["Same chair.", "New you."], seconds: 1.8 },
+    { is: "quote", text: "Best blowout in Brooklyn", from: "Maria G.", over: { file_id: PHOTO, at: null }, seconds: 3 },
+  ],
+  lines: ["I asked for volume", "Did I get it?"],
+  words_at: "high",
+  words_hold: "first",
+  end_line: null,
+  language: "en",
+  people_agreed: true,
+});
+
+test("each block is handed its own files: a clip's parts, a photo by a signed address, a clip's moment by the parts around it", async () => {
+  const { db, machine, signed } = world({
+    piece: pieceRow({ plan: blocksPlan() }),
+    photos: [photoRow(PHOTO), photoRow(PHOTO_2)],
+  });
+  await makePiece(db, job("start"), soon());
+  assert.equal(machine.started.length, 1);
+  const { job: drawn } = machine.started[0];
+  assert.equal(drawn.composition, "blocks");
+  const last = (address) => address.split("?")[0].split("/").slice(-2).join("/");
+  assert.deepEqual(
+    drawn.fetch.map((f) => [f.to, f.parts.map(last)]),
+    [
+      ["block-0.mp4", ["manifest/init.mp4", "manifest/seg_1.mp4", "manifest/seg_2.mp4"]],
+      ["block-1.img", [`${PHOTO}/original.jpg`]],
+      ["block-2-0.img", [`${PHOTO_2}/original.jpg`]],
+      // Second 7.9 of the clip and half a second on: the segment it is in, and the next where that runs into it.
+      ["block-2-1.mp4", ["manifest/init.mp4", "manifest/seg_2.mp4", "manifest/seg_3.mp4"]],
+      ["block-4-0.img", [`${PHOTO}/original.jpg`]],
+    ],
+  );
+  // The template reads each block's files by these names, in the block's own order; a words card has none.
+  assert.deepEqual(drawn.props.files, [
+    ["block-0.mp4"],
+    ["block-1.img"],
+    ["block-2-0.img", "block-2-1.mp4"],
+    [],
+    ["block-4-0.img"],
+  ]);
+  assert.deepEqual(
+    drawn.props.timeline.blocks.map((b) => b.is),
+    ["clip", "photo", "pair", "words", "quote"],
+  );
+  // A photo's address is signed once for the machine's fetches, no larger than a frame pushed in needs, and never enlarged.
+  assert.deepEqual(
+    signed.map((g) => [g.path, g.seconds, g.transform]),
+    [PHOTO, PHOTO_2].map((id) => [
+      `${T}/${id}/original.jpg`,
+      600,
+      { width: 2500, height: 2500, resize: "contain", quality: 90 },
+    ]),
+  );
+});
+
+test("a photo removed since the press ends the video before anything is spent", async () => {
+  const { db, tables, machine, row } = world({
+    piece: pieceRow({ plan: blocksPlan() }),
+    photos: [photoRow(PHOTO), photoRow(PHOTO_2, { removed_at: "2026-11-10T00:00:00Z" })],
+  });
+  await makePiece(db, job("start"), soon());
+  assert.equal(machine.started.length, 0);
+  assert.deepEqual([row().status, row().failed_why], ["failed", "clips"]);
+  assert.deepEqual(tables.jobs, []);
+});
+
+test("a video is drawn on the image of the edition this code names, whatever edition its row was begun under", async () => {
+  // A row begun by a dashboard a deploy behind this edge, or ahead of it: the template that reads this material is this code's.
+  const { db, machine } = world({ piece: pieceRow({ edition: PIECE_TEMPLATE.edition + 7 }) });
+  await makePiece(db, job("start"), soon());
+  assert.equal(machine.started[0]?.snapshotId, "snap_test");
 });
 
 test("a business with a mark has it fetched beside the cuts, from where its logo is served", async () => {

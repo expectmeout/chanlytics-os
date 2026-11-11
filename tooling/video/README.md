@@ -13,12 +13,12 @@ folder out, and it keeps its own `package-lock.json`, every version pinned exact
 
 ## What is where
 
-| Path                | What it is                                                                                            |
-| ------------------- | ----------------------------------------------------------------------------------------------------- |
-| `src/`              | The template: `hook-cut.tsx` (the one shape), `look.tsx` (the words and the end card), `index.tsx`    |
-| `machine/make.mjs`  | What the machine runs: fetch the files it is told to, draw the composition, say where it stands       |
-| `image.mjs`         | Builds the image and proves it draws; `try` draws one job from an image, for working on the template  |
-| `template-hash.mjs` | One hash of everything an image is made of, read by the repository's test with nothing installed here |
+| Path                | What it is                                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/`              | The template: `blocks.tsx` (every plan, block by block), `look.tsx` (the words, a caption, the two cards, the end card), `hook-cut.tsx` (what an edge a deploy behind asks for), `index.tsx` |
+| `machine/make.mjs`  | What the machine runs: fetch the files it is told to, draw the composition, say where it stands                                                                                              |
+| `image.mjs`         | Builds the image and proves it draws; `try` draws one job from an image, for working on the template                                                                                         |
+| `template-hash.mjs` | One hash of everything an image is made of, read by the repository's test with nothing installed here                                                                                        |
 
 The template decides nothing. Which seconds of which clip, the words, where they sit and how large they are were all worked out by
 the plan's checker (`packages/contracts/src/content/piece-timeline.ts`), and the template draws what it is handed. It reads the
@@ -52,7 +52,8 @@ node --env-file=.env.oidc image.mjs build
 ```
 
 It prints one JSON line (`snapshot_id`, `hash`, `proof_bytes`) and keeps the proof at `build/proof.mp4`: a clip made of nothing,
-cut and worded by the template, drawn from the image it just made. An image that does not draw its proof is deleted.
+then one of every kind of block drawn from it by the image it just made, and "Hook first" once more as an edge a deploy behind
+asks for it. An image that does not draw its proof is deleted.
 
 ## What was measured (10 Nov 2026)
 
