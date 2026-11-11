@@ -184,13 +184,21 @@ test("a finger's press lights its place as it lands, carries the lozenge there, 
   const [slide, round] = page.pill.anims;
   assert.ok(slide && round, "its place by transform, and its corners apart");
   assert.equal(slide.startTime, 5000, "begun at the press, on the document's clock");
-  assert.equal(slide.options.duration, TIMELINE_MS, "the strip's own timeline");
+  const glide = slide.options.duration;
+  assert.ok(
+    glide === 460 && glide > TIMELINE_MS,
+    "a glide's own length, longer than a change of view's: no page moves under it",
+  );
   assert.equal(across(slide.keyframes[0]), 6, "from the place that was lit");
   assert.equal(across(slide.keyframes.at(-1)), 62, "to the place pressed");
   assert.equal(stretch(slide.keyframes.at(-1)), 56 / PILL_BASE);
-  // The way there is the strip's spring from rest: most of it in the first frames, none of it past the place.
-  const at100 = slide.keyframes.find((k) => Math.abs(k.offset - 100 / TIMELINE_MS) < 1e-9);
-  assert.equal(across(at100), 6 + (62 - 6) * (1 - springAt(1, 0, 0, 100)));
+  // A change of view's spring from rest, stretched to a glide's length: about 60% of the way at 100 ms, where the
+  // change's own 240 ms had 90% and read as a snap (11 Nov 2026), and none of it past the place.
+  const at100 = slide.keyframes.find((k) => Math.abs(k.offset - 100 / glide) < 1e-9);
+  const stretched = 1 - springAt(1, 0, 0, (100 * TIMELINE_MS) / glide);
+  assert.ok(Math.abs(across(at100) - (6 + (62 - 6) * stretched)) < 1e-9);
+  const share100 = (across(at100) - 6) / (62 - 6);
+  assert.ok(share100 > 0.55 && share100 < 0.65, `a glide, not a snap: ${share100.toFixed(2)} of the way at 100 ms`);
   assert.ok(slide.keyframes.every((k) => across(k) <= 62));
   tree = again(draw);
   assert.deepEqual(lit(tree), ["Inbox"], "lit before the address has moved");

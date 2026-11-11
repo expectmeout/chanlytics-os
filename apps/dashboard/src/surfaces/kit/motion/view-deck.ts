@@ -35,6 +35,11 @@ import { clearOfFoot, documentScroller, isDocumentScroller, scrollerOf, shownHei
 
 /** How long a change of view takes: the spring is within a pixel of its place by then. */
 export const TIMELINE_MS = VIEW_CHANGE_MS;
+/**
+ * How long a highlight with no page under it glides (the phone's tab bar, `alone`): a change of view's length until
+ * 7 Nov 2026. Nothing waits on it, and on a change of view's 240 ms it read as a snap, not a glide (Ruben, 11 Nov 2026).
+ */
+const GLIDE_MS = 460;
 /** The step the timeline is sampled at; the compositor draws straight lines between the samples. */
 const SAMPLE_MS = 20;
 /** A page that joins a timeline already under way fades in over this, where it joins. */
@@ -45,8 +50,10 @@ export const CROSS_FADE_MS = 160;
 const SUCCESSOR_BY_MS = 1660;
 /** How long past its timeline a page that left waits for its successor before it comes back. */
 export const SUCCESSOR_WAIT_MS = SUCCESSOR_BY_MS - TIMELINE_MS;
-/** The spring's pull, each millisecond: the one shape, fitted to the timeline, so it ends within a pixel of a phone's width. */
-const PULL = 9.2 / TIMELINE_MS;
+/** How far the spring is pulled over its timeline: the one shape, fitted to any length, ends within a pixel of a phone's width. */
+const REACH = 9.2;
+/** The spring's pull, each millisecond, on a change of view's timeline. */
+const PULL = REACH / TIMELINE_MS;
 /** A desk's travel in pixels, where no token says one. */
 const SHORT_TRAVEL = 56;
 /** A page that travels this share of its width or more is one that leaves the screen. */
@@ -60,21 +67,29 @@ const DIMMED_BY = 0.5;
 type Side = 1 | -1;
 
 /** The spring's two constants. A speed that would carry the page past its place is held to the fastest that does not. */
-function springOf(from: number, to: number, speed: number): { a: number; b: number } {
+function springOf(from: number, to: number, speed: number, pull: number): { a: number; b: number } {
   const a = from - to;
-  const b = speed + PULL * a;
+  const b = speed + pull * a;
   return { a, b: a !== 0 && Math.sign(b) === Math.sign(a) ? b : 0 };
 }
 
-/** Where a page is, `ms` after it was let go at `from` with `speed` (pixels a millisecond) on its way to `to`. */
-export function springAt(from: number, to: number, speed: number, ms: number): number {
-  const { a, b } = springOf(from, to, speed);
-  return to + (a + b * ms) * Math.exp(-PULL * ms);
+/** The spring fitted to a timeline: the one shape, within a pixel of its place by the timeline's end, at any length. */
+function springOver(timeline: number) {
+  const pull = REACH / timeline;
+  return (from: number, to: number, speed: number, ms: number): number => {
+    const { a, b } = springOf(from, to, speed, pull);
+    return to + (a + b * ms) * Math.exp(-pull * ms);
+  };
 }
 
-/** How fast it is moving then, in pixels a millisecond. */
+/** Where a page is, `ms` after it was let go at `from` with `speed` (pixels a millisecond) on its way to `to`. */
+export const springAt = springOver(TIMELINE_MS);
+/** Where a lone highlight is on its glide (`alone`). */
+const glideAt = springOver(GLIDE_MS);
+
+/** How fast it is moving then, in pixels a millisecond, on a change of view's spring. */
 export function speedAt(from: number, to: number, speed: number, ms: number): number {
-  const { a, b } = springOf(from, to, speed);
+  const { a, b } = springOf(from, to, speed, PULL);
   return (b - PULL * (a + b * ms)) * Math.exp(-PULL * ms);
 }
 
@@ -659,16 +674,19 @@ function comeBack(table: Table, el: HTMLElement, move: Timeline): void {
   comeHome(table, el, { from, level, width: el.getBoundingClientRect().width });
 }
 
-/** A highlight's own timeline: from where it is to where it goes on the spring a change of view rides, from rest. */
+/**
+ * A highlight's own timeline: from where it is to where it goes, from rest, on the spring's one shape at a glide's
+ * length, since no page moves under it and nothing waits on it.
+ */
 function alone(table: Table): Follow | null {
   if (table.env.reduced()) return null;
-  const run: Run = { ms: TIMELINE_MS, t0: table.env.now(), keep: true };
-  const share = (t: number) => (t >= TIMELINE_MS ? 1 : 1 - springAt(1, 0, 0, t));
+  const run: Run = { ms: GLIDE_MS, t0: table.env.now(), keep: true };
+  const share = (t: number) => (t >= GLIDE_MS ? 1 : 1 - glideAt(1, 0, 0, t));
   return {
     follow: (el, frame) =>
       startAt(
         el,
-        frames(TIMELINE_MS, (t) => frame(share(t))),
+        frames(GLIDE_MS, (t) => frame(share(t))),
         run,
       ),
   };
