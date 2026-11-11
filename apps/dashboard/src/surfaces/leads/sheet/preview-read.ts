@@ -1,6 +1,6 @@
 /**
  * A lead's own receptionist as the lead sheet reads it (decision 0079, GET leads/:id/preview): one read and one tab
- * cache for every part that draws it, the Sequence line (preview.tsx) and the card's mark (fill-in.tsx, decision 0126),
+ * cache for every part that draws it, the Sequence line (preview.tsx) and the card's mark (fill-in.tsx, decision 0127),
  * and the one press that moves it. A press on either tells both: each reader of that lead reads again.
  */
 import { useSyncExternalStore } from "react";

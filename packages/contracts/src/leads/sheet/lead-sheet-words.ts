@@ -9,7 +9,7 @@
  * still reaches the email. The line written for them is kept as it was typed: it is the member's now.
  *
  *   leadWordsPieces    the same email as the sheet reads it at rest, each piece at its place in the box's words
- *   leadWordsBlanks    a step's words with every blank by its name: what everyone on the step gets (decision 0126)
+ *   leadWordsBlanks    a step's words with every blank by its name: what everyone on the step gets (decision 0127)
  *   leadWordsInBox     the email as the box opens with it
  *   leadWordsFromBox   what the box says, as the words to keep
  *   leadWordsProblem   what is wrong with those words, in the step's own rules; null where they may go
@@ -36,7 +36,7 @@ export interface LeadEmailText {
 /**
  * A piece of the email as the sheet reads it at rest: its words, the line written for them, a blank's value where it has
  * one (`value`, naming its blank), what stands for one not known yet (`mark`), or a blank by its name alone (`blank`, what
- * Show the blanks draws: decision 0126). `at` is where it starts in the words it was read from, so a press on it puts the
+ * Show the blanks draws: decision 0127). `at` is where it starts in the words it was read from, so a press on it puts the
  * caret there.
  */
 export interface LeadEmailPiece {

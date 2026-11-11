@@ -70,7 +70,7 @@ export const PREVIEW_LINE_WORDS = {
   copied: "Link copied",
   notOurs: "Only Chanlytics' own workspace makes these.",
   /**
-   * The mark that stands for the link in an email on the lead's card (decision 0126): its name, and what will happen. A
+   * The mark that stands for the link in an email on the lead's card (decision 0127): its name, and what will happen. A
    * receptionist that cannot be made, or has ended, means the send skips that one email (channels reachOutWords:
    * no_preview).
    */

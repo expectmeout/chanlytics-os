@@ -1,4 +1,4 @@
-# 0126 · A fill-in says what it is
+# 0127 · A fill-in says what it is
 
 **Status:** Accepted by Ruben, 11 November 2026 ("Yes, plan stage 1", then "Yes, start stage 1"), and built as the first stage of the canvas _Their receptionist: heard in one press, theirs in a minute_ (its call P11). No migration, no new route. Written against main at `873a8c23eb`. Amends 0096 (a lead's email is edited where it is read) and 0079 (their receptionist, before they sign up).
 

@@ -6,7 +6,7 @@
  * where it was pressed. Every word is contracts'.
  *
  * The line and its presses are a part of their own (PreviewLine), drawn under Sequence here and in the bubble the card's
- * mark opens (fill-in.tsx, decision 0126).
+ * mark opens (fill-in.tsx, decision 0127).
  */
 import { useState } from "react";
 import { PREVIEW_LINE_WORDS as W, previewLineOf, type LeadPreviewLineVM } from "@chanlytics/contracts";

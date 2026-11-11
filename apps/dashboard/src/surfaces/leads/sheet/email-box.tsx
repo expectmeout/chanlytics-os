@@ -439,7 +439,7 @@ function tapToType(box: EmailBox, edit: SheetMailEdit, part: BoxPart) {
 
 /**
  * One piece of the email as it reads: the line written for them, that it is being written, what is still to come, or
- * words; and (decision 0126) a blank's value as a press of its own, the receptionist's link as its mark, or a blank by
+ * words; and (decision 0127) a blank's value as a press of its own, the receptionist's link as its mark, or a blank by
  * its name where the blanks are shown.
  */
 function PieceOf({
@@ -553,7 +553,7 @@ function TypedEmail({ mail, box, typing }: { mail: SheetMail; box: EmailBox; typ
   );
 }
 
-/** The switch over the email (decision 0126): as they'll read it, or the step's words with each blank named. */
+/** The switch over the email (decision 0127): as they'll read it, or the step's words with each blank named. */
 function ViewSwitch({ blanks, onBlanks }: { blanks: boolean; onBlanks: (on: boolean) => void }) {
   return (
     <Segmented
@@ -622,7 +622,7 @@ export function SheetEmail(p: {
   onRewrite: (() => void) | null;
   onUndo: (() => void) | null;
   box: EmailBox;
-  /** The step's words with each blank named are shown, where the email has them (decision 0126). */
+  /** The step's words with each blank named are shown, where the email has them (decision 0127). */
   blanks?: boolean;
   /** Asks to show them, or the email as they'll read it; none where there is no switch (a step opened, one that went). */
   onBlanks?: ((on: boolean) => void) | null;

@@ -344,7 +344,7 @@ function factLineOf(leadId: string): string | null {
   return leadOpeningOf(null, { business_name, city, hours: hours ?? null, rating, reviews });
 }
 
-/** A step's words with each blank named, where they name any (decision 0126). */
+/** A step's words with each blank named, where they name any (decision 0127). */
 function blanksOf(written: LeadEmailText): SheetMail["blanks"] {
   const subject = written.subject === null ? null : leadWordsBlanks(written.subject);
   const body = leadWordsBlanks(written.body);

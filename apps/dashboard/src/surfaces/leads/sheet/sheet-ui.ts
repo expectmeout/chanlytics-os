@@ -22,7 +22,7 @@ export interface SheetUiState {
   openStep: number | null;
   /** The card's email asked for whole. */
   whole: boolean;
-  /** The card's email shown as the step's words with each blank named (decision 0126). */
+  /** The card's email shown as the step's words with each blank named (decision 0127). */
   blanks: boolean;
   /** Its opening is being written now. */
   writing: boolean;

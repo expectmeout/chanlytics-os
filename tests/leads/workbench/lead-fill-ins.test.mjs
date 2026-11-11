@@ -1,5 +1,5 @@
 /**
- * A fill-in on the lead's card (decision 0126): a filled blank is a piece of its own that names its blank, the step's
+ * A fill-in on the lead's card (decision 0127): a filled blank is a piece of its own that names its blank, the step's
  * words can be read with every blank named, each fill-in says what it is and where it came from, and the receptionist's
  * mark says what will happen to the email. Pure: contracts alone.
  */
