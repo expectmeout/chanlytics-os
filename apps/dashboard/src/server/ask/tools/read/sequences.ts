@@ -43,7 +43,7 @@ const HISTORY_CAP = 5;
 /** How many of who waits on the owner, and of who is in a sequence, one read names: the counts say them all. */
 const PEOPLE_CAP = 25;
 
-/** A sequence as its list row says it. */
+/** A sequence as its list row says it (contracts words/row-line.ts): the same line, and the same sentence of what needs you. */
 function sequenceLine(row: SequenceRowDto, word: AppointmentWord, tz: string, nowMs: number) {
   const needs = needsCount(row.needs);
   return {
@@ -52,11 +52,11 @@ function sequenceLine(row: SequenceRowDto, word: AppointmentWord, tz: string, no
     group: sequenceGroupOf(row),
     starts: sequenceStartWords(row, word),
     state: sequenceStateWords(row),
-    line: sequenceRowLine(row, tz, nowMs),
+    line: sequenceRowLine(row, { tz, nowMs, word, twin: null }),
     steps: row.steps,
     channels: sequenceChannelsWords(row.channels),
     in_it: row.in_it,
-    ...(needs > 0 ? { needs_you: needsWords(row.needs), needs_count: needs } : {}),
+    ...(needs > 0 ? { needs_you: needsWords(row, { tz, nowMs }), needs_count: needs } : {}),
   };
 }
 

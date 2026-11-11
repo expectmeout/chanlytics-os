@@ -2,7 +2,8 @@
  * What the Sequences list's row says at its right, as Pipeline's Select, Sort and Export stand at its bar's end (Ruben, 21 Oct
  * 2026, for parity): Type, which keeps one type of sequence, its name standing in the word once one is picked, and Sort, how
  * each group's rows are ordered. The views at the row's left are SEQUENCE_WORDS.views and the list's own groups. And what
- * needs you in a sequence, its count and its line, which the row, the badge, Today and Ask say.
+ * needs you in a sequence, counted (needsCount), which the list and Ask count by, and the order Needs you lists it in
+ * (byLongestWait); its words are words/row-line.ts's.
  */
 import { plural } from "../../shared/words";
 import type { SequenceNeedsDto, SequenceRowDto } from "./dto";
@@ -11,7 +12,8 @@ export const SEQUENCE_LIST_WORDS = {
   types: {
     label: "Type",
     all: "All types",
-    customers: "Sequences",
+    // The groups' own names (SEQUENCE_WORDS.groups), one set of names (decision 0128).
+    customers: "Your customers",
     leads: "Cold email",
     once: "One-off sends",
   },
@@ -21,6 +23,8 @@ export const SEQUENCE_LIST_WORDS = {
     sent: "Last sent",
     people: "Most people in it",
     name: "Name, A to Z",
+    /** Under the Sort menu's choices: Needs you keeps its own order (byLongestWait). */
+    needsFirst: "Needs you always lists the longest wait first.",
   },
 } as const;
 
@@ -55,6 +59,39 @@ export function sortedSequences<R extends Pick<SequenceRowDto, "name" | "created
   return [...rows].sort(by[sort]);
 }
 
+/** When what needs you in a sequence began to wait: the oldest thing it holds, or a failed one-off's day; null for a twin. */
+function waitedSinceMs(row: Pick<SequenceRowDto, "needs" | "starts" | "date">): number | null {
+  if (row.needs.oldest_at) return Date.parse(row.needs.oldest_at);
+  if (row.starts === "date" && row.date?.state === "failed") return Date.parse(row.date.at);
+  return null;
+}
+
+/**
+ * Needs you's order (decision 0128): the longest wait first, whatever Sort says, and a row with no age (a twin) after
+ * those with one. Ties keep the order they came in, so the rest follow Sort.
+ */
+export function byLongestWait(
+  one: Pick<SequenceRowDto, "needs" | "starts" | "date">,
+  other: Pick<SequenceRowDto, "needs" | "starts" | "date">,
+): number {
+  const x = waitedSinceMs(one);
+  const y = waitedSinceMs(other);
+  if (x === y) return 0;
+  if (x === null) return 1;
+  if (y === null) return -1;
+  return x - y;
+}
+
+/** Whether a row holds the words searched for: its name, or the lead search or list it takes people from, in any case. */
+export function sequenceMatches(row: Pick<SequenceRowDto, "name" | "first">, words: string): boolean {
+  const query = words.trim().toLowerCase();
+  if (query === "") return true;
+  const first = row.first;
+  return [row.name, first?.search_name, first?.source_name, first?.list_name].some((name) =>
+    (name ?? "").toLowerCase().includes(query),
+  );
+}
+
 /**
  * Whether an OK to a batch to leads would send nothing: none of its emails ready, and the check holding some. What waits
  * on the owner is each held email, decided on its own, so nothing asks for the OK: the sequence's notice and count
@@ -87,16 +124,4 @@ export function needsCount(sequenceNeeds: SequenceNeedsDto): number {
       ? sequenceNeeds.waiting
       : 0;
   return sequenceNeeds.waiting_people + sequenceNeeds.held + sequenceNeeds.to_send + sequenceNeeds.replies + batches;
-}
-
-/** What needs you in a sequence, in a few words: "14 wait for your OK · 3 held · 2 wrote back". Empty when nothing does. */
-export function needsWords(sequenceNeeds: SequenceNeedsDto): string {
-  const parts: string[] = [];
-  if (sequenceNeeds.waiting_people > 0) parts.push(`${sequenceNeeds.waiting_people} wait for your OK`);
-  else if (sequenceNeeds.waiting > 0 && !okSendsNothing(sequenceNeeds)) parts.push("waits for your OK");
-  if (sequenceNeeds.held > 0) parts.push(`${sequenceNeeds.held} held`);
-  if (sequenceNeeds.to_send > 0) parts.push(`${sequenceNeeds.to_send} for you to send`);
-  if (sequenceNeeds.replies > 0)
-    parts.push(`${plural(sequenceNeeds.replies, "wrote back", "wrote back")} · answer them`);
-  return parts.join(" · ");
 }

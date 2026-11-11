@@ -21,11 +21,17 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const sharp = createRequire(path.join(ROOT, "apps/dashboard/package.json"))("sharp");
 
 const { composeBoard } = await import(at("apps/dashboard/src/server/posts/compose.ts"));
-const { beginPieceFor } = await import(at("apps/dashboard/src/server/content/piece.ts"));
+const { beginPieceFor, pieceBeginInput, pieceBoardInput } = await import(
+  at("apps/dashboard/src/server/content/piece.ts")
+);
+const { drawPieceBoard } = await import(at("apps/dashboard/src/server/content/storyboard.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { buildProposal, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
-const { PIECE_FRAME, pieceWordsBoxOf } = await import(at("packages/contracts/src/content/piece-frame.ts"));
+const { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceWordsBoxOf } = await import(
+  at("packages/contracts/src/content/piece-frame.ts")
+);
+const { compilePiece } = await import(at("packages/contracts/src/content/piece-timeline.ts"));
 const { piecePlanOf } = await import(at("packages/contracts/src/content/pieces.ts"));
 const { PIECE_TEMPLATE } = await import(at("packages/contracts/src/content/piece-making.ts"));
 const { PIECE_WORDS } = await import(at("packages/contracts/src/content/piece-words.ts"));
@@ -50,7 +56,22 @@ const FRAME = {
   padSide: PIECE_FRAME.wordsPadSide,
   gap: PIECE_FRAME.wordsGap,
   leading: PIECE_FRAME.wordsLeading,
+  side: PIECE_SIDE,
+  clearBottom: PIECE_FRAME.clearBottom,
+  caption: {
+    size: PIECE_FRAME.labelSize,
+    pad: PIECE_FRAME.labelPad,
+    padSide: PIECE_FRAME.labelPadSide,
+    lift: PIECE_FRAME.labelLift,
+  },
+  rule: PIECE_FRAME.pairRule,
+  card: { lift: PIECE_CARD.lift, dim: PIECE_CARD.dim, fromSize: PIECE_CARD.fromSize },
+  ink: PIECE_FRAME.ink,
+  paper: PIECE_FRAME.paper,
+  accent: "#e8b84a",
 };
+/** A still as a tile is handed one: held at its middle. */
+const shot = (bytes) => ({ bytes, heldAt: 0.5 });
 /** How light a patch of a picture is, on average. */
 async function lightOf(jpeg, left, top, width, height) {
   const { data } = await sharp(jpeg)
@@ -65,7 +86,13 @@ test("the storyboard is each cut's first frame side by side, and the words' back
   const lines = ["I asked for volume", "Did I get it?"];
   const box = pieceWordsBoxOf(lines, "low");
   const frame = await flat();
-  const tile = (words, i) => ({ frame, label: `${i + 1} · 0:02.3 to 0:04.8`, words });
+  const tile = (words, i) => ({
+    kind: "picture",
+    shot: shot(frame),
+    label: `${i + 1} · 0:02.3 to 0:04.8`,
+    words,
+    caption: null,
+  });
   const board = await composeBoard({
     tiles: [tile(true, 0), tile(false, 1), tile(false, 2), tile(false, 3)],
     words: { lines, top: box.top, size: box.size },
@@ -108,6 +135,60 @@ test("the storyboard is each cut's first frame side by side, and the words' back
   const hy = Math.round((high.top + 12) * k);
   for (const left of [40, 372 + 40])
     assert.ok((await lightOf(held, left + 40, hy, 60, 6)) < 110, "the backing's edge is dark on each tile it is on");
+});
+
+test("a pair is one picture over the other under their names, a card is its words on the dark ground, a quote dims its picture", async () => {
+  const [light, dark] = await Promise.all([flat(200), flat(60)]);
+  const board = await composeBoard({
+    tiles: [
+      { kind: "pair", before: shot(light), after: shot(dark), names: ["Before", "After"], label: "1", words: false },
+      { kind: "card", lines: ["Same chair.", "New you."], size: 120, label: "2" },
+      {
+        kind: "quote",
+        lines: ["Best blowout", "in Brooklyn"],
+        size: 72,
+        from: "Maria G.",
+        over: shot(light),
+        label: "3",
+      },
+      { kind: "quote", lines: ["Best blowout", "in Brooklyn"], size: 72, from: null, over: null, label: "4" },
+      { kind: "picture", shot: shot(light), label: "5", words: false, caption: "Silk press" },
+    ],
+    words: { lines: [], top: 0, size: 96 },
+    frame: FRAME,
+    plain: true,
+  });
+  const meta = await sharp(board).metadata();
+  assert.deepEqual([meta.width, meta.height], [5 * 360, 640]);
+  const k = 360 / PIECE_FRAME.width;
+  const near = (seen, wanted, name) => assert.ok(Math.abs(seen - wanted) < 8, `${name}: ${seen}`);
+  // The pair: before fills the upper half and after the lower, the paper's rule between them at the frame's middle.
+  near(await lightOf(board, 200, 60, 100, 40), 200, "before, above");
+  near(await lightOf(board, 200, 420, 100, 40), 60, "after, below");
+  assert.ok((await lightOf(board, 200, 319, 100, 2)) > 215, "the rule between them is the paper");
+  // Each under its own name, at the captions' left edge: the upper one stands off the rule, the lower off the app's own caption.
+  const upperFoot = 640 - Math.round((PIECE_FRAME.height / 2 + PIECE_FRAME.pairRule / 2 + PIECE_FRAME.labelLift) * k);
+  const lowerFoot = 640 - Math.round(PIECE_FRAME.clearBottom * k);
+  const left = Math.round(PIECE_SIDE * k) + 4;
+  assert.ok((await lightOf(board, left, upperFoot - 14, 30, 8)) < 170, "Before, on its backing");
+  assert.notEqual(Math.round(await lightOf(board, left, lowerFoot - 14, 30, 8)), 60, "After, on its backing");
+  // A words card: the end card's ground to its corners, and its words about its middle.
+  near(await lightOf(board, 360 + 10, 10, 40, 40), 14, "the card's ground");
+  assert.ok((await lightOf(board, 360 + 60, 250, 240, 90)) > 30, "the card's words");
+  // A quote over a picture: the picture, darkened by the card's own share, and words on it. With no picture, the ground.
+  near(await lightOf(board, 720 + 10, 10, 40, 40), 200 * (1 - PIECE_CARD.dim), "a quote's picture, dimmed");
+  assert.ok((await lightOf(board, 720 + 30, 250, 220, 90)) > 200 * (1 - PIECE_CARD.dim) + 10, "the quote's words");
+  near(await lightOf(board, 1080 + 10, 10, 40, 40), 14, "a quote with no picture");
+  // Ask's look keeps each tile's number under it: a card fills its tile and no more, so the strip under it is the page's.
+  const numbered = await composeBoard({
+    tiles: [{ kind: "quote", lines: ["Best blowout"], size: 72, from: null, over: shot(light), label: "1" }],
+    words: { lines: [], top: 0, size: 96 },
+    frame: FRAME,
+  });
+  assert.ok(Math.abs((await lightOf(numbered, 4, 640 + 4, 40, 10)) - 17) < 4, "the strip under a card is not dimmed");
+  // A picture's own caption stands where a pair's lower name does.
+  assert.ok((await lightOf(board, 1440 + left, lowerFoot - 14, 30, 8)) < 170, "a caption, on its backing");
+  near(await lightOf(board, 1440 + 200, lowerFoot - 14, 100, 8), 200, "and nothing beside it");
 });
 
 /* ------------------------------------------------------------------------- the act */
@@ -261,7 +342,17 @@ test("the card is made by the call that carries the look's key: the plan its pre
   // How long, which way up, what from: one clip here.
   assert.equal(out.proposal.summary, PIECE_WORDS.summary(4, 10.4, 1));
   assert.equal(out.proposal.summary, "10 seconds, vertical. 4 moments from your clip.");
-  assert.deepEqual(piecePlanOf(out.proposal.payload), {
+  // Kept as "Hook first", the shape a video's row holds; read, it is the same plan in blocks, each cut a clip's moment.
+  assert.deepEqual(
+    piecePlanOf(out.proposal.payload).blocks.map((b) => [b.is, b.file_id, b.from, b.to, b.label]),
+    [
+      ["clip", CLIP, 2.3, 4.8, null],
+      ["clip", CLIP, 4.8, 6.8, null],
+      ["clip", CLIP, 7.3, 9.3, null],
+      ["clip", CLIP, 9.8, 11.9, null],
+    ],
+  );
+  assert.deepEqual(out.proposal.payload, {
     shape: "hook_cut",
     cuts: [
       { file_id: CLIP, from: 2.3, to: 4.8 },
@@ -343,6 +434,91 @@ const PLAN = {
   language: "en",
   people_agreed: false,
 };
+
+const PHOTO = "ffffffff-0000-4000-8000-000000000002";
+const PHOTO_2 = "ffffffff-0000-4000-8000-000000000003";
+/** A plan in blocks: one of each kind, under opening words that leave with the first picture. */
+const BLOCKS_PLAN = {
+  shape: "blocks",
+  blocks: [
+    { is: "clip", file_id: CLIP, from: 2.3, to: 4.8, label: "Silk press" },
+    { is: "photo", file_id: PHOTO, seconds: 2.5, label: null },
+    { is: "pair", before: { file_id: PHOTO_2, at: null }, after: { file_id: CLIP, at: 7.6 }, seconds: 3 },
+    { is: "words", lines: ["Same chair.", "New you."], seconds: 1.8 },
+    { is: "quote", text: "Best blowout in Brooklyn", from: "Maria G.", over: { file_id: PHOTO, at: null }, seconds: 3 },
+  ],
+  lines: ["I asked for volume", "Did I get it?"],
+  words_at: "high",
+  words_hold: "first",
+  end_line: null,
+  language: "en",
+  people_agreed: false,
+};
+const photoRow = (id) =>
+  clipRow({ id, kind: "image", mime: "image/jpeg", name: `photo-${id.slice(-1)}`, seconds: null, media_status: null });
+
+test("the stills of a plan in blocks are each block's own pictures: a clip's first frame, a photo, a pair's two, a quote's ground", async () => {
+  const files = [clipRow(), photoRow(PHOTO), photoRow(PHOTO_2)];
+  const sources = files.map((f) => ({
+    id: f.id,
+    kind: f.kind,
+    status: f.status,
+    source: f.source,
+    media_status: f.media_status,
+    seconds: f.seconds,
+    people_unasked: false,
+  }));
+  const look = { accent: "#e8b84a", logo: false, name: "Harbor", book: null, address: null };
+  const compiled = compilePiece(piecePlanOf(BLOCKS_PLAN), sources, look);
+  assert.equal(compiled.ok, true, JSON.stringify(compiled));
+  // The folders in Storage: every still asked for is there, and each read is kept by what it was of.
+  const reads = [];
+  const still = await flat(150);
+  const service = fakeDb({ files: [] }, {}, {});
+  service.storage = {
+    from: () => ({
+      download: async (where, how) => {
+        const [, id, name] = where.split("/");
+        reads.push(`${id.slice(-1)}:${name}${how?.transform ? ":sized" : ""}`);
+        return { data: new Blob([still]), error: null };
+      },
+    }),
+  };
+  setServiceClient(service);
+  const ctx = { supabase: fakeDb({ files }, {}, {}), userId: USER, email: "ada@example.com", params: {} };
+  const board = await drawPieceBoard(ctx, A, { timeline: compiled.timeline, look, files }, true);
+  const meta = await sharp(board).metadata();
+  assert.deepEqual([meta.format, meta.width, meta.height], ["jpeg", 5 * 360, 640]);
+  // The clip a tenth of a second inside its cut; the photo; the pair's photo and its clip's moment; nothing for the words
+  // card; the quote's ground. A photo is read at the size a drawing needs, a clip's moment as its folder keeps it.
+  assert.deepEqual(reads.sort(), [
+    "1:frame-240.jpg",
+    "1:frame-760.jpg",
+    "2:original.jpg:sized",
+    "2:original.jpg:sized",
+    "3:original.jpg:sized",
+  ]);
+  // The opening words leave with the first picture: their backing is on the first still and not on the second.
+  const box = pieceWordsBoxOf(BLOCKS_PLAN.lines, "high");
+  const y = Math.round((box.top + box.height / 2) * (360 / PIECE_FRAME.width)) - 6;
+  assert.ok((await lightOf(board, 14, y, 20, 12)) < 120, "the words' backing on the first still");
+  assert.ok(Math.abs((await lightOf(board, 360 + 14, y, 20, 12)) - 150) < 8, "the second still as it is");
+});
+
+test("a card's stills are asked with its plan in blocks or as Hook first; a press takes Hook first alone until a row may hold blocks", () => {
+  assert.equal(pieceBoardInput.safeParse(PLAN).success, true);
+  assert.equal(pieceBoardInput.safeParse(BLOCKS_PLAN).success, true);
+  // A plan that opens on a card has no opening words.
+  const onCard = { ...BLOCKS_PLAN, blocks: [BLOCKS_PLAN.blocks[3], ...BLOCKS_PLAN.blocks.slice(0, 3)], lines: [] };
+  assert.equal(pieceBoardInput.safeParse(onCard).success, true);
+  // A block of no known kind, or more blocks than a video holds, is not a plan.
+  const odd = { ...BLOCKS_PLAN, blocks: [{ is: "sticker", seconds: 2 }, ...BLOCKS_PLAN.blocks.slice(1)] };
+  assert.equal(pieceBoardInput.safeParse(odd).success, false);
+  const many = { ...BLOCKS_PLAN, blocks: [...BLOCKS_PLAN.blocks, ...BLOCKS_PLAN.blocks] };
+  assert.equal(pieceBoardInput.safeParse(many).success, false);
+  assert.equal(pieceBeginInput.safeParse({ ...PLAN, key: "p-card-1" }).success, true);
+  assert.equal(pieceBeginInput.safeParse({ ...BLOCKS_PLAN, key: "p-card-1" }).success, false);
+});
 
 function pressed(plan, { fate = "begun", ...opts } = {}) {
   readerCache.clear();
@@ -433,9 +609,12 @@ test("three being made is the most: a fourth press is told so, and can be presse
   assert.equal(refused?.message, PIECE_WORDS.busy);
 });
 
-test("the card commits by its own id, so one press is one video, and says where the video lands", () => {
-  const card = { id: "p-card-9", kind: "piece", payload: { ...PLAN, extra: 1 }, summary: "s" };
+test("the card commits its plan as it is kept, by its own id, so one press is one video, and says where the video lands", () => {
+  const card = { id: "p-card-9", kind: "piece", payload: PLAN, summary: "s" };
   assert.deepEqual(pieceSpec.commit(card, {}), { route: "POST files/video", body: { ...PLAN, key: "p-card-9" } });
+  // In whichever shape it is kept: the door reads it, and a row holds what came.
+  const inBlocks = { id: "p-card-8", kind: "piece", payload: BLOCKS_PLAN, summary: "s" };
+  assert.deepEqual(pieceSpec.commit(inBlocks, {}).body, { ...BLOCKS_PLAN, key: "p-card-8" });
   assert.equal(pieceSpec.receipt(card, {}), PIECE_WORDS.making);
   assert.equal(pieceSpec.made(card, { piece_id: "pc-1" }), "pc-1");
   assert.equal(pieceSpec.open(card, null), "admin/files");

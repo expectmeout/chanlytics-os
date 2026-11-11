@@ -28,6 +28,7 @@ test("the template is the one its edition's image was built from", () => {
 test("the hash reads the template, what its machine runs, its pinned versions, the drawing numbers and the face", () => {
   const files = templateFiles();
   for (const needed of [
+    "tooling/video/src/blocks.tsx",
     "tooling/video/src/hook-cut.tsx",
     "tooling/video/machine/make.mjs",
     "tooling/video/package-lock.json",
@@ -41,9 +42,16 @@ test("the hash reads the template, what its machine runs, its pinned versions, t
   assert.ok(!files.some((f) => /node_modules|\/build\/|\/public\//.test(f)));
 });
 
-test("a shape's composition is its name as the renderer takes one: no underscore", () => {
+test("a plan is drawn by `blocks`, however it was kept; a shape's own composition is its name as the renderer takes one", async () => {
+  const { piecePlanOf } = await import(at("packages/contracts/src/content/pieces.ts"));
+  // What a row kept as "Hook first" is read as is drawn by the one composition every plan is.
+  assert.equal(pieceCompositionOf(piecePlanOf({ shape: "hook_cut", cuts: [] }).shape), "blocks");
+  // The template keeps a composition by the kept shape's own name, for an edge a deploy behind: no underscore in it.
   assert.equal(pieceCompositionOf("hook_cut"), "hook-cut");
   for (const shape of PIECE_SHAPES) assert.match(pieceCompositionOf(shape), /^[a-z0-9-]+$/);
+  // Both are in the template this tree draws with.
+  const index = fs.readFileSync(path.join(ROOT, "tooling/video/src/index.tsx"), "utf8");
+  for (const id of ["blocks", "hook-cut"]) assert.ok(index.includes(`id="${id}"`), id);
 });
 
 test("an image goes on record only for the template this tree draws with, and one already there is left as it is", async () => {

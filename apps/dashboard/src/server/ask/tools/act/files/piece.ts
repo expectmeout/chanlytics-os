@@ -6,6 +6,7 @@ import {
   PIECE_LIMITS,
   PIECE_WORDS_HOLDS,
   PIECE_WORDS_PLACES,
+  piecePlanOf,
   pieceWordsIn,
   secondsOf,
   videoPreviewOf,
@@ -13,7 +14,7 @@ import {
   type PiecePlan,
   type PieceWont,
 } from "@chanlytics/contracts";
-import { checkPieceClips, pieceSecondsOf } from "@/server/content/piece";
+import { HOOK_CUTS_MAX, checkPieceClips, pieceSecondsOf } from "@/server/content/piece";
 import { drawPieceBoard } from "@/server/content/storyboard";
 import { postWordsProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
@@ -48,8 +49,14 @@ import { ownersWords } from "./post";
  * promise nothing the owner has not (contracts compilePiece, post-check).
  */
 
+/** A plan as this tool keeps it on its card: "Hook first", its cuts in play order (contracts piecePlanOf reads it as blocks). */
+type HookFirstKept = Omit<PiecePlan, "shape" | "blocks"> & {
+  shape: "hook_cut";
+  cuts: { file_id: string; from: number; to: number }[];
+};
+
 /** What a drawn storyboard is known by once the model has looked at it: the plan, whole, in one short key. */
-const pieceLookKeyOf = (plan: PiecePlan): string =>
+const pieceLookKeyOf = (plan: HookFirstKept): string =>
   createHash("sha256").update(JSON.stringify(plan)).digest("hex").slice(0, 10);
 
 const LOOK_NOTE =
@@ -66,8 +73,8 @@ const pieceInput = z.object({
         to: time.describe("Where it ends."),
       }),
     )
-    .min(PIECE_LIMITS.cutsMin)
-    .max(PIECE_LIMITS.cutsMax)
+    .min(PIECE_LIMITS.blocksMin)
+    .max(HOOK_CUTS_MAX)
     .describe(
       `The cuts in the order they play, chosen after opening each clip with files (view, then zoom on a stretch). The first is the result. Three or four cuts of 1.5 to 3 seconds, 8 to 10 seconds in all, serve best; each must run ${PIECE_LIMITS.cutMinS} to ${PIECE_LIMITS.cutMaxS} seconds and together ${PIECE_LIMITS.reelMinS} to ${PIECE_LIMITS.reelMaxS}. One client a video: take every cut from one clip unless two clips show the same client that day. Choose moments where the person or what is shown moves, and no stretch where nothing changes for more than two seconds.`,
     ),
@@ -108,19 +115,24 @@ const pieceInput = z.object({
 
 /** Why a plan can't be made, said to the model, which can do something about it. */
 const WONT_TO_MODEL: Readonly<Record<PieceWont, string>> = {
-  cuts: `a video takes ${PIECE_LIMITS.cutsMin} to ${PIECE_LIMITS.cutsMax} cuts`,
+  blocks: `a video takes ${PIECE_LIMITS.blocksMin} to ${HOOK_CUTS_MAX} cuts`,
   file: "its clip is not in Files: names come from files with action list",
   not_video: "its file is a picture: a video is cut from video clips",
+  not_photo: "its file is a video: a photo is shown from a photo",
   made: "its clip is a video already made here, with its words on it. Cut from the clips it came from",
   unkept: "its clip waits in the Inbox or was set aside: it is the owner's to keep first",
   not_ready: "its clip is still being made ready. Say so, and that you will once it is",
   stretch: "it has no length: from comes before to, both inside the clip",
   past_end: "it runs past the end of its clip: open the clip again and choose seconds inside it",
-  cut_length: `each cut runs ${PIECE_LIMITS.cutMinS} to ${PIECE_LIMITS.cutMaxS} seconds`,
+  block_length: `each cut runs ${PIECE_LIMITS.cutMinS} to ${PIECE_LIMITS.cutMaxS} seconds`,
   length: `the cuts together run ${PIECE_LIMITS.reelMinS} to ${PIECE_LIMITS.reelMaxS} seconds`,
   people:
     "its clip shows someone recognizable, and no one has said they agreed to be shown. Ask the owner in a sentence; if they say yes, call again with people_agreed true",
   lines: `the opening words are one or two lines of at most ${PIECE_LIMITS.line} characters each`,
+  opens_on_card: "the opening words sit over a picture: open on a cut, or leave the words out",
+  card: `a words card takes one to ${PIECE_LIMITS.cardLines} lines of at most ${PIECE_LIMITS.cardLine} characters each`,
+  quote: `a quote runs at most ${PIECE_LIMITS.quote} characters, and who said it at most ${PIECE_LIMITS.quoteFrom}`,
+  label: `a caption is one line of at most ${PIECE_LIMITS.label} characters`,
 };
 
 /** How long the edge has for the storyboard's copy, from what is left of the turn. */
@@ -176,7 +188,7 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
   if (!videoPreviewOf(config)) return refuse("this workspace does not keep videos yet, so none can be made from clips");
   const names = [...new Set(input.cuts.map((cut) => cut.file))];
   const { files } = await load(toolContext.rc, filesNamedForAsk, { names }).then((r) => r.data);
-  const cuts: PiecePlan["cuts"] = [];
+  const cuts: HookFirstKept["cuts"] = [];
   for (const [i, cut] of input.cuts.entries()) {
     const file = filesNamed(files, [cut.file]).found.at(0);
     if (!file) return refuse(`cut ${i + 1}: no file named ${cut.file}; names come from files with action list`);
@@ -188,7 +200,7 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
   }
   const language = toolContext.language === "es" ? "es" : "en";
   // In one order always, so the key names the plan whole, whoever built it.
-  const plan: PiecePlan = {
+  const kept: HookFirstKept = {
     shape: "hook_cut",
     cuts,
     lines: input.lines.map((line) => line.trim()),
@@ -198,12 +210,13 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
     language,
     people_agreed: input.people_agreed === true,
   };
+  const plan = piecePlanOf(kept);
   const wordsWrong = wordsProblem(plan, ownersWords(toolContext, config));
   if (wordsWrong) return refuse(wordsWrong);
   const checked = await checkPieceClips(toolContext.ctx, toolContext.tenantId, plan, config);
   if (!checked.ok)
     return refuse(checked.cut ? `cut ${checked.cut}: ${WONT_TO_MODEL[checked.wont]}` : WONT_TO_MODEL[checked.wont]);
-  const key = pieceLookKeyOf(plan);
+  const key = pieceLookKeyOf(kept);
   if (input.looked !== key) {
     if (input.looked)
       return refuse(
@@ -215,8 +228,8 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
   return propose({
     kind: "piece",
     title: says.cardTitle(plan.lines[0] ?? ""),
-    summary: says.summary(plan.cuts.length, pieceSecondsOf(checked.timeline), checked.files.length),
-    payload: plan,
+    summary: says.summary(kept.cuts.length, pieceSecondsOf(checked.timeline), checked.files.length),
+    payload: kept,
   });
 }
 
