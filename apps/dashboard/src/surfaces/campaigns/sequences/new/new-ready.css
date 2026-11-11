@@ -1,0 +1,59 @@
+/* New's first screen (the canvas "New: start from what's ready"): the line, what is ready, One step away, the journey and
+   what changed since. Layout on the kit's parts and the tokens; coral is the one act that leads and the mic while it
+   listens, never a card's edge. */
+
+/* The line: Ask's mark, one row that grows, the mic and the arrow. A capsule of the field's own ground, as Today's line
+   is (need-you.css .ny-say-line). */
+.sq-nw-line {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: 6px 8px 6px var(--space-4);
+  border-radius: var(--radius-3xl);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-depth);
+}
+.sq-nw-line:has(textarea:focus),
+.sq-nw-line[data-state="hold"] {
+  background: var(--field-bg, var(--surface-inset-fill));
+  box-shadow: var(--focus-field-edged);
+}
+.sq-nw-line > .sq-nw-line-ask {
+  align-self: flex-start;
+  display: grid;
+  place-items: center;
+  height: 40px;
+  color: var(--ink-dim);
+}
+.sq-nw-line > .sq-nw-line-ask[data-live] {
+  color: var(--accent-ink);
+}
+.sq-nw-line > .sq-nw-line-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sq-nw-line-words > textarea {
+  width: 100%;
+  min-height: 40px;
+  max-height: 120px;
+  padding: 8px 0;
+  font-size: var(--text-base);
+  line-height: 24px;
+  letter-spacing: 0;
+}
+.sq-nw-line > button {
+  flex: none;
+  margin-bottom: 4px;
+  touch-action: none;
+}
+.sq-nw-line-hint {
+  display: block;
+  margin: 0 var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.sq-nw-line-hint[data-live] {
+  color: var(--accent-ink);
+  text-align: center;
+}

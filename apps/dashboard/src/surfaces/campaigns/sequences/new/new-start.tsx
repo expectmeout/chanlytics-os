@@ -7,7 +7,6 @@
  */
 import {
   NEW_WORDS as W,
-  NEW_WORDS_MAX,
   leadsRoute,
   newSequenceLine,
   peopleRoute,
@@ -16,14 +15,14 @@ import {
   type NewKind,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
-import { Field } from "../../../kit/field/field";
-import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { gate } from "../../../frame-verbs";
 import { CmPane } from "../../parts/split";
+import { NewLine, NEW_LINE_MIN } from "./new-line";
 import * as M from "./new-model";
 import { CaseNote, SaidLine } from "./new-parts";
 import { Choice, runningOn, type WhoReads } from "./new-sheets";
+import "./new-ready.css";
 
 /** What the opening view reads: who it could be for (the who sheet's), the calendar, and the Library's count. */
 export interface StartReads extends WhoReads {
@@ -290,7 +289,7 @@ interface StartProps {
 
 /** New before a draft, in New's pane. */
 export function StartView(p: StartProps) {
-  const enough = p.line.trim().length >= 8;
+  const enough = p.line.trim().length >= NEW_LINE_MIN;
   const draftIt = () => {
     if (enough) p.onDraft(p.line.trim());
   };
@@ -301,33 +300,12 @@ export function StartView(p: StartProps) {
       ) : (
         <div className="sq-nw">
           {p.may ? (
-            <div className="sq-nw-say">
-              <Field
-                aria-label={W.say.label}
-                rows={3}
-                value={p.line}
-                onValueChange={p.onLine}
-                placeholder={W.say.placeholder}
-                maxLength={NEW_WORDS_MAX}
-                data-testid="sq-nw-line"
-              />
-              <span className="sq-nw-say-acts">
-                <small>
-                  <Icon name="sparkle" size={12} />{" "}
-                  {p.failed ? W.say.kept : p.reads?.messages === 0 ? W.say.writes : W.say.hint}
-                </small>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={draftIt}
-                  disabled={!enough}
-                  data-testid="sq-nw-draft"
-                  {...gate("approve")}
-                >
-                  {W.say.draft}
-                </Button>
-              </span>
-            </div>
+            <NewLine
+              line={p.line}
+              onLine={p.onLine}
+              onDraft={(words) => p.onDraft(words)}
+              hint={p.failed ? W.say.kept : p.reads?.messages === 0 ? W.say.writes : W.say.hint}
+            />
           ) : (
             <CaseNote tone="plain" title={W.viewer.title} words={W.viewer.words} testid="sq-nw-viewer" />
           )}
