@@ -187,7 +187,7 @@ async function getConnections(toolContext: ToolContext): Promise<unknown> {
 /**
  * The person's own notifications as the bell keeps them on the server (readers/notifications.ts, GET notifications'
  * own read, then contracts serverNotificationRows as the bell builds its kept rows): the last thirty days, sixty at
- * most, newest first, with their own marks -- one dismissed is gone, unread by when they last opened the bell. What the
+ * most, newest first, with their own marks -- one dismissed is gone, unread until they open it or mark all read (decision 0124). What the
  * bell works out in the tab (threads, calls, invitations) is not the server's to read. A billing notice stays out.
  *
  * And closed as the bell closes them (contracts closeSettledNotices): a row whose run was approved, whose booking email was

@@ -101,10 +101,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   const doors = readCode("packages/db/src/repositories/notices/devices.ts");
   assert.ok(
     route.includes("markBellSeen(ctx, { p_tenant_id: tenantId })") &&
-      route.includes("markBellReadThrough(ctx, {") &&
       route.includes("markOne(ctx, {") &&
       route.includes('rate: "notify_mark",') &&
-      doors.includes('db.rpc("notifications_read_through", args)') &&
       doors.includes('db.rpc("notifications_seen", args)') &&
       doors.includes('db.rpc("notification_mark", args)'),
   );
@@ -128,10 +126,10 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   );
   const bell = readCode("apps/dashboard/src/bridge/notifications.ts");
   assert.ok(
-    /bellFeed\(\{\s*derived: feedFromGlobals\(win, Date\.now\(\)\),\s*device: deviceState\(\),\s*kept: win\.__NOTIFICATIONS\?\.dto,\s*waits: whatWaits\(\),?\s*\}\)\.sort\(\(a, b\) => b\.at - a\.at\)/.test(
+    /bellFeed\(\{\s*derived: feedFromGlobals\(win, Date\.now\(\)\),\s*device: deviceState\(\),\s*kept: through\.kept\(\),\s*waits: whatWaits\(\),?\s*\}\)\.sort\(\(a, b\) => b\.at - a\.at\)/.test(
       bell,
     ),
-    "derived beside kept, once, newest first, the seen moment the server's",
+    "derived beside kept (read through a press this tab just made, where one is held), once, newest first",
   );
   assert.ok(
     bell.includes('"surface:notifications"') &&

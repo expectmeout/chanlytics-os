@@ -1406,6 +1406,64 @@ test("the bell's close is the member looking: opening it marks nothing, closing 
   }
 });
 
+test("Mark all read is its own press: it reads the notes through the bell, says how many beside Undo, and is no look; the badge is the bell's own number (decision 0124)", () => {
+  shell.installShell(win);
+  const flashes = [];
+  globalThis.usePPToast = () => [null, (p) => flashes.push(p)];
+  let seen = 0;
+  let read = 0;
+  let undone = 0;
+  const row = {
+    id: "n-1",
+    kind: "booking",
+    title: "1 booked",
+    message: "Tove Lind, Thu 10:00 AM",
+    at: 0,
+    unread: true,
+    actions: [],
+  };
+  win.__notifs = {
+    feed: () => [row],
+    alerts: () => null,
+    onChange: () => () => undefined,
+    older: () => 0,
+    // Three are new since the look, though one row wears a dot here: the badge says the bell's number, not its dots.
+    unread: () => 3,
+    seenAll: () => {
+      seen += 1;
+    },
+    readAll: () => {
+      read += 1;
+      return {
+        read: 4,
+        undo: () => {
+          undone += 1;
+        },
+      };
+    },
+  };
+  const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
+  const draw = () => win.Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
+  try {
+    deep = true;
+    cells = [];
+    frames.begin();
+    const closed = draw();
+    assert.equal(bellOf(closed).props["aria-label"], "Notifications, 3 unread", "the bell's own number");
+    bellOf(closed).props.onClick();
+    frames.begin();
+    find(draw(), (n) => typeof n.props?.onReadAll === "function").props.onReadAll();
+    assert.equal(read, 1, "read through the bell's own door");
+    assert.equal(seen, 0, "REGRESSION: Mark all read wrote a look, which is what closing the bell writes");
+    assert.equal(textOf(flashes.at(-1).msg), "4 marked read", "how many it read, in contracts' words");
+    flashes.at(-1).undo();
+    assert.equal(undone, 1, "Undo is the bell's own way back");
+  } finally {
+    delete win.__notifs;
+    delete globalThis.usePPToast;
+  }
+});
+
 test("REGRESSION: the top bar's Ask button says Ask Chanlytics and draws no key -- ⌘K stood in it and in its tip, beside the ? sheet that lists it", () => {
   shell.installShell(win);
   globalThis.usePPToast = () => [null, () => {}];

@@ -489,10 +489,7 @@ test("the top bar shows the real feed outside a demo, with the device-alert swit
   assert.ok(tb.includes("const real = !isDemoFrame() && bell ? bell : null;"));
   assert.ok(tb.includes("const shown: BellNote[] = real ? realRows : isDemoFrame() ? notifs.map(tbOverlay) : [];"));
   assert.ok(tb.includes("real.onChange("), "repaints when a surface refreshes or a mark changes");
-  assert.ok(tb.includes("real?.seenAll();"), "closing the bell is the look: the number starts again, no note is read");
-  assert.ok(tb.includes("real.readAll();"), "Mark all read is its own press, with its way back");
-  assert.ok(tb.includes("BELL_READ_WORDS.done(read)"), "and says how many it read, in contracts' words, beside Undo");
-  assert.ok(tb.includes("real.unread()"), "the badge is the bell's own number, not a count of dots");
+  // What a press in the bell does is run, not read: tests/shell/surfaces/shell-status.test.mjs draws the bar and presses.
   assert.ok(
     tb.includes("alerts={b.real ? b.alertState : null}"),
     "the bell hands its notes this device's alerts switch",

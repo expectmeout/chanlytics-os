@@ -17,7 +17,7 @@
 --
 -- Deploy order: this migration before the build that reads the column (GET notifications selects it). The build before
 -- it runs unchanged on this database: it neither reads the column nor calls the door.
--- Runs once: a second run of the starting update would read everything for whoever looked since.
+-- Re-runnable: the starting update runs only while no member has read through yet, so a second run moves nothing.
 
 set local lock_timeout = '3s';
 
@@ -30,8 +30,11 @@ alter table public.notification_reads
 comment on column public.notification_reads.read_through_at is
   'How far this member has read their bell (00614, decision 0124): Mark all read moves it, a look does not. A row newer than it with no read mark of theirs is unread. Never later than seen_at.';
 
--- Where each member stands: what a look had read stays read.
-update public.notification_reads set read_through_at = seen_at where read_through_at < seen_at;
+-- Where each member stands: what a look had read stays read. Only while nobody has a read-through moment yet, which is
+-- the first run: once one has, the same update would read everything for whoever has looked since.
+update public.notification_reads set read_through_at = seen_at
+ where read_through_at < seen_at
+   and not exists (select 1 from public.notification_reads r where r.read_through_at > '1970-01-01 00:00:00+00');
 
 /* -------------------------------------------------------------------------------------------------- the door -- */
 
