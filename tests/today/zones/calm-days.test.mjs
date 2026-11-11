@@ -28,8 +28,8 @@ import { NOW, W, answerWith, dayWith, draw, flashes, json, metrics, row, wire } 
 
 const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
 const { AttnRow } = await import("../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
-const { useCoralHeld, useZoneDrawn } = await import("../../../apps/dashboard/src/surfaces/today/queue-coral.ts");
-const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { useNeedYouModel } = await import("../../../apps/dashboard/src/surfaces/today/need-you-model.ts");
+const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { todayPeriodLine } = await import("../../../apps/dashboard/src/surfaces/today/period.ts");
 const { todayLeaks } = await import("../../../apps/dashboard/src/surfaces/today/leaks.ts");
 const { todayBriefWords } = await import("../../../apps/dashboard/src/surfaces/today/brief-words.ts");
@@ -93,16 +93,13 @@ test("one person past a week is their own row: who, Mark done, and a press on it
   assert.equal(r.props.cta.label, "Mark done", "REGRESSION: Mark all done, for one person");
   assert.equal(r.props.cta.kind, "ghost", 'REGRESSION: an old number held the page\'s coral under "Nothing needs you"');
   assert.equal(typeof r.props.onOpen, "function", "REGRESSION: it looked pressable and opened nothing");
-  assert.equal(
-    again(() => useCoralHeld("queue")),
-    false,
+  const model = again(() => useNeedYouModel(surfaceValue("today") ?? null));
+  assert.deepEqual(
+    [model.coral, model.todo.coral],
+    [null, null],
     "REGRESSION: it took the coral from Finish setting up",
   );
-  assert.equal(
-    again(() => useZoneDrawn("need-you")),
-    false,
-    "REGRESSION: it kept Ask found from leading the page",
-  );
+  assert.equal(model.draws, false, "REGRESSION: it kept Ask found from leading the page");
   setSurfaceValue("today", undefined);
   unmount();
 });

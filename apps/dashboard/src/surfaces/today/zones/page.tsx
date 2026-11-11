@@ -17,13 +17,12 @@
  * groups each a pane of their own, Ask found where it leads, the day, Ask found under it, Today so far (the four figures
  * and the week), the pins, what is left to set up, and the page says it is done. The head over it is the frame's
  * (head.tsx): the greeting, one sentence, Listen, Since you looked, and on a desk the day's four figures. The grid is
- * zones.css's.
+ * zones.css's. Which of it draws where, and which part's act is the coral, is the page's one arrangement
+ * (today/arrangement.ts), read here before any of it draws.
  */
 import { ColdEmailNote } from "./cold-email-note";
-import { useWaitsOnToday } from "../../needs-you";
-import { useSurface } from "../../use-surface";
+import { useTodayArrangement, type TodayArrangement } from "../arrangement";
 import { useTodayOnPhone } from "../phone";
-import { useZoneDrawn } from "../queue-coral";
 import { TodayAlertBand } from "./alert";
 import { DayZone } from "./day";
 import { DeskFoot, PhoneNothingYet, PhonePins, PhoneSoFar, TodayEnd, useNothingSoFar } from "./foot";
@@ -32,30 +31,39 @@ import { NeedYou } from "./need-you";
 import { TodayBroughtIn } from "./brought-in";
 import { TodaySetup } from "./setup-card";
 
-/** What is left to set up and what was brought in, one card (nothing while neither draws). */
-const settingUp = (lead: boolean) => (
+/**
+ * What is left to set up and what was brought in, one card (nothing while neither draws), over Need you (`lead`) or under
+ * it; its first act the coral where the arrangement gave it.
+ */
+const settingUp = (lead: boolean, a: TodayArrangement) => (
   <div key="setting-up" className={`tq tps tz-setup${lead ? " tz-setup-lead" : ""}`} data-testid="today-setting-up">
-    <TodaySetup />
+    <TodaySetup coral={a.coral === "setup"} />
     <TodayBroughtIn />
   </div>
 );
 
+/** Ask found where it leads the page, wide, its first act the coral where the arrangement gave it. */
+const foundLeading = (a: TodayArrangement) => (a.lead ? <AskFound wide coral={a.coral === "found"} /> : null);
+
+/** Ask found under the day, where it does not lead: never the coral. */
+const foundUnder = (a: TodayArrangement) => (a.lead ? null : <AskFound wide={false} coral={false} />);
+
 /** Today on a phone: the same blocks in one column, in the canvas's order. */
-function PhoneToday({ waiting, lead }: { waiting: boolean; lead: boolean }) {
+function PhoneToday({ a }: { a: TodayArrangement }) {
   // On a day nothing was counted the four zeros are one line under the day, and no card of their own.
   const nothing = useNothingSoFar();
   return (
     <div className="dash-a-v2 dash-a-v2-glass dash-a-v2-phone tz tz-phone" data-testid="today-phone">
       <TodayAlertBand />
-      {waiting ? null : settingUp(true)}
+      {a.waiting ? null : settingUp(true, a)}
       <NeedYou />
       <ColdEmailNote />
-      {lead ? <AskFound wide /> : null}
+      {foundLeading(a)}
       <DayZone under={nothing ? <PhoneNothingYet /> : null} />
-      {lead ? null : <AskFound wide={false} />}
+      {foundUnder(a)}
       {nothing ? null : <PhoneSoFar />}
       <PhonePins />
-      {waiting ? settingUp(false) : null}
+      {a.waiting ? settingUp(false, a) : null}
       <TodayEnd />
     </div>
   );
@@ -63,33 +71,28 @@ function PhoneToday({ waiting, lead }: { waiting: boolean; lead: boolean }) {
 
 export function TodayZones() {
   // Setting up never stands over a person waiting: under Need you while anyone does (keyed, so a turn moves and never
-  // mounts them again), over it while nobody does. The one count's (needs-you.ts).
-  const waiting = useWaitsOnToday();
-  // Ask found leads where Need you draws no pane, once Today has been read (before it, Need you has drawn nothing yet).
-  const read = !!useSurface("today");
-  const needYou = useZoneDrawn("need-you");
-  const found = useZoneDrawn("found");
-  const lead = read && !needYou;
-  const phone = useTodayOnPhone();
-  if (phone) return <PhoneToday waiting={waiting} lead={lead} />;
+  // mounts them again), over it while nobody does. Ask found leads where Need you draws no pane, once Today has been read.
   // Nothing waits and nothing was found: the day alone, one column, rather than a work column left empty beside it.
-  const alone = lead && !found;
+  const a = useTodayArrangement();
+  const phone = useTodayOnPhone();
+  if (phone) return <PhoneToday a={a} />;
+  const { waiting, alone } = a;
   return (
     <div className="dash-a-v2 dash-a-v2-glass tz" data-testid="today-zones">
       <TodayAlertBand />
       <div className={`tz-bento${alone ? " tz-bento-one" : ""}`}>
         <div className="tz-col">
-          {waiting ? null : settingUp(true)}
+          {waiting ? null : settingUp(true, a)}
           <NeedYou />
           <ColdEmailNote />
-          {lead ? <AskFound wide /> : null}
-          {waiting ? settingUp(false) : null}
+          {foundLeading(a)}
+          {waiting ? settingUp(false, a) : null}
           {alone ? <DayZone /> : null}
         </div>
         {alone ? null : (
           <div className="tz-col">
             <DayZone />
-            {lead ? null : <AskFound wide={false} />}
+            {foundUnder(a)}
           </div>
         )}
       </div>
