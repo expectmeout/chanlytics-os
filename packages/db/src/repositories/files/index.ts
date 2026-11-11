@@ -41,6 +41,19 @@ export {
 } from "./files";
 export type { FileMemberRow, FileRow, VideoToDigest, VideoWaiting } from "./files";
 export {
+  beginPiece,
+  beginPieceFile,
+  endPiece,
+  findPiece,
+  findPieceForWork,
+  findPieceImage,
+  keepPieceImage,
+  keepPieceMachine,
+  markPieceSent,
+  sayPieceStage,
+} from "./pieces";
+export type { PieceBegun, PieceFileFate, PieceMemberRow, PieceRow } from "./pieces";
+export {
   beginPost,
   closePostAttempt,
   findPlacementByName,

@@ -418,6 +418,24 @@ test("a new version saved is another file: the post it came from is left, and wh
   assert.deepEqual(asked.removed, [], "nothing of the old one goes");
 });
 
+test("a video made here gives its own file, under its name; a clip a member sent gives none", async () => {
+  const video = { kind: "video", mime: "video/mp4", media_status: "ready" };
+  const made = fileRow({ id: MADE, source: "made", name: "i-asked-for-volume", media_ref: "ref_made", ...video });
+  // The file kept in its folder as it was drawn (00613): the video platform plays a video and gives no file back.
+  assert.match(await viewed("download", made), new RegExp(`${MADE}/video\\.mp4.*download=i-asked-for-volume\\.mp4$`));
+  // No shape is a video's: asked for one, it is the one file under the one name.
+  assert.match(await viewed("download&shape=story", made), /video\.mp4.*download=i-asked-for-volume\.mp4$/);
+  // Its tile's picture is its poster, resized for the tile as any video's is: a post alone is drawn at its own size.
+  assert.match(await viewed("w=640", made), new RegExp(`${MADE}/poster\\.jpg\\?token=t&w=\\d+$`));
+  // Still being made ready, there is nothing to give yet.
+  await assert.rejects(viewed("download", { ...made, media_status: "processing" }), (e) => e.code === "not_found");
+  // A clip a member sent stays with them.
+  await assert.rejects(
+    viewed("download", fileRow({ media_ref: "ref_sent", ...video })),
+    (e) => e.code === "validation",
+  );
+});
+
 test("a kept post gives each shape, under its own name; a photo has its one picture whatever is asked", async () => {
   const post_ = fileRow({ id: MADE, source: "made", shows: "graphic", name: "come-see" });
   assert.match(

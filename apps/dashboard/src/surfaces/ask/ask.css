@@ -1379,6 +1379,146 @@ body.ask-open .tb-ask .tb-ask-face {
     animation: none;
   }
 }
+/* A video's card (card-piece.tsx; the content canvas's states and motion). Its stills are the first frame of each moment, each a
+   still of its own on a strip that runs wider than the card and is moved along sideways; once pressed, the one still it
+   follows stands beside what is said of it. The server draws the stills as one picture, edge to edge, and each still shows
+   its own part of it: the card says how many there are, a still which one it is. Only opacity moves, on the app's own
+   durations: a still that is not ready is dim, never a placeholder, and comes to full strength as the video lands. */
+.ask-piece {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.ask-piece[data-stills="2"] {
+  --stills: 2;
+}
+.ask-piece[data-stills="3"] {
+  --stills: 3;
+}
+.ask-piece[data-stills="4"] {
+  --stills: 4;
+}
+.ask-piece[data-stills="5"] {
+  --stills: 5;
+}
+.ask-piece-stills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  border-radius: var(--radius-md);
+}
+/* A keyboard moves along the strip from here: the app's own ring says where the keys are. */
+.ask-piece-stills:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.ask-piece-still {
+  position: relative;
+  flex: none;
+  height: 240px;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--bg-active);
+  scroll-snap-align: start;
+}
+.ask-piece-still:nth-child(2) {
+  --still: 1;
+}
+.ask-piece-still:nth-child(3) {
+  --still: 2;
+}
+.ask-piece-still:nth-child(4) {
+  --still: 3;
+}
+.ask-piece-still:nth-child(5) {
+  --still: 4;
+}
+.ask-piece-slice {
+  display: block;
+  width: calc(var(--stills, 1) * 100%);
+  max-width: none;
+  height: 100%;
+  translate: calc(var(--still, 0) * -100% / var(--stills, 1)) 0;
+}
+/* The stills come to full strength as they land, each on the quiet square that held its place. */
+.ask-piece-stills .ask-piece-slice {
+  animation: ask-piece-in var(--duration-slow) var(--ease-out);
+}
+/* The followed still's pictures, as one: the plan's first frame, and the made video's own over it. */
+.ask-piece-frames {
+  position: absolute;
+  inset: 0;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+/* The made video's own first frame, over the plan's: there once it has loaded. */
+.ask-piece-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+.ask-piece-poster[data-shown] {
+  opacity: 1;
+}
+.ask-piece-still[data-dim] > .ask-piece-frames {
+  opacity: 0.4;
+}
+/* Ask's three in coral over the still: the one sign of work, and it does not move. */
+.ask-piece-working {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.ask-piece-now {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  animation: ask-piece-in var(--duration-base) var(--ease-out);
+}
+.ask-piece-now > .ask-piece-still {
+  height: 176px;
+}
+.ask-piece-says {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-width: 0;
+}
+.ask-piece-state {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+/* A line that changes comes in as one, quickly: a word swap. */
+.ask-piece-line {
+  animation: ask-piece-in var(--duration-fast) var(--ease-out);
+}
+@keyframes ask-piece-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask-piece-frames,
+  .ask-piece-poster {
+    transition: none;
+  }
+  .ask-piece-now,
+  .ask-piece-line,
+  .ask-piece-stills .ask-piece-slice {
+    animation: none;
+  }
+}
 /* What a question came with, over its words, on the same edge. */
 .ask-q-files {
   align-self: flex-end;

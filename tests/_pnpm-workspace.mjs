@@ -65,12 +65,27 @@ export function settingBlock(name) {
   return Object.fromEntries(block(name).map(entry));
 }
 
-/** The workspace's projects, as repo-relative directories: the root, and each match of `packages:`. */
+/**
+ * The workspace's projects, as repo-relative directories: the root, and each match of `packages:`, less each folder a
+ * line begun with `!` leaves out (pnpm's own reading: such a folder is installed by nothing here).
+ */
 export function workspaceProjects() {
   const projects = ["."];
+  const leftOut = new Set();
   for (const l of block("packages")) {
-    const glob = unquote(l.trim().replace(/^-\s*/, ""));
-    assert.match(glob, /^[\w.-]+(\/[\w.-]+)*(\/\*)?$/, `pnpm-workspace.yaml: teach _workspace.mjs the glob "${glob}"`);
+    const written = unquote(l.trim().replace(/^-\s*/, ""));
+    const glob = written.replace(/^!/, "");
+    assert.match(
+      glob,
+      /^[\w.-]+(\/[\w.-]+)*(\/\*)?$/,
+      `pnpm-workspace.yaml: teach _workspace.mjs the glob "${written}"`,
+    );
+    if (written.startsWith("!")) {
+      // One folder by its own name: a pattern left out is not read here until something writes one.
+      assert.ok(!glob.endsWith("/*"), `pnpm-workspace.yaml: teach _workspace.mjs the glob "${written}"`);
+      leftOut.add(glob);
+      continue;
+    }
     if (!glob.endsWith("/*")) {
       projects.push(glob);
       continue;
@@ -82,5 +97,5 @@ export function workspaceProjects() {
       }
     }
   }
-  return projects;
+  return projects.filter((p) => !leftOut.has(p));
 }

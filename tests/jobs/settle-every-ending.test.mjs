@@ -107,6 +107,34 @@ test("a video's digest that will not hear it goes on to its look; one that will 
   assert.deepEqual(tables.jobs, []);
 });
 
+test("a video being made whose job ended for good stops saying Making; one whose bytes went is left for the platform's word", async () => {
+  const P = "bbbbbbbb-0000-4000-8000-000000000001";
+  const asked = [];
+  // The door answers whether the video ended here: not one already ended, nor one whose bytes all went (00613 piece_end).
+  for (const ended of [true, false]) {
+    const db = fakeDb({ jobs: [] }, {}, { piece_end: (a) => (asked.push(a), ended) });
+    const out = await settleJob(
+      db,
+      { id: "j", kind: "piece_make", tenant_id: T, payload: { piece_id: P, step: "wait", tick: "3" } },
+      false,
+    );
+    assert.deepEqual(out, [{ what: "file", changed: ended }]);
+  }
+  assert.deepEqual(asked, [
+    { p_piece_id: P, p_why: "unknown" },
+    { p_piece_id: P, p_why: "unknown" },
+  ]);
+  // A job that names no video asks nothing, and says so.
+  const none = await settleJob(
+    fakeDb({ jobs: [] }, {}, { piece_end: (a) => (asked.push(a), true) }),
+    { id: "j", kind: "piece_make", tenant_id: T, payload: {} },
+    false,
+  );
+  assert.equal(none[0].changed, false);
+  assert.match(none[0].error, /no video/);
+  assert.equal(asked.length, 2);
+});
+
 test("a part of a connection's history that will not come in says it stopped on its source's row, with Try again", async () => {
   const noted = [];
   const db = fakeDb({}, {}, { import_ledger_note: (a) => (noted.push(a), null) });

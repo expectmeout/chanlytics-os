@@ -173,6 +173,25 @@ test("a move pushes a path and is heard at once; the same place again is no entr
   assert.equal(heard.length, 2, "stopped: silent");
 });
 
+test("a move to a query its page keeps is no news to the route's listeners, and is heard by whoever follows every move", () => {
+  const w = windowAt({ pathname: "/w/acme/settings/files" });
+  const routes = [];
+  const moves = [];
+  const stopRoutes = hearAddress(() => routes.push(routeOnScreen(w.win)), w.win);
+  const stopMoves = hearAddress(() => moves.push(w.pushed.at(-1)), w.win, { everyMove: true });
+  goToRoute("admin/files?do=file:f-1", {}, w.win);
+  assert.deepEqual(w.pushed, ["/w/acme/settings/files?do=file:f-1"]);
+  assert.deepEqual(routes, [], "the route on screen is the one it was");
+  assert.deepEqual(moves, ["/w/acme/settings/files?do=file:f-1"], "the page that keeps the query is told");
+  // Back and Forward are the browser's: a page's sheets take those themselves (kit/sheet/back.ts).
+  w.popTo("/w/acme/settings/files");
+  assert.equal(moves.length, 1, "Back is not a move the app made");
+  stopMoves();
+  goToRoute("admin/files?do=file:f-2", {}, w.win);
+  assert.equal(moves.length, 1, "stopped: silent");
+  stopRoutes();
+});
+
 test("a replace makes no entry and is heard like a redirect; with quiet, it is a page saying where it stands, and nobody is told", () => {
   const w = windowAt({ pathname: "/w/acme/clients" });
   const heard = [];

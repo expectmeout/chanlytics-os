@@ -118,27 +118,44 @@ function widthOf(requested: string | null): number {
  * GET files/[id]/view: a redirect to the picture, kept by the browser for most of the address's life, so a page of them paints
  * from disk and not from a page of requests. `w` is a resized copy; `download` the original, under its name. A HEIC is drawn
  * only as a copy, since a browser cannot read one. A video's picture is its poster (stage B): the video itself is the player's,
- * and its original stays with whoever sent it, so it has no download here.
+ * and a clip's original stays with whoever sent it, so it has no download here. A video made here is the one video that has:
+ * its own file is kept in its folder as it was drawn (00613), since it exists nowhere else.
  */
+/** Where a file's bytes are kept: a video's poster, or a video made here's own file; a post's shape; or the one file. */
+function viewPathOf(file: FileMemberRow, download: boolean, shape: (typeof POST_SHAPES)[number] | undefined): string {
+  if (file.kind === "video") return fileMadePathOf(file.tenant_id, file.id, download ? "video" : "poster");
+  return shape ? postPathOf(file.tenant_id, file.id, shape) : filePathOf(file.tenant_id, file.id, file.mime);
+}
+
+/**
+ * A download's address: the signed link with the name it saves under, a post's shape beside it. The name goes on the address
+ * here, encoded once: Storage's client encodes it twice, so año would download as a%C3%B1o.
+ */
+const downloadAddressOf = (
+  signedUrl: string,
+  file: FileMemberRow,
+  shape: (typeof POST_SHAPES)[number] | undefined,
+): string =>
+  `${signedUrl}&download=${encodeURIComponent(`${file.name}${shape ? `-${shape}` : ""}.${FILE_TYPES[file.mime]}`)}`;
+
 export async function viewFile(file: FileMemberRow, url: URL): Promise<Response> {
   const download = url.searchParams.has("download");
+  // A video made here keeps its own file in its folder (00613), and gives it; a clip a member sent stays with them.
+  const madeVideo = file.kind === "video" && file.source === "made";
   if (file.kind === "video") {
-    if (download) throw new AppError("validation", W.video.noDownload);
+    if (download && !madeVideo) throw new AppError("validation", W.video.noDownload);
     if (file.media_status !== "ready") throw new AppError("not_found", W.video.gettingReady, 404);
   }
   const requested = url.searchParams.get("w");
   const mime = file.mime;
-  // A made file holds a shape each; anything else has its one picture, whatever is asked.
-  const shape = file.source === "made" ? POST_SHAPES.find((s) => s === url.searchParams.get("shape")) : undefined;
-  const path =
-    file.kind === "video"
-      ? fileMadePathOf(file.tenant_id, file.id, "poster")
-      : shape
-        ? postPathOf(file.tenant_id, file.id, shape)
-        : filePathOf(file.tenant_id, file.id, mime);
+  // A post is a picture made here. A video made here is a video like any other: its poster, and a file of its own besides.
+  const post = file.source === "made" && file.kind !== "video";
+  // A post holds a shape each; anything else has its one file, whatever is asked.
+  const shape = post ? POST_SHAPES.find((s) => s === url.searchParams.get("shape")) : undefined;
+  const path = viewPathOf(file, download, shape);
   // A post is drawn at its own size, and small: a resize would only count it against Storage's allowance of source images.
   const opts =
-    !download && file.source !== "made" && (requested !== null || FILE_TYPES[mime] === "heic")
+    !download && !post && (requested !== null || FILE_TYPES[mime] === "heic")
       ? { transform: { width: widthOf(requested), resize: "contain" as const } }
       : {};
   const link = await bucket().createSignedUrl(path, VIEW_LINK_S, opts);
@@ -151,10 +168,7 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
   const keep = download
     ? "private, no-store"
     : `private, max-age=${file.kind === "video" ? POSTER_KEEP_S : VIEW_KEEP_S}`;
-  // The name goes on the address here, encoded once: Storage's client encodes it twice, so año would download as a%C3%B1o.
-  const location = download
-    ? `${link.data.signedUrl}&download=${encodeURIComponent(`${file.name}${shape ? `-${shape}` : ""}.${FILE_TYPES[mime]}`)}`
-    : link.data.signedUrl;
+  const location = download ? downloadAddressOf(link.data.signedUrl, file, shape) : link.data.signedUrl;
   return new Response(null, { status: 302, headers: { location, "cache-control": keep } });
 }
 

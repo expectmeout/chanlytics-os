@@ -23,7 +23,13 @@ import { POST_SIZES } from "../../../../posts/layout";
 import { getPhoto, postDrawn } from "../../../../posts/make";
 import { postMaterialFrom } from "../../../../posts/material";
 import { postPhoneOf } from "../../../../posts/phone";
-import { defineAct, type ProposalOutcome, type ToolContext, type ToolPicture } from "../../context/tool-defs";
+import {
+  timeLeftOf,
+  defineAct,
+  type ProposalOutcome,
+  type ToolContext,
+  type ToolPicture,
+} from "../../context/tool-defs";
 import { propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
 
@@ -44,9 +50,9 @@ import { filesNamed } from "../../read/files";
  */
 
 /** What the owner has said, as a post's words are held to it: this thread's questions and their Settings. A morning's turn asks itself. */
-function ownersWords(t: ToolContext, config: unknown): string {
-  const questions = isAskMorningQuestion(t.question) ? [] : [t.question ?? ""];
-  return [...questions, ...(t.askedEarlier ?? []), config ? JSON.stringify(config) : ""].join("\n");
+export function ownersWords(toolContext: ToolContext, config: unknown): string {
+  const questions = isAskMorningQuestion(toolContext.question) ? [] : [toolContext.question ?? ""];
+  return [...questions, ...(toolContext.askedEarlier ?? []), config ? JSON.stringify(config) : ""].join("\n");
 }
 
 /** What a drawn post is known by once the model has looked at it: the plan, whole, in one short key. */
@@ -107,7 +113,6 @@ const postInput = z.object({
 });
 
 /** How long the edge has for the drawn post's copy, from what is left of the turn. */
-const leftOf = (t: ToolContext): number | undefined => (t.endsAt === undefined ? undefined : t.endsAt - Date.now());
 
 /** The post drawn as its card would draw it, shown to the model to look at: no card yet, and the key a second call carries. */
 async function postShownFirst(
@@ -131,7 +136,7 @@ async function postShownFirst(
   const held = await findPictureCopy(
     { tenantId: toolContext.tenantId, userId: toolContext.ctx.userId },
     { bytes, mime: "image/jpeg", name: `${name}-post.jpg` },
-    leftOf(toolContext),
+    timeLeftOf(toolContext),
   );
   const drawn = { drawn: true, file: name, look_key: key };
   if (!held) {

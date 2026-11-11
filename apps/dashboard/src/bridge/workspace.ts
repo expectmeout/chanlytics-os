@@ -161,8 +161,18 @@ export function notifyAddress(): void {
 /**
  * Follow the address: `fn` runs when the route on screen changes, whether the person pressed Back (popstate) or a
  * page moved it (goToRoute). A move within the same route (a query the page scrubs) is no news. Answers the stop.
+ *
+ * With `everyMove`, `fn` runs on every move the app makes of the address, one within a route among them: a query its page
+ * keeps (`?do=file:<id>` on Files) is no news to a route's listener, and the page that keeps it follows it so. Not Back or
+ * Forward, which are the browser's and which a page's sheets take themselves (kit/sheet/back.ts).
  */
-export function hearAddress(fn: () => void, win: AddressWindow = window): () => void {
+export function hearAddress(fn: () => void, win: AddressWindow = window, { everyMove = false } = {}): () => void {
+  if (everyMove) {
+    listening.add(fn);
+    return () => {
+      listening.delete(fn);
+    };
+  }
   let last = routeOnScreen(win);
   const on = () => {
     const now = routeOnScreen(win);

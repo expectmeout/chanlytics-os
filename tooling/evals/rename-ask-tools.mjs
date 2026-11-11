@@ -68,6 +68,7 @@ export const ADDED_SINCE = [
   "propose_person.message",
   "propose_person.note",
   "propose_person.step",
+  "propose_piece",
   "propose_plan.steps",
   "propose_post",
   "propose_reply.booking",
@@ -75,7 +76,6 @@ export const ADDED_SINCE = [
   "propose_sequence.cold_email",
   "propose_sequence.decide",
   "propose_sequence.discard",
-  // Decision 0072: a sequence's End it, as its page ends one.
   "propose_sequence.end",
   "propose_sequence.leave",
   "propose_sequence.make",
@@ -88,11 +88,9 @@ export const ADDED_SINCE = [
   "propose_settings.answer_style",
   "propose_settings.answers",
   "propose_settings.goal",
-  // Decision 0070: what was said before, found by its words, and a fact the person tells Ask to keep.
   "recall",
   "remember",
   "sequences.cold_emails",
-  // Decision 0078 step 2: the cold emails the member edited from Ask's drafts, which a line about how they write may quote.
   "sequences.edited",
   "signals",
   "workspace.activity",

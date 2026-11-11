@@ -937,6 +937,27 @@
       "rate": "file_post_preview",
       "spend": false
     },
+    "POST files/video/preview": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "file_post_preview",
+      "spend": false
+    },
+    "POST files/video": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "file_upload",
+      "spend": false
+    },
+    "GET files/video/[id]": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST files/post": {
       "kind": "write",
       "scope": "workspace",

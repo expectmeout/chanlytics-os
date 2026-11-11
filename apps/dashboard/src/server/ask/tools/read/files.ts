@@ -28,7 +28,14 @@ import { findNewestPostLook } from "../../../posts/record";
 import { getZoomInto } from "../../../files/zoom";
 import { load } from "../../../shared/reader";
 import { filesFoundForAsk, filesNamedForAsk } from "../../../readers/files";
-import { PICTURES, defineActions, readAction, type ToolContext, type ToolPicture } from "../context/tool-defs";
+import {
+  timeLeftOf,
+  PICTURES,
+  defineActions,
+  readAction,
+  type ToolContext,
+  type ToolPicture,
+} from "../context/tool-defs";
 
 /**
  * The business's photos and videos, the way a person who knows them would use them (decision 0099, step 2 and stage B). Three
@@ -56,9 +63,6 @@ const QUESTION_MAX = 600;
 
 /** What the model is told whenever an ear's words reach it: they are a report, not its own hearing. */
 const AN_EARS_ANSWER = "An ear's answer, not yours: another model listened to the clip's sound and wrote this.";
-
-/** How long the edge has for a copy, from what is left of the turn. */
-const leftOf = (t: ToolContext): number | undefined => (t.endsAt === undefined ? undefined : t.endsAt - Date.now());
 
 const isVideo = (f: Pick<FileForAsk, "kind">): boolean => f.kind === "video";
 /**
@@ -129,7 +133,7 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
   const copies = await listFileCopiesOf(
     { tenantId: turn.tenantId, userId: turn.ctx.userId },
     openable.map((f) => f.id),
-    leftOf(turn),
+    timeLeftOf(turn),
   );
   const shown = openable.filter((f) => copies.has(f.id));
   // How their newest post looks, so the next keeps what they settled on: read only where a post may come of it.
@@ -170,7 +174,7 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
 async function pictureZoomed(turn: ToolContext, file: FileForAsk, box: ZoomBox) {
   const member = { tenantId: turn.tenantId, userId: turn.ctx.userId };
   const [copy, row] = await Promise.all([
-    listFileCopiesOf(member, [file.id], leftOf(turn)).then((m) => m.get(file.id) ?? null),
+    listFileCopiesOf(member, [file.id], timeLeftOf(turn)).then((m) => m.get(file.id) ?? null),
     findFile(turn.ctx.supabase, file.id),
   ]);
   const of = copy ? sizeOf(copy) : null;
@@ -180,7 +184,7 @@ async function pictureZoomed(turn: ToolContext, file: FileForAsk, box: ZoomBox) 
   const heldCopy = await findPictureCopy(
     member,
     { bytes: cut.bytes, mime: "image/jpeg", name: `${file.name}-zoom.jpg` },
-    leftOf(turn),
+    timeLeftOf(turn),
   );
   if (!heldCopy) return { error: `${file.name}: the box was cut but could not be shown to you just now; say so` };
   const picture: ToolPicture = {
@@ -224,7 +228,7 @@ async function videoSpanOpened(turn: ToolContext, file: FileForAsk, zoom: VideoZ
   const drawn = await drawVideoMoment(
     { tenantId: turn.tenantId, userId: turn.ctx.userId },
     { id: file.id, from, to },
-    leftOf(turn),
+    timeLeftOf(turn),
   );
   if ("wont" in drawn) return { error: `${file.name}: ${drawn.wont}; say so` };
   const size = sizeOf(drawn);
@@ -252,7 +256,7 @@ async function videoZoomed(turn: ToolContext, file: FileForAsk, zoom: VideoZoomA
   const drawn = await drawVideoMoment(
     member,
     zoom.box ? { id: file.id, at, box: zoom.box, of } : { id: file.id, at },
-    leftOf(turn),
+    timeLeftOf(turn),
   );
   if ("wont" in drawn) return { error: `${file.name}: ${drawn.wont}; say so` };
   const size = sizeOf(drawn);
@@ -343,7 +347,7 @@ export const filesTool = defineActions({
   name: "files",
   description:
     "The business's own photos, videos and images: its files, library, pictures, clips, logo. Each has one name, the same one the owner sees.",
-  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
+  tail: "The facts' Files line says how many there are. Use what is kept; what waits in the Inbox or was set aside is the owner's to decide, so offer it only if they ask. A picture opened says its size beside its name, and a box you name is in those pixels; a video opens as a sheet of its frames with their times, what was heard after. To make a post from a photo, find propose_post with tool search, and to make a video from their clips, propose_piece; last_post, beside a picture opened, is how their newest post looks: keep its voice, layout and book unless they ask for something else.",
   actions: {
     list: readAction({
       input: z.object({
@@ -486,7 +490,7 @@ export const filesTool = defineActions({
         const heard = await askEar(
           { tenantId: turn.tenantId, userId: turn.ctx.userId },
           { id: file.id, question: input.question, from, to },
-          leftOf(turn),
+          timeLeftOf(turn),
         );
         if ("wont" in heard) return { error: `${file.name}: ${heard.wont}; say so` };
         return {

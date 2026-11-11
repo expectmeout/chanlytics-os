@@ -39,6 +39,11 @@
     "fresh": "Read as a video's sheet opens to play it, for a token the edge signs for that one video; nothing of it is kept once the sheet goes.",
     "why": "A token is good for an hour and only for the video it names, so it is asked for at the moment of playing and never held. Whether the video is ready, and its frame, come from the Files page's own surface, which hears the feed."
   },
+  "apps/dashboard/src/surfaces/files/verbs.ts GET files/video/[id]": {
+    "kind": "on-open",
+    "fresh": "Read as a video's card is pressed or drawn again in Ask, then every two seconds while the video is being made or looked at, slower after two minutes and while it waits on a clip; it stops once the video is ready, not made or gone, and nothing of it is kept once the card goes.",
+    "why": "A video being made moves by itself and tells no feed until it lands, so its card asks its own row while that is so and says where it is at. Once it lands nothing of it moves again: the bell says the same from the feed, and the video itself is the Files page's, whose own surface hears the feed."
+  },
   "apps/dashboard/src/bridge/activity.ts GET activity": {
     "kind": "on-open",
     "fresh": "Read as Settings > Activity opens and as a filter changes, a page at a time; while it is open, its first page is read again each minute and as the tab comes back, and what is newer is offered above the lines (settings/activity/newer.ts).",

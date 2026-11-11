@@ -503,6 +503,12 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   ),
   // Numbers: a day's tokens, a pause's hours (contracts config/limits.ts).
   policies: { limits: NOT_PERSONAL },
+  // A video asked for (00613, decision 0122): its plan holds the words the business chose to open and end it, and its look
+  // the business's name, booking line and address. The machine it is drawn on and its card's key are nobody's.
+  pieces: {
+    ...all(WITH_WORKSPACE, "plan", "look"),
+    ...all(NOT_PERSONAL, "machine", "card_key"),
+  },
   // Where a post went (00611, decision 0121): its caption is the business's own public words, and the rest is the platform's
   // ids and our sentences.
   posts: {

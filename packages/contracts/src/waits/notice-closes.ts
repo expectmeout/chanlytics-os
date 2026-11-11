@@ -163,6 +163,10 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "Found photos are told once; they wait in Files' Inbox, which the page opens on while anything is there.",
   },
+  video_ready: {
+    ends: "news",
+    why: "A video that can be played is told once; it is in Files, under Made by Ask, and nothing waits on it.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

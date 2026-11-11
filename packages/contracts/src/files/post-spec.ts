@@ -6,7 +6,8 @@
 import { postPlanOf, postWordsIn, type PostLanguage } from "./post";
 import { asText, rec, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
 
-const FILES_ROUTE = "admin/files";
+/** The Files page, where a card made of a file opens. */
+export const FILES_ROUTE = "admin/files";
 
 const postSaysOf = (p: { payload: Record<string, unknown> }) => postWordsIn(postPlanOf(p.payload).language);
 

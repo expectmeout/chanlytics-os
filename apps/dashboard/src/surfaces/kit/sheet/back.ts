@@ -106,6 +106,16 @@ export function doAsked(kind: string): string | null {
 }
 
 /**
+ * What the address asks for that no sheet has stood on yet: the entry a move has just made. Not one a sheet already stood
+ * on, which Forward comes back to with its sheet closed: a page that follows its address while it is on screen (Files, for
+ * the bell's row) opens what was asked for once, and a later move away from that entry is not a second ask.
+ */
+export function doAskedAnew(kind: string): string | null {
+  const h = historyOf();
+  return h && tokenNow(h) !== null ? null : doAsked(kind);
+}
+
+/**
  * Stand an entry for a sheet while it is open (`open`), so Back asks it to close (`close`), named in the address where
  * it says so (`name`). Nothing where the tab has no history to stand in.
  */

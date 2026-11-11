@@ -5815,6 +5815,99 @@ export type Database = {
           },
         ]
       }
+      piece_images: {
+        Row: {
+          edition: number
+          hash: string
+          made_at: string
+          snapshot_id: string
+        }
+        Insert: {
+          edition: number
+          hash: string
+          made_at?: string
+          snapshot_id: string
+        }
+        Update: {
+          edition?: number
+          hash?: string
+          made_at?: string
+          snapshot_id?: string
+        }
+        Relationships: []
+      }
+      pieces: {
+        Row: {
+          card_key: string
+          created_at: string
+          created_by: string | null
+          edition: number
+          failed_why: string | null
+          file_id: string | null
+          id: string
+          look: Json
+          machine: Json | null
+          made_at: string | null
+          plan: Json
+          shape: string
+          stage: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          card_key: string
+          created_at?: string
+          created_by?: string | null
+          edition: number
+          failed_why?: string | null
+          file_id?: string | null
+          id?: string
+          look: Json
+          machine?: Json | null
+          made_at?: string | null
+          plan: Json
+          shape: string
+          stage?: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          card_key?: string
+          created_at?: string
+          created_by?: string | null
+          edition?: number
+          failed_why?: string | null
+          file_id?: string | null
+          id?: string
+          look?: Json
+          machine?: Json | null
+          made_at?: string | null
+          plan?: Json
+          shape?: string
+          stage?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pieces_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "pieces_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_acts: {
         Row: {
           act: string
@@ -10427,6 +10520,41 @@ export type Database = {
           p_words: string
         }
         Returns: Json
+      }
+      piece_begin: {
+        Args: {
+          p_edition: number
+          p_key: string
+          p_look: Json
+          p_plan: Json
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      piece_end: {
+        Args: { p_piece_id: string; p_why: string }
+        Returns: boolean
+      }
+      piece_file_begin: {
+        Args: {
+          p_bytes: number
+          p_fingerprint: string
+          p_id: string
+          p_media_ref: string
+          p_name: string
+          p_piece_id: string
+          p_seconds: number
+        }
+        Returns: Json
+      }
+      piece_sent: { Args: { p_piece_id: string }; Returns: boolean }
+      piece_stage: {
+        Args: { p_piece_id: string; p_stage: string }
+        Returns: boolean
+      }
+      piece_step: {
+        Args: { p_machine: Json; p_piece_id: string }
+        Returns: boolean
       }
       platform_admin_add: {
         Args: { p_email: string; p_role?: string }

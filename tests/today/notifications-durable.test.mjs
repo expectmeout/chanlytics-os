@@ -187,6 +187,40 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   );
 });
 
+// A video that could not be made rang as a job that failed, whose door said "Open the Inbox" over a row that opened Files.
+test("a video made here (0122): ready opens the video itself and says Watch it; not made opens Files and says Files", () => {
+  const video = "9c000000-0000-4000-8000-0000000000a1";
+  const [ready, failed] = serverNotificationRows({
+    seen_at: null,
+    notifications: [
+      row({
+        id: "55555555-5555-4555-8555-555555555555",
+        kind: "video_ready",
+        title: "Your video is ready",
+        body: "I asked for volume is in Files, under Made by Ask.",
+        route: `admin/files?do=file:${video}`,
+      }),
+      row({
+        id: "66666666-6666-4666-8666-666666666666",
+        kind: "job_failed",
+        title: "Your video could not be made",
+        body: "It could not be drawn this time. Try again.",
+        route: "admin/files",
+      }),
+    ],
+  });
+  assert.deepEqual(
+    [ready.icon, ready.tone, ready.action, ready.to],
+    ["image", "ok", "Watch it", `admin/files?do=file:${video}`],
+    "its door says what she will do there, and its row names the video",
+  );
+  assert.deepEqual(
+    [failed.tone, failed.action, failed.to],
+    ["warn", "Open Files", "admin/files"],
+    "a door says the page it opens",
+  );
+});
+
 test("a note left for you (0007, 00158) is a row of its own kind: it names who wrote it and whom it is about, and opens their page", async () => {
   const { verbForRoute } = await import("@chanlytics/contracts");
   assert.ok(SERVER_NOTIFICATION_KINDS.includes("note_for_you"));

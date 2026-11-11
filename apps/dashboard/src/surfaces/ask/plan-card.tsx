@@ -18,7 +18,7 @@ import type { AskApi } from "@/bridge/ask";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
-import { atDone, atFailed, atRecord, type OnOutcome } from "./card";
+import { atDone, atFailed, recordCardOutcome, type OnOutcome } from "./card-press";
 import { AskNotNow, AskQuickChanges } from "./card-parts";
 import { askCalls, canDo, gate, gateTitle, settingsVersion } from "./shell";
 import type { LineWords } from "./words";
@@ -61,7 +61,9 @@ const usePlanPress = (
 ) => {
   const { messageId, t, onOutcome } = use;
   const A = askCalls() as AskApi; // a plan is drawn only from a turn the bridge read
-  const { now, keep } = usePlanCards(cards, (pid, o, kept) => atRecord({ A, messageId, onOutcome }, pid, o, kept));
+  const { now, keep } = usePlanCards(cards, (pid, o, kept) =>
+    recordCardOutcome({ A, messageId, onOutcome }, pid, o, kept),
+  );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [forward, setForward] = useState<{ to: string } | null>(null);

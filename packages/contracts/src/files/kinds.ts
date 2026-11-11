@@ -44,9 +44,15 @@ export const fileKindOf = (mime: string): FileKind => (isVideoMime(mime) ? "vide
 
 /**
  * What is made of a video and kept in its folder: its sheet of frames (what a model is shown of it), its poster (what a tile
- * draws) and its sound (what the ears are sent, and sent again on a question). Each goes with the folder.
+ * draws) and its sound (what the ears are sent, and sent again on a question). Each goes with the folder. A video made here
+ * (00613) keeps its own file there too, since it exists nowhere else: what its Download gives.
  */
-export const FILE_MADE_OF_VIDEO = { sheet: "sheet.jpg", poster: "poster.jpg", audio: "audio.m4a" } as const;
+export const FILE_MADE_OF_VIDEO = {
+  sheet: "sheet.jpg",
+  poster: "poster.jpg",
+  audio: "audio.m4a",
+  video: "video.mp4",
+} as const;
 
 export type FileMadeOfVideo = keyof typeof FILE_MADE_OF_VIDEO;
 
@@ -55,6 +61,7 @@ export const FILE_MADE_OF_VIDEO_MIMES = {
   sheet: "image/jpeg",
   poster: "image/jpeg",
   audio: "audio/mp4",
+  video: "video/mp4",
 } as const satisfies Record<FileMadeOfVideo, string>;
 
 /** Where one of a video's made things lives in its folder. */

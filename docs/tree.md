@@ -69,6 +69,7 @@ apps/dashboard/src/server/
   campaigns/
   connections/
   console/
+  content/
   conversations/
   drafts/
   export/
@@ -199,6 +200,7 @@ tests/
   connections/
   consent/
   console/
+  content/
   conversations/
   cron/
   database/

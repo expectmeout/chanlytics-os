@@ -90,6 +90,7 @@
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",
     "@chanlytics/log": "workspace:*",
+    "@vercel/sandbox": "3.9.1",
     "html-to-text": "^9.0.5",
     "zod": "^4.6.7"
   },

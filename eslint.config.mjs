@@ -374,6 +374,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/auth",
   "apps/dashboard/src/server/calendar",
   "apps/dashboard/src/server/connections",
+  "apps/dashboard/src/server/content",
   "apps/dashboard/src/server/conversations",
   "apps/dashboard/src/server/export",
   "apps/dashboard/src/server/files",
@@ -591,6 +592,9 @@ export default [
       "packages/db/src/database.types.ts",
       // An agent's git worktree is a second copy of the tree, not more of it.
       "**/.claude/worktrees/**",
+      // The video template is a project of its own, outside the workspace: its image's build checks and proves it
+      // (tooling/video/README.md).
+      "tooling/video/**",
     ],
   },
 

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-390 handlers in 57 domains.
+393 handlers in 57 domains.
 
 ## activity
 
@@ -1130,6 +1130,43 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `seconds` | number or null | no |  |
 | `fingerprint` | string | no | matches `^[0-9a-f]{64}$` |
 
+### `POST /api/v1/files/video`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `file_upload` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `shape` | one of `"hook_cut"` | yes |  |
+| `cuts` | array of object | yes | at least 2; at most 5 |
+| `lines` | array of string | yes | at least 1; at most 2 |
+| `words_at` | one of `"high"`, `"low"` | yes |  |
+| `words_hold` | one of `"first"`, `"all"` | yes |  |
+| `end_line` | string or null | yes |  |
+| `language` | one of `"en"`, `"es"` | yes |  |
+| `people_agreed` | boolean | yes |  |
+| `key` | string | yes | at least 1 characters; at most 100 characters |
+
+### `GET /api/v1/files/video/[id]`
+
+Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/video/[id]/route.ts`).
+
+### `POST /api/v1/files/video/preview`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `file_post_preview` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `shape` | one of `"hook_cut"` | yes |  |
+| `cuts` | array of object | yes | at least 2; at most 5 |
+| `lines` | array of string | yes | at least 1; at most 2 |
+| `words_at` | one of `"high"`, `"low"` | yes |  |
+| `words_hold` | one of `"first"`, `"all"` | yes |  |
+| `end_line` | string or null | yes |  |
+| `language` | one of `"en"`, `"es"` | yes |  |
+| `people_agreed` | boolean | yes |  |
+
 ## google
 
 ### `GET /api/v1/google`
@@ -2148,7 +2185,7 @@ Writes; for platform staff; counts against the `platform_job_pause` rate; spends
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `paused` | boolean | yes |  |
 | `why` | object | yes |  |
 
@@ -2168,7 +2205,7 @@ Writes; for platform staff; counts against the `platform_job_requeue_kind` rate;
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
+| `kind` | one of `"outbound_send"`, `"broadcast_send"`, `"line_provision"`, `"email_ingest"`, `"lead_round_start"`, `"lead_collect"`, `"lead_check"`, `"push_send"`, `"push_receipts"`, `"reply_read"`, `"booking_read"`, `"event_deliver"`, `"inbound_answer"`, `"history_import"`, `"website_read"`, `"preview_build"`, `"erasure_finish"`, `"reply_draft"`, `"file_look"`, `"file_fetch"`, `"file_purge"`, `"video_digest"`, `"post_prepare"`, `"post_publish"`, `"post_reconcile"`, `"piece_make"`, `"campaign_moments"`, `"reach_out_steps"`, `"calendar_read"`, `"google_read"`, `"texts_read"`, `"sequence_occasions"`, `"canary"` | yes |  |
 | `since` | string (date-time) | yes |  |
 | `why` | object | yes |  |
 

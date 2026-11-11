@@ -112,7 +112,12 @@ interface PostFrom {
  * One moment of a video, as the still its folder keeps of it. Where it is not there yet the edge cuts it, since Stream's keys are
  * the edge's, and it is read again: once kept, every later drawing of the post reads Storage alone.
  */
-async function frameRead(ctx: RouteContext, tenantId: TenantId, file: FileMemberRow, at: number): Promise<Buffer> {
+export async function readFrame(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  file: FileMemberRow,
+  at: number,
+): Promise<Buffer> {
   const path = fileFramePathOf(tenantId, file.id, at);
   const unread = (reason: string): never => {
     log.error("file_post_read_failed", { tenant_id: tenantId, error: reason });
@@ -136,7 +141,7 @@ export async function postMaterialFrom(
 ): Promise<PostMaterial> {
   const [photo, look, config] = await Promise.all([
     heldRead(`photo:${file.id}:${at ?? ""}`, PHOTO_HELD_MS, () =>
-      file.kind === "video" && at !== null ? frameRead(ctx, tenantId, file, at) : photoRead(file),
+      file.kind === "video" && at !== null ? readFrame(ctx, tenantId, file, at) : photoRead(file),
     ),
     findWorkspaceLook(ctx.supabase, tenantId),
     configOf(),

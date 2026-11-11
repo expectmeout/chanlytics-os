@@ -125,7 +125,7 @@ function inkOn(color: string): string {
 }
 
 /** The business's colour where it reads on this ground, else the fallback: a navy brand's name is lost on a dark scrim. */
-const colourOn = (accent: string | null, ground: string, fallback: string): string =>
+export const colourOn = (accent: string | null, ground: string, fallback: string): string =>
   accent && contrastOf(accent, ground) >= COLOUR_READS_AT ? accent : fallback;
 
 const VOICES = {

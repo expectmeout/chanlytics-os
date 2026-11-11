@@ -186,6 +186,7 @@ export const ASK_KIND_TRAITS = {
   person_merge: t("change", "removes", null, "press", "merge"),
   // Make: something to look at.
   post: t("make", "keeps", null, "press", "save"),
+  piece: t("make", "keeps", null, "press", "make"),
   // Fix: its door, nothing to press.
   fix: t("fix", "keeps", null, "press", "open"),
 } satisfies Record<AskProposal["kind"], AskKindTraits>;

@@ -3,6 +3,8 @@
  */
 export { fileFingerprintOf, FINGERPRINT_BYTES } from "./fingerprint";
 export { remadeLogo } from "./logo-png";
+export { readRender, readRenderBytes, startRender, stopRender } from "./machine";
+export type { RenderJob, RenderMachine, RenderState } from "./machine";
 export {
   askStreamAudio,
   deleteStreamVideo,
@@ -32,3 +34,12 @@ export type {
   StreamUsage,
   StreamVideo,
 } from "./stream";
+export {
+  readStreamCopy,
+  sendStreamBytes,
+  streamCopyOf,
+  streamCutPartsOf,
+  streamFullSizeOf,
+  streamRenditionsOf,
+} from "./stream-cut";
+export type { StreamCopy, StreamCopyRead, StreamRendition } from "./stream-cut";

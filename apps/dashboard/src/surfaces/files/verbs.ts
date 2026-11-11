@@ -17,10 +17,12 @@ import {
   fileViewOf,
   isFileMime,
   isVideoMime,
+  recordOrEmpty,
   type FileMime,
   type FileShows,
   type FileVideoMime,
   type InstagramPostKind,
+  type PiecePlan,
   type PostPicture,
   type PostPlan,
   type PostShapeName,
@@ -193,6 +195,14 @@ export interface FileChange {
 
 /** What came of asking for a post's picture: the picture and whether the business has a number to print, or what refused it. */
 type PostDrawing = { ok: true; picture: Blob; hasPhone: boolean } | { ok: false; refused: string | null };
+type PieceBoard = { ok: true; picture: Blob } | { ok: false; refused: string | null };
+
+/** What a picture's refusal says to a person: a 400's own words, as they came; nothing for any other answer. */
+async function pictureRefusalOf(res: Response): Promise<string | null> {
+  if (res.status !== 400) return null;
+  const message = recordOrEmpty(recordOrEmpty(await res.json().catch(() => null)).error).message;
+  return typeof message === "string" ? message : null;
+}
 
 /**
  * The real picture a post would be (POST files/post/preview), for a card and for an editor as its words change. What the server
@@ -208,9 +218,24 @@ async function postPicture(plan: PostPlan, shape: PostPicture, signal?: AbortSig
       (picture) => ({ ok: true, picture, hasPhone: res.headers.get("x-post-phone") !== "0" }),
       () => ({ ok: false, refused: null }),
     );
-  const reply = (await res.json().catch(() => null)) as { error?: { message?: unknown } } | null;
-  const message = reply?.error?.message;
-  return { ok: false, refused: res.status === 400 && typeof message === "string" ? message : null };
+  return { ok: false, refused: await pictureRefusalOf(res) };
+}
+
+/**
+ * A video's storyboard (POST files/video/preview), for its card: the first frame of each cut with the opening words where the video
+ * shows them. What the server refuses of the plan, it says in the video's own language; a lost line says nothing.
+ */
+async function pieceBoard(plan: PiecePlan, signal?: AbortSignal): Promise<PieceBoard> {
+  const res = await api()
+    .raw("POST files/video/preview", { body: plan, timeoutMs: POST_PICTURE_MS, signal })
+    .catch(() => null);
+  if (!res) return { ok: false, refused: null };
+  if (res.ok)
+    return res.blob().then(
+      (picture) => ({ ok: true, picture }),
+      () => ({ ok: false, refused: null }),
+    );
+  return { ok: false, refused: await pictureRefusalOf(res) };
 }
 
 /** A kept post's shape, its bytes: what a phone's sheet is handed. Null where they did not come. */
@@ -221,6 +246,9 @@ async function postBytes(id: string, shape: PostShapeName): Promise<Blob | null>
 
 export const fileVerbs = {
   add,
+  pieceBoard,
+  /** Where a video asked for stands (GET files/video/[id]): its card asks again while it is being made. */
+  piece: (id: string) => api()("GET files/video/[id]", { params: { id } }),
   postBytes,
   postPicture,
   record: (id: string) => api()("GET files/[id]", { params: { id } }),

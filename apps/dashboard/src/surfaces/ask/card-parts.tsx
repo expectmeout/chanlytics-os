@@ -206,6 +206,9 @@ const AskFixActs = ({
 // waits for a step says so in the kit's state pill in the press's place (`waits`). A card of the one thing to fix before a
 // campaign can reach anyone commits nothing: its door stands in the press's place. While a press runs the press says so and
 // keeps its focus: `disabled` would drop it on the page, and the press itself is held by the card (`held`).
+/** Whether this person may press a card of this kind: its gate, as its Approve reads it. */
+export const mayPressCard = (proposal: AskProposal): boolean => canDo(PROPOSAL_GATE[proposal.kind] || "approve");
+
 export const AskCardActs = ({
   p,
   t,

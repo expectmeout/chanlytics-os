@@ -3,6 +3,8 @@ packages:
   - packages/*
   - tooling/*
   - tests
+  # The video template's toolchain is installed only where a machine image is built (tooling/video/README.md).
+  - "!tooling/video"
 
 # One TypeScript for every compiler and tool: each package.json names it "catalog:".
 # tests/types/ holds it: typescript-is-declared-once.test.mjs the pin and the names,
