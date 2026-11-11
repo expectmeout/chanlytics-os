@@ -385,9 +385,14 @@ const phoneTabs = (s: ChromeAt) =>
     />
   );
 
-/** Ask's ✦ on a phone: the disc (kit/face/ask-face.tsx AskDisc) and the three over it on the same surface. */
+/**
+ * Ask's ✦ on a phone: the disc (kit/face/ask-face.tsx AskDisc) and the three over it on the same surface. Gone while Ask is
+ * open, never for the drawer: the ✦ is the tab bar's partner in its row (liquid.py tabbar), so under the drawer's veil it
+ * dims with the bar, one row. Taken off with the drawer since #102, when it floated over the bar, it blinked out of the
+ * row as More opened and back as it shut (Ruben, 11 Nov 2026).
+ */
 const phoneAsk = (s: ChromeAt) => {
-  if (s.askOpen || s.navOpen) return false;
+  if (s.askOpen) return false;
   return (
     <button
       type="button"
