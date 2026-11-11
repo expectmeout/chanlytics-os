@@ -4,19 +4,20 @@
  */
 import "server-only";
 import type { z } from "zod";
+import { piecePlanOf } from "@chanlytics/contracts";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
-import { checkPiecePlan, piecePlanInput } from "./piece";
+import { checkPiecePlan, pieceBoardInput } from "./piece";
 import { drawPieceBoard } from "./storyboard";
 
-export { piecePlanInput };
+export { pieceBoardInput };
 
 export async function drawPieceBoardFor(
   ctx: RouteContext,
   member: Member,
-  plan: z.infer<typeof piecePlanInput>,
+  plan: z.infer<typeof pieceBoardInput>,
 ): Promise<Response> {
-  const checked = await checkPiecePlan(ctx, member, plan);
+  const checked = await checkPiecePlan(ctx, member, piecePlanOf(plan));
   const picture = await drawPieceBoard(ctx, member.tenantId, checked, true);
   return new Response(new Uint8Array(picture), {
     status: 200,

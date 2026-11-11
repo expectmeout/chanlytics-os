@@ -158,7 +158,7 @@ export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpReach, followUpStop, mess
 export { HELD_DECIDE_CARD, HELD_TAKE_OUT, heldAnswersOf, heldOwnWordsOf, heldWhyOf, markedOpeningOf, OWN_WORDS_SAID, REWRITE_NOW_MAX, REWRITE_STEPS, REWRITE_WORDS, rewroteWords, sequencePersonWhyOf, theirsOf, waitingAnswersOf } from "./campaigns/sequences/held";
 export { leadDraftChainOf, leadEndingOf, leadMailboxesTicked, leadMailboxRowsOf, leadPaceChoicesOf, leadPreviewEmailOf, leadSendingFactsOf, withOpeningSaid } from "./campaigns/sequences/lead-build/mailboxes";
 export { againMonthOf, LEAD_BUILD_WORDS, LEAD_REWRITE_CHANGE_MAX, leadBuildStepsOf, leadDraftDockOf, leadFirstUnwritten, leadInsertRowsOf, leadPreviewOfferOf, leadStartOf, REACH_OUT_AGAIN_DAYS, reachOutInsertStep, reachOutMayInsertStep, reachOutPutBackStep, reachOutRemoveStep } from "./campaigns/sequences/lead-build/steps";
-export { batchOkSendsNothing, heldByCheckWords, needsCount, needsWords, SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceTypeOf, sortedSequences } from "./campaigns/sequences/list";
+export { batchOkSendsNothing, byLongestWait, heldByCheckWords, needsCount, SEQUENCE_LIST_WORDS, SEQUENCE_SORTS, SEQUENCE_TYPES, sequenceMatches, sequenceTypeOf, sortedSequences } from "./campaigns/sequences/list";
 export { asDraftedFrom, asDraftedOf, handStepsHold, NEW_DRAFT_JSON_SCHEMA, NEW_VALUES, numberedValues, sentAsDrafted, VOICE_LINE_LEAD, VOICE_LINES_MAX, VOICE_PASTE_MAX, VOICE_PASTE_MIN, VOICE_WORDS, voiceLineOf, voiceSaid } from "./campaigns/sequences/new-draft/checks";
 export { leadChainStepOf, NEW_AUDIENCES, NEW_KINDS, NEW_ONCE_AHEAD_DAYS, NEW_STEP_DOES, NEW_STEPS_MAX, NEW_WAIT_DAYS, NEW_WORDS_MAX, newConditionsOf, newListOf, newWaitOf, whoSuits } from "./campaigns/sequences/new-draft/steps";
 export { handTitleOf, NEW_WORDS } from "./campaigns/sequences/new-words";
@@ -167,8 +167,9 @@ export { SCHEDULE_WORDS, scheduleChannels, scheduleDays, scheduleEnd, scheduleIn
 export { batchModeOf, coldBatchAsks, isSequenceMode, newSequenceMode, SEQUENCE_MODE_LABEL, SEQUENCE_MODE_WORDS, SEQUENCE_MODES, SEQUENCE_NEW_WORDS_ASK, SEQUENCE_STARTS, SEQUENCE_STATES, sequenceModeOf, sequenceModesFor, sequenceStartModesFor } from "./campaigns/sequences/sequence";
 export { batchWent, historyCovers, historyDays, historyDayWords, historyFigures, historyIn, historySince, historyStamp, historyUpcomingWords, peopleNeedsOf, personWhenWords, SEQUENCE_EDIT_WORDS, SEQUENCE_HISTORY_PERIODS, SEQUENCE_HISTORY_WORDS, SEQUENCE_NEEDS_WORDS, SEQUENCE_PEOPLE_WORDS, SEQUENCE_REPLIES_WORDS, waitingEmailsOf } from "./campaigns/sequences/tab-words";
 export { leadStepTestMail, SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./campaigns/sequences/test";
-export { leadStepStand, SEQUENCE_FLOW_WORDS, SEQUENCE_GROUPS, SEQUENCE_WORDS, sequenceGroupOf, sequenceHeadLine, sequenceRowLine, sequenceRowState, sequenceStartWords, sequenceStateTone, sequenceStateWords, sequenceSubLine, sequenceTwinOf, sequenceWaitsNow, stepApprovalOf, takesFollowUps, visitTwinWords } from "./campaigns/sequences/words/flow";
+export { leadStepStand, SEQUENCE_FLOW_WORDS, SEQUENCE_GROUPS, SEQUENCE_WORDS, sequenceGroupOf, sequenceHeadLine, sequenceRowState, sequenceStartWords, sequenceStateTone, sequenceStateWords, sequenceSubLine, sequenceTwinOf, sequenceWaitsNow, stepApprovalOf, takesFollowUps, visitTwinWords } from "./campaigns/sequences/words/flow";
 export { batchWaitsUntilTonight, leadsPlannedWords, listStartsSentence, momentStartsSentence, PEOPLE_GROUP_WORDS, peopleTabWord, sequenceChannelsWords, sequenceLeftWords, sequenceNextOf, sequenceNextWords, sequenceNotice, sequencePausedDock, sequenceStartsSentence, sequenceStopsSentence, sequenceWaitWords, sequenceWhoApprovesHint, stepsStopSentence } from "./campaigns/sequences/words/next";
+export { needsWords, sequenceRowLine } from "./campaigns/sequences/words/row-line";
 export { campaignMessageOf, campaignMessagesOf, MESSAGE_BEGIN_WORDS, MESSAGE_GONE_WORDS, messageHolds, messageStandingWords, messageWhyNot, metaStatusOf, readyForMessage, RUN_NOW_WITHOUT_VERSION_WORDS, STARTER_LINE_WORDS, variablesSlotCount, whatsappStoppedRunWords } from "./campaigns/templates/campaign-message";
 export { customerEmailFoot, emailFoot, emailFootHtml, hasFootAddress } from "./campaigns/templates/email-foot";
 export { inboxBlankOf, inboxSlots, inboxTemplateParts, inboxTemplates, noTemplateWords, slotToWrite, TEMPLATE_WORDS_MAX, templateHolds, templateOffered, templateWords } from "./campaigns/templates/inbox-templates";
@@ -250,12 +251,12 @@ export { CONTENT_ROUTE, contentPreviewOf, isContentParam } from "./content/addre
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./content/lines";
 export { CONTENT_FAILED_DAYS, CONTENT_MAKING_MAX, CONTENT_MAX, CONTENT_PAGE, CONTENT_WORDS, contentHeadOf, contentMakingSaid, contentMarkOf, contentMarkSaid, contentMoving } from "./content/page";
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./content/piece-card";
-export { PIECE_FRAME, pieceLineWidthOf, pieceWordsBoxOf } from "./content/piece-frame";
+export { PIECE_CARD, PIECE_FRAME, PIECE_SIDE, pieceLineWidthOf, pieceWordsBoxOf } from "./content/piece-frame";
 export { isPieceStep, PIECE_FAILS, PIECE_ROUNDS_MAX, PIECE_STAGES, PIECE_STATUSES, PIECE_TEMPLATE, pieceCompositionOf, pieceLookOf, pieceMachineOf, pieceRoundsOf, PIECES_MAKING_MAX } from "./content/piece-making";
 export { pieceSpec } from "./content/piece-spec";
-export { compilePiece, pieceWordsOnCuts } from "./content/piece-timeline";
+export { compilePiece, pieceWordsOnBlocks } from "./content/piece-timeline";
 export { PIECE_WORDS, pieceWordsIn } from "./content/piece-words";
-export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, piecePlanOf } from "./content/pieces";
+export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, pieceFileIdsOf, piecePlanOf } from "./content/pieces";
 export { INSTAGRAM_POST_KINDS, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_KINDS, POST_ON_ITS_WAY, POST_PLACES, POST_PULLABLE, POST_STATUSES, POST_VIAS, postCaptionProblem } from "./content/posts";
 export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONNECTION_LABELS, MISSED_CALL_LINE, missedCall, neverConnected, reachedVoicemail, UNCONNECTED_DIAL_LINE } from "./conversations/call-dto";
 export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";

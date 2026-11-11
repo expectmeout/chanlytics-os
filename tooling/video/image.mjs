@@ -2,7 +2,8 @@
 // a Vercel sign-in for the edge's project in the environment (VERCEL_OIDC_TOKEN; README.md says how). No key or token is printed.
 //
 //   node image.mjs build                 bundle the template, set up a cold machine, keep it as an image that never expires,
-//                                        then start from the image and draw the proof. Prints one JSON line: the image's id,
+//                                        then start from the image and draw the proof: one of every kind of block, and
+//                                        "Hook first" as an edge a deploy behind asks for it. Prints one JSON line: the image's id,
 //                                        the template's hash and the proof's size. The proof is kept at build/proof.mp4.
 //   node image.mjs try <image> <job.json> [file ...]
 //                                        start from an image and draw a job (machine/make.mjs's own input), with local files
@@ -90,32 +91,75 @@ async function ran(sandbox, job, name) {
   return JSON.parse(progress.toString("utf8"));
 }
 
-/** The proof's job: a clip made of nothing, then the shape drawn from three stretches of it. */
+/** What both proofs wear: the frame, the opening words, the end card. */
+const PROOF_WORN = {
+  width: 1080,
+  height: 1920,
+  fps: 30,
+  words: { lines: ["The image draws.", "Mmm, wide words"], top: 330, size: 96, frames: 90 },
+  end: {
+    line: "Made by its proof",
+    under: "Nothing here is a business's",
+    logo: false,
+    name: "Proof",
+    book: null,
+    address: null,
+  },
+  accent: "#e8b84a",
+};
+
+/**
+ * The proof's job: a clip made of nothing, then one of every kind of block drawn from it (a stretch, a photo, a pair of two of
+ * its moments, a words card, a quote over a moment), so an image that cannot draw one of them is never kept.
+ */
 const PROOF_MATERIAL = {
   timeline: {
-    width: 1080,
-    height: 1920,
-    fps: 30,
-    frames: 90 + 75 + 90 + 66 - 8,
+    ...PROOF_WORN,
+    frames: 90 + 60 + 75 + 45 + 90 + 66 - 8,
+    blocks: [
+      { is: "clip", source: "proof", trim: 6, frames: 90, label: "A caption" },
+      { is: "photo", source: "photo", frames: 60, label: null },
+      {
+        is: "pair",
+        before: { source: "proof", at: 1 },
+        after: { source: "proof", at: 9 },
+        frames: 75,
+        labels: ["Before", "After"],
+      },
+      { is: "words", lines: ["Every block", "draws."], size: 120, frames: 45 },
+      {
+        is: "quote",
+        lines: ["Nothing here", "is a business's."],
+        size: 72,
+        from: "Its proof",
+        over: { source: "proof", at: 4 },
+        frames: 90,
+      },
+    ],
+  },
+  files: [["proof.mp4"], ["proof.img"], ["proof.mp4", "proof.mp4"], [], ["proof.mp4"]],
+  logo: null,
+};
+
+/** "Hook first" as an edge a deploy behind hands it: the composition it names must draw on this image too. */
+const PROOF_CUTS = {
+  timeline: {
+    ...PROOF_WORN,
+    frames: 90 + 75 + 66 - 8,
     cuts: [
       { source: "proof", trim: 6, frames: 90 },
       { source: "proof", trim: 1, frames: 75 },
-      { source: "proof", trim: 9, frames: 90 },
     ],
-    words: { lines: ["The image draws.", "Mmm, wide words"], top: 330, size: 96, frames: null },
-    end: {
-      line: "Made by its proof",
-      under: "Nothing here is a business's",
-      logo: false,
-      name: "Proof",
-      book: null,
-      address: null,
-    },
-    accent: "#ffffff",
   },
-  cuts: ["proof.mp4", "proof.mp4", "proof.mp4"],
+  cuts: ["proof.mp4", "proof.mp4"],
   logo: null,
 };
+
+/** A photo made of nothing: four pixels of one colour, under a name that says no kind, as a machine is handed a photo. */
+const PROOF_PHOTO = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEUlEQVR4nGNQCchTCchjgFAAF54DiQo9+eQAAAAASUVORK5CYII=",
+  "base64",
+);
 
 async function proved(snapshotId) {
   let sandbox;
@@ -133,8 +177,13 @@ async function proved(snapshotId) {
       ran(sandbox, { composition: "sample-clip", out: "proof-clip.mp4" }, "clip"),
     );
     await sandbox.runCommand("cp", ["piece/proof-clip.mp4", `${BUNDLE_ON_MACHINE}/public/proof.mp4`]);
+    await sandbox.writeFiles([{ path: `${BUNDLE_ON_MACHINE}/public/proof.img`, content: PROOF_PHOTO }]);
+    const old = await timed("draw the proof as an edge a deploy behind asks", () =>
+      ran(sandbox, { composition: "hook-cut", props: PROOF_CUTS, out: "proof-cuts.mp4" }, "cuts"),
+    );
+    if (!(old.bytes > 100_000)) throw new Error(`hook-cut's proof is ${old.bytes} bytes: nothing was drawn`);
     const done = await timed("draw the proof", () =>
-      ran(sandbox, { composition: "hook-cut", props: PROOF_MATERIAL, out: "proof.mp4" }, "proof"),
+      ran(sandbox, { composition: "blocks", props: PROOF_MATERIAL, out: "proof.mp4" }, "proof"),
     );
     if (!(done.bytes > 100_000)) throw new Error(`the proof is ${done.bytes} bytes: nothing was drawn`);
     const bytes = await sandbox.readFileToBuffer({ path: "piece/proof.mp4" });

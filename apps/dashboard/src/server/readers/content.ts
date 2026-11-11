@@ -62,7 +62,7 @@ function makingDtoOf(row: PieceStandingRow): ContentMakingDto {
     failed_why: failed ? reason : null,
     lines: plan.lines,
     language: plan.language,
-    moments: plan.cuts.length,
+    moments: plan.blocks.length,
     created_at: row.created_at,
   };
 }

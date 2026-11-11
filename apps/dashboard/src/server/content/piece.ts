@@ -20,6 +20,8 @@ import {
   PIECE_WORDS_PLACES,
   compilePiece,
   parseTenantConfig,
+  pieceFileIdsOf,
+  piecePlanOf,
   pieceWordsIn,
   postWordsIn,
   resolveFacts,
@@ -46,8 +48,17 @@ import { load, readerContext } from "@/server/shared/reader";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 
-/** What a press sends, as both routes take it: the plan a card carries (contracts PiecePlan). */
-export const piecePlanInput = z.object({
+/**
+ * The most cuts a plan kept as "Hook first" holds: as it was before a video was read in blocks, so an edge a deploy behind
+ * this one draws every plan this door takes.
+ */
+export const HOOK_CUTS_MAX = 5;
+
+/**
+ * What a press sends, as both routes take it: the payload a card carries, in the shape it is kept in (`hook_cut`: its cuts are
+ * read as clip blocks, contracts piecePlanOf). The door stores what came.
+ */
+const piecePlanInput = z.object({
   shape: z.enum(PIECE_SHAPES),
   cuts: z
     .array(
@@ -57,8 +68,8 @@ export const piecePlanInput = z.object({
         to: z.number().min(0).max(FILE_VIDEO_SECONDS_MAX),
       }),
     )
-    .min(PIECE_LIMITS.cutsMin)
-    .max(PIECE_LIMITS.cutsMax),
+    .min(PIECE_LIMITS.blocksMin)
+    .max(HOOK_CUTS_MAX),
   lines: z.array(z.string().min(1).max(PIECE_LIMITS.line)).min(1).max(PIECE_LIMITS.lines),
   words_at: z.enum(PIECE_WORDS_PLACES),
   words_hold: z.enum(PIECE_WORDS_HOLDS),
@@ -69,6 +80,50 @@ export const piecePlanInput = z.object({
 
 /** A press: the plan, and the card's own key, so the same press twice is one video. */
 export const pieceBeginInput = piecePlanInput.extend({ key: z.string().min(1).max(100) });
+
+const blockSeconds = z.number().min(0).max(PIECE_LIMITS.reelMaxS);
+const blockLabel = z.string().max(PIECE_LIMITS.label).nullable();
+const shotInput = z.object({ file_id: z.uuid(), at: z.number().min(0).max(FILE_VIDEO_SECONDS_MAX).nullable() });
+
+/** One block as a plan names it (contracts PieceBlock). What it may hold is the checker's to say, in words (compilePiece). */
+const blockInput = z.discriminatedUnion("is", [
+  z.object({
+    is: z.literal("clip"),
+    file_id: z.uuid(),
+    from: z.number().min(0).max(FILE_VIDEO_SECONDS_MAX),
+    to: z.number().min(0).max(FILE_VIDEO_SECONDS_MAX),
+    label: blockLabel,
+  }),
+  z.object({ is: z.literal("photo"), file_id: z.uuid(), seconds: blockSeconds, label: blockLabel }),
+  z.object({ is: z.literal("pair"), before: shotInput, after: shotInput, seconds: blockSeconds }),
+  z.object({
+    is: z.literal("words"),
+    lines: z.array(z.string().max(PIECE_LIMITS.cardLine)).max(PIECE_LIMITS.cardLines),
+    seconds: blockSeconds,
+  }),
+  z.object({
+    is: z.literal("quote"),
+    text: z.string().max(PIECE_LIMITS.quote),
+    from: z.string().max(PIECE_LIMITS.quoteFrom).nullable(),
+    over: shotInput.nullable(),
+    seconds: blockSeconds,
+  }),
+]);
+
+/**
+ * What a card's stills are asked with: its plan read as blocks (contracts piecePlanOf), or one as a page loaded before blocks
+ * sends it. Nothing is stored for a still, so this door takes blocks before a row may hold them (the press takes them with
+ * the migration that lets a row).
+ */
+export const pieceBoardInput = z.union([
+  piecePlanInput,
+  piecePlanInput.omit({ shape: true, cuts: true, lines: true }).extend({
+    shape: z.literal("blocks"),
+    blocks: z.array(blockInput).min(PIECE_LIMITS.blocksMin).max(PIECE_LIMITS.blocksMax),
+    // None where the video opens on a card.
+    lines: z.array(z.string().min(1).max(PIECE_LIMITS.line)).max(PIECE_LIMITS.lines),
+  }),
+]);
 
 /** An address as an end card says it: the street and the town, the rest left to a map. */
 const shortAddressOf = (address: string | null): string | null =>
@@ -118,9 +173,9 @@ export interface PieceChecked {
 }
 
 /**
- * The plan checked against the clips and the look as they now stand (contracts compilePiece): each clip is the workspace's own
- * ready, kept video, each stretch is inside its clip, and whoever is in them agreed. What passed, or why it did not and which
- * cut it is about. Ask's act says the why to the model; a route says it to a person.
+ * The plan checked against its files and the look as they now stand (contracts compilePiece): each clip is the workspace's own
+ * ready, kept video and each photo its own kept photo, each stretch is inside its clip, and whoever is in them agreed. What
+ * passed, or why it did not and which block it is about. Ask's act says the why to the model; a route says it to a person.
  */
 export async function checkPieceClips(
   ctx: RouteContext,
@@ -128,7 +183,7 @@ export async function checkPieceClips(
   plan: PiecePlan,
   config: unknown,
 ): Promise<({ ok: true } & PieceChecked) | PieceRefused> {
-  const ids = [...new Set(plan.cuts.map((cut) => cut.file_id))];
+  const ids = pieceFileIdsOf(plan);
   const found = await Promise.all(ids.map((id) => findFile(ctx.supabase, id)));
   // This workspace's own: a member of two reads both under their session, and the job that draws reads this one alone.
   const files = found.filter((file): file is FileMemberRow => file !== null && file.tenant_id === tenantId);
@@ -153,6 +208,7 @@ export async function checkPiecePlan(ctx: RouteContext, member: Member, plan: Pi
   for (const [words, limit] of [
     ...plan.lines.map((line) => [line, PIECE_LIMITS.line] as const),
     [plan.end_line, PIECE_LIMITS.endLine] as const,
+    ...plan.blocks.flatMap(blockWordsOf),
   ]) {
     const wrong = words ? postUndrawable(words, limit) : null;
     if (wrong) throw new AppError("validation", postWordsIn(plan.language).undrawable[wrong]);
@@ -160,6 +216,18 @@ export async function checkPiecePlan(ctx: RouteContext, member: Member, plan: Pi
   const checked = await checkPieceClips(ctx, member.tenantId, plan, config);
   if (!checked.ok) throw new AppError("validation", pieceWordsIn(plan.language).wont[checked.wont]);
   return checked;
+}
+
+/** The words a block draws of its own, each with the most it may run: a caption, a card's lines, a quote and who said it. */
+function blockWordsOf(block: PiecePlan["blocks"][number]): (readonly [string | null, number])[] {
+  if (block.is === "clip" || block.is === "photo") return [[block.label, PIECE_LIMITS.label]];
+  if (block.is === "words") return block.lines.map((line) => [line, PIECE_LIMITS.cardLine] as const);
+  if (block.is === "quote")
+    return [
+      [block.text, PIECE_LIMITS.quote],
+      [block.from, PIECE_LIMITS.quoteFrom],
+    ];
+  return [];
 }
 
 /** How long a checked plan's video runs, in seconds: its timeline's own. */
@@ -175,7 +243,8 @@ export async function beginPieceFor(
   member: Member,
   input: z.infer<typeof pieceBeginInput>,
 ): Promise<{ piece_id: string; fate: "begun" | "here" }> {
-  const { key, ...plan } = input;
+  const { key, ...kept } = input;
+  const plan = piecePlanOf(kept);
   const checked = await checkPiecePlan(ctx, member, plan);
   if (plan.people_agreed) {
     for (const file of checked.files) {
@@ -190,7 +259,8 @@ export async function beginPieceFor(
   }
   const begun = await beginPiece(ctx.supabase, {
     tenantId: member.tenantId,
-    plan: asJson(plan),
+    // As its card sent it: a row holds the shape its door takes (00613), and every reader reads it as blocks.
+    plan: asJson(kept),
     look: asJson(checked.look),
     key,
     edition: PIECE_TEMPLATE.edition,

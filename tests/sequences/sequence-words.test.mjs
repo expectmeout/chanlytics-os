@@ -50,6 +50,9 @@ import {
 
 const TZ = "America/New_York";
 const NOW = Date.parse("2026-10-14T14:00:00Z");
+/** How a row's line is asked for (words/row-line.ts): the business's zone, the clock, its word, no twin. */
+const AT = { tz: TZ, nowMs: NOW, word: "appointment", twin: null };
+const CLOCK = { tz: TZ, nowMs: NOW };
 const NONE = { waiting: 0, waiting_people: 0, held: 0, to_send: 0, replies: 0, oldest_at: null, batches: [] };
 const FIRST = {
   id: "s1",
@@ -134,8 +137,11 @@ test("the list groups what needs you first, then by how each starts, and a draft
 test("what needs you is one count and one line: a waiting batch with nobody named yet is the batch, never 0 people", () => {
   const n = { ...NONE, waiting: 1, waiting_people: 0, held: 2, replies: 1 };
   assert.equal(needsCount(n), 4);
-  assert.equal(needsWords(n), "waits for your OK · 2 held · 1 wrote back · answer them");
-  assert.equal(needsWords({ ...n, waiting_people: 14 }), "14 wait for your OK · 2 held · 1 wrote back · answer them");
+  assert.equal(needsWords(row({ needs: n }), CLOCK), "waits for your OK · 2 held · 1 wrote back · answer them");
+  assert.equal(
+    needsWords(row({ needs: { ...n, waiting_people: 14 } }), CLOCK),
+    "14 wait for your OK · 2 held · 1 wrote back · answer them",
+  );
 });
 
 test("a row's pill and line: amber only for a one-off that waits, a draft says nothing goes yet", () => {
@@ -149,18 +155,18 @@ test("a row's pill and line: amber only for a one-off that waits, a draft says n
     date: { batch_id: "b1", state: "pending_approval", at: "2026-10-28T13:00:00Z", people: 5 },
   });
   assert.deepEqual([sequenceStateWords(oneOff), sequenceStateTone(oneOff)], ["Waits for you", "warn"]);
-  assert.equal(sequenceRowLine(row({ state: "draft" }), TZ, NOW), "Not started · nothing goes yet");
+  assert.equal(sequenceRowLine(row({ state: "draft" }), AT), "Ready to start · made Sep 18");
   // A one-off kept as a draft says it waits to be sent (00465); one still to go says when.
   const kept = row({ state: "draft", starts: "date", once: { who: { kind: "everyone", label: "everyone" } } });
-  assert.equal(sequenceRowLine(kept, TZ, NOW), "Kept as a draft · nothing goes until you send it");
+  assert.equal(sequenceRowLine(kept, AT), "Kept as a draft · nothing goes until you send it");
   const going = row({
     starts: "date",
     date: { batch_id: "b1", state: "scheduled", at: new Date(NOW + 3600e3).toISOString(), people: 5 },
   });
-  assert.match(sequenceRowLine(going, TZ, NOW), /^Goes (at|tomorrow) .+ · 5 people$/);
-  assert.equal(sequenceRowLine(row({ needs: { ...NONE, held: 3 } }), TZ, NOW), "3 held");
-  assert.equal(sequenceRowLine(row({ state: "paused", in_it: 4 }), TZ, NOW), "4 waiting");
-  assert.equal(sequenceRowLine(row()), "Nobody yet");
+  assert.match(sequenceRowLine(going, AT), /^Goes (at|tomorrow) .+ · 5 people$/);
+  assert.equal(sequenceRowLine(row({ needs: { ...NONE, held: 3 } }), AT), "3 emails held for your look");
+  assert.equal(sequenceRowLine(row({ state: "paused", in_it: 4 }), AT), "4 wait for it to turn on");
+  assert.equal(sequenceRowLine(row(), AT), "Sends the day before each appointment");
 });
 
 const batch = (over = {}) => ({
@@ -245,11 +251,14 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
   };
   const held = sequenceNotice(row({ starts: "leads", needs: allHeld }), []);
   assert.deepEqual([held.kind, held.words, held.batchId], ["held", "7 emails are held by the check", null]);
-  assert.deepEqual([needsWords(allHeld), needsCount(allHeld)], ["7 held", 7]);
-  assert.equal(sequenceRowLine(row({ starts: "leads", needs: allHeld }), TZ, NOW), "7 held");
+  assert.deepEqual(
+    [needsWords(row({ starts: "leads", needs: allHeld }), CLOCK), needsCount(allHeld)],
+    ["7 emails held for your look", 7],
+  );
+  assert.equal(sequenceRowLine(row({ starts: "leads", needs: allHeld }), AT), "7 emails held for your look");
   const planning = { ...allHeld, held: 0 };
   assert.equal(sequenceNotice(row({ starts: "leads", needs: planning }), []).kind, "waiting");
-  assert.equal(needsWords(planning), "waits for your OK");
+  assert.equal(needsWords(row({ starts: "leads", needs: planning }), CLOCK), "The next batch waits for your OK");
   assert.equal(sequenceNotice(row(), []), null);
 });
 
@@ -398,7 +407,7 @@ test("a twin on a visit moment needs you: two running sequences send each person
   assert.equal(sequenceTwinOf(rows, quiet), null, "any other moment's breath keeps a twin from reaching anyone twice");
   assert.equal(sequenceTwinOf([row({ id: "a", state: "paused" }), b], b), null, "a paused one sends nothing");
   assert.equal(sequenceGroupOf(b, twin), "needs");
-  assert.equal(sequenceRowLine(b, TZ, NOW, twin), "Two reminders go to each person");
+  assert.equal(sequenceRowLine(b, { ...AT, twin }), "Two reminders go to each person");
   const n = sequenceNotice(b, [], twin);
   assert.deepEqual(
     [n.kind, n.line, n.fact, n.act],
@@ -497,7 +506,7 @@ test("a send whose time has come is going out now, never a time already gone (th
   assert.equal(clockAhead(Date.parse(going.at), TZ, NOW), "now");
   assert.equal(clockNextSend(Date.parse(going.at), TZ, NOW), "going out now");
   assert.equal(clockNextSend(NOW + 3_600_000, TZ, NOW), "next today 11:00 AM");
-  assert.equal(sequenceRowLine(row({ state: "on", starts: "leads", next: going }), TZ, NOW), "going out now");
+  assert.equal(sequenceRowLine(row({ state: "on", starts: "leads", next: going }), AT), "Going out now · 2 people");
   assert.equal(sequenceNextWords(sequenceNextOf(row({ next: going }), null, TZ, NOW), TZ, NOW), "now · 2 people");
 });
 

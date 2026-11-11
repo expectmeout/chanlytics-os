@@ -1,7 +1,7 @@
-// What every shape wears: the face, the opening words on their backing, and the end card. Each draws what it is handed; where the
+// What every shape wears: the face, the opening words on their backing, a block's caption, the two cards, and the end card. Each draws what it is handed; where the
 // words sit and how large they are was worked out by the plan's checker (contracts piece-timeline.ts) from the numbers in
 // piece-frame.ts, which this reads too, so the storyboard a person saw and the video agree to the pixel.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   AbsoluteFill,
   Easing,
@@ -12,7 +12,7 @@ import {
   staticFile,
   useCurrentFrame,
 } from "remotion";
-import { PIECE_FRAME } from "../../../packages/contracts/src/content/piece-frame";
+import { PIECE_CARD, PIECE_FRAME, PIECE_SIDE } from "../../../packages/contracts/src/content/piece-frame";
 import type { PieceTimeline } from "../../../packages/contracts/src/content/piece-timeline";
 
 export const FACE = "Mona Sans";
@@ -95,6 +95,119 @@ export function Words({ words }: { words: PieceTimeline["words"] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** White words as every block sets them: the face at its heaviest, a line never wrapped. */
+const SET = {
+  fontFamily: FACE,
+  fontWeight: 800,
+  lineHeight: PIECE_FRAME.wordsLeading,
+  color: "#fff",
+  whiteSpace: "nowrap",
+} as const;
+
+/**
+ * A block's own caption: one line on the words' backing, at the foot of its picture and clear of what a phone app draws
+ * there. `bottom` is how far its foot stands from the frame's (a pair's upper picture ends at the frame's middle).
+ */
+export function Label({ label, bottom = PIECE_FRAME.clearBottom }: { label: string; bottom?: number }) {
+  const frame = useCurrentFrame();
+  return (
+    <div
+      style={{
+        ...SET,
+        position: "absolute",
+        left: PIECE_SIDE,
+        bottom,
+        padding: `${PIECE_FRAME.labelPad}px ${PIECE_FRAME.labelPadSide}px`,
+        borderRadius: 18,
+        background: "rgba(0,0,0,.52)",
+        fontSize: PIECE_FRAME.labelSize,
+        ...rise(frame, 3),
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
+/** A words card: its lines centred on the end card's ground at the size they were fitted to, under a rule in the business's colour. */
+export function WordsCard({ lines, size, accent }: { lines: readonly string[]; size: number; accent: string }) {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundColor: INK,
+        justifyContent: "center",
+        alignItems: "center",
+        gap: PIECE_FRAME.wordsGap,
+        paddingBottom: 2 * PIECE_CARD.lift,
+      }}
+    >
+      <div style={{ width: 96, height: 8, borderRadius: 4, background: accent, marginBottom: 40, ...rise(frame, 0) }} />
+      {lines.map((line, i) => (
+        <div key={i} style={{ ...SET, fontSize: size, ...rise(frame, 2 + 3 * i) }}>
+          {line}
+        </div>
+      ))}
+    </AbsoluteFill>
+  );
+}
+
+/**
+ * A quote card: someone's own words, wrapped as the checker wrapped them, under an opening mark in the business's colour
+ * and over who said it. Its ground is the picture it was given (`children`), darkened so the words read, or the end card's.
+ */
+export function QuoteCard({
+  lines,
+  size,
+  from,
+  accent,
+  children,
+}: {
+  lines: readonly string[];
+  size: number;
+  from: string | null;
+  accent: string;
+  children: ReactNode;
+}) {
+  const frame = useCurrentFrame();
+  const edge = PIECE_SIDE + PIECE_FRAME.wordsPadSide;
+  return (
+    <AbsoluteFill style={{ backgroundColor: INK }}>
+      {children}
+      {children ? <AbsoluteFill style={{ background: `rgba(0,0,0,${PIECE_CARD.dim})` }} /> : null}
+      <AbsoluteFill
+        style={{
+          justifyContent: "center",
+          alignItems: "flex-start",
+          gap: PIECE_FRAME.wordsGap,
+          padding: `0 ${edge}px ${2 * PIECE_CARD.lift}px`,
+        }}
+      >
+        <div style={{ ...SET, fontSize: 220, lineHeight: 1, height: 120, color: accent, ...rise(frame, 0) }}>“</div>
+        {lines.map((line, i) => (
+          <div key={i} style={{ ...SET, fontSize: size, ...rise(frame, 2 + 2 * i) }}>
+            {line}
+          </div>
+        ))}
+        {from ? (
+          <div
+            style={{
+              ...SET,
+              fontWeight: 600,
+              fontSize: PIECE_CARD.fromSize,
+              color: "rgba(255,255,255,.72)",
+              marginTop: 30,
+              ...rise(frame, 4 + 2 * lines.length),
+            }}
+          >
+            {from}
+          </div>
+        ) : null}
+      </AbsoluteFill>
+    </AbsoluteFill>
   );
 }
 
