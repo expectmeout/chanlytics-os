@@ -37,7 +37,7 @@ export function visitSideOf(trigger: string | null | undefined): "ahead" | "behi
  * Whether a moment's message waits for a member's word that the person came (decision 0122): the thank-you the day
  * after a visit. It thanks them for coming, and may ask for a review, so it goes only for a visit the record says was
  * kept. One nobody has marked is named and left out, counted (playbookRunReach's `unmarked`); the send asks the row once
- * more (appointmentHolds); and a visit marked kept after the day's look is thanked on its own (lateThanksAt).
+ * more (appointmentHolds); and a visit marked kept after the day's look is thanked on its own (keptThanksAt).
  */
 export function waitsForKept(trigger: string | null | undefined): boolean {
   return trigger === "visited";

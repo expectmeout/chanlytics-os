@@ -3,19 +3,19 @@
  *
  * The thank-you the day after a visit goes only for a visit a member said was kept. Its look is once a day, at its hour,
  * so a word said after that look found nobody to send it: the owner pressed Kept at three and the customer was never
- * thanked. The rule says when such a visit is still owed its thank-you (contracts lateThanksAt), and the edge's door runs
+ * thanked. The rule says when such a visit is still owed its thank-you (contracts keptThanksAt), and the edge's door runs
  * the workspace's step on `visited` for that one person (apps/edge/lib/campaigns/late-thanks.ts), once per visit.
  *
  * Run on the rule, and on the real door over a database in memory with the run's own context handed in.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelsReady, keptThanksAt, lateThanksAt, numberHealth, toPersonRowVM } from "@chanlytics/contracts";
+import { channelsReady, keptThanksAt, numberHealth, toPersonRowVM } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
 import { importSrc } from "../../_source.mjs";
 
-const { thankLateKept } = await importSrc("apps/edge/lib/campaigns/late-thanks.ts");
+const { sendLateThanks } = await importSrc("apps/edge/lib/campaigns/late-thanks.ts");
 const { CONTEXT_PAUSED } = await importSrc("apps/edge/lib/campaigns/playbooks/playbooks.ts");
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -38,7 +38,11 @@ const kept = (iso, lastRunFor) => ({
   runHour: 10,
   lastRunFor,
 });
-const at = (iso, lastRunFor = "2026-11-10") => lateThanksAt(kept(iso, lastRunFor));
+/** When the door sends one on its own: the rule's answer where the look can no longer name it, else null. */
+const at = (iso, lastRunFor = "2026-11-10") => {
+  const owed = keptThanksAt(kept(iso, lastRunFor));
+  return owed?.late ? { at: owed.at, day: owed.day } : null;
+};
 
 test("the rule: owed on the day after the visit, once that day's look has gone, while its sending hours last", () => {
   assert.deepEqual(at("2026-11-10T20:12:00Z"), { at: Date.parse("2026-11-10T20:12:00Z"), day: "2026-11-09" });
@@ -241,7 +245,7 @@ function world({
         visits: new Map([["a", who.visits]]),
       };
     });
-  const thank = () => thankLateKept(db, T, APPT, now, loadContext);
+  const thank = () => sendLateThanks(db, T, APPT, now, loadContext);
   return { tables, thank, loads: () => loads };
 }
 

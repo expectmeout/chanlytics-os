@@ -69,7 +69,8 @@ interface KeptVisit {
  * owed on the day after the visit and no other. Marked on the visit's own day, tomorrow's look names it; marked the day
  * after before that day's look, the look names it, now that the record says kept; marked after the look, it goes now
  * on its own, while the day's sending hours last; marked later still, its words would be a day old, and nothing goes.
- * THE reading: the edge's late thank-you asks it (lateThanksAt), and the door that takes the word says it (Today's row).
+ * THE reading: the edge's late thank-you asks it (one that is `late` is its to send), and the door that takes the
+ * word says it (Today's row).
  */
 export function keptThanksAt(kept: KeptVisit): { at: number; day: string; late: boolean } | null {
   const now = new Date(kept.nowMs);
@@ -83,12 +84,6 @@ export function keptThanksAt(kept: KeptVisit): { at: number; day: string; late: 
   // A look still to come today names the visit itself.
   if (kept.lastRunFor !== today) return { at: Math.max(look(today), kept.nowMs), day, late: false };
   return { at: kept.nowMs, day, late: true };
-}
-
-/** When a visit marked kept after the day's look is thanked on its own, and its day; null where the look sends it, or nothing is owed. */
-export function lateThanksAt(kept: KeptVisit): { at: number; day: string } | null {
-  const owed = keptThanksAt(kept);
-  return owed?.late ? { at: owed.at, day: owed.day } : null;
 }
 
 /**

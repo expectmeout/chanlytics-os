@@ -183,7 +183,7 @@ function RebookWork(p: WorkProps & { word: AppointmentWord; onDontSend: () => vo
 }
 
 /** What the sequence that answers a word does for it, as the row says it: another time offered, or a thank-you. */
-const saidOf = (mark: VisitWord, follows: VisitFollowUp): string | undefined =>
+const followsWords = (mark: VisitWord, follows: VisitFollowUp): string | undefined =>
   mark === "missed"
     ? W.visit.follows(follows.name, follows.when, follows.asks)
     : mark === "kept"
@@ -219,7 +219,7 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
     return (
       <Done
         words={VISIT_WORDS[mark]}
-        detail={follows ? saidOf(mark, follows) : undefined}
+        detail={follows ? followsWords(mark, follows) : undefined}
         act={{ label: W.visit.change, onPress: () => setMark(null) }}
       />
     );
