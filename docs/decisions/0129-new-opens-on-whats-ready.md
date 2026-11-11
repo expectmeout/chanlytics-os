@@ -10,7 +10,7 @@ The canvas _New: start from what's ready_ (11 November 2026) drew the page again
 
 ## Decision
 
-1. **New opens on what is ready.** Up to four starts (`NEW_READY_MAX`), the one that would reach most people first and standing open. Which, and in what order, is one pure rule (contracts `readyStartsOf`) over what Campaigns already counts. Opening the page asks Ask nothing.
+1. **New opens on what is ready.** Up to four starts (`NEW_READY_MAX`), the first standing open. Who is waiting leads, most people first: a moment someone is in, a search's ready leads, the largest list nothing sends to. Then one offer to everyone who said yes, who are waiting for nothing, so it never stands over someone who is. Then the moments nobody is in yet. Which, and in what order, is one pure rule (contracts `readyStartsOf`) over what Campaigns already counts. Opening the page asks Ask nothing.
 2. **A moment is offered before anyone waits in it.** Every moment a new sequence may start on here is a start, unless a sequence already stands on it, it is read off a calendar that is not connected (`momentNeedsCalendar`), or it is a proposal's where no deal was ever recorded. One of the workspace's own lists that nothing sends to is a start too.
 3. **The open start shows the message it would send where that is known:** the first of the moment's starters the workspace holds, drawn as a person reads it. Where none is held it says Ask writes it, and the words come with the draft.
 4. **The line is one row, typed or said.** The house's one recogniser, held by the kit's mic (`kit/talk/held-mic.tsx`, which Today's sheet now shares). The field and the arrow keep their ids, and the arrow is always drawn: faint until the line says eight letters.

@@ -36,9 +36,9 @@ export const NEW_READY_WORDS = {
   yours: (title: string) => `Your message: ${title}`,
   firstWaits: "Its first batch waits for your OK.",
   reach: (n: number) => `${plural(n, "person", "people")} it would reach today`,
-  list: (name: string) => `Write to people who join ${name}`,
+  list: (name: string) => `Write to everyone on ${name}`,
   listSaid: (n: number) => `${n} on it, nothing sends to it`,
-  listLine: (name: string) => `Message everyone who joins ${name}`,
+  listLine: (name: string) => `Message everyone on ${name}, and anyone who joins it later`,
   oneStep: "One step away",
   journey: "Your customers’ journey",
   covered: (n: number, of: number) => `${n} of ${of} covered`,
@@ -166,23 +166,27 @@ function momentStarts(reads: ReadyReads): ReadyStart[] {
   });
 }
 
-/** One offer to everyone who said yes, the first search with leads ready, and the workspace's own lists nothing sends to. */
-function otherStarts(reads: ReadyReads): ReadyStart[] {
+/** One offer to everyone who said yes to offers: who it reaches are waiting for nothing. */
+function everyoneStart(reads: ReadyReads): ReadyStart | null {
+  if (!reads.everyone) return null;
+  return {
+    id: "everyone",
+    glyph: "send",
+    title: S.offer,
+    said: S.offerSaid(reads.everyone),
+    fact: { title: V.offer(reads.everyone), said: null },
+    people: reads.everyone,
+    kind: "once",
+    trigger: null,
+    line: newSequenceLine("everyone_monthly", reads.word) ?? S.offer,
+    fixed: { kind: "once", audience: "people", who: { kind: "everyone", label: NEW_WORDS.draft.everyoneOffers } },
+  };
+}
+
+/** The first search with leads ready that no sequence adds from, and the largest of the workspace's own lists nothing sends to. */
+function foundStarts(reads: ReadyReads): ReadyStart[] {
   const out: ReadyStart[] = [];
   const live = reads.running.filter((r) => r.state !== "ended");
-  if (reads.everyone)
-    out.push({
-      id: "everyone",
-      glyph: "send",
-      title: S.offer,
-      said: S.offerSaid(reads.everyone),
-      fact: { title: V.offer(reads.everyone), said: null },
-      people: reads.everyone,
-      kind: "once",
-      trigger: null,
-      line: newSequenceLine("everyone_monthly", reads.word) ?? S.offer,
-      fixed: { kind: "once", audience: "people", who: { kind: "everyone", label: NEW_WORDS.draft.everyoneOffers } },
-    });
   const source = (reads.sources ?? []).find(
     (s) => s.ready > 0 && !live.some((r) => r.starts === "leads" && r.first?.source_search_id === s.id),
   );
@@ -199,33 +203,40 @@ function otherStarts(reads: ReadyReads): ReadyStart[] {
       line: S.leadsLine(source.name),
       fixed: { kind: "sequence", audience: "leads", who: { kind: "search", id: source.id, label: source.name } },
     });
-  for (const list of reads.lists) {
-    const taken = live.some(
-      (r) => r.starts === "list" && (`list:${r.first?.list_id}` === list.id || `seg:${r.first?.list_key}` === list.id),
-    );
-    if (list.builtin || !list.candidates || taken) continue;
+  const taken = (id: string) =>
+    live.some((r) => r.starts === "list" && (`list:${r.first?.list_id}` === id || `seg:${r.first?.list_key}` === id));
+  const [list] = reads.lists
+    .filter((l) => !l.builtin && !!l.candidates && !taken(l.id))
+    .sort((a, b) => (b.candidates ?? 0) - (a.candidates ?? 0));
+  if (list)
     out.push({
       id: list.id,
       glyph: "users",
       title: R.list(list.name),
-      said: R.listSaid(list.candidates),
-      fact: { title: list.name, said: R.listSaid(list.candidates) },
+      said: R.listSaid(list.candidates ?? 0),
+      fact: { title: list.name, said: R.listSaid(list.candidates ?? 0) },
       people: list.candidates,
       kind: "sequence",
       trigger: null,
       line: R.listLine(list.name),
       fixed: { kind: "sequence", audience: "people", who: { kind: "list", token: list.id, label: list.name } },
     });
-  }
   return out;
 }
 
 /**
- * Everything a workspace can start now, most people waiting first: where two reach as many, or nobody waits in either,
- * the journey's order stands, then an offer, a search, a list. New draws the first NEW_READY_MAX.
+ * Everything a workspace can start now. Who is waiting leads, most people first: a moment someone is in, a search's ready
+ * leads, a list nothing sends to. Then one offer to everyone who said yes, who are waiting for nothing, so it never
+ * stands over someone who is. Then the moments nobody is in yet, in the journey's order. New draws the first
+ * NEW_READY_MAX.
  */
 export function readyStartsOf(reads: ReadyReads): ReadyStart[] {
-  return [...momentStarts(reads), ...otherStarts(reads)].sort((a, b) => (b.people ?? 0) - (a.people ?? 0));
+  const moments = momentStarts(reads);
+  const waiting = [...moments, ...foundStarts(reads)]
+    .filter((s) => (s.people ?? 0) > 0)
+    .sort((a, b) => (b.people ?? 0) - (a.people ?? 0));
+  const everyone = everyoneStart(reads);
+  return [...waiting, ...(everyone ? [everyone] : []), ...moments.filter((s) => !s.people)];
 }
 
 /** A moment of the journey: the sequence that stands on it, or the start that would, or what it needs first. */

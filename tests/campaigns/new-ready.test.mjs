@@ -92,23 +92,36 @@ test("a moment a sequence already starts on is not offered again; either win-bac
   assert.ok(ids(readyStartsOf(reads({ running: [on("visited", { state: "ended" })] }))).includes("visited"));
 });
 
-test("everyone, a ready search, and one of the workspace's own lists nothing sends to", () => {
+test("who is waiting leads: a ready search and a list nothing sends to; an offer to everyone never stands over them", () => {
   const lists = [
     { id: "list:11111111-1111-4111-8111-111111111111", name: "Regulars", candidates: 18, builtin: false },
     { id: "seg:offers_ok", name: "Can hear offers", candidates: 186, builtin: true },
     { id: "list:22222222-2222-4222-8222-222222222222", name: "Empty", candidates: 0, builtin: false },
+    { id: "list:33333333-3333-4333-8333-333333333333", name: "A smaller list", candidates: 5, builtin: false },
   ];
   const sources = [
     { id: "a", name: "Dentists near Portland", ready: 28 },
     { id: "b", name: "None checked", ready: 0 },
   ];
   const got = readyStartsOf(reads({ everyone: 186, lists, sources }));
-  assert.deepEqual(ids(got).slice(0, 4), [
-    "everyone",
+  // Someone waiting, most people first; then the offer, though it reaches the most; then the moments nobody is in.
+  assert.deepEqual(ids(got), [
     "lapsed",
     "search-a",
-    "list:11111111-1111-4111-8111-111111111111",
+    lists[0].id,
+    "visit_tomorrow",
+    "visited",
+    "asked_no_booking",
+    "everyone",
+    "visit_soon",
+    "visit_missed",
+    "slot_opened",
   ]);
+  // One list is offered, the largest: a workspace with ten lists is not ten starts.
+  assert.ok(!ids(got).includes(lists[3].id));
+  // Where nobody waits anywhere, the offer is what reaches someone today, and it leads.
+  const quiet = MOMENTS.map((m) => ({ ...m, candidates: 0 }));
+  assert.equal(ids(readyStartsOf(reads({ everyone: 186, moments: quiet })))[0], "everyone");
   const everyone = got.find((s) => s.id === "everyone");
   assert.equal(everyone.kind, "once");
   assert.deepEqual(everyone.fixed.who, { kind: "everyone", label: W.draft.everyoneOffers });
