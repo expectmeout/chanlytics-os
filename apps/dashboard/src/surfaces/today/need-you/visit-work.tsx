@@ -9,6 +9,7 @@ import {
   NEED_YOU_WORDS as W,
   VISIT_ASK_WORDS,
   VISIT_WORDS,
+  appointmentWords,
   shortName,
   writeWireName,
   type AppointmentWord,
@@ -18,6 +19,8 @@ import {
 } from "@chanlytics/contracts";
 import { askDraft, readReach } from "../../inbox/new-conversation/verbs";
 import { sayVisit } from "../../visit-line";
+import { markVisitsKept } from "@/bridge/verbs/visits";
+import { Confirm } from "../../kit/confirm/confirm";
 import { Button } from "../../kit";
 import { gate } from "../shell";
 import { Acts, Done, Going, Note, State, Words, Writing, startKind, whoseWords, type WorkProps } from "./parts";
@@ -246,5 +249,82 @@ export function VisitWork(p: WorkProps & { word: AppointmentWord }) {
         end={first ? press(first, main) : null}
       />
     </>
+  );
+}
+
+/*
+ * Mark all kept, at To do's foot (decision 0123): yesterday's visits nobody has marked, said kept with one press where they
+ * all came. The thank-you the day after waits for that word, so a day the owner never marks one by one thanks nobody; this
+ * is the one press for it. Asked first, in a question that says how many and what follows, since a Kept cannot be taken
+ * back to unmarked (only changed to Missed, visit by visit). Each goes through the door a single Kept goes through, so each
+ * keeps its rules and raises its own event, and the page's readers are read again behind it (the refresh map's `visits`).
+ */
+
+/** What the press came to, in the toast's words: how many, the ones refused, and the thank-you that follows. */
+function keptWords(answer: Awaited<ReturnType<typeof markVisitsKept>>): string {
+  if (!answer.ok) return answer.message;
+  const { marked, already_kept, refused, why, follows } = answer.data;
+  return [
+    marked + already_kept ? W.visit.allKept.done(marked + already_kept) : "",
+    refused ? W.visit.allKept.refused(refused, why ?? "") : "",
+    follows ? W.visit.thanks(follows.name, follows.when, follows.asks) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * The press and its question, where two or more of yesterday's visits wait to be marked and the member may say so; nothing
+ * otherwise (one is its own row's Kept). `ids` are every one of them (contracts todayVisitsAsked `markIds`), the ones past
+ * To do's three among them.
+ */
+export function KeptAll({
+  ids,
+  word,
+  ctx,
+}: {
+  ids: readonly string[];
+  word: AppointmentWord;
+  ctx: Pick<WorkProps, "may" | "flash">;
+}) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!ctx.may || ids.length < 2) return null;
+  const count = ids.length;
+  const yes = async () => {
+    setBusy(true);
+    const answer = await markVisitsKept(ids);
+    setBusy(false);
+    setAsking(false);
+    const wholly = answer.ok && answer.data.refused === 0;
+    const some = answer.ok && answer.data.marked > 0;
+    ctx.flash({ tone: wholly ? "ok" : some ? "warn" : "danger", msg: <>{keptWords(answer)}</> });
+  };
+  return (
+    <div className="ny-kept-all" data-testid="today-kept-all">
+      {asking ? (
+        <Confirm
+          block
+          question={W.visit.allKept.ask(count, appointmentWords(word).many)}
+          detail={W.visit.allKept.detail}
+          yes={W.visit.allKept.yes}
+          no={W.visit.allKept.no}
+          busy={busy}
+          onYes={() => void yes()}
+          onNo={() => setAsking(false)}
+          testid="today-kept-all-ask"
+        />
+      ) : (
+        <Button
+          variant="quiet"
+          size="sm"
+          onClick={() => setAsking(true)}
+          data-testid="today-kept-all-press"
+          {...gate("approve", VISIT_ASK_WORDS.gate)}
+        >
+          {W.visit.allKept.act(count)}
+        </Button>
+      )}
+    </div>
   );
 }

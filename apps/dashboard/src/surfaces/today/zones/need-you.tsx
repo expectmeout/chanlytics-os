@@ -265,6 +265,7 @@ function todoGroup(todo: ToDoRows, bare: boolean) {
       count={todo.count}
       bare={bare}
       more={cutDoor(W.cut.todo, todo.cut, todo.door ?? "inbox")}
+      foot={todo.keptAll}
       testid="today-group-todo"
     >
       {todo.drawn}
