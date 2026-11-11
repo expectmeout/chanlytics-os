@@ -22,6 +22,8 @@ export interface SheetUiState {
   openStep: number | null;
   /** The card's email asked for whole. */
   whole: boolean;
+  /** The card's email shown as the step's words with each blank named (decision 0126). */
+  blanks: boolean;
   /** Its opening is being written now. */
   writing: boolean;
   /** What a landed rewrite keeps for its Undo, beside that email while it is on the card. */
@@ -35,6 +37,7 @@ const FRESH = {
   wrote: false,
   openStep: null,
   whole: false,
+  blanks: false,
   writing: false,
   undo: null,
 };

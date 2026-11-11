@@ -45,9 +45,11 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
 import { GRAB_AT } from "../../kit/motion/swipe";
 import { tabDraft, useUnsavedWork } from "../../kit/record/work";
+import { Segmented } from "../../kit/segmented/segmented";
 import { canDo, drawnNow, gate, refusalToast } from "../../frame-verbs";
 import type { Flash } from "../peek/types";
 import type { SheetFacts, SheetMail, SheetMailEdit } from "./facts";
+import { FillIn, ReceptionistChip } from "./fill-in";
 import { openRecordFor, type SheetRun } from "./run";
 import type { useSheetUi } from "./sheet-ui";
 
@@ -204,6 +206,8 @@ export function SentEmail({ leadId, sendId, box }: { leadId: string; sendId: str
     to: "",
     subject: got.mail.subject,
     pieces: [{ at: 0, kind: "words", text: got.mail.body }],
+    leadId: null,
+    blanks: null,
     ending: null,
     opening: null,
     writing: false,
@@ -422,6 +426,8 @@ function tapToType(box: EmailBox, edit: SheetMailEdit, part: BoxPart) {
     onPointerDown: (e: PointerEvent<HTMLElement>) => pressedAt.set(e.currentTarget, { x: e.clientX, y: e.clientY }),
     onPointerCancel: (e: PointerEvent<HTMLElement>) => pressedAt.delete(e.currentTarget),
     onClick: (e: MouseEvent<HTMLElement>) => {
+      // A press on a fill-in or the receptionist's mark is its own (fill-in.tsx): it opens its bubble, never the box.
+      if ((e.target as Element | null)?.closest?.("[data-fill]")) return;
       const at = pressedAt.get(e.currentTarget);
       pressedAt.delete(e.currentTarget);
       if (!at || Math.hypot(e.clientX - at.x, e.clientY - at.y) >= GRAB_AT) return;
@@ -431,9 +437,31 @@ function tapToType(box: EmailBox, edit: SheetMailEdit, part: BoxPart) {
   };
 }
 
-/** One piece of the email as it reads: the line written for them, that it is being written, what is still to come, or words. */
-function PieceOf({ piece, mail }: { piece: LeadEmailPiece; mail: SheetMail }) {
+/**
+ * One piece of the email as it reads: the line written for them, that it is being written, what is still to come, or
+ * words; and (decision 0126) a blank's value as a press of its own, the receptionist's link as its mark, or a blank by
+ * its name where the blanks are shown.
+ */
+function PieceOf({
+  piece,
+  mail,
+  onFill,
+}: {
+  piece: LeadEmailPiece;
+  mail: SheetMail;
+  onFill: ((at: number) => void) | null;
+}) {
   if (piece.kind === "words") return <span data-at={piece.at}>{piece.text}</span>;
+  if (piece.kind === "blank")
+    return (
+      <span className="lw-blank" data-testid="lead-card-blank">
+        {piece.text}
+      </span>
+    );
+  if (piece.kind === "value")
+    return <FillIn piece={piece} lead={mail.edit ? mail.edit.lead : null} onChange={onFill} />;
+  if (piece.kind === "mark" && piece.slot === "their preview")
+    return <ReceptionistChip leadId={mail.leadId} at={piece.at} />;
   const line = piece.kind === "line" || piece.slot === "opening";
   if (line && mail.writing)
     return (
@@ -525,6 +553,67 @@ function TypedEmail({ mail, box, typing }: { mail: SheetMail; box: EmailBox; typ
   );
 }
 
+/** The switch over the email (decision 0126): as they'll read it, or the step's words with each blank named. */
+function ViewSwitch({ blanks, onBlanks }: { blanks: boolean; onBlanks: (on: boolean) => void }) {
+  return (
+    <Segmented
+      className="lw-now-view"
+      label={B.view.label}
+      value={blanks ? "blanks" : "read"}
+      onValueChange={(view: "read" | "blanks") => onBlanks(view === "blanks")}
+      options={[
+        { value: "read", label: B.view.read, testid: "lead-card-view-read" },
+        { value: "blanks", label: B.view.blanks, testid: "lead-card-view-blanks" },
+      ]}
+    />
+  );
+}
+
+/**
+ * The subject and the words. As they'll read it: a tap away from being typed in, each blank's value a press of its own.
+ * With the blanks shown (`named`): the step's own words, each blank by its name, and a tap types nothing.
+ */
+function EmailWords(p: {
+  mail: SheetMail;
+  box: EmailBox;
+  edit: SheetMailEdit | null;
+  clip: string;
+  named: NonNullable<SheetMail["blanks"]> | null;
+}) {
+  const { mail, box, edit, named } = p;
+  const typable = edit !== null && named === null;
+  const onFill = edit && typable ? (at: number) => box.begin(edit, "body", at) : null;
+  return (
+    <>
+      {mail.subject ? (
+        <p
+          className={typable ? "lw-now-subj is-typable" : "lw-now-subj"}
+          data-testid="lead-card-subject"
+          {...(typable && edit ? tapToType(box, edit, "subject") : {})}
+        >
+          {named && named.subject
+            ? named.subject.map((piece) => <PieceOf key={piece.at} piece={piece} mail={mail} onFill={null} />)
+            : mail.subject}
+        </p>
+      ) : null}
+      <div
+        className={`lw-now-body${p.clip}${typable ? " is-typable" : ""}`}
+        data-testid="lead-card-body"
+        {...(typable && edit ? tapToType(box, edit, "body") : {})}
+      >
+        {(named ? named.body : mail.pieces).map((piece) => (
+          <PieceOf key={piece.at} piece={piece} mail={mail} onFill={onFill} />
+        ))}
+      </div>
+      {named && !(mail.edit && mail.edit.own) ? (
+        <p className="lw-note" data-testid="lead-card-view-note">
+          {B.view.note}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 /** The email on the card: as it goes, a few lines of it until it is asked for whole, and a press away from being typed in. */
 export function SheetEmail(p: {
   mail: SheetMail;
@@ -533,6 +622,10 @@ export function SheetEmail(p: {
   onRewrite: (() => void) | null;
   onUndo: (() => void) | null;
   box: EmailBox;
+  /** The step's words with each blank named are shown, where the email has them (decision 0126). */
+  blanks?: boolean;
+  /** Asks to show them, or the email as they'll read it; none where there is no switch (a step opened, one that went). */
+  onBlanks?: ((on: boolean) => void) | null;
 }) {
   const { mail, box } = p;
   const edit = mail.edit && canDo("approve") ? mail.edit : null;
@@ -540,6 +633,7 @@ export function SheetEmail(p: {
   if (typing && mail.edit && typing.edit.stepId === mail.edit.stepId)
     return <TypedEmail mail={mail} box={box} typing={typing} />;
   const clip = p.whole || !p.onWhole ? "" : mail.tall ? " is-clipped is-tall" : " is-clipped";
+  const named = p.blanks && p.onBlanks && mail.blanks ? mail.blanks : null;
   return (
     <div className="lw-now-mail" data-testid="lead-card-email">
       <div className="lw-now-head">
@@ -566,24 +660,8 @@ export function SheetEmail(p: {
           </Button>
         ) : null}
       </div>
-      {mail.subject ? (
-        <p
-          className={edit ? "lw-now-subj is-typable" : "lw-now-subj"}
-          data-testid="lead-card-subject"
-          {...(edit && mail.subject !== null ? tapToType(box, edit, "subject") : {})}
-        >
-          {mail.subject}
-        </p>
-      ) : null}
-      <div
-        className={`lw-now-body${clip}${edit ? " is-typable" : ""}`}
-        data-testid="lead-card-body"
-        {...(edit ? tapToType(box, edit, "body") : {})}
-      >
-        {mail.pieces.map((piece) => (
-          <PieceOf key={piece.at} piece={piece} mail={mail} />
-        ))}
-      </div>
+      {p.onBlanks && mail.blanks ? <ViewSwitch blanks={named !== null} onBlanks={p.onBlanks} /> : null}
+      <EmailWords mail={mail} box={box} edit={edit} clip={clip} named={named} />
       {p.whole || !p.onWhole ? <EndingOf mail={mail} /> : null}
       <div className="lw-now-acts">
         {p.onWhole ? (
