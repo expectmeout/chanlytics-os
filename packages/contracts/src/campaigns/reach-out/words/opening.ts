@@ -112,7 +112,7 @@ export function chainIssueWords(chainIssue: ChainIssue): string {
     case "no_booking_link":
       return "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.";
     case "first_has_their_preview":
-      return "A first email carries no link. Put their preview in a later step.";
+      return "A first email carries no link. Put their receptionist in a later step.";
     case "first_has_a_link":
       return "Keep your first email free of links: put your booking link in the nudge.";
     default:

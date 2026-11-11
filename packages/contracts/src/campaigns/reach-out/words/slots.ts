@@ -45,7 +45,7 @@ const REACH_OUT_SLOT_LABELS: Record<ReachOutSlot, string> = {
   "your name": "Your name",
   "your business": "Your business",
   "booking link": "Booking link",
-  "their preview": "Their preview",
+  "their preview": "Their receptionist",
 };
 
 /** The ten as a slot set: named, in the sheet's order. Every reader of a step's words and the fill take this one. */

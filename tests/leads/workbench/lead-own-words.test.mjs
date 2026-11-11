@@ -170,7 +170,7 @@ test("their preview and the booking link stay slots: a link counted, a preview's
   assert.equal(linkCount(words.body), 2);
   const building = company({ preview: { state: "building" } });
   const marked = leadWordsInBox({ words: base, lead: building, workspace: WS, opening: null });
-  assert.ok(marked.body.includes("[Their preview]"));
+  assert.ok(marked.body.includes("[Their receptionist]"));
   assert.ok(
     leadWordsFromBox({ typed: marked, base, lead: building, workspace: WS }).body.includes("{{their preview}}"),
   );

@@ -65,6 +65,16 @@ const storage = () => {
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.document = { addEventListener() {}, removeEventListener() {}, hasFocus: () => true };
+// What a press landed on, as the page's own element: the email asks whether it is inside a fill-in.
+class PressedElement {
+  constructor(inFill) {
+    this.inFill = inFill;
+  }
+  closest(query) {
+    return query === "[data-fill]" && this.inFill ? this : null;
+  }
+}
+globalThis.Element = PressedElement;
 
 const SEQ = "5e000000-0000-4000-8000-0000000000aa";
 const STEP = "5e000000-0000-4000-8000-0000000000bb";
@@ -109,6 +119,7 @@ globalThis.window = {
       if (door.refuse) return json(422, { ok: false, error: { code: "validation", message: door.refuse } });
       return json(200, { ok: true, data: { step_id: STEP, lead_id: LEAD, send_id: SEND, was: door.was } });
     }
+    if (/\/preview$/.test(pathname)) return json(200, { ok: true, data: door.preview });
     return json(200, { ok: true, data: {} });
   },
 };
@@ -118,7 +129,17 @@ installFrameGlobals();
 const box = await import("../../../apps/dashboard/src/surfaces/leads/sheet/email-box.tsx");
 const { GRAB_AT } = await import("../../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 const { Menu } = await import("../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
-const { LEAD_CARD_WORDS, LEAD_WORDS_BOX: B, leadWordsPieces, placeLineWriting } = await import("@chanlytics/contracts");
+const { Popover } = await import("../../../apps/dashboard/src/surfaces/kit/popover/popover.tsx");
+const { Segmented } = await import("../../../apps/dashboard/src/surfaces/kit/segmented/segmented.tsx");
+const {
+  LEAD_CARD_WORDS,
+  LEAD_WORDS_BOX: B,
+  PREVIEW_LINE_WORDS: P,
+  leadWordsPieces,
+  placeLineWriting,
+} = await import("@chanlytics/contracts");
+const { LEAD_FILL_WORDS: F, emailBlanksOf } =
+  await import("../../../apps/dashboard/src/surfaces/leads/sheet/model/fill-ins.ts");
 const { LEAD_SHEET_WORDS } = await import("../../../apps/dashboard/src/surfaces/leads/sheet/model/view.ts");
 
 const inTree = (node, test_) => {
@@ -131,6 +152,8 @@ const inTree = (node, test_) => {
     return null;
   }
   if (test_(node)) return node;
+  // The kit's Popover: its control is what the email shows, and its bubble is read through it.
+  if (node.type === Popover) return inTree(node.props.trigger, test_) ?? inTree(node.props.children, test_);
   return inTree(node.rendered, test_) ?? inTree(node.props?.children, test_);
 };
 const byId = (node, id) => inTree(node, (n) => n.props?.["data-testid"] === id);
@@ -138,6 +161,7 @@ const textOf = (node) => {
   if (node == null || typeof node === "boolean") return "";
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(textOf).join("");
+  if (node.type === Popover) return textOf(node.props.trigger);
   return node.rendered ? textOf(node.rendered) : textOf(node.props?.children);
 };
 
@@ -175,13 +199,15 @@ const mailOf = (edit = editOf(), over = {}) => ({
   tall: false,
   edit,
   wordsUnread: false,
+  leadId: LEAD,
+  blanks: null,
   ...over,
 });
 
 /** The sheet's two halves as it holds them: the email, and the dock's place. What each said back is kept. */
 function sheetOf(mail = mailOf()) {
   const said = { flashes: [], moved: 0, opened: 0, words: [], then: 0 };
-  const held = { leadId: LEAD, mail, box: null };
+  const held = { leadId: LEAD, mail, box: null, blanks: false };
   const Host = () => {
     held.box = box.useEmailBox({
       leadId: held.leadId,
@@ -200,6 +226,8 @@ function sheetOf(mail = mailOf()) {
         onRewrite: null,
         onUndo: null,
         box: held.box,
+        blanks: held.blanks,
+        onBlanks: (on) => (held.blanks = on),
       }),
       globalThis.React.createElement(box.SheetBoxDock, {
         box: held.box,
@@ -229,6 +257,7 @@ beforeEach(() => {
   door.refuse = null;
   door.was = null;
   door.sent = { ok: true, data: { subject: "What went", body: "It went." } };
+  door.preview = { preview: null, makes: false };
   kept.clear();
   cells = {};
   frames.reset();
@@ -683,4 +712,110 @@ test("what a save took stands on the sheet until the read after it says the same
   held.read = { ...held.read, words: [] };
   draw();
   assert.deepEqual(draw().emails.words, [], "the read landed: it says what is");
+});
+
+test("a fill-in is a press of its own: it says what it is and where from, and a tap on it never begins the typing", () => {
+  const s = sheetOf();
+  const tree = s.draw();
+  const fill = byId(tree, "lead-card-fill");
+  assert.equal(textOf(fill), "Sam");
+  assert.equal(fill.props["data-at"], `${OPENING}\n\nI run Harbor.\n\n`.length, "where it stands in the box's words");
+  const bubble = inTree(tree, (n) => n.type === Popover);
+  assert.equal(bubble.props.label, F.yourName);
+  const said = textOf(bubble.props.children);
+  assert.ok(said.includes(F.signs) && said.includes(F.same), said);
+  // A tap that lands on it is the bubble's: the email's own tap begins no typing.
+  const body = byId(tree, "lead-card-body");
+  const tap = (el, target) => {
+    body.props.onPointerDown({ currentTarget: el, clientX: 40, clientY: 40 });
+    body.props.onClick({ currentTarget: el, clientX: 40, clientY: 40, target });
+  };
+  tap({ contains: () => true }, new PressedElement(true));
+  assert.equal(byId(s.draw(), "lead-sheet-box-body"), null);
+  // So is a press inside the bubble (Make it now, Open it): React hands it up from its portal, and it is not in the words.
+  tap({ contains: () => false }, new PressedElement(false));
+  assert.equal(byId(s.draw(), "lead-sheet-box-body"), null);
+  assert.equal(s.said.opened, 0);
+  // A press on the words themselves still begins the typing.
+  tap({ contains: () => true }, new PressedElement(false));
+  assert.ok(byId(s.draw(), "lead-sheet-box-body"));
+});
+
+test("Change it for this one opens the box, as Edit does", () => {
+  const s = sheetOf();
+  byId(s.draw(), "lead-card-fill-change").props.onClick();
+  assert.ok(byId(s.draw(), "lead-sheet-box-body"));
+  assert.equal(s.said.opened, 1);
+});
+
+test("Show the blanks draws the step's own words with each blank named, and takes no tap", () => {
+  const s = sheetOf(mailOf(editOf(), { blanks: emailBlanksOf(STEP_WORDS) }));
+  const view = inTree(s.draw(), (n) => n.type === Segmented);
+  assert.equal(view.props.value, "read");
+  view.props.onValueChange("blanks");
+  const tree = s.draw();
+  assert.equal(textOf(byId(tree, "lead-card-subject")), "Quick one for Their business");
+  assert.equal(textOf(byId(tree, "lead-card-body")), `${F.lineBlank}\n\nI run Harbor.\n\nYour name`);
+  assert.equal(byId(tree, "lead-card-body").props.onClick, undefined, "a tap types nothing here");
+  assert.equal(textOf(byId(tree, "lead-card-view-note")), F.view.note);
+  assert.ok(byId(tree, "lead-sheet-box-edit"), "Edit still opens the box");
+  // Words with no blank in them, or none handed: no switch.
+  assert.equal(
+    inTree(sheetOf(mailOf()).draw(), (n) => n.type === Segmented),
+    null,
+  );
+});
+
+test("the receptionist's blank is a mark, never a bracket: its name while it is read, then what will happen", async () => {
+  const words = { subject: null, body: "Try it: {{their preview}}" };
+  const edit = editOf({ leadId: NEXT, first: false, written: words, stepWritten: words });
+  door.preview = { preview: null, makes: true };
+  const s = sheetOf(mailOf(edit, { subject: null, leadId: NEXT }));
+  assert.equal(textOf(byId(s.draw(), "lead-card-receptionist")), P.title);
+  assert.equal(byId(s.draw(), "lead-card-gap"), null, "no yellow bracket");
+  await until(() => textOf(byId(s.draw(), "lead-card-receptionist")).includes(F.mark.none), "the mark's read lands");
+  assert.ok(byId(s.draw(), "lead-sheet-preview-make"), "Make it now is a press away");
+});
+
+test("while a receptionist is being made its mark looks again by itself, and says ready when it is", async (t) => {
+  // The wait between looks is the clock's: the test turns it, and waits for what it asserts.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const made = "5e000000-0000-4000-8000-0000000000f1";
+  const preview = (state) => ({
+    preview: {
+      state,
+      token: "t",
+      failed_why: null,
+      ends_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      first_sent_at: null,
+      opened_count: 0,
+      asked_count: 0,
+      call_count: 0,
+      call_seconds: 0,
+      tried_at: null,
+      claimed_at: null,
+      not_right: [],
+    },
+    makes: true,
+  });
+  const words = { subject: null, body: "Try it: {{their preview}}" };
+  const edit = editOf({ leadId: made, first: false, written: words, stepWritten: words });
+  door.preview = preview("building");
+  const s = sheetOf(mailOf(edit, { subject: null, leadId: made }));
+  const mark = () => textOf(byId(s.draw(), "lead-card-receptionist"));
+  await until(() => mark().includes(F.mark.building), "it says it is being made");
+  const asked = () =>
+    sent.filter(([method, path]) => method === "GET" && path.endsWith(`/leads/${made}/preview`)).length;
+  const before = asked();
+  // Nothing is pressed: the receptionist is made, the wait runs out, and the mark's own look finds it.
+  door.preview = preview("ready");
+  t.mock.timers.tick(4_000);
+  await until(() => mark().includes(F.mark.ready), "it says ready with nothing pressed");
+  assert.ok(asked() > before, "it asked again by itself");
+  assert.ok(byId(s.draw(), "lead-sheet-preview-open"), "and Open it is a press away");
+  // Made, it asks no more: the clock turned again finds nothing waiting.
+  const after = asked();
+  t.mock.timers.tick(60_000);
+  s.draw();
+  assert.equal(asked(), after);
 });
