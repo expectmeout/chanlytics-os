@@ -6,6 +6,7 @@ import {
   NEW_ONCE_AHEAD_DAYS,
   NEW_STEPS_MAX,
   NEW_WORDS,
+  NUMBERED_SLOT,
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   handStepsHold,
@@ -157,8 +158,17 @@ export interface DraftKnown {
   previews?: boolean;
 }
 
-/** A step kept, or why it was not. */
-type Judged = { step: NewStep } | { dropped: string };
+/** A step kept, or what the draft says of one that was not, and why its words could not be kept where that is known. */
+type Judged = { step: NewStep } | { dropped: string; reason?: string };
+
+/** A reason as a clause: the message door's own sentences lose their closing stop. */
+const clause = (reason: string): string => reason.trim().replace(/[.!]+$/, "");
+
+/** A step Ask's answer wrote that cannot be kept: its place in the answer, and why. */
+export interface RefusedStep {
+  place: number;
+  reason: string;
+}
 
 /** A step's values from its message's slots: typed words from the model's, unless they name a price; the rest the run's. */
 function paramsOf(slots: readonly ParamSourceKind[], texts: readonly string[]): ParamSpec[] {
@@ -188,12 +198,16 @@ function fillable(slots: readonly ParamSourceKind[], first: boolean, moment: Kno
 
 const cleanWords = (s: string) => s.replace(/\r\n?/g, "\n").trim();
 
-/** A message Ask wrote for a person's step, as the message door would file it; null where it would refuse it. */
+/**
+ * A message Ask wrote for a person's step, as the message door would file it; or why it would not, in a clause
+ * (NEW_WORDS.cannot.why, or the door's own words).
+ */
 function askWrittenOf(
   write: NewDraftAnswerStep["write"],
   first: boolean,
   moment: KnownMoment | null,
-): NewMessage | null {
+): NewMessage | string {
+  const reasons = NEW_WORDS.cannot.why;
   const wa = cleanWords(write.whatsapp);
   // A message about the person's own visit is utility where WhatsApp reviews it; anything else is marketing, an offer or
   // news, which only a yes to offers hears and a text never carries (consent purposeOfTemplate; write-message.ts).
@@ -203,7 +217,8 @@ function askWrittenOf(
   const email = cleanWords(write.email_body);
   const numbered = numberedValues([wa, sms, subject, email]);
   const title = write.title.trim();
-  if (!numbered || !title || (!wa && !sms && !(subject && email))) return null;
+  if (!title || (!wa && !sms && !(subject && email))) return reasons.noWords;
+  if (!numbered) return reasons.unknownValue;
   const { rewrite, slots } = numbered;
   if (
     !fillable(
@@ -212,7 +227,9 @@ function askWrittenOf(
       moment,
     )
   )
-    return null;
+    return reasons.onlyFirst;
+  // A message's values are every version's: WhatsApp's words, which Meta reviews with an example for each, name them all.
+  if (wa && new Set(rewrite(wa).match(NUMBERED_SLOT) ?? []).size < slots.length) return reasons.valuesDiffer;
   const versions: NewWrittenMessage["versions"] = {
     ...(wa ? { whatsapp: { body: rewrite(wa) } } : {}),
     ...(subject && email ? { email: { subject: rewrite(subject), body: rewrite(email) } } : {}),
@@ -223,7 +240,7 @@ function askWrittenOf(
   try {
     checkMessage({ name: written.name, language: "en", category, versions, slots });
   } catch (e) {
-    if (e instanceof AppError) return null;
+    if (e instanceof AppError) return clause(e.message);
     throw e;
   }
   const channels = (["whatsapp", "email", "sms"] as const).filter((c) => !!versions[c]);
@@ -240,18 +257,18 @@ function askWrittenOf(
   };
 }
 
-/** A person's message step: a held message by its key, or one Ask wrote. */
+/** A person's message step: a held message by its key, or one Ask wrote; or why neither can be kept, in a clause. */
 function peopleMessage(
   newDraftAnswerStep: NewDraftAnswerStep,
   first: boolean,
   known: DraftKnown,
   moment: KnownMoment | null,
-) {
+): NewMessage | string {
   const held = newDraftAnswerStep.message
     ? known.messages.find((m) => m.key === newDraftAnswerStep.message)
     : undefined;
   if (held) {
-    if (!fillable(held.slots, first, moment)) return null;
+    if (!fillable(held.slots, first, moment)) return NEW_WORDS.cannot.why.onlyFirst;
     return {
       template_id: held.templateId,
       title: held.title,
@@ -263,7 +280,8 @@ function peopleMessage(
       ...(held.labels ? { labels: held.labels } : {}),
     } satisfies NewMessage;
   }
-  return newDraftAnswerStep.write.title ? askWrittenOf(newDraftAnswerStep.write, first, moment) : null;
+  if (!newDraftAnswerStep.write.title) return NEW_WORDS.cannot.why.noMessage;
+  return askWrittenOf(newDraftAnswerStep.write, first, moment);
 }
 
 /**
@@ -325,11 +343,33 @@ function judgeStep(
     return { step: { ...base, does: "message", message: null, email, hand: "" } };
   }
   const message = peopleMessage(newDraftAnswerStep, first, params.known, params.moment);
-  if (!message) return { dropped: first ? NEW_WORDS.cannot.noMessage : NEW_WORDS.cannot.stepDropped };
+  if (typeof message === "string")
+    return { dropped: first ? NEW_WORDS.cannot.noMessage : NEW_WORDS.cannot.stepDropped, reason: message };
   return { step: { ...base, does: "message", message, email: null, hand: "" } };
 }
 
-/** The steps kept, at most the audience's, a once's one; a call or a note only as the last. */
+/**
+ * The steps of a draft that stands, in the shape Ask answers one in: each held message by the key the request lists it
+ * under ("" where it lists none). What the drafter is told of them (drafts/sequence-change.ts), and what a step falls
+ * back to where a change rewrote it in words that cannot be kept.
+ */
+export function stoodStepsOf(
+  stands: NonNullable<NewDraftAsk["stands"]>,
+  known: Pick<DraftKnown, "messages">,
+): NewDraftAnswerStep[] {
+  return stands.steps.map(({ template_id: held, ...step }) => ({
+    ...step,
+    message: known.messages.find((message) => message.templateId === held)?.key ?? "",
+  }));
+}
+
+/**
+ * The steps kept, at most the audience's, a once's one; a call or a note only as the last. Where the line changes a draft
+ * that stands and the answer holds the same steps, one it rewrote in words that cannot be kept stays as it stood
+ * (`stayed`, by its place): a change never loses a step its owner did not ask to lose (the live run of 11 Nov 2026:
+ * "make the second message shorter" came back with no second message). Each step whose words could not be kept is
+ * named with why (`refused`): the draft's card says it, and Ask is asked once more with it (drafts/sequence.ts).
+ */
 function judgeSteps(
   answer: NewDraftAnswer,
   params: {
@@ -339,20 +379,34 @@ function judgeSteps(
     moment: KnownMoment | null;
     name: string;
     backing: string[];
+    stood: readonly NewDraftAnswerStep[] | null;
   },
-): { steps: NewStep[]; cannot: string[] } {
+): { steps: NewStep[]; cannot: string[]; stayed: string[]; refused: RefusedStep[] } {
   const max = params.kind === "once" ? 1 : NEW_STEPS_MAX[params.audience];
   const steps: NewStep[] = [];
   const cannot: string[] = [];
-  for (const a of answer.steps) {
+  const stayed: string[] = [];
+  const refused: RefusedStep[] = [];
+  const stood = params.stood?.length === answer.steps.length ? params.stood : null;
+  for (const [at, answered] of answer.steps.entries()) {
     if (steps.length >= max) break;
-    const j = judgeStep(a, steps.length, params);
-    if ("dropped" in j) {
-      cannot.push(j.dropped);
-      if (steps.length === 0) break;
+    const judged = judgeStep(answered, steps.length, params);
+    if ("step" in judged) {
+      steps.push(judged.step);
       continue;
     }
-    steps.push(j.step);
+    if (judged.reason) refused.push({ place: at + 1, reason: judged.reason });
+    const was = stood?.[at] ? judgeStep(stood[at], steps.length, params) : null;
+    if (was && "step" in was) {
+      steps.push(was.step);
+      stayed.push(NEW_WORDS.cannot.stepStays(steps.length, judged.reason ?? NEW_WORDS.cannot.why.noWords));
+      continue;
+    }
+    // A later step left out says which and why; the first is the draft's own refusal (noMessage), as it was.
+    cannot.push(
+      judged.reason && steps.length > 0 ? NEW_WORDS.cannot.stepLeftOut(at + 1, judged.reason) : judged.dropped,
+    );
+    if (steps.length === 0) break;
   }
   // A call or a note stands last: one before a message ends the steps there.
   const lastHand = steps.findIndex((s) => s.does !== "message");
@@ -360,8 +414,8 @@ function judgeSteps(
     steps.splice(lastHand + 1);
     cannot.push(NEW_WORDS.cannot.handNotLast);
   }
-  if (!handStepsHold(steps)) return { steps: [], cannot: [NEW_WORDS.cannot.nothingFits] };
-  return { steps, cannot };
+  if (!handStepsHold(steps)) return { steps: [], cannot: [NEW_WORDS.cannot.nothingFits], stayed: [], refused };
+  return { steps, cannot, stayed, refused };
 }
 
 /**
@@ -454,11 +508,8 @@ const everyoneSaid = (draftWho: DraftWho | null, first: NewMessage | null): Draf
     ? { ...draftWho, label: first?.offer ? NEW_WORDS.draft.everyoneOffers : NEW_WORDS.draft.everyoneNews }
     : draftWho;
 
-/**
- * The draft from Ask's answer: the kind and audience the owner chose, else Ask's; who, when and the steps, each as this
- * workspace offers and holds them. A draft with no step is no draft: the route says why (422) in Ask's words, or in New's.
- */
-export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk): NewDraftDto {
+/** What an answer is judged as: what it is, who it is for, and its steps as the workspace can keep them. */
+function judgedOf(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk) {
   const kind = ask.kind ?? answer.kind;
   const audience = ask.audience ?? answer.audience;
   const named = asNewWho(answerWhoOf(answer, known, ask), kind);
@@ -467,8 +518,29 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
     draftWho?.kind === "moment" ? (known.moments.find((m) => m.trigger === draftWho.trigger) ?? null) : null;
   const name = (answer.name.trim() || draftWho?.label || NEW_WORDS.title).slice(0, 80);
   const backing = draftBackingOf(known, ask);
-  const { steps, cannot } = judgeSteps(answer, { audience, kind, known, moment, name, backing });
+  const stood = ask.stands ? stoodStepsOf(ask.stands, known) : null;
+  const judged = judgeSteps(answer, { audience, kind, known, moment, name, backing, stood });
+  return { kind, audience, draftWho, moment, name, ...judged };
+}
+
+/**
+ * The steps of an answer whose words cannot be kept, each with why: what Ask is told where it is asked once more
+ * (drafts/sequence.ts). None where every step holds.
+ */
+export function refusedSteps(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk): RefusedStep[] {
+  return judgedOf(answer, known, ask).refused;
+}
+
+/**
+ * The draft from Ask's answer: the kind and audience the owner chose, else Ask's; who, when and the steps, each as this
+ * workspace offers and holds them. A draft with no step is no draft: the route says why (422) in Ask's words, or in New's.
+ */
+export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDraftAsk): NewDraftDto {
+  const { kind, audience, draftWho, moment, name, steps, cannot, stayed } = judgedOf(answer, known, ask);
   const sentence = answer.cannot.trim();
+  // What Ask says it left out, else what the judge left out; and a step that stays as it stood is always said.
+  const leftOut = sentence || [...new Set(cannot)].join(" ");
+  const notes = [leftOut, ...stayed].filter(Boolean).join(" ");
   if (steps.length === 0) throw new AppError("validation", sentence || cannot[0] || NEW_WORDS.cannot.nothingFits);
   const first = steps[0]?.message ?? null;
   const how = howOf({ kind, audience, who: draftWho, moment, first }, answer, known);
@@ -490,7 +562,7 @@ export function draftKept(answer: NewDraftAnswer, known: DraftKnown, ask: NewDra
     }),
     checks: [],
     twin: kind === "sequence" ? twinOf(draftWho, known.running) : null,
-    cannot: sentence || (cannot.length ? [...new Set(cannot)].join(" ") : null),
+    cannot: notes || null,
   };
   return { ...draft, checks: newChecksOf(draft, known.ready) };
 }

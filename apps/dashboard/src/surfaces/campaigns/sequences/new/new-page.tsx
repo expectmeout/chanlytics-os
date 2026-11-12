@@ -269,7 +269,10 @@ function useRedraft(on: {
   return { redraft, as, letGo: () => setPending(null) };
 }
 
-/** What the line under a draft last left: the draft and what Ask drafted before it, the line, and what it changed. */
+/** How many changes back Undo goes: more than a draft is changed before it is started or let go. */
+const CHANGES_KEPT = 20;
+
+/** What one change by the line left: the draft and what Ask drafted before it, the line, and what it changed. */
 interface Changed {
   before: NewDraftDto;
   drafted: NewDraftDto | null;
@@ -280,8 +283,9 @@ interface Changed {
 
 /**
  * The line under a draft (decision 0129 step 2; change.ts): what is typed in it, the line Ask is changing the draft by
- * while it does, and what its last change left, with the draft before it for Undo. Ask's answer is taken as the draft
- * that stood, changed, and counted again; a change by hand, or a new draft, lets what it left go.
+ * while it does, and what each change left, newest last, with the draft before it: Undo steps back through them one at
+ * a time. Ask's answer is taken as the draft that stood, changed, and counted again; a change that changed nothing is
+ * said in passing and leaves nothing to undo; a change by hand, or a new draft, lets them all go.
  */
 function useChange(on: {
   draft: NewDraftDto | null;
@@ -289,10 +293,11 @@ function useChange(on: {
   asking: Asking;
   recount: (prev: NewDraftDto | null, next: NewDraftDto) => NewDraftDto;
   put: (draft: NewDraftDto, drafted: NewDraftDto | null) => void;
+  flash: Flash;
 }) {
   const [words, setWords] = useState("");
   const [by, setBy] = useState<string | null>(null);
-  const [left, setLeft] = useState<Changed | null>(null);
+  const [left, setLeft] = useState<Changed[]>([]);
   const say = (line: string) => {
     const before = on.draft;
     if (!before || by !== null) return;
@@ -302,24 +307,29 @@ function useChange(on: {
       .then((answered) => {
         if (!answered) return;
         const next = on.recount(answered, changedFrom(before, answered));
+        const changed = changesOf(before, next);
         on.put(next, draftedAfter(on.drafted, before, next));
-        setLeft({ before, drafted: on.drafted, line, ...changesOf(before, next) });
         setWords("");
+        // Nothing changed: said in passing (what Ask left out is the draft's card's to say), with nothing to undo.
+        if (changed.said === CHANGE_WORDS.same) on.flash({ msg: CHANGE_WORDS.same });
+        else setLeft((all) => [...all, { before, drafted: on.drafted, line, ...changed }].slice(-CHANGES_KEPT));
       })
       .finally(() => setBy(null));
   };
+  const last = left.at(-1) ?? null;
   const back = () => {
-    if (left) on.put(left.before, left.drafted);
-    setLeft(null);
+    if (last) on.put(last.before, last.drafted);
+    setLeft((all) => all.slice(0, -1));
   };
   const changing = by !== null && on.asking.drafting === "again";
-  // What stands on top of the draft: the line Ask is changing it by, or the last one with what it changed.
+  // What stands on top of the draft: the line Ask is changing it by, or the newest change with what it changed and
+  // its Undo, which puts back the draft before it and shows the change before that.
   const note = changing
-    ? { said: by, by: null, steps: [] }
-    : left
-      ? { said: left.line, by: left.said, steps: left.steps }
+    ? { said: by, by: null, steps: [], undo: false }
+    : last
+      ? { said: last.line, by: last.said, steps: last.steps, undo: true }
       : null;
-  return { words, setWords, changing, note, say, back, forget: () => setLeft(null) };
+  return { words, setWords, changing, note, say, back, forget: () => setLeft([]) };
 }
 
 /** When a one-off sent goes, as its toast says it: when the send door set it for, by the business's clock. */
@@ -505,7 +515,7 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
     work.stay();
   };
   const asking = useAsk(door, flash);
-  const change = useChange({ draft, drafted, asking, recount, put: show });
+  const change = useChange({ draft, drafted, asking, recount, put: show, flash });
   // A draft Ask answered whole, or one built by hand: what the line last changed is let go with the draft it changed.
   const took = (answered: NewDraftDto) => {
     show(answered, answered);

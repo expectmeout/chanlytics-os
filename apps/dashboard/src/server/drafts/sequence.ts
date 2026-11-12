@@ -8,6 +8,8 @@
  * each choice by a key of the request, never an id, and every answer is judged in code against the same lists
  * (draft-judge.ts). A message's words are data to the model (contracts ai/fence.ts). Nothing is written (decision 0017).
  * A line said under a draft changes the draft that stands (`stands`, sequence-change.ts): the same call, told that draft.
+ * Where the judge cannot keep a step's words, Ask is asked once more, told which step and why (decision 0129 step 2,
+ * after the live run of 11 Nov 2026): the better of its two answers is kept.
  */
 import "server-only";
 import {
@@ -65,6 +67,8 @@ import { templates } from "../readers/templates";
 import { getStoredConfig } from "../workspace/config-row";
 import {
   draftKept,
+  refusedSteps,
+  type RefusedStep,
   type DraftExample,
   type DraftKnown,
   type KnownMessage,
@@ -96,7 +100,7 @@ const RULES = [
   "Choose `kind`: sequence (steps over days, each a wait after the one before) or once (one message, now or on a day).",
   "Choose `audience`: people (the business's own customers, in People) or leads (other businesses a search found, which never said yes to it: you only email them).",
   "Choose `who` by its key from the lists below: a moment or a list for a sequence to people; everyone or a list for a message sent once to people; a search for leads. Leave it empty when none fits, and say why in `cannot`.",
-  "A step to people sends one of the business's messages by its key, with `texts` for its typed-words values in order; or, only where none of them fits, a new one in `write`: a short `title`, `offer` true for an offer, and its words for each channel it should go by: `whatsapp` and `text` short and plain, `email_subject` and `email_body`. Name only these values, in double braces: {{first name}}, {{business name}}, {{booking link}}, {{review link}}, and on a first step after a booking {{booked time}} and {{booked service}}. A text never carries an offer: leave `text` empty for one. Leave `message` empty when you write one, and every `write` field empty when you don't.",
+  "A step to people sends one of the business's messages by its key, with `texts` for its typed-words values in order; or, only where none of them fits, a new one in `write`: a short `title`, `offer` true for an offer, and its words for each channel it should go by: `whatsapp` and `text` short and plain, `email_subject` and `email_body`. Name only these values, in double braces: {{first name}}, {{business name}}, {{booking link}}, {{review link}}, and on a first step after a booking {{booked time}} and {{booked service}}. Every version of one message names the same values: a value the email or the text names, the `whatsapp` words name too, or the message cannot be kept. A text never carries an offer: leave `text` empty for one. A name the owner asks a message be signed with stands on a line of its own, last. Leave `message` empty when you write one, and every `write` field empty when you don't.",
   ...LEAD_RULES,
   `A step after the first waits \`after_days\` after the one before: ${NEW_WAIT_DAYS.people.min} to ${NEW_WAIT_DAYS.people.max} for people, ${NEW_WAIT_DAYS.leads.min} to ${NEW_WAIT_DAYS.leads.max} for leads. To people it may go only if they have not booked since (no_booking) or not written back (no_reply); a lead stops on a reply on its own, so leave \`only_if\` empty for leads and on a first step.`,
   "A step may instead hand each person to the team: `does` call or note, with `words` saying what to do when they come up. Only when the owner asks for it, and only as the last step, never the first. A message step leaves `words` empty.",
@@ -294,27 +298,49 @@ function draftAsked(known: DraftKnown, ask: NewDraftAsk): string {
 /** The drafter's own rules, as its system prompt says them: every workspace's, and a previewing one's one more. */
 export const draftRules = (previews: boolean): string => [...RULES, ...(previews ? [PREVIEW_RULE] : [])].join("\n");
 
-/** The draft from what is known: one model call, and what is kept of its answer. */
+/** What Ask is told where it is asked once more: the steps whose words could not be kept, each with why. */
+const againAsked = (refused: readonly RefusedStep[]): string =>
+  `These steps could not be kept as you wrote them: ${refused
+    .map((step) => `step ${step.place}: ${step.reason}`)
+    .join("; ")}. Answer the whole draft again with those put right, and everything else exactly as you answered it.`;
+
+/**
+ * The draft from what is known: one model call, and what is kept of its answer; and one call more where the judge cannot
+ * keep a step's words, told which and why, its answer kept where it leaves fewer such steps. A second call that fails
+ * leaves the first answer standing.
+ */
 export async function draftSequenceFrom(
   known: DraftKnown,
   ask: NewDraftAsk,
   personName: { tenantId: TenantId; userId: string },
 ): Promise<NewDraftDto> {
-  const answer = await askForJson(
-    {
-      tenantId: personName.tenantId,
-      userId: personName.userId,
-      purpose: "sequence_draft",
-      request: {
-        max_tokens: 2400,
-        system: [draftRules(known.previews === true), ...(ask.stands ? [CHANGE_RULE] : [])].join("\n"),
-        schema: NEW_DRAFT_JSON_SCHEMA,
-        messages: [{ role: "user", content: draftAsked(known, ask) }],
+  const prompt = draftAsked(known, ask);
+  const answerTo = (messages: Array<{ role: "user" | "assistant"; content: string }>) =>
+    askForJson(
+      {
+        tenantId: personName.tenantId,
+        userId: personName.userId,
+        purpose: "sequence_draft",
+        request: {
+          max_tokens: 2400,
+          system: [draftRules(known.previews === true), ...(ask.stands ? [CHANGE_RULE] : [])].join("\n"),
+          schema: NEW_DRAFT_JSON_SCHEMA,
+          messages,
+        },
       },
-    },
-    NewDraftAnswerSchema,
-    "draft",
-  );
+      NewDraftAnswerSchema,
+      "draft",
+    );
+  let answer = await answerTo([{ role: "user", content: prompt }]);
+  const refused = refusedSteps(answer, known, ask);
+  if (refused.length > 0) {
+    const second = await answerTo([
+      { role: "user", content: prompt },
+      { role: "assistant", content: JSON.stringify(answer) },
+      { role: "user", content: againAsked(refused) },
+    ]).catch(logAndGoOn("sequence draft asked again", null));
+    if (second && refusedSteps(second, known, ask).length < refused.length) answer = second;
+  }
   // The lines learned from how the owner writes, which the page says it wrote with (decision 0078).
   const voice = (known.memory ?? []).filter((m) => m.source === "learned").map((m) => m.text);
   return { ...draftKept(answer, known, ask), voice };
