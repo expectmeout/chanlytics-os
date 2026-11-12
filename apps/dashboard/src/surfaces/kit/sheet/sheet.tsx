@@ -91,6 +91,11 @@ type SheetShape =
       rest?: SheetRestControl;
       /** The foot is its presses alone on the sheet's ground, no pill round them (kit.css "A flat foot"). */
       flatFoot?: boolean;
+      /**
+       * Its ground is solid and its head runs into what it holds, no rule between them (kit.css, "A solid sheet"): one that
+       * is read and answered on, as a sheet whose first rest fits already is (the Calendar's visit, beside Today's walk).
+       */
+      solid?: boolean;
       back?: undefined;
     }
   | {
@@ -107,6 +112,7 @@ type SheetShape =
       footCloses?: undefined;
       rest?: undefined;
       flatFoot?: undefined;
+      solid?: undefined;
     };
 
 /** A sheet: whether it is open, what asks it to close, its head, what it holds, and its shape's parts. */
@@ -290,6 +296,7 @@ export function Sheet(props: SheetProps) {
           data-fit={shown.fit ? "true" : undefined}
           data-rest={shown.rest ? shown.rest.at : undefined}
           data-rest-fit={shown.rest?.fit ? "true" : undefined}
+          data-solid={shown.solid ? "true" : undefined}
           data-testid={testid}
           {...(shown.rest
             ? restSwipe({ rest: shown.rest.at, onRest: shown.rest.onRest, onClose, when: onAPhone })
