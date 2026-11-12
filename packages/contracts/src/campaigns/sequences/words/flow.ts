@@ -10,6 +10,7 @@ import { runWaitsOnYou, type RunDays } from "../../../waits/waits";
 import type { SequenceRowDto } from "../dto";
 import { SEQUENCE_MODE_WORDS, sequenceModeOf, type SequenceState } from "../sequence";
 import { needsCount } from "../list";
+import { sequenceStuckOf } from "../run-off";
 import type { ReachOutFedBy } from "../../reach-out/leads/lines";
 
 /** The page's own words, said once. */
@@ -253,13 +254,14 @@ export function sequenceWaitsNow(row: SequenceRowDto, days: RunDays): SequenceRo
  * Which of the list's groups a sequence is drawn in: a draft under Drafts, what needs you (people or emails waiting, or a
  * twin sending each person the same moment twice) first, a sequence paused under Paused, one ended under Ended (folded at
  * the list's foot), and the rest by how it starts. A one-off that went stays among the One-off sends, where it is looked
- * for; one that failed needs you (decision 0128).
+ * for; one that failed needs you (decision 0128), and so does a sequence that should be going and isn't (run-off.ts).
  */
 export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null = null): SequenceGroup {
   // A draft stays in the list under Drafts until it is started: nothing of it goes, so nothing of it needs you.
   if (row.state === "draft") return "drafts";
   if (needsCount(row.needs) > 0 || twin) return "needs";
   if (row.starts === "date" && row.date?.state === "failed") return "needs";
+  if (sequenceStuckOf(row)) return "needs";
   if (row.starts === "date") return "dates";
   if (row.state === "ended") return "ended";
   if (row.state === "paused") return "off";

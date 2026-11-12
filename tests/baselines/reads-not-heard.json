@@ -44,6 +44,9 @@
         "reports_receptionist": [
           "memberships"
         ],
+        "sequences": [
+          "memberships"
+        ],
         "today": [
           "memberships"
         ],
@@ -373,26 +376,35 @@
     },
     {
       "kind": "over-read",
-      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not, reach_out_why_not's one predicate): it asks whether People holds the lead's address or number (a customer is never written to), and Leads draws that only as the why of a lead its batch cannot take. It rides with the places' read, which Leads makes again with the sequences and batches it hears.",
+      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not, reach_out_why_not's one predicate): it asks whether People holds the lead's address or number (a customer is never written to), and Leads draws that only as the why of a lead its batch cannot take. It rides with the places' read, which Leads makes again with the sequences and batches it hears. The Sequences list asks it through the same door, of the leads longest on a running sequence's list (decision 0128, stage 2), and says only how many of them could not be checked: read again with the batches and the leads it hears.",
       "reads": {
         "leads": [
+          "contacts"
+        ],
+        "sequences": [
           "contacts"
         ]
       },
       "heardWith": {
         "leads": [
           "sequence_batches"
+        ],
+        "sequences": [
+          "sequence_batches"
         ]
       }
     },
     {
       "kind": "unfed",
-      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not): the never-again list (lead_suppressions), which the feed does not tell. Leads reads it again with the places, as it hears a sequence's batches; a person's page with their lead, which it hears.",
+      "why": "Why a lead on a sequence's list is not planned (00533 sequence_queued_why_not): the never-again list (lead_suppressions), which the feed does not tell. Leads reads it again with the places, as it hears a sequence's batches; a person's page with their lead, which it hears. The Sequences list, which asks the same door (decision 0128, stage 2), with its batches.",
       "reads": {
         "leads": [
           "lead_suppressions"
         ],
         "person": [
+          "lead_suppressions"
+        ],
+        "sequences": [
           "lead_suppressions"
         ]
       },
@@ -402,6 +414,9 @@
         ],
         "person": [
           "leads"
+        ],
+        "sequences": [
+          "sequence_batches"
         ]
       }
     },
