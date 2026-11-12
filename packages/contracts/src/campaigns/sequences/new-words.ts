@@ -388,6 +388,23 @@ export const NEW_WORDS = {
     nothingFits: "Ask couldn’t find who and what for this. Say it another way.",
     noMessage: "Ask couldn’t write a message that holds here. Pick one of yours, or write it.",
     stepDropped: "A step couldn’t be kept as Ask wrote it, so it is left out.",
+    /**
+     * Why a step Ask wrote cannot be kept, each a clause: said in the draft's card, and to Ask where it is asked once
+     * more (decision 0129 step 2). What the message door refuses is said in the door's own words.
+     */
+    why: {
+      noWords: "it has no words, or no name",
+      unknownValue: "its words name a value New doesn’t know, or leave a brace open",
+      valuesDiffer: "its email or text names a value its WhatsApp words don’t",
+      onlyFirst:
+        "a booking’s time or service, a proposal’s link or a freed time is only known on the first step of its own moment",
+      noMessage: "it names none of the business’s messages and writes none",
+    },
+    /** A step left out, with why. */
+    stepLeftOut: (place: number, reason: string) => `Step ${place} was left out: ${reason}.`,
+    /** A change that rewrote a step in words that cannot be kept: the step stands as it did, with why. */
+    stepStays: (place: number, reason: string) =>
+      `Step ${place} stays as it was. Ask’s new words for it couldn’t be kept: ${reason}.`,
     handNotLast: "A call or a note ends a sequence, so it is the last step.",
     leftOut: (text: string) => `Left out: “${text}”`,
   },
