@@ -86,11 +86,15 @@ the message door refuses a message whose versions name different values, and the
 13. **Undo steps back through every change the line made,** newest first, each shown with what it changed.
 14. **A name signing a message stands on a line of its own,** last.
 
-Still to weigh, from the same run: an invitation back that Ask writes on a visit's moment is filed as about their
-booking, with a text version, where it reads as an offer. That is a question of who may be sent it, and its own decision.
+15. **After a visit, only the first step Ask writes is about the visit; a later one is an offer.** Ruben's call, 12
+    November 2026 ("Yes, an offer"). An invitation back weeks after a visit was filed as about their booking: it went by
+    text, and to people who had never said yes to offers. Now a later step on a visit's moment is marketing whatever Ask
+    says: only a yes to offers hears it, never by text, and WhatsApp reviews it as marketing. Ask is told the same rule.
+    A message the business already holds keeps the kind it was approved as.
 
-Items 7 to 14 are held by a stand-in model in the tests, as the rest of the step is; the same real asks are run again on
-the demo workspace once they are live.
+Items 7 to 14 were run again live on the demo workspace on 12 November 2026, the day they shipped: no step was lost in
+four asks that had lost one before, a change that named no step left an approved message as it was and said so, a
+signature stood on its own line, Undo stepped back through four changes, and a change took about five seconds.
 
 ## Deploy order
 

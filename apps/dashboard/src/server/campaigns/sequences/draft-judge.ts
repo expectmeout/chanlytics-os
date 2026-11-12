@@ -209,9 +209,12 @@ function askWrittenOf(
 ): NewMessage | string {
   const reasons = NEW_WORDS.cannot.why;
   const wa = cleanWords(write.whatsapp);
-  // A message about the person's own visit is utility where WhatsApp reviews it; anything else is marketing, an offer or
-  // news, which only a yes to offers hears and a text never carries (consent purposeOfTemplate; write-message.ts).
-  const utility = !write.offer && !!moment?.visits && !!wa;
+  // A message about the person's own visit is utility where WhatsApp reviews it: the first step of a visit's moment,
+  // the one the visit sends. A later step (an invitation back, a nudge to book) is an offer, as is anything else:
+  // marketing, which only a yes to offers hears and a text never carries (consent purposeOfTemplate; write-message.ts).
+  // Ruben's call, 12 Nov 2026: a "come back and book" weeks after a visit went as about their booking, by text, to people
+  // who never said yes to offers.
+  const utility = first && !write.offer && !!moment?.visits && !!wa;
   const sms = utility ? cleanWords(write.text) : "";
   const subject = cleanWords(write.email_subject);
   const email = cleanWords(write.email_body);
