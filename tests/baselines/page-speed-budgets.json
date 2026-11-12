@@ -1,5 +1,5 @@
 {
-  "note": "How long each page may take to be drawn with its rows (the shell's own READY, client/page-speed.ts), on a cold load in a fresh context and on a move from Today, as the nightly's check of production measures it (e2e/production/page-speed-budgets.spec.ts, four pages cold and the rest as moves; the page-open PRD of 3 Nov 2026, L9, NFR3). Set generous on 3 Nov 2026 before any nightly had measured them; each is lowered to the first week's p75 plus a fifth, and may only fall after that.",
+  "note": "How long each page may take to be drawn with its rows (the shell's own READY, client/page-speed.ts), on a cold load in a fresh context and on a move from Today, as the nightly's check of production measures it (e2e/production/page-speed-budgets.spec.ts, four pages cold and the rest as moves; the page-open PRD of 3 Nov 2026, L9, NFR3). Set generous on 3 Nov 2026 before any nightly had measured them; each is lowered to the first week's p75 plus a fifth, and may only fall after that. That week is the first one read back from the nightly's log, where the spec says each reading since 11 Nov 2026 (`page-speed cold today: 1830 ms of 6000`): the nights before it passed and kept no number.",
   "cold": {
     "today": 6000,
     "inbox": 6000,

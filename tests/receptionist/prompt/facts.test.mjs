@@ -264,12 +264,8 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   // settings read carries both -- each fact from the typed brain and what the
   // platform knows, and their conflicts -- is RUN: through the route in
   // settings-routes.test.mjs ("F1") and through its reader in readers.test.mjs.
-  assert.ok(
-    readCode("apps/dashboard/src/bridge/surfaces/settings.ts").includes(
-      "w.__FACTS = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };",
-    ),
-    "and publishes them once",
-  );
+  // And that the browser's read lands them once, on the settings surface, is run too
+  // (the-settings-read-lands-the-facts.test.mjs): a line of the bridge's source was read for it here.
 });
 
 test("the field that caused this says what it is", () => {

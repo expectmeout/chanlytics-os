@@ -3763,6 +3763,12 @@ html.frame-on .cm-pane-sub .bc-run-link {
     background: var(--line);
     pointer-events: none;
   }
+  /* A cold email's row wears its mark before its name (reach-out/email-message.tsx), so its name stands a face and a gap
+     further in and its line starts there, where the kit's row starts its own. It started at the row's edge, 44px left of
+     the name, from the day the rows became two lines (#2249, 10 Nov 2026). */
+  .msg-row + .msg-row > .msg-row-line[data-marked]::after {
+    left: var(--row-rule-start);
+  }
   .msg-row + .msg-row.is-open > .msg-row-line::after {
     content: none;
   }

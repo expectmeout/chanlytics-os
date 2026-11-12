@@ -86,12 +86,18 @@ interface StorageLike {
 interface Globals {
   INBOX_DATA?: { THREADS?: FeedThread[] };
   __LIVE?: FeedLive;
-  __TEAM_INVITES?: FeedInvite[] | null;
   /** The kept rows, from the notifications surface. */
   __NOTIFICATIONS?: { dto: NotificationsDto } | null;
   /** The workspace's id, as the server decided it. The marks are keyed by it: the slug is an address, and addresses change. */
   __ACTIVE_WORKSPACE?: string;
 }
+
+/**
+ * The open invitations, as the settings read holds them (the settings surface's `invites`, bridge/surfaces/settings.ts):
+ * null where the team read failed, nothing before it. They were a global the bell read off its window beside the surface
+ * (`__TEAM_INVITES`), holding the same.
+ */
+const invitesHeld = (): FeedInvite[] | null | undefined => surfaceValue("settings")?.invites;
 
 /** Where a row the browser derives comes from: the Inbox's threads, the calls, the invitations. */
 type FeedSource = "threads" | "calls" | "invites";
@@ -108,7 +114,7 @@ const sourceOfKey = (key: string): FeedSource =>
 const loadedSources = (g: Globals): Record<FeedSource, boolean> => ({
   threads: Array.isArray(g.INBOX_DATA?.THREADS),
   calls: !!g.__LIVE,
-  invites: Array.isArray(g.__TEAM_INVITES),
+  invites: Array.isArray(invitesHeld()),
 });
 
 /** The row the popover draws: the mockup's own shape. */
@@ -279,7 +285,7 @@ export function feedFromGlobals(g: Globals, now: number) {
   return buildNotificationFeed({
     threads: g.INBOX_DATA?.THREADS ?? null,
     calls: bellCalls(g.__LIVE),
-    invites: g.__TEAM_INVITES ?? null,
+    invites: invitesHeld() ?? null,
     now,
   });
 }

@@ -36,14 +36,28 @@ export function totpCode(secret, atMs = Date.now()) {
   return String(n).padStart(6, "0");
 }
 
-/** Enrol an authenticator on this signed-in client and show its first code: the session is aal2 after. */
+/** What the Auth server said of a refused call, with the status and code its message leaves out. */
+const refusal = (error) => `${error.message} (status ${error.status ?? "none"}, code ${error.code ?? "none"})`;
+
+/**
+ * Enrol an authenticator on this signed-in client and show its first code: the session is aal2 after.
+ *
+ * The code is asked twice at most, each time a new challenge and the code of that moment. One night's database suite
+ * (11 November 2026) lost a whole file to a single "Unexpected failure" here: the Auth server's own fault (a 500), on
+ * the one call every test of the file stood behind. A code read at the edge of its thirty seconds is the same case from
+ * the other side. Neither is what these suites prove, so one more ask; a second refusal is raised with its status and
+ * code, which say whether the server failed or the code was wrong without the Auth container's log.
+ */
 export async function showSecondFactor(client) {
   const e = await client.auth.mfa.enroll({
     factorType: "totp",
     friendlyName: `test-${randomBytes(4).toString("hex")}`,
   });
-  if (e.error) throw new Error(`enrol: ${e.error.message}`);
-  const v = await client.auth.mfa.challengeAndVerify({ factorId: e.data.id, code: totpCode(e.data.totp.secret) });
-  if (v.error) throw new Error(`verify: ${v.error.message}`);
+  if (e.error) throw new Error(`enrol: ${refusal(e.error)}`);
+  const show = () => client.auth.mfa.challengeAndVerify({ factorId: e.data.id, code: totpCode(e.data.totp.secret) });
+  const first = await show();
+  if (!first.error) return client;
+  const second = await show();
+  if (second.error) throw new Error(`verify: ${refusal(second.error)}; and before it: ${refusal(first.error)}`);
   return client;
 }

@@ -22,6 +22,7 @@ import { LineChart } from "../kit/charts/line";
 import { Icon } from "../kit/icon/icon";
 import { LinePress } from "../kit/line/line";
 import type { useAskSpeech } from "./hooks";
+import { byKeyLines, deleteKeyOf, secondAct } from "./second-act";
 import type { LineWords } from "./words";
 
 /** A chart of numbers the turn read. */
@@ -268,8 +269,10 @@ export const AskRows = ({
           {it.meta ? <span className="line-chip-meta">{it.meta}</span> : null}
         </LinePress>
       );
+    // A row is ONE option and holds no control of its own (second-act.tsx): Not now and a conversation's x are a
+    // pointer's alone, and the keys say either with Delete on the row, which the option names and says in words.
     return (
-      <div key={i} {...shared} className={`ask-row ${it.type}${sel ? " sel" : ""}`}>
+      <div key={i} {...shared} className={`ask-row ${it.type}${sel ? " sel" : ""}`} {...deleteKeyOf(it)}>
         {it.type === "thread" ? <Icon name="chat" size={13} className="ask-row-glyph" /> : null}
         {it.type === "follow" && !it.rest ? <span className="subtab-dot" aria-hidden="true" /> : null}
         <span className="ask-row-main">
@@ -278,34 +281,23 @@ export const AskRows = ({
         </span>
         {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
         {it.rest ? (
-          <LinePress
-            kind="words"
-            className="ask-row-meta"
-            tabIndex={-1}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (it.rest) onRest?.(it.rest);
-            }}
+          <span
+            {...secondAct(() => it.rest && onRest?.(it.rest))}
+            className="line-words ask-row-meta"
             data-testid="ask-row-rest"
           >
             {t.notNow}
-          </LinePress>
+          </span>
         ) : null}
         {it.type === "thread" ? (
-          <LinePress
-            kind="remove"
-            className="ask-row-del"
-            tabIndex={-1}
-            aria-label={t.deleteThread}
+          <span
+            {...secondAct(() => it.th && onDelete(it.th))}
+            className="line-remove ask-row-del"
             title={t.deleteThread}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (it.th) onDelete(it.th);
-            }}
             data-testid="ask-row-del"
           >
             <Icon name="x" size={10} />
-          </LinePress>
+          </span>
         ) : null}
       </div>
     );
@@ -322,6 +314,7 @@ export const AskRows = ({
     }, []);
   return (
     <div className="ask-rows" role="listbox" id="ask-rows" aria-label={t.rowsLabel}>
+      {byKeyLines(flat, t)}
       {sections.map((sec) => (
         <div
           key={sec.key}

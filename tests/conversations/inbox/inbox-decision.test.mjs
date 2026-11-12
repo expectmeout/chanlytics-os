@@ -154,6 +154,32 @@ installStubReact({ __surfaceState: () => "live", __DEMO_MODE: false });
 const S = "../../../apps/dashboard/src";
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
+const { setSurfaceValue: landOnSeam } = await import(`${S}/surfaces/surface-values.ts`);
+/**
+ * The team roster as the settings read lands it (the settings surface's `team`, bridge/surfaces/settings.ts), which a
+ * thread's holder is named from (surfaces/holder-names.ts; it was a global beside the surface, `__TEAM`). The surface is the
+ * whole read, so the rest stands beside it as a workspace with no template and no invitation holds it. No roster is the
+ * read not landed: the surface unread, as it is before any test here sets one.
+ */
+const rosterIs = (team) =>
+  landOnSeam(
+    "settings",
+    team
+      ? {
+          settings: null,
+          facts: null,
+          templatesAll: [],
+          templateVersions: [],
+          messages: [],
+          templateUse: null,
+          templateSent: null,
+          policies: null,
+          team,
+          invites: [],
+        }
+      : undefined,
+  );
+
 Object.assign(globalThis, {
   __chrome: { state: stateOf },
   __identity: { member: memberWords },
@@ -201,7 +227,7 @@ const paneOf = (thread) => {
 };
 
 test("the list: a wait reads as days, and a teammate's thread says whose it is instead of Needs you", () => {
-  globalThis.window.__TEAM = TEAM;
+  rosterIs(TEAM);
   // New to the reader: they wrote five minutes ago, and the reader last opened them an hour ago.
   const waiting = toInboxThreadVM(
     conv({ last_inbound_at: ago(5), seen_at: ago(60) }),
@@ -244,7 +270,7 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
   assert.ok(ninaWait && !ninaWait.props.className.includes("warn"), "its wait is not amber: it is not waiting on you");
   assert.equal(find(ninaRow, byTestId("thread-todo")), null, "and asks nothing of you");
 
-  globalThis.window.__TEAM = null;
+  rosterIs(null);
   assert.equal(
     textOf(find(rowOf(listOf([theirs]), "Nina Park"), byTestId("thread-theirs"))),
     "A teammate has it",
@@ -253,7 +279,7 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
 });
 
 test("the pane: a teammate's thread names who is answering, and offers no take-over and no hand-back", () => {
-  globalThis.window.__TEAM = TEAM;
+  rosterIs(TEAM);
   const tree = paneOf(toInboxThreadVM(conv({ assignee_user_id: ANA, assignee_is_me: false }), asked(), ZONE, NOW));
   // The pill their row in the list wears, in the same words, in the bar under the header: "Ana García is answering
   // this" was a sentence of its own.
@@ -274,7 +300,7 @@ test("the pane: a teammate's thread names who is answering, and offers no take-o
   );
   assert.equal(find(tree, hasClass("ix-take")), null, "no Needs you banner on a thread someone has");
   assert.equal(find(tree, byTestId("ix-needs-you")), null, "nor the dock");
-  globalThis.window.__TEAM = null;
+  rosterIs(null);
   assert.equal(
     find(
       paneOf(toInboxThreadVM(conv({ assignee_user_id: ANA, assignee_is_me: false }), asked(), ZONE, NOW)),

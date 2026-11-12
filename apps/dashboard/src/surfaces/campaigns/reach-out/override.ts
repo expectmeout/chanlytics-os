@@ -18,7 +18,7 @@ declareSurfaceValue("reach_outs", "__REACH_OUTS");
 /**
  * The reach-outs surface: the workspace's chains (GET reach-outs, without their reports, R23) as `__REACH_OUTS`, set
  * the moment they are read. Playbooks draws them as rows, and Templates its email rows from them through contracts
- * (emailTemplateRowsOf; R19: `__TEMPLATES_ALL` stays WhatsApp's for its three readers). Null when the chains could not
+ * (emailTemplateRowsOf; R19: the settings surface's `templatesAll` stays WhatsApp's for its readers). Null when the chains could not
  * be read: each page says so, never an empty list it did not read. A count of what a chain wrote is its report, read
  * when one of its rows opens, never here: this read, which every page pays, scans no audience. Its own surface, so
  * neither the moments' read nor Settings' waits on it.

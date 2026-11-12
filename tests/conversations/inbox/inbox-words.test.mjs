@@ -426,6 +426,31 @@ const { InboxList } = await import(`${S}/inbox/pages/inbox-list.tsx`);
 const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);
 const { Menu } = await import(`${S}/kit/menu/menu.tsx`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
+/**
+ * The team roster as the settings read lands it (the settings surface's `team`, bridge/surfaces/settings.ts), which a
+ * thread's holder is named from (surfaces/holder-names.ts; it was a global beside the surface, `__TEAM`). The surface is the
+ * whole read, so the rest stands beside it as a workspace with no template and no invitation holds it. No roster is the
+ * read not landed: the surface unread, as it is before any test here sets one.
+ */
+const rosterIs = (team) =>
+  setSurfaceValue(
+    "settings",
+    team
+      ? {
+          settings: null,
+          facts: null,
+          templatesAll: [],
+          templateVersions: [],
+          messages: [],
+          templateUse: null,
+          templateSent: null,
+          policies: null,
+          team,
+          invites: [],
+        }
+      : undefined,
+  );
+
 after(() => setSurfaceValue("inbox", undefined));
 /** The Inbox's approved templates, as the surface publishes them (what window.__TEMPLATES was): the composer reads them from the seam. */
 const setTemplates = (templates, templatesHeld) =>
@@ -665,7 +690,7 @@ test("the template send is the reply box's capsule: the message it will send at 
 });
 
 test("the search asks for what it searches, and a teammate's email keeps its own letters", () => {
-  globalThis.window.__TEAM = [{ userId: "u-b", email: "billing@rjcapital.io", displayName: "" }];
+  rosterIs([{ userId: "u-b", email: "billing@rjcapital.io", displayName: "" }]);
   // The list's own box is a phone's: on a desk the search is the top bar's line (page-search.ts).
   const keep = globalThis.window.matchMedia;
   globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
@@ -698,7 +723,7 @@ test("the search asks for what it searches, and a teammate's email keeps its own
     );
   } finally {
     globalThis.window.matchMedia = keep;
-    globalThis.window.__TEAM = null;
+    rosterIs(null);
   }
 });
 

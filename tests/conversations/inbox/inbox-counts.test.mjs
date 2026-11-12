@@ -197,6 +197,31 @@ const { ixSending, ixBucketOf, ixWaitsOnYou } = await import(`${S}/surfaces/inbo
 const { threadUnread } = await import(`${S}/surfaces/seen.ts`);
 const { VW_STORE } = await import(`${S}/surfaces/inbox/store.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+/**
+ * The team roster as the settings read lands it (the settings surface's `team`, bridge/surfaces/settings.ts), which a
+ * thread's holder is named from (surfaces/holder-names.ts; it was a global beside the surface, `__TEAM`). The surface is the
+ * whole read, so the rest stands beside it as a workspace with no template and no invitation holds it. No roster is the
+ * read not landed: the surface unread, as it is before any test here sets one.
+ */
+const rosterIs = (team) =>
+  setSurfaceValue(
+    "settings",
+    team
+      ? {
+          settings: null,
+          facts: null,
+          templatesAll: [],
+          templateVersions: [],
+          messages: [],
+          templateUse: null,
+          templateSent: null,
+          policies: null,
+          team,
+          invites: [],
+        }
+      : undefined,
+  );
+
 // Sent's surface, as the app registers it: its value is mirrored where the rows of runs waiting read it (window.__BROADCASTS,
 // surfaces/waits/run-acts.tsx), Today's and the Inbox's alike.
 await import(`${S}/surfaces/campaigns/broadcasts/surface.ts`);
@@ -662,7 +687,7 @@ test("the bulk snooze's Undo says they are back in the Inbox -- a snooze lets go
 /* --------------------------------- the list --------------------------------- */
 
 test("each row says whose it is -- nothing more where the bucket already says Needs you, 'You have it', 'Ana García has it' -- and asks something of you only where the wait is on you", () => {
-  globalThis.window.__TEAM = TEAM;
+  rosterIs(TEAM);
   try {
     fresh();
     const draw = (over = {}) => again(() => InboxList(listProps(over)));
@@ -712,7 +737,7 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
       "REGRESSION: a Handled row whose last reply never left looked like every other",
     );
   } finally {
-    globalThis.window.__TEAM = null;
+    rosterIs(null);
   }
 });
 

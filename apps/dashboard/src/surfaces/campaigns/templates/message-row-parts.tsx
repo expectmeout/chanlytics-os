@@ -155,7 +155,8 @@ function rowHints(row: TemplateDto | null) {
 export function closedLine(c: LineCtx) {
   const { g, mark, tag, said, saysUse, warn, aside, open, onOpen } = c;
   return (
-    <div className="msg-row-line" role="presentation" onClick={cmRowPress}>
+    // A line that wears a mark says so: its name stands a face further in, and on a phone the hairline over it starts there.
+    <div className="msg-row-line" data-marked={mark ? "" : undefined} role="presentation" onClick={cmRowPress}>
       <LinkButton
         className="msg-row-what"
         onClick={onOpen}

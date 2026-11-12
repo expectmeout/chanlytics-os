@@ -22,6 +22,7 @@ import {
   SETUP,
   W,
   drawTab,
+  landTemplates,
   marisa,
   openFold,
   openFolds,
@@ -309,19 +310,33 @@ test("a surface still being read is not a surface that failed", () => {
   // surface first, and setupOverride is 14th of 16), so a healthy workspace read "Couldn't read the
   // connections" with a Retry until it arrived. The house says it the other way round
   // (surfaces/setup, pages/settings.jsx): null is a failure, undefined is still on its way.
-  for (const global of ["__SETUP", "__POLICIES", "__TEMPLATES_ALL"]) {
+  // Each of the card's three reads, not landed yet: Setup and the policies where the tab still reads them, on the window,
+  // and WhatsApp's rows on the seam, which is their one home (landTemplates). Each answers what puts it back.
+  const onWindow = (name) => () => {
+    const was = W[name];
+    W[name] = undefined;
+    return () => (W[name] = was);
+  };
+  const unread = {
+    "the connections": onWindow("__SETUP"),
+    "the policies": onWindow("__POLICIES"),
+    "the templates": () => {
+      const was = landTemplates(undefined);
+      return () => landTemplates(was);
+    },
+  };
+  for (const [read, forget] of Object.entries(unread)) {
     drawTab({ profile: marisa });
-    const was = W[global];
+    const putBack = forget();
     try {
-      W[global] = undefined;
       const card = canCard(redrawTab());
-      assert.ok(card, `${global}: the card keeps its place`);
-      assert.ok(byTestId(card, "rec-can-reading"), `${global}: and says it is reading`);
-      assert.equal(byTestId(card, "rec-can-unread"), null, `${global}: nothing failed`);
-      assert.equal(byTestId(card, "rec-cannot-unread"), null, `${global}: nor here`);
-      assert.equal(byTestId(card, "rec-can-answer"), null, `${global}: and no row is guessed at`);
+      assert.ok(card, `${read}: the card keeps its place`);
+      assert.ok(byTestId(card, "rec-can-reading"), `${read}: and says it is reading`);
+      assert.equal(byTestId(card, "rec-can-unread"), null, `${read}: nothing failed`);
+      assert.equal(byTestId(card, "rec-cannot-unread"), null, `${read}: nor here`);
+      assert.equal(byTestId(card, "rec-can-answer"), null, `${read}: and no row is guessed at`);
     } finally {
-      W[global] = was;
+      putBack();
     }
   }
 });

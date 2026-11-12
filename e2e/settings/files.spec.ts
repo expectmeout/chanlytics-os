@@ -328,9 +328,20 @@ test.describe("Files, from a photo to a post", () => {
 /**
  * A video, for real (decision 0099, stage B): a three-second clip goes up through Stream over tus, Stream's webhook makes it a
  * file, its tile carries its length, and its pane in Content holds Stream's player; then it is deleted, which frees its minutes at Stream
- * at once. A night costs a fraction of a stored minute and a few thousandths of a cent of hearing. Only where the workspace takes
+ * at once. A run costs a fraction of a stored minute and a few thousandths of a cent of hearing. Only where the workspace takes
  * videos (`features.video_preview`): elsewhere Add offers photos alone, and this says so.
+ *
+ * Behind E2E_PAID_VIDEO=1, as a real model turn is behind E2E_PAID_MODEL and a real search behind E2E_PAID_LEADS: the clip is
+ * reserved at Stream by the edge, and the nightly's whole suite runs on a copy whose edge is a stand-in that refuses every
+ * call (tooling/scripts/e2e-harness/edge-stub.mjs), with no Stream behind it. There the journey can only fail, and it made
+ * every night red from the day it was written: a skip the ceiling counted while the copy's workspace took no videos (7 to 10
+ * Nov 2026), then "the reservation at Stream" refused once the seed turned them on (#2225). Where the edge is real, the
+ * switch runs it, and a workspace that takes no videos there is a skip the ceiling counts.
  */
+const PAID_VIDEO = process.env.E2E_PAID_VIDEO === "1";
+const WHY_NO_VIDEO =
+  "a real clip goes up at Stream through the real edge, which a copy's stand-in is not: set E2E_PAID_VIDEO=1 to run it";
+
 test.describe("Files, a video", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.setTimeout(300_000);
@@ -338,6 +349,7 @@ test.describe("Files, a video", () => {
   test("a clip goes up through Stream, is made ready with its length, plays in its pane, and is deleted", async ({
     page,
   }) => {
+    test.skip(!PAID_VIDEO, WHY_NO_VIDEO);
     await signIn(page);
     await page.goto(LIBRARY);
     await expect(page.getByTestId("cnv-library")).toBeVisible({ timeout: 30_000 });

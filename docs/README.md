@@ -27,6 +27,22 @@ them without checking the code.
 | [tree.md](tree.md)                           | What is where (generated: `node tooling/scripts/gen/docs-tree.mjs`)                                                |
 | [decisions/](decisions/README.md)            | What is decided and why, and which of it is built. A note stays once it is                                         |
 
+## What is measured
+
+No page lists the code's numbers by hand: each is measured where it runs, and an inventory of any of them is one of these
+read, not a new page.
+
+- **Every number the build holds**, on main each night: the summary of `.github/workflows/register.yml`, and its weekly
+  issue. [debt.md](debt.md) says what each one measures and what retires it.
+- **What runs on a schedule and what each run proves**: the table under "What CI proves" in [runbook.md](runbook.md). A
+  night is read as a week of them, not one run: the browser checks, the database suites, the kit and the evals each have
+  their own.
+- **What a page weighs**: CI's Build and bundle job on every pull request, each page against its ceiling, and
+  `.github/workflows/bundle-week.yml` for main beside main a week before.
+- **How long a page takes to be drawn**: for customers, the field data ("See how fast the pages are" in
+  [runbook.md](runbook.md)); for the nightly, its own log, one line a page
+  (`e2e/production/page-speed-budgets.spec.ts`), held to `tests/baselines/page-speed-budgets.json`.
+
 ## History
 
 | Folder                                             | What it holds                                                   |

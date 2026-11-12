@@ -432,6 +432,18 @@ const settings = (tab) => {
 };
 
 /** A workspace on the settings surface, in its real shape; `rules` are its stored booking rules. */
+// The workspace's facts as the settings read resolves them: the seam's alone (the bridge published them on the window
+// too, as `__FACTS`, until 11 Nov 2026), read by the Business tab's rows from there (settings/business/shell.ts).
+const FACTS = {
+  facts: {
+    business_name: { value: "Northside Studio", source: "typed" },
+    voice_line: { value: "+13055550124", source: "provisioned" },
+    phone_display: { value: formatPhoneDisplay("+13055550124"), source: "provisioned" },
+    handoff_number: { value: null, source: "absent" },
+    address: { value: null, source: "absent" },
+  },
+  conflicts: [],
+};
 const workspace = (over = {}, rules = {}) => {
   Object.assign(globalThis.window, {
     __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
@@ -447,30 +459,21 @@ const workspace = (over = {}, rules = {}) => {
         },
       },
     },
-    __FACTS: {
-      facts: {
-        business_name: { value: "Northside Studio", source: "typed" },
-        voice_line: { value: "+13055550124", source: "provisioned" },
-        phone_display: { value: formatPhoneDisplay("+13055550124"), source: "provisioned" },
-        handoff_number: { value: null, source: "absent" },
-        address: { value: null, source: "absent" },
-      },
-      conflicts: [],
-    },
-    __TEAM: [],
-    __TEAM_INVITES: [],
     __POLICIES: { role: "owner", rows: [] },
     ...over,
   });
   // The seam's settings value beside the globals it copies (bridge/surfaces/settings.ts), for the moved panes.
   setSurfaceValue("settings", {
     settings: globalThis.window.__SETTINGS ?? null,
-    facts: globalThis.window.__FACTS ?? null,
+    facts: FACTS,
     channels: null,
     templatesAll: null,
     templateUse: null,
     templateSent: null,
     policies: globalThis.window.__POLICIES ?? null,
+    // The roster and its invitations, read and empty: the seam's alone.
+    team: [],
+    invites: [],
   });
 };
 

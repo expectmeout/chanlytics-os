@@ -154,7 +154,6 @@ const page = ({
 } = {}) => {
   W.ST_STORE.can = (a) => !!contracts.ROLE_PERMS[role][a];
   W.ST_STORE.myRole = () => role;
-  W.__TEMPLATES_ALL = rows;
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: BIZ } }, reviewLink },
     facts: null,
