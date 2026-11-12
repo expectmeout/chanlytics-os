@@ -141,10 +141,7 @@ export interface WhoReads {
 }
 
 /** The sequence already on a moment, a list or a search, which a second would double. */
-export function runningOn(
-  running: readonly SequenceRowDto[],
-  f: (r: SequenceRowDto) => boolean,
-): SequenceRowDto | null {
+function runningOn(running: readonly SequenceRowDto[], f: (r: SequenceRowDto) => boolean): SequenceRowDto | null {
   return running.find((r) => r.state !== "ended" && f(r)) ?? null;
 }
 
